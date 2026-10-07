@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { LineStatus } from '../../../lib/exams/cheatSheet';
+import { localDayOf, type LineStatus } from '../../../lib/exams/cheatSheet';
+import { formatShortDay } from '../../../lib/exams/format';
 import {
   blockNote,
   changeNote,
@@ -11,6 +12,7 @@ import {
   historyLine,
   lineLabel,
   lineNote,
+  lineSpeech,
   priceLine,
   writeStatusNote,
   writtenLabel,
@@ -29,6 +31,7 @@ function status(extra: Partial<LineStatus>): LineStatus {
     lastNamedAt: null,
     dueAt: null,
     wasErasedOn: null,
+    wasErasedAt: null,
     peekedToday: false,
     checks: 0,
     ...extra,
@@ -115,10 +118,13 @@ describe('cheat sheet words', () => {
     const rubbed = status({ state: 'rubbed', erasableFrom: new Date(2026, 9, 6, 15, 40).toISOString() });
     expect(plain(erasableSentence(rubbed, new Date(2026, 9, 6, 9, 0).getTime()))).toBe('Сотрётся совсем, если назовёте пункт снова после 6 окт., 15:40.');
     expect(erasableSentence(rubbed, new Date(2026, 9, 6, 15, 41).getTime())).toBe('Назовёте пункт в ответе снова — сотрётся совсем.');
+    // A screen reader hears whole month names, and that Enter opens the details (where «Подсмотреть» is).
     expect(plain(lineLabel('цена ↑', rubbed, true, new Date(2026, 9, 6, 9, 0).getTime()))).toBe(
-      'Строка главного пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова после 6 окт., 15:40. Подсмотреть',
+      'Строка главного пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова после 6 октября, 15:40. Открыть подробности',
     );
-    expect(lineLabel('цена ↑', rubbed, true, new Date(2026, 9, 7, 9, 0).getTime())).toBe('Строка главного пункта стёрта наполовину; назовёте пункт в ответе снова — сотрётся совсем. Подсмотреть');
+    expect(lineLabel('цена ↑', rubbed, true, new Date(2026, 9, 7, 9, 0).getTime())).toBe(
+      'Строка главного пункта стёрта наполовину; назовёте пункт в ответе снова — сотрётся совсем. Открыть подробности',
+    );
     expect(erasableSentence(status({ state: 'fresh' }))).toBeNull();
   });
 
@@ -126,22 +132,45 @@ describe('cheat sheet words', () => {
     const nextDay = status({ state: 'rubbed', erasableFrom: new Date(2026, 9, 8, 0, 0).toISOString() });
     expect(plain(erasableSentence(nextDay, new Date(2026, 9, 7, 9, 0).getTime()))).toBe('Сотрётся совсем, если назовёте пункт снова 8 окт. или позже.');
     expect(plain(lineLabel('x', nextDay, false, new Date(2026, 9, 7, 9, 0).getTime()))).toBe(
-      'Строка пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова 8 окт. или позже. Подсмотреть',
+      'Строка пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова 8 октября или позже. Открыть подробности',
     );
     expect(erasableSentence(nextDay, new Date(2026, 9, 8, 0, 1).getTime())).toBe('Назовёте пункт в ответе снова — сотрётся совсем.');
   });
 
   it('gives a screen reader the words only where the eye can read them', () => {
-    expect(lineLabel('цена ↑ → спрос ↓', status({ state: 'fresh' }), true)).toBe('Главный пункт: цена ↑ → спрос ↓');
     const rubbed = lineLabel('цена ↑ → спрос ↓', status({ state: 'rubbed' }), false);
     expect(rubbed).not.toContain('цена');
-    expect(rubbed).toContain('Подсмотреть');
+    expect(rubbed).toContain('Открыть подробности');
     // A line is erased, a point is named.
-    expect(plain(lineLabel('x', status({ state: 'erased', erasedOn: '2026-10-04' }), false))).toBe('Строка пункта стёрта 4 окт.');
-    expect(plain(lineLabel('x', status({ state: 'due', erasedOn: '2026-09-20' }), true))).toBe('Строка главного пункта стёрта 20 сент., пора проверить. Подсмотреть');
+    expect(plain(lineLabel('x', status({ state: 'erased', erasedOn: '2026-10-04' }), false))).toBe('Строка пункта стёрта 4 октября');
+    expect(plain(lineLabel('x', status({ state: 'due', erasedOn: '2026-09-20' }), true))).toBe('Строка главного пункта стёрта 20 сентября, пора проверить. Открыть подробности');
+  });
+
+  it('names a readable line by the words it shows, and describes the rest (speech input says what it sees)', () => {
+    const line = { text: 'цена ↑ → спрос ↓', title: 'Закон спроса: чем выше цена, тем меньше спрос.', essential: true };
+    expect(lineSpeech(line, status({ state: 'fresh' }))).toEqual({ name: 'цена ↑ → спрос ↓', description: 'Главный пункт. Полностью: Закон спроса: чем выше цена, тем меньше спрос.' });
+    const missed = status({ state: 'missed', history: [{ at: '', date: '2026-10-06', outcome: 'missed', word: 'mentioned', sessionId: null }] });
+    expect(lineSpeech({ ...line, text: line.title, essential: false }, missed)).toEqual({ name: line.title, description: 'Пункт. 6 октября только упомянут.' });
+    // Uncovered now: named by its words, with the peek's note.
+    expect(lineSpeech(line, status({ state: 'rubbed' }), true).description).toBe('Главный пункт. Полностью: Закон спроса: чем выше цена, тем меньше спрос. Подсмотрели — сегодня не сотрётся.');
+    // A rubbed line has no words to say.
+    expect(lineSpeech(line, status({ state: 'rubbed' }))).toMatchObject({ description: null });
+    expect(lineSpeech(line, status({ state: 'rubbed' })).name).not.toContain('цена');
+  });
+
+  it('names the same day in a note as the line’s history does with its time (after a change of time zone too)', () => {
+    const at = '2026-10-06T21:30:00.000Z';
+    const missed = status({ state: 'missed', history: [{ at, date: '2026-10-09', outcome: 'missed', word: 'missing', sessionId: null }] });
+    // The day the history shows for 21:30 UTC here, not the day recorded where the answer was given.
+    expect(plain(lineNote(missed))).toBe(`${formatShortDay(localDayOf(Date.parse(at)))} не назван`);
   });
 
   const none = { erased: 0, rubbed: 0, checked: 0, returned: 0, stayed: 0 };
+
+  it('dates a replayed answer of another day', () => {
+    expect(plain(changeSentence({ ...none, checked: 1 }, '2026-10-04'))).toBe('После ответа 4 окт.: 1 строка прошла проверку.');
+    expect(plain(changeSentence(none, '2026-10-04'))).toBe('После ответа 4 окт. строки не изменились.');
+  });
 
   it('tells what an answer did, the noun once; «— наполовину» only after «стёрлись»', () => {
     expect(plain(changeSentence({ ...none, erased: 2, rubbed: 3, returned: 1 }))).toBe('После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.');
@@ -177,6 +206,10 @@ describe('cheat sheet words', () => {
       '2 строки названы снова в тот же день или меньше чем через 20 часов: сотрутся совсем, если назовёте их после 6 окт., 15:40.',
     );
     expect(changeNote({ ...none, rubbed: 1 }, { kind: 'peek' })).toBe('Подсмотренное сегодня ответ не стирает.');
+    // Named too soon, and another line after a peek: both said.
+    expect(plain(changeNote(none, { kind: 'wait', from, count: 1, why: 'hours', peek: true }, now))).toBe(
+      '1 строка названа снова меньше чем через 20 часов: сотрётся совсем, если назовёте её после 6 окт., 15:40. Подсмотренное сегодня ответ не стирает.',
+    );
     // Lines named when already erased need a word only when nothing else changed.
     expect(changeNote(none, { kind: 'erased' })).toBe('Названные пункты уже стёрты.');
     expect(changeNote({ ...none, rubbed: 1 }, { kind: 'erased' })).toBeNull();
@@ -193,6 +226,9 @@ describe('cheat sheet words', () => {
     expect(protocolSheetLine(none, { kind: 'wait', from, count: 1, why: 'day' })).toBe('На шпаргалке строки не изменились: названо снова в тот же день');
     expect(protocolSheetLine(none, { kind: 'wait', from, count: 2, why: 'hours' })).toBe('На шпаргалке строки не изменились: названо снова меньше чем через 20 часов');
     expect(protocolSheetLine(none, { kind: 'peek' })).toBe('На шпаргалке строки не изменились: подсмотренное в тот же день не стирается');
+    expect(protocolSheetLine(none, { kind: 'wait', from, count: 1, why: 'hours', peek: true })).toBe(
+      'На шпаргалке строки не изменились: названо снова меньше чем через 20 часов или после подсматривания',
+    );
     expect(protocolSheetLine(none, { kind: 'erased' })).toBe('На шпаргалке строки не изменились: названные пункты уже стёрты');
   });
 

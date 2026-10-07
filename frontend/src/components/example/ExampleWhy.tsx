@@ -40,6 +40,8 @@ interface ExampleWhyProps {
   variant: 'column' | 'sheet';
   frameBox?: FrameBox;
   headingId: string;
+  /** Opened from a printed line of the cheat sheet: the heading takes the keyboard. */
+  focusHeading?: boolean;
   onClose: () => void;
   /** «Ответить на этот вопрос». */
   onAnswer: (questionId: string) => void;
@@ -53,7 +55,7 @@ interface ExampleWhyProps {
  * into a real exam of an account — the lectures, the answers, a mark by hand — so it is not reused
  * as it is); the bottom sheet behaves the same: the handle, the scrim, Esc, the focus kept inside.
  */
-export default function ExampleWhy({ question, variant, frameBox, headingId, onClose, onAnswer }: ExampleWhyProps) {
+export default function ExampleWhy({ question, variant, frameBox, headingId, onClose, onAnswer, focusHeading = false }: ExampleWhyProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dragStart = useRef<number | null>(null);
@@ -62,6 +64,8 @@ export default function ExampleWhy({ question, variant, frameBox, headingId, onC
 
   useEffect(() => {
     if (sheet) closeRef.current?.focus();
+    else if (focusHeading) document.getElementById(headingId)?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheet, question.id]);
 
   useEffect(() => {
@@ -132,7 +136,9 @@ export default function ExampleWhy({ question, variant, frameBox, headingId, onC
   const content = (
     <>
       <p className="ex-why-t">Вопрос {question.number}</p>
-      <h3 id={headingId}>{glue(title)}</h3>
+      <h3 id={headingId} tabIndex={focusHeading && !sheet ? -1 : undefined}>
+        {glue(title)}
+      </h3>
       {lead.map((line) => (
         <p key={line} className="ex-stmt">
           {glue(line)}

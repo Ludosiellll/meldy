@@ -73,7 +73,7 @@ function props(blocks: SheetBlock[], extra: Partial<CheatSheetProps> = {}): Chea
     selectedKey: null,
     peeked: new Map(),
     opened: new Set(),
-    markedQuestionId: null,
+    markedQuestionIds: new Set<string>(),
     replay: null,
     onLine: vi.fn(),
     onQuestion: vi.fn(),
@@ -116,8 +116,11 @@ describe('the cheat sheet', () => {
     const q1 = question(1);
     const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY), named(q1, 'p2', NOW - DAY, false)], NOW);
     const { container } = renderSheet(props(sheet.blocks));
-    expect(screen.getByRole('region', { name: 'Шпаргалка' })).toBeInTheDocument();
+    // No section titles: the questions still sit under a second-level heading of their own.
+    expect(screen.getByRole('heading', { level: 2, name: 'Шпаргалка' })).toBeInTheDocument();
     const first = screen.getAllByRole('article')[0];
+    // An article is named by its number, not by the whole question read twice.
+    expect(first).toHaveAccessibleName('Вопрос 1.');
     expect(within(first).getByRole('heading', { level: 3 })).toHaveTextContent('Вопрос 1. 1.Спрос. Закон спроса и кривая спроса.');
     const lines = container.querySelectorAll<HTMLElement>('.cs-line');
     expect(lines).toHaveLength(6);
@@ -126,8 +129,13 @@ describe('the cheat sheet', () => {
     expect(lines[2].dataset.state).toBe('fresh');
     const rubbed = within(lines[0]).getByRole('button');
     expect(rubbed.getAttribute('aria-label')).not.toContain('Закон спроса');
-    expect(rubbed.getAttribute('aria-label')).toContain('Подсмотреть');
-    expect(within(lines[2]).getByRole('button')).toHaveAccessibleName('Пункт: Неценовые факторы сдвигают кривую спроса');
+    expect(rubbed.getAttribute('aria-label')).toContain('Открыть подробности');
+    // A readable line is named by the words it shows (speech input says them), described by the rest.
+    expect(within(lines[2]).getByRole('button')).toHaveAccessibleName('Неценовые факторы сдвигают кривую спроса');
+    expect(within(lines[2]).getByRole('button')).toHaveAccessibleDescription('Пункт.');
+    expect(within(lines[1]).getByRole('button')).toHaveAccessibleDescription(/4 октября не назван\.$/);
+    // The pencil note is for the eye: the description says it already.
+    expect(lines[1].querySelector('.cs-note')).toHaveAttribute('aria-hidden', 'true');
     // The short line is written, its arrows drawn in ink with the character kept for copying.
     expect(lines[2].querySelector('.cs-ink')).toHaveTextContent('Неценовые факторы сдвигают кривую спроса');
     expect(lines[0].querySelectorAll('.cs-arrow')).toHaveLength(3);
@@ -178,7 +186,8 @@ describe('the cheat sheet', () => {
     const { container } = renderSheet(props(sheet.blocks, { peeked }));
     const line = container.querySelectorAll<HTMLElement>('.cs-line')[0];
     expect(line.dataset.peek).toBe('');
-    expect(within(line).getByRole('button')).toHaveAccessibleName(`Главный пункт: ${POINTS[0].title}`);
+    expect(within(line).getByRole('button')).toHaveAccessibleName(POINTS[0].short);
+    expect(within(line).getByRole('button')).toHaveAccessibleDescription(`Главный пункт. Полностью: ${POINTS[0].title}. Подсмотрели — сегодня не сотрётся.`);
     expect(line.querySelector('.cs-note')).toHaveTextContent('подсмотрели — сегодня не сотрётся');
   });
 
@@ -217,10 +226,12 @@ describe('the cheat sheet', () => {
     const gap = question(2, { coverage: 'none', rubric: null, section: 2 });
     const sheet = buildSheet([question(1, { section: 1 }), gap, question(3, { section: 2, coverage: 'partial', missing_note: 'товаров Гиффена' })], [], NOW);
     renderSheet(props(sheet.blocks, { sectionTitles: ['Спрос', 'Эластичность'] }));
-    expect(screen.getByText('Спрос')).toHaveClass('cs-sec');
+    // A section's title is a heading of its own, before its first question.
+    expect(screen.getByRole('heading', { level: 2, name: 'Спрос' })).toHaveClass('cs-sec');
+    expect(screen.queryByRole('heading', { level: 2, name: 'Шпаргалка' })).toBeNull();
     expect(screen.getAllByText('Эластичность')).toHaveLength(1);
     const note = screen.getByText(/нет фрагмента об этом/);
-    expect(note.textContent?.replace(/ /g, ' ')).toBe('Ни в одной из 3 лекций нет фрагмента об этом Добавить лекцию');
+    expect(note.textContent?.replace(/ /g, ' ')).toBe('Ни в одной из 3 лекций нет фрагмента об этом · Добавить лекцию');
     expect(within(note).getByRole('link', { name: 'Добавить лекцию' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
     expect(screen.getByText('Не хватает: товаров Гиффена')).toBeInTheDocument();
   });
@@ -240,8 +251,8 @@ describe('the cheat sheet', () => {
     const before = sheetWithout([q1], [...earlier, ...answer], 'last', NOW);
     const changes = sheetChanges(before, after);
     expect(changes.map((change) => `${change.from}>${change.to}`)).toEqual(['rubbed>erased', 'fresh>rubbed', 'fresh>missed']);
-    const replay: SheetReplay = { token: 7, changes, focusQuestionId: 'q1', slow: false, waitForClick: false };
-    const p = props(after.blocks, { replay, markedQuestionId: 'q1' });
+    const replay: SheetReplay = { token: 7, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false };
+    const p = props(after.blocks, { replay, markedQuestionIds: new Set(['q1']) });
     const { container } = renderSheet(p);
     const lines = () => [...container.querySelectorAll<HTMLElement>('.cs-line')];
     // Before anything moves, the lines stand as they were before the answer.
@@ -270,7 +281,7 @@ describe('the cheat sheet', () => {
     const after = buildSheet([q1], [...earlier, ...answer], NOW);
     const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
     const onlyLeft = { onlyLeft: true, cover: false, zoom: false };
-    const p = props(after.blocks, { mode: onlyLeft, replay: { token: 5, changes, focusQuestionId: 'q1', slow: false, waitForClick: false } });
+    const p = props(after.blocks, { mode: onlyLeft, replay: { token: 5, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } });
     const { container, rerender } = renderSheet(p);
     const states = () => [...container.querySelectorAll<HTMLElement>('.cs-line')].map((line) => line.dataset.state);
     expect(states()).toEqual(['rubbed', 'fresh', 'fresh']);
@@ -296,7 +307,7 @@ describe('the cheat sheet', () => {
     const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
     const after = buildSheet([q1], answer, NOW);
     const changes = sheetChanges(sheetWithout([q1], answer, 'last', NOW), after);
-    const p = props(after.blocks, { replay: { token: 3, changes, focusQuestionId: 'q1', slow: false, waitForClick: false } });
+    const p = props(after.blocks, { replay: { token: 3, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } });
     renderSheet(p);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(50);
@@ -311,7 +322,7 @@ describe('the cheat sheet', () => {
     const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
     const after = buildSheet([q1], answer, NOW);
     const changes = sheetChanges(sheetWithout([q1], answer, 'last', NOW), after);
-    const p = props(after.blocks, { replay: { token: 4, changes, focusQuestionId: 'q1', slow: true, waitForClick: true } });
+    const p = props(after.blocks, { replay: { token: 4, changes, focusQuestionIds: ['q1'], slow: true, waitForClick: true } });
     const { container } = renderSheet(p);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);

@@ -217,6 +217,15 @@ function count(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }
 
+async function sendWaitingPeeks(): Promise<void> {
+  try {
+    const { flushSheetPeeks } = await import('../../api/learning');
+    await Promise.race([flushSheetPeeks(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+  } catch {
+    // The answer is saved all the same.
+  }
+}
+
 /** Attempts already charged in this page's life: a retry that the server answers as a duplicate is not charged twice. */
 const charged = new Set<string>();
 
@@ -230,6 +239,9 @@ export async function saveOralAttempt(userId: string | null, payload: OralAttemp
     // The client is a file of its own: the example exam (/try) shows the answer screen without an
     // account and never saves, so it does not load it.
     const { supabase } = await import('../supabase');
+    // A peek of the cheat sheet not saved yet goes first (at most 2.5 s): saved after the answer, it would
+    // not keep today's answer from erasing the line that was read.
+    await sendWaitingPeeks();
     response = await supabase.rpc('record_oral_attempt', { p_attempt: payload });
   } catch {
     throw new OralSaveError('network');

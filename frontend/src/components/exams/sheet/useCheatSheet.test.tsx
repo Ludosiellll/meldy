@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   fetchSheet: vi.fn(),
   fetchSheetEvents: vi.fn(),
   recordSheetPeek: vi.fn(),
+  flushSheetPeeks: vi.fn(),
   track: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ vi.mock('../../../api/learning', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../api/learning')>()),
   fetchSheetEvents: (...args: unknown[]) => mocks.fetchSheetEvents(...args),
   recordSheetPeek: (...args: unknown[]) => mocks.recordSheetPeek(...args),
+  flushSheetPeeks: () => mocks.flushSheetPeeks(),
 }));
 vi.mock('../../../api/cheatSheet', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../api/cheatSheet')>()),
@@ -99,6 +101,7 @@ beforeEach(() => {
   mocks.fetchSheet.mockReset();
   mocks.fetchSheetEvents.mockReset().mockResolvedValue([]);
   mocks.recordSheetPeek.mockReset().mockResolvedValue(undefined);
+  mocks.flushSheetPeeks.mockReset().mockResolvedValue(0);
   mocks.track.mockReset();
 });
 
@@ -234,25 +237,34 @@ describe('useCheatSheet', () => {
     stream.close();
   });
 
-  it('shows a peek at once, writes it to the journal and tries once more when that fails', async () => {
+  it('shows a peek at once and writes it to the journal; one not saved is sent once more, and the page says so if it still is not', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mocks.fetchSheet.mockResolvedValue(response([question('q1', 1, { rubric: rubric('cccccccc-cccc-4ccc-8ccc-cccccccccccc', ['Пункт']) })]));
-    mocks.recordSheetPeek.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+    mocks.recordSheetPeek.mockRejectedValueOnce(new Error('offline'));
     const { result } = renderHook(() => useCheatSheet(EXAM));
     await waitFor(() => expect(result.current.eventsState).toBe('ready'));
+    // Peeks left from an earlier visit are sent when the sheet opens.
+    expect(mocks.flushSheetPeeks).toHaveBeenCalledTimes(1);
     const line = result.current.sheet.blocks[0].lines[0];
 
+    mocks.flushSheetPeeks.mockResolvedValueOnce(1);
     act(() => result.current.peek(line));
     const local = result.current.events.filter((event) => event.kind === 'sheet_peek');
     expect(local).toHaveLength(1);
     expect(local[0].item_key).toBe(`peek:${line.rubricId}:${line.pointId}`);
     expect(mocks.track).toHaveBeenCalledWith('sheet_peek', { state: line.status.state });
     expect(mocks.recordSheetPeek).toHaveBeenCalledTimes(1);
+    expect(result.current.peekSaveFailed).toBe(false);
+    // Not saved: it waits on the device and is sent once more in a moment; still not saved, the page says so.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1600);
     });
-    expect(mocks.recordSheetPeek).toHaveBeenCalledTimes(2);
-    expect(mocks.recordSheetPeek.mock.calls[1][0]).toEqual(mocks.recordSheetPeek.mock.calls[0][0]);
+    expect(mocks.flushSheetPeeks).toHaveBeenCalledTimes(2);
+    expect(result.current.peekSaveFailed).toBe(true);
+    // «Повторить»: saved now.
+    act(() => result.current.retryPeeks());
+    await waitFor(() => expect(result.current.peekSaveFailed).toBe(false));
+    expect(mocks.flushSheetPeeks).toHaveBeenCalledTimes(3);
   });
 
   it('keeps a peek that the next read of the journal does not have yet', async () => {

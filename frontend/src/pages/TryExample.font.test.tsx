@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const font = vi.hoisted(() => {
@@ -41,13 +41,13 @@ describe('the sheet waits for its handwriting', () => {
     );
     // The count is known already; the paper (whose lines would wrap anew under a late font) waits.
     expect(screen.getByText('Загружаем шпаргалку…')).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Шпаргалка' })).toBeNull();
+    expect(document.querySelector('.cs-paper')).toBeNull();
     expect(document.querySelector('.cs-big')?.textContent).toBe('47');
     await act(async () => {
       font.state.resolve();
       await font.ready;
     });
-    expect(await screen.findByRole('region', { name: 'Шпаргалка' })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('.cs-paper')).not.toBeNull());
     expect(screen.queryByText('Загружаем шпаргалку…')).toBeNull();
   });
 });

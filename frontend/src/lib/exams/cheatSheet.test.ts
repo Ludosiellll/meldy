@@ -15,7 +15,9 @@ import {
   quietReason,
   sheetChanges,
   sheetHashes,
+  HISTORY_MAX_FRAMES,
   sheetHistory,
+  sheetsAround,
   sheetWithout,
   type SheetQuestion,
   type SheetRubric,
@@ -255,6 +257,33 @@ describe('lineStatus: when an erased line is checked again', () => {
     expect(twice.dueAt).toBe(new Date(Date.parse(local('2026-09-20T10:00:00')) + 25 * 86_400_000).toISOString());
   });
 
+  it('a naming before the check is due is no check: the line waits its stage again from that naming', () => {
+    // Erased on 2 Sep; due on 7 Sep. Named on 4 Sep: still erased, the same stage, due 5 days after 4 Sep.
+    const early = [...erasedOn('01'), point(local('2026-09-04T10:00:00'), true)];
+    const status = lineStatus(early, Date.parse(local('2026-09-05T10:00:00')));
+    expect(status).toMatchObject({ state: 'erased', checks: 0 });
+    expect(status.dueAt).toBe(new Date(Date.parse(local('2026-09-04T10:00:00')) + 5 * 86_400_000).toISOString());
+    // Named when due (9 Sep, 10:00): the check passes, the next one is 12 days later.
+    const checked = lineStatus([...early, point(local('2026-09-09T10:00:00'), true)], Date.parse(local('2026-09-10T10:00:00')));
+    expect(checked).toMatchObject({ state: 'erased', checks: 1 });
+    expect(checked.dueAt).toBe(new Date(Date.parse(local('2026-09-09T10:00:00')) + 12 * 86_400_000).toISOString());
+  });
+
+  it('five days in a row are no three checks: the next check is 5 days after the last naming', () => {
+    const days = ['01', '02', '03', '04', '05'].map((day) => point(local(`2026-09-${day}T10:00:00`), true));
+    const status = lineStatus(days, Date.parse(local('2026-09-06T10:00:00')));
+    expect(status).toMatchObject({ state: 'erased', checks: 0 });
+    expect(status.dueAt).toBe(new Date(Date.parse(local('2026-09-05T10:00:00')) + 5 * 86_400_000).toISOString());
+  });
+
+  it('in the last days before the exam a line not named for 4 days passes its check when named', () => {
+    // Erased on 4 Oct; the exam is on 10 Oct: on 8 Oct, 4 days after the last naming, it is due.
+    const events = [point(local('2026-10-03T10:00:00'), true), point(local('2026-10-04T10:00:00'), true), point(local('2026-10-08T11:00:00'), true)];
+    expect(lineStatus(events, Date.parse(local('2026-10-08T12:00:00')), { examDate: '2026-10-10' })).toMatchObject({ state: 'erased', checks: 1 });
+    // Without the exam that close it was not due yet: no check.
+    expect(lineStatus(events, Date.parse(local('2026-10-08T12:00:00')), { examDate: '2026-10-30' })).toMatchObject({ state: 'erased', checks: 0 });
+  });
+
   it('a second naming the same day is not a check', () => {
     const status = lineStatus([...erasedOn('01'), point(local('2026-09-02T18:00:00'), true)], Date.parse(local('2026-09-03T10:00:00')));
     expect(status.checks).toBe(0);
@@ -319,6 +348,26 @@ const TWO: Array<[string, boolean]> = [
 ];
 
 describe('buildSheet', () => {
+  it('one answer names a point once, even when two points of a rebuilt rubric have the same words', () => {
+    const twin = 'Цена растёт при росте спроса';
+    const qs = [question(1, { rubric: rubric('r1', [[twin, true], ['Другое', false], [twin, false]]) })];
+    // An old rubric's answer: its two points with these words, one named, one missed — at the same minute.
+    const old = [
+      point(local('2026-10-04T10:00:00'), true, { session: 's', rubric: 'r0', point: 'p2', title: twin }),
+      point(local('2026-10-04T10:00:00'), false, { session: 's', rubric: 'r0', point: 'p5', title: twin }),
+    ];
+    const lines = buildSheet(qs, old, NOW).blocks[0].lines;
+    expect(lines[0].status.history).toHaveLength(1);
+    expect(lines[2].status.history).toHaveLength(1);
+    // With the same point ids, each line keeps its own.
+    const same = [
+      point(local('2026-10-04T10:00:00'), true, { session: 't', rubric: 'r0', point: 'p1', title: twin }),
+      point(local('2026-10-04T10:00:00'), false, { session: 't', rubric: 'r0', point: 'p3', title: twin }),
+    ];
+    const own = buildSheet(qs, same, NOW).blocks[0].lines;
+    expect([own[0].status.state, own[2].status.state]).toEqual(['rubbed', 'missed']);
+  });
+
   it('orders blocks as the department does and picks each block kind', () => {
     const sheet = buildSheet(
       [
@@ -565,6 +614,41 @@ describe('after an answer, and the history', () => {
     expect(quietReason(buildSheet(qs, events, NOW), new Set(['c']))).toMatchObject({ kind: 'wait', count: 2, why: 'both' });
   });
 
+  it('a naming blocked by a peek is said together with the lines named too soon', () => {
+    // p1 named at 18:00 and again this morning, too soon; p2 named 23 hours ago — it would erase, but
+    // it was uncovered this morning.
+    const p2Title = 'Кривая спроса идёт вниз';
+    const events = [
+      point(local('2026-10-04T18:00:00'), true, { session: 'a', point: 'p1' }),
+      point(local('2026-10-04T10:00:00'), true, { session: 'a0', point: 'p2', title: p2Title }),
+      peek(local('2026-10-05T08:00:00'), { point: 'p2', title: p2Title }),
+      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p1' }),
+      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p2', title: p2Title }),
+    ];
+    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true], [p2Title, false]]) })];
+    expect(quietReason(buildSheet(qs, events, NOW), new Set(['c']))).toEqual({ kind: 'wait', from: local('2026-10-05T14:00:00'), count: 1, why: 'hours', peek: true });
+  });
+
+  it('replays an answer as of its own moment: a passed check stays a passed check weeks later', () => {
+    // Erased on 25 Sep, due on 30 Sep, named on 4 Oct: the check passed. By 20 Oct it is due again.
+    const checkEvents = [
+      point(local('2026-09-24T10:00:00'), true, { session: 'a' }),
+      point(local('2026-09-25T10:00:00'), true, { session: 'b' }),
+      point(local('2026-10-04T10:00:00'), true, { session: 'c' }),
+    ];
+    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true]]) })];
+    const later = Date.parse(local('2026-10-20T10:00:00'));
+    expect(buildSheet(qs, checkEvents, later).blocks[0].lines[0].status.state).toBe('due');
+    const around = sheetsAround(qs, checkEvents, new Set(['c']));
+    expect(around?.at).toBe(Date.parse(local('2026-10-04T10:00:00')));
+    const changes = sheetChanges(around!.before, around!.after);
+    expect(changes.map(({ from, to }) => [from, to])).toEqual([['due', 'erased']]);
+    expect(changeSummary(changes)).toMatchObject({ checked: 1 });
+    // Later answers and peeks are not part of it; a session without events has nothing to replay.
+    expect(sheetsAround(qs, [...checkEvents, peek(local('2026-10-05T08:00:00'))], new Set(['c']))?.after.blocks[0].lines[0].status.peekedToday).toBe(false);
+    expect(sheetsAround(qs, checkEvents, new Set(['nope']))).toBeNull();
+  });
+
   it('has nothing to replay without answers', () => {
     expect(lastAnswerSession(buildSheet(questions, [], NOW))).toBeNull();
   });
@@ -576,6 +660,25 @@ describe('after an answer, and the history', () => {
     expect(frames[1]).toMatchObject({ left: 1, total: 2 });
     expect(sheetHistory(questions, [], NOW)).toEqual([]);
   });
+
+  it('a long history is shown by at most 50 days spread over it, from the first answer to today', () => {
+    const long = [point(local('2025-09-01T10:00:00'), true, { session: 'old' }), ...events];
+    const frames = sheetHistory(questions, long, NOW);
+    expect(frames.length).toBeLessThanOrEqual(HISTORY_MAX_FRAMES);
+    expect(frames[0].day).toBe('2025-09-01');
+    expect(frames[frames.length - 1]).toMatchObject({ day: '2026-10-05', left: buildSheet(questions, long, NOW).counts.left });
+    expect(frames.map((frame) => frame.day)).toEqual([...frames.map((frame) => frame.day)].sort());
+  });
+
+  it('starts at the first answer of a line on the sheet, and never ends before the newest answer', () => {
+    // An answer to a point the sheet no longer has does not start the history.
+    const other = point(local('2026-09-01T10:00:00'), true, { session: 'x', point: 'p9', title: 'Пункт, которого на листе нет' });
+    expect(sheetHistory(questions, [other, ...events], NOW)[0].day).toBe('2026-10-03');
+    // The device clock 30 s behind the server: the answer just saved is still in the last frame.
+    const fresh = point(new Date(NOW + 30_000).toISOString(), true, { session: 's3', point: 'p2', title: TWO[1][0] });
+    const frames = sheetHistory(questions, [...events, fresh], NOW);
+    expect(frames[frames.length - 1].left).toBe(buildSheet(questions, [...events, fresh], NOW + 30_000).counts.left);
+  });
 });
 
 describe('normalizeTitle', () => {
@@ -583,5 +686,11 @@ describe('normalizeTitle', () => {
     expect(normalizeTitle('Закон  спроса: чем выше цена!')).toBe('закон спроса чем выше цена');
     expect(normalizeTitle('Ёмкость рынка')).toBe('емкость рынка');
     expect(normalizeTitle(undefined)).toBe('');
+  });
+
+  it('keeps the signs that carry the meaning: «P > MC» and «P < MC» are two points', () => {
+    expect(normalizeTitle('При P > MC фирма расширяет выпуск')).not.toBe(normalizeTitle('При P < MC фирма расширяет выпуск'));
+    expect(normalizeTitle('При P>MC фирма')).toBe(normalizeTitle('При P > MC фирма'));
+    expect(normalizeTitle('Цена ↑ → спрос ↓')).toBe('цена ↑ → спрос ↓');
   });
 });

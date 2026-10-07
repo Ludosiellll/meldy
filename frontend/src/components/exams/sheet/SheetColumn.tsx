@@ -88,6 +88,8 @@ export function RollingNumber({ value, roll }: { value: number; roll: boolean })
 // ── The summary card ───────────────────────────────────────────────────────────────────────
 
 export interface SheetSummaryProps {
+  /** The card the paper's «К счётчику и переключателям» leads to. */
+  id?: string;
   counts: SheetCounts;
   /** The counter's number now (during a replay: the count before the answer). */
   left: number;
@@ -106,12 +108,17 @@ export interface SheetSummaryProps {
   onReplay: (() => void) | null;
   /** «История листа» (null: no history yet). */
   onHistory: (() => void) | null;
-  history: { frame: HistoryFrame; first: HistoryFrame; running: boolean } | null;
+  history: { frame: HistoryFrame; first: HistoryFrame; lowest: number; running: boolean } | null;
   onHistoryStop: () => void;
+  /** «Показ на проекторе»: the paper waits; «Показать, что изменилось» stands where the links are. */
+  onShow?: (() => void) | null;
+  /** A word that something went wrong (a peek not saved), under the change. */
+  notice?: ReactNode;
   /**
    * full — the column beside the sheet; on a phone the card is cut in two: top — the count and «Только
-   * то, что осталось» above the paper, after — the share, the self-test, the last answer and the history
-   * under it.
+   * то, что осталось» in one row above the paper (the paper's lines on the first screen), after — what
+   * the count means, the last answer's change, the rule, the share, the self-test, the last answer and
+   * the history under it.
    */
   variant?: 'full' | 'top' | 'after';
 }
@@ -133,40 +140,76 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
   const shownLeft = history ? history.frame.left : props.left;
   const shownTotal = history ? history.frame.total : counts.total;
   const showCount = variant !== 'after' && counts.total > 0;
+  const explains = variant !== 'top';
   // Writing a sheet nothing has touched yet: «12 строк написано», not «12 строк осталось из 12».
   const firstLines = Boolean(props.writing) && !history && counts.left === counts.total && counts.rubbed === 0;
   const countLabel = firstLines ? writtenLabel(counts.total) : counterLabel({ left: shownLeft, total: shownTotal });
   const countValue = firstLines ? counts.total : shownLeft;
   const playing = Boolean(history?.running);
-  const acts = (props.onReplay || props.onHistory || history) && (variant !== 'top' || playing) && (
+
+  // The keyboard follows the buttons that replace each other («История шпаргалки» → «Остановить» →
+  // «Закрыть историю» → «История шпаргалки»), when it stood on them (not when it is elsewhere).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const stopRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const historyRef = useRef<HTMLButtonElement>(null);
+  const hasHistory = Boolean(history);
+  const was = useRef({ playing, hasHistory });
+  useEffect(() => {
+    const before = was.current;
+    was.current = { playing, hasHistory };
+    const acts = rootRef.current?.querySelector<HTMLElement>('.cs-acts') ?? null;
+    if (playing && !before.playing) keepFocus(stopRef.current, acts);
+    else if (!playing && before.playing && hasHistory) keepFocus(closeRef.current, acts);
+    else if (!hasHistory && before.hasHistory) keepFocus(historyRef.current, acts);
+  }, [playing, hasHistory]);
+
+  // A phone's card under the paper says nothing while the history plays (its day rides over the bottom bar).
+  if (variant === 'after' && playing) return null;
+
+  const acts = props.onShow && variant !== 'top' ? (
     <div className="cs-acts">
-      {playing ? (
-        <button type="button" className="sf-link" onClick={props.onHistoryStop}>
-          Остановить
-        </button>
-      ) : (
-        <>
-          {props.onReplay && (
-            <button type="button" className="sf-link" onClick={props.onReplay}>
-              Показать последний ответ
-            </button>
-          )}
-          {props.onHistory && (
-            <button type="button" className="sf-link" onClick={props.onHistory}>
-              История шпаргалки
-            </button>
-          )}
-          {history && (
-            <button type="button" className="sf-link" data-muted="" onClick={props.onHistoryStop}>
-              Закрыть историю
-            </button>
-          )}
-        </>
-      )}
+      <button type="button" className="sf-primary cs-show-now" onClick={props.onShow} autoFocus>
+        Показать, что изменилось
+      </button>
     </div>
+  ) : (
+    (props.onReplay || props.onHistory || history) &&
+    (variant !== 'top' || playing) && (
+      <div className="cs-acts">
+        {playing ? (
+          <button type="button" className="sf-link" ref={stopRef} onClick={props.onHistoryStop}>
+            Остановить
+          </button>
+        ) : (
+          <>
+            {props.onReplay && (
+              <button type="button" className="sf-link" onClick={props.onReplay}>
+                Показать последний ответ
+              </button>
+            )}
+            {props.onHistory && (
+              <button type="button" className="sf-link" ref={historyRef} onClick={props.onHistory}>
+                История шпаргалки
+              </button>
+            )}
+            {history && (
+              <button type="button" className="sf-link" ref={closeRef} data-muted="" onClick={props.onHistoryStop}>
+                Закрыть историю
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    )
+  );
+  const sub = history ? (
+    <p className="cs-sub">{history.running ? `История шпаргалки: ${formatShortDay(history.frame.day)}` : historyResult(history.first, history.frame, history.lowest)}</p>
+  ) : (
+    details && <p className="cs-sub">{details}</p>
   );
   return (
-    <div className="ex-summary cs-sum" data-variant={variant}>
+    <div className="ex-summary cs-sum" data-variant={variant} id={props.id} tabIndex={props.id ? -1 : undefined} ref={rootRef}>
       {variant === 'full' && <p className="ex-why-t cs-flag">Шпаргалка</p>}
       {showCount && (
         <div className="cs-count">
@@ -176,27 +219,27 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
           <span className="cs-count-l" aria-hidden="true">
             {countLabel}
           </span>
-          {/* Read once, at the new number: the rolling digits are not announced frame by frame. */}
-          <span className="sr-only" aria-live="polite">{`${countValue} ${countLabel}`}</span>
+          {/* Read in place, whole; what changed is told once, by the page's status line, not by every new number. */}
+          <span className="sr-only">{`${countValue} ${countLabel}`}</span>
+          {/* A phone: the one switch beside the count, in the same row. */}
+          {variant === 'top' && counts.total > 0 && !playing && (
+            <span className="cs-count-switch">
+              <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />
+            </span>
+          )}
         </div>
       )}
-      {showCount &&
-        (history ? (
-          <p className="cs-sub">{history.running ? `История шпаргалки: ${formatShortDay(history.frame.day)}` : historyResult(history.first, history.frame)}</p>
-        ) : (
-          details && <p className="cs-sub">{details}</p>
-        ))}
-      {variant !== 'after' && props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
-      {variant !== 'after' && props.changeLine && props.changeNote && !history && <p className="cs-change-note">{glue(props.changeNote)}</p>}
+      {explains && counts.total > 0 && sub}
+      {explains && props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
+      {explains && props.changeLine && props.changeNote && !history && <p className="cs-change-note">{glue(props.changeNote)}</p>}
+      {explains && props.notice}
       {/* The promise stays on screen after the first-use tip: what erases the lines. */}
-      {showCount && !history && <p className="cs-rule">{glue(SHEET_RULE)}</p>}
-      {variant !== 'top' && props.shareLine && !history && <p className="cs-share">{glue(props.shareLine)}</p>}
-      {counts.total > 0 && !playing && (
+      {explains && counts.total > 0 && !history && <p className="cs-rule">{glue(SHEET_RULE)}</p>}
+      {explains && props.shareLine && !history && <p className="cs-share">{glue(props.shareLine)}</p>}
+      {counts.total > 0 && !playing && variant !== 'top' && (
         <div className="cs-toggles">
-          {variant !== 'after' && <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />}
-          {variant !== 'top' && (
-            <Toggle label="Спрятать строки" on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint="Спрятать читаемые строки и вспомнить их по памяти" />
-          )}
+          {variant === 'full' && <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />}
+          <Toggle label="Спрятать строки" on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint="Спрятать читаемые строки и вспомнить их по памяти" />
           {variant === 'full' && <Toggle label="Вся шпаргалка" on={mode.zoom} onChange={(on) => onMode({ ...mode, zoom: on })} />}
         </div>
       )}
@@ -206,13 +249,24 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
   );
 }
 
-/** «180 → 61 строка за 5 недель» */
-export function historyResult(first: HistoryFrame, last: HistoryFrame): string {
+/** Moves the keyboard to `element` when it was lost (on the page's body) or stood inside `within`. */
+function keepFocus(element: HTMLElement | null, within: HTMLElement | null): void {
+  if (!element) return;
+  const active = document.activeElement;
+  if (!active || active === document.body || (within && within.contains(active))) element.focus({ preventScroll: true });
+}
+
+/**
+ * «180 → 61 строка за 5 недель»; lines that went and came back are not «nothing»: «1 → 0 → 1 строка
+ * за 6 дней». `lowest`: the fewest lines left on a day of the history.
+ */
+export function historyResult(first: HistoryFrame, last: HistoryFrame, lowest: number = Math.min(first.left, last.left)): string {
   const days = Math.max(1, Math.round((Date.parse(`${last.day}T12:00:00`) - Date.parse(`${first.day}T12:00:00`)) / 86_400_000));
   const span =
     days >= 14
       ? `${Math.round(days / 7)}${NBSP}${weeksWord(Math.round(days / 7))}`
       : `${days}${NBSP}${days % 10 === 1 && days % 100 !== 11 ? 'день' : days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 12 || days % 100 > 14) ? 'дня' : 'дней'}`;
+  if (lowest < Math.min(first.left, last.left)) return `${first.left} → ${lowest} → ${last.left}${NBSP}${linesWord(last.left)} за ${span}`;
   // Half-erasing does not change the count: a history of rubbed lines only says that nothing is gone yet.
   if (last.left === first.left) return `За ${span} ни одна строка не стёрлась совсем`;
   return `${first.left} → ${last.left}${NBSP}${linesWord(last.left)} за ${span}`;
@@ -245,19 +299,32 @@ export interface SheetWriteProps {
 
 export function SheetWriteCard(props: SheetWriteProps) {
   const { write } = props;
+  // The keyboard follows the write: from «Написать» (gone) to «Остановить», then to what came of it.
+  const stopRef = useRef<HTMLButtonElement>(null);
+  const outcomeRef = useRef<HTMLParagraphElement>(null);
+  const running = write.phase === 'running';
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    const was = wasRunning.current;
+    wasRunning.current = running;
+    if (running && !was) keepFocus(stopRef.current, null);
+    else if (!running && was) keepFocus(outcomeRef.current, null);
+  }, [running]);
 
-  if (write.phase === 'running') {
+  if (running) {
     const total = write.total || props.toWrite;
     return (
-      <div className="ex-blk cs-write" role="status">
+      <div className="ex-blk cs-write">
         <p className="ex-stmt">
           {glue(`Пишем шпаргалку: ${write.done} из ${total || '…'}`)}
-          <span className="cs-write-fine"> · можно закрыть страницу — допишется</span>
+          <span className="cs-write-fine">{`${NBSP}· можно закрыть страницу${NBSP}— допишется`}</span>
         </p>
+        {/* A screen reader hears the progress every ten questions, not every one (and not «Остановить» with it). */}
+        <p className="sr-only" role="status">{`Пишем шпаргалку: ${Math.floor(write.done / 10) * 10} из ${total || 'нескольких'}`}</p>
         {write.stopping ? (
           <p className="ex-fine">Новые вопросы не начнутся. Начатые допишутся — единицы за них спишутся.</p>
         ) : (
-          <button type="button" className="sf-link" onClick={props.onStop}>
+          <button type="button" className="sf-link" ref={stopRef} onClick={props.onStop}>
             Остановить
           </button>
         )}
@@ -270,7 +337,9 @@ export function SheetWriteCard(props: SheetWriteProps) {
     if (!outcome) return null;
     return (
       <div className="ex-blk cs-write">
-        <p className="ex-stmt">{glue(outcome)}</p>
+        <p className="ex-stmt cs-outcome" ref={outcomeRef} tabIndex={-1} role="status">
+          {glue(outcome)}
+        </p>
       </div>
     );
   }
@@ -289,7 +358,11 @@ export function SheetWriteCard(props: SheetWriteProps) {
   const label = affordable < props.toWrite && affordable > 0 ? `Написать ${affordable}${NBSP}${questionsWord(affordable)}` : first ? 'Написать шпаргалку' : `Дописать ${props.toWrite}${NBSP}${questionsWord(props.toWrite)}`;
   return (
     <div className="ex-blk cs-write" data-first={first ? '' : undefined}>
-      {outcome && <p className="ex-stmt cs-outcome">{glue(outcome)}</p>}
+      {outcome && (
+        <p className="ex-stmt cs-outcome" ref={outcomeRef} tabIndex={-1} role="status">
+          {glue(outcome)}
+        </p>
+      )}
       {first && props.compact && (
         <p className="ex-stmt cs-write-short">
           Meldy выпишет из ваших лекций пункты ответа на вопросы, которые в них есть. Строки шпаргалки стирают только ваши ответы, от чтения ничего не стирается.
@@ -331,6 +404,8 @@ export function outcomeLine(write: SheetWriteState, toWrite: number): string | n
   if (write.phase !== 'done') return null;
   const total = write.total || write.written + write.failed + toWrite;
   if (write.limit) return `Написано ${write.written} из ${total}: дневной лимит ИИ кончился`;
+  // The server's own daily limit of writes, not the AI and not the student's units.
+  if (write.capped > 0) return `Написано ${write.written} из ${total}: сервер на сегодня исчерпал запись шпаргалок — остальное можно дописать после ${formatLimitReset(nextLimitReset())}`;
   if (write.failed > 0 || write.busy > 0) {
     const missed = write.failed + write.busy;
     return `${missed}${NBSP}${questionsWord(missed)} не удалось написать — можно попробовать ещё раз`;
@@ -354,6 +429,8 @@ export interface LinePanelProps {
   variant: 'column' | 'sheet';
   frameBox?: FrameBox;
   headingId: string;
+  /** A word that something went wrong (a peek not saved). */
+  notice?: ReactNode;
 }
 
 const READABLE: ReadonlySet<LineState> = new Set<LineState>(['fresh', 'missed', 'returned']);
@@ -411,7 +488,8 @@ export function LinePanel(props: LinePanelProps) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // A bottom sheet holds the page still while it is open.
+  // A bottom sheet holds the page still while it is open, and is the only thing a keyboard or a screen
+  // reader can reach: everything around it is inert (its scrim still closes it).
   useEffect(() => {
     if (!sheet) return undefined;
     const targets = [document.documentElement, document.body];
@@ -419,10 +497,19 @@ export function LinePanel(props: LinePanelProps) {
     targets.forEach((element) => {
       element.style.overflow = 'hidden';
     });
+    const made: Element[] = [];
+    for (let node: Element | null = rootRef.current; node && node.parentElement && node !== document.body; node = node.parentElement) {
+      for (const sibling of Array.from(node.parentElement.children)) {
+        if (sibling === node || sibling.classList.contains('ex-scrim') || sibling.hasAttribute('inert') || sibling.tagName === 'SCRIPT') continue;
+        sibling.setAttribute('inert', '');
+        made.push(sibling);
+      }
+    }
     return () => {
       targets.forEach((element, index) => {
         element.style.overflow = previous[index];
       });
+      made.forEach((element) => element.removeAttribute('inert'));
     };
   }, [sheet]);
 
@@ -480,6 +567,13 @@ export function LinePanel(props: LinePanelProps) {
         </div>
       )}
       {peeked && <p className="ex-fine cs-lp-peeked">Подсмотрели — сегодня ответ её не сотрёт.</p>}
+      {props.notice}
+      {/* The way to erase it, before the lecture's words and the history (in view at 1532×734 and 1024×700). */}
+      <div className="ex-why-go">
+        <Link className="sf-primary" to={links.answer(line.questionId)}>
+          Ответить на этот вопрос
+        </Link>
+      </div>
       {quote && (
         <>
           {caption && <p className="ex-slip-cap">{caption}</p>}
@@ -499,11 +593,6 @@ export function LinePanel(props: LinePanelProps) {
           </ul>
         </div>
       )}
-      <div className="ex-why-go">
-        <Link className="sf-primary" to={links.answer(line.questionId)}>
-          Ответить на этот вопрос
-        </Link>
-      </div>
       {!sheet && (
         <div className="ex-why-acts">
           <button type="button" className="sf-link" data-muted="" onClick={onClose}>
@@ -516,7 +605,7 @@ export function LinePanel(props: LinePanelProps) {
 
   if (!sheet) {
     return (
-      <section className="ex-why cs-lp" aria-labelledby={props.headingId} aria-live="polite" ref={rootRef}>
+      <section className="ex-why cs-lp" aria-labelledby={props.headingId} ref={rootRef}>
         {content}
       </section>
     );

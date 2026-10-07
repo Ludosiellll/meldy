@@ -4,21 +4,23 @@ import {
   buildSheet,
   changeSummary,
   lastAnswerSession,
+  localDayOf,
   quietReason,
   sheetChanges,
   sheetHistory,
-  sheetWithout,
+  sheetsAround,
   type HistoryFrame,
   type LineState,
   type Sheet,
   type SheetBlock,
+  type SheetCounts,
   type SheetLine,
 } from '../../../lib/exams/cheatSheet';
 import { countBucket, track } from '../../../lib/telemetry';
 import type { PeakFlag } from '../peak';
 import type { FrameBox } from '../useFrame';
 import CheatSheet, { writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
-import { LinePanel, SheetSummaryCard, SheetWriteCard, useUnitsLeft } from './SheetColumn';
+import { historyResult, LinePanel, SheetSummaryCard, SheetWriteCard, useUnitsLeft } from './SheetColumn';
 import { changeNote, changeSentence, counterLabel } from './copy';
 import { isSheetFontSettled, loadSheetFont } from './sheetFont';
 import { useCheatSheet, type CheatSheetData } from './useCheatSheet';
@@ -40,17 +42,25 @@ const MAX_RUN_QUESTIONS = 60;
 /** A phone: the end of the after-answer show stays on screen this long over the bottom bar. */
 const CHIP_MS = 4500;
 
-/** The phone's card above the paper (the count and «После ответа…») is at least half on screen, under the top line. */
-function topCardInView(): boolean {
-  if (typeof document === 'undefined') return false;
-  const card = document.querySelector<HTMLElement>('.cs-sum[data-variant="top"]');
-  if (!card) return false;
-  const box = card.getBoundingClientRect();
-  if (box.height <= 0) return false;
-  const bar = document.querySelector('.sf-bar');
-  const top = bar ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
-  const visible = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, top);
-  return visible >= box.height / 2;
+/** The bottom of the page's top line, px from the window's top. */
+function topLineBottom(): number {
+  const bar = typeof document !== 'undefined' ? document.querySelector('.sf-bar') : null;
+  return bar ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
+}
+
+/** A phone: the paper's top under the top line (the history and the pen play there, not below the fold). */
+function paperTopIntoView(): void {
+  const paper = document.querySelector<HTMLElement>('.cs-paper');
+  if (!paper) return;
+  const target = paper.getBoundingClientRect().top - topLineBottom() - 8;
+  if (Math.abs(target) > 4) window.scrollTo({ top: Math.max(0, window.scrollY + target), behavior: 'auto' });
+}
+
+/** Moves the keyboard to `element` when it was lost (on the page's body) or stood inside `within`. */
+function keepFocus(element: HTMLElement | null, within: HTMLElement | null = null): void {
+  if (!element) return;
+  const active = document.activeElement;
+  if (!active || active === document.body || (within && within.contains(active))) element.focus({ preventScroll: true });
 }
 /** A phone: where the line of an open bottom sheet stands, px from the top of the window. */
 const LINE_TOP_ON_PHONE = 96;
@@ -96,6 +106,9 @@ export interface SheetPageInput {
   onQuestion: (questionId: string) => void;
   /** A line's details open: the page closes its own «почему», which would stand in the column first. */
   onLineOpen?: () => void;
+  /** The question whose «почему» is open now, and the id of that panel (its printed line says it is expanded). */
+  openQuestionId?: string | null;
+  questionPanelId?: string;
   /** The exam's pages by default. */
   links?: SheetLinks;
 }
@@ -111,6 +124,8 @@ export interface SheetPage {
   after: ReactNode;
   /** Phones and tablets: the bottom sheet of a line, and the end of the after-answer show. */
   overlay: ReactNode;
+  /** One region a screen reader hears what an answer, the history or a write changed (rendered once, always). */
+  status: ReactNode;
   /** The column holds the one filled pill now («Написать шпаргалку», «Ответить на этот вопрос»). */
   primaryInColumn: boolean;
   /** A line's details are open. */
@@ -121,7 +136,8 @@ export interface SheetPage {
 }
 
 interface ReplayState extends SheetReplay {
-  beforeLeft: number;
+  /** The counter while the show plays: the sheet before the answer. */
+  beforeCounts: SheetCounts;
   /** «После ответа: …» — and, smaller under it, why named lines stayed as they were (or null). */
   sentence: string;
   note: string | null;
@@ -164,12 +180,9 @@ function sessionsOf(sheet: Sheet, questionIds: ReadonlySet<string>): Set<string>
   return sessions;
 }
 
-/** The question whose line holds this session (the first in the sheet's order). */
-function questionOfSession(blocks: readonly SheetBlock[], session: string): string | null {
-  for (const block of blocks) {
-    if (block.lines.some((line) => line.status.history.some((event) => event.sessionId === session))) return block.questionId;
-  }
-  return null;
+/** The questions whose lines hold this session, in the sheet's order (a ticket's two). */
+function questionsOfSession(blocks: readonly SheetBlock[], session: string): string[] {
+  return blocks.filter((block) => block.lines.some((line) => line.status.history.some((event) => event.sessionId === session))).map((block) => block.questionId);
 }
 
 /** The sheet of a real exam: read from the server and its journal (useCheatSheet). */
@@ -194,6 +207,10 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const [chip, setChip] = useState(false);
   const [history, setHistory] = useState<HistoryRun | null>(null);
   const [tick, setTick] = useState(() => Date.now());
+  // «Показ на проекторе»: «Показать, что изменилось», shown where the eye is while the paper waits.
+  const [waitingShow, setWaitingShow] = useState<(() => void) | null>(null);
+  // What a screen reader hears when a show, the history or a write ends (one region, rendered always).
+  const [announcement, setAnnouncement] = useState('');
   const replaySeq = useRef(0);
   const viewTracked = useRef(false);
 
@@ -216,6 +233,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   }, [active, fontReady]);
   const paperShown = shown && fontReady;
   const sheet = data.sheet;
+  const side = input.side;
 
   // «Только то, что осталось» turns on by itself when half the lines are erased or the exam is today or
   // tomorrow. Decided once a visit, when the sheet is first there: an answer that crosses the half
@@ -241,13 +259,18 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     track('sheet_view', { left: countBucket(sheet.counts.left), total: countBucket(sheet.counts.total) });
   }, [active, ready, sheet.counts.left, sheet.counts.total]);
 
-  // Uncovered lines close by themselves after 6 s; the column follows the paper.
+  // Uncovered lines close by themselves after 6 s — not while their details are open: the words and the
+  // lecture's quote stay there to be read at any pace; the line covers again when the details close.
   useEffect(() => {
     const ends = [...peeked.values()].filter((until) => until > Date.now());
     if (ends.length === 0) return undefined;
     const timer = window.setTimeout(() => setTick(Date.now()), Math.min(...ends) - Date.now() + 30);
     return () => window.clearTimeout(timer);
   }, [peeked, tick]);
+  const shownPeeks = useMemo(
+    () => (lineKey && peeked.has(lineKey) ? new Map(peeked).set(lineKey, Number.POSITIVE_INFINITY) : peeked),
+    [peeked, lineKey],
+  );
 
   // ── Writing in: one pen ────────────────────────────────────────────────────────────────
   // Questions that arrive together are written one after another, as one hand writes; a question out
@@ -290,12 +313,19 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   }, [freshIds, settleFresh, writeDelays]);
 
   // ── The replay of an answer ────────────────────────────────────────────────────────────
+  // What the answer did is told as of its own moment (a check passed weeks ago stays a passed check);
+  // the paper plays from each line as it was then to the line as it is now.
   const startReplay = useCallback(
-    (sessions: ReadonlySet<string>, focusQuestionId: string | null) => {
+    (sessions: ReadonlySet<string>, focusQuestionIds: readonly string[]) => {
       if (sessions.size === 0) return false;
-      const before = sheetWithout(data.questions, data.events, sessions, data.now, { examDate });
-      const changes = sheetChanges(before, sheet);
+      const around = sheetsAround(data.questions, data.events, sessions, { examDate });
+      if (!around) return false;
+      const changes = sheetChanges(around.before, around.after);
       const summary = changeSummary(changes);
+      const nowStates = new Map<string, LineState>();
+      for (const block of sheet.blocks) for (const line of block.lines) nowStates.set(line.key, line.status.state);
+      const paperChanges = changes.map((change) => ({ ...change, to: nowStates.get(change.key) ?? change.to })).filter((change) => change.from !== change.to);
+      const day = localDayOf(around.at);
       const stage = isStage();
       replaySeq.current += 1;
       setHistory(null);
@@ -303,13 +333,13 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       setChip(false);
       setReplay({
         token: replaySeq.current,
-        changes,
-        focusQuestionId,
+        changes: paperChanges,
+        focusQuestionIds,
         slow: stage,
         waitForClick: stage,
-        beforeLeft: before.counts.left,
-        sentence: changeSentence(summary),
-        note: changeNote(summary, quietReason(sheet, sessions, new Set(changes.map((change) => change.key))), data.now),
+        beforeCounts: around.before.counts,
+        sentence: changeSentence(summary, day !== localDayOf(data.now) ? day : null),
+        note: changeNote(summary, quietReason(around.after, sessions, new Set(changes.map((change) => change.key))), data.now),
       });
       setReplayLive(true);
       track('sheet_replay', {
@@ -337,35 +367,42 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       if (id) ids.add(id);
     }
     if (ids.size === 0) return;
-    const focus = sheet.blocks.find((block) => ids.has(block.questionId))?.questionId ?? null;
-    startReplay(sessionsOf(sheet, ids), focus);
+    // Both questions of a ticket are played, each in its place, in the sheet's order.
+    const order = sheet.blocks.filter((block) => ids.has(block.questionId)).map((block) => block.questionId);
+    startReplay(sessionsOf(sheet, ids), order);
   }, [active, ready, data.questions, sheet, input.peakFlags, startReplay]);
 
   const lastSession = useMemo(() => lastAnswerSession(sheet), [sheet]);
-  const lastQuestion = useMemo(() => (lastSession ? questionOfSession(sheet.blocks, lastSession) : null), [lastSession, sheet.blocks]);
+  const lastQuestions = useMemo(() => (lastSession ? questionsOfSession(sheet.blocks, lastSession) : []), [lastSession, sheet.blocks]);
+  const markedQuestionIds = useMemo(() => new Set(lastQuestions), [lastQuestions]);
   const onReplayLast = useCallback(() => {
     if (!lastSession) return;
-    startReplay(new Set([lastSession]), lastQuestion);
-  }, [lastSession, lastQuestion, startReplay]);
+    startReplay(new Set([lastSession]), lastQuestions);
+  }, [lastSession, lastQuestions, startReplay]);
 
-  const side = input.side;
+  const counts = sheet.counts;
   const onReplayEnd = useCallback(
     (token: number) => {
       if (token !== replaySeq.current) return;
       setReplayLive(false);
-      // A phone: the column with the count and «После ответа…» is above the paper, out of sight — unless
-      // the page did not scroll and the card is still there (then the chip would only repeat it).
-      if (!side && !topCardInView()) setChip(true);
+      // A phone: the column with the count and «После ответа…» is under the paper, out of sight.
+      if (!side) setChip(true);
     },
     [side],
   );
+  // Heard once the show is over: what changed, why some named lines stayed, and the count.
+  useEffect(() => {
+    if (!replay || replayLive) return;
+    setAnnouncement([replay.sentence, replay.note, `${counts.left} ${counterLabel({ left: counts.left, total: counts.total })}.`].filter(Boolean).join(' '));
+  }, [replay, replayLive, counts.left, counts.total]);
   useEffect(() => {
     if (!chip) return undefined;
     const timer = window.setTimeout(() => setChip(false), CHIP_MS);
     return () => window.clearTimeout(timer);
   }, [chip]);
+  const onWaiting = useCallback((show: (() => void) | null) => setWaitingShow(() => show), []);
 
-  // ── «История листа» (spec 6.6) ─────────────────────────────────────────────────────────
+  // ── «История шпаргалки» (spec 6.6) ─────────────────────────────────────────────────────
   const onHistory = useCallback(() => {
     const frames = sheetHistory(data.questions, data.events, data.now, { examDate });
     if (frames.length === 0) return;
@@ -375,8 +412,10 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     setChip(false);
     setLineKey(null);
     setHistory({ frames, index: 0, running: true });
+    // A phone: the paper's top under the top line, where the date is written; the day and the count ride over the bottom bar.
+    if (!side) window.setTimeout(paperTopIntoView, 0);
     track('sheet_history', { days: countBucket(frames.length) });
-  }, [data.questions, data.events, data.now, examDate]);
+  }, [data.questions, data.events, data.now, examDate, side]);
   useEffect(() => {
     if (!history?.running) return undefined;
     const step = Math.max(HISTORY_MIN_STEP, Math.round(HISTORY_MS / Math.max(1, history.frames.length)));
@@ -398,6 +437,18 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const stopHistory = useCallback(() => {
     setHistory((current) => (current?.running ? { ...current, index: current.frames.length - 1, running: false } : null));
   }, []);
+  // The lowest count the history passed: «1 → 0 → 1», not «nothing erased», when lines went and came back.
+  const historyView = useMemo(() => {
+    if (!history) return null;
+    const seen = history.frames.slice(0, history.index + 1);
+    return { frame: history.frames[history.index], first: history.frames[0], lowest: Math.min(...seen.map((frame) => frame.left)), running: history.running };
+  }, [history]);
+  const historyEnded = history && !history.running;
+  useEffect(() => {
+    if (!historyEnded || !historyView) return;
+    setAnnouncement(`История шпаргалки: ${historyResult(historyView.first, historyView.frame, historyView.lowest)}.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyEnded]);
 
   // ── Lines ──────────────────────────────────────────────────────────────────────────────
   const blocks = historyBlocks ?? sheet.blocks;
@@ -407,7 +458,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     return map;
   }, [sheet.blocks]);
   const selected = lineKey ? lineOf.get(lineKey) ?? null : null;
-  const peekedNow = useCallback((key: string) => (peeked.get(key) ?? 0) > Date.now(), [peeked]);
+  const peekedNow = useCallback((key: string) => (shownPeeks.get(key) ?? 0) > Date.now(), [shownPeeks]);
 
   const recordPeek = data.peek;
   const peek = useCallback(
@@ -452,9 +503,14 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     setLineKey(null);
     questionHandler.current(block.questionId);
   }, []);
+  // «Вся шпаргалка»: a question picked leaves the overview there, with the keyboard on its printed line.
   const onZoomPick = useCallback((questionId: string) => {
     setMode((current) => ({ ...current, zoom: false }));
-    window.setTimeout(() => document.getElementById(`cs-q-${questionId}`)?.scrollIntoView?.({ block: 'center' }), 60);
+    window.setTimeout(() => {
+      const block = document.getElementById(`cs-q-${questionId}`);
+      block?.scrollIntoView?.({ block: 'center' });
+      block?.querySelector<HTMLElement>('.cs-qbtn')?.focus({ preventScroll: true });
+    }, 60);
   }, []);
   const closeLine = useCallback(() => {
     const key = lineKey;
@@ -482,25 +538,29 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       // One run writes at most 60 questions (the server's limit); the rest is the next «Дописать».
       const limit = Math.min(count ?? writable.length, MAX_RUN_QUESTIONS);
       startWrite(limit < writable.length ? writable.slice(0, limit) : undefined);
+      // A phone: the pen writes on the paper — its top comes under the top line, not the cards above it.
+      if (!side) window.setTimeout(paperTopIntoView, 0);
     },
-    [startWrite, writable],
+    [startWrite, writable, side],
   );
 
   // ── Parts ──────────────────────────────────────────────────────────────────────────────
-  const counts = sheet.counts;
-  const left = replay && replayLive ? replay.beforeLeft : counts.left;
-  const historyView = history ? { frame: history.frames[history.index], first: history.frames[0], running: history.running } : null;
+  // While an answer is shown the counter (and its details) are the sheet's before the answer.
+  const shownCounts = replay && replayLive ? replay.beforeCounts : counts;
   const writing = data.write.phase === 'running';
   const showWrite = writing || data.toWrite > 0 || data.write.phase !== 'idle';
   const firstWrite = data.written === 0 && data.toWrite > 0 && !input.mappingRunning;
   const lineOpen = Boolean(selected);
   const primaryInColumn = active && (lineOpen || (firstWrite && !writing));
   const historyPlaying = Boolean(history?.running);
+  const skipTarget = useCallback(() => document.getElementById(`cs-sum-${examId}`) ?? document.getElementById(`cs-lp-${examId}`), [examId]);
+  const skip = useMemo(() => ({ label: 'К счётчику и переключателям', target: skipTarget }), [skipTarget]);
 
   const summary = (variant: 'full' | 'top' | 'after') => (
     <SheetSummaryCard
-      counts={counts}
-      left={left}
+      id={variant === 'top' ? undefined : `cs-sum-${examId}`}
+      counts={shownCounts}
+      left={shownCounts.left}
       roll={Boolean(replay) && !replayLive}
       writing={writing}
       shareLine={input.shareLine}
@@ -512,6 +572,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       onHistory={lastSession && !history ? onHistory : null}
       history={historyView}
       onHistoryStop={() => (history?.running ? stopHistory() : setHistory(null))}
+      onShow={side ? waitingShow : null}
+      notice={data.peekSaveFailed ? <PeekNotice onRetry={data.retryPeeks} /> : null}
       variant={variant}
     />
   );
@@ -547,6 +609,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     </div>
   );
 
+  const panelNotice = data.peekSaveFailed ? <PeekNotice onRetry={data.retryPeeks} /> : null;
   let column: ReactNode;
   if (data.status === 'loading' || (data.status === 'ready' && !data.journalRead && !journalFailed)) {
     column = (
@@ -579,6 +642,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         onClose={closeLine}
         variant="column"
         headingId={`cs-lp-${examId}`}
+        notice={panelNotice}
       />
     );
   } else {
@@ -598,8 +662,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     );
   }
 
-  // A phone shows the paper on the first screen: above it the count and the first write (spec 3.1, «на
-  // телефоне — над листом»); writing what is left, the self-test and the rest come under it.
+  // A phone shows the paper on the first screen: above it only the count and «Только то, что осталось»
+  // (and the first write); what the count means, the last answer, the self-test and the rest come under it.
   const top = shown ? (
     <>
       {counts.total > 0 && summary('top')}
@@ -617,6 +681,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       </>
     ) : null;
 
+  const historyDay = historyView ? formatShortDay(historyView.frame.day) : null;
   const overlay = !side ? (
     <>
       {selected ? (
@@ -632,25 +697,46 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
           variant="sheet"
           frameBox={input.frameBox}
           headingId={`cs-lp-${examId}`}
+          notice={panelNotice}
         />
       ) : null}
-      {chip && replay && !selected ? (
-        <button
-          type="button"
-          className="cs-chip"
-          onClick={() => setChip(false)}
-          style={{ left: input.frameBox?.left ?? 0, right: input.frameBox?.right ?? 0 }}
-        >
-          <span className="cs-chip-t" role="status">
-            {replay.sentence}
+      {/* «Показ на проекторе» on a phone: over the bottom bar, not on «Тянуть билет». */}
+      {waitingShow && !selected ? (
+        <div className="cs-chip cs-chip-show" style={{ left: input.frameBox?.left ?? 0, right: input.frameBox?.right ?? 0 }}>
+          <button type="button" className="sf-primary" onClick={waitingShow} autoFocus>
+            Показать, что изменилось
+          </button>
+        </div>
+      ) : null}
+      {/* The history on a phone: its day and count over the bottom bar while it plays, its result after. */}
+      {historyView && !selected && (historyView.running || chip) ? (
+        <div className="cs-chip" data-history="" style={{ left: input.frameBox?.left ?? 0, right: input.frameBox?.right ?? 0 }}>
+          <span className="cs-chip-t" aria-hidden="true">
+            {historyView.running
+              ? `${historyDay}: ${historyView.frame.left} ${counterLabel({ left: historyView.frame.left, total: historyView.frame.total })}`
+              : historyResult(historyView.first, historyView.frame, historyView.lowest)}
           </span>
+          {historyView.running ? (
+            <button type="button" className="cs-chip-act" onClick={stopHistory}>
+              Остановить
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {/* The end of a show: for the eye only (the status region tells a screen reader); a tap hides it. */}
+      {chip && replay && !history && !selected ? (
+        <div className="cs-chip" aria-hidden="true" onClick={() => setChip(false)} style={{ left: input.frameBox?.left ?? 0, right: input.frameBox?.right ?? 0 }}>
+          <span className="cs-chip-t">{replay.sentence}</span>
           <span className="cs-chip-n">{`${counts.left} ${counterLabel({ left: counts.left, total: counts.total })}`}</span>
-        </button>
+        </div>
       ) : null}
     </>
   ) : null;
+  // The history's result on a phone stays a while, like the end of a show.
+  useEffect(() => {
+    if (!side && historyEnded) setChip(true);
+  }, [side, historyEnded]);
 
-  const historyDay = historyView ? formatShortDay(historyView.frame.day) : null;
   const paper = paperShown ? (
     <CheatSheet
       examId={examId}
@@ -664,11 +750,16 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       writeDelays={writeDelays}
       holdColumns={writing || Boolean(history)}
       selectedKey={lineKey}
-      peeked={peeked}
+      peeked={shownPeeks}
       opened={opened}
-      markedQuestionId={history ? null : lastQuestion}
+      markedQuestionIds={history ? NO_QUESTIONS : markedQuestionIds}
       replay={replay}
       stamp={historyDay}
+      writing={writing}
+      openQuestionId={input.openQuestionId ?? null}
+      questionPanelId={input.questionPanelId}
+      onWaiting={onWaiting}
+      skip={counts.total > 0 ? skip : null}
       onLine={onLine}
       onQuestion={onQuestion}
       onZoomPick={onZoomPick}
@@ -682,6 +773,26 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     </p>
   ) : null;
 
+  const status = (
+    <p className="sr-only" role="status" aria-live="polite">
+      {announcement}
+    </p>
+  );
+
   const playing = replayLive || historyPlaying;
-  return { data, paper, column, top, after, overlay, primaryInColumn, lineOpen, playing, closeLine };
+  return { data, paper, column, top, after, overlay, status, primaryInColumn, lineOpen, playing, closeLine };
+}
+
+const NO_QUESTIONS: ReadonlySet<string> = new Set();
+
+/** A peek that could not be saved: today's answer may erase the line all the same. */
+function PeekNotice({ onRetry }: { onRetry: () => void }) {
+  return (
+    <p className="ex-fine cs-peek-failed" role="alert">
+      Подсмотр не сохранился: сегодняшний ответ может стереть эту строку.{' '}
+      <button type="button" className="sf-link" onClick={onRetry}>
+        Повторить
+      </button>
+    </p>
+  );
 }

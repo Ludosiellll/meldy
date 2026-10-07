@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { fetchSheetEvents, localDate, recordSheetPeek, type LearningEvent } from '../../../api/learning';
+import { fetchSheetEvents, flushSheetPeeks, localDate, recordSheetPeek, type LearningEvent } from '../../../api/learning';
 import {
   fetchSheet,
   getSheetWrite,
@@ -53,6 +53,10 @@ export interface CheatSheetData {
   stopWrite: () => Promise<number>;
   /** «Подсмотреть»: written to the journal (a naming today will not count) and shown at once. */
   peek: (line: SheetLine) => void;
+  /** A peek could not be saved (it waits on the device): today's answer may erase that line. */
+  peekSaveFailed: boolean;
+  /** Sends the waiting peeks again. */
+  retryPeeks: () => void;
   /** The lines of these questions were drawn in. */
   settleFresh: (questionIds: readonly string[]) => void;
 }
@@ -65,6 +69,8 @@ function sameRubric(current: SheetQuestion['rubric'], next: NonNullable<SheetQue
   return current.points.every((point, index) => point.id === next.points[index].id && point.short === next.points[index].short);
 }
 const PEEK_RETRY_MS = 1500;
+/** A tab coming back reads the journal again when the last read is older than this (answers on another device). */
+const REREAD_AFTER_MS = 30_000;
 
 /** The next local midnight after `ms`: the sheet changes its day there (peeks, due lines, «сегодня»). */
 function nextMidnight(ms: number): number {
@@ -88,6 +94,8 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
   const [journalRead, setJournalRead] = useState(false);
   // «Повторить» reads the journal again even when the questions did not change.
   const [eventsRound, setEventsRound] = useState(0);
+  const lastRead = useRef(0);
+  const [peekSaveFailed, setPeekSaveFailed] = useState(false);
   const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(NO_FRESH);
   const [now, setNow] = useState(() => Date.now());
   const loadSeq = useRef(0);
@@ -150,6 +158,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
       setEventsState('ready');
       setEventsError(null);
       setJournalRead(true);
+      lastRead.current = Date.now();
       setNow(Date.now());
     } catch (failure) {
       if (seq !== eventsSeq.current) return;
@@ -212,6 +221,29 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     };
   }, [enabled, now]);
 
+  // Peeks that could not be saved wait on the device: sent when the sheet opens, when the tab comes back
+  // or the network does. A tab coming back also reads the journal again (answers given on the phone).
+  const sendPeeks = useCallback(() => {
+    void flushSheetPeeks()
+      .then((left) => setPeekSaveFailed(left > 0))
+      .catch(() => setPeekSaveFailed(true));
+  }, []);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    sendPeeks();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      sendPeeks();
+      if (lastRead.current > 0 && Date.now() - lastRead.current > REREAD_AFTER_MS) setEventsRound((round) => round + 1);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', sendPeeks);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', sendPeeks);
+    };
+  }, [enabled, sendPeeks]);
+
   const sheet = useMemo(() => buildSheet(questions, events, now, { examDate: options.examDate ?? null }), [questions, events, now, options.examDate]);
 
   const writeNotes = useMemo(() => {
@@ -255,13 +287,12 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
       setNow(at.getTime());
       track('sheet_peek', { state: line.status.state });
       const input = { questionHash: line.questionHash, rubricId: line.rubricId, pointId: line.pointId, title: line.title, examId };
+      // Not saved: it waits on the device and is sent once more in a moment; still not saved, the page says so.
       recordSheetPeek(input).catch(() => {
-        window.setTimeout(() => {
-          recordSheetPeek(input).catch(() => undefined);
-        }, PEEK_RETRY_MS);
+        window.setTimeout(sendPeeks, PEEK_RETRY_MS);
       });
     },
-    [examId],
+    [examId, sendPeeks],
   );
 
   const settleFresh = useCallback((questionIds: readonly string[]) => {
@@ -300,6 +331,8 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     startWrite,
     stopWrite,
     peek,
+    peekSaveFailed,
+    retryPeeks: sendPeeks,
     settleFresh,
   };
 }

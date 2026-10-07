@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LearningEvent } from '../../api/learning';
 import type { SheetWriteState } from '../../api/cheatSheet';
 import { buildSheet, localDayOf, type SheetLine, type SheetQuestion } from '../../lib/exams/cheatSheet';
@@ -102,6 +102,15 @@ export function exampleRubricId(questionId: string): string {
   return `example-${questionId}`;
 }
 
+/**
+ * The same time of day yesterday by the clock on the wall: always yesterday, 23 to 25 hours ago across a
+ * change of the clock (a day minus 24 hours would be today, or two days ago, on those days).
+ */
+export function yesterdaySameTime(ms: number): number {
+  const at = new Date(ms);
+  return new Date(at.getFullYear(), at.getMonth(), at.getDate() - 1, at.getHours(), at.getMinutes(), at.getSeconds(), at.getMilliseconds()).getTime();
+}
+
 function seededAnswers(seededAt: number): TryAnswer[] {
   return SEEDED_ANSWERS.map((seed) => {
     const question = exampleQuestion(seed.questionId) as ExampleQuestion;
@@ -110,7 +119,7 @@ function seededAnswers(seededAt: number): TryAnswer[] {
       const id = `p${index + 1}`;
       statuses[id] = seed.named.includes(id) ? 'covered' : 'missing';
     });
-    return { session: `${SEED_PREFIX}${seed.questionId}`, questionId: seed.questionId, at: seededAt - DAY_MS, transcript: seed.transcript, statuses, followup: null };
+    return { session: `${SEED_PREFIX}${seed.questionId}`, questionId: seed.questionId, at: yesterdaySameTime(seededAt), transcript: seed.transcript, statuses, followup: null };
   });
 }
 
@@ -307,6 +316,7 @@ const IDLE_WRITE: SheetWriteState = {
   written: 0,
   failed: 0,
   busy: 0,
+  capped: 0,
   limit: false,
   results: {},
   message: null,
@@ -321,6 +331,20 @@ const noop = () => undefined;
 export function useTrySheetData(): CheatSheetData & { restart: () => void } {
   const [store, setStore] = useState(() => readTryStore());
   const [now, setNow] = useState(() => Date.now());
+  // The day turns at midnight, and a tab coming back may be hours later: a peek counts for its own day only.
+  useEffect(() => {
+    const midnight = new Date(now);
+    const next = new Date(midnight.getFullYear(), midnight.getMonth(), midnight.getDate() + 1).getTime();
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.max(1000, next - Date.now() + 1000));
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setNow(Date.now());
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [now]);
   const questions = useMemo(() => trySheetQuestions(), []);
   const events = useMemo(() => tryEvents(store), [store]);
   const sheet = useMemo(() => buildSheet(questions, events, now), [questions, events, now]);
@@ -359,6 +383,8 @@ export function useTrySheetData(): CheatSheetData & { restart: () => void } {
     startWrite: noop,
     stopWrite: async () => 0,
     peek,
+    peekSaveFailed: false,
+    retryPeeks: noop,
     settleFresh: noop,
     restart,
   };

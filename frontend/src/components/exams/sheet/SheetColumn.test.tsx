@@ -83,11 +83,14 @@ describe('SheetSummaryCard', () => {
     expect(props.onHistory).toHaveBeenCalledTimes(1);
   });
 
-  it('top (a phone, above the paper): the count, its details, the change and «Только то, что осталось» only', () => {
+  it('top (a phone, above the paper): the count and «Только то, что осталось» in one row, so the paper’s lines are on the first screen', () => {
     summary({ variant: 'top', mode: { ...MODE, onlyLeft: true } });
     expect(screen.queryByText('Шпаргалка')).toBeNull();
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
-    expect(document.querySelector('.cs-change')).toBeTruthy();
+    expect(document.querySelector('.cs-count .cs-count-switch')).not.toBeNull();
+    expect(document.querySelector('.cs-sub')).toBeNull();
+    expect(document.querySelector('.cs-change')).toBeNull();
+    expect(document.querySelector('.cs-rule')).toBeNull();
     expect(document.querySelector('.cs-share')).toBeNull();
     const switches = screen.getAllByRole('switch');
     expect(switches).toHaveLength(1);
@@ -95,10 +98,13 @@ describe('SheetSummaryCard', () => {
     expect(screen.queryByRole('button', { name: 'Показать последний ответ' })).toBeNull();
   });
 
-  it('after (a phone, under the paper): the share, the self-test switch and the links, no count', () => {
-    summary({ variant: 'after' });
+  it('after (a phone, under the paper): what the count means, the change, the rule, the share, the self-test and the links', () => {
+    summary({ variant: 'after', changeNote: 'Подсмотренное сегодня ответ не стирает.' });
     expect(document.querySelector('.cs-big')).toBeNull();
-    expect(document.querySelector('.cs-change')).toBeNull();
+    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · 6 вопросов без пунктов');
+    expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
+    expect(plain(document.querySelector('.cs-change-note')?.textContent)).toBe('Подсмотренное сегодня ответ не стирает.');
+    expect(document.querySelector('.cs-rule')).toBeTruthy();
     expect(document.querySelector('.cs-share')).toBeTruthy();
     expect(screen.getAllByRole('switch').map((item) => item.textContent)).toEqual(['Спрятать строки']);
     expect(screen.getByRole('button', { name: 'История шпаргалки' })).toBeTruthy();
@@ -111,8 +117,8 @@ describe('SheetSummaryCard', () => {
     expect(document.querySelector('.cs-big')).toBeNull();
   });
 
-  it('top: the whole rule on the phone too; while the first lines are written the count says how many are written', () => {
-    summary({ variant: 'top' });
+  it('the whole rule on the phone too, under the paper; while the first lines are written the count says how many are written', () => {
+    summary({ variant: 'after' });
     expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Строки стирают только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.');
     cleanup();
     summary({ writing: true, counts: { ...COUNTS, left: 12, total: 12, rubbed: 0 }, left: 12 });
@@ -129,7 +135,7 @@ describe('SheetSummaryCard', () => {
     expect(plain(document.querySelector('.cs-cover-note')?.textContent)).toBe('Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.');
     cleanup();
     const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
-    summary({ mode: { ...MODE, cover: true }, history: { frame: first, first, running: true } });
+    summary({ mode: { ...MODE, cover: true }, history: { frame: first, first, lowest: first.left, running: true } });
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
     expect(document.querySelector('.cs-cover-note')).toBeNull();
     expect(document.querySelector('.cs-rule')).toBeNull();
@@ -140,7 +146,7 @@ describe('SheetSummaryCard', () => {
   it('the history: its day while it plays with «Остановить», then the result and «Закрыть историю»', () => {
     const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
     const frame: HistoryFrame = { day: '2026-09-15', at: 0, left: 120, total: 180 };
-    const props = summary({ history: { frame, first, running: true } });
+    const props = summary({ history: { frame, first, lowest: Math.min(first.left, frame.left), running: true } });
     expect(document.querySelector('.cs-big')?.textContent).toBe('120');
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 180');
     expect(document.querySelector('.cs-change')).toBeNull();
@@ -148,7 +154,7 @@ describe('SheetSummaryCard', () => {
     expect(props.onHistoryStop).toHaveBeenCalledTimes(1);
     cleanup();
     const last: HistoryFrame = { day: '2026-10-06', at: 0, left: 61, total: 180 };
-    summary({ history: { frame: last, first, running: false } });
+    summary({ history: { frame: last, first, lowest: Math.min(first.left, last.left), running: false } });
     expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('180 → 61 строка за 5 недель');
     expect(screen.getByRole('button', { name: 'Закрыть историю' })).toBeTruthy();
   });
@@ -166,7 +172,7 @@ describe('historyResult', () => {
 });
 
 function idle(extra: Partial<SheetWriteState> = {}): SheetWriteState {
-  return { examId: 'exam-1', phase: 'idle', done: 0, total: 0, written: 0, failed: 0, busy: 0, limit: false, results: {}, message: null, seq: 0, stopping: false, ...extra };
+  return { examId: 'exam-1', phase: 'idle', done: 0, total: 0, written: 0, failed: 0, busy: 0, capped: 0, limit: false, results: {}, message: null, seq: 0, stopping: false, ...extra };
 }
 
 function writeCard(extra: Partial<SheetWriteProps> = {}) {
@@ -221,7 +227,13 @@ describe('SheetWriteCard', () => {
 
   it('while it writes: the progress and «Остановить», then what stopping means', () => {
     const { props, view } = writeCard({ write: idle({ phase: 'running', done: 1, total: 3 }) });
-    expect(plain(screen.getByRole('status').textContent)).toMatch(/Пишем шпаргалку: 1 из 3/);
+    expect(plain(document.querySelector('.cs-write .ex-stmt')?.textContent)).toBe('Пишем шпаргалку: 1 из 3 · можно закрыть страницу — допишется');
+    // A screen reader hears the progress every ten questions, without «Остановить» in it.
+    expect(plain(screen.getByRole('status').textContent)).toBe('Пишем шпаргалку: 0 из 3');
+    expect(within(screen.getByRole('status')).queryByRole('button')).toBeNull();
+    view.rerender(<SheetWriteCard {...props} write={idle({ phase: 'running', done: 12, total: 31 })} />);
+    expect(plain(screen.getByRole('status').textContent)).toBe('Пишем шпаргалку: 10 из 31');
+    view.rerender(<SheetWriteCard {...props} write={idle({ phase: 'running', done: 1, total: 3 })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Остановить' }));
     expect(props.onStop).toHaveBeenCalledTimes(1);
     view.rerender(<SheetWriteCard {...props} write={idle({ phase: 'running', done: 1, total: 3, stopping: true })} />);
@@ -256,7 +268,7 @@ describe('outcomeLine', () => {
 });
 
 function status(state: LineState, extra: Partial<LineStatus> = {}): LineStatus {
-  return { state, history: [], erasableFrom: null, erasedAt: null, erasedOn: null, lastNamedAt: null, dueAt: null, wasErasedOn: null, peekedToday: false, checks: 0, ...extra };
+  return { state, history: [], erasableFrom: null, erasedAt: null, erasedOn: null, lastNamedAt: null, dueAt: null, wasErasedOn: null, wasErasedAt: null, peekedToday: false, checks: 0, ...extra };
 }
 
 function lineOf(state: LineState, extra: Partial<LineStatus> = {}): SheetLine {

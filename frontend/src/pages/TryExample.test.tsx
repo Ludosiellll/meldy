@@ -374,7 +374,7 @@ describe('«Попробовать на примере» (/try)', () => {
       'Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ в примере проверяется по ключевым словам.',
     );
     expect(screen.getByRole('link', { name: 'Ответьте на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');
-    const paper = screen.getByRole('region', { name: 'Шпаргалка' });
+    const paper = screen.getByRole('tabpanel', { name: 'Шпаргалка' });
     const states = (id: string) => [...paper.querySelectorAll<HTMLElement>(`#cs-q-${id} .cs-line`)].map((line) => line.dataset.state);
     expect(states('q5')).toEqual(['rubbed', 'rubbed', 'rubbed', 'missed', 'missed']);
     expect(states('q9')).toEqual(['rubbed', 'missed', 'rubbed', 'missed', 'missed']);
@@ -396,7 +396,7 @@ describe('«Попробовать на примере» (/try)', () => {
 
   it('a rubbed line of yesterday’s answer: its history says «ответ примера» and opens that answer’s protocol', async () => {
     renderAt('/try');
-    const paper = screen.getByRole('region', { name: 'Шпаргалка' });
+    const paper = screen.getByRole('tabpanel', { name: 'Шпаргалка' });
     fireEvent.click(paper.querySelector<HTMLButtonElement>('#cs-q-q9 .cs-line .cs-lbtn')!);
     const panel = document.querySelector('.cs-lp') as HTMLElement;
     expect(within(panel).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/try/ticket?q=q9');
@@ -427,7 +427,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(plain(line.textContent)).toBe('На шпаргалке: 3 строки стёрлись, 1 — наполовину');
     expect(within(line).queryByRole('link')).toBeNull();
     fireEvent.click(screen.getByRole('link', { name: 'К шпаргалке' }));
-    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
     expect(await screen.findByText((_, node) => node?.classList.contains('cs-change') === true && plain(node.textContent) === 'После ответа: 3 строки стёрлись, 1 — наполовину.', {}, { timeout: 8000 })).toBeInTheDocument();
     expect([...paper.querySelectorAll<HTMLElement>('#cs-q-q5 .cs-line')].map((node) => node.dataset.state)).toEqual(['erased', 'erased', 'erased', 'rubbed', 'missed']);
     // Every main line erased: the question's tick.
@@ -450,7 +450,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByRole('button', { name: 'Ещё билет' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Создать свой экзамен' })).toHaveClass('ex-secondary');
     fireEvent.click(toSheet);
-    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
     // A render run twice must not take the after-answer flag away: the change is played.
     expect(await screen.findByText((_, node) => node?.classList.contains('cs-change') === true && plain(node.textContent) === 'После ответа: 3 строки стёрлись, 1 — наполовину.', {}, { timeout: 8000 })).toBeInTheDocument();
     const states = () => [...paper.querySelectorAll<HTMLElement>('#cs-q-q5 .cs-line')].map((node) => node.dataset.state);

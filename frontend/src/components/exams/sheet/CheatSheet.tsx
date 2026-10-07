@@ -15,7 +15,8 @@ import { Link } from 'react-router-dom';
 import type { LineChange, LineState, LineStatus, SheetBlock, SheetLine } from '../../../lib/exams/cheatSheet';
 import { MarginStroke, Mark, PencilUnder, seedFrom } from '../../marks';
 import { usePrefersReducedMotion } from '../../landing/usePrefersReducedMotion';
-import { blockNote, lineLabel, lineNote } from './copy';
+import { glue, NBSP } from '../sheetModel';
+import { blockNote, lineNote, lineSpeech } from './copy';
 import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns, splitMany, zoomPlan } from './layout';
 import { SheetText } from './SheetText';
 import { isSheetFontSettled, loadSheetFont } from './sheetFont';
@@ -33,9 +34,9 @@ import './sheet.css';
 export interface SheetViewMode {
   /** «Только то, что осталось»: erased lines hidden, learned questions folded to their printed line. */
   onlyLeft: boolean;
-  /** «Закрыть строки»: readable lines covered by a dotted slot (a self-test); a tap opens one. */
+  /** «Спрятать строки»: readable lines covered by a dotted slot (a self-test); a tap opens one. */
   cover: boolean;
-  /** «Весь лист»: the whole paper scaled into the window. */
+  /** «Вся шпаргалка»: the whole paper scaled into the window. */
   zoom: boolean;
 }
 
@@ -44,8 +45,11 @@ export interface SheetReplay {
   token: number;
   /** The lines that change, in the sheet's order, from the sheet before the answer to the sheet after it. */
   changes: LineChange[];
-  /** The question answered: brought into view and marked first. */
-  focusQuestionId: string | null;
+  /**
+   * The questions answered (a ticket has two): each is brought into view, marked and played in turn,
+   * these first; other questions whose lines changed (the same question elsewhere) after them.
+   */
+  focusQuestionIds: readonly string[];
   /** «Показ на проекторе»: everything twice as slow. */
   slow: boolean;
   /** «Показ на проекторе»: nothing moves before «Показать». */
@@ -75,14 +79,26 @@ export interface CheatSheetProps {
   peeked: ReadonlyMap<string, number>;
   /** Lines opened in the self-test. */
   opened: ReadonlySet<string>;
-  /** The question of the last answer: its printed text wears the yellow marker. */
-  markedQuestionId: string | null;
+  /** The questions of the last answer: their printed text wears the yellow marker. */
+  markedQuestionIds: ReadonlySet<string>;
   replay: SheetReplay | null;
-  /** «История листа»: the day shown, written in the paper's corner like a date in a notebook. */
+  /** «История шпаргалки»: the day shown, written in the paper's corner like a date in a notebook. */
   stamp?: string | null;
+  /** The sheet is being written: no «Ещё не написано» under every question at once while it goes on. */
+  writing?: boolean;
+  /** The question whose «почему» is open (its printed line says it is expanded), and the panel's id. */
+  openQuestionId?: string | null;
+  questionPanelId?: string;
+  /**
+   * «Показ на проекторе»: the page shows «Показать, что изменилось» where the eye is (the column, or over
+   * a phone's bottom bar) and calls `show`; null when nothing waits. Without it the paper shows its own.
+   */
+  onWaiting?: (show: (() => void) | null) => void;
+  /** The first stop of the paper for a keyboard: past every line, to the counter and the switches. */
+  skip?: { label: string; target: () => HTMLElement | null } | null;
   onLine: (line: SheetLine, block: SheetBlock) => void;
   onQuestion: (block: SheetBlock) => void;
-  /** «Весь лист»: a click on a question leaves the overview there. */
+  /** «Вся шпаргалка»: a click on a question leaves the overview there. */
   onZoomPick: (questionId: string) => void;
   onReplayEnd: (token: number) => void;
 }
@@ -104,14 +120,29 @@ const NO_MOTIONS: ReadonlyMap<string, Motion> = new Map();
 const NO_KEYS: ReadonlySet<string> = new Set();
 const NO_STATUSES: ReadonlyMap<string, LineStatus> = new Map();
 
-/** The movement that takes a line from one state to another (null: it just changes). */
+/**
+ * The movement that takes a line from one state to another (null: it just changes). A due line reads
+ * as a rubbed one (with its ring): a line becomes due by a rub, a due line passes its check by an erase.
+ */
 export function animFor(from: LineState, to: LineState): Exclude<Anim, 'write'> | null {
   if (from === to) return null;
-  if (to === 'rubbed') return READABLE.has(from) ? 'rub' : null;
-  if (to === 'erased' || to === 'due') return from === 'rubbed' || READABLE.has(from) ? 'erase' : null;
+  if (to === 'rubbed' || to === 'due') return READABLE.has(from) ? 'rub' : null;
+  if (to === 'erased') return from === 'rubbed' || from === 'due' || READABLE.has(from) ? 'erase' : null;
   if (to === 'returned') return 'return';
   if (to === 'missed') return from === 'fresh' ? 'miss' : 'return';
   return null;
+}
+
+/** The changes of an answer by question, in turn: the questions answered first, then the others, each in the sheet's order. */
+export function changeGroups(changes: readonly LineChange[], first: readonly string[]): Array<{ questionId: string; changes: LineChange[] }> {
+  const groups = new Map<string, LineChange[]>();
+  for (const change of changes) {
+    const group = groups.get(change.questionId);
+    if (group) group.push(change);
+    else groups.set(change.questionId, [change]);
+  }
+  const order = [...first.filter((id) => groups.has(id)), ...[...groups.keys()].filter((id) => !first.includes(id))];
+  return order.map((questionId) => ({ questionId, changes: groups.get(questionId) as LineChange[] }));
 }
 
 /** How long a line takes to be written: 26 ms a character, between 280 ms and 1 s (spec 6). */
@@ -146,6 +177,9 @@ const MAX_ANIMATED = 12;
 const SCROLL_FALLBACK_MS = 700;
 const MARKER_MS = 450;
 const TICK_AFTER_MS = 150;
+/** Between the questions of one show, and per line under reduced motion (a 150 ms change, no masks). */
+const NEXT_QUESTION_MS = 300;
+const REDUCED_LINE_MS = 300;
 /** «Весь лист»: room left under the paper, and between the top line and the paper, px. */
 const ZOOM_BOTTOM = 20;
 const ZOOM_TOP = 12;
@@ -164,11 +198,16 @@ function sleep(ms: number, signal: Signal): Promise<void> {
   });
 }
 
-/** Scrolls the block to the middle of the window unless it is in view already, and waits for the scroll to end. */
+/**
+ * Scrolls the block to the middle of the window unless it is in view already, and waits for the scroll
+ * to end. Farther than a screen and a half it jumps: a smooth scroll over metres of paper is a blur.
+ */
 async function bringIntoView(element: HTMLElement, smooth: boolean, signal: Signal): Promise<void> {
   const box = element.getBoundingClientRect();
   const viewport = window.innerHeight || document.documentElement.clientHeight;
   if (box.top >= 80 && box.bottom <= viewport - 40) return;
+  const far = Math.abs(box.top + box.height / 2 - viewport / 2) > viewport * 1.5;
+  if (far) smooth = false;
   await new Promise<void>((resolve) => {
     let done = false;
     const finish = () => {
@@ -222,12 +261,19 @@ function useRows(text: RefObject<HTMLElement>, active: boolean, content: string)
       const box = host.getBoundingClientRect();
       const scale = host.offsetWidth > 0 && box.width > 0 ? box.width / host.offsetWidth : 1;
       const row = parseFloat(getComputedStyle(host).getPropertyValue('--cs-row')) || 24;
-      const next = Array.from(element.getClientRects())
-        .filter((rect) => rect.width > 0 && rect.height > 0)
-        .map((rect) => {
-          const middle = (rect.top + rect.height / 2 - box.top) / scale;
-          return { x: (rect.left - box.left) / scale, w: rect.width / scale, top: Math.max(0, Math.floor(middle / row) * row) };
-        });
+      // One strip per grid row: an arrow drawn in ink is a box of its own, and the words around it are
+      // more rects on the same row — strips per rect overlapped, and their seams showed lighter.
+      const byRow = new Map<number, { left: number; right: number }>();
+      for (const rect of Array.from(element.getClientRects())) {
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        const middle = (rect.top + rect.height / 2 - box.top) / scale;
+        const top = Math.max(0, Math.floor(middle / row) * row);
+        const left = (rect.left - box.left) / scale;
+        const right = left + rect.width / scale;
+        const seen = byRow.get(top);
+        byRow.set(top, seen ? { left: Math.min(seen.left, left), right: Math.max(seen.right, right) } : { left, right });
+      }
+      const next = [...byRow.entries()].sort((a, b) => a[0] - b[0]).map(([top, span]) => ({ x: span.left, w: span.right - span.left, top }));
       setRows((previous) => (sameRows(previous, next) ? previous : next));
     };
     const schedule = () => {
@@ -263,6 +309,11 @@ function useRows(text: RefObject<HTMLElement>, active: boolean, content: string)
 
 // ── One line ───────────────────────────────────────────────────────────────────────────────
 
+/** A line uncovered by «Подсмотреть» is rubbed again by the eraser when it covers (ms). */
+const RECOVER_MS = 380;
+/** «Стирает только ответ» after the last word: its width, px (Onest 14). */
+const RUB_NOTE_PX = 160;
+
 interface LineViewProps {
   line: SheetLine;
   block: SheetBlock;
@@ -272,14 +323,20 @@ interface LineViewProps {
   selected: boolean;
   peeked: boolean;
   covered: boolean;
+  /** A pencil note that appears or goes during the show: its row is kept, empty, so nothing below moves. */
+  reserve: string | null;
+  /** «Вся шпаргалка»: not a stop of the keyboard (a question is picked by its printed line). */
+  inert: boolean;
+  reduced: boolean;
   onLine: (line: SheetLine, block: SheetBlock) => void;
 }
 
-const LineView = memo(function LineView({ line, block, status, motion, selected, peeked, covered, onLine }: LineViewProps) {
-  const [rubNote, setRubNote] = useState(false);
+const LineView = memo(function LineView({ line, block, status, motion, selected, peeked, covered, reserve, inert, reduced, onLine }: LineViewProps) {
+  const [rubNote, setRubNote] = useState<{ top: number; left: number | null } | null>(null);
   const pointer = useRef<{ x: number; moved: boolean } | null>(null);
   const timer = useRef<number | null>(null);
   const textRef = useRef<HTMLSpanElement>(null);
+  const itemRef = useRef<HTMLLIElement>(null);
   useEffect(
     () => () => {
       if (timer.current) window.clearTimeout(timer.current);
@@ -287,7 +344,22 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
     [],
   );
 
-  // «Стирает только ответ» (spec 7.1): rubbing a line with the mouse or a finger shows the hand cannot erase it.
+  // «Стирает только ответ» (spec 7.1): after the last word of the line when it fits there, on the
+  // paper's own grid; else at the end of that row, over the words, on a strip of paper.
+  const placeRubNote = () => {
+    const text = textRef.current;
+    const item = itemRef.current;
+    const rects = text ? Array.from(text.getClientRects()).filter((rect) => rect.width > 0) : [];
+    const last = rects[rects.length - 1];
+    if (!item || !last) return { top: 0, left: null };
+    const box = item.getBoundingClientRect();
+    const scale = item.offsetWidth > 0 && box.width > 0 ? box.width / item.offsetWidth : 1;
+    const row = parseFloat(getComputedStyle(item).getPropertyValue('--cs-row')) || 24;
+    const top = Math.max(0, Math.floor(((last.top + last.height / 2 - box.top) / scale) / row) * row);
+    const left = (last.right - box.left) / scale + 12;
+    return { top, left: left + RUB_NOTE_PX <= item.offsetWidth ? left : null };
+  };
+
   const onPointerDown = (event: ReactPointerEvent) => {
     pointer.current = { x: event.clientX, moved: false };
   };
@@ -296,9 +368,9 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
     if (!start || start.moved || (event.pointerType === 'mouse' && event.buttons === 0)) return;
     if (Math.abs(event.clientX - start.x) > 24) {
       start.moved = true;
-      setRubNote(true);
+      setRubNote(placeRubNote());
       if (timer.current) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setRubNote(false), 2000);
+      timer.current = window.setTimeout(() => setRubNote(null), 2000);
     }
   };
   const onClick = () => {
@@ -307,35 +379,82 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
     if (!rubbed) onLine(line, block);
   };
 
+  // Covered again after «Подсмотреть»: the eraser passes once more, not a snap back.
+  const [recover, setRecover] = useState(false);
+  const wasPeeked = useRef(peeked);
+  const recoverTimer = useRef<number | null>(null);
+  useEffect(() => {
+    const was = wasPeeked.current;
+    wasPeeked.current = peeked;
+    if (!was || peeked || reduced || (status.state !== 'rubbed' && status.state !== 'due')) return;
+    setRecover(true);
+    if (recoverTimer.current) window.clearTimeout(recoverTimer.current);
+    recoverTimer.current = window.setTimeout(() => setRecover(false), RECOVER_MS + 40);
+  }, [peeked, reduced, status.state]);
+  useEffect(
+    () => () => {
+      if (recoverTimer.current) window.clearTimeout(recoverTimer.current);
+    },
+    [],
+  );
+
   const state = status.state;
   const patched = PATCHED.has(state);
   const rows = useRows(textRef, patched || covered, line.text);
-  const note = covered ? null : lineNote(status, peeked);
+  // The note keeps its row under a hidden line too (hidden with it): the self-test does not move the sheet.
+  const note = lineNote(status, peeked);
+
+  // A note that appears under the eye (after «Подсмотреть») opens its row instead of pushing the sheet down at once.
+  const [noteEnters, setNoteEnters] = useState(false);
+  const hadNote = useRef(Boolean(note));
+  useLayoutEffect(() => {
+    const had = hadNote.current;
+    hadNote.current = Boolean(note);
+    if (had || !note || !peeked || reduced) return undefined;
+    setNoteEnters(true);
+    const end = window.setTimeout(() => setNoteEnters(false), 260);
+    return () => window.clearTimeout(end);
+  }, [note, peeked, reduced]);
+
+  const shown = motion ?? (recover ? { anim: 'rub' as const, delay: 0, ms: RECOVER_MS } : null);
   const wave = state === 'missed' || state === 'returned';
   const kind = line.essential ? 'Главный пункт' : 'Пункт';
-  const label = peeked ? `${kind}: ${line.title}` : covered ? `${kind} спрятан. Открыть` : lineLabel(line.title, status, line.essential);
-  const fromErased = motion?.from === 'erased' || motion?.from === 'due';
-  const style = motion ? ({ '--cs-delay': `${motion.delay}ms`, '--cs-ms': `${motion.ms}ms` } as CSSProperties) : undefined;
+  const speech = covered ? { name: `${kind} спрятан. Открыть`, description: null } : lineSpeech(line, status, peeked);
+  const describedId = speech.description ? `cs-ld-${block.questionId}-${line.key}` : undefined;
+  const fromErased = shown?.from === 'erased' || shown?.from === 'due';
+  const style = shown ? ({ '--cs-delay': `${shown.delay}ms`, '--cs-ms': `${shown.ms}ms` } as CSSProperties) : undefined;
   const words = (
     <span className="cs-ink-t" ref={textRef}>
       <SheetText text={line.text} seedBase={line.key} />
     </span>
   );
-  const drawWave = motion?.anim === 'miss' || motion?.anim === 'return';
+  const drawWave = shown?.anim === 'miss' || shown?.anim === 'return';
+  const shownNote = note ?? reserve;
   return (
     <li
+      ref={itemRef}
       className="cs-line"
       data-key={line.key}
       data-state={state}
-      data-anim={motion?.anim}
-      data-trace={motion?.anim === 'return' ? (fromErased ? 'erased' : 'rubbed') : undefined}
+      data-anim={shown?.anim}
+      data-trace={shown?.anim === 'return' ? (fromErased ? 'erased' : 'rubbed') : undefined}
       data-essential={line.essential ? '' : undefined}
       data-peek={peeked ? '' : undefined}
       data-cover={covered ? '' : undefined}
       data-selected={selected ? '' : undefined}
       style={style}
     >
-      <button type="button" className="cs-lbtn" aria-label={label} aria-pressed={selected} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onClick={onClick}>
+      <button
+        type="button"
+        className="cs-lbtn"
+        aria-label={speech.name}
+        aria-describedby={describedId}
+        aria-current={selected || undefined}
+        tabIndex={inert ? -1 : undefined}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onClick={onClick}
+      >
         <span className="cs-bullet" aria-hidden="true">
           {line.essential ? '•' : '–'}
         </span>
@@ -354,7 +473,7 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
                 kind="wave"
                 weight={1.8}
                 animate={drawWave}
-                delayMs={motion ? motion.delay + Math.round(motion.ms * (motion.anim === 'return' ? 0.62 : 0.2)) : 0}
+                delayMs={shown ? shown.delay + Math.round(shown.ms * (shown.anim === 'return' ? 0.62 : 0.2)) : 0}
                 dy={-1}
                 watch={line.text}
               >
@@ -371,6 +490,11 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
               <span className="cs-slot" data-whole="" aria-hidden="true" />
             ))}
         </span>
+        {describedId && (
+          <span className="sr-only" id={describedId}>
+            {speech.description}
+          </span>
+        )}
       </button>
       {state === 'due' && !covered && (
         <span className="cs-due" aria-hidden="true">
@@ -378,13 +502,14 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
         </span>
       )}
       {selected && <MarginStroke seed={seedFrom(line.key, 'selected')} />}
-      {note && (
-        <p className="cs-note" data-kind={peeked ? 'peek' : state}>
-          {note}
+      {/* The line's name or description says the note already: here it is for the eye only. */}
+      {shownNote && (
+        <p className="cs-note" data-kind={peeked ? 'peek' : state} data-reserve={note ? undefined : ''} data-enter={noteEnters ? '' : undefined} aria-hidden="true">
+          {shownNote}
         </p>
       )}
       {rubNote && (
-        <span className="cs-rubnote" role="status">
+        <span className="cs-rubnote" role="status" data-after={rubNote.left !== null ? '' : undefined} style={rubNote.left !== null ? { left: rubNote.left, top: rubNote.top } : { top: rubNote.top }}>
           Стирает только ответ
         </span>
       )}
@@ -402,9 +527,13 @@ interface BlockViewProps {
   /** Lines drawn as they were before the answer, while a replay waits to play. */
   statuses: ReadonlyMap<string, LineStatus>;
   motions: ReadonlyMap<string, Motion>;
+  /** Notes whose rows are kept while the show plays. */
+  reserves: ReadonlyMap<string, string>;
   /** Erased lines that stay in view under «Только то, что осталось» (the last answer erased them). */
   kept: ReadonlySet<string>;
   tickDelay: number | null;
+  /** A returning line breaks the question's tick: the tick stays until that line is written again, then fades (ms). */
+  tickOut: number | null;
   marker: 'none' | 'still' | 'draw';
   mode: SheetViewMode;
   fresh: boolean;
@@ -414,6 +543,10 @@ interface BlockViewProps {
   peeked: ReadonlyMap<string, number>;
   opened: ReadonlySet<string>;
   now: number;
+  reduced: boolean;
+  /** «почему» of this question is open (its printed line says it is expanded). */
+  open: boolean;
+  panelId: string | undefined;
   onLine: (line: SheetLine, block: SheetBlock) => void;
   onQuestion: (block: SheetBlock) => void;
 }
@@ -425,8 +558,10 @@ const BlockView = memo(function BlockView({
   addMaterial,
   statuses,
   motions,
+  reserves,
   kept,
   tickDelay,
+  tickOut,
   marker,
   mode,
   fresh,
@@ -435,6 +570,9 @@ const BlockView = memo(function BlockView({
   peeked,
   opened,
   now,
+  reduced,
+  open,
+  panelId,
   onLine,
   onQuestion,
 }: BlockViewProps) {
@@ -450,73 +588,80 @@ const BlockView = memo(function BlockView({
   const folded = block.lines.length > 0 && block.lines.every(hidden);
   // Written in one after another.
   const writes = useMemo(() => (fresh ? writeSteps(block.lines, writeDelay) : NO_MOTIONS), [fresh, block.lines, writeDelay]);
-  const titleId = `cs-qh-${block.questionId}`;
+  const numberId = `cs-qn-${block.questionId}`;
+  const showTick = learned || tickOut !== null;
   return (
-    <article
-      className="cs-q"
-      id={`cs-q-${block.questionId}`}
-      data-qid={block.questionId}
-      data-kind={block.kind}
-      data-learned={learned ? '' : undefined}
-      data-folded={folded ? '' : undefined}
-      aria-labelledby={titleId}
-    >
-      {heading && <p className="cs-sec">{heading}</p>}
-      <h3 className="cs-qh" id={titleId}>
-        <button type="button" className="cs-qbtn" onClick={() => onQuestion(block)}>
-          <span className="sr-only">{`Вопрос ${block.number}. `}</span>
-          <span className="cs-qn" aria-hidden="true">
-            {block.number}.
-          </span>
-          <span className="cs-qt">
-            <span className="cs-qm" data-marker={marker === 'none' ? undefined : marker}>
-              {block.text}
+    <>
+      {/* The section's title is a heading of its own, before its first question (not inside it). */}
+      {heading && <h2 className="cs-sec">{heading}</h2>}
+      <article
+        className="cs-q"
+        id={`cs-q-${block.questionId}`}
+        data-qid={block.questionId}
+        data-kind={block.kind}
+        data-learned={learned ? '' : undefined}
+        data-folded={folded ? '' : undefined}
+        aria-labelledby={numberId}
+      >
+        <h3 className="cs-qh">
+          <button type="button" className="cs-qbtn" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={() => onQuestion(block)}>
+            <span className="sr-only" id={numberId}>{`Вопрос ${block.number}. `}</span>
+            <span className="cs-qn" aria-hidden="true">
+              {block.number}.
             </span>
-          </span>
-        </button>
-        {learned && (
-          <span className="cs-tick">
-            <Mark kind="tick" seed={seedFrom(block.questionId, 'tick')} width={20} height={16} hand="graphite" animate={tickDelay !== null} delayMs={tickDelay ?? 0} />
-            <span className="sr-only">Главные строки стёрты</span>
-          </span>
-        )}
-      </h3>
-      {!folded && block.lines.length > 0 && (
-        <ul className="cs-lines">
-          {block.lines.map((line) => {
-            if (hidden(line)) return null;
-            const status = statusOf(line);
-            const peekedNow = (peeked.get(line.key) ?? 0) > now;
-            return (
-              <LineView
-                key={line.key}
-                line={line}
-                block={block}
-                status={status}
-                motion={peekedNow ? null : (motions.get(line.key) ?? writes.get(line.key) ?? null)}
-                selected={selectedKey === line.key}
-                peeked={peekedNow}
-                covered={mode.cover && READABLE.has(status.state) && !opened.has(line.key) && !peekedNow}
-                onLine={onLine}
-              />
-            );
-          })}
-        </ul>
-      )}
-      {note && !folded && (
-        <p className="cs-pnote">
-          {note}
-          {addMaterial && (
-            <>
-              {' '}
-              <Link className="cs-pnote-link" to={addMaterial}>
-                Добавить лекцию
-              </Link>
-            </>
+            <span className="cs-qt">
+              <span className="cs-qm" data-marker={marker === 'none' ? undefined : marker}>
+                {glue(block.text)}
+              </span>
+            </span>
+          </button>
+          {showTick && (
+            <span className="cs-tick" data-out={learned ? undefined : ''} style={learned ? undefined : ({ '--cs-out': `${tickOut ?? 0}ms` } as CSSProperties)}>
+              <Mark kind="tick" seed={seedFrom(block.questionId, 'tick')} width={20} height={16} hand="graphite" animate={learned && tickDelay !== null} delayMs={tickDelay ?? 0} />
+              {learned && <span className="sr-only">Главные строки стёрты</span>}
+            </span>
           )}
-        </p>
-      )}
-    </article>
+        </h3>
+        {!folded && block.lines.length > 0 && (
+          <ul className="cs-lines">
+            {block.lines.map((line) => {
+              if (hidden(line)) return null;
+              const status = statusOf(line);
+              const peekedNow = (peeked.get(line.key) ?? 0) > now;
+              return (
+                <LineView
+                  key={line.key}
+                  line={line}
+                  block={block}
+                  status={status}
+                  motion={peekedNow ? null : (motions.get(line.key) ?? writes.get(line.key) ?? null)}
+                  selected={selectedKey === line.key}
+                  peeked={peekedNow}
+                  covered={mode.cover && READABLE.has(status.state) && !opened.has(line.key) && !peekedNow}
+                  reserve={reserves.get(line.key) ?? null}
+                  inert={mode.zoom}
+                  reduced={reduced}
+                  onLine={onLine}
+                />
+              );
+            })}
+          </ul>
+        )}
+        {note && !folded && (
+          <p className="cs-pnote">
+            {glue(note)}
+            {addMaterial && (
+              <>
+                {`${NBSP}· `}
+                <Link className="cs-pnote-link" to={addMaterial} tabIndex={mode.zoom ? -1 : undefined}>
+                  Добавить лекцию
+                </Link>
+              </>
+            )}
+          </p>
+        )}
+      </article>
+    </>
   );
 });
 
@@ -536,6 +681,14 @@ interface Zoom {
 }
 
 const NO_ZOOM: Zoom = { columns: 0, scale: 1, width: 0, height: 0, offset: 0 };
+const NO_NOTES: ReadonlyMap<string, string> = new Map();
+const NO_MARKERS: ReadonlyMap<string, 'draw' | 'still'> = new Map();
+const NO_TIMES: ReadonlyMap<string, number> = new Map();
+
+/** The printed line of a question, the place the keyboard stands while its answer is shown. */
+function questionButton(questionId: string): HTMLElement | null {
+  return document.getElementById(`cs-q-${questionId}`)?.querySelector<HTMLElement>('.cs-qbtn') ?? null;
+}
 
 export default function CheatSheet({
   examId,
@@ -551,9 +704,14 @@ export default function CheatSheet({
   selectedKey,
   peeked,
   opened,
-  markedQuestionId,
+  markedQuestionIds,
   replay,
   stamp = null,
+  writing = false,
+  openQuestionId = null,
+  questionPanelId,
+  onWaiting,
+  skip = null,
   onLine,
   onQuestion,
   onZoomPick,
@@ -568,13 +726,18 @@ export default function CheatSheet({
   const [phase, setPhase] = useState<Phase>('idle');
   const [overrides, setOverrides] = useState<ReadonlyMap<string, LineStatus>>(NO_STATUSES);
   const [motions, setMotions] = useState<ReadonlyMap<string, Motion>>(NO_MOTIONS);
+  const [reserves, setReserves] = useState<ReadonlyMap<string, string>>(NO_NOTES);
   // Lines the last answer erased stay under «Только то, что осталось» until the switch is turned:
   // they vanish on the next visit, never under the eye (and the columns do not jump after the show).
   const [kept, setKept] = useState<ReadonlySet<string>>(NO_KEYS);
-  const [ticks, setTicks] = useState<ReadonlyMap<string, number>>(() => new Map());
-  const [focusId, setFocusId] = useState<string | null>(null);
+  const [ticks, setTicks] = useState<ReadonlyMap<string, number>>(NO_TIMES);
+  const [unticks, setUnticks] = useState<ReadonlyMap<string, number>>(NO_TIMES);
+  const [markers, setMarkers] = useState<ReadonlyMap<string, 'draw' | 'still'>>(NO_MARKERS);
   const [awaitingClick, setAwaitingClick] = useState(false);
   const clickResolver = useRef<(() => void) | null>(null);
+  const firstShown = useRef<string | null>(null);
+  const waitingHandler = useRef(onWaiting);
+  waitingHandler.current = onWaiting;
   const [zoom, setZoom] = useState<Zoom>(NO_ZOOM);
   const [now, setNow] = useState(() => Date.now());
 
@@ -598,7 +761,7 @@ export default function CheatSheet({
     return () => window.clearTimeout(timer);
   }, [peeked]);
 
-  // The paper's width (the wrap's, while «Весь лист» gives the paper a width of its own).
+  // The paper's width (the wrap's, while «Вся шпаргалка» gives the paper a width of its own).
   useLayoutEffect(() => {
     const element = wrapRef.current;
     if (!element) return undefined;
@@ -615,8 +778,9 @@ export default function CheatSheet({
   // The question that starts the second column, held while the sheet is being written.
   const secondStart = useRef<string | null>(null);
 
-  // Section titles and notes, and each block's height in grid rows.
-  const anyWritten = blocks.some((block) => block.kind === 'lines');
+  // Section titles and notes, and each block's height in grid rows. While a run writes the sheet,
+  // «Ещё не написано» does not appear under every question at once: it waits for the run's end.
+  const anyWritten = !writing && blocks.some((block) => block.kind === 'lines');
   const measured = useMemo(() => {
     let previous: number | null = null;
     const items = blocks.map((block) => {
@@ -636,7 +800,7 @@ export default function CheatSheet({
 
   // The split into columns by the blocks' heights. A question still to be written counts as tall as the
   // written ones, so the split hardly moves when it gets its lines; while the writing goes on (and while
-  // the history plays) it does not move at all. «Весь лист» may lay the paper out in more columns.
+  // the history plays) it does not move at all. «Вся шпаргалка» may lay the paper out in more columns.
   const zoomColumns = mode.zoom ? zoom.columns : 0;
   const laid = useMemo(() => {
     const { items, rows } = measured;
@@ -649,7 +813,7 @@ export default function CheatSheet({
     secondStart.current = laid[1]?.[0]?.block.questionId ?? null;
   }, [laid, zoomColumns, geometry.columns]);
 
-  // «Весь лист» (spec 7.4): the paper's top under the top line, then the whole paper in the rest of the
+  // «Вся шпаргалка» (spec 7.4): the paper's top under the top line, then the whole paper in the rest of the
   // window — in more columns while that shows it larger, scaled to fit, in the middle of the column.
   const zoomOn = mode.zoom;
   useLayoutEffect(() => {
@@ -696,36 +860,53 @@ export default function CheatSheet({
     setKept(NO_KEYS);
   }, [mode.onlyLeft]);
 
-  // ── The replay of an answer (spec 4.2): into view → marker → lines one by one → the column. ──
-  // A layout effect: the lines are drawn as they were before the answer from the first frame, so the
-  // new state never flashes before the show.
+  // ── The replay of an answer (spec 4.2): for each question answered in turn — into view → marker → its
+  // lines one by one; then the column. A layout effect: the lines are drawn as they were before the
+  // answer from the first frame, so the new state never flashes before the show.
   useLayoutEffect(() => {
     if (!replay) return undefined;
     setKept(replay.changes.length > 0 ? new Set(replay.changes.map((change) => change.key)) : NO_KEYS);
     const signal: Signal = { cancelled: false };
     const factor = replay.slow ? 2 : 1;
-    const focus = replay.focusQuestionId ?? replay.changes[0]?.questionId ?? null;
+    const groups = changeGroups(replay.changes, replay.focusQuestionIds);
+    firstShown.current = groups[0]?.questionId ?? null;
+    const current = new Map<string, LineStatus>();
+    for (const block of blocks) for (const line of block.lines) current.set(line.key, line.status);
     const before = new Map<string, LineStatus>();
-    const lineStatus = new Map<string, LineStatus>();
-    for (const block of blocks) for (const line of block.lines) lineStatus.set(line.key, line.status);
+    const reserve = new Map<string, string>();
     for (const change of replay.changes) {
-      const current = lineStatus.get(change.key);
-      before.set(change.key, change.before ?? (current ? { ...current, state: change.from } : ({ state: change.from } as LineStatus)));
+      const now = current.get(change.key);
+      const was = change.before ?? (now ? { ...now, state: change.from } : ({ state: change.from } as LineStatus));
+      before.set(change.key, was);
+      // A note that appears (a missed point) or goes (a missed point named) keeps its row all show long.
+      const noteBefore = lineNote(was);
+      const noteAfter = now ? lineNote(now) : null;
+      if (Boolean(noteBefore) !== Boolean(noteAfter)) reserve.set(change.key, (noteBefore ?? noteAfter) as string);
     }
-    setFocusId(focus);
     setOverrides(before);
+    setReserves(reserve.size > 0 ? reserve : NO_NOTES);
     setMotions(NO_MOTIONS);
-    setTicks(new Map());
+    setTicks(NO_TIMES);
+    setUnticks(NO_TIMES);
+    setMarkers(NO_MARKERS);
     setPhase('before');
 
+    const waiting = (on: boolean) => {
+      const handler = waitingHandler.current;
+      if (handler) handler(on ? showNowRef.current : null);
+      else setAwaitingClick(on);
+    };
     const finish = () => {
       if (signal.cancelled) return;
       signal.cancelled = true;
+      if (clickResolver.current) waiting(false);
       clickResolver.current = null;
-      setAwaitingClick(false);
       setOverrides(NO_STATUSES);
       setMotions(NO_MOTIONS);
-      setTicks(new Map());
+      setReserves(NO_NOTES);
+      setTicks(NO_TIMES);
+      setUnticks(NO_TIMES);
+      setMarkers(NO_MARKERS);
       setPhase('idle');
       onReplayEnd(replay.token);
     };
@@ -734,58 +915,91 @@ export default function CheatSheet({
       await loadSheetFont();
       if (signal.cancelled) return;
       // Nothing changed: no «Показать» and no show, only the column's sentence.
-      if (replay.changes.length === 0) {
+      if (groups.length === 0) {
         finish();
         return;
       }
-      const target = focus ? document.getElementById(`cs-q-${focus}`) : null;
-      if (target) await bringIntoView(target, !reduced, signal);
-      if (signal.cancelled) return;
-      if (replay.waitForClick) {
-        setAwaitingClick(true);
-        await new Promise<void>((resolve) => {
-          clickResolver.current = resolve;
-        });
-        clickResolver.current = null;
-        setAwaitingClick(false);
+      const remaining = new Map(before);
+      const marked = new Map<string, 'draw' | 'still'>();
+      let budget = MAX_ANIMATED;
+      for (let index = 0; index < groups.length; index += 1) {
+        const group = groups[index];
+        // Past the twelfth line the rest changes at once, where it is.
+        if (budget <= 0) {
+          for (const change of group.changes) remaining.delete(change.key);
+          setOverrides(new Map(remaining));
+          continue;
+        }
+        const element = document.getElementById(`cs-q-${group.questionId}`);
+        if (element) await bringIntoView(element, !reduced, signal);
         if (signal.cancelled) return;
+        if (index === 0 && replay.waitForClick) {
+          await new Promise<void>((resolve) => {
+            clickResolver.current = resolve;
+            waiting(true);
+          });
+          clickResolver.current = null;
+          waiting(false);
+          if (signal.cancelled) return;
+        }
+        await sleep((index === 0 ? 250 : NEXT_QUESTION_MS) * factor, signal);
+        if (signal.cancelled) return;
+        const block = blocks.find((item) => item.questionId === group.questionId) ?? null;
+        if (reduced) {
+          // No sweeps: the marker stands still, the lines change one by one in 150 ms.
+          marked.set(group.questionId, 'still');
+          setMarkers(new Map(marked));
+          setPhase('lines');
+          for (const change of group.changes) {
+            remaining.delete(change.key);
+            budget -= 1;
+            setOverrides(new Map(remaining));
+            await sleep(REDUCED_LINE_MS * factor, signal);
+            if (signal.cancelled) return;
+          }
+          continue;
+        }
+        marked.set(group.questionId, 'draw');
+        setMarkers(new Map(marked));
+        setPhase('marker');
+        await sleep(MARKER_MS * factor, signal);
+        if (signal.cancelled) return;
+        const next = new Map<string, Motion>();
+        const ends = new Map<string, number>();
+        let at = 0;
+        for (const change of group.changes) {
+          remaining.delete(change.key);
+          const anim = animFor(change.from, change.to);
+          if (!anim || budget <= 0) continue;
+          budget -= 1;
+          const ms = DURATION[anim] * factor;
+          next.set(change.key, { anim, delay: at, ms, from: change.from });
+          ends.set(change.key, at + ms);
+          at += NEXT_AFTER[anim] * factor;
+        }
+        // The question's tick: drawn 150 ms after its last essential line is erased; or, when a line of
+        // it comes back, kept until that line is written again, then faded.
+        const tickAt = new Map<string, number>();
+        const untickAt = new Map<string, number>();
+        if (block) {
+          const essentials = block.lines.filter((line) => line.essential);
+          const deciding = essentials.length > 0 ? essentials : block.lines;
+          const was = deciding.length > 0 && deciding.every((line) => (before.get(line.key)?.state ?? line.status.state) === 'erased');
+          const is = deciding.length > 0 && deciding.every((line) => line.status.state === 'erased');
+          if (is && !was) tickAt.set(block.questionId, Math.max(0, ...deciding.map((line) => ends.get(line.key) ?? 0)) + TICK_AFTER_MS * factor);
+          if (was && !is) untickAt.set(block.questionId, Math.max(0, ...deciding.map((line) => ends.get(line.key) ?? 0)));
+        }
+        setOverrides(new Map(remaining));
+        setMotions(next);
+        setTicks(tickAt);
+        setUnticks(untickAt);
+        setPhase('lines');
+        const longest = Math.max(0, ...ends.values(), ...[...tickAt.values()].map((value) => value + 250), ...[...untickAt.values()].map((value) => value + 200));
+        await sleep(longest + 120, signal);
+        if (signal.cancelled) return;
+        marked.set(group.questionId, 'still');
+        setMarkers(new Map(marked));
       }
-      if (reduced) {
-        finish();
-        return;
-      }
-      await sleep(250 * factor, signal);
-      if (signal.cancelled) return;
-      setPhase('marker');
-      await sleep(MARKER_MS * factor, signal);
-      if (signal.cancelled) return;
-      // Line by line in the sheet's order; past the twelfth the rest changes at once.
-      const next = new Map<string, Motion>();
-      const ends = new Map<string, number>();
-      let at = 0;
-      replay.changes.forEach((change, index) => {
-        const anim = animFor(change.from, change.to);
-        if (!anim || index >= MAX_ANIMATED) return;
-        const ms = DURATION[anim] * factor;
-        next.set(change.key, { anim, delay: at, ms, from: change.from });
-        ends.set(change.key, at + ms);
-        at += NEXT_AFTER[anim] * factor;
-      });
-      // A question whose last essential line is erased now gets its tick 150 ms after that line.
-      const tickAt = new Map<string, number>();
-      for (const block of blocks) {
-        const essentials = block.lines.filter((line) => line.essential);
-        const deciding = essentials.length > 0 ? essentials : block.lines;
-        if (deciding.length === 0 || !deciding.every((line) => line.status.state === 'erased')) continue;
-        if (deciding.every((line) => (before.get(line.key)?.state ?? line.status.state) === 'erased')) continue;
-        tickAt.set(block.questionId, Math.max(0, ...deciding.map((line) => ends.get(line.key) ?? 0)) + TICK_AFTER_MS * factor);
-      }
-      setOverrides(NO_STATUSES);
-      setMotions(next);
-      setTicks(tickAt);
-      setPhase('lines');
-      const longest = Math.max(0, ...ends.values(), ...[...tickAt.values()].map((value) => value + 250));
-      await sleep(longest + 120, signal);
       finish();
     };
     void run();
@@ -811,11 +1025,17 @@ export default function CheatSheet({
       signal.cancelled = true;
       const resolve = clickResolver.current;
       clickResolver.current = null;
-      resolve?.();
+      if (resolve) {
+        if (waitingHandler.current) waitingHandler.current(null);
+        resolve();
+      }
       setAwaitingClick(false);
       setOverrides(NO_STATUSES);
       setMotions(NO_MOTIONS);
-      setTicks(new Map());
+      setReserves(NO_NOTES);
+      setTicks(NO_TIMES);
+      setUnticks(NO_TIMES);
+      setMarkers(NO_MARKERS);
       setPhase('idle');
       window.removeEventListener('keydown', onInput);
       window.removeEventListener('pointerdown', onInput);
@@ -826,11 +1046,16 @@ export default function CheatSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replay?.token]);
 
+  // «Показать»: the keyboard goes to the first question shown (the button goes away under it).
   const showNow = useCallback(() => {
     const resolve = clickResolver.current;
     clickResolver.current = null;
+    const first = firstShown.current;
+    if (first) questionButton(first)?.focus({ preventScroll: true });
     resolve?.();
   }, []);
+  const showNowRef = useRef(showNow);
+  showNowRef.current = showNow;
 
   const onPickCapture = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -850,23 +1075,30 @@ export default function CheatSheet({
   const paperStyle = {
     '--cs-col': `${geometry.column}px`,
     ...(columnCount > 2 ? { gridTemplateColumns: `repeat(${columnCount}, var(--cs-col))` } : null),
-    ...(zoomed ? { width: zoom.width, transform: `translateX(${zoom.offset}px) scale(${zoom.scale})`, transformOrigin: '0 0' } : null),
+    // Scaled down, the grid's lines and the focus ring stay one device pixel and two px wide.
+    ...(zoomed ? { width: zoom.width, transform: `translateX(${zoom.offset}px) scale(${zoom.scale})`, transformOrigin: '0 0', '--cs-zoom': String(zoom.scale) } : null),
   } as CSSProperties;
   const markerOf = (questionId: string): 'none' | 'still' | 'draw' => {
-    if (phase === 'idle') return questionId === markedQuestionId ? 'still' : 'none';
-    if (questionId !== focusId) return 'none';
-    return phase === 'before' ? 'none' : 'draw';
+    if (phase === 'idle') return markedQuestionIds.has(questionId) ? 'still' : 'none';
+    return markers.get(questionId) ?? 'none';
   };
+  const titled = measured.items.some((item) => item.heading);
 
   return (
     <section
       className="cs-wrap"
-      aria-label="Шпаргалка"
       data-zoom={mode.zoom ? '' : undefined}
       data-slow={replay?.slow && phase !== 'idle' ? '' : undefined}
       ref={wrapRef}
       style={zoomed && zoom.height > 0 ? { height: zoom.height } : undefined}
     >
+      {skip && (
+        <button type="button" className="cs-skip" onClick={() => skip.target()?.focus()}>
+          {skip.label}
+        </button>
+      )}
+      {/* Without section titles the questions still sit under a heading of the page's next level. */}
+      {!titled && <h2 className="sr-only">Шпаргалка</h2>}
       <div
         ref={paperRef}
         className="cs-paper"
@@ -882,7 +1114,8 @@ export default function CheatSheet({
           </p>
         )}
         {laid.map((column, index) => (
-          <div className="cs-col" key={index}>
+          // A column is the same column while its first question is: blocks that stay do not remount (and the keyboard stays on them).
+          <div className="cs-col" key={column[0]?.block.questionId ?? `empty-${index}`}>
             {column.map(({ block, heading, note }) => (
               <BlockView
                 key={block.questionId}
@@ -892,8 +1125,10 @@ export default function CheatSheet({
                 addMaterial={block.kind === 'gap' && block.coverage === 'none' ? (addMaterialHref === undefined ? `/exams/${examId}/edit#lectures` : addMaterialHref) : null}
                 statuses={overrides}
                 motions={motions}
+                reserves={reserves}
                 kept={kept}
                 tickDelay={ticks.get(block.questionId) ?? null}
+                tickOut={unticks.get(block.questionId) ?? null}
                 marker={markerOf(block.questionId)}
                 mode={mode}
                 fresh={freshIds.has(block.questionId) && !reduced}
@@ -902,6 +1137,9 @@ export default function CheatSheet({
                 peeked={peeked}
                 opened={opened}
                 now={now}
+                reduced={reduced}
+                open={openQuestionId === block.questionId}
+                panelId={questionPanelId}
                 onLine={onLine}
                 onQuestion={onQuestion}
               />

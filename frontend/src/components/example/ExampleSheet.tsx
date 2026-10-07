@@ -117,6 +117,8 @@ export default function ExampleSheet() {
       onQuestion: (id) => setSelectedId((current) => (current === id ? null : id)),
       // A line's details take the column: «почему» of a question closes (it would stand in front of them).
       onLineOpen: () => setSelectedId(null),
+      openQuestionId: onSheet ? selectedId : null,
+      questionPanelId: WHY_ID,
       links: TRY_LINKS,
     },
     sheetData,
@@ -219,6 +221,7 @@ export default function ExampleSheet() {
         variant={variant}
         frameBox={frame.box}
         headingId={`${WHY_ID}-title`}
+        focusHeading={onSheet}
         onClose={closeWhy}
         onAnswer={answer}
       />
@@ -275,7 +278,16 @@ export default function ExampleSheet() {
       {touched ? (
         <>
           {' '}
-          <button type="button" className="sf-link tx-restart" data-muted="" onClick={sheetData.restart}>
+          <button
+            type="button"
+            className="sf-link tx-restart"
+            data-muted=""
+            onClick={() => {
+              sheetData.restart();
+              // The button goes with the guest's answers: the keyboard goes to «Ответьте на вопрос 5».
+              window.setTimeout(() => document.querySelector<HTMLElement>('.tx-sheet-cap a')?.focus(), 0);
+            }}
+          >
             Начать пример заново
           </button>
         </>
@@ -288,6 +300,7 @@ export default function ExampleSheet() {
     <>
       <TryBar />
       <div className="sf-page tx-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
+        {onSheet ? sheetPage.status : null}
         <header className="ex-head">
           <div style={{ minWidth: 0 }}>
             <p className="tx-flag">Пример экзамена</p>
@@ -377,7 +390,7 @@ export default function ExampleSheet() {
             </div>
           </div>
           {frame.side ? (
-            <aside className="ex-col" aria-label={onSheet ? 'Шпаргалка' : 'Что это значит для билетов'} id={selected ? WHY_ID : undefined}>
+            <aside className="ex-col" aria-label={onSheet ? 'Колонка шпаргалки' : 'Что это значит для билетов'} id={selected ? WHY_ID : undefined}>
               {onSheet ? sheetColumn : selected ? whyPanel('column') : summary}
             </aside>
           ) : null}

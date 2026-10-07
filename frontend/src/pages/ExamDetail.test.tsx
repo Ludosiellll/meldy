@@ -1516,7 +1516,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
     expect(window.localStorage.getItem(VIEW_KEY)).toBe('sheet');
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'ex-view-sheet');
-    expect(await screen.findByRole('region', { name: 'Шпаргалка' })).toBeInTheDocument();
+    expect(await screen.findByRole('tabpanel', { name: 'Шпаргалка' })).toBeInTheDocument();
     // The first write is the column's filled pill, and «Тянуть билет» steps down to the quiet one.
     expect(await screen.findByRole('button', { name: 'Написать шпаргалку' })).toHaveClass('sf-primary');
     expect(drawPill()).toHaveClass('ex-secondary');
@@ -1541,8 +1541,8 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     renderDetail();
     await opened();
     expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
-    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
-    expect(await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    expect(await within(paper).findByRole('button', { name: named('первое 1') })).toBeInTheDocument();
     // Something is written already: «Тянуть билет» is the filled pill again, «Дописать» is quiet.
     expect(await screen.findByRole('button', { name: named('Дописать 29 вопросов') })).toHaveClass('ex-secondary');
     expect(drawPill()).toHaveClass('sf-primary');
@@ -1587,8 +1587,8 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
     renderDetail();
     await opened();
-    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
-    fireEvent.click(await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') }));
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    fireEvent.click(await within(paper).findByRole('button', { name: named('первое 1') }));
     const details = await screen.findByRole('heading', { name: named('Первый пункт 1') });
     const panel = details.closest('section') as HTMLElement;
     expect(within(panel).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/exams/exam-1/ticket?q=q1');
@@ -1616,7 +1616,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     // Gone for good on this device.
     renderDetail();
     await opened();
-    await screen.findByRole('region', { name: 'Шпаргалка' });
+    await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
     await new Promise((resolve) => setTimeout(resolve, 900));
     expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
   });
@@ -1643,7 +1643,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     renderDetail();
     await opened();
-    await screen.findByRole('region', { name: 'Шпаргалка' });
+    await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
     await new Promise((resolve) => setTimeout(resolve, 900));
     expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
   });
@@ -1662,7 +1662,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(change).toHaveClass('cs-change');
     // The show of «Вопросы» is not played as well.
     expect(document.querySelector('.ex-peak')).toBeNull();
-    const paper = screen.getByRole('region', { name: 'Шпаргалка' });
+    const paper = screen.getByRole('tabpanel', { name: 'Шпаргалка' });
     expect(paper.querySelector('[data-key="r1:p1"]')).toHaveAttribute('data-state', 'erased');
     expect(paper.querySelector('[data-key="r1:p2"]')).toHaveAttribute('data-state', 'rubbed');
   });
@@ -1692,10 +1692,10 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     await opened();
     const alert = await screen.findByText(named('Не удалось загрузить ответы. Без них не видно, какие строки стёрты.'));
     // No lines in full ink before their states are known.
-    expect(screen.queryByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeNull();
+    expect(screen.queryByRole('button', { name: named('первое 1') })).toBeNull();
     fireEvent.click(within(alert.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Повторить' }));
-    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
-    expect(await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    expect(await within(paper).findByRole('button', { name: named('первое 1') })).toBeInTheDocument();
   });
 
   it('«Спрятать строки»: a tap opens a hidden line, and that is not a peek', async () => {
@@ -1703,12 +1703,12 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
     renderDetail();
     await opened();
-    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
-    await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') });
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    await within(paper).findByRole('button', { name: named('первое 1') });
     fireEvent.click(screen.getByRole('switch', { name: 'Спрятать строки' }));
     expect(screen.getByText('Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.')).toBeInTheDocument();
     fireEvent.click(within(paper).getByRole('button', { name: 'Главный пункт спрятан. Открыть' }));
-    expect(within(paper).getByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
+    expect(within(paper).getByRole('button', { name: named('первое 1') })).toBeInTheDocument();
     // Opening it is the self-test, not a look at the answer: nothing goes to the journal, no line panel.
     expect(mocks.recordSheetPeek).not.toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull();
@@ -1719,8 +1719,8 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
     renderDetail();
     await opened();
-    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
-    const line = await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') });
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    const line = await within(paper).findByRole('button', { name: named('первое 1') });
     fireEvent.click(paper.querySelector('#cs-q-q1 .cs-qbtn') as HTMLElement);
     expect(await screen.findByRole('heading', { name: named('Есть в ваших лекциях') })).toBeInTheDocument();
     fireEvent.click(line);

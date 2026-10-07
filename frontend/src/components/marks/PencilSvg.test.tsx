@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { shape } from './geometry';
 import { MarginStroke, Mark, PencilBrace } from './PencilSvg';
-import { PencilOval, PencilUnder, TextMark } from './TextMarks';
+import { mergeRows, PencilOval, PencilUnder, TextMark } from './TextMarks';
 
 function stubReducedMotion(reduce: boolean) {
   vi.stubGlobal(
@@ -205,5 +205,21 @@ describe('text marks', () => {
     const { container } = render(<PencilUnder seed={7}>выбор</PencilUnder>);
     expect(screen.getByText('выбор')).toBeInTheDocument();
     expect(container.querySelectorAll('svg')).toHaveLength(0);
+  });
+});
+
+describe('mergeRows', () => {
+  it('draws one stroke per row of words: an arrow drawn inside the words does not cut the wave', () => {
+    // «ставка ↑ → кредиты»: text, an arrow's box (shorter, on the baseline), text — one row; then a second row.
+    const rows = mergeRows([
+      { x: 0, y: 0, w: 60, h: 27 },
+      { x: 62, y: 4, w: 11, h: 18 },
+      { x: 75, y: 0, w: 80, h: 27 },
+      { x: 0, y: 24, w: 90, h: 27 },
+    ]);
+    expect(rows).toEqual([
+      { x: 0, y: 0, w: 155, h: 27 },
+      { x: 0, y: 24, w: 90, h: 27 },
+    ]);
   });
 });

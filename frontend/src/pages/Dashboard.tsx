@@ -1307,7 +1307,10 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   const sheetLine = sheetCounts ? (
     <p className="td-sheet">
       <Link className="td-sheet-link" to={`/exams/${exam.id}?view=sheet`}>
-        {glue(`Шпаргалка: ${sheetCounts.left} ${counterLabel(sheetCounts)}`)}
+        {/* The count holds together: a narrow card breaks after «Шпаргалка:», not inside «осталось из 47». */}
+        <span>
+          Шпаргалка: <span className="td-nowrap">{glue(`${sheetCounts.left} ${counterLabel(sheetCounts)}`)}</span>
+        </span>
         <ArrowIcon className="td-arrow" />
       </Link>
     </p>

@@ -90,16 +90,53 @@ export function gluedArrows(text: string): string {
   return text.replace(/[ \t]+([↑↓])/g, '\u00a0$1').replace(/([→⇒←])[ \t]+/g, '$1\u00a0');
 }
 
-/** The line's text with its arrows drawn; `seedBase` keeps every arrow's wobble stable. */
+/**
+ * The line's text with its arrows drawn; `seedBase` keeps every arrow's wobble stable. A word and the
+ * arrow glued to it are one unbreakable piece (`.cs-glue`): a no-break space next to an inline SVG
+ * still lets the browser break there, and «↓» stood alone at the start of a row.
+ */
 export function SheetText({ text, seedBase }: { text: string; seedBase: string }) {
-  const parts = useMemo(() => gluedArrows(text).split(ARROWS).filter((part) => part !== ''), [text]);
+  const pieces = useMemo(() => {
+    // Each part keeps its index in the whole line (the arrows' seeds), grouped by the spaces that may break.
+    const parts = gluedArrows(text).split(ARROWS).filter((part) => part !== '');
+    const groups: Array<{ glued: boolean; parts: Array<{ text: string; index: number }> }> = [];
+    let current: { glued: boolean; parts: Array<{ text: string; index: number }> } = { glued: false, parts: [] };
+    parts.forEach((part, index) => {
+      if (part.length === 1 && ARROWS.test(part)) {
+        current.glued = true;
+        current.parts.push({ text: part, index });
+        return;
+      }
+      // A space that may break ends a piece; the text around it starts the next.
+      const spaced = part.split(/( +)/);
+      spaced.forEach((chunk, at) => {
+        if (/^ +$/.test(chunk)) {
+          if (current.parts.length > 0) groups.push(current);
+          groups.push({ glued: false, parts: [{ text: chunk, index }] });
+          current = { glued: false, parts: [] };
+        } else if (chunk !== '' || at === 0) {
+          if (chunk !== '') current.parts.push({ text: chunk, index });
+        }
+      });
+    });
+    if (current.parts.length > 0) groups.push(current);
+    return groups;
+  }, [text]);
+  const render = (part: { text: string; index: number }, key: number) =>
+    part.text.length === 1 && ARROWS.test(part.text) ? (
+      <SheetArrow key={key} direction={part.text as Direction} seed={seedFrom(`${seedBase}:${part.index}`, 0)} />
+    ) : (
+      <Fragment key={key}>{part.text}</Fragment>
+    );
   return (
     <>
-      {parts.map((part, index) =>
-        part.length === 1 && ARROWS.test(part) ? (
-          <SheetArrow key={index} direction={part as Direction} seed={seedFrom(`${seedBase}:${index}`, 0)} />
+      {pieces.map((piece, index) =>
+        piece.glued ? (
+          <span key={index} className="cs-glue">
+            {piece.parts.map(render)}
+          </span>
         ) : (
-          <Fragment key={index}>{part}</Fragment>
+          <Fragment key={index}>{piece.parts.map(render)}</Fragment>
         ),
       )}
     </>

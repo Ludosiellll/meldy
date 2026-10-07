@@ -156,11 +156,34 @@ export function PencilOval({
   );
 }
 
-interface LineRect {
+export interface LineRect {
   x: number;
   y: number;
   w: number;
   h: number;
+}
+
+/**
+ * One rect per row of words: an inline box inside the words (the cheat sheet's arrows drawn in ink) is
+ * a rect of its own, and a stroke per rect broke the wave at every arrow, with knots where they met.
+ * Rects that overlap by half their height are one row, from the leftmost to the rightmost edge.
+ */
+export function mergeRows(rects: readonly LineRect[]): LineRect[] {
+  const rows: LineRect[] = [];
+  for (const rect of rects) {
+    const row = rows.find((item) => Math.min(item.y + item.h, rect.y + rect.h) - Math.max(item.y, rect.y) >= Math.min(item.h, rect.h) / 2);
+    if (!row) {
+      rows.push({ ...rect });
+      continue;
+    }
+    const right = Math.max(row.x + row.w, rect.x + rect.w);
+    const bottom = Math.max(row.y + row.h, rect.y + rect.h);
+    row.x = Math.min(row.x, rect.x);
+    row.y = Math.min(row.y, rect.y);
+    row.w = right - row.x;
+    row.h = bottom - row.y;
+  }
+  return rows;
 }
 
 function sameRects(a: LineRect[], b: LineRect[]): boolean {
@@ -211,14 +234,16 @@ export function PencilUnder({ seed, children, hand = 'pencil', animate = false, 
       const hostBox = host.getBoundingClientRect();
       // A scaled ancestor (the cheat sheet's «Весь лист») scales the rects too: back to the host's own px.
       const scale = host.offsetWidth > 0 && hostBox.width > 0 ? hostBox.width / host.offsetWidth : 1;
-      const next = Array.from(element.getClientRects())
-        .filter((rect) => rect.width > 0 && rect.height > 0)
-        .map((rect) => ({
-          x: (rect.left - hostBox.left) / scale - host.clientLeft + host.scrollLeft,
-          y: (rect.top - hostBox.top) / scale - host.clientTop + host.scrollTop,
-          w: rect.width / scale,
-          h: rect.height / scale,
-        }));
+      const next = mergeRows(
+        Array.from(element.getClientRects())
+          .filter((rect) => rect.width > 0 && rect.height > 0)
+          .map((rect) => ({
+            x: (rect.left - hostBox.left) / scale - host.clientLeft + host.scrollLeft,
+            y: (rect.top - hostBox.top) / scale - host.clientTop + host.scrollTop,
+            w: rect.width / scale,
+            h: rect.height / scale,
+          })),
+      );
       setRects((previous) => (sameRects(previous, next) ? previous : next));
     };
     const schedule = () => {

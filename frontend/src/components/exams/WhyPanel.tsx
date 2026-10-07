@@ -38,6 +38,8 @@ export interface WhyPanelProps {
   variant: 'column' | 'sheet';
   frameBox?: FrameBox;
   headingId: string;
+  /** Opened from a printed line of the cheat sheet: the heading takes the keyboard (the line is far from the column). */
+  focusHeading?: boolean;
   onClose: () => void;
   onManualMark: () => void;
   manualPending: boolean;
@@ -214,6 +216,8 @@ export default function WhyPanel(props: WhyPanelProps) {
 
   useEffect(() => {
     if (sheet) closeRef.current?.focus();
+    else if (props.focusHeading) document.getElementById(props.headingId)?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheet, question.id]);
 
   useEffect(() => {
@@ -321,7 +325,9 @@ export default function WhyPanel(props: WhyPanelProps) {
   const content = (
     <>
       <p className="ex-why-t">Вопрос {number}</p>
-      <h3 id={props.headingId}>{glue(verdict.title)}</h3>
+      <h3 id={props.headingId} tabIndex={props.focusHeading && !sheet ? -1 : undefined}>
+        {glue(verdict.title)}
+      </h3>
       {verdict.lead.map((line) => (
         <p key={line} className="ex-stmt">
           {glue(line)}

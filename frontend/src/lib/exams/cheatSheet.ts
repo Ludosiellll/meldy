@@ -24,8 +24,9 @@
  * - rubbed — named, the series does not erase yet: rubbed half-way, not readable;
  * - erased — gone, only the eraser's trace;
  * - due — erased, and its check is due: 5, 12, 25, 50 days after the last naming as checks pass
- *   (a check is a naming of an erased line on another day, 20 hours or more after the previous
- *   naming), or in the last days before the exam a line not named for 4 days;
+ *   (a check is a naming of a due line; an erased line named before its check is due only waits
+ *   that long again from the new naming, at the same stage — five days in a row are no three
+ *   checks), or in the last days before the exam a line not named for 4 days;
  * - missed — the last event is a miss and the line was never erased (readable, a pencil wave);
  * - returned — the last event is a miss and the line had been erased (readable, wave, the trace).
  */
@@ -78,8 +79,9 @@ export interface LineStatus {
   lastNamedAt: string | null;
   /** erased: when the line becomes due (ISO); due: since when. */
   dueAt: string | null;
-  /** returned: the local day the line had been erased on before the miss. */
+  /** returned: the local day the line had been erased on before the miss, and the naming that erased it. */
   wasErasedOn: string | null;
+  wasErasedAt: string | null;
   /** The line was uncovered today: a naming today does not count. */
   peekedToday: boolean;
   /** Checks passed since the line was erased (the stage of DUE_DAYS). */
@@ -114,13 +116,20 @@ function dayNumber(key: string): number | null {
   return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / DAY_MS;
 }
 
-/** Point words compared the way the journal stores them: lower case, «ё» as «е», letters and digits only. */
+/** Signs that carry a point's meaning: «P > MC» and «P < MC» are two points, not one. */
+const MEANING_SIGNS = /[<>=≤≥≠+−×÷↑↓→←⇒]/gu;
+
+/**
+ * Point words compared the way the journal stores them: lower case, «ё» as «е», letters, digits and
+ * the signs of comparison, arithmetic and direction (each a word of its own: «P>MC» is «P > MC»).
+ */
 export function normalizeTitle(text: unknown): string {
   return typeof text === 'string'
     ? text
         .toLowerCase()
         .replace(/ё/g, 'е')
-        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(MEANING_SIGNS, ' $& ')
+        .replace(/[^\p{L}\p{N}<>=≤≥≠+−×÷↑↓→←⇒]+/gu, ' ')
         .trim()
     : '';
 }
@@ -139,6 +148,19 @@ function outcomeOf(event: LearningEvent): { outcome: 'named' | 'missed'; word: L
   if (status === 'partial') return { outcome: 'missed', word: 'mentioned' };
   if (status === 'wrong') return { outcome: 'missed', word: 'wrong' };
   return { outcome: 'missed', word: 'missing' };
+}
+
+/**
+ * When an erased line becomes due: `days` of its stage after the last naming (`named`, server ms),
+ * and — on a local `day` in the last days before the exam — 4 days after it at the latest.
+ */
+function dueMoment(named: number | null, checks: number, day: string, examDate: string | null | undefined): number | null {
+  if (named === null) return null;
+  const due = named + DUE_DAYS[Math.min(checks, DUE_DAYS.length - 1)] * DAY_MS;
+  const exam = examDate ? dayNumber(examDate) : null;
+  const on = dayNumber(day);
+  if (exam !== null && on !== null && exam - on >= 0 && exam - on <= EXAM_EVE_DAYS) return Math.min(due, named + EXAM_EVE_STALE_DAYS * DAY_MS);
+  return due;
 }
 
 /**
@@ -178,7 +200,10 @@ export function lineStatus(events: readonly LearningEvent[], now: Date | number 
     last = result.outcome;
     if (result.outcome === 'named') {
       if (erased) {
-        if (lastNamed && meetsRule(lastNamed, event)) checks += 1;
+        // A check passes when it was due; named earlier, the line only waits its stage again from now.
+        const due = dueMoment(lastNamed ? serverTime(lastNamed) : null, checks, event.local_date, options.examDate);
+        const time = serverTime(event);
+        if (due !== null && time !== null && time >= due) checks += 1;
       } else {
         series.push(event);
         if (meetsRule(series[0], event)) {
@@ -205,25 +230,18 @@ export function lineStatus(events: readonly LearningEvent[], now: Date | number 
     lastNamedAt: null,
     dueAt: null,
     wasErasedOn: null,
+    wasErasedAt: null,
     peekedToday,
     checks: 0,
   };
   if (last === null) return status;
   if (last === 'missed') {
-    return wasErased ? { ...status, state: 'returned', wasErasedOn: wasErased.local_date } : { ...status, state: 'missed' };
+    return wasErased ? { ...status, state: 'returned', wasErasedOn: wasErased.local_date, wasErasedAt: wasErased.created_at } : { ...status, state: 'missed' };
   }
 
   if (erased && lastNamed) {
-    const named = serverTime(lastNamed);
-    const days = DUE_DAYS[Math.min(checks, DUE_DAYS.length - 1)];
-    let dueMs = named !== null ? named + days * DAY_MS : null;
     // The last days before the exam: a line not named for 4 days is checked now.
-    const exam = options.examDate ? dayNumber(options.examDate) : null;
-    const now0 = dayNumber(today);
-    if (named !== null && exam !== null && now0 !== null && exam - now0 >= 0 && exam - now0 <= EXAM_EVE_DAYS) {
-      const eve = named + EXAM_EVE_STALE_DAYS * DAY_MS;
-      dueMs = dueMs === null ? eve : Math.min(dueMs, eve);
-    }
+    const dueMs = dueMoment(serverTime(lastNamed), checks, today, options.examDate);
     const due = dueMs !== null && at >= dueMs;
     return {
       ...status,
@@ -466,6 +484,27 @@ function belongs(event: LearningEvent, line: LineIdentity): boolean {
 }
 
 /**
+ * One answer names a point once: when an answer's events of two points both match a line (twin
+ * points of a rebuilt rubric with the same words), the line keeps the one of its own point id,
+ * else the first by id — never both, which would name and miss it at the same minute.
+ */
+function onePerAnswer(events: LearningEvent[], pointId: string): LearningEvent[] {
+  const answers = new Map<string, LearningEvent>();
+  const rest: LearningEvent[] = [];
+  const own = (event: LearningEvent) => payloadOf(event).point_id === pointId;
+  for (const event of events) {
+    const session = event.kind === 'oral_point' ? event.session_id : null;
+    if (!session) {
+      rest.push(event);
+      continue;
+    }
+    const kept = answers.get(session);
+    if (!kept || (own(event) && !own(kept)) || (own(event) === own(kept) && event.id < kept.id)) answers.set(session, event);
+  }
+  return answers.size === 0 ? rest : [...rest, ...answers.values()];
+}
+
+/**
  * The whole sheet: blocks in the department's order with their lines' states, and the counts.
  * `events` are the exam's oral_point and sheet_peek events (any order).
  */
@@ -539,7 +578,10 @@ export function buildSheet(
               quote: point.source_quote,
               sourceIds: point.source_ids,
               status: lineStatus(
-                pool.filter((event) => belongs(event, identity)),
+                onePerAnswer(
+                  pool.filter((event) => belongs(event, identity)),
+                  point.id,
+                ),
                 now,
                 options,
               ),
@@ -661,7 +703,17 @@ export function changeSummary(changes: readonly LineChange[]): ChangeSummary {
  * erased — or null (nothing named: the protocol says what was missed). `changed`: the keys of the
  * lines the answer did change, which need no reason (without it every line of the answer counts).
  */
-export type QuietReason = { kind: 'wait'; from: string; count: number; why: 'day' | 'hours' | 'both' } | { kind: 'peek' } | { kind: 'erased' };
+export type QuietReason =
+  | {
+      kind: 'wait';
+      from: string;
+      count: number;
+      why: 'day' | 'hours' | 'both';
+      /** Some other line of the answer was uncovered earlier that day: its naming did not count either. */
+      peek?: boolean;
+    }
+  | { kind: 'peek' }
+  | { kind: 'erased' };
 
 /** The first naming of the series (namings since the last miss) that `target` belongs to. */
 function seriesStart(history: readonly LineEvent[], target: LineEvent): LineEvent | null {
@@ -700,7 +752,7 @@ export function quietReason(sheet: Sheet, sessions: ReadonlySet<string>, changed
       if (state === 'erased' || state === 'due') erased = true;
     }
   }
-  if (wait) return { kind: 'wait', from: wait, count: waiting, why: why.size > 1 ? 'both' : why.has('day') ? 'day' : 'hours' };
+  if (wait) return { kind: 'wait', from: wait, count: waiting, why: why.size > 1 ? 'both' : why.has('day') ? 'day' : 'hours', ...(peek ? { peek: true } : {}) };
   if (peek) return { kind: 'peek' };
   if (erased) return { kind: 'erased' };
   return null;
@@ -740,6 +792,31 @@ export function sheetWithout(
   );
 }
 
+/**
+ * The sheet just before and just after an answer session (or several), as of the answer's own
+ * moment (its last event): what the answer did, whenever it is replayed — not what the same events
+ * would mean today, when lines it erased may be due again. Null when the journal has none of its events.
+ */
+export function sheetsAround(
+  questions: readonly SheetQuestion[],
+  events: readonly LearningEvent[],
+  sessions: ReadonlySet<string>,
+  options: LineOptions = {},
+): { before: Sheet; after: Sheet; at: number } | null {
+  let at = -Infinity;
+  for (const event of events) {
+    if (!event?.session_id || !sessions.has(event.session_id)) continue;
+    const time = Date.parse(event.created_at);
+    if (Number.isFinite(time) && time > at) at = time;
+  }
+  if (!Number.isFinite(at)) return null;
+  const until = events.filter((event) => {
+    const time = Date.parse(event.created_at);
+    return !Number.isFinite(time) || time <= at;
+  });
+  return { at, before: sheetWithout(questions, until, sessions, at + 1, options), after: buildSheet(questions, until, at + 1, options) };
+}
+
 export interface HistoryFrame {
   /** The local day ('yyyy-MM-dd'). */
   day: string;
@@ -749,10 +826,16 @@ export interface HistoryFrame {
   total: number;
 }
 
+/** The history plays at most this many days; a longer one is shown by days spread evenly over it. */
+export const HISTORY_MAX_FRAMES = 50;
+
 /**
  * The sheet day by day from the first answer to today (the finale «История листа»): one frame per
- * local day, built as of the end of that day. Lines written later than a day still count on it —
- * the sheet is the current one, only the answers are replayed.
+ * local day, built as of the end of that day, the last one as of now. Lines written later than a day
+ * still count on it — the sheet is the current one, only the answers are replayed. It starts at the
+ * first answer of a line on the sheet (answers to questions the sheet no longer has do not count),
+ * and a history longer than 50 days is shown by 50 days spread over it, the first and today among
+ * them. «Now» is never before the newest answer: a device clock behind the server would leave it out.
  */
 export function sheetHistory(
   questions: readonly SheetQuestion[],
@@ -760,25 +843,40 @@ export function sheetHistory(
   now: Date | number = new Date(),
   options: LineOptions = {},
 ): HistoryFrame[] {
-  const end = timeOf(now);
-  const answered = events.filter((event) => event && event.kind === 'oral_point' && Number.isFinite(Date.parse(event.created_at)));
-  if (answered.length === 0) return [];
-  const first = Math.min(...answered.map((event) => Date.parse(event.created_at)));
-  const frames: HistoryFrame[] = [];
+  let end = timeOf(now);
+  for (const event of events) {
+    const time = event ? Date.parse(event.created_at) : NaN;
+    if (Number.isFinite(time) && time > end) end = time;
+  }
+  const current = buildSheet(questions, events, end, options);
+  let first = Infinity;
+  for (const block of current.blocks) {
+    for (const line of block.lines) {
+      for (const event of line.status.history) {
+        const time = Date.parse(event.at);
+        if (Number.isFinite(time) && time < first) first = time;
+      }
+    }
+  }
+  if (!Number.isFinite(first)) return [];
+  const days: number[] = [];
   const start = new Date(first);
-  let day = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  for (let guard = 0; guard < 400; guard += 1) {
-    const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-    const at = Math.min(next.getTime() - 1, end);
+  for (let day = new Date(start.getFullYear(), start.getMonth(), start.getDate()); day.getTime() <= end; day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)) {
+    days.push(day.getTime());
+  }
+  const picked =
+    days.length <= HISTORY_MAX_FRAMES
+      ? days
+      : [...new Set(Array.from({ length: HISTORY_MAX_FRAMES }, (_, index) => days[Math.round((index * (days.length - 1)) / (HISTORY_MAX_FRAMES - 1))]))];
+  return picked.map((dayStart) => {
+    const day = new Date(dayStart);
+    const at = Math.min(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime() - 1, end);
     const sheet = buildSheet(
       questions,
       events.filter((event) => Date.parse(event.created_at) <= at),
       at,
       options,
     );
-    frames.push({ day: localDayOf(at), at, left: sheet.counts.left, total: sheet.counts.total });
-    if (next.getTime() > end) break;
-    day = next;
-  }
-  return frames;
+    return { day: localDayOf(at), at, left: sheet.counts.left, total: sheet.counts.total };
+  });
 }

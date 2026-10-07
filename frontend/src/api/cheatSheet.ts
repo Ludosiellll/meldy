@@ -195,8 +195,9 @@ export async function fetchSheet(examId: string, options: { signal?: AbortSignal
 
 // ── Writing: one job per exam, outside React ─────────────────────────────────────────────
 
-export type WriteStatus = 'written' | 'cached' | 'none' | 'unverifiable' | 'failed' | 'busy' | 'limit' | 'auth';
-const WRITE_STATUSES: ReadonlySet<string> = new Set(['written', 'cached', 'none', 'unverifiable', 'failed', 'busy', 'limit', 'auth']);
+/** `capped`: the server's own daily limit of sheet writes is reached (not the AI, not the student's limit). */
+export type WriteStatus = 'written' | 'cached' | 'none' | 'unverifiable' | 'failed' | 'busy' | 'capped' | 'limit' | 'auth';
+const WRITE_STATUSES: ReadonlySet<string> = new Set(['written', 'cached', 'none', 'unverifiable', 'failed', 'busy', 'capped', 'limit', 'auth']);
 
 export interface SheetWriteState {
   examId: string;
@@ -206,6 +207,8 @@ export interface SheetWriteState {
   written: number;
   failed: number;
   busy: number;
+  /** Not written: the server's daily limit of sheet writes was reached. */
+  capped: number;
   limit: boolean;
   /** The questions that arrived during this run, by id (status and rubric). */
   results: Record<string, { status: WriteStatus; rubric: SheetRubric | null }>;
@@ -221,7 +224,7 @@ const listeners = new Set<() => void>();
 const running = new Set<string>();
 
 function idleState(examId: string): SheetWriteState {
-  return { examId, phase: 'idle', done: 0, total: 0, written: 0, failed: 0, busy: 0, limit: false, results: {}, message: null, seq: 0, stopping: false };
+  return { examId, phase: 'idle', done: 0, total: 0, written: 0, failed: 0, busy: 0, capped: 0, limit: false, results: {}, message: null, seq: 0, stopping: false };
 }
 
 /** The exam's writing state; the same object until it changes (a React external store). */
@@ -265,17 +268,19 @@ function handleEvent(examId: string, data: Record<string, unknown>) {
   }));
 }
 
-/** written (with cached and none), failed (with unverifiable) and busy, counted from the questions that arrived. */
-function tally(results: SheetWriteState['results']): { written: number; failed: number; busy: number } {
+/** written (with cached and none), failed (with unverifiable), busy and capped, counted from the questions that arrived. */
+function tally(results: SheetWriteState['results']): { written: number; failed: number; busy: number; capped: number } {
   let written = 0;
   let failed = 0;
   let busy = 0;
+  let capped = 0;
   for (const { status } of Object.values(results)) {
     if (status === 'written' || status === 'cached' || status === 'none') written += 1;
     else if (status === 'failed' || status === 'unverifiable') failed += 1;
     else if (status === 'busy') busy += 1;
+    else if (status === 'capped') capped += 1;
   }
-  return { written, failed, busy };
+  return { written, failed, busy, capped };
 }
 
 function aiLimitTerminal(data: Record<string, unknown>): boolean {
@@ -338,6 +343,8 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
         written: count(terminal?.written),
         failed: count(terminal?.failed),
         busy: count(terminal?.busy),
+        // An older server sends no count of its own: counted from the questions that arrived.
+        capped: typeof terminal?.capped === 'number' ? count(terminal.capped) : tally(previous.results).capped,
         limit: terminal?.limit === true,
         message: null,
       }));
@@ -353,6 +360,7 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
           written: typeof end.written === 'number' ? count(end.written) : counted.written,
           failed: typeof end.failed === 'number' ? count(end.failed) : counted.failed,
           busy: typeof end.busy === 'number' ? count(end.busy) : counted.busy,
+          capped: typeof end.capped === 'number' ? count(end.capped) : counted.capped,
           total: count(end.total) || previous.total,
           limit: true,
           message: null,

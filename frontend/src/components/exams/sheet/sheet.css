@@ -35,13 +35,14 @@
   --cs-gap: 48px;
   /* A rubbed line: two passes of the eraser across it leave islands of the strokes (A ∩ B) in dark ink,
      between them almost nothing: the hand is still there, the words are not readable. An erased line
-     is a ghost of 7 % on the rubbed paper. Before 2026-10-06 rubbed (.55 of thinner islands) and erased
-     (.22) both read as grey bars and could not be told apart at a glance (the visual critic); these are
-     the critic's variant A, checked at 1× and 2× in both themes. */
+     is a ghost of 7 % on the rubbed paper. Both passes share one 22 px period at ±7°: passes of
+     different periods (12 and 13 px) beat into a ~120 px moiré, and in its 60 px windows whole words
+     survived — readable at 1.25×–3× (the visual critic, 2026-10-07). One island is 2–3 letters wide;
+     a finer hatch reads worse, the eye joins the dots. */
   --cs-rub: .8;
   --cs-erased: .07;
-  --cs-pass-a: repeating-linear-gradient(100deg, #000 0 5px, rgba(0, 0, 0, .06) 5px 12px);
-  --cs-pass-b: repeating-linear-gradient(74deg, #000 0 7px, rgba(0, 0, 0, .12) 7px 13px);
+  --cs-pass-a: repeating-linear-gradient(97deg, #000 0 9px, rgba(0, 0, 0, .04) 9px 22px);
+  --cs-pass-b: repeating-linear-gradient(83deg, #000 0 10px, rgba(0, 0, 0, .06) 10px 22px);
   --ph-pencil-desk: var(--cs-focus);
   --ph-graphite-desk: var(--cs-graphite);
   --ph-focus: var(--cs-focus);
@@ -50,9 +51,11 @@
   padding: var(--cs-row) var(--cs-pad-r) var(--cs-row) var(--cs-pad-l);
   border-radius: 3px;
   background-color: var(--cs-paper);
+  /* «Вся шпаргалка» scales the paper down: its lines stay one device pixel (--cs-zoom). */
+  --cs-line: calc(1px / var(--cs-zoom, 1));
   background-image:
-    linear-gradient(to bottom, transparent var(--cs-base), var(--cs-grid) var(--cs-base), var(--cs-grid) calc(var(--cs-base) + 1px), transparent calc(var(--cs-base) + 1px)),
-    linear-gradient(to right, var(--cs-grid) 1px, transparent 1px);
+    linear-gradient(to bottom, transparent var(--cs-base), var(--cs-grid) var(--cs-base), var(--cs-grid) calc(var(--cs-base) + var(--cs-line)), transparent calc(var(--cs-base) + var(--cs-line))),
+    linear-gradient(to right, var(--cs-grid) var(--cs-line), transparent var(--cs-line));
   background-size: 100% var(--cs-row), var(--cs-row) 100%;
   box-shadow: 0 0 0 1px rgba(16, 41, 90, .1), 0 1px 1px rgba(11, 18, 28, .05), 0 14px 32px -16px rgba(16, 41, 90, .22);
   color: var(--cs-ink);
@@ -74,16 +77,17 @@
   --cs-margin: #c98a9f;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 30px 60px -30px rgba(0, 0, 0, .8);
 }
-/* A phone's paper: the 22 px grid, the handwriting at 20/22. */
+/* A phone's paper: the 24 px grid too (every line a 24 px target for a finger, WCAG 2.5.8), the
+   handwriting at 20/24 (its baseline at 18.6 px: on the line at 18). The squares start at the
+   bullets' column, so no bullet stands across a vertical line. */
 .cs-paper[data-narrow] {
-  --cs-row: 22px;
-  --cs-base: 17px;
+  --cs-base: 18px;
   --cs-hand: 20px;
   --cs-print-size: 14px;
   --cs-note-size: 13px;
-  --cs-print-shift: 1px;
   --cs-pad-l: 16px;
   --cs-pad-r: 36px;
+  background-position: 0 0, var(--cs-pad-l) 0;
 }
 .cs-paper[data-narrow]::after { right: calc(var(--cs-pad-r) - 14px); }
 
@@ -108,7 +112,7 @@
   font-family: 'Meldy Hand', var(--ph-sans);
   font-size: calc(var(--cs-hand) * 1.15);
   line-height: var(--cs-row);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--cs-ink);
   white-space: nowrap;
   pointer-events: none;
@@ -121,7 +125,7 @@
   position: relative;
   padding-bottom: var(--cs-row);
 }
-.cs-sec {
+.cs-paper .cs-sec {
   margin: 0;
   position: relative;
   top: var(--cs-print-shift);
@@ -145,7 +149,6 @@
 }
 .cs-qbtn {
   position: relative;
-  top: var(--cs-print-shift);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   column-gap: .35em;
@@ -160,6 +163,8 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+/* The printed words move onto the grid line, not the button: one row's button does not reach into the next. */
+.cs-qbtn > span:not(.sr-only) { position: relative; top: var(--cs-print-shift); }
 .cs-qn { font-variant-numeric: tabular-nums; }
 .cs-qt { min-width: 0; text-wrap: pretty; }
 .cs-qbtn:hover .cs-qm {
@@ -168,7 +173,7 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 4px;
 }
-.cs-qbtn:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 4px; }
+.cs-qbtn:focus-visible { outline: calc(2px / var(--cs-zoom, 1)) solid var(--cs-focus); outline-offset: 2px; border-radius: 4px; }
 /* The ticket's marker: a yellow stroke over the printed words of the last answer's question. */
 .cs-qm[data-marker] {
   background-image: linear-gradient(transparent 44%, rgba(244, 196, 91, .55) 44%, rgba(244, 196, 91, .55) 90%, transparent 90%);
@@ -177,6 +182,9 @@
   -webkit-box-decoration-break: slice;
   box-decoration-break: slice;
   mix-blend-mode: multiply;
+  /* A highlighter's stroke, not a box: its ends soften over a few px. */
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, .55), #000 4px, #000 calc(100% - 5px), rgba(0, 0, 0, .4));
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, .55), #000 4px, #000 calc(100% - 5px), rgba(0, 0, 0, .4));
 }
 .cs-qm[data-marker='draw'] { animation: cs-marker var(--cs-marker-ms) cubic-bezier(.35, .05, .45, 1) both; }
 @keyframes cs-marker {
@@ -191,7 +199,12 @@
   height: 16px;
   pointer-events: none;
 }
-.cs-paper[data-narrow] .cs-tick { left: -16px; transform: scale(.65); transform-origin: 0 50%; }
+.cs-paper[data-narrow] .cs-tick { left: -14px; transform: scale(.65); transform-origin: 0 50%; }
+/* A line of a learned question comes back: the tick stays until the line is written again, then fades. */
+.cs-tick[data-out] { animation: cs-fade-out 200ms ease-in var(--cs-out, 0ms) both; }
+@keyframes cs-fade-out {
+  to { opacity: 0; }
+}
 .cs-q[data-folded] .cs-qh { color: #5b616b; }
 
 /* ---------------------------------------------------------------- the handwritten lines */
@@ -216,7 +229,7 @@
   touch-action: pan-y;
   -webkit-tap-highlight-color: transparent;
 }
-.cs-lbtn:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 6px; }
+.cs-lbtn:focus-visible { outline: calc(2px / var(--cs-zoom, 1)) solid var(--cs-focus); outline-offset: 2px; border-radius: 6px; }
 .cs-bullet {
   text-align: center;
   transition: opacity 180ms linear var(--cs-delay, 0ms);
@@ -233,8 +246,10 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-/* An arrow drawn in ink (SheetText): sized in em, standing on the text's baseline. */
+/* An arrow drawn in ink (SheetText): sized in em, standing on the text's baseline. It holds on to its
+   word (a no-break space alone does not hold an inline SVG): ↓ never starts a row by itself. */
 .cs-arrow { white-space: nowrap; }
+.cs-glue { white-space: nowrap; }
 .cs-arrow-ink {
   display: inline;
   height: auto;
@@ -275,6 +290,9 @@
   mask-composite: intersect, intersect;
 }
 .cs-line:is([data-state="rubbed"], [data-state="due"]):not([data-peek]) .cs-bullet { opacity: .3; }
+/* Hidden words are not in a selection either (select-all, copy, read-aloud of the page). */
+.cs-line:is([data-state='rubbed'], [data-state='due'], [data-state='erased']):not([data-peek]) .cs-ink,
+.cs-line[data-cover] .cs-ink { -webkit-user-select: none; user-select: none; }
 .cs-line[data-state='erased'] .cs-bullet { opacity: .12; }
 
 /* Uncovered for a moment («Подсмотреть»): the line reads in full ink. */
@@ -325,6 +343,16 @@
   text-wrap: pretty;
 }
 .cs-note[data-kind='peek'] { color: var(--cs-focus); }
+.dark .cs-note[data-kind='peek'] { color: #1a4fb0; }
+/* A note keeps its row under a hidden line, and while a show plays (it appears or goes then): nothing below moves. */
+.cs-line[data-cover] .cs-note,
+.cs-note[data-reserve] { visibility: hidden; }
+/* The note of a peek opens its row instead of pushing the sheet down at once. */
+.cs-note[data-enter] { overflow: hidden; animation: cs-row-in 220ms ease-out both; }
+@keyframes cs-row-in {
+  from { max-height: 0; opacity: 0; }
+  to { max-height: calc(var(--cs-row) * 3); opacity: 1; }
+}
 .cs-pnote-link {
   color: inherit;
   text-decoration: underline;
@@ -339,6 +367,7 @@
   z-index: 2;
   padding: 0 8px;
   background: var(--cs-paper);
+  white-space: nowrap;
   font-family: var(--ph-sans);
   font-size: var(--cs-note-size);
   line-height: var(--cs-row);
@@ -347,6 +376,8 @@
   pointer-events: none;
   animation: cs-fade 150ms ease-out both;
 }
+/* After the last word, on the paper's own grid: no strip of paper over it. */
+.cs-rubnote[data-after] { right: auto; padding: 0; background: none; }
 
 /* The handwriting waits for its font (at most 1.5 s), so no line jumps under the reader. */
 .cs-paper[data-font='waiting'] .cs-lines { visibility: hidden; }
@@ -399,6 +430,8 @@
   mask-composite: intersect, intersect;
   animation: cs-erase-left var(--cs-ms) cubic-bezier(.4, 0, .2, 1) var(--cs-delay) both;
 }
+/* A moving line's mask reaches 8 px below the words: the pencil wave under them is drawn, not masked away. */
+.cs-line[data-anim] .cs-ink { padding-bottom: 8px; margin-bottom: -8px; }
 /* Returned: written again over its trace at the speed of a hand, then the wave, then the note. */
 .cs-line[data-anim='return'] .cs-ink {
   -webkit-mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, var(--cs-rub)) 54%), linear-gradient(90deg, #000 46%, transparent 54%), var(--cs-pass-a), var(--cs-pass-b);
@@ -422,17 +455,39 @@
   from { opacity: 0; }
 }
 
-/* «Показ на проекторе»: the replay waits for the speaker. */
+/* «Показ на проекторе»: the replay waits for the speaker (the page shows the button where the eye is;
+   this one only where a page does not). */
 .cs-show {
-  position: fixed;
-  left: 50%;
-  bottom: 32px;
-  z-index: 40;
-  transform: translateX(-50%);
+  position: sticky;
+  bottom: 24px;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
 }
+/* The paper's first stop for a keyboard: past every line, to the counter and the switches. */
+.cs-skip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  line-height: 20px;
+  cursor: pointer;
+  clip-path: inset(50%);
+}
+.cs-skip:focus-visible { clip-path: none; outline: 2px solid var(--ph-focus); outline-offset: 2px; }
 
 /* «Весь лист»: the whole paper in the window; a click on a question goes back to it. */
 .cs-wrap[data-zoom] { overflow: hidden; }
+/* The page's column stays under the top line while the paper is scaled into the window. */
+.cs-wrap[data-zoom] { min-height: calc(100vh - 92px); }
 .cs-wrap[data-zoom] .cs-paper { max-width: none; }
 .cs-wrap[data-zoom] .cs-paper,
 .cs-wrap[data-zoom] button { cursor: zoom-in; }
@@ -464,6 +519,7 @@
   .cs-line[data-peek] .cs-ink,
   .cs-qm[data-marker='draw'],
   .cs-paper[data-font='ready'] .cs-lines,
+  .cs-note[data-enter],
   .cs-rubnote { animation: none; }
 }
 
@@ -516,8 +572,12 @@
   height: 20px;
   border-radius: 999px;
   background: var(--sf-line-strong);
+  /* Off, the track and its knob still stand out from the card (3:1, WCAG 1.4.11). */
+  box-shadow: inset 0 0 0 1.5px #7a808a;
   transition: background-color .25s var(--m-ease);
 }
+.dark .sf-page .cs-toggle-box { box-shadow: inset 0 0 0 1.5px #7d8796; }
+.sf-page .cs-toggle[aria-checked='true'] .cs-toggle-box { box-shadow: none; }
 .sf-page .cs-toggle-box::after {
   content: '';
   position: absolute;
@@ -536,7 +596,7 @@
 .sf-page .cs-acts .sf-link { font-size: 16px; }
 
 /* Writing the sheet: on the blue-tinted panel; before the first write it is the column's one filled pill. */
-.sf-page .cs-write-h { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -.015em; color: var(--sf-ink); }
+.sf-page .cs-write-h { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -.015em; color: var(--sf-ink); text-wrap: balance; }
 .sf-page .cs-write-h + .ex-stmt,
 .sf-page .cs-write .ex-stmt + .ex-stmt { margin-top: 10px; }
 .sf-page .cs-write .ex-stmt { font-size: 17px; line-height: 25px; }
@@ -555,7 +615,7 @@
 /* A phone: the end of the after-answer show over the bottom bar (the column with it is above the paper). */
 .cs-chip {
   position: fixed;
-  bottom: calc(96px + env(safe-area-inset-bottom));
+  bottom: calc(118px + env(safe-area-inset-bottom));
   z-index: 35;
   display: grid;
   gap: 2px;
@@ -574,6 +634,25 @@
   animation: cs-chip-in 260ms var(--m-ease, ease-out) both;
 }
 .cs-chip-n { opacity: .75; font-size: 14px; }
+/* The history on a phone: its day and count, «Остановить» beside them. */
+.cs-chip[data-history] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; cursor: default; }
+.cs-chip-act {
+  min-height: 44px;
+  margin: -8px -10px -8px 0;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.cs-chip-act:focus-visible { outline: 2px solid var(--sf-canvas); outline-offset: 2px; border-radius: 8px; }
+/* «Показ на проекторе» on a phone: the button over the bottom bar. */
+.cs-chip.cs-chip-show { padding: 0; background: none; box-shadow: none; cursor: default; }
+.cs-chip.cs-chip-show .sf-primary { justify-self: center; }
 @keyframes cs-chip-in {
   from { opacity: 0; transform: translateY(12px); }
 }
@@ -604,20 +683,22 @@ body:has(.cs-paper) .sf-page .ex-cta {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-body:has(.cs-paper) .sf-page .ex-cta::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -24px;
-  height: 24px;
-  background: linear-gradient(to bottom, transparent, var(--sf-canvas));
-  pointer-events: none;
+/* A keyboard's focus never hides under the bars over the paper (WCAG 2.4.11): the page scrolls it
+   clear of them. A very low window (a phone held flat, a page zoomed to 200 %) gives the bottom bar back
+   to the page. */
+html:has(.cs-paper) { scroll-padding-top: 84px; }
+html:has(.sf-page:is([data-frame='s'], [data-frame='m']) .cs-paper) { scroll-padding-top: 68px; scroll-padding-bottom: calc(118px + env(safe-area-inset-bottom)); }
+@media (max-height: 480px) {
+  body:has(.cs-paper) .sf-page .ex-cta { position: static; }
+  html:has(.sf-page:is([data-frame='s'], [data-frame='m']) .cs-paper) { scroll-padding-bottom: 0; }
 }
 
 /* Phones and tablets: the count and «Только то, что осталось» above the paper, compact; the rest under it. */
 .sf-page .ex-col > .cs-sum[data-variant='top'] { padding: 16px 20px 10px; border-radius: 24px; }
-.sf-page .cs-sum[data-variant='top'] .cs-count { margin-top: 0; gap: 2px 10px; }
+.sf-page .cs-sum[data-variant='top'] .cs-count { margin-top: 0; gap: 2px 10px; align-items: center; }
+/* The one switch beside the count, at the end of its row (under it when the row is too narrow). */
+.sf-page .cs-count-switch { margin-left: auto; }
+.sf-page .cs-count-switch .cs-toggle { margin: 0 -8px 0 0; }
 .sf-page .cs-sum[data-variant='top'] .ex-big { font-size: 40px; }
 .sf-page .cs-sum[data-variant='top'] .cs-count-l { font-size: 16px; line-height: 22px; }
 .sf-page .cs-sum[data-variant='top'] .cs-sub { margin-top: 2px; font-size: 14px; line-height: 20px; }
@@ -627,3 +708,14 @@ body:has(.cs-paper) .sf-page .ex-cta::before {
 .sf-page:is([data-frame='s'], [data-frame='m']) .ex-col > .cs-write { padding: 18px 20px; border-radius: 24px; }
 .sf-page:is([data-frame='s'], [data-frame='m']) .ex-col > .cs-write .cs-write-go { margin: 12px 0 6px; }
 .sf-page .cs-write-short { font-size: 15px; line-height: 22px; }
+
+/* Windows High Contrast (forced colours): the switches keep their state, the marker does not blank the
+   printed words, the chosen view is outlined. */
+@media (forced-colors: active) {
+  .cs-qm[data-marker] { mix-blend-mode: normal; }
+  .sf-page .cs-toggle-box { forced-color-adjust: none; background: Canvas; border: 1px solid CanvasText; box-sizing: border-box; box-shadow: none; }
+  .sf-page .cs-toggle-box::after { forced-color-adjust: none; background: CanvasText; box-shadow: none; top: 1px; left: 1px; }
+  .sf-page .cs-toggle[aria-checked='true'] .cs-toggle-box { background: Highlight; border-color: Highlight; }
+  .sf-page .cs-toggle[aria-checked='true'] .cs-toggle-box::after { background: HighlightText; }
+  .ex-views [role='tab'][aria-selected='true'] { outline: 2px solid CanvasText; outline-offset: -2px; }
+}

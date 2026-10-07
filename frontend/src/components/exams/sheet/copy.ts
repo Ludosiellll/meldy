@@ -5,7 +5,7 @@
  * («только упомянут»), and nothing that claims learning: an erased line proves only that the point
  * was named on two different days.
  */
-import { formatShortDay, formatShortMoment } from '../../../lib/exams/format';
+import { formatDay, formatMappedAt, formatShortDay, formatShortMoment } from '../../../lib/exams/format';
 import { pluralRu } from '../../conversation/visuals';
 import { lecturesGenitive } from '../sheetModel';
 import { localDayOf, type ChangeSummary, type LineEvent, type LineStatus, type QuietReason, type SheetBlock, type SheetCounts } from '../../../lib/exams/cheatSheet';
@@ -67,6 +67,20 @@ function moment(iso: string): string {
   return formatShortMoment(iso).replace(/ (?=\S+,)/, NBSP);
 }
 
+/** Days and moments as a screen reader says them: «6 октября», not «6 окт». */
+type Say = { day: (date: string) => string; moment: (iso: string) => string; dot: string };
+const WRITTEN: Say = { day, moment, dot: `${NBSP}· ` };
+const SPOKEN: Say = { day: (date) => formatDay(date), moment: (iso) => formatMappedAt(iso), dot: ', ' };
+
+/**
+ * The local day of an answer in this time zone — the day its history line shows with its time —
+ * else the day recorded with it (a note and the history never name two days for one answer).
+ */
+function dayOf(at: string | null, recorded: string | null): string | null {
+  const time = at ? Date.parse(at) : NaN;
+  return Number.isFinite(time) ? localDayOf(time) : recorded;
+}
+
 const WORDS: Record<LineEvent['word'], string> = {
   named: 'назван',
   mentioned: 'только упомянут',
@@ -83,23 +97,30 @@ export function historyLine(event: LineEvent): string {
 
 /**
  * The pencil note under a line (Onest, graphite), or null. Only readable lines carry one: the
- * words of a rubbed line would give it away. Due lines say why they show through.
+ * words of a rubbed line would give it away. Due lines say why they show through. `spoken`: the
+ * same note for a screen reader (whole month names, commas for the dots).
  */
-export function lineNote(status: LineStatus, peekedNow = false): string | null {
+export function lineNote(status: LineStatus, peekedNow = false, spoken = false): string | null {
+  const say = spoken ? SPOKEN : WRITTEN;
   if (peekedNow) return 'подсмотрели — сегодня не сотрётся';
   const last = [...status.history].reverse().find((event) => event.outcome !== 'skipped') ?? null;
   // Uncovered today (a peek or an opened line of the self-test): today's naming will not count.
   if (status.peekedToday && (status.state === 'fresh' || status.state === 'rubbed' || status.state === 'due')) {
     return 'подсмотрели — сегодня не сотрётся';
   }
+  const lastDay = last ? dayOf(last.at, last.date) : null;
   switch (status.state) {
     case 'missed':
-      return last ? `${day(last.date)} ${WORDS[last.word]}` : null;
-    case 'returned':
+      return last && lastDay ? `${say.day(lastDay)} ${WORDS[last.word]}` : null;
+    case 'returned': {
       // The line was erased; then its point was not named: «пункт» keeps the two subjects apart.
-      return `была стёрта${status.wasErasedOn ? ` ${day(status.wasErasedOn)}` : ''}${NBSP}· ${last ? `${day(last.date)} пункт ${WORDS[last.word]}` : 'пункт не назван'}`;
-    case 'due':
-      return status.erasedOn ? `стёрта ${day(status.erasedOn)}${NBSP}· пора проверить` : 'пора проверить';
+      const erased = dayOf(status.wasErasedAt, status.wasErasedOn);
+      return `была стёрта${erased ? ` ${say.day(erased)}` : ''}${say.dot}${last && lastDay ? `${say.day(lastDay)} пункт ${WORDS[last.word]}` : 'пункт не назван'}`;
+    }
+    case 'due': {
+      const erased = dayOf(status.erasedAt, status.erasedOn);
+      return erased ? `стёрта ${say.day(erased)}${say.dot}пора проверить` : 'пора проверить';
+    }
     default:
       return null;
   }
@@ -152,12 +173,12 @@ export function blockNote(
  * When a naming erases a rubbed line, while that moment is ahead: « после 7 окт., 15:40», or « 8 окт.
  * или позже» when the moment is a local midnight (a day boundary, not a time anyone picked).
  */
-function erasableWhen(erasableFrom: string, now: number): string | null {
+function erasableWhen(erasableFrom: string, now: number, say: Say = WRITTEN): string | null {
   const at = Date.parse(erasableFrom);
   if (!Number.isFinite(at) || at <= now) return null;
   const local = new Date(at);
-  if (local.getHours() === 0 && local.getMinutes() === 0) return ` ${day(localDayOf(at))} или позже`;
-  return ` после ${moment(erasableFrom)}`;
+  if (local.getHours() === 0 && local.getMinutes() === 0) return ` ${say.day(localDayOf(at))} или позже`;
+  return ` после ${say.moment(erasableFrom)}`;
 }
 
 /**
@@ -170,27 +191,51 @@ export function erasableSentence(status: LineStatus, now: number = Date.now()): 
   return when ? `Сотрётся совсем, если назовёте пункт снова${when}.` : 'Назовёте пункт в ответе снова — сотрётся совсем.';
 }
 
-/** What the screen reader hears for a line: the words only where the eye can read them too. */
+/**
+ * What the screen reader hears for a line whose words the eye cannot read (rubbed, erased, due): its
+ * state, whole month names, and what Enter does. Readable lines: lineSpeech.
+ */
 export function lineLabel(text: string, status: LineStatus, essential: boolean, now: number = Date.now()): string {
   const kind = essential ? 'Главный пункт' : 'Пункт';
   // A line is erased; a point is named: «Строка главного пункта стёрта наполовину».
   const line = essential ? 'Строка главного пункта' : 'Строка пункта';
+  const erased = dayOf(status.erasedAt, status.erasedOn);
   switch (status.state) {
     case 'rubbed': {
-      const when = status.erasableFrom ? erasableWhen(status.erasableFrom, now) : null;
+      const when = status.erasableFrom ? erasableWhen(status.erasableFrom, now, SPOKEN) : null;
       const rest = status.erasableFrom ? (when ? `; сотрётся совсем, если назовёте пункт снова${when}` : '; назовёте пункт в ответе снова — сотрётся совсем') : '';
-      return `${line} стёрта наполовину${rest}. Подсмотреть`;
+      return `${line} стёрта наполовину${rest}. Открыть подробности`;
     }
     case 'erased':
-      return `${line} стёрта${status.erasedOn ? ` ${day(status.erasedOn)}` : ''}`;
+      return `${line} стёрта${erased ? ` ${SPOKEN.day(erased)}` : ''}`;
     case 'due':
-      return `${line} стёрта${status.erasedOn ? ` ${day(status.erasedOn)}` : ''}, пора проверить. Подсмотреть`;
+      return `${line} стёрта${erased ? ` ${SPOKEN.day(erased)}` : ''}, пора проверить. Открыть подробности`;
     case 'missed':
     case 'returned':
-      return `${kind}: ${text}. ${lineNote(status) ?? ''}`.trim();
+      return `${kind}: ${text}. ${lineNote(status, false, true) ?? ''}`.trim();
     default:
       return `${kind}: ${text}`;
   }
+}
+
+/**
+ * A line for a screen reader. A line the eye can read is named by the words it shows (speech input
+ * says what it sees: «цена ↑ → спрос ↓»), and described by the rest: main or not, the whole point
+ * when the line is its short form, the pencil note. A line it cannot read says only its state.
+ */
+export function lineSpeech(
+  line: { text: string; title: string; essential: boolean },
+  status: LineStatus,
+  peeked = false,
+  now: number = Date.now(),
+): { name: string; description: string | null } {
+  const readable = peeked || status.state === 'fresh' || status.state === 'missed' || status.state === 'returned';
+  if (!readable) return { name: lineLabel(line.text, status, line.essential, now), description: null };
+  const text = line.text.trim();
+  const title = line.title.trim();
+  const note = lineNote(status, peeked, true);
+  const parts = [line.essential ? 'Главный пункт' : 'Пункт', title && title !== text ? `Полностью: ${title.replace(/[.!?…]+$/u, '')}` : null, note ? note.charAt(0).toUpperCase() + note.slice(1) : null];
+  return { name: text || title, description: `${parts.filter(Boolean).join('. ')}.` };
 }
 
 function singular(count: number): boolean {
@@ -224,10 +269,15 @@ const TOO_SOON: Record<Extract<QuietReason, { kind: 'wait' }>['why'], string> = 
   both: 'в тот же день или меньше чем через 20 часов',
 };
 
-/** «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.» — or «После ответа строки не изменились.» */
-export function changeSentence(summary: ChangeSummary): string {
+/**
+ * «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.» — or «После ответа строки не
+ * изменились.» `on`: the answer's day when it was not today («После ответа 4 окт.: …»): a replay
+ * tells what the answer did then.
+ */
+export function changeSentence(summary: ChangeSummary, on: string | null = null): string {
   const parts = changeParts(summary);
-  return parts ? `После ответа: ${parts}.` : 'После ответа строки не изменились.';
+  const answer = on ? `После ответа ${day(on)}` : 'После ответа';
+  return parts ? `${answer}: ${parts}.` : `${answer} строки не изменились.`;
 }
 
 /**
@@ -246,7 +296,8 @@ export function changeNote(summary: ChangeSummary, quiet: QuietReason | null, no
   const erases = one ? 'сотрётся' : 'сотрутся';
   const them = one ? 'её' : 'их';
   const when = erasableWhen(quiet.from, now);
-  return when ? `${head}: ${erases} совсем, если назовёте ${them}${when}.` : `${head}: назовёте ${them} ещё раз — ${erases} совсем.`;
+  const wait = when ? `${head}: ${erases} совсем, если назовёте ${them}${when}.` : `${head}: назовёте ${them} ещё раз — ${erases} совсем.`;
+  return quiet.peek ? `${wait} Подсмотренное сегодня ответ не стирает.` : wait;
 }
 
 /** The answer's protocol (spec 4.2): «На шпаргалке: 2 строки стёрлись» — or that nothing changed, and why, briefly. */
@@ -255,7 +306,7 @@ export function protocolSheetLine(summary: ChangeSummary, quiet: QuietReason | n
   if (parts) return `На шпаргалке: ${parts}`;
   const why =
     quiet?.kind === 'wait'
-      ? `: названо снова ${TOO_SOON[quiet.why]}`
+      ? `: названо снова ${TOO_SOON[quiet.why]}${quiet.peek ? ' или после подсматривания' : ''}`
       : quiet?.kind === 'peek'
         ? ': подсмотренное в тот же день не стирается'
         : quiet?.kind === 'erased'
@@ -283,6 +334,8 @@ export function writeStatusNote(status: WriteStatus, reset: string | null = null
       return 'Не удалось написать. Попробуйте ещё раз.';
     case 'busy':
       return 'ИИ был занят — вопрос не написан. Допишите его позже.';
+    case 'capped':
+      return reset ? `Сервер на сегодня исчерпал запись шпаргалок — допишите после ${reset}.` : 'Сервер на сегодня исчерпал запись шпаргалок — допишите позже.';
     case 'limit':
       return reset ? `Дневной лимит ИИ кончился. Дописать можно после ${reset}.` : 'Дневной лимит ИИ кончился. Дописать можно после его обновления.';
     case 'auth':

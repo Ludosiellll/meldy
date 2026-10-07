@@ -399,8 +399,8 @@ export async function recordSheetPeek(input: {
   if (!QUESTION_HASH.test(hash) || !UUID.test(input.rubricId) || !/^p[1-6]$/.test(pointId)) {
     throw new LearningSaveError(SAVE_INVALID_MESSAGE, 'sheet_peek');
   }
-  const row = {
-    kind: 'sheet_peek' as const,
+  const row: SheetPeekRow = {
+    kind: 'sheet_peek',
     item_key: `peek:${input.rubricId.toLowerCase()}:${pointId}`,
     client_event_id: newEventId(),
     local_date: localDate(),
@@ -414,11 +414,108 @@ export async function recordSheetPeek(input: {
     },
   };
   try {
+    await saveSheetPeekRow(row);
+  } catch (error) {
+    // Kept on the device to be sent again: a peek lost would let today's answer erase a line that was read.
+    const user = await sessionUserId();
+    if (user) writePendingPeeks([...readPendingPeeks(), { user, row }]);
+    throw error;
+  }
+}
+
+interface SheetPeekRow {
+  kind: 'sheet_peek';
+  item_key: string;
+  client_event_id: string;
+  local_date: string;
+  payload: Record<string, unknown>;
+}
+
+async function saveSheetPeekRow(row: SheetPeekRow): Promise<void> {
+  try {
+    // The same client_event_id: a peek sent twice is one row.
     const { error } = await supabase.from('learning_events').upsert(row, { onConflict: 'user_id,client_event_id', ignoreDuplicates: true });
     if (error) throw saveError(error);
   } catch (error) {
     throw saveError(error);
   }
+}
+
+/** Peeks not saved yet, on this device, with the account they belong to (a new key of its own). */
+const PENDING_PEEKS_KEY = 'studyforge_sheet_peeks_pending';
+const PENDING_PEEKS_MAX = 50;
+
+interface PendingPeek {
+  user: string;
+  row: SheetPeekRow;
+}
+
+function readPendingPeeks(): PendingPeek[] {
+  try {
+    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(PENDING_PEEKS_KEY);
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) return [];
+    return list.filter(
+      (item): item is PendingPeek =>
+        Boolean(item) &&
+        typeof item === 'object' &&
+        typeof (item as PendingPeek).user === 'string' &&
+        Boolean((item as PendingPeek).row) &&
+        (item as PendingPeek).row.kind === 'sheet_peek' &&
+        typeof (item as PendingPeek).row.client_event_id === 'string' &&
+        typeof (item as PendingPeek).row.local_date === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writePendingPeeks(list: PendingPeek[]): void {
+  try {
+    if (list.length === 0) localStorage.removeItem(PENDING_PEEKS_KEY);
+    else localStorage.setItem(PENDING_PEEKS_KEY, JSON.stringify(list.slice(-PENDING_PEEKS_MAX)));
+  } catch {
+    // Storage full or blocked: the peek is only lost as before.
+  }
+}
+
+async function sessionUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sends the peeks of this account that could not be saved, oldest first (each keeps its own day and
+ * id, so one sent twice is one row). Resolves to how many are still not saved. Called again when the
+ * sheet opens, when the tab comes back, when the network does, and before an answer is saved — a peek
+ * saved after the answer would not keep it from erasing the line.
+ */
+export async function flushSheetPeeks(): Promise<number> {
+  const all = readPendingPeeks();
+  if (all.length === 0) return 0;
+  const user = await sessionUserId();
+  // Signed out: nothing of an account to send (another account's peeks wait for it).
+  if (!user) return 0;
+  const left: PendingPeek[] = [];
+  for (const item of all) {
+    if (item.user !== user) {
+      left.push(item);
+      continue;
+    }
+    try {
+      await saveSheetPeekRow(item.row);
+    } catch {
+      left.push(item);
+    }
+  }
+  // Another flush may have queued more meanwhile: keep those too.
+  const queued = readPendingPeeks().filter((item) => !all.some((seen) => seen.row.client_event_id === item.row.client_event_id));
+  writePendingPeeks([...left, ...queued]);
+  return left.filter((item) => item.user === user).length + queued.filter((item) => item.user === user).length;
 }
 
 /** Question hashes per request when filtering on the payload (a URL stays far below 8 KB). */

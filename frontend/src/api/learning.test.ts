@@ -14,11 +14,13 @@ import {
   fetchSessionPoints,
   localDate,
   newEventId,
+  flushSheetPeeks,
   recordQuizAttempt,
   recordSelfRating,
+  recordSheetPeek,
 } from './learning';
 
-const database = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
+const database = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), auth: { getSession: vi.fn() } }));
 
 vi.mock('../lib/supabase', () => ({ supabase: database }));
 
@@ -550,5 +552,60 @@ describe('fetchSessionPoints', () => {
     const failed = fetchSessionPoints([sessionId(1)]);
     await expect(failed).rejects.toBeInstanceOf(LearningLoadError);
     await expect(failed).rejects.toThrow(LOAD_FAILED_MESSAGE);
+  });
+});
+
+describe('a peek of the cheat sheet that could not be saved', () => {
+  const RUBRIC = '22222222-2222-4222-8222-222222222222';
+  const EXAM = '33333333-3333-4333-8333-333333333333';
+  const peek = { questionHash: HASH, rubricId: RUBRIC, pointId: 'p2', title: 'Закон спроса', examId: EXAM };
+  const signedIn = (id: string | null) => database.auth.getSession.mockResolvedValue({ data: { session: id ? { user: { id } } : null } });
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('waits on the device and is sent again with its own id and day: one row, however often it is sent', async () => {
+    signedIn('user-1');
+    let fail = true;
+    const queries = mockQueries(() => (fail ? { data: null, error: { message: 'Failed to fetch' } } : { data: null, error: null }));
+    await expect(recordSheetPeek(peek)).rejects.toBeInstanceOf(LearningSaveError);
+    const [[first]] = argsOf(queries[0], 'upsert') as [[{ client_event_id: string; local_date: string; kind: string }]];
+    expect(first.kind).toBe('sheet_peek');
+    // Still offline: it stays.
+    await expect(flushSheetPeeks()).resolves.toBe(1);
+    // Back online: sent with the same id and day (the upsert ignores a duplicate), and the device forgets it.
+    fail = false;
+    await expect(flushSheetPeeks()).resolves.toBe(0);
+    const [[again, options]] = argsOf(queries[queries.length - 1], 'upsert') as [[{ client_event_id: string; local_date: string }, Record<string, unknown>]];
+    expect(again.client_event_id).toBe(first.client_event_id);
+    expect(again.local_date).toBe(first.local_date);
+    expect(options).toEqual({ onConflict: 'user_id,client_event_id', ignoreDuplicates: true });
+    await expect(flushSheetPeeks()).resolves.toBe(0);
+    expect(queries).toHaveLength(3);
+  });
+
+  it('belongs to its account: signed out nothing is sent, another account does not send it', async () => {
+    signedIn('user-1');
+    mockQueries(() => ({ data: null, error: { message: 'Failed to fetch' } }));
+    await expect(recordSheetPeek(peek)).rejects.toBeInstanceOf(LearningSaveError);
+    const queries = mockQueries(() => ({ data: null, error: null }));
+    signedIn(null);
+    await expect(flushSheetPeeks()).resolves.toBe(0);
+    signedIn('user-2');
+    await expect(flushSheetPeeks()).resolves.toBe(0);
+    expect(queries).toHaveLength(0);
+    // Its own account sends it.
+    signedIn('user-1');
+    await expect(flushSheetPeeks()).resolves.toBe(0);
+    expect(queries).toHaveLength(1);
+  });
+
+  it('nothing waits after a peek that was saved', async () => {
+    signedIn('user-1');
+    const queries = mockQueries(() => ({ data: null, error: null }));
+    await recordSheetPeek(peek);
+    await expect(flushSheetPeeks()).resolves.toBe(0);
+    expect(queries).toHaveLength(1);
   });
 });

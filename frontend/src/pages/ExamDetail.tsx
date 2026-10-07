@@ -589,6 +589,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
     },
     // A line's details take the column: «почему» of a question closes (it would stand in front of them).
     onLineOpen: () => setSelectedId(null),
+    openQuestionId: view === 'sheet' ? selectedId : null,
+    questionPanelId: `exam-why-${examId}`,
   });
   // The first time the sheet shows lines, one tip under its tab says what erases them (sheet spec 8):
   // not over a replay or the history, not while a line's details are open.
@@ -995,6 +997,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         variant={variant}
         frameBox={frame.box}
         headingId={`${whyId}-title`}
+        focusHeading={view === 'sheet'}
         onClose={closeWhy}
         onManualMark={() => void onManualMark()}
         manualPending={manualPending}
@@ -1014,8 +1017,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const column = selectedRow ? whyPanel('column') : rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn;
 
   const onSheet = view === 'sheet';
-  // The column offers its own filled pill («Написать шпаргалку», «Ответить на этот вопрос»): «Тянуть билет» steps down.
-  const drawSteps = whyAnswers || (onSheet && sheetPage.primaryInColumn);
+  // The column offers its own filled pill («Написать шпаргалку», «Ответить на этот вопрос»), or the sheet's
+  // first-use tip does («Тянуть билет» in the card): the page's «Тянуть билет» steps down.
+  const drawSteps = whyAnswers || (onSheet && (sheetPage.primaryInColumn || sheetTip.show));
   const viewTabs = (
     <>
       <div className="ex-views" role="tablist" aria-label="Вид листа экзамена">
@@ -1051,8 +1055,43 @@ function ExamSheetPage({ examId }: { examId: string }) {
     </>
   );
 
+  const examLinks = (
+    <div className="ex-links">
+      {editLocked ? (
+        <span className="sf-link" aria-disabled="true" title="Список можно изменить, когда сверка закончится">
+          Изменить список
+        </span>
+      ) : (
+        <Link className="sf-link" to={`/exams/${exam.id}/edit`}>
+          Изменить список
+        </Link>
+      )}
+      <Link className="sf-link" to={`/exams/${exam.id}/edit#lectures`}>
+        Лекции
+      </Link>
+      <button
+        type="button"
+        className="sf-link"
+        aria-pressed={rateMode && !onSheet}
+        onClick={() => {
+          setSelectedId(null);
+          setFilter('all');
+          if (onSheet) {
+            chooseView('questions');
+            setRateMode(true);
+            return;
+          }
+          setRateMode((value) => !value);
+        }}
+      >
+        Самооценка
+      </button>
+    </div>
+  );
+
   return (
     <div className="sf-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
+      {onSheet && sheetPage.status}
       <header className="ex-head">
         <div style={{ minWidth: 0 }}>
           <p className="ex-crumb">
@@ -1062,37 +1101,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
             {subjectOf(exam.title)}
           </h1>
           <p className="ex-meta">{glue(metaParts.join(' · '))}</p>
-          <div className="ex-links">
-            {editLocked ? (
-              <span className="sf-link" aria-disabled="true" title="Список можно изменить, когда сверка закончится">
-                Изменить список
-              </span>
-            ) : (
-              <Link className="sf-link" to={`/exams/${exam.id}/edit`}>
-                Изменить список
-              </Link>
-            )}
-            <Link className="sf-link" to={`/exams/${exam.id}/edit#lectures`}>
-              Лекции
-            </Link>
-            <button
-              type="button"
-              className="sf-link"
-              aria-pressed={rateMode && !onSheet}
-              onClick={() => {
-                setSelectedId(null);
-                setFilter('all');
-                if (onSheet) {
-                  chooseView('questions');
-                  setRateMode(true);
-                  return;
-                }
-                setRateMode((value) => !value);
-              }}
-            >
-              Самооценка
-            </button>
-          </div>
+          {/* A phone's sheet: the paper's lines on the first screen; these links go under it. */}
+          {!(onSheet && !frame.side) && examLinks}
         </div>
         {frame.side &&
           (preMapping ? (
@@ -1234,13 +1244,18 @@ function ExamSheetPage({ examId }: { examId: string }) {
           </div>
         </div>
         {frame.side && (
-          <aside className="ex-col" aria-label={onSheet ? 'Шпаргалка' : 'Что это значит для билетов'} id={selectedRow ? whyId : undefined}>
+          <aside className="ex-col" aria-label={onSheet ? 'Колонка шпаргалки' : 'Что это значит для билетов'} id={selectedRow ? whyId : undefined}>
             {onSheet ? (selectedRow ? whyPanel('column') : sheetPage.column) : column}
           </aside>
         )}
       </div>
 
-      {!frame.side && onSheet && sheetPage.after && <section className="ex-col ex-col-after">{sheetPage.after}</section>}
+      {!frame.side && onSheet && (
+        <section className="ex-col ex-col-after">
+          {sheetPage.after}
+          {examLinks}
+        </section>
+      )}
 
       {!frame.side && onSheet && sheetPage.overlay}
 
@@ -1268,7 +1283,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
             <>
               <Link
                 ref={drawPillRef}
-                className={onSheet && sheetPage.primaryInColumn ? 'ex-secondary' : 'sf-primary'}
+                className={onSheet && (sheetPage.primaryInColumn || sheetTip.show) ? 'ex-secondary' : 'sf-primary'}
                 to={drawHref}
                 onTouchStart={preloadTicketScreen}
                 onFocus={preloadTicketScreen}

@@ -6,12 +6,12 @@
  */
 import type { SheetBlock } from '../../../lib/exams/cheatSheet';
 
-/** One grid row of the paper, px (24 on a computer, 22 on a phone). */
+/** One grid row of the paper, px: 24 on a computer and on a phone (a line is a 24 px target, WCAG 2.5.8). */
 export const ROW_PX = 24;
-export const ROW_PX_NARROW = 22;
+export const ROW_PX_NARROW = 24;
 /** Paper width from which the sheet has two columns. */
 export const TWO_COLUMNS_FROM = 760;
-/** Paper narrower than this is a phone's: the 22 px grid and smaller type. */
+/** Paper narrower than this is a phone's: smaller type and margins. */
 export const NARROW_BELOW = 560;
 /** The paper's padding (the right one holds the margin line) and the gap between the columns, px. */
 export const PAPER_PAD = { left: 24, right: 72 } as const;
