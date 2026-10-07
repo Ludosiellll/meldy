@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { useConfirm } from '../../contexts/ConfirmContext';
 import {
-  ANSWER_TEXT_CONSENT_TEXT,
+  ANSWER_TEXT_PROFILE_TEXT,
   countAnswerTexts,
   deleteAnswerTexts,
   onAnswerTextConsent,
@@ -24,6 +24,10 @@ export const DELETE_FAILED_TOAST = 'Не удалось удалить текс�
  * «Профиль»: whether the texts of answers are kept for the accuracy check (plan 2026-10-07), and deleting
  * the kept ones. Never answered reads as off. Hidden when the consent cannot be read (the table not
  * there yet): there is nothing to switch.
+ *
+ * The switch looks like the app's other switches (the sheet's «Только то, что осталось»): a track with a
+ * knob and the word of its state, no pill — a blue «Выключено» read as the page's main action (QA
+ * 2026-10-07).
  */
 export default function AnswerTextsSetting() {
   const { user } = useAuth();
@@ -64,6 +68,7 @@ export default function AnswerTextsSetting() {
   const on = consent === 'granted';
 
   const toggle = async () => {
+    if (busy) return; // a press while the choice is being saved waits for it
     setBusy(true);
     try {
       await setAnswerTextConsent(userId, !on);
@@ -110,18 +115,22 @@ export default function AnswerTextsSetting() {
           <p className="ac-row-t" id="profile-answers-switch">
             Сохранять текст ответов
           </p>
-          <p className="ac-row-d">{glue(ANSWER_TEXT_CONSENT_TEXT)}</p>
+          <p className="ac-row-d">{glue(ANSWER_TEXT_PROFILE_TEXT)}</p>
         </div>
         <button
           type="button"
           role="switch"
           aria-checked={on}
           aria-labelledby="profile-answers-switch"
-          disabled={busy || consent === null}
+          // While saving it stays focusable (aria-disabled): a disabled button dropped the keyboard focus to
+          // the page, and the switch could not be pressed again without finding it anew.
+          aria-disabled={busy || undefined}
+          disabled={consent === null}
           onClick={() => void toggle()}
-          className={`ac-btn ac-row-btn ${consent === null ? 'ac-btn--quiet' : on ? 'ac-btn--ok' : 'ac-btn--blue'}`}
+          className="ac-switch"
         >
-          {consent === null ? 'Загрузка...' : on ? 'Включено' : 'Выключено'}
+          <span className="ac-switch-box" aria-hidden="true" />
+          <span className="ac-switch-state">{consent === null ? 'Загрузка...' : on ? 'Включено' : 'Выключено'}</span>
         </button>
       </div>
       {count !== null && count > 0 && (
