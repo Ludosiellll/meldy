@@ -23,7 +23,9 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
-      registerType: 'autoUpdate',
+      // A new release waits until no open page can be disturbed (src/sw.js, lib/appUpdate.ts); autoUpdate
+      // reloaded every open page a second after the browser found a release.
+      registerType: 'prompt',
       injectRegister: 'auto',
       injectManifest: {
         maximumFileSizeToCacheInBytes: 5000000,
