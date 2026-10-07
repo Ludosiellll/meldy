@@ -55,6 +55,28 @@ function dayOf(iso: string | null): string | null {
   return moment.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
+// The author on their own link (2026-10-07 live run: a closed link still read «Однокурсники, которые по ней войдут…»).
+const OWN_HEADINGS: Record<NonNullable<SharePreview['link']> | 'unknown', string> = {
+  active: 'Это ваша ссылка',
+  revoked: 'Вы закрыли эту ссылку',
+  expired: 'Срок вашей ссылки закончился',
+  unknown: 'Это ваша ссылка',
+};
+
+const NEW_LINK = 'Новую ссылку можно сделать на странице экзамена — кнопка «Пригласить группу».';
+
+function ownLede(value: SharePreview): string {
+  switch (value.link) {
+    case 'active':
+      return `Однокурсники, которые по ней войдут, получат свою копию экзамена «${value.title}». Ваши ответы они не увидят.`;
+    case 'revoked':
+    case 'expired':
+      return `По ней больше никто не войдёт. Кто уже вошёл, остался со своей копией экзамена «${value.title}». ${NEW_LINK}`;
+    default:
+      return `Однокурсники входят по ней в свою копию экзамена «${value.title}», пока ссылка открыта. Закрыть её или сделать новую можно на странице экзамена — кнопка «Пригласить группу».`;
+  }
+}
+
 function statusMessage(status: SharePreview['status']): string | null {
   switch (status) {
     case 'not_found':
@@ -193,12 +215,9 @@ export default function JoinGroup() {
             ) : value && value.status === 'own' ? (
               <>
                 <h1 id="join-title" className="au-h1 jg-h1">
-                  Это ваша ссылка
+                  {OWN_HEADINGS[value.link ?? 'unknown']}
                 </h1>
-                <p className="au-lede">
-                  Однокурсники, которые по ней войдут, получат свою копию экзамена «{value.title}». Ваши ответы они не
-                  увидят.
-                </p>
+                <p className="au-lede">{ownLede(value)}</p>
                 {value.examId && (
                   <p className="jg-actions">
                     <Link className="sf-primary" to={`/exams/${value.examId}`}>

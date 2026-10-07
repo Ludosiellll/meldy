@@ -53,6 +53,8 @@ export interface SharePreview {
   lectures: number;
   /** own — the author's exam, joined — the visitor's copy. */
   examId: string | null;
+  /** own only: whether the author's link is still open (null — the server could not tell). */
+  link: ShareState | null;
 }
 
 export interface JoinResult {
@@ -200,6 +202,7 @@ export async function previewShare(code: string): Promise<SharePreview> {
     questions: count(value.questions),
     lectures: count(value.lectures),
     examId: uuid(value.exam_id),
+    link: value.link === 'active' || value.link === 'revoked' || value.link === 'expired' ? value.link : null,
   };
 }
 

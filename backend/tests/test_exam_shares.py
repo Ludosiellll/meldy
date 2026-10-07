@@ -799,3 +799,36 @@ def test_points_that_fail_the_quote_check_twice_leave_a_failure_row(share, monke
         (question["question_hash"], oral.rubric_key(question, [material_id]), "user-a")
     ]
     assert share.fake.tables["oral_rubrics"] == []
+
+
+# ── Автор на своей ссылке ───────────────────────────────────────────────────────
+
+
+def test_the_author_on_their_own_link_sees_whether_it_is_open_closed_or_expired(share):
+    # Живой прогон 07.10: на закрытой ссылке автор читал «Однокурсники, которые по ней войдут…» — «own» в
+    # exam_share_preview решается раньше отзыва. Своя строка ссылки читается токеном автора, без миграции.
+    exam = author_exam(share.fake)
+    link = make_link(share, exam["exam"])
+    own = share.post("/api/exam-shares/preview", json={"code": CODE}).json()
+    assert own["status"] == "own" and own["link"] == "active" and own["exam_id"] == exam["exam"]
+
+    assert share.post(f"/api/exam-shares/{link['id']}/revoke").status_code == 200
+    closed = share.post("/api/exam-shares/preview", json={"code": CODE}).json()
+    assert closed["status"] == "own" and closed["link"] == "revoked" and closed["exam_id"] == exam["exam"]
+    # Гостю и однокурснику — как раньше: ссылка закрыта, без названия экзамена и без поля link.
+    assert share.post("/api/exam-shares/preview", json={"code": CODE}, headers={"Authorization": ""}).json() == {"status": "revoked"}
+    assert share.post("/api/exam-shares/preview", json={"code": CODE}, headers=as_user("token-c")).json() == {"status": "revoked"}
+
+    other = "pqrstvwxyz23"
+    make_link(share, exam["exam"], code=other, expires_at="2026-01-05T09:00:00+00:00")
+    expired = share.post("/api/exam-shares/preview", json={"code": other}).json()
+    assert expired["status"] == "own" and expired["link"] == "expired"
+
+
+def test_an_unreadable_own_link_row_leaves_the_state_unsaid(share):
+    exam = author_exam(share.fake)
+    make_link(share, exam["exam"])
+    share.fake.fail[("GET", "exam_shares")] = 500
+    own = share.post("/api/exam-shares/preview", json={"code": CODE})
+    assert own.status_code == 200
+    assert own.json()["status"] == "own" and "link" not in own.json()
