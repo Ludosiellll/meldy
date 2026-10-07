@@ -9,6 +9,11 @@
 этот модуль не трогает. Новые функции режут текст без потолка:
 build_source_chunks(text, max_chunks=None); первые 80 id и тексты совпадают
 с теми, что сохранены в summary_json.grounding.
+
+План лекции, оглавление, вопросы для самоконтроля (is_plan_text) называют темы, но не
+объясняют их, а слов вопроса в них больше всего. Такой фрагмент не склеивается со
+следующим как заголовок, а поиск с plans_per_material не отдаёт ему места лекции
+из per_material_cap (разметка билетов, exams_map.py).
 """
 
 from __future__ import annotations
@@ -33,6 +38,7 @@ __all__ = [
     "Hit",
     "Passage",
     "STOPWORDS",
+    "is_plan_text",
     "material_passages",
     "normalize_text",
     "stem",
@@ -177,6 +183,155 @@ def _is_heading(text: str) -> bool:
     return not stripped.rstrip(_TRAILING_CLOSERS).endswith((".", "…"))
 
 
+# ── План, оглавление, вопросы для самоконтроля ──────────────────────────────
+
+PLAN_MIN_ITEMS = 3
+PLAN_ITEM_MAX_CHARS = 160
+PLAN_LEAD_ITEM_MAX_CHARS = 80
+PLAN_LEAD_MIN_SHARE = 0.6
+
+# Начало текста, строки или предложения (в склеенном по словам фрагменте строк уже нет:
+# «… Лекция 1 из 3. План лекции 1. …»); «##» и «**» разметки перед меткой допускаются.
+_PLAN_START = r"(?:^|(?<=\n)|(?<=[.!?»…]\s))[#*\s]*"
+# Метка списка тем. Просто «План» — только отдельной строкой: «План: 1. Сканирование …» в
+# лекции по SQL — план выполнения запроса, а не лекции.
+_PLAN_MARKER_RE = re.compile(
+    _PLAN_START
+    + r"(?:"
+    r"план\s+(?:лекции|занятия|семинара|урока|темы|раздела)"
+    r"|план(?=[ \t]*:?[ \t]*\n)"
+    r"|содержание(?:\s+(?:лекции|курса|темы|занятия|раздела))?"
+    r"|оглавление"
+    r"|(?:учебные|основные|рассматриваемые)\s+вопросы(?:\s+(?:лекции|темы|занятия))?"
+    r"|вопросы\s+(?:лекции|темы|занятия)"
+    r"|(?:контрольные|проверочные)\s+вопросы"
+    r"|вопросы(?:\s+и\s+задания)?\s+(?:для|к)\s+"
+    r"(?:самоконтроля|самопроверки|повторения|обсуждения|семинару|зач[её]ту|экзамену)"
+    r")[*_]*[ \t]*[:.]?\s*",
+    re.IGNORECASE,
+)
+# Вступление, которое только перечисляет темы: «В этой лекции мы рассмотрим: …».
+_PLAN_LEAD_RE = re.compile(
+    _PLAN_START
+    + r"(?:в\s+(?:этой|данной|сегодняшней|настоящей)\s+(?:лекции|теме|главе)|сегодня)\s+(?:мы\s+)?"
+    r"(?:рассмотрим|рассматриваются|рассмотрены|изучим|изучаются|обсудим|обсуждаются|познакомимся\s+с)"
+    r"(?:\s+следующие\s+(?:вопросы|темы))?[ \t]*:?\s*",
+    re.IGNORECASE,
+)
+# Без этих слов в тексте нет ни метки, ни вступления: регулярные выражения не нужны.
+_PLAN_HINTS = ("план", "содержани", "оглавлени", "вопрос", "рассм", "изуч", "обсу", "познаком")
+_PLAN_NEXT_RE: dict[int, re.Pattern] = {}
+_PLAN_FIRST_RE = re.compile(r"1[ \t]*[.)]\s+")
+_PLAN_LAST_END_RE = re.compile(r"\n|[.!?…](?=\s|$)")
+_PLAN_BULLET_RE = re.compile(r"[ \t]*[-–—•*·▪●][ \t]+(\S[^\n]*)")
+_PLAN_SENTENCE_END_RE = re.compile(r"[.!?\n]")
+_PLAN_SEMICOLONS_RE = re.compile(r"\s*;\s*")
+_PLAN_COMMAS_RE = re.compile(r"\s*,\s*|\s+и\s+")
+# Пункт-определение: «Атомарность — транзакция выполняется целиком или никак».
+_PLAN_DEFINITION_RE = re.compile(r"^[^—–\n]{1,60}?\s[—–-]\s+\S+(?:\s+\S+){3,}")
+
+
+def _next_number_re(number: int) -> re.Pattern:
+    pattern = _PLAN_NEXT_RE.get(number)
+    if pattern is None:
+        pattern = _PLAN_NEXT_RE[number] = re.compile(rf"(?<=\s){number}[ \t]*[.)]\s+")
+    return pattern
+
+
+def _numbered_items(text: str, start: int) -> tuple[list[str], int]:
+    """Пункты «1. …», «2. …» подряд сразу с позиции start и конец списка (иначе [], start).
+
+    Следующий номер ищется не дальше PLAN_ITEM_MAX_CHARS: длинный пункт — уже не тема.
+    Последний пункт идёт до конца строки или предложения.
+    """
+    first = _PLAN_FIRST_RE.match(text, start)
+    if first is None:
+        return [], start
+    items: list[str] = []
+    begin = first.end()
+    number = 2
+    while True:
+        following = _next_number_re(number).search(text, begin, begin + PLAN_ITEM_MAX_CHARS + 8)
+        if following is None:
+            tail = text[begin:begin + PLAN_ITEM_MAX_CHARS + 1]
+            cut = _PLAN_LAST_END_RE.search(tail)
+            end = begin + (cut.end() if cut else len(tail))
+            items.append(text[begin:end].strip())
+            return items, end
+        items.append(text[begin:following.start()].strip())
+        begin = following.end()
+        number += 1
+
+
+def _bulleted_items(text: str, start: int) -> tuple[list[str], int]:
+    """Пункты «- …», «• …» на строках подряд с позиции start (только текст со строками)."""
+    items: list[str] = []
+    position = start
+    while position < len(text):
+        line_end = text.find("\n", position)
+        line_end = len(text) if line_end < 0 else line_end
+        match = _PLAN_BULLET_RE.fullmatch(text, position, line_end)
+        if match is None or len(match.group(1).strip()) > PLAN_ITEM_MAX_CHARS:
+            break
+        items.append(match.group(1).strip())
+        position = line_end + 1
+    return items, min(position, len(text))
+
+
+def _listed_items(text: str, start: int) -> tuple[list[str], int]:
+    """Перечень в одном предложении: «понятие модели; ключи; связи» или «модель, ключи и связи»."""
+    end_match = _PLAN_SENTENCE_END_RE.search(text, start)
+    end = end_match.start() if end_match else len(text)
+    sentence = text[start:end]
+    parts = [part for part in _PLAN_SEMICOLONS_RE.split(sentence) if part.strip()]
+    if len(parts) < PLAN_MIN_ITEMS:
+        parts = [part for part in _PLAN_COMMAS_RE.split(sentence) if part.strip()]
+    return [part.strip() for part in parts], end
+
+
+def _plan_list(items: list[str]) -> bool:
+    """Список тем: не меньше трёх коротких пунктов, и это не перечень определений."""
+    if len(items) < PLAN_MIN_ITEMS or any(not item or len(item) > PLAN_ITEM_MAX_CHARS for item in items):
+        return False
+    definitions = sum(1 for item in items if not item.endswith("?") and _PLAN_DEFINITION_RE.match(item))
+    return definitions * 2 < len(items)
+
+
+def is_plan_text(text: str) -> bool:
+    """Фрагмент с планом лекции, оглавлением или списком вопросов (для самоконтроля, к экзамену).
+
+    Нужна метка («План лекции», «Содержание», «Оглавление», «Вопросы для самоконтроля», …) в начале
+    строки или предложения и сразу под ней не меньше трёх коротких пунктов: нумерованных («1. …»,
+    «2) …») или строк с «-»/«•». Пункты-определения («Атомарность — транзакция выполняется целиком
+    …») — содержание, а не план. Остальной текст фрагмента не мешает: в склеенном по словам тексте
+    план делит фрагмент с началом первого раздела.
+
+    Вступление, которое только перечисляет темы («В этой лекции мы рассмотрим: …», «Сегодня мы
+    изучим …»), — план, если вступление с перечнем (нумерованным, по строкам, через «;» или через
+    запятые с короткими пунктами) занимает не меньше PLAN_LEAD_MIN_SHARE фрагмента.
+    """
+    if not text:
+        return False
+    lowered = text.lower()
+    if not any(hint in lowered for hint in _PLAN_HINTS):
+        return False
+    for marker in _PLAN_MARKER_RE.finditer(text):
+        for collect in (_numbered_items, _bulleted_items):
+            items, _ = collect(text, marker.end())
+            if _plan_list(items):
+                return True
+    size = len("".join(text.split())) or 1
+    for lead in _PLAN_LEAD_RE.finditer(text):
+        for collect in (_numbered_items, _bulleted_items, _listed_items):
+            items, end = collect(text, lead.end())
+            if collect is _listed_items and any(len(item) > PLAN_LEAD_ITEM_MAX_CHARS for item in items):
+                continue
+            covered = len("".join(text[lead.start():end].split()))
+            if _plan_list(items) and covered / size >= PLAN_LEAD_MIN_SHARE:
+                return True
+    return False
+
+
 @dataclass
 class Hit:
     """Найденный фрагмент.
@@ -188,6 +343,9 @@ class Hit:
     чьи основы совпали с вопросом, по порядку появления. Слова заголовка сюда не входят:
     если с вопросом совпал только заголовок, matched_words == [], и показывать нужно
     заголовок, например «совпал заголовок раздела «…»», а не «там есть слово …».
+
+    plan — документ (заголовок и фрагмент) похож на план или оглавление (is_plan_text);
+    отмечается только в поиске с plans_per_material.
     """
 
     passage: Passage
@@ -196,6 +354,7 @@ class Hit:
     matched_stems: list[str]
     matched_words: list[str]
     heading: str | None
+    plan: bool = False
 
 
 @dataclass
@@ -230,7 +389,9 @@ class BM25Index:
     Короткий фрагмент-заголовок (до 120 знаков, без точки в конце) при merge_headings
     оценивается вместе со следующим фрагментом того же материала: находкой становится
     фрагмент-содержание, а текст заголовка попадает в Hit.heading. Иначе короткий
-    заголовок выигрывал бы у объяснения за счёт нормировки длины.
+    заголовок выигрывал бы у объяснения за счёт нормировки длины. Короткий план
+    («План\\n1. Ключи\\n2. Связи\\n3. Целостность») — не заголовок: он остаётся отдельным
+    документом, иначе его слова достались бы первому разделу.
 
     Скорость: snowball на чистом Python тратит ~20 мкс на слово, а в курсе из тысячи
     фрагментов 10–25 тыс. разных словоформ. Поэтому индекс хранит словоформы, а основы
@@ -261,7 +422,12 @@ class BM25Index:
         if self.merge_headings:
             for index, passage in enumerate(self.passages):
                 successor = position.get((passage.material_id, passage.order + 1))
-                absorbed[index] = successor is not None and successor != index and _is_heading(passage.text)
+                absorbed[index] = (
+                    successor is not None
+                    and successor != index
+                    and _is_heading(passage.text)
+                    and not is_plan_text(passage.text)
+                )
 
         self._docs: list[_Doc] = []
         self._doc_of: dict[tuple[str, str], int] = {}
@@ -292,6 +458,16 @@ class BM25Index:
         self._vocab: list[str] = sorted(self._token_postings)
         # основа → (документ → частота, словоформы этой основы); заполняется при поиске
         self._resolved: dict[str, tuple[dict[int, int], frozenset[str]]] = {}
+        # документ → похож ли на план (is_plan_text по заголовку и фрагменту); заполняется при поиске
+        self._plans: dict[int, bool] = {}
+
+    def _is_plan(self, doc_index: int) -> bool:
+        cached = self._plans.get(doc_index)
+        if cached is None:
+            doc = self._docs[doc_index]
+            text = "\n".join([self.passages[i].text for i in doc.heading_indices] + [self.passages[doc.target].text])
+            cached = self._plans[doc_index] = is_plan_text(text)
+        return cached
 
     # ── Основы → документы ──────────────────────────────────────────────────
 
@@ -351,8 +527,16 @@ class BM25Index:
         per_material_cap: int = 3,
         exam_stopwords: bool = True,
         exclude: frozenset[tuple[str, str]] = frozenset(),
+        plans_per_material: int | None = None,
     ) -> list[Hit]:
-        """Лучшие фрагменты по BM25: по убыванию оценки, при равенстве — по номеру фрагмента."""
+        """Лучшие фрагменты по BM25: по убыванию оценки, при равенстве — по номеру фрагмента.
+
+        plans_per_material (None — правило выключено): фрагмент-план (is_plan_text) проходит,
+        только пока у его материала есть свободное место из per_material_cap, но этого места не
+        занимает — план не отнимает место у раздела и не добавляет материалу лишнего. Место из
+        top_k он занимает. Планов от одного материала не больше plans_per_material, следующие
+        пропускаются.
+        """
         if top_k <= 0 or not self._docs:
             return []
         query_terms = self._query_terms(query, exam_stopwords)
@@ -382,14 +566,22 @@ class BM25Index:
 
         hits: list[Hit] = []
         per_material: Counter = Counter()
+        plans: Counter = Counter()
         for doc_index in ranked:
             doc = self._docs[doc_index]
             passage = self.passages[doc.target]
             if (passage.material_id, passage.source_id) in exclude:
                 continue
-            if per_material_cap and per_material_cap > 0 and per_material[passage.material_id] >= per_material_cap:
-                continue
-            per_material[passage.material_id] += 1
+            full = bool(per_material_cap and per_material_cap > 0 and per_material[passage.material_id] >= per_material_cap)
+            plan = plans_per_material is not None and self._is_plan(doc_index)
+            if plan:
+                if full or plans[passage.material_id] >= plans_per_material:
+                    continue
+                plans[passage.material_id] += 1
+            else:
+                if full:
+                    continue
+                per_material[passage.material_id] += 1
             matched = [term for term in query_terms if doc_index in self._resolve(term)[0]]
             forms: set[str] = set()
             for term in matched:
@@ -403,6 +595,7 @@ class BM25Index:
                     matched_stems=matched,
                     matched_words=_matched_words(passage.text, forms),
                     heading="\n".join(heading_texts) if heading_texts else None,
+                    plan=plan,
                 )
             )
             if len(hits) >= top_k:

@@ -1,6 +1,8 @@
-"""Разметка экзамена по лекциям (exams_map.py): проверки честности судьи, повторы, пачки,
-повторное использование с исходной датой, блокировка, запись до события, доказательства —
-целые фрагменты лекции. Плюс функция согласия скрипта mapping_accuracy.py (ворота 3).
+"""Разметка экзамена по лекциям (exams_map.py): проверки честности судьи (метки, сквозные по
+пачке, и дословные цитаты опор — регрессия Q6 живого прогона 07.10), план лекции среди
+кандидатов, повторы, пачки, повторное использование с исходной датой, блокировка, запись до
+события, доказательства — целые фрагменты лекции. Плюс функция согласия скрипта
+mapping_accuracy.py (ворота 3).
 
 Данные только синтетические: демо-лекция tests/fixtures/demo_lecture_v0.txt и короткие
 тексты ниже. Supabase — подменённый транспорт httpx (supabase_rest._transport), модель —
@@ -32,7 +34,7 @@ from exams_map import (  # noqa: E402
     MAPPING_RUNNING_DETAIL,
     REASON_NO_ANSWER,
     REASON_NO_OVERLAP,
-    REASON_NO_SUPPORT,
+    REASON_NO_QUOTE,
     WRITE_FAILED_MESSAGE,
     MapError,
     Verdict,
@@ -48,7 +50,7 @@ from exams_map import (  # noqa: E402
     validate_judge_answer,
 )
 from exams_parse import question_hash  # noqa: E402
-from exams_prompts import JUDGE_PROMPT  # noqa: E402
+from exams_prompts import JUDGE_PROMPT, JudgeCandidate, JudgeQuestion, batch_labels, build_judge_block  # noqa: E402
 from retrieval import BM25Index, material_passages  # noqa: E402
 from supabase_rest import SupabaseRest  # noqa: E402
 from utils import build_source_chunks  # noqa: E402
@@ -297,8 +299,24 @@ class Judge:
         return [question["text"] for call in self.calls for question in call["questions"]]
 
 
+def quote_of(text, needle=None, words=8):
+    """Цитата честного судьи: слова фрагмента подряд, как он их видел, начиная с needle (или с начала)."""
+    start = text.lower().find(needle.lower()) if needle else 0
+    tail = text[max(start, 0):].split()
+    if len(tail) < 5:
+        tail = text.split()[-words:]
+    return " ".join(tail[:words]).removesuffix(" …").removesuffix("…")
+
+
+def support_of(candidate, needle=None):
+    return {"label": candidate["label"], "quote": quote_of(candidate["text"], needle)}
+
+
 def honest(rules, default=("none", None)):
-    """rules: {подстрока вопроса: (coverage, подстрока опорного фрагмента или None)}."""
+    """rules: {подстрока вопроса: (coverage, подстрока опорного фрагмента или None)}.
+
+    Опора — метка фрагмента со своей цитатой, как просит промпт.
+    """
 
     def script(questions, call_number):
         results = []
@@ -306,7 +324,9 @@ def honest(rules, default=("none", None)):
             coverage, needle = next(
                 (rule for key, rule in rules.items() if key.lower() in question["text"].lower()), default
             )
-            support = [c["label"] for c in question["candidates"] if needle and needle.lower() in c["text"].lower()][:1]
+            support = [
+                support_of(c, needle) for c in question["candidates"] if needle and needle.lower() in c["text"].lower()
+            ][:1]
             results.append({
                 "n": question["n"], "coverage": coverage, "support": support,
                 "missing": "" if coverage == "full" else "Нет классификации", "reason": f"Решено по фрагментам: {coverage}",
@@ -487,16 +507,49 @@ def test_full_is_rechecked_when_its_excerpt_is_no_longer_the_lectures_fragment()
 
 # ── Судья: вход и проверка ответа ───────────────────────────────────────────────
 
+# Фрагменты для проверок ответа судьи (по мотивам живого прогона 07.10, курс «Базы данных»).
+F_INTEGRITY = (
+    "Ограничения целостности — правила, которым должны удовлетворять данные в любой момент времени. "
+    "СУБД проверяет их сама при каждой вставке, изменении и удалении и отклоняет операцию, которая их нарушает."
+)
+F_TYPES = (
+    "NULL. Иначе две строки нельзя было бы различить. 2. Ссылочную целостность — значение внешнего ключа совпадает "
+    "с существующим значением ключа родительского отношения или является NULL. 3. Доменные ограничения (ограничения "
+    "атрибутов) — тип данных, обязательность (NOT NULL), значение по умолчанию (DEFAULT), условие на значение (CHECK)."
+)
+F_ATOMIC = (
+    "атрибутов атомарны: в каждой ячейке одно значение, нет списков и повторяющихся групп. Таблица со столбцами "
+    "Дисциплина1 и Дисциплина2 в первой нормальной форме не находится."
+)
+F_PLAN = "План лекции 1. Понятие модели данных. 2. Ключи отношения. 3. Внешний ключ и ссылочная целостность. 4. Ограничения целостности."
+F_NULL = "IS NULL и IS NOT NULL проверяют отсутствие значения: сравнение с NULL через знак равенства даёт UNKNOWN, а не TRUE."
+F_RESTRICT = "RESTRICT / NO ACTION — запретить удаление или изменение родительской строки, пока на неё есть ссылки."
+F_YO = "Ёмкость индекса растёт, когда в таблице ещё больше строк: «B-дерево» — сбалансированное дерево поиска."
 
-def test_judge_block_labels_candidates_per_question_and_names_the_lecture():
-    from exams_prompts import JudgeCandidate, JudgeQuestion, build_judge_block
 
+def judge_question(text, *candidates):
+    """Вопрос пачки судьи: кандидаты — (ключ фрагмента, текст) или (ключ, текст, заголовок)."""
+    return JudgeQuestion(text, tuple(
+        JudgeCandidate("Лекция", candidate[1], candidate[2] if len(candidate) > 2 else None, candidate[0])
+        for candidate in candidates
+    ))
+
+
+def judge_answer(*results):
+    return json.dumps({"results": list(results)}, ensure_ascii=False)
+
+
+def cite(label, quote):
+    return {"label": label, "quote": quote}
+
+
+def test_judge_block_labels_are_unique_in_the_batch_and_name_the_lecture():
     block = build_judge_block([
         JudgeQuestion("Метод   обратного\nраспространения", (
-            JudgeCandidate("Нейронные сети (лекция 2)", "Обратное распространение ошибки: градиент…", None),
-            JudgeCandidate("Нейронные сети (лекция 2)", "Переобучение — главная проблема.", "Регуляризация и борьба с переобучением"),
+            JudgeCandidate("Нейронные сети (лекция 2)", "Обратное распространение ошибки: градиент…", None, ("m", "S14")),
+            JudgeCandidate("Нейронные сети (лекция 2)", "Переобучение — главная проблема.", "Регуляризация и борьба с переобучением", ("m", "S18")),
         )),
-        JudgeQuestion("Кривая Филлипса", (JudgeCandidate("", "слово " * 200, None),)),
+        JudgeQuestion("Кривая Филлипса", (JudgeCandidate("", "слово " * 200, None, ("m2", "S01")),)),
     ], fragment_chars=450)
     first, second = block.split("\n\n")
     assert first.splitlines() == [
@@ -505,26 +558,280 @@ def test_judge_block_labels_candidates_per_question_and_names_the_lecture():
         "[C2] (Нейронные сети «лекция 2») Регуляризация и борьба с переобучением. Переобучение — главная проблема.",
     ]
     head, candidate = second.splitlines()
-    assert head == "Вопрос 2: Кривая Филлипса" and candidate.startswith("[C1] (Без названия) слово")
+    # Метки сквозные по пачке: у второго вопроса не свой «[C1]», а следующий номер.
+    assert head == "Вопрос 2: Кривая Филлипса" and candidate.startswith("[C3] (Без названия) слово")
     asked = build_judge_block([JudgeQuestion("Что такое ВВП?", (JudgeCandidate("Макро", "ВВП — стоимость.", "Что такое ВВП?"),))])
     assert asked.splitlines()[1] == "[C1] (Макро) Что такое ВВП? ВВП — стоимость."
-    assert candidate.endswith(" …") and len(candidate) <= len("[C1] (Без названия) ") + 452
+    assert candidate.endswith(" …") and len(candidate) <= len("[C3] (Без названия) ") + 452
     assert "[C1]" in JUDGE_PROMPT and '"results"' in JUDGE_PROMPT and "JSON" in JUDGE_PROMPT
-    assert "Решай только по этим фрагментам" in JUDGE_PROMPT
+    assert "Решай только по фрагментам, приложенным к этому вопросу" in JUDGE_PROMPT
+    # Метки больше не «у каждого вопроса свои», а к каждой опоре нужна дословная цитата.
+    assert "Метки у каждого вопроса свои" not in JUDGE_PROMPT
+    assert '"quote"' in JUDGE_PROMPT and "от 5 до 15 слов подряд" in JUDGE_PROMPT
 
+
+def test_a_fragment_shared_by_two_questions_keeps_one_label_and_labels_never_repeat():
+    shared = ("rel", "S16")
+    questions = [
+        judge_question("Ограничения целостности", (("rel", "S01"), F_PLAN), (shared, F_TYPES), (("nf", "S05"), F_ATOMIC)),
+        judge_question("Значение NULL", (("sql", "S06"), F_NULL), (shared, F_TYPES), (("rel", "S12"), F_RESTRICT)),
+    ]
+    assert batch_labels(questions) == [(1, 2, 3), (4, 2, 5)]
+    shown: dict[str, str] = {}
+    for line in build_judge_block(questions).splitlines():
+        if line.startswith("["):
+            label, text = line.split("] ", 1)
+            assert shown.setdefault(label, text) == text  # одна метка — один и тот же фрагмент
+    assert len(shown) == len(set(shown.values())) == 5  # пять фрагментов — пять меток
+    # Общий фрагмент — своя опора обоих вопросов, под одной меткой.
+    quote = "значение внешнего ключа совпадает с существующим значением ключа"
+    checked = validate_judge_answer(judge_answer(
+        {"n": 1, "coverage": "partial", "support": [cite("C2", quote)], "missing": "", "reason": ""},
+        {"n": 2, "coverage": "partial", "support": [cite("C2", quote)], "missing": "", "reason": ""},
+    ), questions)
+    assert checked.complete and checked.verdicts[0].support == (1,) and checked.verdicts[1].support == (1,)
+    assert checked.verdicts[1].labels == (4, 2, 5)
+
+
+def _live_q6_q9_batch():
+    """Пачка как в живом прогоне 07.10: фрагмента S16 лекции 1 (виды ограничений целостности) у Q6 нет,
+    он кандидат соседнего Q9; пятый кандидат Q6 — S05 лекции 3 (1НФ)."""
+    q6 = judge_question(
+        "Ограничения целостности в реляционной модели данных.",
+        (("L1", "S01"), F_PLAN),
+        (("L1", "S03"), "Реляционная модель состоит из трёх частей: структурной, целостной и манипуляционной."),
+        (("L1", "S02"), "Первые промышленные СУБД 1960-х годов использовали иерархическую и сетевую модели данных."),
+        (("L3", "S12"), "Согласованность. Транзакция переводит базу из одного согласованного состояния в другое."),
+        (("L3", "S05"), F_ATOMIC),
+        (("L2", "S01"), "План лекции 1. Назначение и состав языка SQL. 2. Учебная база данных. 3. Оператор SELECT."),
+    )
+    q9 = judge_question(
+        "Отбор строк в предложении WHERE. Значение NULL и трёхзначная логика.",
+        (("L2", "S06"), F_NULL),
+        (("L2", "S17"), "Подзапросы бывают скалярными; при работе с ними нужно помнить о NULL и трёхзначной логике."),
+        (("L2", "S03"), "Предложения записываются в одном порядке, а логически выполняются в другом."),
+        (("L1", "S12"), F_RESTRICT),
+        (("L1", "S16"), F_TYPES),
+        (("L1", "S10"), "Суррогатный ключ сам по себе не мешает дважды внести одного и того же студента."),
+    )
+    return [q6, q9]
+
+
+S16_QUOTE = "Ссылочную целостность — значение внешнего ключа совпадает с существующим значением ключа родительского отношения"
+
+
+@pytest.mark.parametrize("label", ["C11", "C5", "С11"])  # метка S16 в пачке; «C5», как в живом прогоне; кириллицей
+def test_q6_a_label_and_quote_from_the_neighbours_fragment_never_become_its_evidence(label):
+    questions = _live_q6_q9_batch()
+    assert batch_labels(questions) == [(1, 2, 3, 4, 5, 6), (7, 8, 9, 10, 11, 12)]
+    checked = validate_judge_answer(judge_answer(
+        {"n": 1, "coverage": "full", "support": [cite(label, S16_QUOTE)], "missing": "",
+         "reason": "Перечислены целостность сущностей, ссылочная целостность и доменные ограничения"},
+        {"n": 2, "coverage": "full", "support": [cite("C7", "сравнение с NULL через знак равенства даёт UNKNOWN")],
+         "missing": "", "reason": "Есть"},
+    ), questions)
+    # S16 — не кандидат Q6: ни чужая метка, ни своя «C5» (S05 лекции 3) с цитатой из S16 опорой не становятся.
+    # «Есть» без опоры не превращается в «нет» — вопрос ждёт повтора.
+    assert 0 not in checked.verdicts and checked.unconfirmed == frozenset({0})
+    assert checked.dropped == 1 and checked.moved == 0 and not checked.complete
+    assert checked.verdicts[1].support == (0,)  # соседний вопрос не пострадал
+
+
+def test_q6_in_a_mapping_run_a_borrowed_label_leaves_no_foreign_evidence(fake, judge):
+    exam_id, (q_integrity, q_first_nf), (relational, normal_forms) = course(
+        fake, [Q_INTEGRITY, Q_FIRST_NF], materials=(("Реляционная модель", RELATIONAL), ("Нормализация", NORMAL_FORMS))
+    )
+    borrowed: dict[str, str] = {}
+
+    def script(questions, call_number):
+        own = {c["label"] for c in questions[0]["candidates"]}
+        neighbours = [c for q in questions[1:] for c in q["candidates"] if c["label"] not in own]
+        if neighbours:  # первый вызов: Q6 берёт метку и цитату из списка соседа
+            borrowed.update(text=neighbours[0]["text"], label=neighbours[0]["label"])
+            quote = quote_of(borrowed["text"])
+            support = [cite(borrowed["label"], quote)]
+        else:  # повтор без соседа: метка «C5», а цитата всё та же
+            support = [cite("C5", quote_of(borrowed["text"]))]
+        results = [{"n": 1, "coverage": "full", "support": support, "missing": "", "reason": "Есть"}]
+        results += [
+            {"n": q["n"], "coverage": "full", "support": [support_of(q["candidates"][0])], "missing": "", "reason": "Есть"}
+            for q in questions[1:]
+        ]
+        return {"results": results}
+
+    judge.script = script
+    events = run_map(fake, exam_id)
+    assert borrowed, "у соседнего вопроса есть фрагмент, которого нет среди кандидатов Q6"
+    assert [len(call["questions"]) for call in judge.calls] == [2, 1]  # пачка и один повтор Q6
+    marks = items(events)
+    q6 = marks[q_integrity]
+    assert q6["coverage"] == "unverified" and q6["method"] == "lexical" and q6["reason"] == REASON_NO_QUOTE
+    assert q6["evidence"] == [] and q6["nearest"]
+    texts = {row["id"]: row["original_text"] for row in fake.tables["materials"]}
+    fragments = fragments_of(*texts.items())
+    foreign = " ".join(borrowed["text"].split())[:80]
+    assert all(foreign not in " ".join(fragments[(n["material_id"], n["source_id"])].split()) for n in q6["nearest"])
+    row = fake.row("exam_questions", q_integrity)
+    assert (row["coverage"], row["coverage_reason"], row["evidence"]) == ("unverified", REASON_NO_QUOTE, [])
+    assert marks[q_first_nf]["coverage"] == "full" and marks[q_first_nf]["evidence"][0]["material_id"] == normal_forms
+    assert events[-1]["counts"] == {"full": 1, "partial": 0, "none": 0, "unverified": 1}
+    assert_honest_rows(fake)
+
+
+def _quote_batch():
+    return [judge_question(
+        "Ограничения целостности",
+        (("rel", "S15"), F_INTEGRITY), (("rel", "S16"), F_TYPES), (("nf", "S05"), F_ATOMIC), (("idx", "S02"), F_YO),
+    )]
+
+
+@pytest.mark.parametrize(
+    ("support", "chosen", "moved"),
+    [
+        ([cite("C1", "правила, которым должны удовлетворять данные в любой момент времени")], (0,), 0),  # дословно
+        ([cite("C1", "ПРАВИЛА  которым должны\nудовлетворять данные в любой момент")], (0,), 0),  # регистр, пробелы, перенос
+        ([cite("C1", "«Ограничения целостности» - правила, которым должны удовлетворять данные…")], (0,), 0),  # кавычки, дефис, «…»
+        ([cite("C2", "Ссылочную целостность – значение внешнего ключа совпадает с существующим")], (1,), 0),  # «–» вместо «—»
+        ([cite("C2", "обязательность NOT NULL, значение по умолчанию \"DEFAULT\"")], (1,), 0),  # скобки и кавычки другие
+        ([cite("C4", "емкость индекса растет, когда в таблице еще больше строк")], (3,), 0),  # «е» вместо «ё»
+        ([cite("C4", "B дерево — сбалансированное дерево поиска")], (3,), 0),  # дефис в «B-дерево» — пробел
+        ([cite("[C3]", "значение внешнего ключа совпадает с существующим значением")], (1,), 1),  # цитата из другого своего
+        ([cite("C9", "значение внешнего ключа совпадает с существующим значением")], (1,), 1),  # метки нет в пачке
+        ([{"quote": "значение внешнего ключа совпадает с существующим значением"}], (1,), 1),  # метки нет вовсе
+        ({"C1": "правила, которым должны удовлетворять данные в любой момент"}, (0,), 0),  # {метка: цитата}
+        ([cite("С1", "правила, которым должны удовлетворять данные в любой момент")], (0,), 0),  # «С» кириллицей
+        # Длиннее 15 слов, но дословно: годится (промпт просит 5–15, модель считает слова неточно).
+        ([cite("C2", " ".join(F_TYPES.split()[5:40]))], (1,), 0),
+        # Две опоры на один фрагмент и одна чужая: остаётся одна.
+        ([cite("C1", "правила, которым должны удовлетворять данные"), cite("C1", "при каждой вставке, изменении и удалении")], (0,), 0),
+    ],
+)
+def test_a_quote_confirms_its_fragment_or_moves_the_support_to_the_one_own_fragment_it_comes_from(support, chosen, moved):
+    checked = validate_judge_answer(
+        judge_answer({"n": 1, "coverage": "full", "support": support, "missing": "", "reason": "Есть"}), _quote_batch()
+    )
+    assert checked.complete and checked.verdicts[0].support == chosen
+    assert (checked.moved, checked.dropped) == (moved, 0)
+
+
+@pytest.mark.parametrize(
+    "support",
+    [
+        [cite("C1", "СУБД отклоняет любую операцию, нарушающую правила")],  # пересказ, а не цитата
+        [cite("C1", "правила, которым должны удовлетворять данные … при каждой вставке, изменении")],  # склейка через «…»
+        [cite("C1", "правила которым данные должны удовлетворять в любой момент")],  # слова не подряд
+        [cite("C1", S16_QUOTE.replace("Ссылочную", "Ссылочная"))],  # одно слово изменено
+        [cite("C1", "в любой момент времени")],  # короче 5 слов
+        [cite("C1", "")],
+        [cite("C2", "значение " * 400)],  # длиннее любого фрагмента
+        [cite("C1", None)],  # опора без цитаты
+        ["C1"],  # по-старому: метка без цитаты
+        [],
+    ],
+)
+@pytest.mark.parametrize("coverage", ["full", "partial"])
+def test_full_or_partial_whose_quote_is_not_in_its_fragments_is_unconfirmed_not_none(support, coverage):
+    checked = validate_judge_answer(
+        judge_answer({"n": 1, "coverage": coverage, "support": support, "missing": "", "reason": ""}), _quote_batch()
+    )
+    assert checked.verdicts == {} and checked.unconfirmed == frozenset({0}) and not checked.complete
+    assert checked.dropped == len(support)
+
+
+def test_none_needs_no_quote_and_a_lost_support_keeps_the_rest():
+    batch = _quote_batch()
+    # «Нет» — без опор и цитат; метки при «нет» не учитываются.
+    for support in ([], ["C1"], [cite("C2", "нет такого текста в лекции совсем")]):
+        checked = validate_judge_answer(judge_answer({"n": 1, "coverage": "none", "support": support}), batch)
+        assert checked.complete and checked.verdicts[0].coverage == "none" and checked.verdicts[0].support == ()
+    # Одна опора не подтвердилась — вердикт держится на другой.
+    checked = validate_judge_answer(judge_answer({"n": 1, "coverage": "partial", "support": [
+        cite("C1", "СУБД отклоняет любую операцию, нарушающую правила"),
+        cite("C2", "значение внешнего ключа совпадает с существующим значением"),
+    ]}), batch)
+    assert checked.verdicts[0].support == (1,) and (checked.moved, checked.dropped) == (0, 1)
+
+
+def test_a_quote_found_in_two_other_own_fragments_cannot_be_placed():
+    same = "Первичный ключ уникален и не содержит NULL, по нему находят одну строку отношения."
+    batch = [judge_question("Ключи", (("a", "S01"), same), (("b", "S07"), same), (("a", "S03"), F_ATOMIC))]
+    quote = "Первичный ключ уникален и не содержит NULL"
+    named_third = validate_judge_answer(judge_answer({"n": 1, "coverage": "full", "support": [cite("C3", quote)]}), batch)
+    assert named_third.unconfirmed == frozenset({0}) and named_third.dropped == 1  # нельзя выбрать один из двух
+    named_second = validate_judge_answer(judge_answer({"n": 1, "coverage": "full", "support": [cite("C2", quote)]}), batch)
+    assert named_second.verdicts[0].support == (1,)  # названный фрагмент с цитатой — опора остаётся у него
+
+
+def test_a_short_fragment_can_be_quoted_only_whole():
+    batch = [judge_question("ВВП", (("m", "S01"), "ВВП — стоимость товаров."), (("m", "S02"), F_INTEGRITY))]
+    whole = validate_judge_answer(judge_answer({"n": 1, "coverage": "partial", "support": [cite("C1", "ВВП — стоимость товаров")]}), batch)
+    assert whole.verdicts[0].support == (0,)
+    part = validate_judge_answer(judge_answer({"n": 1, "coverage": "partial", "support": [cite("C1", "стоимость товаров")]}), batch)
+    assert part.unconfirmed == frozenset({0})
+
+
+def test_groq_batch_of_four_with_cut_fragments_checks_quotes_against_whole_fragments():
+    def long_fragment(topic, n):
+        return " ".join(f"{topic}: пункт {k} раздела {n} объясняет свойство и приводит пример из учебной базы деканата." for k in range(1, 9))
+
+    topics = ["Атомарность", "Согласованность", "Изолированность", "Долговечность"]
+    questions = [
+        judge_question(
+            f"{topic} транзакции",
+            *(((topic, f"S{n:02d}"), long_fragment(topic, n), "Свойства транзакций ACID" if n == 2 else None) for n in range(1, 7)),
+        )
+        for topic in topics
+    ]
+    labels = batch_labels(questions)
+    assert labels[0] == (1, 2, 3, 4, 5, 6) and labels[3] == (19, 20, 21, 22, 23, 24)  # до C24, две цифры
+    block = build_judge_block(questions, fragment_chars=450)
+    shown = [line for line in block.splitlines() if line.startswith("[C")]
+    assert len(shown) == 24 and all(line.endswith(" …") for line in shown)  # Groq: фрагменты обрезаны до 450 знаков
+    visible_end = shown[5].removesuffix(" …").split()[-6:]  # C6: последние слова перед обрезкой и сама « …»
+    checked = validate_judge_answer(judge_answer(
+        {"n": 1, "coverage": "full", "support": [cite("C6", " ".join(visible_end) + " …")]},
+        # Цитата начинается в заголовке раздела, который судья прочёл перед фрагментом.
+        {"n": 2, "coverage": "partial", "support": [cite("C8", "Свойства транзакций ACID. Согласованность: пункт 1 раздела 2")]},
+        # Слова из конца фрагмента, за обрезкой: их нет на экране судьи, но во фрагменте они есть.
+        {"n": 3, "coverage": "full", "support": [cite("C17", "пункт 8 раздела 5 объясняет свойство и приводит пример")]},
+        # Метка своя, а цитата — из фрагмента первого вопроса.
+        {"n": 4, "coverage": "full", "support": [cite("C24", "Атомарность: пункт 1 раздела 1 объясняет свойство")]},
+    ), questions)
+    assert checked.verdicts[0].support == (5,) and checked.verdicts[1].support == (1,) and checked.verdicts[2].support == (4,)
+    assert checked.unconfirmed == frozenset({3}) and checked.dropped == 1
 
 
 def test_judge_labels_outside_the_questions_own_candidates_are_dropped():
-    raw = json.dumps({"results": [
-        {"n": 1, "coverage": "full", "support": ["C3", "C7", "[C1]"], "missing": "", "reason": "ок"},
-        {"n": 2, "coverage": "partial", "support": ["C2", "С1"], "missing": "нет видов", "reason": "ок"},  # С1 — кириллица
-        {"n": 3, "coverage": "full", "support": [4, "C1"], "missing": "", "reason": "ок"},
-    ]}, ensure_ascii=False)
-    verdicts, complete = validate_judge_answer(raw, [3, 1, 2])
-    assert complete
-    assert verdicts[0].support == (2, 0)
-    assert verdicts[1].support == (0,)
-    assert verdicts[2].support == (0,)
+    questions = [
+        judge_question("Первый", (("a", "S01"), F_INTEGRITY), (("a", "S02"), F_ATOMIC), (("a", "S03"), F_YO)),  # C1 C2 C3
+        judge_question("Второй", (("b", "S01"), F_NULL)),  # C4
+        judge_question("Третий", (("c", "S01"), F_RESTRICT), (("a", "S01"), F_INTEGRITY)),  # C5 и общий C1
+    ]
+    integrity = "правила, которым должны удовлетворять данные в любой момент"
+    checked = validate_judge_answer(judge_answer(
+        {"n": 1, "coverage": "full", "support": [
+            cite("C3", "сбалансированное дерево поиска, когда в таблице"),  # не подряд — не цитата
+            cite("C5", "запретить удаление или изменение родительской строки"),  # метка и текст третьего вопроса
+            cite("[C1]", integrity),
+            cite("C3", "Ёмкость индекса растёт, когда в таблице ещё больше строк"),
+        ], "missing": "", "reason": "ок"},
+        {"n": 2, "coverage": "partial", "support": [cite("С4", "сравнение с NULL через знак равенства даёт UNKNOWN")],
+         "missing": "нет видов", "reason": "ок"},  # С4 — кириллица
+        {"n": 3, "coverage": "full", "support": [cite(5, "запретить удаление или изменение родительской строки"), cite("C1", integrity)],
+         "missing": "", "reason": "ок"},
+    ), questions)
+    assert checked.complete
+    assert checked.verdicts[0].support == (0, 2)
+    assert checked.verdicts[1].support == (0,)
+    assert checked.verdicts[2].support == (0, 1)
+    assert (checked.moved, checked.dropped) == (0, 2)
+
+
+SHAPES = [
+    judge_question("Первый", (("a", "S01"), F_INTEGRITY), (("a", "S02"), F_ATOMIC)),
+    judge_question("Второй", (("b", "S01"), F_NULL), (("b", "S02"), F_RESTRICT)),
+]
+FIRST_QUOTE = {"label": "C1", "quote": "правила, которым должны удовлетворять данные в любой момент"}
 
 
 @pytest.mark.parametrize(
@@ -532,21 +839,23 @@ def test_judge_labels_outside_the_questions_own_candidates_are_dropped():
     [
         ("не JSON", {}, False),
         ('{"results": "нет"}', {}, False),
-        (json.dumps({"results": [{"n": "2", "coverage": "нет", "support": []}, {"n": 1, "coverage": "есть", "support": ["C1"]}]},
-                    ensure_ascii=False), {0: "full", 1: "none"}, True),
-        (json.dumps({"results": [{"n": 1, "coverage": "maybe"}, {"n": 2, "coverage": "partial"}]}), {1: "partial"}, False),
-        (json.dumps({"results": [{"n": 1, "coverage": "full"}, {"n": 1, "coverage": "none"}, {"n": 2, "coverage": "none"}]}),
+        (judge_answer({"n": "2", "coverage": "нет", "support": []}, {"n": 1, "coverage": "есть", "support": [FIRST_QUOTE]}),
+         {0: "full", 1: "none"}, True),
+        (judge_answer({"n": 1, "coverage": "maybe"}, {"n": 2, "coverage": "partial", "support": [cite("C3", "IS NULL и IS NOT NULL проверяют")]}),
+         {1: "partial"}, False),
+        (judge_answer({"n": 1, "coverage": "full", "support": [FIRST_QUOTE]}, {"n": 1, "coverage": "none"}, {"n": 2, "coverage": "none"}),
          {0: "full", 1: "none"}, False),
-        (json.dumps({"results": [{"n": 0, "coverage": "full"}, {"n": 3, "coverage": "full"}, {"n": 2, "coverage": "none"}]}),
-         {1: "none"}, False),
-        ('{"results": [{"n": 1, "coverage": "full", "support": ["C1"]}, {"n": 2, "cover', {0: "full"}, False),  # обрезанный JSON
+        # Первый ответ на вопрос 1 — «есть» без цитаты; повтор номера с «нет» его не заменяет.
+        (judge_answer({"n": 1, "coverage": "full"}, {"n": 1, "coverage": "none"}, {"n": 2, "coverage": "none"}), {1: "none"}, False),
+        (judge_answer({"n": 0, "coverage": "full"}, {"n": 3, "coverage": "full"}, {"n": 2, "coverage": "none"}), {1: "none"}, False),
+        (judge_answer({"n": 1, "coverage": "full", "support": [FIRST_QUOTE]})[:-2] + ', {"n": 2, "cover', {0: "full"}, False),  # обрезан
         (json.dumps([{"n": 1, "coverage": "none"}, {"n": 2, "coverage": "none"}]), {0: "none", 1: "none"}, True),
     ],
 )
 def test_judge_answer_shapes(raw, expected, complete):
-    verdicts, is_complete = validate_judge_answer(raw, [2, 2])
-    assert {index: verdict.coverage for index, verdict in verdicts.items()} == expected
-    assert is_complete is complete
+    checked = validate_judge_answer(raw, SHAPES)
+    assert {index: verdict.coverage for index, verdict in checked.verdicts.items()} == expected
+    assert checked.complete is complete
 
 
 def _demo_hits(query):
@@ -555,11 +864,11 @@ def _demo_hits(query):
 
 
 @pytest.mark.parametrize("coverage", ["full", "partial"])
-def test_full_or_partial_without_valid_support_becomes_none(coverage):
+def test_full_or_partial_without_valid_support_is_unverified_not_none(coverage):
     hits = _demo_hits(Q_BACKPROP)
     item = coverage_from_verdict("q1", hits, Verdict(coverage, (), "чего-то нет", "есть ответ"), "2026-10-03T09:00:00Z")
-    assert item["coverage"] == "none" and item["method"] == "llm"
-    assert item["reason"] == REASON_NO_SUPPORT == "Нет подтверждающего фрагмента"
+    assert item["coverage"] == "unverified" and item["method"] == "lexical"
+    assert item["reason"] == REASON_NO_QUOTE
     assert item["evidence"] == [] and item["missing"] == ""
     assert [n["source_id"] for n in item["nearest"]] == [hit.passage.source_id for hit in hits[:3]]
 
@@ -578,9 +887,8 @@ def test_supported_verdicts_cite_whole_fragments_and_keep_only_honest_notes():
 
 def test_reason_and_missing_are_trimmed_to_200_chars():
     long_text = "очень длинное объяснение " * 40
-    raw = json.dumps({"results": [{"n": 1, "coverage": "partial", "support": ["C1"], "missing": long_text, "reason": long_text}]},
-                     ensure_ascii=False)
-    verdict = validate_judge_answer(raw, [1])[0][0]
+    raw = judge_answer({"n": 1, "coverage": "partial", "support": [FIRST_QUOTE], "missing": long_text, "reason": long_text})
+    verdict = validate_judge_answer(raw, SHAPES[:1]).verdicts[0]
     assert 0 < len(verdict.reason) <= 200 and 0 < len(verdict.missing) <= 200
     assert verdict.reason.endswith("…")
 
@@ -745,9 +1053,15 @@ def test_one_batch_two_lectures_same_fragment_numbers_each_question_gets_its_own
     )
     judge.script = honest({"ограничения целостности": ("full", "Различают ограничения"), "первая нормальная": ("full", "Первая нормальная форма требует")})
     marks = items(run_map(fake, exam_id))
-    # Один вызов судьи на оба вопроса: метки [C1]… у каждого вопроса свои и повторяются.
+    # Один вызов судьи на оба вопроса: метки сквозные, у фрагмента одна метка на всю пачку.
     (call,) = judge.calls
-    assert [[c["label"] for c in q["candidates"]] for q in call["questions"]] == [["C1", "C2", "C3", "C4"], ["C1", "C2"]]
+    labels = [[c["label"] for c in q["candidates"]] for q in call["questions"]]
+    assert labels == [["C1", "C2", "C3", "C4"], ["C5", "C4"]]  # S04 «Нормализации» — кандидат обоих
+    shown: dict[str, str] = {}
+    for question in call["questions"]:
+        for candidate in question["candidates"]:
+            assert shown.setdefault(candidate["label"], candidate["text"]) == candidate["text"]
+    assert len(set(shown.values())) == len(shown) == 5
     texts = {row["id"]: row["original_text"] for row in fake.tables["materials"]}
     fragments = fragments_of(*texts.items())
     # У обоих доказательств номер S03, но каждое — из своей лекции и с её текстом.
@@ -757,6 +1071,89 @@ def test_one_batch_two_lectures_same_fragment_numbers_each_question_gets_its_own
     assert "Различают ограничения" in marks[q_integrity]["evidence"][0]["excerpt"]
     assert marks[q_first_nf]["evidence"][0]["excerpt"] == fragments[(normal_forms, "S03")]
     assert fake.row("exam_questions", q_integrity)["evidence"] == marks[q_integrity]["evidence"]
+    assert_honest_rows(fake)
+
+
+# Лекция с планом и вопросами для самоконтроля: план называет все темы и раньше забирал одно из трёх
+# мест лекции, вступление — ещё два, и раздел с видами ограничений (S04) к судье не попадал.
+INTEGRITY_COURSE = "\n\n".join([
+    "План лекции 1. Ключи отношения. 2. Внешний ключ. 3. Ограничения целостности в реляционной модели.",
+    "Модель данных — это структуры, операции и ограничения целостности. Реляционная модель данных появилась в 1970 году.",
+    "Реляционная модель состоит из трёх частей: структурной, целостной и манипуляционной; целостная часть — ограничения "
+    "целостности данных.",
+    "Различают: целостность сущностей, ссылочную целостность, доменные ограничения и ограничения кортежа; СУБД отклоняет "
+    "операцию, которая их нарушает.",
+    "Вопросы для самоконтроля 1. Что такое внешний ключ? 2. Какие ограничения целостности различают в реляционной модели? "
+    "3. Чем ключ отличается от суперключа?",
+])
+INTEGRITY_NF = "\n\n".join([
+    "Транзакция переводит базу в согласованное состояние: после неё выполняются все ограничения целостности.",
+    "Первая нормальная форма требует атомарных значений в реляционной модели.",
+])
+
+
+def test_the_lecture_plan_no_longer_crowds_the_answer_out_of_the_candidates(fake, judge):
+    exam_id, (q_integrity,), (relational, _) = course(
+        fake, [Q_INTEGRITY], materials=(("Реляционная модель", INTEGRITY_COURSE), ("Нормализация", INTEGRITY_NF))
+    )
+    judge.script = honest({"ограничения целостности": ("full", "Различают: целостность сущностей")})
+    marks = items(run_map(fake, exam_id))
+    (call,) = judge.calls
+    shown = [candidate["text"] for candidate in call["questions"][0]["candidates"]]
+    assert any(text.startswith("Различают: целостность сущностей") for text in shown)
+    assert sum(text.startswith("План лекции") for text in shown) == 1
+    assert not any(text.startswith("Вопросы для самоконтроля") for text in shown)  # второй план лекции — мимо
+    assert len(shown) == 6
+    item = marks[q_integrity]
+    assert item["coverage"] == "full" and [(e["material_id"], e["source_id"]) for e in item["evidence"]] == [(relational, "S04")]
+    assert_honest_rows(fake)
+
+
+def test_a_plan_glued_to_its_heading_keeps_the_heading_handling():
+    text = "План лекции\n\n1. Ключи отношения.\n2. Внешний ключ.\n3. Ограничения целостности.\n\n" \
+        "Ограничения целостности — правила для данных; СУБД проверяет их при каждой операции."
+    passages = material_passages("m", "Лекция", text)
+    by_order = passage_index(passages)
+    hits = BM25Index(passages).search("ограничения целостности", per_material_cap=1, plans_per_material=1)
+    plan = next(hit for hit in hits if hit.plan)
+    assert plan.passage.source_id == "S02" and plan.heading == "План лекции"
+    assert heading_passages(plan, by_order) == (passages[0],)
+    # «План лекции» без слов вопроса заголовком доказательства не становится; доказательство — сам список.
+    item = coverage_from_verdict("q", hits, Verdict("partial", (hits.index(plan),), "", ""), "t", by_order)
+    assert [e["source_id"] for e in item["evidence"]] == ["S02"]
+
+
+def test_evidence_is_only_ever_one_of_the_questions_own_candidates_whatever_the_judge_cites(fake, judge):
+    """Свойство: судья берёт метки и цитаты где угодно в пачке, а доказательство — только свой кандидат."""
+    exam_id, _, _ = course(fake, [Q_BACKPROP, Q_ACTIVATION, Q_POLICY, Q_INFLATION, Q_TARGETING, Q_REGULARIZATION, Q_BAYES])
+    rng = random.Random(11)
+    shown: dict[str, list[str]] = {}
+
+    def script(questions, call_number):
+        everything = [candidate for question in questions for candidate in question["candidates"]]
+        results = []
+        for question in questions:
+            shown.setdefault(question["text"], []).extend(candidate["text"] for candidate in question["candidates"])
+            support = []
+            for _ in range(rng.randint(0, 3)):
+                source = rng.choice(everything)  # нередко — фрагмент соседнего вопроса
+                quote = quote_of(source["text"]) if rng.random() < 0.8 else "пересказ вместо цитаты из лекции"
+                support.append(cite(rng.choice(everything)["label"], quote))
+            results.append({"n": question["n"], "coverage": rng.choice(["full", "partial", "none"]), "support": support,
+                            "missing": "", "reason": ""})
+        return {"results": results}
+
+    judge.script = script
+    checked = 0
+    for _ in range(3):
+        events = run_map(fake, exam_id, force=True)
+        texts = {row["id"]: row["text"] for row in fake.questions_of(exam_id)}
+        for question_id, item in items(events).items():
+            own = "\n".join(shown.get(texts[question_id], []))
+            for evidence in item["evidence"]:
+                assert " ".join(evidence["excerpt"].split())[:120] in own
+                checked += 1
+    assert checked >= 5  # проверка не пустая: доказательства были
     assert_honest_rows(fake)
 
 
@@ -775,6 +1172,36 @@ def test_judge_notes_name_lecture_fragments_instead_of_candidate_labels():
     assert unknown["reason"] == "Во фрагментах лекций есть часть ответа" and unknown["missing"] == ""
     # «С 5 видами» — не метка.
     assert coverage_from_verdict("q1", hits, Verdict("full", (0,), "", "С 5 видами функций"), "t")["reason"] == "С 5 видами функций"
+
+
+def test_judge_notes_with_batch_labels_name_own_fragments_and_hide_a_neighbours_label():
+    hits = _demo_hits(Q_BACKPROP)
+    first, second = (str(int(hit.passage.source_id[1:])) for hit in hits[:2])
+    labels = tuple(range(13, 13 + len(hits)))  # третий вопрос пачки Gemini: его метки C13…C18
+    item = coverage_from_verdict("q1", hits, Verdict(
+        "partial", (0,), "Нет классификации видов в [C14]", "Фрагмент C13 содержит определение, виды есть в [С14]", labels,
+    ), "t")
+    assert item["reason"] == f"Фрагмент {first} содержит определение, виды есть во фрагменте {second}"
+    assert item["missing"] == f"классификации видов во фрагменте {second}"
+    # C1 — метка первого вопроса пачки, у этого вопроса её нет: пояснение общее, «не хватает» пусто.
+    neighbour = coverage_from_verdict("q1", hits, Verdict("partial", (0,), "Нет примеров из C1", "Ответ в C1", labels), "t")
+    assert neighbour["reason"] == "Во фрагментах лекций есть часть ответа" and neighbour["missing"] == ""
+    # «C130» — не «C13» с лишней цифрой.
+    longer = coverage_from_verdict("q1", hits, Verdict("full", (0,), "", "Ответ в C130", labels), "t")
+    assert longer["reason"] == "Ответ есть во фрагментах лекций"
+
+
+def test_a_three_digit_label_is_not_read_as_a_two_digit_one():
+    questions = [
+        judge_question(f"Вопрос {n}", (("m", f"S{n:02d}"), f"Фрагмент номер {n} рассказывает о свойстве транзакций на примере деканата."))
+        for n in range(1, 11)
+    ]
+    assert batch_labels(questions)[9] == (10,)
+    checked = validate_judge_answer(judge_answer(
+        *({"n": n, "coverage": "none"} for n in range(1, 10)),
+        {"n": 10, "coverage": "full", "support": [cite("C100", "Фрагмент номер 10 рассказывает о свойстве")]},
+    ), questions)
+    assert checked.verdicts[9].support == (0,) and checked.moved == 1  # C100 — не C10: опора нашлась по цитате
 
 
 @pytest.mark.parametrize(
@@ -804,11 +1231,15 @@ def test_mapped_rows_never_carry_candidate_labels(fake, judge):
     exam_id, question_ids, _ = course(fake, [Q_BACKPROP, Q_ACTIVATION, Q_POLICY])
 
     def script(questions, call_number):
-        return {"results": [
-            {"n": q["n"], "coverage": "partial", "support": ["C1"], "missing": "Нет классификации [C2]",
-             "reason": "Фрагмент C1 содержит часть ответа, C2 — нет"}
-            for q in questions
-        ]}
+        results = []
+        for q in questions:
+            first, second = (q["candidates"] * 2)[:2]
+            results.append({
+                "n": q["n"], "coverage": "partial", "support": [support_of(first)],
+                "missing": f"Нет классификации [{second['label']}]",
+                "reason": f"Фрагмент {first['label']} содержит часть ответа, {second['label']} — нет",
+            })
+        return {"results": results}
 
     judge.script = script
     run_map(fake, exam_id)
@@ -907,35 +1338,67 @@ def test_a_lecture_without_text_is_skipped_and_left_out_of_the_fingerprint(fake,
     assert fake.row("exams", exam_id)["mapped_material_ids"] == [demo]
 
 
-def test_label_outside_candidates_is_dropped_and_unsupported_full_is_saved_as_none(fake, judge):
+def test_label_outside_candidates_is_dropped_and_unconfirmed_full_ends_unverified_not_none(fake, judge):
     exam_id, (q_backprop, q_bayes), _ = course(fake, [Q_BACKPROP, Q_BAYES])
 
     def script(questions, call_number):
-        return {"results": [
-            {"n": 1, "coverage": "full", "support": ["C1", "C9"], "missing": "", "reason": "Есть"},
-            {"n": 2, "coverage": "full", "support": ["C9"], "missing": "", "reason": "Модель уверена"},
-        ]}
+        results = []
+        for q in questions:
+            if "обратного" in q["text"]:
+                own = next(c for c in q["candidates"] if "Обратное распространение ошибки" in c["text"])
+                support = [support_of(own, "Обратное распространение ошибки"), cite("C99", "такой фразы нет ни в одной лекции курса")]
+            else:
+                support = [cite("C99", "такой фразы нет ни в одной лекции курса")]
+            results.append({"n": q["n"], "coverage": "full", "support": support, "missing": "", "reason": "Модель уверена"})
+        return {"results": results}
 
     judge.script = script
     events = run_map(fake, exam_id)
     marks = items(events)
     assert [item["source_id"] for item in marks[q_backprop]["evidence"]] == ["S14"]
-    assert marks[q_bayes]["coverage"] == "none" and marks[q_bayes]["reason"] == REASON_NO_SUPPORT
+    # «Есть» без найденной цитаты: повтор пачкой меньше, затем «проверено только по словам», а не «нет».
+    assert [len(call["questions"]) for call in judge.calls] == [2, 1]
+    assert marks[q_bayes]["coverage"] == "unverified" and marks[q_bayes]["reason"] == REASON_NO_QUOTE
     row = fake.row("exam_questions", q_bayes)
-    assert row["coverage"] == "none" and row["coverage_method"] == "llm" and row["evidence"] == []
-    assert row["coverage_reason"] == "Нет подтверждающего фрагмента" and row["nearest"]
+    assert row["coverage"] == "unverified" and row["coverage_method"] == "lexical" and row["evidence"] == []
+    assert row["coverage_reason"] == REASON_NO_QUOTE and row["nearest"]
+    assert events[-1]["state"] == "partial" and fake.row("exams", exam_id)["mapping_state"] == "partial"
+    assert_honest_rows(fake)
+
+
+def test_full_whose_quote_failed_is_asked_again_and_kept_when_the_retry_quotes(fake, judge):
+    exam_id, (q_backprop, q_policy), _ = course(fake, [Q_BACKPROP, Q_POLICY])
+
+    def script(questions, call_number):
+        results = []
+        for q in questions:
+            first = q["candidates"][0]
+            quote = quote_of(first["text"])
+            if call_number == 1 and "обратного" in q["text"]:
+                quote = "пересказ фрагмента своими словами вместо цитаты"
+            results.append({"n": q["n"], "coverage": "full", "support": [cite(first["label"], quote)], "missing": "", "reason": "Есть"})
+        return {"results": results}
+
+    judge.script = script
+    events = run_map(fake, exam_id)
+    assert [len(call["questions"]) for call in judge.calls] == [2, 1]
+    assert judge.calls[1]["questions"][0]["text"] == Q_BACKPROP
+    marks = items(events)
+    assert marks[q_backprop]["coverage"] == "full" and marks[q_backprop]["evidence"][0]["source_id"] == "S14"
+    assert marks[q_policy]["coverage"] == "full"
+    assert events[-1]["state"] == "done"
     assert_honest_rows(fake)
 
 
 def test_missing_n_gets_one_half_size_retry_then_unverified(fake, judge):
     exam_id, question_ids, _ = course(fake, [Q_BACKPROP, Q_ACTIVATION, Q_POLICY, Q_INFLATION])
-    first_answer = {"results": [{"n": 1, "coverage": "full", "support": ["C1"], "missing": "", "reason": "Есть"}]}
-    BaseAgent._run_cache[("ранний ответ",)] = json.dumps(first_answer, ensure_ascii=False)
-
     def script(questions, call_number):
         first = questions[0]
-        return {"results": [{"n": first["n"], "coverage": "full", "support": [first["candidates"][0]["label"]],
-                             "missing": "", "reason": "Есть"}]}  # отвечает только на первый вопрос пачки
+        answer = {"results": [{"n": first["n"], "coverage": "full", "support": [support_of(first["candidates"][0])],
+                               "missing": "", "reason": "Есть"}]}  # отвечает только на первый вопрос пачки
+        if call_number == 1:  # этот ответ уже лежит в кеше процесса
+            BaseAgent._run_cache[("ранний ответ",)] = json.dumps(answer, ensure_ascii=False)
+        return answer
 
     judge.script = script
     events = run_map(fake, exam_id)
@@ -959,7 +1422,7 @@ def test_a_busy_retry_says_so_in_the_reason(fake, judge):
 
     def script(questions, call_number):
         if call_number == 1:
-            return {"results": [{"n": 1, "coverage": "full", "support": ["C1"], "reason": "Есть"}]}
+            return {"results": [{"n": 1, "coverage": "full", "support": [support_of(questions[0]["candidates"][0])], "reason": "Есть"}]}
         return AIError.busy()
 
     judge.script = script

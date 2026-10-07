@@ -7,23 +7,33 @@
    же question_hash, fp и MAP_VERSION в любом экзамене пользователя получает готовый
    результат без модели, с его исходной датой mapped_at (событие reused).
 3. Кандидаты — BM25 (retrieval.py) по всем фрагментам лекций: топ-6, не больше 3 из
-   одной лекции. Нет ни одного общего слова — «нет» без модели (событие lexical).
+   одной лекции. План лекции, оглавление и вопросы для самоконтроля (retrieval.is_plan_text)
+   этих трёх мест не занимают (проходят, только пока у лекции место есть), и такой
+   фрагмент от лекции — не больше одного: в плане названы все темы, и без этого правила
+   он вытеснял раздел с ответом. Нет ни одного общего слова — «нет» без модели (событие
+   lexical).
 4. Судья (P3) пачками: 10 вопросов при ключе Gemini, иначе 4 (фрагменты по 450 знаков);
    до 3 пачек сразу со сдвигом 0,8 с, и каждая пачка ждёт места в общей очереди тяжёлых
-   вызовов процесса (agents.base.heavy_slot, AI_HEAVY_CONCURRENCY). Проверки честности: метки только из кандидатов
-   своего вопроса; «есть»/«частично» без подтверждающей метки — «нет»; пропущенные
-   номера — один повтор пачкой вдвое меньше, затем «проверено только по словам»;
-   429/502/504 — пачка проверена только по словам (batch_failed).
+   вызовов процесса (agents.base.heavy_slot, AI_HEAVY_CONCURRENCY). Метки [C1], [C2], …
+   сквозные по пачке (exams_prompts.batch_labels), поэтому метка из списка соседнего
+   вопроса — не своя. Проверки честности (validate_judge_answer): опоры только из
+   кандидатов своего вопроса; у каждой опоры «есть»/«частично» — дословная цитата от 5 слов
+   подряд, и сервер ищет её в названном фрагменте (oral.verify_quote: регистр, ё/е,
+   пробелы, знаки, тире и кавычки не важны). Цитата нашлась в другом своём кандидате, и
+   только в одном, — опора переносится туда; ни в одном своём — опора отбрасывается.
+   «Есть»/«частично» без проверенной опоры (в «нет» такой ответ не превращается) и
+   пропущенные номера — один повтор пачкой вдвое меньше, затем «проверено только по
+   словам»; 429/502/504 — пачка проверена только по словам (batch_failed).
 5. Каждый результат записывается в exam_questions до своего события. В конце
    exams.mapping_state и exams.mapped_at = самая старая отметка экзамена.
 
 Текст доказательства — всегда целый фрагмент лекции (build_source_chunks без потолка),
-ближайший фрагмент — его дословная часть до 300 знаков. Текст модели туда не попадает.
-Если поиск склеил фрагмент с заголовком раздела и слова вопроса есть в заголовке,
-заголовок — отдельный целый фрагмент в доказательствах (перед текстом) или ближайший
-фрагмент, когда совпал только он. В пояснениях судьи метки кандидатов [C1]…[C6]
-заменяются номерами фрагментов, «Нет …» в начале missing убирается (на экране
-«Не хватает: …»).
+ближайший фрагмент — его дословная часть до 300 знаков. Текст модели, и цитата тоже,
+туда не попадает. Если поиск склеил фрагмент с заголовком раздела и слова вопроса есть
+в заголовке, заголовок — отдельный целый фрагмент в доказательствах (перед текстом) или
+ближайший фрагмент, когда совпал только он. В пояснениях судьи метки кандидатов
+заменяются номерами фрагментов (с меткой не своего вопроса — общее пояснение), «Нет …»
+в начале missing убирается (на экране «Не хватает: …»).
 Готовый результат другого экзамена переиспользуется, только если каждое его
 доказательство совпадает с нынешним фрагментом лекции слово в слово.
 """
@@ -38,17 +48,26 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, AsyncIterator, Iterable
+from typing import Any, AsyncIterator, Iterable, Sequence
 
+import oral
 from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
-from exams_prompts import JUDGE_PROMPT, JudgeCandidate, JudgeQuestion, build_judge_block
+from exams_prompts import (
+    JUDGE_PROMPT,
+    JudgeCandidate,
+    JudgeQuestion,
+    batch_labels,
+    build_judge_block,
+    candidate_text,
+)
 from plans import exam_mapping_cost
 from retrieval import STOPWORDS, BM25Index, Hit, Passage, material_passages, stem, terms
 from supabase_rest import RowLevelDenied, SupabaseRest, SupabaseRestError
 
 __all__ = [
     "MAP_VERSION",
+    "JudgeAnswer",
     "MapError",
     "MappingJob",
     "Verdict",
@@ -65,11 +84,19 @@ __all__ = [
     "validate_judge_answer",
 ]
 
+# Результат с той же версией, тем же question_hash и тем же отпечатком лекций переиспользуется
+# без модели. Сквозные метки и цитаты (07.10.2026) версию не поднимали: подъём заставил бы
+# следующую сверку каждого экзамена заново проверить и списать все «частично» и «нет», ссылки
+# группы ждали бы этой сверки автора (exam_shares.plan_copy требует пустой select_targets), а
+# «есть» с чужим доказательством select_targets всё равно не перепроверяет.
 MAP_VERSION = 1
 LOCK_STALE_SECONDS = 300
 MAX_TOTAL_CHARS = 3_000_000
 TOP_K = 6
 PER_MATERIAL_CAP = 3
+PLANS_PER_MATERIAL = 1  # план или оглавление лекции среди кандидатов: не больше одного и вне PER_MATERIAL_CAP
+QUOTE_MIN_WORDS = 5  # промпт просит 5–15 слов; длиннее — тоже дословная цитата и годится
+QUOTE_MAX_CHARS = 1000  # длиннее любого фрагмента (850 знаков): не цитата
 GEMINI_BATCH_SIZE = 10
 GROQ_BATCH_SIZE = 4
 GROQ_FRAGMENT_CHARS = 450
@@ -99,8 +126,11 @@ READ_FAILED_DETAIL = "Не удалось прочитать экзамен. П�
 LOCK_FAILED_DETAIL = "Не удалось начать сверку с лекциями. Повторите через минуту."
 
 REASON_NO_OVERLAP = "Ни одного фрагмента с этими словами"
+# Прежняя разметка сохраняла «есть»/«частично» без опоры как «нет» с этой причиной; новая так
+# не делает (REASON_NO_QUOTE), но строки с ней в базе остаются, и клиент её узнаёт.
 REASON_NO_SUPPORT = "Нет подтверждающего фрагмента"
 REASON_NO_ANSWER = "Проверено только по словам: модель не вернула ответ по этому вопросу"
+REASON_NO_QUOTE = "Проверено только по словам: модель не подтвердила ответ цитатой из лекции"
 _DEFAULT_REASONS = {
     "full": "Ответ есть во фрагментах лекций",
     "partial": "Во фрагментах лекций есть часть ответа",
@@ -118,7 +148,7 @@ _FAILED_BATCH_TEXTS = {
 }
 # Пояснения сервера: клиент сравнивает их дословно (WhyPanel), поэтому их не переписываем.
 _FIXED_REASONS = frozenset(
-    [REASON_NO_OVERLAP, REASON_NO_SUPPORT, REASON_NO_ANSWER, *_DEFAULT_REASONS.values()]
+    [REASON_NO_OVERLAP, REASON_NO_SUPPORT, REASON_NO_ANSWER, REASON_NO_QUOTE, *_DEFAULT_REASONS.values()]
     + [reason for reason, _ in _FAILED_BATCH_TEXTS.values()]
 )
 WRITE_FAILED_MESSAGE = "Не удалось сохранить результаты сверки. Уже проверенные вопросы сохранены — повторите через минуту."
@@ -126,7 +156,9 @@ INTERNAL_MESSAGE = "Сверка прервалась из-за ошибки н�
 
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _SOURCE_ID_RE = re.compile(r"^S\d{1,4}$")
-_LABEL_RE = re.compile(r"[CcСс]\s*(\d{1,2})")
+# Метка в support: «C12», «[C3]», «С7» с кириллицей. Меток в пачке до 60; три цифры — с запасом,
+# и «C100» не читается как «C10».
+_LABEL_RE = re.compile(r"[CcСс]\s*(\d{1,3})(?!\d)")
 _COVERAGE_WORDS = {
     "full": "full",
     "partial": "partial",
@@ -259,9 +291,23 @@ def select_targets(
 @dataclass(frozen=True)
 class Verdict:
     coverage: str  # full | partial | none
-    support: tuple[int, ...]  # номера кандидатов этого вопроса (0 → C1), только существующие
+    support: tuple[int, ...]  # номера кандидатов этого вопроса (0 → первый), только существующие
     missing: str
     reason: str
+    # Номера меток кандидатов в пачке по их порядку (C14 → 14): по ним метки в пояснениях
+    # становятся номерами фрагментов. Пусто — метки C1…Cn по порядку кандидатов.
+    labels: tuple[int, ...] = ()
+
+
+@dataclass
+class JudgeAnswer:
+    """Ответ судьи на пачку после проверок сервера."""
+
+    verdicts: dict[int, Verdict]  # номер вопроса в пачке (с 0) → Verdict
+    complete: bool  # на каждый вопрос годный вердикт, лишнего нет: ответ можно оставить в кеше
+    unconfirmed: frozenset[int] = frozenset()  # «есть»/«частично» без проверенной опоры — как пропуск
+    moved: int = 0  # опор, перенесённых по цитате на другой свой фрагмент
+    dropped: int = 0  # опор, отброшенных: цитаты нет, она короткая или её нет ни в одном своём фрагменте
 
 
 def _as_int(value: Any) -> int | None:
@@ -290,35 +336,118 @@ def _note(value: Any, limit: int = NOTE_CHARS) -> str:
     return cut.rstrip(" ,;:-–—") + "…"
 
 
-def _support_indices(value: Any, candidate_count: int) -> tuple[int, ...]:
-    labels: list[str] = []
-    if isinstance(value, list):
-        for item in value:
-            if isinstance(item, (int, float)) and not isinstance(item, bool):
-                labels.append(f"C{int(item)}")
-            elif isinstance(item, str):
-                labels.append(item)
-    elif isinstance(value, str):
-        labels.append(value)
-    indices: list[int] = []
-    for label in labels:
-        for match in _LABEL_RE.finditer(label):
-            index = int(match.group(1)) - 1
-            if 0 <= index < candidate_count and index not in indices:
-                indices.append(index)
-    return tuple(indices)
+def _label_numbers(value: Any) -> list[int]:
+    """Номера меток в значении модели: «C12», «[С3]» (кириллица), «C2 и C5», число 4 (→ C4)."""
+    if isinstance(value, bool):
+        return []
+    if isinstance(value, int):
+        return [value]
+    if isinstance(value, float):
+        return [int(value)] if value.is_integer() else []
+    if isinstance(value, str):
+        return [int(match.group(1)) for match in _LABEL_RE.finditer(value)]
+    return []
 
 
-def validate_judge_answer(raw: Any, candidate_counts: list[int]) -> tuple[dict[int, Verdict], bool]:
-    """Ответ судьи → {номер вопроса в пачке (с 0): Verdict} и признак «ответ полный и чистый».
+def _support_entries(value: Any) -> list[tuple[list[int], Any]]:
+    """support модели → [(номера меток, цитата)].
+
+    Ожидается [{"label": "C2", "quote": "…"}]; принимаются и {"C2": "…"}, и метки без цитат
+    («C2», 2) — у таких опор цитаты нет, и для «есть»/«частично» они не годятся.
+    """
+    if isinstance(value, dict):
+        items: list[Any] = [{"label": label, "quote": quote} for label, quote in value.items()]
+    elif isinstance(value, list):
+        items = value
+    else:
+        items = [] if value is None else [value]
+    entries: list[tuple[list[int], Any]] = []
+    for item in items:
+        if isinstance(item, dict):
+            entries.append((_label_numbers(item.get("label")), item.get("quote")))
+        else:
+            entries.append((_label_numbers(item), None))
+    return entries
+
+
+_QUOTE_MARKS = "«»\"“”„'‘’‚ \t\r\n"
+_QUOTE_ELLIPSIS_RE = re.compile(r"^(?:…|\.{3,})\s*|\s*(?:…|\.{3,})$")
+_QUOTE_WORD_RE = re.compile(r"\w+")
+
+
+def _quote_text(value: Any) -> str | None:
+    """Цитата модели без кавычек и «…» по краям («…» в конце — след обрезки фрагмента до 450 знаков)."""
+    if not isinstance(value, str) or len(value) > QUOTE_MAX_CHARS:
+        return None
+    text = _QUOTE_ELLIPSIS_RE.sub("", value.strip(_QUOTE_MARKS)).strip(_QUOTE_MARKS)
+    return text or None
+
+
+def _quote_words(text: str) -> list[str]:
+    """Слова, как их сравнивает oral.verify_quote: \\w+ без регистра, «ё» = «е»."""
+    return [word.lower().replace("ё", "е") for word in _QUOTE_WORD_RE.findall(unicodedata.normalize("NFC", text))]
+
+
+def _quote_in(quote: str, text: str) -> bool:
+    """Цитата — слова текста фрагмента подряд, дословно.
+
+    Сравнение — oral.verify_quote: регистр, «ё»/«е», пробелы и переносы, знаки препинания,
+    тире и дефисы, вид кавычек не важны; «…» внутри или слова не подряд — не цитата.
+    Короче QUOTE_MIN_WORDS слов цитата годится, только если это весь фрагмент.
+    """
+    wanted = _quote_words(quote)
+    if len(wanted) < QUOTE_MIN_WORDS:
+        return bool(wanted) and wanted == _quote_words(text)
+    return oral.verify_quote(quote, [("S", text)], max_chars=len(text) + 1) is not None
+
+
+def _checked_support(value: Any, labels: Sequence[int], texts: Sequence[str]) -> tuple[tuple[int, ...], int, int]:
+    """Опоры «есть»/«частично» после проверки цитат: (номера кандидатов, перенесено, отброшено).
+
+    labels и texts — метки и тексты кандидатов вопроса (как их читал судья, без обрезки).
+    Опора остаётся у названного своего фрагмента, если цитата в нём есть. Иначе — цитата не
+    из него, метка чужая или её нет — опора переходит к своему фрагменту с этой цитатой, если
+    такой ровно один, и отбрасывается, если таких нет или их несколько. Без цитаты —
+    отбрасывается: метке без цитаты сервер не верит.
+    """
+    own = {label: index for index, label in enumerate(labels)}
+    support: list[int] = []
+    moved = dropped = 0
+    for numbers, raw_quote in _support_entries(value):
+        quote = _quote_text(raw_quote)
+        if quote is None:
+            dropped += 1
+            continue
+        named = [own[number] for number in dict.fromkeys(numbers) if number in own]
+        chosen = next((index for index in named if _quote_in(quote, texts[index])), None)
+        if chosen is None:
+            found = [index for index in range(len(texts)) if index not in named and _quote_in(quote, texts[index])]
+            if len(found) != 1:
+                dropped += 1
+                continue
+            chosen = found[0]
+            moved += 1
+        if chosen not in support:
+            support.append(chosen)
+    return tuple(support), moved, dropped
+
+
+def validate_judge_answer(raw: Any, questions: Sequence[JudgeQuestion]) -> JudgeAnswer:
+    """Ответ судьи на пачку questions (та же пачка, что в build_judge_block) → JudgeAnswer.
 
     Пропускаются: элементы не-объекты, номер вне пачки, повтор номера (берётся первый),
-    неизвестное значение coverage. Метки support вне кандидатов своего вопроса удаляются.
+    неизвестное значение coverage. Метки сквозные по пачке (batch_labels), поэтому метка из
+    списка другого вопроса среди своих не найдётся. У «есть»/«частично» каждая опора
+    проверяется цитатой (_checked_support); не осталось ни одной — вердикта нет, вопрос в
+    unconfirmed и пойдёт на тот же повтор, что пропущенный номер: в «нет» он не превращается.
+    «Нет» опор и цитат не требует.
     """
+    labels = batch_labels(questions)
+    texts = [tuple(candidate_text(candidate) for candidate in question.candidates) for question in questions]
     try:
         parsed = parse_model_json(raw)
     except (ValueError, TypeError):
-        return {}, False
+        return JudgeAnswer({}, False)
     if isinstance(parsed, dict):
         items = parsed.get("results")
         if items is None and isinstance(parsed.get("items"), list):
@@ -328,33 +457,45 @@ def validate_judge_answer(raw: Any, candidate_counts: list[int]) -> tuple[dict[i
     else:
         items = None
     if not isinstance(items, list):
-        return {}, False
+        return JudgeAnswer({}, False)
     verdicts: dict[int, Verdict] = {}
+    unconfirmed: set[int] = set()
+    moved = dropped = 0
     clean = True
     for item in items:
         if not isinstance(item, dict):
             clean = False
             continue
         number = _as_int(item.get("n"))
-        if number is None or not 1 <= number <= len(candidate_counts):
+        if number is None or not 1 <= number <= len(questions):
             clean = False
             continue
         index = number - 1
-        if index in verdicts:
+        if index in verdicts or index in unconfirmed:
             clean = False
             continue
         coverage = _COVERAGE_WORDS.get(str(item.get("coverage") or "").strip().lower())
         if coverage is None:
             clean = False
             continue
+        support: tuple[int, ...] = ()
+        if coverage in ("full", "partial"):
+            support, item_moved, item_dropped = _checked_support(item.get("support"), labels[index], texts[index])
+            moved += item_moved
+            dropped += item_dropped
+            if not support:
+                unconfirmed.add(index)
+                clean = False
+                continue
         verdicts[index] = Verdict(
             coverage=coverage,
-            support=_support_indices(item.get("support"), candidate_counts[index]),
+            support=support,
             missing=_note(item.get("missing")),
             reason=_note(item.get("reason")),
+            labels=labels[index],
         )
-    complete = clean and len(verdicts) == len(candidate_counts)
-    return verdicts, complete
+    complete = clean and len(verdicts) == len(questions)
+    return JudgeAnswer(verdicts, complete, frozenset(unconfirmed), moved, dropped)
 
 
 # ── Доказательства и ближайшие фрагменты ────────────────────────────────────────
@@ -528,13 +669,14 @@ def _evidence(hits: list[Hit], support: Iterable[int], passages: PassageIndex | 
 # ── Пояснения судьи: без внутренних меток кандидатов ────────────────────────────
 
 _NOT_WORD = r"(?<![0-9A-Za-zА-Яа-яЁё])"
-# Метка кандидата: «[C1]», «[С 2]» (кириллица) или «C3» без пробела (а «С 5 видами» — не метка).
-_LABEL = rf"(?:\[\s*[CС]\s?\d{{1,2}}\s*\]|{_NOT_WORD}[CС]\d{{1,2}}(?![0-9A-Za-zА-Яа-яЁё]))"
+# Метка кандидата: «[C1]», «[С 27]» (кириллица) или «C34» без пробела (а «С 5 видами» — не метка).
+# Меток в пачке до 60 (10 вопросов × 6 кандидатов); три цифры — с запасом.
+_LABEL = rf"(?:\[\s*[CС]\s?\d{{1,3}}\s*\]|{_NOT_WORD}[CС]\d{{1,3}}(?![0-9A-Za-zА-Яа-яЁё]))"
 _LABEL_RUN_RE = re.compile(
     rf"(?:{_NOT_WORD}(?P<prep>[Вв]о?|[Ии]з|[Пп]о)\s+|{_NOT_WORD}(?P<word>[Фф]рагмент[а-яё]*)\s*)?"
     rf"(?P<paren>\(\s*)?(?P<run>{_LABEL}(?:\s*(?:,|и|-|–|—|/)\s*{_LABEL})*)(?(paren)\s*\))"
 )
-_LABEL_NUMBER_RE = re.compile(r"[CС]\s?(\d{1,2})")
+_LABEL_NUMBER_RE = re.compile(r"[CС]\s?(\d{1,3})")
 _PREPOSITION_PHRASES = {
     "в": ("во фрагменте", "во фрагментах"),
     "во": ("во фрагменте", "во фрагментах"),
@@ -555,36 +697,42 @@ class _UnknownLabel(Exception):
     """В пояснении метка, которой нет среди кандидатов вопроса."""
 
 
-def _fragment_numbers(hits: list[Hit]) -> dict[int, str]:
-    """Метка кандидата (0 → C1) → номер фрагмента, как его видит человек («S14» → «14»)."""
+def _fragment_numbers(hits: list[Hit], labels: Sequence[int] = ()) -> dict[int, str]:
+    """Номер метки кандидата (C14 → 14) → номер фрагмента, как его видит человек («S07» → «7»).
+
+    labels — номера меток кандидатов в пачке по порядку кандидатов (Verdict.labels); пусто —
+    метки C1…Cn. Меток других вопросов пачки здесь нет.
+    """
+    pairs = zip(labels, hits) if labels else enumerate(hits, start=1)
     numbers: dict[int, str] = {}
-    for index, hit in enumerate(hits):
+    for label, hit in pairs:
         digits = hit.passage.source_id[1:] if hit.passage.source_id[:1] == "S" else ""
         if digits.isdigit():
-            numbers[index] = str(int(digits))
+            numbers[label] = str(int(digits))
     return numbers
 
 
 def _relabel(text: str, numbers: dict[int, str]) -> str:
     """«[C1]», «C2 и C3», «во фрагменте C1» → «(фрагмент 14)», «фрагменты 15 и 16», «во фрагменте 14».
 
-    Метки C1…C6 судья видит только у своего вопроса; человеку они ничего не говорят.
-    Метка вне кандидатов — _UnknownLabel (пояснение тогда не показывается).
+    Метки судья видит сквозными по пачке; человеку они ничего не говорят. numbers — метки
+    кандидатов своего вопроса (_fragment_numbers). Метка вне них, в том числе метка соседнего
+    вопроса, — _UnknownLabel (пояснение тогда не показывается).
     """
 
     def replace(match: re.Match) -> str:
         run = match.group("run")
         labels = list(_LABEL_NUMBER_RE.finditer(run))
-        indices = [int(labels[0].group(1)) - 1]
+        named = [int(labels[0].group(1))]
         for previous, label in zip(labels, labels[1:]):
-            index = int(label.group(1)) - 1
-            if run[previous.end():label.start()].strip(" []") in ("-", "–", "—") and index > indices[-1]:
-                indices.extend(range(indices[-1] + 1, index + 1))  # «C1–C3»: кандидаты идут не по порядку фрагментов
+            number = int(label.group(1))
+            if run[previous.end():label.start()].strip(" []") in ("-", "–", "—") and number > named[-1]:
+                named.extend(range(named[-1] + 1, number + 1))  # «C1–C3»: кандидаты идут не по порядку фрагментов
             else:
-                indices.append(index)
+                named.append(number)
         values: list[str] = []
-        for index in dict.fromkeys(indices):
-            value = numbers.get(index)
+        for number in dict.fromkeys(named):
+            value = numbers.get(number)
             if value is None:
                 raise _UnknownLabel()
             values.append(value)
@@ -622,7 +770,7 @@ def _lower_first(text: str) -> str:
 
 
 def clean_reason(reason: str, coverage: str, numbers: dict[int, str]) -> str:
-    """Пояснение судьи для человека: метки C1…C6 → номера фрагментов; с чужой меткой — общее пояснение."""
+    """Пояснение судьи для человека: метки кандидатов → номера фрагментов; с чужой меткой — общее пояснение."""
     default = _DEFAULT_REASONS.get(coverage, "")
     if not reason:
         return default
@@ -661,8 +809,11 @@ def coverage_from_verdict(
 
     passages — все фрагменты лекций экзамена: по ним к доказательству и ближайшему
     фрагменту добавляется заголовок раздела, если слова вопроса совпали только с ним.
+    «Есть»/«частично» без опоры сюда из validate_judge_answer не попадает; если всё же
+    попало — «проверено только по словам», а не «нет»: ложное «нет в лекциях» не лучше
+    чужой цитаты.
     """
-    numbers = _fragment_numbers(hits)
+    numbers = _fragment_numbers(hits, verdict.labels)
     if verdict.coverage in ("full", "partial"):
         evidence = _evidence(hits, verdict.support, passages)
         if evidence:
@@ -676,7 +827,7 @@ def coverage_from_verdict(
                 [],
                 mapped_at,
             )
-        return _coverage(question_id, "none", "llm", REASON_NO_SUPPORT, "", [], _nearest(hits, passages), mapped_at)
+        return _unverified(question_id, hits, REASON_NO_QUOTE, mapped_at, passages)
     return _coverage(
         question_id,
         "none",
@@ -951,15 +1102,22 @@ def _build_catalog(materials: list[MapMaterial]) -> _Catalog:
 
 
 def _search_candidates(passages: list[Passage], groups: list[_Group]) -> None:
-    """BM25-кандидаты для групп (в потоке-исполнителе: стемминг и индекс — на CPU)."""
+    """BM25-кандидаты для групп (в потоке-исполнителе: стемминг и индекс — на CPU).
+
+    План лекции или оглавление (retrieval.is_plan_text) не занимает места лекции из
+    PER_MATERIAL_CAP (и проходит, только пока у лекции место есть), таких фрагментов от
+    лекции не больше PLANS_PER_MATERIAL: в плане названы все темы лекции, и раньше он и
+    вступление забирали места раздела с ответом.
+    """
     if not groups:
         return
     index = BM25Index(passages)
+    settings = {"top_k": TOP_K, "per_material_cap": PER_MATERIAL_CAP, "plans_per_material": PLANS_PER_MATERIAL}
     for group in groups:
-        hits = index.search(group.text, top_k=TOP_K, per_material_cap=PER_MATERIAL_CAP, exam_stopwords=True)
+        hits = index.search(group.text, exam_stopwords=True, **settings)
         if not hits and not terms(group.text, exam_stopwords=True):
             # Вопрос из одних слов-инструкций («Роль и значение.»): ищем по всем словам.
-            hits = index.search(group.text, top_k=TOP_K, per_material_cap=PER_MATERIAL_CAP, exam_stopwords=False)
+            hits = index.search(group.text, exam_stopwords=False, **settings)
         group.hits = hits
 
 
@@ -1105,17 +1263,23 @@ def _failed_texts(status: int | None) -> tuple[str, str]:
     return _FAILED_BATCH_TEXTS.get(status or 502, _FAILED_BATCH_TEXTS[502])
 
 
-async def _ask_judge(agent: Any, groups: list[_Group], fragment_chars: int | None, use_cache: bool = True) -> dict[int, Verdict]:
-    block = build_judge_block(
-        [
-            JudgeQuestion(
-                group.text,
-                tuple(JudgeCandidate(hit.passage.title, hit.passage.text, hit.heading) for hit in group.hits),
-            )
-            for group in groups
-        ],
-        fragment_chars,
-    )
+def _judge_questions(groups: list[_Group]) -> list[JudgeQuestion]:
+    """Пачка для судьи: ключ кандидата — (material_id, S-id), по нему одна метка на фрагмент."""
+    return [
+        JudgeQuestion(
+            group.text,
+            tuple(
+                JudgeCandidate(hit.passage.title, hit.passage.text, hit.heading, (hit.passage.material_id, hit.passage.source_id))
+                for hit in group.hits
+            ),
+        )
+        for group in groups
+    ]
+
+
+async def _ask_judge(agent: Any, groups: list[_Group], fragment_chars: int | None, use_cache: bool = True) -> JudgeAnswer:
+    questions = _judge_questions(groups)
+    block = build_judge_block(questions, fragment_chars)
     # A heavy call: it waits in the process-wide line (AI_HEAVY_CONCURRENCY) before its 45 s start.
     async with ai_base.heavy_slot():
         raw = await agent.run(
@@ -1128,17 +1292,20 @@ async def _ask_judge(agent: Any, groups: list[_Group], fragment_chars: int | Non
             thinking="low",
             use_cache=use_cache,
         )
-    verdicts, complete = validate_judge_answer(raw, [len(group.hits) for group in groups])
-    if not complete:
+    answer = validate_judge_answer(raw, questions)
+    if not answer.complete:
         BaseAgent.forget(raw)  # повтор должен спросить модель заново, а не взять тот же ответ из кеша
-    return verdicts
+    if answer.moved or answer.dropped or answer.unconfirmed:
+        # Только счётчики: ни вопросов, ни цитат в журнал сервера не пишем.
+        print(f"Exam mapping quotes: moved {answer.moved}, dropped {answer.dropped}, unconfirmed {len(answer.unconfirmed)}")
+    return answer
 
 
 async def _judge_batch(
     agent: Any, index: int, groups: list[_Group], fragment_chars: int | None, use_cache: bool = True
 ) -> _BatchOutcome:
     try:
-        verdicts = await _ask_judge(agent, groups, fragment_chars, use_cache)
+        answer = await _ask_judge(agent, groups, fragment_chars, use_cache)
     except AIError as exc:
         return _BatchOutcome(index, groups, {}, error_status=exc.status_code)
     except asyncio.CancelledError:
@@ -1146,8 +1313,10 @@ async def _judge_batch(
     except Exception as exc:  # сбой не провайдера — пачка проверена только по словам
         print(f"Exam mapping judge failed: {type(exc).__name__}")
         return _BatchOutcome(index, groups, {}, error_status=502)
+    verdicts = dict(answer.verdicts)
+    # «Есть»/«частично» без проверенной цитаты — как пропущенный номер, но со своей причиной.
+    missing_reasons: dict[int, str] = {position: REASON_NO_QUOTE for position in answer.unconfirmed}
     missing = [position for position in range(len(groups)) if position not in verdicts]
-    missing_reasons: dict[int, str] = {}
     if missing:
         # Один повтор пачкой вдвое меньше; кто не пришёл и тогда — «проверено только по словам».
         half = max(1, len(groups) // 2)
@@ -1163,8 +1332,14 @@ async def _judge_batch(
             except Exception as exc:
                 print(f"Exam mapping judge retry failed: {type(exc).__name__}")
                 continue
-            for local, verdict in retried.items():
-                verdicts[chunk[local]] = verdict
+            for local, position in enumerate(chunk):
+                if local in retried.verdicts:
+                    verdicts[position] = retried.verdicts[local]
+                    missing_reasons.pop(position, None)
+                elif local in retried.unconfirmed:
+                    missing_reasons[position] = REASON_NO_QUOTE
+                else:
+                    missing_reasons.pop(position, None)  # повтор не ответил вовсе: REASON_NO_ANSWER
     return _BatchOutcome(index, groups, verdicts, missing_reasons=missing_reasons)
 
 
