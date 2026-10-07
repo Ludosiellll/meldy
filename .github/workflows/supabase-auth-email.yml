@@ -1,0 +1,38 @@
+name: Supabase Auth emails
+
+# Sets the project's Auth emails (subjects and templates of supabase/auth_email/build.py), the sender name, the hourly
+# email cap and the redirect allow-list entry for the site through the Supabase Management API. The access token is
+# the owner's, kept only in the repository secret SUPABASE_ACCESS_TOKEN; the job prints only public fields (site URL,
+# allow list, cap, sender name), never the SMTP account or credentials.
+# Runs when deploy/supabase-auth.md changes on the working branch (one dated line per apply).
+on:
+  push:
+    branches: [claude/relaxed-hypatia-1tpmq5]
+    paths: [deploy/supabase-auth.md]
+
+concurrency:
+  group: supabase-auth
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: daunnytubqbzafjnpfnw
+    steps:
+      - name: Check the token secret
+        run: test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Repository secret SUPABASE_ACCESS_TOKEN is not set"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply the Auth emails
+        run: python supabase/auth_email/build.py apply
