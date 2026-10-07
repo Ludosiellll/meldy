@@ -316,7 +316,7 @@ describe('states', () => {
     tables = {};
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Здесь будет карта ваших лекций' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Добавить лекцию' })).toHaveAttribute('href', '/analyze');
+    expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
     expect(screen.getByRole('link', { name: 'Прогресс' })).toHaveAttribute('href', '/analytics');
   });
 

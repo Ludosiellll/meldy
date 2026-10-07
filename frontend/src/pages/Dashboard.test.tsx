@@ -241,7 +241,7 @@ describe('«Сегодня»: the header', () => {
     renderDashboard();
     expect(await screen.findByRole('heading', { level: 1, name: named('Алина, что повторим?') })).toBeInTheDocument();
     expect(screen.getByText('Суббота, 3 октября')).toBeInTheDocument();
-    // No caps eyebrow, no «Добавить материал» pill: the top bar has «Добавить лекцию».
+    // No caps eyebrow, no «Добавить материал» pill: the top bar has «Разобрать лекцию».
     expect(screen.queryByText(/^Сегодня,/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Добавить материал/)).not.toBeInTheDocument();
   });
@@ -774,6 +774,7 @@ describe('«Сегодня»: without an exam, and a new account', () => {
     expect(add).toHaveAttribute('href', '/exams/new#lectures');
     expect(add).toHaveClass('sf-primary');
     expect(within(stepItem('Добавьте лекцию')).getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
+
     expect(within(stepItem('Вставьте список вопросов к экзамену')).getByRole('link', { name: named('Создать экзамен') })).toHaveClass('sf-secondary');
     const ticket = stepItem('Вытяните билет и ответьте');
     expect(within(ticket).queryByRole('link')).toBeNull();
@@ -804,6 +805,18 @@ describe('«Сегодня»: without an exam, and a new account', () => {
 });
 
 describe('«Сегодня»: «Первые шаги»', () => {
+  it('names the free first step and the paid analysis apart: the same words never lead to two places at two prices', async () => {
+    // Live run of 2026-10-07: «Добавить лекцию» of step 1 led to the free lectures-as-text of a new exam, the one in
+    // the empty lectures place to the analysis (/analyze, 20 units). The analysis is «Разобрать лекцию», as in the top line.
+    db.tables.materials = () => ({ data: [] });
+    exam();
+    renderDashboard();
+    const lecture = await waitForStep('Добавьте лекцию');
+    expect(within(lecture).getByRole('link', { name: named('Добавить лекцию') })).toHaveAttribute('href', '/exams/new#lectures');
+    for (const link of screen.getAllByRole('link', { name: /Добавить лекцию/ })) expect(link).toHaveAttribute('href', '/exams/new#lectures');
+    expect(screen.getByRole('link', { name: /^Разобрать лекцию/ })).toHaveAttribute('href', '/analyze');
+  });
+
   it('reads step 1 as a lecture with text: a scan without text does not count', async () => {
     db.tables.materials = (query) => (query.select === 'id' ? { data: [] } : { data: query.select.includes('summary_json') ? LECTURES : LECTURES.map(({ id, title, created_at }) => ({ id, title, created_at })) });
     exam();

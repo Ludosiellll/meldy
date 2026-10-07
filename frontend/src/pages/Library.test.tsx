@@ -180,6 +180,6 @@ describe('<Library>', () => {
   it('invites the first lecture when the library is empty', async () => {
     renderLibrary();
     expect(await screen.findByRole('heading', { name: 'Здесь будут ваши лекции' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Добавить лекцию' })).toHaveAttribute('href', '/analyze');
+    expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
   });
 });
