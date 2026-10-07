@@ -15,6 +15,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -25,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import oral  # noqa: E402
 import oral_api  # noqa: E402
 import supabase_rest  # noqa: E402
+from agents import base as ai_base  # noqa: E402
 from agents.base import AIError, BaseAgent  # noqa: E402
 from ratelimit import RATE_LIMIT_DETAIL  # noqa: E402
 from test_oral import BUDGET, DEMO, ECON, ECON_QUESTION, econ_points  # noqa: E402
@@ -214,7 +216,7 @@ def api(monkeypatch):
     monkeypatch.setattr(main.limiter, "enabled", False)
     monkeypatch.setenv("SUPABASE_URL", URL)
     monkeypatch.setenv("SUPABASE_KEY", ANON)
-    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "ORAL_CHECK_TIMEOUT_SECONDS"):
+    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "ORAL_CHECK_TIMEOUT_SECONDS", "ORAL_CHECK_GEMINI_SECONDS"):
         monkeypatch.delenv(name, raising=False)
     fake = FakeSupabase()
     monkeypatch.setattr(supabase_rest, "_transport", httpx.MockTransport(fake.handler))
@@ -736,6 +738,8 @@ def test_check_statuses_are_cleaned_and_ask_follows_the_rule(api):
     assert "fast" not in call and call["thinking"] == "off" and call["agent_model"] == "openai/gpt-oss-20b"
     assert call["temperature"] == 0 and call["max_tokens"] == 200
     assert call["json_mode"] is True and call["timeout"] == 4.5
+    # Gemini waits 2,5 s of the 4,5 when Groq can answer; the rest goes to Groq.
+    assert call["gemini_timeout"] == 2.5
 
 
 def test_check_ask_is_null_when_everything_is_covered(api):
@@ -843,6 +847,108 @@ def test_check_asks_gemini_3_5_flash_lite_first_then_3_1_and_keeps_the_server_de
     groq_calls, _ = install_groq(monkeypatch, lambda kwargs: (statuses, "stop"))
     assert api.post("/api/oral/check", json=check_body(transcript="Ставка и цели")).status_code == 200
     assert [call["model"] for call in groq_calls] == ["openai/gpt-oss-20b"]
+
+
+@pytest.fixture
+def providers(api, monkeypatch):
+    """Настоящий BaseAgent: подменены только клиенты Gemini и Groq (test_base_agent), ключ Groq задан."""
+    from collections import OrderedDict
+
+    from agents import base
+    from test_base_agent import install_gemini, install_groq
+
+    monkeypatch.setattr(BaseAgent, "run", REAL_RUN)
+    for name in ("GEMINI_MODELS", "GEMINI_FAST_MODELS", "GROQ_MODEL", "GROQ_FAST_MODEL", "AI_CACHE_DISABLED"):
+        monkeypatch.delenv(name, raising=False)
+    for name in ("_GENAI_CLIENTS", "_GROQ_CLIENTS", "_MODEL_SKIP"):
+        monkeypatch.setattr(base, name, {})
+    monkeypatch.setattr(BaseAgent, "_run_cache", OrderedDict())
+    monkeypatch.setattr(BaseAgent, "_cache_info", {})
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    # Бюджеты в масштабе теста: вся проверка 1,2 с, доля Gemini 0,4 с.
+    monkeypatch.setenv("ORAL_CHECK_TIMEOUT_SECONDS", "1.2")
+    monkeypatch.setenv("ORAL_CHECK_GEMINI_SECONDS", "0.4")
+    return SimpleNamespace(gemini=lambda behaviour: install_gemini(monkeypatch, behaviour)[0],
+                           groq=lambda behaviour: install_groq(monkeypatch, behaviour)[0])
+
+
+ALL_STATUSES = json.dumps({"statuses": {"p1": "covered", "p2": "missing", "p3": "missing", "p4": "missing"}})
+
+
+def sleeping(seconds, result):
+    async def wait():
+        await asyncio.sleep(seconds)
+        return result
+
+    return wait()
+
+
+def timed_check(api, **overrides):
+    started = time.monotonic()
+    response = api.post("/api/oral/check", json=check_body(**overrides))
+    return response, time.monotonic() - started
+
+
+def test_check_slow_gemini_leaves_the_rest_of_the_budget_to_the_fast_groq(api, providers):
+    # Живой прогон 07.10: в окно медленного Gemini 17 проверок из 18 упали ровно на 4,5 с, Groq отвечал за 0,4 с.
+    gemini_calls = providers.gemini(lambda model, config, contents: sleeping(5, (ALL_STATUSES, "STOP")))
+    groq_calls = providers.groq(lambda kwargs: (ALL_STATUSES, "stop"))
+    response, elapsed = timed_check(api)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"statuses": {"p1": "covered", "p2": "missing", "p3": "missing", "p4": "missing"}, "ask": "p2"}
+    assert 0.4 <= elapsed < 1.2
+    assert [call["model"] for call in gemini_calls] == ai_base.gemini_models()[:1]
+    (groq_call,) = groq_calls
+    assert groq_call["model"] == ai_base.groq_fast_model() and groq_call["timeout"] <= 0.8
+
+
+def test_check_slow_gemini_and_slow_groq_is_504_within_the_budget(api, providers):
+    providers.gemini(lambda model, config, contents: sleeping(5, (ALL_STATUSES, "STOP")))
+    groq_calls = providers.groq(lambda kwargs: sleeping(5, (ALL_STATUSES, "stop")))
+    response, elapsed = timed_check(api)
+    assert_plain_russian(response, 504, code="ai_timeout")
+    assert 1.1 <= elapsed < 1.6  # 1,2 с бюджета и проверка на 0,1 с сверху, без ожидания провайдеров
+    assert len(groq_calls) == 1
+
+
+def test_check_fast_gemini_never_asks_groq(api, providers):
+    gemini_calls = providers.gemini(lambda model, config, contents: (ALL_STATUSES, "STOP"))
+    groq_calls = providers.groq(lambda kwargs: (ALL_STATUSES, "stop"))
+    response, elapsed = timed_check(api)
+    assert response.status_code == 200 and elapsed < 0.4
+    assert [call["model"] for call in gemini_calls] == ai_base.gemini_models()[:1] and groq_calls == []
+
+
+def test_check_without_groq_gives_gemini_the_whole_budget(api, providers, monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY")
+    providers.gemini(lambda model, config, contents: sleeping(0.6, (ALL_STATUSES, "STOP")))
+    response, _ = timed_check(api)
+    assert response.status_code == 200, response.text
+
+
+def test_check_answer_of_the_fast_groq_is_held_to_the_same_rules(api, providers):
+    providers.gemini(lambda model, config, contents: gemini_unavailable())
+    # Статус вне перечня, чужой пункт и свой «ask» модели: missing и переспрос по правилу сервера.
+    providers.groq(lambda kwargs: (json.dumps({"statuses": {"p1": "Covered", "p2": "великолепно", "p9": "covered"},
+                                               "ask": "p4", "score": 5}), "stop"))
+    response = api.post("/api/oral/check", json=check_body())
+    assert response.json() == {"statuses": {"p1": "covered", "p2": "missing", "p3": "missing", "p4": "missing"}, "ask": "p2"}
+
+    # Оборванный ответ (finish_reason length) — 502, и в кэше модели не остаётся.
+    raw = '{"statuses":{"p1":"covered","p2":"cov'
+    providers.groq(lambda kwargs: (raw, "length"))
+    assert_plain_russian(api.post("/api/oral/check", json=check_body(transcript="Другой ответ")), 502, code="ai_failed")
+    assert raw in api.forgotten
+
+    # Не JSON — тоже 502, как у Gemini.
+    providers.groq(lambda kwargs: ("Пункт p1 раскрыт, остальные нет.", "stop"))
+    assert_plain_russian(api.post("/api/oral/check", json=check_body(transcript="Третий ответ")), 502, code="ai_failed")
+
+
+def gemini_unavailable():
+    from test_base_agent import gemini_error
+
+    return gemini_error(503, "UNAVAILABLE")
 
 
 @pytest.mark.parametrize("answer", ["не знаю", "Ну, я не знаю…", "Затрудняюсь ответить"])

@@ -28,9 +28,14 @@ POST /api/oral/check (40/мин). Быстрая проверка (200 токе�
 ORAL_CHECK_TIMEOUT_SECONDS = 4,5 с → 504; браузер ждёт 5,5 с). Модели Gemini — в порядке
 основного списка (GEMINI_MODELS: 3.5 Flash-Lite, запасная 3.1), а не быстрого: 07.10 на живом
 сайте 3.1 Flash-Lite не уложилась в 2,5 с в 12 проверках из 14, а 3.5 отвечала протоколом за
-1,2–2,1 с. Запасной Groq — быстрая модель (GROQ_FAST_MODEL). Статусы вне перечня и пропущенные
-пункты — missing; переспрос (ask) выбирает сервер по правилу §7.5, а не модель. Пустой ответ и
-«не знаю» (oral.says_dont_know) — все пункты missing без модели.
+1,2–2,1 с. Запасной Groq — быстрая модель (GROQ_FAST_MODEL). Gemini ждут не весь бюджет, а
+ORAL_CHECK_GEMINI_SECONDS (2,5 с), если Groq может ответить: в живом прогоне 07.10 в окно медленного
+Gemini 17 проверок из 18 упали ровно на 4,5 с, а Groq отвечал за 0,4 с — до него очередь не доходила.
+Остаток бюджета — Groq, и только потом 504. Пара, ответившая 429, отдыхает, как и прежде (AI_COOLDOWN).
+В журнале вызовов (ai_calls) проверка — одна строка: спасённая Groq — его провайдер и модель, ok, а ms —
+вся проверка вместе с долей Gemini. Ответ Groq читается по тем же правилам, что ответ Gemini: статусы вне
+перечня и пропущенные пункты — missing, оборванный ответ — 502; переспрос (ask) выбирает сервер по
+правилу §7.5, а не модель. Пустой ответ и «не знаю» (oral.says_dont_know) — все пункты missing без модели.
 
 POST /api/oral/evaluate (10/мин). Протокол (температура 0,2, 1500 токенов, thinking low,
 15 с): каждый пункт ровно один раз, отрывки ответа — текст самой расшифровки. Ответ,
@@ -71,6 +76,7 @@ RUBRIC_TIMEOUT_SECONDS = 30.0
 RUBRIC_MAX_TOKENS = 1800
 CHECK_MAX_TOKENS = 200
 DEFAULT_CHECK_TIMEOUT_SECONDS = 4.5  # только asyncio: deadline запроса к Gemini не меньше 10 с (base.py)
+DEFAULT_CHECK_GEMINI_SECONDS = 2.5  # доля Gemini в бюджете проверки, остаток — запасному Groq
 EVALUATE_TIMEOUT_SECONDS = 15.0
 EVALUATE_MAX_TOKENS = 1500
 EVALUATE_RETRY_MAX_TOKENS = 2500
@@ -114,14 +120,24 @@ _QUESTION_COLUMNS = "id,exam_id,text,question_hash,coverage,coverage_method,evid
 _RUBRIC_COLUMNS = "id,rubric,model,created_at"
 
 
+def _positive_env(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip()
+    try:
+        value = float(raw) if raw else default
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 def check_timeout_seconds() -> float:
     """ORAL_CHECK_TIMEOUT_SECONDS (по умолчанию 4,5 с), читается при каждом вызове."""
-    raw = os.getenv("ORAL_CHECK_TIMEOUT_SECONDS", "").strip()
-    try:
-        value = float(raw) if raw else DEFAULT_CHECK_TIMEOUT_SECONDS
-    except ValueError:
-        return DEFAULT_CHECK_TIMEOUT_SECONDS
-    return value if value > 0 else DEFAULT_CHECK_TIMEOUT_SECONDS
+    return _positive_env("ORAL_CHECK_TIMEOUT_SECONDS", DEFAULT_CHECK_TIMEOUT_SECONDS)
+
+
+def check_gemini_seconds() -> float:
+    """ORAL_CHECK_GEMINI_SECONDS (по умолчанию 2,5 с): сколько из бюджета проверки ждать Gemini, когда
+    запасной Groq может ответить; остаток — Groq. Не меньше всего бюджета — Gemini ждут весь бюджет."""
+    return _positive_env("ORAL_CHECK_GEMINI_SECONDS", DEFAULT_CHECK_GEMINI_SECONDS)
 
 
 # ── Тело запроса ────────────────────────────────────────────────────────────────
@@ -275,6 +291,8 @@ async def oral_check(request: Request):
             oral.build_check_prompt(only),
             oral.build_check_input(question, points, transcript, only=only, followup_question=followup_question),
             budget=check_timeout_seconds(),
+            # Медленный Gemini не съедает весь бюджет: после своей доли он уступает остаток запасному Groq.
+            gemini_timeout=check_gemini_seconds(),
             # Быстрый вызов, но Gemini по основному списку (3.5 Flash-Lite первой): см. описание модуля.
             # Остальные быстрые вызовы (fast=True) по-прежнему начинают с 3.1 Flash-Lite.
             thinking="off",
@@ -284,7 +302,9 @@ async def oral_check(request: Request):
             json_mode=True,
             meta=meta,
         )
-        # Оборванный ответ не читаем: пункты, до которых модель не дошла, стали бы missing.
+        # Ответ любой модели — Gemini или запасной быстрой Groq — читается по одним правилам: оборванный
+        # не читаем (пункты, до которых модель не дошла, стали бы missing), статус вне перечня и пропущенный
+        # пункт — missing, переспрос выбирает сервер.
         statuses = None if _cut_off(meta) else oral.validate_statuses(_parsed(raw), ids, only)
         if statuses is None:
             BaseAgent.forget(raw)
