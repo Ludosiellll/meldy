@@ -655,14 +655,95 @@ def test_evaluation_checks_quotes_against_the_transcript():
         "verdict": "Вы назвали цель и инструмент. Повторите механизм ставки.",
     }
     result = oral.validate_evaluation(parsed, EVAL_POINTS, TRANSCRIPT)
-    # Отрывок — текст самой расшифровки (её регистр и знаки), а не строка модели.
-    assert [p["student_quote"] for p in result["points"]] == ["Цель ЦБ это ценовая стабильность", "", ""]
-    assert [p["status"] for p in result["points"]] == ["covered", "partial", "missing"]
+    # Отрывок — текст самой расшифровки (её регистр и знаки), а не строка модели. Пункт ошибки — wrong,
+    # его отрывок — отрывок ошибки; ошибка, которой в ответе нет («этого не было»), не показывается.
+    assert [p["student_quote"] for p in result["points"]] == ["Цель ЦБ это ценовая стабильность", "её повышают при росте цен", ""]
+    assert [p["status"] for p in result["points"]] == ["covered", "wrong", "missing"]
     assert result["errors"] == [
         {"point_id": "p2", "student_quote": "её повышают при росте цен", "correction": "Повышение ставки сдерживает инфляцию."},
-        {"point_id": "p1", "student_quote": "", "correction": "Цель — ценовая стабильность."},
     ]
     assert result["verdict"].startswith("Вы назвали")
+
+
+ISOLATION_POINTS = [
+    {"id": "p1", "title": "Аномалии параллельных транзакций", "essential": True, "source_quote": "грязное чтение"},
+    {"id": "p2", "title": "Четыре уровня изоляции", "essential": True, "source_quote": "READ UNCOMMITTED … SERIALIZABLE"},
+    {"id": "p3", "title": "Чем выше уровень, тем меньше аномалий", "essential": True,
+     "source_quote": "чем выше уровень изоляции, тем меньше аномалий он допускает"},
+    {"id": "p4", "title": "Цена строгого уровня — меньше параллельности", "essential": False, "source_quote": "блокировки"},
+]
+ISOLATION_ANSWER = (
+    "При параллельной работе бывают грязное чтение, неповторяющееся чтение и фантомы. Уровни изоляции: "
+    "READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ и SERIALIZABLE, причём чем выше уровень, тем больше "
+    "аномалий он допускает, так что SERIALIZABLE — самый слабый уровень. Строгий уровень замедляет работу."
+)
+
+
+def isolation_protocol(errors, p3_status="covered"):
+    return {
+        "points": [
+            {"id": "p1", "status": "covered", "student_quote": "грязное чтение, неповторяющееся чтение и фантомы",
+             "comment": "Аномалии названы."},
+            {"id": "p2", "status": "covered", "student_quote": "READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ и SERIALIZABLE",
+             "comment": "Уровни названы."},
+            {"id": "p3", "status": p3_status, "student_quote": "чем выше уровень, тем больше аномалий он допускает",
+             "comment": "Связь уровня и аномалий раскрыта."},
+            {"id": "p4", "status": "partial", "student_quote": "Строгий уровень замедляет работу", "comment": "Без причины."},
+        ],
+        "errors": errors,
+        "verdict": "Вы назвали аномалии и уровни. Повторите, как уровень связан с аномалиями.",
+    }
+
+
+def test_a_point_with_an_error_is_wrong_even_when_the_model_said_covered():
+    # Живой прогон 07.10 (ответ A9): ошибка у главного p3, а p3 — covered, и формула давала 5.
+    error = {"point_id": "p3", "student_quote": "чем выше уровень, тем больше аномалий он допускает, так что SERIALIZABLE — самый слабый уровень",
+             "correction": "Чем выше уровень изоляции, тем меньше аномалий; SERIALIZABLE — самый строгий."}
+    result = oral.validate_evaluation(isolation_protocol([error]), ISOLATION_POINTS, ISOLATION_ANSWER)
+    assert [p["status"] for p in result["points"]] == ["covered", "covered", "wrong", "partial"]
+    p3 = result["points"][2]
+    # Отрывок — сама ошибка; похвала модели («раскрыта») писалась для covered и снята — что не так, говорит поправка.
+    assert p3["student_quote"] == "чем выше уровень, тем больше аномалий он допускает, так что SERIALIZABLE — самый слабый уровень"
+    assert p3["comment"] == ""
+    assert result["errors"] == [{"point_id": "p3", "student_quote": p3["student_quote"], "correction": error["correction"]}]
+    # Пункт, который модель сама назвала wrong, остаётся со своим комментарием.
+    same = oral.validate_evaluation(isolation_protocol([error], p3_status="wrong"), ISOLATION_POINTS, ISOLATION_ANSWER)
+    assert same["points"][2]["status"] == "wrong" and same["points"][2]["comment"] == "Связь уровня и аномалий раскрыта."
+    assert same["points"][2]["student_quote"] == "чем выше уровень, тем больше аномалий он допускает"
+
+
+def test_an_error_without_point_id_goes_to_the_point_whose_quote_it_repeats():
+    errors = [
+        {"student_quote": "чем выше уровень, тем больше аномалий он допускает", "correction": "Чем выше уровень, тем меньше аномалий."},
+        {"point_id": "p9", "student_quote": "Строгий уровень замедляет работу", "correction": "Строгий уровень снижает параллельность."},
+    ]
+    result = oral.validate_evaluation(isolation_protocol(errors), ISOLATION_POINTS, ISOLATION_ANSWER)
+    assert [(e["point_id"], e["student_quote"]) for e in result["errors"]] == [
+        ("p3", "чем выше уровень, тем больше аномалий он допускает"),
+        ("p4", "Строгий уровень замедляет работу"),
+    ]
+    assert [p["status"] for p in result["points"]] == ["covered", "covered", "wrong", "wrong"]
+
+
+def test_an_error_that_fits_no_point_or_two_points_or_is_not_in_the_answer_changes_nothing():
+    errors = [
+        # Ни с одним отрывком пункта не совпадает.
+        {"point_id": "", "student_quote": "так что SERIALIZABLE — самый слабый уровень", "correction": "SERIALIZABLE — самый строгий."},
+        # Одно общее слово («уровень») — совпадение ненадёжно.
+        {"student_quote": "уровень", "correction": "—"},
+        # В ответе этого нет: модель утверждает то, чего студент не говорил.
+        {"point_id": "p1", "student_quote": "фантомов не бывает вовсе", "correction": "Фантомы бывают."},
+        {"point_id": "p2", "student_quote": "", "correction": "Уровней четыре."},
+    ]
+    result = oral.validate_evaluation(isolation_protocol(errors), ISOLATION_POINTS, ISOLATION_ANSWER)
+    assert result["errors"] == []
+    assert [p["status"] for p in result["points"]] == ["covered", "covered", "covered", "partial"]
+    # Отрывок ошибки, который ложится на отрывки двух пунктов сразу, тоже не привязывается.
+    two = isolation_protocol([{"student_quote": "READ COMMITTED, REPEATABLE READ и SERIALIZABLE, причём чем выше уровень, тем больше",
+                               "correction": "—"}])
+    two["points"][2]["student_quote"] = "SERIALIZABLE, причём чем выше уровень, тем больше аномалий"
+    result = oral.validate_evaluation(two, ISOLATION_POINTS, ISOLATION_ANSWER)
+    assert result["errors"] == [] and result["points"][1]["status"] == "covered" and result["points"][2]["status"] == "covered"
 
 
 def test_evaluation_rates_every_point_exactly_once():

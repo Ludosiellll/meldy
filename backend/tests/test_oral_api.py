@@ -903,7 +903,7 @@ def test_evaluate_checks_quotes_drops_unknown_errors_and_rates_every_point(api):
     assert set(body) == {"points", "errors", "verdict"}
     assert [(p["id"], p["status"], p["student_quote"]) for p in body["points"]] == [
         ("p1", "covered", "Цель ЦБ — ценовая стабильность"),  # текст самой расшифровки
-        ("p2", "partial", ""),
+        ("p2", "wrong", "Ставку повышают, когда цены растут"),  # пункт ошибки — wrong, отрывок — сама ошибка
         ("p3", "unrated", ""),
         ("p4", "missing", ""),
     ]
