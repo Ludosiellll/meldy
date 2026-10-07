@@ -945,14 +945,13 @@ def test_every_real_call_is_logged_for_its_user_in_the_background(server, clean_
         await quota.drain_background()
 
     run(go())
-    logs = server.rpc("log_ai_call")
+    # Строка первого вызова ждала итога списания (его не объявили — drain_background пишет как есть) и ушла
+    # второй: единицы несёт она одна. По единицам вперёд — она.
+    logs = sorted(server.rpc("log_ai_call"), key=lambda log: -log["p_units"])
     assert len(logs) == 2
-    # Строка первого вызова ждала итога списания (его не объявили — drain_background пишет как есть) и
-    # ушла второй: единицы несёт она одна.
-    (carrying,) = [log for log in logs if log["p_units"]]
-    assert carrying == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-3.5-flash-lite",
-                        "p_ok": True, "p_ms": carrying["p_ms"]}
-    assert sorted(log["p_units"] for log in logs) == [0, 1] and isinstance(carrying["p_ms"], int)
+    assert logs[0] == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-3.5-flash-lite",
+                       "p_ok": True, "p_ms": logs[0]["p_ms"]}
+    assert logs[1]["p_units"] == 0 and isinstance(logs[0]["p_ms"], int)
     assert all(token == "token-a" for fn, _, token in server.calls)
 
 
