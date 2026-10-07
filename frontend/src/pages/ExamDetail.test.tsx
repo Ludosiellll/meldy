@@ -1698,16 +1698,16 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
   });
 
-  it('«Закрыть строки»: a tap opens a closed line, and that is not a peek', async () => {
+  it('«Спрятать строки»: a tap opens a hidden line, and that is not a peek', async () => {
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
     renderDetail();
     await opened();
     const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
     await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') });
-    fireEvent.click(screen.getByRole('switch', { name: 'Закрыть строки' }));
-    expect(screen.getByText('Нажмите на закрытую строку, чтобы открыть её. Стирать строки это не мешает.')).toBeInTheDocument();
-    fireEvent.click(within(paper).getByRole('button', { name: 'Главный пункт закрыт. Открыть' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Спрятать строки' }));
+    expect(screen.getByText('Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.')).toBeInTheDocument();
+    fireEvent.click(within(paper).getByRole('button', { name: 'Главный пункт спрятан. Открыть' }));
     expect(within(paper).getByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
     // Opening it is the self-test, not a look at the answer: nothing goes to the journal, no line panel.
     expect(mocks.recordSheetPeek).not.toHaveBeenCalled();

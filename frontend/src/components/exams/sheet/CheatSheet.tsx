@@ -313,7 +313,7 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
   const note = covered ? null : lineNote(status, peeked);
   const wave = state === 'missed' || state === 'returned';
   const kind = line.essential ? 'Главный пункт' : 'Пункт';
-  const label = peeked ? `${kind}: ${line.title}` : covered ? `${kind} закрыт. Открыть` : lineLabel(line.title, status, line.essential);
+  const label = peeked ? `${kind}: ${line.title}` : covered ? `${kind} спрятан. Открыть` : lineLabel(line.title, status, line.essential);
   const fromErased = motion?.from === 'erased' || motion?.from === 'due';
   const style = motion ? ({ '--cs-delay': `${motion.delay}ms`, '--cs-ms': `${motion.ms}ms` } as CSSProperties) : undefined;
   const words = (
@@ -912,7 +912,7 @@ export default function CheatSheet({
       {awaitingClick && (
         <div className="cs-show">
           <button type="button" className="sf-primary" onClick={showNow} autoFocus>
-            Показать, что стёрлось
+            Показать, что изменилось
           </button>
         </div>
       )}

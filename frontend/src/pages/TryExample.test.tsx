@@ -371,7 +371,7 @@ describe('«Попробовать на примере» (/try)', () => {
     renderAt('/try');
     expect(screen.getByRole('tab', { name: 'Шпаргалка' })).toHaveAttribute('aria-selected', 'true');
     expect(plain(document.querySelector('.tx-sheet-cap')?.textContent)).toBe(
-      'Для примера считаем, что вчера в это время вы ответили на вопросы 1, 5 и 9: названное стёрто наполовину, остальное подчёркнуто волной. Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ в примере проверяется по ключевым словам.',
+      'Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ в примере проверяется по ключевым словам.',
     );
     expect(screen.getByRole('link', { name: 'Ответьте на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');
     const paper = screen.getByRole('region', { name: 'Шпаргалка' });
@@ -405,7 +405,7 @@ describe('«Попробовать на примере» (/try)', () => {
     fireEvent.click(item);
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 9' })).toBeInTheDocument();
     expect(plain(document.querySelector('.or-readonly-note')?.textContent)).toBe(
-      'Ответ примера: считаем, что он дан вчера, 3 октября, 19:30. Названные в нём пункты он стёр на шпаргалке наполовину.',
+      'Ответ примера: считаем, что он дан вчера, 3 октября, 19:30. Строки названных в нём пунктов этот ответ стёр на шпаргалке наполовину.',
     );
     expect(screen.getByText('Оценка 2 · неудовлетворительно')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'К шпаргалке' })).toHaveAttribute('href', '/try?view=sheet');
@@ -423,8 +423,10 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 5' })).toBeInTheDocument();
     // Named yesterday and again today, the three main points are erased; the sign of the elasticity is half.
     const line = document.querySelector('.or-sheet-change') as HTMLElement;
-    expect(plain(line.textContent)).toBe('На шпаргалке: 3 строки стёрлись, 1 — наполовину · посмотреть');
-    fireEvent.click(within(line).getByRole('link', { name: 'посмотреть' }));
+    // «К шпаргалке», the filled pill right under the line, leads there: no second link in the line.
+    expect(plain(line.textContent)).toBe('На шпаргалке: 3 строки стёрлись, 1 — наполовину');
+    expect(within(line).queryByRole('link')).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'К шпаргалке' }));
     const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
     expect(await screen.findByText((_, node) => node?.classList.contains('cs-change') === true && plain(node.textContent) === 'После ответа: 3 строки стёрлись, 1 — наполовину.', {}, { timeout: 8000 })).toBeInTheDocument();
     expect([...paper.querySelectorAll<HTMLElement>('#cs-q-q5 .cs-line')].map((node) => node.dataset.state)).toEqual(['erased', 'erased', 'erased', 'rubbed', 'missed']);

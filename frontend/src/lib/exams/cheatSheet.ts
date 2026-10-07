@@ -654,16 +654,30 @@ export function changeSummary(changes: readonly LineChange[]): ChangeSummary {
 }
 
 /**
- * Why an answer left lines it named as they were, from its own events: lines named again before
- * their moment (how many, and the earliest moment), a line uncovered the same day, lines already
+ * Why an answer left lines it named as they were, from its own events: lines named again too soon —
+ * how many, why (`day`: on the same local day as the first naming of their series; `hours`: on
+ * another day but less than 20 hours after it; `both`: some of each) and the moment from which a
+ * naming erases every one of them (the latest) — a line uncovered the same day, lines already
  * erased — or null (nothing named: the protocol says what was missed). `changed`: the keys of the
  * lines the answer did change, which need no reason (without it every line of the answer counts).
  */
-export type QuietReason = { kind: 'wait'; from: string; count: number } | { kind: 'peek' } | { kind: 'erased' };
+export type QuietReason = { kind: 'wait'; from: string; count: number; why: 'day' | 'hours' | 'both' } | { kind: 'peek' } | { kind: 'erased' };
+
+/** The first naming of the series (namings since the last miss) that `target` belongs to. */
+function seriesStart(history: readonly LineEvent[], target: LineEvent): LineEvent | null {
+  let start: LineEvent | null = null;
+  for (const event of history) {
+    if (event.outcome === 'missed') start = null;
+    else if (event.outcome === 'named' && start === null) start = event;
+    if (event === target) return start;
+  }
+  return start;
+}
 
 export function quietReason(sheet: Sheet, sessions: ReadonlySet<string>, changed: ReadonlySet<string> = new Set()): QuietReason | null {
   let wait: string | null = null;
   let waiting = 0;
+  const why = new Set<'day' | 'hours'>();
   let peek = false;
   let erased = false;
   for (const block of sheet.blocks) {
@@ -672,16 +686,21 @@ export function quietReason(sheet: Sheet, sessions: ReadonlySet<string>, changed
       const own = line.status.history.filter((event) => event.sessionId !== null && sessions.has(event.sessionId));
       if (own.length === 0) continue;
       if (own.some((event) => event.word === 'after_peek')) peek = true;
-      if (!own.some((event) => event.outcome === 'named')) continue;
+      const named = own.filter((event) => event.outcome === 'named');
+      if (named.length === 0) continue;
       const { state, erasableFrom } = line.status;
       if (state === 'rubbed' && erasableFrom) {
         waiting += 1;
-        if (wait === null || Date.parse(erasableFrom) < Date.parse(wait)) wait = erasableFrom;
+        // The latest moment: from then on a naming erases each of them (an earlier one would not hold for all).
+        if (wait === null || Date.parse(erasableFrom) > Date.parse(wait)) wait = erasableFrom;
+        const last = named[named.length - 1];
+        const start = seriesStart(line.status.history, last);
+        why.add(start && start !== last && start.date === last.date ? 'day' : 'hours');
       }
       if (state === 'erased' || state === 'due') erased = true;
     }
   }
-  if (wait) return { kind: 'wait', from: wait, count: waiting };
+  if (wait) return { kind: 'wait', from: wait, count: waiting, why: why.size > 1 ? 'both' : why.has('day') ? 'day' : 'hours' };
   if (peek) return { kind: 'peek' };
   if (erased) return { kind: 'erased' };
   return null;

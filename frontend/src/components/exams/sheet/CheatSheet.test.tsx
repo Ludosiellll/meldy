@@ -166,7 +166,7 @@ describe('the cheat sheet', () => {
     const lines = container.querySelectorAll<HTMLElement>('.cs-line');
     expect(lines[0].dataset.cover).toBeUndefined(); // rubbed: unreadable anyway
     expect(lines[1].dataset.cover).toBe('');
-    expect(within(lines[1]).getByRole('button')).toHaveAccessibleName('Главный пункт закрыт. Открыть');
+    expect(within(lines[1]).getByRole('button')).toHaveAccessibleName('Главный пункт спрятан. Открыть');
     expect(lines[1].querySelector('.cs-slot')).not.toBeNull();
     expect(lines[2].dataset.cover).toBeUndefined();
   });
@@ -316,7 +316,7 @@ describe('the cheat sheet', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
-    const show = screen.getByRole('button', { name: 'Показать, что стёрлось' });
+    const show = screen.getByRole('button', { name: 'Показать, что изменилось' });
     // A key or a click elsewhere does not start it.
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(p.onReplayEnd).not.toHaveBeenCalled();
@@ -370,7 +370,7 @@ describe('the cheat sheet', () => {
     }
   });
 
-  it('in «Весь лист» a click on a question leaves the overview there', () => {
+  it('in «Вся шпаргалка» a click on a question leaves the overview there', () => {
     const sheet = buildSheet([question(1), question(2)], [], NOW);
     const p = props(sheet.blocks, { mode: { onlyLeft: false, cover: false, zoom: true } });
     const { container } = renderSheet(p);

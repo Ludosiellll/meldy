@@ -1522,10 +1522,13 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                     {sheetChange ? (
                       <p className="or-save-line or-sheet-change">
                         {glue(protocolSheetLine(sheetChange.summary, sheetChange.quiet))}
-                        {' · '}
-                        <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
-                          посмотреть
-                        </button>
+                        {/* «К шпаргалке» below says it on wide screens; the phone hides that button, so the line links. */}
+                        <span className="or-narrow">
+                          {' · '}
+                          <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
+                            посмотреть
+                          </button>
+                        </span>
                       </p>
                     ) : null}
                   </>

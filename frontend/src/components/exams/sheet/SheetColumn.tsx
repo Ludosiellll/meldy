@@ -18,7 +18,6 @@ import {
   priceLine,
   questionsWord,
   SHEET_RULE,
-  SHEET_RULE_SHORT,
   writtenLabel,
 } from './copy';
 import type { SheetViewMode } from './CheatSheet';
@@ -99,6 +98,8 @@ export interface SheetSummaryProps {
   shareLine: string | null;
   /** «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.» */
   changeLine: string | null;
+  /** Under it, smaller: why lines the answer named stayed as they were (named again too soon, a peek). */
+  changeNote?: string | null;
   mode: SheetViewMode;
   onMode: (mode: SheetViewMode) => void;
   /** «Показать последний ответ» (null: no answer changed the sheet). */
@@ -181,24 +182,25 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
       )}
       {showCount &&
         (history ? (
-          <p className="cs-sub">{history.running ? formatShortDay(history.frame.day) : historyResult(history.first, history.frame)}</p>
+          <p className="cs-sub">{history.running ? `История шпаргалки: ${formatShortDay(history.frame.day)}` : historyResult(history.first, history.frame)}</p>
         ) : (
           details && <p className="cs-sub">{details}</p>
         ))}
       {variant !== 'after' && props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
+      {variant !== 'after' && props.changeLine && props.changeNote && !history && <p className="cs-change-note">{glue(props.changeNote)}</p>}
       {/* The promise stays on screen after the first-use tip: what erases the lines. */}
-      {showCount && !history && <p className="cs-rule">{glue(variant === 'top' ? SHEET_RULE_SHORT : SHEET_RULE)}</p>}
+      {showCount && !history && <p className="cs-rule">{glue(SHEET_RULE)}</p>}
       {variant !== 'top' && props.shareLine && !history && <p className="cs-share">{glue(props.shareLine)}</p>}
       {counts.total > 0 && !playing && (
         <div className="cs-toggles">
           {variant !== 'after' && <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />}
           {variant !== 'top' && (
-            <Toggle label="Закрыть строки" on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint="Строки закрыты — вспомните их сами, нажатие открывает строку" />
+            <Toggle label="Спрятать строки" on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint="Спрятать читаемые строки и вспомнить их по памяти" />
           )}
-          {variant === 'full' && <Toggle label="Весь лист" on={mode.zoom} onChange={(on) => onMode({ ...mode, zoom: on })} />}
+          {variant === 'full' && <Toggle label="Вся шпаргалка" on={mode.zoom} onChange={(on) => onMode({ ...mode, zoom: on })} />}
         </div>
       )}
-      {mode.cover && variant !== 'top' && !playing && <p className="cs-sub cs-cover-note">Нажмите на закрытую строку, чтобы открыть её. Стирать строки это не мешает.</p>}
+      {mode.cover && variant !== 'top' && !playing && <p className="cs-sub cs-cover-note">Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.</p>}
       {acts}
     </div>
   );
@@ -211,6 +213,8 @@ export function historyResult(first: HistoryFrame, last: HistoryFrame): string {
     days >= 14
       ? `${Math.round(days / 7)}${NBSP}${weeksWord(Math.round(days / 7))}`
       : `${days}${NBSP}${days % 10 === 1 && days % 100 !== 11 ? 'день' : days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 12 || days % 100 > 14) ? 'дня' : 'дней'}`;
+  // Half-erasing does not change the count: a history of rubbed lines only says that nothing is gone yet.
+  if (last.left === first.left) return `За ${span} ни одна строка не стёрлась совсем`;
   return `${first.left} → ${last.left}${NBSP}${linesWord(last.left)} за ${span}`;
 }
 
@@ -288,7 +292,7 @@ export function SheetWriteCard(props: SheetWriteProps) {
       {outcome && <p className="ex-stmt cs-outcome">{glue(outcome)}</p>}
       {first && props.compact && (
         <p className="ex-stmt cs-write-short">
-          Meldy выпишет из ваших лекций пункты ответа на вопросы, которые в них есть. Стирают их только ваши ответы. От чтения ничего не стирается.
+          Meldy выпишет из ваших лекций пункты ответа на вопросы, которые в них есть. Строки шпаргалки стирают только ваши ответы, от чтения ничего не стирается.
         </p>
       )}
       {first && !props.compact && (
@@ -326,7 +330,7 @@ export function outcomeLine(write: SheetWriteState, toWrite: number): string | n
   if (write.phase === 'failed' || write.phase === 'interrupted') return write.message;
   if (write.phase !== 'done') return null;
   const total = write.total || write.written + write.failed + toWrite;
-  if (write.limit) return `Написано ${write.written} из ${total}: лимит ИИ на сегодня кончился`;
+  if (write.limit) return `Написано ${write.written} из ${total}: дневной лимит ИИ кончился`;
   if (write.failed > 0 || write.busy > 0) {
     const missed = write.failed + write.busy;
     return `${missed}${NBSP}${questionsWord(missed)} не удалось написать — можно попробовать ещё раз`;
@@ -428,18 +432,28 @@ export function LinePanel(props: LinePanelProps) {
   else if (state === 'due') heading = 'Строка стёрта — пора проверить';
   else heading = 'Строка стёрта';
 
+  // One paragraph says what an answer will do to the line now; a peek earlier today is part of it
+  // (it changes what today's answer does), never a second, contradicting sentence.
   const lines: ReactNode[] = [];
+  const peekedEarlier = status.peekedToday && !peeked;
   if (state === 'rubbed' && !peeked) {
     const when = erasableSentence(status);
-    if (when) lines.push(when);
+    if (peekedEarlier) lines.push(`Сегодня вы подсматривали эту строку, поэтому сегодняшний ответ её не сотрёт.${when ? ` ${when}` : ''}`);
+    else if (when) lines.push(when);
   }
-  if (state === 'due' && !peeked) lines.push('Назовите этот пункт в ответе: назовёте — снова сотрётся, нет — вернётся.');
+  if (state === 'due' && !peeked) {
+    lines.push(
+      peekedEarlier
+        ? 'Сегодня вы подсматривали эту строку: сегодняшний ответ её не сотрёт, а если пункт не назвать — строка вернётся. Назовите его в ответе в другой день — снова сотрётся.'
+        : 'Назовите этот пункт в ответе: назовёте — строка снова сотрётся, не назовёте — вернётся.',
+    );
+  }
   if (state === 'erased') lines.push('Стёртую строку не подсмотреть. Она вернётся, если в ответе этот пункт не будет назван.');
   if (!canPeek && (state === 'missed' || state === 'returned')) {
     const note = lineNote(status);
     if (note) lines.push(note.charAt(0).toUpperCase() + note.slice(1));
   }
-  if (status.peekedToday && !peeked && state !== 'erased') lines.push('Вы подсматривали эту строку — до конца дня ответ её не сотрёт.');
+  if (peekedEarlier && (state === 'fresh' || state === 'missed' || state === 'returned')) lines.push('Сегодня вы подсматривали эту строку, поэтому сегодняшний ответ её не сотрёт.');
 
   const caption = readable ? quoteCaption(line, block) : null;
   const quote = readable && line.quote ? quoteText(line.quote) : null;
@@ -459,7 +473,7 @@ export function LinePanel(props: LinePanelProps) {
       ))}
       {canPeek && (
         <div className="cs-lp-peek">
-          <p className="ex-fine">Если подсмотреть, сегодня ответ её не сотрёт.</p>
+          {!status.peekedToday && <p className="ex-fine">Если подсмотреть, сегодня ответ её не сотрёт.</p>}
           <button type="button" className="sf-secondary" onClick={onPeek}>
             Подсмотреть
           </button>

@@ -44,7 +44,7 @@ export class SheetError extends Error {
   }
 }
 
-export const SHEET_LOAD_MESSAGE = 'Шпаргалка не загрузилась. Проверьте связь и обновите страницу.';
+export const SHEET_LOAD_MESSAGE = 'Шпаргалка не загрузилась. Проверьте связь и нажмите «Повторить».';
 const SHEET_TIMEOUT_MS = 20_000;
 const WRITE_IDLE_MS = 45_000;
 

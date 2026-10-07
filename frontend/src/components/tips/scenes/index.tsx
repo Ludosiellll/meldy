@@ -220,7 +220,7 @@ function Sheet() {
               <span data-a="day1-t">Ответ: назван первый пункт</span>
             </p>
             <p data-a="day2" className="tsh-day" style={{ opacity: 0 }}>
-              Через день: первый и второй
+              На другой день: первый и второй
             </p>
           </div>
         </div>

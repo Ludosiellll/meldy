@@ -8,7 +8,7 @@
 import { formatShortDay, formatShortMoment } from '../../../lib/exams/format';
 import { pluralRu } from '../../conversation/visuals';
 import { lecturesGenitive } from '../sheetModel';
-import type { ChangeSummary, LineEvent, LineStatus, QuietReason, SheetBlock, SheetCounts } from '../../../lib/exams/cheatSheet';
+import { localDayOf, type ChangeSummary, type LineEvent, type LineStatus, type QuietReason, type SheetBlock, type SheetCounts } from '../../../lib/exams/cheatSheet';
 import type { WriteStatus } from '../../../api/cheatSheet';
 
 const NBSP = ' ';
@@ -33,28 +33,31 @@ export function counterLabel(counts: Pick<SheetCounts, 'left' | 'total'>): strin
 
 /** While the first lines are being written: «строк написано» under their number (not «6 из 6 осталось»). */
 export function writtenLabel(total: number): string {
-  return `${linesWord(total)} ${total % 10 === 1 && total % 100 !== 11 ? 'написана' : 'написано'}`;
+  return `${linesWord(total)} ${pluralRu(total, ['написана', 'написаны', 'написано'])}`;
 }
 
 /**
- * «из них главных — 21 · наполовину — 5 · пора проверить — 3 · 9 вопросов без пунктов»; empty parts
- * are left out. «Без пунктов» are the questions the lectures do not answer or that are not checked
- * against them: the ones that can still be written are counted by «Дописать N вопросов».
+ * «главных — 28 из 33 · стёрты наполовину — 3 · пора проверить — 1 · 9 вопросов без пунктов» (as «43
+ * строки осталось из 47» above it: main lines left of all main lines); empty parts are left out.
+ * Due lines are not «left» (they are erased, waiting for a check), so nothing here says «из них».
+ * «Без пунктов» are the questions the lectures do not answer or that are not checked against them:
+ * the ones that can still be written are counted by «Дописать N вопросов».
  */
 export function counterDetails(counts: SheetCounts): string {
   const parts: string[] = [];
-  // Each part holds together on one row: a line break falls only between the parts.
-  if (counts.essentialTotal > 0 && counts.essentialTotal !== counts.total) parts.push(`из${NBSP}них главных${NBSP}—${NBSP}${counts.essentialLeft}`);
-  if (counts.rubbed > 0) parts.push(`наполовину${NBSP}—${NBSP}${counts.rubbed}`);
+  // Each part holds together on one row, and no row starts with «·»: a break falls only after a dot.
+  if (counts.essentialTotal > 0 && counts.essentialTotal !== counts.total) {
+    parts.push(`главных${NBSP}—${NBSP}${counts.essentialLeft}${NBSP}из${NBSP}${counts.essentialTotal}`);
+  }
+  if (counts.rubbed > 0) parts.push(`стёрты${NBSP}наполовину${NBSP}—${NBSP}${counts.rubbed}`);
   if (counts.due > 0) parts.push(`пора${NBSP}проверить${NBSP}—${NBSP}${counts.due}`);
   const without = counts.gaps + counts.unmapped + counts.unverified;
   if (without > 0) parts.push(`${without}${NBSP}${questionsWord(without)} без${NBSP}пунктов`);
-  return parts.join(' · ');
+  return parts.join(`${NBSP}· `);
 }
 
-/** The rule, under the counter: the sheet's promise stays on screen after the first-use tip. */
-export const SHEET_RULE = 'Стирают строки только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.';
-export const SHEET_RULE_SHORT = 'Стирают строки только ответы.';
+/** The rule, under the counter on every size: the sheet's promise stays on screen after the first-use tip. */
+export const SHEET_RULE = 'Строки стирают только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.';
 
 function day(date: string): string {
   return formatShortDay(date).replace(/ /g, NBSP);
@@ -69,13 +72,13 @@ const WORDS: Record<LineEvent['word'], string> = {
   mentioned: 'только упомянут',
   wrong: 'назван с ошибкой',
   missing: 'не назван',
-  after_question: 'только после вопроса экзаменатора',
-  after_peek: 'назван после подсказки — не считается',
+  after_question: 'назван только после вопроса экзаменатора',
+  after_peek: 'назван после подсматривания, не в счёт',
 };
 
-/** One line of the line's history: «5 окт., 19:40 — назван». */
+/** One line of the line's history: «5 окт., 19:40 — назван» («—» never starts a row). */
 export function historyLine(event: LineEvent): string {
-  return `${moment(event.at)} — ${WORDS[event.word]}`;
+  return `${moment(event.at)}${NBSP}— ${WORDS[event.word]}`;
 }
 
 /**
@@ -93,9 +96,10 @@ export function lineNote(status: LineStatus, peekedNow = false): string | null {
     case 'missed':
       return last ? `${day(last.date)} ${WORDS[last.word]}` : null;
     case 'returned':
-      return `была стёрта ${status.wasErasedOn ? day(status.wasErasedOn) : ''} · ${last ? `${day(last.date)} ${WORDS[last.word]}` : 'не названа'}`.replace(/\s+·/, ' ·');
+      // The line was erased; then its point was not named: «пункт» keeps the two subjects apart.
+      return `была стёрта${status.wasErasedOn ? ` ${day(status.wasErasedOn)}` : ''}${NBSP}· ${last ? `${day(last.date)} пункт ${WORDS[last.word]}` : 'пункт не назван'}`;
     case 'due':
-      return status.erasedOn ? `стёрта ${day(status.erasedOn)} · пора проверить` : 'пора проверить';
+      return status.erasedOn ? `стёрта ${day(status.erasedOn)}${NBSP}· пора проверить` : 'пора проверить';
     default:
       return null;
   }
@@ -139,40 +143,48 @@ export function blockNote(
       const parts: string[] = [];
       if (block.partial) parts.push(block.missing ? `Не хватает: ${block.missing}` : 'В лекциях не всё');
       if (block.coverageMethod === 'manual') parts.push('Отмечено вами — Meldy этого не проверял');
-      return parts.length > 0 ? parts.join(' · ') : null;
+      return parts.length > 0 ? parts.join(`${NBSP}· `) : null;
     }
   }
 }
 
-/** The part of a rubbed line's sentence after «Сотрётся, если назовёте снова»: the moment, while it is ahead. */
+/**
+ * When a naming erases a rubbed line, while that moment is ahead: « после 7 окт., 15:40», or « 8 окт.
+ * или позже» when the moment is a local midnight (a day boundary, not a time anyone picked).
+ */
 function erasableWhen(erasableFrom: string, now: number): string | null {
   const at = Date.parse(erasableFrom);
-  return Number.isFinite(at) && at > now ? ` после ${moment(erasableFrom)}` : null;
+  if (!Number.isFinite(at) || at <= now) return null;
+  const local = new Date(at);
+  if (local.getHours() === 0 && local.getMinutes() === 0) return ` ${day(localDayOf(at))} или позже`;
+  return ` после ${moment(erasableFrom)}`;
 }
 
 /**
- * For a rubbed line: «Сотрётся, если назовёте снова после 7 окт., 15:40.» — or, once that moment has
- * come, «Назовёте в ответе снова — сотрётся.» (no moment that is already past).
+ * For a rubbed line: «Сотрётся совсем, если назовёте пункт снова после 7 окт., 15:40.» — or, once that
+ * moment has come, «Назовёте пункт в ответе снова — сотрётся совсем.» (no moment that is already past).
  */
 export function erasableSentence(status: LineStatus, now: number = Date.now()): string | null {
   if (status.state !== 'rubbed' || !status.erasableFrom) return null;
   const when = erasableWhen(status.erasableFrom, now);
-  return when ? `Сотрётся, если назовёте снова${when}.` : 'Назовёте в ответе снова — сотрётся.';
+  return when ? `Сотрётся совсем, если назовёте пункт снова${when}.` : 'Назовёте пункт в ответе снова — сотрётся совсем.';
 }
 
 /** What the screen reader hears for a line: the words only where the eye can read them too. */
 export function lineLabel(text: string, status: LineStatus, essential: boolean, now: number = Date.now()): string {
   const kind = essential ? 'Главный пункт' : 'Пункт';
+  // A line is erased; a point is named: «Строка главного пункта стёрта наполовину».
+  const line = essential ? 'Строка главного пункта' : 'Строка пункта';
   switch (status.state) {
     case 'rubbed': {
       const when = status.erasableFrom ? erasableWhen(status.erasableFrom, now) : null;
-      const rest = status.erasableFrom ? (when ? `; сотрётся, если назовёте снова${when}` : '; назовёте в ответе снова — сотрётся') : '';
-      return `${kind} стёрт наполовину${rest}. Подсмотреть`;
+      const rest = status.erasableFrom ? (when ? `; сотрётся совсем, если назовёте пункт снова${when}` : '; назовёте пункт в ответе снова — сотрётся совсем') : '';
+      return `${line} стёрта наполовину${rest}. Подсмотреть`;
     }
     case 'erased':
-      return `${kind} стёрт${status.erasedOn ? ` ${day(status.erasedOn)}` : ''}`;
+      return `${line} стёрта${status.erasedOn ? ` ${day(status.erasedOn)}` : ''}`;
     case 'due':
-      return `${kind} стёрт${status.erasedOn ? ` ${day(status.erasedOn)}` : ''}, пора проверить. Подсмотреть`;
+      return `${line} стёрта${status.erasedOn ? ` ${day(status.erasedOn)}` : ''}, пора проверить. Подсмотреть`;
     case 'missed':
     case 'returned':
       return `${kind}: ${text}. ${lineNote(status) ?? ''}`.trim();
@@ -199,48 +211,57 @@ export function changeParts(summary: ChangeSummary): string | null {
   }
   if (summary.checked > 0) add(summary.checked, singular(summary.checked) ? 'прошла проверку' : 'прошли проверку');
   if (summary.returned > 0) add(summary.returned, singular(summary.returned) ? 'вернулась' : 'вернулись');
-  if (summary.stayed > 0) add(summary.stayed, singular(summary.stayed) ? 'осталась' : 'остались');
+  // A fresh line the answer did not name: still there, now with a wave («не стёрлась», not «осталась»,
+  // which the counter above already says of every line left).
+  if (summary.stayed > 0) add(summary.stayed, singular(summary.stayed) ? 'не стёрлась' : 'не стёрлись');
   return items.length > 0 ? items.join(', ') : null;
 }
 
-/** Why nothing changed, after «строки не изменились» (empty without a reason of the answer's own). */
-function quietTail(quiet: QuietReason | null, now: number): string {
-  if (!quiet) return '';
-  if (quiet.kind === 'peek') return ': подсмотренная строка в тот же день не стирается';
-  if (quiet.kind === 'erased') return ': названные пункты уже стёрты';
-  const when = erasableWhen(quiet.from, now);
-  return `: названное сотрётся, если назовёте его снова${when ?? ''}`;
+/** Why the named lines were too soon, in the words of the rule («в другой день») and its 20 hours. */
+const TOO_SOON: Record<Extract<QuietReason, { kind: 'wait' }>['why'], string> = {
+  day: 'в тот же день',
+  hours: 'меньше чем через 20 часов',
+  both: 'в тот же день или меньше чем через 20 часов',
+};
+
+/** «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.» — or «После ответа строки не изменились.» */
+export function changeSentence(summary: ChangeSummary): string {
+  const parts = changeParts(summary);
+  return parts ? `После ответа: ${parts}.` : 'После ответа строки не изменились.';
 }
 
 /**
- * After a change: the lines the answer named and left as they were, and why — named again too soon
- * (the rule says «в другой день», and the moment says when), or uncovered the same day. Empty when
- * there are none.
+ * Under that sentence, smaller: the lines the answer named and left as they were, and why — named
+ * again too soon («1 строка названа снова меньше чем через 20 часов: сотрётся совсем, если назовёте
+ * её после 7 окт., 14:05.»), uncovered the same day, or (when nothing changed) already erased. Null
+ * when there is nothing to explain.
  */
-function alsoTail(quiet: QuietReason | null, now: number): string {
-  if (quiet?.kind === 'peek') return ' Подсмотренное сегодня ответ не стирает.';
-  if (quiet?.kind !== 'wait' || quiet.count < 1) return '';
-  const one = quiet.count % 10 === 1 && quiet.count % 100 !== 11;
-  const head = `${quiet.count}${NBSP}${linesWord(quiet.count)} ${one ? 'названа' : 'названы'} снова слишком рано`;
+export function changeNote(summary: ChangeSummary, quiet: QuietReason | null, now: number = Date.now()): string | null {
+  if (!quiet) return null;
+  if (quiet.kind === 'peek') return 'Подсмотренное сегодня ответ не стирает.';
+  if (quiet.kind === 'erased') return changeParts(summary) ? null : 'Названные пункты уже стёрты.';
+  if (quiet.count < 1) return null;
+  const one = singular(quiet.count);
+  const head = `${quiet.count}${NBSP}${linesWord(quiet.count)} ${one ? 'названа' : 'названы'} снова ${TOO_SOON[quiet.why]}`;
   const erases = one ? 'сотрётся' : 'сотрутся';
   const them = one ? 'её' : 'их';
   const when = erasableWhen(quiet.from, now);
-  return when ? ` ${head}: ${erases} совсем, если назвать ${them}${when}.` : ` ${head}: назовёте ${them} ещё раз — ${erases} совсем.`;
+  return when ? `${head}: ${erases} совсем, если назовёте ${them}${when}.` : `${head}: назовёте ${them} ещё раз — ${erases} совсем.`;
 }
 
-/**
- * «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.» — or that nothing changed, and why;
- * after a change, the named lines that stayed as they were, and why.
- */
-export function changeSentence(summary: ChangeSummary, quiet: QuietReason | null = null, now: number = Date.now()): string {
+/** The answer's protocol (spec 4.2): «На шпаргалке: 2 строки стёрлись» — or that nothing changed, and why, briefly. */
+export function protocolSheetLine(summary: ChangeSummary, quiet: QuietReason | null = null): string {
   const parts = changeParts(summary);
-  return parts ? `После ответа: ${parts}.${alsoTail(quiet, now)}` : `После ответа строки не изменились${quietTail(quiet, now)}.`;
-}
-
-/** The answer's protocol (spec 4.2): «На шпаргалке: 2 строки стёрлись» — or that nothing changed, and why. */
-export function protocolSheetLine(summary: ChangeSummary, quiet: QuietReason | null = null, now: number = Date.now()): string {
-  const parts = changeParts(summary);
-  return parts ? `На шпаргалке: ${parts}` : `На шпаргалке строки не изменились${quietTail(quiet, now)}`;
+  if (parts) return `На шпаргалке: ${parts}`;
+  const why =
+    quiet?.kind === 'wait'
+      ? `: названо снова ${TOO_SOON[quiet.why]}`
+      : quiet?.kind === 'peek'
+        ? ': подсмотренное в тот же день не стирается'
+        : quiet?.kind === 'erased'
+          ? ': названные пункты уже стёрты'
+          : '';
+  return `На шпаргалке строки не изменились${why}`;
 }
 
 /** The price under «Написать шпаргалку». */
@@ -263,7 +284,7 @@ export function writeStatusNote(status: WriteStatus, reset: string | null = null
     case 'busy':
       return 'ИИ был занят — вопрос не написан. Допишите его позже.';
     case 'limit':
-      return reset ? `Лимит ИИ на сегодня кончился. Дописать можно после ${reset}.` : 'Лимит ИИ на сегодня кончился. Дописать можно после его обновления.';
+      return reset ? `Дневной лимит ИИ кончился. Дописать можно после ${reset}.` : 'Дневной лимит ИИ кончился. Дописать можно после его обновления.';
     case 'auth':
       return 'Сессия истекла — войдите снова и допишите.';
     default:

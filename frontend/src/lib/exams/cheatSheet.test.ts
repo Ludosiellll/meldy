@@ -493,10 +493,14 @@ describe('after an answer, and the history', () => {
   });
 
   it('says why an answer changed nothing, from its own lines', () => {
-    // Named again the same day: the moment it will erase.
+    // Named again the same day: the moment it will erase, and why it is too soon.
     const early = [point(local('2026-10-05T09:00:00'), true, { session: 'a' }), point(local('2026-10-05T11:00:00'), true, { session: 'b' })];
     const sheet = buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], early, NOW);
-    expect(quietReason(sheet, new Set(['b']))).toEqual({ kind: 'wait', from: sheet.blocks[0].lines[0].status.erasableFrom, count: 1 });
+    expect(quietReason(sheet, new Set(['b']))).toEqual({ kind: 'wait', from: sheet.blocks[0].lines[0].status.erasableFrom, count: 1, why: 'day' });
+    // Named again the next morning, less than 20 hours after the first naming.
+    const night = [point(local('2026-10-04T18:00:00'), true, { session: 'a' }), point(local('2026-10-05T09:00:00'), true, { session: 'b' })];
+    const nextMorning = buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], night, NOW);
+    expect(quietReason(nextMorning, new Set(['b']))).toEqual({ kind: 'wait', from: local('2026-10-05T14:00:00'), count: 1, why: 'hours' });
     // Named after a peek the same day.
     const peeked = [point(local('2026-10-04T09:00:00'), true, { session: 'a' }), peek(local('2026-10-05T08:00:00')), point(local('2026-10-05T11:00:00'), true, { session: 'b' })];
     expect(quietReason(buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], peeked, NOW), new Set(['b']))).toEqual({ kind: 'peek' });
@@ -525,9 +529,40 @@ describe('after an answer, and the history', () => {
     const changes = sheetChanges(before, after);
     expect(changes.map((change) => [change.from, change.to])).toEqual([['fresh', 'rubbed']]);
     const p1 = after.blocks[0].lines[0];
-    expect(quietReason(after, new Set(['b']), new Set(changes.map((change) => change.key)))).toEqual({ kind: 'wait', from: p1.status.erasableFrom, count: 1 });
+    expect(quietReason(after, new Set(['b']), new Set(changes.map((change) => change.key)))).toEqual({ kind: 'wait', from: p1.status.erasableFrom, count: 1, why: 'hours' });
     // Without the changes every named line of the answer counts.
     expect(quietReason(after, new Set(['b']))).toMatchObject({ kind: 'wait', count: 2 });
+  });
+
+  it('names the latest of the waiting lines’ moments: at the earliest one only some of them would erase', () => {
+    // p1 named at 18:00, p2 first named at 22:00; both named again the next morning, too soon.
+    const p2Title = 'Кривая спроса идёт вниз';
+    const at = (text: string, named: boolean, session: string, pointId: string) =>
+      point(local(text), named, { session, point: pointId, ...(pointId === 'p2' ? { title: p2Title } : {}) });
+    const events = [
+      at('2026-10-04T18:00:00', true, 'a', 'p1'),
+      at('2026-10-04T18:00:00', false, 'a', 'p2'),
+      at('2026-10-04T22:00:00', true, 'b', 'p1'),
+      at('2026-10-04T22:00:00', true, 'b', 'p2'),
+      at('2026-10-05T09:00:00', true, 'c', 'p1'),
+      at('2026-10-05T09:00:00', true, 'c', 'p2'),
+    ];
+    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true], [p2Title, false]]) })];
+    const after = buildSheet(qs, events, NOW);
+    expect(after.blocks[0].lines.map((line) => line.status.erasableFrom)).toEqual([local('2026-10-05T14:00:00'), local('2026-10-05T18:00:00')]);
+    expect(quietReason(after, new Set(['c']))).toEqual({ kind: 'wait', from: local('2026-10-05T18:00:00'), count: 2, why: 'hours' });
+  });
+
+  it('says «the same day» and «20 hours» together when the waiting lines wait for different reasons', () => {
+    const p2Title = 'Кривая спроса идёт вниз';
+    const events = [
+      point(local('2026-10-04T18:00:00'), true, { session: 'a', point: 'p1' }),
+      point(local('2026-10-05T08:00:00'), true, { session: 'a2', point: 'p2', title: p2Title }),
+      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p1' }),
+      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p2', title: p2Title }),
+    ];
+    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true], [p2Title, false]]) })];
+    expect(quietReason(buildSheet(qs, events, NOW), new Set(['c']))).toMatchObject({ kind: 'wait', count: 2, why: 'both' });
   });
 
   it('has nothing to replay without answers', () => {

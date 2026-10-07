@@ -486,6 +486,8 @@
 .sf-page .cs-count-l { font-size: 18px; line-height: 25px; }
 .sf-page .cs-sub { margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .cs-change { margin-top: 14px; font-size: 17px; line-height: 25px; color: var(--sf-ink); text-wrap: pretty; animation: cs-fade 300ms ease-out both; }
+/* Why some named lines stayed (named again too soon, peeked today): said once, quieter than what changed. */
+.sf-page .cs-change-note { margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; animation: cs-fade 300ms ease-out both; }
 .sf-page .cs-share { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--sf-line); font-size: 16px; line-height: 23px; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .cs-toggles { display: grid; gap: 2px; margin: 16px -8px 0; }
 .sf-page .cs-toggle {

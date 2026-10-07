@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../lib/supabase', () => ({ supabase: {} }));
 
 import type { SheetWriteState } from '../../../api/cheatSheet';
-import type { HistoryFrame, LineState, LineStatus, SheetBlock, SheetCounts, SheetLine } from '../../../lib/exams/cheatSheet';
+import { localDayOf, type HistoryFrame, type LineState, type LineStatus, type SheetBlock, type SheetCounts, type SheetLine } from '../../../lib/exams/cheatSheet';
+import { formatShortDay } from '../../../lib/exams/format';
 import { historyResult, LinePanel, outcomeLine, quoteText, SheetSummaryCard, SheetWriteCard, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
 import { examSheetLinks } from './useSheetPage';
 
@@ -65,16 +66,16 @@ describe('SheetSummaryCard', () => {
     expect(screen.getByText('Шпаргалка')).toBeTruthy();
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47');
-    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('из них главных — 21 · наполовину — 5 · пора проверить — 3 · 6 вопросов без пунктов');
-    expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Стирают строки только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.');
+    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · 6 вопросов без пунктов');
+    expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Строки стирают только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.');
     // The rolling digits are hidden from a screen reader; the count is read once, whole.
     expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(plain(document.querySelector('.cs-share')?.textContent)).toContain('35 % билетов');
     const switches = screen.getAllByRole('switch');
-    expect(switches.map((item) => item.textContent)).toEqual(['Только то, что осталось', 'Закрыть строки', 'Весь лист']);
+    expect(switches.map((item) => item.textContent)).toEqual(['Только то, что осталось', 'Спрятать строки', 'Вся шпаргалка']);
     expect(switches.every((item) => item.getAttribute('aria-checked') === 'false')).toBe(true);
-    fireEvent.click(screen.getByRole('switch', { name: 'Весь лист' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Вся шпаргалка' }));
     expect(props.onMode).toHaveBeenCalledWith({ ...MODE, zoom: true });
     fireEvent.click(screen.getByRole('button', { name: 'Показать последний ответ' }));
     expect(props.onReplay).toHaveBeenCalledTimes(1);
@@ -99,7 +100,7 @@ describe('SheetSummaryCard', () => {
     expect(document.querySelector('.cs-big')).toBeNull();
     expect(document.querySelector('.cs-change')).toBeNull();
     expect(document.querySelector('.cs-share')).toBeTruthy();
-    expect(screen.getAllByRole('switch').map((item) => item.textContent)).toEqual(['Закрыть строки']);
+    expect(screen.getAllByRole('switch').map((item) => item.textContent)).toEqual(['Спрятать строки']);
     expect(screen.getByRole('button', { name: 'История шпаргалки' })).toBeTruthy();
   });
 
@@ -110,9 +111,9 @@ describe('SheetSummaryCard', () => {
     expect(document.querySelector('.cs-big')).toBeNull();
   });
 
-  it('top: the short rule; while the first lines are written the count says how many are written', () => {
+  it('top: the whole rule on the phone too; while the first lines are written the count says how many are written', () => {
     summary({ variant: 'top' });
-    expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Стирают строки только ответы.');
+    expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Строки стирают только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.');
     cleanup();
     summary({ writing: true, counts: { ...COUNTS, left: 12, total: 12, rubbed: 0 }, left: 12 });
     expect(document.querySelector('.cs-big')?.textContent).toBe('12');
@@ -125,7 +126,7 @@ describe('SheetSummaryCard', () => {
 
   it('closed lines: a note says what a tap does; while the history plays the switches and notes step aside', () => {
     summary({ mode: { ...MODE, cover: true } });
-    expect(plain(document.querySelector('.cs-cover-note')?.textContent)).toBe('Нажмите на закрытую строку, чтобы открыть её. Стирать строки это не мешает.');
+    expect(plain(document.querySelector('.cs-cover-note')?.textContent)).toBe('Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.');
     cleanup();
     const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
     summary({ mode: { ...MODE, cover: true }, history: { frame: first, first, running: true } });
@@ -246,7 +247,7 @@ describe('SheetWriteCard', () => {
 
 describe('outcomeLine', () => {
   it('says the limit, what failed, and the message of a broken run', () => {
-    expect(plain(outcomeLine(idle({ phase: 'done', written: 4, total: 6, limit: true }), 2))).toBe('Написано 4 из 6: лимит ИИ на сегодня кончился');
+    expect(plain(outcomeLine(idle({ phase: 'done', written: 4, total: 6, limit: true }), 2))).toBe('Написано 4 из 6: дневной лимит ИИ кончился');
     expect(plain(outcomeLine(idle({ phase: 'done', written: 4, failed: 1, busy: 1, total: 6 }), 2))).toBe('2 вопроса не удалось написать — можно попробовать ещё раз');
     expect(outcomeLine(idle({ phase: 'interrupted', message: 'Связь прервалась.' }), 2)).toBe('Связь прервалась.');
     expect(outcomeLine(idle({ phase: 'done', written: 3, total: 3 }), 2)).toBeNull();
@@ -319,7 +320,7 @@ describe('LinePanel', () => {
     const { onPeek, onClose } = panel(lineOf('rubbed', { erasableFrom: new Date(Date.now() + 86_400_000).toISOString() }));
     expect(screen.getByRole('heading', { name: named('Строка стёрта наполовину') })).toBeTruthy();
     expect(screen.queryByText(/отношение денежной массы/)).toBeNull();
-    expect(plain(screen.getByText(/Сотрётся, если назовёте снова после/).textContent)).toMatch(/\d{1,2} [а-я]+\.?, \d{1,2}:\d\d\.$/);
+    expect(plain(screen.getByText(/^Сотрётся совсем, если назовёте пункт снова/).textContent)).toMatch(/после \d{1,2} [а-я]+\.?, \d{1,2}:\d\d\.$|\d{1,2} [а-я]+\.? или позже\.$/);
     expect(plain(screen.getByText(/^Вопрос 25/).textContent)).toBe('Вопрос 25 · пункт 1 · главный');
     expect(screen.getByText('Если подсмотреть, сегодня ответ её не сотрёт.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Подсмотреть' }));
@@ -348,13 +349,30 @@ describe('LinePanel', () => {
   it('a line due for a check: what an answer will do to it, and it can be peeked', () => {
     panel(lineOf('due', { dueAt: '2026-10-06T08:00:00Z', erasedOn: '2026-09-20' }));
     expect(screen.getByRole('heading', { name: named('Строка стёрта — пора проверить') })).toBeTruthy();
-    expect(plain(screen.getByText(/^Назовите этот пункт/).textContent)).toBe('Назовите этот пункт в ответе: назовёте — снова сотрётся, нет — вернётся.');
+    expect(plain(screen.getByText(/^Назовите этот пункт/).textContent)).toBe('Назовите этот пункт в ответе: назовёте — строка снова сотрётся, не назовёте — вернётся.');
+    expect(screen.getByRole('button', { name: 'Подсмотреть' })).toBeTruthy();
+  });
+
+  it('a due line peeked earlier today: one paragraph says what today’s answer can and cannot do', () => {
+    panel(lineOf('due', { dueAt: '2026-10-06T08:00:00Z', erasedOn: '2026-09-20', peekedToday: true }));
+    expect(plain(screen.getByText(/^Сегодня вы подсматривали/).textContent)).toBe(
+      'Сегодня вы подсматривали эту строку: сегодняшний ответ её не сотрёт, а если пункт не назвать — строка вернётся. Назовите его в ответе в другой день — снова сотрётся.',
+    );
+    expect(screen.queryByText(/^Назовите этот пункт/)).toBeNull();
+    // Peeking again changes nothing today, so the panel does not warn about it.
+    expect(screen.queryByText('Если подсмотреть, сегодня ответ её не сотрёт.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Подсмотреть' })).toBeTruthy();
   });
 
   it('a line peeked earlier today says so; after «Подсмотреть» the heading with the words takes the focus', async () => {
-    const { onPeek, peek } = panel(lineOf('rubbed', { peekedToday: true }));
-    expect(plain(screen.getByText(/^Вы подсматривали/).textContent)).toBe('Вы подсматривали эту строку — до конца дня ответ её не сотрёт.');
+    // A peek moves the moment to the next midnight.
+    const midnight = new Date(new Date().setHours(24, 0, 0, 0));
+    const { onPeek, peek } = panel(lineOf('rubbed', { peekedToday: true, erasableFrom: midnight.toISOString() }));
+    // One paragraph: why today's answer will not erase it, then what will.
+    expect(plain(screen.getByText(/^Сегодня вы подсматривали/).textContent)).toBe(
+      `Сегодня вы подсматривали эту строку, поэтому сегодняшний ответ её не сотрёт. Сотрётся совсем, если назовёте пункт снова ${formatShortDay(localDayOf(midnight.getTime()))} или позже.`,
+    );
+    expect(screen.queryByText('Если подсмотреть, сегодня ответ её не сотрёт.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Подсмотреть' }));
     expect(onPeek).toHaveBeenCalledTimes(1);
     peek();
@@ -362,7 +380,7 @@ describe('LinePanel', () => {
     const heading = screen.getByRole('heading', { name: named('Мультипликатор — отношение денежной массы к денежной базе') });
     expect(document.activeElement).toBe(heading);
     // Once open, the morning's peek is not repeated: one sentence says it.
-    expect(screen.queryByText(/^Вы подсматривали/)).toBeNull();
+    expect(screen.queryByText(/^Сегодня вы подсматривали/)).toBeNull();
   });
 
   it('a missed line says when it was missed, and its history links to the protocols', () => {

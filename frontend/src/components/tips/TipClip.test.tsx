@@ -73,7 +73,7 @@ describe('TipClip', () => {
       expect(stage.textContent).toContain('12. Денежный мультипликатор.');
       expect(stage.textContent).toContain('мультипликатор = масса / база');
       expect(stage.textContent).toContain('Ответ: назван первый пункт');
-      expect(stage.textContent).toContain('Через день: первый и второй');
+      expect(stage.textContent).toContain('На другой день: первый и второй');
       const inks = Array.from(document.querySelectorAll<HTMLElement>('[data-a="ink"]'));
       const patches = Array.from(document.querySelectorAll<HTMLElement>('[data-a="patch"]'));
       // Before the answer the lines are whole.

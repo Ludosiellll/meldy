@@ -19,7 +19,7 @@ import type { PeakFlag } from '../peak';
 import type { FrameBox } from '../useFrame';
 import CheatSheet, { writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
 import { LinePanel, SheetSummaryCard, SheetWriteCard, useUnitsLeft } from './SheetColumn';
-import { changeSentence, counterLabel } from './copy';
+import { changeNote, changeSentence, counterLabel } from './copy';
 import { isSheetFontSettled, loadSheetFont } from './sheetFont';
 import { useCheatSheet, type CheatSheetData } from './useCheatSheet';
 
@@ -39,6 +39,19 @@ const FRESH_SETTLE_MARGIN_MS = 400;
 const MAX_RUN_QUESTIONS = 60;
 /** A phone: the end of the after-answer show stays on screen this long over the bottom bar. */
 const CHIP_MS = 4500;
+
+/** The phone's card above the paper (the count and «После ответа…») is at least half on screen, under the top line. */
+function topCardInView(): boolean {
+  if (typeof document === 'undefined') return false;
+  const card = document.querySelector<HTMLElement>('.cs-sum[data-variant="top"]');
+  if (!card) return false;
+  const box = card.getBoundingClientRect();
+  if (box.height <= 0) return false;
+  const bar = document.querySelector('.sf-bar');
+  const top = bar ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
+  const visible = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, top);
+  return visible >= box.height / 2;
+}
 /** A phone: where the line of an open bottom sheet stands, px from the top of the window. */
 const LINE_TOP_ON_PHONE = 96;
 
@@ -109,7 +122,9 @@ export interface SheetPage {
 
 interface ReplayState extends SheetReplay {
   beforeLeft: number;
+  /** «После ответа: …» — and, smaller under it, why named lines stayed as they were (or null). */
   sentence: string;
+  note: string | null;
 }
 
 interface HistoryRun {
@@ -293,7 +308,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         slow: stage,
         waitForClick: stage,
         beforeLeft: before.counts.left,
-        sentence: changeSentence(summary, quietReason(sheet, sessions, new Set(changes.map((change) => change.key))), data.now),
+        sentence: changeSentence(summary),
+        note: changeNote(summary, quietReason(sheet, sessions, new Set(changes.map((change) => change.key))), data.now),
       });
       setReplayLive(true);
       track('sheet_replay', {
@@ -337,8 +353,9 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     (token: number) => {
       if (token !== replaySeq.current) return;
       setReplayLive(false);
-      // A phone: the column with the count and «После ответа…» is above the paper, out of sight.
-      if (!side) setChip(true);
+      // A phone: the column with the count and «После ответа…» is above the paper, out of sight — unless
+      // the page did not scroll and the card is still there (then the chip would only repeat it).
+      if (!side && !topCardInView()) setChip(true);
     },
     [side],
   );
@@ -488,6 +505,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       writing={writing}
       shareLine={input.shareLine}
       changeLine={replay && !replayLive ? replay.sentence : null}
+      changeNote={replay && !replayLive ? replay.note : null}
       mode={mode}
       onMode={onMode}
       onReplay={lastSession && !history ? onReplayLast : null}

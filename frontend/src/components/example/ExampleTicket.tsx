@@ -101,17 +101,9 @@ function sheetChangeOf(answer: TryAnswer, events = tryEvents({ v: 1, seededAt: 0
   return sheetQuestion ? answerChange(sheetQuestion, events, answer.session, Date.now()) : null;
 }
 
-/** «На шпаргалке: 3 строки стёрлись, 1 — наполовину · посмотреть». */
+/** «На шпаргалке: 3 строки стёрлись, 1 — наполовину»; «К шпаргалке» right under it leads there. */
 function SheetChangeLine({ change }: { change: AnswerChange }) {
-  return (
-    <p className="or-save-line or-sheet-change">
-      {glue(protocolSheetLine(change.summary, change.quiet))}
-      {' · '}
-      <Link className="sf-link" to={TRY_SHEET_PATH}>
-        посмотреть
-      </Link>
-    </p>
-  );
+  return <p className="or-save-line or-sheet-change">{glue(protocolSheetLine(change.summary, change.quiet))}</p>;
 }
 
 /**
@@ -159,7 +151,7 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
           <p className="or-readonly-note">
             {glue(
               seeded
-                ? `Ответ примера: считаем, что он дан вчера, ${when}. Названные в нём пункты он стёр на шпаргалке наполовину.`
+                ? `Ответ примера: считаем, что он дан вчера, ${when}. Строки названных в нём пунктов этот ответ стёр на шпаргалке наполовину.`
                 : `Ваш ответ от ${when}. Протокол только для чтения.`,
             )}
           </p>
