@@ -3,9 +3,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /*
- * /login and /register inside the built-in browser of Telegram or Viber (live run of 2026-10-07): Google refuses to
- * sign in there (403 disallowed_useragent), so these pages say what /join says — «Откройте ссылку в Chrome или
- * Safari» with the same actions — and offer no Google button; e-mail stays.
+ * /login and /register inside an embedded WebView (live run of 2026-10-07, corrected the same day): Google usually
+ * refuses to sign in there (403 disallowed_useragent), so these pages say what /join says — «Откройте ссылку в Chrome
+ * или Safari» with the same actions — and offer no Google button; e-mail stays. A link Telegram opens in a Chrome
+ * Custom Tab or SFSafariViewController is Chrome or Safari: Google as everywhere, no note.
  */
 
 const auth = vi.hoisted(() => ({ signInWithOAuth: vi.fn(), signInWithPassword: vi.fn(), signUp: vi.fn() }));
@@ -33,6 +34,10 @@ const UA = {
   telegramIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
   viberAndroid:
     'Mozilla/5.0 (Linux; Android 13; Redmi Note 12; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.6613.146 Mobile Safari/537.36 Viber/22.8.1.0',
+  // What a Custom Tab (Android) and SFSafariViewController (iPhone) send: Chrome's and Safari's own user agents.
+  customTab: 'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+  safariView:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1',
 };
 const NEXT = '?next=%2Fjoin%2Fabcd2fghjkmn';
 const plain = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
@@ -79,7 +84,9 @@ describe.each([
     Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
     renderAt(`${page}${NEXT}`);
     const box = note();
-    expect(plain(box.textContent)).toContain('Во встроенном браузере Telegram Google не даёт войти');
+    expect(plain(box.textContent)).toContain(
+      'Это встроенный браузер Telegram. В таких браузерах Google обычно не даёт войти, а микрофон для ответов вслух может не работать.',
+    );
     expect(plain(box.textContent)).toContain(mailLine);
     fireEvent.click(within(box).getByRole('button', { name: 'Скопировать ссылку' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}${page}${NEXT}`));
@@ -100,7 +107,7 @@ describe.each([
     setAgent(UA.telegramIos);
     renderAt(page);
     const box = note();
-    expect(plain(box.textContent)).toContain('Во встроенном браузере приложения Google не даёт войти');
+    expect(plain(box.textContent)).toContain('Это встроенный браузер приложения. В таких браузерах Google обычно не даёт войти');
     expect(plain(box.textContent)).toContain('Или нажмите «⋯» или «Поделиться» → «Открыть в Safari».');
     expect(within(box).queryByRole('link', { name: 'Открыть в Chrome' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Войти через Google' })).toBeNull();
@@ -109,7 +116,7 @@ describe.each([
   it('in Viber the same, by its name', () => {
     setAgent(UA.viberAndroid);
     renderAt(page);
-    expect(plain(note().textContent)).toContain('Во встроенном браузере Viber Google не даёт войти');
+    expect(plain(note().textContent)).toContain('Это встроенный браузер Viber. В таких браузерах Google обычно не даёт войти');
     expect(screen.queryByRole('button', { name: 'Войти через Google' })).toBeNull();
   });
 
@@ -117,5 +124,16 @@ describe.each([
     renderAt(`${page}${NEXT}`);
     expect(screen.getByRole('button', { name: 'Войти через Google' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Откройте ссылку в Chrome или Safari' })).toBeNull();
+  });
+
+  it.each([
+    ['a Chrome Custom Tab opened from Telegram', 'customTab'],
+    ['SFSafariViewController opened from Telegram', 'safariView'],
+  ] as const)('in %s: Google as in any browser, no note', (_name, agent) => {
+    setAgent(UA[agent]);
+    renderAt(`${page}${NEXT}`);
+    expect(screen.getByRole('button', { name: 'Войти через Google' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Откройте ссылку в Chrome или Safari' })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/не даёт войти|встроенный браузер/);
   });
 });

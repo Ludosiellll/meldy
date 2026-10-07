@@ -3,10 +3,13 @@ import { chromeIntentUrl, inAppName, type InAppBrowser } from '../lib/inAppBrows
 import './inAppNote.css';
 
 /**
- * «Откройте ссылку в Chrome или Safari» (2026-10-07): inside the built-in browser of Telegram, Viber, Instagram or
- * Facebook Google refuses to sign in (403 disallowed_useragent) and the microphone is often missing. The same note on
- * /join, /login and /register: «Скопировать ссылку», on Android a link straight into Chrome, on iPhone where to tap.
- * `url` is the address to open elsewhere (with its ?next=, so the visitor lands where they were going).
+ * «Откройте ссылку в Chrome или Safari» (2026-10-07, corrected the same day on the owner's test): only inside a real
+ * embedded WebView (lib/inAppBrowser: Telegram Mini Apps, the browsers of Instagram and Facebook, some apps' own
+ * browsers). Google usually refuses to sign in there (403 disallowed_useragent) and the microphone may be missing. A
+ * link that Telegram opens in a Chrome Custom Tab or in SFSafariViewController is a real browser: no note, Google
+ * works. The same note on /join, /login and /register: «Скопировать ссылку», on Android a link straight into Chrome,
+ * on iPhone where to tap. `url` is the address to open elsewhere (with its ?next=, so the visitor lands where they
+ * were going).
  */
 
 interface Props {
@@ -39,8 +42,7 @@ export default function InAppNote({ browser, url, extra }: Props) {
         Откройте ссылку в Chrome или Safari
       </h2>
       <p>
-        {appName ? `Во встроенном браузере ${appName}` : 'Во встроенном браузере приложения'} Google не даёт войти, а микрофон
-        для ответов вслух часто не работает.
+        {`Это встроенный браузер ${appName ?? 'приложения'}. В таких браузерах Google обычно не даёт войти, а микрофон для ответов вслух может не работать.`}
       </p>
       <div className="ia-do">
         <button type="button" className="sf-primary ia-copy" onClick={() => void copyLink(url).then(setCopied)}>

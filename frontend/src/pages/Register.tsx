@@ -14,8 +14,9 @@ import InAppNote from '../components/InAppNote';
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
  * с коротким роликом «Материал становится планом подготовки» (AuthReel). Пароль и его повтор стоят
- * рядом, чтобы форма помещалась на экране ноутбука. Во встроенном браузере мессенджера — как на входе:
- * просьба открыть ссылку в Chrome или Safari вместо кнопки Google, регистрация по почте остаётся.
+ * рядом, чтобы форма помещалась на экране ноутбука. Во встроенном WebView — как на входе: просьба открыть
+ * ссылку в Chrome или Safari вместо кнопки Google, регистрация по почте остаётся (lib/inAppBrowser: Custom Tabs и
+ * SFSafariViewController — настоящие браузеры, там кнопка Google есть).
  */
 export default function Register() {
   const [name, setName] = useState('');
@@ -289,7 +290,7 @@ export default function Register() {
                   </button>
                 </form>
 
-                {/* Inside a messenger's browser Google refuses to sign in: no button that cannot work. */}
+                {/* Inside an embedded WebView Google refuses to sign in (lib/inAppBrowser): no button that cannot work. */}
                 {!browser.app && (
                   <>
                     <div className="au-or">или войти через</div>

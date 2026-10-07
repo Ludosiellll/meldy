@@ -15,9 +15,11 @@ import InAppNote from '../components/InAppNote';
  * как плитки первого экрана лендинга; под заголовком панели по кругу идёт короткий ролик «Как
  * работает Meldy» (AuthReel, на движке ролика лендинга). Отступы следуют высоте экрана, чтобы форма
  * целиком помещалась на ноутбуке. На телефоне панель сжимается до строки над карточкой, без ролика.
- * Во встроенном браузере Telegram, Viber, Instagram или Facebook Google не даёт войти (403
- * disallowed_useragent): вместо кнопки Google — та же просьба открыть ссылку в Chrome или Safari, что на
- * /join (components/InAppNote), а вход по почте остаётся. Стили — .au-* в styles/legacy.css.
+ * Во встроенном WebView (мини-приложения Telegram, браузеры Instagram и Facebook, свои браузеры некоторых
+ * приложений) Google обычно не даёт войти (403 disallowed_useragent): там вместо кнопки Google — та же просьба
+ * открыть ссылку в Chrome или Safari, что на /join (components/InAppNote), а вход по почте остаётся. Ссылку из
+ * Telegram, открытую в Chrome Custom Tabs или SFSafariViewController, это не касается: там Google работает
+ * (lib/inAppBrowser). Стили — .au-* в styles/legacy.css.
  */
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -154,7 +156,7 @@ export default function Login() {
               </button>
             </form>
 
-            {/* Inside a messenger's browser Google refuses to sign in: no button that cannot work. */}
+            {/* Inside an embedded WebView Google refuses to sign in (lib/inAppBrowser): no button that cannot work. */}
             {!browser.app && (
               <>
                 <div className="au-or">или</div>

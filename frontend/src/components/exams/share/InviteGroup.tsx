@@ -48,11 +48,14 @@ function membersPhrase(share: ShareInfo): string {
   return share.members > 0 ? `вошли ${share.members} из ${share.maxMembers}` : 'пока никто не вошёл';
 }
 
-/** The message for the group's chat: what the link gives, where to open it, the link last (messengers preview it). */
+/**
+ * The message for the group's chat: what the link gives, the link last (messengers preview it). Not a word about
+ * browsers (owner, 2026-10-07: «непонятно почему гугл вход не работает, хотя он работает»): Telegram opens a link in
+ * Chrome or Safari, where Google sign-in works, and /join itself speaks up only inside a real WebView (InAppNote).
+ */
 export function groupMessage(title: string, url: string): string {
   return [
-    `Готовимся к экзамену «${title}» в Meldy. По ссылке у каждого будет своя копия: вопросы, лекции и шпаргалка с пунктами ответа. Отвечаете вслух — строки стираются. Ваши ответы видите только вы.`,
-    'Откройте ссылку в Chrome или Safari: во встроенном браузере Telegram или Viber вход через Google не работает.',
+    `Готовимся к экзамену «${title}» в Meldy. По ссылке у каждого будет своя копия: вопросы, лекции и шпаргалка с пунктами ответа. Отвечаете вслух — строки шпаргалки стираются. Ваши ответы видите только вы.`,
     url,
   ].join('\n');
 }
@@ -181,7 +184,7 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
       setPhase((current) =>
         current.kind === 'loaded' ? { kind: 'loaded', state: { ...current.state, shares: [result.share, ...current.state.shares] } } : current,
       );
-      setAnnounce('Ссылка создана. Скопируйте её сейчас: потом её не показать.');
+      setAnnounce('Ссылка создана. Скопируйте её и отправьте группе.');
       track('group_link_created');
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'Не получилось создать ссылку. Попробуйте через минуту.');

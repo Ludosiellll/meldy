@@ -1,31 +1,42 @@
 /**
- * Built-in browsers of messengers and social apps (2026-10-07, «группа по ссылке»): a group link is
- * opened from the group's chat, and inside Telegram, Viber, Instagram or Facebook Google refuses to sign in
- * (403 disallowed_useragent) and the microphone is often missing. Told by the user agent: the app's own
- * mark, else a plain Android WebView («; wv)») or an iOS WebKit view without Safari's mark.
+ * Embedded browsers (2026-10-07, «группа по ссылке»; corrected the same day on the owner's test). A group link is
+ * opened from the group's chat. Telegram and most messengers open a link in Chrome Custom Tabs (Android) or
+ * SFSafariViewController (iOS): that is Chrome or Safari itself, its user agent is theirs, and Google sign-in works
+ * there. Google refuses only inside a real embedded WebView (403 disallowed_useragent): Telegram Mini Apps, the
+ * browsers of Instagram and Facebook, some apps' own browsers; the microphone may be missing there too.
+ *
+ * So only a WebView's own mark counts, the one Google goes by: «; wv)» on Android, an iOS WebKit view without
+ * Safari's «Safari/». The app's mark (Telegram, Viber …) only names the app in the note: without a WebView mark
+ * the browser is a real one.
  */
 
 export type InAppApp = 'telegram' | 'viber' | 'instagram' | 'facebook' | 'webview';
 export type DeviceOs = 'android' | 'ios' | 'other';
 
 export interface InAppBrowser {
-  /** null — a real browser (Chrome, Safari, Firefox …). */
+  /** null — a real browser (Chrome, Safari, Firefox …, a Custom Tab, SFSafariViewController); else a WebView. */
   app: InAppApp | null;
   os: DeviceOs;
 }
 
 const IOS_BROWSERS = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|YaBrowser|DuckDuckGo|GSA\//i;
 
+/** The WebView's own mark: «; wv)» of Android System WebView, or an iOS WebKit view that is not Safari. */
+function isWebView(ua: string, os: DeviceOs): boolean {
+  if (os === 'android') return /;\s*wv\)/i.test(ua);
+  if (os === 'ios') return /AppleWebKit/i.test(ua) && !/Safari\//i.test(ua) && !IOS_BROWSERS.test(ua);
+  return false;
+}
+
 export function detectInAppBrowser(userAgent: string | null | undefined): InAppBrowser {
   const ua = typeof userAgent === 'string' ? userAgent : '';
   const os: DeviceOs = /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'other';
-  let app: InAppApp | null = null;
+  if (!isWebView(ua, os)) return { app: null, os };
+  let app: InAppApp = 'webview';
   if (/Telegram/i.test(ua)) app = 'telegram';
   else if (/Viber/i.test(ua)) app = 'viber';
   else if (/Instagram/i.test(ua)) app = 'instagram';
   else if (/FBAN|FBAV|FB_IAB|FBIOS|FB4A|FBMD|FBSV/i.test(ua)) app = 'facebook';
-  else if (os === 'android' && /;\s*wv\)/i.test(ua)) app = 'webview';
-  else if (os === 'ios' && /AppleWebKit/i.test(ua) && !/Safari\//i.test(ua) && !IOS_BROWSERS.test(ua)) app = 'webview';
   return { app, os };
 }
 

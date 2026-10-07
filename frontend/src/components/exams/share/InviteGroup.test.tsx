@@ -131,9 +131,12 @@ describe('«Пригласить группу»', () => {
 
     const message = within(dialog).getByLabelText('Текст для беседы группы') as HTMLTextAreaElement;
     expect(message.value).toBe(groupMessage('Макроэкономика', url));
-    expect(message.value).toContain('«Макроэкономика»');
-    expect(message.value).toContain('Откройте ссылку в Chrome или Safari');
-    expect(message.value.split('\n').pop()).toBe(url);
+    // What the copy gives, then the link; no word about browsers: Google sign-in works in Telegram's links (owner).
+    expect(message.value.split('\n')).toEqual([
+      'Готовимся к экзамену «Макроэкономика» в Meldy. По ссылке у каждого будет своя копия: вопросы, лекции и шпаргалка с пунктами ответа. Отвечаете вслух — строки шпаргалки стираются. Ваши ответы видите только вы.',
+      url,
+    ]);
+    expect(message.value).not.toMatch(/Google|Telegram|Viber|Chrome|Safari|браузер/);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Скопировать текст' }));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(message.value));
 

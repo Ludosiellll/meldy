@@ -34,6 +34,10 @@ const UA = {
   telegramAndroid:
     'Mozilla/5.0 (Linux; Android 14; SM-A546B; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.6668.100 Mobile Safari/537.36 Telegram-Android/11.2.2',
   webviewIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  // Telegram opens a link in a Chrome Custom Tab or in SFSafariViewController: Chrome's and Safari's own user agents.
+  customTab: 'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+  safariView:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1',
 };
 const ACTIVE = { status: 'active', title: 'Макроэкономика', kind: 'exam', exam_date: '2026-11-10', questions: 40, lectures: 3 };
 
@@ -139,7 +143,7 @@ describe('/join/<код> signed out', () => {
     server();
     renderAt(`/join/${CODE}`);
     const note = (await screen.findByRole('heading', { name: 'Откройте ссылку в Chrome или Safari' })).closest('section')!;
-    expect(plain(note.textContent)).toContain('Во встроенном браузере Telegram Google не даёт войти');
+    expect(plain(note.textContent)).toContain('Это встроенный браузер Telegram. В таких браузерах Google обычно не даёт войти');
     fireEvent.click(within(note).getByRole('button', { name: 'Скопировать ссылку' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/join/${CODE}`));
     expect(await within(note).findByRole('button', { name: 'Ссылка скопирована' })).toBeInTheDocument();
@@ -147,10 +151,22 @@ describe('/join/<код> signed out', () => {
     // The site is https (jsdom runs on http): the same address, in Chrome.
     expect(chrome.getAttribute('href')).toMatch(new RegExp(`^intent://[^#]+/join/${CODE}#Intent;scheme=https?;package=com\\.android\\.chrome;`));
     expect(chrome.getAttribute('href')).toMatch(/;end$/);
-    // Google refuses inside the app: only e-mail is offered, under the note.
+    // Google refuses inside a WebView: only e-mail is offered, under the note.
     expect(screen.queryByRole('button', { name: 'Войти через Google' })).toBeNull();
     const mail = screen.getByRole('link', { name: 'Войти по почте здесь' });
     expect(note.compareDocumentPosition(mail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it.each([
+    ['a Chrome Custom Tab', 'customTab'],
+    ['SFSafariViewController', 'safariView'],
+  ] as const)('opened from Telegram in %s: Google first, no note', async (_name, agent) => {
+    setAgent(UA[agent]);
+    server();
+    renderAt(`/join/${CODE}`);
+    expect(await screen.findByRole('button', { name: 'Войти через Google' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Войти по почте' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Откройте ссылку в Chrome или Safari' })).toBeNull();
   });
 
   it('inside an iPhone app tells where to tap', async () => {
@@ -158,7 +174,7 @@ describe('/join/<код> signed out', () => {
     server();
     renderAt(`/join/${CODE}`);
     const note = (await screen.findByRole('heading', { name: 'Откройте ссылку в Chrome или Safari' })).closest('section')!;
-    expect(plain(note.textContent)).toContain('Во встроенном браузере приложения Google не даёт войти');
+    expect(plain(note.textContent)).toContain('Это встроенный браузер приложения. В таких браузерах Google обычно не даёт войти');
     expect(plain(note.textContent)).toContain('Или нажмите «⋯» или «Поделиться» → «Открыть в Safari».');
     expect(within(note).queryByRole('link', { name: 'Открыть в Chrome' })).toBeNull();
   });

@@ -1,6 +1,6 @@
 /*
- * «Откройте ссылку в Chrome или Safari» (InAppNote.tsx) on /join, /login and /register: a soft yellow card inside the
- * sign-in card (.au-card, styles/legacy.css).
+ * «Откройте ссылку в Chrome или Safari» (InAppNote.tsx) on /join, /login and /register, only inside an embedded
+ * WebView: a soft yellow card inside the sign-in card (.au-card, styles/legacy.css).
  */
 .ia-note {
   display: grid;
