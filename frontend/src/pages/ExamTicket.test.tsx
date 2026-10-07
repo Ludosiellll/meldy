@@ -854,7 +854,7 @@ describe('ExamTicket: answering by text', () => {
     await screen.findByText(/Сохранено в историю и/);
     const followupCheck = callsTo('/api/oral/check').find((call) => bodyOf(call).only === 'p4');
     expect((followupCheck?.[1] as RequestInit).signal?.aborted).toBe(true);
-    expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам засчитан частично.');
+    expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам пункт упомянут.');
     const [, args] = rpc.mock.calls[0] as unknown as [string, { p_attempt: { followup: { chosen_by: string; status: string } } }];
     expect(args.p_attempt.followup).toMatchObject({ chosen_by: 'client', status: 'partial' });
   });
