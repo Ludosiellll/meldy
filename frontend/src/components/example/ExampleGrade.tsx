@@ -10,7 +10,7 @@ export const EXAMPLE_GRADE_NOTE =
  * The scale line of the protocol (OralProtocol.SCALE_NOTE) in the example's words: the lectures of the
  * example are not the guest's own.
  */
-export const EXAMPLE_SCALE_NOTE = 'Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из лекций.';
+export const EXAMPLE_SCALE_NOTE = 'Отметку ставит преподаватель по 10-\u2060балльной шкале. Meldy проверяет только, назвали ли вы пункты из лекций.';
 
 /**
  * The result on the example's desk: the real protocol's result card (OralProtocol.ProtocolResult) —

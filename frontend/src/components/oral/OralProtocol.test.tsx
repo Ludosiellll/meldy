@@ -222,7 +222,7 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
     expect(sum()).toBe('Назвали сами 2 из 4 главных');
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
     expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
-    expect(SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.');
+    expect(SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-\u2060балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.');
     // «Итог» as the card's flag, not «Оценка».
     expect(document.querySelector('.or-grade-label')?.textContent).toBe('Итог');
     expect(document.querySelector('.or-how')).toBeNull();
@@ -234,6 +234,16 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
     expect(screen.getByText('Прошлый ответ, 1 окт.')).toHaveClass('or-prev-line');
     // Nothing of a grade: no digit, no word, no «Засчитано».
     expect(document.body.textContent).not.toMatch(/Оценка|отлично|хорошо|удовлетвор|[Зз]асчитан|→ [2-5]/);
+  });
+
+  it('keeps «10-балльной» on one line: a word joiner after the hyphen, the words as they were', () => {
+    render(<ProtocolResult points={points} followup={null} />);
+    // U+2060 draws nothing and allows no line break beside it; on a 360–414 px phone «10-» ended a line.
+    expect(document.querySelector('.or-grade-fine')?.textContent).toContain('10-\u2060балльной');
+    expect(SCALE_NOTE.match(/\u2060/g)).toHaveLength(1);
+    expect(SCALE_NOTE.replace(/\u2060/g, '')).toBe(
+      'Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.',
+    );
   });
 
   it('adds the point named after the examiner’s question and the errors, only when there are any', () => {
