@@ -15,6 +15,7 @@ import json
 import random
 import re
 import sys
+import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -39,11 +40,14 @@ from exams_map import (  # noqa: E402
     MapError,
     Verdict,
     clean_missing,
+    clean_reason,
     coverage_from_verdict,
+    generic_reason,
     heading_passages,
     materials_fingerprint,
     passage_index,
     prepare_mapping,
+    quote_spans,
     release_unstarted,
     run_mapping,
     select_targets,
@@ -51,7 +55,7 @@ from exams_map import (  # noqa: E402
 )
 from exams_parse import question_hash  # noqa: E402
 from exams_prompts import JUDGE_PROMPT, JudgeCandidate, JudgeQuestion, batch_labels, build_judge_block  # noqa: E402
-from retrieval import BM25Index, material_passages  # noqa: E402
+from retrieval import BM25Index, Hit, Passage, material_passages  # noqa: E402
 from supabase_rest import SupabaseRest  # noqa: E402
 from utils import build_source_chunks  # noqa: E402
 
@@ -879,8 +883,9 @@ def test_supported_verdicts_cite_whole_fragments_and_keep_only_honest_notes():
     assert [item["source_id"] for item in full["evidence"]] == ["S14", hits[1].passage.source_id]
     assert full["evidence"][0]["excerpt"] == hits[0].passage.text and full["missing"] == "" and full["nearest"] == []
     partial = coverage_from_verdict("q1", hits, Verdict("partial", (0,), "Нет примеров", ""), "t")
-    # «Не хватает: примеров» — без «Нет» в начале; пустое пояснение — общее пояснение сервера.
-    assert partial["missing"] == "примеров" and partial["reason"] == "Во фрагментах лекций есть часть ответа"
+    # «Не хватает: примеров» — без «Нет» в начале; пустое пояснение так и остаётся пустым: общая фраза
+    # «Во фрагментах лекций есть часть ответа» под «Есть частично» ничего не говорит.
+    assert partial["missing"] == "примеров" and partial["reason"] == ""
     none = coverage_from_verdict("q1", hits, Verdict("none", (0,), "", "Фрагменты о другом"), "t")
     assert none["evidence"] == [] and none["nearest"] and none["reason"] == "Фрагменты о другом"
 
@@ -1167,9 +1172,9 @@ def test_judge_notes_name_lecture_fragments_instead_of_candidate_labels():
     assert item["missing"] == f"классификации видов во фрагменте {second}"
     listed = coverage_from_verdict("q1", hits, Verdict("full", (0, 1), "", "C1 и C2 описывают метод"), "t")
     assert listed["reason"] == f"Фрагменты {first} и {second} описывают метод"
-    # Метка, которой нет у вопроса, — пояснение не показываем, остаётся общее.
+    # Метка, которой нет у вопроса, — пояснение не показываем (и общего вместо него нет).
     unknown = coverage_from_verdict("q1", hits, Verdict("partial", (0,), "Нет примеров из [C9]", "Ответ в C9"), "t")
-    assert unknown["reason"] == "Во фрагментах лекций есть часть ответа" and unknown["missing"] == ""
+    assert unknown["reason"] == "" and unknown["missing"] == ""
     # «С 5 видами» — не метка.
     assert coverage_from_verdict("q1", hits, Verdict("full", (0,), "", "С 5 видами функций"), "t")["reason"] == "С 5 видами функций"
 
@@ -1183,12 +1188,14 @@ def test_judge_notes_with_batch_labels_name_own_fragments_and_hide_a_neighbours_
     ), "t")
     assert item["reason"] == f"Фрагмент {first} содержит определение, виды есть во фрагменте {second}"
     assert item["missing"] == f"классификации видов во фрагменте {second}"
-    # C1 — метка первого вопроса пачки, у этого вопроса её нет: пояснение общее, «не хватает» пусто.
+    # C1 — метка первого вопроса пачки, у этого вопроса её нет: пояснения нет, «не хватает» пусто.
     neighbour = coverage_from_verdict("q1", hits, Verdict("partial", (0,), "Нет примеров из C1", "Ответ в C1", labels), "t")
-    assert neighbour["reason"] == "Во фрагментах лекций есть часть ответа" and neighbour["missing"] == ""
-    # «C130» — не «C13» с лишней цифрой.
+    assert neighbour["reason"] == "" and neighbour["missing"] == ""
+    # «C130» — не «C13» с лишней цифрой: метка чужая, пояснения нет; у «нет» — общее пояснение сервера.
     longer = coverage_from_verdict("q1", hits, Verdict("full", (0,), "", "Ответ в C130", labels), "t")
-    assert longer["reason"] == "Ответ есть во фрагментах лекций"
+    assert longer["reason"] == ""
+    gap = coverage_from_verdict("q1", hits, Verdict("none", (), "", "Ответ в C130", labels), "t")
+    assert gap["reason"] == "Во фрагментах лекций нет ответа на этот вопрос"
 
 
 def test_a_three_digit_label_is_not_read_as_a_two_digit_one():
@@ -1262,7 +1269,247 @@ def test_reused_rows_lose_old_candidate_labels(fake, judge):
     events = run_map(fake, exam_b)
     item = items(events)[reused_id]
     assert item["reused"] is True
-    assert item["reason"] == "Во фрагментах лекций есть часть ответа" and item["missing"] == "примеров"
+    assert item["reason"] == "" and item["missing"] == "примеров"
+
+
+# ── Пояснение, которое что-то говорит ───────────────────────────────────────────
+
+# Живой прогон 07.10 после выпуска 29: 12 «есть» из 15 с такими пояснениями. И прежние общие пояснения сервера.
+GENERIC_REASONS = [
+    "Вопрос полностью раскрыт в приложенных фрагментах.",
+    "Вопрос полностью раскрыт в материалах.",
+    "Вопрос полностью освещен во фрагментах.",
+    "Вопрос полностью освещён во фрагментах",
+    "Материалы содержат исчерпывающий ответ на вопрос.",
+    "Ответ есть во фрагментах",
+    "Фрагменты содержат ответ.",
+    "ОТВЕТ ЕСТЬ ВО ФРАГМЕНТАХ ЛЕКЦИЙ",
+    "Во фрагментах лекций есть часть ответа",
+    "Тема раскрыта полностью.",
+    "Во фрагменте 14 есть полный ответ на вопрос.",
+]
+CONTENT_REASONS = [
+    "Понятие транзакции, операторы и свойства ACID полностью описаны в тексте.",
+    "Аномалии параллельного выполнения и уровни изоляции подробно рассмотрены во фрагментах.",
+    "Определения первой и второй нормальных форм даны, но во фрагментах нет разбора примера для 2НФ.",
+    "Есть определение",
+    "Ответственность сторон раскрыта полностью.",  # «ответ» — точной формой: «ответственность» — тема
+    "Температура описана подробно.",  # «тема», но не «температура»
+    "Освещённость описана подробно.",  # «освещена», но не «освещённость»
+]
+
+
+@pytest.mark.parametrize("reason", GENERIC_REASONS)
+def test_a_reason_without_content_is_generic(reason):
+    assert generic_reason(reason)
+
+
+@pytest.mark.parametrize("reason", CONTENT_REASONS + ["", "   "])
+def test_a_reason_that_names_the_content_is_not_generic(reason):
+    assert not generic_reason(reason)
+
+
+def test_a_generic_reason_is_not_stored_so_the_why_panel_shows_nothing():
+    hits = _demo_hits(Q_BACKPROP)
+    for coverage in ("full", "partial"):
+        for reason in ("Вопрос полностью раскрыт в приложенных фрагментах.", "Фрагменты C1 и C2 содержат ответ", ""):
+            item = coverage_from_verdict("q1", hits, Verdict(coverage, (0,), "", reason), "t")
+            assert item["coverage"] == coverage and item["reason"] == "", (coverage, reason)
+    named = coverage_from_verdict("q1", hits, Verdict("full", (0,), "", "C1 описывает прямой и обратный проход"), "t")
+    first = str(int(hits[0].passage.source_id[1:]))
+    assert named["reason"] == f"Фрагмент {first} описывает прямой и обратный проход"
+    # У «нет» пояснение на панели не показывается: остаётся общее пояснение сервера, его сравнивают отчёт и лист.
+    assert clean_reason("Ответ есть во фрагментах", "none", {}) == "Во фрагментах лекций нет ответа на этот вопрос"
+    assert clean_reason("Фрагменты о другом", "none", {}) == "Фрагменты о другом"
+
+
+def test_judge_prompt_asks_for_a_reason_that_names_the_content():
+    assert "что именно во фрагментах отвечает на вопрос" in JUDGE_PROMPT
+    assert "Общих фраз вроде «Вопрос полностью раскрыт» или «Ответ есть во фрагментах» не пиши" in JUDGE_PROMPT
+
+
+@pytest.mark.parametrize(
+    ("coverage", "reason", "shown"),
+    [
+        ("full", "Вопрос полностью раскрыт в приложенных фрагментах.", ""),
+        ("full", "Ответ есть во фрагментах лекций", ""),  # прежнее общее пояснение сервера
+        ("partial", "Во фрагментах лекций есть часть ответа", ""),
+        ("full", "Свойства ACID описаны полностью", "Свойства ACID описаны полностью"),
+        ("none", "Во фрагментах лекций нет ответа на этот вопрос", "Во фрагментах лекций нет ответа на этот вопрос"),
+        ("none", "Нет подтверждающего фрагмента", "Нет подтверждающего фрагмента"),
+    ],
+)
+def test_reused_rows_drop_old_generic_reasons(fake, judge, coverage, reason, shown):
+    exam_a, (source_id,), materials = course(fake, [Q_BACKPROP])
+    run_map(fake, exam_a)
+    source = fake.row("exam_questions", source_id)
+    assert source["coverage"] == "full"
+    source.update({"coverage": coverage, "coverage_reason": reason})
+    if coverage == "none":
+        source.update({"evidence": []})
+    exam_b = fake.exam()
+    for material_id in materials:
+        fake.link(exam_b, material_id)
+    reused_id = fake.question(exam_b, 1, Q_BACKPROP)
+    item = items(run_map(fake, exam_b))[reused_id]
+    assert item["reused"] is True and item["reason"] == shown
+    assert fake.row("exam_questions", reused_id)["coverage_reason"] == shown
+
+
+# ── Место ответа во фрагменте (focus) ───────────────────────────────────────────
+
+INTEGRITY_FRAGMENT = (
+    "Связь M:N распадается на две связи 1:N, и внешний ключ объявляют NOT NULL. 7. Ограничения целостности\n"
+    "Ограничения  целостности — правила, которым должны удовлетворять «данные» в любой момент времени. "
+    "Ёмкость индекса растёт вместе с таблицей."
+)
+
+
+def _focused(text, span):
+    return text[span[0]:span[1]]
+
+
+@pytest.mark.parametrize(
+    ("quote", "shown"),
+    [
+        # Дословно.
+        ("правила, которым должны удовлетворять «данные» в любой момент", "правила, которым должны удовлетворять «данные» в любой момент"),
+        # Регистр, «-» вместо «—», другие кавычки, лишние пробелы и перенос строки — место то же, текст — лекции.
+        # Место — от первого до последнего слова цитаты: закрывающая «»» за словом в него не входит.
+        ("ОГРАНИЧЕНИЯ целостности - правила,  которым\nдолжны удовлетворять \"данные\"",
+         "Ограничения  целостности — правила, которым должны удовлетворять «данные"),
+        # «е» вместо «ё».
+        ("Емкость индекса растет вместе с таблицей", "Ёмкость индекса растёт вместе с таблицей"),
+        # Слова повторяются: место — первое, где цитата идёт подряд, как у verify_quote (не заголовок «7. …»).
+        ("Ограничения целостности правила которым должны", "Ограничения  целостности — правила, которым должны"),
+    ],
+)
+def test_quote_spans_map_the_verified_words_back_to_the_lecture_text(quote, shown):
+    (span,) = quote_spans(quote, [INTEGRITY_FRAGMENT])
+    assert _focused(INTEGRITY_FRAGMENT, span) == shown
+
+
+def test_quote_spans_count_code_points_of_the_text_as_stored_even_when_it_is_not_nfc():
+    composed = "Мой край: ёмкость индекса растёт быстро и сильно."
+    decomposed = unicodedata.normalize("NFD", composed)
+    assert len(decomposed) > len(composed)  # «й» и «ё» — по два знака
+    (span,) = quote_spans("емкость индекса растет быстро и", [decomposed])
+    # В NFC «ёмкость» начиналась бы с 10-го знака, в тексте, как он хранится, — с 12-го.
+    assert span == (12, 45) and unicodedata.normalize("NFC", _focused(decomposed, span)) == "ёмкость индекса растёт быстро и"
+    # 𝑥 и 𝑦 — по одной кодовой точке (в UTF-16 браузера — по две: клиент переводит смещения сам).
+    astral = "𝑥 и 𝑦 — переменные, функция растёт быстро."
+    (span,) = quote_spans("функция растёт быстро", [astral])
+    assert span[0] == astral.index("функция") == 20 and _focused(astral, span) == "функция растёт быстро"
+    assert len(astral[:span[0]].encode("utf-16-le")) // 2 == 22
+
+
+def test_quote_spans_follow_a_quote_that_starts_in_the_heading():
+    heading, text = "Свойства транзакций ACID", "Атомарность значит «всё или ничего»: транзакция выполняется целиком."
+    spans = quote_spans("транзакций ACID. Атомарность значит всё или ничего", [heading, text])
+    assert spans == [(9, 24), (0, 34)]
+    assert _focused(heading, spans[0]) == "транзакций ACID" and _focused(text, spans[1]) == "Атомарность значит «всё или ничего"
+    # Цитата только в заголовке — фрагмент не задет; цитаты нет — None.
+    assert quote_spans("Свойства транзакций ACID", [heading, text]) == [(0, 24), None]
+    assert quote_spans("транзакция откатывается целиком", [heading, text]) is None
+    assert quote_spans("", [text]) is None and quote_spans(None, [text]) is None
+
+
+def test_a_verified_quote_marks_its_place_in_the_evidence_but_is_never_stored():
+    batch = _quote_batch()
+    checked = validate_judge_answer(judge_answer({"n": 1, "coverage": "full", "support": [
+        cite("C1", "правила, которым должны удовлетворять данные в любой момент"),
+        cite("C1", "при каждой вставке, изменении и удалении"),  # вторая цитата того же фрагмента — место по первой
+        cite("C3", "значение внешнего ключа совпадает с существующим значением"),  # перенесена к C2
+        cite("C4", "емкость индекса растет, когда в таблице еще больше строк"),
+    ], "missing": "", "reason": "Перечислены виды ограничений целостности"}), batch)
+    verdict = checked.verdicts[0]
+    assert verdict.support == (0, 1, 3) and len(verdict.quotes) == 3
+    passages = [Passage(c.key[0], "Лекция", c.key[1], c.text, int(c.key[1][1:])) for c in batch[0].candidates]
+    hits = [Hit(passage, 1.0, 1.0, [], [], None) for passage in passages]
+    item = coverage_from_verdict("q", hits, verdict, "t")
+    focused = [_focused(e["excerpt"], e["focus"]) for e in item["evidence"]]
+    assert focused == [
+        "правила, которым должны удовлетворять данные в любой момент",
+        "значение внешнего ключа совпадает с существующим значением",
+        "Ёмкость индекса растёт, когда в таблице ещё больше строк",
+    ]
+    stored = json.dumps(item, ensure_ascii=False)
+    assert "емкость индекса растет" not in stored  # цитата модели (с «е») — только проверка, в строку не попадает
+
+
+def test_a_quote_starting_in_the_section_heading_focuses_both_heading_and_fragment():
+    passages, index, by_order = _phillips()
+    hits = index.search(Q_PHILLIPS_ASPECTS, top_k=6, per_material_cap=3)
+    assert hits[0].heading == "Кривая Филлипса"
+    question = JudgeQuestion(Q_PHILLIPS_ASPECTS, tuple(
+        JudgeCandidate(hit.passage.title, hit.passage.text, hit.heading, (hit.passage.material_id, hit.passage.source_id))
+        for hit in hits
+    ))
+    checked = validate_judge_answer(judge_answer({"n": 1, "coverage": "partial", "support": [
+        cite("C1", "Кривая Филлипса. В краткосрочном периоде существует обратная связь"),
+    ], "missing": "", "reason": ""}), [question])
+    item = coverage_from_verdict("q", hits, checked.verdicts[0], "t", by_order)
+    heading, fragment = item["evidence"]
+    assert (heading["source_id"], heading["focus"]) == ("S03", [0, len("Кривая Филлипса")])
+    assert fragment["focus"][0] == 0
+    assert _focused(fragment["excerpt"], fragment["focus"]) == "В краткосрочном периоде существует обратная связь"
+
+
+def test_evidence_without_a_quote_has_no_focus():
+    hits = _demo_hits(Q_BACKPROP)
+    item = coverage_from_verdict("q1", hits, Verdict("full", (0, 1), "", ""), "t")
+    assert item["evidence"] and all("focus" not in evidence for evidence in item["evidence"])
+
+
+def test_a_mapping_run_stores_the_focus_of_each_quoted_fragment(fake, judge):
+    exam_id, question_ids, _ = course(fake, [Q_BACKPROP, Q_POLICY, Q_BAYES])
+    events = run_map(fake, exam_id)
+    marks = items(events)
+    texts = {row["id"]: row["original_text"] for row in fake.tables["materials"]}
+    fragments = fragments_of(*texts.items())
+    focused = 0
+    for question_id in question_ids:
+        row = fake.row("exam_questions", question_id)
+        assert row["evidence"] == marks[question_id]["evidence"]  # то же в строке и в событии
+        for evidence in row["evidence"]:
+            assert evidence["excerpt"] == fragments[(evidence["material_id"], evidence["source_id"])]
+            start, end = evidence["focus"]
+            # Честный судья цитирует 8 слов с начала нужного места: в focus — эти слова лекции.
+            assert len(evidence["excerpt"][start:end].split()) == 8
+            focused += 1
+    assert focused >= 2
+    assert_honest_rows(fake)
+
+
+def test_focus_is_carried_on_reuse_and_ignored_by_the_current_evidence_check(fake, judge):
+    exam_a, (source_id,), materials = course(fake, [Q_BACKPROP])
+    run_map(fake, exam_a)
+    source = fake.row("exam_questions", source_id)
+    focus = source["evidence"][0]["focus"]
+    texts = {row["id"]: row["original_text"] for row in fake.tables["materials"]}
+    fragments = fragments_of(*texts.items())
+    material_ids = {row["id"] for row in fake.tables["materials"]}
+    # Есть с focus и нынешним фрагментом — перепроверять нечего; без focus (строка до выпуска) — тоже.
+    assert select_targets([source], source["materials_fingerprint"], material_ids, None, False, fragments) == []
+    old = {**source, "evidence": [{key: value for key, value in item.items() if key != "focus"} for item in source["evidence"]]}
+    assert select_targets([old], source["materials_fingerprint"], material_ids, None, False, fragments) == []
+
+    def reuse(evidence):
+        source["evidence"] = evidence
+        exam_b = fake.exam()
+        for material_id in materials:
+            fake.link(exam_b, material_id)
+        reused_id = fake.question(exam_b, 1, Q_BACKPROP)
+        item = items(run_map(fake, exam_b))[reused_id]
+        assert item["reused"] is True
+        return item["evidence"][0]
+
+    original = [dict(item) for item in source["evidence"]]
+    assert reuse(original)["focus"] == focus
+    assert "focus" not in reuse(old["evidence"])  # строка без focus — и копия без него
+    broken = [{**original[0], "focus": [5, len(original[0]["excerpt"]) + 9]}] + original[1:]
+    assert "focus" not in reuse(broken)  # за пределами excerpt — не переносится
+    assert "focus" not in reuse([{**original[0], "focus": ["0", "12"]}] + original[1:])
 
 
 # ── Поток разметки ──────────────────────────────────────────────────────────────

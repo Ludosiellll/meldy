@@ -1253,6 +1253,27 @@ def test_a_rubric_that_was_not_saved_is_failed_and_refunded(paid):
     assert paid.model.short_calls == [] and not any(r.method == "PATCH" for r in fake.requests)
 
 
+def test_the_call_log_keeps_a_unit_only_for_a_saved_rubric(paid, monkeypatch):
+    """ai_calls: пункты ответа, чья единица вернулась (эталон не сохранён), пишутся с 0 единиц."""
+    from fastapi.testclient import TestClient
+
+    from agents import base
+
+    monkeypatch.delenv("AI_CALL_LOG_DISABLED", raising=False)
+    paid.model.on_rubric = lambda text: base._record_call("gemini", "test-model", True, 9)
+    fake = paid.fake
+    exam_id, _, _ = course(fake, QUESTIONS[:1])
+    with TestClient(paid.main.app, headers={"Authorization": "Bearer token-a"}) as client:
+        fake.fail[("POST", "oral_rubrics")] = 500
+        assert statuses(events_of(write(client, exam_id)))[0][1] == "failed"
+        fake.fail.pop(("POST", "oral_rubrics"))
+        assert statuses(events_of(write(client, exam_id)))[0][1] == "written"
+        client.portal.call(quota.drain_background)
+    logs = paid.server.rpc("log_ai_call")
+    assert sorted(log["p_units"] for log in logs) == [0, AI_COSTS["answerPoints"]]
+    assert paid.server.used == AI_COSTS["answerPoints"] and len(paid.server.rpc("refund_ai_units")) == 1
+
+
 def test_an_exam_without_lectures_fails_its_questions_without_the_model(sheet):
     exam_id, ids, _ = course(sheet.fake, QUESTIONS[:2], lectures=())
     events = events_of(write(sheet, exam_id))

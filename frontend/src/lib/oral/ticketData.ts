@@ -346,6 +346,20 @@ function storedPoint(value: unknown): StoredPoint | null {
   };
 }
 
+/**
+ * A point the protocol lists an error for reads «ошибка», as the server has made it since release 28
+ * (oral.validate_evaluation): a protocol saved before that can call such a point «covered» and show the
+ * correction under a tick (live run 07.10). Shown the server's way: the status «wrong» (credit 0), the
+ * error's words under «Вы», no comment written for the old status. The saved row is not changed.
+ */
+function withErrorsWrong(points: StoredPoint[], errors: StoredProtocol['errors']): StoredPoint[] {
+  return points.map((point) => {
+    const error = errors.find((item) => item.point_id === point.id);
+    if (!error || point.status === 'wrong') return point;
+    return { ...point, status: 'wrong', credit: 0, comment: '', student_quote: error.student_quote.trim() ? error.student_quote : point.student_quote };
+  });
+}
+
 /** Parses exam_sessions.questions_json[0] of an oral_ticket row (contracts §1.5). */
 export function protocolFromRow(row: Record<string, unknown>): StoredProtocol | null {
   const list = Array.isArray(row.questions_json) ? row.questions_json : [];
@@ -383,7 +397,7 @@ export function protocolFromRow(row: Record<string, unknown>): StoredProtocol | 
     grade: finite(entry.grade),
     input: str(entry.input, 16),
     completedAt: typeof row.completed_at === 'string' ? row.completed_at : typeof row.created_at === 'string' ? row.created_at : null,
-    points,
+    points: withErrorsWrong(points, errors),
     followup,
     errors,
     verdict: str(entry.verdict, 600),

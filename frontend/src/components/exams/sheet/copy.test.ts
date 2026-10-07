@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDayOf, type LineStatus } from '../../../lib/exams/cheatSheet';
+import { localDayOf, POINTS_NOT_WRITTEN, type LineStatus } from '../../../lib/exams/cheatSheet';
 import { formatShortDay } from '../../../lib/exams/format';
 import {
   blockNote,
@@ -128,7 +128,10 @@ describe('cheat sheet words', () => {
     expect(plain(blockNote({ ...base, kind: 'gap' }, 9))).toBe('Ни в одной из 9 лекций нет фрагмента об этом');
     expect(plain(blockNote({ ...base, kind: 'gap', coverageReason: 'Ни одного фрагмента с этими словами' }, 1))).toBe('В лекции нет фрагмента с этими словами');
     expect(blockNote({ ...base, kind: 'gap', coverageReason: 'Нет подтверждающего фрагмента' }, 3)).toBe('Нет фрагмента, который подтверждает ответ');
-    expect(blockNote({ ...base, kind: 'gap', coverage: 'full' }, 3)).toBe('В лекциях не нашлось пунктов ответа');
+    // The lectures have the question, its points could not be written: never «нет в лекциях» (live run of release 29.1).
+    expect(blockNote({ ...base, kind: 'gap', coverage: 'full' }, 3)).toBe('Пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
+    expect(blockNote({ ...base, kind: 'gap', coverage: 'partial' }, 3)).toBe(POINTS_NOT_WRITTEN);
+    expect(writeStatusNote('unverifiable')).toBe(`${POINTS_NOT_WRITTEN}.`);
     expect(blockNote({ ...base, kind: 'unmapped', coverage: null }, 3)).toBe('Вопрос ещё не сверен с лекциями');
     expect(blockNote({ ...base, kind: 'unverified', coverage: 'unverified' }, 3)).toBe('Проверено только по словам — сверьте ещё раз');
     expect(blockNote({ ...base, kind: 'rebuilt', coverage: 'full' }, 3)).toBe('Пункты пересобраны — строки надо написать заново');

@@ -221,6 +221,27 @@ describe('the report', () => {
     expect(blocks[5]).toHaveTextContent('Вопрос ещё не сверен с лекциями.');
   });
 
+  it('prints the whole fragment and underlines the place of the answer the mapping verified', async () => {
+    const excerpt = 'Начало фрагмента о связях. Ограничения целостности — правила, которым удовлетворяют данные. Конец фрагмента.';
+    const quote = 'Ограничения целостности — правила, которым удовлетворяют данные';
+    const start = excerpt.indexOf(quote);
+    const focused = [
+      question(1, 'full', {
+        evidence: [{ material_id: 'm1', material_title: 'Денежный рынок', source_id: 'S11', excerpt, focus: [start, start + quote.length] }],
+      }),
+      question(2, 'full'),
+    ];
+    mocks.loadExamBundle.mockResolvedValue(bundle(focused));
+    mocks.fetchSheet.mockResolvedValue(sheetOf(focused));
+    openReport();
+    const doc = await openedReport();
+    const [first, second] = [...doc.querySelectorAll<HTMLElement>('.rp-q blockquote')];
+    expect(first).toHaveTextContent(`${excerpt.slice(0, start)}Место ответа: ${excerpt.slice(start)}`);
+    expect(first.querySelector('.sf-under.ex-focus')?.firstElementChild?.textContent).toBe(quote);
+    expect(second.querySelector('.ex-focus')).toBeNull(); // mapped before the place was stored
+    expect(within(doc).getByText('Подчёркнуто место фрагмента, где Meldy нашёл ответ на вопрос.')).toBeInTheDocument();
+  });
+
   it('every question has the teacher’s field: верно / неполно / ошибка and a comment', async () => {
     openReport();
     const doc = await openedReport();

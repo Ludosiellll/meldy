@@ -3,10 +3,14 @@ import { Mark, PencilBrace, PencilUnder, seedFrom } from '../marks';
 import { markedRuns, quoteMarks, rowQuoteGroups } from '../../lib/oral/rubricMatch';
 import { pointSource } from '../../lib/oral/oralPersistence';
 import type { RubricMaterial, RubricPoint } from '../../lib/oral/oralApi';
+import { readableTableText } from '../../utils/fragmentText';
 
-/** «…отношение процентного изменения» — a quote cut from the middle of a sentence starts with «…». */
+/**
+ * «…отношение процентного изменения» — a quote cut from the middle of a sentence starts with «…». A table of
+ * the lecture (DOCX cells «a | b | c») reads «a — b — c; …»: shown so, stored as it is.
+ */
 export function quoteText(quote: string): string {
-  const text = quote.trim();
+  const text = readableTableText(quote).trim();
   const first = text.match(/\p{L}/u)?.[0] ?? '';
   const midSentence = first !== '' && first === first.toLowerCase() && first !== first.toUpperCase();
   return midSentence && !text.startsWith('…') ? `…${text}` : text;

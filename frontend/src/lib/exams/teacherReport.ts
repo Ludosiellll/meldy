@@ -12,9 +12,9 @@
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import type { ExamBundle, ExamQuestion, NearestItem } from '../../api/exams';
-import { blockKind, cleanMissing, type SheetQuestion } from './cheatSheet';
+import { blockKind, cleanMissing, POINTS_NOT_WRITTEN, type SheetQuestion } from './cheatSheet';
 import { fragmentNumber, KIND_LABELS, subjectOf } from './format';
-import { splitFragmentHeading } from '../../utils/fragmentText';
+import { fragmentView, type Span } from '../../utils/fragmentText';
 import { pluralRu } from '../../components/conversation/visuals';
 import { genitiveOf, numberOf } from '../../components/exams/sheetModel';
 
@@ -77,8 +77,14 @@ export interface ReportEvidence {
   removed: boolean;
   /** The lecture's own heading line of the fragment, if it starts with one (utils/fragmentText). */
   heading: string | null;
-  /** The fragment's text, its lines joined as the app joins them. */
+  /** The fragment's text, its lines joined as the app joins them; a table row reads «ячейка — ячейка; …». */
   body: string;
+  /**
+   * Where the quote the mapping verified is (evidence focus), in heading and in body: the report prints the
+   * whole fragment and underlines this place. Null when it is not there (rows mapped before it was stored).
+   */
+  headingFocus: Span | null;
+  bodyFocus: Span | null;
 }
 
 export interface ReportPoint {
@@ -89,8 +95,9 @@ export interface ReportPoint {
 
 /**
  * The answer points of a question (the cheat sheet's rubric):
- * written — the points; none — the lectures gave nothing to write them from; unwritten — not written yet;
- * loading — the cheat sheet is still being read; unknown — it did not load.
+ * written — the points; none — no points for these lectures: a «нет» question, or points Meldy could not
+ * confirm with quotes from the lectures (POINTS_NOT_WRITTEN); unwritten — not written yet; loading — the cheat
+ * sheet is still being read; unknown — it did not load.
  */
 export type ReportPoints =
   | { kind: 'written'; points: ReportPoint[] }
@@ -318,7 +325,7 @@ export function buildTeacherReport(input: ReportInput): TeacherReport {
     const evidence: ReportEvidence[] =
       verdict === 'full' || verdict === 'partial'
         ? question.evidence.map((item) => {
-            const parts = splitFragmentHeading(item.excerpt);
+            const parts = fragmentView(item.excerpt, item.focus);
             const removed = item.material_id !== '' && !current.has(item.material_id);
             if (item.material_id) {
               const quoting = cited.get(item.material_id) ?? new Set<string>();
@@ -333,6 +340,8 @@ export function buildTeacherReport(input: ReportInput): TeacherReport {
               removed,
               heading: parts.heading,
               body: parts.body,
+              headingFocus: parts.headingFocus,
+              bodyFocus: parts.bodyFocus,
             };
           })
         : [];
@@ -445,7 +454,8 @@ export function evidenceCaption(item: Pick<ReportEvidence, 'lecture' | 'fragment
 export function pointsNote(points: ReportPoints): string {
   switch (points.kind) {
     case 'none':
-      return 'Пунктов нет: в лекциях не нашлось, из чего их составить.';
+      // Shown only for a question the lectures have (a «нет» one prints no points at all): never «нет в лекциях».
+      return `${POINTS_NOT_WRITTEN}.`;
     case 'unwritten':
       return 'Пункты ещё не написаны.';
     case 'loading':
@@ -497,7 +507,7 @@ function lectureCells(evidence: ReportEvidence[]): { lecture: string; fragment: 
 function pointsCell(item: ReportItem): string {
   if (item.verdict === 'none') return item.points.kind === 'written' ? pointsList(item.points.points) : 'нет: ответа в лекциях не нашлось';
   if (item.points.kind === 'written') return pointsList(item.points.points);
-  if (item.points.kind === 'none') return 'нет: в лекциях не нашлось, из чего их составить';
+  if (item.points.kind === 'none') return POINTS_NOT_WRITTEN.replace(/^Пункты /, '');
   if (item.points.kind === 'unknown') return 'не загрузились';
   if (item.points.kind === 'loading') return 'загружаются';
   return 'ещё не написаны';

@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { EXAM_MESSAGES, examErrorMessage, isMappingLocked, loadExamBundle, type ExamBundle } from '../api/exams';
 import { fetchSheet } from '../api/cheatSheet';
 import { useMapJob } from '../components/exams/mapJobs';
-import { nearestSentence } from '../components/exams/WhyPanel';
+import { FocusedText, nearestSentence } from '../components/exams/WhyPanel';
+import { seedFrom } from '../components/marks';
 import { glue } from '../components/exams/sheetModel';
 import {
   buildTeacherReport,
@@ -383,6 +384,7 @@ export function TeacherReportDocument({ report }: { report: TeacherReport }) {
           </h2>
           <ul className="rp-how">
             <li>{glue('Цитата — текст лекции студента без изменений. Над ней название лекции и номер фрагмента.')}</li>
+            <li>{glue('Подчёркнуто место фрагмента, где Meldy нашёл ответ на вопрос.')}</li>
             <li>{glue('Пункты ответа Meldy составил по этим цитатам. Главные пункты отмечены словом «главный».')}</li>
             <li>{glue('Справа у каждого вопроса — место для вашей пометки: верно, неполно или ошибка.')}</li>
           </ul>
@@ -512,15 +514,23 @@ function Question({ item, heading }: { item: ReportItem; heading: 'h3' | 'h4' })
           <VerdictDot verdict={item.verdict} />
           {VERDICT_TITLES[item.verdict]}
         </p>
-        {item.evidence.map((evidence, index) => (
-          <figure key={`${evidence.materialId}:${evidence.fragment}:${index}`} className="rp-quote">
-            <figcaption>{glue(evidenceCaption(evidence))}</figcaption>
-            <blockquote>
-              {evidence.heading && <span className="rp-quote-head">{evidence.heading}</span>}
-              {evidence.body}
-            </blockquote>
-          </figure>
-        ))}
+        {item.evidence.map((evidence, index) => {
+          // The whole fragment, as the teacher checks it; the place of the answer underlined (in print too).
+          const seed = seedFrom(`${item.id}:report:${index}`, 97);
+          return (
+            <figure key={`${evidence.materialId}:${evidence.fragment}:${index}`} className="rp-quote">
+              <figcaption>{glue(evidenceCaption(evidence))}</figcaption>
+              <blockquote>
+                {evidence.heading && (
+                  <span className="rp-quote-head">
+                    <FocusedText text={evidence.heading} focus={evidence.headingFocus} seed={seed + 3} />
+                  </span>
+                )}
+                <FocusedText text={evidence.body} focus={evidence.bodyFocus} seed={seed} />
+              </blockquote>
+            </figure>
+          );
+        })}
         {item.note && (
           <div className="rp-gap">
             <p>{glue(item.note)}</p>

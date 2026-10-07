@@ -1366,6 +1366,8 @@ class SheetJob:
             if built.charge is not None:
                 await built.charge.refund()
             return "failed", None
+        if built.charge is not None:
+            built.charge.keep()  # эталон сохранён: единица остаётся, журнал вызовов пишет её
         self.units += _charged(built.charge)
         if body.get("cached"):
             return "cached", built

@@ -185,10 +185,45 @@ describe('verdict words', () => {
     });
     const [item] = report.items;
     expect(item.evidence).toEqual([
-      { materialId: 'm1', lecture: 'Денежный рынок', fragment: 14, removed: false, heading: null, body: 'Денежный мультипликатор показывает, во сколько раз денежная масса больше базы.' },
+      {
+        materialId: 'm1',
+        lecture: 'Денежный рынок',
+        fragment: 14,
+        removed: false,
+        heading: null,
+        body: 'Денежный мультипликатор показывает, во сколько раз денежная масса больше базы.',
+        headingFocus: null,
+        bodyFocus: null,
+      },
     ]);
     expect(JSON.stringify(item)).not.toContain('Модель пишет');
     expect(evidenceCaption(item.evidence[0])).toBe('Лекция «Денежный рынок», фрагмент 14');
+  });
+
+  it('prints the whole fragment and knows where the verified quote is in it (evidence focus)', () => {
+    const excerpt =
+      'Связь M:N распадается на две связи 1:N. 7. Ограничения целостности Ограничения целостности — правила, которым должны удовлетворять данные в любой момент времени. СУБД проверяет их сама.';
+    const quote = 'Ограничения целостности — правила, которым должны удовлетворять данные в любой момент времени';
+    const start = excerpt.indexOf(quote);
+    const report = buildTeacherReport({
+      bundle: bundle([
+        question(1, 'full', {
+          evidence: [{ material_id: 'm1', material_title: 'Реляционная модель', source_id: 'S15', excerpt, focus: [start, start + quote.length] }],
+        }),
+        question(2, 'full', {
+          evidence: [{ material_id: 'm1', material_title: 'Реляционная модель', source_id: 'S16', excerpt: 'Уровень изоляции | Фантомное чтение\nSERIALIZABLE | нет' }],
+        }),
+      ]),
+      sheet: READY_SHEET,
+      now: NOW,
+    });
+    const [first, second] = report.items.map((item) => item.evidence[0]);
+    expect(first.body).toBe(excerpt);
+    expect(first.bodyFocus && first.body.slice(first.bodyFocus[0], first.bodyFocus[1])).toBe(quote);
+    // A table row reads «ячейка — ячейка; …», in print and in the CSV; a row mapped before the place was stored has none.
+    expect(second.body).toBe('Уровень изоляции — Фантомное чтение; SERIALIZABLE — нет');
+    expect(second.bodyFocus).toBeNull();
+    expect(reportRows(report)[2][5]).toBe('Уровень изоляции — Фантомное чтение; SERIALIZABLE — нет');
   });
 
   it('keeps the lecture’s own heading on its line and labels a lecture taken out of the exam', () => {
@@ -449,10 +484,36 @@ describe('answer points', () => {
       { kind: 'none' },
     ]);
     expect(pointsNote({ kind: 'unwritten' })).toBe('Пункты ещё не написаны.');
-    expect(pointsNote({ kind: 'none' })).toBe('Пунктов нет: в лекциях не нашлось, из чего их составить.');
+    // A question the lectures have whose points could not be written: not «в лекциях не нашлось» (live run of 29.1).
+    expect(pointsNote({ kind: 'none' })).toBe('Пункты не записаны: Meldy не смог подтвердить их цитатами из лекций.');
     expect(pointsNote({ kind: 'unknown' })).toBe('Пункты не загрузились.');
     expect(pointsNote({ kind: 'loading' })).toBe('Пункты загружаются…');
     expect(pointsNote({ kind: 'written', points: [] })).toBe('');
+  });
+
+  it('a question the lectures have whose points could not be written: «Пункты не записаны», never «нет в лекциях»', () => {
+    // Live run of release 29.1: «Есть в лекциях», two fragments and «Пунктов нет: в лекциях не нашлось…» below them.
+    const found = question(1, 'full', {
+      evidence: [
+        { material_id: 'm1', material_title: 'Денежный рынок', source_id: 'S4', excerpt: 'Первый фрагмент.' },
+        { material_id: 'm1', material_title: 'Денежный рынок', source_id: 'S3', excerpt: 'Второй фрагмент.' },
+      ],
+    });
+    const missing = question(2, 'none');
+    const report = buildTeacherReport({
+      bundle: bundle([found, missing]),
+      sheet: { status: 'ready', questions: [sheetQuestion(found, rubric([], 'none')), sheetQuestion(missing, null)] },
+      now: NOW,
+    });
+    const [first, second] = report.items;
+    expect(first.verdict).toBe('full');
+    expect(pointsNote(first.points)).toBe('Пункты не записаны: Meldy не смог подтвердить их цитатами из лекций.');
+    const rows = reportRows(report);
+    expect(rows[1][7]).toBe('не записаны: Meldy не смог подтвердить их цитатами из лекций');
+    expect(JSON.stringify(rows[1])).not.toContain('не нашлось');
+    // «нет в лекциях» — only for a question whose verdict is «нет».
+    expect(second.verdict).toBe('none');
+    expect(rows[2][7]).toBe('нет: ответа в лекциях не нашлось');
   });
 
   it('a cheat sheet that did not load leaves the points unknown and says so once at the top', () => {
