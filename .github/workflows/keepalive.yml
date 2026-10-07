@@ -1,0 +1,102 @@
+name: Keepalive and health check
+
+# Every day at 05:17 UTC (08:17 Moscow) and by hand: Actions → «Keepalive and health check» → Run workflow.
+#   1. One real read from Supabase REST with the public anon key and URL of frontend/.env, so the free
+#      project sees activity and is not paused.
+#   2. Wakes the Hugging Face Space (GET /) and waits until /api/health answers «ok».
+#   3. /api/health/deep: a real tiny call to Gemini, Groq, edge-tts and Supabase from the server (the
+#      server keeps that answer for 10 minutes). Every check that is not ok becomes an ::error:: line
+#      and the job fails, so GitHub sends its failed-run email.
+# No secrets: the anon key is public and already committed. Nothing is pushed; the deploy workflow and
+# the Space are not touched.
+# GitHub runs schedule and workflow_dispatch from the default branch: this file must be on main.
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+env:
+  SPACE_HOST: ludosiel-studyforge.hf.space
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            frontend/.env
+          sparse-checkout-cone-mode: false
+
+      - name: Supabase — one REST read so the free project stays active
+        run: |
+          set -u
+          if [ ! -f frontend/.env ]; then
+            echo "::error title=Supabase keepalive::frontend/.env is not in this checkout"
+            exit 1
+          fi
+          url=$(grep -E '^VITE_SUPABASE_URL=' frontend/.env | head -n 1 | cut -d= -f2- | tr -d '\r"' | sed 's:/*$::')
+          key=$(grep -E '^VITE_SUPABASE_ANON_KEY=' frontend/.env | head -n 1 | cut -d= -f2- | tr -d '\r"')
+          if [ -z "$url" ] || [ -z "$key" ]; then
+            echo "::error title=Supabase keepalive::VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing in frontend/.env"
+            exit 1
+          fi
+          code=$(curl -sS -o rest.json -w '%{http_code}' --max-time 30 \
+            "${url}/rest/v1/quests?select=id&limit=1" \
+            -H "apikey: ${key}" -H "Authorization: Bearer ${key}") || code=000
+          echo "GET /rest/v1/quests?select=id&limit=1 -> ${code}"
+          head -c 300 rest.json 2>/dev/null; echo
+          if [ "$code" != "200" ]; then
+            echo "::error title=Supabase keepalive::the REST read answered ${code}: the project may be paused, or the quests table was renamed"
+            exit 1
+          fi
+
+      - name: Wake the Space and check /api/health
+        if: ${{ !cancelled() }}
+        run: |
+          set -u
+          root=""; status=""; body=""; i=0
+          deadline=$((SECONDS + 600))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            i=$((i + 1))
+            root=$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 "https://${SPACE_HOST}/" || true)
+            body=$(curl -s --max-time 25 "https://${SPACE_HOST}/api/health" || true)
+            status=$(printf '%s' "$body" | jq -r '.status // empty' 2>/dev/null || true)
+            echo "[$i] GET / -> ${root:-no answer}; /api/health status=${status:-none}"
+            if [ "$root" = "200" ] && [ "$status" = "ok" ]; then
+              printf '%s' "$body" | jq .
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error title=Space is down::https://${SPACE_HOST} did not wake up in 10 minutes (GET / -> ${root:-no answer}, /api/health status=${status:-none})"
+          exit 1
+
+      - name: Providers — /api/health/deep
+        if: ${{ !cancelled() }}
+        run: |
+          set -u
+          code=$(curl -sS -o deep.json -w '%{http_code}' --max-time 90 "https://${SPACE_HOST}/api/health/deep") || code=000
+          echo "GET /api/health/deep -> ${code}"
+          if [ "$code" != "200" ] || ! jq -e '.checks' deep.json >/dev/null 2>&1; then
+            echo "::error title=Deep health::/api/health/deep answered ${code} without the check list (is a release with it deployed?): $(head -c 200 deep.json 2>/dev/null | tr '\n' ' ')"
+            exit 1
+          fi
+          jq . deep.json
+          failed=$(jq -r '.checks | to_entries[] | select(.value.ok != true)
+            | "\(.key) is down: \(.value.provider // "?")\(if .value.model then " " + .value.model else "" end), code=\(.value.code // "?") after \(.value.ms // 0) ms"' deep.json)
+          if [ -n "$failed" ]; then
+            while IFS= read -r line; do echo "::error title=Provider down::${line}"; done <<< "$failed"
+            exit 1
+          fi
+          echo "All answered: $(jq -r '[.checks | to_entries[] | "\(.key)=\(.value.model // .value.provider) \(.value.ms) ms"] | join(", ")' deep.json)"
+          echo "Checked at $(jq -r '.checked_at' deep.json), cached: $(jq -r '.cached' deep.json)"
