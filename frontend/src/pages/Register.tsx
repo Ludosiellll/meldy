@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
+import { SIGN_UP_MESSAGES, signUpErrorMessage } from '../lib/signUpErrors';
 import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
 
@@ -67,15 +68,12 @@ export default function Register() {
     });
 
     if (error) {
-      if (error.message.includes('already registered')) {
-        setError('Пользователь с таким email уже существует');
-      } else {
-        setError('Произошла ошибка при регистрации. Проверьте данные.');
-      }
+      // A taken address, a weak password, a typo, too many attempts or letters, no network — each says so.
+      setError(signUpErrorMessage(error));
     } else if (data?.user?.identities && data.user.identities.length === 0) {
       // Supabase "Prevent email enumeration" is ON, so it returns success but empty identities array
       // for users that already exist in the database.
-      setError('Пользователь с таким email уже существует');
+      setError(SIGN_UP_MESSAGES.exists);
     } else {
       track('signup_done', { method: 'email', confirmed: Boolean(data.session) });
       if (data.session) {
@@ -143,9 +141,9 @@ export default function Register() {
                 <span className="au-done-mark" aria-hidden="true">
                   <Mail />
                 </span>
-                <p className="au-done-title">Успешно! Мы отправили письмо на вашу почту:</p>
+                <p className="au-done-title">Мы отправили письмо на</p>
                 <span className="au-done-mail">{email}</span>
-                <p>Пожалуйста, перейдите по ссылке в письме.</p>
+                <p>Проверьте «Входящие» и «Спам» и перейдите по ссылке из письма.</p>
 
                 <button type="button" onClick={handleResend} disabled={loading} className="au-quiet">
                   <RefreshCw aria-hidden="true" className={loading ? 'au-spinning' : undefined} />
