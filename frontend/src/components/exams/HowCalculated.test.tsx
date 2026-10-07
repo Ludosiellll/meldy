@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { layoutShares, type ShareQuestion } from '../../lib/exams/ticketMath';
 import HowCalculated, { upperBoundLead } from './HowCalculated';
+import { danglingControls } from '../../test/a11y';
 
 function list(total: number, yes: number, maybe = 0, section: (index: number) => number | null = () => null): ShareQuestion[] {
   return Array.from({ length: total }, (_, index) => ({
@@ -42,6 +43,18 @@ describe('HowCalculated', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
     rerender(<HowCalculated shares={shares} open onToggle={onToggle} id="how" />);
     expect(screen.getByRole('button', { name: 'Как считается' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('names in aria-controls only the formula that is there', () => {
+    const shares = layoutShares({ mode: 'random', perTicket: 2, questions: list(40, 24) });
+    const { rerender } = render(<HowCalculated shares={shares} open={false} onToggle={vi.fn()} id="how" />);
+    // Closed, the formula is not rendered: no aria-controls pointing at nothing (QA 2026-10-07).
+    expect(screen.getByRole('button', { name: 'Как считается' })).not.toHaveAttribute('aria-controls');
+    expect(danglingControls()).toEqual([]);
+    rerender(<HowCalculated shares={shares} open onToggle={vi.fn()} id="how" />);
+    expect(screen.getByRole('button', { name: 'Как считается' })).toHaveAttribute('aria-controls', 'how');
+    expect(document.getElementById('how')).toContainElement(screen.getAllByRole('math')[0]);
+    expect(danglingControls()).toEqual([]);
   });
 
   it('shows C²₂₄ / C²₄₀ = 276 / 780 ≈ 35 % and «ни одного с отметкой «есть»: C²₁₆ / C²₄₀ = 120 / 780 ≈ 15 %», «частично» counted as «нет»', () => {

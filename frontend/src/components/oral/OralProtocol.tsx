@@ -485,7 +485,14 @@ export function ProtocolResult({ points, followup, previous, fine, children }: P
       <p className="or-sum">{line ? summaryText(line) : 'Ни один пункт не оценён.'}</p>
       {line ? <p className="or-grade-why">{glue(countsSentence(summary.counts))}</p> : null}
       <p className="or-how-row">
-        <button type="button" className="sf-link" aria-expanded={open} aria-controls={howId} onClick={() => setOpen((value) => !value)}>
+        {/* aria-controls only while the panel is there: collapsed, it is not rendered (QA 2026-10-07). */}
+        <button
+          type="button"
+          className="sf-link"
+          aria-expanded={open}
+          aria-controls={open ? howId : undefined}
+          onClick={() => setOpen((value) => !value)}
+        >
           Как считается
         </button>
       </p>

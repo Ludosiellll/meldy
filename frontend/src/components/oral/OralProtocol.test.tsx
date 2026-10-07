@@ -17,6 +17,7 @@ import {
 import { DEMO_RUBRIC } from '../../lib/oral/testing/fixtures';
 import type { Evaluation } from '../../lib/oral/oralApi';
 import type { StoredProtocol } from '../../lib/oral/ticketData';
+import { danglingControls } from '../../test/a11y';
 
 function stubReducedMotion(reduce: boolean) {
   vi.stubGlobal(
@@ -244,6 +245,24 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
     expect(SCALE_NOTE.replace(/\u2060/g, '')).toBe(
       'Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.',
     );
+  });
+
+  it('«Как считается» names in aria-controls only a panel that is there', () => {
+    render(<ProtocolResult points={points} followup={null} />);
+    const how = screen.getByRole('button', { name: 'Как считается' });
+    // Collapsed, the panel is not rendered: no aria-controls pointing at nothing (QA 2026-10-07).
+    expect(how).toHaveAttribute('aria-expanded', 'false');
+    expect(how).not.toHaveAttribute('aria-controls');
+    expect(danglingControls()).toEqual([]);
+    fireEvent.click(how);
+    expect(how).toHaveAttribute('aria-expanded', 'true');
+    const panel = document.getElementById(how.getAttribute('aria-controls') ?? '');
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector('.or-how')).not.toBeNull();
+    expect(danglingControls()).toEqual([]);
+    fireEvent.click(how);
+    expect(how).not.toHaveAttribute('aria-controls');
+    expect(danglingControls()).toEqual([]);
   });
 
   it('adds the point named after the examiner’s question and the errors, only when there are any', () => {

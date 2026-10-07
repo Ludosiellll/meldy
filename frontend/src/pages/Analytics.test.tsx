@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Analytics, { ledgerFoot, mappingDateText } from './Analytics';
+import { danglingControls } from '../test/a11y';
 
 const db = vi.hoisted(() => {
   const state = {
@@ -319,7 +320,12 @@ describe('Progress page', () => {
     renderProgress();
     const how = await screen.findByRole('button', { name: 'Как считается' });
     expect(how).toHaveAttribute('aria-expanded', 'false');
+    // Closed, the text is not rendered: aria-controls names it only while it is there (QA 2026-10-07).
+    expect(how).not.toHaveAttribute('aria-controls');
+    expect(danglingControls()).toEqual([]);
     await user.click(how);
+    expect(how).toHaveAttribute('aria-controls', 'progress-how');
+    expect(danglingControls()).toEqual([]);
     expect(screen.getByText(/«Закреплены» — карточки, которые вы вспомнили два раза подряд в разные дни/)).toBeInTheDocument();
     expect(screen.getByText(/Долю показываем от 10 ответов, у лекции — от 5/)).toBeInTheDocument();
   });

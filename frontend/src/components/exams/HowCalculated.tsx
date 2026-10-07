@@ -224,8 +224,9 @@ interface HowCalculatedProps {
  */
 export default function HowCalculated({ shares, open, onToggle, id, lead, after, assumption, unknown }: HowCalculatedProps) {
   const high = shares.isRange && shares.high.ok ? shares.high : null;
+  // aria-controls only while the formula is there: collapsed, it is not rendered (QA 2026-10-07).
   const toggle = (
-    <button type="button" className="sf-link" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+    <button type="button" className="sf-link" aria-expanded={open} aria-controls={open ? id : undefined} onClick={onToggle}>
       Как считается
     </button>
   );
