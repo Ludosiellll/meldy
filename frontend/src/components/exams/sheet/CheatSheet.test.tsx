@@ -240,6 +240,17 @@ describe('the cheat sheet', () => {
     expect(screen.getByText('Не хватает: товаров Гиффена')).toBeInTheDocument();
   });
 
+  it('when the page says «нет в лекции» once for the whole sheet, a missing question keeps only a dash in the margin', () => {
+    const gaps = [question(1, { coverage: 'none', rubric: null }), question(2, { coverage: 'none', rubric: null })];
+    const sheet = buildSheet(gaps, [], NOW);
+    const { container } = renderSheet(props(sheet.blocks, { quietGaps: true }));
+    expect(container.querySelectorAll('.cs-pnote')).toHaveLength(0);
+    expect(screen.queryByRole('link', { name: 'Добавить лекцию' })).toBeNull();
+    expect(container.querySelectorAll('.cs-gapmark svg[data-mark="dash"]')).toHaveLength(2);
+    // A screen reader hears it with each question, as the printed number.
+    expect(within(container.querySelector('#cs-q-q1') as HTMLElement).getByText('Ответа в лекциях нет')).toHaveClass('sr-only');
+  });
+
   it('a failed write replaces the question’s own note', () => {
     const sheet = buildSheet([question(1, { rubric: null })], [], NOW);
     renderSheet(props(sheet.blocks, { writeNotes: new Map([['q1', 'Лимит ИИ на сегодня кончился — допишем после его обновления.']]) }));

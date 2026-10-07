@@ -116,11 +116,19 @@ export interface MappingView {
  * the check here is never charged past the limit.
  */
 export function mappingNeedsModel(view: MappingView, questionIds: readonly string[] | null = null): boolean {
+  return mappingTargets(view, questionIds) > 0;
+}
+
+/**
+ * How many questions a run would send to the model, as far as the rows show it (the rules of mappingNeedsModel):
+ * the price the page names before the run is AI_COSTS.examMapping for every started 40 of them (examMappingCost).
+ */
+export function mappingTargets(view: MappingView, questionIds: readonly string[] | null = null): number {
   const current = new Set(view.materialIds);
   const mapped = new Set(view.mappedMaterialIds);
   const lecturesChanged = current.size !== mapped.size || [...mapped].some((id) => !current.has(id));
   const wanted = questionIds && questionIds.length > 0 ? new Set(questionIds) : null;
-  return view.questions.some((question) => {
+  return view.questions.filter((question) => {
     if (wanted && !wanted.has(question.id)) return false;
     if (question.coverage_method === 'manual' && question.coverage !== null) return false;
     if (wanted) return true;
@@ -136,7 +144,7 @@ export function mappingNeedsModel(view: MappingView, questionIds: readonly strin
       default:
         return true;
     }
-  });
+  }).length;
 }
 
 const EMPTY_ITEMS: ReadonlyMap<string, CoverageItem> = new Map();

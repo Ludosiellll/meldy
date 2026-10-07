@@ -298,6 +298,11 @@ export interface SheetWriteProps {
   /** No question has been checked against the lectures yet. */
   unmapped: boolean;
   compact?: boolean;
+  /**
+   * The page's status block offers the write with its price (components/exams/examStatus.ts): the card says what
+   * the sheet is, without a second button and price line.
+   */
+  hideAction?: boolean;
 }
 
 export function SheetWriteCard(props: SheetWriteProps) {
@@ -366,6 +371,8 @@ export function SheetWriteCard(props: SheetWriteProps) {
   const affordable = props.unitsLeft === null ? props.toWrite : Math.min(props.toWrite, props.unitsLeft);
   const first = props.written === 0;
   const label = affordable < props.toWrite && affordable > 0 ? `Написать ${affordable}${NBSP}${questionsWord(affordable)}` : first ? 'Написать шпаргалку' : `Дописать ${props.toWrite}${NBSP}${questionsWord(props.toWrite)}`;
+  // «Дописать» offered by the status block: nothing is left for the card to say.
+  if (props.hideAction && !first && !outcome && !unwritableNote) return null;
   return (
     <div className="ex-blk cs-write" data-first={first ? '' : undefined}>
       {outcome && (
@@ -387,7 +394,7 @@ export function SheetWriteCard(props: SheetWriteProps) {
           </p>
         </>
       )}
-      {affordable > 0 ? (
+      {props.hideAction ? null : affordable > 0 ? (
         <div className="cs-write-go">
           {/* The column's filled pill only before the first write; then «Тянуть билет» stays the one. */}
           <button type="button" className={first ? 'sf-primary' : 'ex-secondary'} onClick={() => props.onWrite(affordable < props.toWrite ? affordable : undefined)}>
@@ -397,9 +404,9 @@ export function SheetWriteCard(props: SheetWriteProps) {
       ) : (
         <p className="ex-stmt">{glue(`Дневной лимит ИИ кончился. Шпаргалку можно будет написать после ${formatLimitReset(nextLimitReset())}.`)}</p>
       )}
-      <p className="ex-fine">{glue(priceLine(props.toWrite, props.units, props.unitsLeft))}</p>
+      {!props.hideAction && <p className="ex-fine">{glue(priceLine(props.toWrite, props.units, props.unitsLeft))}</p>}
       {unwritableNote}
-      {affordable > 0 && affordable < props.toWrite && (
+      {!props.hideAction && affordable > 0 && affordable < props.toWrite && (
         <p className="ex-fine">{glue(`Ещё ${props.toWrite - affordable}${NBSP}${questionsWord(props.toWrite - affordable)} — после обновления лимита в ${formatLimitReset(nextLimitReset())}`)}</p>
       )}
       {first && !props.compact && (

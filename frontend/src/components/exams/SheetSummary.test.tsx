@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type { TicketLayout } from '../../api/exams';
 import type { SheetCoverage } from './marks';
 import { CoverageSummary, PeakSummary, ReadinessBlock, peakCountLine, type PeakView } from './SheetSummary';
-import { closedPartialShares, confirmedShares, coverageCounts, coverageShares, type SheetFilter, type ShareSubject } from './sheetModel';
+import { closedPartialShares, coverageCounts, coverageShares, type SheetFilter, type ShareSubject } from './sheetModel';
 
 /** The seeded stage list: 24 «есть», 7 «частично», 9 «нет»; sections 13 · 4 · 3 and 11 · 3 · 6. */
 const NONE = new Set([5, 8, 17, 22, 26, 29, 35, 38, 40]);
@@ -36,30 +36,12 @@ function renderSummary(
     howOpen: false,
     onHow: vi.fn(),
     howId: 'how',
-    onRecheck: null,
     filter: 'all' as SheetFilter,
     onFilter,
-    seedKey: 'exam-1',
     ...extra,
   };
   const view = render(<CoverageSummary {...props} />);
   return { ...view, onFilter, props };
-}
-
-function stubReducedMotion(reduce: boolean) {
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn((query: string) => ({
-      matches: reduce && query.includes('prefers-reduced-motion'),
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  );
 }
 
 afterEach(() => {
@@ -67,113 +49,73 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('peak 1: (a) the questions in no lecture', () => {
-  it('shows «9» at the size of the percentages with its label, and filters the sheet to them', () => {
-    const { onFilter, rerender, props } = renderSummary(seeded());
-    const figure = screen.getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') });
-    expect(figure).toHaveTextContent('9');
-    expect(figure).toHaveClass('ex-big');
-    expect(figure).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByText('вопросов нет ни в одной лекции')).toBeInTheDocument();
-    fireEvent.click(figure);
-    expect(onFilter).toHaveBeenCalledWith('cov:none');
-    rerender(<CoverageSummary {...props} filter="cov:none" />);
-    const pressed = screen.getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') });
-    expect(pressed).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(pressed);
-    expect(onFilter).toHaveBeenLastCalledWith('all');
-  });
-
-  it('is not shown when every question is somewhere in the lectures', () => {
-    renderSummary(seeded((position) => (NONE.has(position) ? 'partial' : null)));
-    expect(screen.queryByRole('button', { name: /нет ни в одной лекции/ })).toBeNull();
-  });
-});
-
-describe('peak 1: (b) the question share struck through beside the ticket share', () => {
-  it('strikes «60 %» with an aria-hidden pencil stroke and says «вместо 60 % вопросов» in words', () => {
-    stubReducedMotion(false);
+describe('peak 1, simplified: one figure, the rest behind «Как считается» (owner, 2026-10-07)', () => {
+  it('shows the ticket share with its label, the short caveat with «Как считается», and no second number', () => {
     const { container } = renderSummary(seeded());
-    const was = container.querySelector('.ex-figs-was') as HTMLElement;
-    expect(plain(was.textContent)).toBe('60 %');
-    expect(was).toHaveAttribute('aria-hidden', 'true');
-    const strike = was.querySelector('svg[data-mark="strike"]') as SVGElement;
-    expect(strike).toHaveAttribute('aria-hidden', 'true');
-    // A saved mapping: the stroke is simply there.
-    expect(strike).toHaveAttribute('data-drawn', 'still');
-    expect(plain(container.querySelector('.ex-figs .ex-sr')?.textContent)).toBe('вместо 60 % вопросов — ');
     expect(plain(container.querySelector('.ex-figs-now')?.textContent)).toBe('35 %');
+    expect(container.querySelectorAll('.ex-big')).toHaveLength(1);
     expect(screen.getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
-    expect(screen.getByText(named('24 из 40 · частично — 7'))).toBeInTheDocument();
+    expect(plain(container.querySelector('.ex-caveat[data-inline]')?.textContent)).toBe('Это доля билетов, а не вероятность сдать. Как считается');
+    // No struck question share, no count of the gap, no line (c) on the card itself.
+    expect(container.querySelector('.ex-figs-was, [data-mark="strike"], .ex-gap-n, .ex-gapline, .ex-pairs')).toBeNull();
+    expect(plain(container.textContent)).not.toMatch(/нет ни в одной лекции|в 15 % билетов|24 из 40/);
   });
 
-  it('draws the stroke in only right after a mapping run on this page, and never under reduced motion', () => {
-    stubReducedMotion(false);
-    const live = renderSummary(seeded(), RANDOM, { strikeLive: true });
-    expect(live.container.querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'live');
-    live.unmount();
-    stubReducedMotion(true);
-    const reduced = renderSummary(seeded(), RANDOM, { strikeLive: true });
-    expect(reduced.container.querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'still');
+  it('opens the numbers behind it: the questions in the lectures, the tickets without «есть», the assumption, the formulas', () => {
+    const { container } = renderSummary(seeded(), RANDOM, { howOpen: true });
+    const calc = container.querySelector('.ex-calc') as HTMLElement;
+    const lines = Array.from(calc.querySelectorAll(':scope > p.ex-fine')).map((item) => plain(item.textContent));
+    expect(lines.slice(0, 3)).toEqual([
+      'В лекциях есть 24 вопроса из 40 (60 %), частично — 7, ни в одной лекции — 9.',
+      'В 15 % билетов нет ни одного вопроса с отметкой «есть».',
+      'Это доля билетов, а не вероятность сдать: считаем, что билет — два случайных вопроса из 40.',
+    ]);
+    expect(within(calc).getAllByRole('math')).toHaveLength(2);
   });
 
-  it('strikes nothing for one question per ticket or when both shares are the same', () => {
-    const single = renderSummary(seeded(), { mode: 'random', per_ticket: 1 });
-    expect(single.container.querySelector('[data-mark="strike"]')).toBeNull();
-    expect(plain(single.container.querySelector('.ex-figs-now')?.textContent)).toBe('60 %');
-    expect(screen.getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
-    expect(screen.getByText('Билет — один вопрос, поэтому доля билетов та же.')).toBeInTheDocument();
-    single.unmount();
-    const all = renderSummary(seeded(() => 'full'));
-    expect(all.container.querySelector('[data-mark="strike"]')).toBeNull();
-    expect(plain(all.container.querySelector('.ex-figs-now')?.textContent)).toBe('100 %');
-  });
-
-  it('gives the question share as a range with unverified and unmapped questions, struck the same way', () => {
-    // 24 «есть», 4 not checked yet, 12 «нет»: 60–70 % of questions.
-    const { container } = renderSummary(seeded((position) => (position >= 21 && position <= 24 ? 'unmapped' : PARTIAL.has(position) ? 'none' : null)));
-    expect(plain(container.querySelector('.ex-figs-was')?.textContent)).toMatch(/^\d+–\d+ %$/);
-    expect(container.querySelector('.ex-figs')).toHaveAttribute('data-range');
-    expect(plain(container.querySelector('.ex-figs .ex-sr')?.textContent)).toMatch(/^вместо \d+–\d+ % вопросов — $/);
-    cleanup();
-    const unknown = renderSummary(
-      Array.from({ length: 40 }, (_, index) => ({ id: `q${index}`, section: null, coverage: (index < 17 ? 'full' : index < 27 ? 'unverified' : 'none') as SheetCoverage })),
-    );
-    expect(plain(unknown.container.querySelector('.ex-figs-was')?.textContent)).toBe('43–68 %');
-  });
-});
-
-describe('peak 1: (c) and the action line follow the exam’s layout', () => {
-  it('random pairs: «в 15 % …» and «… в 60 % билетов»', () => {
+  it('keeps the action line right under «Как считается»; its link filters the sheet to «частично»', () => {
     const { container, onFilter } = renderSummary(seeded());
-    expect(screen.getByText(named('в 15 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
-    expect(plain(container.textContent)).not.toContain('хотя бы один');
     const action = container.querySelector('.ex-act') as HTMLElement;
     expect(plain(action.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
-    // Right under «Как считается».
-    expect(screen.getByRole('button', { name: 'Как считается' }).nextElementSibling).toBe(action);
+    expect(screen.getByRole('button', { name: 'Как считается' }).closest('.ex-caveat')?.nextElementSibling).toBe(action);
     fireEvent.click(within(action).getByRole('button', { name: named('7 вопросов «частично»') }));
     expect(onFilter).toHaveBeenCalledWith('cov:partial');
   });
 
-  it('one question per section: «в 16 % …», 36 %, and 60 % with «частично» closed', () => {
-    const { container } = renderSummary(seeded(), { mode: 'sections', per_ticket: 2 });
+  it('one question per section: 36 %, and 60 % with «частично» closed; the assumption of sections inside', () => {
+    const { container } = renderSummary(seeded(), { mode: 'sections', per_ticket: 2 }, { howOpen: true });
     expect(plain(container.querySelector('.ex-figs-now')?.textContent)).toBe('36 %');
-    expect(screen.getByText(named('в 16 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
     expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
-    expect(plain(container.querySelector('.ex-caveat[data-full]')?.textContent)).toBe(
+    expect(screen.getByText(named('В 16 % билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
+    expect(plain(container.querySelector('.ex-calc-assume')?.textContent)).toBe(
       'Это доля билетов, а не вероятность сдать: считаем, что в билете по одному случайному вопросу из каждого раздела.',
     );
   });
 
   it('the department’s tickets: direct counts', () => {
     const tickets = Array.from({ length: 20 }, (_, index) => ({ number: index + 1, question_ids: [`q${index + 1}`, `q${index + 21}`] }));
-    const { container } = renderSummary(seeded(), { mode: 'fixed', per_ticket: 2, tickets });
+    const { container } = renderSummary(seeded(), { mode: 'fixed', per_ticket: 2, tickets }, { howOpen: true });
     expect(plain(container.querySelector('.ex-figs-now')?.textContent)).toBe('30 %');
     expect(screen.getByText('билетов, где все вопросы есть в лекциях')).toBeInTheDocument();
-    expect(screen.getByText(named('24 из 40 · частично — 7 · 6 из 20 билетов'))).toBeInTheDocument();
-    expect(screen.getByText(named('в 2 из 20 билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
+    expect(screen.getByText(named('Билетов кафедры, где все вопросы есть в лекциях, — 6 из 20.'))).toBeInTheDocument();
+    expect(screen.getByText(named('В 2 из 20 билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
     expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — все вопросы будут в лекциях в 11 из 20 билетов.');
+  });
+
+  it('one question per ticket: the share of questions, no line about tickets without «есть»', () => {
+    const { container } = renderSummary(seeded(), { mode: 'random', per_ticket: 1 }, { howOpen: true });
+    expect(plain(container.querySelector('.ex-figs-now')?.textContent)).toBe('60 %');
+    expect(screen.getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
+    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — в лекциях будет 78 % вопросов.');
+    expect(plain(container.textContent)).not.toContain('нет ни одного вопроса с отметкой «есть»');
+  });
+
+  it('a range while questions are found only by words; «Как считается» says how many', () => {
+    const list = Array.from({ length: 40 }, (_, index) => ({ id: `q${index}`, section: null, coverage: (index < 17 ? 'full' : index < 27 ? 'unverified' : 'none') as SheetCoverage }));
+    const { container } = renderSummary(list, RANDOM, { howOpen: true });
+    expect(container.querySelector('.ex-figs')).toHaveAttribute('data-range');
+    expect(plain(container.querySelector('.ex-calc-q')?.textContent)).toBe('В лекциях есть 17 вопросов из 40 (43–68 %), ни в одной лекции — 13, только по словам — 10.');
+    expect(plain(container.querySelector('.ex-calc')?.textContent)).toContain('10 вопросов проверены только по словам — доля билетов:');
   });
 
   it('hides the action line without «частично» questions or when closing them raises nothing', () => {
@@ -190,29 +132,23 @@ describe('peak 1: (c) and the action line follow the exam’s layout', () => {
     expect(flat.container.querySelector('.ex-act')).toBeNull();
   });
 
-  it('one question per ticket speaks of questions, without line (c)', () => {
-    const { container } = renderSummary(seeded(), { mode: 'random', per_ticket: 1 });
-    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — в лекциях будет 78 % вопросов.');
-    expect(container.querySelector('.ex-gapline')).toBeNull();
+  it('says nothing before a question is checked: the status block above the page says it', () => {
+    const { container } = renderSummary(seeded(() => 'unmapped'));
+    expect(container.textContent).toBe('');
   });
 });
 
 describe('peak 1 on phones and tablets', () => {
-  it('keeps (a) and (b) above the sheet with the short caveat, and (c) with the action line under it', () => {
+  it('keeps the figure with «Как считается» above the sheet and the action line under it', () => {
     const head = renderSummary(seeded(), RANDOM, { part: 'head' });
-    const pairs = head.container.querySelector('.ex-pairs') as HTMLElement;
-    expect(pairs).toHaveAttribute('data-compact');
-    expect(pairs).toHaveAttribute('data-count', '2');
-    expect(head.container.querySelector('.ex-gap-n')).toHaveTextContent('9');
     expect(head.container.querySelector('.ex-figs-now')).toHaveTextContent('35');
-    expect(head.container.querySelector('.ex-gapline')).toBeNull();
     expect(head.container.querySelector('.ex-act')).toBeNull();
     expect(plain(head.container.querySelector('.ex-caveat[data-inline]')?.textContent)).toBe('Это доля билетов, а не вероятность сдать. Как считается');
     head.unmount();
     const rest = renderSummary(seeded(), RANDOM, { part: 'rest' });
-    expect(rest.container.querySelector('.ex-pairs')).toBeNull();
+    expect(rest.container.querySelector('.ex-figs')).toBeNull();
     const children = Array.from(rest.container.querySelector('.ex-summary')?.children ?? []).map((item) => item.className);
-    expect(children).toEqual(['ex-gapline', 'ex-act']);
+    expect(children).toEqual(['ex-act']);
   });
 
   it('says nothing under the sheet while a mapping run is going', () => {
@@ -224,17 +160,10 @@ describe('peak 1 on phones and tablets', () => {
 describe('the readiness block', () => {
   const summary = { total: 40, confirmed: 7, once: 3, notPassed: 2, untested: 28, since: '2026-10-01', stale: 2 };
   const confidence = { ratedKnow: 0, ratedKnowAnswered: 0, ratedKnowPassed: 0, enoughData: false };
-
-  it('says the growth from history, what is «пора проверить» and the second answer, with the new labels', () => {
-    const shares = confirmedShares(
-      Array.from({ length: 40 }, (_, index) => ({ id: `q${index}`, section: null, readiness: index < 7 ? 'confirmed' : 'untested' })),
-      RANDOM,
-    );
-    const { container } = render(
+  const block = (props: Partial<Parameters<typeof ReadinessBlock>[0]> = {}) =>
+    render(
       <ReadinessBlock
         summary={summary}
-        confirmedShares={shares}
-        perTicket={2}
         confidence={confidence}
         answers="ready"
         answersError={null}
@@ -244,14 +173,18 @@ describe('the readiness block', () => {
         growth="С 1 октября: 0 → 7 за 3 дня."
         staleLine="Пора проверить: 2 — подтверждены больше 14 дней назад."
         secondAnswer="Второй ответ после разбора: по 5 вопросам в первый раз раскрыто 48 % пунктов, во второй — 81 %."
+        {...props}
       />,
     );
+
+  it('says the one number, the growth from history, what is «пора проверить», what «подтверждено» means and the second answer', () => {
+    const { container } = block();
     const lines = Array.from(container.querySelectorAll('.ex-blk > p')).map((item) => plain(item.textContent));
-    expect(lines.slice(0, 5)).toEqual([
+    expect(lines).toEqual([
       'Подтверждено ответами — 7 из 40.',
       'С 1 октября: 0 → 7 за 3 дня.',
       'Пора проверить: 2 — подтверждены больше 14 дней назад.',
-      'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов. Билетов, где подтверждены оба вопроса, — 3 %.',
+      'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.',
       'Второй ответ после разбора: по 5 вопросам в первый раз раскрыто 48 % пунктов, во второй — 81 %.',
     ]);
     const legend = screen.getByRole('list', { name: 'Показать вопросы по ответам' });
@@ -261,6 +194,21 @@ describe('the readiness block', () => {
       'названо недостаточно 2',
       'не проверялось 28',
     ]);
+  });
+
+  it('compares confidence with the answers only for a student who has used «Самооценка»', () => {
+    const quiet = block();
+    expect(plain(quiet.container.textContent)).not.toContain('Сравнить уверенность');
+    expect(screen.queryByRole('button', { name: 'Самооценка' })).toBeNull();
+    quiet.unmount();
+    block({ selfRated: true });
+    expect(screen.getByText(/Сравнить уверенность с ответами пока нельзя/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Самооценка' })).toBeInTheDocument();
+  });
+
+  it('says nothing before the first answer', () => {
+    const { container } = block({ summary: { ...summary, confirmed: 0, once: 0, notPassed: 0, untested: 40, stale: 0 } });
+    expect(container.textContent).toBe('');
   });
 });
 

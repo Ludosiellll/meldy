@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import type { TicketLayout } from '../../api/exams';
 import type { Readiness } from '../../lib/learning/readiness';
 import { READINESS_LABELS } from '../../lib/learning/readiness';
-import { percent, type LayoutShares } from '../../lib/exams/ticketMath';
+import type { LayoutShares } from '../../lib/exams/ticketMath';
 import { pluralRu } from '../conversation/visuals';
-import { seedFrom, TextMark } from '../marks';
+import { TextMark } from '../marks';
 import HowCalculated from './HowCalculated';
 import { READINESS_MARK } from './marks';
 import { daysPhrase, type PeakGrowth } from './peak';
@@ -12,17 +12,13 @@ import {
   CONFIRMED_MEANING,
   NBSP,
   glue,
-  NO_ANSWERS_SENTENCE,
   allQuestionsWord,
   caveatSentence,
   closePartialLine,
   confidenceSentence,
   confirmedSentence,
   knowPassedSentence,
-  noneFigureName,
-  noneLabel,
   noneTicketsLine,
-  pct,
   perTicketOf,
   questionShareText,
   shareText,
@@ -75,50 +71,42 @@ interface CoverageSummaryProps {
   howOpen: boolean;
   onHow: () => void;
   howId: string;
-  onRecheck: (() => void) | null;
-  /** The sheet's filter: the figure of questions not in the lectures and «7 вопросов «частично»» set it. */
+  /** The sheet's filter: «7 вопросов «частично»» of the action line sets it. */
   filter?: SheetFilter;
   onFilter?: (filter: SheetFilter) => void;
-  /** Draw the strike over the question share in (250 ms): only right after a mapping run on this page. */
-  strikeLive?: boolean;
-  /** Seeds the strike (the exam id), so it is the same stroke on every render. */
-  seedKey?: string;
   /**
-   * 'all' — the column beside the sheet (1024 px and wider): (a) the questions not in any lecture,
-   * (b) the question share struck through beside the ticket share, (c) the tickets without «есть»,
-   * the caveat, «Как считается» and the action line right under it.
-   * 'head' — phones and tablets above the sheet: (a) and (b) side by side and one line «Это доля
-   * билетов, а не вероятность сдать. Как считается», so the sheet starts on the first screen.
-   * 'rest' — phones and tablets under the sheet: (c) and the action line.
+   * 'all' — the column beside the sheet (1024 px and wider): the one figure, its label, «Это доля билетов, а не
+   * вероятность сдать. Как считается» and the action line right under it.
+   * 'head' — phones and tablets above the sheet: the figure, its label and the same line with «Как считается».
+   * 'rest' — phones and tablets under the sheet: the action line.
    */
   part?: 'all' | 'head' | 'rest';
   /** @deprecated: part 'head'. */
   compact?: boolean;
 }
 
-/** «24 из 40 · частично — 7» (and the unknown questions): what the struck question share is made of. */
-function questionsSub(counts: CoverageCounts, shares: LayoutShares): string {
-  const parts = [`частично — ${counts.partial}`];
+/** «В лекциях есть 24 вопроса из 40 (60 %), частично — 7, ни в одной лекции — 9.» — inside «Как считается». */
+export function questionsLine(counts: CoverageCounts): string {
+  const parts: string[] = [];
+  if (counts.partial > 0) parts.push(`частично — ${counts.partial}`);
+  if (counts.none > 0) parts.push(`ни в одной лекции — ${counts.none}`);
   if (counts.unverified > 0) parts.push(`только по словам — ${counts.unverified}`);
   const unmarked = counts.unmapped + counts.checking;
   if (unmarked > 0) parts.push(`не сверено — ${unmarked}`);
-  const head = `${counts.full} из ${counts.total} · ${parts.join(', ')}`;
-  const low = shares.low;
-  // Known tickets are counted directly: say how many, next to the questions.
-  if (low.ok && low.mode === 'fixed') return `${head} · ${low.allCount} из ${low.tickets} ${pluralRu(low.tickets, ['билета', 'билетов', 'билетов'])}`;
-  return head;
+  const head = `В лекциях есть ${counts.full} ${pluralRu(counts.full, ['вопрос', 'вопроса', 'вопросов'])} из ${counts.total} (${questionShareText(counts)})`;
+  return `${[head, ...parts].join(', ')}.`;
 }
 
 /**
- * Peak 1 (Jury_Check item 10): it starts from the honest gap and ends with an action. Top to bottom:
- * (a) «9» at the size of the percentages, «вопросов нет ни в одной лекции» (the figure filters the
- * sheet); (b) «60 %» muted and struck through by pencil beside «35 %» in ink, «билетов, где оба
- * вопроса есть в лекциях», «24 из 40 · частично — 7»; (c) «в 15 % билетов нет ни одного вопроса с
- * отметкой «есть»»; the caveat; «Как считается» and right under it «Закройте 7 вопросов «частично» —
- * оба вопроса будут в лекциях в 60 % билетов.» Every number follows the exam's own ticket layout.
+ * Peak 1, simplified (owner, 2026-10-07: one number that matters, the rest behind «Как считается»): the share of
+ * tickets where every question is in the lectures — or, for one question per ticket, the share of questions — with
+ * its label, the short caveat and «Как считается», and the action line «Закройте 7 вопросов «частично» — …» under
+ * it. Inside «Как считается»: how many questions are in the lectures, the tickets without «есть», what is not
+ * known yet, the assumption and the formulas. Every number follows the exam's own ticket layout. The page does not
+ * show this card while nothing is checked or almost nothing is found: the status block at the top says that.
  */
 export function CoverageSummary(props: CoverageSummaryProps) {
-  const { counts, checking, shares, layout, howOpen, onHow, howId, onRecheck } = props;
+  const { counts, checking, shares, layout, howOpen, onHow, howId } = props;
   const part = props.part ?? (props.compact ? 'head' : 'all');
   const filter = props.filter ?? 'all';
   const onFilter = props.onFilter;
@@ -131,30 +119,24 @@ export function CoverageSummary(props: CoverageSummaryProps) {
         <p className="ex-stmt">
           {checking ? glue(`Сверка с лекциями идёт: проверено ${checking.checked} из ${checking.total}.`) : 'Сверка с лекциями идёт.'}
         </p>
-        <p className="ex-fine">Доли вопросов и билетов появятся, когда сверка закончится. Пометки встают на поле по мере проверки.</p>
+        <p className="ex-fine">Доля билетов появится, когда сверка закончится.</p>
       </div>
     );
   }
-  if (mapped === 0) {
-    if (part === 'rest') return null;
-    // «Вопросы ещё не сверены с лекциями.» is already the note under the header (redesign critique 7).
-    return (
-      <div className="ex-summary">
-        <p className="ex-stmt">Доля билетов появится после сверки с лекциями: Meldy отметит, какие вопросы есть в ваших лекциях.</p>
-      </div>
-    );
-  }
+  if (mapped === 0) return null;
 
   const low = shares.low;
   const questionShare = questionShareText(counts);
   const single = low.ok && (low.mode === 'random' || low.mode === 'sections') && low.q <= 1;
   const q = perTicketOf(low, layout.per_ticket);
   const ticketShare = low.ok && !single ? shareText(shares, 'all') : null;
-  // The question share is struck out only when a ticket share replaces it and says something else.
-  const strike = ticketShare !== null && ticketShare !== questionShare;
-  const ranged = questionShare.includes('–') || (ticketShare ?? '').includes('–');
-  const ticketLabel =
-    low.ok && low.mode === 'fixed' ? 'билетов, где все вопросы есть в лекциях' : `билетов, где ${allQuestionsWord(q)} есть в лекциях`;
+  const figure = ticketShare ?? questionShare;
+  const label =
+    ticketShare === null
+      ? 'вопросов есть в ваших лекциях'
+      : low.ok && low.mode === 'fixed'
+        ? 'билетов, где все вопросы есть в лекциях'
+        : `билетов, где ${allQuestionsWord(q)} есть в лекциях`;
   const noneLine = noneTicketsLine(shares);
   const action = props.closed ? closePartialLine(counts.partial, shares, props.closed) : null;
   const toggle = (value: SheetFilter) => onFilter?.(filter === value ? 'all' : value);
@@ -170,114 +152,40 @@ export function CoverageSummary(props: CoverageSummaryProps) {
   ) : null;
 
   if (part === 'rest') {
-    if (!noneLine && !actionLine) return null;
+    if (!actionLine) return null;
     return (
       <div className="ex-summary" data-part="rest">
-        {noneLine && <p className="ex-gapline">{glue(noneLine)}</p>}
         {actionLine}
       </div>
     );
   }
 
   const compact = part === 'head';
-  // (a) the questions that are in no lecture: the figure filters the sheet to them.
-  const gap =
-    counts.none > 0 ? (
-      <div className="ex-pair ex-gap">
-        <button
-          type="button"
-          className="ex-big ex-gap-n"
-          aria-pressed={filter === 'cov:none'}
-          aria-label={noneFigureName(counts.none)}
-          onClick={() => toggle('cov:none')}
-        >
-          {counts.none}
-        </button>
-        <p className="ex-lbl" aria-hidden="true">
-          {noneLabel(counts.none)}
-        </p>
-      </div>
-    ) : null;
-
-  // (b) the question share, struck through beside the ticket share, or alone for one question per ticket.
-  const share = ticketShare !== null ? (
-    <div className="ex-pair ex-share" data-strike={strike ? '' : undefined}>
-      <p className="ex-big ex-figs" data-range={ranged ? '' : undefined}>
-        {strike && (
-          <>
-            {/* The struck figure says what it was: the share of questions, not an older share of tickets. */}
-            <span className="ex-figs-wasbox">
-              <span className="ex-figs-was" aria-hidden="true">
-                <TextMark kind="strike" seed={seedFrom(props.seedKey ?? 'exam', 'strike')} animate={Boolean(props.strikeLive)}>
-                  {questionShare}
-                </TextMark>
-              </span>
-              <span className="ex-figs-was-l" aria-hidden="true">
-                вопросов
-              </span>
-            </span>
-            <span className="ex-sr">{`вместо ${questionShare} вопросов — `}</span>
-          </>
-        )}
-        <span className="ex-figs-now">{ticketShare}</span>
-      </p>
-      <p className="ex-lbl">{ticketLabel}</p>
-      <p className="ex-sub">{glue(questionsSub(counts, shares))}</p>
-    </div>
-  ) : (
-    <div className="ex-pair ex-share">
-      <p className="ex-big ex-figs" data-range={questionShare.includes('–') ? '' : undefined}>
-        <span className="ex-figs-now">{questionShare}</span>
-      </p>
-      <p className="ex-lbl">вопросов есть в ваших лекциях</p>
-      <p className="ex-sub">{glue(questionsSub(counts, shares))}</p>
-    </div>
+  const details = (
+    <>
+      <p className="ex-fine ex-calc-q">{glue(questionsLine(counts))}</p>
+      {noneLine && <p className="ex-fine">{glue(`${noneLine.charAt(0).toUpperCase()}${noneLine.slice(1)}.`)}</p>}
+      {counts.unverified > 0 && <p className="ex-fine">{glue(unverifiedSentence(counts.unverified, shares))}</p>}
+      {counts.unmapped > 0 && <p className="ex-fine">{glue(unmappedSentence(counts.unmapped, shares))}</p>}
+      {low.ok && low.mode === 'fixed' && <p className="ex-fine">{glue(`Билетов кафедры, где все вопросы есть в лекциях, — ${low.allCount} из ${low.tickets}.`)}</p>}
+    </>
   );
-
-  const caveat = glue(caveatSentence(shares, counts.total));
-  const pairs = (gap ? 1 : 0) + 1;
   return (
     <div className="ex-summary" data-part={part}>
-      <div className="ex-pairs" data-compact={compact ? '' : undefined} data-count={pairs}>
-        {gap}
-        {share}
-      </div>
-      {single && <p className="ex-fine">Билет — один вопрос, поэтому доля билетов та же.</p>}
+      <p className="ex-big ex-figs" data-range={figure.includes('–') ? '' : undefined}>
+        <span className="ex-figs-now">{figure}</span>
+      </p>
+      <p className="ex-lbl">{label}</p>
       {!low.ok && <p className="ex-fine">{low.reason}</p>}
-      {!compact && noneLine && <p className="ex-gapline">{glue(noneLine)}</p>}
-      {!compact && (
-        <>
-          {/* The low window (1280×720) may show the short caveat; the whole assumption then opens the formula. */}
-          <p className="ex-caveat" data-full="">
-            {caveat}
-          </p>
-          <p className="ex-caveat" data-short="" aria-hidden="true">
-            {SHORT_CAVEAT}
-          </p>
-        </>
-      )}
-      {counts.unmapped > 0 && <p className="ex-fine">{glue(unmappedSentence(counts.unmapped, shares))}</p>}
-      {counts.unverified > 0 && (
-        <p className="ex-fine">
-          {glue(unverifiedSentence(counts.unverified, shares))}
-          {onRecheck && (
-            <>
-              {' '}
-              <button type="button" className="sf-link" onClick={onRecheck}>
-                Проверить снова
-              </button>
-            </>
-          )}
-        </p>
-      )}
       <HowCalculated
         shares={shares}
         open={howOpen}
         onToggle={onHow}
         id={howId}
-        lead={compact ? SHORT_CAVEAT : undefined}
+        lead={SHORT_CAVEAT}
         after={compact ? undefined : actionLine}
-        assumption={compact ? undefined : caveat}
+        assumption={glue(caveatSentence(shares, counts.total))}
+        details={details}
         unknown={{ unverified: counts.unverified, unmapped: counts.unmapped + counts.checking }}
       />
     </div>
@@ -286,9 +194,12 @@ export function CoverageSummary(props: CoverageSummaryProps) {
 
 interface ReadinessBlockProps {
   summary: AnswerSummary & { stale?: number };
-  confirmedShares: LayoutShares;
-  perTicket: number;
   confidence: Confidence;
+  /**
+   * The student has rated at least one question («Самооценка»): only then the line about confidence vs answers
+   * («Сравнить уверенность с ответами пока нельзя…») — it means nothing to someone who never rated.
+   */
+  selfRated?: boolean;
   answers: AnswersState;
   answersError: string | null;
   filter: SheetFilter;
@@ -337,10 +248,10 @@ function LegendNumber({ readiness }: { readiness: Readiness }) {
 }
 
 /**
- * «Подтверждено ответами — 6 из 40», the growth from history, what is «пора проверить», the four
- * readiness marks as filters, confidence vs answers. While the journal is being read it says only
- * that (after 300 ms): no counts, no «ответов ещё не было», no confidence sentence; when it cannot be
- * read, only why.
+ * «Подтверждено ответами — 6 из 40», the growth from history, what is «пора проверить», what «подтверждено» means,
+ * the four readiness marks as filters, and — after the student has used «Самооценка» — confidence vs answers.
+ * Nothing at all before the first answer: the status block at the top says what to do then (owner, 2026-10-07).
+ * While the journal is being read it says only that (after 300 ms); when it cannot be read, only why.
  */
 export function ReadinessBlock(props: ReadinessBlockProps) {
   const part = props.part ?? 'all';
@@ -363,63 +274,38 @@ export function ReadinessBlock(props: ReadinessBlockProps) {
       </div>
     );
   }
+  if (!confirmedSentence(props.summary)) return null;
   return <ReadinessSummary {...props} part={part} />;
 }
 
-/** «Билетов, где подтверждены оба вопроса, — 3 %.» — a small line, never a big figure. */
-export function confirmedTicketsLine(summary: Pick<AnswerSummary, 'confirmed'>, shares: LayoutShares, perTicket: number): string | null {
-  if (summary.confirmed <= 0 || !shares.low.ok || shares.low.mode === 'fixed' || perTicket <= 1) return null;
-  return `Билетов, где подтверждены ${perTicket === 2 ? 'оба вопроса' : 'все вопросы'}, — ${pct(percent(shares.low.all))}.`;
-}
-
-function ReadinessSummary({
-  summary,
-  confirmedShares,
-  perTicket,
-  confidence,
-  filter,
-  onFilter,
-  onRateMode,
-  growth,
-  staleLine,
-  secondAnswer,
-  part = 'all',
-}: ReadinessBlockProps) {
+function ReadinessSummary({ summary, confidence, selfRated = false, filter, onFilter, onRateMode, growth, staleLine, secondAnswer, part = 'all' }: ReadinessBlockProps) {
   const counts: Record<Readiness, number> = {
     confirmed: summary.confirmed,
     once: summary.once,
     not_passed: summary.notPassed,
     untested: summary.untested,
   };
-  const sentence = confirmedSentence(summary);
-  const confirmedTickets = confirmedTicketsLine(summary, confirmedShares, perTicket);
   const head = part !== 'rest';
   const rest = part !== 'head';
-  // «Подтверждено ответами — 6 из 40.» (17/25, the figure at 600): no date after the number.
-  const statement = sentence ? (
-    <p className="ex-stmt">
-      Подтверждено ответами{NBSP}—{' '}
-      <b>
-        {summary.confirmed}
-        {NBSP}из{NBSP}
-        {summary.total}
-      </b>
-      .
-    </p>
-  ) : (
-    <p className="ex-fine">{NO_ANSWERS_SENTENCE}</p>
-  );
   return (
     <div className="ex-blk" data-part={part === 'all' ? undefined : part}>
-      {head && statement}
-      {rest && sentence ? (
+      {/* «Подтверждено ответами — 6 из 40.» (17/25, the figure at 600): the one number of the card, no date after it. */}
+      {head && (
+        <p className="ex-stmt">
+          Подтверждено ответами{NBSP}—{' '}
+          <b>
+            {summary.confirmed}
+            {NBSP}из{NBSP}
+            {summary.total}
+          </b>
+          .
+        </p>
+      )}
+      {rest && (
         <>
           {growth && <p className="ex-stmt ex-growth">{glue(growth)}</p>}
           {staleLine && <p className="ex-fine ex-stale">{glue(staleLine)}</p>}
-          <p className="ex-fine">
-            {CONFIRMED_MEANING}
-            {confirmedTickets ? ` ${glue(confirmedTickets)}` : ''}
-          </p>
+          <p className="ex-fine">{CONFIRMED_MEANING}</p>
           {secondAnswer && <p className="ex-fine ex-second">{glue(secondAnswer)}</p>}
           <ul className="ex-rl" aria-label="Показать вопросы по ответам">
             {READINESS_ORDER.map((readiness) => {
@@ -436,15 +322,15 @@ function ReadinessSummary({
               );
             })}
           </ul>
+          {selfRated && (
+            <p className="ex-fine" style={{ marginTop: 12 }}>
+              {glue(confidenceSentence(confidence))}{' '}
+              <button type="button" className="sf-link" data-stage-hide="" onClick={onRateMode}>
+                Самооценка
+              </button>
+            </p>
+          )}
         </>
-      ) : null}
-      {rest && (
-        <p className="ex-fine" style={{ marginTop: part === 'rest' && !sentence ? 0 : 12 }}>
-          {glue(confidenceSentence(confidence))}{' '}
-          <button type="button" className="sf-link" data-stage-hide="" onClick={onRateMode}>
-            Самооценка
-          </button>
-        </p>
       )}
     </div>
   );

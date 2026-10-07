@@ -333,6 +333,117 @@
 .sf-page .ex-note[data-quiet]::before { display: none; }
 .sf-page .ex-notes { display: grid; justify-items: start; gap: 10px; margin-top: 24px; }
 .sf-page .ex-notes .ex-note { margin-top: 0; }
+
+/* ---------------------------------------------------------------- the status block (examStatus.ts) */
+/* What Meldy did with the exam, what it found, the one thing to do next (owner, 2026-10-07): a white card under
+   the header. A flag names the step (lectures, mapping, cheat sheet, answers) in the colour of whose move it is —
+   yellow: the student's, sky: Meldy works, green: answering. The headline's key words get the screen's one
+   hand-drawn yellow line (design language 3); a sentence or two in grey; the page's one filled pill on the right,
+   a quiet link under it. On phones and tablets the pill rides in the bar at the bottom. */
+.sf-page .ex-st {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: 'flag acts' 'body acts';
+  align-items: start;
+  column-gap: 48px;
+  margin-top: 28px;
+  padding: 24px 32px 28px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card);
+}
+.sf-page .ex-st-flag {
+  grid-area: flag;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  margin: 0 0 14px;
+  padding: 0 24px 0 13px;
+  background: var(--m-yellow);
+  color: #0b121c;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 11px) 50%, 100% 100%, 0 100%);
+}
+.sf-page .ex-st[data-tone='meldy'] .ex-st-flag { background: var(--m-sky); }
+.sf-page .ex-st[data-tone='ready'] .ex-st-flag { background: var(--m-green); }
+.sf-page .ex-st-body { grid-area: body; min-width: 0; max-width: 780px; }
+.sf-page .ex-st-title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.16;
+  font-weight: 500;
+  letter-spacing: -.024em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+.sf-page .ex-st-title:focus { outline: none; }
+.sf-page .ex-st-title:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 4px; border-radius: 6px; }
+/* The yellow line under the key words, drawn in once per state; the words stay above it. */
+.sf-page .ex-st-mark { position: relative; z-index: 0; white-space: nowrap; }
+.sf-page .ex-st-mark svg {
+  position: absolute;
+  z-index: -1;
+  left: -1%;
+  bottom: -.12em;
+  width: 102%;
+  height: .34em;
+  overflow: visible;
+  pointer-events: none;
+}
+.sf-page .ex-st-mark path {
+  fill: none;
+  stroke: var(--m-yellow);
+  stroke-width: 8px;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ex-st-draw 1.1s .3s cubic-bezier(.65, 0, .35, 1) forwards;
+}
+@keyframes ex-st-draw {
+  to { stroke-dashoffset: 0; }
+}
+.sf-page .ex-st-text { margin: 10px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+/* Why the action is unavailable now (the daily limit): in ink, with the yellow dot of the page's notes. */
+.sf-page .ex-st-blocked { position: relative; margin: 10px 0 0; padding-left: 17px; font-size: 16px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .ex-st-blocked::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc((1.45em - 9px) / 2);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.sf-page .ex-st-note { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .ex-st-note .sf-link { min-height: 0; font-size: 15px; }
+.sf-page .ex-st-acts { grid-area: acts; align-self: center; min-width: 0; }
+.sf-page .ex-st .ex-draw { padding-bottom: 0; }
+.sf-page .ex-st-alt { font-size: 16px; }
+.sf-page .ex-st-wait { grid-area: 1 / 1 / 3 / 2; display: flex; align-items: center; min-height: 92px; margin: 0; font-size: 16px; line-height: 1.45; color: var(--sf-muted); }
+.sf-page[data-frame='m'] .ex-st-wait,
+.sf-page[data-frame='s'] .ex-st-wait { grid-area: auto; min-height: 120px; }
+.sf-page[data-frame='m'] .ex-st,
+.sf-page[data-frame='s'] .ex-st { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: 'flag' 'body' 'acts'; margin-top: 22px; }
+.sf-page[data-frame='m'] .ex-st-acts,
+.sf-page[data-frame='s'] .ex-st-acts { align-self: start; }
+.sf-page[data-frame='s'] .ex-st { margin-top: 18px; padding: 18px 20px 22px; border-radius: 28px; }
+.sf-page[data-frame='s'] .ex-st-flag { height: 28px; margin-bottom: 12px; font-size: 13.5px; }
+.sf-page[data-frame='s'] .ex-st-title { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; }
+.sf-page[data-frame='s'] .ex-st-text { margin-top: 8px; font-size: 16px; line-height: 1.5; }
+.sf-page[data-frame='m'] .ex-st-acts,
+.sf-page[data-frame='s'] .ex-st-acts { margin-top: 10px; }
+.sf-page[data-frame='m'] .ex-st-alt,
+.sf-page[data-frame='s'] .ex-st-alt { display: inline-flex; align-items: center; min-height: 44px; margin: -6px 0; }
+/* Nothing to say beside the list (nothing found yet, no answers yet): the list keeps its width, nothing stands empty. */
+.sf-page[data-view][data-frame] .ex-body[data-solo] { grid-template-columns: minmax(0, 1fr); }
+.sf-page[data-view='questions'] .ex-body[data-solo] > :first-child { max-width: 980px; }
 /* «Тексты ответов» (AnswerTextConsent) at the bottom of the exam page: as wide as the sheet above it (not one
    1 000 px line under both columns), the dot hanging by the sentence's first line (on a phone it stood alone
    above it), and «Разрешить» and «Нет, спасибо» together on the next line, from the sentence's left edge (on a
@@ -1901,6 +2012,10 @@
 
 /* ---------------------------------------------------------------- low window and stage mode */
 @media (min-width: 1024px) and (max-height: 780px) {
+  .sf-page .ex-st { margin-top: 16px; padding: 18px 28px 20px; border-radius: 28px; }
+  .sf-page .ex-st-flag { height: 28px; margin-bottom: 10px; }
+  .sf-page .ex-st-title { font-size: 25px; }
+  .sf-page .ex-st-text { margin-top: 6px; font-size: 16px; line-height: 1.45; }
   .sf-page .ex-head { padding-top: 18px; }
   .sf-page .ex-head .ex-h1 { font-size: 40px; }
   .sf-page .ex-crumb { margin-bottom: 10px; }
@@ -1929,6 +2044,7 @@ html[data-stage] .sf-page .ex-links,
 html[data-stage] .sf-page [data-stage-hide] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
+  .sf-page .ex-st-mark path { animation: none; stroke-dashoffset: 0; }
   .sf-page .ex-peak-big .ex-was { animation: ex-was-in 150ms ease both; }
   .sf-page .ex-qnote[data-fresh] { animation: none; }
   .sf-page .dw-card[data-state='lift'] { animation: dw-fade 150ms ease both; }

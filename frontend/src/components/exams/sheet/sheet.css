@@ -203,6 +203,8 @@
   pointer-events: none;
 }
 .cs-paper[data-narrow] .cs-tick { left: -14px; transform: scale(.65); transform-origin: 0 50%; }
+/* A question in no lecture when the page says it once for the whole sheet: a graphite dash where a tick would be. */
+.cs-gapmark { top: calc(var(--cs-print-shift) + 6px); height: 10px; }
 /* A line of a learned question comes back: the tick stays until the line is written again, then fades. */
 .cs-tick[data-out] { animation: cs-fade-out 200ms ease-in var(--cs-out, 0ms) both; }
 @keyframes cs-fade-out {

@@ -212,6 +212,11 @@ interface HowCalculatedProps {
   after?: ReactNode;
   /** The full assumption as the first line of the formula (the low window shows the short caveat). */
   assumption?: string;
+  /**
+   * The numbers behind the one figure of the column (owner, 2026-10-07: one number on the page, the rest here):
+   * how many questions are in the lectures, the tickets without «есть», what is not known yet.
+   */
+  details?: ReactNode;
   /** What is still unknown, for the words of the upper bound. */
   unknown?: { unverified: number; unmapped: number };
 }
@@ -222,7 +227,7 @@ interface HowCalculatedProps {
  * as «нет»), the product for one question per section, a direct count for known tickets, and the
  * upper bound when some questions were checked only by words or are not checked yet.
  */
-export default function HowCalculated({ shares, open, onToggle, id, lead, after, assumption, unknown }: HowCalculatedProps) {
+export default function HowCalculated({ shares, open, onToggle, id, lead, after, assumption, details, unknown }: HowCalculatedProps) {
   const high = shares.isRange && shares.high.ok ? shares.high : null;
   // aria-controls only while the formula is there: collapsed, it is not rendered (QA 2026-10-07).
   const toggle = (
@@ -243,6 +248,7 @@ export default function HowCalculated({ shares, open, onToggle, id, lead, after,
       {after}
       {open && (
         <div className="ex-calc" id={id}>
+          {details}
           {assumption && <p className="ex-fine ex-calc-assume">{assumption}</p>}
           {shares.fallbackReason && <p className="ex-fine">{shares.fallbackReason} Поэтому считаем как для случайных билетов.</p>}
           {sharesFormulas(shares.low, 'marked')}
