@@ -9,13 +9,18 @@ import {
   type ShareInfo,
 } from '../../../api/examShares';
 import { track } from '../../../lib/telemetry';
+import { copyText } from '../../../lib/clipboard';
+import { forgetGroupLink, rememberGroupLink } from '../../../lib/groups/groupLinks';
+import QuestionOfDay from './QuestionOfDay';
 import './inviteGroup.css';
 
 /**
  * «Пригласить группу» (2026-10-07): the author of a ready exam makes a secret link after ticking the consent; each
  * classmate who opens it gets their own copy of the exam (questions, the lectures' text, the cheat sheet with its
- * answer points) at no AI units. The link is shown once — only its hash is kept — with «Скопировать» and a ready
- * message for the group's chat. Earlier links are listed with how many came in, and can be closed.
+ * answer points) at no AI units. The link is shown once — the server keeps only its hash — with «Скопировать» and a
+ * ready message for the group's chat. This device keeps the code (lib/groups/groupLinks.ts) for «Вопрос дня»,
+ * the daily message with the link; a closed link is forgotten here too. Earlier links are listed with how many
+ * came in, and can be closed. With an open link the dialog ends with today's «Вопрос дня» (QuestionOfDay.tsx).
  * The server decides whether the exam is ready (backend/exam_shares.py: nothing left to map, every question has
  * its points written or failed the quote check twice); the dialog says what to do otherwise.
  */
@@ -50,24 +55,6 @@ export function groupMessage(title: string, url: string): string {
     'Откройте ссылку в Chrome или Safari: во встроенном браузере Telegram или Viber вход через Google не работает.',
     url,
   ].join('\n');
-}
-
-async function copyText(text: string, field: HTMLInputElement | HTMLTextAreaElement | null): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Falls through to selecting the text.
-  }
-  try {
-    field?.focus();
-    field?.select();
-    return typeof document.execCommand === 'function' ? document.execCommand('copy') : false;
-  } catch {
-    return false;
-  }
 }
 
 function focusables(root: HTMLElement): HTMLElement[] {
@@ -121,6 +108,8 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedShare | null>(null);
+  // The code is kept on this device for «Вопрос дня»; false in a browser that keeps nothing (private mode).
+  const [kept, setKept] = useState(false);
   const [copied, setCopied] = useState<'link' | 'text' | null>(null);
   const [announce, setAnnounce] = useState('');
   const [closing, setClosing] = useState<string | null>(null);
@@ -187,6 +176,7 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
     setCreateError(null);
     try {
       const result = await createShare(examId);
+      setKept(rememberGroupLink(examId, result.code, result.share.id));
       setCreated(result);
       setPhase((current) =>
         current.kind === 'loaded' ? { kind: 'loaded', state: { ...current.state, shares: [result.share, ...current.state.shares] } } : current,
@@ -214,6 +204,7 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
     setRevokeError(null);
     try {
       const revokedAt = await revokeShare(share.id);
+      forgetGroupLink(examId, share.id);
       setPhase((current) =>
         current.kind === 'loaded'
           ? {
@@ -237,6 +228,7 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
   };
 
   const state = phase.kind === 'loaded' ? phase.state : null;
+  const activeIds = state ? state.shares.filter((share) => share.state === 'active').map((share) => share.id).join(',') : '';
   const blocked = state && (state.copy || !state.ready) ? state.reason?.detail ?? 'Пригласить группу пока нельзя.' : null;
 
   return (
@@ -323,7 +315,9 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
               </button>
             </div>
             <p className="ig-once">
-              Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.
+              {kept
+                ? 'Meldy хранит у себя только отпечаток ссылки. Сама ссылка останется на этом устройстве — для «Вопроса дня». Потеряете — создайте новую, а эту закройте.'
+                : 'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.'}
             </p>
             <label className="ig-label" htmlFor={`${titleId}-text`}>
               Текст для беседы группы
@@ -373,6 +367,17 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
               ))}
             </ul>
           </section>
+        )}
+
+        {/* Remounted when the open links change: a link made or closed here changes what «Вопрос дня» copies. */}
+        {activeIds && (
+          <QuestionOfDay
+            key={activeIds}
+            examId={examId}
+            examTitle={examTitle}
+            from="invite"
+            knownCode={created && activeIds.split(',').includes(created.share.id) ? created.code : null}
+          />
         )}
       </div>
     </div>

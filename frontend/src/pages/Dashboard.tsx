@@ -26,6 +26,7 @@ import { useSheetToday } from '../components/exams/sheet/sheetCount';
 import { counterLabel, erasableLine, nextErasableLine } from '../components/exams/sheet/copy';
 import type { ErasableNow } from '../lib/exams/cheatSheet';
 import DailyReminder from '../components/reminders/DailyReminder';
+import QuestionOfDay from '../components/exams/share/QuestionOfDay';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -1319,8 +1320,8 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   const soon = exam.daysLeft !== null && exam.daysLeft <= 3;
   const drawWord = exam.layout.mode !== 'fixed' && exam.layout.per_ticket === 1 ? 'Тянуть вопрос' : 'Тянуть билет';
   // «Шпаргалка: 39 строк осталось из 47» once the exam's cheat sheet has lines (sheet spec 4.4), right under it
-  // «Можно стереть: N вопросов · Ответить» (Сегодня-lite), then the way back on another day: the student's own
-  // calendar («Напоминать каждый день»).
+  // «Можно стереть: N вопросов · Ответить» (Сегодня-lite), then the two ways back on another day: the student's
+  // own calendar («Напоминать каждый день») and, for the author of an open group link, «Скопировать вопрос дня».
   const sheet = useSheetToday(mapped ? exam.id : null, exam.examDate);
   const sheetCounts = sheet?.counts ?? null;
   const sheetLine = sheetCounts ? (
@@ -1340,6 +1341,7 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
       <EraseLine examId={exam.id} erasable={sheet.erasable} />
       <div className="td-back">
         <DailyReminder variant="today" examId={exam.id} />
+        <QuestionOfDay examId={exam.id} examTitle={exam.title} questions={sheet.questions} from="today" />
       </div>
     </>
   ) : null;

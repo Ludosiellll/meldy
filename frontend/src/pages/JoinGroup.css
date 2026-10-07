@@ -20,6 +20,8 @@
 .jg-wait { margin: 24px 0 0; font-size: 16px; color: var(--sf-muted); }
 .jg-failed { display: grid; gap: 14px; justify-items: start; }
 .jg-actions { margin: 24px 0 0; }
+/* The author's own open link, kept on this device for «Вопрос дня» (lib/groups/groupLinks.ts). */
+.jg-kept { margin: 14px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 
 @media (max-width: 639px) {
   .jg { --au-g: 16px; }
