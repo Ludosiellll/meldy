@@ -57,8 +57,10 @@ const PARSE: ParseResult = {
     { number: 2, positions: [2, 4] },
   ],
   warnings: [{ code: 'unparsed_lines', message: 'Пропустили 1 строку.' }],
+  // The server lists what it skipped: the signature under the list, after all four questions.
+  skipped: [{ text: 'Утверждено на заседании кафедры «Макроэкономика», протокол № 2.', before: 4 }],
   source_text:
-    'Вопросы к экзамену по курсу «Макроэкономика»\nРаздел 1. Введение\n1. Предмет и метод макроэкономики.\n2. Система национальных счетов.\nРаздел 2. Деньги и труд\n3. Инфляция: виды и причины.\n4. Рынок труда и безработица.',
+    'Вопросы к экзамену по курсу «Макроэкономика»\nРаздел 1. Введение\n1. Предмет и метод макроэкономики.\n2. Система национальных счетов.\nРаздел 2. Деньги и труд\n3. Инфляция: виды и причины.\n4. Рынок труда и безработица.\nУтверждено на заседании кафедры «Макроэкономика», протокол № 2.',
 };
 
 function material(id: string, title: string, subject: string, overrides: Partial<PickerMaterial> = {}): PickerMaterial {
@@ -175,11 +177,66 @@ describe('ExamEditor: a new exam', () => {
     expect(screen.getByText(/Очень длинная строка — возможно, склеились два вопроса/)).toBeInTheDocument();
   });
 
-  it('shows a line the parser dropped at its place and turns it into a question', async () => {
+  it('shows the line the parser skipped at its place and turns it into a question', async () => {
     await pasteAndParse();
-    const note = screen.getByText(/Строка без номера пропущена: «Вопросы к экзамену по курсу «Макроэкономика»»/);
+    // Its own quotes nest inside the note's («„…“»), and one period ends the sentence.
+    const note = screen.getByText('Строка без номера пропущена: «Утверждено на заседании кафедры „Макроэкономика“, протокол № 2».');
+    const items = Array.from(screen.getByRole('list', { name: 'Распознанные вопросы' }).children);
+    expect(items.indexOf(note.closest('li')!)).toBe(items.length - 1); // after question 4, where it stood
+    expect(screen.getByText('Пропустили 1 строку.')).toBeInTheDocument();
     fireEvent.click(within(note).getByRole('button', { name: 'Это вопрос' }));
     expect(await screen.findByText(/Распознано 5 вопросов/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Изменить вопрос 5: Утверждено на заседании/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Строка без номера пропущена/)).toBeNull();
+    // Dealt with: the warning goes with it.
+    expect(screen.queryByText('Пропустили 1 строку.')).toBeNull();
+  });
+
+  it('folded, the preview starts with the questions: skipped lines wait in the full list', async () => {
+    // QA 2026-10-07: on a 390 px phone the notes above question 1 filled the folded preview.
+    const questions = Array.from({ length: 10 }, (_, index) => ({
+      position: index + 1,
+      label: String(index + 1),
+      text: `Вопрос номер ${index + 1} о макроэкономике.`,
+      section: null,
+      flags: [],
+    }));
+    mocks.parseQuestionList.mockResolvedValue({
+      ...PARSE,
+      questions,
+      sections: [],
+      tickets: [],
+      warnings: [{ code: 'unparsed_lines', message: 'Пропустили 2 строки.' }],
+      skipped: [
+        { text: 'Курс для второго года обучения, весенний семестр', before: 0 },
+        { text: 'Зав. кафедрой ____________ И. И. Иванов', before: 10 },
+      ],
+    });
+    renderEditor();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: PARSE.source_text } });
+    fireEvent.click(screen.getByRole('button', { name: 'Распознать вопросы' }));
+    await screen.findByText(/Распознано 10 вопросов/);
+    const list = () => screen.getByRole('list', { name: 'Распознанные вопросы' });
+    expect(list().closest('[data-collapsed]')).not.toBeNull();
+    expect(list().firstElementChild).toHaveClass('nx-q');
+    expect(screen.queryByText(/Строка без номера пропущена/)).toBeNull();
+    expect(screen.getByText('Пропустили 2 строки.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Показать все 10' }));
+    expect(list().closest('[data-collapsed]')).toBeNull();
+    const items = Array.from(list().children);
+    expect(items[0]).toHaveTextContent('Строка без номера пропущена: «Курс для второго года обучения, весенний семестр».');
+    expect(items[items.length - 1]).toHaveTextContent('Строка без номера пропущена: «Зав. кафедрой ____________ И. И. Иванов».');
+    expect(items.filter((item) => item.classList.contains('nx-q'))).toHaveLength(10);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Свернуть список' }));
+    expect(screen.queryByText(/Строка без номера пропущена/)).toBeNull();
+  });
+
+  it('a server that only counts skipped lines leaves its warning and guesses none', async () => {
+    mocks.parseQuestionList.mockResolvedValue({ ...PARSE, skipped: null });
+    await pasteAndParse();
+    expect(screen.getByText('Пропустили 1 строку.')).toBeInTheDocument();
     expect(screen.queryByText(/Строка без номера пропущена/)).toBeNull();
   });
 

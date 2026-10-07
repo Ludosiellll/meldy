@@ -2,8 +2,10 @@
 
 Вход — текст, который вставил студент, или текст файла (DOCX приходит из
 parser.extract_text: строка таблицы — ячейки через « | », абзац с автонумерацией —
-«N. текст»). Выход — вопросы для предпросмотра, разделы, билеты и предупреждения.
-В базу ничего не пишется: позиции билетов существуют только в этом ответе.
+«N. текст»). Выход — вопросы для предпросмотра, разделы, билеты, предупреждения и
+пропущенные строки, о которых говорит предупреждение unparsed_lines (skipped: текст
+строки и сколько распознанных вопросов стоит перед ней — предпросмотр показывает её
+на своём месте). В базу ничего не пишется: позиции билетов существуют только в этом ответе.
 
 Правила (спека «Билеты» 4.3, правила 1–7, и контракт §4):
 1. «Билет № N» начинает билет; остаток строки или ячейки может содержать вопросы
@@ -67,6 +69,8 @@ HEADING_MAX_WORDS = 7
 PREAMBLE_MAX_LINES = 8  # шапка до первого билета; больше строк без номера — это уже список
 WRAP_MIN_CHARS = 30  # короче строку PDF не переносит
 WRAP_SHARE = 0.7  # доля самой длинной строки документа, с которой строка считается доведённой до края
+SKIPPED_LINE_CHARS = 200  # пропущенная строка в ответе (skipped) не длиннее
+MAX_SKIPPED_LINES = 100  # столько пропущенных строк уходит списком; предупреждение считает все
 
 NO_QUESTIONS_DETAIL = "Не нашли ни одного вопроса. Вставьте список, где каждый вопрос начинается с новой строки."
 TOO_MANY_DETAIL = "Можно до 150 вопросов. Разбейте список на два экзамена."
@@ -206,9 +210,13 @@ _TABLE_HEADER_CELL_RE = re.compile(
 )
 
 
+def _visible_line(line: str) -> str:
+    """Строка, как её вставили: без невидимых и управляющих символов и лишних пробелов."""
+    return _SPACES_RE.sub(" ", _CONTROL_RE.sub(" ", line.translate(_INVISIBLE))).strip()
+
+
 def _clean_line(line: str) -> str:
-    line = _CONTROL_RE.sub(" ", line.translate(_INVISIBLE))
-    line = _SPACES_RE.sub(" ", line).strip()
+    line = _visible_line(line)
     if not line:
         return ""
     if line[0] in "#>":
@@ -339,6 +347,7 @@ class _Entry:
     bullet: bool = False  # строка начиналась маркером списка («–», «•»)
     line_chars: int = 0  # длина последней строки исходника в этой записи (0 — ячейка таблицы)
     part: bool = False  # раздел — заголовок части списка («Практические задания»), вопросом не становится
+    line: int = -1  # строка исходника, где запись началась: по ней пропущенная строка встаёт среди вопросов
 
 
 # Текст вопроса дальше не наращивается: он всё равно обрезается до MAX_QUESTION_CHARS
@@ -353,8 +362,9 @@ def _append(base: str, separator: str, addition: str) -> str:
 
 
 class _Scanner:
-    def __init__(self, lines: list[str]) -> None:
+    def __init__(self, lines: list[str], raw: list[str] | None = None) -> None:
         self.lines = lines
+        self.raw = raw if raw is not None else lines  # строки до разметки: пропущенная строка показывается такой
         self.entries: list[_Entry] = []
         self.last_question: _Entry | None = None
         self.in_ticket = False
@@ -365,7 +375,8 @@ class _Scanner:
         self.sub_seq: int | None = None
         self.main_delim: str | None = None
         self.table_mode: str | None = None
-        self.dropped_service_lines = 0
+        self.skipped: list[tuple[int, str]] = []  # (строка, текст) служебных строк после первого вопроса: о них скажем
+        self.line_no = 0  # номер текущей строки исходника
         self.pending_label: str | None = None  # номер на отдельной строке (таблица из PDF): «1» над «Предмет и метод»
         self.line_chars = 0  # длина текущей строки исходника
         # Строка, доведённая почти до правого края, — кандидат на перенос (PDF режет по ширине страницы).
@@ -393,20 +404,22 @@ class _Scanner:
         self.last_question = None
 
     def add_section(self, title: str, *, keep_ticket: bool = False, part: bool = False) -> None:
-        self.entries.append(_Entry("section", text=title[:MAX_SECTION_TITLE_CHARS], keep_ticket=keep_ticket, part=part))
+        self.entries.append(
+            _Entry("section", text=title[:MAX_SECTION_TITLE_CHARS], keep_ticket=keep_ticket, part=part, line=self.line_no)
+        )
         if keep_ticket:
             return
         self.in_ticket = False
         self._reset_block()
 
     def start_ticket(self, number: int) -> None:
-        self.entries.append(_Entry("ticket", number=number))
+        self.entries.append(_Entry("ticket", number=number, line=self.line_no))
         self.in_ticket = True
         self._reset_block()
 
     def end_ticket(self) -> None:
         if self.in_ticket:
-            self.entries.append(_Entry("end_ticket"))
+            self.entries.append(_Entry("end_ticket", line=self.line_no))
             self.in_ticket = False
             self._reset_block()
 
@@ -432,6 +445,7 @@ class _Scanner:
             ticket_line=ticket_line,
             bullet=bullet,
             line_chars=self.line_chars,
+            line=self.line_no,
         )
         self.entries.append(entry)
         self.last_question = entry
@@ -447,7 +461,7 @@ class _Scanner:
                 self.main_delim = delim
 
     def add_refs(self, text: str) -> None:
-        self.entries.append(_Entry("refs", refs=_REF_NUMBER_RE.findall(text)))
+        self.entries.append(_Entry("refs", refs=_REF_NUMBER_RE.findall(text), line=self.line_no))
 
     def join(self, text: str, separator: str = " ") -> None:
         question = self.last_question
@@ -466,16 +480,20 @@ class _Scanner:
         question.joined = True
         question.line_chars = self.line_chars
 
-    def drop_service_line(self) -> None:
+    def drop_service_line(self, line: str) -> None:
         if self.seen_question:
-            self.dropped_service_lines += 1
+            # Вся строка — такой, как её вставили (подчёркивания подписи не правятся как разметка «__»);
+            # ячейка таблицы — как есть.
+            whole = line == self.lines[self.line_no]
+            self.skipped.append((self.line_no, _visible_line(self.raw[self.line_no]) if whole else line))
 
     # — разбор —
 
     def scan(self) -> list[_Entry]:
-        for line in self.lines:
+        for line_no, line in enumerate(self.lines):
             if not line:
                 continue
+            self.line_no = line_no
             if " | " in line:
                 self.pending_label = None
                 self.line_chars = 0
@@ -523,10 +541,10 @@ class _Scanner:
         numbered = self._numbered(line)
         if numbered is None and self._is_soft_header(line):
             if self.block_has_numbered:
-                self.drop_service_line()  # шапка следующего билета посреди списка — об этом скажем
+                self.drop_service_line(line)  # шапка следующего билета посреди списка — об этом скажем
             return
         if numbered is None and _FOOTER_RE.match(line):
-            self.drop_service_line()
+            self.drop_service_line(line)
             return
         if numbered is not None:
             label, delim, text = numbered
@@ -552,7 +570,7 @@ class _Scanner:
                 self.join(line)
             return
         if not _has_two_letters(line):
-            self.drop_service_line()  # дата и подпись ««___» ________ 20__ г.»
+            self.drop_service_line(line)  # дата и подпись ««___» ________ 20__ г.»
             return
         bullet = _BULLET_RE.match(line)
         is_bullet = bool(bullet and bullet.group(0).strip())
@@ -726,6 +744,7 @@ class _Question:
     flags: list[str] = field(default_factory=list)
     duplicate_of: int | None = None
     position: int | None = None
+    line: int = -1  # строка исходника, где вопрос начался
 
 
 def _promote_outline_sections(entries: list[_Entry]) -> list[_Entry]:
@@ -739,7 +758,7 @@ def _promote_outline_sections(entries: list[_Entry]) -> list[_Entry]:
                 and following.kind == "question"
                 and following.label.startswith(entry.label + ".")
             ):
-                result.append(_Entry("section", text=f"{entry.label}. {entry.text}"[:MAX_SECTION_TITLE_CHARS]))
+                result.append(_Entry("section", text=f"{entry.label}. {entry.text}"[:MAX_SECTION_TITLE_CHARS], line=entry.line))
                 continue
         result.append(entry)
     return result
@@ -749,7 +768,7 @@ def _is_block_boundary(entry: _Entry) -> bool:
     return entry.kind in ("ticket", "end_ticket", "refs") or (entry.kind == "section" and not entry.keep_ticket)
 
 
-def _drop_repeated_ticket_headers(entries: list[_Entry]) -> tuple[list[_Entry], int]:
+def _drop_repeated_ticket_headers(entries: list[_Entry]) -> tuple[list[_Entry], list[_Entry]]:
     """Шапка, которая повторяется в билетах и не распознана правилами, — не вопрос.
 
     «Российский экономический университет …» перед каждой строкой «Билет № N» (то есть
@@ -757,8 +776,8 @@ def _drop_repeated_ticket_headers(entries: list[_Entry]) -> tuple[list[_Entry], 
     самой строке билета. Кандидаты — текст из строки «Билет № N …», строки без номера в
     билете, где остальные вопросы с номерами, и строки без номера до первого билета. Текст
     (normalize_question) убирается отовсюду, если он есть в трёх билетах, во всех билетах
-    кроме одного (от двух) или и до первого билета, и в билете. Возвращает записи и число
-    убранных строк.
+    кроме одного (от двух) или и до первого билета, и в билете. Возвращает оставшиеся записи
+    и убранные.
     """
     ordinals: list[int | None] = []  # 0 — до первого билета, 1… — номер билета по порядку
     numbered_tickets: set[int] = set()
@@ -783,7 +802,7 @@ def _drop_repeated_ticket_headers(entries: list[_Entry]) -> tuple[list[_Entry], 
             if entry.numbered:
                 numbered_tickets.add(ordinal)
     if not tickets_with_questions:
-        return entries, 0
+        return entries, []
     groups: dict[str, list[int]] = {}
     for index, entry in enumerate(entries):
         ordinal = ordinals[index]
@@ -805,8 +824,9 @@ def _drop_repeated_ticket_headers(entries: list[_Entry]) -> tuple[list[_Entry], 
         ):
             drop.update(indices)
     if not drop:
-        return entries, 0
-    return [entry for index, entry in enumerate(entries) if index not in drop], len(drop)
+        return entries, []
+    kept = [entry for index, entry in enumerate(entries) if index not in drop]
+    return kept, [entries[index] for index in sorted(drop)]
 
 
 def _text_end(text: str) -> str:
@@ -959,7 +979,8 @@ def _promote_inline_headings(entries: list[_Entry]) -> list[_Entry]:
             continue
         if _one_label_missing(before.label, after.label):
             continue
-        result[index] = _Entry("section", text=entry.text.strip().rstrip(" .:")[:MAX_SECTION_TITLE_CHARS], part=True)
+        title = entry.text.strip().rstrip(" .:")[:MAX_SECTION_TITLE_CHARS]
+        result[index] = _Entry("section", text=title, part=True, line=entry.line)
     return result
 
 
@@ -968,21 +989,21 @@ def _is_caps(text: str) -> bool:
     return len(letters) >= 4 and all(letter.isupper() for letter in letters)
 
 
-def _drop_caps_title(entries: list[_Entry]) -> tuple[list[_Entry], int]:
+def _drop_caps_title(entries: list[_Entry]) -> tuple[list[_Entry], list[_Entry]]:
     """Список без номеров: первая строка заглавными («МАКРОЭКОНОМИКА») над обычными
     вопросами — название курса, а не вопрос. Сказано в unparsed_lines."""
     first = next((index for index, entry in enumerate(entries) if entry.kind != "section"), None)
     if first is None or entries[first].kind != "question" or entries[first].numbered or entries[first].in_ticket:
-        return entries, 0
+        return entries, []
     if not _is_caps(entries[first].text):
-        return entries, 0
+        return entries, []
     rest = [entry for entry in entries[first + 1:] if entry.kind == "question"]
     if len(rest) < 2 or any(_is_caps(entry.text) for entry in rest):
-        return entries, 0
-    return entries[:first] + entries[first + 1:], 1
+        return entries, []
+    return entries[:first] + entries[first + 1:], [entries[first]]
 
 
-def _drop_preamble(entries: list[_Entry]) -> tuple[list[_Entry], int]:
+def _drop_preamble(entries: list[_Entry]) -> tuple[list[_Entry], list[_Entry]]:
     """Строки без номера до первого вопроса с номером — шапка документа («Макроэкономика»).
 
     Только для списков, где вопросы в основном с номерами. Строка с «?» остаётся
@@ -990,8 +1011,8 @@ def _drop_preamble(entries: list[_Entry]) -> tuple[list[_Entry], int]:
     части списка между шапкой и первым вопросом («Теоретические вопросы») шапку не прерывает.
     В документе из билетов, где все вопросы после первого билета стоят в билетах, строки
     без номера до первого билета — шапка (название курса), их не больше PREAMBLE_MAX_LINES.
-    Возвращает записи и число отброшенных строк, о которых стоит сказать: в билетах — все,
-    в списке — похожие на вопрос (от 25 знаков).
+    Возвращает оставшиеся записи и отброшенные, о которых стоит сказать: в билетах — все,
+    в списке — похожие на вопрос (от 25 знаков); остальные строки шапки уходят молча.
     """
     first_ticket = next((index for index, entry in enumerate(entries) if entry.kind == "ticket"), None)
     if first_ticket is not None:
@@ -1005,7 +1026,7 @@ def _drop_preamble(entries: list[_Entry]) -> tuple[list[_Entry], int]:
             and len(before) <= PREAMBLE_MAX_LINES
         ):
             dropped = set(before)
-            return [entry for index, entry in enumerate(entries) if index not in dropped], len(dropped)
+            return [entry for index, entry in enumerate(entries) if index not in dropped], [entries[index] for index in before]
     questions = [entry for entry in entries if entry.kind == "question" and not entry.in_ticket]
     numbered = [entry for entry in questions if entry.numbered]
     if not numbered or len(numbered) * 5 < len(questions) * 3:
@@ -1022,11 +1043,11 @@ def _drop_preamble(entries: list[_Entry]) -> tuple[list[_Entry], int]:
             if not entry.text.rstrip().endswith("?"):
                 preamble.append(index)
     if first_numbered is None:
-        return entries, 0
+        return entries, []
     if preamble and _label_number(first_numbered.label) == 2 and "." not in first_numbered.label:
         preamble = preamble[:-1]
     drop = set(preamble)
-    suspicious = sum(1 for index in preamble if len(entries[index].text) >= 25)
+    suspicious = [entries[index] for index in preamble if len(entries[index].text) >= 25]
     return [entry for index, entry in enumerate(entries) if index not in drop], suspicious
 
 
@@ -1046,13 +1067,15 @@ def _sections_as_questions(entries: list[_Entry]) -> list[_Entry]:
             continue
         prefix = _SECTION_PREFIX_RE.match(entry.text)
         if prefix and entry.text[prefix.end():].strip():
-            converted.append(_Entry("question", text=entry.text[prefix.end():].strip(), label=prefix.group(1), numbered=True))
+            converted.append(
+                _Entry("question", text=entry.text[prefix.end():].strip(), label=prefix.group(1), numbered=True, line=entry.line)
+            )
         else:
             roman = re.match(r"^([IVXLC]{1,5})[.)]\s+(.+)$", entry.text)
             if roman:
-                converted.append(_Entry("question", text=roman.group(2), label=roman.group(1), numbered=True))
+                converted.append(_Entry("question", text=roman.group(2), label=roman.group(1), numbered=True, line=entry.line))
             else:
-                converted.append(_Entry("question", text=entry.text))
+                converted.append(_Entry("question", text=entry.text, line=entry.line))
     return converted
 
 
@@ -1073,8 +1096,9 @@ def parse_question_list(text: str) -> dict:
     source = (text or "").replace("\x00", "")  # source_text сохраняется в exams как есть, без NUL
     if len(source) > MAX_SOURCE_CHARS:
         raise ParseError(413, TOO_LONG_DETAIL)
-    lines = [_clean_line(line) for line in source.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
-    scanner = _Scanner(lines)
+    raw_lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines = [_clean_line(line) for line in raw_lines]
+    scanner = _Scanner(lines, raw_lines)
     entries = _promote_outline_sections(scanner.scan())
     if not any(entry.kind == "question" for entry in entries) and any(entry.kind == "section" for entry in entries):
         entries = _sections_as_questions(entries)
@@ -1082,7 +1106,12 @@ def parse_question_list(text: str) -> dict:
     entries = _join_wrapped_lines(entries, scanner.wrap_chars)
     entries = _promote_inline_headings(entries)
     entries, dropped_preamble = _drop_preamble(entries)
-    dropped_lines = scanner.dropped_service_lines + dropped_headers + dropped_preamble
+    # Строки, о которых говорит unparsed_lines, в порядке исходника: служебные строки после первого
+    # вопроса, повторяющаяся шапка билетов и шапка, похожая на вопрос.
+    skipped_lines = sorted(
+        [*scanner.skipped, *((entry.line, entry.text) for entry in [*dropped_headers, *dropped_preamble])],
+        key=lambda item: item[0],
+    )
 
     # Записи → вопросы с разделом и билетом (сырые номера).
     questions: list[_Question] = []
@@ -1123,6 +1152,7 @@ def parse_question_list(text: str) -> dict:
                 joined=entry.joined,
                 section=current_section,
                 ticket=None,
+                line=entry.line,
             )
             questions.append(question)
             if in_ticket and current_ticket is not None:
@@ -1256,8 +1286,8 @@ def parse_question_list(text: str) -> dict:
             "code": "mixed_numbering",
             "message": "У части строк нет номера — проверьте список.",
         })
-    if dropped_lines:
-        count = dropped_lines
+    if skipped_lines:
+        count = len(skipped_lines)
         warnings.append({
             "code": "unparsed_lines",
             "message": (
@@ -1275,11 +1305,19 @@ def parse_question_list(text: str) -> dict:
             ),
         })
 
+    # Каждая пропущенная строка — с числом распознанных вопросов перед ней: предпросмотр ставит её
+    # на своё место («Это вопрос» вставляет её туда же).
+    skipped_out = [
+        {"text": _cut(text, SKIPPED_LINE_CHARS), "before": sum(1 for question in final if question.line < line)}
+        for line, text in skipped_lines[:MAX_SKIPPED_LINES]
+    ]
+
     return {
         "method": "regex",
         "questions": questions_out,
         "sections": sections_out,
         "tickets": tickets_out,
         "warnings": warnings,
+        "skipped": skipped_out,
         "source_text": source,
     }

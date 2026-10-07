@@ -1,6 +1,7 @@
 """Разбор списка вопросов к экзамену правилами (exams_parse.py) и зеркало хэша вопроса."""
 import hashlib
 import io
+import re
 import sys
 import time
 from pathlib import Path
@@ -12,7 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from exams_parse import (  # noqa: E402
     MAX_QUESTIONS,
+    MAX_SKIPPED_LINES,
     NO_QUESTIONS_DETAIL,
+    SKIPPED_LINE_CHARS,
     TOO_LONG_DETAIL,
     TOO_MANY_DETAIL,
     ParseError,
@@ -658,6 +661,74 @@ def test_the_live_list_from_a_docx_gives_the_same_questions_and_parts():
     from_text = parse_question_list("\n".join(lines))
     assert compact(from_docx) == compact(from_text) and len(from_docx["questions"]) == 20
     assert from_docx["sections"] == from_text["sections"] and len(from_docx["sections"]) == 2
+
+
+# ── Пропущенные строки списком (QA 2026-10-07) ──────────────────────────────────
+# Сервер сказал «Пропустили 1 строку», а предпросмотр сам угадывал строки по исходнику: показывал восемь
+# строк шапки и не доходил до грифа под списком. Теперь ответ перечисляет ровно то, что посчитано.
+
+
+def skipped_count(result):
+    """Число из «Пропустили N строк…»; 0 — такого предупреждения нет."""
+    message = next((warning["message"] for warning in result["warnings"] if warning["code"] == "unparsed_lines"), "")
+    match = re.match(r"Пропустили (\d+) ", message)
+    return int(match.group(1)) if match else 0
+
+
+def test_the_live_list_lists_its_one_skipped_line_the_signature_under_the_list():
+    result = parse_question_list((LIVE_COURSE / "questions_databases.txt").read_text(encoding="utf-8"))
+    assert result["skipped"] == [{"text": "Рассмотрено и одобрено на заседании кафедры, протокол № 2 от 01.09.2026.", "before": 20}]
+    assert skipped_count(result) == 1
+
+
+def test_skipped_lines_of_a_ticket_sheet_come_in_order_with_their_place():
+    result = parse_question_list(official_sheet())
+    assert result["skipped"][:4] == [
+        {"text": "Зав. кафедрой ____________ И. И. Иванов", "before": 2},  # как вставили: «__» не съедено как разметка
+        {"text": "«___» ____________ 2025 г.", "before": 2},
+        {"text": "ФГБОУ ВО «Российский экономический университет имени Г. В. Плеханова»", "before": 2},
+        {"text": "Кафедра экономической теории", "before": 2},
+    ]
+    assert [line["before"] for line in result["skipped"]] == [2, 2, 2, 2, 4, 4, 4, 4, 6, 6]
+    assert skipped_count(result) == len(result["skipped"]) == 10
+
+
+@pytest.mark.parametrize(
+    ("text", "skipped"),
+    [
+        # название курса над билетами — перед первым вопросом
+        ("Макроэкономика\nБилет № 1\n1. Предмет и метод.\n2. Инфляция.\nБилет № 2\n1. Безработица.\n2. Деньги.\n",
+         [{"text": "Макроэкономика", "before": 0}]),
+        # заглавными над списком без номеров
+        ("МАКРОЭКОНОМИКА\nПредмет и метод макроэкономики.\nСистема национальных счетов.\nИнфляция и её виды.\n",
+         [{"text": "МАКРОЭКОНОМИКА", "before": 0}]),
+        # шапка в строке каждого билета — у каждого билета
+        ("Билет № 1 Макроэкономика\n1. Предмет и метод.\n2. Инфляция.\nБилет № 2 Макроэкономика\n1. Безработица.\n2. Деньги.\n",
+         [{"text": "Макроэкономика", "before": 0}, {"text": "Макроэкономика", "before": 2}]),
+        # длинная строка шапки над вопросами с номерами («Перечень вопросов» уходит молча)
+        ("Перечень вопросов\nКурс для второго года обучения, весенний семестр\n1. Предмет.\n2. Инфляция.\n3. Деньги.\n",
+         [{"text": "Курс для второго года обучения, весенний семестр", "before": 0}]),
+        # подпись посреди списка — между вторым и третьим вопросом, как её вставили
+        ("1. Предмет и метод.\n2. Инфляция.\nЗав. кафедрой __Иванов__\n3. Безработица.\n",
+         [{"text": "Зав. кафедрой __Иванов__", "before": 2}]),
+        # чистый список
+        ("1. Предмет.\n2. Инфляция.\n3. Деньги.\n", []),
+    ],
+    ids=["course-over-tickets", "caps-title", "header-on-ticket-lines", "long-header-line", "signature-mid-list", "clean-list"],
+)
+def test_every_counted_line_is_listed_at_its_place(text, skipped):
+    result = parse_question_list(text)
+    assert result["skipped"] == skipped
+    assert skipped_count(result) == len(skipped)
+
+
+def test_the_skipped_list_is_capped_and_the_warning_still_counts_every_line():
+    result = parse_question_list("1. Предмет и метод.\n2. Инфляция.\n" + "Зав. кафедрой ____ И. И. Иванов\n" * 130)
+    assert len(result["skipped"]) == MAX_SKIPPED_LINES and skipped_count(result) == 130
+    assert all(line == {"text": "Зав. кафедрой ____ И. И. Иванов", "before": 2} for line in result["skipped"])
+    long_line = parse_question_list("1. Предмет.\n2. Инфляция.\n3. Деньги.\nЗав. кафедрой " + "очень длинная подпись " * 20)
+    assert len(long_line["skipped"]) == 1 and len(long_line["skipped"][0]["text"]) <= SKIPPED_LINE_CHARS
+    assert long_line["skipped"][0]["text"].startswith("Зав. кафедрой очень длинная подпись")
 
 
 @pytest.mark.parametrize(

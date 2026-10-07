@@ -8,6 +8,7 @@ import {
   removeRow,
   rowIndexOfQuestion,
   rowProblem,
+  skippedNote,
   splitRow,
   toggleSection,
   type PreviewRow,
@@ -18,7 +19,10 @@ import {
 interface QuestionPreviewProps {
   state: PreviewState;
   onChange: (next: PreviewState) => void;
-  /** Lines the parser dropped, shown at their place with «Это вопрос». */
+  /**
+   * Lines the parser skipped, each at its place with «Это вопрос» — in the full list only: folded, the
+   * preview shows the questions (on a phone the notes above the first question took all of it).
+   */
   skipped: SkippedLine[];
   onSkippedHandled: (key: string) => void;
   collapsed: boolean;
@@ -121,6 +125,7 @@ export default function QuestionPreview({
 }: QuestionPreviewProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const total = questionCount(state);
+  const folded = collapsed && total > 8 && !editing;
   const skippedBefore = new Map<number, SkippedLine[]>();
   for (const line of skipped) skippedBefore.set(line.beforeQuestion, [...(skippedBefore.get(line.beforeQuestion) ?? []), line]);
 
@@ -134,11 +139,11 @@ export default function QuestionPreview({
   let questionIndex = 0;
   const shown = new Set<number>();
   const notesAt = (index: number) => {
-    if (shown.has(index)) return [];
+    if (folded || shown.has(index)) return [];
     shown.add(index);
     return (skippedBefore.get(index) ?? []).map((line) => (
       <li key={line.key} className="nx-skip sf-pnote">
-        Строка без номера пропущена: «{line.text}».
+        {skippedNote(line.text)}
         <button
           type="button"
           className="sf-link"
@@ -156,7 +161,7 @@ export default function QuestionPreview({
 
   return (
     <>
-      <div className="sf-sheet nx-paste" data-collapsed={collapsed && total > 8 && !editing ? '' : undefined}>
+      <div className="sf-sheet nx-paste" data-collapsed={folded ? '' : undefined}>
         <ol className="nx-list" aria-label="Распознанные вопросы">
           {state.rows.map((row, index) => {
             const next = state.rows[index + 1];

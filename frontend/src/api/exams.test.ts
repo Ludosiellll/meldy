@@ -588,11 +588,16 @@ describe('backend helpers', () => {
       sections: [{ index: 1, title: 'Раздел 1' }],
       tickets: [{ number: 1, positions: [1] }],
       warnings: [{ code: 'few_found', message: 'Нашли мало вопросов' }],
+      skipped: [{ text: ' Зав. кафедрой ____ ', before: 1 }, { text: '', before: 1 }, 'строка', { text: 'Дата', before: -2 }],
       source_text: 'x',
     }), { status: 200 })));
     const parsed = await parseQuestionList({ text: 'x' });
     expect(parsed.questions[0]).toEqual({ position: 1, label: '1', text: 'Предмет.', section: 1, flags: ['short'] });
     expect(parsed.tickets).toEqual([{ number: 1, positions: [1] }]);
+    // The lines the parser skipped, as it listed them; a server that only counted them gives null.
+    expect(parsed.skipped).toEqual([{ text: 'Зав. кафедрой ____', before: 1 }, { text: 'Дата', before: 0 }]);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ method: 'regex', questions: [], source_text: 'x' }), { status: 200 })));
+    expect((await parseQuestionList({ text: 'x' })).skipped).toBeNull();
   });
 
   it('imports a lecture as text only: extract, then a material without summary, cards or test', async () => {

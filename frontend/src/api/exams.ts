@@ -32,6 +32,8 @@ export const MAX_SOURCE_CHARS = 60_000;
 export const QUESTION_MIN_CHARS = 3;
 export const QUESTION_MAX_CHARS = 1000;
 export const LABEL_MAX_CHARS = 16;
+/** The parser lists at most this many skipped lines (exams_parse.MAX_SKIPPED_LINES); its warning counts them all. */
+export const PARSE_SKIPPED_MAX = 100;
 export const TITLE_MAX_CHARS = 200;
 /** A running mapping whose lock is older than this is treated as stale (the server does the same). */
 export const MAPPING_STALE_MS = 5 * 60_000;
@@ -157,12 +159,20 @@ export interface ParsedQuestion {
   flags: string[];
 }
 
+/** A line the parser skipped and counted in «Пропустили N строк…»: its text and how many recognised questions stand before it. */
+export interface ParsedSkip {
+  text: string;
+  before: number;
+}
+
 export interface ParseResult {
   method: string;
   questions: ParsedQuestion[];
   sections: Array<{ index: number; title: string }>;
   tickets: Array<{ number: number; positions: number[] }>;
   warnings: Array<{ code: string; message: string }>;
+  /** The skipped lines in source order (at most PARSE_SKIPPED_MAX); null from a server that only counted them. */
+  skipped?: ParsedSkip[] | null;
   source_text: string;
 }
 
@@ -1071,6 +1081,12 @@ function normalizeParse(raw: unknown): ParseResult {
     warnings: Array.isArray(raw.warnings)
       ? raw.warnings.filter(isRecord).map((item) => ({ code: str(item.code), message: str(item.message) })).filter((item) => item.message)
       : [],
+    skipped: Array.isArray(raw.skipped)
+      ? raw.skipped
+          .filter(isRecord)
+          .map((item) => ({ text: str(item.text).trim(), before: Math.max(0, int(item.before) ?? 0) }))
+          .filter((item) => item.text !== '')
+      : null,
     source_text: str(raw.source_text),
   };
 }
