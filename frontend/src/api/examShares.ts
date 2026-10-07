@@ -18,12 +18,18 @@ export interface ShareInfo {
 }
 
 export interface ShareReason {
-  /** not_ready (with `reason`), is_copy … */
+  /** not_ready (with `reason`), is_copy, nothing_found (the mapping found no question in the lectures) … */
   code: string;
   /** What to do, in the server's words. */
   detail: string;
   reason: string | null;
   questions: number | null;
+}
+
+/** How much of the list the mapping found in the lectures: «есть» or «частично» (found) of all questions. */
+export interface ShareCoverage {
+  questions: number;
+  found: number;
 }
 
 export interface ExamShareState {
@@ -34,6 +40,8 @@ export interface ExamShareState {
   consent: string;
   maxMembers: number;
   shares: ShareInfo[];
+  /** null — the server did not count (a copy, or an older server). */
+  coverage: ShareCoverage | null;
 }
 
 export interface CreatedShare {
@@ -149,6 +157,12 @@ function parseShare(value: unknown): ShareInfo | null {
   };
 }
 
+function parseCoverage(value: unknown): ShareCoverage | null {
+  if (!isRecord(value) || typeof value.questions !== 'number' || typeof value.found !== 'number') return null;
+  const questions = count(value.questions);
+  return { questions, found: Math.min(count(value.found), questions) };
+}
+
 function parseReason(value: unknown): ShareReason | null {
   if (!isRecord(value) || typeof value.detail !== 'string') return null;
   return {
@@ -170,6 +184,7 @@ export async function fetchShareState(examId: string): Promise<ExamShareState> {
     consent: str(raw.consent),
     maxMembers: count(raw.max_members) || 80,
     shares: Array.isArray(raw.shares) ? raw.shares.map(parseShare).filter((item): item is ShareInfo => item !== null) : [],
+    coverage: parseCoverage(raw.coverage),
   };
 }
 

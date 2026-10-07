@@ -248,6 +248,64 @@ describe('«Пригласить группу»', () => {
     await waitFor(() => expect(within(dialog).queryByRole('heading', { name: 'Вопрос дня' })).toBeNull());
   });
 
+  it('offers no link when the lectures answer none of the questions, says why and leads to the lectures', async () => {
+    const calls = server({
+      ready: false,
+      reason: {
+        code: 'nothing_found',
+        questions: 18,
+        found: 0,
+        detail: 'В лекциях не нашлось ответа ни на один вопрос — однокурсникам будет не с чем заниматься. Добавьте лекции по этим темам и сверьте заново, потом приглашайте.',
+      },
+      coverage: { questions: 18, found: 0 },
+    });
+    renderInvite();
+    const dialog = await openDialog();
+    const note = (await within(dialog).findByText(/В лекциях не нашлось ответа ни на один вопрос/)).closest('.ig-note')!;
+    expect(plain(note.textContent)).toBe(
+      'В лекциях не нашлось ответа ни на один вопрос — однокурсникам будет не с чем заниматься. Добавьте лекции по этим темам и сверьте заново, потом приглашайте.Добавить лекции',
+    );
+    expect(within(dialog).queryByRole('checkbox')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Создать ссылку' })).toBeNull();
+    const lectures = within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' });
+    expect(lectures).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
+    fireEvent.click(lectures);
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}/edit#lectures`));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('warns with the numbers when less than half of the list is in the lectures, and still makes the link', async () => {
+    const calls = server({ coverage: { questions: 18, found: 4 } });
+    renderInvite();
+    const dialog = await openDialog();
+    const make = await within(dialog).findByRole('button', { name: 'Создать ссылку' });
+    const note = within(dialog).getByText(/Ответы нашлись к 4 из 18 вопросов/).closest('.ig-note')!;
+    expect(plain(note.querySelector('p')?.textContent)).toBe(
+      'Ответы нашлись к 4 из 18 вопросов. У остальных 14 в копиях однокурсников не будет пунктов ответа.',
+    );
+    expect(within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' })).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
+    // The warning comes before the consent: read first, then decide.
+    const consent = within(dialog).getByRole('checkbox', { name: CONSENT });
+    expect(note.compareDocumentPosition(consent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(consent);
+    fireEvent.click(make);
+    expect(await within(dialog).findByLabelText('Ссылка для группы')).toBeInTheDocument();
+    expect(calls.some((call) => call.method === 'POST' && call.url === '/api/exam-shares')).toBe(true);
+  });
+
+  it.each([
+    [{ questions: 18, found: 9 }, 'half'],
+    [{ questions: 18, found: 18 }, 'all'],
+  ])('says nothing about the lectures when %j of the list is found (%s)', async (coverage) => {
+    server({ coverage });
+    renderInvite();
+    const dialog = await openDialog();
+    await within(dialog).findByRole('button', { name: 'Создать ссылку' });
+    expect(within(dialog).queryByText(/Ответы нашлись/)).toBeNull();
+    expect(within(dialog).queryByRole('link', { name: 'Добавить лекции' })).toBeNull();
+  });
+
   it('has two columns when there is a text for the chat: a new link, or «Вопрос дня» of an open link', async () => {
     server({});
     renderInvite();

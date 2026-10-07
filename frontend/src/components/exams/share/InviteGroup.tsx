@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import {
   createShare,
   fetchShareState,
   revokeShare,
   type CreatedShare,
   type ExamShareState,
+  type ShareCoverage,
   type ShareInfo,
 } from '../../../api/examShares';
 import { track } from '../../../lib/telemetry';
@@ -23,7 +25,8 @@ import './inviteGroup.css';
  * the daily message with the link; a closed link is forgotten here too. Earlier links are listed with how many
  * came in, and can be closed. With an open link the dialog ends with today's «Вопрос дня» (QuestionOfDay.tsx).
  * The server decides whether the exam is ready (backend/exam_shares.py: nothing left to map, every question has
- * its points written or failed the quote check twice); the dialog says what to do otherwise.
+ * its points written or failed the quote check twice, at least one question found in the lectures); the dialog says
+ * what to do otherwise. When the mapping found less than half of the list, the dialog says so before the consent.
  *
  * Layout (owner, 2026-10-07: the window made him scroll on a 1532×734 laptop): on a screen from 960 px wide the
  * dialog has two columns whenever it has texts for the group's chat — on the left what the classmates get, the
@@ -66,6 +69,15 @@ export function groupMessage(title: string, url: string): string {
   ].join('\n');
 }
 
+/** «из 18 вопросов», «из 21 вопроса». */
+function ofQuestions(count: number): string {
+  return count % 10 === 1 && count % 100 !== 11 ? 'вопроса' : 'вопросов';
+}
+
+/** Less than half of the list is in the lectures: the classmates get the rest without answer points. */
+function fewFoundLine({ questions, found }: ShareCoverage): string {
+  return `Ответы нашлись к ${found} из ${questions} ${ofQuestions(questions)}. У остальных ${questions - found} в копиях однокурсников не будет пунктов ответа.`;
+}
 
 function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(
@@ -242,10 +254,22 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
   const state = phase.kind === 'loaded' ? phase.state : null;
   const activeIds = state ? state.shares.filter((share) => share.state === 'active').map((share) => share.id).join(',') : '';
   const blocked = state && (state.copy || !state.ready) ? state.reason?.detail ?? 'Пригласить группу пока нельзя.' : null;
+  const coverage = state && !state.copy ? state.coverage : null;
+  // Nothing of the list is in the lectures: the server refuses a link (nothing_found) and says why.
+  const nothingFound = state?.reason?.code === 'nothing_found';
   const canMake = Boolean(state && !state.copy && state.ready);
+  // Less than half is: a link can be made, but the classmates should know what they get.
+  const fewFound = canMake && coverage !== null && coverage.found > 0 && coverage.found * 2 < coverage.questions;
+  // Lectures are what is missing: the way into the exam's lectures, next to the words.
+  const needsLectures = nothingFound || state?.reason?.reason === 'no_lectures';
   // Two columns (from 960 px, inviteGroup.css) when there is a text for the chat: the new link's message, or
   // «Вопрос дня» of an open link — kept for it while it loads, so the dialog widens once.
   const wide = Boolean(created) || (activeIds !== '' && dayShown !== false);
+  const lecturesLink = (
+    <Link className="sf-link" to={`/exams/${examId}/edit#lectures`} onClick={onClose}>
+      Добавить лекции
+    </Link>
+  );
 
   return (
     <div className="ig-layer">
@@ -298,10 +322,21 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
             </div>
           )}
 
-          {blocked && !created && <p className="ig-note" data-tone="wait">{blocked}</p>}
+          {blocked && !created && (
+            <div className="ig-note" data-tone="wait" data-reason={nothingFound ? 'nothing_found' : undefined}>
+              <p>{blocked}</p>
+              {needsLectures && lecturesLink}
+            </div>
+          )}
 
           {canMake && !created && state && (
             <div className="ig-make">
+              {fewFound && coverage && (
+                <div className="ig-note" data-tone="wait" data-reason="few_found">
+                  <p>{fewFoundLine(coverage)}</p>
+                  {lecturesLink}
+                </div>
+              )}
               <label className="ig-consent" htmlFor={consentId}>
                 <input id={consentId} type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
                 <span>{state.consent || 'Делюсь с группой вопросами, текстом моих лекций и пунктами ответа. Мои ответы и прогресс никто не увидит.'}</span>
