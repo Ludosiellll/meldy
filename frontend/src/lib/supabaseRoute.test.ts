@@ -134,3 +134,63 @@ describe('supabaseRoute', () => {
     expect(net.calls.map(call => call.url)).toEqual(['https://elsewhere.example/x', expect.stringContaining('[object Request]')]);
   });
 });
+
+describe('supabaseRoute: a token «from the future» (PGRST303)', () => {
+  const future = () => new Response(JSON.stringify({ code: 'PGRST303', message: 'JWT issued at future' }), { status: 401 });
+  const expired = () => new Response(JSON.stringify({ code: 'PGRST301', message: 'JWT expired' }), { status: 401 });
+
+  function scripted(answers: Array<() => Response>) {
+    const calls: string[] = [];
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/auth/v1/health')) return Promise.resolve(new Response('{}', { status: 200 }));
+      const next = answers.shift();
+      return Promise.resolve(next ? next() : new Response('[]', { status: 200 }));
+    });
+    const waits: number[] = [];
+    const sbFetch = createSupabaseFetch({
+      supabaseUrl: BASE,
+      anonKey: 'anon',
+      fetchImpl,
+      now: () => clock,
+      origin: () => SITE,
+      wait: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    return { calls, waits, sbFetch };
+  }
+
+  it('sends the request again after a pause: right after sign-in the auth clock can run a second ahead', async () => {
+    const net = scripted([future]);
+    const response = await net.sbFetch(REST);
+    expect(response.status).toBe(200);
+    expect(net.calls.filter((url) => url === REST)).toHaveLength(2);
+    expect(net.waits).toEqual([1000]);
+  });
+
+  it('a write refused for the token is sent again too: PostgREST did not run it', async () => {
+    const net = scripted([future]);
+    const response = await net.sbFetch(`${BASE}/rest/v1/rpc/ai_quota_status`, { method: 'POST', body: '{}' });
+    expect(response.status).toBe(200);
+    expect(net.calls.filter((url) => url.endsWith('/rpc/ai_quota_status'))).toHaveLength(2);
+  });
+
+  it('gives up after two pauses and returns the last refusal', async () => {
+    const net = scripted([future, future, future, future]);
+    const response = await net.sbFetch(REST);
+    expect(response.status).toBe(401);
+    expect(net.calls.filter((url) => url === REST)).toHaveLength(3);
+    expect(net.waits).toEqual([1000, 2000]);
+  });
+
+  it('leaves any other 401 as it is (an expired token is the auth client’s business)', async () => {
+    const net = scripted([expired]);
+    const response = await net.sbFetch(REST);
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ code: 'PGRST301', message: 'JWT expired' });
+    expect(net.calls.filter((url) => url === REST)).toHaveLength(1);
+    expect(net.waits).toEqual([]);
+  });
+});
