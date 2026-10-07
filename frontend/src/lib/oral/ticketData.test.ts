@@ -261,6 +261,39 @@ describe('a saved protocol', () => {
     expect(protocol?.followup).toMatchObject({ point_id: 'p2', student_quote: 'не знаю', chosen_by: 'check' });
   });
 
+  it('shows a point the saved protocol lists an error for as «wrong», whatever status was saved (before release 28)', () => {
+    const entry = row.questions_json[0];
+    const old = {
+      ...row,
+      questions_json: [
+        {
+          ...entry,
+          points: [
+            { ...entry.points[0], status: 'covered', comment: 'Названо верно.', credit: 1 },
+            { id: 'p2', title: 'Выручка', essential: true, status: 'partial', student_quote: 'выручка растёт', comment: 'Упомянуто.', live: false },
+            { id: 'p3', title: 'Перекрёстная', essential: false, status: 'wrong', student_quote: 'всегда больше нуля', comment: 'Ошибка.', live: false },
+          ],
+          errors: [
+            { point_id: 'p1', student_quote: 'эластичность всегда больше единицы', correction: 'Бывает и меньше единицы.' },
+            { point_id: 'p2', student_quote: '', correction: 'Выручка падает при эластичном спросе.' },
+            { point_id: 'p3', student_quote: 'всегда больше нуля', correction: 'Бывает отрицательной.' },
+          ],
+        },
+      ],
+    };
+    const protocol = protocolFromRow(old);
+    expect(protocol?.points.map(({ status, credit, comment, student_quote }) => ({ status, credit, comment, student_quote }))).toEqual([
+      { status: 'wrong', credit: 0, comment: '', student_quote: 'эластичность всегда больше единицы' },
+      // No quote with the error: the point keeps its own.
+      { status: 'wrong', credit: 0, comment: '', student_quote: 'выручка растёт' },
+      // Already «wrong»: as saved.
+      { status: 'wrong', credit: null, comment: 'Ошибка.', student_quote: 'всегда больше нуля' },
+    ]);
+    expect(protocol?.errors).toHaveLength(3);
+    // A protocol without errors is as saved.
+    expect(protocolFromRow(row)?.points.map((point) => point.status)).toEqual(['covered', 'unrated']);
+  });
+
   it('loads only an oral_ticket session', async () => {
     const fake = createFakeSupabase({ tables: { exam_sessions: [row, { ...row, id: '05000000-0000-4000-8000-000000000002', kind: 'professor' }] } });
     state.client = fake.client;

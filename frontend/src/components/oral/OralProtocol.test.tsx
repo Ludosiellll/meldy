@@ -313,6 +313,58 @@ describe('a saved protocol', () => {
     verdict: '',
   };
 
+  it('a point a protocol saved before release 28 lists an error for reads «ошибка», not «раскрыт» with a tick', async () => {
+    // Live run 07.10 (an old protocol): point 3 «раскрыт» with a green tick and «Поправка: …» under it.
+    const { protocolFromRow } = await import('../../lib/oral/ticketData');
+    const row = {
+      id: 'sess-old',
+      kind: 'oral_ticket',
+      subject: 'Базы данных',
+      score: 92,
+      completed_at: '2026-10-07T09:35:00Z',
+      questions_json: [
+        {
+          question: 'Уровни изоляции транзакций',
+          points: [
+            { id: 'p1', title: 'Аномалии', essential: true, status: 'covered', credit: 1, student_quote: 'грязное чтение', comment: 'Названо.', live: true },
+            {
+              id: 'p3',
+              title: 'Четыре уровня изоляции',
+              essential: true,
+              status: 'covered',
+              credit: 1,
+              student_quote: 'Стандарт SQL задаёт четыре уровня изоляции',
+              comment: 'Все четыре уровня названы.',
+              source_quote: 'Стандарт SQL определяет четыре уровня изоляции. Чем выше уровень, тем меньше аномалий',
+              source_label: '«Нормализация и транзакции», фрагмент 14',
+              source_ids: ['S14'],
+              live: true,
+            },
+          ],
+          errors: [{ point_id: 'p3', student_quote: 'чем выше уровень, тем больше аномалий', correction: 'Чем выше уровень изоляции, тем меньше аномалий.' }],
+        },
+      ],
+    };
+    const protocol = protocolFromRow(row)!;
+    expect(protocol.points.map((point) => point.status)).toEqual(['covered', 'wrong']);
+    // The saved errors stay as they were; the point reads the server's way since release 28.
+    expect(protocol.errors).toHaveLength(1);
+    const points = storedPoints(protocol, {});
+    const { container } = render(<ProtocolSheet heading="Ответ от 7 окт., 12:35" points={points} followup={null} seed="sess-old" />);
+    const p3 = container.querySelector('[data-point="p3"]')!;
+    expect(p3.getAttribute('data-status')).toBe('wrong');
+    expect(p3.querySelector('svg[data-mark="cross"]')).not.toBeNull();
+    expect(p3.querySelector('svg[data-mark="tick"]')).toBeNull();
+    expect(p3.querySelector('.or-ppt-st')?.textContent).toContain('ошибка');
+    expect(p3.textContent).not.toContain('раскрыт');
+    expect(p3.textContent).toContain('Поправка: Чем выше уровень изоляции, тем меньше аномалий.');
+    expect(p3.textContent).toContain('Вы:«чем выше уровень, тем больше аномалий»');
+    expect(p3.textContent).not.toContain('Все четыре уровня названы.'); // written for «раскрыт»
+    cleanup();
+    render(<ProtocolResult points={points} followup={null} />);
+    expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Назвали сами 1 из 2 главных · ошибок: 1');
+  });
+
   it('counts the result from its saved points and follow-up, whatever grade was saved', () => {
     expect(storedPoints(stored, { p1: [['вес']] })[0]).toMatchObject({ fragments: 'фрагмент 12', anchors: [['вес']] });
     for (const grade of [5, 4, 3, 2]) {
@@ -323,6 +375,53 @@ describe('a saved protocol', () => {
       expect(document.body.textContent).not.toMatch(new RegExp(`Оценка|${grade} ·`));
       unmount();
     }
+  });
+});
+
+describe('«Вы: в ответе не прозвучало» (live run of release 29.1)', () => {
+  const point = (status: ProtocolPoint['status'], studentQuote = ''): ProtocolPoint => ({
+    id: 'p1',
+    number: 1,
+    title: 'Аномалия обновления',
+    essential: true,
+    status,
+    studentQuote,
+    comment: status === 'partial' ? 'Названа избыточность, суть аномалии не раскрыта.' : '',
+    corrections: [],
+    sourceQuote: 'При смене телефона кафедры придётся изменить много строк',
+    sourceLabel: '«Нормализация», фрагмент 2',
+    fragments: 'фрагмент 2',
+    anchors: [],
+    live: true,
+  });
+
+  it('is said only of a point the status says was not named', () => {
+    for (const status of ['partial', 'covered', 'wrong'] as const) {
+      const { container, unmount } = render(<ProtocolSheet heading="Ответ" points={[point(status)]} followup={null} seed="s" />);
+      expect(container.textContent).not.toContain('в ответе не прозвучало');
+      expect(container.textContent).not.toContain('Вы:');
+      unmount();
+    }
+    const partial = render(<ProtocolSheet heading="Ответ" points={[point('partial')]} followup={null} seed="s" />);
+    // «упомянут» and what the check saw instead of a contradiction.
+    expect(partial.container.textContent).toContain('упомянут');
+    expect(partial.container.textContent).toContain('Названа избыточность, суть аномалии не раскрыта.');
+    partial.unmount();
+    for (const status of ['missing', 'unrated'] as const) {
+      const { container, unmount } = render(<ProtocolSheet heading="Ответ" points={[point(status)]} followup={null} seed="s" />);
+      expect(container.querySelector('.or-q2')?.textContent).toBe('Вы:в ответе не прозвучало');
+      unmount();
+    }
+    const quoted = render(<ProtocolSheet heading="Ответ" points={[point('partial', 'вставка')]} followup={null} seed="s" />);
+    expect(quoted.container.querySelector('.or-q2')?.textContent).toBe('Вы:«вставка»');
+  });
+
+  it('reads a table of the lecture in a quote as «ячейка — ячейка», the saved quote unchanged', () => {
+    const table = { ...point('covered', 'четыре уровня'), sourceQuote: 'друг друга: Уровень изоляции | «Грязное» чтение | Фантомное чтение' };
+    const { container } = render(<ProtocolSheet heading="Ответ" points={[table]} followup={null} seed="s" />);
+    expect(container.textContent).toContain('«…друг друга: Уровень изоляции — «Грязное» чтение — Фантомное чтение»');
+    expect(container.textContent).not.toContain('|');
+    expect(table.sourceQuote).toContain(' | ');
   });
 });
 

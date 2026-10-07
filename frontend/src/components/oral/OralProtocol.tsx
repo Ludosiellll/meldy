@@ -102,6 +102,15 @@ export function storedPoints(protocol: StoredProtocol, anchors: Record<string, s
 
 const MARKS: Partial<Record<PointStatus, MarkKind>> = { covered: 'tick', partial: 'cup', missing: 'dash', wrong: 'cross' };
 
+/**
+ * «Вы: в ответе не прозвучало» only where the status does not say the point was said: next to «упомянут»,
+ * «раскрыт» or «ошибка» without a quote it contradicted the line above (live run of release 29.1: an answer that
+ * was a list of terms, every point «упомянут», no quote of the student's). The comment says what was there.
+ */
+export function saidNothing(status: PointStatus): boolean {
+  return status === 'missing' || status === 'unrated';
+}
+
 /** What the reply to the examiner's question did for the point: the words of the point lines, no verdict on the answer. */
 const FOLLOWUP_WORDS: Record<FollowupStatus, string> = {
   covered: 'пункт назван',
@@ -280,16 +289,19 @@ function PointRow({
             Поправка: {correction}
           </p>
         ))}
-        <p className="or-q2">
-          <span className="or-q2-label">Вы:</span>
-          {point.studentQuote ? (
+        {point.studentQuote ? (
+          <p className="or-q2">
+            <span className="or-q2-label">Вы:</span>
             <>
               «<UnderlinedText text={point.studentQuote} anchors={point.anchors} groups={shared} seed={markSeed + 17} animate={animate} delayMs={underDelay} />»
             </>
-          ) : (
+          </p>
+        ) : saidNothing(point.status) ? (
+          <p className="or-q2">
+            <span className="or-q2-label">Вы:</span>
             <span className="or-q2-none">в ответе не прозвучало</span>
-          )}
-        </p>
+          </p>
+        ) : null}
         {point.sourceQuote ? (
           point.status === 'covered' ? (
             <p className="or-q2">
