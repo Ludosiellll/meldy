@@ -7,6 +7,7 @@ import {
   setAnswerTextConsent,
   type AnswerTextConsent as Consent,
 } from '../../lib/oral/answerTexts';
+import { glue } from './sheetModel';
 
 export const CONSENT_GRANTED_LINE = 'Спасибо! Тексты ответов будут сохраняться. Выключить можно в профиле.';
 export const CONSENT_DECLINED_LINE = 'Хорошо, тексты ответов не сохраняются. Передумаете — включите в профиле.';
@@ -50,8 +51,8 @@ export default function AnswerTextConsent({ ready = true }: { ready?: boolean })
   if (!userId || !ready) return null;
   if (chosen) {
     return (
-      <p className="ex-note" data-quiet="" role="status">
-        {chosen === 'granted' ? CONSENT_GRANTED_LINE : CONSENT_DECLINED_LINE}
+      <p className="ex-note ex-consent" data-quiet="" role="status">
+        {glue(chosen === 'granted' ? CONSENT_GRANTED_LINE : CONSENT_DECLINED_LINE)}
       </p>
     );
   }
@@ -71,8 +72,9 @@ export default function AnswerTextConsent({ ready = true }: { ready?: boolean })
   };
 
   return (
-    <section className="ex-note" aria-label="Тексты ответов для проверки точности">
-      <span>{ANSWER_TEXT_CONSENT_TEXT}</span>
+    <section className="ex-note ex-consent" aria-label="Тексты ответов для проверки точности">
+      {/* glue: «Имя к» never ends a line, «в профиле» stays together (a 1440 page broke after «к»). */}
+      <span>{glue(ANSWER_TEXT_CONSENT_TEXT)}</span>
       <button type="button" className="sf-link" disabled={busy} onClick={() => void choose(true)}>
         Разрешить
       </button>

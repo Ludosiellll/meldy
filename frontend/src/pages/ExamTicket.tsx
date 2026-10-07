@@ -1465,7 +1465,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         <>
           {glue(protocolSheetLine(sheetChange.summary, sheetChange.quiet))}
           <span className="or-narrow">
-            {' · '}
+            {/* « · » stays on the sentence's line (glue's rule): a line never starts with it. */}
+            {'\u00a0· '}
             <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
               посмотреть
             </button>

@@ -242,7 +242,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(document.querySelector('.or-stamp, svg[data-mark="oval"]')).toBeNull();
     expect(document.body.textContent).not.toMatch(/[Зз]асчитан|Оценка|удовлетвор|отлично/);
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(document.querySelector('.or-how')?.textContent).toContain('строку шпаргалки такой пункт не стирает');
+    expect(plain(document.querySelector('.or-how')?.textContent)).toContain('строку шпаргалки такой пункт не стирает');
     expect(document.querySelector('.or-how')?.textContent).not.toMatch(/из 100|→/);
     expect(screen.getByRole('link', { name: 'Создать свой экзамен' })).toHaveAttribute('href', '/register');
     expectAccessibleScreen();

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ProtocolResult, type ProtocolFollowup, type ProtocolPoint } from '../oral/OralProtocol';
+import { glue } from '../../lib/oral/format';
 
 /** The example's one honest line under the result (the owner's brief, word for word). */
 export const EXAMPLE_GRADE_NOTE =
@@ -30,8 +31,9 @@ export default function ExampleGrade({
       followup={followup}
       fine={
         <>
-          <p className="or-grade-fine tx-grade-note">{EXAMPLE_GRADE_NOTE}</p>
-          <p className="or-grade-fine">{EXAMPLE_SCALE_NOTE}</p>
+          {/* glue: on a phone the note's lines ended in «по» and «В». */}
+          <p className="or-grade-fine tx-grade-note">{glue(EXAMPLE_GRADE_NOTE)}</p>
+          <p className="or-grade-fine">{glue(EXAMPLE_SCALE_NOTE)}</p>
         </>
       }
     >

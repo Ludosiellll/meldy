@@ -801,6 +801,9 @@
 .ac-row-t { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; color: var(--sf-ink); }
 .ac-row-d { margin: 4px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
 .ac-row-btn { flex: none; }
+/* Two rows in one card («Проверка точности Meldy»: the switch, then «Удалить»): a hairline between them, so
+   the second row's icon and button do not sit flush against the first row's. */
+.ac-row + .ac-row { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
 
 @media (max-width: 639px) {
   .ac-hero { margin-top: 24px; padding: 8px 8px 26px; border-radius: 36px; }
