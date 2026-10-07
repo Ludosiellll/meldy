@@ -409,7 +409,7 @@ function ReelSection() {
         <h2 id="reel-heading" className="hm-h2">
           Meldy за 35 секунд
         </h2>
-        <p className="hm-sub">{ty('От списка вопросов до ответа вслух. Ролик без звука — главы можно листать.')}</p>
+        <p className="hm-sub">{ty('От списка вопросов до пустой шпаргалки. Ролик без звука — главы можно листать.')}</p>
       </div>
       {MeldyReel ? <MeldyReel onCta={() => navigate('/register')} /> : <div className="hm-reel-wait" aria-hidden="true" />}
     </section>

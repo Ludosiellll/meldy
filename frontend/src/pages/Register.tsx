@@ -13,7 +13,7 @@ import InAppNote from '../components/InAppNote';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
- * с коротким роликом «Материал становится планом подготовки» (AuthReel). Пароль и его повтор стоят
+ * с коротким роликом под заголовком «Вопросы кафедры, ответы из ваших лекций» (AuthReel). Пароль и его повтор стоят
  * рядом, чтобы форма помещалась на экране ноутбука. Во встроенном WebView — как на входе: просьба открыть
  * ссылку в Chrome или Safari вместо кнопки Google, регистрация по почте остаётся (lib/inAppBrowser: Custom Tabs и
  * SFSafariViewController — настоящие браузеры, там кнопка Google есть).
@@ -325,7 +325,7 @@ export default function Register() {
             <BookOpen />
           </span>
           <h2 id="register-panel-title" className="au-panel-h">
-            Материал становится<br />планом подготовки
+            Вопросы кафедры,{' '}<br />ответы из ваших лекций
           </h2>
           <div className="au-panel-more">
             <AuthReel variant="register" />

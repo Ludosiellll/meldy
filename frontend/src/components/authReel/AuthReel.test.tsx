@@ -199,11 +199,12 @@ describe('the sign-in pages', () => {
 
   it('shows the reel under the panel heading of both pages', () => {
     renderAt('/login');
-    expect(screen.getByRole('heading', { name: 'От источника до уверенного ответа.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'От списка кафедры до пустой шпаргалки.' })).toBeInTheDocument();
     expect(screen.getByText('Ролик: как работает Meldy, 18 секунд, без звука.')).toBeInTheDocument();
     cleanup();
 
     const { container } = renderAt('/register');
+    expect(screen.getByRole('heading', { name: 'Вопросы кафедры, ответы из ваших лекций' })).toBeInTheDocument();
     expect(screen.getByText('Ролик: от списка вопросов до шпаргалки, 19 секунд, без звука.')).toBeInTheDocument();
     // The password and its repeat stand side by side.
     const pair = container.querySelector('.au-pair') as HTMLElement;

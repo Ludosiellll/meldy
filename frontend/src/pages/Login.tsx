@@ -186,7 +186,7 @@ export default function Login() {
 
         <aside className="au-panel au-panel--reel au-rise au-d1" aria-labelledby="login-panel-title">
           <p className="au-cap">Как работает Meldy</p>
-          <h2 id="login-panel-title" className="au-panel-h">От источника до уверенного ответа.</h2>
+          <h2 id="login-panel-title" className="au-panel-h">От списка кафедры до пустой шпаргалки.</h2>
           <div className="au-panel-more">
             <AuthReel variant="login" />
           </div>
