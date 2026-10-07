@@ -1,7 +1,9 @@
 import io
 import re
 from dataclasses import dataclass, replace
-from typing import Optional
+from typing import Optional, Union
+
+from utils import pack_source_blocks
 
 PPT_LEGACY_DETAIL = "Старый формат PowerPoint (.ppt) не читается. Сохраните презентацию как PPTX или PDF и загрузите снова."
 PPTX_NO_TEXT_DETAIL = (
@@ -68,12 +70,17 @@ def _extract_docx(contents: bytes) -> str:
       «%1.%2.» → «1.2. », «Вопрос %1.» → «Вопрос 4. »). Если шаблона нет или он ссылается
       на уровень не из цифр (буквы, римские), верхний уровень получает «<n>. »,
       вложенные — «<n>) ». Счётчик свой у каждого numId. Маркированные списки номеров не получают.
+    - Абзацы и таблицы складываются в блоки до 850 знаков, блоки разделены пустой строкой
+      (utils.pack_source_blocks): фрагменты лекции [S01]… режутся только между блоками, то есть
+      не посреди абзаца и не посреди строки таблицы; таблица — целиком или по строкам. В Word
+      между абзацами пустых строк нет, и раньше весь текст был одним «абзацем», который резался
+      окнами по 850 знаков (живой прогон 2026-10-07: таблица уровней изоляции попала в два фрагмента).
     """
     try:
         from docx import Document
 
         doc = Document(io.BytesIO(contents))
-        return clean_extracted_text("\n".join(_DocxReader(doc).lines()))
+        return clean_extracted_text(pack_source_blocks(_DocxReader(doc).units()))
     except Exception as e:
         raise ValueError(f"Ошибка чтения DOCX: {e}")
 
@@ -278,19 +285,19 @@ def _int(value: Optional[str], default):
 
 
 class _DocxReader:
-    """Обходит тело документа по порядку и собирает строки текста."""
+    """Обходит тело документа по порядку: абзацы (строка) и таблицы (список строк таблицы)."""
 
     def __init__(self, doc) -> None:
         self._doc = doc
         self._numbering = _DocxNumbering(doc)
         self._counters: dict[str, dict[int, int]] = {}
 
-    def lines(self) -> list[str]:
-        out: list[str] = []
+    def units(self) -> list[Union[str, list[str]]]:
+        out: list[Union[str, list[str]]] = []
         self._walk_blocks(self._doc.element.body, out)
         return out
 
-    def _walk_blocks(self, parent, out: list[str]) -> None:
+    def _walk_blocks(self, parent, out: list[Union[str, list[str]]]) -> None:
         for child in parent:
             tag = child.tag
             if tag == _W_P:
@@ -299,7 +306,9 @@ class _DocxReader:
                 if text.strip():
                     out.append(text)
             elif tag == _W_TBL:
-                out.extend(self._table_rows(child))
+                rows = self._table_rows(child)
+                if rows:
+                    out.append(rows)
             elif tag in (_W_SDT, _W_CUSTOM_XML):
                 content = child.find(_W_SDT_CONTENT) if tag == _W_SDT else child
                 if content is not None:
