@@ -4,13 +4,13 @@ import { ClockProvider, SceneProvider, opacity, put, text, flag, useEls, useFram
 import Brand from './scenes/Brand';
 import Chaos from './scenes/Chaos';
 import Intro from './scenes/Intro';
+import Days from './scenes/Days';
 import Oral from './scenes/Oral';
 import Outro from './scenes/Outro';
-import Ready from './scenes/Ready';
-import Review from './scenes/Review';
+import Sheet from './scenes/Sheet';
 import Tickets from './scenes/Tickets';
 import Tour from './scenes/Tour';
-import { CHAPTERS, activeScenes, chapterAt, clamp, ease, mix, sceneWindow, seg, timecode, type SceneId } from './timeline';
+import { CHAPTERS, activeScenes, chapterAt, ease, mix, sceneWindow, seg, timecode, type SceneId } from './timeline';
 
 const SCENE_VIEWS: Record<SceneId, ComponentType> = {
   intro: Intro,
@@ -19,15 +19,15 @@ const SCENE_VIEWS: Record<SceneId, ComponentType> = {
   tour: Tour,
   tickets: Tickets,
   oral: Oral,
-  review: Review,
-  ready: Ready,
+  sheet: Sheet,
+  days: Days,
   outro: Outro,
 };
 
 /** The corner labels: visible over the chaos and over the chapters, light on dark scenes. */
 const HUD_SPANS = [
   { from: sceneWindow('chaos').from + 300, to: sceneWindow('brand').from + 150, label: '00 / Сессия' },
-  { from: sceneWindow('tickets').from + 150, to: sceneWindow('ready').to - 350, label: '' },
+  { from: sceneWindow('tickets').from + 150, to: sceneWindow('days').to - 350, label: '' },
 ];
 
 function hudLabel(t: number): { text: string; since: number } {
@@ -36,11 +36,9 @@ function hudLabel(t: number): { text: string; since: number } {
   return { text: HUD_SPANS[0].label, since: HUD_SPANS[0].from };
 }
 
-/** 1 = white corner labels (dark and blue scenes), 0 = ink (paper scenes). */
+/** 1 = white corner labels (the dark opening), 0 = ink (the paper of every chapter). */
 function hudLight(t: number): number {
-  const darkFrom = sceneWindow('ready').from;
-  if (t < sceneWindow('brand').from + 400) return 1;
-  return clamp((t - darkFrom - 100) / 300);
+  return t < sceneWindow('brand').from + 400 ? 1 : 0;
 }
 
 function Hud() {

@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { blur, opacity, put, useEls, useFrame } from '../engine';
 import { drawBurst, drawDust, drawGather, drawRing, makeBurst, makeDust } from '../particles';
 import { Kinetic, Marker, ParticleCanvas, Pill } from '../parts';
-import { clamp, ease, mix, pulse, seg } from '../timeline';
+import { clamp, ease, mix, pulse, sceneWindow, seg } from '../timeline';
 
 const MARK_TOP = 205;
 const MARK_SIZE = 210;
@@ -10,11 +10,13 @@ const MARK_SIZE = 210;
 /** The stage rectangle of the closing call (for the clickable area over the frame). */
 export const OUTRO_CTA = { x: 960, y: 874, w: 400, h: 72 };
 export const OUTRO_CTA_AT = 2550;
+/** How long the end is on the stage: it goes black over its last 320 ms, for the loop's first frame. */
+const LENGTH = sceneWindow('outro').to - sceneWindow('outro').from;
 
 const FEATURES = [
   {
     title: 'Билеты',
-    sub: 'по твоим лекциям',
+    sub: 'по вашим лекциям',
     tone: { background: '#E8EFFC', color: '#1C4DB1' },
     icon: <path d="M5 6h10M5 10h10M5 14h6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
   },
@@ -30,10 +32,11 @@ const FEATURES = [
     ),
   },
   {
-    title: 'Повторение',
-    sub: 'в нужный день',
+    title: 'Шпаргалка',
+    sub: 'стирают только ответы',
     tone: { background: '#E2F2E5', color: '#2C6B3A' },
-    icon: <path d="M15.5 8.5A6 6 0 1 0 16 12M16 4v4.5h-4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />,
+    // Three lines by hand, the middle one rubbed half-way.
+    icon: <path d="M4.5 5.5h11M4.5 10h2.2M9.2 10h1.6M13.3 10h2.2M4.5 14.5h7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
   },
 ];
 
@@ -97,8 +100,8 @@ export default function Outro() {
     put(one('cta-dot'), 'transform', `translate3d(${(6 * nudge).toFixed(2)}px,0,0)`);
 
     // Slow push in while the end holds, then black for the loop's first frame.
-    put(one('cam'), 'transform', `scale(${mix(1, 1.035, ease.sine(seg(l, 1400, 3800))).toFixed(4)})`);
-    opacity(one('black'), ease.inOut(seg(l, 4880, 320)));
+    put(one('cam'), 'transform', `scale(${mix(1, 1.035, ease.sine(seg(l, 1400, LENGTH - 1400))).toFixed(4)})`);
+    opacity(one('black'), ease.inOut(seg(l, LENGTH - 320, 320)));
   });
 
   const draw = (ctx: CanvasRenderingContext2D, l: number) => {

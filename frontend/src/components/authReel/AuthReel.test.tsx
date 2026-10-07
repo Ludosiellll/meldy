@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { EYEBROW } from '../../pages/Landing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabase', () => ({
@@ -8,7 +9,10 @@ vi.mock('../../lib/supabase', () => ({
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
 
 import AuthReel from './AuthReel';
-import { LOGIN_SCRIPT, REGISTER_SCRIPT, cornerOpacity, sceneVisible, scenesAt } from './script';
+import { READY_TAG } from './Ready';
+import { LOGIN_SCRIPT, REGISTER_SCRIPT, cornerOpacity, leaveOf, sceneVisible, scenesAt, type AuthReelVariant, type AuthScript } from './script';
+import { ANSWER_CHANGE, ERASE_AT, q7 } from './StoryScenes';
+import { inkAt } from '../film/ink';
 import Login from '../../pages/Login';
 import Register from '../../pages/Register';
 
@@ -31,9 +35,9 @@ describe('the sign-in reel scripts', () => {
   });
 
   it('mounts the next scene ahead, hidden, and the first one again before the loop wraps', () => {
-    expect(scenesAt(LOGIN_SCRIPT, 3100)).toEqual(['source', 'summary']);
+    expect(scenesAt(LOGIN_SCRIPT, 3100)).toEqual(['back', 'answers']);
     expect(sceneVisible(LOGIN_SCRIPT.scenes[1], 3100)).toBe(false);
-    expect(scenesAt(LOGIN_SCRIPT, 17800)).toEqual(['source', 'ready']);
+    expect(scenesAt(LOGIN_SCRIPT, 17800)).toEqual(['back', 'ready']);
     expect(sceneVisible(LOGIN_SCRIPT.scenes[0], 17800)).toBe(false);
     expect(sceneVisible(LOGIN_SCRIPT.scenes[4], 17800)).toBe(true);
   });
@@ -44,6 +48,40 @@ describe('the sign-in reel scripts', () => {
     expect(cornerOpacity(LOGIN_SCRIPT, 9000)).toBe(1);
     expect(cornerOpacity(LOGIN_SCRIPT, 16000)).toBe(0);
     expect(cornerOpacity(REGISTER_SCRIPT, 17000)).toBe(0);
+  });
+});
+
+describe('the story the reels tell (Release 29)', () => {
+  it.each([
+    ['sign-in', LOGIN_SCRIPT, ['back', 'answers', 'ticket', 'erase', 'ready']],
+    ['sign-up', REGISTER_SCRIPT, ['list', 'answers', 'ticket', 'erase', 'ready']],
+  ] as const)('%s: the four steps, then the sheet after an answer, then the wordmark', (_, script, ids) => {
+    expect(script.scenes.map((scene) => scene.id)).toEqual(ids);
+    // Each screen leaves as its scene ends, while the next one comes in.
+    for (const scene of script.scenes.slice(0, -1)) expect(leaveOf(script, scene.id)).toBe(scene.to - scene.from - 440);
+  });
+
+  it.each([
+    ['sign-in', LOGIN_SCRIPT],
+    ['sign-up', REGISTER_SCRIPT],
+  ] as const)('%s: the still frame is the sheet just after the answer, the line named on two days gone', (_, script: AuthScript) => {
+    const erase = script.scenes.find((scene) => scene.id === 'erase')!;
+    expect(sceneVisible(erase, script.poster)).toBe(true);
+    const local = script.poster - erase.from;
+    expect(local).toBeLessThan(leaveOf(script, 'erase'));
+    expect(q7(ERASE_AT).lines.map((line) => inkAt(line, local).state)).toEqual(['erased', 'rubbed', 'missed', 'rubbed']);
+  });
+
+  it('signs off with what Meldy is, in the landing\'s words', () => {
+    expect(READY_TAG).toBe(EYEBROW);
+  });
+
+  it('says nothing of the old story: no summary, cards, tests, days of repetition, grades or «Засчитано»', () => {
+    const old = /Конспект|Карточк|Тест\b|Выжимк|Разговор|Повторение по дням|Засчитано|Проверено|оценк|отличн|хорошо\b|План готов/i;
+    for (const script of [LOGIN_SCRIPT, REGISTER_SCRIPT]) {
+      expect(script.caption).not.toMatch(old);
+      for (const line of script.transcript) expect(line).not.toMatch(old);
+    }
   });
 });
 
@@ -81,7 +119,30 @@ describe('the reel in the panel', () => {
     expect(screen.getByRole('button', { name: 'Смотреть' })).toBeInTheDocument();
   });
 
-  it('waits on a still frame with reduced motion until asked to play', () => {
+  it.each([
+    ['login', LOGIN_SCRIPT, ['Шпаргалка', 'месте.', 'Цель', 'шпаргалка']],
+    ['register', REGISTER_SCRIPT, ['Список', 'кафедры.', 'Начните', 'списка']],
+  ] as const)('%s: plays the four steps in the screens\' own words, and nothing of the old story', (variant, script, own) => {
+    window.__MELDY_AUTH_REEL_EXPORT__ = true;
+    try {
+      const { container } = render(<AuthReel variant={variant as AuthReelVariant} />);
+      const seen = new Set<string>();
+      for (let t = 0; t < script.total; t += 250) {
+        act(() => {
+          void window.__meldyAuthReel!.seek(t);
+        });
+        seen.add(container.querySelector('.mr-stage')!.textContent ?? '');
+      }
+      const text = Array.from(seen).join(' ');
+      for (const word of [...own, 'Ответы', 'лекций.', 'Билет', 'вслух.', 'Стирают', 'ответы.', 'Экзаменатор', 'Шпаргалка', READY_TAG]) expect(text).toContain(word);
+      expect(text.replace(/\u00a0/g, ' ')).toContain(ANSWER_CHANGE.replace(/\u00a0/g, ' '));
+      expect(text).not.toMatch(/Конспект|Карточк|Выжимк|Разговор|Повторение по дням|Засчитано|Проверено|Запустить анализ/);
+    } finally {
+      delete window.__MELDY_AUTH_REEL_EXPORT__;
+    }
+  });
+
+  it('waits on a still frame with reduced motion until asked to play: the sheet, the answer said in its words', () => {
     const original = window.matchMedia;
     window.matchMedia = ((query: string) => ({
       matches: query.includes('reduce') || query.includes('min-width'),
@@ -90,7 +151,10 @@ describe('the reel in the panel', () => {
       removeEventListener: () => {},
     })) as unknown as typeof window.matchMedia;
     try {
-      render(<AuthReel variant="login" />);
+      const { container } = render(<AuthReel variant="login" />);
+      const chip = container.querySelector('.ar-cap .ss-cap-t') as HTMLElement;
+      expect(chip.textContent).toBe(ANSWER_CHANGE);
+      expect(chip.style.opacity).toBe('1');
       act(() => {
         fireEvent.click(screen.getByRole('button', { name: /Смотреть ролик/ }));
       });
@@ -140,7 +204,7 @@ describe('the sign-in pages', () => {
     cleanup();
 
     const { container } = renderAt('/register');
-    expect(screen.getByText('Ролик: материал становится планом подготовки, 19 секунд, без звука.')).toBeInTheDocument();
+    expect(screen.getByText('Ролик: от списка вопросов до шпаргалки, 19 секунд, без звука.')).toBeInTheDocument();
     // The password and its repeat stand side by side.
     const pair = container.querySelector('.au-pair') as HTMLElement;
     expect(within(pair).getByLabelText('Пароль')).toBeInTheDocument();

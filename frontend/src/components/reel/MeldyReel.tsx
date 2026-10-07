@@ -21,9 +21,9 @@ declare global {
 export const SEGMENTS: Array<{ label: string; from: number; to: number; id?: ReelChapter }> = [
   { label: 'Начало', from: 0, to: sceneWindow('tickets').from },
   { label: 'Билеты', from: sceneWindow('tickets').from, to: sceneWindow('oral').from, id: 'tickets' },
-  { label: 'Ответ вслух', from: sceneWindow('oral').from, to: sceneWindow('review').from, id: 'oral' },
-  { label: 'Повторение', from: sceneWindow('review').from, to: sceneWindow('ready').from, id: 'review' },
-  { label: 'Готовность', from: sceneWindow('ready').from, to: sceneWindow('outro').from, id: 'ready' },
+  { label: 'Ответ вслух', from: sceneWindow('oral').from, to: sceneWindow('sheet').from, id: 'oral' },
+  { label: 'Шпаргалка', from: sceneWindow('sheet').from, to: sceneWindow('days').from, id: 'sheet' },
+  { label: 'Разные дни', from: sceneWindow('days').from, to: sceneWindow('outro').from, id: 'days' },
   { label: 'Итог', from: sceneWindow('outro').from, to: TOTAL },
 ];
 
@@ -33,11 +33,11 @@ const segmentAt = (t: number) => Math.max(0, SEGMENTS.findIndex((segment) => t >
 const TRANSCRIPT = [
   'Сессия: 40 вопросов, 12 дней. С чего начать?',
   'Meldy. Сессия начинается со списка вопросов.',
-  'Билеты: 24 из 40 вопросов уже есть в твоих лекциях. Тянуть билет.',
+  'Билеты: 24 из 40 вопросов уже есть в ваших лекциях. Тянуть билет.',
   'Ответ вслух, как на экзамене: пункты ответа отмечаются, экзаменатор спрашивает о пропущенном, ответ проверен по пунктам.',
-  'Повторение: пропущенный пункт возвращается карточкой на завтра.',
-  'Готовность: не перечитывай — вспоминай.',
-  'Meldy. Вспоминать полезнее, чем перечитывать. Билеты по твоим лекциям, ответ вслух с вопросом экзаменатора, повторение в нужный день.',
+  'Шпаргалка: строки стирают только ответы. После ответа 4 строки стёрлись наполовину, а пункт, названный только после вопроса экзаменатора, не стёрся.',
+  'Разные дни: одного ответа мало. Назвали снова в другой день — строка стёрлась совсем; стёртую строку не назвали — она вернулась.',
+  'Meldy. Вспоминать полезнее, чем перечитывать. Билеты по вашим лекциям, ответ вслух с вопросом экзаменатора, шпаргалка, которую стирают только ответы.',
 ];
 
 const exportRequested = () => typeof window !== 'undefined' && window.__MELDY_REEL_EXPORT__ === true;

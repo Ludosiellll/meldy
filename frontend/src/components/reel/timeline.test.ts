@@ -6,7 +6,7 @@ import { CHAPTERS, POSTER_AT, SCENES, TOTAL, activeScenes, chapterAt, ease, plur
 
 describe('the reel timeline', () => {
   it('plays the scenes in story order, each overlapping the next for its transition, within the reel', () => {
-    expect(SCENES.map((scene) => scene.id)).toEqual(['intro', 'chaos', 'brand', 'tour', 'tickets', 'oral', 'review', 'ready', 'outro']);
+    expect(SCENES.map((scene) => scene.id)).toEqual(['intro', 'chaos', 'brand', 'tour', 'tickets', 'oral', 'sheet', 'days', 'outro']);
     expect(SCENES[0].from).toBe(0);
     expect(SCENES[SCENES.length - 1].to).toBe(TOTAL);
     for (let i = 1; i < SCENES.length; i += 1) {
@@ -25,10 +25,11 @@ describe('the reel timeline', () => {
   });
 
   it('names the chapters 01–04 and knows which one plays', () => {
-    expect(CHAPTERS.map((chapter) => `${chapter.number} ${chapter.label}`)).toEqual(['01 Билеты', '02 Ответ вслух', '03 Повторение', '04 Готовность']);
+    expect(CHAPTERS.map((chapter) => `${chapter.number} ${chapter.label}`)).toEqual(['01 Билеты', '02 Ответ вслух', '03 Шпаргалка', '04 Разные дни']);
     expect(chapterAt(1000)).toBeNull();
     expect(chapterAt(POSTER_AT)?.label).toBe('Билеты');
-    expect(chapterAt(CHAPTERS[2].at + 10)?.label).toBe('Повторение');
+    expect(chapterAt(CHAPTERS[2].at + 10)?.label).toBe('Шпаргалка');
+    expect(chapterAt(CHAPTERS[3].at + 10)?.label).toBe('Разные дни');
     expect(chapterAt(TOTAL - 10)).toBeNull();
   });
 

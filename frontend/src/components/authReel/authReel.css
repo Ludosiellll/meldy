@@ -83,162 +83,120 @@
 
 /* ------------------------------------------------------------------ statements and the dot */
 .ar-say { left: 110px; top: 402px; z-index: 40; font-size: 140px; }
-.ar-say--center { left: 0; right: 0; top: 400px; text-align: center; }
 .ar-say--end { left: 0; right: 0; top: 410px; text-align: center; font-size: 168px; }
-.ar-say--tight { font-size: 136px; }
+/* «только ответы.» is the widest line of the reels: a little smaller, so it ends before the sheet. */
+.ar-say--erase { font-size: 128px; }
 .ar-home { left: 0; top: 0; z-index: 50; width: 34px; height: 34px; }
 .ar-mark { position: absolute; left: 0; right: 0; top: 400px; z-index: 45; display: flex; justify-content: center; }
 .ar-mark-w { font-size: 230px; color: var(--ink); }
 .ar-tag { position: absolute; left: 0; right: 0; top: 690px; z-index: 45; margin: 0; text-align: center; font-size: 40px; color: var(--muted); }
 
-/* ------------------------------------------------------------------ sign-in · 1 the upload */
-.ln-up { left: 280px; top: 110px; width: 1360px; height: 860px; }
-.ln-zone {
-  position: absolute;
-  left: 360px;
-  top: 150px;
+/* ------------------------------------------------------------------ the cheat sheet in its card */
+/* The landing's first screen (home.css .hs): a white card, the pink flag, the exam, the paper
+   (film/StageSheet, scaled as a whole) and what the answer did under it. */
+.ar-card { padding: 34px; }
+.ar-card-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+.ar-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 44px 0 26px;
+  background: #f3a9c4;
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 500;
+  white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 0 100%);
+}
+.ar-card-meta { padding-right: 8px; font-size: 26px; color: var(--muted); white-space: nowrap; }
+/* What the answer did: the exam page's chip at the end of a show (sheet.css .cs-chip), over the
+   bottom of the card. */
+.ar-cap { position: absolute; left: 70px; right: 70px; bottom: -84px; z-index: 2; height: 0; }
+.ar-cap .ss-cap-t {
+  top: auto;
+  right: 0;
+  bottom: 0;
   box-sizing: border-box;
-  display: grid;
-  place-items: center;
-  width: 640px;
-  height: 380px;
-  border: 4px dashed #cfd0c8;
-  border-radius: 40px;
-  background: #fafaf8;
-}
-.ln-zone-hint { display: flex; flex-direction: column; align-items: center; gap: 22px; font-size: 34px; font-weight: 600; color: var(--ink); }
-.ln-zone-ico { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: #efefea; }
-.ln-zone-ico svg { width: 46px; height: 46px; }
-.ln-file { left: 86px; top: 120px; width: 460px; }
-.ln-mods { position: absolute; left: 0; right: 0; top: 584px; display: flex; justify-content: center; gap: 14px; }
-.ln-mod {
-  display: inline-flex;
-  align-items: center;
-  height: 70px;
-  padding: 0 30px;
-  border: 2px solid #e4e4de;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 30px;
+  padding: 18px 28px;
+  border-radius: 26px;
+  background: var(--ink);
+  color: #fbfbf9;
+  font-size: 29px;
   font-weight: 500;
+  line-height: 38px;
+  white-space: normal;
+  text-wrap: balance;
+  box-shadow: 0 30px 50px -30px rgba(11, 18, 28, .6);
 }
-.ln-run { position: absolute; left: 480px; top: 704px; }
+/* The pencil notes a little larger than the page's: the stage is shown at a third of its size. */
+.ar-paper .ss { --ss-note-size: 16px; }
 
-/* ------------------------------------------------------------------ sign-in · 2 the summary */
-.ln-page { left: 1000px; top: 110px; width: 1200px; height: 920px; transform-origin: 0 50%; }
-.ln-page-in { padding: 56px 64px; }
-.ln-crumb { margin: 0; font-size: 28px; }
-.ln-page-h { margin-top: 10px; font-size: 64px; }
-.ln-tabs { display: flex; gap: 10px; margin-top: 30px; }
-.ln-tabs span { padding: 16px 28px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 2px #e4e4de; color: var(--ink); font-size: 30px; font-weight: 500; }
-.ln-tabs span.is-on { background: var(--ink); color: #fff; box-shadow: none; }
-.ln-sum { position: relative; width: 1000px; margin-top: 36px; padding: 48px 52px; }
-.ln-sum-h { margin: 0; font-size: 40px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
-.ln-sum-h--2 { margin-top: 44px; }
-.ln-sum-p { margin: 18px 0 0; font-size: 34px; line-height: 1.5; color: var(--ink); }
-.ln-frag { vertical-align: 4px; }
-.ln-line { display: block; width: 860px; height: 18px; margin-top: 22px; border-radius: 9px; background: #efefea; }
-.ln-line--short { width: 560px; }
-.ln-slip { left: 300px; top: 560px; width: 600px; padding: 40px 46px; }
-.ln-slip-c { margin: 0; font-size: 26px; }
-.ln-slip-q { margin: 14px 0 0; font-size: 36px; line-height: 1.4; color: var(--ink); }
+/* ------------------------------------------------------------------ sign-in · 1 the sheet as it was left */
+.ar-back { left: 491px; top: 112px; }
 
-/* ------------------------------------------------------------------ sign-in · 3 the cards */
-.ln-desk { position: absolute; left: 1000px; top: 130px; width: 1000px; height: 860px; transform-origin: 0 50%; }
-.ln-review { left: 0; top: 60px; width: 860px; height: 400px; padding: 56px 60px; }
-.ln-review-l { margin: 0; font-size: 30px; }
-.ln-review-q { margin: 26px 0 0; font-size: 62px; font-weight: 600; line-height: 1.08; letter-spacing: -.03em; color: var(--ink); }
-.ln-review--far { left: 96px; top: -40px; transform: scale(.88); filter: blur(9px); opacity: .7; }
-.ln-front { position: absolute; left: 0; top: 60px; width: 860px; height: 400px; perspective: 3200px; }
-.ln-flip-in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
-.ln-face { left: 0; top: 0; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
-.ln-face--back { transform: rotateY(180deg); }
-.ln-grades { position: absolute; left: 0; top: 500px; display: flex; gap: 16px; }
-.ln-grade {
-  display: inline-flex;
-  align-items: center;
-  height: 88px;
-  padding: 0 38px;
-  border: 2px solid #e4e4de;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 32px;
-  font-weight: 500;
-}
-.ln-when { position: absolute; left: 4px; top: 624px; margin: 0; font-size: 34px; font-weight: 500; color: var(--ink); }
-
-/* ------------------------------------------------------------------ sign-in · 4 the ticket */
-.ln-room { position: absolute; left: 1000px; top: 150px; width: 980px; height: 820px; transform-origin: 0 50%; }
-.ln-ticket { left: 0; top: 0; width: 960px; height: 470px; padding: 52px 56px; }
-.ln-ticket-q { margin-top: 30px; font-size: 76px; }
-.ln-voice-row { position: absolute; left: 56px; right: 56px; bottom: 52px; display: flex; align-items: center; gap: 30px; }
-.ln-wave { display: flex; align-items: center; gap: 8px; height: 90px; }
-.ln-wave i { width: 7px; height: 90px; border-radius: 4px; background: var(--ink); transform-origin: 50% 50%; }
-.ln-stamp { position: absolute; right: 50px; top: 46px; display: grid; place-items: center; width: 300px; height: 120px; font-size: 40px; font-weight: 600; color: var(--ink); }
-.ln-stamp svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.ln-stamp path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
-.ln-ask { left: 0; top: 510px; width: 960px; padding: 40px 50px; }
-.ln-ask-l { margin: 0; font-size: 26px; }
-.ln-ask-q { margin: 12px 0 0; font-size: 38px; line-height: 1.35; color: var(--ink); }
-
-/* ------------------------------------------------------------------ sign-up · 2 the question list */
-.rg-editor { left: 1000px; top: 140px; width: 1140px; height: 860px; transform-origin: 0 50%; }
-.rg-editor-in { padding: 56px 64px; }
-.rg-editor-h { font-size: 64px; }
-.rg-label { margin: 36px 0 0; font-size: 30px; font-weight: 600; color: var(--ink); }
-.rg-field {
+/* ------------------------------------------------------------------ sign-up · 1 the department's list */
+.ar-new { left: 300px; top: 120px; width: 1320px; height: 840px; }
+.ar-new-in { padding: 62px 72px; }
+.ar-new-h { font-size: 64px; }
+.ar-new-h2 { margin: 34px 0 0; font-size: 42px; font-weight: 600; letter-spacing: -.025em; color: var(--ink); }
+.ar-new-sub { margin: 12px 0 0; font-size: 28px; }
+.ar-new-field {
   position: relative;
   box-sizing: border-box;
-  width: 800px;
-  height: 360px;
-  margin-top: 16px;
-  padding: 36px 40px;
+  height: 382px;
+  margin-top: 28px;
+  padding: 30px 40px;
   border-radius: 28px;
   background: #fff;
   box-shadow: inset 0 0 0 2px #e4e4de;
 }
-.rg-typed { display: block; font-size: 34px; line-height: 70px; color: var(--ink); }
-.rg-marks { position: absolute; right: 36px; top: 36px; display: grid; justify-items: end; }
-.rg-marks .fm-st { margin: 8px 0; }
-.rg-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; margin-top: 34px; }
-.rg-mapped { font-size: 30px; }
+.ar-new-hint { position: absolute; left: 40px; top: 30px; font-size: 30px; line-height: 54px; color: #a0a6ae; }
+.ar-new-row { display: block; font-size: 30px; line-height: 54px; color: var(--ink); white-space: nowrap; }
+.ar-new-row--h { font-weight: 600; }
+.ar-new-status { position: relative; height: 44px; margin: 24px 0 0; font-size: 32px; font-weight: 500; color: var(--ink); }
+.ar-new-status span { position: absolute; left: 0; top: 0; white-space: nowrap; }
+.ar-new-file { left: 400px; top: 470px; width: 520px; z-index: 2; }
 
-/* ------------------------------------------------------------------ sign-up · 3 the week */
-.rg-board { left: 980px; top: 120px; width: 1320px; height: 900px; transform-origin: 0 50%; background: #fff; }
-.rg-days { display: flex; align-items: center; height: 110px; padding-left: 24px; border-bottom: 1px solid #e4e4de; }
-.rg-day { width: 168px; font-size: 30px; color: var(--muted); white-space: nowrap; }
-.rg-day b { margin-left: 6px; font-weight: 600; color: var(--ink); }
-.rg-day--today b { display: inline-grid; place-items: center; min-width: 52px; height: 52px; padding: 0 8px; border-radius: 14px; background: var(--ink); color: #fff; }
-.rg-cols { position: absolute; left: 0; right: 0; top: 110px; bottom: 0; }
-.rg-col { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid #ecece6; }
-.rg-block {
-  position: absolute;
-  box-sizing: border-box;
-  width: 152px;
-  padding: 18px 16px;
-  border-radius: 18px;
-  background: #efefea;
-  color: var(--ink);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.2;
+/* ------------------------------------------------------------------ 2 · the questions and a quote */
+.ar-q { position: absolute; left: 1010px; top: 140px; width: 920px; height: 860px; transform-origin: 0 50%; }
+.ar-q-card { left: 0; top: 0; width: 900px; padding: 46px 50px 30px; }
+.ar-q-h { margin: 0 0 18px; font-size: 40px; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; color: var(--ink); }
+.ar-q-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 22px;
+  padding: 24px 0;
+  border-top: 2px solid #ecece6;
 }
-.rg-block small { display: block; margin-top: 6px; font-size: 19px; font-weight: 500; color: var(--muted); }
-.rg-block--ink { background: var(--ink); color: #fff; }
-.rg-now { position: absolute; left: 16px; top: 0; bottom: 0; width: 0; border-left: 4px solid var(--blue); transform-origin: 50% 0; }
-.rg-now-tag { left: -8px; top: -24px; }
+.ar-q-focus { position: absolute; inset: 6px -22px; border-radius: 26px; background: #f3f3ee; }
+.ar-q-row > :not(.ar-q-focus) { position: relative; }
+.ar-q-n { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; background: #efefea; font-size: 26px; font-weight: 600; color: var(--ink); }
+.ar-q-t { font-size: 34px; font-weight: 500; line-height: 1.25; letter-spacing: -.015em; color: var(--ink); }
+.ar-q-t small { display: block; margin-top: 8px; font-size: 26px; font-weight: 500; color: #1f5bc6; }
+.ar-q-row .fm-st { margin-top: 2px; }
+.ar-slip { left: -70px; top: 590px; width: 860px; padding: 38px 46px; }
+.ar-slip-c { margin: 0; font-size: 26px; }
+.ar-slip-q { margin: 14px 0 0; font-size: 40px; line-height: 1.32; letter-spacing: -.015em; color: var(--ink); }
 
-/* ------------------------------------------------------------------ sign-up · 4 the exam */
-.rg-exam { position: absolute; left: 1020px; top: 150px; width: 900px; height: 780px; transform-origin: 0 50%; }
-.rg-exam-card { left: 0; top: 0; width: 860px; padding: 54px 58px; }
-.rg-exam-h { margin-top: 26px; font-size: 64px; }
-.rg-share { display: flex; align-items: baseline; margin: 24px 0 0; font-size: 150px; font-weight: 700; line-height: 1; letter-spacing: -.05em; color: var(--ink); }
-.rg-share-c { margin: 10px 0 0; font-size: 30px; }
-.rg-dots { display: flex; gap: 12px; margin-top: 30px; }
-.rg-dot { width: 26px; height: 26px; border-radius: 50%; }
-.rg-dot--ok { background: #8acb97; }
-.rg-dot--half { background: #f4c45b; }
-.rg-dot--no { background: #e4e4de; }
-.rg-exam-actions { display: flex; gap: 16px; margin-top: 40px; }
+/* ------------------------------------------------------------------ 3 · the ticket aloud */
+.ar-room { position: absolute; left: 1010px; top: 110px; width: 960px; height: 880px; transform-origin: 0 50%; }
+.ar-ticket { left: 0; top: 0; width: 900px; padding: 50px 56px 54px; }
+.ar-pill { display: inline-flex; align-items: center; height: 62px; padding: 0 30px; border-radius: 999px; background: #10295a; color: #fff; font-size: 30px; font-weight: 600; }
+.ar-ticket-q { margin-top: 28px; font-size: 62px; line-height: 1.08; }
+.ar-voice { display: flex; align-items: center; gap: 30px; margin-top: 40px; }
+.ar-wave { display: flex; align-items: center; gap: 8px; height: 90px; }
+.ar-wave i { width: 7px; height: 90px; border-radius: 4px; background: var(--ink); transform-origin: 50% 50%; }
+.ar-count { position: absolute; left: 6px; top: 486px; display: flex; align-items: center; gap: 12px; margin: 0; font-size: 32px; color: var(--muted); white-space: nowrap; }
+.ar-count b { font-weight: 600; color: var(--ink); }
+.ar-marks { display: inline-flex; gap: 14px; margin-left: 18px; }
+.ar-mark-slot { position: relative; display: block; width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 3px #cfd0c8; }
+.ar-mark-fill { position: absolute; inset: 0; border-radius: 50%; background: var(--ink); }
+.ar-ask { position: absolute; left: 0; top: 556px; box-sizing: border-box; width: 900px; padding: 34px 46px 40px; border-radius: 40px; background: #e8effc; }
+.ar-ask-who { display: flex; align-items: center; gap: 18px; margin: 0; font-size: 28px; font-weight: 600; color: #1f5bc6; }
+.ar-ask-ava { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: #10295a; color: #fff; font-size: 26px; }
+.ar-ask-q { margin: 18px 0 0; font-size: 44px; font-weight: 500; line-height: 1.18; letter-spacing: -.025em; color: var(--ink); }
+
+/* ------------------------------------------------------------------ 4 · the sheet after the answer */
+.ar-erase { left: 1012px; top: 178px; transform-origin: 0 50%; }

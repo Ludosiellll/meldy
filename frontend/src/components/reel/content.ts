@@ -1,7 +1,8 @@
 /**
  * What the reel shows. The example is the landing's own course (microeconomics, the ticket about
  * the bakery and the coffee shop) and the stage list of the app: 40 questions, 24 «есть»,
- * 7 «частично», 9 «нет» (lib/exams, sheetModel tests). No figures about users: only the product.
+ * 7 «частично», 9 «нет» (lib/exams, sheetModel tests); then the ticket's cheat sheet over three days
+ * of answers. No figures about users: only the product.
  */
 import type { Coverage } from './parts';
 
@@ -116,35 +117,26 @@ export const TICKET = {
   reply: 'Когда покупки меняются сильнее, чем цена.',
 };
 
-export interface ReviewColumn {
-  title: string;
-  cards: Array<{ text: string; from?: string }>;
-}
-
-/** Cards by the day they come back (spaced repetition). */
-export const REVIEW_COLUMNS: ReviewColumn[] = [
-  {
-    title: 'Сегодня',
-    cards: [{ text: 'Что такое излишек потребителя?' }, { text: 'Как найти точку равновесия?' }, { text: 'Чем фирма отличается от отрасли?' }],
-  },
-  {
-    title: 'Завтра',
-    cards: [{ text: 'Когда спрос называют эластичным?', from: 'из ответа на билет 7' }, { text: 'Что показывает кривая предложения?' }],
-  },
-  {
-    title: 'Через 3 дня',
-    cards: [{ text: 'Издержки в краткосрочном периоде' }, { text: 'Признаки совершенной конкуренции' }],
-  },
-  {
-    title: 'Через неделю',
-    cards: [{ text: 'Ценовая дискриминация: виды' }, { text: 'Внешние эффекты: пример' }],
-  },
-];
-
-/** Notes floating around the readiness grid. */
-export const READY_NOTES = [
-  { text: 'Вопрос 7 — подтверждён', tone: 'green', x: 330, y: 500 },
-  { text: '12 карточек на сегодня', tone: 'blue', x: 1590, y: 450 },
-  { text: 'Пункт 1 — в повторение', tone: 'yellow', x: 350, y: 800 },
-  { text: 'Вопрос 14 — разобран', tone: 'sky', x: 1580, y: 790 },
+/**
+ * The ticket's answer points as the lines of its cheat sheet, short and by hand, in the order of
+ * TICKET.points (the sheet's rule: the point's own words, ↑ ↓ → for «растёт», «падает», «значит»).
+ */
+export const TICKET_LINES = [
+  'спрос эластичен: покупки меняются сильнее цены',
+  'кофе легко заменить',
+  'хлеб — спрос неэластичен',
+  'эластичный спрос: выручка ↓',
+  'неэластичный: выручка ↑',
 ] as const;
+
+/** The exam page's words for the sheet (components/exams/sheet/copy.ts; reel tests hold them to it). */
+export const SHEET_WORDS = {
+  /** The note of a point named only after the examiner's question. */
+  afterQuestion: 'назван только после вопроса экзаменатора',
+  /** The note of an erased line that came back (the landing's sheet says it without dates). */
+  returned: 'была стёрта · пункт не назван',
+  /** What the answer of the oral chapter did, the next answer on another day, and one more. */
+  first: 'После ответа: 4\u00a0строки стёрлись наполовину, 1\u00a0не стёрлась.',
+  second: 'После ответа 8\u00a0окт.: 4\u00a0строки стёрлись, 1\u00a0—\u00a0наполовину.',
+  third: 'После ответа 10\u00a0окт.: 1\u00a0строка стёрлась, 1\u00a0вернулась.',
+} as const;
