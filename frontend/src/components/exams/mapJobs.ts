@@ -4,10 +4,12 @@
  * «Сверить с лекциями» streams for 10–40 seconds. The run lives here, per exam, not in a
  * component: the sheet shows marks as batches arrive, a page opened again sees the same run, and a
  * second run of the same exam cannot start. Daily limit: checked here before the run (at least
- * AI_COSTS.examMapping); the server charges 10 units for every started 40 questions that go to the
- * model just before the judge, and gives them back if the model answered none. A run the limit
- * does not cover ends with an `error` event of code ai_limit: the sheet says so in its note (the
- * sheet shows the limit without a dialog, redesign spec 4.6 and 5.11).
+ * AI_COSTS.examMapping) when the page can see that questions will go to the model
+ * (mappingNeedsModel); a run that sends nothing to the model costs nothing and is not held back by
+ * the units left (a group link's copy: the live run of 2026-10-07). The server charges 10 units for
+ * every started 40 questions that go to the model just before the judge, and gives them back if the
+ * model answered none. A run the limit does not cover ends with an `error` event of code ai_limit:
+ * the sheet says so in its note (the sheet shows the limit without a dialog, redesign spec 4.6 and 5.11).
  *
  * Outcomes of a run:
  * - `done` → phase 'done'; the sheet reloads its rows (finishedSeq changes);
@@ -22,11 +24,13 @@ import { useSyncExternalStore } from 'react';
 import { aiLimitFromBody, formatLimitReset, notifyAIUsageChanged, remainingUnits, type AILimitInfo } from '../../api/limits';
 import { AI_COSTS } from '../../lib/plans';
 import { readSseStream, StreamError } from '../../api/sseStream';
-import { fetchExamMappingState, isMappingLocked, normalizeCoverageItem, type CoverageItem } from '../../api/exams';
+import { fetchExamMappingState, isMappingLocked, normalizeCoverageItem, type CoverageItem, type ExamQuestion } from '../../api/exams';
 import { countBucket, track } from '../../lib/telemetry';
 
 /** The least a run costs (one started batch of 40 new questions); the server counts the rest. */
 export const MAPPING_COST = AI_COSTS.examMapping;
+/** backend/exams_map.MAP_VERSION: a partial or none mark of another version is checked again. */
+export const MAP_VERSION = 1;
 export const MAPPING_ACTION = 'Сверка с лекциями';
 export const MAP_IDLE_MS = 45_000;
 export const MARK_STAGGER_MS = 60;
@@ -87,6 +91,52 @@ export interface StartMappingOptions {
   questionIds?: string[] | null;
   force?: boolean;
   verifyEnergy: VerifyEnergy;
+  /**
+   * Units to make sure of before the run: MAPPING_COST by default; 0 when the page sees that no question goes to the
+   * model (mappingNeedsModel) — then the run starts without the check, and the server charges nothing.
+   */
+  cost?: number;
+}
+
+export interface MappingView {
+  questions: ReadonlyArray<Pick<ExamQuestion, 'id' | 'coverage' | 'coverage_method' | 'evidence' | 'materials_fingerprint' | 'mapping_version'>>;
+  /** The exam's lectures now. */
+  materialIds: readonly string[];
+  /** The lectures (with text) of the last finished run: exams.mapped_material_ids. */
+  mappedMaterialIds: readonly string[];
+}
+
+/**
+ * Whether a run will send questions to the model, as far as the rows show it — the visible part of
+ * backend/exams_map.select_targets: the questions asked for by id (a mark set by hand stays), questions not checked
+ * or checked only by words, a partial or none mark of another version, without a fingerprint or made before the
+ * exam's lectures changed (the page's own «После сверки добавлено…»), a full mark without evidence or whose evidence
+ * names a lecture that is no longer in the exam. What the rows do not show (a lecture's text edited) the server
+ * decides: it charges just before the model and refuses with ai_limit when the units are short, so a run that skipped
+ * the check here is never charged past the limit.
+ */
+export function mappingNeedsModel(view: MappingView, questionIds: readonly string[] | null = null): boolean {
+  const current = new Set(view.materialIds);
+  const mapped = new Set(view.mappedMaterialIds);
+  const lecturesChanged = current.size !== mapped.size || [...mapped].some((id) => !current.has(id));
+  const wanted = questionIds && questionIds.length > 0 ? new Set(questionIds) : null;
+  return view.questions.some((question) => {
+    if (wanted && !wanted.has(question.id)) return false;
+    if (question.coverage_method === 'manual' && question.coverage !== null) return false;
+    if (wanted) return true;
+    switch (question.coverage) {
+      case null:
+      case 'unverified':
+        return true;
+      case 'partial':
+      case 'none':
+        return question.mapping_version !== MAP_VERSION || !question.materials_fingerprint || lecturesChanged;
+      case 'full':
+        return question.evidence.length === 0 || question.evidence.some((item) => !current.has(item.material_id));
+      default:
+        return true;
+    }
+  });
 }
 
 const EMPTY_ITEMS: ReadonlyMap<string, CoverageItem> = new Map();
@@ -317,8 +367,10 @@ export async function startMapping(options: StartMappingOptions): Promise<'start
   set(examId, (previous) => ({ ...previous, starting: true }));
   try {
     let allowed = true;
+    const cost = options.cost ?? MAPPING_COST;
     try {
-      allowed = await options.verifyEnergy(userId, MAPPING_COST, MAPPING_ACTION);
+      // Nothing goes to the model: nothing to make sure of (the server charges nothing either).
+      if (cost > 0) allowed = await options.verifyEnergy(userId, cost, MAPPING_ACTION);
     } catch {
       allowed = true; // the limit could not be read: do not block the work
     }

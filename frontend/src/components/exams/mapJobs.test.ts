@@ -15,7 +15,7 @@ vi.mock('../../api/exams', async (importOriginal) => {
   return { ...actual, fetchExamMappingState: (...args: unknown[]) => mocks.fetchExamMappingState(...args) };
 });
 
-import { getMapJob, MAPPING_COST, mappingLimitMessage, resetMapJobsForTests, startMapping, subscribeMapJobs } from './mapJobs';
+import { getMapJob, MAPPING_COST, mappingLimitMessage, mappingNeedsModel, resetMapJobsForTests, startMapping, subscribeMapJobs, type MappingView } from './mapJobs';
 import { AI_COSTS } from '../../lib/plans';
 
 const enc = new TextEncoder();
@@ -221,5 +221,68 @@ describe('startMapping', () => {
     expect(job.items.get('q2')?.coverage).toBe('unverified');
     expect(job.done?.state).toBe('partial');
     expect(job.requested).toEqual(['q1', 'q2']);
+  });
+});
+
+
+describe('mappingNeedsModel: the units are checked only when questions go to the model', () => {
+  type Row = MappingView['questions'][number];
+  const evidence = (material: string) => [{ material_id: material, material_title: 'Лекция', source_id: 'S01', excerpt: '…' }];
+  const row = (id: string, coverage: Row['coverage'], extra: Partial<Row> = {}): Row => ({
+    id,
+    coverage,
+    coverage_method: coverage === null ? null : coverage === 'unverified' ? 'lexical' : 'llm',
+    evidence: coverage === 'full' || coverage === 'partial' ? evidence('m1') : [],
+    materials_fingerprint: coverage === null ? null : 'fp',
+    mapping_version: coverage === null ? null : 1,
+    ...extra,
+  });
+  // A group link's copy as it is made: every question checked against its own lectures, the run's lectures the same.
+  const copy: MappingView = {
+    questions: [row('q1', 'full'), row('q2', 'partial'), row('q3', 'none'), row('q4', 'full', { coverage_method: 'manual', evidence: [] })],
+    materialIds: ['m1', 'm2'],
+    mappedMaterialIds: ['m2', 'm1'],
+  };
+
+  it('a checked exam whose lectures did not change sends nothing to the model (the server answers to_check 0)', () => {
+    expect(mappingNeedsModel(copy)).toBe(false);
+  });
+
+  it('questions not checked, checked only by words, or asked for by id go to the model', () => {
+    expect(mappingNeedsModel({ ...copy, questions: [...copy.questions, row('q5', null)] })).toBe(true);
+    expect(mappingNeedsModel({ ...copy, questions: [...copy.questions, row('q5', 'unverified')] })).toBe(true);
+    expect(mappingNeedsModel(copy, ['q1'])).toBe(true);
+    // A mark set by hand stays, even asked for.
+    expect(mappingNeedsModel(copy, ['q4'])).toBe(false);
+  });
+
+  it('a partial or none mark is checked again after the lectures changed, or of another version', () => {
+    expect(mappingNeedsModel({ ...copy, materialIds: ['m1', 'm2', 'm3'] })).toBe(true);
+    expect(mappingNeedsModel({ ...copy, materialIds: ['m1'] })).toBe(true);
+    expect(mappingNeedsModel({ ...copy, questions: [row('q2', 'partial', { mapping_version: 0 })] })).toBe(true);
+    expect(mappingNeedsModel({ ...copy, questions: [row('q3', 'none', { materials_fingerprint: null })] })).toBe(true);
+  });
+
+  it('a full mark whose evidence names a lecture no longer in the exam is checked again; a new lecture leaves it', () => {
+    expect(mappingNeedsModel({ questions: [row('q1', 'full', { evidence: evidence('m9') })], materialIds: ['m1'], mappedMaterialIds: ['m1'] })).toBe(true);
+    expect(mappingNeedsModel({ questions: [row('q1', 'full')], materialIds: ['m1', 'm2'], mappedMaterialIds: ['m1'] })).toBe(false);
+  });
+});
+
+describe('startMapping without units to check', () => {
+  it('a run the page knows is free starts without the limit check, even with no units left', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse([ev({ type: 'start', questions: 3, to_check: 0, materials: [], skipped: [] }), ev({ type: 'done', state: 'done', counts: { full: 3 }, reused: 0, used_ai: false })])));
+    const refuse = vi.fn(async () => false);
+    expect(await startMapping({ examId: 'copy-1', userId: 'u1', verifyEnergy: refuse, cost: 0 })).toBe('started');
+    expect(refuse).not.toHaveBeenCalled();
+    expect(getMapJob('copy-1').phase).toBe('done');
+    expect(mocks.notifyAIUsageChanged).not.toHaveBeenCalled();
+  });
+
+  it('a run that needs the model is still checked first (at least one started batch)', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const refuse = vi.fn(async () => false);
+    expect(await startMapping({ examId: 'exam-9', userId: 'u1', verifyEnergy: refuse })).toBe('declined');
+    expect(refuse).toHaveBeenCalledWith('u1', MAPPING_COST, 'Сверка с лекциями');
   });
 });
