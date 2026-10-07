@@ -5,7 +5,8 @@
 -- Ответ — событие exam_answer в журнале (learning_events) по копии участника. Голос/текст — поле input ответа.
 -- «Вернулся в другой день» — ответы участника хотя бы в два разных дня (по местной дате устройства).
 -- «Стёрто» — приближение правила шпаргалки: пункт назван в основном ответе (status covered) в два разных дня.
--- Тестовые аккаунты агентов исключены (список ниже). Автор ссылки в участники не входит.
+-- Тестовые аккаунты агентов исключены целиком (их ссылки и их участие). Аккаунты владельца для проверок исключены
+-- как участники, но не как авторы: ссылку для пилота создаёт владелец. Автор ссылки в участники не входит.
 --
 -- Чтобы посмотреть одну группу, впишите id экзамена автора в only_exam (иначе — все ссылки).
 
@@ -15,6 +16,12 @@ with params as (
 test_accounts(id) as (
   values ('45a99c1b-5d38-49b5-af80-612ecc01c837'::uuid),  -- meldy-e2e-20261007@example.com (автор, демо)
          ('947ff228-dc6f-40b0-8b0a-7a27973cfabc'::uuid)   -- meldy-e2e2-20261007@example.com (участник)
+),
+not_students(id) as (
+  select id from test_accounts
+  union all
+  values ('7e815cdd-f820-44c1-be90-0e5c583c3425'::uuid),  -- основной аккаунт владельца (если войдёт по своей ссылке)
+         ('c94a7583-4065-41da-a48d-4747c51046e6'::uuid)   -- второй аккаунт владельца (проверка ссылки 07.10)
 ),
 shares as (
   select s.id, s.exam_id, s.created_at, s.revoked_at
@@ -26,7 +33,7 @@ members as (
   select m.share_id, m.user_id, m.member_exam_id, m.joined_at
     from public.exam_share_members m
     join shares s on s.id = m.share_id
-   where m.user_id not in (select id from test_accounts)
+   where m.user_id not in (select id from not_students)
 ),
 answers as (
   select e.user_id, e.local_date, e.created_at, e.payload ->> 'input' as input
