@@ -53,6 +53,7 @@ from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE
 from exams_api import router as exams_router
 from oral_api import router as oral_router
 from oral_sheet import router as oral_sheet_router
+from exam_shares import router as exam_shares_router
 from tutor_api import router as tutor_router
 import telemetry_api
 
@@ -256,9 +257,12 @@ async def require_authenticated_user(request: Request) -> dict:
     return dict(user)
 
 
-# Open without a session: the health check, the statistics that signed-out visitors send too (telemetry_api.py), and
-# the push key, which is public by design (push_router.py; checked by .github/workflows/rotate-vapid.yml).
-PUBLIC_API_PATHS = frozenset({"/api/health", "/api/health/deep", telemetry_api.TELEMETRY_PATH, "/api/push/key"})
+# Open without a session: the health check, the statistics that signed-out visitors send too (telemetry_api.py),
+# the push key, which is public by design (push_router.py; checked by .github/workflows/rotate-vapid.yml), and what a
+# group link is before its classmate signs in (exam_shares.py: the status and the exam's title only).
+PUBLIC_API_PATHS = frozenset(
+    {"/api/health", "/api/health/deep", telemetry_api.TELEMETRY_PATH, "/api/push/key", "/api/exam-shares/preview"}
+)
 
 
 @app.middleware("http")
@@ -282,6 +286,8 @@ app.include_router(push_router, prefix="/api/push", tags=["push"])
 app.include_router(exams_router)
 app.include_router(oral_router)
 app.include_router(oral_sheet_router)
+# «Группа по ссылке»: a classmate's own copy of a ready exam (exam_shares.py).
+app.include_router(exam_shares_router)
 app.include_router(tutor_router)
 # /sb/… — the browser's fallback way to Supabase when *.supabase.co is unreachable (supabase_proxy.py).
 app.include_router(supabase_proxy_router)
