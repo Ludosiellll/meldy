@@ -912,7 +912,7 @@ describe('ExamTicket: answering by text', () => {
     expect(screen.getByText('Предварительно: по ключевым словам')).toBeInTheDocument();
     expect(rpc).not.toHaveBeenCalled();
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
-    const previous = screen.getByRole('link', { name: /^Открыть протокол прошлого ответа \(6\sокт\.\)$/ });
+    const previous = screen.getByRole('link', { name: /^Открыть протокол прошлого ответа \(6\sокт\., \d{1,2}:\d\d\)$/ });
     expect(previous).toHaveAttribute('href', `/exams/${EXAM}/ticket?session=${PREVIOUS_SESSION}`);
     await waitFor(() =>
       expect(JSON.parse(window.sessionStorage.getItem('meldy_oral_attempt') ?? '{}')).toMatchObject({ examId: EXAM, questionId: Q1, transcript: FULL_ANSWER }),
@@ -925,10 +925,12 @@ describe('ExamTicket: answering by text', () => {
     expect(window.sessionStorage.getItem('meldy_oral_attempt')).toBeNull();
     // The previous answer has its own muted line under «Как считается»; its date leads to that protocol
     // (redesign critique 4, round 2), with no grade word (Ф1).
-    const before = screen.getByRole('link', { name: /^Протокол прошлого ответа, 6\sокт\.$/ });
+    // With its time, like the other moments of the app (live run of 2026-10-07: «Прошлый ответ, 7 окт.» had none).
+    const before = screen.getByRole('link', { name: /^Протокол прошлого ответа, 6\sокт\., \d{1,2}:\d\d$/ });
     expect(before).toHaveAttribute('href', `/exams/${EXAM}/ticket?session=${PREVIOUS_SESSION}`);
-    expect(before.textContent?.replace(/\s/g, ' ')).toBe('6 окт.');
-    expect(before.closest('.or-prev-line')?.textContent?.replace(/\s/g, ' ')).toBe('Прошлый ответ, 6 окт.');
+    const when = `6 окт., ${new Date('2026-10-06T10:00:00Z').getHours()}:00`;
+    expect(before.textContent?.replace(/\s/g, ' ')).toBe(when);
+    expect(before.closest('.or-prev-line')?.textContent?.replace(/\s/g, ' ')).toBe(`Прошлый ответ, ${when}`);
     expect(before.closest('.or-how-row')).toBeNull();
   });
 
@@ -960,7 +962,7 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     await screen.findByText(/Сохранено в историю и/);
-    expect(screen.getByRole('link', { name: /^Протокол прошлого ответа, 6\sокт\.$/ })).toHaveAttribute('href', `/exams/${OTHER}/ticket?session=${PREVIOUS_SESSION}`);
+    expect(screen.getByRole('link', { name: /^Протокол прошлого ответа, 6\sокт\., \d{1,2}:\d\d$/ })).toHaveAttribute('href', `/exams/${OTHER}/ticket?session=${PREVIOUS_SESSION}`);
   });
 
   it('says «Результат не сохранён», retries with the same attempt id and charges once', async () => {
@@ -1233,6 +1235,11 @@ describe('ExamTicket: answering by text', () => {
     await readyToAnswer();
     // No promise of a teacher's view: there is no such screen.
     expect(PRIVACY_LINE).not.toMatch(/преподавател/);
+    // Meldy gives no grades: the history keeps what the check found for each point.
+    for (const line of [PRIVACY_LINE, PRIVACY_SERVER_LINE]) {
+      expect(line).not.toMatch(/оценк/i);
+      expect(line).toContain('итоги проверки по пунктам');
+    }
     expect(document.querySelector('.or-privacy')?.textContent).toBe(PRIVACY_LINE);
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     typeAnswer(DEMO_ANSWER);

@@ -192,7 +192,7 @@ describe('history of a question', () => {
       },
     }).client;
     const history = await loadQuestionHistory(HASH);
-    expect(history.previous).toEqual({ sessionId: SESSION, examId: null, localDate: '2026-10-01', grade: 4, scorePct: 78 });
+    expect(history.previous).toEqual({ sessionId: SESSION, examId: null, localDate: '2026-10-01', at: '2026-10-01T10:00:00Z', grade: 4, scorePct: 78 });
     expect(history.confidence).toBe(2);
     expect(history.state.readiness).toBe('once');
   });
@@ -214,7 +214,14 @@ describe('history of a question', () => {
         payload: { grade: 4, score_pct: 78, exam_id: OTHER_EXAM },
       },
     ]);
-    expect(history.previous).toMatchObject({ sessionId: SESSION, examId: OTHER_EXAM });
+    expect(history.previous).toMatchObject({ sessionId: SESSION, examId: OTHER_EXAM, at: '2026-10-06T10:00:00Z' });
+  });
+
+  it('keeps only the day of a previous answer whose row has no readable time', () => {
+    const history = historyFrom([
+      { ...(event('e1', 'exam_answer', { session_id: SESSION, local_date: '2026-10-06' }) as unknown as LearningEvent), created_at: 'not a time' },
+    ]);
+    expect(history.previous).toMatchObject({ localDate: '2026-10-06', at: null });
   });
 
   it('has no previous attempt without answers', () => {

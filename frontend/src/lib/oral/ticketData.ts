@@ -236,6 +236,8 @@ export interface PreviousAttempt {
   /** The exam the answer was given in: history is kept by question text, so it may be another exam. */
   examId: string | null;
   localDate: string;
+  /** When it was saved (ISO), for «Прошлый ответ, 7 окт., 15:40»; null — only the day is known. */
+  at: string | null;
   grade: number | null;
   scorePct: number | null;
 }
@@ -263,6 +265,7 @@ export function historyFrom(events: LearningEvent[]): QuestionHistory {
           sessionId: last.session_id,
           examId: isUuid(last.payload.exam_id) ? last.payload.exam_id : null,
           localDate: last.local_date,
+          at: typeof last.created_at === 'string' && Number.isFinite(Date.parse(last.created_at)) ? last.created_at : null,
           grade: finite(last.payload.grade),
           scorePct: finite(last.payload.score_pct) ?? (last.score !== null ? Math.round(last.score * 100) : null),
         }

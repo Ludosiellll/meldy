@@ -106,7 +106,7 @@ const LONG_ANSWER_MS = 120_000;
  * promised a teacher's screen that does not exist (redesign critique 5, round 2; Jury_Check 11).
  */
 export const PRIVACY_LINE =
-  'Речь распознаёт браузер, в Chrome — через сервис Google. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq). Запись голоса Meldy не получает; в истории остаются оценки по пунктам и короткие отрывки ответа.';
+  'Речь распознаёт браузер, в Chrome — через сервис Google. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq). Запись голоса Meldy не получает; в истории остаются итоги проверки по пунктам и короткие отрывки ответа.';
 
 /** An answer nobody checks goes nowhere: only the student's own rating is saved. */
 export const PRIVACY_UNCHECKED_LINE =
@@ -114,7 +114,7 @@ export const PRIVACY_UNCHECKED_LINE =
 
 /** The same two lines when the speech is recognised on the server (the browser could not, or there is no Web Speech). */
 export const PRIVACY_SERVER_LINE =
-  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись уходит туда кусками и не сохраняется. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq); в истории остаются оценки по пунктам и короткие отрывки ответа.';
+  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись уходит туда кусками и не сохраняется. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq); в истории остаются итоги проверки по пунктам и короткие отрывки ответа.';
 export const PRIVACY_SERVER_UNCHECKED_LINE =
   'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись не сохраняется. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
 
@@ -1388,14 +1388,16 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const previous = state.history?.previous ?? null;
     // The previous answer may have been given in another exam with the same question: its protocol lives there.
     const previousPath = previous ? `/exams/${previous.examId ?? examId}/ticket?session=${encodeURIComponent(previous.sessionId)}` : '';
-    // «Прошлый ответ, 2 окт.» on its own line, the date being the link to that protocol (redesign critique
+    // «7 окт., 15:40», as the other moments of the app; only the day when the journal row has no time.
+    const previousWhen = previous ? (previous.at ? shortDateTime(previous.at) : shortDate(previous.localDate)) : '';
+    // «Прошлый ответ, 2 окт., 14:12» on its own line, the moment being the link to that protocol (redesign critique
     // 4, round 2); no grade word (Ф1): what that answer named is in its protocol.
     const previousLink =
       previous && previous.sessionId !== (state.save.status === 'saved' ? state.save.result.sessionId : '') ? (
         <>
           {'Прошлый ответ, '}
-          <Link className="sf-ref" to={previousPath} aria-label={`Протокол прошлого ответа, ${shortDate(previous.localDate)}`}>
-            {shortDate(previous.localDate)}
+          <Link className="sf-ref" to={previousPath} aria-label={`Протокол прошлого ответа, ${previousWhen}`}>
+            {previousWhen}
           </Link>
         </>
       ) : null;
@@ -1433,7 +1435,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
               {previous ? (
                 <p className="or-previous">
                   <Link className="sf-ref" to={previousPath}>
-                    {`Открыть протокол прошлого ответа (${shortDate(previous.localDate)})`}
+                    {`Открыть протокол прошлого ответа (${previousWhen})`}
                   </Link>
                 </p>
               ) : null}
