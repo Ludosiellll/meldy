@@ -57,6 +57,11 @@ describe('MeldyReel', () => {
     const transcript = container.querySelectorAll('ol.mr-sr li');
     expect(transcript.length).toBeGreaterThanOrEqual(6);
     expect(transcript[2].textContent).toContain('24 из 40');
+    // The chapters of the sheet say what the stage shows, and nothing of the cards they replaced.
+    const text = Array.from(transcript, (item) => item.textContent ?? '').join(' ');
+    expect(text).toContain('Шпаргалка: строки стирают только ответы.');
+    expect(text).toContain('Разные дни: одного ответа мало.');
+    expect(text).not.toMatch(/карточк|Готовность|Повторение:|в нужный день|твоих/i);
   });
 
   it('plays only while it is on screen', () => {
@@ -79,7 +84,7 @@ describe('MeldyReel', () => {
 
   it('jumps to a chapter from the bar and marks it as the current one', () => {
     const { container } = render(<MeldyReel />);
-    expect(SEGMENTS.map((segment) => segment.label)).toEqual(['Начало', 'Билеты', 'Ответ вслух', 'Повторение', 'Готовность', 'Итог']);
+    expect(SEGMENTS.map((segment) => segment.label)).toEqual(['Начало', 'Билеты', 'Ответ вслух', 'Шпаргалка', 'Разные дни', 'Итог']);
     expect(SEGMENTS[0].from).toBe(0);
     expect(SEGMENTS[SEGMENTS.length - 1].to).toBe(TOTAL);
     act(() => {
@@ -94,14 +99,14 @@ describe('MeldyReel', () => {
     try {
       const { container } = render(<MeldyReel />);
       act(() => {
-        fireEvent.click(screen.getByRole('button', { name: 'Перейти: Повторение' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Перейти: Шпаргалка' }));
       });
-      expect('03 / ПОВТОРЕНИЕ'.startsWith(hudLabel(container))).toBe(true);
+      expect('03 / ШПАРГАЛКА'.startsWith(hudLabel(container))).toBe(true);
       showReel(true);
       act(() => {
         vi.advanceTimersByTime(1200);
       });
-      expect(hudLabel(container)).toBe('03 / ПОВТОРЕНИЕ');
+      expect(hudLabel(container)).toBe('03 / ШПАРГАЛКА');
     } finally {
       vi.useRealTimers();
     }

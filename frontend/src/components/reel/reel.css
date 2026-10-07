@@ -1355,315 +1355,73 @@
   font-size: 17px;
 }
 
-/* ------------------------------------------------------------------ 7 · review */
+/* ------------------------------------------------------------------ 7–8 · the cheat sheet */
 
-.mr-cols {
-  position: absolute;
+/* The examiner's follow-up of the oral chapter, as its box there (.mr-exam), on its own card. */
+.mr-sh-ask {
   left: 150px;
-  top: 330px;
-  width: 1620px;
-  height: 680px;
-  transform-origin: 50% 40%;
+  top: 352px;
+  width: 640px;
+  padding: 30px 34px 34px;
+  border-radius: 36px;
+  background: var(--blue-t);
+  box-shadow: none;
 }
 
-.mr-col {
-  position: absolute;
-  top: 0;
-  width: 380px;
-  height: 680px;
-  padding: 28px 22px;
-}
-
-.mr-col-bg {
-  position: absolute;
-  inset: 0;
-  border-radius: 40px;
-  background: #fff;
-  box-shadow: 0 40px 80px -50px rgba(16, 41, 90, 0.4), 0 0 0 1px rgba(11, 18, 28, 0.05);
-}
-
-.mr-col-h,
-.mr-col-cards {
-  position: relative;
-}
-
-.mr-col-h {
+.mr-sh-ask-who {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 6px 18px;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-.mr-col-h i {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: #f1f1ec;
-  font-style: normal;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.mr-col--today .mr-col-h i {
-  background: var(--blue);
-  color: #fff;
-}
-
-.mr-mini {
-  position: relative;
-  margin-top: 14px;
-  padding: 20px 22px;
-  border-radius: 24px;
-  background: #f7f7f3;
-  border: 1px solid #ecece6;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-}
-
-.mr-mini small {
-  display: block;
-  margin-top: 10px;
-  font-size: 17px;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.mr-mini--hot {
-  background: #fff;
-  border: 3px solid var(--blue);
-  box-shadow: 0 20px 40px -26px rgba(40, 105, 221, 0.8);
-}
-
-.mr-mini--hot small {
-  display: inline-flex;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #fcefc9;
-  color: #7a5a12;
-}
-
-.mr-month {
-  position: absolute;
-  left: 50%;
-  top: 560px;
-  width: 1260px;
-  height: 700px;
-  margin: -350px 0 0 -630px;
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: 1fr;
-  gap: 14px;
-  transform-origin: 50% 50%;
-}
-
-.mr-day {
-  position: relative;
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 0 0 1px rgba(11, 18, 28, 0.06);
-  padding: 14px 16px;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.mr-day--today {
-  box-shadow: 0 0 0 3px var(--blue);
-  color: var(--blue-d);
-}
-
-.mr-day-bars {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mr-day-bars i {
-  display: block;
-  height: 10px;
-  border-radius: 5px;
-}
-
-/* ------------------------------------------------------------------ 8 · ready */
-
-.mr-ready {
-  --mr-ghost: rgba(255, 255, 255, 0.5);
-  color: #fff;
-}
-
-.mr-ready-head {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 330px;
-  text-align: center;
-  transform-origin: 50% 0;
-}
-
-.mr-ready-head .mr-display {
-  font-size: 140px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  line-height: 1.02;
-}
-
-.mr-ready-head .mr-accent {
-  --accent: var(--yellow);
-}
-
-.mr-grid {
-  position: absolute;
-  left: 600px;
-  top: 400px;
-  width: 720px;
-  display: grid;
-  grid-template-columns: repeat(8, 76px);
   gap: 16px;
 }
 
-.mr-tile {
-  width: 76px;
-  height: 76px;
-  border-radius: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.mr-tile.is-ok {
-  border-color: transparent;
-  background: var(--green);
-}
-
-.mr-tile.is-half {
-  border-color: transparent;
-  background: var(--yellow);
-}
-
-.mr-legend {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 912px;
-  display: flex;
-  justify-content: center;
-  gap: 40px;
-  font-size: 26px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.mr-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.mr-legend i {
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-}
-
-.mr-note {
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  height: 72px;
-  padding: 0 28px 0 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--ink);
-  font-size: 25px;
-  font-weight: 500;
-  white-space: nowrap;
-  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.55), 0 0 40px rgba(120, 160, 255, 0.18);
-}
-
-.mr-note i {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  font-style: normal;
-}
-
-.mr-note i svg {
-  width: 22px;
-  height: 22px;
-}
-
-.mr-note--green i {
-  background: #dff1e3;
-  color: #2c6b3a;
-}
-
-.mr-note--blue i {
-  background: var(--blue-t);
+.mr-sh-ask-who b {
+  font-size: 22px;
+  font-weight: 600;
   color: var(--blue-d);
 }
 
-.mr-note--yellow i {
-  background: #fcefc9;
-  color: #7a5a12;
+.mr-sh-ask-q {
+  margin: 16px 0 0;
+  font-size: 36px;
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
 }
 
-.mr-note--sky i {
-  background: #e3eefd;
-  color: #2f5fb5;
+.mr-sh-ask-a {
+  margin: 18px 0 0;
+  font-size: 30px;
+  line-height: 1.32;
+  color: #2e333b;
 }
 
-.mr-line {
+.mr-sh-ask-a .mr-reply-who {
+  display: inline-block;
+  margin-right: 12px;
+  vertical-align: 0.12em;
+  line-height: 1.2;
+}
+
+/* The ticket's sheet (film/StageSheet), handed from chapter 03 to 04 in the same place. */
+.mr-sh-paper {
   position: absolute;
-  inset: 0;
-  overflow: visible;
 }
 
-.mr-line path {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.mr-line-glow {
-  filter: blur(14px);
-}
-
-.mr-line-head {
+/* What an answer did: the exam page's chip at the end of a show (sheet.css .cs-chip). */
+.mr-sh-cap {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 120px;
-  height: 120px;
-  margin: -60px 0 0 -60px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff 0%, #fff 10%, rgba(244, 196, 91, 0.9) 18%, rgba(244, 196, 91, 0.25) 40%, transparent 70%);
+  top: 882px;
 }
 
-.mr-line-label {
-  position: absolute;
-  left: 0;
-  top: 0;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--yellow);
-  white-space: nowrap;
+.mr-chip .ss-cap-t {
+  padding: 16px 26px;
+  border-radius: 24px;
+  background: var(--ink);
+  color: #fbfbf9;
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1.25;
+  box-shadow: 0 30px 50px -30px rgba(11, 18, 28, 0.6);
 }
 
 /* ------------------------------------------------------------------ 9 · outro */

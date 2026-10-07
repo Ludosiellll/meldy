@@ -7,7 +7,7 @@
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
 
-export type SceneId = 'intro' | 'chaos' | 'brand' | 'tour' | 'tickets' | 'oral' | 'review' | 'ready' | 'outro';
+export type SceneId = 'intro' | 'chaos' | 'brand' | 'tour' | 'tickets' | 'oral' | 'sheet' | 'days' | 'outro';
 
 export interface SceneWindow {
   id: SceneId;
@@ -29,9 +29,10 @@ export const SCENES: readonly SceneWindow[] = [
   { id: 'tour', from: 9500, to: 12000 },
   { id: 'tickets', from: 11700, to: 16300 },
   { id: 'oral', from: 15900, to: 22100 },
-  { id: 'review', from: 21700, to: 26000 },
-  { id: 'ready', from: 25600, to: 30200 },
-  { id: 'outro', from: 29800, to: 35000 },
+  // The cheat sheet after the answer, then over different days: one paper handed from scene to scene.
+  { id: 'sheet', from: 21700, to: 25300 },
+  { id: 'days', from: 24900, to: 31300 },
+  { id: 'outro', from: 30900, to: 35000 },
 ];
 
 export const TOTAL = 35000;
@@ -61,8 +62,8 @@ export interface Chapter {
 export const CHAPTERS: readonly Chapter[] = [
   { id: 'tickets', number: '01', label: 'Билеты', at: sceneWindow('tickets').from },
   { id: 'oral', number: '02', label: 'Ответ вслух', at: sceneWindow('oral').from },
-  { id: 'review', number: '03', label: 'Повторение', at: sceneWindow('review').from },
-  { id: 'ready', number: '04', label: 'Готовность', at: sceneWindow('ready').from },
+  { id: 'sheet', number: '03', label: 'Шпаргалка', at: sceneWindow('sheet').from },
+  { id: 'days', number: '04', label: 'Разные дни', at: sceneWindow('days').from },
 ];
 
 /** The chapter playing at `t`, or null before the first one and after the last one ends. */

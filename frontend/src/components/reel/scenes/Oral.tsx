@@ -21,7 +21,7 @@ const REPLY_MS = 95;
 const replyAt = (index: number) => REPLY_AT + index * REPLY_MS;
 const CLOSED_AT = replyAt(REPLY.length - 1) + 380;
 const STAMP = CLOSED_AT + 200;
-/** The next scene starts here and takes the missed point away. */
+/** The next scene starts here: the answer goes on to its cheat sheet. */
 const HANDOFF = 5800;
 
 /** When each point of the answer sheet is named. */
@@ -121,8 +121,6 @@ export default function Oral() {
       const wave = seg(l, DONE + 240, 360);
       put(flagEl, 'transform', `translate3d(${mix(30, 0, ease.back(wave)).toFixed(1)}px,0,0)`);
       opacity(flagEl, clamp(wave * 3) * (1 - seg(l, CLOSED_AT, 200)));
-      // Hand-over: from here the flying card of the next scene carries this point.
-      opacity(missed, l >= HANDOFF ? 0 : 1);
     }
 
     // The stamp falls on the protocol and the card shakes under it.
@@ -147,7 +145,7 @@ export default function Oral() {
           <TypeLabel text="Ответ вслух" at={240} />
         </div>
         <h3 className="mr-display mr-head">
-          <Kinetic text="Отвечай вслух, как на экзамене." at={380} unit="letter" variant="drop" stagger={19} dur={620} accentFrom={2} />
+          <Kinetic text="Отвечайте вслух, как на экзамене." at={380} unit="letter" variant="drop" stagger={19} dur={620} accentFrom={2} />
         </h3>
 
         <div data-a="main" className="mr-card mr-oral-main">
@@ -182,7 +180,7 @@ export default function Oral() {
               <b>Экзаменатор</b>
               <p data-a="ask" />
               <span className="mr-reply">
-                <span className="mr-reply-who">Ты</span>
+                <span className="mr-reply-who">Вы</span>
                 {REPLY.map((word, index) => (
                   <span key={index} data-a="r" className="mr-said-w">
                     {word}

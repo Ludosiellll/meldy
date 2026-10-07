@@ -5,11 +5,10 @@ import { ease, mix, seg } from '../timeline';
 
 const LINKS = ['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс'];
 
-/** Which link is lit when: the tour goes Сегодня → Повторение → Экзамены. */
+/** Which link is lit when: the tour goes Сегодня → Экзамены, where the exam's list is. */
 const STOPS = [
   { at: 380, link: 0, page: 0 },
-  { at: 1000, link: 3, page: 1 },
-  { at: 1650, link: 1, page: 2 },
+  { at: 1250, link: 1, page: 1 },
 ];
 const MOVE = 450;
 
@@ -121,7 +120,7 @@ export default function Tour() {
                 <div className="mr-halftone" />
                 <div className="mr-win">
                   {[
-                    ['Повторить 12 карточек', 'ok'],
+                    ['Можно стереть: 3 вопроса', 'ok'],
                     ['Ответить билет 7 вслух', 'half'],
                     ['Добавить лекцию 9', 'no'],
                   ].map(([title, kind], index) => (
@@ -154,70 +153,13 @@ export default function Tour() {
 
           <div data-a="page" className="mr-layer">
             <div data-a="b1" className="mr-tour-title">
-              Повторение
-            </div>
-            <div data-a="b1" className="mr-tour-sub">
-              12 карточек на сегодня
-            </div>
-            <div className="mr-tour-row">
-              <div data-a="b1" className="mr-panel mr-panel--sky">
-                <div className="mr-halftone" />
-                {[-8, 6, -1].map((turn, index) => (
-                  <div
-                    key={turn}
-                    className="mr-mini"
-                    style={{
-                      position: 'absolute',
-                      left: '50%',
-                      top: '50%',
-                      width: 520,
-                      height: 300,
-                      margin: '-150px 0 0 -260px',
-                      background: index === 0 ? '#EAF1FD' : index === 1 ? '#FDF3D8' : '#fff',
-                      border: 0,
-                      borderRadius: 32,
-                      boxShadow: '0 24px 50px -26px rgba(0,0,0,.45)',
-                      transform: `rotate(${turn}deg) translate(${index === 0 ? -30 : index === 1 ? 28 : 0}px, 6px)`,
-                      fontSize: 38,
-                      fontWeight: 600,
-                      padding: '40px 42px',
-                    }}
-                  >
-                    {index === 2 ? 'Когда спрос эластичен?' : ''}
-                    {index === 2 ? <small style={{ fontSize: 22, marginTop: 18 }}>Микроэкономика · лекция 2</small> : null}
-                  </div>
-                ))}
-              </div>
-              <div data-a="b1" className="mr-skel" style={{ height: 560 }}>
-                {[
-                  ['Завтра', '5'],
-                  ['Через 3 дня', '7'],
-                  ['Через неделю', '9'],
-                ].map(([day, count]) => (
-                  <div key={day} className="mr-row" style={{ padding: '26px 0' }}>
-                    <span className="mr-row-t" style={{ fontSize: 28, fontWeight: 500 }}>
-                      {day}
-                    </span>
-                    <span className="mr-num" style={{ width: 52, height: 52, fontSize: 22 }}>
-                      {count}
-                    </span>
-                  </div>
-                ))}
-                <span className="mr-bar" style={{ width: '64%', marginTop: 26 }} />
-                <span className="mr-bar" style={{ width: '40%' }} />
-              </div>
-            </div>
-          </div>
-
-          <div data-a="page" className="mr-layer">
-            <div data-a="b2" className="mr-tour-title">
               Экзамены
             </div>
-            <div data-a="b2" className="mr-tour-sub">
+            <div data-a="b1" className="mr-tour-sub">
               Микроэкономика · 40 вопросов · 12 лекций
             </div>
             <div className="mr-tour-row">
-              <div data-a="b2" className="mr-skel" style={{ height: 560 }}>
+              <div data-a="b1" className="mr-skel" style={{ height: 560 }}>
                 {[
                   ['Эластичность спроса и её виды', 'ok'],
                   ['Выручка и эластичность', 'ok'],
@@ -235,7 +177,7 @@ export default function Tour() {
                   <Pill>Тянуть билет</Pill>
                 </div>
               </div>
-              <div data-a="b2" className="mr-panel mr-panel--warm">
+              <div data-a="b1" className="mr-panel mr-panel--warm">
                 <div className="mr-halftone" />
                 <div className="mr-ticket" style={{ left: '46%', top: '44%', width: 520, height: 300, margin: '-150px 0 0 -260px', transform: 'rotate(-4deg)', padding: '36px 40px' }}>
                   <b style={{ fontSize: 48 }}>Билет 7</b>

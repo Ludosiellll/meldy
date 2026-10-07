@@ -129,7 +129,7 @@ export default function Tickets() {
           <Kinetic text={`из ${SHEET_ROWS.length} вопросов`} at={1150} unit="letter" variant="drop" stagger={26} dur={620} />
         </div>
         <div className="mr-tk-in">
-          <Kinetic text="уже есть в твоих лекциях." at={1700} stagger={95} accentFrom={2} />
+          <Kinetic text="уже есть в ваших лекциях." at={1700} stagger={95} accentFrom={2} />
         </div>
 
         <div className="mr-persp">
