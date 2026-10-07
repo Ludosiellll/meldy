@@ -1,0 +1,479 @@
+/* «Отчёт для преподавателя» (pages/ExamReport.tsx): a document for paper first. A4 portrait, black on white,
+   the department's questions down the page with what Meldy found, and on the right of each one the teacher's
+   field behind a margin line, as on a school notebook: three boxes «верно / неполно / ошибка» and lines for a
+   comment. A verdict reads without colour: a full circle «есть», a half one «частично», an empty one «нет», a
+   dashed one «не проверено ИИ»; a question without a quote shows a dashed slot where the quote would be.
+   On screen the same document lies on Meldy's desk as a sheet of paper (light in both themes, dimmed at night,
+   like the cheat sheet), under the room's top line, with «Печать» and «Скачать CSV» above it. Sizes inside the
+   document are in em of its own font size, so print (10.5 pt) and screen scale together. Every rule is scoped
+   under the room (.rp-room) or the document (.rp-doc). */
+
+.sf-page.rp-room {
+  --rp-paper: #ffffff;
+  --rp-ink: #0b121c;
+  --rp-graphite: #4b515b;
+  --rp-hair: #d6d7d1;
+  --rp-margin: #d98aa4;
+  --rp-sheet-shadow: 0 0 0 1px rgba(16, 41, 90, .08), 0 1px 1px rgba(11, 18, 28, .05), 0 34px 70px -40px rgba(16, 41, 90, .38);
+  padding-top: 28px;
+  padding-bottom: 96px;
+}
+/* At night the paper is dimmed, not dark (the cheat sheet's paper does the same): it is what will be printed. */
+.dark .sf-page.rp-room {
+  --rp-paper: #dedbd1;
+  --rp-graphite: #454a52;
+  --rp-hair: #bdbab0;
+  --rp-margin: #b9708a;
+  --rp-sheet-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 30px 60px -30px rgba(0, 0, 0, .8);
+}
+
+/* ---------------------------------------------------------------- above the sheet (screen only) */
+.rp-room .rp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  max-width: 794px;
+  margin: 0 auto 22px;
+}
+.rp-room .rp-tools-hint {
+  flex: 1 1 280px;
+  max-width: 430px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--sf-muted);
+}
+.rp-room .rp-tools-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.rp-room .rp-tools-warn {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--sf-ink);
+}
+.rp-room .rp-tools-warn .sf-link { min-height: 0; font-size: 15px; }
+
+/* ---------------------------------------------------------------- empty states */
+.rp-room .rp-empty {
+  max-width: 560px;
+  margin: 10vh auto 0;
+  padding: 36px 36px 32px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.rp-room .rp-empty h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  text-wrap: balance;
+}
+.rp-room .rp-empty p { margin: 12px 0 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); }
+.rp-room .rp-empty-act { margin-top: 24px; }
+
+/* ---------------------------------------------------------------- the sheet */
+.rp-doc {
+  box-sizing: border-box;
+  max-width: 794px; /* A4 at 96 dpi */
+  margin: 0 auto;
+  padding: 56px 58px 60px 62px;
+  border-radius: 3px;
+  background: var(--rp-paper);
+  box-shadow: var(--rp-sheet-shadow);
+  color: var(--rp-ink);
+  color-scheme: light;
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-font-smoothing: antialiased;
+}
+.rp-doc p,
+.rp-doc ul,
+.rp-doc ol,
+.rp-doc dl,
+.rp-doc figure,
+.rp-doc blockquote,
+.rp-doc h1,
+.rp-doc h2,
+.rp-doc h3,
+.rp-doc h4 { margin: 0; }
+.rp-doc ul,
+.rp-doc ol { padding: 0; }
+
+/* The head of the document: what it is, whose exam, the facts of the mapping, a line for the student. */
+.rp-doc .rp-eyebrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+  padding-bottom: .55em;
+  border-bottom: 1.5px solid var(--rp-ink);
+  font-size: .82em;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.rp-doc .rp-brand { font-size: 1.15em; font-weight: 600; letter-spacing: -.035em; }
+.rp-doc .rp-brand::after {
+  content: '';
+  display: inline-block;
+  width: .3em;
+  height: .3em;
+  margin-left: .08em;
+  border-radius: 50%;
+  background: var(--m-yellow);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.rp-doc .rp-title {
+  margin-top: .55em;
+  font-size: 2.05em;
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  text-wrap: balance;
+}
+.rp-doc .rp-kind { margin-top: .3em; font-size: 1.05em; font-weight: 500; }
+.rp-doc .rp-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 2em;
+  margin-top: 1em;
+}
+.rp-doc .rp-meta > div {
+  display: grid;
+  align-content: end;
+  gap: .1em;
+  padding: .5em 0 .4em;
+  border-bottom: 1px solid var(--rp-hair);
+}
+/* A field filled in by hand: its rule is the line to write on. */
+.rp-doc .rp-meta > div[data-fill] { border-bottom-color: var(--rp-ink); }
+.rp-doc .rp-meta dt { font-size: .8em; line-height: 1.3; color: var(--rp-graphite); }
+.rp-doc .rp-meta dd { min-height: 1.45em; margin: 0; font-weight: 500; }
+
+/* Parts of the document. */
+.rp-doc .rp-part { margin-top: 1.9em; }
+.rp-doc .rp-h2 {
+  margin-bottom: .6em;
+  font-size: 1.12em;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+.rp-doc .rp-fine { font-size: .85em; line-height: 1.45; color: var(--rp-graphite); }
+.rp-doc .rp-part > .rp-fine { margin-top: .55em; }
+
+/* «Итог сверки»: four counts in one ruled row, each with its verdict mark. */
+.rp-doc .rp-tally {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  list-style: none;
+  border: 1px solid var(--rp-ink);
+}
+.rp-doc .rp-tally li {
+  display: grid;
+  align-content: start;
+  gap: .25em;
+  padding: .55em .75em .65em;
+}
+.rp-doc .rp-tally li + li { border-left: 1px solid var(--rp-hair); }
+.rp-doc .rp-tally-n { font-size: 1.75em; line-height: 1; font-weight: 600; letter-spacing: -.02em; }
+.rp-doc .rp-tally-l { display: flex; align-items: baseline; gap: .4em; font-size: .85em; line-height: 1.3; }
+.rp-doc .rp-tally-l .rp-dot { transform: translateY(.1em); }
+.rp-doc .rp-notice {
+  margin-top: .7em;
+  padding: .5em .8em;
+  border-left: 3px solid var(--rp-ink);
+  font-size: .92em;
+  font-weight: 500;
+}
+
+/* Lectures and «Как читать отчёт» side by side. */
+.rp-doc .rp-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 2.2em;
+}
+.rp-doc .rp-lectures { list-style: none; border-top: 1px solid var(--rp-hair); }
+.rp-doc .rp-lectures li {
+  display: grid;
+  gap: .05em;
+  padding: .4em 0 .45em;
+  border-bottom: 1px solid var(--rp-hair);
+  line-height: 1.35;
+}
+.rp-doc .rp-lecture { font-size: .95em; font-weight: 500; }
+.rp-doc .rp-how { list-style: none; }
+.rp-doc .rp-how li {
+  position: relative;
+  padding-left: 1.05em;
+  font-size: .92em;
+  line-height: 1.45;
+}
+.rp-doc .rp-how li + li { margin-top: .4em; }
+/* A dash drawn with a border: borders print, backgrounds do not. */
+.rp-doc .rp-how li::before {
+  content: '';
+  position: absolute;
+  left: .1em;
+  top: .68em;
+  width: .4em;
+  border-top: 1.5px solid currentColor;
+}
+
+/* ---------------------------------------------------------------- the questions */
+/* Three columns: the department's number hangs in the gutter, the question with what Meldy found, and the
+   teacher's field behind the margin line. The line runs on from question to question, as on a notebook page. */
+.rp-doc .rp-list-head,
+.rp-doc .rp-q {
+  display: grid;
+  grid-template-columns: 2.5em minmax(0, 1fr) 8.6em;
+  column-gap: 1em;
+}
+/* The column heads; their own size is on the spans, so the columns line up with the questions' (em of the doc). */
+.rp-doc .rp-list-head { border-bottom: 1.5px solid var(--rp-ink); }
+.rp-doc .rp-list-head > span {
+  padding-bottom: .45em;
+  font-size: .78em;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--rp-graphite);
+}
+.rp-doc .rp-list-head > :first-child { text-align: right; }
+.rp-doc .rp-list-head > :last-child { padding-left: 1.35em; border-left: 1px solid var(--rp-margin); }
+/* A section's heading keeps the margin line running past it. */
+.rp-doc .rp-sec {
+  display: grid;
+  grid-template-columns: 2.5em minmax(0, 1fr) 8.6em;
+  column-gap: 1em;
+  border-bottom: 1px solid var(--rp-hair);
+  font-size: 1em;
+  font-weight: 650;
+  letter-spacing: -.005em;
+}
+.rp-doc .rp-sec > span { grid-column: 2; padding: 1em 0 .35em; }
+.rp-doc .rp-sec::after { content: ''; grid-column: 3; grid-row: 1; border-left: 1px solid var(--rp-margin); }
+.rp-doc .rp-qs { list-style: none; }
+.rp-doc .rp-q {
+  padding: 0;
+  border-bottom: 1px solid var(--rp-hair);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.rp-doc .rp-q-num,
+.rp-doc .rp-q-main { padding: .9em 0 1em; }
+.rp-doc .rp-q-num {
+  font-size: 1.45em;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  text-align: right;
+  padding-top: .62em;
+}
+.rp-doc .rp-q-text {
+  font-size: 1.04em;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -.005em;
+}
+.rp-doc .rp-verdict {
+  display: flex;
+  align-items: center;
+  gap: .45em;
+  margin-top: .45em;
+  font-size: .92em;
+  font-weight: 600;
+}
+.rp-doc .rp-dot { flex: none; width: .9em; height: .9em; }
+/* «Нет в лекциях» is what a teacher looks for first: the verdict stands out in black and white. */
+.rp-doc .rp-q[data-verdict='none'] .rp-verdict {
+  display: inline-flex;
+  padding: .12em .55em .14em .45em;
+  border: 1.5px solid var(--rp-ink);
+  border-radius: 2px;
+}
+
+/* The lecture's own fragment: its caption, then the text behind a rule. */
+.rp-doc .rp-quote { margin-top: .6em; }
+.rp-doc .rp-quote figcaption { margin-bottom: .2em; font-size: .82em; line-height: 1.35; color: var(--rp-graphite); }
+.rp-doc .rp-quote blockquote {
+  padding-left: .85em;
+  border-left: 2px solid var(--rp-ink);
+  font-size: .95em;
+  line-height: 1.45;
+}
+.rp-doc .rp-quote-head { display: block; font-weight: 600; }
+
+/* No quote: a dashed slot where it would be, with the reason. */
+.rp-doc .rp-gap {
+  margin-top: .6em;
+  padding: .5em .75em .55em;
+  border: 1px dashed var(--rp-graphite);
+  border-radius: 2px;
+  font-size: .95em;
+  line-height: 1.4;
+}
+.rp-doc .rp-gap .rp-fine { margin-top: .25em; }
+.rp-doc .rp-missing { margin-top: .55em; font-size: .95em; line-height: 1.4; }
+.rp-doc .rp-missing span { font-weight: 600; }
+
+.rp-doc .rp-points { margin-top: .7em; }
+.rp-doc .rp-points-t { margin-bottom: .2em; font-size: .82em; font-weight: 600; color: var(--rp-graphite); }
+.rp-doc .rp-points ol { padding-left: 1.45em; list-style: decimal; font-size: .95em; line-height: 1.4; }
+.rp-doc .rp-points li { padding-left: .15em; }
+.rp-doc .rp-points li + li { margin-top: .2em; }
+.rp-doc .rp-points li[data-main] { font-weight: 600; }
+.rp-doc .rp-points li::marker { font-weight: 600; }
+.rp-doc .rp-main { font-size: .88em; font-weight: 500; color: var(--rp-graphite); white-space: nowrap; }
+.rp-doc .rp-points-none { margin-top: .6em; font-size: .9em; color: var(--rp-graphite); }
+
+/* The teacher's field. */
+.rp-doc .rp-q-mark {
+  padding: .95em 0 1em 1.05em;
+  border-left: 1px solid var(--rp-margin);
+  font-size: .88em;
+}
+.rp-doc .rp-marks { display: grid; gap: .5em; list-style: none; }
+.rp-doc .rp-marks li { display: flex; align-items: center; gap: .55em; line-height: 1.2; }
+.rp-doc .rp-box {
+  flex: none;
+  box-sizing: border-box;
+  width: 1.05em;
+  height: 1.05em;
+  border: 1px solid var(--rp-ink);
+  border-radius: 1px;
+}
+.rp-doc .rp-cmt { margin-top: .95em; font-size: .92em; color: var(--rp-graphite); }
+.rp-doc .rp-line { display: block; height: 1.65em; border-bottom: 1px solid var(--rp-graphite); }
+
+/* ---------------------------------------------------------------- the end */
+.rp-doc .rp-grade {
+  margin-top: .85em;
+  padding: .55em .8em;
+  border: 1.5px solid var(--rp-ink);
+  border-radius: 2px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.rp-doc .rp-sign { break-inside: avoid; page-break-inside: avoid; }
+.rp-doc .rp-sign-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.3em 2.2em;
+  margin-top: .6em;
+}
+.rp-doc .rp-sign-field { display: grid; gap: .3em; }
+.rp-doc .rp-sign-label { font-size: .82em; color: var(--rp-graphite); }
+.rp-doc .rp-fill { display: block; min-height: 1.9em; border-bottom: 1px solid var(--rp-ink); }
+
+/* ---------------------------------------------------------------- phones */
+@media (max-width: 639px) {
+  .sf-page.rp-room { padding-top: 16px; padding-bottom: 64px; }
+  .rp-room .rp-tools { margin-bottom: 16px; }
+  .rp-room .rp-tools-acts { width: 100%; }
+  .rp-room .rp-tools-acts > * { flex: 1 1 auto; }
+  .rp-room .rp-empty { margin-top: 24px; padding: 28px 22px 24px; border-radius: 28px; }
+  .rp-room .rp-empty h1 { font-size: 26px; }
+  /* The sheet runs to the screen's edges. */
+  .rp-doc {
+    margin: 0 calc(-1 * var(--sf-g));
+    padding: 22px 16px 28px;
+    border-radius: 0;
+    font-size: 15px;
+  }
+  .rp-doc .rp-title { font-size: 1.85em; }
+  .rp-doc .rp-cols { grid-template-columns: minmax(0, 1fr); }
+  .rp-doc .rp-meta { gap: 0 1.2em; }
+  .rp-doc .rp-cols > .rp-part + .rp-part { margin-top: 1.6em; }
+  .rp-doc .rp-tally { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp-doc .rp-tally li:nth-child(3) { border-left: 0; }
+  .rp-doc .rp-tally li:nth-child(n + 3) { border-top: 1px solid var(--rp-hair); }
+  /* The teacher's field goes under the question, behind the same pink rule laid flat. */
+  .rp-doc .rp-list-head { grid-template-columns: 2.1em minmax(0, 1fr); }
+  .rp-doc .rp-list-head > :last-child { display: none; }
+  .rp-doc .rp-sec { grid-template-columns: 2.1em minmax(0, 1fr); column-gap: .6em; }
+  .rp-doc .rp-sec::after { display: none; }
+  .rp-doc .rp-q { grid-template-columns: 2.1em minmax(0, 1fr); column-gap: .6em; }
+  .rp-doc .rp-q-main { padding-bottom: .7em; }
+  .rp-doc .rp-q-mark {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5em 1.2em;
+    margin-bottom: .9em;
+    padding: .6em 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--rp-margin);
+  }
+  .rp-doc .rp-marks { display: flex; flex-wrap: wrap; gap: .5em 1.2em; }
+  .rp-doc .rp-cmt { margin-top: 0; }
+  .rp-doc .rp-line { flex: 1 1 100%; height: 1.4em; }
+  .rp-doc .rp-line + .rp-line { display: none; }
+  .rp-doc .rp-sign-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------------------------------------------------------------- print */
+/* A named page: these margins and the page numbers apply to the report's pages only. */
+@page meldy-report {
+  size: A4 portrait;
+  margin: 15mm 14mm 16mm 16mm;
+
+  @bottom-right {
+    content: 'стр. ' counter(page) ' из ' counter(pages);
+    font-family: 'Onest Variable', 'Onest Fallback', Arial, sans-serif;
+    font-size: 8pt;
+    color: #000;
+  }
+  @bottom-left {
+    content: 'Meldy · отчёт сверки для преподавателя';
+    font-family: 'Onest Variable', 'Onest Fallback', Arial, sans-serif;
+    font-size: 8pt;
+    color: #000;
+  }
+}
+
+@media print {
+  .sf-page.rp-room,
+  .dark .sf-page.rp-room {
+    --rp-paper: #ffffff;
+    --rp-ink: #000000;
+    --rp-graphite: #333333;
+    --rp-hair: #9a9a9a;
+    --rp-margin: #000000;
+    max-width: none;
+    padding: 0;
+  }
+  .rp-room [data-print='hide'] { display: none !important; }
+  .rp-doc {
+    page: meldy-report;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+    color: #000000;
+    font-size: 10.5pt;
+    line-height: 1.4;
+  }
+  .rp-doc .rp-q-mark,
+  .rp-doc .rp-sec::after,
+  .rp-doc .rp-list-head > :last-child { border-left-width: .75pt; }
+  .rp-doc .rp-h2,
+  .rp-doc .rp-sec,
+  .rp-doc .rp-list-head { break-after: avoid; page-break-after: avoid; }
+  .rp-doc .rp-q,
+  .rp-doc .rp-head,
+  .rp-doc .rp-tally,
+  .rp-doc .rp-notice,
+  .rp-doc .rp-end,
+  .rp-doc .rp-sign { break-inside: avoid; page-break-inside: avoid; }
+  /* A question longer than a page breaks between its parts, never inside a line of a quote's caption. */
+  .rp-doc .rp-quote figcaption { break-after: avoid; page-break-after: avoid; }
+}

@@ -1090,6 +1090,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
       </button>
       {/* «Группа по ссылке»: the author's link for the group (components/exams/share/InviteGroup). */}
       <InviteGroup examId={exam.id} examTitle={exam.title} />
+      {/* The mapping as a page to print for the department, and a CSV (pages/ExamReport.tsx). */}
+      <Link className="sf-link" to={`/exams/${exam.id}/report`}>
+        Отчёт для преподавателя
+      </Link>
     </div>
   );
 
