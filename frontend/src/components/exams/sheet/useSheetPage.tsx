@@ -126,6 +126,11 @@ export interface SheetPage {
   overlay: ReactNode;
   /** One region a screen reader hears what an answer, the history or a write changed (rendered once, always). */
   status: ReactNode;
+  /**
+   * The paper is drawn, or will not be (the sheet or its journal could not be read): what goes under it
+   * may appear now — before, the paper's arrival would push it down under the eye.
+   */
+  settled: boolean;
   /** The column holds the one filled pill now («Написать шпаргалку», «Ответить на этот вопрос»). */
   primaryInColumn: boolean;
   /** A line's details are open. */
@@ -781,7 +786,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   );
 
   const playing = replayLive || historyPlaying;
-  return { data, paper, column, top, after, overlay, status, primaryInColumn, lineOpen, playing, closeLine };
+  const settled = paperShown || data.status === 'error' || journalFailed;
+  return { data, paper, column, top, after, overlay, status, settled, primaryInColumn, lineOpen, playing, closeLine };
 }
 
 const NO_QUESTIONS: ReadonlySet<string> = new Set();

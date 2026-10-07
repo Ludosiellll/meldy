@@ -1251,7 +1251,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
         )}
       </div>
 
-      {!frame.side && onSheet && (
+      {/* With the paper, not before it: the paper's arrival would push this down under the eye. */}
+      {!frame.side && onSheet && sheetPage.settled && (
         <section className="ex-col ex-col-after">
           {sheetPage.after}
           {examLinks}
