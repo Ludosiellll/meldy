@@ -81,7 +81,9 @@ import {
 } from '../lib/oral/ticketMachine';
 import { clockTime, draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, nextQuestionLabel, plural, shortDate, shortDateTime } from '../lib/oral/format';
 import { displayMaterialTitle } from '../utils/materialTitle';
-import { secondsBucket, track } from '../lib/telemetry';
+import { countBucket, secondsBucket, track } from '../lib/telemetry';
+import { usePasteGuard } from '../components/oral/usePasteGuard';
+import PasteNotice from '../components/oral/PasteNotice';
 import { useAnswerSheetChange } from '../components/exams/sheet/answerChange';
 import { protocolSheetLine } from '../components/exams/sheet/copy';
 
@@ -417,6 +419,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     sessionId: state.phase === 'protocol' && state.save.status === 'saved' ? state.save.result.sessionId : null,
     examDate: state.exam?.examDate ?? null,
   });
+  // «Чистый ответ» (Н7): a ready text pasted into the answer or into the reply to the examiner is refused,
+  // with the reason under the field — only the student's own words erase the sheet's lines.
+  const answerPaste = usePasteGuard((words) => track('answer_paste_refused', { field: 'answer', words: countBucket(words) }));
+  const followupPaste = usePasteGuard((words) => track('answer_paste_refused', { field: 'followup', words: countBucket(words) }));
   const voiceAnswer = state.mode === 'voice';
   const finalText = voiceAnswer ? speech.finalText : state.typed;
   const interimText = voiceAnswer ? speech.interimText : '';
@@ -1891,14 +1897,21 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                 {followup.notHeard && followup.stage === 'asking' ? <p className="or-hint">{`${NOT_HEARD_LINE}.`}</p> : null}
                 {state.notice ? <p className="or-hint">{state.notice}</p> : null}
                 {followup.stage === 'answering' && followup.mode === 'text' ? (
-                  <textarea
-                    className="or-text-field"
-                    aria-label="Ответ на вопрос экзаменатора"
-                    placeholder="Напишите ответ своими словами"
-                    value={followup.typed}
-                    onChange={(event) => dispatch({ type: 'followup_typed', text: event.target.value })}
-                    data-anchor=""
-                  />
+                  <>
+                    <textarea
+                      className="or-text-field"
+                      aria-label="Ответ на вопрос экзаменатора"
+                      placeholder="Напишите ответ своими словами"
+                      value={followup.typed}
+                      onChange={(event) => {
+                        followupPaste.clear();
+                        dispatch({ type: 'followup_typed', text: event.target.value });
+                      }}
+                      {...followupPaste.fieldProps}
+                      data-anchor=""
+                    />
+                    <PasteNotice guard={followupPaste} />
+                  </>
                 ) : null}
                 {/* One transcript from the question on: while the examiner asks it keeps its place unseen, so the
                     block does not move when the microphone opens (peak 2 on the stage). */}
@@ -1984,9 +1997,14 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           className="or-text-field"
           placeholder="Напишите ответ своими словами"
           value={state.typed}
-          onChange={(event) => dispatch({ type: 'typed', text: event.target.value })}
+          onChange={(event) => {
+            answerPaste.clear();
+            dispatch({ type: 'typed', text: event.target.value });
+          }}
+          {...answerPaste.fieldProps}
           data-anchor=""
         />
+        <PasteNotice guard={answerPaste} />
       </div>
     ) : (
       <LiveTranscript

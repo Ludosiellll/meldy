@@ -19,6 +19,7 @@ import { EXAMPLE_GRADE_NOTE, EXAMPLE_SCALE_NOTE } from '../components/example/Ex
 import { CLOSING_PAUSE_MS, EXAMINER_PAUSE_MS, EXAMPLE_PRIVACY_LINE, FOLLOWUP_LISTEN_MS } from '../components/example/ExampleTicket';
 import { resetExampleDraws } from '../components/example/exampleFlow';
 import { EXAMPLE_ANSWER_Q5 } from '../components/example/trySheet';
+import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────────────
 
@@ -418,6 +419,22 @@ describe('«Попробовать на примере» (/try)', () => {
     // A kept answer read later: no line about the sheet under the date (the note above says it).
     expect(document.querySelector('.or-ph-sheet')).toBeNull();
     expect(screen.getByRole('link', { name: 'К шпаргалке' })).toHaveAttribute('href', '/try?view=sheet');
+  });
+
+  it('refuses a pasted ready text as a real ticket does; «Вставить ответ примера» is a button and still fills the answer (Н7)', async () => {
+    renderAt('/try/ticket?q=q5');
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    const field = screen.getByLabelText(/^Ваш ответ/) as HTMLTextAreaElement;
+    expect(fireEvent.paste(field, { clipboardData: { getData: () => EXAMPLE_ANSWER_Q5 } })).toBe(false);
+    expect(field.value).toBe('');
+    expect(screen.getByText(PASTE_REFUSED)).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-count-line')?.textContent)).toBe('По ключевым словам: 0 из 5');
+    // The button puts the example's own answer in, and the line about the refused paste goes away.
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
+    expect((screen.getByLabelText(/^Ваш ответ/) as HTMLTextAreaElement).value).toBe(EXAMPLE_ANSWER_Q5);
+    expect(plain(document.querySelector('.or-count-line')?.textContent)).toBe('По ключевым словам: 4 из 5');
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('answer 5 with the example’s answer: the protocol says what erased, and the sheet plays it', async () => {

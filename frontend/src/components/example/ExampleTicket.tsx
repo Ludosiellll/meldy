@@ -18,7 +18,9 @@ import { exampleQuestion, exampleRubricResponse, exampleTicket, type ExampleQues
 import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
 import ExampleGrade from './ExampleGrade';
 import TryBar from './TryBar';
-import { track } from '../../lib/telemetry';
+import { countBucket, track } from '../../lib/telemetry';
+import { usePasteGuard } from '../oral/usePasteGuard';
+import PasteNotice from '../oral/PasteNotice';
 import { answerChange, type AnswerChange } from '../exams/sheet/answerChange';
 import { protocolSheetLine } from '../exams/sheet/copy';
 import type { Evaluation } from '../../lib/oral/oralApi';
@@ -306,6 +308,9 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   // ── The protocol keeps the answer in this tab: the example's sheet erases by it (sheet spec 4.3) ──
   const keptSession = useRef<{ attempt: string; session: string } | null>(null);
   const [sheetChange, setSheetChange] = useState<AnswerChange | null>(null);
+  // «Чистый ответ» (Н7), as on a real ticket: a pasted ready text is refused; «Вставить ответ примера» is a button.
+  const answerPaste = usePasteGuard((words) => track('try_answer_paste_refused', { field: 'answer', words: countBucket(words) }));
+  const followupPaste = usePasteGuard((words) => track('try_answer_paste_refused', { field: 'followup', words: countBucket(words) }));
   useEffect(() => {
     if (state.phase !== 'protocol' || state.evaluation.status !== 'done' || !state.attempt) return;
     const attemptId = state.attempt.attemptId;
@@ -359,8 +364,12 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     if (speech.start()) dispatch({ type: state.phase === 'answering' ? 'mode' : 'start', mode: 'voice', now: Date.now() });
   };
 
-  /** «Вставить ответ примера»: the example's own answer in the text field, whatever the mode was. */
+  /**
+   * «Вставить ответ примера»: the example's own answer in the text field, whatever the mode was. A button,
+   * not a paste: «Чистый ответ» does not stop it, and a line about a refused paste goes away.
+   */
   const insertExample = () => {
+    answerPaste.clear();
     focusTextRef.current = true;
     if (state.phase === 'ready') {
       dispatch({ type: 'start', mode: 'text', now: Date.now() });
@@ -753,14 +762,21 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
                 {followup.notHeard && followup.stage === 'asking' ? <p className="or-hint">{`${NOT_HEARD_LINE}.`}</p> : null}
                 {state.notice ? <p className="or-hint">{state.notice}</p> : null}
                 {followup.stage === 'answering' && followup.mode === 'text' ? (
-                  <textarea
-                    className="or-text-field"
-                    aria-label="Ответ на вопрос экзаменатора"
-                    placeholder="Напишите ответ своими словами"
-                    value={followup.typed}
-                    onChange={(event) => dispatch({ type: 'followup_typed', text: event.target.value })}
-                    data-anchor=""
-                  />
+                  <>
+                    <textarea
+                      className="or-text-field"
+                      aria-label="Ответ на вопрос экзаменатора"
+                      placeholder="Напишите ответ своими словами"
+                      value={followup.typed}
+                      onChange={(event) => {
+                        followupPaste.clear();
+                        dispatch({ type: 'followup_typed', text: event.target.value });
+                      }}
+                      {...followupPaste.fieldProps}
+                      data-anchor=""
+                    />
+                    <PasteNotice guard={followupPaste} />
+                  </>
                 ) : null}
                 {followup.mode === 'voice' && (followup.stage === 'answering' || followup.stage === 'asking') ? (
                   <div className="or-examiner-listen" data-waiting={followup.stage === 'asking' ? '' : undefined} aria-hidden={followup.stage === 'asking' ? true : undefined}>
@@ -828,9 +844,14 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           className="or-text-field"
           placeholder="Напишите ответ своими словами"
           value={state.typed}
-          onChange={(event) => dispatch({ type: 'typed', text: event.target.value })}
+          onChange={(event) => {
+            answerPaste.clear();
+            dispatch({ type: 'typed', text: event.target.value });
+          }}
+          {...answerPaste.fieldProps}
           data-anchor=""
         />
+        <PasteNotice guard={answerPaste} />
         {/* The example's own answer to the question its sheet asks for (sheet spec 4.3). */}
         {question.id === EXAMPLE_ANSWER_QUESTION && !state.typed.trim() ? (
           <button type="button" className="sf-link tx-insert" onClick={insertExample}>

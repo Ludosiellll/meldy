@@ -6,6 +6,7 @@ import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
 import { CHOSE_SERVER_NOTICE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE } from './ExamTicket';
 import { SCALE_NOTE } from '../components/oral/OralProtocol';
+import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown as ReturnType<typeof import('../lib/oral/testing/fakeSupabase').createFakeSupabase>['client'],
@@ -704,6 +705,43 @@ describe('ExamTicket: answering by text', () => {
     expect(document.querySelector('.or-sheet-change')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'К шпаргалке' }));
     await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}?view=sheet`));
+  });
+
+  it('refuses a pasted ready text in the answer and in the reply to the examiner, says why, and lets a term in («Чистый ответ», Н7)', async () => {
+    const READY = 'Обучение сети — это подбор весов, которые минимизируют функцию потерь на обучающей выборке.';
+    const paste = (target: HTMLElement, text: string) => fireEvent.paste(target, { clipboardData: { getData: () => text } });
+    const drop = (target: HTMLElement, text: string) => fireEvent.drop(target, { dataTransfer: { getData: () => text } });
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    const field = screen.getByRole('textbox');
+    // More than 8 words: the paste is cancelled, nothing goes in, and the line under the field says why.
+    expect(paste(field, READY)).toBe(false);
+    expect(field).toHaveValue('');
+    expect(screen.getByText(PASTE_REFUSED)).toHaveAttribute('role', 'status');
+    expect(field).toHaveAccessibleDescription(PASTE_REFUSED);
+    // Typing by hand takes the line away; a term (up to 8 words) is pasted as usual.
+    typeAnswer('Обучение сети');
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    expect(paste(field, 'функция потерь')).toBe(true);
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    // Dropped text is the same as pasted; one's own words moved inside the field are not.
+    expect(drop(field, READY)).toBe(false);
+    expect(screen.getByText(PASTE_REFUSED)).toBeInTheDocument();
+    fireEvent.dragStart(field);
+    expect(drop(field, READY)).toBe(true);
+
+    // The reply to the examiner's question: the same rule.
+    typeAnswer(DEMO_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    const reply = await screen.findByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    expect(paste(reply, READY)).toBe(false);
+    expect(reply).toHaveValue('');
+    expect(reply).toHaveAccessibleDescription(PASTE_REFUSED);
+    fireEvent.change(reply, { target: { value: 'Будут колебания' } });
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
   });
 
   it('switches to the point the model names when the browser’s candidate was covered', async () => {
