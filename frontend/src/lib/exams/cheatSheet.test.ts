@@ -496,8 +496,8 @@ describe('buildSheet', () => {
   it('counts a question that cannot be written among the questions without points, not among the unwritten', () => {
     const sheet = buildSheet([question(1, { rubric: rubric('r1', TWO) }), question(2, { question_hash: 'b'.repeat(32), unwritable: true })], [], NOW);
     expect(sheet.counts).toMatchObject({ gaps: 1, unwritten: 0, withoutLines: 1 });
-    // The block a copy of a group link shows for the same question (components/exams/sheet/copy.blockNote: «В лекциях
-    // не нашлось пунктов ответа»): a gap of a question the lectures have.
+    // The block a copy of a group link shows for the same question (components/exams/sheet/copy.blockNote:
+    // POINTS_NOT_WRITTEN): a gap of a question the lectures have.
     expect(sheet.blocks[1]).toMatchObject({ kind: 'gap', coverage: 'full' });
   });
 

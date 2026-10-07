@@ -276,7 +276,7 @@ describe('SheetWriteCard: questions that cannot be written', () => {
   // the author's sheet for good. They are not to write any more; the card says so plainly and offers nothing.
   it('nothing left to write: the plain line, no button, no price', () => {
     writeCard({ written: 16, toWrite: 0, units: 0, unwritable: 2 });
-    expect(plain(document.querySelector('.cs-write')?.textContent)).toBe('2 вопроса не удалось записать: в лекциях нет цитат для пунктов');
+    expect(plain(document.querySelector('.cs-write')?.textContent)).toBe('У 2 вопросов пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
     expect(screen.queryByRole('button')).toBeNull();
     expect(plain(document.querySelector('.cs-write')?.textContent)).not.toMatch(/единиц/);
   });
@@ -286,19 +286,20 @@ describe('SheetWriteCard: questions that cannot be written', () => {
     expect(screen.getByRole('button', { name: named('Дописать 1 вопрос') })).toBeTruthy();
     const text = plain(document.querySelector('.cs-write')?.textContent);
     expect(text).toContain('1 вопрос — 1 единица ИИ');
-    expect(text).toContain('2 вопроса не удалось записать: в лекциях нет цитат для пунктов');
+    expect(text).toContain('У 2 вопросов пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
   });
 
   it('after a run they are not «можно попробовать ещё раз»', () => {
     writeCard({ written: 16, toWrite: 0, units: 0, unwritable: 2, write: idle({ phase: 'done', written: 3, failed: 2, unverifiable: 2, total: 5 }) });
     const text = plain(document.querySelector('.cs-write')?.textContent);
-    expect(text).toBe('Шпаргалка написана2 вопроса не удалось записать: в лекциях нет цитат для пунктов');
+    expect(text).toBe('Шпаргалка написанаУ 2 вопросов пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
     expect(text).not.toContain('попробовать ещё раз');
   });
 
   it('says one, two and five', () => {
-    expect(plain(unwritableLine(1))).toBe('1 вопрос не удалось записать: в лекциях нет цитат для пунктов');
-    expect(plain(unwritableLine(5))).toBe('5 вопросов не удалось записать: в лекциях нет цитат для пунктов');
+    expect(plain(unwritableLine(1))).toBe('У 1 вопроса пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
+    expect(plain(unwritableLine(5))).toBe('У 5 вопросов пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
+    expect(plain(unwritableLine(21))).toBe('У 21 вопроса пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
   });
 });
 

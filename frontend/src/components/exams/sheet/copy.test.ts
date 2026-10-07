@@ -89,7 +89,7 @@ describe('cheat sheet words', () => {
     expect(plain(blockNote({ ...base, kind: 'gap', coverage: 'none' }, 1))).toBe('В лекции нет фрагмента об этом');
     expect(plain(blockNote({ ...base, kind: 'gap', coverage: 'none' }, 9))).toBe('Ни в одной из 9 лекций нет фрагмента об этом');
     // A question the lectures have, whose points failed the quote check (the author's sheet, a group link's copy).
-    expect(blockNote({ ...base, kind: 'gap' }, 3)).toBe('В лекциях не нашлось пунктов ответа');
+    expect(blockNote({ ...base, kind: 'gap' }, 3)).toBe(POINTS_NOT_WRITTEN);
   });
 
   it('promises nothing the sheet does not do when a question was not written', () => {

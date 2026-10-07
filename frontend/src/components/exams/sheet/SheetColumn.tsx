@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, 
 import { Link } from 'react-router-dom';
 import { AI_USAGE_EVENT, checkAILimit, formatLimitReset, nextLimitReset } from '../../../api/limits';
 import type { SheetWriteState } from '../../../api/cheatSheet';
-import type { HistoryFrame, LineState, SheetBlock, SheetCounts, SheetLine } from '../../../lib/exams/cheatSheet';
+import { POINTS_NOT_WRITTEN, type HistoryFrame, type LineState, type SheetBlock, type SheetCounts, type SheetLine } from '../../../lib/exams/cheatSheet';
 import { formatShortDay, fragmentNumber } from '../../../lib/exams/format';
-import { glue, NBSP } from '../sheetModel';
+import { genitiveOf, glue, NBSP } from '../sheetModel';
 import type { FrameBox } from '../useFrame';
 import { usePrefersReducedMotion } from '../../landing/usePrefersReducedMotion';
 import { splitFragmentHeading } from '../../../utils/fragmentText';
@@ -423,9 +423,9 @@ export function outcomeLine(write: SheetWriteState, toWrite: number): string | n
   return toWrite === 0 ? 'Шпаргалка написана' : null;
 }
 
-/** «2 вопроса не удалось записать: в лекциях нет цитат для пунктов». */
+/** «У 2 вопросов пункты не записаны: Meldy не смог подтвердить их цитатами из лекций» — POINTS_NOT_WRITTEN, counted. */
 export function unwritableLine(count: number): string {
-  return `${count}${NBSP}${questionsWord(count)} не удалось записать: в лекциях нет цитат для пунктов`;
+  return `У${NBSP}${count}${NBSP}${genitiveOf(count, 'вопроса', 'вопросов')} ${POINTS_NOT_WRITTEN.charAt(0).toLowerCase()}${POINTS_NOT_WRITTEN.slice(1)}`;
 }
 
 // ── The details of one line ────────────────────────────────────────────────────────────────
