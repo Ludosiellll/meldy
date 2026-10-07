@@ -4,7 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
-## 2026-10-07 — The cheat sheet after four critics: unreadable rubbed lines, honest shows, keyboard and screen readers (from 9c363f9)
+## 2026-10-07 — Cheat sheet: a short line keeps the minus of every number (from 4b27f5a)
+
+Adds to release 27 (tree of c482e08). Found while closing the list of what the server's check of short lines still
+let through: numbers were compared without their sign, so «эл. = 2» passed for «Эластичность спроса равна −2».
+
+- A minus right before a number (−, - or – not after a letter or digit) or the word «минус» before it is part of the
+  number: a line that drops or adds it is rejected, and the sheet shows the point's own words instead. «минус 2»,
+  «-2» and «−2» are one number; ranges («2–3», «2-3») and hyphens («COVID-19») are unchanged.
+- Such a minus is no longer taken for a subtraction sign; the prompt asks to keep each number with its minus.
+- Lines already saved are checked again when read, so a stored line that lost a minus is not given out.
+
+Server only, no migrations. Verified before release: pytest 1075 (the sheet's file 172, nine new cases).
+ unreadable rubbed lines, honest shows, keyboard and screen readers (from 9c363f9)
 
 Adds to release 26 (tree of 3f571e3). The owner, 2026-10-07: «Продолжи, доработай что нужно». Four critics (words,
 visual and motion, accessibility, edge cases) went over the released sheet; every finding was checked in code.
