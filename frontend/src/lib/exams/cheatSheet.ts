@@ -46,6 +46,14 @@ export const DUE_DAYS: readonly number[] = [5, 12, 25, 50];
 export const EXAM_EVE_DAYS = 2;
 export const EXAM_EVE_STALE_DAYS = 4;
 
+/**
+ * A question in the lectures (the mapping says «есть» or «частично») without answer points: their quotes failed
+ * the check twice (oral_rubric_failures, a group copy's placeholder) or the writing found nothing to quote. One
+ * phrase on the sheet, after a write and in the teacher's report; «нет в лекциях» is said only of a «нет» question
+ * (live run of release 29.1: «Есть в лекциях», two fragments and «Пунктов нет: в лекциях не нашлось…»).
+ */
+export const POINTS_NOT_WRITTEN = 'Пункты не записаны: Meldy не смог подтвердить их цитатами из лекций';
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 

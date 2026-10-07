@@ -11,7 +11,7 @@ import {
   type SheetWriteState,
 } from '../../../api/cheatSheet';
 import { formatLimitReset, nextLimitReset } from '../../../api/limits';
-import { buildSheet, sheetHashes, type Sheet, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
+import { buildSheet, POINTS_NOT_WRITTEN, sheetHashes, type Sheet, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
 import { countBucket, track } from '../../../lib/telemetry';
 import { writeStatusNote } from './copy';
 
@@ -251,7 +251,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     for (const [questionId, result] of Object.entries(write.results)) {
       const question = questions.find((item) => item.question_id === questionId);
       if (question?.rubric) continue;
-      const note = result.status === 'none' ? 'В лекциях не нашлось пунктов ответа' : writeStatusNote(result.status, formatLimitReset(nextLimitReset()));
+      const note = result.status === 'none' ? POINTS_NOT_WRITTEN : writeStatusNote(result.status, formatLimitReset(nextLimitReset()));
       if (note) notes.set(questionId, note);
     }
     return notes;

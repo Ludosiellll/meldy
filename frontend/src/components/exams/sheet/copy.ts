@@ -8,7 +8,7 @@
 import { formatDay, formatMappedAt, formatShortDay, formatShortMoment } from '../../../lib/exams/format';
 import { pluralRu } from '../../conversation/visuals';
 import { lecturesGenitive } from '../sheetModel';
-import { localDayOf, type ChangeSummary, type LineEvent, type LineStatus, type QuietReason, type SheetBlock, type SheetCounts } from '../../../lib/exams/cheatSheet';
+import { localDayOf, POINTS_NOT_WRITTEN, type ChangeSummary, type LineEvent, type LineStatus, type QuietReason, type SheetBlock, type SheetCounts } from '../../../lib/exams/cheatSheet';
 import type { WriteStatus } from '../../../api/cheatSheet';
 
 const NBSP = ' ';
@@ -141,8 +141,8 @@ export function blockNote(
 ): string | null {
   switch (block.kind) {
     case 'gap': {
-      // The mapping found the question, but writing its points found nothing to write.
-      if (block.coverage !== 'none') return 'В лекциях не нашлось пунктов ответа';
+      // The mapping found the question, but its points could not be written: not «нет в лекциях».
+      if (block.coverage !== 'none') return POINTS_NOT_WRITTEN;
       if (block.coverageReason === REASON_NO_SUPPORT) return 'Нет фрагмента, который подтверждает ответ';
       const lectures =
         lectureCount === 1 ? 'В лекции' : lectureCount > 1 ? `Ни в одной из ${lectureCount}${NBSP}${lecturesGenitive(lectureCount)}` : 'Ни в одной лекции';
@@ -344,7 +344,7 @@ export function priceLine(toWrite: number, units: number, left: number | null): 
 export function writeStatusNote(status: WriteStatus, reset: string | null = null): string | null {
   switch (status) {
     case 'unverifiable':
-      return 'В лекциях слишком мало текста об этом — пункты не выписать.';
+      return `${POINTS_NOT_WRITTEN}.`;
     case 'failed':
       return 'Не удалось написать. Попробуйте ещё раз.';
     case 'busy':
