@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { chromeIntentUrl, detectInAppBrowser, inAppName } from './inAppBrowser';
 
-// User agents as these apps and browsers send them (2025–2026 builds).
+// User agents as these apps and browsers send them (2025–2026 builds). Only a WebView is told: «; wv)» on Android,
+// a WebKit view without «Safari/» on iPhone (the marks Google goes by when it refuses: 403 disallowed_useragent).
 const UA = {
   telegramAndroid:
     'Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.6668.100 Mobile Safari/537.36 Telegram-Android/11.2.2 (Samsung SM-A546B; Android 14; SDK 34; AVERAGE)',
@@ -29,6 +30,13 @@ const UA = {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
   macSafari:
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
+  // An app's mark without a WebView's: a browser that only says which app opened it is still a real browser.
+  telegramMarkAndroid:
+    'Mozilla/5.0 (Linux; Android 14; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.100 Mobile Safari/537.36 Telegram-Android/11.2.2',
+  telegramMarkIos:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1 Telegram-iOS/11.2',
+  telegramDesktop:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 TelegramDesktop/5.6',
 };
 
 describe('built-in browsers', () => {
@@ -46,11 +54,18 @@ describe('built-in browsers', () => {
 
   it.each([
     ['Chrome on Android', UA.chromeAndroid, 'android'],
+    // Telegram opens a link in a Chrome Custom Tab: it is Chrome, with Chrome's user agent, and Google works there.
+    ['a Custom Tab opened from Telegram', UA.chromeAndroid, 'android'],
     ['Samsung Internet', UA.samsungInternet, 'android'],
     ['Safari on iPhone', UA.safariIos, 'ios'],
+    // On iPhone Telegram opens SFSafariViewController: Safari's user agent.
+    ['SFSafariViewController opened from Telegram', UA.safariIos, 'ios'],
     ['Chrome on iPhone', UA.chromeIos, 'ios'],
     ['Chrome on a computer', UA.desktopChrome, 'other'],
     ['Safari on a Mac', UA.macSafari, 'other'],
+    ['a browser with Telegram’s mark but no WebView mark on Android', UA.telegramMarkAndroid, 'android'],
+    ['a browser with Telegram’s mark and Safari’s on iPhone', UA.telegramMarkIos, 'ios'],
+    ['Telegram on a computer', UA.telegramDesktop, 'other'],
   ])('lets %s be', (_name, ua, os) => {
     expect(detectInAppBrowser(ua)).toEqual({ app: null, os });
   });

@@ -8,6 +8,7 @@ import { questionOfDay, questionOfDayMessage } from '../../../lib/groups/questio
 import { track } from '../../../lib/telemetry';
 import { localDateKey } from '../../../utils/streak';
 import { glue } from '../sheetModel';
+import FitTextarea from './FitTextarea';
 import './questionOfDay.css';
 
 /**
@@ -34,6 +35,8 @@ interface Props {
   from: QuestionOfDaySource;
   /** The code of an open link the page holds right now (just made in «Пригласить группу»), kept here or not. */
   knownCode?: string | null;
+  /** Told once it is known whether the part shows («Пригласить группу» keeps its right column for it). */
+  onShown?: (shown: boolean) => void;
 }
 
 const COPIED_MS = 2500;
@@ -49,7 +52,7 @@ function ChatIcon() {
   );
 }
 
-export default function QuestionOfDay({ examId, examTitle, questions, from, knownCode = null }: Props) {
+export default function QuestionOfDay({ examId, examTitle, questions, from, knownCode = null, onShown }: Props) {
   const ids = useId();
   const noteId = `${ids}-note`;
   const fieldRef = useRef<HTMLTextAreaElement>(null);
@@ -100,8 +103,15 @@ export default function QuestionOfDay({ examId, examTitle, questions, from, know
   }, [copied]);
 
   const list = questions ?? read;
+  const today = link?.active && list ? questionOfDay(list, examId, day) : null;
+  // Known: no open link, or the list read (with or without today's question).
+  const settled = link !== null && (!link.active || list !== null);
+  const shown = today !== null;
+  useEffect(() => {
+    if (settled) onShown?.(shown);
+  }, [settled, shown, onShown]);
+
   if (!link?.active || !list) return null;
-  const today = questionOfDay(list, examId, day);
   if (!today) return null;
   const code = link.code ?? knownCode;
   const url = code ? joinUrl(code) : null;
@@ -141,7 +151,7 @@ export default function QuestionOfDay({ examId, examTitle, questions, from, know
         <label className="sr-only" htmlFor={`${ids}-text`}>
           Вопрос дня для беседы группы
         </label>
-        <textarea id={`${ids}-text`} ref={fieldRef} className="ig-field ig-text" readOnly rows={4} value={message} />
+        <FitTextarea id={`${ids}-text`} ref={fieldRef} className="ig-field ig-text" readOnly rows={4} value={message} />
         {url ? null : (
           <p className="ig-once" id={noteId}>
             {NO_LINK_NOTE}

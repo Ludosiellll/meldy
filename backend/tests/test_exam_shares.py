@@ -504,6 +504,64 @@ def test_a_link_waits_for_the_mapping(share):
     assert share.fake.tables["exam_shares"] == []
 
 
+def nothing_found(share, exam):
+    """Сверка закончена, но ни один вопрос не нашёлся в лекциях: все «нет»."""
+    for qid in exam["questions"]:
+        share.fake.row("exam_questions", qid).update(
+            {"coverage": "none", "coverage_method": "lexical", "evidence": [], "nearest": [],
+             "coverage_reason": "Ни одного фрагмента с этими словами"}
+        )
+
+
+def test_the_state_counts_what_the_mapping_found(share):
+    exam = author_exam(share.fake)
+    state = share.get(f"/api/exam-shares?exam_id={exam['exam']}").json()
+    # «есть», «частично», «нет», «есть»: три из четырёх нашлись в лекциях.
+    assert state["ready"] is True and state["coverage"] == {"questions": 4, "found": 3}
+
+    # Нашёлся один из четырёх: ссылку дать можно (окно предупредит), сервер не отказывает.
+    for qid in exam["questions"][1:]:
+        share.fake.row("exam_questions", qid).update({"coverage": "none", "coverage_method": "lexical", "evidence": []})
+    state = share.get(f"/api/exam-shares?exam_id={exam['exam']}").json()
+    assert state["ready"] is True and state["coverage"] == {"questions": 4, "found": 1}
+    assert share.post("/api/exam-shares", json={"exam_id": exam["exam"], "consent": True}).status_code == 200
+
+
+def test_a_link_is_refused_when_the_lectures_answer_nothing(share):
+    exam = author_exam(share.fake)
+    make_link(share, exam["exam"])  # сделана раньше, когда было что делить
+    nothing_found(share, exam)
+
+    state = share.get(f"/api/exam-shares?exam_id={exam['exam']}").json()
+    assert state["ready"] is False and state["copy"] is False
+    assert state["reason"] == {"code": "nothing_found", "detail": exam_shares.NOTHING_FOUND_DETAIL, "questions": 4, "found": 0}
+    assert state["coverage"] == {"questions": 4, "found": 0}
+    assert exam_shares.NOTHING_FOUND_DETAIL == (
+        "В лекциях не нашлось ответа ни на один вопрос — однокурсникам будет не с чем заниматься. "
+        "Добавьте лекции по этим темам и сверьте заново, потом приглашайте."
+    )
+
+    before = len(share.fake.tables["exam_shares"])
+    body = assert_refusal(share.post("/api/exam-shares", json={"exam_id": exam["exam"], "consent": True}), 409, "nothing_found")
+    assert body["detail"] == exam_shares.NOTHING_FOUND_DETAIL and body["questions"] == 4 and body["found"] == 0
+    assert len(share.fake.tables["exam_shares"]) == before
+
+    # Вход по ссылке, сделанной раньше, этим не закрыт: однокурсник получает копию, как получал.
+    response = join(share)
+    assert response.status_code == 200, response.text
+    assert share.model.calls == [] and share.reserved == []
+
+
+def test_an_unmapped_exam_hears_about_the_mapping_before_nothing_found(share):
+    exam = author_exam(share.fake, unmapped=True)
+    nothing_found(share, exam)
+    share.fake.row("exam_questions", exam["questions"][3]).update({"coverage": None, "coverage_method": None})
+    body = assert_refusal(share.post("/api/exam-shares", json={"exam_id": exam["exam"], "consent": True}), 409, "not_ready")
+    assert body["reason"] == "needs_mapping"
+    state = share.get(f"/api/exam-shares?exam_id={exam['exam']}").json()
+    assert state["reason"]["reason"] == "needs_mapping" and state["coverage"] == {"questions": 4, "found": 0}
+
+
 def test_another_users_exam_cannot_get_a_link(share):
     exam = author_exam(share.fake)
     response = share.post("/api/exam-shares", json={"exam_id": exam["exam"], "consent": True}, headers=as_user("token-b"))

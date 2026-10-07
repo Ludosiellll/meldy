@@ -21,9 +21,10 @@ import './JoinGroup.css';
 /**
  * /join/<код> — the invitation of a group link (2026-10-07). Open without an account: «Вас пригласили
  * готовиться к экзамену «…» в Meldy», sign-in with Google first and by e-mail second; the way back to this page
- * travels in the address (lib/returnTo). Inside the built-in browser of Telegram, Viber, Instagram or Facebook
- * Google refuses to sign in and the microphone is often missing, so the page first asks to open the link in
- * Chrome or Safari («Скопировать ссылку», on Android a link straight into Chrome, on iPhone where to tap).
+ * travels in the address (lib/returnTo). Inside a real embedded WebView (lib/inAppBrowser: Telegram Mini Apps, the
+ * browsers of Instagram and Facebook) Google usually refuses to sign in and the microphone may be missing, so there
+ * the page first asks to open the link in Chrome or Safari («Скопировать ссылку», on Android a link straight into
+ * Chrome, on iPhone where to tap). A link Telegram opens in a Custom Tab or SFSafariViewController gets Google.
  * Signed in, the page joins at once and opens the classmate's own copy on its cheat sheet; the mandatory guide
  * waits for a later visit (components/guide/guideLater). The author on their own open link: this device keeps its
  * code for «Вопрос дня» (lib/groups/groupLinks.ts), as the device where the link was made does.

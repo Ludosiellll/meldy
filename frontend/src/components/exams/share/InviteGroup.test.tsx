@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import InviteGroup, { groupMessage } from './InviteGroup';
 import { rememberGroupLink, storedGroupLinks } from '../../../lib/groups/groupLinks';
@@ -51,6 +52,26 @@ function server(state: Record<string, unknown>) {
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
 
+let location = '';
+function Where() {
+  const current = useLocation();
+  location = `${current.pathname}${current.hash}`;
+  return null;
+}
+
+/** The exam page's button, under a router (the dialog links into the exam's lectures). */
+function renderInvite() {
+  return render(
+    <MemoryRouter initialEntries={[`/exams/${EXAM}`]}>
+      <Routes>
+        <Route path="/exams/:id" element={<InviteGroup examId={EXAM} examTitle="Макроэкономика" />} />
+        <Route path="/exams/:id/edit" element={<p>Лекции экзамена</p>} />
+      </Routes>
+      <Where />
+    </MemoryRouter>,
+  );
+}
+
 function sheetQuestion(position: number) {
   return {
     question_id: `00000000-0000-4000-8000-00000000000${position}`,
@@ -96,7 +117,7 @@ afterEach(() => {
 describe('«Пригласить группу»', () => {
   it('asks for the consent, then shows the link once with «Скопировать» and a message for the group', async () => {
     const calls = server({});
-    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    renderInvite();
     const dialog = await openDialog();
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(plain(within(dialog).getByText(/Каждый однокурсник получит свою копию/).textContent)).toContain(
@@ -131,9 +152,12 @@ describe('«Пригласить группу»', () => {
 
     const message = within(dialog).getByLabelText('Текст для беседы группы') as HTMLTextAreaElement;
     expect(message.value).toBe(groupMessage('Макроэкономика', url));
-    expect(message.value).toContain('«Макроэкономика»');
-    expect(message.value).toContain('Откройте ссылку в Chrome или Safari');
-    expect(message.value.split('\n').pop()).toBe(url);
+    // What the copy gives, then the link; no word about browsers: Google sign-in works in Telegram's links (owner).
+    expect(message.value.split('\n')).toEqual([
+      'Готовимся к экзамену «Макроэкономика» в Meldy. По ссылке у каждого будет своя копия: вопросы, лекции и шпаргалка с пунктами ответа. Отвечаете вслух — строки шпаргалки стираются. Ваши ответы видите только вы.',
+      url,
+    ]);
+    expect(message.value).not.toMatch(/Google|Telegram|Viber|Chrome|Safari|браузер/);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Скопировать текст' }));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(message.value));
 
@@ -143,7 +167,7 @@ describe('«Пригласить группу»', () => {
 
   it('says what to do when the exam is not ready, and offers no link', async () => {
     server({ ready: false, reason: { code: 'not_ready', reason: 'needs_sheet', questions: 2, detail: 'Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.' } });
-    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    renderInvite();
     const dialog = await openDialog();
     expect(await within(dialog).findByText('Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('checkbox')).toBeNull();
@@ -156,7 +180,7 @@ describe('«Пригласить группу»', () => {
       copy: true,
       reason: { code: 'is_copy', detail: 'Этот экзамен — копия из ссылки группы. Однокурсников приглашает автор экзамена своей ссылкой.' },
     });
-    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    renderInvite();
     const dialog = await openDialog();
     expect(await within(dialog).findByText(/копия из ссылки группы/)).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Создать ссылку' })).toBeNull();
@@ -166,7 +190,7 @@ describe('«Пригласить группу»', () => {
     const calls = server({
       shares: [share(OLD, { members: 5 }), share('5a000000-0000-4000-8000-000000000003', { state: 'revoked', revoked_at: '2026-10-06T10:00:00Z' })],
     });
-    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    renderInvite();
     const dialog = await openDialog();
     const list = await within(dialog).findByRole('list');
     const [first, second] = within(list).getAllByRole('listitem');
@@ -187,7 +211,7 @@ describe('«Пригласить группу»', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('blocked', 'QuotaExceededError');
     });
-    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    renderInvite();
     const dialog = await openDialog();
     fireEvent.click(await within(dialog).findByRole('checkbox'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Создать ссылку' }));
@@ -202,7 +226,7 @@ describe('«Пригласить группу»', () => {
     rememberGroupLink(EXAM, CODE, OLD);
     rows.mockResolvedValue([{ id: OLD, codeHash: sha256Hex(CODE), state: 'active' }]);
     server({ shares: [share(OLD, { members: 5 })] });
-    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    renderInvite();
     const dialog = await openDialog();
     const section = (await within(dialog).findByRole('heading', { name: 'Вопрос дня' })).closest('section')!;
     const field = (await within(section).findByRole('textbox', { name: 'Вопрос дня для беседы группы' })) as HTMLTextAreaElement;
@@ -224,9 +248,108 @@ describe('«Пригласить группу»', () => {
     await waitFor(() => expect(within(dialog).queryByRole('heading', { name: 'Вопрос дня' })).toBeNull());
   });
 
+  it('offers no link when the lectures answer none of the questions, says why and leads to the lectures', async () => {
+    const calls = server({
+      ready: false,
+      reason: {
+        code: 'nothing_found',
+        questions: 18,
+        found: 0,
+        detail: 'В лекциях не нашлось ответа ни на один вопрос — однокурсникам будет не с чем заниматься. Добавьте лекции по этим темам и сверьте заново, потом приглашайте.',
+      },
+      coverage: { questions: 18, found: 0 },
+    });
+    renderInvite();
+    const dialog = await openDialog();
+    const note = (await within(dialog).findByText(/В лекциях не нашлось ответа ни на один вопрос/)).closest('.ig-note')!;
+    expect(plain(note.textContent)).toBe(
+      'В лекциях не нашлось ответа ни на один вопрос — однокурсникам будет не с чем заниматься. Добавьте лекции по этим темам и сверьте заново, потом приглашайте.Добавить лекции',
+    );
+    expect(within(dialog).queryByRole('checkbox')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Создать ссылку' })).toBeNull();
+    const lectures = within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' });
+    expect(lectures).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
+    fireEvent.click(lectures);
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}/edit#lectures`));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('warns with the numbers when less than half of the list is in the lectures, and still makes the link', async () => {
+    const calls = server({ coverage: { questions: 18, found: 4 } });
+    renderInvite();
+    const dialog = await openDialog();
+    const make = await within(dialog).findByRole('button', { name: 'Создать ссылку' });
+    const note = within(dialog).getByText(/Ответы нашлись к 4 из 18 вопросов/).closest('.ig-note')!;
+    expect(plain(note.querySelector('p')?.textContent)).toBe(
+      'Ответы нашлись к 4 из 18 вопросов. У остальных 14 в копиях однокурсников не будет пунктов ответа.',
+    );
+    expect(within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' })).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
+    // The warning comes before the consent: read first, then decide.
+    const consent = within(dialog).getByRole('checkbox', { name: CONSENT });
+    expect(note.compareDocumentPosition(consent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(consent);
+    fireEvent.click(make);
+    expect(await within(dialog).findByLabelText('Ссылка для группы')).toBeInTheDocument();
+    expect(calls.some((call) => call.method === 'POST' && call.url === '/api/exam-shares')).toBe(true);
+  });
+
+  it.each([
+    [{ questions: 18, found: 9 }, 'half'],
+    [{ questions: 18, found: 18 }, 'all'],
+  ])('says nothing about the lectures when %j of the list is found (%s)', async (coverage) => {
+    server({ coverage });
+    renderInvite();
+    const dialog = await openDialog();
+    await within(dialog).findByRole('button', { name: 'Создать ссылку' });
+    expect(within(dialog).queryByText(/Ответы нашлись/)).toBeNull();
+    expect(within(dialog).queryByRole('link', { name: 'Добавить лекции' })).toBeNull();
+  });
+
+  it('has two columns when there is a text for the chat: a new link, or «Вопрос дня» of an open link', async () => {
+    server({});
+    renderInvite();
+    let dialog = await openDialog();
+    await within(dialog).findByRole('button', { name: 'Создать ссылку' });
+    // Nothing for the chat yet: one column.
+    expect(dialog).not.toHaveAttribute('data-wide');
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Создать ссылку' }));
+    await within(dialog).findByLabelText('Текст для беседы группы');
+    expect(dialog).toHaveAttribute('data-wide');
+    expect(dialog).toHaveAttribute('data-made');
+    // The parts in the order of one column (and of the keyboard): the link, its message, the exam's links.
+    const parts = Array.from(dialog.children).map((child) => child.className);
+    expect(parts.filter((name) => /^ig-(main|chat|links|day)$/.test(name))).toEqual(['ig-main', 'ig-chat', 'ig-links', 'ig-day']);
+    expect(within(dialog.querySelector('.ig-main') as HTMLElement).getByLabelText('Ссылка для группы')).toBeInTheDocument();
+    expect(within(dialog.querySelector('.ig-chat') as HTMLElement).getByLabelText('Текст для беседы группы')).toBeInTheDocument();
+    cleanup();
+
+    // An open link of this device: «Вопрос дня» on the right, the dialog wide before any new link.
+    rememberGroupLink(EXAM, CODE, OLD);
+    rows.mockResolvedValue([{ id: OLD, codeHash: sha256Hex(CODE), state: 'active' }]);
+    server({ shares: [share(OLD, { members: 5 })] });
+    renderInvite();
+    dialog = await openDialog();
+    const section = (await within(dialog).findByRole('heading', { name: 'Вопрос дня' })).closest('section')!;
+    expect(dialog.querySelector('.ig-day')?.contains(section)).toBe(true);
+    expect(dialog).toHaveAttribute('data-wide');
+    expect(dialog).not.toHaveAttribute('data-made');
+    cleanup();
+
+    // The links cannot be read: no «Вопрос дня», back to one column.
+    rows.mockRejectedValue(new Error('offline'));
+    server({ shares: [share(OLD, { members: 5 })] });
+    renderInvite();
+    dialog = await openDialog();
+    await within(dialog).findByRole('button', { name: 'Создать ссылку' });
+    await waitFor(() => expect(dialog).not.toHaveAttribute('data-wide'));
+    expect(within(dialog).queryByText('Подбираем вопрос дня…')).toBeNull();
+  });
+
   it('keeps the focus inside; Esc closes and gives it back to the button', async () => {
     server({});
-    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    renderInvite();
     const opener = screen.getByRole('button', { name: 'Пригласить группу' });
     const dialog = await openDialog();
     expect(dialog).toHaveFocus();

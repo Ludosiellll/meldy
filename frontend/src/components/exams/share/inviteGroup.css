@@ -2,6 +2,12 @@
  * «Пригласить группу» (InviteGroup.tsx): a white window over the dimmed page, the kit's tokens only, so both themes
  * follow index.css. On a phone the window is a sheet from the bottom. The window lives in document.body (a portal),
  * not inside .sf-page, so none of the exam page's rules reach it.
+ *
+ * Four parts, in the order of one column (and of the keyboard): .ig-main (what the classmates get, the consent or
+ * the new link), .ig-chat (its message), .ig-links (the exam's links), .ig-day («Вопрос дня»). From 960 px, when
+ * there is a text for the chat ([data-wide]), they stand two by two — the link and the links on the left, the texts
+ * for the chat on the right — so the whole window fits a laptop (owner, 2026-10-07, 1532×734: «почему нельзя пошире
+ * сделать это окно»). Without a new link «Вопрос дня» takes the whole right column.
  */
 .ig-layer {
   position: fixed;
@@ -13,8 +19,13 @@
   font-family: var(--ph-sans);
 }
 .ig-scrim { position: absolute; inset: 0; background: rgba(11, 18, 28, .38); }
+/* On the dark page a light dimming did not set the window apart (the PRO and limit windows dim this much). */
+.dark .ig-scrim { background: rgba(0, 0, 0, .6); }
 .ig-box {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   width: min(560px, 100%);
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
@@ -27,6 +38,8 @@
   outline: none;
 }
 .ig-box:focus-visible { box-shadow: 0 0 0 2px var(--sf-accent-fg), 0 30px 60px -30px rgba(16, 41, 90, .45); }
+
+
 .ig-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .ig-h { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
 .ig-x {
@@ -48,6 +61,9 @@
 .ig-lede { margin: 10px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .ig-wait { margin: 20px 0 0; font-size: 16px; color: var(--sf-muted); }
 .ig-note {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
   margin: 18px 0 0;
   padding: 14px 16px;
   border-radius: 16px;
@@ -56,10 +72,13 @@
   line-height: 1.45;
   color: var(--sf-ink);
 }
-.ig-note p { margin: 0; }
+.ig-note p { margin: 0; text-wrap: pretty; }
+.ig-note .sf-link { font-size: 15px; }
 .ig-note[data-tone='wait'] { background: var(--m-yellow-soft); color: var(--m-yellow-ink); }
+.ig-note[data-tone='wait'] .sf-link { color: var(--sf-ink); }
 
 .ig-make { display: grid; gap: 16px; margin-top: 22px; }
+.ig-make > .ig-note { margin: 0; }
 .ig-consent {
   display: flex;
   align-items: flex-start;
@@ -75,7 +94,8 @@
 .ig-consent input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--sf-accent); }
 .ig-go.sf-primary { justify-self: start; }
 
-.ig-made { display: grid; gap: 10px; margin-top: 22px; }
+.ig-made,
+.ig-chat { display: grid; gap: 10px; margin-top: 22px; }
 .ig-label { font-size: 15px; font-weight: 600; }
 .ig-row { display: flex; gap: 8px; min-width: 0; }
 .ig-field {
@@ -91,7 +111,8 @@
   font: 500 15px/1.4 var(--ph-sans);
 }
 .ig-field:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 1px; }
-.ig-text { padding: 12px 16px; resize: vertical; white-space: pre-wrap; }
+/* As tall as the text (FitTextarea): nothing to drag, no scrollbar of its own. */
+.ig-text { padding: 12px 16px; resize: none; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ig-copy {
   flex: none;
   min-height: 48px;
@@ -105,7 +126,7 @@
 }
 .ig-copy:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
 .ig-copy-text { justify-self: start; }
-.ig-once { margin: 0 0 8px; font-size: 14px; line-height: 1.45; color: var(--sf-muted); }
+.ig-once { margin: 0; font-size: 14px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 
 .ig-links { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
 .ig-h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
@@ -124,6 +145,35 @@
 .ig-link[data-state='expired'] { color: var(--sf-muted); }
 .ig-link .sf-link { font-size: 15px; }
 .ig-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; color: var(--sf-muted); }
+
+/* A computer, with a text for the chat: two columns, the texts for the chat on the right. */
+@media (min-width: 960px) {
+  .ig-box[data-wide] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* The last row takes what is left, so the parts above it keep their own height. */
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'head head'
+      'main day'
+      'links day';
+    column-gap: 48px;
+    align-items: start;
+    width: min(1000px, 100%);
+  }
+  .ig-box[data-wide][data-made] {
+    grid-template-areas:
+      'head head'
+      'main chat'
+      'links day';
+  }
+  .ig-box[data-wide] > .ig-head { grid-area: head; }
+  .ig-box[data-wide] > .ig-main { grid-area: main; }
+  .ig-box[data-wide] > .ig-chat { grid-area: chat; margin-top: 10px; }
+  .ig-box[data-wide] > .ig-links { grid-area: links; }
+  .ig-box[data-wide] > .ig-day { grid-area: day; min-width: 0; }
+  /* «Вопрос дня» at the top of the right column starts level with the lede, without the rule above it. */
+  .ig-box[data-wide]:not([data-made]) > .ig-day > :first-child { margin-top: 10px; padding-top: 0; border-top: 0; }
+}
 
 @media (max-width: 639px) {
   .ig-layer { place-items: end stretch; padding: 0; }

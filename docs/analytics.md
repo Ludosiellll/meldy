@@ -148,8 +148,9 @@ Meldy сам записывает, какими экранами и функци
 - `group_link_created` — автор отметил согласие и создал ссылку группы.
 - `group_link_revoked` — автор закрыл ссылку группы.
 - `group_join_view` — открыта страница приглашения `/join/<код>` (сам код в статистику не попадает: адрес идёт
-  шаблоном `/join/:id`); `inapp`: встроенный браузер — `telegram`, `viber`, `instagram`, `facebook`, `webview` или
-  `none`.
+  шаблоном `/join/:id`); `inapp`: встроенный браузер-WebView — `telegram`, `viber`, `instagram`, `facebook`, `webview`
+  или `none` (с 2026-10-07 — только по отметке WebView в user agent: ссылка из Telegram в Chrome Custom Tabs или
+  SFSafariViewController — это `none`).
 - `group_join_done` — однокурсник вошёл по ссылке и открыл свою копию экзамена; `again`: копия была сделана раньше,
   `without_points`: в копии есть вопросы без пунктов ответа.
 - `group_join_failed` — вход по ссылке не удался; `code`: `link_revoked`, `link_expired`, `link_full`, `own_link`,

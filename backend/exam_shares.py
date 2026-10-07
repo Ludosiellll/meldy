@@ -13,6 +13,9 @@ i, l, o, u: около 60 бит) — он показывается один р�
 to_write > 0). Такие вопросы идут в копию без пунктов: эталон-заглушка {coverage: none, points: [],
 unverifiable: {...}} — лист пишет «В лекциях не нашлось пунктов ответа», билет отвечает 422 без модели.
 Копию экзамена, полученную по ссылке, дальше не раздают (политика вставки exam_shares и 409 is_copy).
+Новую ссылку не дают и экзамену, у которого сверка не нашла в лекциях ни одного вопроса (все «нет»): копия была бы
+пустой — 409 nothing_found, решается по тем же строкам вопросов, без миграции. Входу по уже сделанной ссылке это
+не мешает. Автору GET отдаёт и счёт coverage {questions, found}: окно предупреждает, когда нашлось меньше половины.
 
 Вход. exam_share_bundle(code) (DEFINER) отдаёт снимок по белому списку; plan_copy выдаёт новые uuid,
 переносит id лекций в evidence, nearest, rubric.materials, rubric.nearest и material_ids, пересчитывает
@@ -28,7 +31,7 @@ unverifiable: {...}} — лист пишет «В лекциях не нашло
 - POST /api/exam-shares/preview {code} — без входа (main.PUBLIC_API_PATHS): что за ссылка, для /join (код в теле,
   не в адресе: адреса запросов пишет журнал сервера); автору на его ссылке — ещё link: active | revoked | expired
   (своя строка ссылки его токеном);
-- GET  /api/exam-shares?exam_id=       — автор: готовность экзамена и его ссылки;
+- GET  /api/exam-shares?exam_id=       — автор: готовность экзамена, его ссылки и coverage {questions, found};
 - POST /api/exam-shares                — автор: {exam_id, consent: true} → код один раз;
 - POST /api/exam-shares/{id}/revoke    — автор: отозвать (копии остаются у однокурсников);
 - POST /api/exam-shares/join           — однокурсник: {code} → {exam_id, joined}.
@@ -112,6 +115,10 @@ JOIN_NOT_READY_DETAIL = "Автор сейчас обновляет экзаме
 COPY_MISMATCH_DETAIL = "Не получилось подготовить копию экзамена. Попробуйте позже — автор может обновить экзамен."
 AUTHOR_COPY_MISMATCH_DETAIL = "Не получилось подготовить копию экзамена для группы. Ссылку пока сделать нельзя — попробуйте позже."
 SHARE_NOT_FOUND_DETAIL = "Ссылка не найдена."
+NOTHING_FOUND_DETAIL = (
+    "В лекциях не нашлось ответа ни на один вопрос — однокурсникам будет не с чем заниматься. "
+    "Добавьте лекции по этим темам и сверьте заново, потом приглашайте."
+)
 
 _CODE_RE = re.compile(r"^[0-9a-hjkmnp-tv-z]{12}$")
 _CODE_JUNK_RE = re.compile(r"[\s\-]+")
@@ -904,11 +911,25 @@ def _for_author(error: ShareError) -> ShareError:
     return error
 
 
+def _coverage(snapshot: Snapshot) -> dict:
+    """Сколько вопросов сверка нашла в лекциях («есть» или «частично») из всех вопросов экзамена."""
+    found = sum(1 for question in snapshot.questions if question.get("coverage") in WRITABLE_COVERAGE)
+    return {"questions": len(snapshot.questions), "found": found}
+
+
 async def _author_plan(snapshot: Snapshot) -> None:
+    """Готовность для новой ссылки: расчёт копии (тот же, что при входе), затем — нашла ли сверка хоть что-то.
+
+    Ни одного «есть» или «частично» у сверенного экзамена — копия однокурсника была бы пустой: 409 nothing_found
+    (после расчёта, чтобы несверенный экзамен по-прежнему слышал «сначала сверьте»). Вход по ссылке этим не
+    проверяется: однокурсник по старой ссылке получает копию, как раньше."""
     try:
         await asyncio.to_thread(plan_copy, snapshot)
     except ShareError as exc:
         raise _for_author(exc) from None
+    coverage = _coverage(snapshot)
+    if coverage["questions"] and not coverage["found"]:
+        raise ShareError(409, "nothing_found", NOTHING_FOUND_DETAIL, **coverage)
 
 
 @router.get("/api/exam-shares")
@@ -920,6 +941,7 @@ async def share_state(request: Request):
     async with SupabaseRest(token, timeout=READ_TIMEOUT_SECONDS) as db:
         copied = await _is_copy(db, exam_id)
         reason: dict | None = None
+        coverage: dict | None = None
         if copied:
             try:
                 exam = await db.select_one("exams", {"select": "id", "id": f"eq.{exam_id}"})
@@ -930,6 +952,7 @@ async def share_state(request: Request):
             reason = {"code": "is_copy", "detail": IS_COPY_DETAIL}
         else:
             snapshot = await load_author_snapshot(db, exam_id, oral_api._user_id(request))
+            coverage = _coverage(snapshot)
             try:
                 await _author_plan(snapshot)
             except ShareError as exc:
@@ -945,6 +968,7 @@ async def share_state(request: Request):
         "consent": CONSENT_TEXT,
         "max_members": MAX_MEMBERS,
         "shares": shares,
+        "coverage": coverage,
     }
 
 
