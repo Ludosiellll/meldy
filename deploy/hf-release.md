@@ -4,6 +4,38 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-07 — Release 28: an honest result, the group link and the fixes from the first live run (from the commit of this entry)
+
+Plan v2 for CodingFest-11 (notes: `10_Project/CodingFest_11_Improvement_Plan_2026-10-07`). The first live run of the
+core (a «Базы данных» course on a test account) found it working end to end — 41 of 42 point verdicts right — but the
+quick check never in time, a point with a factual error counted as named, and the first step costing 60 of 100 units.
+
+- **Result without grades.** «Назвали сами N из M главных · после вопроса K · ошибок: E», what the answer did to the
+  sheet, and one line: the teacher marks on the 10-point scale, Meldy only checks the points of the student's lectures.
+  No «5 · отлично» and no «Засчитано» anywhere (ticket, sheet, `/try`, «Сегодня», landing, reels).
+- **A ready text cannot be pasted** into an answer (more than 8 words), on the ticket and in `/try`.
+- **«Сегодня»:** «Можно стереть: N вопросов → Ответить», counted by the sheet; «Ждут подтверждения» draws from it.
+- **Group link.** «Пригласить группу» (after the author's consent) makes a secret link; a classmate gets their own copy
+  of the finished exam — questions, mapping, lectures as text, answer points, sheet — with no model call and no units.
+  `/join/<code>` works signed out, Google first, back to the link after sign-in or the email; inside a Telegram or Viber
+  browser it asks to open Chrome or Safari. A copy cannot be shared on.
+- **AI quota.** A (model, key) pair that answered 429 rests (Retry-After, or until the daily reset) and the next one is
+  tried at once; heavy calls wait in one queue (`AI_HEAVY_CONCURRENCY`, 6); `AI_COOLDOWN=0` turns it off.
+- **Quick check in time:** 3.5 Flash-Lite first, 4.5 s on the server, 5.5 s in the browser. A point with a factual
+  error is «wrong» (the sheet keeps its line); «не знаю» costs no units and no model call.
+- **Question lists:** section headings are sections, «по учебной дисциплине» names the exam; DOCX keeps paragraphs
+  and tables whole (new lectures only).
+- **First steps** lead to the free core («Новый экзамен» with lectures as text) instead of the 20-unit analysis.
+- **Sign-up** says what went wrong and where the letter went.
+- **Answer texts with consent** for the blind accuracy check (question on the exam page, switch in «Профиль»).
+
+Database: `20261007103621_oral_answer_texts`, `20261007110403_exam_shares` and `20261007110457_exam_shares_revokes`
+applied on 2026-10-07 (additive; contract checks 20/20 and 12/12; the group functions match the repository).
+
+Verified before release: pytest 1228, tsc -b, Vitest 2276/2276, production build (no «Засчитано» or
+«удовлетворительно» in the bundle), local Postgres behaviour tests of both migrations. Not verified yet: the new
+screens in a browser (QA running), the group link with two live accounts (gate В1), live latency of the quick check.
+
 ## 2026-10-07 — Push notifications: the key only from the server, ready for a new pair (from the commit of this entry)
 
 Adds to release 27.1. The old VAPID private key was in the Git history; the owner does not handle keys, so a new pair
