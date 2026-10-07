@@ -6,7 +6,9 @@
  * attempt_id, so the server answers it with the first result (duplicate: true) and nothing is
  * written twice. The daily limit is charged by the server when it evaluates the answer
  * (AI_COSTS.answer, given back if the evaluation fails); after a successful save the top-bar
- * meter is told to read the remaining units again, once per attempt.
+ * meter is told to read the remaining units again, once per attempt. Then the answer's whole text
+ * goes to oral_answer_texts if the student agreed to it (lib/oral/answerTexts.ts): not waited for,
+ * and its failure never turns a saved answer into an unsaved one.
  *
  * Browser storage (every access in try/catch; nothing here is the source of truth):
  * - localStorage meldy_answer_draft_<questionId> — the answer text while it is being given;
@@ -229,11 +231,36 @@ async function sendWaitingPeeks(): Promise<void> {
 /** Attempts already charged in this page's life: a retry that the server answers as a duplicate is not charged twice. */
 const charged = new Set<string>();
 
+/** The answer itself, for oral_answer_texts: kept only with the student's consent. */
+export interface AnswerTextToKeep {
+  text: string;
+  examId: string | null;
+  questionHash: string;
+}
+
+/** After a saved answer: its text, with consent. Fire and forget: the save never waits for it or sees its error. */
+function keepAnswerText(userId: string | null, payload: OralAttemptPayload, sessionId: string, answer: AnswerTextToKeep): void {
+  void import('./answerTexts')
+    .then(({ saveAnswerText }) =>
+      saveAnswerText({
+        userId,
+        attemptId: payload.attempt_id,
+        sessionId,
+        examId: answer.examId,
+        questionHash: answer.questionHash,
+        input: payload.input,
+        text: answer.text,
+      }),
+    )
+    .catch(() => false);
+}
+
 /**
  * Saves the attempt once (a retry reuses payload.attempt_id); after the first successful save the
  * remaining daily limit is read again (the server charged it). A failed save throws OralSaveError.
+ * With `answer`, a successful save also keeps the answer's text when the student agreed to it.
  */
-export async function saveOralAttempt(userId: string | null, payload: OralAttemptPayload): Promise<SaveResult> {
+export async function saveOralAttempt(userId: string | null, payload: OralAttemptPayload, answer?: AnswerTextToKeep): Promise<SaveResult> {
   let response: { data: unknown; error: unknown };
   try {
     // The client is a file of its own: the example exam (/try) shows the answer screen without an
@@ -258,6 +285,7 @@ export async function saveOralAttempt(userId: string | null, payload: OralAttemp
     charged.add(payload.attempt_id);
     notifyAIUsageChanged();
   }
+  if (answer) keepAnswerText(userId, payload, row.session_id, answer);
   return {
     sessionId: row.session_id,
     duplicate: row.duplicate === true,

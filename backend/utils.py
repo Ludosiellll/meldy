@@ -3,7 +3,7 @@ import ipaddress
 import math
 import re
 import socket
-from typing import Any
+from typing import Any, Sequence, Union
 from urllib.parse import urljoin, urlparse
 
 def repair_json(json_str: str) -> str:
@@ -130,8 +130,17 @@ def _source_tokens(value: str) -> set[str]:
     }
 
 
-def build_source_chunks(text: str, chunk_chars: int = 850, max_chunks: int = 80) -> list[dict[str, str]]:
-    """Split extracted text into stable, human-readable source fragments."""
+SOURCE_CHUNK_CHARS = 850  # the longest source fragment ([S01] …) build_source_chunks makes
+
+
+def build_source_chunks(text: str, chunk_chars: int = SOURCE_CHUNK_CHARS, max_chunks: int = 80) -> list[dict[str, str]]:
+    """Split extracted text into stable, human-readable source fragments.
+
+    The rule never changes for a saved text: summary_json.grounding, the evidence of the list
+    check and the answer points name fragments by these ids. A paragraph (text between blank
+    lines) up to chunk_chars is one fragment; a longer one is cut by words. Extraction decides
+    where the blank lines are (pack_source_blocks for DOCX).
+    """
     if not text or not text.strip():
         return []
 
@@ -160,6 +169,109 @@ def build_source_chunks(text: str, chunk_chars: int = 850, max_chunks: int = 80)
         for index, chunk in enumerate(chunks[:max_chunks], start=1)
         if chunk.strip()
     ]
+
+
+# A document whose paragraphs are known (DOCX) is written as blocks for build_source_chunks: the
+# paragraphs of a block on lines of their own, blocks apart by a blank line, each block at most
+# SOURCE_CHUNK_CHARS. build_source_chunks then cuts exactly between blocks, so a fragment never ends
+# inside a paragraph or a table row: a table goes into one fragment whole when it fits, else row by
+# row. Only a single paragraph or row longer than a fragment is still cut by words. A heading (a short
+# line without a final stop) after a finished thought opens a block, and a heading or a lead-in line
+# («…управляют операторы:») at the end of a full block moves on with what it introduces.
+SourceUnit = Union[str, Sequence[str]]  # a paragraph, or a table as its rows
+_BLOCK_CLOSERS = " \t»\"'”’)]"
+_HEADING_BLOCK_CHARS = 120
+
+
+def _block_end(line: str) -> str:
+    return line.strip().rstrip(_BLOCK_CLOSERS)[-1:]
+
+
+def _table_row(line: str) -> bool:
+    return " | " in line
+
+
+def _block_heading(line: str) -> bool:
+    text = line.strip()
+    return bool(text) and len(text) <= _HEADING_BLOCK_CHARS and not _table_row(text) and _block_end(text) not in ".!?…:;,"
+
+
+def _block_lead(line: str) -> bool:
+    return not _table_row(line) and _block_end(line) == ":"
+
+
+def _finished_thought(line: str) -> bool:
+    return _table_row(line) or _block_end(line) in ".!?…"
+
+
+def _list_item(line: str) -> bool:
+    return not _table_row(line) and _block_end(line) in ";,"
+
+
+def _carried_tail(lines: list[str]) -> int:
+    """How many last lines of a full block go on to the next one: from the first heading or lead-in
+    of its tail of headings, lead-ins and list items («…операторы:», «START …;») to the end. The
+    first line of the block always stays."""
+    start = len(lines)
+    while start > 1 and (_block_heading(lines[start - 1]) or _block_lead(lines[start - 1]) or _list_item(lines[start - 1])):
+        start -= 1
+    for index in range(start, len(lines)):
+        if _block_heading(lines[index]) or _block_lead(lines[index]):
+            return len(lines) - index
+    return 0
+
+
+def _paragraph_lines(text: str) -> list[str]:
+    """A paragraph's own lines (soft line breaks), without blank ones: only blocks are apart by a blank line."""
+    return [line.rstrip() for line in str(text).split("\n") if line.strip()]
+
+
+def pack_source_blocks(units: Sequence[SourceUnit], limit: int = SOURCE_CHUNK_CHARS) -> str:
+    """The text of paragraphs and tables in blocks that build_source_chunks keeps whole (see above)."""
+    blocks: list[list[str]] = []
+    current: list[str] = []
+
+    def size(lines: list[str]) -> int:
+        return sum(len(line) for line in lines) + max(0, len(lines) - 1)
+
+    def close() -> None:
+        nonlocal current
+        if current:
+            blocks.append(current)
+        current = []
+
+    def add(lines: list[str], heading: bool) -> None:
+        nonlocal current
+        if not lines:
+            return
+        if current and heading and _finished_thought(current[-1]):
+            close()  # a new section begins
+        elif current and size(current) + 1 + size(lines) > limit:
+            carried = _carried_tail(current)
+            moved = current[len(current) - carried:] if carried else []
+            if moved and size(moved) + 1 + size(lines) <= limit:
+                current = current[: len(current) - carried]
+                close()
+                current = moved
+            else:
+                close()
+        current = current + lines
+        if size(current) > limit:
+            close()  # one paragraph or row longer than a fragment stands alone
+
+    for unit in units:
+        if isinstance(unit, str):
+            lines = _paragraph_lines(unit)
+            add(lines, heading=len(lines) == 1 and _block_heading(lines[0]))
+            continue
+        rows = [row for row in (str(item).strip() for item in unit) if row]
+        if size(rows) <= limit:
+            add(rows, heading=False)  # the whole table in one fragment
+        else:
+            for row in rows:
+                add([row], heading=False)
+    close()
+    return "\n\n".join("\n".join(block) for block in blocks)
 
 
 def build_source_context(chunks: list[dict[str, str]], max_chars: int = 14000) -> str:

@@ -238,6 +238,7 @@ def test_provider_429_is_busy_by_status_not_by_text(monkeypatch):
     assert info.value.status_code == 429 and info.value.code == "ai_busy"
 
     BaseAgent._run_cache.clear()
+    base.reset_cooldowns()  # the pairs that answered 429 rest; this part asks them again
     install_gemini(monkeypatch, lambda model, config, contents: gemini_error(500, "INTERNAL", "upstream said 429"))
     with pytest.raises(AIError) as info:
         run(BaseAgent(), PROMPT, "текст")

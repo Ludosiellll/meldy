@@ -18,6 +18,10 @@ oral.rubric_key (тот же у шпаргалки, oral_sheet.py). Запись
 вставка с пропуском дубликата и перечитыванием сохранённой строки; force перезаписывает
 сохранённую строку.
 
+Сборка эталона — тяжёлый вызов: каждая попытка ждёт места в общей очереди процесса
+(agents.base.heavy_slot, AI_HEAVY_CONCURRENCY), а её 30 с отсчитываются после этого.
+Быстрая проверка и протокол в эту очередь не встают.
+
 POST /api/oral/check (40/мин). Быстрая проверка (fast, 200 токенов, бюджет
 ORAL_CHECK_TIMEOUT_SECONDS = 2,5 с → 504). Статусы вне перечня и пропущенные пункты —
 missing; переспрос (ask) выбирает сервер по правилу §7.5, а не модель.
@@ -46,7 +50,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 import oral
 import quota
-from agents.base import AIError, BaseAgent, parse_model_json
+from agents.base import AIError, BaseAgent, heavy_slot, parse_model_json
 from plans import AI_COSTS
 from ratelimit import limiter, user_or_ip_key
 from supabase_rest import SupabaseRest, SupabaseRestError, bearer_token
@@ -467,17 +471,19 @@ async def _rubric_from_model(selection: oral.Selection, question: str, *, use_ca
     failure = "unusable"
     for attempt in range(2):
         meta: dict = {}
-        raw = await _run_model(
-            oral.build_rubric_prompt(retry=attempt > 0),
-            user_text,
-            budget=RUBRIC_TIMEOUT_SECONDS,
-            temperature=0,
-            max_tokens=RUBRIC_MAX_TOKENS,
-            json_mode=True,
-            thinking="low",
-            use_cache=use_cache,
-            meta=meta,
-        )
+        # A heavy call: it waits in the process-wide line (AI_HEAVY_CONCURRENCY) before its 30 s start.
+        async with heavy_slot():
+            raw = await _run_model(
+                oral.build_rubric_prompt(retry=attempt > 0),
+                user_text,
+                budget=RUBRIC_TIMEOUT_SECONDS,
+                temperature=0,
+                max_tokens=RUBRIC_MAX_TOKENS,
+                json_mode=True,
+                thinking="low",
+                use_cache=use_cache,
+                meta=meta,
+            )
         outcome = oral.validate_rubric(_parsed(raw), selection, question)
         if outcome.status == "ok" and outcome.rubric is not None:
             return outcome.rubric, _model_name(meta)

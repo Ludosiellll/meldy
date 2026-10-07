@@ -69,6 +69,18 @@ class TextPipelineTests(unittest.TestCase):
         self.assertEqual([chunk["id"] for chunk in chunks], ["S01", "S02"])
         self.assertEqual(find_source_ids("Что такое суперпозиция?", chunks), ["S02"])
 
+    def test_a_saved_text_keeps_its_fragments(self):
+        # summary_json.grounding, доказательства сверки и пункты ответа называют фрагменты по [S01]…:
+        # текст, сохранённый до 2026-10-07 (DOCX без пустых строк), режется так же, словами до 850 знаков.
+        words = [f"термин{n}" for n in range(200)]
+        saved = "\n".join(" ".join(words[start:start + 20]) for start in range(0, 200, 20))
+        chunks = build_source_chunks(saved)
+        self.assertEqual([chunk["id"] for chunk in chunks], ["S01", "S02", "S03"])
+        self.assertEqual(" ".join(chunk["text"] for chunk in chunks).split(), words)
+        self.assertTrue(all(len(chunk["text"]) <= 850 for chunk in chunks))
+        # 10 слов по 7 знаков и 85 по 8, каждое с пробелом, — 845 знаков; 96-е уже не входит в 850.
+        self.assertEqual(chunks[0]["text"].split()[-1], "термин94")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ import { subscribeUserToPush, checkPushSubscription, requestNotificationPermissi
 import UniversitySelect from '../components/UniversitySelect';
 import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
+import AnswerTextsSetting from '../components/oral/AnswerTextsSetting';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 
 /**
@@ -286,6 +287,8 @@ export default function Profile() {
           </button>
         </div>
       </section>
+
+      <AnswerTextsSetting />
 
       <p className="ac-levelline">{TELEMETRY_NOTE}</p>
 

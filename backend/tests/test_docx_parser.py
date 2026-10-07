@@ -10,6 +10,9 @@ from docx.oxml.ns import qn
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from parser import extract_text  # noqa: E402
+from utils import SOURCE_CHUNK_CHARS, build_source_chunks, pack_source_blocks  # noqa: E402
+
+LIVE_COURSE = Path(__file__).resolve().parent / "fixtures" / "live_course"
 
 
 def docx_bytes(doc) -> bytes:
@@ -19,7 +22,8 @@ def docx_bytes(doc) -> bytes:
 
 
 def extract(doc) -> list[str]:
-    return extract_text(docx_bytes(doc), "Вопросы.docx").split("\n")
+    """Lines of the text in order; the blank lines between blocks have tests of their own below."""
+    return [line for line in extract_text(docx_bytes(doc), "Вопросы.docx").split("\n") if line]
 
 
 _next_abstract = [900]
@@ -351,3 +355,106 @@ def test_broken_docx_raises_a_readable_error():
 def test_other_formats_are_unchanged():
     assert extract_text("Строка 1\r\nСтрока 2".encode("utf-8"), "a.txt") == "Строка 1\nСтрока 2"
     assert extract_text("<html><body><p>Абзац</p><script>x()</script></body></html>".encode("utf-8"), "a.html") == "Абзац"
+
+
+# ── Фрагменты [S01]… режутся между абзацами DOCX (живой прогон 2026-10-07) ──────
+
+
+def sentence(n: int, words: int = 30) -> str:
+    return " ".join(f"слово{n}_{k}" for k in range(words)) + "."
+
+
+def whole_lines(text: str, units: list) -> None:
+    """Every line of every fragment is a whole paragraph or table row of the document."""
+    known = set()
+    for unit in units:
+        known.update([unit] if isinstance(unit, str) else unit)
+    for chunk in build_source_chunks(text, max_chunks=None):
+        assert len(chunk["text"]) <= SOURCE_CHUNK_CHARS
+        for line in chunk["text"].split("\n"):
+            assert line in known, (chunk["id"], line[:60])
+
+
+def test_paragraphs_without_blank_lines_are_cut_into_fragments_only_between_paragraphs():
+    # Word ставит интервал между абзацами стилем, пустых строк нет: раньше весь текст был одним
+    # «абзацем» и резался окнами по 850 знаков посреди фраз.
+    doc = Document()
+    paragraphs = [sentence(n) for n in range(12)]  # ~300 знаков каждый
+    for text in paragraphs:
+        doc.add_paragraph(text)
+    text = extract_text(docx_bytes(doc), "Лекция.docx")
+    assert "\n\n" in text
+    whole_lines(text, paragraphs)
+    chunks = build_source_chunks(text)
+    assert [chunk["id"] for chunk in chunks][:2] == ["S01", "S02"] and len(chunks) == 6  # по два абзаца в фрагменте
+
+
+def test_a_table_stays_in_one_fragment_or_is_cut_between_rows():
+    doc = Document()
+    doc.add_paragraph(sentence(1, 70))  # 690 знаков: с вводной строкой и таблицей — больше 850
+    doc.add_paragraph("Стандарт SQL определяет четыре уровня изоляции:")
+    small = doc.add_table(rows=5, cols=4)
+    rows = [("Уровень", "Грязное", "Неповторяющееся", "Фантом"), ("READ UNCOMMITTED", "да", "да", "да"),
+            ("READ COMMITTED", "нет", "да", "да"), ("REPEATABLE READ", "нет", "нет", "да"), ("SERIALIZABLE", "нет", "нет", "нет")]
+    for r, cells in enumerate(rows):
+        for c, value in enumerate(cells):
+            small.cell(r, c).text = value
+    doc.add_paragraph(sentence(2))
+    big = doc.add_table(rows=40, cols=2)
+    for r in range(40):
+        big.cell(r, 0).text = f"Строка {r}"
+        big.cell(r, 1).text = f"значение номер {r} с пояснением в несколько слов"
+    text = extract_text(docx_bytes(doc), "Лекция.docx")
+    small_rows = [" | ".join(cells) for cells in rows]
+    big_rows = [f"Строка {r} | значение номер {r} с пояснением в несколько слов" for r in range(40)]
+    whole_lines(text, [sentence(1, 70), "Стандарт SQL определяет четыре уровня изоляции:", sentence(2)] + small_rows + big_rows)
+    chunks = build_source_chunks(text, max_chunks=None)
+    holders = [chunk["id"] for chunk in chunks if all(row in chunk["text"] for row in small_rows)]
+    assert len(holders) == 1  # маленькая таблица целиком
+    # Вводная строка с двоеточием уходит в фрагмент таблицы, а не остаётся в конце прошлого.
+    assert next(c for c in chunks if c["id"] == holders[0])["text"].startswith("Стандарт SQL определяет")
+    assert sum(1 for chunk in chunks if any(row in chunk["text"] for row in big_rows)) >= 2  # большая — по строкам
+
+
+def test_a_heading_opens_a_fragment_and_a_lead_in_moves_on_with_its_list():
+    blocks = pack_source_blocks([
+        "Лекция 3. Транзакции",
+        sentence(1, 20),
+        "1. Понятие транзакции",  # заголовок после законченной фразы — новый фрагмент
+        sentence(2, 50),
+        "Транзакциями управляют операторы:",
+        "START TRANSACTION — начать транзакцию;",
+        "COMMIT — зафиксировать транзакцию;" + " очень" * 60,  # не помещается: вводная строка с пунктом — к нему
+        "Конец.",
+    ]).split("\n\n")
+    assert blocks[0].split("\n")[0] == "Лекция 3. Транзакции"
+    assert blocks[1].startswith("1. Понятие транзакции\n")
+    assert blocks[2].startswith("Транзакциями управляют операторы:\nSTART TRANSACTION")
+    assert all(len(block) <= SOURCE_CHUNK_CHARS for block in blocks)
+
+
+def test_one_paragraph_longer_than_a_fragment_stands_alone_and_short_documents_stay_one_block():
+    long_paragraph = sentence(9, 200)
+    blocks = pack_source_blocks(["Введение.", long_paragraph, "Итог."]).split("\n\n")
+    assert blocks == ["Введение.", long_paragraph, "Итог."]
+    assert pack_source_blocks(["Первый абзац.", "Второй абзац.", "третий;"]) == "Первый абзац.\nВторой абзац.\nтретий;"
+    # Строка без точки после законченной фразы — заголовок: с неё начинается новый фрагмент.
+    assert pack_source_blocks(["Первый абзац.", "Второй раздел", "текст;"]) == "Первый абзац.\n\nВторой раздел\nтекст;"
+    assert pack_source_blocks(["Мягкий перенос\n\n\nвнутри абзаца", ["a | b", "  ", "c | d"]]) == "Мягкий перенос\nвнутри абзаца\na | b\nc | d"
+
+
+def test_the_live_lecture_keeps_the_isolation_levels_table_in_one_fragment():
+    # Q18 «Уровни изоляции» получил «частично»: строки таблицы попали в S14 и S15.
+    data = (LIVE_COURSE / "lecture3_normalization_transactions.docx").read_bytes()
+    text = extract_text(data, "Лекция 3. Нормализация и транзакции.docx")
+    chunks = build_source_chunks(text, max_chunks=None)
+    table = ["Уровень изоляции | «Грязное» чтение | Неповторяющееся чтение | Фантомное чтение",
+             "READ UNCOMMITTED | возможно | возможно | возможно", "READ COMMITTED | нет | возможно | возможно",
+             "REPEATABLE READ | нет | нет | возможно", "SERIALIZABLE | нет | нет | нет"]
+    holders = [chunk for chunk in chunks if any(row in chunk["text"] for row in table)]
+    assert len(holders) == 1 and all(row in holders[0]["text"] for row in table)
+    assert "Стандарт SQL определяет четыре уровня изоляции" in holders[0]["text"]
+    assert max(len(chunk["text"]) for chunk in chunks) <= SOURCE_CHUNK_CHARS and len(chunks) < 80
+    # Ни одна строка фрагмента не обрезана: каждая — целый абзац или строка таблицы документа.
+    lines = [line for line in text.split("\n") if line]
+    assert all(line in lines for chunk in chunks for line in chunk["text"].split("\n"))

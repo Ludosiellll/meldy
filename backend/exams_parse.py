@@ -10,7 +10,11 @@ parser.extract_text: строка таблицы — ячейки через « 
    в строку («1. … 2. …»), ссылки на номера вопросов («вопросы 1 и 21») или один вопрос
    с заглавной буквы. Шапка в той же строке («… по дисциплине «…»», «(весенний семестр)»)
    вопросом не становится.
-2. «Раздел/Часть/Модуль/Блок/Тема N» и римский номер «II. …» — заголовок раздела.
+2. «Раздел/Часть/Модуль/Блок/Тема N» и римский номер «II. …» — заголовок раздела. Им же
+   становятся заголовок части списка («Теоретические вопросы», «Практические задания:»,
+   «Задачи») вне билета — и над первым вопросом, где иначе был бы шапкой, — и короткая
+   строка без номера, «?» и точки между вопросами с номерами («18. …», «Практические
+   задания», «19. …»); если номер между ними пропущен ровно один, строка — вопрос.
 3. «N.», «N)», «Вопрос N.», «№ N.» в начале строки — вопрос с номером.
 4. Шапка документа (вопросы к экзамену, «Экзаменационные билеты», дисциплина, кафедра…)
    пропускается, подписи, даты и колонтитулы — тоже. Шапка, которая повторяется перед
@@ -58,6 +62,8 @@ LONG_QUESTION_CHARS = 400
 SHORT_QUESTION_CHARS = 8
 MAX_SECTIONS = 20  # exam_questions.section: 1..20
 MAX_SECTION_TITLE_CHARS = 200
+HEADING_MAX_CHARS = 60  # строка без номера между вопросами длиннее — скорее вопрос, чем заголовок
+HEADING_MAX_WORDS = 7
 PREAMBLE_MAX_LINES = 8  # шапка до первого билета; больше строк без номера — это уже список
 WRAP_MIN_CHARS = 30  # короче строку PDF не переносит
 WRAP_SHARE = 0.7  # доля самой длинной строки документа, с которой строка считается доведённой до края
@@ -120,6 +126,16 @@ _SECTION_RE = re.compile(
     re.IGNORECASE,
 )
 _ROMAN_SECTION_RE = re.compile(r"^[IVXLC]{1,5}[.)]\s+\S")
+# Заголовок части списка — вся строка: «Теоретические вопросы», «ПРАКТИЧЕСКИЕ ЗАДАНИЯ:», «Задачи».
+# Без уточнения («Вопросы», «Экзаменационные вопросы») это шапка документа, а не часть списка.
+_PART_HEADING_RE = re.compile(
+    r"^(?:"
+    r"(?:теоретическ|практическ)\w*\s+(?:вопрос|задани|задач|част|упражнени)\w*"
+    r"|(?:(?:практическ|ситуационн|расч[её]тн|творческ)\w*\s+)?задач[аи]"
+    r"|теория|практика"
+    r")\s*[.:]?$",
+    re.IGNORECASE,
+)
 _SECTION_PREFIX_RE = re.compile(
     r"^(?:раздел|часть|модуль|блок|тема)\s*(?:№\s*)?([IVXLC]{1,6}|\d{1,2}(?:\.\d{1,2})?)\s*[.:)\-–—]?\s*",
     re.IGNORECASE,
@@ -242,6 +258,10 @@ def _is_section(line: str) -> bool:
     return _SECTION_RE.match(line) is not None or _ROMAN_SECTION_RE.match(line) is not None
 
 
+def _is_part_heading(line: str) -> bool:
+    return _PART_HEADING_RE.match(line) is not None
+
+
 def _is_strong_header(line: str) -> bool:
     return _HEADER_STRONG_RE.match(line) is not None or _HEADER_STRONG_END_RE.match(line) is not None
 
@@ -318,6 +338,7 @@ class _Entry:
     ticket_line: bool = False  # текст из самой строки «Билет № N …»
     bullet: bool = False  # строка начиналась маркером списка («–», «•»)
     line_chars: int = 0  # длина последней строки исходника в этой записи (0 — ячейка таблицы)
+    part: bool = False  # раздел — заголовок части списка («Практические задания»), вопросом не становится
 
 
 # Текст вопроса дальше не наращивается: он всё равно обрезается до MAX_QUESTION_CHARS
@@ -371,8 +392,8 @@ class _Scanner:
         self.block_has_numbered = False
         self.last_question = None
 
-    def add_section(self, title: str, *, keep_ticket: bool = False) -> None:
-        self.entries.append(_Entry("section", text=title[:MAX_SECTION_TITLE_CHARS], keep_ticket=keep_ticket))
+    def add_section(self, title: str, *, keep_ticket: bool = False, part: bool = False) -> None:
+        self.entries.append(_Entry("section", text=title[:MAX_SECTION_TITLE_CHARS], keep_ticket=keep_ticket, part=part))
         if keep_ticket:
             return
         self.in_ticket = False
@@ -487,6 +508,10 @@ class _Scanner:
             return
         if _is_section(line) and not _NUMBERED_RE.match(line):
             self.add_section(line)
+            return
+        if not self.in_ticket and _is_part_heading(line):
+            # «Теоретические вопросы» над пунктом 1 — раздел, а не шапка; в билете это шапка билета.
+            self.add_section(line.rstrip(" .:"), part=True)
             return
         if _PAGE_RE.match(line) or not _has_letter(line):
             return
@@ -889,6 +914,55 @@ def _join_wrapped_lines(entries: list[_Entry], wrap_chars: int) -> list[_Entry]:
     return result
 
 
+def _one_label_missing(previous: str, following: str) -> bool:
+    """Между номерами пропущен ровно один: 17 → 19, 1.2 → 1.4, 1.3 → 2.2."""
+    parts = _label_parts(previous)
+    if parts is None:
+        return False
+    if len(parts) == 1:
+        skipped = [str(parts[0] + 1)]
+    elif len(parts) == 2:
+        skipped = [f"{parts[0]}.{parts[1] + 1}", f"{parts[0] + 1}.1"]
+    else:
+        return False
+    return any(_label_follows(label, following) for label in skipped)
+
+
+def _looks_like_heading(text: str) -> bool:
+    """Короткая строка с заглавной буквы, без «?» и без точки (двоеточие можно): «Практические задания»."""
+    text = text.strip()
+    if not text or len(text) > HEADING_MAX_CHARS or len(text.split()) > HEADING_MAX_WORDS or "?" in text:
+        return False
+    if _text_end(text) in ".!…;,":
+        return False
+    return _first_letter(text).isupper()
+
+
+def _promote_inline_headings(entries: list[_Entry]) -> list[_Entry]:
+    """Строка без номера между двумя вопросами с номерами вне билетов — заголовок раздела, если похожа
+    на заголовок («18. …», «Практические задания», «19. …»; нумерация может и начаться заново).
+
+    Остаётся вопросом строка с «?» или точкой, длинная, с маркером списка и строка, вместо которой
+    в нумерации пропущен ровно один номер («17. …», «Нормализация», «19. …» — вопрос 18 без номера).
+    Перенос строки к этому времени уже приклеен (_join_wrapped_lines).
+    """
+
+    def numbered(entry: _Entry) -> bool:
+        return entry.kind == "question" and entry.numbered and not entry.in_ticket
+
+    result = list(entries)
+    for index in range(1, len(entries) - 1):
+        entry, before, after = entries[index], entries[index - 1], entries[index + 1]
+        if entry.kind != "question" or entry.numbered or entry.in_ticket or entry.bullet or entry.ticket_line:
+            continue
+        if not (numbered(before) and numbered(after)) or not _looks_like_heading(entry.text):
+            continue
+        if _one_label_missing(before.label, after.label):
+            continue
+        result[index] = _Entry("section", text=entry.text.strip().rstrip(" .:")[:MAX_SECTION_TITLE_CHARS], part=True)
+    return result
+
+
 def _is_caps(text: str) -> bool:
     letters = _LETTER_RE.findall(text)
     return len(letters) >= 4 and all(letter.isupper() for letter in letters)
@@ -912,7 +986,8 @@ def _drop_preamble(entries: list[_Entry]) -> tuple[list[_Entry], int]:
     """Строки без номера до первого вопроса с номером — шапка документа («Макроэкономика»).
 
     Только для списков, где вопросы в основном с номерами. Строка с «?» остаётся
-    вопросом; если первый номер — 2, последняя строка перед ним — это вопрос 1.
+    вопросом; если первый номер — 2, последняя строка перед ним — это вопрос 1. Заголовок
+    части списка между шапкой и первым вопросом («Теоретические вопросы») шапку не прерывает.
     В документе из билетов, где все вопросы после первого билета стоят в билетах, строки
     без номера до первого билета — шапка (название курса), их не больше PREAMBLE_MAX_LINES.
     Возвращает записи и число отброшенных строк, о которых стоит сказать: в билетах — все,
@@ -938,7 +1013,7 @@ def _drop_preamble(entries: list[_Entry]) -> tuple[list[_Entry], int]:
     preamble: list[int] = []
     first_numbered: _Entry | None = None
     for index, entry in enumerate(entries):
-        if entry.kind in ("ticket", "section"):
+        if entry.kind == "ticket" or (entry.kind == "section" and not entry.part):
             break
         if entry.kind == "question" and not entry.in_ticket:
             if entry.numbered:
@@ -966,8 +1041,8 @@ def _sections_as_questions(entries: list[_Entry]) -> list[_Entry]:
     only_topics = bool(topics) and len(topics) < len(sections)
     converted: list[_Entry] = []
     for entry in entries:
-        if entry.kind != "section" or (only_topics and not _TOPIC_RE.match(entry.text)):
-            converted.append(entry)
+        if entry.kind != "section" or entry.part or (only_topics and not _TOPIC_RE.match(entry.text)):
+            converted.append(entry)  # «Практические задания» — не тема, а часть списка
             continue
         prefix = _SECTION_PREFIX_RE.match(entry.text)
         if prefix and entry.text[prefix.end():].strip():
@@ -1005,6 +1080,7 @@ def parse_question_list(text: str) -> dict:
         entries = _sections_as_questions(entries)
     entries, dropped_headers = _drop_repeated_ticket_headers(entries)
     entries = _join_wrapped_lines(entries, scanner.wrap_chars)
+    entries = _promote_inline_headings(entries)
     entries, dropped_preamble = _drop_preamble(entries)
     dropped_lines = scanner.dropped_service_lines + dropped_headers + dropped_preamble
 

@@ -73,6 +73,7 @@ import TipCard from '../components/tips/TipCard';
 import { TIPS } from '../components/tips/tips';
 import { useFirstUseTip } from '../components/tips/useFirstUseTip';
 import { loadSheetFont } from '../components/exams/sheet/sheetFont';
+import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -1269,6 +1270,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
       )}
 
       {!frame.side && selectedRow && <div id={whyId}>{whyPanel('sheet')}</div>}
+
+      <AnswerTextConsent ready={!onSheet || sheetPage.settled} />
 
       {!frame.side && (
         <div className="ex-cta">

@@ -616,12 +616,118 @@ def test_lines_that_may_be_questions_or_headings_are_not_glued():
     # Пропуск в нумерации: строка может быть вопросом 3 с потерянным номером.
     gap = parse_question_list("1. Предмет и метод\n2. ВВП и его измерение\nИнфляция и её виды\n4. Безработица\n")
     assert [q["label"] for q in gap["questions"]] == ["1", "2", "", "4"] and codes(gap) == ["mixed_numbering"]
-    # Короткий вопрос и короткая строка без точки — похоже на заголовок раздела.
+    # Короткая строка без точки между номерами подряд — заголовок раздела (с 2026-10-07: не вопрос и не перенос).
     heading = parse_question_list("1. Предмет и метод\n2. ВВП\nДенежный рынок\n3. Спрос на деньги\n4. Предложение денег\n")
-    assert "Денежный рынок" in [q["text"] for q in heading["questions"]] and codes(heading) == ["mixed_numbering"]
+    assert [q["text"] for q in heading["questions"]] == ["Предмет и метод", "ВВП", "Спрос на деньги", "Предложение денег"]
+    assert heading["sections"] == [{"index": 1, "title": "Денежный рынок"}] and codes(heading) == []
     # Короткая строка после последнего вопроса — не перенос.
     tail = parse_question_list("17. Инфляция\n18. Безработица и её виды\nИнфляция!\n")
     assert [q["text"] for q in tail["questions"]] == ["Инфляция", "Безработица и её виды"]
+
+
+# ── Заголовки разделов внутри списка (живой прогон 2026-10-07) ─────────────────
+
+LIVE_COURSE = Path(__file__).resolve().parent / "fixtures" / "live_course"
+
+
+def test_the_live_list_has_two_parts_and_no_heading_becomes_a_question():
+    # Список «Базы данных» живого прогона: «Практические задания» был вопросом № 19, «Теоретические
+    # вопросы» молча пропадал как шапка, и стояло «У части строк нет номера».
+    result = parse_question_list((LIVE_COURSE / "questions_databases.txt").read_text(encoding="utf-8"))
+    questions = result["questions"]
+    assert [q["label"] for q in questions] == [str(n) for n in range(1, 21)]
+    assert result["sections"] == [{"index": 1, "title": "Теоретические вопросы"}, {"index": 2, "title": "Практические задания"}]
+    assert [q["section"] for q in questions] == [1] * 18 + [2] * 2
+    assert questions[18]["text"].startswith("Составьте SQL-запрос")
+    assert not any(q["text"] in ("Практические задания", "Теоретические вопросы") for q in questions)
+    # Остаётся одна пропущенная строка — гриф «Рассмотрено и одобрено…» под списком.
+    assert codes(result) == ["unparsed_lines"] and "1 строку" in result["warnings"][0]["message"]
+
+
+def test_the_live_list_from_a_docx_gives_the_same_questions_and_parts():
+    # DOCX теперь приходит блоками с пустой строкой между ними (parser.py): разбору это не мешает.
+    lines = [line for line in (LIVE_COURSE / "questions_databases.txt").read_text(encoding="utf-8").splitlines() if line.strip()]
+    doc = Document()
+    for line in lines:
+        doc.add_paragraph(line)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    text = extract_text(buffer.getvalue(), "Вопросы.docx")
+    assert "\n\n" in text
+    from_docx = parse_question_list(text)
+    from_text = parse_question_list("\n".join(lines))
+    assert compact(from_docx) == compact(from_text) and len(from_docx["questions"]) == 20
+    assert from_docx["sections"] == from_text["sections"] and len(from_docx["sections"]) == 2
+
+
+@pytest.mark.parametrize(
+    "heading",
+    ["Практические задания", "ПРАКТИЧЕСКИЕ ЗАДАНИЯ:", "Задачи", "Раздел 2. SQL", "Запросы к нескольким таблицам",
+     "Практические задания (решаются письменно)"],
+)
+def test_a_heading_between_numbered_questions_is_a_section(heading):
+    result = parse_question_list(f"1. Модели данных.\n2. Ключи отношения.\n{heading}\n3. Запрос с соединением.\n4. Подзапросы.\n")
+    assert [q["text"] for q in result["questions"]] == ["Модели данных.", "Ключи отношения.", "Запрос с соединением.", "Подзапросы."]
+    assert [q["section"] for q in result["questions"]] == [None, None, 1, 1]
+    assert len(result["sections"]) == 1 and not result["sections"][0]["title"].endswith(":")
+    assert codes(result) == []
+
+
+def test_a_heading_before_restarted_numbering_is_a_section():
+    result = parse_question_list("1. Модели данных.\n2. Ключи отношения.\nОсновы SQL\n1. Оператор SELECT.\n2. Соединения.\n")
+    assert compact(result) == [
+        (1, "1", "Модели данных.", None, []),
+        (2, "2", "Ключи отношения.", None, []),
+        (3, "1", "Оператор SELECT.", 1, []),
+        (4, "2", "Соединения.", 1, []),
+    ]
+    assert result["sections"] == [{"index": 1, "title": "Основы SQL"}] and codes(result) == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Что такое ключ отношения?",  # вопрос со знаком вопроса
+        "Нормализация отношений.",  # с точкой — предложение, а не заголовок
+        "Функциональные зависимости и аномалии вставки, обновления и удаления в отношениях",  # длинная
+        "нормализация отношений",  # со строчной — перенос предыдущего вопроса
+    ],
+)
+def test_lines_that_are_not_headings_stay_as_before(line):
+    result = parse_question_list(f"1. Модели данных.\n2. Ключи отношения.\n{line}\n3. Запрос с соединением.\n")
+    assert result["sections"] == []
+    texts = " | ".join(q["text"] for q in result["questions"])
+    assert line.rstrip(".?") in texts
+
+
+def test_a_part_heading_above_question_one_is_a_section_and_the_title_above_it_still_header():
+    result = parse_question_list("Базы данных\nТеоретические вопросы\n1. Модели данных.\n2. Ключи отношения.\n3. Индексы.\n")
+    assert [q["text"] for q in result["questions"]] == ["Модели данных.", "Ключи отношения.", "Индексы."]
+    assert result["sections"] == [{"index": 1, "title": "Теоретические вопросы"}]
+    assert [q["section"] for q in result["questions"]] == [1, 1, 1]
+
+
+def test_a_list_without_numbers_keeps_every_line_and_takes_only_part_headings_as_sections():
+    plain = parse_question_list("Понятие базы данных\nМодели данных\nРеляционная алгебра\nНормализация отношений\n")
+    assert [q["text"] for q in plain["questions"]] == ["Понятие базы данных", "Модели данных", "Реляционная алгебра",
+                                                      "Нормализация отношений"]
+    assert plain["sections"] == [] and codes(plain) == []
+    parts = parse_question_list("Теоретические вопросы\nПонятие базы данных\nМодели данных\nПрактические задания\n"
+                                "Составьте запрос с группировкой\n")
+    assert [(q["text"], q["section"]) for q in parts["questions"]] == [
+        ("Понятие базы данных", 1), ("Модели данных", 1), ("Составьте запрос с группировкой", 2)]
+    with pytest.raises(ParseError):
+        parse_question_list("Теоретические вопросы\nПрактические задания\n")  # одни заголовки — вопросов нет
+
+
+def test_a_part_heading_inside_a_ticket_does_not_close_it():
+    result = parse_question_list(
+        "Билет № 1\n1. Модели данных.\nПрактическое задание\n2. Запрос с соединением.\n"
+        "Билет № 2\n1. Ключи отношения.\nПрактическое задание\n2. Запрос с группировкой.\n"
+        "Билет № 3\n1. Индексы.\nПрактическое задание\n2. Подзапрос.\n"
+    )
+    assert result["sections"] == []
+    assert [ticket["positions"] for ticket in result["tickets"]] == [[1, 2], [3, 4], [5, 6]]
 
 
 # ── Пределы и пустой ввод ───────────────────────────────────────────────────────

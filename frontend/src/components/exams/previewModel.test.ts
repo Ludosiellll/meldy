@@ -84,6 +84,35 @@ describe('previewFromParse', () => {
       ['p4', 2],
     ]);
   });
+
+  it('shows the list’s parts as headings, not questions, and draws one question from each (live run 2026-10-07)', () => {
+    // What the server now gives for «Теоретические вопросы … 18. …», «Практические задания», «19. …».
+    const live: ParseResult = {
+      method: 'regex',
+      questions: [
+        { position: 1, label: '1', text: 'Реляционная модель данных.', section: 1, flags: [] },
+        { position: 2, label: '18', text: 'Уровни изоляции.', section: 1, flags: [] },
+        { position: 3, label: '19', text: 'Составьте SQL-запрос с группировкой.', section: 2, flags: [] },
+      ],
+      sections: [
+        { index: 1, title: 'Теоретические вопросы' },
+        { index: 2, title: 'Практические задания' },
+      ],
+      tickets: [],
+      warnings: [],
+      source_text: '',
+    };
+    const state = previewFromParse(live);
+    expect(texts(state)).toEqual([
+      '#Теоретические вопросы',
+      'Реляционная модель данных.',
+      'Уровни изоляции.',
+      '#Практические задания',
+      'Составьте SQL-запрос с группировкой.',
+    ]);
+    expect(questionCount(state)).toBe(3);
+    expect(defaultLayoutMode(state, 2)).toBe('sections');
+  });
 });
 
 describe('editing the preview keeps the tickets consistent', () => {
@@ -208,6 +237,21 @@ describe('suggestions', () => {
     expect(suggestedTitle(PARSE)).toBe('Макроэкономика');
     expect(suggestedTitle({ source_text: 'Вопросы к зачёту по дисциплине "Финансы и кредит".\n1. Деньги' })).toBe('Финансы и кредит');
     expect(suggestedTitle({ source_text: '1. Деньги\n2. Кредит' })).toBe('');
+  });
+
+  it('finds «по учебной дисциплине», «по предмету» in any case, deep in a long header (live run 2026-10-07)', () => {
+    const live = [
+      'Кафедра информационных систем и технологий', '', 'УТВЕРЖДАЮ', 'Заведующий кафедрой', '_______________',
+      '«01» сентября 2026 г.', '', 'ВОПРОСЫ К ЭКЗАМЕНУ', 'по учебной дисциплине «Базы данных»', 'для студентов 3 курса', '',
+      'Теоретические вопросы', '', '1. Реляционная модель данных.', '2. Свойства отношений.',
+    ].join('\r\n');
+    expect(suggestedTitle({ source_text: live })).toBe('Базы данных');
+    expect(suggestedTitle({ source_text: 'ВОПРОСЫ К ЗАЧЁТУ ПО УЧЕБНОЙ ДИСЦИПЛИНЕ «ИСТОРИЯ БЕЛАРУСИ»\n1. Вопрос' })).toBe('ИСТОРИЯ БЕЛАРУСИ');
+    expect(suggestedTitle({ source_text: 'Вопросы по предмету «Физика»\n1. Кинематика' })).toBe('Физика');
+    expect(suggestedTitle({ source_text: 'Вопросы по учебному предмету «Химия»\n1. Атом' })).toBe('Химия');
+    expect(suggestedTitle({ source_text: 'Вопросы По Дисциплине «Экономика»' })).toBe('Экономика');
+    // A course named inside a question is not the list's header.
+    expect(suggestedTitle({ source_text: '1. Место дисциплины в системе наук по дисциплине «Право»\n2. Ещё' })).toBe('');
   });
 
   it('ticks lectures that share a word with the title and text-only imports, all lectures with text when none does', () => {

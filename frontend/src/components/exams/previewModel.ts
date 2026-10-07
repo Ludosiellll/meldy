@@ -391,11 +391,18 @@ export function suggestionReason(
   return materials.some((material) => material.textLength > 0 && sharesStem(material, wanted)) ? 'by-title' : 'no-match';
 }
 
-const TITLE_HINT = /по\s+(?:курсу|дисциплине|предмету)\s*[«"„“]?([^»"“”\n]{3,80})/i;
+// «по дисциплине», «по учебной дисциплине», «по курсу», «по учебному предмету» — in any letter case.
+const TITLE_HINT = /по\s+(?:учебн(?:ой|ому)\s+)?(?:курсу|дисциплине|предмету)\s*[«"„“]?([^»"“”\n]{3,80})/i;
+/** How far into the header the subject is looked for: a header with «УТВЕРЖДАЮ» and signatures runs long. */
+const TITLE_HEADER_LINES = 20;
+const QUESTION_LINE = /^\s*(?:вопрос\s*)?№?\s*\d{1,3}(?:\.\d{1,2})?[.)]\s/i;
 
 /** The subject named in the list's header («Вопросы к экзамену по курсу «Микроэкономика»»), or ''. */
 export function suggestedTitle(result: Pick<ParseResult, 'source_text'>): string {
-  for (const line of result.source_text.split(/\r?\n/).slice(0, 8)) {
+  // Blank lines do not count (a DOCX gives one between blocks); the header ends at the first numbered question.
+  const header = result.source_text.split(/\r?\n/).filter((line) => line.trim() !== '');
+  for (const line of header.slice(0, TITLE_HEADER_LINES)) {
+    if (QUESTION_LINE.test(line)) break;
     const match = TITLE_HINT.exec(line);
     if (match) return match[1].trim().replace(/[.:;,»"“”]+$/, '').slice(0, 120);
   }
