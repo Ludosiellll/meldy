@@ -29,11 +29,17 @@
 
 Текст доказательства — всегда целый фрагмент лекции (build_source_chunks без потолка),
 ближайший фрагмент — его дословная часть до 300 знаков. Текст модели, и цитата тоже,
-туда не попадает. Если поиск склеил фрагмент с заголовком раздела и слова вопроса есть
+туда не попадает. От проверенной цитаты остаётся только её место: focus = [начало, конец)
+слов цитаты в excerpt (смещения в кодовых точках Unicode, по тексту, как он хранится), —
+по нему экран показывает длинный фрагмент вокруг ответа. У строк, размеченных раньше,
+focus нет; MAP_VERSION ключ не поднимает (необязательный, при повторном использовании
+переносится). Если поиск склеил фрагмент с заголовком раздела и слова вопроса есть
 в заголовке, заголовок — отдельный целый фрагмент в доказательствах (перед текстом) или
 ближайший фрагмент, когда совпал только он. В пояснениях судьи метки кандидатов
-заменяются номерами фрагментов (с меткой не своего вопроса — общее пояснение), «Нет …»
-в начале missing убирается (на экране «Не хватает: …»).
+заменяются номерами фрагментов, «Нет …» в начале missing убирается (на экране «Не хватает:
+…»). Пояснение «есть»/«частично» без содержания («Вопрос полностью раскрыт в приложенных
+фрагментах», generic_reason), с меткой не своего вопроса или пустое не сохраняется: экран
+лучше промолчит, чем покажет общую фразу; у «нет» вместо него — общее пояснение сервера.
 Готовый результат другого экзамена переиспользуется, только если каждое его
 доказательство совпадает с нынешним фрагментом лекции слово в слово.
 """
@@ -74,10 +80,12 @@ __all__ = [
     "clean_missing",
     "clean_reason",
     "coverage_from_verdict",
+    "generic_reason",
     "heading_passages",
     "materials_fingerprint",
     "passage_index",
     "prepare_mapping",
+    "quote_spans",
     "release_unstarted",
     "run_mapping",
     "select_targets",
@@ -297,6 +305,9 @@ class Verdict:
     # Номера меток кандидатов в пачке по их порядку (C14 → 14): по ним метки в пояснениях
     # становятся номерами фрагментов. Пусто — метки C1…Cn по порядку кандидатов.
     labels: tuple[int, ...] = ()
+    # Проверенная цитата каждой опоры (по порядку support): по ней в доказательстве отмечается место
+    # ответа (focus). Сама цитата никуда не сохраняется. Пусто — мест нет.
+    quotes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -383,9 +394,81 @@ def _quote_text(value: Any) -> str | None:
     return text or None
 
 
+def _comparable(word: str) -> str:
+    return word.lower().replace("ё", "е")
+
+
 def _quote_words(text: str) -> list[str]:
     """Слова, как их сравнивает oral.verify_quote: \\w+ без регистра, «ё» = «е»."""
-    return [word.lower().replace("ё", "е") for word in _QUOTE_WORD_RE.findall(unicodedata.normalize("NFC", text))]
+    return [_comparable(word) for word in _QUOTE_WORD_RE.findall(unicodedata.normalize("NFC", text))]
+
+
+def _word_spans(text: str) -> list[tuple[int, int, str]] | None:
+    """Слова текста, как их сравнивает oral.verify_quote (\\w+ его NFC-формы, без регистра, «ё» = «е»),
+    со смещениями в самом тексте — как он хранится, до NFC.
+
+    NFC собирает «й» из «и» и U+0306: знак с combining class 0 вместе со следующими combining-знаками —
+    один кластер, его знаки NFC указывают на начало и конец кластера в исходном тексте. Если по
+    кластерам NFC вышла не такой, как целиком (письменности, где знаки собираются через кластер), —
+    None: место не отмечается, лучше никакого, чем сдвинутое.
+    """
+    if unicodedata.is_normalized("NFC", text):
+        return [(match.start(), match.end(), _comparable(match.group())) for match in _QUOTE_WORD_RE.finditer(text)]
+    starts: list[int] = []
+    ends: list[int] = []
+    pieces: list[str] = []
+    index = 0
+    while index < len(text):
+        end = index + 1
+        while end < len(text) and unicodedata.combining(text[end]):
+            end += 1
+        piece = unicodedata.normalize("NFC", text[index:end])
+        pieces.append(piece)
+        starts.extend([index] * len(piece))
+        ends.extend([end] * len(piece))
+        index = end
+    normal = "".join(pieces)
+    if normal != unicodedata.normalize("NFC", text):
+        return None
+    return [
+        (starts[match.start()], ends[match.end() - 1], _comparable(match.group()))
+        for match in _QUOTE_WORD_RE.finditer(normal)
+    ]
+
+
+def quote_spans(quote: Any, texts: Sequence[str]) -> list[tuple[int, int] | None] | None:
+    """Где проверенная цитата в текстах, которые судья читал подряд (заголовки раздела, затем фрагмент).
+
+    Слова цитаты ищутся так же, как их нашла oral.verify_quote в склейке «заголовок. текст»: первое
+    место, где они идут подряд (регистр, «ё»/«е», пробелы, переносы, тире, кавычки и знаки не важны).
+    Для каждого текста — (начало, конец) его части цитаты: от первого до последнего её слова в этом
+    тексте, в кодовых точках самого текста, как он хранится; None — цитата его не задевает. Цитата,
+    начатая в заголовке, отмечает фрагмент с его начала. None целиком — цитаты в текстах нет.
+    """
+    if not isinstance(quote, str):
+        return None
+    wanted = _quote_words(quote)
+    if not wanted:
+        return None
+    tokens: list[tuple[int, int, int]] = []  # (номер текста, начало, конец)
+    words: list[str] = []
+    for owner, text in enumerate(texts):
+        spans = _word_spans(text or "")
+        if spans is None:
+            return None
+        for start, end, word in spans:
+            tokens.append((owner, start, end))
+            words.append(word)
+    size = len(wanted)
+    for first in range(len(words) - size + 1):
+        if words[first:first + size] != wanted:
+            continue
+        found: list[tuple[int, int] | None] = [None] * len(texts)
+        for owner, start, end in tokens[first:first + size]:
+            current = found[owner]
+            found[owner] = (start, end) if current is None else (current[0], end)
+        return found
+    return None
 
 
 def _quote_in(quote: str, text: str) -> bool:
@@ -401,17 +484,21 @@ def _quote_in(quote: str, text: str) -> bool:
     return oral.verify_quote(quote, [("S", text)], max_chars=len(text) + 1) is not None
 
 
-def _checked_support(value: Any, labels: Sequence[int], texts: Sequence[str]) -> tuple[tuple[int, ...], int, int]:
-    """Опоры «есть»/«частично» после проверки цитат: (номера кандидатов, перенесено, отброшено).
+def _checked_support(
+    value: Any, labels: Sequence[int], texts: Sequence[str]
+) -> tuple[tuple[int, ...], tuple[str, ...], int, int]:
+    """Опоры «есть»/«частично» после проверки цитат: (номера кандидатов, их цитаты, перенесено, отброшено).
 
     labels и texts — метки и тексты кандидатов вопроса (как их читал судья, без обрезки).
     Опора остаётся у названного своего фрагмента, если цитата в нём есть. Иначе — цитата не
     из него, метка чужая или её нет — опора переходит к своему фрагменту с этой цитатой, если
     такой ровно один, и отбрасывается, если таких нет или их несколько. Без цитаты —
-    отбрасывается: метке без цитаты сервер не верит.
+    отбрасывается: метке без цитаты сервер не верит. Цитата опоры — первая, что подтвердила
+    её фрагмент: по ней отмечается место ответа (focus).
     """
     own = {label: index for index, label in enumerate(labels)}
     support: list[int] = []
+    quotes: list[str] = []
     moved = dropped = 0
     for numbers, raw_quote in _support_entries(value):
         quote = _quote_text(raw_quote)
@@ -429,7 +516,8 @@ def _checked_support(value: Any, labels: Sequence[int], texts: Sequence[str]) ->
             moved += 1
         if chosen not in support:
             support.append(chosen)
-    return tuple(support), moved, dropped
+            quotes.append(quote)
+    return tuple(support), tuple(quotes), moved, dropped
 
 
 def validate_judge_answer(raw: Any, questions: Sequence[JudgeQuestion]) -> JudgeAnswer:
@@ -479,8 +567,9 @@ def validate_judge_answer(raw: Any, questions: Sequence[JudgeQuestion]) -> Judge
             clean = False
             continue
         support: tuple[int, ...] = ()
+        quotes: tuple[str, ...] = ()
         if coverage in ("full", "partial"):
-            support, item_moved, item_dropped = _checked_support(item.get("support"), labels[index], texts[index])
+            support, quotes, item_moved, item_dropped = _checked_support(item.get("support"), labels[index], texts[index])
             moved += item_moved
             dropped += item_dropped
             if not support:
@@ -493,6 +582,7 @@ def validate_judge_answer(raw: Any, questions: Sequence[JudgeQuestion]) -> Judge
             missing=_note(item.get("missing")),
             reason=_note(item.get("reason")),
             labels=labels[index],
+            quotes=quotes,
         )
     complete = clean and len(verdicts) == len(questions)
     return JudgeAnswer(verdicts, complete, frozenset(unconfirmed), moved, dropped)
@@ -627,14 +717,48 @@ def _nearest(hits: list[Hit], passages: PassageIndex | None = None) -> list[dict
     return [nearest_item(hit, passages) for hit in hits[:NEAREST_LIMIT]]
 
 
-def _evidence(hits: list[Hit], support: Iterable[int], passages: PassageIndex | None) -> list[dict]:
+def _quote_focus(hit: Hit, quote: str | None, passages: PassageIndex | None) -> dict[tuple[str, str], list[int]]:
+    """Место проверенной цитаты в доказательствах находки: {(material_id, S-id): [начало, конец)}.
+
+    Судья читал «заголовок. текст» (exams_prompts.candidate_text), и цитата может начаться в
+    заголовке раздела. Заголовки, сопоставленные с фрагментами лекции (heading_passages), получают
+    свою часть цитаты; несопоставленный заголовок только участвует в поиске.
+    """
+    if not quote:
+        return {}
+    heads = list(heading_passages(hit, passages))
+    owners: list[Passage | None] = [*heads, hit.passage] if heads else ([None, hit.passage] if hit.heading else [hit.passage])
+    spans = quote_spans(quote, [(hit.heading or "") if owner is None else owner.text for owner in owners])
+    if spans is None:
+        return {}
+    return {
+        (owner.material_id, owner.source_id): [span[0], span[1]]
+        for owner, span in zip(owners, spans)
+        if owner is not None and span is not None
+    }
+
+
+def _with_focus(item: dict, focus: list[int] | None) -> dict:
+    if focus is not None:
+        item["focus"] = focus
+    return item
+
+
+def _evidence(
+    hits: list[Hit], support: Iterable[int], passages: PassageIndex | None, quotes: Sequence[str] = ()
+) -> list[dict]:
     """Доказательства: целые фрагменты опорных находок, перед каждым — его заголовок.
 
     Сначала фрагменты-содержания (до EVIDENCE_LIMIT), на оставшиеся места — заголовки
     разделов, в которых совпали слова вопроса: судья читал «заголовок. текст», и без
-    заголовка в доказательстве не было бы слов, по которым вопрос сверен.
+    заголовка в доказательстве не было бы слов, по которым вопрос сверен. quotes —
+    проверенные цитаты опор (по порядку support): по ним у фрагмента есть focus.
     """
-    chosen: list[Hit] = []
+    support = tuple(support)
+    quote_of: dict[int, str] = {}
+    for index, quote in zip(support, quotes):
+        quote_of.setdefault(index, quote)
+    chosen: list[tuple[Hit, str | None]] = []
     seen: set[tuple[str, str]] = set()
     for index in support:
         if not 0 <= index < len(hits):
@@ -644,12 +768,12 @@ def _evidence(hits: list[Hit], support: Iterable[int], passages: PassageIndex | 
         if key in seen:
             continue
         seen.add(key)
-        chosen.append(hit)
+        chosen.append((hit, quote_of.get(index)))
         if len(chosen) >= EVIDENCE_LIMIT:
             break
     room = EVIDENCE_LIMIT - len(chosen)
     headings: list[list[Passage]] = [[] for _ in chosen]
-    for position, hit in enumerate(chosen):
+    for position, (hit, _) in enumerate(chosen):
         for passage in reversed(_matched_headings(hit, passages)):
             key = (passage.material_id, passage.source_id)
             if room <= 0:
@@ -660,10 +784,25 @@ def _evidence(hits: list[Hit], support: Iterable[int], passages: PassageIndex | 
             headings[position].insert(0, passage)
             room -= 1
     evidence: list[dict] = []
-    for position, hit in enumerate(chosen):
-        evidence.extend(_passage_item(passage) for passage in headings[position])
-        evidence.append(evidence_item(hit))
+    for position, (hit, quote) in enumerate(chosen):
+        focus = _quote_focus(hit, quote, passages)
+        evidence.extend(
+            _with_focus(_passage_item(passage), focus.get((passage.material_id, passage.source_id)))
+            for passage in headings[position]
+        )
+        evidence.append(_with_focus(evidence_item(hit), focus.get((hit.passage.material_id, hit.passage.source_id))))
     return evidence
+
+
+def _focus_of(item: dict) -> list[int] | None:
+    """focus доказательства, если он годится для его excerpt: два целых, 0 ≤ начало < конец ≤ длины."""
+    value, excerpt = item.get("focus"), item.get("excerpt")
+    if not isinstance(value, list) or len(value) != 2 or not isinstance(excerpt, str):
+        return None
+    start, end = value
+    if any(not isinstance(number, int) or isinstance(number, bool) for number in (start, end)):
+        return None
+    return [start, end] if 0 <= start < end <= len(excerpt) else None
 
 
 # ── Пояснения судьи: без внутренних меток кандидатов ────────────────────────────
@@ -691,6 +830,21 @@ _MISSING_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 _MISSING_EMPTY_RE = re.compile(r"^(?:нет|ничего|всё есть|все есть|—|-)?[.!]?$", re.IGNORECASE)
+# Слова общего вердикта (формы без регистра, «ё» = «е»). Пояснение только из них ничего не говорит о
+# содержании: живой прогон 07.10 — 12 «есть» из 15 с «Вопрос полностью раскрыт в приложенных
+# фрагментах». Тот же список — frontend/src/lib/exams/genericReason.ts: строки, сохранённые раньше,
+# панель «Почему» тоже не показывает. Точные формы там, где основа задела бы слово по теме:
+# «ответ», но не «ответственность»; «тема», но не «температура»; «освещена», но не «освещённость».
+_GENERIC_REASON_WORD_RE = re.compile(
+    r"в|во|на|о|об|по|и|из|с|со|к|для|это|этот|этом|эти|этих|данн(?:ый|ом|ых|ые)|\d+"
+    r"|вопрос\w*|ответ(?:а|е|ом|ы|ов|ам|ах)?|тем(?:а|ы|у|е|ой)"
+    r"|фрагмент\w*|материал(?:ы|а|е|ов|ам|ах|ами)?|лекци\w*|текст(?:а|е|ы|ов|ах)?"
+    r"|приложенн\w*|предоставленн\w*|представленн\w*"
+    r"|полностью|целиком|полн(?:ый|ая|ое|ые|ого|ую|ом|ым|ой|ых)|исчерпывающ\w*|подробн\w*|достаточн\w*"
+    r"|раскрыт\w*|раскрыва\w*|освещ(?:ен|ена|ено|ены|ается|аются)|содерж\w*|есть|имеет\w*|имеют\w*"
+    r"|присутству\w*|изложен\w*|приведен\w*|дан|дана|дано|даны|описан(?:а|о|ы)?|рассмотрен(?:а|о|ы)?"
+    r"|отвеча\w*|часть|части|частичн\w*|информаци\w*|необходим\w*|весь|вся|все|всего"
+)
 
 
 class _UnknownLabel(Exception):
@@ -769,16 +923,36 @@ def _lower_first(text: str) -> str:
     return text
 
 
+def generic_reason(text: Any) -> bool:
+    """Пояснение — общий вердикт без содержания: каждое его слово из _GENERIC_REASON_WORD_RE.
+
+    «Вопрос полностью раскрыт в приложенных фрагментах», «Ответ есть во фрагментах», «Фрагменты
+    содержат ответ», «Материалы содержат исчерпывающий ответ на вопрос» — да; «Свойства ACID
+    полностью описаны в тексте» — нет: «свойства» и «ACID» говорят, что именно есть.
+    """
+    if not isinstance(text, str):
+        return False
+    words = _QUOTE_WORD_RE.findall(unicodedata.normalize("NFC", text))
+    return bool(words) and all(_GENERIC_REASON_WORD_RE.fullmatch(_comparable(word)) for word in words)
+
+
 def clean_reason(reason: str, coverage: str, numbers: dict[int, str]) -> str:
-    """Пояснение судьи для человека: метки кандидатов → номера фрагментов; с чужой меткой — общее пояснение."""
-    default = _DEFAULT_REASONS.get(coverage, "")
+    """Пояснение судьи для человека: метки кандидатов → номера фрагментов.
+
+    У «есть»/«частично» пояснение без содержания (generic_reason), пустое или с чужой меткой — пустая
+    строка: под «Есть в ваших лекциях» экран ничего не покажет, а не «Вопрос полностью раскрыт». У «нет»
+    в этих случаях — общее пояснение сервера (на экране его нет, его сравнивают отчёт и шпаргалка).
+    """
+    default = _DEFAULT_REASONS["none"] if coverage == "none" else ""
     if not reason:
         return default
     try:
-        cleaned = _relabel(reason, numbers)
+        cleaned = _note(_relabel(reason, numbers))
     except _UnknownLabel:
         return default
-    return _note(cleaned) or default
+    if not cleaned or generic_reason(cleaned):
+        return default
+    return cleaned
 
 
 def clean_missing(missing: str, numbers: dict[int, str]) -> str:
@@ -815,7 +989,7 @@ def coverage_from_verdict(
     """
     numbers = _fragment_numbers(hits, verdict.labels)
     if verdict.coverage in ("full", "partial"):
-        evidence = _evidence(hits, verdict.support, passages)
+        evidence = _evidence(hits, verdict.support, passages, verdict.quotes)
         if evidence:
             return _coverage(
                 question_id,
@@ -1182,14 +1356,21 @@ async def _find_reusable(job: MappingJob, hashes: list[str], fragments: Fragment
 
 
 def _reused_coverage(question: dict, source: dict, titles: dict[str, str]) -> dict:
-    """Готовый результат другого вопроса с тем же текстом: дата и доказательства — его, названия — нынешние."""
+    """Готовый результат другого вопроса с тем же текстом: дата и доказательства — его, названия — нынешние.
+
+    focus доказательства переносится, если он годится для его excerpt (а excerpt — нынешний
+    фрагмент лекции, иначе строка не годилась бы); у строк без него focus так и нет.
+    """
     evidence = [
-        {
-            "material_id": item["material_id"],
-            "material_title": titles.get(item["material_id"], _title(item.get("material_title"))),
-            "source_id": item["source_id"],
-            "excerpt": item["excerpt"],
-        }
+        _with_focus(
+            {
+                "material_id": item["material_id"],
+                "material_title": titles.get(item["material_id"], _title(item.get("material_title"))),
+                "source_id": item["source_id"],
+                "excerpt": item["excerpt"],
+            },
+            _focus_of(item),
+        )
         for item in source.get("evidence") or []
     ]
     nearest = [
@@ -1202,9 +1383,11 @@ def _reused_coverage(question: dict, source: dict, titles: dict[str, str]) -> di
         }
         for item in source.get("nearest") or []
     ]
-    # Строки, размеченные раньше: метки кандидатов того запуска уже ни с чем не сопоставить.
+    # Строки, размеченные раньше: метки кандидатов того запуска уже ни с чем не сопоставить. Общие
+    # пояснения сервера у «есть»/«частично» («Ответ есть во фрагментах лекций») тоже чистятся: экран
+    # их не показывает.
     reason = _note(source.get("coverage_reason"), DB_NOTE_CHARS)
-    if reason not in _FIXED_REASONS:
+    if reason not in _FIXED_REASONS or reason in _DEFAULT_REASONS.values():
         reason = clean_reason(reason, source["coverage"], {})
     return _coverage(
         str(question["id"]),

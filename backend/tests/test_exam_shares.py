@@ -564,6 +564,23 @@ def test_join_copies_the_exam_with_new_ids_fingerprint_and_keys(share):
     assert share.model.calls == [] and share.reserved == []
 
 
+def test_the_copy_keeps_the_focus_of_the_evidence(share):
+    """evidence[].focus (место проверенной цитаты, exams_map) — необязательный ключ: копия переносит его как есть,
+    тексты лекций те же, так что место то же; на готовность ссылки и самопроверку он не влияет."""
+    exam = author_exam(share.fake)
+    first = share.fake.row("exam_questions", exam["questions"][0])
+    excerpt = first["evidence"][0]["excerpt"]
+    words = list(re.finditer(r"\w+", excerpt))
+    focus = [words[2].start(), words[9].end()]
+    first["evidence"][0]["focus"] = focus
+    make_link(share, exam["exam"])
+    response = join(share)
+    assert response.status_code == 200, response.text
+    mine = min(member_rows(share)["exam_questions"], key=lambda q: q["position"])
+    assert mine["evidence"][0]["focus"] == focus and mine["evidence"][0]["excerpt"] == excerpt
+    assert "focus" not in mine["evidence"][1]
+
+
 def test_the_sheet_keeps_for_equal_to_created_at_and_to_write_is_zero(share):
     exam = author_exam(share.fake)
     make_link(share, exam["exam"])
