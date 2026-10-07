@@ -11,6 +11,7 @@ import {
 import { track } from '../../../lib/telemetry';
 import { copyText } from '../../../lib/clipboard';
 import { forgetGroupLink, rememberGroupLink } from '../../../lib/groups/groupLinks';
+import FitTextarea from './FitTextarea';
 import QuestionOfDay from './QuestionOfDay';
 import './inviteGroup.css';
 
@@ -23,6 +24,11 @@ import './inviteGroup.css';
  * came in, and can be closed. With an open link the dialog ends with today's «Вопрос дня» (QuestionOfDay.tsx).
  * The server decides whether the exam is ready (backend/exam_shares.py: nothing left to map, every question has
  * its points written or failed the quote check twice); the dialog says what to do otherwise.
+ *
+ * Layout (owner, 2026-10-07: the window made him scroll on a 1532×734 laptop): on a screen from 960 px wide the
+ * dialog has two columns whenever it has texts for the group's chat — on the left what the classmates get, the
+ * consent or the new link, and the exam's links; on the right the message for the chat and «Вопрос дня». The texts
+ * are as tall as they are (FitTextarea), so nothing scrolls inside. Otherwise, and on a phone, one column.
  */
 
 interface Props {
@@ -59,6 +65,7 @@ export function groupMessage(title: string, url: string): string {
     url,
   ].join('\n');
 }
+
 
 function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(
@@ -117,6 +124,8 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
   const [announce, setAnnounce] = useState('');
   const [closing, setClosing] = useState<string | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
+  // Whether «Вопрос дня» shows in the right column: null while it reads the links and the sheet.
+  const [dayShown, setDayShown] = useState<boolean | null>(null);
 
   const load = useCallback(() => {
     setPhase({ kind: 'loading' });
@@ -233,6 +242,10 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
   const state = phase.kind === 'loaded' ? phase.state : null;
   const activeIds = state ? state.shares.filter((share) => share.state === 'active').map((share) => share.id).join(',') : '';
   const blocked = state && (state.copy || !state.ready) ? state.reason?.detail ?? 'Пригласить группу пока нельзя.' : null;
+  const canMake = Boolean(state && !state.copy && state.ready);
+  // Two columns (from 960 px, inviteGroup.css) when there is a text for the chat: the new link's message, or
+  // «Вопрос дня» of an open link — kept for it while it loads, so the dialog widens once.
+  const wide = Boolean(created) || (activeIds !== '' && dayShown !== false);
 
   return (
     <div className="ig-layer">
@@ -240,6 +253,7 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
       <div
         ref={boxRef}
         className="ig-box"
+        data-wide={wide ? '' : undefined}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -257,131 +271,149 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
             </svg>
           </button>
         </div>
-        <p id={ledeId} className="ig-lede">
-          Каждый однокурсник получит свою копию экзамена: вопросы, текст ваших лекций и шпаргалку с пунктами ответа. Пункты
-          уже записаны, поэтому им вход ничего не стоит. Ваши ответы и прогресс никто не увидит.
-        </p>
 
         <p className="sr-only" role="status" aria-live="polite">
           {announce}
         </p>
 
-        {phase.kind === 'loading' && (
-          <p className="ig-wait" role="status">
-            Проверяем экзамен…
+        {/* The left column: what the classmates get, the consent or the new link, the exam's links. */}
+        <div className="ig-col ig-col-main">
+          <p id={ledeId} className="ig-lede">
+            Каждый однокурсник получит свою копию экзамена: вопросы, текст ваших лекций и шпаргалку с пунктами ответа.
+            Пункты уже записаны, поэтому им вход ничего не стоит. Ваши ответы и прогресс никто не увидит.
           </p>
-        )}
 
-        {phase.kind === 'error' && (
-          <div className="ig-note" role="alert">
-            <p>{phase.message}</p>
-            <button type="button" className="sf-link" onClick={load}>
-              Повторить
-            </button>
-          </div>
-        )}
+          {phase.kind === 'loading' && (
+            <p className="ig-wait" role="status">
+              Проверяем экзамен…
+            </p>
+          )}
 
-        {blocked && !created && <p className="ig-note" data-tone="wait">{blocked}</p>}
-
-        {state && !state.copy && state.ready && !created && (
-          <div className="ig-make">
-            <label className="ig-consent" htmlFor={consentId}>
-              <input id={consentId} type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-              <span>{state.consent || 'Делюсь с группой вопросами, текстом моих лекций и пунктами ответа. Мои ответы и прогресс никто не увидит.'}</span>
-            </label>
-            {createError && (
-              <p className="ig-note" role="alert">
-                {createError}
-              </p>
-            )}
-            <button
-              type="button"
-              className="sf-primary ig-go"
-              disabled={!consent || creating}
-              aria-busy={creating || undefined}
-              onClick={() => void create()}
-            >
-              {creating ? 'Создаём ссылку…' : 'Создать ссылку'}
-            </button>
-          </div>
-        )}
-
-        {created && (
-          <div className="ig-made">
-            <label className="ig-label" htmlFor={`${titleId}-link`}>
-              Ссылка для группы
-            </label>
-            <div className="ig-row">
-              <input id={`${titleId}-link`} ref={linkRef} className="ig-field" readOnly value={url} onFocus={(event) => event.target.select()} />
-              <button type="button" className="ig-copy" onClick={() => void copy('link')}>
-                {copied === 'link' ? 'Скопировано' : 'Скопировать'}
+          {phase.kind === 'error' && (
+            <div className="ig-note" role="alert">
+              <p>{phase.message}</p>
+              <button type="button" className="sf-link" onClick={load}>
+                Повторить
               </button>
             </div>
-            <p className="ig-once">
-              {kept
-                ? 'Meldy хранит у себя только отпечаток ссылки. Сама ссылка останется на этом устройстве — для «Вопроса дня». Потеряете — создайте новую, а эту закройте.'
-                : 'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.'}
-            </p>
-            <label className="ig-label" htmlFor={`${titleId}-text`}>
-              Текст для беседы группы
-            </label>
-            <textarea id={`${titleId}-text`} ref={textRef} className="ig-field ig-text" readOnly rows={6} value={message} />
-            <button type="button" className="ig-copy ig-copy-text" onClick={() => void copy('text')}>
-              {copied === 'text' ? 'Скопировано' : 'Скопировать текст'}
-            </button>
-          </div>
-        )}
+          )}
 
-        {state && state.shares.length > 0 && (
-          <section className="ig-links" aria-labelledby={`${titleId}-links`}>
-            <h3 id={`${titleId}-links`} className="ig-h3">
-              Ссылки этого экзамена
-            </h3>
-            {revokeError && (
-              <p className="ig-note" role="alert">
-                {revokeError}
+          {blocked && !created && <p className="ig-note" data-tone="wait">{blocked}</p>}
+
+          {canMake && !created && state && (
+            <div className="ig-make">
+              <label className="ig-consent" htmlFor={consentId}>
+                <input id={consentId} type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
+                <span>{state.consent || 'Делюсь с группой вопросами, текстом моих лекций и пунктами ответа. Мои ответы и прогресс никто не увидит.'}</span>
+              </label>
+              {createError && (
+                <p className="ig-note" role="alert">
+                  {createError}
+                </p>
+              )}
+              <button
+                type="button"
+                className="sf-primary ig-go"
+                disabled={!consent || creating}
+                aria-busy={creating || undefined}
+                onClick={() => void create()}
+              >
+                {creating ? 'Создаём ссылку…' : 'Создать ссылку'}
+              </button>
+            </div>
+          )}
+
+          {created && (
+            <div className="ig-made">
+              <label className="ig-label" htmlFor={`${titleId}-link`}>
+                Ссылка для группы
+              </label>
+              <div className="ig-row">
+                <input id={`${titleId}-link`} ref={linkRef} className="ig-field" readOnly value={url} onFocus={(event) => event.target.select()} />
+                <button type="button" className="ig-copy" onClick={() => void copy('link')}>
+                  {copied === 'link' ? 'Скопировано' : 'Скопировать'}
+                </button>
+              </div>
+              <p className="ig-once">
+                {kept
+                  ? 'Meldy хранит у себя только отпечаток ссылки. Сама ссылка останется на этом устройстве — для «Вопроса дня». Потеряете — создайте новую, а эту закройте.'
+                  : 'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.'}
               </p>
-            )}
-            <ul>
-              {state.shares.map((share) => (
-                <li key={share.id} className="ig-link" data-state={share.state}>
-                  <span>
-                    {`Ссылка от ${shortDay(share.createdAt)} · ${membersPhrase(share)}`}
-                    {share.state === 'revoked' && ' · закрыта'}
-                    {share.state === 'expired' && ' · срок вышел'}
-                  </span>
-                  {share.state === 'active' &&
-                    (closing === share.id ? (
-                      <span className="ig-confirm">
-                        <span>По ней больше никто не войдёт, копии останутся у тех, кто уже вошёл.</span>
-                        <button type="button" className="sf-link" onClick={() => void revoke(share)}>
-                          Да, закрыть
-                        </button>
-                        <button type="button" className="sf-link" data-muted="" onClick={() => setClosing(null)}>
-                          Отмена
-                        </button>
-                      </span>
-                    ) : (
-                      <button type="button" className="sf-link" data-muted="" onClick={() => setClosing(share.id)}>
-                        Закрыть ссылку
-                      </button>
-                    ))}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+            </div>
+          )}
 
-        {/* Remounted when the open links change: a link made or closed here changes what «Вопрос дня» copies. */}
-        {activeIds && (
-          <QuestionOfDay
-            key={activeIds}
-            examId={examId}
-            examTitle={examTitle}
-            from="invite"
-            knownCode={created && activeIds.split(',').includes(created.share.id) ? created.code : null}
-          />
-        )}
+          {state && state.shares.length > 0 && (
+            <section className="ig-links" aria-labelledby={`${titleId}-links`}>
+              <h3 id={`${titleId}-links`} className="ig-h3">
+                Ссылки этого экзамена
+              </h3>
+              {revokeError && (
+                <p className="ig-note" role="alert">
+                  {revokeError}
+                </p>
+              )}
+              <ul>
+                {state.shares.map((share) => (
+                  <li key={share.id} className="ig-link" data-state={share.state}>
+                    <span>
+                      {`Ссылка от ${shortDay(share.createdAt)} · ${membersPhrase(share)}`}
+                      {share.state === 'revoked' && ' · закрыта'}
+                      {share.state === 'expired' && ' · срок вышел'}
+                    </span>
+                    {share.state === 'active' &&
+                      (closing === share.id ? (
+                        <span className="ig-confirm">
+                          <span>По ней больше никто не войдёт, копии останутся у тех, кто уже вошёл.</span>
+                          <button type="button" className="sf-link" onClick={() => void revoke(share)}>
+                            Да, закрыть
+                          </button>
+                          <button type="button" className="sf-link" data-muted="" onClick={() => setClosing(null)}>
+                            Отмена
+                          </button>
+                        </span>
+                      ) : (
+                        <button type="button" className="sf-link" data-muted="" onClick={() => setClosing(share.id)}>
+                          Закрыть ссылку
+                        </button>
+                      ))}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        {/* The right column: the texts for the group's chat. Empty — the dialog keeps one column (inviteGroup.css). */}
+        <div className="ig-col ig-col-side">
+          {created && (
+            <div className="ig-chat">
+              <label className="ig-label" htmlFor={`${titleId}-text`}>
+                Текст для беседы группы
+              </label>
+              <FitTextarea id={`${titleId}-text`} ref={textRef} className="ig-field ig-text" readOnly rows={6} value={message} />
+              <button type="button" className="ig-copy ig-copy-text" onClick={() => void copy('text')}>
+                {copied === 'text' ? 'Скопировано' : 'Скопировать текст'}
+              </button>
+            </div>
+          )}
+
+          {/* Remounted when the open links change: a link made or closed here changes what «Вопрос дня» copies. */}
+          {activeIds && (
+            <QuestionOfDay
+              key={activeIds}
+              examId={examId}
+              examTitle={examTitle}
+              from="invite"
+              knownCode={created && activeIds.split(',').includes(created.share.id) ? created.code : null}
+              onShown={setDayShown}
+            />
+          )}
+          {activeIds && dayShown === null && !created && (
+            <p className="ig-wait" role="status">
+              Подбираем вопрос дня…
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
