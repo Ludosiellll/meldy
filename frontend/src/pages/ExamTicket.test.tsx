@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { createFakeSupabase } from '../lib/oral/testing/fakeSupabase';
 import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../lib/oral/testing/fixtures';
-import { CHECK_AFTER_FAILED_CHECK_MS, CHECK_CONFIRM_TIMEOUT_MS, CHECK_FOLLOWUP_TIMEOUT_MS } from '../lib/oral/oralApi';
+import { CHECK_AFTER_FAILED_CHECK_MS, CHECK_CONFIRM_TIMEOUT_MS, CHECK_FOLLOWUP_TIMEOUT_MS, DONT_KNOW_VERDICT } from '../lib/oral/oralApi';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
 import { CHOSE_SERVER_NOTICE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE } from './ExamTicket';
 
@@ -818,6 +818,25 @@ describe('ExamTicket: answering by text', () => {
     expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам засчитан частично.');
     const [, args] = rpc.mock.calls[0] as unknown as [string, { p_attempt: { followup: { chosen_by: string; status: string } } }];
     expect(args.p_attempt.followup).toMatchObject({ chosen_by: 'client', status: 'partial' });
+  });
+
+  it('takes «не знаю» said instead of an answer as the button: no check, no protocol request, every point missing', async () => {
+    const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+    seedDatabase({ rpc });
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer('Ну, не знаю…');
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    // Nothing was named: the examiner asks about the first main point at once.
+    expect(await screen.findByText(`«${DEMO_RUBRIC.points[0].followup.question}»`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    await screen.findByText(/Сохранено в историю и/);
+    expect(callsTo('/api/oral/check')).toHaveLength(0);
+    expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
+    const [, args] = rpc.mock.calls[0] as unknown as [string, { p_attempt: Record<string, unknown> & { points: Array<{ status: string }> } }];
+    expect(args.p_attempt.points.map((point) => point.status)).toEqual(['missing', 'missing', 'missing', 'missing', 'missing']);
+    expect(args.p_attempt).toMatchObject({ grade: 2, score: 0, verdict: DONT_KNOW_VERDICT, followup: { point_id: 'p1', status: 'missing' } });
   });
 
   it('keeps an answer whose evaluation failed: no grade, no save, no charge, and the previous protocol', async () => {

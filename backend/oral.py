@@ -21,6 +21,8 @@
 - student_quote: отрывок ответа студента — всегда текст самой расшифровки; слова цитаты
   модели выравниваются по расшифровке («—» вместо «это», «…» вместо пропуска). Пункт, к
   которому протокол записал ошибку, — «wrong».
+- says_dont_know: короткое «не знаю» целиком — ответ кнопки «Не знаю» (без модели и без
+  списания); та же фраза, что saysDontKnow во frontend.
 - Длинные тексты модели не обрываются молча: вопрос переспроса — только целиком,
   заголовок — по слову с «…», пояснения — по концу предложения.
 """
@@ -62,6 +64,7 @@ __all__ = [
     "probably_named",
     "quoted_answer",
     "rubric_key",
+    "says_dont_know",
     "select_fragments",
     "source_key",
     "student_quote",
@@ -119,6 +122,7 @@ SENTENCE_CUT_MIN_SHARE = 0.25  # конец предложения раньше 
 # расшифровки не меньше двух и не меньше половины более короткого из двух отрывков, и такой пункт один.
 ERROR_BIND_MIN_WORDS = 2
 ERROR_BIND_MIN_SHARE = 0.5
+DONT_KNOW_MAX_CHARS = 40
 
 RETRY_REMINDER = "Копируй цитаты дословно, одним куском, без «…»."
 SHORTER_REMINDER = (
@@ -149,6 +153,12 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?…])\s+")
 _SENTENCE_END_RE = re.compile(r"[.!?…][»\"'”’)\]]*(?=\s|$)")
 _SPOKEN_WORD_RE = re.compile(r"[^\W_]+")
 _ELLIPSIS_RE = re.compile(r"…|\.{3,}")
+_NOT_LETTERS_RE = re.compile(r"[\W\d_]+")
+# «Не знаю» сказано или написано вместо кнопки (та же фраза, что saysDontKnow во frontend,
+# src/lib/oral/followup.ts; общие примеры — раздел dont_know в oral_match_vectors.json).
+_DONT_KNOW_RE = re.compile(
+    r"(?:(?:ну|эм|хм|честно|я)\s+)*(?:не\s+знаю|не\s+помню|затрудняюсь(?:\s+ответить)?|забыл[аи]?)"
+)
 
 
 # ── Сопоставление речи с пунктами (§7.3) ────────────────────────────────────────
@@ -162,6 +172,19 @@ def normalize(text: Any) -> str:
 
 def words(text: Any) -> list[str]:
     return normalize(text).split()
+
+
+def says_dont_know(text: Any) -> bool:
+    """Ответ — короткое «не знаю» целиком: «я не знаю», «ну, не знаю», «не помню», «затрудняюсь ответить», «забыл».
+
+    Это тот же ответ, что кнопка «Не знаю»: ни один пункт не назван, и ни модель, ни списание
+    для него не нужны. Ответ, где «не знаю» — только начало («не знаю точно, но…»), сюда не входит.
+    """
+    if not isinstance(text, str):
+        return False
+    letters = _NOT_LETTERS_RE.sub(" ", unicodedata.normalize("NFC", text).lower().replace("ё", "е"))
+    plain = " ".join(letters.split())
+    return 0 < len(plain) <= DONT_KNOW_MAX_CHARS and _DONT_KNOW_RE.fullmatch(plain) is not None
 
 
 def part_match(part: str, word: str) -> bool:

@@ -6,12 +6,15 @@
  * server gives the model 4.5 s and answers 504 after that) for the «Готово» decision and for the answer
  * to the follow-up — but only one long wait per answer: after the check at «Готово» did not answer
  * (the follow-up then chosen by the browser), the follow-up's check waits 2.5 s; evaluate 15 s.
- * Errors keep the HTTP status and the server's code (httpErrorFromResponse): 409
+ * «Не знаю» said or typed as the whole answer is the button's answer: check and evaluate return «every
+ * point missing» at once, with no request (the server would answer the same, without the model and
+ * without a charge). Errors keep the HTTP status and the server's code (httpErrorFromResponse): 409
  * and 422 show the server's own Russian detail, an outage of the model (429 busy, 502, 503, 504, a
  * client timeout or an unusable body) reads «ИИ-сервис сейчас не ответил. Попробуйте ещё раз.» —
  * never a text that blames the lectures. The auth header is added by lib/apiAuth (every /api/* path).
  */
 import { httpErrorFromResponse } from '../../api/sseStream';
+import { chooseFollowup, saysDontKnow } from './followup';
 
 export const RUBRIC_TIMEOUT_MS = 30_000;
 /** The live run of 07.10: 3.1 Flash-Lite missed 2.5 s in 12 checks of 14; the server now gives 4.5 s (+ the way back). */
@@ -27,6 +30,8 @@ export const RATE_LIMITED_MESSAGE = 'Слишком много запросов.
 export const NETWORK_MESSAGE = 'Связь с сервером прервалась. Проверьте интернет и повторите попытку.';
 /** The daily AI limit, checked by the server (429 ai_limit); the limit dialog opens as well. */
 export const AI_LIMIT_MESSAGE = 'Дневной лимит ИИ на сегодня исчерпан.';
+/** The protocol's verdict for «не знаю» (the server's DONT_KNOW_VERDICT, backend/oral_api.py, says the same). */
+export const DONT_KNOW_VERDICT = 'Ответ «не знаю»: ни один из пунктов не прозвучал.';
 
 export type OralErrorKind = 'http' | 'timeout' | 'network' | 'aborted' | 'invalid';
 
@@ -337,6 +342,12 @@ export function followupCheckTimeout(chosenBy: 'check' | 'client'): number {
 
 /** The quick check: statuses per point and the server's ask. Never shown on screen (spec 6.1). */
 export async function checkAnswer(input: CheckInput, options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<CheckResponse> {
+  if (saysDontKnow(input.transcript)) {
+    // «Не знаю» is the button's answer: every point missing, the follow-up by the rule — no request, no model.
+    const ids = input.only ? [input.only] : input.points.map((point) => point.id);
+    const statuses: Record<string, CheckStatus> = Object.fromEntries(ids.map((id) => [id, 'missing' as const]));
+    return { statuses, ask: input.only ? null : chooseFollowup(input.points, statuses) };
+  }
   const body = {
     question: input.question.slice(0, 1000),
     points: input.points.map((point) => ({ id: point.id, title: point.title.slice(0, 200), essential: point.essential })),
@@ -360,6 +371,14 @@ export interface EvaluateInput {
 
 /** The evaluation behind the protocol: a status, a quote of the answer and a comment per point. */
 export async function evaluateAnswer(input: EvaluateInput, options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<Evaluation> {
+  if (saysDontKnow(input.transcript)) {
+    // «Не знаю»: nothing named — no request, so no model and no units spent (/api/oral/evaluate does the same).
+    return {
+      points: input.points.map((point) => ({ id: point.id, status: 'missing' as const, student_quote: '', comment: '' })),
+      errors: [],
+      verdict: DONT_KNOW_VERDICT,
+    };
+  }
   const body = {
     question: input.question.slice(0, 1000),
     points: input.points.map((point) => ({

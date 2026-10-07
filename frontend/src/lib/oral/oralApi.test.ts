@@ -5,6 +5,7 @@ import {
   CHECK_AFTER_FAILED_CHECK_MS,
   CHECK_CONFIRM_TIMEOUT_MS,
   CHECK_FOLLOWUP_TIMEOUT_MS,
+  DONT_KNOW_VERDICT,
   NETWORK_MESSAGE,
   OralApiError,
   RATE_LIMITED_MESSAGE,
@@ -160,6 +161,34 @@ describe('oral API', () => {
     expect(fetchMock.mock.calls[2][1].signal.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(20);
     expect(await short).toMatchObject({ kind: 'timeout' });
+  });
+
+  it('takes «не знаю» as the button: every point missing, no request, no model, no units', async () => {
+    const points = [
+      { id: 'p1', title: 'А', essential: false },
+      { id: 'p2', title: 'Б', essential: true },
+      { id: 'p3', title: 'В', essential: true },
+    ];
+    expect(await checkAnswer({ question: 'Вопрос', points, transcript: 'Ну, не знаю…' })).toEqual({
+      statuses: { p1: 'missing', p2: 'missing', p3: 'missing' },
+      ask: 'p2', // the rule: the first essential point not named
+    });
+    expect(await checkAnswer({ question: 'Вопрос', points, transcript: 'не помню', only: 'p3' })).toEqual({ statuses: { p3: 'missing' }, ask: null });
+    const evaluation = await evaluateAnswer({
+      question: 'Вопрос',
+      points: points.map((point) => ({ ...point, source_quote: 'цитата' })),
+      transcript: 'Я не знаю.',
+    });
+    expect(evaluation).toEqual({
+      points: ['p1', 'p2', 'p3'].map((id) => ({ id, status: 'missing', student_quote: '', comment: '' })),
+      errors: [],
+      verdict: DONT_KNOW_VERDICT,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    // An answer that only starts with «не знаю» is an answer: it goes to the check.
+    fetchMock.mockResolvedValueOnce(json(200, { statuses: { p1: 'partial' }, ask: null }));
+    await checkAnswer({ question: 'Вопрос', points, transcript: 'Не знаю точно, но это про ключи' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('reads statuses and ask of the quick check', async () => {

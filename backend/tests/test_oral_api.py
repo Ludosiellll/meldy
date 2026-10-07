@@ -845,6 +845,25 @@ def test_check_asks_gemini_3_5_flash_lite_first_then_3_1_and_keeps_the_server_de
     assert [call["model"] for call in groq_calls] == ["openai/gpt-oss-20b"]
 
 
+@pytest.mark.parametrize("answer", ["не знаю", "Ну, я не знаю…", "Затрудняюсь ответить"])
+def test_dont_know_is_all_missing_without_the_model(api, answer):
+    # «Не знаю» сказано вместо кнопки: тот же ответ, что кнопка, — без модели (и без списания, см. test_quota).
+    assert api.post("/api/oral/check", json=check_body(transcript=answer)).json() == {
+        "statuses": {"p1": "missing", "p2": "missing", "p3": "missing", "p4": "missing"}, "ask": "p1"}
+    assert api.post("/api/oral/check", json=check_body(transcript=answer, only="p4")).json() == {
+        "statuses": {"p4": "missing"}, "ask": None}
+    body = api.post("/api/oral/evaluate", json=evaluate_body(transcript=answer)).json()
+    assert [(p["status"], p["student_quote"]) for p in body["points"]] == [("missing", "")] * 4
+    assert body["errors"] == [] and body["verdict"] == oral_api.DONT_KNOW_VERDICT
+    assert api.model.calls == []
+
+
+def test_an_answer_that_only_starts_with_dont_know_goes_to_the_model(api):
+    api.model.answer({"statuses": {"p1": "partial"}})
+    api.post("/api/oral/check", json=check_body(transcript="Не знаю точно, но цель — стабильность цен"))
+    assert len(api.model.calls) == 1
+
+
 def test_check_empty_answer_is_all_missing_without_a_model_call(api):
     response = api.post("/api/oral/check", json=check_body(transcript="  …  "))
     assert response.json() == {"statuses": {"p1": "missing", "p2": "missing", "p3": "missing", "p4": "missing"}, "ask": "p1"}

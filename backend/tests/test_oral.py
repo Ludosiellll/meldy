@@ -141,6 +141,19 @@ def test_followup_fallback_vectors(case):
     assert oral.followup_fallback(case["anchors"], case["question"], case["answer"]) == case["status"]
 
 
+@pytest.mark.parametrize("case", VECTORS["dont_know"], ids=lambda case: case["text"] or "(пусто)")
+def test_dont_know_vectors_match_the_browser(case):
+    # Те же примеры проверяет followup.test.ts (saysDontKnow): сервер и браузер узнают одну фразу.
+    assert oral.says_dont_know(case["text"]) is case["is"]
+
+
+def test_dont_know_is_only_a_short_whole_phrase():
+    assert oral.says_dont_know("я не знаю") and oral.says_dont_know("Ну… не помню!")
+    assert not oral.says_dont_know(None) and not oral.says_dont_know(42)
+    assert oral.says_dont_know("ну " * 10 + "не знаю")  # 37 знаков
+    assert not oral.says_dont_know("ну " * 12 + "не знаю")  # 43 знака: длиннее 40 — уже не короткое «не знаю»
+
+
 def test_ask_rule_order_wrong_then_missing_then_partial_then_non_essential():
     points = [{"id": "p1", "essential": True}, {"id": "p2", "essential": True}, {"id": "p3", "essential": False}]
     assert oral.choose_followup(points, {"p1": "missing", "p2": "wrong", "p3": "wrong"}) == "p2"
