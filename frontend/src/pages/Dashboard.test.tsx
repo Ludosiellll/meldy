@@ -390,6 +390,91 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(within(again.closest('article')!).queryByRole('link', { name: /Шпаргалка/ })).toBeNull();
   });
 
+  describe('«Сегодня-lite»: «Можно стереть: N вопросов» over the draw «Ждут подтверждения»', () => {
+    const written = (position: number) => ({
+      question_id: `q${position}`,
+      position,
+      label: String(position),
+      section: null,
+      text: `Вопрос ${position}`,
+      question_hash: hash(position),
+      coverage: 'full',
+      coverage_method: 'llm',
+      coverage_reason: '',
+      missing_note: '',
+      rebuilt: false,
+      rubric: {
+        rubric_id: `r${position}`,
+        built_at: null,
+        coverage: 'full',
+        coverage_note: '',
+        materials: [],
+        points: [1, 2, 3].map((n) => ({ id: `p${n}`, title: `Пункт ${n} вопроса ${position}`, short: '', essential: n === 1, source_quote: '', source_ids: [] })),
+      },
+    });
+    /** Point 1 of a question named in an answer at a local moment. */
+    const named = (position: number, at: Date) => ({
+      id: `e-${position}-${at.getTime()}`,
+      created_at: at.toISOString(),
+      local_date: localDateKey(at),
+      material_id: null,
+      kind: 'oral_point',
+      item_key: `oral:r${position}:p1`,
+      correct: true,
+      score: null,
+      confidence: null,
+      source_ids: [],
+      session_id: `s-${position}-${at.getTime()}`,
+      payload: { v: 1, question_hash: hash(position), rubric_id: `r${position}`, point_id: 'p1', title: `Пункт 1 вопроса ${position}`, status: 'covered' },
+    });
+    const sheetOf = (events: unknown[]) => {
+      db.fetchSheet.mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [written(1), written(2), written(3)], toWrite: 0, units: 0, job: null });
+      db.fetchSheetEvents.mockResolvedValue(events);
+    };
+    // 1: named yesterday — the other day and 20 hours have come; 2: named an hour ago; 3: erased in
+    // September and due for its check since.
+    const YESTERDAY = named(1, new Date(2026, 9, 2, 10, 0));
+    const HOUR_AGO = named(2, new Date(2026, 9, 3, 11, 0));
+    const DUE = [named(3, new Date(2026, 8, 20, 10, 0)), named(3, new Date(2026, 8, 21, 10, 0))];
+
+    it('counts the questions an answer can erase now by the sheet’s rules and leads to the draw from exactly them', async () => {
+      exam();
+      sheetOf([YESTERDAY, HOUR_AGO, ...DUE]);
+      renderDashboard();
+      const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      const line = await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
+      expect(plain(line.textContent)).toBe('Можно стереть: 2 вопроса');
+      const answer = within(block).getByRole('link', { name: (name) => plain(name) === 'Ответить' });
+      expect(answer).toHaveAttribute('href', '/exams/e-1/draw?mode=awaiting');
+      expect(answer).toHaveAccessibleDescription(/^Можно стереть: 2\sвопроса$/);
+      // Right under the sheet's count; the card keeps one blue pill.
+      const sheet = within(block).getByRole('link', { name: (name) => plain(name).startsWith('Шпаргалка:') });
+      expect(sheet.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+      expect(within(block).queryByText(/Следующие строки/)).toBeNull();
+    });
+
+    it('with nothing to erase now says when the next lines can be, and says nothing when no line waits', async () => {
+      exam();
+      sheetOf([HOUR_AGO]);
+      renderDashboard();
+      const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      // Named at 11:00: from 20 hours on, the next morning.
+      const next = await within(block).findByText((_, node) => node?.classList.contains('td-erase-next') === true);
+      expect(plain(next.textContent)).toBe('Следующие строки можно стереть после 4 окт., 7:00.');
+      expect(within(block).queryByRole('link', { name: (name) => plain(name) === 'Ответить' })).toBeNull();
+      cleanup();
+
+      // Lines written, nothing named yet: neither line (the count of lines stays).
+      exam();
+      sheetOf([]);
+      renderDashboard();
+      const again = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      expect(await within(again).findByRole('link', { name: (name) => plain(name) === 'Шпаргалка: 9 строк осталось из 9' })).toBeInTheDocument();
+      expect(again.querySelector('.td-erase, .td-erase-next')).toBeNull();
+    });
+  });
+
   it('draws one mark per question in list order: 2 rows of 20 on a computer, numbers 1, 20, 21, 40', async () => {
     db.tables.exam_questions = () => ({
       data: questionRows((p) => (p === 2 ? null : p === 4 ? 'unverified' : NONE.has(p) ? 'none' : PARTIAL.has(p) ? 'partial' : 'full')),

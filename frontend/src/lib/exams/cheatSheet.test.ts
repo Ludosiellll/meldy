@@ -6,6 +6,8 @@ import {
   LINE_READABLE,
   blockKind,
   buildSheet,
+  erasableAt,
+  erasableNow,
   changeSummary,
   cleanMissing,
   lastAnswerSession,
@@ -692,5 +694,84 @@ describe('normalizeTitle', () => {
     expect(normalizeTitle('При P > MC фирма расширяет выпуск')).not.toBe(normalizeTitle('При P < MC фирма расширяет выпуск'));
     expect(normalizeTitle('При P>MC фирма')).toBe(normalizeTitle('При P > MC фирма'));
     expect(normalizeTitle('Цена ↑ → спрос ↓')).toBe('цена ↑ → спрос ↓');
+  });
+});
+
+describe('erasableNow: what an answer can erase now («Сегодня-lite»)', () => {
+  const HASHES = { b: 'b'.repeat(32), c: 'c'.repeat(32), d: 'd'.repeat(32) };
+  const ELASTIC = 'Эластичность спроса по цене';
+  const SURPLUS = 'Излишек потребителя';
+  const UTILITY = 'Предельная полезность убывает';
+  const sheetOf = (events: LearningEvent[], now = NOW) =>
+    buildSheet(
+      [
+        question(1, { rubric: rubric('r1', TWO) }),
+        question(2, { question_hash: HASHES.b, rubric: rubric('r2', [[ELASTIC, true]]) }),
+        question(3, { question_hash: HASHES.c, rubric: rubric('r3', [[SURPLUS, true]]) }),
+        question(4, { question_hash: HASHES.d, rubric: rubric('r4', [[UTILITY, true]]) }),
+        // Not in the lectures: no lines, nothing to erase.
+        question(5, { coverage: 'none' }),
+      ],
+      events,
+      now,
+    );
+  const events = () => [
+    // 1: named yesterday morning — the other day and 20 hours have come: an answer now erases it.
+    point(local('2026-10-04T10:00:00'), true),
+    // 2: named an hour ago — it can be erased from tomorrow, 20 hours on.
+    point(local('2026-10-05T11:00:00'), true, { hash: HASHES.b, rubric: 'r2', title: ELASTIC }),
+    // 3: erased on 20–21 Sep, due since 26 Sep: naming it now is its check.
+    point(local('2026-09-20T10:00:00'), true, { hash: HASHES.c, rubric: 'r3', title: SURPLUS }),
+    point(local('2026-09-21T10:00:00'), true, { hash: HASHES.c, rubric: 'r3', title: SURPLUS }),
+    // 4: not named: a naming would only rub it.
+    point(local('2026-10-04T10:00:00'), false, { hash: HASHES.d, rubric: 'r4', title: UTILITY }),
+  ];
+
+  it('counts the questions with a rubbed line whose moment has come or a line due for its check, by the sheet’s own states', () => {
+    const sheet = sheetOf(events());
+    expect(sheet.blocks.map((block) => block.lines.map((line) => line.status.state))).toEqual([
+      ['rubbed', 'fresh'],
+      ['rubbed'],
+      ['due'],
+      ['missed'],
+      [],
+    ]);
+    const now = erasableNow(sheet, NOW);
+    expect(now.questions).toEqual(['q-1', 'q-3']);
+    // The next moment for the rest: question 2, 20 hours after its naming.
+    expect(now.next).toBe(new Date(Date.parse(local('2026-10-05T11:00:00')) + 20 * 3_600_000).toISOString());
+  });
+
+  it('says when the next lines can be erased when none can now, and nothing when no line waits', () => {
+    const early = sheetOf(events().filter((event) => event.payload.question_hash === HASHES.b));
+    expect(erasableNow(early, NOW)).toEqual({
+      questions: [],
+      next: new Date(Date.parse(local('2026-10-05T11:00:00')) + 20 * 3_600_000).toISOString(),
+    });
+    // That moment comes: the question can be erased.
+    expect(erasableNow(early, Date.parse(local('2026-10-06T07:00:00'))).questions).toEqual(['q-2']);
+    // Nothing named, or only missed lines: nothing to erase and nothing to wait for.
+    expect(erasableNow(sheetOf([]), NOW)).toEqual({ questions: [], next: null });
+    expect(erasableNow(sheetOf(events().filter((event) => event.payload.question_hash === HASHES.d)), NOW)).toEqual({ questions: [], next: null });
+  });
+
+  it('erasableAt: a due line uncovered today waits for the midnight, an erased one for its check, a readable one for nothing', () => {
+    const erased = [point(local('2026-10-01T10:00:00'), true), point(local('2026-10-02T10:00:00'), true)];
+    // Erased on 2 Oct: due 5 days after the last naming, on 7 Oct.
+    const waiting = lineStatus(erased, NOW);
+    expect(waiting.state).toBe('erased');
+    expect(erasableAt(waiting, NOW)).toBe(Date.parse(local('2026-10-07T10:00:00')));
+    // Due since then: an answer now is its check.
+    const due = Date.parse(local('2026-10-08T12:00:00'));
+    expect(lineStatus(erased, due).state).toBe('due');
+    expect(erasableAt(lineStatus(erased, due), due)).toBe(Date.parse(local('2026-10-07T10:00:00')));
+    // Uncovered today («Подсмотреть»): a naming today does not count — from the next midnight.
+    const peeked = lineStatus([...erased, peek(local('2026-10-08T09:00:00'))], due);
+    expect(peeked).toMatchObject({ state: 'due', peekedToday: true });
+    expect(erasableAt(peeked, due)).toBe(Date.parse(local('2026-10-09T00:00:00')));
+    // A rubbed line peeked today: its own erasableFrom already waits for the midnight.
+    const rubbed = lineStatus([point(local('2026-10-04T10:00:00'), true), peek(local('2026-10-05T09:00:00'))], NOW);
+    expect(erasableAt(rubbed, NOW)).toBe(Date.parse(local('2026-10-06T00:00:00')));
+    for (const status of [lineStatus([], NOW), lineStatus([point(local('2026-10-04T10:00:00'), false)], NOW)]) expect(erasableAt(status, NOW)).toBeNull();
   });
 });
