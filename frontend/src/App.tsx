@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './hooks/useAuth';
@@ -8,6 +8,7 @@ import IdlePrefetch from './components/IdlePrefetch';
 import { ProWindowProvider } from './components/pro/ProWindow';
 import { layoutPart, preloadSignedInScreen } from './lib/prefetch';
 import { useLazyPart } from './lib/lazyPart';
+import { joinPath, loginFor, pendingJoin } from './lib/returnTo';
 // The reel's and the guide's styles stay in the first stylesheet, in their order ahead of the kit, as
 // before the shell became a file of its own. Rules of equal weight decide by order: the guide's stage
 // size wins over the reel's (.gd-stage after .mr-stage), and the kit's hover and current-page look of
@@ -42,6 +43,7 @@ const ExamDraw = lazy(() => import('./pages/ExamDraw'));
 const ExamTicket = lazy(loadExamTicket);
 const TryExample = lazy(() => import('./pages/TryExample'));
 const Check = lazy(() => import('./pages/Check'));
+const JoinGroup = lazy(() => import('./pages/JoinGroup'));
 
 /**
  * The answer screen («Ответ вслух», /exams/:id/ticket) is built by its own package. The glob keeps
@@ -75,9 +77,9 @@ function SignedInShell() {
   return Layout ? <Layout /> : <RouteLoading />;
 }
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
+export function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, requestSession } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   // While the session is checked, the shell and the page start loading together (lib/prefetch.ts).
   useEffect(() => {
     requestSession?.();
@@ -86,7 +88,25 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (loading) return <RouteLoading />;
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
+  // Signed out: the sign-in page, which brings the visitor back to this page afterwards (lib/returnTo).
+  return user ? <>{children}</> : <Navigate to={loginFor(pathname, search)} replace />;
+}
+
+/**
+ * A group link the visitor went to sign in for (lib/returnTo: meldy_join_pending, a day, this device): when the
+ * sign-in comes back to the landing or «Сегодня» instead of /join/<код> (the address lost its way back), the app
+ * goes on to the link.
+ */
+export function PendingJoin() {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!user || (pathname !== '/' && pathname !== '/dashboard')) return;
+    const code = pendingJoin();
+    if (code) navigate(joinPath(code), { replace: true });
+  }, [user, pathname, navigate]);
+  return null;
 }
 
 export default function App() {
@@ -95,6 +115,7 @@ export default function App() {
       <PWAUpdater />
       <ProWindowProvider />
       <IdlePrefetch />
+      <PendingJoin />
       <Toaster 
         position="top-right" 
         toastOptions={{ 
@@ -142,6 +163,8 @@ export default function App() {
           <Route path="knowledge-map" element={<KnowledgeMap />} />
         </Route>
         <Route path="/shared/:id" element={<SharedMaterial />} />
+        {/* A group link: open without an account (pages/JoinGroup.tsx). */}
+        <Route path="/join/:code" element={<JoinGroup />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

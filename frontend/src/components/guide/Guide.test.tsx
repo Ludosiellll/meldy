@@ -32,6 +32,7 @@ vi.mock('../../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInst
 import Layout from '../Layout';
 import { GUIDE_CHAPTERS, chapterIndexFor, limitChapterText, mayLeave } from './chapters';
 import { GUIDE_SEEN_KEY } from './GuideContext';
+import { deferGuideOnce } from './guideLater';
 import { GUIDE_CLIPS } from './clips';
 import { LIMIT_FLY, LIMIT_SPENDS, limitMeterAt } from './scenes';
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
@@ -298,5 +299,33 @@ describe('the guide asked for', () => {
     expect(where()).toBe('/profile');
     expect(within(panel()!).getByRole('link', { name: 'Открыть раздел' })).toHaveAttribute('href', '/analytics');
     expect(guide()).not.toBeNull();
+  });
+});
+
+describe('the first run after a group link (guideLater)', () => {
+  afterEach(() => window.sessionStorage.clear());
+
+  it('waits: the copy of the exam stays on screen, «?» still opens the guide, the next visit shows the first run', async () => {
+    deferGuideOnce(); // what /join/<код> does before it opens the copy
+    renderAt('/exams/copy-1');
+    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(panel()).toBeNull();
+    expect(where()).toBe('/exams/copy-1');
+    expect(document.querySelector('[inert]')).toBeNull();
+    expect(window.localStorage.getItem(GUIDE_SEEN_KEY)).toBeNull();
+    expect(mocks.markSeen).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Как пользоваться Meldy' }));
+    expect(panel()).toHaveAttribute('aria-modal', 'false');
+    cleanup();
+
+    // Another visit (a new tab): the first run as usual (an exam's own page is not left for «Сегодня»).
+    window.sessionStorage.clear();
+    renderAt('/exams/copy-1');
+    await waitFor(() => expect(panel()).not.toBeNull());
+    expect(panel()).toHaveAttribute('aria-modal', 'true');
+    expect(where()).toBe('/exams/copy-1');
   });
 });

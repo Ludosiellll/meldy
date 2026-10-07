@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Eye, EyeOff } from 'lucide-react';
 import { validateEmail } from '../utils/validators';
 import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
+import { afterSignIn, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
 
 /**
  * Вход (Meldy 2026-10-04): форма в белой карточке, рядом цветная панель с полутоновыми точками —
@@ -23,16 +24,18 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
+  // The page the visitor signs in for (?next=, a safe path of this site only), else «Сегодня» (lib/returnTo).
+  const returnTo = returnToFromSearch(useLocation().search);
 
   useEffect(() => {
-    if (user) navigate('/dashboard');
-  }, [user?.id, navigate]);
+    if (user) navigate(afterSignIn(returnTo));
+  }, [user?.id, navigate, returnTo]);
 
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/auth/callback',
+        redirectTo: oauthRedirectTo(window.location.origin, returnTo),
       },
     });
   };
@@ -57,7 +60,7 @@ export default function Login() {
       } else {
         setError('Произошла ошибка при входе. Проверьте данные.');
       }
-    } else navigate('/dashboard');
+    } else navigate(afterSignIn(returnTo));
     setLoading(false);
   };
 
@@ -146,7 +149,7 @@ export default function Login() {
 
             <p className="au-foot">
               Нет аккаунта?{' '}
-              <button type="button" onClick={() => navigate('/register')} className="au-link">
+              <button type="button" onClick={() => navigate(withReturn('/register', returnTo))} className="au-link">
                 Зарегистрироваться
               </button>
             </p>

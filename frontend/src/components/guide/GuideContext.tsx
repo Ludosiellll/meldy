@@ -4,6 +4,7 @@ import { markOnboardingTourSeen } from '../../api/social';
 import { useAuth } from '../../hooks/useAuth';
 import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapter, type GuideChapterId } from './chapters';
 import { GUIDE_SEEN_KEY, guideClipPart, guideSeenHere, isNewAccount } from './clipPart';
+import { guideDeferred } from './guideLater';
 
 export { GUIDE_SEEN_KEY };
 /** The profile's `onboarding_status` key. */
@@ -158,6 +159,8 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
     }
     if (shellHidden) return;
     autoTried.current = true;
+    // Came in by a group link (guideLater.ts): the copy of the exam first, the first run on a later visit.
+    if (guideDeferred()) return;
     showFirstRun();
   }, [seenInProfile, shellHidden, showFirstRun]);
 

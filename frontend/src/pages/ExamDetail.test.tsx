@@ -1733,3 +1733,36 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(screen.queryByRole('heading', { name: named('Есть в ваших лекциях') })).toBeNull();
   });
 });
+
+describe('ExamDetail: «Пригласить группу»', () => {
+  it('stands with the exam’s links and opens the invitation of this exam, asking nothing before the click', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/exam-shares?exam_id=exam-1') {
+        return new Response(
+          JSON.stringify({
+            exam_id: 'exam-1',
+            ready: false,
+            copy: false,
+            reason: { code: 'not_ready', reason: 'needs_sheet', questions: 2, detail: 'Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.' },
+            consent: 'Делюсь с группой вопросами, текстом моих лекций и пунктами ответа. Мои ответы и прогресс никто не увидит.',
+            max_members: 80,
+            shares: [],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderDetail();
+    await opened();
+    const invite = screen.getByRole('button', { name: 'Пригласить группу' });
+    expect(invite.closest('.ex-links')).not.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/exam-shares?exam_id=exam-1', undefined);
+    fireEvent.click(invite);
+    const dialog = await screen.findByRole('dialog', { name: 'Пригласить группу' });
+    expect(await within(dialog).findByText('Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/exam-shares?exam_id=exam-1', undefined);
+  });
+});
