@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import type { ExamQuestion } from '../../api/exams';
 import type { LearningEvent } from '../../api/learning';
-import WhyPanel, { attemptLabel, nearestSentence, readinessLine, type WhyPanelProps } from './WhyPanel';
+import WhyPanel, { attemptLabel, nearestSentence, readinessLine, unverifiedLead, type WhyPanelProps } from './WhyPanel';
 import { questionState } from '../../lib/learning/readiness';
 import type { SheetCoverage } from './marks';
 
@@ -162,6 +162,38 @@ describe('WhyPanel: a question that is in the lectures', () => {
     expect(screen.getByRole('heading', { name: named('Проверено только по словам') })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Проверить снова' }));
     expect(onRecheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('says why a question was checked only by words, in the server\'s own words', () => {
+    // The reasons exams_map.py stores for a question the model did not judge.
+    const cases: Array<[string | null, string]> = [
+      ['Проверено только по словам: сервис ИИ был занят', 'Сервис ИИ был занят, поэтому вопрос сопоставлен с лекциями только по совпадению слов.'],
+      ['Проверено только по словам: сервис ИИ не ответил вовремя', 'Сервис ИИ не ответил вовремя, поэтому вопрос сопоставлен с лекциями только по совпадению слов.'],
+      [
+        'Проверено только по словам: модель не вернула ответ по этому вопросу',
+        'Модель не вернула ответ по этому вопросу, поэтому вопрос сопоставлен с лекциями только по совпадению слов.',
+      ],
+      [
+        'Проверено только по словам: модель не подтвердила ответ цитатой из лекции',
+        'Модель не подтвердила ответ цитатой из лекции, поэтому вопрос сопоставлен с лекциями только по совпадению слов.',
+      ],
+      [null, 'Модель этот вопрос не проверила: он сопоставлен с лекциями только по совпадению слов.'],
+      ['что-то старое', 'Модель этот вопрос не проверила: он сопоставлен с лекциями только по совпадению слов.'],
+    ];
+    for (const [reason, lead] of cases) expect(unverifiedLead(reason)).toBe(lead);
+    renderPanel(
+      {
+        question: question({
+          coverage: 'unverified',
+          coverage_method: 'lexical',
+          coverage_reason: 'Проверено только по словам: модель не подтвердила ответ цитатой из лекции',
+        }),
+        onRecheck: vi.fn(),
+      },
+      'unverified',
+    );
+    expect(screen.getByText(/^Модель не подтвердила ответ цитатой из лекции, поэтому/)).toBeInTheDocument();
+    expect(screen.queryByText(/был занят/)).toBeNull();
   });
 
   it('keeps the lecture heading of a fragment on its own line', () => {

@@ -21,6 +21,9 @@ import type { FrameBox } from './useFrame';
 
 const REASON_NO_OVERLAP = 'Ни одного фрагмента с этими словами';
 const REASON_NO_SUPPORT = 'Нет подтверждающего фрагмента';
+// A question the model did not judge: the server says why after this prefix (exams_map.py, REASON_NO_ANSWER,
+// REASON_NO_QUOTE and the reasons of a failed batch: «сервис ИИ был занят», «…не ответил вовремя»).
+const UNVERIFIED_PREFIX = 'Проверено только по словам:';
 const EXCERPT_LIMIT = 600;
 
 export interface WhyPanelProps {
@@ -55,6 +58,17 @@ interface Verdict {
   lead: string[];
 }
 
+/**
+ * Why a question was matched only by words, in the server's own words: «Сервис ИИ был занят, поэтому …»,
+ * «Модель не подтвердила ответ цитатой из лекции, поэтому …». An older or unknown reason gets the plain line.
+ */
+export function unverifiedLead(reason: string | null | undefined): string {
+  const cause = typeof reason === 'string' && reason.startsWith(UNVERIFIED_PREFIX) ? reason.slice(UNVERIFIED_PREFIX.length).trim() : '';
+  if (!cause) return 'Модель этот вопрос не проверила: он сопоставлен с лекциями только по совпадению слов.';
+  const sentence = `${cause.charAt(0).toUpperCase()}${cause.slice(1)}`.replace(/[.\s]+$/, '');
+  return `${sentence}, поэтому вопрос сопоставлен с лекциями только по совпадению слов.`;
+}
+
 function verdictOf(question: ExamQuestion, coverage: SheetCoverage, lectureCount: number): Verdict {
   // «В лекции» for the only one: «ни в одной из 1 лекции» is not Russian.
   const lectures =
@@ -65,10 +79,7 @@ function verdictOf(question: ExamQuestion, coverage: SheetCoverage, lectureCount
     case 'unmapped':
       return { title: 'Вопрос ещё не сверен с лекциями', lead: ['Пометка появится после сверки с лекциями.'] };
     case 'unverified':
-      return {
-        title: 'Проверено только по словам',
-        lead: ['Сервис проверки был занят, вопрос сопоставлен с лекциями по совпадению слов.'],
-      };
+      return { title: 'Проверено только по словам', lead: [unverifiedLead(question.coverage_reason)] };
     case 'full':
       if (question.coverage_method === 'manual') {
         return { title: 'Отмечено вами', lead: ['Meldy этого не проверял: вы отметили, что ответ есть в лекции.'] };
