@@ -3,17 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Meldy — помощник для учёбы</title>
-    <meta name="description" content="Конспекты, карточки и тесты из ваших учебных материалов.">
+    <title>Meldy — тренажёр устного экзамена по билетам кафедры</title>
+    <meta name="description" content="ИИ не отвечает за студента — он его спрашивает: билет вслух, с переспросом, по вашим лекциям. Строки шпаргалки стирают только ответы в разные дни.">
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f0" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0f16" />
     <script src="/theme-init.js"></script>
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Meldy — помощник для учёбы" />
-    <meta property="og:description" content="Конспекты, карточки и тесты из ваших учебных материалов." />
+    <meta property="og:site_name" content="Meldy" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="https://ludosiel-studyforge.hf.space/" />
+    <meta property="og:title" content="Meldy — тренажёр устного экзамена по билетам кафедры" />
+    <meta property="og:description" content="ИИ не отвечает за студента — он его спрашивает: билет вслух, с переспросом, по вашим лекциям. Строки шпаргалки стирают только ответы в разные дни." />
+    <meta property="og:image" content="https://ludosiel-studyforge.hf.space/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Тренажёр устного экзамена по билетам кафедры. Рядом — шпаргалка в клетку: часть строк уже стёрта ответами." />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/pwa-192x192.svg" type="image/svg+xml" />
+    <link rel="icon" href="/pwa-192x192.png" sizes="192x192" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <meta name="apple-mobile-web-app-title" content="Meldy" />
   </head>
   <body class="bg-slate-50">
+    <noscript>
+      <p style="max-width: 36em; margin: 48px auto; padding: 0 16px; font: 18px/1.5 system-ui, sans-serif; color: #0b121c;">
+        Meldy — тренажёр устного экзамена по билетам кафедры. Чтобы открыть его, включите JavaScript в браузере.
+      </p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

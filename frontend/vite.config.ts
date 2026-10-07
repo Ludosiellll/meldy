@@ -32,15 +32,35 @@ export default defineConfig({
         enabled: true, // Enable for testing in dev
         type: 'module',
       },
+      // start_url and scope stay the plugin's defaults («/»), as in every release so far: an installed
+      // app keeps its identity. The PNG icons are rendered from pwa-512x512.svg by scripts/og/render.mjs
+      // and come first, so a platform that picks by size takes them; the SVGs stay (the service worker
+      // shows /pwa-192x192.svg on notifications, and manifest icons are precached).
       manifest: {
-        name: 'Meldy — помощник для учёбы',
+        name: 'Meldy — тренажёр устного экзамена',
         short_name: 'Meldy',
-        description: 'Конспекты, карточки и тесты из ваших учебных материалов.',
+        description: 'Тренажёр устного экзамена по билетам кафедры. ИИ не отвечает за студента — он его спрашивает.',
         lang: 'ru',
         theme_color: '#f3f3f0',
         background_color: '#f3f3f0',
         display: 'standalone',
         icons: [
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
           {
             src: 'pwa-192x192.svg',
             sizes: '192x192',
