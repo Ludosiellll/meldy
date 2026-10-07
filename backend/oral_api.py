@@ -18,9 +18,12 @@ oral.rubric_key (тот же у шпаргалки, oral_sheet.py). Запись
 вставка с пропуском дубликата и перечитыванием сохранённой строки; force перезаписывает
 сохранённую строку.
 
-POST /api/oral/check (40/мин). Быстрая проверка (fast, 200 токенов, бюджет
-ORAL_CHECK_TIMEOUT_SECONDS = 2,5 с → 504). Статусы вне перечня и пропущенные пункты —
-missing; переспрос (ask) выбирает сервер по правилу §7.5, а не модель.
+POST /api/oral/check (40/мин). Быстрая проверка (200 токенов, без размышлений, бюджет
+ORAL_CHECK_TIMEOUT_SECONDS = 4,5 с → 504; браузер ждёт 5,5 с). Модели Gemini — в порядке
+основного списка (GEMINI_MODELS: 3.5 Flash-Lite, запасная 3.1), а не быстрого: 07.10 на живом
+сайте 3.1 Flash-Lite не уложилась в 2,5 с в 12 проверках из 14, а 3.5 отвечала протоколом за
+1,2–2,1 с. Запасной Groq — быстрая модель (GROQ_FAST_MODEL). Статусы вне перечня и пропущенные
+пункты — missing; переспрос (ask) выбирает сервер по правилу §7.5, а не модель.
 
 POST /api/oral/evaluate (10/мин). Протокол (температура 0,2, 1500 токенов, thinking low,
 15 с): каждый пункт ровно один раз, отрывки ответа — текст самой расшифровки. Ответ,
@@ -46,6 +49,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 import oral
 import quota
+from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
 from plans import AI_COSTS
 from ratelimit import limiter, user_or_ip_key
@@ -56,7 +60,7 @@ router = APIRouter()
 RUBRIC_TIMEOUT_SECONDS = 30.0
 RUBRIC_MAX_TOKENS = 1800
 CHECK_MAX_TOKENS = 200
-DEFAULT_CHECK_TIMEOUT_SECONDS = 2.5
+DEFAULT_CHECK_TIMEOUT_SECONDS = 4.5  # только asyncio: deadline запроса к Gemini не меньше 10 с (base.py)
 EVALUATE_TIMEOUT_SECONDS = 15.0
 EVALUATE_MAX_TOKENS = 1500
 EVALUATE_RETRY_MAX_TOKENS = 2500
@@ -99,7 +103,7 @@ _RUBRIC_COLUMNS = "id,rubric,model,created_at"
 
 
 def check_timeout_seconds() -> float:
-    """ORAL_CHECK_TIMEOUT_SECONDS (по умолчанию 2,5 с), читается при каждом вызове."""
+    """ORAL_CHECK_TIMEOUT_SECONDS (по умолчанию 4,5 с), читается при каждом вызове."""
     raw = os.getenv("ORAL_CHECK_TIMEOUT_SECONDS", "").strip()
     try:
         value = float(raw) if raw else DEFAULT_CHECK_TIMEOUT_SECONDS
@@ -184,9 +188,14 @@ def _points_field(raw: Any, *, with_quote: bool) -> list[dict]:
 # ── Вызов модели ────────────────────────────────────────────────────────────────
 
 
-async def _run_model(system_prompt: str, user_text: str, *, budget: float, **options: Any) -> str:
-    """Текст модели или AIError (429/502/503/504). budget — и бюджет BaseAgent, и жёсткий потолок."""
-    agent = BaseAgent(api_key=os.getenv("GROQ_API_KEY", ""))
+async def _run_model(
+    system_prompt: str, user_text: str, *, budget: float, groq_model: str | None = None, **options: Any
+) -> str:
+    """Текст модели или AIError (429/502/503/504). budget — и бюджет BaseAgent, и жёсткий потолок.
+
+    groq_model — модель запасного Groq вместо GROQ_MODEL (для обычного, не fast, вызова).
+    """
+    agent = BaseAgent(api_key=os.getenv("GROQ_API_KEY", ""), model=groq_model)
     try:
         return await asyncio.wait_for(
             agent.run(system_prompt, user_text, timeout=budget, **options), timeout=budget + GUARD_SECONDS
@@ -246,7 +255,10 @@ async def oral_check(request: Request):
             oral.build_check_prompt(only),
             oral.build_check_input(question, points, transcript, only=only, followup_question=followup_question),
             budget=check_timeout_seconds(),
-            fast=True,
+            # Быстрый вызов, но Gemini по основному списку (3.5 Flash-Lite первой): см. описание модуля.
+            # Остальные быстрые вызовы (fast=True) по-прежнему начинают с 3.1 Flash-Lite.
+            thinking="off",
+            groq_model=ai_base.groq_fast_model(),
             temperature=0,
             max_tokens=CHECK_MAX_TOKENS,
             json_mode=True,

@@ -6,7 +6,7 @@
  * then the same three for the other points; all covered → no follow-up. One follow-up per question.
  *
  * At «Готово» the browser picks a candidate at once — the first essential point with an explicit
- * miss in the snapshot — and the quick model check (/api/oral/check, 1.5 s) confirms or changes it.
+ * miss in the snapshot — and the quick model check (/api/oral/check, up to 5.5 s) confirms or changes it.
  */
 import { explicitMiss, words, type Anchors } from './rubricMatch';
 

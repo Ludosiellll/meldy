@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { createFakeSupabase } from '../lib/oral/testing/fakeSupabase';
 import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../lib/oral/testing/fixtures';
+import { CHECK_AFTER_FAILED_CHECK_MS, CHECK_CONFIRM_TIMEOUT_MS, CHECK_FOLLOWUP_TIMEOUT_MS } from '../lib/oral/oralApi';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
 import { CHOSE_SERVER_NOTICE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE } from './ExamTicket';
 
@@ -716,7 +717,7 @@ describe('ExamTicket: answering by text', () => {
     expect(await screen.findByText(`«${Q2_FOLLOWUP}»`)).toBeInTheDocument();
   });
 
-  it('keeps the browser’s candidate when the check does not answer in 1.5 s (chosen_by client)', async () => {
+  it('keeps the browser’s candidate when the check does not answer in 5.5 s (chosen_by client)', async () => {
     const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
     seedDatabase({ rpc });
     api['/api/oral/check'].mockImplementation(async (_body, init) => hang(init));
@@ -729,8 +730,13 @@ describe('ExamTicket: answering by text', () => {
     await waitFor(() => expect(callsTo('/api/oral/evaluate')).toHaveLength(1));
     expect(screen.getByText('Экзаменатор слушает ответ…')).toBeInTheDocument();
     expect(screen.queryByText(`«${Q4}»`)).toBeNull();
+    // The old 1.5 s are not the end of the wait any more: the server gives the model 4.5 s.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1600);
+    });
+    expect(screen.queryByText(`«${Q4}»`)).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHECK_CONFIRM_TIMEOUT_MS - 1600 + 100);
     });
     expect(await screen.findByText(`«${Q4}»`)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
@@ -764,7 +770,7 @@ describe('ExamTicket: answering by text', () => {
     expect(container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toMatch(new RegExp(`, ${verdict}$`));
   });
 
-  it('labels the follow-up as judged by key words when its check runs past 2.5 s', async () => {
+  it('labels the follow-up as judged by key words when its check runs past 5.5 s', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
     api['/api/oral/check'].mockImplementation(async (body, init) => (body.only ? hang(init) : json(200, { statuses: { p4: 'missing' }, ask: 'p4' })));
     const { container } = await renderPage(ticketUrl());
@@ -775,11 +781,43 @@ describe('ExamTicket: answering by text', () => {
     const field = await screen.findByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
     fireEvent.change(field, { target: { value: 'Будут колебания, и сеть может не сойтись' } });
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    // The check at «Готово» answered in time, so this one gets the whole wait, not 2.5 s.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2600);
+      await vi.advanceTimersByTimeAsync(CHECK_AFTER_FAILED_CHECK_MS + 100);
+    });
+    expect(screen.queryByText(/Сохранено в историю и/)).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHECK_FOLLOWUP_TIMEOUT_MS - CHECK_AFTER_FAILED_CHECK_MS);
     });
     await screen.findByText(/Сохранено в историю и/);
     expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам засчитан частично.');
+  });
+
+  it('waits only once in full: after the check at «Готово» ran out of time, the follow-up’s check waits 2.5 s', async () => {
+    const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+    seedDatabase({ rpc });
+    api['/api/oral/check'].mockImplementation(async (_body, init) => hang(init));
+    const { container } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(DEMO_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHECK_CONFIRM_TIMEOUT_MS + 100);
+    });
+    const field = await screen.findByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    fireEvent.change(field, { target: { value: 'Будут колебания, и сеть может не сойтись' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await waitFor(() => expect(callsTo('/api/oral/check')).toHaveLength(2));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHECK_AFTER_FAILED_CHECK_MS + 100);
+    });
+    await screen.findByText(/Сохранено в историю и/);
+    const followupCheck = callsTo('/api/oral/check').find((call) => bodyOf(call).only === 'p4');
+    expect((followupCheck?.[1] as RequestInit).signal?.aborted).toBe(true);
+    expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам засчитан частично.');
+    const [, args] = rpc.mock.calls[0] as unknown as [string, { p_attempt: { followup: { chosen_by: string; status: string } } }];
+    expect(args.p_attempt.followup).toMatchObject({ chosen_by: 'client', status: 'partial' });
   });
 
   it('keeps an answer whose evaluation failed: no grade, no save, no charge, and the previous protocol', async () => {
@@ -1777,7 +1815,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       // An echo of the question: the browser's rule says «missing», but it cannot tell a paraphrase from a miss.
       await answerFollowup('Если взять слишком большую скорость обучения');
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2600);
+        await vi.advanceTimersByTimeAsync(CHECK_FOLLOWUP_TIMEOUT_MS + 100);
       });
       await screen.findByText(/Сохранено в историю и/);
       expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
