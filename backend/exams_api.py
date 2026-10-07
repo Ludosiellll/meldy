@@ -1,11 +1,13 @@
-"""«Билеты» API: разбор списка вопросов, импорт лекции «только текст» и разметка по лекциям.
+"""«Билеты» API: разбор списка вопросов, импорт лекции «только текст», подсказка «какие лекции
+подходят к вопросам» и разметка по лекциям.
 
 Пути объявлены полностью (/api/exams/..., /api/extract); main.py подключает router без
 префикса. Сессию проверяет общий middleware (без неё — 401), лимиты считаются по
 пользователю (user_or_ip_key). Ошибки — {"detail": "<по-русски>"} без текста
 провайдеров и исключений. Разбор и извлечение текста бесплатны (единиц лимита не тратят)
 и обходятся без ИИ, кроме скана: PDF без текстового слоя распознаёт Gemini (ocr.py, свой
-лимит на пользователя и предел страниц), а ответ получает ocr: true и pages. Модель
+лимит на пользователя и предел страниц), а ответ получает ocr: true и pages. Подсказка
+(/lecture-fit, lecture_fit.py) — совпадение слов, без ИИ, без единиц и без записи. Модель
 вызывает ещё разметка (/map); начатая разметка останавливает запись шпаргалки этого экзамена
 (oral_sheet.stop_for_mapping, как «Остановить»).
 """
@@ -29,6 +31,8 @@ import ocr
 import oral_sheet  # oral_sheet не импортирует exams_api: круга нет
 from exams_map import MAX_QUESTION_IDS, MapError, prepare_mapping, release_unstarted, run_mapping
 from exams_parse import ParseError, parse_question_list
+from lecture_fit import MAX_MATERIAL_IDS, QUESTION_CHARS, FitError, lecture_fit
+from lecture_fit import MAX_QUESTIONS as FIT_MAX_QUESTIONS
 from ocr import OcrError
 from parser import PPT_LEGACY_DETAIL, PPTX_NO_TEXT_DETAIL, extract_text
 from ratelimit import limiter, user_or_ip_key
@@ -329,6 +333,52 @@ async def extract_lecture_text(request: Request):
     if scanned is not None:
         body.update(ocr=True, pages=scanned)
     return body
+
+
+# ── POST /api/exams/lecture-fit ─────────────────────────────────────────────────
+
+FIT_BODY_LIMIT = 512 * 1024  # 300 вопросов по 600 знаков кириллицей (~360 КБ) и 500 id лекций — с запасом
+FIT_TOO_LARGE_DETAIL = "Список слишком длинный для подсказки о лекциях."
+
+
+def _fit_options(raw: bytes) -> tuple[list[str], list[str] | None]:
+    """Тело {questions: [строки], material_ids?: [uuid]} → (вопросы до 600 знаков, id лекций или None)."""
+    if len(raw) > FIT_BODY_LIMIT:
+        raise HTTPException(status_code=413, detail=FIT_TOO_LARGE_DETAIL)
+    try:
+        body = json.loads(raw) if raw and raw.strip() else None
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(status_code=400, detail=BAD_BODY_DETAIL) from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail=BAD_BODY_DETAIL)
+    questions = body.get("questions")
+    if not isinstance(questions, list) or not questions or len(questions) > FIT_MAX_QUESTIONS:
+        raise HTTPException(status_code=400, detail=BAD_BODY_DETAIL)
+    if any(not isinstance(text, str) for text in questions):
+        raise HTTPException(status_code=400, detail=BAD_BODY_DETAIL)
+    texts = [" ".join(text.split())[:QUESTION_CHARS] for text in questions]
+    ids = body.get("material_ids")
+    if ids is not None:
+        if not isinstance(ids, list) or len(ids) > MAX_MATERIAL_IDS:
+            raise HTTPException(status_code=400, detail=BAD_BODY_DETAIL)
+        ids = [value for value in ids if isinstance(value, str) and _UUID_RE.match(value)]
+    return texts, ids
+
+
+@router.post("/api/exams/lecture-fit")
+@limiter.limit("20/minute", key_func=user_or_ip_key)
+async def fit_lectures(request: Request):
+    """Какие свои лекции подходят к вопросам списка — по совпадению слов (lecture_fit.py). Без ИИ, без единиц, в базу не пишет."""
+    questions, material_ids = _fit_options(await request.body())
+    user = getattr(request.state, "user", None)
+    user_id = user.get("id") if isinstance(user, dict) else None
+    if not isinstance(user_id, str) or not user_id:
+        raise HTTPException(status_code=401, detail="Требуется войти в аккаунт")
+    async with SupabaseRest(bearer_token(request)) as db:
+        try:
+            return await lecture_fit(db, user_id, questions, material_ids)
+        except FitError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail) from None
 
 
 # ── POST /api/exams/{exam_id}/map ───────────────────────────────────────────────

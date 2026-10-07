@@ -284,6 +284,31 @@ def test_a_plan_does_not_take_a_lecture_place_and_a_lecture_gives_one_plan_at_mo
     assert pairs(plain.search(Q_INTEGRITY, plans_per_material=1)) == pairs(plain.search(Q_INTEGRITY))
 
 
+def test_top_per_material_is_the_best_non_plan_documents_of_each_lecture():
+    index = BM25Index(INTEGRITY_LECTURE)
+    query = terms(Q_INTEGRITY, exam_stopwords=True)
+    top = index.top_per_material(query + query, per_material=3)  # повторы основ не считаются
+    assert sorted(top) == ["nf", "rel"]
+    every = [hit for hit in index.search(Q_INTEGRITY, top_k=20, per_material_cap=0) if not is_plan_text(hit.passage.text)]
+    for material_id, items in top.items():
+        expected = [hit for hit in every if hit.passage.material_id == material_id][:3]
+        assert [item.passage for item in items] == [hit.passage for hit in expected]
+        for item, hit in zip(items, expected):
+            assert item.score == pytest.approx(hit.score) and item.idf_share == pytest.approx(hit.idf_share)
+            assert list(item.matched_stems) == hit.matched_stems and item.material_id == material_id
+    # План (S01) и вопросы для самоконтроля (S05) не участвуют; три раздела лекции — по убыванию оценки.
+    assert [item.passage.source_id for item in top["rel"]] == ["S02", "S03", "S04"]
+    assert [item.passage.source_id for item in index.top_per_material(query)["rel"]] == ["S02"]
+    # Совпадений нет — материала нет.
+    assert index.top_per_material([stem("гиперинфляция")]) == {}
+    assert index.top_per_material([]) == {} and BM25Index([]).top_per_material(query) == {}
+    assert index.top_per_material(query, per_material=0) == {}
+    # Лекция, где слова вопроса есть только в плане, не попадает в ответ вовсе; без skip_plans план — обычный документ.
+    plan_only = BM25Index([INTEGRITY_LECTURE[0], INTEGRITY_LECTURE[4]])
+    assert plan_only.top_per_material(query) == {}
+    assert plan_only.top_per_material(query, skip_plans=False)["rel"][0].passage.source_id == "S01"
+
+
 def test_two_plans_of_one_lecture_never_take_two_places():
     index = BM25Index(INTEGRITY_LECTURE)
     hits = index.search(Q_INTEGRITY, top_k=10, per_material_cap=0, plans_per_material=1)

@@ -1645,6 +1645,33 @@
 .sf-page .nx-pick-head input[type='checkbox'] { margin-top: 0; }
 .sf-page .nx-pick-subject { font-size: 16px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
 .sf-page .nx-pick-count { font-size: 15px; line-height: 22px; color: var(--sf-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* «Какие лекции подходят к вопросам» (lectureFit.ts): Meldy's pencil notes on the list — on a lecture,
+   on a subject, the action next to «Выбрать все», and the questions no lecture fits under the list. */
+.sf-page .nx-pick-fit { color: var(--ph-pencil-desk); font-weight: 500; }
+.sf-page .nx-pick-groupfit { display: block; font-size: 15px; line-height: 20px; font-weight: 500; color: var(--ph-pencil-desk); }
+.sf-page .nx-pickbox > .nx-pick-fitnote { margin-top: 4px; }
+.sf-page .nx-pick-fitnote > p + p { margin-top: 2px; }
+.sf-page .nx-pick-fitsum { font-size: 16px; line-height: 22px; }
+.sf-page .nx-pick-bulk .nx-pick-fitpick { color: var(--ph-pencil-desk); }
+/* A line of items with dots between them that wraps cleanly: each item carries the dot before it, the row is
+   shifted left by one dot and clipped there, so the dot of the first item on every line is cut off (the focus
+   ring keeps 5 px). */
+.sf-page .nx-pick-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-left: -18px;
+  clip-path: inset(-12px -12px -12px 13px);
+}
+.sf-page .nx-pick-dot { display: inline-flex; align-items: baseline; min-width: 0; }
+.sf-page .nx-pick-sep { flex: none; width: 18px; text-align: center; color: var(--sf-muted); }
+.sf-page .nx-pick-meta.nx-pick-dots { display: flex; }
+.sf-page .nx-pick-retry { min-height: 0; font-size: 15px; vertical-align: baseline; }
+.sf-page .nx-pick-unmatched { margin-top: 10px; font-size: 15px; line-height: 22px; text-wrap: pretty; overflow-wrap: anywhere; }
+.sf-page .nx-pick-unmatched .ex-meta { font-size: 15px; }
+@media (pointer: coarse) {
+  .sf-page .nx-pick-retry { min-height: 44px; margin: -11px 0; }
+}
 /* Opened at #lectures (from the sheet): the block stops below the top bar, its label in sight. */
 .sf-page .nx-pickbox { scroll-margin-top: 150px; }
 .sf-page .nx-pickbox > .nx-pick-hint { margin-top: 2px; }

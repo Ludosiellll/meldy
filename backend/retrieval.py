@@ -14,6 +14,9 @@ build_source_chunks(text, max_chunks=None); первые 80 id и тексты �
 объясняют их, а слов вопроса в них больше всего. Такой фрагмент не склеивается со
 следующим как заголовок, а поиск с plans_per_material не отдаёт ему места лекции
 из per_material_cap (разметка билетов, exams_map.py).
+
+top_per_material — лучшие документы каждой лекции для готовых основ вопроса (подсказка
+«какие лекции подходят к вопросам», lecture_fit.py); план там не участвует совсем.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ __all__ = [
     "BM25Index",
     "EXAM_STOPWORDS",
     "Hit",
+    "MaterialHit",
     "Passage",
     "STOPWORDS",
     "is_plan_text",
@@ -357,6 +361,22 @@ class Hit:
     plan: bool = False
 
 
+@dataclass(frozen=True)
+class MaterialHit:
+    """Документ одного материала, найденный по готовым основам запроса (BM25Index.top_per_material).
+
+    Как в Hit, score, matched_stems и idf_share считаются по документу индекса — фрагменту вместе со
+    склеенным с ним заголовком; passage — сам фрагмент-содержание. matched_stems — основы запроса,
+    найденные в документе, в порядке запроса; idf_share — их доля в Σidf всех основ запроса.
+    """
+
+    material_id: str
+    score: float
+    passage: Passage
+    matched_stems: tuple[str, ...]
+    idf_share: float
+
+
 @dataclass
 class _Doc:
     target: int  # индекс фрагмента-содержания в списке passages
@@ -519,6 +539,71 @@ class BM25Index:
 
     # ── Поиск ────────────────────────────────────────────────────────────────
 
+    def _scores(self, query_terms: list[str]) -> dict[int, float]:
+        """BM25 каждого документа, где есть хотя бы одна основа запроса."""
+        k1, b, avgdl = self.k1, self.b, self._avgdl or 1.0
+        scores: dict[int, float] = {}
+        for term in query_terms:
+            per_doc = self._resolve(term)[0]
+            if not per_doc:
+                continue
+            idf = self._idf(term)
+            for doc_index, tf in per_doc.items():
+                length = self._docs[doc_index].length
+                denominator = tf + k1 * (1.0 - b + b * length / avgdl)
+                scores[doc_index] = scores.get(doc_index, 0.0) + idf * tf * (k1 + 1.0) / denominator
+        return scores
+
+    def _rank_key(self, doc_index: int, scores: dict[int, float]) -> tuple[float, int, int]:
+        """Порядок находок: по убыванию оценки, при равенстве — по номеру фрагмента, затем по месту в индексе."""
+        return (-scores[doc_index], self.passages[self._docs[doc_index].target].order, self._docs[doc_index].target)
+
+    def top_per_material(
+        self, query_terms: Iterable[str], *, per_material: int = 1, skip_plans: bool = True
+    ) -> dict[str, list[MaterialHit]]:
+        """Лучшие по BM25 документы каждого материала для готовых основ запроса: до per_material штук,
+        по убыванию оценки (при равенстве — как в search).
+
+        Основы даёт вызывающий (terms(...) со своими служебными словами); повторы не считаются.
+        skip_plans — документ-план (is_plan_text: план, оглавление, вопросы для самоконтроля) не
+        участвует вовсе: он называет все темы лекции, но ни одной не объясняет. Материалы без
+        единого совпадения в ответ не попадают.
+        """
+        unique = _unique(query_terms)
+        if not unique or not self._docs or per_material <= 0:
+            return {}
+        scores = self._scores(unique)
+        # По материалам, затем лучшие в каждом: короткие списки сортируются быстрее одного общего.
+        by_material: dict[str, list[int]] = {}
+        for doc_index, score in scores.items():
+            if score > 0:
+                by_material.setdefault(self.passages[self._docs[doc_index].target].material_id, []).append(doc_index)
+        postings = {term: self._resolve(term)[0] for term in unique}
+        idf = {term: self._idf(term) for term in unique}
+        total = sum(idf.values())
+        result: dict[str, list[MaterialHit]] = {}
+        for material_id, docs in by_material.items():
+            items: list[MaterialHit] = []
+            for doc_index in sorted(docs, key=lambda d: self._rank_key(d, scores)):
+                if skip_plans and self._is_plan(doc_index):
+                    continue
+                matched = tuple(term for term in unique if doc_index in postings[term])
+                items.append(
+                    MaterialHit(
+                        material_id=material_id,
+                        score=scores[doc_index],
+                        passage=self.passages[self._docs[doc_index].target],
+                        matched_stems=matched,
+                        idf_share=sum(idf[term] for term in matched) / total if total > 0 else 0.0,
+                    )
+                )
+                if len(items) >= per_material:
+                    break
+            if items:
+                result[material_id] = items
+        # Порядок материалов — по их лучшему документу, как в search.
+        return dict(sorted(result.items(), key=lambda item: (-item[1][0].score, item[1][0].passage.order, item[0])))
+
     def search(
         self,
         query: str,
@@ -543,25 +628,10 @@ class BM25Index:
         if not query_terms:
             return []
 
-        k1, b, avgdl = self.k1, self.b, self._avgdl or 1.0
-        scores: dict[int, float] = {}
-        for term in query_terms:
-            per_doc = self._resolve(term)[0]
-            if not per_doc:
-                continue
-            idf = self._idf(term)
-            for doc_index, tf in per_doc.items():
-                length = self._docs[doc_index].length
-                denominator = tf + k1 * (1.0 - b + b * length / avgdl)
-                scores[doc_index] = scores.get(doc_index, 0.0) + idf * tf * (k1 + 1.0) / denominator
-
+        scores = self._scores(query_terms)
         ranked = sorted(
             (doc_index for doc_index, score in scores.items() if score > 0),
-            key=lambda doc_index: (
-                -scores[doc_index],
-                self.passages[self._docs[doc_index].target].order,
-                self._docs[doc_index].target,
-            ),
+            key=lambda doc_index: self._rank_key(doc_index, scores),
         )
 
         hits: list[Hit] = []

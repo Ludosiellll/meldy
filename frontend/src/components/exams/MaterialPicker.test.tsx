@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import type { PickerMaterial } from '../../api/exams';
-import MaterialPicker, { groupBySubject, matchesQuery, type ImportStatus } from './MaterialPicker';
+import MaterialPicker, { groupBySubject, matchesQuery, type ImportStatus, type PickerFit } from './MaterialPicker';
+import type { FitView } from './lectureFit';
 
 function material(id: string, title: string, subject: string, overrides: Partial<PickerMaterial> = {}): PickerMaterial {
   return { id, title, subject, created_at: '2026-10-01T10:00:00Z', textLength: 4000, fragments: 12, textOnly: false, ...overrides };
@@ -27,7 +28,7 @@ const LONG = [
   material('t1', 'Лекция без предмета', '', { textOnly: true }),
 ];
 
-function Harness(props: { materials: PickerMaterial[]; initial?: string[]; hint?: string; onSetMany?: (ids: string[], on: boolean) => void }) {
+function Harness(props: { materials: PickerMaterial[]; initial?: string[]; hint?: string; fit?: PickerFit | null; onSetMany?: (ids: string[], on: boolean) => void }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(props.initial ?? []));
   return (
     <div className="sf-page">
@@ -54,6 +55,7 @@ function Harness(props: { materials: PickerMaterial[]; initial?: string[]; hint?
           });
         }}
         hint={props.hint}
+        fit={props.fit}
         onImport={() => {}}
         imports={[]}
         loading={false}
@@ -233,5 +235,117 @@ describe('MaterialPicker: «Добавить лекции»', () => {
     ]);
     expect(screen.getByText('«scan.pdf» добавлена. Текст распознан со скана — сверьте формулы и числа с оригиналом.')).toBeInTheDocument();
     expect(screen.getByText('«lecture.docx» добавлена.')).toBeInTheDocument();
+  });
+});
+
+describe('MaterialPicker: which lectures fit the questions', () => {
+  function view(counts: Record<string, number>, unmatched: string[] = [], total = 18, notChecked = 0): FitView {
+    const entries = Object.entries(counts);
+    return {
+      counts: new Map(entries),
+      fitting: entries.map(([id]) => id),
+      unmatched,
+      total,
+      strong: entries.some(([, count]) => count >= 2),
+      notChecked,
+    };
+  }
+
+  function fit(overrides: Partial<PickerFit> = {}): PickerFit {
+    return { status: 'ready', view: view({ p1: 3, p2: 1, e2: 2 }, ['9', '12', '17']), ticked: false, picked: false, onPick: vi.fn(), onRetry: vi.fn(), ...overrides };
+  }
+
+  const plainText = (element: Element | null | undefined) => (element?.textContent ?? '').replace(/\u00a0/g, ' ');
+
+  it('writes on each fitting lecture and subject how much fits, and leaves the others as they were', () => {
+    render(<Harness materials={LONG} fit={fit()} />);
+    const neural = screen.getByRole('checkbox', { name: /Основы нейронных сетей/ });
+    // «12 фрагментов · подходит к 1 вопросу»: the dot is drawn, not read out.
+    expect(plainText(neural.closest('label')?.querySelector('.nx-pick-meta'))).toBe('·12 фрагментов·подходит к 1 вопросу');
+    expect(neural.closest('label')?.querySelector('.nx-pick-sep')?.getAttribute('aria-hidden')).toBe('true');
+    expect(plainText(neural.closest('label')?.querySelector('.nx-pick-fit'))).toBe('подходит к 1 вопросу');
+    expect(plainText(screen.getByRole('checkbox', { name: /Тема 4.3/ }).closest('label'))).toContain('подходит к 3 вопросам');
+    expect(plainText(screen.getByRole('checkbox', { name: /Реформы Петра I/ }).closest('label'))).not.toContain('подходит');
+    // The subject says how many of its lectures fit, and its box says it to a screen reader too.
+    expect(screen.getByRole('checkbox', { name: 'Все лекции: Программирование, подходят 2 лекции' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Все лекции: Экономика, подходит 1 лекция' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Все лекции: История' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.nx-pick-groupfit')).toHaveLength(2);
+    // Above the list: how many fit and how it is counted; under it: the questions no lecture fits.
+    expect(plainText(document.querySelector('.nx-pick-fitsum'))).toBe('К вопросам списка подходят 3 лекции.');
+    expect(screen.getByText(/по совпадению слов в вопросах и лекциях, без ИИ/)).toBeInTheDocument();
+    expect(plainText(document.querySelector('.nx-pick-unmatched'))).toBe(
+      'Без подходящей лекции: вопросы 9, 12 и 17. Если лекции по ним есть, добавьте их — иначе сверка отметит, что их нет в лекциях.',
+    );
+  });
+
+  it('«Отметить подходящие (N)» stands first among the bulk actions and is off when it has nothing to do', () => {
+    const onPick = vi.fn();
+    const { rerender } = render(<Harness materials={LONG} fit={fit({ onPick })} />);
+    const action = screen.getByRole('button', { name: 'Отметить подходящие (3)' });
+    expect(Array.from(document.querySelectorAll('.nx-pick-bulk button')).map((button) => button.textContent)).toEqual([
+      'Отметить подходящие (3)',
+      'Выбрать все',
+      'Снять все',
+    ]);
+    fireEvent.click(action);
+    expect(onPick).toHaveBeenCalledTimes(1);
+    rerender(<Harness materials={LONG} fit={fit({ onPick, picked: true })} />);
+    expect(screen.getByRole('button', { name: 'Отметить подходящие (3)' })).toBeDisabled();
+    // No fitting lecture: no action, and one line instead of a list of every question.
+    rerender(<Harness materials={LONG} fit={fit({ view: view({}, ['1', '2'], 2) })} />);
+    expect(screen.queryByRole('button', { name: /Отметить подходящие/ })).toBeNull();
+    expect(plainText(document.querySelector('.nx-pick-fitsum'))).toBe('Ни одна лекция не подходит к вопросам списка.');
+    expect(plainText(document.querySelector('.nx-pick-unmatched'))).toContain('Ни к одному вопросу не нашлось подходящей лекции.');
+  });
+
+  it('does not repeat the summary when the questions ticked the lectures: the hint says it', () => {
+    render(<Harness materials={LONG} hint="Отмечены лекции, которые подходят к вопросам списка." fit={fit({ ticked: true })} />);
+    expect(document.querySelector('.nx-pick-fitsum')).toBeNull();
+    expect(screen.getByText('Отмечены лекции, которые подходят к вопросам списка.')).toBeInTheDocument();
+    // A screen reader still hears how many fit and that they are ticked (the live region, visually hidden).
+    expect(document.querySelector('.nx-pick-fitnote .ex-sr')?.textContent).toBe('К вопросам списка подходят 3 лекции. Они отмечены.');
+    expect(screen.getByText(/по совпадению слов в вопросах и лекциях/)).toBeInTheDocument();
+  });
+
+  it('says quietly that it is loading or failed, keeps an older answer, and never touches the checkboxes', () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(<Harness materials={LONG} initial={['p1']} fit={fit({ status: 'loading', view: null })} />);
+    const live = () => document.querySelector('.nx-pick-fitnote');
+    expect(live()?.getAttribute('aria-live')).toBe('polite');
+    expect(live()).toHaveTextContent('Подбираем лекции к вопросам…');
+    expect(document.querySelector('.nx-pick-fit')).toBeNull();
+    rerender(<Harness materials={LONG} initial={['p1']} fit={fit({ status: 'error', view: null, onRetry })} />);
+    expect(screen.getByText(/Не удалось подобрать лекции к вопросам/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    rerender(<Harness materials={LONG} initial={['p1']} fit={fit({ status: 'error', onRetry })} />);
+    expect(screen.getByText(/Подсказка не обновилась/)).toBeInTheDocument();
+    expect(plainText(screen.getByRole('checkbox', { name: /Тема 4.3/ }).closest('label'))).toContain('подходит к 3 вопросам');
+    rerender(<Harness materials={LONG} initial={['p1']} fit={fit({ status: 'loading' })} />);
+    expect(document.querySelector('.nx-pick-fitnote')?.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('checkbox', { name: /Тема 4.3/ })).toBeChecked();
+  });
+
+  it('puts the fitting lectures first, and their subjects with them', () => {
+    const { rerender } = render(<Harness materials={LONG} fit={fit({ view: view({ h2: 2, t1: 1 }) })} />);
+    const subjects = () => within(screen.getByRole('group', { name: 'Лекции для экзамена' })).getAllByRole('list').map((list) => list.getAttribute('aria-label'));
+    expect(subjects()).toEqual(['История', 'Без предмета', 'Программирование', 'Экономика']);
+    const history = within(screen.getByRole('list', { name: 'История' })).getAllByRole('checkbox').map((box) => box.closest('label')?.querySelector('.nx-pick-title')?.textContent);
+    expect(history).toEqual(['Смутное время', 'Реформы Петра I', 'Скан учебника']);
+    // Without an answer the list keeps its own order.
+    rerender(<Harness materials={LONG} fit={fit({ status: 'loading', view: null })} />);
+    expect(subjects()).toEqual(['Программирование', 'Экономика', 'История', 'Без предмета']);
+    // A short list without subjects: the fitting lecture goes up too.
+    cleanup();
+    render(<Harness materials={SHORT} fit={fit({ view: view({ m2: 1 }) })} />);
+    const rows = within(screen.getByRole('list', { name: 'Лекции для экзамена' })).getAllByRole('checkbox');
+    expect(plainText(rows[0].closest('label'))).toContain('Лекция 3');
+  });
+
+  it('says how many old lectures were not checked when the library has too much text', () => {
+    render(<Harness materials={LONG} fit={fit({ view: view({ p1: 2 }, [], 18, 2) })} />);
+    expect(screen.getByText('2 старые лекции не проверены: в библиотеке слишком много текста.')).toBeInTheDocument();
+    expect(document.querySelector('.nx-pick-unmatched')).toBeNull();
   });
 });
