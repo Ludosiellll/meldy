@@ -1075,7 +1075,7 @@ function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; 
             ))}
           </span>
         </p>
-        <button type="button" className="td-fs-toggle" aria-expanded={!folded} aria-controls={listId} onClick={onToggle}>
+        <button type="button" className="td-fs-toggle" aria-expanded={!folded} aria-controls={folded ? undefined : listId} onClick={onToggle}>
           {folded ? 'Развернуть' : 'Свернуть'}
         </button>
       </div>

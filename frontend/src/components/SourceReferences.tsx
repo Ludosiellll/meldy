@@ -43,7 +43,7 @@ export default function SourceReferences({ ids, sources = [], compact = false }:
         onClick={() => setOpen(value => !value)}
         className="srf-button"
         aria-expanded={open}
-        aria-controls={contentId}
+        aria-controls={open ? contentId : undefined}
         aria-label={`Ближайшие фрагменты лекции: ${numbers.join(', ')}`}
       >
         {label}

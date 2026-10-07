@@ -407,7 +407,7 @@ function SourceNote({
               className="cv-src-button"
               onClick={() => setOpen(value => !value)}
               aria-expanded={open}
-              aria-controls={slipId}
+              aria-controls={open ? slipId : undefined}
             >
               {words}
             </button>

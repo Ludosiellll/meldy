@@ -39,3 +39,16 @@ describe('SourceReferences: a lecture heading on its own line (jury memo 12)', (
     expect(screen.getByText('Текст фрагмента недоступен.')).toBeInTheDocument();
   });
 });
+
+describe('SourceReferences: the button names its panel only while the panel is there', () => {
+  it('has no aria-controls while folded and points at the slips once open', () => {
+    render(<SourceReferences ids={['S01']} sources={sources} />);
+    const button = screen.getByRole('button', { name: /Ближайшие фрагменты лекции/ });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(button).not.toHaveAttribute('aria-controls');
+    fireEvent.click(button);
+    const id = button.getAttribute('aria-controls');
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id as string)).not.toBeNull();
+  });
+});
