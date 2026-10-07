@@ -7,6 +7,9 @@ import { opacity, put, useEls, useFrame } from '../reel/engine';
 import { STAGE_H, STAGE_W, clamp, ease, mix, seg } from '../reel/timeline';
 import { Statement, Wordmark, focusIn, slideIn } from '../film/kit';
 
+/** Under the wordmark: what Meldy is, in the words of the landing (Release 29). */
+export const READY_TAG = 'Тренажёр устного экзамена по билетам кафедры';
+
 /** How long the beat is (ms): the loop wraps at its end. */
 export const READY_LENGTH = 4400;
 /** The dot of the loop, in stage pixels: where every reel starts and ends. */
@@ -44,7 +47,7 @@ export function Ready({ lines }: { lines: readonly string[] }) {
         <Wordmark className="ar-mark-w" />
       </div>
       <p data-a="tag" className="ar-tag" style={{ opacity: 0 }}>
-        Подготовка к экзамену по вашим лекциям
+        {READY_TAG}
       </p>
       <i data-a="home" className="fm-brand-dot ar-home" style={{ opacity: 0 }} />
     </div>

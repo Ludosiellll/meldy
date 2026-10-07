@@ -27,45 +27,52 @@ export interface AuthScript {
   transcript: readonly string[];
 }
 
+/**
+ * Sign-in: the student comes back to the sheet as they left it, then the four steps of the landing
+ * (Release 29): the department's questions with quotes from their lectures, the ticket aloud with the
+ * examiner's follow-up, and lines that only answers erase — the line named again on another day goes
+ * at the end. Example: «Микроэкономика» of /try, question 7 (data/example/questions.ts).
+ */
 export const LOGIN_SCRIPT: AuthScript = {
   total: 18000,
   scenes: [
-    { id: 'source', from: 0, to: 3800 },
-    { id: 'summary', from: 3400, to: 7200 },
-    { id: 'recall', from: 6800, to: 10600 },
-    { id: 'ticket', from: 10200, to: 14000 },
+    { id: 'back', from: 0, to: 3800 },
+    { id: 'answers', from: 3400, to: 7000 },
+    { id: 'ticket', from: 6600, to: 10200 },
+    { id: 'erase', from: 9800, to: 14000 },
     { id: 'ready', from: 13600, to: 18000 },
   ],
-  poster: 9400,
+  poster: 13000,
   corner: [700, 15200],
   caption: 'Ролик: как работает Meldy, 18 секунд, без звука.',
   transcript: [
-    'Загрузите лекцию: файл ложится в Meldy, отмечены конспект, карточки и тест.',
-    'Конспект со ссылками: «фрагмент 3» открывает место в лекции.',
-    'Карточки вовремя: ответ «Помню» — и карточка вернётся через 6 дней.',
-    'Отвечайте вслух: билет, ответ голосом, вопрос экзаменатора, «Проверено».',
-    'Всё по вашим лекциям. Meldy.',
+    'Шпаргалка на месте: экзамен «Микроэкономика», у вопроса 6 главные строки стёрты, у вопроса 7 одна строка стёрта наполовину.',
+    'Ответы — из лекций: вопросы кафедры сверены с вашими лекциями, у вопроса 7 — цитата из лекции «Эластичность спроса».',
+    'Билет — вслух: вопрос 7, ответ голосом, по ключевым словам названо 3 пункта из 4. Экзаменатор переспрашивает: «А если спрос неэластичный, как продавцу увеличить выручку?»',
+    'Стирают только ответы: после ответа в другой день 1 строка стёрлась, 2 — наполовину, а строка, названная только после вопроса экзаменатора, не стёрлась.',
+    'Цель — пустая шпаргалка. Meldy — тренажёр устного экзамена по билетам кафедры.',
   ],
 };
 
+/** Sign-up: the same four steps from the start — the department's list goes in first. */
 export const REGISTER_SCRIPT: AuthScript = {
   total: 19000,
   scenes: [
-    { id: 'pile', from: 0, to: 3800 },
-    { id: 'sheet', from: 3400, to: 8000 },
-    { id: 'week', from: 7600, to: 11800 },
-    { id: 'exam', from: 11400, to: 15000 },
+    { id: 'list', from: 0, to: 4000 },
+    { id: 'answers', from: 3600, to: 7400 },
+    { id: 'ticket', from: 7000, to: 10800 },
+    { id: 'erase', from: 10400, to: 15000 },
     { id: 'ready', from: 14600, to: 19000 },
   ],
-  poster: 7400,
+  poster: 13700,
   corner: [700, 16200],
-  caption: 'Ролик: материал становится планом подготовки, 19 секунд, без звука.',
+  caption: 'Ролик: от списка вопросов до шпаргалки, 19 секунд, без звука.',
   transcript: [
-    'Всё, что дали на парах: лекции, фото доски, запись пары, методичка, вопросы к экзамену.',
-    'Вопросы — по лекциям: список вставлен, «Сверить с лекциями» отмечает, какие вопросы есть в лекциях.',
-    'Повторение по дням: карточки разложены по дням недели.',
-    'К экзамену — с планом: экзамен через 12 дней, доля билетов, «Тянуть билет».',
-    'План готов. Meldy.',
+    'Список кафедры: в новый экзамен добавлен файл со списком вопросов, распознано 12 вопросов.',
+    'Ответы — из лекций: вопросы кафедры сверены с вашими лекциями, у вопроса 7 — цитата из лекции «Эластичность спроса».',
+    'Билет — вслух: вопрос 7, ответ голосом, по ключевым словам названо 3 пункта из 4. Экзаменатор переспрашивает: «А если спрос неэластичный, как продавцу увеличить выручку?»',
+    'Стирают только ответы: после ответа в другой день 1 строка стёрлась, 2 — наполовину, а строка, названная только после вопроса экзаменатора, не стёрлась.',
+    'Начните со списка. Meldy — тренажёр устного экзамена по билетам кафедры.',
   ],
 };
 
@@ -73,6 +80,16 @@ export const SCRIPTS: Record<AuthReelVariant, AuthScript> = { login: LOGIN_SCRIP
 
 /** A scene is put on the stage this early, hidden, so its first visible frame is ready. */
 export const PREMOUNT = 400;
+
+/** A screen leaves over this long, ending as its scene ends (the next one is already coming in). */
+export const EXIT = 440;
+
+/** When a scene's screen and words start to leave (its own time). */
+export function leaveOf(script: AuthScript, id: string): number {
+  const scene = script.scenes.find((item) => item.id === id);
+  if (!scene) throw new Error(`Unknown scene ${id}`);
+  return scene.to - scene.from - EXIT;
+}
 
 /**
  * The scenes on the stage at `t` (with the hidden premount lead), in story order. The first scene is
