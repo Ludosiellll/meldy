@@ -25,6 +25,26 @@ export const SIGN_UP_MESSAGES = {
   failed: 'Не удалось зарегистрироваться. Попробуйте ещё раз через минуту.',
 } as const;
 
+/**
+ * The words under an empty field, in the inline style of the other field errors (live run of 2026-10-07: an empty
+ * form went to Supabase, which took it for an anonymous sign-up — 422 — and the page said «Не удалось
+ * зарегистрироваться…»). Spaces alone are empty too.
+ */
+export const EMPTY_FIELD_MESSAGES = {
+  name: 'Введите имя',
+  email: 'Введите адрес почты',
+  password: 'Придумайте пароль: от 8 символов, с заглавной буквой и цифрой',
+} as const;
+
+/** The message for each empty field of the sign-up form ('' — filled). */
+export function emptySignUpFields(fields: { name: string; email: string; password: string }): { name: string; email: string; password: string } {
+  return {
+    name: fields.name.trim() ? '' : EMPTY_FIELD_MESSAGES.name,
+    email: fields.email.trim() ? '' : EMPTY_FIELD_MESSAGES.email,
+    password: fields.password.trim() ? '' : EMPTY_FIELD_MESSAGES.password,
+  };
+}
+
 interface AuthErrorShape {
   name?: unknown;
   message?: unknown;

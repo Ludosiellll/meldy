@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
-import { SIGN_UP_MESSAGES, signUpErrorMessage } from '../lib/signUpErrors';
+import { SIGN_UP_MESSAGES, emptySignUpFields, signUpErrorMessage } from '../lib/signUpErrors';
 import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
 import { afterSignIn, emailRedirectTo, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
@@ -51,13 +51,18 @@ export default function Register() {
     setError('');
     setSuccess('');
 
-    const ne = validateName(name);
-    const ee = validateEmail(email);
-    const pe = validatePassword(password);
+    // An empty field never goes to Supabase: it would take the form for an anonymous sign-up (422).
+    const empty = emptySignUpFields({ name, email, password });
+    const ne = empty.name || validateName(name);
+    const ee = empty.email || validateEmail(email);
+    const pe = empty.password || validatePassword(password);
 
     if (ne || ee || pe) {
       setNameError(ne); setEmailError(ee); setPasswordError(pe);
       setLoading(false);
+      // The first field to fix gets the focus (its message is read out: role="alert").
+      const first = ne ? 'register-name' : ee ? 'register-email' : 'register-password';
+      document.getElementById(first)?.focus();
       return;
     }
 
@@ -173,7 +178,7 @@ export default function Register() {
 
             {!success && (
               <>
-                <form onSubmit={handleRegister} className="au-form">
+                <form onSubmit={handleRegister} className="au-form" noValidate>
                   <div className="au-field">
                     <label htmlFor="register-name" className="au-label">Имя</label>
                     <input
@@ -190,6 +195,7 @@ export default function Register() {
                       aria-describedby={nameError ? 'register-name-error' : undefined}
                       className="au-input"
                       placeholder="Ваше имя"
+                      required
                     />
                     {nameError && <p id="register-name-error" role="alert" className="au-hint au-hint--error">{nameError}</p>}
                   </div>
@@ -210,6 +216,7 @@ export default function Register() {
                       aria-describedby={emailError ? 'register-email-error' : undefined}
                       className="au-input"
                       placeholder="you@example.com"
+                      required
                     />
                     {emailError && <p id="register-email-error" role="alert" className="au-hint au-hint--error">{emailError}</p>}
                   </div>
@@ -232,6 +239,7 @@ export default function Register() {
                         aria-describedby={passwordError ? 'register-password-error' : undefined}
                         className="au-input au-input--eye"
                         placeholder="••••••••"
+                        required
                       />
                       <button
                         type="button"
