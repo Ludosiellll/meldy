@@ -827,6 +827,8 @@ def test_write_streams_progress_questions_and_done_and_stores_short_lines_first(
     short = sheet.model.short_calls[0]
     assert short["fast"] is True and short["temperature"] == 0 and short["json_mode"] is True
     assert short["timeout"] == oral_sheet.SHORT_TIMEOUT_SECONDS and short["max_tokens"] <= 4000
+    # A slow Gemini leaves the rest of the budget to the fast Groq, as the quick check does.
+    assert short["gemini_timeout"] == oral_sheet.SHORT_GEMINI_SECONDS < oral_sheet.SHORT_TIMEOUT_SECONDS
     assert short["text"].startswith("ВОПРОС q1: ") and "q1p4: Нормы обязательных резервов" in short["text"]
     assert oral_sheet._jobs == {} and oral_api._flights == {}
     # Лист после записи: всё написано, строки на месте.

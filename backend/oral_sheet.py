@@ -99,7 +99,11 @@ SHEET_VERSION = 1
 SHEET_MAX_BYTES = 8192
 SHORT_MAX_CHARS = 56
 SHORT_BATCH_POINTS = 60
-SHORT_TIMEOUT_SECONDS = 20.0
+# Короткие строки пачки до 60 пунктов: на живых данных 07.10 удачные вызовы шли медианой 8 с, 95 % — до 19,9 с,
+# а 4 из 29 упёрлись в прежний предел 20 с. Gemini ждут SHORT_GEMINI_SECONDS, пока быстрый Groq может ответить,
+# остаток бюджета — Groq (тот же BaseAgent.run(gemini_timeout=…), что у быстрой проверки).
+SHORT_TIMEOUT_SECONDS = 30.0
+SHORT_GEMINI_SECONDS = 22.0
 SHORT_BASE_TOKENS = 200
 SHORT_TOKENS_PER_POINT = 48
 ARROW_WINDOW = 3  # слов title вокруг слова строки, где ищется его рост или падение
@@ -715,6 +719,7 @@ async def ask_shorts(text: str, keys: list[str]) -> dict[str, str] | None:
                 SHORT_PROMPT,
                 text,
                 budget=SHORT_TIMEOUT_SECONDS,
+                gemini_timeout=SHORT_GEMINI_SECONDS,
                 fast=True,
                 temperature=0,
                 max_tokens=SHORT_BASE_TOKENS + SHORT_TOKENS_PER_POINT * len(keys),
