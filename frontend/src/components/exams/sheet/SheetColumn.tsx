@@ -286,6 +286,8 @@ export interface SheetWriteProps {
   written: number;
   toWrite: number;
   units: number;
+  /** Questions whose points failed the quote check twice: they cannot be written (not in toWrite). */
+  unwritable?: number;
   /** Units left today (null: unknown). */
   unitsLeft: number | null;
   write: SheetWriteState;
@@ -334,13 +336,20 @@ export function SheetWriteCard(props: SheetWriteProps) {
   }
 
   const outcome = outcomeLine(write, props.toWrite);
+  // Said plainly and not offered again: their points failed the quote check twice (live run of 2026-10-07: «2 вопроса —
+  // 2 единицы» stayed on the author's sheet for good).
+  const unwritable = props.unwritable ?? 0;
+  const unwritableNote = unwritable > 0 ? <p className="ex-fine cs-unwritable">{glue(unwritableLine(unwritable))}</p> : null;
   if (props.toWrite === 0) {
-    if (!outcome) return null;
+    if (!outcome && !unwritableNote) return null;
     return (
       <div className="ex-blk cs-write">
-        <p className="ex-stmt cs-outcome" ref={outcomeRef} tabIndex={-1} role="status">
-          {glue(outcome)}
-        </p>
+        {outcome && (
+          <p className="ex-stmt cs-outcome" ref={outcomeRef} tabIndex={-1} role="status">
+            {glue(outcome)}
+          </p>
+        )}
+        {unwritableNote}
       </div>
     );
   }
@@ -389,6 +398,7 @@ export function SheetWriteCard(props: SheetWriteProps) {
         <p className="ex-stmt">{glue(`Дневной лимит ИИ кончился. Шпаргалку можно будет написать после ${formatLimitReset(nextLimitReset())}.`)}</p>
       )}
       <p className="ex-fine">{glue(priceLine(props.toWrite, props.units, props.unitsLeft))}</p>
+      {unwritableNote}
       {affordable > 0 && affordable < props.toWrite && (
         <p className="ex-fine">{glue(`Ещё ${props.toWrite - affordable}${NBSP}${questionsWord(props.toWrite - affordable)} — после обновления лимита в ${formatLimitReset(nextLimitReset())}`)}</p>
       )}
@@ -407,11 +417,15 @@ export function outcomeLine(write: SheetWriteState, toWrite: number): string | n
   if (write.limit) return `Написано ${write.written} из ${total}: дневной лимит ИИ кончился`;
   // The server's own daily limit of writes, not the AI and not the student's units.
   if (write.capped > 0) return `Написано ${write.written} из ${total}: сервер на сегодня исчерпал запись шпаргалок — остальное можно дописать после ${formatLimitReset(nextLimitReset())}`;
-  if (write.failed > 0 || write.busy > 0) {
-    const missed = write.failed + write.busy;
-    return `${missed}${NBSP}${questionsWord(missed)} не удалось написать — можно попробовать ещё раз`;
-  }
+  // Points that failed the quote check twice are not «можно попробовать ещё раз»: the card says so on its own line.
+  const missed = Math.max(0, write.failed - (write.unverifiable ?? 0)) + write.busy;
+  if (missed > 0) return `${missed}${NBSP}${questionsWord(missed)} не удалось написать — можно попробовать ещё раз`;
   return toWrite === 0 ? 'Шпаргалка написана' : null;
+}
+
+/** «2 вопроса не удалось записать: в лекциях нет цитат для пунктов». */
+export function unwritableLine(count: number): string {
+  return `${count}${NBSP}${questionsWord(count)} не удалось записать: в лекциях нет цитат для пунктов`;
 }
 
 // ── The details of one line ────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ vi.mock('../../../lib/supabase', () => ({ supabase: {} }));
 import type { SheetWriteState } from '../../../api/cheatSheet';
 import { localDayOf, type HistoryFrame, type LineState, type LineStatus, type SheetBlock, type SheetCounts, type SheetLine } from '../../../lib/exams/cheatSheet';
 import { formatShortDay } from '../../../lib/exams/format';
-import { historyResult, LinePanel, outcomeLine, quoteText, SheetSummaryCard, SheetWriteCard, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
+import { historyResult, LinePanel, outcomeLine, quoteText, SheetSummaryCard, SheetWriteCard, unwritableLine, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
 import { examSheetLinks } from './useSheetPage';
 
 afterEach(() => {
@@ -186,7 +186,7 @@ describe('historyResult', () => {
 });
 
 function idle(extra: Partial<SheetWriteState> = {}): SheetWriteState {
-  return { examId: 'exam-1', phase: 'idle', done: 0, total: 0, written: 0, failed: 0, busy: 0, capped: 0, limit: false, results: {}, message: null, seq: 0, stopping: false, ...extra };
+  return { examId: 'exam-1', phase: 'idle', done: 0, total: 0, written: 0, failed: 0, unverifiable: 0, busy: 0, capped: 0, limit: false, results: {}, message: null, seq: 0, stopping: false, ...extra };
 }
 
 function writeCard(extra: Partial<SheetWriteProps> = {}) {
@@ -271,6 +271,37 @@ describe('SheetWriteCard', () => {
   });
 });
 
+describe('SheetWriteCard: questions that cannot be written', () => {
+  // Live run of 2026-10-07: two questions whose points failed the quote check twice kept «2 вопроса — 2 единицы» on
+  // the author's sheet for good. They are not to write any more; the card says so plainly and offers nothing.
+  it('nothing left to write: the plain line, no button, no price', () => {
+    writeCard({ written: 16, toWrite: 0, units: 0, unwritable: 2 });
+    expect(plain(document.querySelector('.cs-write')?.textContent)).toBe('2 вопроса не удалось записать: в лекциях нет цитат для пунктов');
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(plain(document.querySelector('.cs-write')?.textContent)).not.toMatch(/единиц/);
+  });
+
+  it('with something to write: the button and the price count only that, the line under it', () => {
+    writeCard({ written: 14, toWrite: 1, units: 1, unwritable: 2 });
+    expect(screen.getByRole('button', { name: named('Дописать 1 вопрос') })).toBeTruthy();
+    const text = plain(document.querySelector('.cs-write')?.textContent);
+    expect(text).toContain('1 вопрос — 1 единица ИИ');
+    expect(text).toContain('2 вопроса не удалось записать: в лекциях нет цитат для пунктов');
+  });
+
+  it('after a run they are not «можно попробовать ещё раз»', () => {
+    writeCard({ written: 16, toWrite: 0, units: 0, unwritable: 2, write: idle({ phase: 'done', written: 3, failed: 2, unverifiable: 2, total: 5 }) });
+    const text = plain(document.querySelector('.cs-write')?.textContent);
+    expect(text).toBe('Шпаргалка написана2 вопроса не удалось записать: в лекциях нет цитат для пунктов');
+    expect(text).not.toContain('попробовать ещё раз');
+  });
+
+  it('says one, two and five', () => {
+    expect(plain(unwritableLine(1))).toBe('1 вопрос не удалось записать: в лекциях нет цитат для пунктов');
+    expect(plain(unwritableLine(5))).toBe('5 вопросов не удалось записать: в лекциях нет цитат для пунктов');
+  });
+});
+
 describe('outcomeLine', () => {
   it('says the limit, what failed, and the message of a broken run', () => {
     expect(plain(outcomeLine(idle({ phase: 'done', written: 4, total: 6, limit: true }), 2))).toBe('Написано 4 из 6: дневной лимит ИИ кончился');
@@ -280,6 +311,9 @@ describe('outcomeLine', () => {
     expect(plain(outcomeLine(idle({ phase: 'done', written: 4, capped: 2, total: 6 }), 2))).toMatch(/^Написано 4 из 6: сервер на сегодня исчерпал запись шпаргалок — остальное можно дописать после \d{1,2}:\d\d$/);
     expect(outcomeLine(idle({ phase: 'done', written: 3, total: 3 }), 2)).toBeNull();
     expect(outcomeLine(idle(), 2)).toBeNull();
+    // Unverifiable ones are in the server's failed count, but another try would not change them.
+    expect(plain(outcomeLine(idle({ phase: 'done', written: 4, failed: 3, unverifiable: 1, total: 7 }), 2))).toBe('2 вопроса не удалось написать — можно попробовать ещё раз');
+    expect(outcomeLine(idle({ phase: 'done', written: 4, failed: 2, unverifiable: 2, total: 6 }), 0)).toBe('Шпаргалка написана');
   });
 });
 

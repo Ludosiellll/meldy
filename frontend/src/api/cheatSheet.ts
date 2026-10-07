@@ -28,6 +28,8 @@ export interface SheetResponse {
   toWrite: number;
   /** Their price in AI units. */
   units: number;
+  /** Questions in the lectures whose points failed the quote check twice: they cannot be written (not in toWrite). */
+  unwritable: number;
   /** A writing job the server is running for this exam now. */
   job: SheetJobInfo | null;
 }
@@ -137,6 +139,7 @@ export function parseSheetQuestion(value: unknown): SheetQuestion | null {
     missing_note: str(value.missing_note, 400),
     rubric: parseRubric(value.rubric),
     rebuilt: value.rebuilt === true,
+    unwritable: value.unwritable === true,
   };
 }
 
@@ -158,6 +161,7 @@ export function parseSheetResponse(value: unknown): SheetResponse {
     questions,
     toWrite: count(value.to_write),
     units: count(value.units),
+    unwritable: count(value.unwritable),
     job,
   };
 }
@@ -205,7 +209,10 @@ export interface SheetWriteState {
   done: number;
   total: number;
   written: number;
+  /** Not written, with the unverifiable ones (the server's count). */
   failed: number;
+  /** Of `failed`: points that failed the quote check twice — another try would not change it. */
+  unverifiable: number;
   busy: number;
   /** Not written: the server's daily limit of sheet writes was reached. */
   capped: number;
@@ -224,7 +231,7 @@ const listeners = new Set<() => void>();
 const running = new Set<string>();
 
 function idleState(examId: string): SheetWriteState {
-  return { examId, phase: 'idle', done: 0, total: 0, written: 0, failed: 0, busy: 0, capped: 0, limit: false, results: {}, message: null, seq: 0, stopping: false };
+  return { examId, phase: 'idle', done: 0, total: 0, written: 0, failed: 0, unverifiable: 0, busy: 0, capped: 0, limit: false, results: {}, message: null, seq: 0, stopping: false };
 }
 
 /** The exam's writing state; the same object until it changes (a React external store). */
@@ -269,9 +276,10 @@ function handleEvent(examId: string, data: Record<string, unknown>) {
 }
 
 /** written (with cached and none), failed (with unverifiable), busy and capped, counted from the questions that arrived. */
-function tally(results: SheetWriteState['results']): { written: number; failed: number; busy: number; capped: number } {
+function tally(results: SheetWriteState['results']): { written: number; failed: number; unverifiable: number; busy: number; capped: number } {
   let written = 0;
   let failed = 0;
+  let unverifiable = 0;
   let busy = 0;
   let capped = 0;
   for (const { status } of Object.values(results)) {
@@ -279,8 +287,9 @@ function tally(results: SheetWriteState['results']): { written: number; failed: 
     else if (status === 'failed' || status === 'unverifiable') failed += 1;
     else if (status === 'busy') busy += 1;
     else if (status === 'capped') capped += 1;
+    if (status === 'unverifiable') unverifiable += 1;
   }
-  return { written, failed, busy, capped };
+  return { written, failed, unverifiable, busy, capped };
 }
 
 function aiLimitTerminal(data: Record<string, unknown>): boolean {
@@ -342,6 +351,8 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
         phase: 'done',
         written: count(terminal?.written),
         failed: count(terminal?.failed),
+        // The server counts them in `failed`; the questions that arrived say which.
+        unverifiable: Math.min(count(terminal?.failed), tally(previous.results).unverifiable),
         busy: count(terminal?.busy),
         // An older server sends no count of its own: counted from the questions that arrived.
         capped: typeof terminal?.capped === 'number' ? count(terminal.capped) : tally(previous.results).capped,
@@ -359,6 +370,7 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
           phase: 'done',
           written: typeof end.written === 'number' ? count(end.written) : counted.written,
           failed: typeof end.failed === 'number' ? count(end.failed) : counted.failed,
+          unverifiable: Math.min(typeof end.failed === 'number' ? count(end.failed) : counted.failed, counted.unverifiable),
           busy: typeof end.busy === 'number' ? count(end.busy) : counted.busy,
           capped: typeof end.capped === 'number' ? count(end.capped) : counted.capped,
           total: count(end.total) || previous.total,

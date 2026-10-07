@@ -36,6 +36,8 @@ export interface CheatSheetData {
   /** Questions that can be written and are not, and their price in AI units. */
   toWrite: number;
   units: number;
+  /** Questions whose points failed the quote check twice: nothing to write, said plainly. */
+  unwritable: number;
   /** A writing job the server reported when the sheet was read. */
   serverJob: SheetJobInfo | null;
   write: SheetWriteState;
@@ -87,6 +89,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
   const [questions, setQuestions] = useState<SheetQuestion[]>([]);
   const [toWrite, setToWrite] = useState(0);
   const [units, setUnits] = useState(0);
+  const [unwritable, setUnwritable] = useState(0);
   const [serverJob, setServerJob] = useState<SheetJobInfo | null>(null);
   const [events, setEvents] = useState<LearningEvent[]>([]);
   const [eventsState, setEventsState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -115,6 +118,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
         setQuestions(response.questions);
         setToWrite(response.toWrite);
         setUnits(response.units);
+        setUnwritable(response.unwritable);
         setServerJob(response.job);
         setStatus('ready');
         setError(null);
@@ -320,6 +324,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     journalRead,
     toWrite,
     units,
+    unwritable,
     serverJob,
     write,
     sheet,

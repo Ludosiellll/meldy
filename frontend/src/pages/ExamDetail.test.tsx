@@ -1474,7 +1474,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
       rebuilt: false,
     }));
     const toWrite = out.filter((item) => !item.rubric && (item.coverage === 'full' || item.coverage === 'partial')).length;
-    return { examId: 'exam-1', mappingState: 'done', questions: out, toWrite, units: toWrite, job: null };
+    return { examId: 'exam-1', mappingState: 'done', questions: out, toWrite, units: toWrite, unwritable: 0, job: null };
   }
 
   function pointEvent(n: number, point: 'p1' | 'p2', day: string, session: string, at = '10:00:00'): LearningEvent {
