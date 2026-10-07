@@ -38,6 +38,10 @@ Verified before release: pytest 1396, tsc -b, Vitest 2336/2336, production build
 call on the `/try` route and the visitor address behind the HF proxy (after this release), real Telegram and VK
 previews of the new image.
 
+Second push (from a2097e0): the first, run 36, was refused by the Space — «Your push was rejected because it contains
+binary files» — for a 143 KB `og-image.png`. The preview is now `og-image.jpg` (92 KB); `test_space_binaries.py`
+fails on any binary file over 100 KB that the workflow would push. pytest 1397.
+
 ## 2026-10-07 — Release 28: an honest result, the group link and the fixes from the first live run (from the commit of this entry)
 
 Plan v2 for CodingFest-11 (notes: `10_Project/CodingFest_11_Improvement_Plan_2026-10-07`). The first live run of the
