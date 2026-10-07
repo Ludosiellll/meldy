@@ -142,8 +142,10 @@ export default function ExamEditor() {
   const listRef = useRef<HTMLTextAreaElement>(null);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [parseWarnings, setParseWarnings] = useState<string[]>([]);
+  const [parseWarnings, setParseWarnings] = useState<ParseResult['warnings']>([]);
   const [skipped, setSkipped] = useState<SkippedLine[]>([]);
+  /** The notes stand for every line the parser skipped: «Пропустили N строк…» goes once each is dealt with. */
+  const [skippedComplete, setSkippedComplete] = useState(false);
   const [preview, setPreview] = useState<PreviewState>(EMPTY_PREVIEW);
   const [collapsed, setCollapsed] = useState(true);
   const [sourceKind, setSourceKind] = useState<'paste' | 'file'>('paste');
@@ -252,8 +254,10 @@ export default function ExamEditor() {
       const suggestion = suggestedTitle(result);
       if (suggestion) setTitle(suggestion);
     }
-    setSkipped(skippedLines(result));
-    setParseWarnings(result.warnings.filter((warning) => warning.code !== 'unparsed_lines' || skippedLines(result).length === 0).map((warning) => warning.message));
+    const notes = skippedLines(result);
+    setSkipped(notes.lines);
+    setSkippedComplete(notes.complete);
+    setParseWarnings(result.warnings);
     setSourceKind(from);
     setSourceText(result.source_text);
     setReplaceSource(true);
@@ -278,6 +282,7 @@ export default function ExamEditor() {
   const startOver = () => {
     setPreview(EMPTY_PREVIEW);
     setSkipped([]);
+    setSkippedComplete(false);
     setParseWarnings([]);
     setParseError(null);
     setPasted('');
@@ -704,11 +709,15 @@ export default function ExamEditor() {
               )}
             </p>
             <p className="ex-meta">Строку можно поправить, склеить или удалить.</p>
-            {parseWarnings.map((warning) => (
-              <p key={warning} className="ex-note">
-                {glue(warning)}
-              </p>
-            ))}
+            {/* «Пропустили N строк…» stays while a skipped line waits at its place in the full list (the folded
+                preview shows only questions) or when the parser did not list them all. */}
+            {parseWarnings
+              .filter((warning) => warning.code !== 'unparsed_lines' || skipped.length > 0 || !skippedComplete)
+              .map((warning) => (
+                <p key={warning.message} className="ex-note">
+                  {glue(warning.message)}
+                </p>
+              ))}
             <QuestionPreview
               state={preview}
               onChange={setPreview}

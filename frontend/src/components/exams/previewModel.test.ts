@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ExamQuestion, ParseResult } from '../../api/exams';
+import { PARSE_SKIPPED_MAX, type ExamQuestion, type ParseResult } from '../../api/exams';
 import {
   chosenLayout,
   defaultLayoutMode,
   draftQuestions,
   filledSectionCount,
+  inQuotes,
   insertQuestion,
   keepSavedQuestions,
   layoutFits,
@@ -18,6 +19,7 @@ import {
   rowProblem,
   sectionTitles,
   skippedLines,
+  skippedNote,
   splitPoint,
   splitRow,
   suggestedMaterialIds,
@@ -222,13 +224,57 @@ describe('a saved exam', () => {
 });
 
 describe('what the parser dropped', () => {
-  it('reports lines without a number at their place, not headings, tickets or table rows', () => {
-    expect(skippedLines(PARSE).map((line) => [line.text, line.beforeQuestion])).toEqual([
-      ['Вопросы к экзамену по курсу «Макроэкономика»', 0],
-      ['Сюда попала лишняя строка без номера', 1],
+  it('shows the lines the parser listed at their places, a repeated line once where it first stands', () => {
+    const notes = skippedLines({
+      skipped: [
+        { text: 'Зав. кафедрой ____________ И. И. Иванов', before: 2 },
+        { text: '«___» ____________ 2025 г.', before: 2 },
+        { text: 'Зав. кафедрой ____________ И. И. Иванов', before: 4 },
+        { text: 'Рассмотрено и одобрено на заседании кафедры, протокол № 2 от 01.09.2026.', before: 20 },
+      ],
+    });
+    expect(notes.lines.map((line) => [line.text, line.beforeQuestion])).toEqual([
+      ['Зав. кафедрой ____________ И. И. Иванов', 2],
+      ['«___» ____________ 2025 г.', 2],
+      ['Рассмотрено и одобрено на заседании кафедры, протокол № 2 от 01.09.2026.', 20],
     ]);
-    expect(skippedLines({ ...PARSE, warnings: [] })).toEqual([]);
-    expect(skippedLines(PARSE, 1)).toHaveLength(1);
+    expect(new Set(notes.lines.map((line) => line.key)).size).toBe(3);
+    expect(notes.complete).toBe(true);
+  });
+
+  it('does not guess from the source: the live list skipped only its signature, not the header', () => {
+    // QA 2026-10-07: the preview matched source lines itself and showed eight header lines instead.
+    const live = { ...PARSE, skipped: [{ text: 'Рассмотрено и одобрено на заседании кафедры, протокол № 2 от 01.09.2026.', before: 4 }] };
+    expect(skippedLines(live).lines).toEqual([
+      { key: expect.any(String), text: 'Рассмотрено и одобрено на заседании кафедры, протокол № 2 от 01.09.2026.', beforeQuestion: 4 },
+    ]);
+    // A server that only counted the lines: nothing to show at a place, its warning says how many.
+    expect(skippedLines(PARSE)).toEqual({ lines: [], complete: false });
+    expect(skippedLines({ skipped: null })).toEqual({ lines: [], complete: false });
+  });
+
+  it('is not complete when a line was left out: past the limit, or the parser listed as many as it lists', () => {
+    const three = { skipped: ['Кафедра', 'Подпись', 'Дата'].map((text, before) => ({ text, before })) };
+    expect(skippedLines(three, 2).lines).toHaveLength(2);
+    expect(skippedLines(three, 2).complete).toBe(false);
+    expect(skippedLines(three).complete).toBe(true);
+    const capped = { skipped: Array.from({ length: PARSE_SKIPPED_MAX }, () => ({ text: 'Зав. кафедрой ____', before: 3 })) };
+    expect(skippedLines(capped).lines).toHaveLength(1);
+    expect(skippedLines(capped).complete).toBe(false);
+  });
+
+  it('nests the line’s own quotes and ends the note with one period', () => {
+    expect(inQuotes('«01» сентября 2026 г.')).toBe('«„01“ сентября 2026 г.»');
+    expect(inQuotes('курс "Финансы" и “Кредит”')).toBe('«курс „Финансы“ и „Кредит“»');
+    expect(inQuotes('по дисциплине „Право“')).toBe('«по дисциплине „Право“»');
+    expect(skippedNote('«01» сентября 2026 г.')).toBe('Строка без номера пропущена: «„01“ сентября 2026 г.».');
+    expect(skippedNote('по учебной дисциплине «Базы данных»')).toBe('Строка без номера пропущена: «по учебной дисциплине „Базы данных“».');
+    expect(skippedNote('Рассмотрено на заседании кафедры, протокол № 2 от 01.09.2026.')).toBe(
+      'Строка без номера пропущена: «Рассмотрено на заседании кафедры, протокол № 2 от 01.09.2026».',
+    );
+    // An abbreviation keeps its period; a question mark stays inside.
+    expect(skippedNote('Составитель: Иванов И.И.')).toBe('Строка без номера пропущена: «Составитель: Иванов И.И.».');
+    expect(skippedNote('Что такое ВВП?')).toBe('Строка без номера пропущена: «Что такое ВВП?».');
   });
 });
 

@@ -743,7 +743,14 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
       )}
 
       <p className="pg-how">
-        <button type="button" className="sf-link" data-muted="" aria-expanded={howOpen} aria-controls="progress-how" onClick={() => setHowOpen((open) => !open)}>
+        <button
+          type="button"
+          className="sf-link"
+          data-muted=""
+          aria-expanded={howOpen}
+          aria-controls={howOpen ? 'progress-how' : undefined}
+          onClick={() => setHowOpen((open) => !open)}
+        >
           Как считается
         </button>
       </p>

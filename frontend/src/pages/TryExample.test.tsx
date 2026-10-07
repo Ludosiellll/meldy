@@ -267,7 +267,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByText(EXAMPLE_GRADE_NOTE)).toBeInTheDocument();
     // The scale line in the example's words: its lectures are not the guest's own.
     expect(screen.getByText(EXAMPLE_SCALE_NOTE)).toBeInTheDocument();
-    expect(EXAMPLE_SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из лекций.');
+    expect(EXAMPLE_SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-\u2060балльной шкале. Meldy проверяет только, назвали ли вы пункты из лекций.');
     expect(screen.getByRole('button', { name: 'Пункт 1 не назван — о нём спросил экзаменатор.' })).toBeInTheDocument();
     const protocol = screen.getByRole('list', { name: 'Пункты ответа' });
     const statuses = within(protocol).getAllByRole('listitem').map((row) => row.getAttribute('data-status'));

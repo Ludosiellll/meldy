@@ -188,7 +188,12 @@ def test_parse_pasted_text_returns_the_preview_and_writes_nothing(api):
     assert body["sections"] == [{"index": 1, "title": "Раздел 1. Введение"}]
     assert body["tickets"] == [] and body["source_text"] == LIST_TEXT
     assert [warning["code"] for warning in body["warnings"]] == ["few_found"]
+    assert body["skipped"] == []  # нечего показывать на месте пропущенных строк
     assert api.fake.requests == [] and api.judge.calls == []
+    # Пропущенная подпись приходит списком: текст и сколько вопросов перед ней.
+    signed = api.post("/api/exams/parse", data={"text": LIST_TEXT + "Зав. кафедрой ____ И. И. Иванов\n"}).json()
+    assert signed["skipped"] == [{"text": "Зав. кафедрой ____ И. И. Иванов", "before": 2}]
+    assert [warning["code"] for warning in signed["warnings"]] == ["unparsed_lines", "few_found"]
 
 
 def test_parse_a_docx_file_with_a_ticket_table(api):

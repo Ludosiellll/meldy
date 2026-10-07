@@ -13,8 +13,12 @@ import { sharedGroups } from '../../lib/oral/rubricMatch';
 /**
  * The one small line of the result (Ф1, 2026-10-07): the department reads a «5 · отлично» as a foreign
  * 5-point scale (Belarus grades on 10), so the screen shows no grade and says who grades.
+ *
+ * A word joiner (U+2060) after the hyphen keeps «10-балльной» on one line (on a 360–414 px phone it broke
+ * as «10-» / «балльной»): it draws nothing and allows no break beside it. Onest has no non-breaking
+ * hyphen (U+2011), which would come from another font.
  */
-export const SCALE_NOTE = 'Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.';
+export const SCALE_NOTE = 'Отметку ставит преподаватель по 10-\u2060балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.';
 
 /** The start of an essential point's status line: the weight-2 points are marked on the sheet. */
 export const MAIN_POINT = 'главный пункт';
@@ -487,7 +491,14 @@ export function ProtocolResult({ points, followup, previous, fine, children }: P
       <p className="or-sum">{line ? summaryText(line) : 'Ни один пункт не оценён.'}</p>
       {line ? <p className="or-grade-why">{glue(countsSentence(summary.counts))}</p> : null}
       <p className="or-how-row">
-        <button type="button" className="sf-link" aria-expanded={open} aria-controls={howId} onClick={() => setOpen((value) => !value)}>
+        {/* aria-controls only while the panel is there: collapsed, it is not rendered (QA 2026-10-07). */}
+        <button
+          type="button"
+          className="sf-link"
+          aria-expanded={open}
+          aria-controls={open ? howId : undefined}
+          onClick={() => setOpen((value) => !value)}
+        >
           Как считается
         </button>
       </p>

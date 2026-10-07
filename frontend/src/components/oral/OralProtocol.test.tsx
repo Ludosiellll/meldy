@@ -17,6 +17,7 @@ import {
 import { DEMO_RUBRIC } from '../../lib/oral/testing/fixtures';
 import type { Evaluation } from '../../lib/oral/oralApi';
 import type { StoredProtocol } from '../../lib/oral/ticketData';
+import { danglingControls } from '../../test/a11y';
 
 function stubReducedMotion(reduce: boolean) {
   vi.stubGlobal(
@@ -222,7 +223,7 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
     expect(sum()).toBe('Назвали сами 2 из 4 главных');
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
     expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
-    expect(SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.');
+    expect(SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-\u2060балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.');
     // «Итог» as the card's flag, not «Оценка».
     expect(document.querySelector('.or-grade-label')?.textContent).toBe('Итог');
     expect(document.querySelector('.or-how')).toBeNull();
@@ -234,6 +235,34 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
     expect(screen.getByText('Прошлый ответ, 1 окт.')).toHaveClass('or-prev-line');
     // Nothing of a grade: no digit, no word, no «Засчитано».
     expect(document.body.textContent).not.toMatch(/Оценка|отлично|хорошо|удовлетвор|[Зз]асчитан|→ [2-5]/);
+  });
+
+  it('keeps «10-балльной» on one line: a word joiner after the hyphen, the words as they were', () => {
+    render(<ProtocolResult points={points} followup={null} />);
+    // U+2060 draws nothing and allows no line break beside it; on a 360–414 px phone «10-» ended a line.
+    expect(document.querySelector('.or-grade-fine')?.textContent).toContain('10-\u2060балльной');
+    expect(SCALE_NOTE.match(/\u2060/g)).toHaveLength(1);
+    expect(SCALE_NOTE.replace(/\u2060/g, '')).toBe(
+      'Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.',
+    );
+  });
+
+  it('«Как считается» names in aria-controls only a panel that is there', () => {
+    render(<ProtocolResult points={points} followup={null} />);
+    const how = screen.getByRole('button', { name: 'Как считается' });
+    // Collapsed, the panel is not rendered: no aria-controls pointing at nothing (QA 2026-10-07).
+    expect(how).toHaveAttribute('aria-expanded', 'false');
+    expect(how).not.toHaveAttribute('aria-controls');
+    expect(danglingControls()).toEqual([]);
+    fireEvent.click(how);
+    expect(how).toHaveAttribute('aria-expanded', 'true');
+    const panel = document.getElementById(how.getAttribute('aria-controls') ?? '');
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector('.or-how')).not.toBeNull();
+    expect(danglingControls()).toEqual([]);
+    fireEvent.click(how);
+    expect(how).not.toHaveAttribute('aria-controls');
+    expect(danglingControls()).toEqual([]);
   });
 
   it('adds the point named after the examiner’s question and the errors, only when there are any', () => {

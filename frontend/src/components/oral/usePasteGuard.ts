@@ -4,6 +4,8 @@ import { PASTE_REFUSED, pasteAllowed, wordCount } from '../../lib/oral/pasteGuar
 export interface PasteGuard {
   /** PASTE_REFUSED after a refused paste or drop, until the student types again; else null. */
   notice: string | null;
+  /** Refused pastes and drops so far: each one brings the line under the field into view again. */
+  refusals: number;
   /** The id of the line under the field that says it (the field's aria-describedby while it is shown). */
   noticeId: string;
   /** Call on every change the student makes: the line goes away once they type. */
@@ -30,6 +32,7 @@ function textOf(data: DataTransfer | null | undefined): string {
  */
 export function usePasteGuard(onRefused?: (words: number) => void): PasteGuard {
   const [refused, setRefused] = useState(false);
+  const [refusals, setRefusals] = useState(0);
   const ownDrag = useRef(false);
   const noticeId = useId();
 
@@ -41,6 +44,7 @@ export function usePasteGuard(onRefused?: (words: number) => void): PasteGuard {
       }
       event.preventDefault();
       setRefused(true);
+      setRefusals((count) => count + 1);
       onRefused?.(wordCount(text));
     },
     [onRefused],
@@ -69,5 +73,5 @@ export function usePasteGuard(onRefused?: (words: number) => void): PasteGuard {
     [judge, refused, noticeId],
   );
 
-  return { notice: refused ? PASTE_REFUSED : null, noticeId, clear, fieldProps };
+  return { notice: refused ? PASTE_REFUSED : null, refusals, noticeId, clear, fieldProps };
 }

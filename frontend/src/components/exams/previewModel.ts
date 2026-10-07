@@ -7,7 +7,7 @@
  * Pure functions: the editor keeps the state, tests call them directly.
  */
 import type { DraftQuestion, DraftTicket, ExamQuestion, LayoutMode, ParseResult, TicketLayout } from '../../api/exams';
-import { LABEL_MAX_CHARS, MAX_QUESTIONS, MAX_SECTIONS, QUESTION_MAX_CHARS, QUESTION_MIN_CHARS } from '../../api/exams';
+import { LABEL_MAX_CHARS, MAX_QUESTIONS, MAX_SECTIONS, PARSE_SKIPPED_MAX, QUESTION_MAX_CHARS, QUESTION_MIN_CHARS } from '../../api/exams';
 import { normalizeForMatch, wordStem } from '../conversation/visuals';
 
 export interface PreviewRow {
@@ -306,43 +306,70 @@ export interface SkippedLine {
   beforeQuestion: number;
 }
 
-const LEADING_NUMBER = /^\s*(вопрос\s*)?№?\s*\d{1,3}(\.\d{1,2})?[.)]?\s*/i;
-// No \b: in JavaScript it is ASCII-only and never matches after a Cyrillic letter.
-const TICKET_LINE = /^(экзаменационный\s+)?билет(?![а-яё])/i;
+/** How many skipped lines the full preview shows at their places. */
+export const SKIPPED_SHOWN = 20;
+
+export interface SkippedNotes {
+  lines: SkippedLine[];
+  /**
+   * The notes stand for every line the parser counted in «Пропустили N строк…»: it listed them all
+   * and none was left out here. Then the warning can go once the student has dealt with each note.
+   */
+  complete: boolean;
+}
 
 /**
- * Lines of the pasted text that the parser dropped (it reports only their count): each one is
- * shown at its place with «Это вопрос». Found by matching every source line against the
- * recognised questions in order; headings, ticket lines and table rows are not reported.
+ * The lines the parser skipped and counted, as it listed them (ParseResult.skipped), each shown at
+ * its place with «Это вопрос» (QA 2026-10-07: the preview used to guess them from the source and
+ * showed eight header lines while the parser had skipped only the signature under the list). A line
+ * repeated on every ticket — a signature, a header — is shown once, where it first stands. A server
+ * that only counted the lines gives none: its warning says how many.
  */
-export function skippedLines(result: ParseResult, limit = 8): SkippedLine[] {
-  if (!result.warnings.some((warning) => warning.code === 'unparsed_lines')) return [];
-  const questions = result.questions.map((question) => normalizeForMatch(question.text));
-  const titles = result.sections.map((section) => normalizeForMatch(section.title)).filter(Boolean);
-  const out: SkippedLine[] = [];
-  let next = 0;
-  for (const raw of result.source_text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    const norm = normalizeForMatch(line.replace(LEADING_NUMBER, ''));
-    if (!norm) continue;
-    let found = -1;
-    for (let j = Math.max(0, next - 1); j < questions.length; j += 1) {
-      if (questions[j].includes(norm) || (questions[j] && norm.includes(questions[j]))) {
-        found = j;
-        break;
-      }
+export function skippedLines(result: Pick<ParseResult, 'skipped'>, limit = SKIPPED_SHOWN): SkippedNotes {
+  const listed = result.skipped ?? null;
+  if (!listed) return { lines: [], complete: false };
+  const lines: SkippedLine[] = [];
+  const seen = new Set<string>();
+  let left = false;
+  for (const item of listed) {
+    const text = item.text.trim();
+    const norm = normalizeForMatch(text) || text;
+    if (!text || seen.has(norm)) continue;
+    if (lines.length >= limit) {
+      left = true;
+      break;
     }
-    if (found >= 0) {
-      next = found + 1;
-      continue;
-    }
-    if (titles.some((title) => title.includes(norm) || norm.includes(title))) continue;
-    if (TICKET_LINE.test(line) || line.includes(' | ')) continue;
-    out.push({ key: `skip-${out.length}-${next}`, text: line.slice(0, 200), beforeQuestion: next });
-    if (out.length >= limit) break;
+    seen.add(norm);
+    lines.push({ key: `skip-${lines.length}-${item.before}`, text: text.slice(0, 200), beforeQuestion: Math.max(0, item.before) });
   }
-  return out;
+  return { lines, complete: listed.length > 0 && !left && listed.length < PARSE_SKIPPED_MAX };
+}
+
+/**
+ * A line in «ёлочках», its own quotes nested as Russian typesetting nests them: «„01“ сентября
+ * 2026 г.», «по учебной дисциплине „Базы данных“» (the note read ««01» сентября…»» before).
+ */
+export function inQuotes(text: string): string {
+  const inner = text
+    .replace(/“([^“”]*)”/g, '„$1“')
+    .replace(/"([^"]*)"/g, '„$1“')
+    .replace(/«/g, '„')
+    .replace(/»/g, '“');
+  return `«${inner}»`;
+}
+
+// «2025 г.», «и др.», «И. И.»: a period that ends an abbreviation stays inside the quotes.
+const ABBREVIATION_END = /(?:^|[\s(«„"])(?:[а-яёa-z]{1,3}\.)+$/i;
+
+/**
+ * The note at a skipped line: «Строка без номера пропущена: «„01“ сентября 2026 г.».» A sentence's
+ * own final period gives way to the note's, after the quotes («…от 01.09.2026».), as Russian
+ * typesetting writes one period there.
+ */
+export function skippedNote(text: string): string {
+  const line = text.trim();
+  const own = line.endsWith('.') && !line.endsWith('..') && !ABBREVIATION_END.test(line);
+  return `Строка без номера пропущена: ${inQuotes(own ? line.slice(0, -1) : line)}.`;
 }
 
 function stemsOf(text: string): Set<string> {

@@ -15,8 +15,14 @@
 
 export const ANSWER_TEXT_CONSENT_VERSION = 1;
 export const ANSWER_TEXT_MAX_CHARS = 20_000;
-export const ANSWER_TEXT_CONSENT_TEXT =
-  'Помогите проверить точность Meldy: разрешите сохранять текст ваших ответов. Имя к ним не прикладывается, удалить можно в профиле.';
+/** The request itself, the first sentence of the consent text wherever it is asked. */
+export const ANSWER_TEXT_CONSENT_ASK = 'Помогите проверить точность Meldy: разрешите сохранять текст ваших ответов.';
+export const ANSWER_TEXT_CONSENT_TEXT = `${ANSWER_TEXT_CONSENT_ASK} Имя к ним не прикладывается, удалить можно в профиле.`;
+/**
+ * The same consent under the switch in «Профиль», where the student already is: the kept texts are deleted
+ * right there (the row «Сохранено текстов ответов: N» with «Удалить»), not «в профиле».
+ */
+export const ANSWER_TEXT_PROFILE_TEXT = `${ANSWER_TEXT_CONSENT_ASK} Имя к ним не прикладывается, удалить их можно здесь.`;
 
 /** granted / declined — the student answered the current consent text; unknown — not yet (or an older text). */
 export type AnswerTextConsent = 'granted' | 'declined' | 'unknown';
