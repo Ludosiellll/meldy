@@ -23,6 +23,7 @@ import { displayMaterialTitle } from '../utils/materialTitle';
 import { analysisCards } from '../utils/lectureCards';
 import { countBucket, track } from '../lib/telemetry';
 import { useSheetToday } from '../components/exams/sheet/sheetCount';
+import { mostlyNone } from '../components/exams/examStatus';
 import { counterLabel, erasableLine, nextErasableLine } from '../components/exams/sheet/copy';
 import type { ErasableNow } from '../lib/exams/cheatSheet';
 import DailyReminder from '../components/reminders/DailyReminder';
@@ -1309,11 +1310,16 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   const tally = coverageTally(exam.questions);
   const total = tally.total;
   const mapped = total > 0 && tally.unmapped < total;
+  // The exam page's status leads the same way (components/exams/examStatus.ts): before the first mapping its sheet
+  // offers «Сверить с лекциями», and when (almost) every question is in no lecture — the exam's lectures; answering
+  // is not the next step then, and a «0 %» says nothing.
+  const nothingFound = mostlyNone(tally);
+  const neverMapped = total > 0 && !mapped;
   const gap = mapped && tally.none > 0 ? withoutMaterialLine(tally.none) : null;
-  const figure = shareFigure(exam.questions, exam.layout);
+  const figure = nothingFound ? null : shareFigure(exam.questions, exam.layout);
   const answers = answersSentence(exam.questions, exam.events);
   // With the large figure the share is said by it; otherwise («Сверки с лекциями ещё не было.») by the sentence.
-  const sentence = (figure ? [answers] : [shareSentence(exam.questions, exam.layout), answers]).filter(Boolean).join(' ');
+  const sentence = (figure || nothingFound ? [answers] : [shareSentence(exam.questions, exam.layout), answers]).filter(Boolean).join(' ');
   const note = recentNote(exam.questions, exam.events);
   const meta = examMeta({ examDate: exam.examDate, layout: exam.layout, total });
   const heading = examHeadingParts({ title: exam.title, kind: exam.kind, daysLeft: exam.daysLeft });
@@ -1397,15 +1403,18 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
         sheetLines
       )}
       <div className="td-actions">
-        {total > 0 ? (
+        {nothingFound ? (
+          <ActionLink to={`/exams/${exam.id}/edit#lectures`} blue={lead}>
+            Выбрать или добавить лекции
+          </ActionLink>
+        ) : total > 0 && !neverMapped ? (
           <ActionLink to={`/exams/${exam.id}/draw`} blue={lead}>
             {drawWord}
           </ActionLink>
         ) : null}
-        <Link className="sf-secondary td-pill" to={`/exams/${exam.id}`}>
+        <ActionLink to={`/exams/${exam.id}`} blue={lead && neverMapped}>
           Лист экзамена
-          <PillDot />
-        </Link>
+        </ActionLink>
       </div>
     </article>
   );

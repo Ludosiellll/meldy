@@ -482,6 +482,34 @@ describe('loadExamBundle', () => {
   });
 });
 
+describe('loadExamBundle: a copy from a group link', () => {
+  const respond = (members: { data: unknown; error: unknown }) => (entry: { table: string }) => {
+    if (entry.table === 'exams') return { data: { ...exam }, error: null };
+    if (entry.table === 'exam_questions') return { data: [question('q1', 1)], error: null };
+    if (entry.table === 'exam_materials') return { data: [{ material_id: 'm-1' }], error: null };
+    if (entry.table === 'materials') return { data: [{ id: 'm-1', title: 'Денежный рынок' }], error: null };
+    if (entry.table === 'exam_share_members') return members;
+    return { data: null, error: null };
+  };
+
+  it('says the exam is the student’s copy when their own member row points at it', async () => {
+    db.respond = respond({ data: [{ id: 'member-1' }], error: null });
+    const bundle = await loadExamBundle('exam-1');
+    expect(bundle?.copy).toBe(true);
+    const read = calls('exam_share_members')[0];
+    expect(op(read, 'eq')).toEqual(['member_exam_id', 'exam-1']);
+  });
+
+  it('is not a copy without such a row, and a failed read never fails the exam', async () => {
+    db.respond = respond({ data: [], error: null });
+    expect((await loadExamBundle('exam-1'))?.copy).toBe(false);
+    db.respond = respond({ data: null, error: { code: '42P01', message: 'relation does not exist' } });
+    const bundle = await loadExamBundle('exam-1');
+    expect(bundle?.copy).toBe(false);
+    expect(bundle?.questions).toHaveLength(1);
+  });
+});
+
 describe('listExams', () => {
   it('counts coverage per exam and puts upcoming exams first', async () => {
     db.respond = (entry) => {

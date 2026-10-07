@@ -127,6 +127,11 @@ export interface ExamBundle {
   questions: ExamQuestion[];
   materialIds: string[];
   materials: ExamMaterial[];
+  /**
+   * The exam is the student's own copy from a classmate's group link (exam_share_members): the author chose its
+   * lectures and wrote its sheet. Absent or false when it is not, or when that could not be read.
+   */
+  copy?: boolean;
 }
 
 export interface ExamListItem {
@@ -602,10 +607,11 @@ export async function loadExamBundle(
   examId: string,
   options: { onQuestions?: (questions: ExamQuestion[]) => void } = {},
 ): Promise<ExamBundle | null> {
-  const [exam, questions, materialIds] = await Promise.all([
+  const [exam, questions, materialIds, copy] = await Promise.all([
     fetchExam(examId),
     fetchExamQuestions(examId),
     fetchExamMaterialIds(examId),
+    isGroupCopy(examId),
   ]);
   if (!exam) return null;
   try {
@@ -614,7 +620,21 @@ export async function loadExamBundle(
     // The caller's own follow-up work never turns into a failed load.
   }
   const materials = await fetchMaterialTitles(materialIds);
-  return { exam, questions, materialIds, materials };
+  return { exam, questions, materialIds, materials, copy };
+}
+
+/**
+ * Whether the exam is the student's copy from a group link: their own row of exam_share_members points at it
+ * (row-level security shows only one's own rows). A failed read says «not a copy»: the page then speaks as to the
+ * author, which never blocks anything.
+ */
+async function isGroupCopy(examId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('exam_share_members').select('id').eq('member_exam_id', examId).limit(1);
+    return !error && Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** The user's exams with coverage counts, nearest exam date first, then the newest without a date. */
@@ -704,6 +724,21 @@ export async function listPickerMaterials(userId: string): Promise<PickerMateria
         textOnly: row.text_only === true || row.text_only === 'true',
       };
     });
+}
+
+/**
+ * The user's lectures by id and readable title, newest first, without their texts: the exam page names the
+ * lectures that fit its questions (components/exams/examLectureFit.ts); the server reads the texts itself.
+ */
+export async function listLectureTitles(userId: string): Promise<Array<{ id: string; title: string }>> {
+  const data = await run(
+    supabase.from('materials').select('id, title').eq('user_id', userId).order('created_at', { ascending: false }).limit(FIT_MAX_LECTURES),
+    EXAM_MESSAGES.materials,
+  );
+  return (Array.isArray(data) ? data : [])
+    .filter(isRecord)
+    .filter((row) => typeof row.id === 'string')
+    .map((row) => ({ id: row.id as string, title: displayMaterialTitle(str(row.title)) }));
 }
 
 // ---------------------------------------------------------------------------------------------

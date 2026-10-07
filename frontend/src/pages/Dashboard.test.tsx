@@ -531,6 +531,31 @@ describe('«Сегодня»: the exam on the desk', () => {
     });
   });
 
+  it('leads where the exam page leads: no «0 %» and the exam’s lectures when (almost) nothing is in them; the sheet before the first mapping', async () => {
+    // The owner's case of 2026-10-07: every question checked, none in the chosen lecture.
+    db.tables.exam_questions = () => ({ data: questionRows(() => 'none') });
+    exam();
+    const first = renderDashboard();
+    const heading = await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
+    const block = heading.closest('article')!;
+    const lectures = await within(block).findByRole('link', { name: named('Выбрать или добавить лекции') });
+    expect(lectures).toHaveAttribute('href', '/exams/e-1/edit#lectures');
+    expect(lectures).toHaveClass('sf-primary');
+    expect(within(block).queryByRole('link', { name: named('Тянуть билет') })).toBeNull();
+    expect(plain(block.textContent)).not.toMatch(/0\s%|билетов, где/);
+    expect(within(block).getByRole('link', { name: named('40 вопросов без материала') })).toHaveAttribute('href', '/exams/e-1?filter=cov:none');
+    first.unmount();
+
+    // Never checked against the lectures: the exam's sheet says what to do («Сверить с лекциями»).
+    db.tables.exam_questions = () => ({ data: questionRows(() => null) });
+    renderDashboard();
+    const again = (await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).closest('article')!;
+    const sheet = await within(again).findByRole('link', { name: named('Лист экзамена') });
+    expect(sheet).toHaveClass('sf-primary');
+    expect(within(again).queryByRole('link', { name: named('Тянуть билет') })).toBeNull();
+    expect(plain(again.textContent)).toContain('Сверки с лекциями ещё не было.');
+  });
+
   it('draws one mark per question in list order: 2 rows of 20 on a computer, numbers 1, 20, 21, 40', async () => {
     db.tables.exam_questions = () => ({
       data: questionRows((p) => (p === 2 ? null : p === 4 ? 'unverified' : NONE.has(p) ? 'none' : PARTIAL.has(p) ? 'partial' : 'full')),

@@ -15,7 +15,7 @@ vi.mock('../../api/exams', async (importOriginal) => {
   return { ...actual, fetchExamMappingState: (...args: unknown[]) => mocks.fetchExamMappingState(...args) };
 });
 
-import { getMapJob, MAPPING_COST, mappingLimitMessage, mappingNeedsModel, resetMapJobsForTests, startMapping, subscribeMapJobs, type MappingView } from './mapJobs';
+import { getMapJob, MAPPING_COST, mappingLimitMessage, mappingNeedsModel, mappingTargets, resetMapJobsForTests, startMapping, subscribeMapJobs, type MappingView } from './mapJobs';
 import { AI_COSTS } from '../../lib/plans';
 
 const enc = new TextEncoder();
@@ -246,6 +246,14 @@ describe('mappingNeedsModel: the units are checked only when questions go to the
 
   it('a checked exam whose lectures did not change sends nothing to the model (the server answers to_check 0)', () => {
     expect(mappingNeedsModel(copy)).toBe(false);
+    expect(mappingTargets(copy)).toBe(0);
+  });
+
+  it('counts the questions a run sends to the model: the status names the price of the run by them', () => {
+    expect(mappingTargets({ ...copy, questions: [...copy.questions, row('q5', null), row('q6', 'unverified')] })).toBe(2);
+    // The lectures changed: the partial and the none marks are checked again, the full and the hand mark stay.
+    expect(mappingTargets({ ...copy, materialIds: ['m1', 'm2', 'm3'] })).toBe(2);
+    expect(mappingTargets(copy, ['q1', 'q2', 'q4'])).toBe(2);
   });
 
   it('questions not checked, checked only by words, or asked for by id go to the model', () => {

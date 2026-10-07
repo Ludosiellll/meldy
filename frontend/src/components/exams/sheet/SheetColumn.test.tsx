@@ -228,6 +228,17 @@ describe('SheetWriteCard', () => {
     expect(screen.queryByRole('heading')).toBeNull();
   });
 
+  it('leaves the button and the price to the page’s status block when it offers them, and says what the sheet is', () => {
+    writeCard({ hideAction: true });
+    expect(screen.getByRole('heading', { name: named('Шпаргалка ещё не написана') })).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(plain(document.querySelector('.cs-write')?.textContent)).not.toContain('единицы ИИ');
+    cleanup();
+    // «Дописать» offered by the status: nothing left for the card to say.
+    writeCard({ written: 5, toWrite: 2, units: 2, hideAction: true });
+    expect(document.querySelector('.cs-write')).toBeNull();
+  });
+
   it('writes what today’s units allow and says when the rest comes', () => {
     const { props } = writeCard({ written: 2, toWrite: 5, units: 5, unitsLeft: 2 });
     fireEvent.click(screen.getByRole('button', { name: named('Написать 2 вопроса') }));

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   EXAM_MESSAGES,
   applyCoverage,
@@ -15,20 +14,23 @@ import {
 } from '../api/exams';
 import { fetchQuestionEvents, fetchSessionPoints, localDate, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
-import { checkAILimit, FREE_DAILY_LIMIT, nextLimitReset } from '../api/limits';
-import { EXAM_MAPPING_QUESTIONS_PER_CHARGE } from '../lib/plans';
-import { pluralRu } from '../components/conversation/visuals';
+import { checkAILimit, FREE_DAILY_LIMIT, formatLimitReset, nextLimitReset } from '../api/limits';
+import { examMappingCost } from '../lib/plans';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { confidenceVsConfirmed, examSummary, statesByHash, type QuestionState, type Readiness } from '../lib/learning/readiness';
+import { erasableNow } from '../lib/exams/cheatSheet';
 import { percent } from '../lib/exams/ticketMath';
 import type { DrawMode } from '../lib/exams/draw';
 import { daysUntil, formatClock, formatDay, formatMappedAt, KIND_LABELS, relativeDays, sheetHeader, subjectOf } from '../lib/exams/format';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { Mark } from '../components/marks';
 import ExamSheet, { type SheetPeak, type SheetRowView } from '../components/exams/ExamSheet';
+import ExamStatusCard, { type StatusNote } from '../components/exams/ExamStatus';
+import { examStatus, isNothingFound, mappingLimitLine } from '../components/exams/examStatus';
+import { useExamLectureFit } from '../components/exams/examLectureFit';
 import WhyPanel from '../components/exams/WhyPanel';
 import { CoverageSummary, PeakSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
-import { checkedCount, getMapJob, interruptedMessage, MAPPING_COST, mappingNeedsModel, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
+import { checkedCount, getMapJob, MAPPING_COST, mappingTargets, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../components/exams/marks';
 import {
   growthSentence,
@@ -44,6 +46,7 @@ import {
 import { preloadDrawScreen, preloadTicketScreen, whenIdle } from '../components/exams/preload';
 import {
   closedPartialShares,
+  closePartialLine,
   confidenceSentence,
   confirmedShares,
   coverageCounts,
@@ -62,13 +65,15 @@ import {
   readinessWords,
   sheetCoverage,
   sheetFilterOf,
-  unmappedSentence,
   withRatingOverrides,
   type SheetFilter,
 } from '../components/exams/sheetModel';
 import { useFrame } from '../components/exams/useFrame';
 import DrawModeMenu, { DRAW_CAPTIONS } from '../components/exams/DrawModeMenu';
-import { useSheetPage } from '../components/exams/sheet/useSheetPage';
+import { useSheetView } from '../components/exams/sheet/useSheetPage';
+import { useCheatSheet } from '../components/exams/sheet/useCheatSheet';
+import { useUnitsLeft } from '../components/exams/sheet/SheetColumn';
+import { nextErasableLine } from '../components/exams/sheet/copy';
 import TipCard from '../components/tips/TipCard';
 import { TIPS } from '../components/tips/tips';
 import { useFirstUseTip } from '../components/tips/useFirstUseTip';
@@ -162,14 +167,6 @@ export interface MappingLimit {
   resetAt: number;
 }
 
-/** «Дневной лимит исчерпан: сверка с лекциями расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 0. Обновится в 3:00.» */
-export function mappingLimitSentence(limit: MappingLimit): string {
-  const head = limit.remaining === 0 ? 'Дневной лимит исчерпан' : 'Не хватает дневного лимита';
-  const at = formatClock(new Date(limit.resetAt).toISOString());
-  const units = pluralRu(MAPPING_COST, ['единицу', 'единицы', 'единиц']);
-  return `${head}: сверка с лекциями расходует ${MAPPING_COST} ${units} за каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов, сегодня осталось ${limit.remaining}. Обновится в ${at}.`;
-}
-
 /** One page state per exam: opening another exam's sheet starts from scratch. */
 export default function ExamDetail() {
   const { id: examId = '' } = useParams();
@@ -189,7 +186,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
     return storedView(examId) ?? 'questions';
   });
   const userId = user?.id ?? null;
-  const navigate = useNavigate();
   const { confirm } = useConfirm();
   const reduced = usePrefersReducedMotion();
   const frame = useFrame<HTMLDivElement>();
@@ -213,9 +209,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [manualError, setManualError] = useState<string | null>(null);
   const [drawMode, setDrawMode] = useState<DrawMode>('exam');
   const [limit, setLimit] = useState<MappingLimit | null>(null);
-  // «Сверить с лекциями» had the focus when its run started: the focus goes to the pill that replaces it.
+  // «Сверить с лекциями» had the focus when its run started: the focus goes to the status that replaces it.
   const mapPillFocused = useRef(false);
   const drawPillRef = useRef<HTMLAnchorElement>(null);
+  const statusHeadingRef = useRef<HTMLHeadingElement>(null);
   const [peak, setPeak] = useState<PeakRun | null>(null);
   // Rubric points of the first two answers of each question: «Второй ответ после разбора».
   const [points, setPoints] = useState<{ events: LearningEvent[]; state: 'idle' | 'ready' | 'error' }>({ events: [], state: 'idle' });
@@ -240,9 +237,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [takenSeq, setTakenSeq] = useState(job.finishedSeq);
   // finishedSeq of the newest run that ended before the rows on screen were read.
   const [readSeq, setReadSeq] = useState(job.finishedSeq);
-  // finishedSeq whose strike over the question share was drawn in already: a saved mapping shows it
-  // still; only a run that finishes on this page draws it in, once (Jury_Check item 9).
-  const [strikeSeen, setStrikeSeen] = useState(job.finishedSeq);
   // Rows marked by hand during a run, with the live mark they replace (a newer mark wins again).
   const [manualMarks, setManualMarks] = useState<ReadonlyMap<string, CoverageItem | undefined>>(NO_MANUAL_MARKS);
 
@@ -531,14 +525,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
     }
   }, [view, eventsState, bundle, answersByHash, events, summary, confirmed, layout.per_ticket, confirmedBeforeToday, now]);
 
-  // A mapping run that finished on this page draws the strike over the question share in, once.
-  const strikeLive = job.phase === 'done' && job.finishedSeq !== openedSeq && job.finishedSeq !== strikeSeen;
-  useEffect(() => {
-    if (!strikeLive) return;
-    const timer = window.setTimeout(() => setStrikeSeen(job.finishedSeq), 1200);
-    return () => window.clearTimeout(timer);
-  }, [strikeLive, job.finishedSeq]);
-
   useEffect(() => {
     if (!peak || peak.phase !== 'scroll') return;
     const row = document.getElementById(`exam-q-${peak.questionId}`);
@@ -561,39 +547,151 @@ function ExamSheetPage({ examId }: { examId: string }) {
     };
   }, [peak?.dim]);
 
+  // ------------------------------------------------------------------ the mapping, as the status says it
+  // A run of this tab or another one is going on (the short limit check before a run is not: the
+  // action that asked for it stays where it is, so the focus is not lost).
+  const busy = running || job.phase === 'waiting';
+  const examRow = bundle?.exam ?? null;
+  const progress = checkedCount(job);
+  const staleRun = Boolean(examRow && examFresh && !busy && examRow.mapping_state === 'running' && !isMappingLocked(examRow));
+  const mappedCount = questions.filter((question) => question.coverage !== null).length;
+  // Marks a mapping run wrote (a mark made by hand is not a run).
+  const runMarks = questions.filter((question) => question.coverage !== null && question.coverage_method !== 'manual').length;
+  // What happened to this tab's run on this visit (the database says the rest).
+  const outcome = ownRun && !running ? job.phase : null;
+  const outcomeNote = outcome === 'interrupted' || (outcome === 'failed' && Boolean(job.message));
+  // Until the exam row is read again after a run, its date is the one the run reported.
+  const mappedAt = !examFresh && ownRun && job.done?.mappedAt ? job.done.mappedAt : examRow?.mapped_at ?? null;
+  // A first run that stopped half-way on an earlier visit: marks, but no date of a finished mapping.
+  const stoppedEarlier = Boolean(examRow) && !busy && !outcomeNote && !staleRun && !mappedAt && runMarks > 0 && mappedCount < questions.length;
+  const interrupted = (outcome === 'interrupted' && mappedCount < questions.length) || staleRun || stoppedEarlier;
+  const mappingPhase = running
+    ? 'running'
+    : job.phase === 'waiting'
+      ? 'waiting'
+      : outcome === 'failed' && job.message
+        ? 'failed'
+        : interrupted
+          ? 'interrupted'
+          : 'idle';
+  const mappingProgress = running || outcome === 'interrupted' ? progress : interrupted ? { checked: runMarks, total: questions.length } : null;
+  // Lectures added to the exam or taken out of it since the last finished run (the run's own visit excepted).
+  const lecturesChange = useMemo(() => {
+    if (!bundle || !bundle.exam.mapped_at || running || !examFresh) return { added: 0, removed: 0 };
+    const mapped = new Set(bundle.exam.mapped_material_ids);
+    const current = new Set(bundle.materialIds);
+    return {
+      added: bundle.materialIds.filter((id) => !mapped.has(id)).length,
+      removed: bundle.exam.mapped_material_ids.filter((id) => !current.has(id)).length,
+    };
+  }, [bundle, running, examFresh]);
+  // What the next run costs: 10 units for every started 40 questions that go to the model (the rest is free).
+  const nextRunCost = bundle
+    ? examMappingCost(mappingTargets({ questions: bundle.questions, materialIds: bundle.materialIds, mappedMaterialIds: bundle.exam.mapped_material_ids }))
+    : 0;
+
   // ------------------------------------------------------------------ cheat sheet
-  // «35 % билетов, где оба вопроса есть в лекциях» beside the sheet's counter, as «Вопросы» says it.
+  const sheetData = useCheatSheet(examId, { examDate: bundle?.exam.exam_date ?? null, enabled: Boolean(userId) });
+  // The units left today, read once for the page and its sheet: the status names the price of writing the sheet.
+  const unitsLeft = useUnitsLeft(sheetData.status === 'ready' && sheetData.toWrite > 0 ? userId : null);
+  const sheetKnown = sheetData.status === 'ready' && sheetData.journalRead;
+  const erasable = useMemo(() => (sheetKnown ? erasableNow(sheetData.sheet, sheetData.now) : null), [sheetKnown, sheetData.sheet, sheetData.now]);
+  // A mapping run that ended changes what can be written: the sheet is read again.
+  const sheetReload = sheetData.reload;
+  const sheetRunSeq = useRef(job.finishedSeq);
+  useEffect(() => {
+    if (job.finishedSeq === sheetRunSeq.current) return;
+    sheetRunSeq.current = job.finishedSeq;
+    sheetReload();
+  }, [job.finishedSeq, sheetReload]);
+
+  // ------------------------------------------------------------------ the status at the top (owner, 2026-10-07)
+  // What Meldy did with this exam, what it found and the one thing to do next (components/exams/examStatus.ts).
+  const drawLabel = bundle && bundle.exam.ticket_layout.per_ticket <= 1 && bundle.exam.ticket_layout.mode !== 'fixed' ? 'Тянуть вопрос' : 'Тянуть билет';
+  const nothingFound = Boolean(bundle) && isNothingFound({ total: questions.length, lectures: bundle?.materials ?? [], coverage: counts });
+  const fitQuestionTexts = useMemo(() => (bundle?.questions ?? []).map((question) => question.text), [bundle?.questions]);
+  const lectureFit = useExamLectureFit({ userId, wanted: nothingFound, questions: fitQuestionTexts, own: bundle?.materialIds ?? [] });
+  const answered = summary.confirmed + summary.once + summary.notPassed;
+  const sheetState: 'loading' | 'ready' | 'error' =
+    sheetData.status === 'loading' || (sheetData.status === 'ready' && !sheetData.journalRead && sheetData.eventsState !== 'error')
+      ? 'loading'
+      : sheetData.status === 'error' || !sheetData.journalRead
+        ? 'error'
+        : 'ready';
+  const pageStatus = bundle
+    ? examStatus({
+        total: questions.length,
+        lectures: bundle.materials,
+        copy: bundle.copy === true,
+        coverage: counts,
+        mapping: {
+          phase: mappingPhase,
+          progress: mappingProgress,
+          message: job.message,
+          added: lecturesChange.added,
+          removed: lecturesChange.removed,
+          cost: nextRunCost,
+          limit: limit ? { remaining: limit.remaining, resetAt: formatClock(new Date(limit.resetAt).toISOString()) } : null,
+        },
+        sheet: {
+          state: sheetState,
+          written: sheetData.written,
+          toWrite: sheetData.toWrite,
+          units: sheetData.units,
+          writing: sheetData.write.phase === 'running' ? { done: sheetData.write.done, total: sheetData.write.total || sheetData.toWrite } : null,
+          unitsLeft,
+          resetAt: formatLimitReset(nextLimitReset()),
+          lines: { left: sheetData.sheet.counts.left, total: sheetData.sheet.counts.total },
+          erasable: erasable?.questions.length ?? 0,
+          nextErasable: erasable ? nextErasableLine(erasable.next, sheetData.now) : null,
+        },
+        answers: { state: eventsState, answered, untested: summary.untested, confirmed: summary.confirmed },
+        drawLabel,
+        lectureFit,
+      })
+    : null;
+  const hideShare = pageStatus?.hideCoverage ?? false;
+
+  // «35 % билетов, где оба вопроса есть в лекциях» beside the sheet's counter, as «Вопросы» says it — not while the
+  // share says nothing (nothing checked, almost nothing found: the status says that).
   const sheetShareLine = useMemo(() => {
     const low = shares.low;
-    if (!low.ok || counts.total === 0 || counts.unmapped + counts.checking >= counts.total) return null;
+    if (hideShare || !low.ok || counts.total === 0 || counts.unmapped + counts.checking >= counts.total) return null;
     if ((low.mode === 'random' || low.mode === 'sections') && low.q <= 1) return `${questionShareText(counts)} вопросов есть в лекциях`;
     const ticketShare = shareText(shares, 'all');
     if (!ticketShare) return null;
     const label = low.mode === 'fixed' ? 'билетов, где все вопросы есть в лекциях' : `билетов, где ${allQuestionsWord(perTicketOf(low, layout.per_ticket))} есть в лекциях`;
     return `${ticketShare} ${label}`;
-  }, [shares, counts, layout.per_ticket]);
-  const sheetPage = useSheetPage({
-    examId,
-    userId,
-    examDate: bundle?.exam.exam_date ?? null,
-    sectionTitles: bundle?.exam.ticket_layout.section_titles ?? [],
-    lectureCount: bundle?.materials.length ?? 0,
-    active: view === 'sheet' && status === 'ready',
-    side: frame.side,
-    frameBox: frame.box,
-    peakFlags,
-    shareLine: sheetShareLine,
-    mappingRunning: running || job.phase === 'waiting',
-    unmapped: questions.length > 0 && questions.every((question) => question.coverage === null),
-    onQuestion: (id) => {
-      setManualError(null);
-      setSelectedId((currentId) => (currentId === id ? null : id));
+  }, [hideShare, shares, counts, layout.per_ticket]);
+  const sheetPage = useSheetView(
+    {
+      examId,
+      userId,
+      examDate: bundle?.exam.exam_date ?? null,
+      sectionTitles: bundle?.exam.ticket_layout.section_titles ?? [],
+      lectureCount: bundle?.materials.length ?? 0,
+      active: view === 'sheet' && status === 'ready',
+      side: frame.side,
+      frameBox: frame.box,
+      peakFlags,
+      shareLine: sheetShareLine,
+      mappingRunning: running || job.phase === 'waiting',
+      unmapped: questions.length > 0 && questions.every((question) => question.coverage === null),
+      onQuestion: (id) => {
+        setManualError(null);
+        setSelectedId((currentId) => (currentId === id ? null : id));
+      },
+      // A line's details take the column: «почему» of a question closes (it would stand in front of them).
+      onLineOpen: () => setSelectedId(null),
+      openQuestionId: view === 'sheet' ? selectedId : null,
+      questionPanelId: `exam-why-${examId}`,
+      // The status offers «Написать шпаргалку»: the column's card says what the sheet is, without a second button.
+      writeFromStatus: pageStatus?.action?.kind === 'write',
+      quietGaps: pageStatus?.quietGaps ?? false,
+      unitsLeft,
     },
-    // A line's details take the column: «почему» of a question closes (it would stand in front of them).
-    onLineOpen: () => setSelectedId(null),
-    openQuestionId: view === 'sheet' ? selectedId : null,
-    questionPanelId: `exam-why-${examId}`,
-  });
+    sheetData,
+  );
   // The first time the sheet shows lines, one tip under its tab says what erases them (sheet spec 8):
   // not over a replay or the history, not while a line's details are open.
   const sheetTabRef = useRef<HTMLButtonElement>(null);
@@ -668,14 +766,14 @@ function ExamSheetPage({ examId }: { examId: string }) {
   }, [limit]);
 
   const mappingBlocked = Boolean(limit) || job.starting;
-  // When «Сверить с лекциями» leaves the page with the focus on it (its run started), the focus goes to
-  // «Тянуть билет», which takes its place — never to the page's body.
+  // When «Сверить с лекциями» leaves the page with the focus on it (its run started), the focus goes to the
+  // status's headline, which now says «Meldy сверяет вопросы с лекциями» — never to the page's body.
   const mapPillRef = useCallback((element: HTMLButtonElement | null) => {
     if (element || !mapPillFocused.current) return;
     mapPillFocused.current = false;
     window.setTimeout(() => {
       const active = document.activeElement;
-      if (!active || active === document.body) drawPillRef.current?.focus();
+      if (!active || active === document.body) (statusHeadingRef.current ?? drawPillRef.current)?.focus();
     }, 0);
   }, []);
   const startRun = useCallback(
@@ -684,7 +782,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       // The units are checked only when questions will go to the model: a group link's copy, all checked already,
       // was held back by «10 единиц» for a run the server did for free (live run of 2026-10-07).
       const needsModel = bundle
-        ? mappingNeedsModel({ questions: bundle.questions, materialIds: bundle.materialIds, mappedMaterialIds: bundle.exam.mapped_material_ids }, questionIds)
+        ? mappingTargets({ questions: bundle.questions, materialIds: bundle.materialIds, mappedMaterialIds: bundle.exam.mapped_material_ids }, questionIds) > 0
         : true;
       void startMapping({ examId, userId, questionIds, verifyEnergy: verifyMappingLimit, cost: needsModel ? MAPPING_COST : 0 });
     },
@@ -791,7 +889,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       </div>
     );
   }
-  if (status === 'missing' || status === 'error' || !bundle) {
+  if (status === 'missing' || status === 'error' || !bundle || !pageStatus) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
         <div className="ex-error" role="alert">
@@ -812,27 +910,15 @@ function ExamSheetPage({ examId }: { examId: string }) {
   }
 
   const { exam } = bundle;
+  const copy = bundle.copy === true;
   const perTicket = exam.ticket_layout.per_ticket;
-  const drawLabel = perTicket <= 1 && exam.ticket_layout.mode !== 'fixed' ? 'Тянуть вопрос' : 'Тянуть билет';
   const drawHref = `/exams/${exam.id}/draw${drawMode === 'exam' ? '' : `?mode=${drawMode}`}`;
-  const progress = checkedCount(job);
-  // A run of this tab or another one is going on (the short limit check before a run is not: the
-  // action that asked for it stays where it is, so the focus is not lost).
-  const busy = running || job.phase === 'waiting';
-  const staleRun = examFresh && !busy && exam.mapping_state === 'running' && !isMappingLocked(exam);
-  const mappedCount = questions.filter((question) => question.coverage !== null).length;
-  // Marks a mapping run wrote (a mark made by hand is not a run).
-  const runMarks = questions.filter((question) => question.coverage !== null && question.coverage_method !== 'manual').length;
-  const neverMapped = mappedCount === 0 && !busy && questions.length > 0;
-  // What happened to this tab's run on this visit (the database says the rest).
-  const outcome = ownRun && !running ? job.phase : null;
-  const outcomeNote = outcome === 'interrupted' || (outcome === 'failed' && Boolean(job.message));
-  // Until the exam row is read again after a run, its date is the one the run reported.
-  const mappedAt = !examFresh && ownRun && job.done?.mappedAt ? job.done.mappedAt : exam.mapped_at;
 
   let mappingMeta: string;
   if (running) mappingMeta = progress ? `проверено ${progress.checked} из ${progress.total}` : 'сверка идёт';
   else if (job.phase === 'waiting') mappingMeta = 'сверка ещё идёт';
+  // A copy from a group link: the author checked it; the member's own page does not speak of a mapping.
+  else if (copy && mappingPhase === 'idle' && lecturesChange.added + lecturesChange.removed === 0) mappingMeta = 'копия из ссылки группы';
   else if (mappedAt) mappingMeta = `сверка от ${formatMappedAt(mappedAt)}`;
   // A run that stopped half-way left marks but no date: say how far it got, never «разметки ещё нет».
   else if (runMarks > 0) mappingMeta = `проверено ${runMarks} из ${questions.length}, сверка прервалась`;
@@ -845,81 +931,43 @@ function ExamSheetPage({ examId }: { examId: string }) {
     mappingMeta,
   ];
 
-  const mapped = new Set(exam.mapped_material_ids);
   const current = new Set(bundle.materialIds);
-  const added = exam.mapped_at ? bundle.materialIds.filter((id) => !mapped.has(id)).length : 0;
-  const removed = exam.mapped_at ? exam.mapped_material_ids.filter((id) => !current.has(id)).length : 0;
   const reusedPart =
     outcome === 'done' && job.done && job.done.reused > 0 && job.received > job.done.reused && job.done.oldestMappedAt
       ? `Часть сверки от ${formatClock(job.done.oldestMappedAt)}, остальное сейчас.`
       : null;
   const skippedLectures = ownRun ? job.start?.skipped.filter((item) => item.reason === 'no_text').length ?? 0 : 0;
 
-  const notes: Array<{ key: string; text: string; action?: { label: string; run: () => void; maps?: boolean }; quiet?: boolean; status?: boolean }> = [];
-  if (limit) notes.push({ key: 'limit', text: mappingLimitSentence(limit), status: true });
-  if (outcome === 'interrupted') notes.push({ key: 'int', text: job.message ?? interruptedMessage(job), action: { label: 'Продолжить', run: () => startRun(null), maps: true } });
-  if (staleRun) notes.push({ key: 'stale', text: `Сверка прервалась: проверено ${runMarks} из ${questions.length}.`, action: { label: 'Продолжить', run: () => startRun(null), maps: true } });
-  if (job.phase === 'waiting') notes.push({ key: 'wait', text: 'Сверка ещё идёт. Лист обновится, когда она закончится.', quiet: true });
-  if (outcome === 'failed' && job.message) notes.push({ key: 'fail', text: job.message, action: { label: 'Повторить', run: () => startRun(null), maps: true } });
-  if (job.failedMessage && running) notes.push({ key: 'batch', text: `${job.failedMessage}.`, quiet: true });
-  if (reusedPart) notes.push({ key: 'reused', text: reusedPart, quiet: true });
-  if (bundle.materials.length === 0)
-    notes.push({ key: 'nolect', text: 'Без лекций Meldy не сможет отметить покрытие. Список сохранится.', action: { label: 'Добавить лекции', run: () => navigate(`/exams/${exam.id}/edit#lectures`) } });
-  // Before the first run the filled pill of the header is «Сверить с лекциями» (redesign critique 7).
-  else if (neverMapped && !staleRun && !outcomeNote) notes.push({ key: 'unmapped', text: 'Вопросы ещё не сверены с лекциями.' });
-  else if (!busy && !staleRun && !outcomeNote && mappedCount > 0 && mappedCount < questions.length)
-    notes.push({
-      key: 'some-unmapped',
-      text: unmappedSentence(questions.length - mappedCount, shares),
-      action: { label: 'Сверить', run: () => startRun(null), maps: true },
-    });
-  if (!running && examFresh && (added > 0 || removed > 0)) {
-    const parts: string[] = [];
-    // «добавлена 1 лекция», «добавлено 2 лекции»: the verb agrees with the number (21 too, 11 not).
-    const one = (count: number) => count % 10 === 1 && count % 100 !== 11;
-    if (added > 0) parts.push(`${one(added) ? 'добавлена' : 'добавлено'} ${lecturesPhrase(added)}`);
-    if (removed > 0) parts.push(`${one(removed) ? 'убрана' : 'убрано'} ${lecturesPhrase(removed)}`);
-    notes.push({ key: 'changed', text: `После сверки ${parts.join(', ')}.`, action: { label: 'Сверить заново', run: () => startRun(null), maps: true } });
-  }
-  if (skippedLectures > 0) notes.push({ key: 'notext', text: `${lecturesPhrase(skippedLectures)} без текста не ${skippedLectures === 1 ? 'учтена' : 'учтены'}.`, quiet: true });
-  if (eventsState === 'error' && eventsError) notes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) }, quiet: true });
+  // Quiet lines under the status: what a run left behind, a journal that did not load.
+  const statusNotes: StatusNote[] = [];
+  if (job.failedMessage && running) statusNotes.push({ key: 'batch', text: `${job.failedMessage}.` });
+  if (reusedPart) statusNotes.push({ key: 'reused', text: reusedPart });
+  if (skippedLectures > 0) statusNotes.push({ key: 'notext', text: `${lecturesPhrase(skippedLectures)} без текста не ${skippedLectures === 1 ? 'учтена' : 'учтены'}.` });
+  if (limit && !pageStatus.blocked) statusNotes.push({ key: 'limit', text: mappingLimitLine({ remaining: limit.remaining, resetAt: formatClock(new Date(limit.resetAt).toISOString()) }, nextRunCost), live: true });
+  if (eventsState === 'error' && eventsError) statusNotes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) } });
 
   const editLocked = running || job.phase === 'waiting' || (examFresh && exam.mapping_state === 'running' && isMappingLocked(exam));
-  // Before the first run the one filled pill is «Сверить с лекциями»; «Тянуть билет» is a link under it.
-  const preMapping = neverMapped && bundle.materials.length > 0 && !staleRun && !outcomeNote;
   // Only «Все 40» until something is mapped: three filters showing 0 said nothing (redesign critique 7).
   const showCoverageFilters = mappedCount > 0 || running;
-  const mapPill = (
-    <button
-      ref={mapPillRef}
-      type="button"
-      className="sf-primary"
-      aria-disabled={mappingBlocked || undefined}
-      aria-busy={job.starting || undefined}
-      onClick={() => startRun(null)}
-      onFocus={() => {
-        mapPillFocused.current = true;
-      }}
-      onBlur={() => {
-        mapPillFocused.current = false;
-      }}
-    >
-      Сверить с лекциями
-    </button>
-  );
   const whyId = `exam-why-${exam.id}`;
   const showPeak = Boolean(peak) && !rateMode && !selectedRow;
   // The open «почему» has its own filled pill «Ответить на этот вопрос» (not for a question missing from
-  // the lectures or being checked): then the sheet's «Тянуть билет» steps down to an outlined pill.
+  // the lectures or being checked): then the status's action steps down to an outlined pill.
   const whyAnswers = Boolean(selectedRow && selectedRow.coverage !== 'none' && selectedRow.coverage !== 'checking');
+
+  // The column: nothing that says nothing (owner, 2026-10-07). The ticket share only once something is found; the
+  // answers only once there are answers; confidence vs answers only after «Самооценка».
+  const showCoverage = !pageStatus.hideCoverage;
+  const showReadiness = eventsState === 'ready' && answered > 0;
+  const selfRated = ratings.know + ratings.unsure + ratings.dont_know > 0;
+  const closeLine = showCoverage ? closePartialLine(counts.partial, shares, closed) : null;
 
   const readiness = (part: 'all' | 'head' | 'rest') => (
     <ReadinessBlock
       part={part}
       summary={summary}
-      confirmedShares={confirmed}
-      perTicket={perTicket}
       confidence={confidence}
+      selfRated={selfRated}
       answers={eventsState}
       answersError={eventsState === 'error' ? eventsError : null}
       filter={filter}
@@ -944,31 +992,29 @@ function ExamSheetPage({ examId }: { examId: string }) {
       howOpen={howOpen}
       onHow={() => setHowOpen((open) => !open)}
       howId={`${whyId}-how`}
-      onRecheck={recheck}
       filter={filter}
       onFilter={(next) => {
         setRateMode(false);
         setFilter(next);
       }}
-      strikeLive={strikeLive}
-      seedKey={exam.id}
     />
   );
-  const summaryColumn = (
-    <>
-      {coverage('all')}
-      {readiness('all')}
-    </>
-  );
-  // Phones and tablets: only (a) and (b), the short caveat and «Подтверждено ответами» above the
-  // sheet, so the paper starts on the first screen; line (c), the action line, the legend and the
-  // confidence line go under it.
-  const compactColumn = (
-    <>
-      {coverage('head')}
-      {readiness('head')}
-    </>
-  );
+  const summaryColumn =
+    showCoverage || showReadiness ? (
+      <>
+        {showCoverage && coverage('all')}
+        {showReadiness && readiness('all')}
+      </>
+    ) : null;
+  // Phones and tablets: the figure with «Как считается» and «Подтверждено ответами» above the sheet, so the
+  // paper starts on the first screen; the action line and the readiness legend go under it.
+  const compactColumn =
+    showCoverage || showReadiness ? (
+      <>
+        {showCoverage && coverage('head')}
+        {showReadiness && readiness('head')}
+      </>
+    ) : null;
   const rateColumn = (
     <RateSummary
       counts={ratings}
@@ -1026,9 +1072,111 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const column = selectedRow ? whyPanel('column') : rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn;
 
   const onSheet = view === 'sheet';
-  // The column offers its own filled pill («Написать шпаргалку», «Ответить на этот вопрос»), or the sheet's
-  // first-use tip does («Тянуть билет» in the card): the page's «Тянуть билет» steps down.
+  // The column offers its own filled pill («Ответить на этот вопрос»), or the sheet's first-use tip does
+  // («Тянуть билет» in the card): the status's action steps down to the white pill.
   const drawSteps = whyAnswers || (onSheet && (sheetPage.primaryInColumn || sheetTip.show));
+  // Nothing found and nothing written: the sheet's column would hold only its name.
+  const sheetColumnQuiet = pageStatus.quietGaps && sheetPage.data.written === 0 && !sheetPage.lineOpen;
+  const sideColumn = onSheet ? (selectedRow ? whyPanel('column') : sheetColumnQuiet ? null : sheetPage.column) : column;
+
+  // ------------------------------------------------------------------ the status's action
+  // The one filled pill of the page: in the status block beside its words (1024 px and wider), in the bar at the
+  // bottom on phones and tablets. «Тянуть билет» is that pill only when answering is the next step; otherwise a
+  // quiet link beside the action.
+  const action = pageStatus.action;
+  const pillClass = drawSteps ? 'ex-secondary' : 'sf-primary';
+  const mapsBlocked = mappingBlocked || Boolean(pageStatus.blocked);
+  let primary: ReactNode = null;
+  if (action) {
+    switch (action.kind) {
+      case 'map':
+      case 'recheck':
+        primary = (
+          <button
+            ref={mapPillRef}
+            type="button"
+            className={pillClass}
+            aria-disabled={mapsBlocked || undefined}
+            aria-busy={job.starting || undefined}
+            onClick={() => startRun(action.kind === 'recheck' ? unverifiedIds : null)}
+            onFocus={() => {
+              mapPillFocused.current = true;
+            }}
+            onBlur={() => {
+              mapPillFocused.current = false;
+            }}
+          >
+            {action.label}
+          </button>
+        );
+        break;
+      case 'write':
+        primary = (
+          <button
+            type="button"
+            className={pillClass}
+            aria-disabled={pageStatus.blocked ? true : undefined}
+            onClick={() => {
+              if (pageStatus.blocked) return;
+              // The pen writes on the paper: the student sees the lines come.
+              chooseView('sheet');
+              sheetPage.write(action.count);
+            }}
+          >
+            {action.label}
+          </button>
+        );
+        break;
+      case 'lectures':
+        primary = (
+          <Link className={pillClass} to={`/exams/${exam.id}/edit#lectures`}>
+            {action.label}
+          </Link>
+        );
+        break;
+      case 'list':
+        primary = (
+          <Link className={pillClass} to={`/exams/${exam.id}/edit`}>
+            {action.label}
+          </Link>
+        );
+        break;
+      case 'awaiting':
+        primary = (
+          <Link className={pillClass} to={`/exams/${exam.id}/draw?mode=awaiting`} onMouseEnter={preloadTicketScreen} onFocus={preloadTicketScreen} onTouchStart={preloadTicketScreen}>
+            {action.label}
+          </Link>
+        );
+        break;
+      case 'draw':
+        primary = (
+          <Link ref={drawPillRef} className={pillClass} to={drawHref} onMouseEnter={preloadTicketScreen} onFocus={preloadTicketScreen} onTouchStart={preloadTicketScreen}>
+            {action.label}
+          </Link>
+        );
+        break;
+    }
+  }
+  const drawsFirst = action?.kind === 'draw';
+  // «Тянуть билет» stepped down: answering is possible, just not the next step.
+  const quietDraw =
+    pageStatus.draw && !drawsFirst ? (
+      <Link className="sf-link ex-st-alt" to={drawHref} onMouseEnter={preloadTicketScreen} onFocus={preloadTicketScreen} onTouchStart={preloadTicketScreen}>
+        {drawLabel}
+      </Link>
+    ) : null;
+  const statusActions = frame.side ? (
+    primary || quietDraw ? (
+      <div className="ex-draw">
+        {primary}
+        {drawsFirst && <DrawModeMenu variant="popover" mode={drawMode} onChange={setDrawMode} />}
+        {quietDraw}
+      </div>
+    ) : null
+  ) : (
+    quietDraw
+  );
+
   const viewTabs = (
     <>
       <div className="ex-views" role="tablist" aria-label="Вид листа экзамена">
@@ -1066,7 +1214,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
   const examLinks = (
     <div className="ex-links">
-      {editLocked ? (
+      {/* A copy from a group link: its list is the author's (the member keeps «Лекции» to add their own). */}
+      {copy ? null : editLocked ? (
         <span className="sf-link" aria-disabled="true" title="Список можно изменить, когда сверка закончится">
           Изменить список
         </span>
@@ -1095,14 +1244,19 @@ function ExamSheetPage({ examId }: { examId: string }) {
       >
         Самооценка
       </button>
-      {/* «Группа по ссылке»: the author's link for the group (components/exams/share/InviteGroup). */}
-      <InviteGroup examId={exam.id} examTitle={exam.title} />
+      {/* «Группа по ссылке»: the author's link for the group (components/exams/share/InviteGroup); a copy is not
+          shared on (the server refuses it: is_copy). */}
+      {copy ? null : <InviteGroup examId={exam.id} examTitle={exam.title} />}
       {/* The mapping as a page to print for the department, and a CSV (pages/ExamReport.tsx). */}
       <Link className="sf-link" to={`/exams/${exam.id}/report`}>
         Отчёт для преподавателя
       </Link>
     </div>
   );
+
+  // Phones and tablets under the sheet: the action line of the share and the readiness legend, when there are any.
+  const answersBelow = !frame.side && !onSheet && !rateMode && !showPeak && (Boolean(closeLine) || showReadiness);
+  const topColumn = onSheet ? sheetPage.top : rateMode ? rateColumn : showPeak ? peakColumn : compactColumn;
 
   return (
     <div className="sf-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
@@ -1120,66 +1274,21 @@ function ExamSheetPage({ examId }: { examId: string }) {
           {/* A phone's sheet: the paper's lines on the first screen; these links go under it. */}
           {!(onSheet && !frame.side) && examLinks}
         </div>
-        {frame.side &&
-          (preMapping ? (
-            <div className="ex-draw" data-premap="">
-              {mapPill}
-              <Link className="sf-link ex-draw-alt" to={drawHref} onMouseEnter={preloadTicketScreen} onFocus={preloadTicketScreen}>
-                {drawLabel}
-              </Link>
-            </div>
-          ) : (
-            <div className="ex-draw">
-              {/* While «почему» offers «Ответить на этот вопрос», that is the one filled pill (redesign critique 6). */}
-              <Link
-                ref={drawPillRef}
-                className={drawSteps ? 'ex-secondary' : 'sf-primary'}
-                to={drawHref}
-                onMouseEnter={preloadTicketScreen}
-                onFocus={preloadTicketScreen}
-              >
-                {drawLabel}
-              </Link>
-              <DrawModeMenu variant="popover" mode={drawMode} onChange={setDrawMode} />
-            </div>
-          ))}
       </header>
 
-      {notes.length > 0 && (
-        <div className="ex-notes">
-          {notes.map((note) => (
-            <p
-              key={note.key}
-              className="ex-note"
-              data-quiet={note.quiet ? '' : undefined}
-              role={note.key === 'fail' ? 'alert' : note.status ? 'status' : undefined}
-            >
-              {glue(note.text)}
-              {note.action && (
-                <button
-                  type="button"
-                  className="sf-link"
-                  aria-disabled={(note.action.maps && mappingBlocked) || undefined}
-                  onClick={note.action.run}
-                >
-                  {note.action.label}
-                </button>
-              )}
-            </p>
-          ))}
-        </div>
-      )}
+      {/* What Meldy did, what it found, the one thing to do next — above everything that details it. */}
+      <ExamStatusCard ref={statusHeadingRef} id={`ex-st-${exam.id}`} status={pageStatus} actions={statusActions} notes={statusNotes} />
 
-      {/* Phones and tablets: the two views right under the header, above everything they change. */}
+      {/* Phones and tablets: the two views right under the status, above everything they change. */}
       {!frame.side && <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div>}
 
-      {!frame.side && (
+      {!frame.side && topColumn && (
         <section className="ex-col" aria-label={onSheet ? 'Шпаргалка: сколько осталось' : 'Сводка'}>
-          {onSheet ? sheetPage.top : rateMode ? rateColumn : showPeak ? peakColumn : compactColumn}
+          {topColumn}
         </section>
       )}
 
-      <div className="ex-body">
+      <div className="ex-body" data-solo={frame.side && !sideColumn ? '' : undefined}>
         <div style={{ minWidth: 0 }}>
           <div className="ex-viewbar" data-empty={!frame.side && onSheet ? '' : undefined}>
             {frame.side && viewTabs}
@@ -1254,14 +1363,14 @@ function ExamSheetPage({ examId }: { examId: string }) {
                     : null
                 }
                 dim={Boolean(peak?.dim)}
-                emptyText={rows.length === 0 ? 'В этом фильтре вопросов нет.' : null}
+                emptyText={rows.length === 0 ? (questions.length === 0 ? 'В списке пока нет вопросов.' : 'В этом фильтре вопросов нет.') : null}
               />
             )}
           </div>
         </div>
-        {frame.side && (
+        {frame.side && sideColumn && (
           <aside className="ex-col" aria-label={onSheet ? 'Колонка шпаргалки' : 'Что это значит для билетов'} id={selectedRow ? whyId : undefined}>
-            {onSheet ? (selectedRow ? whyPanel('column') : sheetPage.column) : column}
+            {sideColumn}
           </aside>
         )}
       </div>
@@ -1276,10 +1385,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
       {!frame.side && onSheet && sheetPage.overlay}
 
-      {!frame.side && !onSheet && !rateMode && !showPeak && (
+      {answersBelow && (
         <section className="ex-col ex-col-after" aria-label="Ответы по билетам">
-          {coverage('rest')}
-          {readiness('rest')}
+          {closeLine && coverage('rest')}
+          {showReadiness && readiness('rest')}
         </section>
       )}
 
@@ -1287,38 +1396,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
       <AnswerTextConsent ready={!onSheet || sheetPage.settled} />
 
-      {!frame.side && (
+      {!frame.side && primary && (
         <div className="ex-cta">
-          {preMapping ? (
-            <>
-              {mapPill}
-              <p className="ex-cta-alt">
-                <Link className="sf-link" to={drawHref} onTouchStart={preloadTicketScreen} onFocus={preloadTicketScreen}>
-                  {drawLabel}
-                </Link>
-              </p>
-            </>
-          ) : (
-            <>
-              <Link
-                ref={drawPillRef}
-                className={onSheet && (sheetPage.primaryInColumn || sheetTip.show) ? 'ex-secondary' : 'sf-primary'}
-                to={drawHref}
-                onTouchStart={preloadTicketScreen}
-                onFocus={preloadTicketScreen}
-              >
-                {drawLabel}
-              </Link>
-              {/* Phones and tablets choose the way of drawing here too (stage QA round 2): a bottom sheet. */}
-              <DrawModeMenu
-                className="ex-cta-mode"
-                variant="sheet"
-                mode={drawMode}
-                onChange={setDrawMode}
-                sheetHost={frame.ref.current}
-                frameBox={frame.box}
-              />
-            </>
+          {primary}
+          {/* Phones and tablets choose the way of drawing here too (stage QA round 2): a bottom sheet. */}
+          {drawsFirst && (
+            <DrawModeMenu className="ex-cta-mode" variant="sheet" mode={drawMode} onChange={setDrawMode} sheetHost={frame.ref.current} frameBox={frame.box} />
           )}
         </div>
       )}

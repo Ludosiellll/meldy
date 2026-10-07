@@ -111,6 +111,18 @@ export interface SheetPageInput {
   questionPanelId?: string;
   /** The exam's pages by default. */
   links?: SheetLinks;
+  /**
+   * The page's status block offers «Написать шпаргалку» (components/exams/examStatus.ts): the column's card keeps
+   * what the sheet is and drops its own button, so the page has one blue pill.
+   */
+  writeFromStatus?: boolean;
+  /**
+   * The units left today as the page read them (it names the price in its status block): then the sheet does not
+   * read them a second time. Absent: the sheet reads them itself while it is on screen.
+   */
+  unitsLeft?: number | null;
+  /** (Almost) every question is in no lecture: the paper does not repeat that under each one (the status says it once). */
+  quietGaps?: boolean;
 }
 
 export interface SheetPage {
@@ -135,6 +147,10 @@ export interface SheetPage {
   primaryInColumn: boolean;
   /** A line's details are open. */
   lineOpen: boolean;
+  /** «Написать шпаргалку» from outside the column: `count` questions (the units left), or every one that can be written. */
+  write: (count?: number | null) => void;
+  /** Units left today (null: unknown or not read). */
+  unitsLeft: number | null;
   /** An answer is being replayed or the history plays: nothing else should ask for the eye. */
   playing: boolean;
   closeLine: () => void;
@@ -201,7 +217,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const { examId, examDate, active } = input;
   const links = useMemo(() => input.links ?? examSheetLinks(examId), [input.links, examId]);
   // The price line needs the units left today, only while the sheet is on screen.
-  const unitsLeft = useUnitsLeft(active ? input.userId : null);
+  const ownUnits = useUnitsLeft(active && input.unitsLeft === undefined ? input.userId : null);
+  const unitsLeft = input.unitsLeft === undefined ? ownUnits : input.unitsLeft;
   const [mode, setMode] = useState<SheetViewMode>({ onlyLeft: false, cover: false, zoom: false });
   const modeTouched = useRef(false);
   const [lineKey, setLineKey] = useState<string | null>(null);
@@ -556,7 +573,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const showWrite = writing || data.toWrite > 0 || data.unwritable > 0 || data.write.phase !== 'idle';
   const firstWrite = data.written === 0 && data.toWrite > 0 && !input.mappingRunning;
   const lineOpen = Boolean(selected);
-  const primaryInColumn = active && (lineOpen || (firstWrite && !writing));
+  const primaryInColumn = active && (lineOpen || (firstWrite && !writing && !input.writeFromStatus));
   const historyPlaying = Boolean(history?.running);
   const skipTarget = useCallback(() => document.getElementById(`cs-sum-${examId}`) ?? document.getElementById(`cs-lp-${examId}`), [examId]);
   const skip = useMemo(() => ({ label: 'К счётчику и переключателям', target: skipTarget }), [skipTarget]);
@@ -600,6 +617,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         mappingRunning={input.mappingRunning}
         unmapped={input.unmapped}
         compact={compact}
+        hideAction={input.writeFromStatus}
       />
     ) : null;
 
@@ -670,11 +688,15 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
 
   // A phone shows the paper on the first screen: above it only the count and «Только то, что осталось»
   // (and the first write); what the count means, the last answer, the self-test and the rest come under it.
+  // Nothing to count and nothing to write (every question in no lecture): no empty block between the tabs and the paper.
+  const topWrites = firstWrite || writing || input.unmapped;
   const top = shown ? (
-    <>
-      {counts.total > 0 && summary('top')}
-      {(firstWrite || writing || input.unmapped) && writeCard(true)}
-    </>
+    counts.total > 0 || topWrites ? (
+      <>
+        {counts.total > 0 && summary('top')}
+        {topWrites && writeCard(true)}
+      </>
+    ) : null
   ) : (
     column
   );
@@ -752,6 +774,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       sectionTitles={input.sectionTitles}
       lectureCount={input.lectureCount}
       writeNotes={data.writeNotes}
+      quietGaps={input.quietGaps}
       mode={historyPlaying ? { ...mode, cover: false } : mode}
       freshIds={data.freshIds}
       writeDelays={writeDelays}
@@ -788,7 +811,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
 
   const playing = replayLive || historyPlaying;
   const settled = paperShown || data.status === 'error' || journalFailed;
-  return { data, paper, column, top, after, overlay, status, settled, primaryInColumn, lineOpen, playing, closeLine };
+  const write = useCallback((count?: number | null) => onWrite(count ?? undefined), [onWrite]);
+  return { data, paper, column, top, after, overlay, status, settled, primaryInColumn, lineOpen, playing, closeLine, write, unitsLeft };
 }
 
 const NO_QUESTIONS: ReadonlySet<string> = new Set();

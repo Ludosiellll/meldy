@@ -67,6 +67,12 @@ export interface CheatSheetProps {
   lectureCount: number;
   /** What went wrong when a question was being written, by question id; it replaces the block's own note. */
   writeNotes: ReadonlyMap<string, string>;
+  /**
+   * (Almost) every question is in no lecture: «В лекции нет фрагмента об этом · Добавить лекцию» would stand under
+   * each one (owner, 2026-10-07: «глаза разбегаются»). The page's status says it once; such a question here keeps
+   * only a graphite dash in the margin.
+   */
+  quietGaps?: boolean;
   mode: SheetViewMode;
   /** Questions that just arrived from the writer: their lines are written in, once. */
   freshIds: ReadonlySet<string>;
@@ -524,6 +530,8 @@ interface BlockViewProps {
   heading: string | null;
   note: string | null;
   addMaterial: string | null;
+  /** A question in no lecture, said once by the page: a dash in the margin instead of the note under it. */
+  gapMark: boolean;
   /** Lines drawn as they were before the answer, while a replay waits to play. */
   statuses: ReadonlyMap<string, LineStatus>;
   motions: ReadonlyMap<string, Motion>;
@@ -556,6 +564,7 @@ const BlockView = memo(function BlockView({
   heading,
   note,
   addMaterial,
+  gapMark,
   statuses,
   motions,
   reserves,
@@ -615,6 +624,12 @@ const BlockView = memo(function BlockView({
               </span>
             </span>
           </button>
+          {gapMark && (
+            <span className="cs-tick cs-gapmark">
+              <Mark kind="dash" seed={seedFrom(block.questionId, 'gap')} width={18} height={10} hand="graphite" />
+              <span className="sr-only">Ответа в лекциях нет</span>
+            </span>
+          )}
           {showTick && (
             <span className="cs-tick" data-out={learned ? undefined : ''} style={learned ? undefined : ({ '--cs-out': `${tickOut ?? 0}ms` } as CSSProperties)}>
               <Mark kind="tick" seed={seedFrom(block.questionId, 'tick')} width={20} height={16} hand="graphite" animate={learned && tickDelay !== null} delayMs={tickDelay ?? 0} />
@@ -681,6 +696,11 @@ interface Zoom {
 }
 
 const NO_ZOOM: Zoom = { columns: 0, scale: 1, width: 0, height: 0, offset: 0 };
+
+/** A question the mapping found in no lecture (not one whose points could not be written). */
+function isNoneGap(block: SheetBlock): boolean {
+  return block.kind === 'gap' && block.coverage === 'none';
+}
 const NO_NOTES: ReadonlyMap<string, string> = new Map();
 const NO_MARKERS: ReadonlyMap<string, 'draw' | 'still'> = new Map();
 const NO_TIMES: ReadonlyMap<string, number> = new Map();
@@ -697,6 +717,7 @@ export default function CheatSheet({
   sectionTitles,
   lectureCount,
   writeNotes,
+  quietGaps = false,
   mode,
   freshIds,
   writeDelays,
@@ -787,7 +808,8 @@ export default function CheatSheet({
       const section = block.section;
       const heading = section !== null && section !== previous ? sectionTitles[section - 1]?.trim() || `Раздел ${section}` : null;
       if (section !== null) previous = section;
-      const note = writeNotes.get(block.questionId) ?? blockNote(block, lectureCount, { anyWritten });
+      const quiet = quietGaps && isNoneGap(block);
+      const note = writeNotes.get(block.questionId) ?? (quiet ? null : blockNote(block, lectureCount, { anyWritten }));
       return { block, heading, note };
     });
     const metrics = rowMetrics(geometry.column);
@@ -796,7 +818,7 @@ export default function CheatSheet({
       blockRows(item.block, metrics, { hideErased: mode.onlyLeft, keep: kept, note: item.note, heading: Boolean(item.heading), estimate }),
     );
     return { items, rows };
-  }, [blocks, sectionTitles, writeNotes, lectureCount, anyWritten, geometry.column, mode.onlyLeft, kept]);
+  }, [blocks, sectionTitles, writeNotes, lectureCount, quietGaps, anyWritten, geometry.column, mode.onlyLeft, kept]);
 
   // The split into columns by the blocks' heights. A question still to be written counts as tall as the
   // written ones, so the split hardly moves when it gets its lines; while the writing goes on (and while
@@ -1129,7 +1151,8 @@ export default function CheatSheet({
                 block={block}
                 heading={heading}
                 note={note}
-                addMaterial={block.kind === 'gap' && block.coverage === 'none' ? (addMaterialHref === undefined ? `/exams/${examId}/edit#lectures` : addMaterialHref) : null}
+                addMaterial={isNoneGap(block) && !quietGaps ? (addMaterialHref === undefined ? `/exams/${examId}/edit#lectures` : addMaterialHref) : null}
+                gapMark={quietGaps && isNoneGap(block) && !note}
                 statuses={overrides}
                 motions={motions}
                 reserves={reserves}

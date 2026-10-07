@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => ({
   recordSheetPeek: vi.fn(),
   getProfile: vi.fn(),
   markOnboardingTourSeen: vi.fn(),
+  startSheetWrite: vi.fn(),
+  listLectureTitles: vi.fn(),
+  fetchLectureFit: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
@@ -35,6 +38,8 @@ vi.mock('../api/exams', async (importOriginal) => {
     loadExamBundle: mocks.loadExamBundle,
     markQuestionManual: mocks.markQuestionManual,
     fetchExamMappingState: mocks.fetchExamMappingState,
+    listLectureTitles: mocks.listLectureTitles,
+    fetchLectureFit: mocks.fetchLectureFit,
   };
 });
 vi.mock('../api/learning', async (importOriginal) => {
@@ -51,7 +56,12 @@ vi.mock('../api/learning', async (importOriginal) => {
 // The cheat sheet's read (GET /api/oral/sheet); the mapping tests count the page's own fetches.
 vi.mock('../api/cheatSheet', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/cheatSheet')>();
-  return { ...actual, fetchSheet: mocks.fetchSheet };
+  // «Написать шпаргалку» starts the server's writer: counted here, the real one for every other call.
+  return {
+    ...actual,
+    fetchSheet: mocks.fetchSheet,
+    startSheetWrite: (...args: Parameters<typeof actual.startSheetWrite>) => (mocks.startSheetWrite.getMockImplementation() ? mocks.startSheetWrite(...args) : actual.startSheetWrite(...args)),
+  };
 });
 vi.mock('../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/limits')>();
@@ -231,8 +241,15 @@ const plain = (text: string | null | undefined) => (text ?? '').replace(/ /g, '
 /** Accessible names keep the no-break spaces of Russian typesetting; compare them as plain spaces. */
 const named = (text: string) => (name: string) => plain(name) === text;
 const row = (id: string) => document.getElementById(`exam-q-${id}`) as HTMLElement;
-const notes = () => Array.from(document.querySelectorAll('.ex-notes .ex-note')).map((note) => plain(note.textContent));
 const column = () => screen.getByRole('complementary', { name: 'Что это значит для билетов' });
+/** The status block at the top: what Meldy did, what it found, the one thing to do next. */
+const statusCard = () => document.querySelector('.ex-st') as HTMLElement;
+const statusText = () => plain(statusCard()?.querySelector('.ex-st-text')?.textContent);
+const statusNotes = () => Array.from(document.querySelectorAll('.ex-st .ex-st-note')).map((note) => plain(note.textContent));
+const statusBlocked = () => plain(document.querySelector('.ex-st .ex-st-blocked')?.textContent);
+/** Waits until the status's headline says this. */
+const statusSays = (title: string) => screen.findByRole('heading', { level: 2, name: named(title) }, { timeout: 3000 });
+const statusTitle = () => plain(statusCard()?.querySelector('.ex-st-title')?.textContent);
 
 const enc = new TextEncoder();
 
@@ -280,6 +297,9 @@ beforeEach(() => {
   mocks.markOnboardingTourSeen.mockResolvedValue(undefined);
   mocks.confirm.mockResolvedValue(true);
   mocks.markQuestionManual.mockResolvedValue(undefined);
+  // The student's other lectures are unknown unless a test says which there are (examLectureFit.ts).
+  mocks.listLectureTitles.mockRejectedValue(new Error('no library in this test'));
+  mocks.fetchLectureFit.mockResolvedValue({ questions: [], lectures: new Map(), unmatched: [], skipped: [] });
   setWidth(1280);
 });
 
@@ -344,55 +364,45 @@ describe('ExamDetail: the sheet', () => {
     expect(row('q3').querySelector('.ex-qnote')).toBeNull();
   });
 
-  it('starts peak 1 from the gap and ends it with an action: «9», «60 %» struck beside «35 %», «в 15 % …», «Закройте 7 вопросов «частично»»', async () => {
+  it('shows one figure in the column — the ticket share — and keeps the rest behind «Как считается» (owner, 2026-10-07)', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     renderDetail();
     await opened();
     const side = column();
-    // (a) the questions that are in no lecture, at the size of the percentages, as a filter.
-    const gap = within(side).getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') });
-    expect(gap).toHaveTextContent('9');
-    expect(gap).toHaveClass('ex-big');
-    expect(within(side).getByText('вопросов нет ни в одной лекции')).toBeInTheDocument();
-    // (b) «60 %» muted and struck through by pencil beside «35 %»; the strike is still on a saved mapping.
-    const was = side.querySelector('.ex-figs-was') as HTMLElement;
-    expect(plain(was.textContent)).toBe('60 %');
-    expect(was).toHaveAttribute('aria-hidden', 'true');
-    expect(was.querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'still');
     expect(plain(side.querySelector('.ex-figs-now')?.textContent)).toBe('35 %');
-    expect(plain(side.querySelector('.ex-figs .ex-sr')?.textContent)).toBe('вместо 60 % вопросов —');
+    expect(side.querySelectorAll('.ex-big')).toHaveLength(1);
     expect(within(side).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
-    expect(within(side).getByText(named('24 из 40 · частично — 7'))).toBeInTheDocument();
-    // (c) in place of «хотя бы один — 85 %».
-    expect(within(side).getByText(named('в 15 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
-    expect(plain(side.textContent)).not.toContain('хотя бы один');
-    expect(within(side).getByText('Это доля билетов, а не вероятность сдать: считаем, что билет — два случайных вопроса из 40.')).toBeInTheDocument();
-    // The action line right under «Как считается», closed and open.
+    // No struck share, no figure of the gap, no line (c) on the card: the legend above the list counts the gap.
+    expect(side.querySelector('.ex-figs-was, .ex-gap-n, .ex-gapline')).toBeNull();
+    expect(plain(side.textContent)).not.toMatch(/в 15 % билетов|вопросов нет ни в одной лекции/);
     const how = within(side).getByRole('button', { name: 'Как считается' });
+    expect(plain(how.closest('.ex-caveat')?.textContent)).toBe('Это доля билетов, а не вероятность сдать. Как считается');
     const action = side.querySelector('.ex-act') as HTMLElement;
     expect(plain(action.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
-    expect(how.nextElementSibling).toBe(action);
-    expect(await within(side).findByText('Ответов по билетам ещё не было. Каждый ответ проверяется по вашим лекциям.')).toBeInTheDocument();
+    // Nothing about answers before the first one: the status at the top says what to do.
+    await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalled());
+    expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность|Подтверждено ответами/);
     expect(document.body.textContent).not.toMatch(/шанс сдать|вы выучили|ИИ понимает/i);
 
     fireEvent.click(how);
-    expect(how.nextElementSibling).toBe(side.querySelector('.ex-act'));
+    const calc = side.querySelector('.ex-calc') as HTMLElement;
+    expect(plain(calc.querySelector('.ex-calc-q')?.textContent)).toBe('В лекциях есть 24 вопроса из 40 (60 %), частично — 7, ни в одной лекции — 9.');
+    expect(within(calc).getByText(named('В 15 % билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
+    expect(within(calc).getByText('Это доля билетов, а не вероятность сдать: считаем, что билет — два случайных вопроса из 40.')).toBeInTheDocument();
     const formulas = within(side).getAllByRole('math');
     expect(plain(formulas[0].getAttribute('aria-label'))).toBe('Сочетания из 24 по 2, делённые на сочетания из 40 по 2: 276 из 780, примерно 35 %');
     expect(plain(formulas[1].textContent)).toContain('120780≈15 %');
   });
-
-  it('filters the sheet from the figure «9» and from «7 вопросов «частично»», with the legend item pressed', async () => {
+  it('filters the sheet from the legend and from «7 вопросов «частично»» of the action line', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     renderDetail();
     await opened();
     const side = column();
-    fireEvent.click(within(side).getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') }));
+    const legend = screen.getByRole('list', { name: 'Показать вопросы' });
+    fireEvent.click(within(legend).getByRole('button', { name: 'нет ни в одной 9' }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(9);
     expect(Array.from(document.querySelectorAll('.ex-q')).every((item) => item.getAttribute('data-coverage') === 'none')).toBe(true);
-    const legend = screen.getByRole('list', { name: 'Показать вопросы' });
     expect(within(legend).getByRole('button', { name: 'нет ни в одной 9' })).toHaveAttribute('aria-pressed', 'true');
-    expect(within(side).getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') })).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(within(side).getByRole('button', { name: named('7 вопросов «частично»') }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(7);
@@ -400,7 +410,6 @@ describe('ExamDetail: the sheet', () => {
     fireEvent.click(within(side).getByRole('button', { name: named('7 вопросов «частично»') }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(40);
   });
-
   it('counts the numbers by the exam’s own layout: one question from each section', async () => {
     // Section 1: 13 «есть» · 4 «частично» · 3 «нет»; section 2: 11 · 3 · 6 (the seeded stage list).
     const none = new Set([5, 8, 17, 22, 26, 29, 35, 38, 40]);
@@ -414,26 +423,23 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     const side = column();
     expect(plain(side.querySelector('.ex-figs-now')?.textContent)).toBe('36 %');
-    expect(plain(side.querySelector('.ex-figs-was')?.textContent)).toBe('60 %');
-    expect(within(side).getByText(named('в 16 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
     expect(plain(side.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
     fireEvent.click(within(side).getByRole('button', { name: 'Как считается' }));
+    expect(within(side).getByText(named('В 16 % билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
     const [main, gap] = within(side).getAllByRole('math').map((formula) => plain(formula.textContent));
     expect(main).toBe('1320×1120≈36 %');
     expect(gap).toBe('ни одного с отметкой «есть»:720×920≈16 %');
   });
-
-  it('shows the question share as a range while questions are found only by words: 17 «есть», 10 «только по словам» → 43–68 %', async () => {
+  it('gives the figure as a range while questions are found only by words: 17 «есть», 10 «только по словам» → 43–68 % of questions', async () => {
     const list = Array.from({ length: 40 }, (_, index) => question(index + 1, index < 17 ? 'full' : index < 27 ? 'unverified' : 'none'));
     mocks.loadExamBundle.mockResolvedValue(bundle(list));
     renderDetail();
     await opened();
     const side = column();
-    expect(plain(side.querySelector('.ex-figs-was')?.textContent)).toBe('43–68 %');
     expect(side.querySelector('.ex-figs')).toHaveAttribute('data-range');
-    expect(plain(side.querySelector('.ex-figs .ex-sr')?.textContent)).toBe('вместо 43–68 % вопросов —');
+    fireEvent.click(within(side).getByRole('button', { name: 'Как считается' }));
+    expect(plain(side.querySelector('.ex-calc-q')?.textContent)).toBe('В лекциях есть 17 вопросов из 40 (43–68 %), ни в одной лекции — 13, только по словам — 10.');
   });
-
   it('opens the sheet filtered by ?filter=cov:none with the legend item pressed; anything else shows all', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     const first = renderDetail({ path: '/exams/exam-1?filter=cov:none' });
@@ -468,7 +474,9 @@ describe('ExamDetail: the sheet', () => {
     const statement = await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
     expect(plain(statement.textContent)).toBe('Подтверждено ответами — 6 из 40.');
     expect(plain(column().textContent)).not.toContain(since);
-    expect(within(column()).getByText(named('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов. Билетов, где подтверждены оба вопроса, — 2 %.'))).toBeInTheDocument();
+    // One number on the card: what «подтверждено» means, without a second share.
+    expect(within(column()).getByText('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.')).toBeInTheDocument();
+    expect(plain(column().textContent)).not.toContain('Билетов, где подтверждены');
     // The growth from history, once the history spans more than a day.
     expect(within(column()).getByText(named(`С ${formatDay(dayKey(-9))}: 0 → 6 за 9 дней.`))).toBeInTheDocument();
 
@@ -484,7 +492,6 @@ describe('ExamDetail: the sheet', () => {
     fireEvent.click(within(legend).getByRole('button', { name: 'не проверялось 34' }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(34);
   });
-
   it('keeps a confirmation older than 14 days among the confirmed and says it is «пора проверить»', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     mocks.fetchQuestionEvents.mockResolvedValue([
@@ -594,20 +601,24 @@ describe('ExamDetail: the sheet', () => {
       'Экзамен · 40 вопросов, в билете два · 2 лекции · сверка от 21 января, 9:40',
     );
     expect(document.body.textContent).not.toContain('25 января');
-    expect(notes()).toEqual(['После сверки добавлена 1 лекция.Сверить заново']);
-    expect(screen.getByRole('button', { name: 'Сверить заново' })).toBeInTheDocument();
+    await statusSays('После сверки добавлена 1 лекция');
+    expect(statusText()).toBe('Пометки в списке сделаны без неё. Сверьте заново — Meldy проверит вопросы и по новой лекции. Это стоит 10 единиц ИИ.');
+    expect(within(statusCard()).getByRole('button', { name: 'Сверить заново' })).toHaveClass('sf-primary');
   });
-
   it('asks for lectures when the exam has none', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1, null), question(2, null)], { mapping_state: 'none', mapped_at: null, mapped_material_ids: [] }, []));
     renderDetail();
     await opened();
-    expect(notes()).toEqual(['Без лекций Meldy не сможет отметить покрытие. Список сохранится.Добавить лекции']);
+    await statusSays('К экзамену не добавлены лекции');
+    expect(statusText()).toBe('Meldy ищет ответы на вопросы в ваших лекциях. Добавьте лекции по этому предмету, и он отметит, на какие вопросы в них есть ответ.');
     expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toContain('сверки ещё нет');
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить лекции' }));
+    // Nothing to say beside the list before a question is checked.
+    expect(screen.queryByRole('complementary', { name: 'Что это значит для билетов' })).toBeNull();
+    const add = within(statusCard()).getByRole('link', { name: 'Добавить лекции' });
+    expect(add).toHaveClass('sf-primary');
+    fireEvent.click(add);
     expect(location).toBe('/exams/exam-1/edit#lectures');
   });
-
   it('says plainly when the exam is gone or could not be read', async () => {
     mocks.loadExamBundle.mockResolvedValueOnce(null);
     renderDetail();
@@ -630,10 +641,11 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     const side = column();
     expect(within(side).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
-    expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Сравнить уверенность|Вы отметили/);
+    expect(plain(document.body.textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Сравнить уверенность|Вы отметили/);
     expect(within(side).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
-    // After 300 ms one quiet line says what is going on.
-    expect(await within(side).findByText('Загружаем историю ответов…')).toBeInTheDocument();
+    // The status waits for the answers too; after 300 ms one quiet line says what is going on.
+    expect(statusCard()).toHaveAttribute('aria-busy', 'true');
+    expect(await within(statusCard()).findByText('Загружаем шпаргалку и ответы…')).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Самооценка' })[0]);
     expect(screen.queryByRole('button', { name: /Знаю: \d+\. Показать эти вопросы/ })).toBeNull();
@@ -642,10 +654,11 @@ describe('ExamDetail: the sheet', () => {
     answer([rating(2, dayKey(-1), 3)]);
     expect(await screen.findByRole('button', { name: 'Знаю: 1. Показать эти вопросы' })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Готово' })[0]);
-    expect(await within(column()).findByText('Ответов по билетам ещё не было. Каждый ответ проверяется по вашим лекциям.')).toBeInTheDocument();
-    expect(within(column()).queryByText('Загружаем историю ответов…')).toBeNull();
+    await statusSays('Можно отвечать на билеты');
+    // No answers yet: no answers card at all, and the status leads to the first ticket.
+    expect(plain(column().textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Загружаем историю ответов/);
+    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
   });
-
   it('reads the answer history next to the lecture titles, not after them', async () => {
     let titles!: () => void;
     mocks.loadExamBundle.mockImplementation(async (_id: string, options?: { onQuestions?: (questions: ExamQuestion[]) => void }) => {
@@ -667,12 +680,221 @@ describe('ExamDetail: the sheet', () => {
     mocks.fetchQuestionEvents.mockRejectedValueOnce(new Error('Не удалось загрузить историю ответов. Повторите попытку.')).mockResolvedValue([]);
     renderDetail();
     await opened();
-    await waitFor(() => expect(notes()).toContain('Не удалось загрузить историю ответов. Повторите попытку.Повторить'));
+    await waitFor(() => expect(statusNotes()).toContain('Не удалось загрузить историю ответов. Повторите попытку. Повторить'));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(6);
     // Nothing is said about answers or confidence that the journal would have to back.
     expect(plain(column().textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность/);
-    fireEvent.click(within(document.querySelector('.ex-notes') as HTMLElement).getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(within(statusCard()).getByRole('button', { name: 'Повторить' }));
     await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalledTimes(2));
+  });
+});
+
+// ------------------------------------------------------------------------------------ the status block
+
+/** The owner's exam of 2026-10-07: 18 general-informatics questions mapped against one lab-work file, all «нет». */
+const INFORMATICS = [
+  'Информация и информационные процессы.',
+  'Свойства информации.',
+  'Измерение информации: алфавитный и содержательный подходы.',
+  'Единицы измерения информации.',
+  'Системы счисления: позиционные и непозиционные.',
+  'Перевод чисел из одной системы счисления в другую.',
+  'Двоичная арифметика.',
+  'Кодирование текстовой информации.',
+  'Кодирование графической информации.',
+  'Кодирование звуковой информации.',
+  'Архитектура компьютера: принципы фон Неймана.',
+  'Поколения ЭВМ.',
+  'Процессор и его характеристики.',
+  'Память компьютера: виды и характеристики.',
+  'Устройства ввода и вывода информации.',
+  'Программное обеспечение: классификация.',
+  'Операционные системы и их функции.',
+  'Файловая система и файлы.',
+];
+const PR9 = [{ id: 'pr9', title: 'ПР 9' }];
+function informatics(coverage: (index: number) => ExamQuestion['coverage'] = () => 'none'): ExamQuestion[] {
+  return INFORMATICS.map((text, index) => question(index + 1, coverage(index), { text, coverage_reason: coverage(index) === 'none' ? 'Нет подтверждающего фрагмента' : '' }));
+}
+function ownerBundle(extra: Partial<ExamBundle> = {}, coverage?: (index: number) => ExamQuestion['coverage']): ExamBundle {
+  return { ...bundle(informatics(coverage), { title: 'Информатика', mapped_material_ids: ['pr9'] }, PR9), ...extra };
+}
+
+describe('ExamDetail: the status block (owner, 2026-10-07)', () => {
+  // A written sheet makes the page remember «Шпаргалка» for the next visit: not for the next test.
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => window.localStorage.clear());
+
+  it('the owner’s exam: says the lecture has no answers and why, sends to the exam’s lectures; «Тянуть билет» steps down, the empty column goes', async () => {
+    mocks.loadExamBundle.mockResolvedValue(ownerBundle());
+    renderDetail();
+    await screen.findByRole('heading', { level: 1, name: 'Информатика' });
+    const heading = await statusSays('В лекции «ПР 9» нет ответов на эти вопросы');
+    expect(heading).toBe(document.querySelector('.ex-st .ex-st-title'));
+    expect(plain(statusCard().querySelector('.ex-st-mark')?.textContent)).toBe('нет ответов');
+    expect(statusText()).toBe(
+      'Meldy сверил с ней все 18 вопросов и не нашёл ни одного ответа. Выберите лекции по темам вопросов или добавьте новые, потом сверьте заново.',
+    );
+    const action = within(statusCard()).getByRole('link', { name: 'Выбрать или добавить лекции' });
+    expect(action).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+    expect(action).toHaveClass('sf-primary');
+    // «Тянуть билет» is still there, as a quiet link: answering is possible, just not the next step.
+    const draw = within(statusCard()).getByRole('link', { name: 'Тянуть билет' });
+    expect(draw).toHaveClass('sf-link');
+    expect(draw).not.toHaveClass('sf-primary');
+    expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
+    // The status comes before the views and the list.
+    expect(statusCard().compareDocumentPosition(screen.getByRole('tablist')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Nothing beside the list: «0 % билетов…» and «Ответов ещё не было» said nothing.
+    await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalled());
+    expect(screen.queryByRole('complementary', { name: 'Что это значит для билетов' })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/0\s%|Ответов по билетам ещё не было|Сравнить уверенность/);
+    expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toBe('Экзамен · 18 вопросов, в билете два · 1 лекция · сверка от 21 января, 9:40');
+  });
+
+  it('the owner’s exam on a phone: the action rides in the bar at the bottom, «Тянуть билет» stays quiet in the status, nothing above the list says «0 %»', async () => {
+    setWidth(390);
+    mocks.loadExamBundle.mockResolvedValue(ownerBundle());
+    renderDetail();
+    await statusSays('В лекции «ПР 9» нет ответов на эти вопросы');
+    const cta = document.querySelector('.ex-cta') as HTMLElement;
+    expect(within(cta).getByRole('link', { name: 'Выбрать или добавить лекции' })).toHaveClass('sf-primary');
+    expect(within(cta).queryByRole('link', { name: 'Тянуть билет' })).toBeNull();
+    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');
+    expect(screen.queryByRole('region', { name: 'Сводка' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Ответы по билетам' })).toBeNull();
+  });
+
+  it('almost nothing found with several lectures: «почти нет ответов», how many were found', async () => {
+    const lectures = [
+      { id: 'a', title: 'Тема 4.3 Использование роли пользователей и формальные цели' },
+      { id: 'b', title: 'Вар 1' },
+      { id: 'c', title: 'Что такое PGP' },
+    ];
+    mocks.loadExamBundle.mockResolvedValue(bundle(informatics((index) => (index < 2 ? 'full' : index === 2 ? 'partial' : 'none')), { mapped_material_ids: ['a', 'b', 'c'] }, lectures));
+    renderDetail();
+    await statusSays('В выбранных лекциях почти нет ответов на эти вопросы');
+    expect(statusText()).toBe('Ответ нашёлся только для 3 вопросов из 18. Выберите лекции по темам остальных или добавьте новые, потом сверьте заново.');
+    expect(screen.queryByRole('complementary', { name: 'Что это значит для билетов' })).toBeNull();
+  });
+
+  it('nothing found: names the student’s other lecture that fits the questions (two or more), not the exam’s own one', async () => {
+    mocks.loadExamBundle.mockResolvedValue(ownerBundle());
+    mocks.listLectureTitles.mockResolvedValue([
+      { id: 'pr9', title: 'ПР 9' },
+      { id: 't1', title: 'Тема 1. Информация' },
+      { id: 'econ', title: 'Эластичность спроса' },
+    ]);
+    mocks.fetchLectureFit.mockResolvedValue({ questions: [], lectures: new Map([['t1', [0, 1, 2]], ['econ', [5]]]), unmatched: [], skipped: [] });
+    renderDetail();
+    await statusSays('В лекции «ПР 9» нет ответов на эти вопросы');
+    await waitFor(() =>
+      expect(statusText()).toBe(
+        'Meldy сверил с ней все 18 вопросов и не нашёл ни одного ответа. Подходит ваша лекция «Тема 1. Информация»: выберите её и сверьте заново.',
+      ),
+    );
+    expect(within(statusCard()).getByRole('link', { name: 'Выбрать лекцию' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+    expect(mocks.fetchLectureFit).toHaveBeenCalledTimes(1);
+    const [request] = mocks.fetchLectureFit.mock.calls[0];
+    expect(request.materialIds).toEqual(['t1', 'econ']);
+    expect(request.questions).toHaveLength(18);
+  });
+
+  it('nothing found and no other lecture: says that none of the student’s lectures fits, without asking the server', async () => {
+    mocks.loadExamBundle.mockResolvedValue(ownerBundle());
+    mocks.listLectureTitles.mockResolvedValue([{ id: 'pr9', title: 'ПР 9' }]);
+    renderDetail();
+    await waitFor(() =>
+      expect(statusText()).toBe(
+        'Meldy сверил с ней все 18 вопросов и не нашёл ни одного ответа. Среди ваших лекций подходящих нет. Добавьте лекции по темам вопросов и сверьте заново.',
+      ),
+    );
+    expect(within(statusCard()).getByRole('link', { name: 'Добавить лекции' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+    expect(mocks.fetchLectureFit).not.toHaveBeenCalled();
+  });
+
+  it('a mapped exam does not ask which lectures fit', async () => {
+    mocks.loadExamBundle.mockResolvedValue(ownerBundle({}, (index) => (index < 14 ? 'full' : 'none')));
+    renderDetail();
+    await screen.findByRole('heading', { level: 1, name: 'Информатика' });
+    await waitFor(() => expect(statusCard()).toBeTruthy());
+    expect(mocks.listLectureTitles).not.toHaveBeenCalled();
+    expect(mocks.fetchLectureFit).not.toHaveBeenCalled();
+  });
+
+  it('a copy from a group link: no list editing or inviting, «копия из ссылки группы», the member’s words when the author’s lecture has nothing', async () => {
+    mocks.loadExamBundle.mockResolvedValue(ownerBundle({ copy: true }));
+    renderDetail();
+    await statusSays('В лекции «ПР 9» нет ответов на эти вопросы');
+    expect(statusText()).toBe(
+      'Эту лекцию выбрал автор ссылки, и Meldy не нашёл в ней ни одного ответа. Добавьте свои лекции по темам вопросов и сверьте заново (10 единиц ИИ) — или попросите у автора новую ссылку.',
+    );
+    expect(within(statusCard()).getByRole('link', { name: 'Добавить свои лекции' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+    expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toBe('Экзамен · 18 вопросов, в билете два · 1 лекция · копия из ссылки группы');
+    const links = document.querySelector('.ex-links') as HTMLElement;
+    expect(within(links).queryByText('Изменить список')).toBeNull();
+    expect(within(links).queryByRole('button', { name: 'Пригласить группу' })).toBeNull();
+    expect(within(links).getByRole('link', { name: 'Лекции' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+  });
+
+  it('a copy from a group link, ready: its own words, «Тянуть билет», no mapping and no units', async () => {
+    mocks.loadExamBundle.mockResolvedValue({ ...bundle(forty()), copy: true });
+    mocks.fetchSheet.mockResolvedValue({
+      examId: 'exam-1',
+      mappingState: 'done',
+      questions: forty().map((item) => ({
+        question_id: item.id,
+        position: item.position,
+        label: item.label,
+        section: item.section,
+        text: item.text,
+        question_hash: item.question_hash ?? '',
+        coverage: item.coverage,
+        coverage_method: item.coverage_method,
+        coverage_reason: item.coverage_reason,
+        missing_note: item.missing_note,
+        rubric:
+          item.coverage === 'full' || item.coverage === 'partial'
+            ? {
+                rubric_id: `r${item.position}`,
+                built_at: '2026-10-01T10:00:00Z',
+                coverage: 'full' as const,
+                coverage_note: '',
+                materials: [{ key: 'M1', material_id: 'm1', title: 'Денежный рынок' }],
+                points: [{ id: 'p1', title: `Пункт ${item.position}`, short: `пункт ${item.position}`, essential: true, source_quote: '', source_ids: [] }],
+              }
+            : null,
+        rebuilt: false,
+      })),
+      toWrite: 0,
+      units: 0,
+      unwritable: 0,
+      job: null,
+    });
+    renderDetail();
+    await statusSays('Экзамен из ссылки группы готов');
+    expect(statusText()).toBe(
+      'Вопросы уже сверены с лекциями автора, шпаргалка написана. Тяните билет и отвечайте вслух: названный пункт стирает строку наполовину, названный снова в другой день — совсем.',
+    );
+    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
+    expect(plain(statusCard().textContent)).not.toMatch(/единиц|Сверить|сверьте/);
+  });
+
+  it('shows the answers card only after the first answer, and the confidence line only after «Самооценка»', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
+    const first = renderDetail();
+    await opened();
+    await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
+    expect(plain(column().textContent)).not.toContain('Сравнить уверенность');
+    expect(within(column()).queryByRole('button', { name: 'Самооценка' })).toBeNull();
+    first.unmount();
+
+    mocks.fetchQuestionEvents.mockResolvedValue([rating(2, dayKey(-2), 3), answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
+    renderDetail();
+    await opened();
+    expect(await within(column()).findByText(/Сравнить уверенность с ответами пока нельзя/)).toBeInTheDocument();
+    expect(within(column()).getByRole('button', { name: 'Самооценка' })).toBeInTheDocument();
   });
 });
 
@@ -700,16 +922,16 @@ describe('ExamDetail: «почему»', () => {
       .filter((href) => href?.includes('session='));
     expect(protocols).toEqual(['/exams/exam-1/ticket?session=session-b', '/exams/exam-1/ticket?session=session-a']);
     expect(within(side).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/exams/exam-1/ticket?q=q1');
-    // One filled pill while «почему» is open: its answer link; the sheet's «Тянуть билет» is outlined
-    // (redesign critique 6, round 2). The answers are «Ответы», a written one counts too.
+    // One filled pill while «почему» is open: its answer link; the status's own action steps down to the white
+    // pill (redesign critique 6, round 2). The answers are «Ответы», a written one counts too.
     expect(within(side).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveClass('sf-primary');
-    expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveClass('ex-secondary');
+    expect(within(statusCard()).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('ex-secondary');
     expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
     expect(within(side).getByText('Ответы')).toBeInTheDocument();
     expect(within(side).queryByText('Ответы вслух')).toBeNull();
 
     fireEvent.click(within(side).getByRole('button', { name: 'Закрыть' }));
-    expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
+    expect(within(statusCard()).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
     expect(screen.queryByRole('heading', { name: named('Есть в ваших лекциях') })).toBeNull();
     expect(within(column()).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
   });
@@ -723,8 +945,8 @@ describe('ExamDetail: «почему»', () => {
     expect(within(side).getByRole('heading', { name: named('Ни в одной из 2 лекций нет фрагмента об этом') })).toBeInTheDocument();
     expect(within(side).getByText(/Ближе всего — «Инфляция», фрагмент.7: совпало только слово «цен»/)).toBeInTheDocument();
     expect(within(side).queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull();
-    // No answer to offer here: «Тянуть билет» stays the filled pill.
-    expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
+    // No answer to offer here: the status's action stays the filled pill.
+    expect(within(statusCard()).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
     expect(within(side).getByRole('link', { name: 'Добавить материал к вопросу' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
 
     mocks.confirm.mockResolvedValueOnce(false);
@@ -999,7 +1221,8 @@ describe('ExamDetail: mapping by lectures', () => {
       .mockResolvedValue(bundle([question(1, 'full'), question(2, 'none'), question(3, 'partial')]));
     renderDetail();
     await opened();
-    expect(notes()).toEqual(['Вопросы ещё не сверены с лекциями.']);
+    await statusSays('Вопросы ещё не сверены с лекциями');
+    expect(statusText()).toBe('Meldy проверит каждый из 3 вопросов по 2 лекциям и отметит, где в них есть ответ. Это стоит 10 единиц ИИ.');
     fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 10);
@@ -1010,8 +1233,10 @@ describe('ExamDetail: mapping by lectures', () => {
 
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [{ id: 'm1', title: 'Денежный рынок', fragments: 12 }], skipped: [] });
     await waitFor(() => expect(row('q1')).toHaveAttribute('data-coverage', 'checking'));
-    expect(within(column()).getByText('Сверка с лекциями идёт: проверено 0 из 3.')).toBeInTheDocument();
-    expect(within(column()).queryByText('35 %')).toBeNull();
+    await statusSays('Meldy сверяет вопросы с лекциями');
+    expect(statusText()).toBe('Проверено 0 из 3. Пометки появляются в списке по ходу проверки; не закрывайте вкладку, пока сверка не закончится.');
+    // The shares wait for the end of the run: no column beside the list now.
+    expect(screen.queryByRole('complementary', { name: 'Что это значит для билетов' })).toBeNull();
     expect(screen.getByText('Изменить список').tagName).toBe('SPAN');
 
     stream.send({ type: 'reused', items: [item('q1', 'full', { reused: true })] });
@@ -1037,10 +1262,10 @@ describe('ExamDetail: mapping by lectures', () => {
     });
     stream.close();
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(notes()).toContain('Часть сверки от 9:40, остальное сейчас.'));
-    // The run finished on this page: the strike over the question share is drawn in, once.
-    expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'live');
-    await waitFor(() => expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'still'), { timeout: 3000 });
+    await waitFor(() => expect(statusNotes()).toContain('Часть сверки от 9:40, остальное сейчас.'));
+    // The run found something: the column comes back with its one figure; the sheet is read again for what to write.
+    await waitFor(() => expect(column().querySelector('.ex-figs-now')).not.toBeNull());
+    await waitFor(() => expect(mocks.fetchSheet).toHaveBeenCalledTimes(2));
     expect(mocks.incrementAIUsage).toHaveBeenCalledTimes(1);
     expect(mocks.incrementAIUsage).toHaveBeenCalledWith();
     expect(document.querySelectorAll('.ex-cov svg[data-drawn="live"]')).toHaveLength(0);
@@ -1073,9 +1298,9 @@ describe('ExamDetail: mapping by lectures', () => {
     const button = screen.getByRole('button', { name: 'Сверить с лекциями' });
     button.focus();
     fireEvent.click(button);
-    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан: сверка с лекциями расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 0\. Обновится в \d{1,2}:\d{2}\.$/));
-    expect(notes()[0]).not.toMatch(/в 0\d:/);
-    expect(document.querySelector('.ex-notes .ex-note[role="status"]')).toHaveTextContent('Дневной лимит исчерпан');
+    await waitFor(() => expect(statusBlocked()).toMatch(/^Дневной лимит ИИ на сегодня исчерпан\. Он обновится в \d{1,2}:\d{2}\.$/));
+    expect(statusBlocked()).not.toMatch(/в 0\d:/);
+    expect(document.querySelector('.ex-st .ex-st-blocked[role="status"]')).toHaveTextContent('Дневной лимит ИИ на сегодня исчерпан');
     // The same button, still there, unavailable and focused: nothing to close, nothing to lose the focus to.
     expect(screen.getByRole('button', { name: 'Сверить с лекциями' })).toBe(button);
     expect(button).toHaveAttribute('aria-disabled', 'true');
@@ -1097,10 +1322,10 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
-    await waitFor(() => expect(notes()[0]).toMatch(/^Не хватает дневного лимита: сверка с лекциями расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 4\./));
+    await waitFor(() => expect(statusBlocked()).toMatch(/^Сегодня осталось 4 единицы ИИ, а сверка расходует 10\. Лимит обновится в \d{1,2}:\d{2}\.$/));
   });
 
-  it('keeps «Сверить с лекциями» in place while the limit is checked and hands the focus to «Тянуть билет» when the run starts', async () => {
+  it('keeps «Сверить с лекциями» in place while the limit is checked and hands the focus to the status’s headline when the run starts', async () => {
     const stream = liveStream();
     vi.stubGlobal('fetch', vi.fn(async () => stream.response));
     let allow!: (value: unknown) => void;
@@ -1116,25 +1341,29 @@ describe('ExamDetail: mapping by lectures', () => {
     expect(button).toHaveFocus();
     allow({ allowed: true, isPro: false, count: 0, ok: true });
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Сверить с лекциями' })).toBeNull());
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveFocus());
+    // The headline that now says what is going on takes the keyboard — never the page's body.
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: named('Meldy сверяет вопросы с лекциями') })).toHaveFocus());
     stream.close();
   });
 
-  it('before the first run: one filled pill «Сверить с лекциями», «Тянуть билет» as a link, only «Все» in the filter (redesign critique 7)', async () => {
+  it('before the first run: the status holds the one filled pill «Сверить с лекциями», «Тянуть билет» is a quiet link, only «Все» in the filter (redesign critique 7)', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
     renderDetail();
     await opened();
-    const head = document.querySelector('.ex-head') as HTMLElement;
-    expect(head.querySelectorAll('.sf-primary')).toHaveLength(1);
-    expect(within(head).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
-    expect(within(head).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');
+    await statusSays('Вопросы ещё не сверены с лекциями');
+    expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
+    expect(within(statusCard()).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
+    const draw = within(statusCard()).getByRole('link', { name: 'Тянуть билет' });
+    expect(draw).toHaveClass('sf-link');
+    expect(draw).not.toHaveClass('sf-primary');
+    // The header holds no pill of its own any more.
+    expect(document.querySelector('.ex-head .sf-primary, .ex-head .ex-draw')).toBeNull();
     const filter = screen.getByRole('list', { name: 'Показать вопросы' });
     expect(within(filter).getAllByRole('button').map((item) => plain(item.textContent))).toEqual(['Все 3']);
-    // The column does not repeat the note under the header.
-    expect(within(column()).queryByText('Вопросы ещё не сверены с лекциями.')).toBeNull();
-    expect(plain(column().textContent)).toContain('Доля билетов появится после сверки');
+    // Nothing is checked: nothing beside the list either.
+    expect(screen.queryByRole('complementary', { name: 'Что это значит для билетов' })).toBeNull();
+    expect(document.body.textContent).not.toContain('Доля билетов появится');
   });
-
   it('offers «Продолжить» after a dropped stream; a 409 then shows «Сверка ещё идёт» and polls until the exam is free', async () => {
     const first = liveStream();
     const fetchMock = vi
@@ -1157,19 +1386,21 @@ describe('ExamDetail: mapping by lectures', () => {
     first.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });
     first.close();
 
-    await waitFor(() => expect(notes()).toContain('Сверка прервалась: проверено 1 из 3.Продолжить'));
+    await statusSays('Сверка прервалась');
+    expect(statusText()).toBe('Проверено 1 из 3. Продолжите — Meldy проверит оставшиеся 2 вопроса за 10 единиц ИИ.');
     expect(row('q1')).toHaveAttribute('data-coverage', 'full');
-    // One note with one action: not also «2 вопроса ещё не сверены… Разметить».
-    expect(notes()).toEqual(['Сверка прервалась: проверено 1 из 3.Продолжить']);
+    // One status with one action: not also «2 вопроса ещё не сверены… Сверить».
+    expect(within(statusCard()).getAllByRole('button').map((button) => button.textContent)).toEqual(['Продолжить сверку']);
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(notes()).toContain('Сверка ещё идёт. Лист обновится, когда она закончится.'));
+    await statusSays('Сверка уже идёт');
+    expect(statusText()).toBe('Её запустили в другой вкладке или на другом устройстве. Список обновится сам, когда она закончится.');
     expect(screen.getByText('Изменить список').tagName).toBe('SPAN');
     await waitFor(() => expect(mocks.fetchExamMappingState).toHaveBeenCalledTimes(3));
-    await waitFor(() => expect(notes()).not.toContain('Сверка ещё идёт. Лист обновится, когда она закончится.'));
+    await waitFor(() => expect(statusTitle()).not.toBe('Сверка уже идёт'));
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(3));
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -1183,7 +1414,7 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.fetchExamMappingState.mockResolvedValueOnce(RUNNING()).mockResolvedValue(FINISHED());
     renderDetail();
     await opened();
-    await waitFor(() => expect(notes()).toContain('Сверка ещё идёт. Лист обновится, когда она закончится.'));
+    await statusSays('Сверка уже идёт');
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(row('q3')).toHaveAttribute('data-coverage', 'none'));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -1199,12 +1430,13 @@ describe('ExamDetail: mapping by lectures', () => {
     );
     renderDetail();
     await opened();
-    expect(notes()).toContain('Сверка прервалась: проверено 1 из 3.Продолжить');
-    // The meta line agrees with the note: how far the run got, never «сверки ещё нет».
+    await statusSays('Сверка прервалась');
+    expect(statusText()).toBe('Проверено 1 из 3. Продолжите — Meldy проверит оставшиеся 2 вопроса за 10 единиц ИИ.');
+    // The meta line agrees with the status: how far the run got, never «сверки ещё нет».
     const meta = plain(document.querySelector('.ex-head .ex-meta')?.textContent);
     expect(meta).toContain('проверено 1 из 3, сверка прервалась');
     expect(meta).not.toContain('сверки ещё нет');
-    fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     stream.close();
   });
@@ -1222,10 +1454,13 @@ describe('ExamDetail: mapping by lectures', () => {
     );
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+    // Every question was checked before the lock went stale: nothing goes to the model, nothing is charged.
+    await statusSays('Сверка прервалась');
+    expect(statusText()).toBe('Проверено 3 из 3, но сверка не успела завершиться. Запустите её ещё раз.');
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(mocks.checkAILimit).not.toHaveBeenCalled();
-    expect(notes().join(' ')).not.toMatch(/лимит/);
+    expect(plain(statusCard().textContent)).not.toMatch(/лимит/);
     stream.send({ type: 'start', questions: 3, to_check: 0, materials: [], skipped: [] });
     stream.send({ type: 'done', state: 'done', counts: { full: 1, partial: 1, none: 1 }, reused: 0, used_ai: false });
     stream.close();
@@ -1243,9 +1478,9 @@ describe('ExamDetail: mapping by lectures', () => {
     );
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 10));
-    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан/));
+    await waitFor(() => expect(statusBlocked()).toMatch(/^Дневной лимит ИИ на сегодня исчерпан/));
     expect(refused).not.toHaveBeenCalled();
   });
 
@@ -1257,9 +1492,11 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(list));
     renderDetail();
     await opened();
-    const side = column();
-    expect(plain(side.textContent)).toContain('4 вопроса проверены только по словам — доля билетов:');
-    fireEvent.click(within(side).getByRole('button', { name: 'Проверить снова' }));
+    await statusSays('4 вопроса проверены только по словам');
+    expect(statusText()).toBe('Сервис был занят, и Meldy сравнил их с лекциями только по совпадению слов. Проверьте их снова — это стоит 10 единиц ИИ.');
+    // The action lives in the status; the column keeps its one figure.
+    expect(within(column()).queryByRole('button', { name: 'Проверить снова' })).toBeNull();
+    fireEvent.click(within(statusCard()).getByRole('button', { name: 'Проверить снова' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(JSON.parse(String(init.body))).toEqual({ question_ids: ['q21', 'q22', 'q23', 'q24'], force: false });
@@ -1309,7 +1546,7 @@ describe('ExamDetail: mapping by lectures', () => {
 
   it('opens the sheet again from the database: a question reworded since the run is not checked, the run’s notes are gone', async () => {
     await mapToTheEnd(() => mocks.loadExamBundle.mockResolvedValue(bundle(mappedRows())));
-    await waitFor(() => expect(notes()).toContain('Часть сверки от 9:40, остальное сейчас.'));
+    await waitFor(() => expect(statusNotes()).toContain('Часть сверки от 9:40, остальное сейчас.'));
     cleanup();
 
     // Question 2 was reworded in the editor (its coverage reset); no new run started.
@@ -1318,10 +1555,11 @@ describe('ExamDetail: mapping by lectures', () => {
     await opened();
     expect(row('q2')).toHaveAttribute('data-coverage', 'unmapped');
     expect(row('q1')).toHaveAttribute('data-coverage', 'full');
-    expect(notes().some((note) => note.startsWith('1 вопрос ещё не сверен с лекциями'))).toBe(true);
-    expect(notes()).not.toContain('Часть сверки от 9:40, остальное сейчас.');
+    await statusSays('1 вопрос ещё не сверен с лекциями');
+    expect(statusNotes()).not.toContain('Часть сверки от 9:40, остальное сейчас.');
     // The ticket shares count question 2 as unknown, not as «нет».
-    expect(plain(column().textContent)).toContain('не сверено — 1');
+    fireEvent.click(within(column()).getByRole('button', { name: 'Как считается' }));
+    expect(plain(column().querySelector('.ex-calc-q')?.textContent)).toContain('не сверено — 1');
   });
 
   it('does not repeat «Сверка прервалась» on a later visit when the exam was mapped since', async () => {
@@ -1337,14 +1575,15 @@ describe('ExamDetail: mapping by lectures', () => {
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });
     stream.close();
-    await waitFor(() => expect(notes()).toContain('Сверка прервалась: проверено 1 из 3.Продолжить'));
+    await statusSays('Сверка прервалась');
     cleanup();
 
     // Mapped to the end in another tab meanwhile.
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1, 'full'), question(2, 'none'), question(3, 'partial')]));
     renderDetail();
     await opened();
-    expect(notes().filter((note) => note.includes('прервалась'))).toEqual([]);
+    await statusSays('Можно отвечать на билеты');
+    expect(plain(statusCard().textContent)).not.toContain('прервалась');
     expect(row('q3')).toHaveAttribute('data-coverage', 'partial');
   });
 });
@@ -1398,27 +1637,20 @@ describe('ExamDetail on a phone', () => {
     await waitFor(() => expect(change).toHaveFocus());
   });
 
-  it('sets (a) and (b) side by side above the sheet on a phone, (c) and the action line under it (redesign critique 10)', async () => {
+  it('keeps the one figure with «Как считается» above the sheet on a phone, the action line under it (redesign critique 10)', async () => {
     setWidth(390);
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     renderDetail();
     await opened();
     const summary = screen.getByRole('region', { name: 'Сводка' });
-    const pairs = summary.querySelector('.ex-pairs') as HTMLElement;
-    expect(pairs).toHaveAttribute('data-compact');
-    expect(pairs).toHaveAttribute('data-count', '2');
-    expect(plain(pairs.querySelector('.ex-gap-n')?.textContent)).toBe('9');
-    expect(plain(pairs.querySelector('.ex-figs-was')?.textContent)).toBe('60 %');
-    expect(plain(pairs.querySelector('.ex-figs-now')?.textContent)).toBe('35 %');
-    expect(within(summary).queryByText(named('в 15 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeNull();
+    expect(plain(summary.querySelector('.ex-figs-now')?.textContent)).toBe('35 %');
+    expect(plain(summary.querySelector('.ex-caveat[data-inline]')?.textContent)).toBe('Это доля билетов, а не вероятность сдать. Как считается');
     expect(summary.querySelector('.ex-act')).toBeNull();
     const after = screen.getByRole('region', { name: 'Ответы по билетам' });
     const sheet = document.querySelector('.ex-sheet') as HTMLElement;
     expect(sheet.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(after).getByText(named('в 15 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
     expect(plain(after.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
   });
-
   it('closes the phone menu with Escape and gives the focus back', async () => {
     setWidth(390);
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
@@ -1459,9 +1691,12 @@ describe('ExamDetail on a phone', () => {
     await opened();
     expect(screen.getByRole('region', { name: 'Сводка' })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Что это значит для билетов' })).toBeNull();
+    // The bar at the bottom holds the status's action (question 5 is not checked yet); «Тянуть билет» stays in the status.
+    await statusSays('1 вопрос ещё не сверен с лекциями');
     const cta = document.querySelector('.ex-cta') as HTMLElement;
-    expect(within(cta).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
-    expect(within(cta).getByText('Как на экзамене')).toBeInTheDocument();
+    expect(within(cta).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
+    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
+    expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
 
     // The paper comes first: only the pair, the short caveat and the confirmed line are above it;
     // the readiness legend and the confidence line are under the sheet.
@@ -1537,6 +1772,8 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
 
   const tab = (name: 'Шпаргалка' | 'Вопросы') => screen.getByRole('tab', { name });
   const drawPill = () => document.querySelector('.ex-draw a[href^="/exams/exam-1/draw"]') as HTMLElement;
+  /** The status's one filled pill (the white one while the column offers its own). */
+  const statusPill = () => document.querySelector('.ex-st .ex-draw > :first-child') as HTMLElement;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -1551,26 +1788,29 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
     expect(tab('Шпаргалка')).toHaveAttribute('tabindex', '-1');
     expect(document.querySelector('[data-view]')).toHaveAttribute('data-view', 'questions');
-    expect(drawPill()).toHaveClass('sf-primary');
+    // Found but not written: the status offers the sheet with its price; «Тянуть билет» is the quiet link under it.
+    await statusSays('В лекциях есть ответы на 31 вопрос из 40');
+    expect(statusText()).toBe('Теперь Meldy выпишет из лекций пункты ответа — получится шпаргалка, строки которой стирают ваши ответы. Это стоит 31 единицу ИИ.');
+    expect(within(statusCard()).getByRole('button', { name: 'Написать шпаргалку' })).toHaveClass('sf-primary');
+    expect(drawPill()).toHaveClass('sf-link');
 
     fireEvent.click(tab('Шпаргалка'));
     expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
     expect(window.localStorage.getItem(VIEW_KEY)).toBe('sheet');
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'ex-view-sheet');
     expect(await screen.findByRole('tabpanel', { name: 'Шпаргалка' })).toBeInTheDocument();
-    // The first write is the column's filled pill, and «Тянуть билет» steps down to the quiet one.
-    expect(await screen.findByRole('button', { name: 'Написать шпаргалку' })).toHaveClass('sf-primary');
-    expect(drawPill()).toHaveClass('ex-secondary');
+    // One «Написать шпаргалку» on the page: the column says what the sheet is and leaves the button to the status.
+    expect(await screen.findByText('Шпаргалка ещё не написана')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Написать шпаргалку' })).toHaveLength(1);
+    expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
     expect(screen.queryByRole('list', { name: 'Показать вопросы' })).toBeNull();
 
     fireEvent.keyDown(tab('Шпаргалка'), { key: 'ArrowRight' });
     expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
     await waitFor(() => expect(tab('Вопросы')).toHaveFocus());
     expect(window.localStorage.getItem(VIEW_KEY)).toBe('questions');
-    expect(drawPill()).toHaveClass('sf-primary');
     expect(screen.getByRole('list', { name: 'Показать вопросы' })).toBeInTheDocument();
   });
-
   it('once a question is written, the next visit opens on the sheet; this one stays where it is', async () => {
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1, 2]));
     const first = renderDetail();
@@ -1584,11 +1824,13 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
     const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
     expect(await within(paper).findByRole('button', { name: named('первое 1') })).toBeInTheDocument();
-    // Something is written already: «Тянуть билет» is the filled pill again, «Дописать» is quiet.
-    expect(await screen.findByRole('button', { name: named('Дописать 29 вопросов') })).toHaveClass('ex-secondary');
-    expect(drawPill()).toHaveClass('sf-primary');
+    // Written in part and nothing answered yet: the status offers the rest with its price, once.
+    await statusSays('Шпаргалка написана не полностью');
+    expect(statusText()).toBe('У 29 вопросов ещё нет пунктов ответа. Допишите их. Это стоит 29 единиц ИИ.');
+    expect(within(statusCard()).getByRole('button', { name: 'Дописать шпаргалку' })).toHaveClass('sf-primary');
+    expect(screen.queryByRole('button', { name: named('Дописать 29 вопросов') })).toBeNull();
+    expect(drawPill()).toHaveClass('sf-link');
   });
-
   it('a chosen view wins over that default; ?view=sheet and a filter link win over the choice', async () => {
     window.localStorage.setItem(VIEW_KEY, 'questions');
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
@@ -1612,6 +1854,57 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(within(filters).getByRole('button', { name: /нет ни в одной/ })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('the owner’s exam on «Шпаргалка»: «нет в лекции» is said once, in the status — the questions keep a dash each, no column, no «0 %»', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.loadExamBundle.mockResolvedValue(ownerBundle());
+    mocks.fetchSheet.mockResolvedValue(sheetOf(informatics(), []));
+    renderDetail();
+    await statusSays('В лекции «ПР 9» нет ответов на эти вопросы');
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    await waitFor(() => expect(paper.querySelectorAll('.cs-q')).toHaveLength(18));
+    expect(paper.querySelectorAll('.cs-pnote')).toHaveLength(0);
+    expect(within(paper).queryByRole('link', { name: 'Добавить лекцию' })).toBeNull();
+    expect(plain(paper.textContent)).not.toContain('нет фрагмента');
+    expect(paper.querySelectorAll('.cs-gapmark')).toHaveLength(18);
+    expect(within(paper).getAllByText('Ответа в лекциях нет')).toHaveLength(18);
+    expect(screen.queryByRole('complementary', { name: 'Колонка шпаргалки' })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/0\s%\sбилетов/);
+  });
+
+  it('a sheet where only some questions are missing keeps «нет в лекции» under each of them', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    renderDetail();
+    await opened();
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    await within(paper).findByRole('button', { name: named('первое 1') });
+    expect(paper.querySelectorAll('.cs-gapmark')).toHaveLength(0);
+    expect(within(paper).getAllByRole('link', { name: 'Добавить лекцию' })).toHaveLength(9);
+  });
+
+  it('«Написать шпаргалку» in the status starts the writer and shows the paper', async () => {
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), []));
+    mocks.startSheetWrite.mockImplementation(async () => undefined);
+    renderDetail();
+    await opened();
+    await statusSays('В лекциях есть ответы на 31 вопрос из 40');
+    fireEvent.click(within(statusCard()).getByRole('button', { name: 'Написать шпаргалку' }));
+    await waitFor(() => expect(mocks.startSheetWrite).toHaveBeenCalledWith('exam-1', undefined));
+    expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('answering: what an answer can erase today, with «Тянуть билет из них» into the draw of those questions', async () => {
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    mocks.fetchSheetEvents.mockResolvedValue([pointEvent(1, 'p1', dayKey(-3), 's-old'), pointEvent(1, 'p2', dayKey(-3), 's-old')]);
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's-old')]);
+    renderDetail();
+    await opened();
+    await statusSays('Сегодня можно стереть строки у 1 вопроса');
+    expect(statusText()).toBe('Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.');
+    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет из них' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=awaiting');
+    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');
+  });
+
   it('«Самооценка» on the sheet goes to «Вопросы» to rate', async () => {
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
@@ -1629,16 +1922,18 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     renderDetail();
     await opened();
     const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    await statusSays('Шпаргалка написана не полностью');
+    expect(statusPill()).toHaveClass('sf-primary');
     fireEvent.click(await within(paper).findByRole('button', { name: named('первое 1') }));
     const details = await screen.findByRole('heading', { name: named('Первый пункт 1') });
     const panel = details.closest('section') as HTMLElement;
     expect(within(panel).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/exams/exam-1/ticket?q=q1');
-    expect(drawPill()).toHaveClass('ex-secondary');
+    expect(statusPill()).toHaveClass('ex-secondary');
+    expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
     fireEvent.click(within(panel).getByRole('button', { name: 'Закрыть' }));
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull());
-    expect(drawPill()).toHaveClass('sf-primary');
+    expect(statusPill()).toHaveClass('sf-primary');
   });
-
   it('the first time the sheet shows lines, a tip under «Шпаргалка» says what erases them, once', async () => {
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     mocks.getProfile.mockResolvedValue({ onboarding_status: { guide: true } });
