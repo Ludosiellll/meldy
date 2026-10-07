@@ -18,7 +18,7 @@ import { usePrefersReducedMotion } from '../../landing/usePrefersReducedMotion';
 import { blockNote, lineLabel, lineNote } from './copy';
 import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns, splitMany, zoomPlan } from './layout';
 import { SheetText } from './SheetText';
-import { loadSheetFont } from './sheetFont';
+import { isSheetFontSettled, loadSheetFont } from './sheetFont';
 import './sheet.css';
 
 /**
@@ -241,7 +241,16 @@ function useRows(text: RefObject<HTMLElement>, active: boolean, content: string)
     measure();
     let observer: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(schedule);
+      // A new observer reports the size it starts with: that one is measured above already (a second
+      // measure of every patched line would lay a long sheet out once more).
+      let initial = true;
+      observer = new ResizeObserver(() => {
+        if (initial) {
+          initial = false;
+          return;
+        }
+        schedule();
+      });
       observer.observe(host);
     }
     return () => {
@@ -347,6 +356,7 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
                 animate={drawWave}
                 delayMs={motion ? motion.delay + Math.round(motion.ms * (motion.anim === 'return' ? 0.62 : 0.2)) : 0}
                 dy={-1}
+                watch={line.text}
               >
                 {words}
               </PencilUnder>
@@ -553,7 +563,8 @@ export default function CheatSheet({
   const wrapRef = useRef<HTMLElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  const [fontReady, setFontReady] = useState(false);
+  // The page waits for the font before it shows the paper (useSheetView): then it is ready at once.
+  const [fontReady, setFontReady] = useState(isSheetFontSettled);
   const [phase, setPhase] = useState<Phase>('idle');
   const [overrides, setOverrides] = useState<ReadonlyMap<string, LineStatus>>(NO_STATUSES);
   const [motions, setMotions] = useState<ReadonlyMap<string, Motion>>(NO_MOTIONS);

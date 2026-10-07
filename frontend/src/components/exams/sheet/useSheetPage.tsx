@@ -20,6 +20,7 @@ import type { FrameBox } from '../useFrame';
 import CheatSheet, { writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
 import { LinePanel, SheetSummaryCard, SheetWriteCard, useUnitsLeft } from './SheetColumn';
 import { changeSentence, counterLabel } from './copy';
+import { isSheetFontSettled, loadSheetFont } from './sheetFont';
 import { useCheatSheet, type CheatSheetData } from './useCheatSheet';
 
 /**
@@ -184,6 +185,21 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   // The lines' states are known once the journal has been read: until then no paper, no counter.
   const ready = data.status === 'ready' && data.eventsState === 'ready';
   const shown = data.status === 'ready' && data.journalRead;
+  // The paper is laid out once, in its own handwriting: with a fallback font first its lines would
+  // wrap anew when the handwriting comes, and every question below would jump (layout shift). The
+  // font loads while the sheet and the journal are read; its wait is at most 1.5 s.
+  const [fontReady, setFontReady] = useState(isSheetFontSettled);
+  useEffect(() => {
+    if (!active || fontReady) return undefined;
+    let alive = true;
+    void loadSheetFont().then(() => {
+      if (alive) setFontReady(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [active, fontReady]);
+  const paperShown = shown && fontReady;
   const sheet = data.sheet;
 
   // «Только то, что осталось» turns on by itself when half the lines are erased or the exam is today or
@@ -574,8 +590,9 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   ) : (
     column
   );
+  // Under the paper: shown with the paper, so the paper's arrival does not push it down under the eye.
   const after =
-    shown && (counts.total > 0 || !firstWrite) ? (
+    paperShown && (counts.total > 0 || !firstWrite) ? (
       <>
         {!(firstWrite || writing || input.unmapped) && writeCard(true)}
         {counts.total > 0 && summary('after')}
@@ -616,7 +633,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   ) : null;
 
   const historyDay = historyView ? formatShortDay(historyView.frame.day) : null;
-  const paper = shown ? (
+  const paper = paperShown ? (
     <CheatSheet
       examId={examId}
       addMaterialHref={links.addMaterial}

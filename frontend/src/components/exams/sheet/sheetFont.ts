@@ -21,6 +21,17 @@ const FACES: ReadonlyArray<[string, string]> = [
 ];
 
 let loading: Promise<void> | null = null;
+let settled = false;
+
+/**
+ * The handwriting is loaded, or its wait is over: the paper can be laid out now without lines
+ * wrapping anew under a late font (a jump of every question below). True where fonts are not
+ * loaded at all (no FontFace API).
+ */
+export function isSheetFontSettled(): boolean {
+  if (typeof document === 'undefined' || typeof FontFace === 'undefined' || !document.fonts) return true;
+  return settled;
+}
 
 /** Adds the faces once and resolves when the Cyrillic one is ready, or after `timeoutMs`. Never rejects. */
 export function loadSheetFont(timeoutMs = 1500): Promise<void> {
@@ -48,6 +59,8 @@ export function loadSheetFont(timeoutMs = 1500): Promise<void> {
   );
   // The other subsets load when a glyph needs them (unicode-range).
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
-  loading = Promise.race([ready, timeout]);
+  loading = Promise.race([ready, timeout]).then(() => {
+    settled = true;
+  });
   return loading;
 }

@@ -168,6 +168,38 @@ describe('text marks', () => {
     host.remove();
   });
 
+  it('with `watch`, measures again when the words change, not on every render of new children', () => {
+    stubReducedMotion(false);
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const offsetParent = vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+      return host;
+    });
+    const rects = vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function (this: HTMLElement) {
+      const list = [{ left: 10, top: 20, width: 60, height: 24, right: 70, bottom: 44, x: 10, y: 20 }];
+      return Object.assign(list, { item: (index: number) => list[index] }) as unknown as DOMRectList;
+    });
+    const tree = (words: string) => (
+      <PencilUnder seed={7} kind="wave" watch={words}>
+        <span>{words}</span>
+      </PencilUnder>
+    );
+    const view = render(tree('спрос ↓'), { container: host });
+    const measured = rects.mock.calls.length;
+    expect(measured).toBeGreaterThan(0);
+    expect(host.querySelectorAll('.sf-under-ink')).toHaveLength(1);
+    // The parent renders again with a new element for the same words: no new measure (no layout).
+    view.rerender(tree('спрос ↓'));
+    view.rerender(tree('спрос ↓'));
+    expect(rects.mock.calls.length).toBe(measured);
+    // Other words: measured again.
+    view.rerender(tree('спрос ↑'));
+    expect(rects.mock.calls.length).toBeGreaterThan(measured);
+    offsetParent.mockRestore();
+    rects.mockRestore();
+    host.remove();
+  });
+
   it('draws nothing where there is no layout (and keeps the words)', () => {
     stubReducedMotion(false);
     const { container } = render(<PencilUnder seed={7}>выбор</PencilUnder>);

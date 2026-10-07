@@ -429,18 +429,30 @@ interface LineIdentity {
   hash: string;
   rubricId: string;
   pointId: string;
-  title: string;
+  /** The point's words, normalised (normalizeTitle). */
+  words: string;
   /** Another point of the same rubric has the same words: within that rubric the point's id decides. */
   twin: boolean;
+}
+
+// An event's words, normalised once: every line of its question compares them, on every build.
+const eventWords = new WeakMap<LearningEvent, string>();
+function wordsOf(event: LearningEvent): string {
+  let words = eventWords.get(event);
+  if (words === undefined) {
+    words = normalizeTitle(payloadOf(event).title);
+    eventWords.set(event, words);
+  }
+  return words;
 }
 
 /** Does the event belong to this line: the same question and the same point words (or, without words, the same key). */
 function belongs(event: LearningEvent, line: LineIdentity): boolean {
   const payload = payloadOf(event);
   const hash = typeof payload.question_hash === 'string' ? payload.question_hash : '';
-  const title = normalizeTitle(payload.title);
+  const title = wordsOf(event);
   if (title) {
-    if ((hash && hash !== line.hash) || title !== normalizeTitle(line.title)) return false;
+    if ((hash && hash !== line.hash) || title !== line.words) return false;
     const rubric = typeof payload.rubric_id === 'string' ? payload.rubric_id.toLowerCase() : '';
     const sameRubric = rubric !== '' && rubric === line.rubricId.toLowerCase();
     if (!hash && !sameRubric) return false;
@@ -502,17 +514,18 @@ export function buildSheet(
     const kind = blockKind(question);
     const rubric = question.rubric;
     const pool = [...(byHash.get(question.question_hash) ?? []), ...loose];
+    const titles = kind === 'lines' && rubric ? rubric.points.map((point) => normalizeTitle(point.title)) : [];
     const words = new Map<string, number>();
-    if (kind === 'lines' && rubric) for (const point of rubric.points) words.set(normalizeTitle(point.title), (words.get(normalizeTitle(point.title)) ?? 0) + 1);
+    for (const title of titles) words.set(title, (words.get(title) ?? 0) + 1);
     const lines: SheetLine[] =
       kind === 'lines' && rubric
-        ? rubric.points.map((point) => {
+        ? rubric.points.map((point, index) => {
             const identity = {
               hash: question.question_hash,
               rubricId: rubric.rubric_id,
               pointId: point.id,
-              title: point.title,
-              twin: (words.get(normalizeTitle(point.title)) ?? 0) > 1,
+              words: titles[index],
+              twin: (words.get(titles[index]) ?? 0) > 1,
             };
             return {
               key: lineKey(rubric.rubric_id, point.id),

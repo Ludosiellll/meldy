@@ -183,6 +183,12 @@ export interface PencilUnderProps {
   /** A straight line (default) or a wavy one (a point the answer missed, on the cheat sheet). */
   kind?: 'under' | 'wave';
   className?: string;
+  /**
+   * The words, when the children are elements made anew on every render (the cheat sheet's lines):
+   * the strokes are measured again when it changes, not on every render of the parent (each
+   * measure lays the page out). Without it, whenever the children change.
+   */
+  watch?: string;
 }
 
 /**
@@ -190,9 +196,10 @@ export interface PencilUnderProps {
  * strokes are positioned in the nearest positioned ancestor (the sheet or the row), so the words
  * may wrap; they are measured again on resize and when the fonts arrive.
  */
-export function PencilUnder({ seed, children, hand = 'pencil', animate = false, delayMs = 0, weight = 2.2, dy = 0, kind = 'under', className = '' }: PencilUnderProps) {
+export function PencilUnder({ seed, children, hand = 'pencil', animate = false, delayMs = 0, weight = 2.2, dy = 0, kind = 'under', className = '', watch }: PencilUnderProps) {
   const textRef = useRef<HTMLSpanElement>(null);
   const [rects, setRects] = useState<LineRect[]>([]);
+  const measured = watch === undefined ? children : watch;
 
   useLayoutEffect(() => {
     const element = textRef.current;
@@ -224,14 +231,25 @@ export function PencilUnder({ seed, children, hand = 'pencil', animate = false, 
     };
     measure();
     window.addEventListener('resize', schedule);
-    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts;
+    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown>; status?: string } }).fonts;
     let alive = true;
-    fonts?.ready?.then(() => {
-      if (alive) schedule();
-    });
+    // Measured again when fonts still loading arrive (not when they are all there already).
+    if (fonts?.status !== 'loaded') {
+      fonts?.ready?.then(() => {
+        if (alive) schedule();
+      });
+    }
     let observer: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(schedule);
+      // The first report is the size measured above.
+      let initial = true;
+      observer = new ResizeObserver(() => {
+        if (initial) {
+          initial = false;
+          return;
+        }
+        schedule();
+      });
       observer.observe(element.offsetParent ?? element);
     }
     return () => {
@@ -240,22 +258,31 @@ export function PencilUnder({ seed, children, hand = 'pencil', animate = false, 
       window.removeEventListener('resize', schedule);
       observer?.disconnect();
     };
-  }, [children]);
+  }, [measured]);
 
-  return (
-    <span className={`sf-under ${className}`.trim()} data-mark={kind}>
-      <span ref={textRef}>{children}</span>
-      {rects.map((rect, index) => {
+  // The strokes are drawn again only when their rows change, not on every render.
+  const strokes = useMemo(
+    () =>
+      rects.map((rect, index) => {
         const w = rect.w + 4;
         const h = 6;
         // The cheat sheet's wave under a missed point: long and calm, not a spell-checker's squiggle.
         const options = kind === 'wave' ? { weight, period: 13 } : { weight };
+        return { rect, w, h, paths: shape(kind, w, h, seed + index * 13, options) };
+      }),
+    [rects, kind, seed, weight],
+  );
+
+  return (
+    <span className={`sf-under ${className}`.trim()} data-mark={kind}>
+      <span ref={textRef}>{children}</span>
+      {strokes.map(({ rect, w, h, paths }, index) => {
         return (
           <PencilSvg
             key={index}
             width={w}
             height={h}
-            paths={shape(kind, w, h, seed + index * 13, options)}
+            paths={paths}
             hand={hand}
             animate={animate}
             delayMs={delayMs + index * 60}
