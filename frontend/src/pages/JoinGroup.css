@@ -1,0 +1,49 @@
+/*
+ * /join/<код> (JoinGroup.tsx): the sign-in page's frame (.au, .au-bar, .au-card from styles/legacy.css) with one
+ * column in the middle — the invitation, the note about built-in browsers, the ways to sign in.
+ */
+.jg-main {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  width: 100%;
+  max-width: calc(640px + 2 * var(--au-g));
+  margin: 0 auto;
+  padding: 0 var(--au-g) clamp(16px, 4dvh, 48px);
+}
+.jg-card { width: 100%; }
+.jg-h1 { font-size: clamp(28px, min(3vw, 5dvh), 40px); line-height: 1.1; }
+.jg-meta { margin: 12px 0 0; font-size: 16px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); }
+.jg-h2 { margin: 0; font-size: 18px; line-height: 1.3; font-weight: 600; color: var(--sf-ink); }
+
+.jg-inapp {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 18px 18px 16px;
+  border-radius: 24px;
+  background: var(--m-yellow-soft);
+  color: var(--m-yellow-ink);
+  font-size: 15px;
+  line-height: 1.45;
+}
+.jg-inapp p { margin: 0; }
+.jg-inapp-do { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+.jg-inapp .au-link { color: inherit; }
+.jg-copy.sf-primary { height: 48px; font-size: 16px; }
+.jg-copy.sf-primary::after { width: 34px; height: 34px; }
+.jg-hint { font-size: 14px; }
+.jg-url { word-break: break-all; font-weight: 600; user-select: all; }
+
+.jg-signin { margin-top: clamp(18px, 3dvh, 32px); }
+.jg-mail { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 4px; margin: 0; color: var(--sf-muted); }
+.jg-wait { margin: 24px 0 0; font-size: 16px; color: var(--sf-muted); }
+.jg-failed { display: grid; gap: 14px; justify-items: start; }
+.jg-actions { margin: 24px 0 0; }
+
+@media (max-width: 639px) {
+  .jg { --au-g: 16px; }
+  .jg-main { align-content: start; }
+  .jg-card { padding: 24px 20px; border-radius: 28px; }
+  .jg-copy.sf-primary, .jg-retry.sf-primary { width: 100%; }
+}

@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const auth = vi.hoisted(() => ({
@@ -101,5 +101,55 @@ describe('AuthCallback', () => {
       vi.advanceTimersByTime(15000);
     });
     expect(await screen.findByText('Вход не завершился вовремя. Проверьте настройки OAuth и попробуйте ещё раз.')).toBeInTheDocument();
+  });
+});
+
+describe('AuthCallback: the way back (lib/returnTo)', () => {
+  let where = '';
+  function Where() {
+    const location = useLocation();
+    where = `${location.pathname}${location.search}`;
+    return null;
+  }
+
+  function renderBack(search: string) {
+    window.history.pushState({}, '', `/auth/callback${search}`);
+    return render(
+      <MemoryRouter initialEntries={['/auth/callback']}>
+        <Routes>
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/join/:code" element={<p>Приглашение в группу</p>} />
+          <Route path="/login" element={<p>Страница входа</p>} />
+          <Route path="/dashboard" element={<p>Сегодня</p>} />
+        </Routes>
+        <Where />
+      </MemoryRouter>,
+    );
+  }
+
+  it('goes on to the page the visitor signed in for: the address of the callback stays, the way back rides in next', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: { access_token: 't' } }, error: null });
+    renderBack('?code=abc&next=%2Fjoin%2Fabcd2fghjkmn');
+    expect(await screen.findByText('Приглашение в группу')).toBeInTheDocument();
+    expect(where).toBe('/join/abcd2fghjkmn');
+    expect(auth.exchange).toHaveBeenCalledWith('abc');
+  });
+
+  it.each(['%2F%2Fevil.example%2Fjoin', 'https%3A%2F%2Fevil.example', '%2Flogin%3Fnext%3D%2Fdashboard'])(
+    'never follows an unsafe way back (%s): «Сегодня» as before',
+    async (next) => {
+      auth.getSession.mockResolvedValue({ data: { session: { access_token: 't' } }, error: null });
+      renderBack(`?code=abc&next=${next}`);
+      expect(await screen.findByText('Сегодня')).toBeInTheDocument();
+      expect(where).toBe('/dashboard');
+    },
+  );
+
+  it('a failed sign-in leads back to the sign-in page with the way back kept', async () => {
+    auth.exchange.mockResolvedValue({ error: new Error('invalid grant') });
+    renderBack('?code=abc&next=%2Fjoin%2Fabcd2fghjkmn');
+    fireEvent.click(await screen.findByRole('button', { name: 'Вернуться ко входу' }));
+    expect(await screen.findByText('Страница входа')).toBeInTheDocument();
+    expect(where).toBe('/login?next=%2Fjoin%2Fabcd2fghjkmn');
   });
 });

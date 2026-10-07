@@ -74,6 +74,7 @@ import { TIPS } from '../components/tips/tips';
 import { useFirstUseTip } from '../components/tips/useFirstUseTip';
 import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
+import InviteGroup from '../components/exams/share/InviteGroup';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -1087,6 +1088,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
       >
         Самооценка
       </button>
+      {/* «Группа по ссылке»: the author's link for the group (components/exams/share/InviteGroup). */}
+      <InviteGroup examId={exam.id} examTitle={exam.title} />
     </div>
   );
 

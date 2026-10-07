@@ -1,0 +1,134 @@
+/*
+ * «Пригласить группу» (InviteGroup.tsx): a white window over the dimmed page, the kit's tokens only, so both themes
+ * follow index.css. On a phone the window is a sheet from the bottom. The window lives in document.body (a portal),
+ * not inside .sf-page, so none of the exam page's rules reach it.
+ */
+.ig-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  font-family: var(--ph-sans);
+}
+.ig-scrim { position: absolute; inset: 0; background: rgba(11, 18, 28, .38); }
+.ig-box {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 28px 24px;
+  border-radius: 28px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 30px 60px -30px rgba(16, 41, 90, .45);
+  outline: none;
+}
+.ig-box:focus-visible { box-shadow: 0 0 0 2px var(--sf-accent-fg), 0 30px 60px -30px rgba(16, 41, 90, .45); }
+.ig-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ig-h { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+.ig-x {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.ig-x svg { width: 20px; height: 20px; }
+.ig-x:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+.ig-x:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 0; }
+.ig-lede { margin: 10px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.ig-wait { margin: 20px 0 0; font-size: 16px; color: var(--sf-muted); }
+.ig-note {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--sf-surface-soft);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--sf-ink);
+}
+.ig-note p { margin: 0; }
+.ig-note[data-tone='wait'] { background: var(--m-yellow-soft); color: var(--m-yellow-ink); }
+
+.ig-make { display: grid; gap: 16px; margin-top: 22px; }
+.ig-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.ig-consent input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--sf-accent); }
+.ig-go.sf-primary { justify-self: start; }
+
+.ig-made { display: grid; gap: 10px; margin-top: 22px; }
+.ig-label { font-size: 15px; font-weight: 600; }
+.ig-row { display: flex; gap: 8px; min-width: 0; }
+.ig-field {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 15px/1.4 var(--ph-sans);
+}
+.ig-field:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 1px; }
+.ig-text { padding: 12px 16px; resize: vertical; white-space: pre-wrap; }
+.ig-copy {
+  flex: none;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font: 500 15px/1 var(--ph-sans);
+  cursor: pointer;
+}
+.ig-copy:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.ig-copy-text { justify-self: start; }
+.ig-once { margin: 0 0 8px; font-size: 14px; line-height: 1.45; color: var(--sf-muted); }
+
+.ig-links { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
+.ig-h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+.ig-links ul { margin: 0; padding: 0; list-style: none; }
+.ig-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 6px 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.ig-link[data-state='revoked'],
+.ig-link[data-state='expired'] { color: var(--sf-muted); }
+.ig-link .sf-link { font-size: 15px; }
+.ig-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; color: var(--sf-muted); }
+
+@media (max-width: 639px) {
+  .ig-layer { place-items: end stretch; padding: 0; }
+  .ig-box { width: 100%; max-height: 92dvh; padding: 22px 16px calc(20px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; }
+  .ig-h { font-size: 22px; }
+  .ig-row { flex-direction: column; }
+  .ig-copy, .ig-go.sf-primary, .ig-copy-text { width: 100%; justify-self: stretch; }
+}

@@ -16,7 +16,9 @@ oral_rubrics (кэш по пользователю, question_hash, source_key, �
 так что эталон, сохранённый тем временем, не оплачивается второй раз. Ключ эталона —
 oral.rubric_key (тот же у шпаргалки, oral_sheet.py). Запись — токеном пользователя (RLS),
 вставка с пропуском дубликата и перечитыванием сохранённой строки; force перезаписывает
-сохранённую строку.
+сохранённую строку. 422 rubric_unverifiable оставляет строку oral_rubric_failures по ключу (по ней
+автор может пригласить группу, exam_shares.py); эталон-заглушка копии из ссылки группы (без пунктов,
+unverifiable) отвечает 422 сразу, без модели и единиц.
 
 Сборка эталона — тяжёлый вызов: каждая попытка ждёт места в общей очереди процесса
 (agents.base.heavy_slot, AI_HEAVY_CONCURRENCY), а её 30 с отсчитываются после этого.
@@ -548,6 +550,35 @@ def _created_at(row: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def shared_without_points(rubric: Any) -> bool:
+    """Эталон копии экзамена из ссылки группы, у автора которого пункты этого вопроса дважды не прошли
+    проверку цитат (exam_shares.is_placeholder): пунктов нет, модель не зовём — 422 rubric_unverifiable."""
+    return (
+        isinstance(rubric, dict)
+        and isinstance(rubric.get("unverifiable"), dict)
+        and rubric.get("coverage") == "none"
+        and rubric.get("points") == []
+    )
+
+
+async def _note_unverifiable(db: SupabaseRest, job: RubricJob) -> None:
+    """Пункты по этому ключу дважды не прошли проверку цитат: строка oral_rubric_failures. По ней автор может
+    пригласить группу (exam_shares.py), а вопрос уходит в копию без пунктов. Сбой записи (таблицы ещё нет,
+    сеть) ответ не меняет."""
+    values = {
+        "question_hash": job.question_hash,
+        "source_key": job.key,
+        "rubric_version": RUBRIC_VERSION,
+        "reason": "unverifiable",
+    }
+    if job.user_id:
+        values["user_id"] = job.user_id
+    try:
+        await db.insert("oral_rubric_failures", values, returning=False, on_conflict=RUBRIC_CONFLICT, ignore_duplicates=True)
+    except Exception as exc:  # только журнал: эталона всё равно нет, ответ — 422
+        print(f"Oral rubric failure note failed: {type(exc).__name__} {getattr(exc, 'status', '')}".rstrip())
+
+
 async def _build_rubric(job: RubricJob, lectures: ExamLectures | None = None) -> BuiltRubric:
     """Общая задача эталона. lectures — лекции экзамена, уже загруженные задачей шпаргалки
     (их фрагменты режутся один раз на все вопросы); без них — чтение экзамена и лекций."""
@@ -588,6 +619,8 @@ async def _build_rubric(job: RubricJob, lectures: ExamLectures | None = None) ->
             except SupabaseRestError as exc:
                 raise _read_error(exc) from None
             if stored is not None and stored.get("id") and _usable_rubric(stored.get("rubric")):
+                if shared_without_points(stored["rubric"]):
+                    raise AIError(422, "rubric_unverifiable", RUBRIC_UNVERIFIABLE_DETAIL)
                 body = _rubric_response(str(stored["id"]), stored["rubric"], cached=True, saved=True, job=job)
                 return BuiltRubric(body, _created_at(stored))
             if stored is not None:
@@ -596,7 +629,12 @@ async def _build_rubric(job: RubricJob, lectures: ExamLectures | None = None) ->
         # в общей задаче: два одновременных запроса одного эталона платят один раз.
         charge = await quota.reserve(job.token, "answerPoints", AI_COSTS["answerPoints"])
         async with quota.refund_on_failure(charge):
-            rubric, model = await _rubric_from_model(selection, job.question_text, use_cache=not job.force)
+            try:
+                rubric, model = await _rubric_from_model(selection, job.question_text, use_cache=not job.force)
+            except AIError as exc:
+                if exc.code == "rubric_unverifiable":
+                    await _note_unverifiable(db, job)
+                raise
         rubric_id, rubric, saved, cached, created_at = await _store_rubric(db, job, rubric, model, selection)
         body = _rubric_response(rubric_id, rubric, cached=cached, saved=saved, job=job)
         return BuiltRubric(body, created_at, charge)
@@ -648,6 +686,9 @@ async def oral_rubric(request: Request):
             if not force:
                 stored = await _stored_rubric(db, job)
                 if stored is not None and stored.get("id") and _usable_rubric(stored.get("rubric")):
+                    if shared_without_points(stored["rubric"]):
+                        # Копия из ссылки группы: у автора пункты не прошли проверку цитат — без модели и единиц.
+                        raise AIError(422, "rubric_unverifiable", RUBRIC_UNVERIFIABLE_DETAIL)
                     return _rubric_response(str(stored["id"]), stored["rubric"], cached=True, saved=True, job=job)
                 if stored is not None:
                     job.force = True  # испорченная строка кэша: собрать заново и перезаписать её

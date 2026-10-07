@@ -25,6 +25,9 @@ vi.mock('./pages/MistakeDiary', () => ({ default: () => <h1>Дневник ош�
 vi.mock('./pages/LectureTalk', () => ({ default: () => <h1>Разговор о лекции</h1> }));
 vi.mock('./pages/Landing', () => ({ default: () => <h1>Главная</h1> }));
 vi.mock('./pages/TryExample', () => ({ default: () => <h1>Пример экзамена</h1> }));
+vi.mock('./pages/JoinGroup', () => ({ default: () => <h1>Приглашение в группу</h1> }));
+vi.mock('./pages/Dashboard', () => ({ default: () => <h1>Сегодня</h1> }));
+vi.mock('./components/authReel/AuthReel', () => ({ default: () => null }));
 vi.mock('./api/materials', () => ({
   getMaterials: vi.fn(async () => materials.list),
   deleteMaterial: vi.fn(),
@@ -200,5 +203,45 @@ describe('the example exam (/try)', () => {
     openAt('/try/draw');
     expect(await screen.findByRole('heading', { name: 'Пример экзамена' })).toBeInTheDocument();
     expect(screen.queryByTestId('layout')).toBeNull();
+  });
+});
+
+describe('signing in and coming back (lib/returnTo)', () => {
+  it('a signed-out visitor of a private page goes to sign in with that page as the way back', async () => {
+    auth.value = { user: null, loading: false };
+    openAt('/exams/exam-1?view=sheet');
+    expect(await screen.findByRole('heading', { name: 'Продолжить подготовку' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+    expect(new URLSearchParams(window.location.search).get('next')).toBe('/exams/exam-1?view=sheet');
+  });
+
+  it('«Сегодня» signed out leads to the plain sign-in page, as before', async () => {
+    auth.value = { user: null, loading: false };
+    openAt('/dashboard');
+    expect(await screen.findByRole('heading', { name: 'Продолжить подготовку' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+    expect(window.location.search).toBe('');
+  });
+
+  it('/join/:code opens without the sign-in wall and outside the app layout', async () => {
+    auth.value = { user: null, loading: false };
+    openAt('/join/abcd2fghjkmn');
+    expect(await screen.findByRole('heading', { name: 'Приглашение в группу' })).toBeInTheDocument();
+    expect(screen.queryByTestId('layout')).toBeNull();
+    expect(window.location.pathname).toBe('/join/abcd2fghjkmn');
+  });
+
+  it('a group link waiting on this device takes over when the sign-in comes back to «Сегодня»', async () => {
+    window.localStorage.setItem('meldy_join_pending', JSON.stringify({ code: 'abcd2fghjkmn', at: Date.now() }));
+    openAt('/dashboard');
+    expect(await screen.findByRole('heading', { name: 'Приглашение в группу' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/join/abcd2fghjkmn');
+  });
+
+  it('with nothing waiting (or a stale code) «Сегодня» stays', async () => {
+    window.localStorage.setItem('meldy_join_pending', JSON.stringify({ code: 'abcd2fghjkmn', at: Date.now() - 3 * 24 * 3600 * 1000 }));
+    openAt('/dashboard');
+    expect(await screen.findByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/dashboard');
   });
 });

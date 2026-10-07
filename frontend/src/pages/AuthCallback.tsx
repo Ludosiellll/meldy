@@ -4,10 +4,14 @@ import { AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/telemetry';
 import { preloadAfterSignIn } from '../lib/prefetch';
+import { afterSignIn, returnToFromSearch, withReturn } from '../lib/returnTo';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  // The address of the callback stays /auth/callback; the page the visitor signed in for rides in ?next= (lib/returnTo),
+  // read from the real address like the OAuth code.
+  const [returnTo] = useState(() => returnToFromSearch(window.location.search));
 
   // «Сегодня» opens next: its screen comes in while the sign-in completes.
   useEffect(preloadAfterSignIn, []);
@@ -26,7 +30,7 @@ export default function AuthCallback() {
       window.clearTimeout(timeout);
       if (!tracked) track('login_done', { method: 'oauth' });
       tracked = true;
-      navigate('/dashboard', { replace: true });
+      navigate(afterSignIn(returnTo), { replace: true });
     };
 
     const complete = async () => {
@@ -61,7 +65,7 @@ export default function AuthCallback() {
       window.clearTimeout(timeout);
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, returnTo]);
 
   // Meldy 2026-10-04: a white card on the canvas with the wordmark; styles .au-wait in styles/legacy.css.
   return (
@@ -74,7 +78,7 @@ export default function AuthCallback() {
           <p className="au-wait-text text-rose-700 dark:text-rose-400">{error}</p>
           <button
             type="button"
-            onClick={() => navigate('/login', { replace: true })}
+            onClick={() => navigate(withReturn('/login', returnTo), { replace: true })}
             className="sf-primary"
           >
             Вернуться ко входу

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
 import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
+import { afterSignIn, emailRedirectTo, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
@@ -28,10 +29,13 @@ export default function Register() {
   const [resendMessage, setResendMessage] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
+  // The page the visitor signs up for (?next=, a safe path of this site only), else «Сегодня» (lib/returnTo). The
+  // confirmation letter carries it in its address: the letter is often opened in another browser.
+  const returnTo = returnToFromSearch(useLocation().search);
 
   useEffect(() => {
-    if (user) navigate('/dashboard');
-  }, [user?.id, navigate]);
+    if (user) navigate(afterSignIn(returnTo));
+  }, [user?.id, navigate, returnTo]);
 
   useEffect(() => track('signup_view'), []);
 
@@ -62,7 +66,7 @@ export default function Register() {
       password,
       options: {
         data: { full_name: name },
-        emailRedirectTo: window.location.origin + '/dashboard',
+        emailRedirectTo: emailRedirectTo(window.location.origin, returnTo),
       },
     });
 
@@ -79,7 +83,7 @@ export default function Register() {
     } else {
       track('signup_done', { method: 'email', confirmed: Boolean(data.session) });
       if (data.session) {
-        navigate('/dashboard');
+        navigate(afterSignIn(returnTo));
       } else {
         setSuccess('Успешно! Мы отправили письмо с подтверждением на вашу почту. Пожалуйста, перейдите по ссылке в письме.');
       }
@@ -96,7 +100,7 @@ export default function Register() {
       type: 'signup',
       email: email,
       options: {
-        emailRedirectTo: window.location.origin + '/dashboard',
+        emailRedirectTo: emailRedirectTo(window.location.origin, returnTo),
       }
     });
     setLoading(false);
@@ -111,7 +115,7 @@ export default function Register() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/auth/callback',
+        redirectTo: oauthRedirectTo(window.location.origin, returnTo),
       },
     });
   };
@@ -277,7 +281,7 @@ export default function Register() {
 
             <p className="au-foot">
               Уже есть аккаунт?{' '}
-              <button type="button" onClick={() => navigate('/login')} className="au-link">
+              <button type="button" onClick={() => navigate(withReturn('/login', returnTo))} className="au-link">
                 Войти
               </button>
             </p>
