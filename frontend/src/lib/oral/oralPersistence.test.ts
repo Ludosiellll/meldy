@@ -12,6 +12,8 @@ vi.mock('../supabase', () => ({
   },
 }));
 vi.mock('../../api/limits', () => ({ notifyAIUsageChanged: state.notifyAIUsageChanged }));
+const texts = vi.hoisted(() => ({ saveAnswerText: vi.fn(async (_record: unknown) => true) }));
+vi.mock('./answerTexts', () => ({ saveAnswerText: texts.saveAnswerText }));
 
 import {
   ATTEMPT_KEY,
@@ -215,6 +217,44 @@ describe('saving once, refreshing the limit once', () => {
     state.client = createFakeSupabase({ rpc: async () => ({ data: {}, error: null }) }).client;
     await expect(saveOralAttempt('user-1', { ...payload(), attempt_id: 'attempt-empty' })).rejects.toBeInstanceOf(OralSaveError);
     expect(state.notifyAIUsageChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe('the answer text after a saved answer (with consent, plan 2026-10-07)', () => {
+  const answer = { text: 'Обучение — это подбор весов.', examId: 'exam-1', questionHash: '0123456789abcdef0123456789abcdef' };
+  const saved = { session_id: 'sess-9', duplicate: false, events: 5, mistakes_added: 0, mistakes_existing: 0, card_added: false };
+
+  it('hands the text, the attempt and its session to answerTexts once the attempt is saved', async () => {
+    state.client = createFakeSupabase({ rpc: async () => ({ data: saved, error: null }) }).client;
+    const body = { ...payload(), attempt_id: 'attempt-text-1', input: 'speech' as const };
+    await saveOralAttempt('user-1', body, answer);
+    await vi.waitFor(() => expect(texts.saveAnswerText).toHaveBeenCalledTimes(1));
+    expect(texts.saveAnswerText).toHaveBeenCalledWith({
+      userId: 'user-1',
+      attemptId: 'attempt-text-1',
+      sessionId: 'sess-9',
+      examId: 'exam-1',
+      questionHash: '0123456789abcdef0123456789abcdef',
+      input: 'speech',
+      text: 'Обучение — это подбор весов.',
+    });
+  });
+
+  it('a failed text write does not touch the saved answer', async () => {
+    texts.saveAnswerText.mockRejectedValueOnce(new Error('network'));
+    state.client = createFakeSupabase({ rpc: async () => ({ data: saved, error: null }) }).client;
+    const result = await saveOralAttempt('user-1', { ...payload(), attempt_id: 'attempt-text-2' }, answer);
+    expect(result.sessionId).toBe('sess-9');
+    await vi.waitFor(() => expect(texts.saveAnswerText).toHaveBeenCalledTimes(1));
+  });
+
+  it('writes no text for a failed save, or when the caller gives none', async () => {
+    state.client = createFakeSupabase({ rpc: async () => ({ data: null, error: { code: '08006' } }) }).client;
+    await expect(saveOralAttempt('user-1', { ...payload(), attempt_id: 'attempt-text-3' }, answer)).rejects.toBeInstanceOf(OralSaveError);
+    state.client = createFakeSupabase({ rpc: async () => ({ data: saved, error: null }) }).client;
+    await saveOralAttempt('user-1', { ...payload(), attempt_id: 'attempt-text-4' });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(texts.saveAnswerText).not.toHaveBeenCalled();
   });
 });
 

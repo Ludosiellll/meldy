@@ -756,7 +756,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const before = current.history?.state.readiness ?? 'untested';
     const startedAt = new Date().toISOString();
     dispatch({ type: 'save_start' });
-    const promise = saveOralAttempt(user?.id ?? null, payload).then(
+    const answerText = { text: current.attempt.transcript, examId, questionHash: target.question_hash };
+    const promise = saveOralAttempt(user?.id ?? null, payload, answerText).then(
       (result) => {
         // The answer is in the history now, whatever the page did meanwhile (the student may have
         // left it): its draft and its waiting copy go, and the exam sheet learns which question changed.
