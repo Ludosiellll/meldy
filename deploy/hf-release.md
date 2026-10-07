@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-07 — Release 30.1: what the live check of release 30 found (from the commit of this entry)
+
+- **A token «from the future».** Right after sign-in, «Сегодня» failed once with 401 PGRST303 («JWT issued at
+  future»): the auth server's clock ran ahead of PostgREST's. Such a request did not run, so the browser sends it
+  again after 1 and 2 s (reads and writes alike); any other 401 is left to the auth client.
+- **Nothing found means no ticket.** An exam whose lectures answer none of its questions no longer offers «Тянуть
+  билет» even as a quiet link: there are no points to check an answer against.
+- **The invite dialog** promises «Пункты уже записаны…» only when a link can be made.
+- **The editor** keeps «К вопросам списка подходят N лекций» on screen after the questions ticked the lectures.
+- **Sheet short lines:** 30 s with Gemini's share 22 s, then the fast Groq (4 of 29 calls on 07.10 stopped at the old
+  20 s cap with no fallback; the sheet then showed the full point titles).
+- **`aria-controls`** names a panel only while it is shown (lecture fragments, the conversation's slip, the first
+  steps on «Сегодня»).
+
+The first release after the new update flow: open pages of release 30 show «Есть новая версия Meldy · Обновить»
+instead of reloading. No migrations. Verified before release: pytest 1490, tsc -b, Vitest 2702/2702 (168 files),
+production build (no «Засчитано», «удовлетворительно» or «оценки по пунктам» in the bundle).
+
 ## 2026-10-07 — Release 30: the exam page says what happened and what to do, lectures that fit the questions, no surprise reloads (from the commit of this entry)
 
 What the owner found on 07.10 in his own use and on a classmate's copy, and the rest of plan v2's week 2.
