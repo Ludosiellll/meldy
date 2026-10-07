@@ -274,7 +274,7 @@ export default function ExampleSheet() {
       <Link className="sf-ref" to={`/try/ticket?q=${EXAMPLE_ANSWER_QUESTION}`}>
         Ответьте на вопрос 5
       </Link>
-      {glue(' — что назовёте снова, сотрётся совсем. Ответ в примере проверяется по ключевым словам.')}
+      {glue(' — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.')}
       {touched ? (
         <>
           {' '}

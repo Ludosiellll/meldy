@@ -352,6 +352,11 @@ interface ProtocolSheetProps {
    * know it (not saved yet, a saved protocol read later, the journal not read): then nothing is there.
    */
   sheetNote?: ReactNode;
+  /**
+   * How the answer was checked, a line of its own under the date: the /try example says whether the AI
+   * checked it or, when the AI check was not there, the key words and why. A real ticket has none.
+   */
+  checkNote?: ReactNode;
   /** Seed of the marks: the attempt or the session id, so a protocol always looks the same. */
   seed: string;
   /** The evaluation failed: only the browser's key-word marks, labelled as such. */
@@ -365,7 +370,7 @@ interface ProtocolSheetProps {
  * title, its status in a word and a pencil mark, what the student said («Вы: «…»») and what the
  * lecture says, the same words underlined in both — so it is visible what a point was counted for.
  */
-export function ProtocolSheet({ heading, points, followup, sheetNote = null, seed, preliminary = false, animate = false }: ProtocolSheetProps) {
+export function ProtocolSheet({ heading, points, followup, sheetNote = null, checkNote = null, seed, preliminary = false, animate = false }: ProtocolSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const mentions = lectureMentions(points);
   const asked = followup && !preliminary ? points.find((point) => point.id === followup.pointId) ?? null : null;
@@ -378,6 +383,7 @@ export function ProtocolSheet({ heading, points, followup, sheetNote = null, see
     <div ref={sheetRef} className="sf-sheet or-psheet">
       <div className="or-ph">
         <span className="or-ph-date">{heading}</span>
+        {checkNote ? <p className="or-ph-check">{checkNote}</p> : null}
         {sheetNote ? <p className="or-ph-sheet or-sheet-change">{sheetNote}</p> : null}
       </div>
       {/* Above the fold on the stage: which point the examiner asked about, one click from it. */}

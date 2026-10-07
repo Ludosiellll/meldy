@@ -16,6 +16,7 @@ import type { AnswerInput } from '../../lib/oral/oralPersistence';
 import { elapsedLabel, glue, longDateTime, plural } from '../../lib/oral/format';
 import { exampleQuestion, exampleRubricResponse, exampleTicket, type ExampleQuestion } from '../../data/example';
 import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
+import { checkLine, checkSummary, checkTryAnswer, keptEvaluation, parseCheckSummary, tryEvaluation, type TryCheck } from './tryCheck';
 import ExampleGrade from './ExampleGrade';
 import TryBar from './TryBar';
 import { countBucket, track } from '../../lib/telemetry';
@@ -40,14 +41,20 @@ import {
 /** The example's cheat sheet: the answers erase its lines (sheet spec 4.3). */
 const TRY_SHEET_PATH = '/try?view=sheet';
 
-/** «Экзаменатор слушает ответ…» stays this long after «Готово» (the real screen waits for its quick check). */
+/** «Экзаменатор слушает ответ…» stays at least this long after «Готово» (the real screen waits for its quick check). */
 export const EXAMINER_PAUSE_MS = 900;
+/**
+ * The examiner asks about a point the AI's protocol did not find — or, when the AI is slower than this,
+ * about one the key words did not find (the real ticket's quick check gets 4.5 s on the server). The
+ * protocol still waits for the AI (up to tryCheck.TRY_CHECK_TIMEOUT_MS) while the follow-up is answered.
+ */
+export const FOLLOWUP_WAIT_MS = 4500;
 /** With nothing to ask, the examiner's closing line stays this long before the protocol. */
 export const CLOSING_PAUSE_MS = 1400;
 /**
  * A spoken answer to the follow-up is listened to this long after the question appears. The real screen
  * starts 300 ms after the examiner's voice ends; the example shows the question as text only: its voice
- * comes from /api/tts, which needs an account, and the example makes no /api call at all.
+ * comes from /api/tts, which needs an account (the example's one call is the AI check of the answer).
  */
 export const FOLLOWUP_LISTEN_MS = 300;
 const SILENCE_HINT_MS = 8000;
@@ -56,9 +63,9 @@ const LONG_ANSWER_MS = 120_000;
 const NOT_HEARD_LINE = 'Не расслышал ответ';
 const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».';
 
-/** Who sees the answer in the example: the browser, and nobody else. */
+/** Who sees the answer in the example: the browser, then Meldy's server and the Google model that check it (try_api.py). */
 export const EXAMPLE_PRIVACY_LINE =
-  'Речь распознаёт браузер, в Chrome — через сервис Google. Meldy ответ в примере не получает и не сохраняет: его проверяет этот браузер по ключевым словам.';
+  'Речь распознаёт браузер, в Chrome — через сервис Google. Для проверки текст ответа отправляется на сервер Meldy и в ИИ-сервис Google Gemini. Meldy его не сохраняет.';
 
 function inputOf(usedSpeech: boolean, usedText: boolean): AnswerInput {
   if (usedSpeech && usedText) return 'mixed';
@@ -118,7 +125,10 @@ function sheetNoteOf(change: AnswerChange | null): string | null {
 function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer: TryAnswer }) {
   const rubric = exampleRubric(question);
   if (!rubric) return <TicketMissing question={question} />;
-  const evaluation: Evaluation = {
+  const checked = parseCheckSummary(answer.check) ?? { by: 'keywords' as const };
+  // The AI's own protocol when it checked the answer; otherwise the statuses with the key words' quotes.
+  const byAI = checked.by === 'ai' ? keptEvaluation(answer.evaluation, rubric.points.map((point) => point.id)) : null;
+  const evaluation: Evaluation = byAI ?? {
     points: rubric.points.map((point) => {
       const status = answer.statuses[point.id] ?? 'missing';
       return { id: point.id, status, student_quote: status === 'missing' ? '' : answerQuote(answer.transcript, point.anchors), comment: '' };
@@ -126,7 +136,8 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
     errors: [],
     verdict: '',
   };
-  const named = new Set(rubric.points.filter((point) => answer.statuses[point.id] === 'covered').map((point) => point.id));
+  const live = Array.isArray(answer.live) ? answer.live.filter((id): id is string => typeof id === 'string') : null;
+  const named = new Set(live ?? rubric.points.filter((point) => answer.statuses[point.id] === 'covered').map((point) => point.id));
   const points = livePoints(rubric, evaluation, named);
   const followup = answer.followup ? { ...answer.followup } : null;
   const heading = ticketHeading(null, 0, 1, String(question.number));
@@ -144,6 +155,7 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
             heading={glue(`${heading.strong} · ответ ${when}`)}
             points={points}
             followup={followup}
+            checkNote={glue(checkLine(checked))}
             seed={`example:${question.id}:${answer.session}`}
             animate={false}
           />
@@ -157,7 +169,7 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
             )}
           </p>
           {seeded ? <p className="or-readonly-note tx-kept-said">{`«${answer.transcript}»`}</p> : null}
-          <ExampleGrade points={points} followup={followup}>
+          <ExampleGrade points={points} followup={followup} checked={checked}>
             <div className="or-acts" data-wide="">
               <Link className="sf-primary" to={`/try/ticket?q=${encodeURIComponent(question.id)}`}>
                 Ответить на этот вопрос
@@ -199,8 +211,10 @@ function TicketMissing({ question }: { question: ExampleQuestion | null }) {
  * The live room of the example: the same machine and paper as a real ticket (lib/oral/ticketMachine,
  * components/oral) — the ticket card, the answer sheet whose points open as their key words are said
  * or typed, «Готово», the examiner's follow-up on a point that was not named, the protocol with the
- * lecture quotes and the result. Only the checking differs: the key words on this device stand in
- * for the AI (exampleFlow.ts). No /api call, nothing saved.
+ * lecture quotes and the result. At «Готово» the answer goes to the AI check once (tryCheck.ts,
+ * backend/try_api.py): the protocol is the AI's, as on a real ticket, and the follow-up is chosen by
+ * its statuses when they come in time. Without the AI check the key words on this device decide, as the
+ * example always did (exampleFlow.ts), and the protocol says so. Nothing is saved but in this tab.
  */
 function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const navigate = useNavigate();
@@ -227,6 +241,10 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const roomRef = useRef<HTMLElement | null>(null);
   const lastFocusRef = useRef<HTMLElement | null>(null);
   const focusTextRef = useRef(false);
+  /** How the latest attempt was checked, once known: the AI's protocol, «не знаю», or key words and why. */
+  const [check, setCheck] = useState<{ attemptId: string; result: TryCheck } | null>(null);
+  /** The AI check in flight: a new attempt or leaving the page stops it. */
+  const checkAbortRef = useRef<AbortController | null>(null);
 
   const rubric = state.rubric.status === 'ready' ? state.rubric.response.rubric : null;
   const points = useMemo(() => rubric?.points ?? [], [rubric]);
@@ -243,6 +261,9 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     timersRef.current.add(timer);
   }, []);
 
+  /** A pause that ends with the page: a promise that never settles once the room is gone. */
+  const wait = useCallback((ms: number) => new Promise<void>((resolve) => later(resolve, ms)), [later]);
+
   useEffect(() => {
     mountedRef.current = true;
     const timers = timersRef.current;
@@ -250,6 +271,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       mountedRef.current = false;
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
+      checkAbortRef.current?.abort();
     };
   }, []);
 
@@ -320,6 +342,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     const statuses: TryAnswer['statuses'] = {};
     for (const point of state.evaluation.result.points) if (point.status !== 'unrated') statuses[point.id] = point.status;
     const f = state.followup;
+    const checked = check && check.attemptId === attemptId ? check.result : null;
     const answer: TryAnswer = {
       session,
       questionId: question.id,
@@ -327,11 +350,13 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       transcript: state.attempt.transcript ?? '',
       statuses,
       followup: f && f.status ? { pointId: f.pointId, question: f.question, answer: f.answer, status: f.status, judgedBy: f.judgedBy } : null,
+      ...(checked ? { check: checkSummary(checked), live: [...state.named] } : {}),
+      ...(checked?.by === 'ai' ? { evaluation: state.evaluation.result } : {}),
     };
     const store = saveTryAnswer(answer);
     setTryPeak(question.id);
     setSheetChange(sheetChangeOf(answer, tryEvents(store)));
-  }, [question.id, state.phase, state.evaluation, state.attempt, state.followup]);
+  }, [question.id, state.phase, state.evaluation, state.attempt, state.followup, state.named, check]);
 
   // ── Leaving: an answer in progress is lost (nothing is saved), so ask first ──
   const inProgress = () => {
@@ -406,8 +431,11 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     attemptRef.current += 1;
     askRef.current += 1;
     namedInRef.current = {};
+    checkAbortRef.current?.abort();
+    checkAbortRef.current = null;
     speech.reset('');
     setSheetOpen(false);
+    setCheck(null);
     dispatch({ type: 'restart' });
   };
 
@@ -430,7 +458,10 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     else dispatch({ type: 'followup_mode', mode: 'text', typed: speechRef.current.snapshot() });
   }, []);
 
-  /** «Готово»: the answer is checked by its key words; the examiner asks about a point that was not named. */
+  /**
+   * «Готово»: the answer goes to the AI check once (key words when it is not there); the examiner asks
+   * about a point the check did not find, by the key words when the AI is slow.
+   */
   const finish = () => {
     const current = stateRef.current;
     if (current.phase !== 'answering' || !rubric) return;
@@ -441,23 +472,37 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       return;
     }
     const attempt = (attemptRef.current += 1);
+    const attemptId = `example-${attempt}`;
     const live = liveMarks(rubric.points, snapshot, '', new Set(current.named));
     for (const id of live) if (!namedInRef.current[id]) namedInRef.current[id] = snapshot;
     const input = inputOf(current.usedSpeech || (voice && words(snapshot).length > 0), current.usedText);
-    dispatch({ type: 'finalize', attemptId: `example-${attempt}`, snapshot, live: Array.from(live), input, now: Date.now(), startedAt: new Date().toISOString() });
+    dispatch({ type: 'finalize', attemptId, snapshot, live: Array.from(live), input, now: Date.now(), startedAt: new Date().toISOString() });
     track('try_answered', { mode: voice ? 'voice' : 'text' });
     setAttempts((count) => count + 1);
+    checkAbortRef.current?.abort();
+    const controller = new AbortController();
+    checkAbortRef.current = controller;
+    const pointIds = rubric.points.map((point) => point.id);
     const heard = voice ? speech.stop() : Promise.resolve(snapshot);
     void heard.then((text) => {
       if (!mountedRef.current || attempt !== attemptRef.current) return;
       const transcript = words(text).length > 0 ? text : snapshot;
       dispatch({ type: 'transcript', text: transcript });
-      const evaluation = keywordEvaluation(rubric.points, live, transcript, namedInRef.current);
-      dispatch({ type: 'evaluation_done', run: stateRef.current.run, result: evaluation });
+      const keywords = keywordEvaluation(rubric.points, live, transcript, namedInRef.current);
+      // One AI check per answer: the protocol is the AI's, or the key words' with the reason why.
+      const checked = checkTryAnswer(question.id, transcript, pointIds, { signal: controller.signal });
+      void checked.then((result) => {
+        if (!mountedRef.current || attempt !== attemptRef.current) return;
+        setCheck({ attemptId, result });
+        track('try_checked', result.by === 'keywords' ? { by: result.by, reason: result.reason } : { by: result.by });
+        dispatch({ type: 'evaluation_done', run: stateRef.current.run, result: tryEvaluation(result, pointIds, keywords) });
+      });
       dispatch({ type: 'examiner' });
-      later(() => {
-        if (attempt !== attemptRef.current || stateRef.current.phase !== 'examiner') return;
-        const choice = exampleFollowup(rubric.points, snapshot, evaluation);
+      // The examiner asks once the check is in, or by the key words when the AI takes longer than FOLLOWUP_WAIT_MS.
+      const inTime = Promise.race([checked, wait(FOLLOWUP_WAIT_MS).then(() => null)]);
+      void Promise.all([inTime, wait(EXAMINER_PAUSE_MS)]).then(([result]) => {
+        if (!mountedRef.current || attempt !== attemptRef.current || stateRef.current.phase !== 'examiner') return;
+        const choice = exampleFollowup(rubric.points, snapshot, result ? tryEvaluation(result, pointIds, keywords) : keywords);
         const point = choice ? rubric.points.find((item) => item.id === choice.pointId) : undefined;
         if (choice && point && point.followup.question) {
           const mode: AnswerMode = voice && speechRef.current.supported && speechRef.current.status !== 'error' ? 'voice' : 'text';
@@ -473,7 +518,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
         }
         // «Хорошо, по существу всё» only over an answer that named every point; otherwise «Хорошо, спасибо».
         dispatch({ type: 'no_followup', closing: closingLine(rubric.points, live) });
-      }, EXAMINER_PAUSE_MS);
+      });
     });
   };
 
@@ -580,6 +625,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
         : null;
     const sheetHeading = glue(`${heading.strong} · ответ ${longDateTime(state.attempt?.startedAt ?? new Date())}`);
     const protocolPoints = livePoints(rubric, state.evaluation.result, new Set(state.named));
+    const checked = check && check.attemptId === state.attempt?.attemptId ? checkSummary(check.result) : null;
     return (
       <>
         <TryBar where="Лист примера" back="/try" />
@@ -594,12 +640,13 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
               points={protocolPoints}
               followup={followupForProtocol}
               sheetNote={sheetNoteOf(sheetChange)}
+              checkNote={checked ? glue(checkLine(checked)) : null}
               seed={`${seedBase}:${attempts}`}
               animate
             />
           </section>
           <section className="or-side" aria-label="Итог">
-            <ExampleGrade points={protocolPoints} followup={followupForProtocol}>
+            <ExampleGrade points={protocolPoints} followup={followupForProtocol} checked={checked}>
               {/* The example's story goes on on its sheet: the answer is played there (sheet spec 4.3). */}
               <div className="or-acts" data-wide="">
                 <Link className="sf-primary" to={TRY_SHEET_PATH}>

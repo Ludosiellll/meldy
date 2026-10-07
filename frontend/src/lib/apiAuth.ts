@@ -71,7 +71,9 @@ export function installApiAuth() {
         ? input.pathname
         : input.url;
     const isBackendRequest = requestUrl.startsWith('/api/');
-    const isPublicRequest = requestUrl.startsWith('/api/health');
+    // Open without an account: the health checks and the AI check of the /try example (backend/try_api.py),
+    // which needs no token — a guest's request must not wait for the Supabase client to load.
+    const isPublicRequest = requestUrl.startsWith('/api/health') || requestUrl.startsWith('/api/try/');
     const isTelemetry = requestUrl.startsWith(TELEMETRY_ENDPOINT);
 
     if (!isBackendRequest || isPublicRequest) {

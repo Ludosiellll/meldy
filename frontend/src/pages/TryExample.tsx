@@ -14,7 +14,9 @@ import { track } from '../lib/telemetry';
  * account — the lectures and the department's list already checked (/try), «Тянуть билет»
  * (/try/draw), the answer by voice or in writing with the examiner's follow-up and the protocol
  * (/try/ticket?q=…). Public: outside PrivateRoute, and a signed-in student can open it too. It runs on
- * the device: no /api call, nothing saved (src/data/example, components/example).
+ * the device (src/data/example, components/example) but for one call per answer: the AI check,
+ * POST /api/try/evaluate (components/example/tryCheck.ts), with the key words when it is not there.
+ * Nothing is saved but in this tab.
  */
 export default function TryExample() {
   const { pathname } = useLocation();

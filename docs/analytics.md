@@ -77,6 +77,9 @@ Meldy сам записывает, какими экранами и функци
 - `try_opened` — открыт пример без регистрации `/try`.
 - `try_ticket_drawn` — в примере вытянут билет.
 - `try_answered` — в примере ответ отправлен на проверку; `mode`: `voice` или `text`.
+- `try_checked` — в примере ответ проверен; `by`: `ai` (проверил ИИ, `/api/try/evaluate`), `dont_know` (ответ «не
+  знаю», без проверки) или `keywords` (проверка ИИ не состоялась, проверено по ключевым словам); у `keywords` —
+  `reason`: `no_key`, `day_cap`, `busy`, `timeout`, `failed`, `client_limit`, `offline` или `too_long`.
 - `try_answer_paste_refused` — в примере не вставлен готовый текст, как в настоящем билете (см.
   `answer_paste_refused`).
 - `signup_view` — открыта страница регистрации.

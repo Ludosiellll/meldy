@@ -49,10 +49,13 @@ describe('installApiAuth', () => {
     install(() => json(200, { ok: true }));
     await window.fetch('/api/chat', { method: 'POST' });
     await window.fetch('/api/health');
+    await window.fetch('/api/try/evaluate', { method: 'POST' });
     await window.fetch('https://cdn.example.com/x.js');
     expect(seen).toEqual([
       { url: '/api/chat', auth: 'Bearer token-a' },
       { url: '/api/health', auth: null },
+      // The /try example's AI check is open without an account: no token, no wait for the Supabase client.
+      { url: '/api/try/evaluate', auth: null },
       { url: 'https://cdn.example.com/x.js', auth: null },
     ]);
   });

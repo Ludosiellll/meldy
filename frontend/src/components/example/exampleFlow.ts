@@ -1,6 +1,7 @@
 /**
- * The example's own checking (/try): the same rules as a real ticket, with the key words standing in
- * for the AI. Pure; the page runs it on the device — no /api call, nothing saved.
+ * The example's key-word checking (/try): the same rules as a real ticket, with the key words standing
+ * in for the AI — when the AI check of the answer (tryCheck.ts) is not there, and always for the answer
+ * to the follow-up. Pure; the page runs it on the device.
  *
  * - A point is «раскрыт» when its key words named it during the answer (the live marks of
  *   rubricMatch.ts — what the student saw light up), otherwise «не назван». Key words cannot tell a

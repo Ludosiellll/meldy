@@ -254,7 +254,8 @@ export interface DeepCheck {
 }
 
 export interface DeepRow {
-  id: DeepCheckName;
+  /** A service of the deep check, or `try`: the AI check of the /try example (no call of its own). */
+  id: DeepCheckName | 'try';
   ok: boolean;
   text: string;
 }
@@ -366,6 +367,30 @@ function deepRow(id: DeepCheckName, check: DeepCheck | null): DeepRow {
   }
 }
 
+/**
+ * The AI check of the /try example as the deep check reports it now (backend try_api.health_view): whose
+ * key (own, shared or none — never the key itself), today's model calls against the cap, the answers that
+ * fell back to key words. Null when the server does not report it (an older release).
+ */
+export function tryRow(value: unknown): DeepRow | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const count = (key: string) => (typeof record[key] === 'number' && Number.isFinite(record[key]) ? Math.max(0, Math.floor(record[key] as number)) : 0);
+  const calls = count('calls');
+  const cap = count('cap');
+  const fallbacks = count('keywords');
+  const byKeys = fallbacks > 0 ? ` По ключевым словам сегодня проверено ответов: ${fallbacks}.` : '';
+  if (record.key === 'own' || record.key === 'shared') {
+    const whose = record.key === 'own' ? 'на своём ключе' : 'на основных ключах (своего ключа у примера нет)';
+    const spent = calls >= cap ? ' Проверки на сегодня закончились, дальше — по ключевым словам.' : '';
+    return { id: 'try', ok: calls < cap, text: `Пример /try: ответы проверяет ИИ ${whose}, сегодня ${calls} из ${cap}.${spent}${byKeys}` };
+  }
+  if (record.key === 'none') {
+    return { id: 'try', ok: false, text: `Пример /try: ключа Gemini нет, ответы проверяются по ключевым словам.${byKeys}` };
+  }
+  return null;
+}
+
 /** The deep check's answer as the card shows it: the verdict, one row per service, the age of the answer. */
 export function deepView(outcome: FetchOutcome): DeepView {
   if (outcome.kind === 'error') {
@@ -399,6 +424,8 @@ export function deepView(outcome: FetchOutcome): DeepView {
   const tts = deepCheck(checks.tts);
   const supabase = deepCheck(checks.supabase);
   const rows = [deepRow('gemini', gemini), deepRow('groq', groq), deepRow('tts', tts), deepRow('supabase', supabase)];
+  const example = tryRow(body?.try);
+  if (example) rows.push(example);
 
   let verdict: CheckResult;
   const aiUp = [gemini?.ok ? 'Gemini' : null, groq?.ok ? 'Groq' : null].filter((name): name is string => name !== null);

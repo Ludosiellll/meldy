@@ -2,18 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LearningEvent } from '../../api/learning';
 import type { SheetWriteState } from '../../api/cheatSheet';
 import { buildSheet, localDayOf, type SheetLine, type SheetQuestion } from '../../lib/exams/cheatSheet';
-import type { CheckStatus } from '../../lib/oral/oralApi';
+import type { CheckStatus, Evaluation } from '../../lib/oral/oralApi';
 import { EXAMPLE_EXAM, EXAMPLE_QUESTIONS, exampleQuestion, exampleRubric, type ExampleQuestion } from '../../data/example';
 import type { CheatSheetData } from '../exams/sheet/useCheatSheet';
+import type { TryCheckSummary } from './tryCheck';
 
 /**
  * The example's cheat sheet (/try, sheet spec 4.3): «Микроэкономика» written from the start (the
  * points' short lines are written by hand in data/example), and yesterday's answers of the example
  * — at this very time a day ago (the 20-hour rule), questions 1, 5 and 9 — so their named lines are
  * half erased (question 1 is on the first screen of every size). The guest's answers, peeks and the
- * time of the first visit live only in this tab (sessionStorage `meldy_try_sheet`): nothing goes to
- * the server, as everywhere in the example. A tab kept to another day starts the example again, so
- * «вчера» stays true.
+ * time of the first visit live only in this tab (sessionStorage `meldy_try_sheet`): the server keeps
+ * none of it (the answer's AI check, tryCheck.ts, sends the text and saves nothing). A tab kept to
+ * another day starts the example again, so «вчера» stays true.
  */
 
 export const TRY_SHEET_KEY = 'meldy_try_sheet';
@@ -43,6 +44,12 @@ export interface TryAnswer {
   /** Every point of the question: its status in this answer. */
   statuses: Record<string, CheckStatus>;
   followup: TryFollowup | null;
+  /** How the answer was checked: by the AI, «не знаю», or by key words and why. None — yesterday's seeded answers. */
+  check?: TryCheckSummary;
+  /** The AI's protocol of the answer (its quotes, comments and corrections), to be read again as it was. */
+  evaluation?: Evaluation;
+  /** The points named by key words during the answer: the protocol says where the AI judged otherwise. */
+  live?: string[];
 }
 
 interface TryPeek {
