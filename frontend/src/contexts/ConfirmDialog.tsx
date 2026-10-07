@@ -47,7 +47,9 @@ export default function ConfirmDialog({
             transition={{ duration: 0.15 }}
             onClick={onCancel}
             aria-hidden="true"
-            className="absolute inset-0 bg-black/30"
+            // On the dark page a light dimming left the window hard to tell from the cards (dialog audit 2026-10-07):
+            // as dark as under the PRO and limit windows.
+            className="absolute inset-0 bg-black/30 dark:bg-black/60"
           />
           <motion.div
             ref={dialogRef}

@@ -23,6 +23,7 @@ import { syncFlashcards } from '../api/flashcards';
 import { httpErrorFromResponse, StreamError, STREAM_MESSAGES } from '../api/sseStream';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { useKeepInView } from '../hooks/useKeepInView';
 import { getResultDisplayTitle } from '../utils/resultPresentation';
 import {
   PARTIAL_NOTICE,
@@ -574,6 +575,9 @@ export default function ResultsPanel({
   const [copied, setCopied] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const exportButtonRef = useRef<HTMLButtonElement | null>(null);
+  // On a phone «Экспорт» stands at the left of its row: the menu, laid along its right edge, comes back on screen.
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  useKeepInView(exportMenuRef, showExport);
 
   const derivedTitle = useMemo(
     () => getResultDisplayTitle(view, sourceFileName),
@@ -843,7 +847,7 @@ export default function ResultsPanel({
     !allRequestedOk || (!textOnly && groundingText && tab !== 'summary') || showPartialNotice || cheatsheetFailed || notices,
   );
   const exportMenu = showExport && (
-    <div className="sf-menu rp-export-menu" role="menu" aria-label="Экспорт">
+    <div ref={exportMenuRef} className="sf-menu rp-export-menu" role="menu" aria-label="Экспорт">
       <button type="button" role="menuitem" onClick={() => { handleCopy(); setShowExport(false); }}>
         {copied ? 'Скопировано' : 'Копировать'}
       </button>
