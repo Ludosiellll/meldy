@@ -304,9 +304,11 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
         {/* Four parts in the order of one column (a phone): what the classmates get with the consent or the new link,
             its message, the exam's links, «Вопрос дня». Two columns place them two by two (inviteGroup.css). */}
         <div className="ig-main">
+          {/* «Пункты уже записаны» only while it is true: not over a refusal (nothing found, sheet not written yet). */}
           <p id={ledeId} className="ig-lede">
-            Каждый однокурсник получит свою копию экзамена: вопросы, текст ваших лекций и шпаргалку с пунктами ответа.
-            Пункты уже записаны, поэтому им вход ничего не стоит. Ваши ответы и прогресс никто не увидит.
+            {'Каждый однокурсник получит свою копию экзамена: вопросы, текст ваших лекций и шпаргалку с пунктами ответа. '}
+            {blocked ? '' : 'Пункты уже записаны, поэтому им вход ничего не стоит. '}
+            {'Ваши ответы и прогресс никто не увидит.'}
           </p>
 
           {phase.kind === 'loading' && (

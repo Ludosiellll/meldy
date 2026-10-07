@@ -492,6 +492,8 @@ function nothingFound(input: ExamStatusInput): ExamStatus {
   }
   return {
     ...BASE,
+    // Nothing found at all: a ticket has no points to check an answer against, so it is not offered even quietly.
+    draw: found > 0,
     key: 'nothing-found',
     tone: 'you',
     flag: copy ? 'Лекции из ссылки' : 'Сверка с лекциями',

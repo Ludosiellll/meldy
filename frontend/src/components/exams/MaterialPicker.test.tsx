@@ -299,12 +299,12 @@ describe('MaterialPicker: which lectures fit the questions', () => {
     expect(plainText(document.querySelector('.nx-pick-unmatched'))).toContain('Ни к одному вопросу не нашлось подходящей лекции.');
   });
 
-  it('does not repeat the summary when the questions ticked the lectures: the hint says it', () => {
+  it('keeps the count on screen when the questions ticked the lectures, under the hint that says so', () => {
     render(<Harness materials={LONG} hint="Отмечены лекции, которые подходят к вопросам списка." fit={fit({ ticked: true })} />);
-    expect(document.querySelector('.nx-pick-fitsum')).toBeNull();
     expect(screen.getByText('Отмечены лекции, которые подходят к вопросам списка.')).toBeInTheDocument();
-    // A screen reader still hears how many fit and that they are ticked (the live region, visually hidden).
-    expect(document.querySelector('.nx-pick-fitnote .ex-sr')?.textContent).toBe('К вопросам списка подходят 3 лекции. Они отмечены.');
+    // How many fit stays visible (live check 07.10); a screen reader also hears that they are ticked.
+    expect(plainText(document.querySelector('.nx-pick-fitsum'))).toBe('К вопросам списка подходят 3 лекции. Они отмечены.');
+    expect(document.querySelector('.nx-pick-fitsum .ex-sr')?.textContent).toBe(' Они отмечены.');
     expect(screen.getByText(/по совпадению слов в вопросах и лекциях/)).toBeInTheDocument();
   });
 

@@ -31,7 +31,7 @@ export interface PickerFit {
   status: FitStatus;
   /** The last answer for the lectures of the list; null before the first one. */
   view: FitView | null;
-  /** The ticks came from the questions: the hint above says so, the summary line is not repeated. */
+  /** The ticks came from the questions: the hint above says so; the summary line adds, for a screen reader, that they are ticked. */
   ticked: boolean;
   /** The ticked lectures are exactly the fitting ones: «Отметить подходящие» has nothing to do. */
   picked: boolean;
@@ -152,11 +152,12 @@ function FitNote({ fit, disabled }: { fit: PickerFit; disabled?: boolean }) {
       {!view && status === 'error' && <p className="ex-meta">Не удалось подобрать лекции к вопросам. {retry}</p>}
       {view && (
         <>
-          {fit.ticked ? (
-            <p className="ex-sr">{`${fitSummary(view.fitting.length)} Они отмечены.`}</p>
-          ) : (
-            <p className="sf-pnote nx-pick-fitsum">{glue(fitSummary(view.fitting.length))}</p>
-          )}
+          {/* The count is on screen also when the questions ticked the lectures (live check 07.10: the hint alone
+              said that lectures were ticked, not how many fit); a screen reader also hears that they are ticked. */}
+          <p className="sf-pnote nx-pick-fitsum">
+            {glue(fitSummary(view.fitting.length))}
+            {fit.ticked ? <span className="ex-sr"> Они отмечены.</span> : null}
+          </p>
           <p className="ex-meta">{glue(FIT_METHOD)}</p>
           {view.notChecked > 0 && <p className="ex-meta">{glue(notCheckedText(view.notChecked))}</p>}
           {status === 'error' && <p className="ex-meta">Подсказка не обновилась. {retry}</p>}

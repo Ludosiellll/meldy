@@ -54,9 +54,12 @@ describe('examStatus: the owner’s exam (one unrelated lecture, every question 
       'Meldy сверил с ней все 18 вопросов и не нашёл ни одного ответа. Выберите лекции по темам вопросов или добавьте новые, потом сверьте заново.',
     );
     expect(status.action).toEqual({ kind: 'lectures', label: 'Выбрать или добавить лекции' });
-    expect(status.draw).toBe(true);
+    // No answer anywhere: a ticket would have no points to check against, so it is not offered (live check 07.10).
+    expect(status.draw).toBe(false);
     expect(status.hideCoverage).toBe(true);
     expect(status.quietGaps).toBe(true);
+    // Something found: the ticket stays as a quiet link.
+    expect(examStatus(input({ coverage: { full: 2, none: 16 } })).draw).toBe(true);
   });
 
   it('names no lecture when there are several, and says «почти» when a few were found (70 % «нет» and more)', () => {

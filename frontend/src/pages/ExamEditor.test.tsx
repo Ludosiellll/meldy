@@ -717,7 +717,7 @@ describe('ExamEditor: which lectures fit the questions', () => {
     expect(lectureRow(/Механика/)).toBeChecked();
     expect(lectureRow(/Лекция 3/)).not.toBeChecked();
     expect(plain(document.querySelector('.nx-pick-hint')?.textContent)).toBe('Отмечены лекции, которые подходят к вопросам списка. Лишние снимите, нужные отметьте.');
-    expect(document.querySelector('.nx-pick-fitsum')).toBeNull();
+    expect(plain(document.querySelector('.nx-pick-fitsum')?.textContent)).toBe('К вопросам списка подходят 2 лекции. Они отмечены.');
     expect(screen.getByRole('button', { name: 'Отметить подходящие (2)' })).toBeDisabled();
   });
 

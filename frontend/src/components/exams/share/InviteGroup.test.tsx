@@ -267,6 +267,10 @@ describe('«Пригласить группу»', () => {
     );
     expect(within(dialog).queryByRole('checkbox')).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Создать ссылку' })).toBeNull();
+    // The intro does not promise written points over a refusal (live check 07.10).
+    expect(plain(dialog.querySelector('.ig-lede')?.textContent)).toBe(
+      'Каждый однокурсник получит свою копию экзамена: вопросы, текст ваших лекций и шпаргалку с пунктами ответа. Ваши ответы и прогресс никто не увидит.',
+    );
     const lectures = within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' });
     expect(lectures).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
     fireEvent.click(lectures);
@@ -285,6 +289,8 @@ describe('«Пригласить группу»', () => {
       'Ответы нашлись к 4 из 18 вопросов. У остальных 14 в копиях однокурсников не будет пунктов ответа.',
     );
     expect(within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' })).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
+    // A link can be made: the intro says why it costs the classmates nothing.
+    expect(plain(dialog.querySelector('.ig-lede')?.textContent)).toContain('Пункты уже записаны, поэтому им вход ничего не стоит.');
     // The warning comes before the consent: read first, then decide.
     const consent = within(dialog).getByRole('checkbox', { name: CONSENT });
     expect(note.compareDocumentPosition(consent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -738,10 +738,8 @@ describe('ExamDetail: the status block (owner, 2026-10-07)', () => {
     const action = within(statusCard()).getByRole('link', { name: 'Выбрать или добавить лекции' });
     expect(action).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
     expect(action).toHaveClass('sf-primary');
-    // «Тянуть билет» is still there, as a quiet link: answering is possible, just not the next step.
-    const draw = within(statusCard()).getByRole('link', { name: 'Тянуть билет' });
-    expect(draw).toHaveClass('sf-link');
-    expect(draw).not.toHaveClass('sf-primary');
+    // No ticket, not even a quiet one: none of the questions has points to check an answer against (live check 07.10).
+    expect(within(statusCard()).queryByRole('link', { name: 'Тянуть билет' })).toBeNull();
     expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
     // The status comes before the views and the list.
     expect(statusCard().compareDocumentPosition(screen.getByRole('tablist')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -752,7 +750,7 @@ describe('ExamDetail: the status block (owner, 2026-10-07)', () => {
     expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toBe('Экзамен · 18 вопросов, в билете два · 1 лекция · сверка от 21 января, 9:40');
   });
 
-  it('the owner’s exam on a phone: the action rides in the bar at the bottom, «Тянуть билет» stays quiet in the status, nothing above the list says «0 %»', async () => {
+  it('the owner’s exam on a phone: the action rides in the bar at the bottom, no ticket anywhere, nothing above the list says «0 %»', async () => {
     setWidth(390);
     mocks.loadExamBundle.mockResolvedValue(ownerBundle());
     renderDetail();
@@ -760,7 +758,7 @@ describe('ExamDetail: the status block (owner, 2026-10-07)', () => {
     const cta = document.querySelector('.ex-cta') as HTMLElement;
     expect(within(cta).getByRole('link', { name: 'Выбрать или добавить лекции' })).toHaveClass('sf-primary');
     expect(within(cta).queryByRole('link', { name: 'Тянуть билет' })).toBeNull();
-    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');
+    expect(within(statusCard()).queryByRole('link', { name: 'Тянуть билет' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Сводка' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Ответы по билетам' })).toBeNull();
   });
