@@ -594,7 +594,7 @@ describe('ExamDetail: the sheet', () => {
       'Экзамен · 40 вопросов, в билете два · 2 лекции · сверка от 21 января, 9:40',
     );
     expect(document.body.textContent).not.toContain('25 января');
-    expect(notes()).toEqual(['После сверки добавлено 1 лекция.Сверить заново']);
+    expect(notes()).toEqual(['После сверки добавлена 1 лекция.Сверить заново']);
     expect(screen.getByRole('button', { name: 'Сверить заново' })).toBeInTheDocument();
   });
 

@@ -870,8 +870,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
     });
   if (!running && examFresh && (added > 0 || removed > 0)) {
     const parts: string[] = [];
-    if (added > 0) parts.push(`добавлено ${lecturesPhrase(added)}`);
-    if (removed > 0) parts.push(`убрано ${lecturesPhrase(removed)}`);
+    // «добавлена 1 лекция», «добавлено 2 лекции»: the verb agrees with the number (21 too, 11 not).
+    const one = (count: number) => count % 10 === 1 && count % 100 !== 11;
+    if (added > 0) parts.push(`${one(added) ? 'добавлена' : 'добавлено'} ${lecturesPhrase(added)}`);
+    if (removed > 0) parts.push(`${one(removed) ? 'убрана' : 'убрано'} ${lecturesPhrase(removed)}`);
     notes.push({ key: 'changed', text: `После сверки ${parts.join(', ')}.`, action: { label: 'Сверить заново', run: () => startRun(null), maps: true } });
   }
   if (skippedLectures > 0) notes.push({ key: 'notext', text: `${lecturesPhrase(skippedLectures)} без текста не ${skippedLectures === 1 ? 'учтена' : 'учтены'}.`, quiet: true });
