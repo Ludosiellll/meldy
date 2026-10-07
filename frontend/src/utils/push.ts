@@ -13,16 +13,24 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-/** The key the server signs pushes with (backend/push_router.py GET /api/push/key); null if it cannot say. */
-async function serverVapidKey(): Promise<string | null> {
+/**
+ * The key the server signs pushes with (backend/push_router.py GET /api/push/key). The only source: a key built into
+ * the page could outlive a rotation on the server, and a subscription made with it would never get a push.
+ * The messages end «Ошибка настройки уведомлений: …» in «Профиль».
+ */
+async function serverVapidKey(): Promise<string> {
+  let body: { public_key?: unknown; configured?: unknown } | null = null;
   try {
     const response = await fetch('/api/push/key');
-    if (!response.ok) return null;
-    const body = await response.json();
-    return typeof body?.public_key === 'string' && body.public_key ? body.public_key : null;
+    if (response.ok) body = await response.json();
   } catch {
-    return null;
+    body = null;
   }
+  if (!body) throw new Error('не удалось узнать ключ уведомлений, попробуйте позже');
+  if (body.configured !== true || typeof body.public_key !== 'string' || !body.public_key) {
+    throw new Error('уведомления на сервере пока не настроены');
+  }
+  return body.public_key;
 }
 
 function sameKey(current: ArrayBuffer | null, wanted: Uint8Array): boolean {
@@ -32,19 +40,12 @@ function sameKey(current: ArrayBuffer | null, wanted: Uint8Array): boolean {
 }
 
 export async function subscribeUserToPush(userId: string) {
-  if (!('serviceWorker' in navigator)) {
-    throw new Error('Service Worker is not supported by browser.');
-  }
-  if (!('PushManager' in window)) {
-    throw new Error('Push notifications are not supported by browser.');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    throw new Error('этот браузер не поддерживает уведомления');
   }
 
+  const applicationServerKey = urlBase64ToUint8Array(await serverVapidKey());
   const registration = await navigator.serviceWorker.ready;
-  const publicVapidKey = (await serverVapidKey()) || import.meta.env.VITE_VAPID_PUBLIC_KEY;
-  if (!publicVapidKey) {
-    throw new Error('VAPID public key not found in env.');
-  }
-  const applicationServerKey = urlBase64ToUint8Array(publicVapidKey);
 
   // A subscription made with an older key (the keys were rotated on the server) cannot be reused.
   const existing = await registration.pushManager.getSubscription();
@@ -68,7 +69,7 @@ export async function subscribeUserToPush(userId: string) {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to save subscription on server');
+    throw new Error('не удалось сохранить подписку на сервере');
   }
 
   return true;

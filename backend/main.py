@@ -256,8 +256,9 @@ async def require_authenticated_user(request: Request) -> dict:
     return dict(user)
 
 
-# Open without a session: the health check, and the statistics that signed-out visitors send too (telemetry_api.py).
-PUBLIC_API_PATHS = frozenset({"/api/health", "/api/health/deep", telemetry_api.TELEMETRY_PATH})
+# Open without a session: the health check, the statistics that signed-out visitors send too (telemetry_api.py), and
+# the push key, which is public by design (push_router.py; checked by .github/workflows/rotate-vapid.yml).
+PUBLIC_API_PATHS = frozenset({"/api/health", "/api/health/deep", telemetry_api.TELEMETRY_PATH, "/api/push/key"})
 
 
 @app.middleware("http")

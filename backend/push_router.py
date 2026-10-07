@@ -7,8 +7,10 @@ from pywebpush import webpush, WebPushException
 
 router = APIRouter()
 
+# Both set on the Space by .github/workflows/rotate-vapid.yml (the private key as a secret). No default public key:
+# the old one's private pair was in the Git history, and a public key without its pair signs nothing.
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
-VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "BEdVrUuTGrqZWpxNBc3tfNP0N4CtLzEAlH3U64D4WMKkfps-96rEJj6ntl2_2MnFzRNupEWQ1uzl4kBAcjrtRiQ")
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()
 VAPID_CLAIMS = {"sub": os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@studyforge.local")}
 
 SUBSCRIPTIONS_FILE = "subscriptions.json"
@@ -41,8 +43,10 @@ def _authenticated_user_id(request: Request) -> str:
 @router.get("/key")
 async def push_key():
     """The VAPID public key the browser subscribes with: set on the Space (VAPID_PUBLIC_KEY, with its private
-    pair VAPID_PRIVATE_KEY), so rotating the keys needs no new build."""
-    return {"public_key": VAPID_PUBLIC_KEY, "configured": bool(VAPID_PRIVATE_KEY)}
+    pair VAPID_PRIVATE_KEY), so rotating the keys needs no new build. Open without a session (main.PUBLIC_API_PATHS):
+    the key is public by design, and the rotation workflow checks it after the Space restarts. configured: both
+    halves are set, so a subscription made with this key can be sent to."""
+    return {"public_key": VAPID_PUBLIC_KEY or None, "configured": bool(VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY)}
 
 
 @router.post("/subscribe")

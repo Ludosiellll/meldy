@@ -4,6 +4,20 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-07 — Push notifications: the key only from the server, ready for a new pair (from the commit of this entry)
+
+Adds to release 27.1. The old VAPID private key was in the Git history; the owner does not handle keys, so a new pair
+is put on the Space by `.github/workflows/rotate-vapid.yml` right after this release. This release prepares it:
+
+- `GET /api/push/key` is open without a session (the key is public by design), so the rotation can check what the
+  site serves; it says `configured: true` only when both halves are set.
+- No public key is built in any more: not in `push_router.py`, not in `frontend/.env`. Turning notifications on in
+  «Профиль» takes the key from the server only; when the server has none it says «уведомления на сервере пока не
+  настроены» instead of subscribing with a key nothing can sign. The other messages there are in Russian too.
+- The two old scripts that appended keys to `.env` files are gone.
+
+No migrations. Verified before release: pytest 1078, tsc -b, Vitest 2137/2137 (`push.test.ts` new).
+
 ## 2026-10-07 — Cheat sheet: a short line keeps the minus of every number (from 4b27f5a)
 
 Adds to release 27 (tree of c482e08). Found while closing the list of what the server's check of short lines still
