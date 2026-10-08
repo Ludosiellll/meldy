@@ -2273,3 +2273,16 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page[data-view] .ex-head .ex-h1 { font-size: 46px; }
   .sf-page[data-view] .ex-body { margin-top: 20px; }
 }
+
+/* ---------------------------------------------------------------- a phone without overload (release 34) */
+/* 10_Project/Phone_Declutter_2026-10-08: one line of each thing, one blue pill, the rest behind a link. Only below
+   640 px, only on «Экзамены» (.ex-list-page). */
+@media (max-width: 639px) {
+  /* «Экзамены»: the title clears the arrow; the meta line and the counts take the card's width. */
+  .sf-page.ex-list-page .ex-row { padding-right: 0; }
+  .sf-page.ex-list-page .ex-row-title { padding-right: 56px; }
+  .sf-page.ex-list-page .ex-row-meta { margin-top: 8px; }
+  .sf-page.ex-list-page .ex-row-counts { margin: -6px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+  /* No placeholder picture over the first exam's card: the words and the button say it. */
+  .sf-page.ex-list-page .ex-empty-art { display: none; }
+}

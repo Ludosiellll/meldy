@@ -17,7 +17,25 @@ vi.mock('../api/learning', async (importOriginal) => {
   return { ...actual, fetchQuestionEvents: mocks.fetchQuestionEvents };
 });
 
-import Exams, { examCoverageLine, examDateLine } from './Exams';
+import Exams, { examCoverageLine, examDateLine, examPhoneCountsLine, examPhoneDateLine } from './Exams';
+import { PHONE_QUERY } from '../lib/usePhone';
+
+/** A phone as the stylesheets say it (lib/usePhone.ts); jsdom has no matchMedia of its own. */
+function setPhone() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({
+      matches: query === PHONE_QUERY,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  });
+}
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function dayKey(offset: number): string {
@@ -80,6 +98,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  delete (window as unknown as { matchMedia?: unknown }).matchMedia;
 });
 
 describe('Exams', () => {
@@ -178,6 +197,42 @@ describe('Exams', () => {
     expect(await screen.findByRole('heading', { name: 'Не удалось загрузить экзамены' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByRole('link', { name: /^Микроэкономика/ })).toBeInTheDocument();
+  });
+});
+
+describe('Exams on a phone (Phone_Declutter_2026-10-08)', () => {
+  it('a card: one meta line, the counts as one line of text under the bar instead of three pills', async () => {
+    setPhone();
+    mocks.listExams.mockResolvedValue([
+      item(),
+      item({ id: 'exam-2', title: 'Макроэкономика', kind: 'credit', exam_date: null, mapping_state: 'none', mapped_at: null, total: 25, coverage: { full: 0, partial: 0, none: 0, unverified: 0, unmapped: 25 }, hashes: [] }),
+    ]);
+    mocks.fetchQuestionEvents.mockResolvedValue(Array.from({ length: 6 }, (_, index) => passes(index + 1)).flat());
+    renderList();
+    const list = await screen.findByRole('list', { name: 'Ваши экзамены' });
+    const cards = within(list).getAllByRole('listitem');
+    const meta = (card: HTMLElement) => plain(card.querySelector('.ex-row-meta')?.textContent);
+    const counts = (card: HTMLElement) => plain(card.querySelector('.ex-row-counts')?.textContent);
+    expect(meta(cards[0])).toMatch(/^\d+ [а-я]+, через 12 дней$/);
+    await waitFor(() => expect(counts(cards[0])).toBe('есть 24 · частично 7 · нет 9 · подтверждено 6'));
+    expect(cards[0].querySelector('.ex-pill')).toBeNull();
+    // The card still draws a ticket and still opens the exam.
+    expect(within(cards[0]).getByRole('link', { name: 'Тянуть билет: Микроэкономика' })).toHaveAttribute('href', '/exams/exam-1/draw');
+    expect(meta(cards[1])).toBe('зачёт, дата не указана');
+    expect(counts(cards[1])).toBe('25 вопросов, со своими лекциями ещё не сверены');
+  });
+
+  it('words a phone’s lines', () => {
+    const now = new Date(2026, 9, 3, 12, 0, 0);
+    expect(examPhoneDateLine({ kind: 'exam', exam_date: '2026-10-15' }, now)).toBe('15 октября, через 12 дней');
+    expect(examPhoneDateLine({ kind: 'credit', exam_date: '2026-10-04' }, now)).toBe('зачёт · 4 октября, завтра');
+    expect(examPhoneDateLine({ kind: 'exam', exam_date: '2026-09-01' }, now)).toBe('экзамен · прошёл 1 сентября');
+    expect(examPhoneDateLine({ kind: 'exam', exam_date: null }, now)).toBe('экзамен, дата не указана');
+    expect(examPhoneCountsLine(item(), 0, false)).toBe('есть 24 · частично 7 · нет 9');
+    expect(examPhoneCountsLine(item({ coverage: { full: 20, partial: 7, none: 9, unverified: 4, unmapped: 0 } }), null, false)).toBe(
+      'есть 20 · частично 7 · нет 9 · только по словам 4',
+    );
+    expect(examPhoneCountsLine(item(), null, true)).toBe('40 вопросов · идёт сверка с лекциями');
   });
 });
 
