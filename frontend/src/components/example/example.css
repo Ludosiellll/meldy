@@ -13,7 +13,9 @@
 /* ---------------------------------------------------------------- the top line */
 /* The room's translucent line (.sf-room-bar in paper.css): the wordmark, where you are, and the way
    into an account — «Войти» a white pill, «Создать аккаунт» the blue one. */
-.sf-room-bar.tx-bar { gap: 12px; }
+/* The example's top line keeps the app's gutters, like the answer room's (oral.css): on a wide window the
+   wordmark and the way out line up with the page under them, not with the window's edges. */
+.sf-room-bar.tx-bar { gap: 12px; padding-inline: max(var(--sf-g), calc((100% - var(--sf-page)) / 2)); }
 .tx-bar .tx-bar-left { display: flex; align-items: center; gap: 20px; min-width: 0; }
 .tx-bar .tx-logo {
   display: inline-flex;
