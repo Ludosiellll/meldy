@@ -573,13 +573,16 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     vi.mocked(supabase.from).mockReset();
   });
 
-  it('shows the diary as one quiet line under the card during a session', async () => {
+  it('shows the diary as one row link under the card during a session: «Дневник ошибок: 17 открытых →»', async () => {
     renderReview();
     const flip = await screen.findByRole('button', { name: 'Перевернуть' });
     expect(screen.queryByRole('region', { name: 'Дневник ошибок' })).toBeNull();
-    const line = await screen.findByRole('link', { name: /^Дневник ошибок,\s*17 открытых$/ });
+    const line = await screen.findByRole('link', { name: /^Дневник ошибок: 17\s+открытых$/ });
     expect(line).toHaveAttribute('href', '/mistakes');
+    // An ink link (not the muted one of explanations); the number keeps its word.
     expect(line).toHaveClass('sf-link');
+    expect(line).not.toHaveAttribute('data-muted');
+    expect(line.textContent).toBe('Дневник ошибок: 17\u00a0открытых→');
     expect(flip.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
