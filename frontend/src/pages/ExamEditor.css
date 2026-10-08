@@ -4,12 +4,13 @@
    one tap away (10_Project/Phone_Declutter_2026-10-08). Tablet and computer keep their look. */
 
 /* The form's groups «Экзамен · Лекции · Билеты» and the headings of step 1's quiet column: plain headings instead of
-   spaced blue capitals (the owner reads those as a generated look). Margins come from the page (headings start at 0). */
+   spaced blue capitals (the owner reads those as a generated look). Margins come from the page (headings start at 0).
+   A group heading inside a card is 21/500, as the language's large headings. */
 .sf-page .nx-h {
   font-family: var(--ph-sans);
   font-size: 21px;
   line-height: 28px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -.015em;
   color: var(--sf-ink);
 }
@@ -55,12 +56,30 @@
   /* Under the list: «Показать все 20» and «Вставить заново» in one row of quiet links. */
   .sf-page .nx-body > section > .nx-acts { display: inline-flex; margin-right: 24px; }
 
+  /* The list of questions: plain numerals by the questions, as the numbers of «Лекции» (no grey discs), on the
+     baseline of the question's first line. */
+  .sf-page .nx-q { align-items: baseline; }
+  .sf-page .nx-q > .nx-n {
+    display: block;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    font-size: 17px;
+    line-height: 24px;
+    font-weight: 500;
+    color: var(--sf-muted);
+    text-align: right;
+  }
+
   /* «Лекции»: the count with the one bulk link at its right; «Отметить подходящие (N)» under the fitting count while
      the ticks differ from it; «Добавить лекции» with «Подробнее» in one row, the longer lines under it once opened. */
   .sf-page .nx-pick-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 16px; margin-top: 4px; }
   .sf-page .nx-pick-top > .nx-line { margin-top: 0; }
   .sf-page .nx-pick-toggle { font-size: 15px; }
-  .sf-page .nx-pickbox > .nx-pick-fitpick { font-size: 15px; color: var(--ph-pencil-desk); }
+  /* An action, so an ink link like «Снять все» beside it; blue text is Meldy's note («К вопросам списка подходят…»). */
+  .sf-page .nx-pickbox > .nx-pick-fitpick { font-size: 15px; color: var(--sf-ink); }
   .sf-page .nx-import-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .sf-page .nx-import-top .sf-link { min-height: 44px; margin: 0; }
   .sf-page .nx-import-top .sf-link[data-muted] { font-size: 15px; }
