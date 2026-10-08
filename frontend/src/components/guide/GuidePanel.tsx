@@ -5,6 +5,7 @@ import { useGuide } from './GuideContext';
 import { guideClipPart } from './clipPart';
 import { useLazyPart } from '../../lib/lazyPart';
 import { track } from '../../lib/telemetry';
+import { usePhone } from '../../lib/usePhone';
 import './guide.css';
 
 function ArrowIcon() {
@@ -107,8 +108,8 @@ function Backdrop({ chapter, pathname }: { chapter: string; pathname: string }) 
  * The guide: one chapter per section of the menu — a short clip, the section's name and what it is
  * for — with «Назад» and «Дальше», and the strip of chapters to jump between them.
  *
- * Asked for («?», the account menu), it is a card in the corner on a computer and a sheet above the
- * tabs on a phone; the page stays usable underneath, «Не сейчас», × and Escape close it.
+ * Asked for («?», the account menu — the menu only on a phone), it is a card in the corner on a computer and a
+ * sheet above the tabs on a phone; the page stays usable underneath, «Не сейчас», × and Escape close it.
  * On the first run it is a blocking dialog instead: the app dimmed behind it with the
  * chapter's menu item cut out, the focus kept inside, no way to close it but «Начать» at the end.
  */
@@ -121,6 +122,8 @@ export default function GuidePanel() {
   const opener = useRef<Element | null>(null);
   const open = Boolean(guide?.open);
   const mandatory = Boolean(guide?.mandatory);
+  // A phone's top line has no «+ Лекция»: its chapter says where the link is there.
+  const phone = usePhone();
   // The clip is a file of its own (clipPart.ts): until it arrives the card keeps its empty frame.
   const GuideClip = useLazyPart(guideClipPart, open, {
     onError: (error) => console.error('Ролик раздела не загрузился:', error),
@@ -189,6 +192,7 @@ export default function GuidePanel() {
   const last = index === total - 1;
   // The section's page, unless the student is on it; the limit has none (its meter is in the top line).
   const sectionLink = chapter.route && !chapter.match?.test(pathname) ? chapter.route : null;
+  const where = phone && chapter.narrow ? chapter.narrow : chapter.phone;
 
   const card = (
     <section
@@ -246,7 +250,7 @@ export default function GuidePanel() {
       </h2>
       <p id={textId} className="gd-p">
         {chapter.text}
-        {chapter.phone ? <span className="gd-phone"> {chapter.phone}</span> : null}
+        {where ? <span className="gd-phone"> {where}</span> : null}
       </p>
 
       <div className="gd-actions">

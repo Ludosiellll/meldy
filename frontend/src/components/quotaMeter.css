@@ -1,8 +1,8 @@
 /* The daily AI limit in the top line (QuotaMeter.tsx). A white pill like «?»: a ring of the day left,
  * «Лимит ИИ» and the number of units left. Where the line is short (phones, 1024–1179 px) it is only
- * the ring with the number inside, as round as «?». Ink normally; yellow when 20 % or less is left;
- * a yellow pill with an empty ring at zero; a dashed ring when the counter could not be read.
- * Notes: 10_Project/Design_Language_2026-10-04. */
+ * the ring with the number inside, as round as «?». Ink normally (a thin blue arc on a phone); yellow when
+ * 20 % or less is left; a yellow pill with an empty ring at zero; a dashed ring when the counter could not be read.
+ * Notes: 10_Project/Design_Language_2026-10-04, 10_Project/Phone_Declutter_2026-10-08. */
 
 .sf-shell .sf-quota {
   position: relative;
@@ -108,9 +108,19 @@
   .sf-quota-n { position: relative; font-size: 13px; letter-spacing: -.02em; }
   .sf-quota[data-digits='4'] .sf-quota-n { font-size: 11px; letter-spacing: -.04em; }
 }
-/* A phone has no hover; the meter's name says the sentence, a tap explains the limit. */
+/* A phone has no hover; the meter's name says the sentence, a tap explains the limit. The limit stays in sight
+   (owner, 2026-10-05) but lighter (2026-10-08, «на телефоне очень перегружен интерфейс»): a thin grey track and a
+   thin blue arc instead of the ink ring, the number in the regular weight, the target 44 px. Yellow when little is
+   left and the dashed ring when it could not be read stay as they are. */
 @media (max-width: 639px) {
   .sf-quota-tip { display: none; }
+  .sf-shell .sf-quota { width: 44px; height: 44px; }
+  .sf-quota-ring { inset: 2px; width: 40px; height: 40px; }
+  .sf-quota-track,
+  .sf-quota-arc { stroke-width: 1.75; }
+  .sf-quota-track { stroke: var(--sf-line-strong); }
+  .sf-quota-arc { stroke: var(--sf-accent-fg); }
+  .sf-quota-n { font-weight: 400; }
 }
 
 @media (prefers-reduced-motion: reduce) {

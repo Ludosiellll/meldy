@@ -2,7 +2,7 @@
  * The mandatory first run of the guide waits when the app is entered through a group link (/join/<код>): the
  * classmate came for the copy of the exam and lands on its cheat sheet, not under a blocking dialog that also
  * takes the app to «Сегодня». The wait lasts this tab's session; the next visit shows the first run as usual, and
- * «?» opens the guide any time.
+ * «?» (on a phone «Как пользоваться Meldy» in the account menu) opens the guide any time.
  */
 export const GUIDE_LATER_KEY = 'meldy_guide_later';
 

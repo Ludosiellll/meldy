@@ -229,6 +229,10 @@
   .gd-p { font-size: 15px; }
   .gd-phone { display: inline; }
 }
+/* A phone: the label over the clip in plain words, not small capitals (10_Project/Phone_Declutter_2026-10-08). */
+@media (max-width: 639px) {
+  .gd-kick { font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--sf-muted); }
+}
 @media (max-width: 374px) {
   .gd-quiet,
   .gd-open { padding: 0 10px; font-size: 14px; }
@@ -237,7 +241,8 @@
 
 /* ------------------------------------------------------------------ in the top line */
 
-/* «?» next to the account button (the line of five sections has room for it from 1024 px). */
+/* «?» next to the account button (the line of five sections has room for it from 1024 px). A phone's line has no «?»
+   (layout.css): the guide opens from the account menu there. */
 .sf-help {
   display: inline-grid;
   place-items: center;

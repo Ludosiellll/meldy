@@ -1,7 +1,8 @@
 /* The shell's own rules on top of the kit (styles/paper.css): the five sections of the menu, the round
- * «+» of «Добавить лекцию» on phones, the tabs with an icon over a word, and «Что даёт PRO» in the
- * account menu. The daily limit meter has its own file (quotaMeter.css). Notes:
- * 10_Project/Design_Language_2026-10-04, section 5. */
+ * «+» of «Добавить лекцию» on tablets (a phone's line has only the wordmark, the limit and the avatar), the tabs
+ * with an icon over a word, and «Что даёт PRO» in the account menu. The daily limit meter has its own file
+ * (quotaMeter.css). Notes: 10_Project/Design_Language_2026-10-04, section 5;
+ * 10_Project/Phone_Declutter_2026-10-08. */
 
 /* ---------------------------------------------------------------- «Добавить лекцию» */
 .sf-cta-plus { display: none; }
@@ -28,7 +29,8 @@
 @media (max-width: 1023px) {
   .sf-shell { --sf-tabs-h: 62px; }
 
-  /* «Добавить лекцию» stays one tap away: a round blue «+» next to «?» (the words are for screen readers). */
+  /* «Добавить лекцию» stays one tap away on a tablet: a round blue «+» next to «?» (the words are for screen
+     readers). A phone hides both (below). */
   .sf-shell .sf-bar .sf-nav-cta {
     position: relative;
     display: inline-grid;
@@ -159,17 +161,19 @@
   .sf-shell:not([data-back]) .sf-nav-cta:focus-visible { border-radius: 999px; }
 }
 
-/* Phones up to 419 px: the line holds «‹ Родитель» or the wordmark, «+», the limit's ring, «?» and the
-   avatar, so the gaps are a little tighter. */
+/* Phones up to 419 px: the gaps of the line are a little tighter. */
 @media (max-width: 419px) {
   .sf-shell .sf-bar-in { gap: 10px; }
   .sf-shell .sf-bar-right { gap: 8px; }
 }
-/* Under 360 px «?» leaves the line so «‹ Повторение» fits whole; the guide stays in the account menu
-   («Как пользоваться Meldy»). */
-@media (max-width: 359px) {
-  .sf-shell .sf-bar .sf-help { display: none; }
+/* A phone's line holds three things: the wordmark or «‹ Родитель», the limit's ring and the avatar
+   (10_Project/Phone_Declutter_2026-10-08). «+ Лекция» is at the top of «Лекции» and in the lectures of «Сегодня»;
+   «?» is «Как пользоваться Meldy» in the account menu. (0,4,0) and later in the file than the rules that show the «+». */
+@media (max-width: 639px) {
+  .sf-shell .sf-bar .sf-bar-right .sf-nav-cta,
+  .sf-shell .sf-bar .sf-bar-right .sf-help { display: none; }
   .sf-shell .sf-bar-right .sf-help + .sf-me-hit { margin-left: 0; }
+  .sf-shell .sf-bar-right { gap: 6px; }
 }
 @media (max-width: 374px) {
   .sf-shell .sf-tabbar { padding-left: 2px; padding-right: 2px; gap: 0; }
