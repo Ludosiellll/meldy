@@ -37,6 +37,7 @@ import { GUIDE_CLIPS } from './clips';
 import { LIMIT_FLY, LIMIT_SPENDS, limitMeterAt } from './scenes';
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
+import { PHONE_QUERY } from '../../lib/usePhone';
 
 function Where() {
   return <p data-testid="where">{useLocation().pathname}</p>;
@@ -121,6 +122,10 @@ describe('the guide chapters', () => {
     expect(lectures.text).toContain('во вкладке «Подкаст»');
     expect(GUIDE_CHAPTERS.map((chapter) => chapter.text).join(' ')).not.toMatch(/[Рр]азговор/);
     expect(limit.phone).toBe('На телефоне — кружок с числом.');
+    // A phone's top line has no «+» (10_Project/Phone_Declutter_2026-10-08): its wording says where «+ Лекция» is.
+    expect(analyze.phone).toBe('На телефоне — кнопка «+» вверху экрана.');
+    expect(analyze.narrow).toBe('На телефоне — «+ Лекция» в «Лекциях» и на «Сегодня».');
+    expect(limit.narrow).toBeUndefined();
   });
 
   it('give the limit its own clip: the prices of a lecture and an answer fly into the meter, from lib/plans.ts', () => {
@@ -193,6 +198,9 @@ describe('the first run', () => {
     expect(where()).toBe('/analyze');
     expect(within(panel()!).getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
     expect(document.querySelector('.sf-nav-cta')).toHaveAttribute('data-guide-spot');
+    // A computer and a tablet light «Разобрать лекцию» in the line, not the «Лекции» tab, and keep their wording.
+    expect(document.querySelector('.sf-tablink[href="/library"]')).not.toHaveAttribute('data-guide-spot');
+    expect(panel()!.querySelector('.gd-phone')).toHaveTextContent('На телефоне — кнопка «+» вверху экрана.');
     next();
     expect(where()).toBe('/library');
     expect(within(panel()!).getByRole('heading', { name: 'Лекции' })).toBeInTheDocument();
@@ -306,6 +314,35 @@ describe('the guide asked for', () => {
     expect(where()).toBe('/profile');
     expect(within(panel()!).getByRole('link', { name: 'Открыть раздел' })).toHaveAttribute('href', '/analytics');
     expect(guide()).not.toBeNull();
+  });
+});
+
+describe('the guide on a phone (max-width 639px; its top line holds the wordmark, the limit and the avatar)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === PHONE_QUERY, media: query, addEventListener() {}, removeEventListener() {} }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('lights the «Лекции» tab for «Разобрать лекцию» and says where «+ Лекция» is', async () => {
+    renderAt('/dashboard');
+    await firstRunOpen();
+    next();
+    expect(where()).toBe('/analyze');
+    expect(within(panel()!).getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
+    expect(panel()!.querySelector('.gd-phone')).toHaveTextContent('На телефоне — «+ Лекция» в «Лекциях» и на «Сегодня».');
+    expect(panel()!.textContent).not.toMatch(/кнопка «\+»/);
+    // The «+» of the line is hidden on a phone (layout.css): the cut-out falls on the tab, the first lit item shown.
+    const tab = document.querySelector('.sf-tablink[href="/library"]');
+    expect(tab).toHaveAttribute('data-guide-spot');
+    expect(document.querySelector('.sf-tablink[href="/dashboard"]')).not.toHaveAttribute('data-guide-spot');
+    next();
+    expect(where()).toBe('/library');
+    expect(document.querySelectorAll('.sf-tablink[data-guide-spot]')).toHaveLength(1);
+    // The limit keeps its words: the ring with the number is in a phone's line.
+    for (let step = 3; step < GUIDE_CHAPTERS.length; step += 1) next();
+    expect(within(panel()!).getByRole('heading', { name: 'Лимит ИИ' })).toBeInTheDocument();
+    expect(panel()!.querySelector('.gd-phone')).toHaveTextContent('На телефоне — кружок с числом.');
+    expect(screen.getByTestId('quota-meter')).toHaveAttribute('data-guide-spot');
   });
 });
 

@@ -254,6 +254,23 @@ describe('phones and tablets (spec 4.2)', () => {
   });
 });
 
+describe('the guide from the account menu (the only way to it on a phone, 10_Project/Phone_Declutter_2026-10-08)', () => {
+  it('opens the guide from the account menu and gives the focus back to the account button', async () => {
+    renderAt('/dashboard');
+    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+    const button = screen.getByRole('button', { name: /Алина: профиль, тема, выход/ });
+    openMenu();
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('button', { name: 'Как пользоваться Meldy' }));
+    expect(screen.queryByRole('dialog', { name: 'Меню аккаунта' })).toBeNull();
+    const panel = document.querySelector('section.gd') as HTMLElement;
+    expect(within(panel).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
+    expect(panel).toHaveFocus();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(document.querySelector('section.gd')).toBeNull();
+    expect(button).toHaveFocus();
+  });
+});
+
 describe('room mode', () => {
   it('renders only the page for «Тянуть билет», the answer screen and «Поговорить о лекции»', async () => {
     for (const path of ['/exams/exam-1/draw', '/exams/exam-1/ticket', '/library/m-1/talk']) {

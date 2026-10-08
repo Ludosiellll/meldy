@@ -24,9 +24,17 @@ export interface GuideChapter {
   match?: RegExp;
   title: string;
   text: string;
-  /** Where the section is on a phone, when that is not obvious from the tabs. */
+  /** Where the section is below 1024 px (tablets and phones), when that is not obvious from the tabs. */
   phone?: string;
-  /** What lights up: the section's item in the menu, the «Разобрать лекцию» button, or the limit meter. */
+  /**
+   * The same on a phone (up to 639 px), when it differs: a phone's top line holds only the wordmark, the limit and the
+   * avatar (10_Project/Phone_Declutter_2026-10-08).
+   */
+  narrow?: string;
+  /**
+   * What lights up: the section's item in the menu, the «Разобрать лекцию» button (on a phone, whose line has no such
+   * button, the «Лекции» tab), or the limit meter.
+   */
   spot: 'link' | 'cta' | 'meter';
 }
 
@@ -63,6 +71,7 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     title: 'Разобрать лекцию',
     text: 'Файл, текст, ссылка или запись части пары. Meldy сделает конспект, карточки и тест; выжимку и подкаст добавьте через «Изменить». Затем нажмите «Запустить анализ».',
     phone: 'На телефоне — кнопка «+» вверху экрана.',
+    narrow: 'На телефоне — «+ Лекция» в «Лекциях» и на «Сегодня».',
     spot: 'cta',
   },
   {

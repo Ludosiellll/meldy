@@ -15,15 +15,18 @@ import { useInstallPWA } from '../hooks/useInstallPWA';
 import { GuideProvider, GUIDE_PROFILE_KEY, useGuide } from './guide/GuideContext';
 import GuidePanel from './guide/GuidePanel';
 import { GUIDE_CHAPTERS } from './guide/chapters';
+import { usePhone } from '../lib/usePhone';
 import '../styles/paper.css';
 import './layout.css';
 
 /**
  * The shell of the interior: one line on top like the landing's navbar — the wordmark, the five
  * sections as pills, «Разобрать лекцию» (the analysis, /analyze: 20 units — named apart from the free «Добавить
- * лекцию» of «Сегодня», which leads to the exam's lectures as text), the daily AI limit (QuotaMeter) and the account button; on
- * phones a short line with «+ Лекция» and the limit's ring, and five tabs at the bottom, an icon over a word
- * («Повторение» with a badge of the cards due).
+ * лекцию» of «Сегодня», which leads to the exam's lectures as text), the daily AI limit (QuotaMeter), «?» and the
+ * account button; on tablets a short line with «+ Лекция», the limit's ring and «?»; on phones (up to 639 px) three
+ * things only — the wordmark or «‹ Родитель», the limit's ring and the avatar (10_Project/Phone_Declutter_2026-10-08:
+ * «+ Лекция» is at the top of «Лекции» and in the lectures of «Сегодня», the guide in the account menu) — and five
+ * tabs at the bottom, an icon over a word («Повторение» with a badge of the cards due).
  * The menu is the core of Meldy: «Сегодня», «Экзамены», «Лекции», «Повторение» (with the mistakes
  * diary) and «Прогресс» (with the knowledge map). The window scrolls (not <main>), so a page opens at
  * its top and «назад» returns to where it was.
@@ -269,6 +272,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const { theme, setTheme } = useTheme();
   const { handleInstallClick, showInstall } = useInstallPWA();
   const due = useDueCount(user?.id, location.pathname);
+  const phone = usePhone();
 
   useWindowScrollMemory(location.key);
 
@@ -335,9 +339,10 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   }
 
   // The guide lights up the section it talks about: its pill in the top line, its tab on a phone, or
-  // «Разобрать лекцию».
+  // «Разобрать лекцию» — on a phone, whose line has no «+ Лекция», the «Лекции» tab (the link is at the top of its page).
   const spot = guide?.open ? GUIDE_CHAPTERS[guide.index] : null;
   const spotOn = (to: string) => (spot && spot.spot === 'link' && spot.route === to ? '' : undefined);
+  const tabSpotOn = (to: string) => spotOn(to) ?? (phone && spot?.spot === 'cta' && to === '/library' ? '' : undefined);
 
   const avatarUrl = profile?.avatar_url;
   const back = backLinkFor(location.pathname);
@@ -356,11 +361,14 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         ) : null}
       </div>
       <Link className="sf-acct-item" to="/profile">Профиль</Link>
+      {/* The way to the guide on a phone, whose line has no «?»: the focus goes back to the account button, so the guide
+          gives it back there when it closes. */}
       <button
         type="button"
         className="sf-acct-item"
         onClick={() => {
           setMenuOpen(false);
+          menuButtonRef.current?.focus();
           guide?.start();
         }}
       >
@@ -451,8 +459,9 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
             ))}
           </nav>
           <div className="sf-bar-right">
-            {/* On a phone the same link is «+ Лекция» (a round «+» where the line is short; the full words stay
-                for screen readers), so it is not taken for the page's own «Новый экзамен +». */}
+            {/* On a tablet the same link is «+ Лекция» (a round «+» where the line is short; the full words stay
+                for screen readers), so it is not taken for the page's own «Новый экзамен +». A phone hides it and «?»
+                (layout.css): its line is the wordmark, the limit and the avatar. */}
             <Link className="sf-nav-cta" to="/analyze" aria-current={onAnalyze ? 'page' : undefined} data-guide-spot={spot?.spot === 'cta' ? '' : undefined}>
               <span className="sf-cta-plus" aria-hidden="true" />
               <span className="sf-cta-t">Разобрать лекцию</span>
@@ -517,7 +526,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
                 to={item.to}
                 className="sf-tablink"
                 aria-current={current === item ? 'page' : undefined}
-                data-guide-spot={spotOn(item.to)}
+                data-guide-spot={tabSpotOn(item.to)}
               >
                 <span className="sf-tab-ico" aria-hidden="true">
                   <Icon strokeWidth={1.9} />

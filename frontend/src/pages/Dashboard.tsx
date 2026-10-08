@@ -29,6 +29,7 @@ import type { ErasableNow } from '../lib/exams/cheatSheet';
 import DailyReminder from '../components/reminders/DailyReminder';
 import QuestionOfDay from '../components/exams/share/QuestionOfDay';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { usePhone } from '../lib/usePhone';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -50,6 +51,15 @@ import { useDocumentTitle } from '../lib/useDocumentTitle';
  *   once all three are done.
  * Every number on the page is read from the account; nothing is invented (no ticket numbers, no zeros
  * on an empty account).
+ *
+ * A phone (usePhone, max-width 639px; 10_Project/Phone_Declutter_2026-10-08) gets the same page cut to its core: the
+ * exam card is the flag, the subject, a one-line meta, one line about today's step, the one blue pill and «Лист экзамена»
+ * as a quiet link, then the share in one line, «2 вопроса без материала» and the cheat sheet's count as quiet links. The
+ * dots, the legend, the answers and the note stay on the exam's sheet, «Напоминать каждый день» in «Профиль». Today's
+ * cards are «Повторение», «26 карточек · около 13 минут» and «Начать повторение» (a quiet link while another card holds
+ * the blue pill), without the picture or the lectures; two weeks of cards only when there were reviews; the lectures
+ * are rows with «+ Лекция» (the top line has no «+ Лекция» on a phone). Every action but the one blue pill is a quiet
+ * link on a phone.
  */
 
 /** The leading exam (lib/exams/leading.ts): «Профиль» names the same one for the daily reminder. */
@@ -198,6 +208,30 @@ function shortDate(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   if (!iso || Number.isNaN(date.getTime())) return '';
   return format(date, date.getFullYear() === now.getFullYear() ? 'd MMM' : 'd MMM yyyy', { locale: ru });
+}
+
+/**
+ * «8 карточек · тест · подкаст · 2 окт.»: a lecture row on a phone, one short line with its date. «конспект» only
+ * when it is all the lecture has (every analysed lecture has one); «только текст» for a lecture kept as text.
+ */
+export function lectureMetaShort(
+  material: Pick<LectureDetail, 'summary_json' | 'flashcards_json' | 'quiz_json' | 'created_at'>,
+  now: Date = new Date(),
+): string {
+  const summary = isRecord(material.summary_json) ? material.summary_json : {};
+  const parts: string[] = [];
+  if (summary.text_only === true) parts.push('только текст');
+  else {
+    const cards = analysisCards(material.flashcards_json).length;
+    if (cards > 0) parts.push(`${cards} ${pluralRu(cards, CARD_FORMS)}`);
+    const quiz = isRecord(material.quiz_json) && Array.isArray(material.quiz_json.quiz) ? material.quiz_json.quiz.length : 0;
+    if (quiz > 0) parts.push('тест');
+    if (Array.isArray(summary.podcast) && summary.podcast.length > 0) parts.push('подкаст');
+    if (parts.length === 0 && typeof summary.content === 'string' && summary.content.trim() !== '') parts.push('конспект');
+  }
+  const date = shortDate(material.created_at, now);
+  if (date) parts.push(date);
+  return parts.join(' · ');
 }
 
 function toQuestion(raw: unknown): TodayQuestion | null {
@@ -471,6 +505,24 @@ export function examMeta(exam: Pick<TodayExam, 'examDate' | 'layout'> & { total:
   return parts.join(' · ');
 }
 
+/** «15 октября · 40 вопросов»: the meta of a phone, one line (the tickets' layout is on the exam's sheet). */
+export function examMetaShort(exam: Pick<TodayExam, 'examDate'> & { total: number }): string {
+  const parts: string[] = [];
+  const day = formatDay(exam.examDate);
+  if (day) parts.push(day);
+  if (exam.total > 0) parts.push(`${exam.total} ${pluralRu(exam.total, QUESTION_FORMS)}`);
+  return parts.join(' · ');
+}
+
+/**
+ * «Можно стереть строки у 4 вопросов.»: the exam card's next step on a phone, one line over «Тянуть билет из них»
+ * (291 px of the 296 a 360 px phone gives it; the computer says it in full: erasableLine). «Строки» are the cheat
+ * sheet's: its count closes the card.
+ */
+export function erasableShort(count: number): string {
+  return `Можно стереть строки у ${count} ${pluralRu(count, ['вопроса', 'вопросов', 'вопросов'])}.`;
+}
+
 export interface CoverageTally {
   total: number;
   full: number;
@@ -611,12 +663,23 @@ export function recentNote(questions: TodayQuestion[], events: LearningEvent[] |
     : `${head} Вопросы ${joinNumbers(confirmed)} подтверждены.`;
 }
 
+/** «около 6 минут» at 30 seconds a card; «около минуты» for one or two cards. */
+function reviewMinutes(count: number): string {
+  const minutes = Math.max(1, Math.ceil((count * SECONDS_PER_CARD) / 60));
+  if (minutes === 1) return 'около минуты';
+  const word = minutes % 10 === 1 && minutes % 100 !== 11 ? 'минуты' : 'минут';
+  return `около ${minutes} ${word}`;
+}
+
 /** «Около 6 минут.» at 30 seconds a card; «Около минуты.» for one or two cards. */
 export function reviewTime(count: number): string {
-  const minutes = Math.max(1, Math.ceil((count * SECONDS_PER_CARD) / 60));
-  if (minutes === 1) return 'Около минуты.';
-  const word = minutes % 10 === 1 && minutes % 100 !== 11 ? 'минуты' : 'минут';
-  return `Около ${minutes} ${word}.`;
+  const words = reviewMinutes(count);
+  return `${words[0].toLocaleUpperCase('ru-RU')}${words.slice(1)}.`;
+}
+
+/** «26 карточек · около 13 минут»: today's cards on a phone, one line (the lectures they come from are in «Повторение»). */
+export function dueLine(count: number): string {
+  return `${count} ${pluralRu(count, CARD_FORMS)} · ${reviewMinutes(count)}`;
 }
 
 /**
@@ -818,8 +881,11 @@ function CardStack({ question }: { question: string }) {
   );
 }
 
-/** Reviews per day as columns with the value above each, and a table for screen readers. */
-function DayBars({ days }: { days: Array<{ key: string; value: number }> }) {
+/**
+ * Reviews per day as columns with the value above each, and a table for screen readers. `tallest` is the highest
+ * column in px: 100, or 48 on a phone, where the columns are low and carry no values (the table has them).
+ */
+function DayBars({ days, tallest = 100 }: { days: Array<{ key: string; value: number }>; tallest?: number }) {
   const max = Math.max(1, ...days.map((day) => day.value));
   const last = days.length - 1;
   return (
@@ -828,7 +894,7 @@ function DayBars({ days }: { days: Array<{ key: string; value: number }> }) {
         {days.map((day, index) => (
           <div key={day.key} className="td-bar" data-zero={day.value === 0 ? '' : undefined} data-today={index === last ? '' : undefined}>
             <span className="td-bar-v">{day.value}</span>
-            <span className="td-bar-b" style={day.value > 0 ? { height: `${Math.max(3, Math.round((day.value / max) * 100))}px` } : undefined} />
+            <span className="td-bar-b" style={day.value > 0 ? { height: `${Math.max(3, Math.round((day.value / max) * tallest))}px` } : undefined} />
           </div>
         ))}
       </div>
@@ -864,6 +930,7 @@ export default function Dashboard() {
   useDocumentTitle('Сегодня');
   const { user } = useAuth();
   const frame = useFrame<HTMLDivElement>();
+  const phone = usePhone();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -990,11 +1057,12 @@ export default function Dashboard() {
         {newAccount && stepsLead ? null : (
           <Desk
             data={data}
-            phone={frame.size === 's'}
+            narrow={frame.size === 's'}
+            phone={phone}
             lead={!stepsLead}
             onRetry={() => void load()}
-            activity={<Activity days={days} streak={streak} />}
-            lectures={<Lectures data={data} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />}
+            activity={<Activity days={days} streak={streak} phone={phone} />}
+            lectures={<Lectures data={data} phone={phone} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />}
           />
         )}
       </>
@@ -1137,10 +1205,14 @@ function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; 
   );
 }
 
-/** A link as the page's one blue pill, or as the white pill with the dark circle when something else leads. */
+/**
+ * A link as the page's one blue pill, or as the white pill with the dark circle when something else leads — on a phone
+ * (`quiet`) as a quiet underlined link then: one pill on the screen.
+ */
 function ActionLink({
   to,
   blue,
+  quiet = false,
   size,
   describedBy,
   onClick,
@@ -1148,11 +1220,19 @@ function ActionLink({
 }: {
   to: string;
   blue: boolean;
+  quiet?: boolean;
   size?: 's';
   describedBy?: string;
   onClick?: () => void;
   children: ReactNode;
 }) {
+  if (quiet && !blue) {
+    return (
+      <Link className="sf-link td-alt" to={to} aria-describedby={describedBy} onClick={onClick}>
+        {children}
+      </Link>
+    );
+  }
   return (
     <Link className={blue ? 'sf-primary' : 'sf-secondary td-pill'} data-size={size} to={to} aria-describedby={describedBy} onClick={onClick}>
       {children}
@@ -1233,6 +1313,7 @@ function useLecturePlace(grid: RefObject<HTMLDivElement | null>) {
  */
 function Desk({
   data,
+  narrow,
   phone,
   lead,
   onRetry,
@@ -1240,6 +1321,9 @@ function Desk({
   lectures,
 }: {
   data: DashboardData;
+  /** The page frame is narrower than 640 px: the ribbon goes in rows of 10. */
+  narrow: boolean;
+  /** A phone (usePhone): every card cut to its core. */
   phone: boolean;
   lead: boolean;
   onRetry: () => void;
@@ -1255,7 +1339,28 @@ function Desk({
   const examPrimary = Boolean(exam && exam.questions.length > 0);
 
   let cards: ReactNode = null;
-  if (dueCount > 0 && exam) {
+  if (dueCount > 0 && exam && phone) {
+    // A phone: the count and the time in one line; no picture, no lectures (they are in «Повторение»). The action is a
+    // quiet link unless it is the page's one blue pill (an exam without questions): one pill on the first screen.
+    cards = (
+      <article className="td-card td-due td-rise" data-d="3" data-phone="" aria-labelledby="td-due-h">
+        <h2 className="td-h3" id="td-due-h">
+          Повторение
+        </h2>
+        <p className="td-meta">{glue(dueLine(dueCount))}</p>
+        <ActionLink to="/review" blue={lead && !examPrimary} quiet size="s">
+          Начать повторение
+        </ActionLink>
+      </article>
+    );
+  } else if (exam && phone) {
+    // Nothing due: one line instead of a card with a flag.
+    cards = (
+      <p className="td-card td-due td-due-none td-rise" data-d="3" data-phone="">
+        Карточек к повторению на сегодня нет.
+      </p>
+    );
+  } else if (dueCount > 0 && exam) {
     const [count, ...words] = dueTitle(dueCount).split(' ');
     cards = (
       <article className="td-card td-due td-rise" data-d="3" data-split={firstQuestion ? '' : undefined} aria-labelledby="td-due-h">
@@ -1288,9 +1393,9 @@ function Desk({
   return (
     <div className="td-grid" ref={grid}>
       {exam ? (
-        <ExamBlock exam={exam} phone={phone} lead={lead} />
+        <ExamBlock exam={exam} narrow={narrow} phone={phone} lead={lead} />
       ) : (
-        <NoExam data={data} lead={lead} onRetry={onRetry} firstQuestion={firstQuestion} lecturesText={lecturesText} />
+        <NoExam data={data} phone={phone} lead={lead} onRetry={onRetry} firstQuestion={firstQuestion} lecturesText={lecturesText} />
       )}
       <div className="td-side">
         {cards}
@@ -1315,7 +1420,7 @@ function NextEraseLine({ erasable }: { erasable: ErasableNow }) {
   return next ? <p className="td-note td-erase-next">{glue(next)}</p> : null;
 }
 
-function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lead: boolean }) {
+function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boolean; phone: boolean; lead: boolean }) {
   const eraseId = useId();
   const tally = coverageTally(exam.questions);
   const total = tally.total;
@@ -1371,13 +1476,13 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   let primary: ReactNode = null;
   if (nothingFound) {
     primary = (
-      <ActionLink to={`/exams/${exam.id}/edit#lectures`} blue={lead}>
+      <ActionLink to={`/exams/${exam.id}/edit#lectures`} blue={lead} quiet={phone}>
         Выбрать или добавить лекции
       </ActionLink>
     );
   } else if (total === 0) {
     primary = (
-      <ActionLink to={`/exams/${exam.id}/edit`} blue={lead}>
+      <ActionLink to={`/exams/${exam.id}/edit`} blue={lead} quiet={phone}>
         Добавить вопросы
       </ActionLink>
     );
@@ -1386,6 +1491,7 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
       <ActionLink
         to={`/exams/${exam.id}/draw?mode=awaiting`}
         blue={lead}
+        quiet={phone}
         describedBy={eraseId}
         onClick={() => track('today_erase_open', { questions: countBucket(erasable) })}
       >
@@ -1394,11 +1500,95 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
     );
   } else if (canDraw) {
     primary = (
-      <ActionLink to={`/exams/${exam.id}/draw`} blue={lead}>
+      <ActionLink to={`/exams/${exam.id}/draw`} blue={lead} quiet={phone}>
         {drawWord}
       </ActionLink>
     );
   }
+  const flag = heading.when ? (
+    // The flag repeats the end of the heading, which screen readers already read in it.
+    <span className="td-flag" data-tone={soon ? 'y' : 'g'} aria-hidden="true">
+      {examFlag(heading.when)}
+    </span>
+  ) : null;
+  const title = (
+    <h2 className="td-h2" id="td-exam-h">
+      {glue(heading.subject)}
+      {/* The space stays outside the hidden part, so the name reads «… — экзамен через 12 дней». */}
+      {heading.when ? ' ' : null}
+      {heading.when ? <span className="sr-only">{glue(`— ${heading.when}`)}</span> : null}
+    </h2>
+  );
+
+  if (phone) {
+    // A phone: one line about today's step over the one action, «Лист экзамена» under it as a quiet link (before the
+    // first mapping the sheet is the action itself), then the share, the questions without material and the cheat
+    // sheet's count as lines. The dots, the legend, the answers and the note are on the exam's sheet; the next erase
+    // time in its status; «Напоминать каждый день» in «Профиль».
+    const metaShort = examMetaShort({ examDate: exam.examDate, total });
+    const today = erasable > 0 ? erasableShort(erasable) : neverMapped ? shareSentence(exam.questions, exam.layout) : '';
+    const rows = figure || gap || sheetCounts;
+    // The arrow holds on to the count, so a line that has to wrap breaks after «Шпаргалка:» with the arrow at its end.
+    const sheetRow = sheetCounts ? (
+      <p className="td-sheet">
+        <Link className="td-sheet-link" to={`/exams/${exam.id}?view=sheet`}>
+          Шпаргалка:{' '}
+          <span className="td-nowrap">
+            {glue(`${sheetCounts.left} ${counterLabel(sheetCounts)}`)}
+            <ArrowIcon className="td-arrow" />
+          </span>
+        </Link>
+      </p>
+    ) : null;
+    return (
+      <article className="td-card td-main td-exam td-rise" data-d="2" data-phone="" aria-labelledby="td-exam-h">
+        {flag}
+        {title}
+        {metaShort ? <p className="td-meta">{glue(metaShort)}</p> : null}
+        {total === 0 ? <p className="td-body">Вопросов в списке пока нет.</p> : null}
+        <div className="td-next">
+          {today ? (
+            <p className="td-erase-t" id={erasable > 0 ? eraseId : undefined}>
+              {glue(today)}
+            </p>
+          ) : null}
+          <div className="td-actions">
+            {primary ?? (
+              <ActionLink to={`/exams/${exam.id}`} blue={lead} quiet>
+                Лист экзамена
+              </ActionLink>
+            )}
+            {primary ? (
+              <Link className="sf-link td-alt" to={`/exams/${exam.id}`}>
+                Лист экзамена
+              </Link>
+            ) : null}
+          </div>
+        </div>
+        {rows ? (
+          <div className="td-ready">
+            {figure ? (
+              <p className="td-share">
+                <span className="td-share-fig">{figure.figure}</span> <span className="td-share-cap">{glue(figure.caption)}</span>
+              </p>
+            ) : null}
+            {gap ? (
+              <p className="td-gap">
+                <Link className="td-gap-link" to={`/exams/${exam.id}?filter=cov:none`}>
+                  {glue(gap.link)}
+                  <ArrowIcon className="td-arrow" />
+                </Link>
+              </p>
+            ) : null}
+            {sheetRow}
+          </div>
+        ) : null}
+        {/* The author of an open group link keeps «Скопировать вопрос дня» (nothing at all for anyone else). */}
+        {sheet ? <QuestionOfDay examId={exam.id} examTitle={exam.title} questions={sheet.questions} from="today" /> : null}
+      </article>
+    );
+  }
+
   const next = (
     <div className="td-next">
       {erasable > 0 ? (
@@ -1422,18 +1612,8 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   );
   return (
     <article className="td-card td-main td-exam td-rise" data-d="2" aria-labelledby="td-exam-h">
-      {heading.when ? (
-        // The flag repeats the end of the heading, which screen readers already read in it.
-        <span className="td-flag" data-tone={soon ? 'y' : 'g'} aria-hidden="true">
-          {examFlag(heading.when)}
-        </span>
-      ) : null}
-      <h2 className="td-h2" id="td-exam-h">
-        {glue(heading.subject)}
-        {/* The space stays outside the hidden part, so the name reads «… — экзамен через 12 дней». */}
-        {heading.when ? ' ' : null}
-        {heading.when ? <span className="sr-only">{glue(`— ${heading.when}`)}</span> : null}
-      </h2>
+      {flag}
+      {title}
       {meta ? <p className="td-meta">{glue(meta)}</p> : null}
       {total === 0 ? <p className="td-body">Вопросов в списке пока нет.</p> : null}
       {next}
@@ -1456,7 +1636,7 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
           ) : null}
           {mapped ? (
             <>
-              <Ribbon examId={exam.id} questions={exam.questions} perRow={phone ? 10 : 20} phone={phone} />
+              <Ribbon examId={exam.id} questions={exam.questions} perRow={narrow ? 10 : 20} phone={narrow} />
               <Tally tally={tally} examId={exam.id} />
             </>
           ) : null}
@@ -1481,19 +1661,22 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
  */
 function NoExam({
   data,
+  phone,
   lead,
   onRetry,
   firstQuestion,
   lecturesText,
 }: {
   data: DashboardData;
+  phone: boolean;
   lead: boolean;
   onRetry: () => void;
   firstQuestion: string;
   lecturesText: string;
 }) {
   const { dueCount, hasExams, examFailed } = data;
-  // While «Первые шаги» lead (lead false), their step 2 offers the question list: it is not repeated here.
+  // While «Первые шаги» lead (lead false), their step 2 offers the question list: it is not repeated here. On a phone
+  // the way to the exams is a quiet link under the card's pill, not a second pill.
   const examsLink = examFailed ? (
     <p className="td-meta td-retry">
       Экзамены не загрузились.{' '}
@@ -1502,16 +1685,46 @@ function NoExam({
       </button>
     </p>
   ) : hasExams ? (
-    <Link className="sf-secondary td-pill" to="/exams">
-      Экзамены
-      <PillDot />
-    </Link>
+    phone ? (
+      <Link className="sf-link td-alt" to="/exams">
+        Экзамены
+      </Link>
+    ) : (
+      <Link className="sf-secondary td-pill" to="/exams">
+        Экзамены
+        <PillDot />
+      </Link>
+    )
   ) : lead ? (
-    <Link className="sf-secondary td-pill" to="/exams/new">
-      Вставить список вопросов к экзамену
-      <PillDot />
-    </Link>
+    phone ? (
+      <Link className="sf-link td-alt" to="/exams/new">
+        Вставить список вопросов к экзамену
+      </Link>
+    ) : (
+      <Link className="sf-secondary td-pill" to="/exams/new">
+        Вставить список вопросов к экзамену
+        <PillDot />
+      </Link>
+    )
   ) : null;
+  if (dueCount > 0 && phone) {
+    // A phone: the same card as beside an exam — «Повторение», the count and the time in one line, the action (the blue
+    // pill unless «Первые шаги» lead), the exams as a quiet link; no picture, no lectures.
+    return (
+      <article className="td-card td-main td-lead td-due td-rise" data-d="2" data-phone="" aria-labelledby="td-due-h">
+        <h2 className="td-h3" id="td-due-h">
+          Повторение
+        </h2>
+        <p className="td-meta">{glue(dueLine(dueCount))}</p>
+        <div className="td-actions">
+          <ActionLink to="/review" blue={lead} quiet size="s">
+            Начать повторение
+          </ActionLink>
+          {examsLink}
+        </div>
+      </article>
+    );
+  }
   if (dueCount > 0) {
     const words = dueLead(dueCount);
     return (
@@ -1566,8 +1779,10 @@ function NoExam({
  * and says so: «Повторения… не было» beside «Сегодня: ответ на вопрос 1» read as if the answer had not counted (audit
  * of 2026-10-08); the answers to tickets are on the exam card.
  */
-function Activity({ days, streak }: { days: Array<{ key: string; value: number }>; streak: number }) {
+function Activity({ days, streak, phone }: { days: Array<{ key: string; value: number }>; streak: number; phone: boolean }) {
   const any = days.some((day) => day.value > 0);
+  // A phone shows the two weeks only when there were reviews (an empty block is not shown there).
+  if (phone && !any) return null;
   return (
     <section className="td-card td-activity td-rise" data-d="4" aria-labelledby="td-activity-h">
       <h2 className="td-h3" id="td-activity-h">
@@ -1576,7 +1791,7 @@ function Activity({ days, streak }: { days: Array<{ key: string; value: number }
       {any ? (
         <>
           <p className="td-meta">{glue(activityLine(streak, days[days.length - 1].value))}</p>
-          <DayBars days={days} />
+          <DayBars days={days} tallest={phone ? 48 : 100} />
         </>
       ) : (
         <p className="td-meta">За две недели карточки не повторялись.</p>
@@ -1587,16 +1802,19 @@ function Activity({ days, streak }: { days: Array<{ key: string; value: number }
 
 function Lectures({
   data,
+  phone,
   syncing,
   syncError,
   onAdd,
 }: {
   data: DashboardData;
+  phone: boolean;
   syncing: string | null;
   syncError: string | null;
   onAdd: (material: LectureDetail) => void;
 }) {
   const count = data.lectures.length;
+  if (phone) return <PhoneLectures data={data} syncing={syncing} syncError={syncError} onAdd={onAdd} />;
   return (
     <section className="td-sec td-lectures td-rise" data-d="5" aria-labelledby="td-lectures-h">
       <div className="td-sec-head">
@@ -1644,6 +1862,72 @@ function Lectures({
                       {syncing === material.id ? 'Добавляем…' : 'Добавить'}
                     </button>
                     {syncError === material.id ? <span role="alert"> Не получилось, попробуйте ещё раз.</span> : null}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The lectures on a phone: rows in one card — the title and «8 карточек · тест · 2 окт.» — without the pictures; in the
+ * head «+ Лекция» (the analysis, /analyze: the top line has no «+ Лекция» on a phone) and «Все 9» only when the page
+ * does not list them all (the «Лекции» tab is one tap away).
+ */
+function PhoneLectures({
+  data,
+  syncing,
+  syncError,
+  onAdd,
+}: {
+  data: DashboardData;
+  syncing: string | null;
+  syncError: string | null;
+  onAdd: (material: LectureDetail) => void;
+}) {
+  const count = data.lectures.length;
+  return (
+    <section className="td-sec td-lectures td-rise" data-d="5" data-phone="" aria-labelledby="td-lectures-h">
+      <div className="td-sec-head">
+        <h2 className="td-h2 td-sec-h" id="td-lectures-h">
+          Лекции
+        </h2>
+        <span className="td-sec-acts">
+          <Link className="td-more td-new" to="/analyze" aria-label="Разобрать лекцию">
+            + Лекция
+          </Link>
+          {count > data.recent.length ? (
+            <Link className="td-more" to="/library">
+              {`Все ${count}`}
+              <ArrowIcon className="td-arrow" />
+            </Link>
+          ) : null}
+        </span>
+      </div>
+      {count === 0 ? (
+        <p className="td-meta td-lecs-none">Лекций пока нет.</p>
+      ) : (
+        <ol className="td-lecs">
+          {data.recent.map((material) => {
+            const meta = lectureMetaShort(material);
+            const missing = cardsMissingFromReview(material, data.materialsWithCards);
+            return (
+              <li key={material.id} className="td-lec">
+                <Link className="td-lec-link" to={`/library/${material.id}`}>
+                  <span className="td-lec-title">{displayMaterialTitle(material.title)}</span>
+                  {meta ? <span className="td-lec-meta">{glue(meta)}</span> : null}
+                </Link>
+                {/* The cards not in review: one quiet action that says what it does (the computer has a note and «Добавить»). */}
+                {missing ? (
+                  <p className="td-lec-note">
+                    <button type="button" className="sf-link" data-muted="" disabled={syncing !== null} onClick={() => onAdd(material)}>
+                      {syncing === material.id ? 'Добавляем…' : 'Добавить карточки в повторение'}
+                    </button>
+                    {syncError === material.id ? <span role="alert">Не получилось, попробуйте ещё раз.</span> : null}
                   </p>
                 ) : null}
               </li>

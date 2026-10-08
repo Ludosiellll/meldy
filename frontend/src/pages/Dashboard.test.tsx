@@ -9,15 +9,19 @@ import Dashboard, {
   answersSentence,
   cardsMissingFromReview,
   dueLecturesText,
+  dueLine,
+  erasableShort,
   examFlag,
   examHeading,
   examHeadingParts,
   examMeta,
+  examMetaShort,
   examWhen,
   firstStepViews,
   firstStepsDone,
   greeting,
   lectureMeta,
+  lectureMetaShort,
   lecturePlace,
   pickExam,
   recentNote,
@@ -29,6 +33,7 @@ import Dashboard, {
   withoutMaterialLine,
   type TodayQuestion,
 } from './Dashboard';
+import { PHONE_QUERY } from '../lib/usePhone';
 import { localDateKey } from '../utils/streak';
 import { rememberGroupLink } from '../lib/groups/groupLinks';
 import { sha256Hex } from '../lib/sha256';
@@ -1236,5 +1241,259 @@ describe('«Сегодня»: below the desk', () => {
     // Holes of 300 and 300: wherever the lectures were, they stay.
     expect(lecturePlace({ main: 1000, side: 1300, column: 1600 }, 'main')).toBe('main');
     expect(lecturePlace({ main: 1000, side: 1300, column: 1600 }, 'below')).toBe('below');
+  });
+});
+
+// ------------------------------------------------------------------------------------------------
+// A phone (usePhone: max-width 639px; 10_Project/Phone_Declutter_2026-10-08): the same page cut to its core.
+
+describe('«Сегодня» on a phone', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === PHONE_QUERY, media: query, addEventListener() {}, removeEventListener() {} }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Questions 1–3 of the list with three answer points each in the exam's cheat sheet. */
+  const written = (position: number) => ({
+    question_id: `q${position}`,
+    position,
+    label: String(position),
+    section: null,
+    text: `Вопрос ${position}`,
+    question_hash: hash(position),
+    coverage: 'full',
+    coverage_method: 'llm',
+    coverage_reason: '',
+    missing_note: '',
+    rebuilt: false,
+    rubric: {
+      rubric_id: `r${position}`,
+      built_at: null,
+      coverage: 'full',
+      coverage_note: '',
+      materials: [],
+      points: [1, 2, 3].map((n) => ({ id: `p${n}`, title: `Пункт ${n} вопроса ${position}`, short: '', essential: n === 1, source_quote: '', source_ids: [] })),
+    },
+  });
+  /** Point 1 of a question named in an answer at a local moment. */
+  const pointNamed = (position: number, at: Date) => ({
+    id: `e-${position}-${at.getTime()}`,
+    created_at: at.toISOString(),
+    local_date: localDateKey(at),
+    material_id: null,
+    kind: 'oral_point',
+    item_key: `oral:r${position}:p1`,
+    correct: true,
+    score: null,
+    confidence: null,
+    source_ids: [],
+    session_id: `s-${position}-${at.getTime()}`,
+    payload: { v: 1, question_hash: hash(position), rubric_id: `r${position}`, point_id: 'p1', title: `Пункт 1 вопроса ${position}`, status: 'covered' },
+  });
+  /** Two questions an answer can erase lines of now: 1 (named yesterday) and 3 (erased in September, due for its check). */
+  const twoErasable = () => {
+    db.fetchSheet.mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [written(1), written(2), written(3)], toWrite: 0, units: 0, job: null });
+    db.fetchSheetEvents.mockResolvedValue([
+      pointNamed(1, new Date(2026, 9, 2, 10, 0)),
+      pointNamed(2, new Date(2026, 9, 3, 11, 0)),
+      pointNamed(3, new Date(2026, 8, 20, 10, 0)),
+      pointNamed(3, new Date(2026, 8, 21, 10, 0)),
+    ]);
+  };
+  const examCard = async () => (await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).closest('article')!;
+
+  it('gives the exam card one line of meta, one line about today, the one pill and «Лист экзамена» under it as a quiet link', async () => {
+    exam();
+    twoErasable();
+    renderDashboard();
+    const block = await examCard();
+    const flag = within(block).getByText('Экзамен через 12 дней');
+    expect(flag).toHaveAttribute('aria-hidden', 'true');
+    const meta = within(block).getByText(byText('15 октября · 40 вопросов'));
+    // The tickets' layout is on the exam's sheet.
+    expect(within(block).queryByText(/в билете два/)).toBeNull();
+    const today = await within(block).findByText(byText('Можно стереть строки у 2 вопросов.'));
+    const draw = within(block).getByRole('link', { name: named('Тянуть билет из них') });
+    expect(draw).toHaveAttribute('href', '/exams/e-1/draw?mode=awaiting');
+    expect(draw).toHaveClass('sf-primary');
+    expect(document.getElementById(draw.getAttribute('aria-describedby') ?? '')).toBe(today);
+    const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
+    expect(sheet).toHaveAttribute('href', '/exams/e-1');
+    expect(sheet).toHaveClass('sf-link');
+    expect(sheet).not.toHaveClass('sf-secondary');
+    // One way into a ticket: no second «Тянуть билет».
+    expect(within(block).queryByRole('link', { name: named('Тянуть билет') })).toBeNull();
+    for (const [earlier, later] of [
+      [meta, today],
+      [today, draw],
+      [draw, sheet],
+    ]) {
+      expect(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(document.querySelectorAll('.sf-secondary')).toHaveLength(0);
+  });
+
+  it('says the share in one line, then «без материала» and the cheat sheet as quiet links; the rest stays on the exam’s sheet and in «Профиль»', async () => {
+    exam();
+    twoErasable();
+    renderDashboard();
+    const block = await examCard();
+    const share = within(block).getByText(byText('35 % билетов, где оба вопроса есть в ваших лекциях'));
+    const gap = within(block).getByRole('link', { name: named('9 вопросов без материала') });
+    expect(gap).toHaveAttribute('href', '/exams/e-1?filter=cov:none');
+    expect(gap.querySelector('.td-gap-dot')).toBeNull();
+    const sheet = await within(block).findByRole('link', { name: named('Шпаргалка: 8 строк осталось из 9') });
+    expect(sheet).toHaveAttribute('href', '/exams/e-1?view=sheet');
+    expect(share.compareDocumentPosition(gap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(gap.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The explanation paragraph, the dots, the legend, the answers, the note and the reminder are not on the phone.
+    expect(within(block).queryByText(/Добавьте к ним лекции/)).toBeNull();
+    expect(within(block).queryByRole('img', { name: /Пометки у/ })).toBeNull();
+    expect(block.querySelector('.td-tally')).toBeNull();
+    expect(within(block).queryByText(/Подтверждено ответами/)).toBeNull();
+    expect(within(block).queryByText(/ответ на вопрос/)).toBeNull();
+    expect(within(block).queryByRole('button', { name: 'Напоминать каждый день' })).toBeNull();
+  });
+
+  it('keeps «Скопировать вопрос дня» for the author of an open group link', async () => {
+    const code = 'k7m2pq9rst4v';
+    const share = '5a000000-0000-4000-8000-000000000001';
+    rememberGroupLink('e-1', code, share);
+    db.tables.exam_shares = () => ({ data: [{ id: share, code_hash: sha256Hex(code), expires_at: '2027-01-05T09:00:00Z', revoked_at: null }] });
+    exam();
+    twoErasable();
+    renderDashboard();
+    const block = await examCard();
+    expect(await within(block).findByRole('button', { name: 'Скопировать вопрос дня' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+  });
+
+  it('leads an exam never checked against the lectures to its sheet: the sentence over the one action, no quiet twin', async () => {
+    db.tables.exam_questions = () => ({ data: questionRows(() => null) });
+    exam();
+    renderDashboard();
+    const block = await examCard();
+    const line = within(block).getByText('Сверки с лекциями ещё не было.');
+    const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
+    expect(sheet).toHaveClass('sf-primary');
+    expect(within(block).getAllByRole('link', { name: named('Лист экзамена') })).toHaveLength(1);
+    expect(line.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(block).queryByRole('link', { name: named('Тянуть билет') })).toBeNull();
+  });
+
+  it('sets today’s cards as «Повторение», one line and a quiet «Начать повторение»: no picture, no lectures', async () => {
+    exam();
+    renderDashboard();
+    const card = (await screen.findByRole('heading', { level: 2, name: 'Повторение' })).closest('article')!;
+    expect(within(card).getByText(byText('11 карточек · около 6 минут'))).toBeInTheDocument();
+    const start = within(card).getByRole('link', { name: 'Начать повторение' });
+    expect(start).toHaveAttribute('href', '/review');
+    expect(start).toHaveClass('sf-link');
+    expect(card.querySelectorAll('.sf-index-card')).toHaveLength(0);
+    expect(within(card).queryByText(/Из лекций/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: named('11 карточек на сегодня') })).toBeNull();
+  });
+
+  it('says that nothing is due in one line, and shows two weeks of cards only when there were reviews', async () => {
+    db.countDueCards.mockResolvedValue(0);
+    db.getDueCards.mockResolvedValue([]);
+    exam();
+    const first = renderDashboard();
+    const line = await screen.findByText('Карточек к повторению на сегодня нет.');
+    expect(line.closest('article')).toBeNull();
+    expect(screen.queryByText('Повторение')).toBeNull();
+    // No reviews in two weeks: no block at all.
+    expect(screen.queryByRole('heading', { name: named('Карточки за две недели') })).toBeNull();
+    expect(screen.queryByText('За две недели карточки не повторялись.')).toBeNull();
+    first.unmount();
+
+    db.tables.study_sessions = () => ({ data: [{ date: localDateKey(new Date(2026, 9, 3, 12)), cards_reviewed: 4 }, { date: localDateKey(new Date(2026, 9, 1, 12)), cards_reviewed: 8 }] });
+    renderDashboard();
+    const section = (await screen.findByRole('heading', { name: named('Карточки за две недели') })).closest('section')!;
+    expect(within(section).getByText(byText('Сегодня — 4 карточки.'))).toBeInTheDocument();
+    // Low columns (48 px at most); the values are in the table.
+    const bars = section.querySelectorAll('.td-bar-b');
+    expect((bars[11] as HTMLElement).style.height).toBe('48px');
+    expect((bars[13] as HTMLElement).style.height).toBe('24px');
+    expect(within(section).getByRole('table', { name: named('Повторения карточек по дням') })).toBeInTheDocument();
+  });
+
+  it('lists the lectures as rows with a short meta, «+ Лекция» into the analysis, and «Все 5» while some are not listed', async () => {
+    exam();
+    renderDashboard();
+    const section = (await screen.findByRole('heading', { name: 'Лекции' })).closest('section')!;
+    const add = within(section).getByRole('link', { name: 'Разобрать лекцию' });
+    expect(add).toHaveAttribute('href', '/analyze');
+    expect(add).toHaveTextContent('+ Лекция');
+    expect(within(section).getByRole('link', { name: named('Все 5') })).toHaveAttribute('href', '/library');
+    const rows = within(section).getAllByRole('listitem');
+    expect(rows).toHaveLength(4);
+    expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/library/m1');
+    expect(within(rows[0]).getByText(byText('8 карточек · тест · подкаст · 2 окт.'))).toBeInTheDocument();
+    expect(within(rows[1]).getByText(byText('только текст · 1 окт.'))).toBeInTheDocument();
+    expect(section.querySelector('.td-thumb')).toBeNull();
+    expect(section.querySelector('.td-lec-date')).toBeNull();
+    cleanup();
+
+    // Four lectures or fewer: all of them are on the page, the «Лекции» tab is one tap away.
+    db.tables.materials = (query: Query | { select: string }) => {
+      const four = LECTURES.slice(0, 4);
+      return { data: query.select.includes('summary_json') ? four : four.map(({ id, title, created_at }) => ({ id, title, created_at })) };
+    };
+    exam();
+    renderDashboard();
+    const again = (await screen.findByRole('heading', { name: 'Лекции' })).closest('section')!;
+    expect(within(again).queryByRole('link', { name: /^Все/ })).toBeNull();
+    expect(within(again).getByRole('link', { name: 'Разобрать лекцию' })).toBeInTheDocument();
+  });
+
+  it('adds the cards of a lecture to review with one quiet action', async () => {
+    db.tables.flashcard_progress = () => ({ data: [{ material_id: 'm1' }, { material_id: 'm4' }] });
+    exam();
+    const user = userEvent.setup();
+    renderDashboard();
+    const section = (await screen.findByRole('heading', { name: 'Лекции' })).closest('section')!;
+    const add = within(section).getByRole('button', { name: 'Добавить карточки в повторение' });
+    expect(add.closest('li')).toHaveTextContent('Спрос и предложение');
+    expect(within(section).getAllByRole('button', { name: 'Добавить карточки в повторение' })).toHaveLength(1);
+    await user.click(add);
+    expect(db.syncFlashcards).toHaveBeenCalledWith('user-1', 'm3', [{ id: 1, question: 'Что такое спрос?', answer: 'Желание и возможность купить' }]);
+  });
+
+  it('leads without an exam with the same short card: the blue pill once the steps are folded, a quiet link while they lead', async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+    const card = (await screen.findByRole('heading', { level: 2, name: 'Повторение' })).closest('article')!;
+    expect(within(card).getByText(byText('11 карточек · около 6 минут'))).toBeInTheDocument();
+    expect(within(card).getByRole('link', { name: 'Начать повторение' })).toHaveClass('sf-link');
+    expect(within(stepItem('Вставьте список вопросов к экзамену')).getByRole('link', { name: named('Создать экзамен') })).toHaveClass('sf-primary');
+    expect(card.querySelectorAll('.sf-index-card')).toHaveLength(0);
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+
+    await user.click(within(stepsCard()!).getByRole('button', { name: 'Свернуть' }));
+    const start = within(screen.getByRole('heading', { level: 2, name: 'Повторение' }).closest('article')!).getByRole('link', { name: 'Начать повторение' });
+    expect(start).toHaveClass('sf-primary');
+    // The way to a question list is a quiet link under it, not a second pill.
+    expect(screen.getByRole('link', { name: 'Вставить список вопросов к экзамену' })).toHaveClass('sf-link');
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(document.querySelectorAll('.sf-secondary')).toHaveLength(0);
+  });
+
+  it('words the short lines', () => {
+    expect(examMetaShort({ examDate: '2026-10-15', total: 40 })).toBe('15 октября · 40 вопросов');
+    expect(examMetaShort({ examDate: null, total: 21 })).toBe('21 вопрос');
+    expect(examMetaShort({ examDate: '2026-10-15', total: 0 })).toBe('15 октября');
+    expect(erasableShort(1)).toBe('Можно стереть строки у 1 вопроса.');
+    expect(erasableShort(4)).toBe('Можно стереть строки у 4 вопросов.');
+    expect(erasableShort(21)).toBe('Можно стереть строки у 21 вопроса.');
+    expect(dueLine(26)).toBe('26 карточек · около 13 минут');
+    expect(dueLine(1)).toBe('1 карточка · около минуты');
+    expect(dueLine(41)).toBe('41 карточка · около 21 минуты');
+    expect(lectureMetaShort(LECTURES[0])).toBe('8 карточек · тест · подкаст · 2 окт.');
+    expect(lectureMetaShort(LECTURES[1])).toBe('только текст · 1 окт.');
+    expect(lectureMetaShort(LECTURES[3])).toBe('1 карточка · 24 сент.');
+    expect(lectureMetaShort({ ...LECTURES[3], flashcards_json: null })).toBe('конспект · 24 сент.');
+    expect(lectureMetaShort({ summary_json: null, flashcards_json: null, quiz_json: null, created_at: '' })).toBe('');
   });
 });
