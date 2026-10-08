@@ -77,7 +77,10 @@
 .md-empty { text-align: center; }
 .md-empty .md-text { margin-top: 8px; }
 
-.md-list { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+/* One column that never grows past the page: an opened row's actions used to widen every row at 320. */
+.md-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+/* A diary that never had a mistake has no figures and no filters: its card keeps the summary's distance. */
+.md-head + .md-card { margin-top: 36px; }
 .md-item {
   border-radius: 28px;
   background: var(--sf-surface);
@@ -118,6 +121,8 @@
   overflow-wrap: anywhere;
 }
 .md-meta { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+/* An opened row shows its whole title. */
+.md-item[data-open] .md-q { display: block; -webkit-line-clamp: unset; }
 .md-chev {
   display: grid;
   place-items: center;
@@ -138,6 +143,32 @@
 .md-ans-l { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--sf-muted); }
 .md-ans[data-right] .md-ans-l { color: var(--m-green-ink); }
 .md-ans-t { margin: 4px 0 0; font-size: 17px; line-height: 26px; color: var(--sf-ink); overflow-wrap: anywhere; white-space: pre-line; }
+.md-ans-t[data-none] { color: var(--sf-muted); }
+/* The lecture the words come from, under them. */
+.md-src { margin: 6px 0 0; font-size: 14px; line-height: 20px; color: var(--sf-muted); overflow-wrap: anywhere; }
+.md-ans[data-right] .md-src { color: var(--m-green-ink); }
+
+/* The points of one ticket question (LIB-11): the question once on top, the missed points as rows
+   inside the same card, a hairline between them. */
+.md-group {
+  border-radius: 28px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+}
+.md-group-head { display: grid; gap: 4px; padding: 20px 26px 8px 26px; }
+.md-group-q { margin: 0; font-size: 18px; line-height: 26px; font-weight: 500; letter-spacing: -.012em; color: var(--sf-ink); overflow-wrap: anywhere; text-wrap: pretty; }
+.md-group .md-meta { margin: 0; }
+.md-nowrap { white-space: nowrap; }
+.md-points { margin: 0; padding: 0 0 6px; list-style: none; }
+.md-group .md-item { border-radius: 0; background: none; box-shadow: none; }
+.md-group .md-item:hover { box-shadow: none; transform: none; }
+.md-group .md-item + .md-item { box-shadow: 0 -1px 0 var(--sf-line); }
+.md-group .md-item:hover .md-row { background: var(--sf-surface-soft); }
+.md-group .md-item[data-open] .md-row { background: none; }
+.md-group .md-row { padding-top: 14px; padding-bottom: 14px; border-radius: 22px; }
+.md-group .md-q { font-size: 17px; line-height: 25px; font-weight: 400; letter-spacing: 0; }
+.md-group .md-dot { margin-top: 7px; }
+.md-group .md-chev { margin-top: -4px; }
 .md-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 6px; }
 .md-act { gap: 8px; }
 .md-act svg,
@@ -232,6 +263,11 @@
   .md .md-tabs button { min-height: 44px; padding: 0 12px; }
   .md-row { grid-template-columns: 10px minmax(0, 1fr) 36px; column-gap: 12px; padding: 16px 12px 16px 18px; border-radius: 24px; }
   .md-item { border-radius: 24px; }
+  .md-group { border-radius: 24px; }
+  .md-group-head { padding: 16px 16px 6px 18px; }
+  .md-group-q { font-size: 17px; line-height: 24px; }
+  .md-group .md-row { padding-top: 12px; padding-bottom: 12px; }
+  .md-group .md-q { font-size: 16px; line-height: 24px; }
   .md-dot { width: 10px; height: 10px; }
   .md-q { font-size: 17px; line-height: 24px; }
   .md-meta { font-size: 14px; line-height: 20px; }
@@ -247,6 +283,17 @@
   .md-next .sf-primary,
   .md-done-acts .sf-primary { width: 100%; }
   .md-state { padding: 26px 22px 28px; }
+}
+
+/* The narrowest phones: the three filters share the row with «Обновить» (they ran 66 px past their rail
+   at 320), and a long action wraps inside its pill. */
+@media (max-width: 374px) {
+  .md-bar { gap: 8px; }
+  .md .md-tabs { flex: 1 1 auto; gap: 2px; }
+  .md .md-tabs li { flex: 1 1 auto; }
+  .md .md-tabs button { width: 100%; padding: 0 6px; font-size: 13.5px; }
+  .md-round { width: 44px; height: 44px; }
+  .md-act { height: auto; min-height: 44px; padding-top: 8px; padding-bottom: 8px; white-space: normal; text-align: left; line-height: 1.25; }
 }
 
 @media (prefers-reduced-motion: reduce) {

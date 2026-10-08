@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import MistakeDiary, { mistakeOriginLabel } from './MistakeDiary';
@@ -280,17 +280,24 @@ describe('Mistake diary list', () => {
     expect(crumb.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('says in the intro that mistakes come from tests, ticket answers and oral exams', async () => {
+  it('says plainly in the intro where mistakes come from and what a row opens', async () => {
     api.from.mockReturnValue(listQuery({ data: rows, error: null }));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
 
-    expect(
-      await screen.findByText('Ошибки из тестов, ответов на билеты и устных экзаменов. Правильный ответ открывается по нажатию.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Ошибки из тестов и ответов на билеты. Нажмите на строку — откроется, что нужно было сказать.')).toBeInTheDocument();
+    // The old oral exam is gone: the intro does not promise it (its old mistakes still say where they came from).
+    expect(screen.queryByText(/устных экзаменов/)).toBeNull();
     expect(mistakeOriginLabel('oral_ticket')).toBe('Ответ на билет');
     expect(mistakeOriginLabel('quiz')).toBe('Тест');
     expect(mistakeOriginLabel('professor')).toBe('Устный экзамен');
     expect(mistakeOriginLabel(null)).toBe('Устный экзамен');
+    expect(document.title).toBe('Дневник ошибок — Meldy');
+  });
+
+  it('says what the practice costs from the plan’s prices', async () => {
+    api.from.mockReturnValue(listQuery({ data: rows, error: null }));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    expect(await screen.findByText(/Расходует 2 единицы дневного лимита ИИ, если задания получились\./)).toBeInTheDocument();
   });
 
   it('keeps the right answer hidden until the row is opened', async () => {
@@ -315,7 +322,153 @@ describe('Mistake diary list', () => {
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить дневник ошибок.');
-    expect(screen.queryByText('Пока пусто')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ошибок пока нет')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+  });
+});
+
+/**
+ * The diary's table for the list's actions: the load, then each update or delete answers with
+ * `writeError` (null: it worked). Records what was written.
+ */
+function diaryTable(data: unknown[], writes: { error: unknown; calls: string[] } = { error: null, calls: [] }) {
+  return () => {
+    let op = 'select';
+    const query: any = {};
+    query.select = vi.fn(() => query);
+    query.order = vi.fn(() => Promise.resolve({ data, error: null }));
+    query.update = vi.fn(() => {
+      op = 'update';
+      return query;
+    });
+    query.delete = vi.fn(() => {
+      op = 'delete';
+      return query;
+    });
+    query.in = vi.fn(() => Promise.resolve({ error: writes.error }));
+    query.eq = vi.fn((column: string, value: unknown) => {
+      if (op === 'select') return query;
+      writes.calls.push(`${op}:${String(value)}`);
+      return Promise.resolve({ error: writes.error });
+    });
+    return query;
+  };
+}
+
+describe('the points of a ticket answer (LIB-11) and the row actions (LIB-29)', () => {
+  const ticket = (id: string, point: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    origin: 'oral_ticket',
+    question: 'Реляционная модель данных: домен, атрибут, кортеж, отношение.',
+    correct_answer: `${point}. «Реляционная модель данных: ключи и связи», фрагмент 4: «Схема отношения — конечный набор пар «имя атрибута : домен»`,
+    student_answer: '(не названо)',
+    topic: 'Базы данных',
+    is_resolved: false,
+    created_at: '2026-10-07T09:00:00Z',
+    material_id: 'm1',
+    ...extra,
+  });
+  const diary = [
+    ticket('t-1', 'Схема отношения — конечный набор пар имя атрибута и домен'),
+    { id: 'q-1', origin: 'quiz', question: 'Что такое кортеж?', correct_answer: 'Строка отношения', student_answer: 'Столбец', topic: 'Базы данных', is_resolved: false, created_at: '2026-10-06T09:00:00Z', material_id: 'm1' },
+    ticket('t-2', 'Домен — множество допустимых значений атрибута', { student_answer: 'набор значений' }),
+  ];
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('shows the question once with its missed points as rows, dated as the other pages', async () => {
+    api.from.mockImplementation(diaryTable(diary));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+
+    expect(await screen.findAllByText('Реляционная модель данных: домен, атрибут, кортеж, отношение.')).toHaveLength(1);
+    const head = document.querySelector('.md-group-head .md-meta');
+    expect(head?.textContent).toBe('Ответ на билет · Базы данных · 7 окт. · 2 пункта');
+    const points = screen.getByRole('list', { name: /^Пункты ответа:/ });
+    expect(within(points).getAllByRole('button').map((row) => row.textContent)).toEqual([
+      'Схема отношения — конечный набор пар имя атрибута и домен',
+      'Домен — множество допустимых значений атрибута',
+    ]);
+    // A test's mistake stays a row of its own, with its date as «6 окт.», never «06.10.2026».
+    expect(screen.getByText('Тест · Базы данных · 6 окт.')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\d{2}\.\d{2}\.\d{4}/);
+  });
+
+  it('opens a point with the student’s words, or that it was not named, and the lecture’s words in nested quotes', async () => {
+    api.from.mockImplementation(diaryTable(diary));
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+
+    await user.click(await screen.findByRole('button', { name: /^Схема отношения/ }));
+    expect(screen.getByText('Вы не назвали этот пункт.')).toBeInTheDocument();
+    expect(screen.queryByText('(не названо)')).toBeNull();
+    expect(screen.getByText('Как сказано в лекции')).toBeInTheDocument();
+    expect(screen.getByText('«Схема отношения — конечный набор пар „имя атрибута : домен“»')).toBeInTheDocument();
+    expect(screen.getByText('Из лекции «Реляционная модель данных: ключи и связи», фрагмент 4')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^Домен/ }));
+    expect(screen.getByText('набор значений')).toBeInTheDocument();
+  });
+
+  it('asks before deleting, deletes only after the database did, and says when it could not', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const writes = { error: null as unknown, calls: [] as string[] };
+    api.from.mockImplementation(diaryTable(diary, writes));
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /^Схема отношения/ }));
+
+    // «Отмена»: nothing is deleted.
+    api.confirm.mockResolvedValueOnce(false);
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+    expect(api.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Удалить ошибку?', message: expect.stringContaining('«Работе над ошибками»') }));
+    expect(writes.calls).toEqual([]);
+
+    // The database refused: the row stays and says so.
+    writes.error = { message: 'offline' };
+    api.confirm.mockResolvedValueOnce(true);
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось удалить ошибку.');
+    expect(screen.getByRole('button', { name: /^Схема отношения/ })).toBeInTheDocument();
+
+    // It worked: the row goes.
+    writes.error = null;
+    api.confirm.mockResolvedValueOnce(true);
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Схема отношения/ })).toBeNull());
+    expect(writes.calls).toEqual(['delete:t-1', 'delete:t-1']);
+  });
+
+  it('keeps a mistake open when marking it fixed failed, and says so', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const writes = { error: { message: 'offline' } as unknown, calls: [] as string[] };
+    api.from.mockImplementation(diaryTable(diary, writes));
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /^Схема отношения/ }));
+    await user.click(screen.getByRole('button', { name: 'Отметить как исправленную' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось отметить ошибку.');
+    expect(screen.getByText('Открыто').closest('p')).toHaveTextContent(/^Открыто\s*3$/);
+    expect(writes.calls).toEqual(['update:t-1']);
+  });
+
+  it('tells a newcomer where mistakes come from, with one way to get there (LIB-14)', async () => {
+    api.from.mockImplementation(diaryTable([]));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Ошибок пока нет' })).toBeInTheDocument();
+    expect(screen.getByText(/пункты, которые вы не назвали в ответе на билет/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ответить на билет' })).toHaveAttribute('href', '/exams');
+    // Nothing to filter yet.
+    expect(screen.queryByRole('list', { name: 'Какие ошибки показать' })).toBeNull();
+  });
+
+  it('says that nothing is fixed yet on «Исправленные»', async () => {
+    api.from.mockImplementation(diaryTable(diary));
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: 'Исправленные' }));
+    expect(screen.getByRole('heading', { name: 'Исправленных пока нет' })).toBeInTheDocument();
   });
 });

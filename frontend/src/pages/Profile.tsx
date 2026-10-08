@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, updateProfile, uploadAvatar, UserProfile } from '../api/social';
-import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, Edit3, X, Bell, BellOff, Camera, Star } from 'lucide-react';
+import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, Edit3, X, Bell, BellOff, Camera, Star, Ticket } from 'lucide-react';
 import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
 import UniversitySelect from '../components/UniversitySelect';
 import toast from 'react-hot-toast';
@@ -9,17 +9,80 @@ import ImageCropper from '../components/ImageCropper';
 import AnswerTextsSetting from '../components/oral/AnswerTextsSetting';
 import DailyReminder from '../components/reminders/DailyReminder';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
+import { supabase } from '../lib/supabase';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { pluralRu } from '../components/conversation/visuals';
+import { studyStreak, windowStart, type JournalDay, type SessionDay } from '../lib/learning/studyDays';
+import './Profile.css';
+
+/** How far back the streak looks: a longer streak still counts these days. */
+const STREAK_DAYS = 60;
+
+/**
+ * The three figures of the profile, counted live from the student's own rows (LIB-13). The old
+ * profiles.streak_days / total_materials / total_reviews columns are no longer written by anyone
+ * since the browser lost write access to them (migration 20260924055024), so they read 0 for every
+ * account. Each figure is null when it could not be counted: the page then shows «—», never a 0.
+ */
+export interface ProfileStats {
+  /** Days of study in a row: cards, ticket answers or tests (lib/learning/studyDays). */
+  streak: number | null;
+  /** The student's lectures (materials), as «Лекции» lists them. */
+  lectures: number | null;
+  /** Answers to exam tickets, spoken or typed (exam_answer in the learning journal). */
+  answers: number | null;
+}
+
+export async function loadProfileStats(userId: string, now: Date = new Date()): Promise<ProfileStats> {
+  // HEAD requests with count=exact: no rows are transferred.
+  const counted = async (run: () => PromiseLike<{ count: number | null; error: unknown }>): Promise<number | null> => {
+    try {
+      const { count, error } = await run();
+      return error || typeof count !== 'number' ? null : Math.max(0, count);
+    } catch {
+      return null;
+    }
+  };
+  const streak = async (): Promise<number | null> => {
+    try {
+      const since = windowStart(STREAK_DAYS, now);
+      const [sessions, events] = await Promise.all([
+        supabase.from('study_sessions').select('date, cards_reviewed').eq('user_id', userId).gte('date', since),
+        supabase
+          .from('learning_events')
+          .select('kind, local_date')
+          .eq('user_id', userId)
+          .in('kind', ['exam_answer', 'quiz_answer'])
+          .gte('local_date', since)
+          .order('local_date', { ascending: false })
+          .limit(5000),
+      ]);
+      if (sessions.error || events.error) return null;
+      return studyStreak({ sessions: (sessions.data ?? []) as SessionDay[], events: (events.data ?? []) as JournalDay[] }, now);
+    } catch {
+      return null;
+    }
+  };
+  const [days, lectures, answers] = await Promise.all([
+    streak(),
+    counted(() => supabase.from('materials').select('id', { count: 'exact', head: true }).eq('user_id', userId)),
+    counted(() => supabase.from('learning_events').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('kind', 'exam_answer')),
+  ]);
+  return { streak: days, lectures, answers };
+}
 
 /**
  * Профиль (Meldy 2026-10-04): белая карточка с цветной обложкой и аватаром, действия — пилюли,
- * цифры — в отдельных карточках. Стили — .ac-* в styles/legacy.css. Только свой профиль.
+ * цифры — в отдельных карточках. Стили — .ac-* в styles/legacy.css и Profile.css. Только свой профиль.
  */
 export default function Profile() {
+  useDocumentTitle('Профиль');
   const { user } = useAuth();
   const userId = user?.id;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<ProfileStats | null>(null);
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -32,6 +95,17 @@ export default function Profile() {
   // Avatar Upload state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return undefined;
+    let cancelled = false;
+    void loadProfileStats(userId).then((value) => {
+      if (!cancelled) setStats(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -136,10 +210,11 @@ export default function Profile() {
     );
   }
 
-  const stats = [
-    { label: 'Дней подряд', value: profile.streak_days || 0, icon: Trophy, tone: 'p' },
-    { label: 'Материалов', value: profile.total_materials || 0, icon: BookOpen, tone: 'b' },
-    { label: 'Повторений', value: profile.total_reviews || 0, icon: GraduationCap, tone: 'g' },
+  // Counted live (LIB-13); «—» while counting or when a figure could not be read, never an invented 0.
+  const figures = [
+    { key: 'streak', value: stats?.streak ?? null, forms: ['день подряд', 'дня подряд', 'дней подряд'] as const, icon: Trophy, tone: 'p' },
+    { key: 'lectures', value: stats?.lectures ?? null, forms: ['лекция', 'лекции', 'лекций'] as const, icon: BookOpen, tone: 'b' },
+    { key: 'answers', value: stats?.answers ?? null, forms: ['ответ на билет', 'ответа на билеты', 'ответов на билеты'] as const, icon: Ticket, tone: 'g' },
   ];
 
   return (
@@ -256,14 +331,24 @@ export default function Profile() {
         </section>
       )}
 
-      <div className="ac-stats ac-rise">
-        {stats.map(({ label, value, icon: Icon, tone }) => (
-          <div key={label} className="ac-stat">
+      <div className="ac-stats ac-rise" aria-busy={stats === null}>
+        {figures.map(({ key, value, forms, icon: Icon, tone }) => (
+          <div key={key} className="ac-stat" data-stat={key}>
             <span className={`ac-stat-i ac-stat-i--${tone}`} aria-hidden="true">
               <Icon />
             </span>
-            <span className="ac-stat-v">{value}</span>
-            <span className="ac-stat-l">{label}</span>
+            <span className="ac-stat-v">
+              {value === null ? (
+                <>
+                  <span aria-hidden="true">—</span>
+                  <span className="sr-only">{stats === null ? 'считаем' : 'не удалось посчитать'}</span>
+                </>
+              ) : (
+                value
+              )}
+            </span>
+            {/* The word agrees with the number: «1 день подряд», «3 лекции», «14 ответов на билеты». */}
+            <span className="ac-stat-l">{pluralRu(value ?? 0, forms)}</span>
           </div>
         ))}
       </div>

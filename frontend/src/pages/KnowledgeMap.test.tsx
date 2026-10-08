@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import KnowledgeMap from './KnowledgeMap';
+import KnowledgeMap, { conceptsShown, sharedChoiceLabel, sharedChoiceLine } from './KnowledgeMap';
 import { sampleRows, type SampleRows } from '../components/knowledge/sampleCourse';
+import type { MapConcept, MapView } from '../components/knowledge/model';
 
 const api = vi.hoisted(() => ({ from: vi.fn() }));
 
@@ -155,6 +156,15 @@ describe('what the map shows', () => {
     ]);
   });
 
+  it('draws the legend’s marks on «№», so the only number of an item is its count (LIB-24)', async () => {
+    await renderMap();
+    const legend = screen.getByRole('list', { name: 'Показать на карте' });
+    expect(Array.from(legend.querySelectorAll('.km-num-t')).map((sample) => sample.textContent)).toEqual(['№', '№', '№', '№']);
+    // The word, then its count: one number per item.
+    expect(within(legend).getByRole('button', { name: /^подтверждено \d+$/ }).textContent).toMatch(/^№подтверждено \d+$/);
+    expect(document.title).toBe('Карта знаний — Meldy');
+  });
+
   it('lights the lectures a legend filter is about and fades the others', async () => {
     const user = userEvent.setup();
     await renderMap();
@@ -283,6 +293,34 @@ describe('on a phone', () => {
     // The map is one tap away.
     await user.click(screen.getByRole('button', { name: 'Карта' }));
     expect(screen.getByRole('group', { name: /^Карта связей/ })).toBeInTheDocument();
+  });
+
+  it('keeps the search hint short enough for the phone’s field, the label whole (LIB-24)', async () => {
+    renderPage();
+    const search = await screen.findByRole('searchbox', { name: 'Найти лекцию или понятие' });
+    expect(search).toHaveAttribute('placeholder', 'Найти');
+  });
+});
+
+describe('the words of «Понятия» (LIB-24)', () => {
+  const concept = (shared: boolean, weak: boolean) => ({ shared, weak }) as unknown as MapConcept;
+  const view = (shared: number, concepts: Array<ReturnType<typeof concept>>) =>
+    ({ counts: { shared }, conceptByKey: new Map(concepts.map((item, index) => [`k${index}`, item])) }) as unknown as MapView;
+
+  it('names what the first choice shows: shared concepts, concepts with open mistakes, or both', () => {
+    const none = conceptsShown(view(0, [concept(false, true), concept(false, true), concept(false, false)]));
+    expect(none).toEqual({ shared: 0, weak: 2 });
+    expect(sharedChoiceLabel(none)).toBe('с ошибками');
+    expect(sharedChoiceLine(none)).toBe('Общих понятий нет — показаны понятия с открытыми ошибками.');
+
+    const both = conceptsShown(view(2, [concept(true, true), concept(true, false), concept(false, true)]));
+    expect(both).toEqual({ shared: 2, weak: 1 });
+    expect(sharedChoiceLabel(both)).toBe('общие и с ошибками');
+    expect(sharedChoiceLine(both)).toBe('Показаны общие понятия и понятия с открытыми ошибками.');
+
+    expect(sharedChoiceLabel({ shared: 3, weak: 0 })).toBe('общие');
+    expect(sharedChoiceLine({ shared: 3, weak: 0 })).toBe('Показаны общие понятия.');
+    expect(sharedChoiceLine({ shared: 0, weak: 0 })).toBe('Общих понятий нет.');
   });
 });
 

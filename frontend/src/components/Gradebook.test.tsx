@@ -3,15 +3,17 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import Gradebook from './Gradebook';
+import Gradebook, { scanCostLine } from './Gradebook';
+import { AI_COSTS } from '../lib/plans';
 
-const rows: Record<string, unknown[]> = {
+const FILLED: Record<string, unknown[]> = {
   academic_subjects: [{ id: 's1', name: 'Физика', color: '#2869dd', target_grade: 4.5 }],
   academic_grades: [
     { id: 'g1', subject_id: 's1', value: 5, weight: 1, date: '2026-10-01' },
     { id: 'g2', subject_id: 's1', value: 4, weight: 1, date: '2026-10-02' },
   ],
 };
+let rows: Record<string, unknown[]> = FILLED;
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
@@ -37,9 +39,30 @@ function renderGradebook() {
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  rows = FILLED;
+});
 
 describe('Gradebook', () => {
+  it('says what a recognition by photo costs, from the plan’s prices (LIB-18)', async () => {
+    renderGradebook();
+    await screen.findByRole('button', { name: 'Физика' });
+    expect(AI_COSTS.gradebookScan).toBe(1);
+    expect(scanCostLine).toBe('Распознавание по фото расходует 1 единицу дневного лимита ИИ.');
+    expect(screen.getByText(scanCostLine)).toBeInTheDocument();
+  });
+
+  it('explains an empty list of subjects and offers to add one (LIB-34)', async () => {
+    rows = { academic_subjects: [], academic_grades: [] };
+    const user = userEvent.setup();
+    renderGradebook();
+    expect(await screen.findByText('Предметов пока нет')).toBeInTheDocument();
+    expect(screen.getByText(/распознайте фото зачётки: предметы из неё появятся здесь сами/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Добавить предмет' }));
+    expect(await screen.findByRole('dialog', { name: 'Новый предмет' })).toBeInTheDocument();
+  });
+
   it('opens a subject from the keyboard and asks before deleting it from the subject view', async () => {
     const user = userEvent.setup();
     renderGradebook();

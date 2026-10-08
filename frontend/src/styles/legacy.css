@@ -880,9 +880,8 @@
   .ac-card { padding: 24px 20px; border-radius: 32px; }
   .ac-card-h { font-size: 23px; margin-bottom: 16px; }
   .ac-form-row { grid-template-columns: minmax(0, 1fr); }
-  /* Two columns; the third figure takes the whole row. */
-  .ac-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .ac-stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* The three figures in one row (LIB-26; the tiles are smaller there, pages/Profile.css). */
+  .ac-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .ac-stat { padding: 18px 16px; border-radius: 26px; }
   .ac-stat-i { width: 36px; height: 36px; margin-bottom: 10px; }
   .ac-stat-v { font-size: 30px; }

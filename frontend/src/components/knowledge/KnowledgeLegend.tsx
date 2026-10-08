@@ -7,7 +7,11 @@ import { READINESS_ORDER } from './copy';
  * The legend above the map is also its filter (as on the exam sheet): the four readiness marks of the
  * question numbers, open mistakes and due cards, each with its count. Choosing one lights the
  * lectures (and concepts) it is about; choosing it again shows everything.
+ *
+ * A mark's sample is drawn on «№», not on a number: «12 подтверждено 0» read as two numbers (LIB-24),
+ * and the only number of an item is its count.
  */
+export const LEGEND_SAMPLE = '№';
 interface LegendProps {
   view: MapView;
   highlight: Highlight | null;
@@ -24,7 +28,7 @@ export default function KnowledgeLegend({ view, highlight, onToggle }: LegendPro
       items.push({
         key: `rd:${value}`,
         highlight: { kind: 'readiness', value },
-        mark: <NumberMark number="12" readiness={value} seed={311 + index * 2} />,
+        mark: <NumberMark number={LEGEND_SAMPLE} readiness={value} seed={311 + index * 2} />,
         word: READINESS_LABELS[value],
         count: readiness[value],
       });

@@ -9,8 +9,22 @@ import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
 import { AI_COSTS } from '../lib/plans';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
+import { pluralRu } from './conversation/visuals';
 import './Gradebook.css';
+
+/** The price of one recognition, from lib/plans (the server charges the same): said before the photo is sent. */
+export const scanCostLine = `Распознавание по фото расходует ${AI_COSTS.gradebookScan} ${pluralRu(AI_COSTS.gradebookScan, ['единицу', 'единицы', 'единиц'])} дневного лимита ИИ.`;
+
+/** «7 окт.» as the other pages date things; the stored day as it is when it cannot be read. */
+function gradeDay(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return format(date, date.getFullYear() === new Date().getFullYear() ? 'd MMM' : 'd MMM yyyy', { locale: ru });
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -80,7 +94,7 @@ export default function Gradebook() {
   const [scanImages, setScanImages] = useState<string[]>([]);
   const [scanMessages, setScanMessages] = useState<ChatMessage[]>([{
     role: 'assistant',
-    content: 'Привет! Загрузите фото дневника или зачётки (можно несколько), и я помогу автоматически перенести оценки. Можете добавить текст (например, "Я Иванов Иван, предмет физика").'
+    content: 'Загрузите фото зачётки или дневника (можно несколько) — Meldy перенесёт оценки по предметам. Можно добавить текст, например: «Иванов Иван, предмет физика».'
   }]);
   const [scanning, setScanning] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -111,7 +125,7 @@ export default function Gradebook() {
       queryClient.invalidateQueries({ queryKey: ['academic_subjects'] });
       setShowAddSubject(false);
       setNewSubName('');
-      toast.success('Предмет успешно добавлен!');
+      toast.success('Предмет добавлен');
     },
     onError: () => toast.error('Не удалось добавить предмет. Попробуйте ещё раз.'),
   });
@@ -147,7 +161,7 @@ export default function Gradebook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
       setShowAddGrade(false);
-      toast.success('Оценка сохранена!');
+      toast.success('Оценка сохранена');
     },
     onError: () => toast.error('Не удалось сохранить оценку. Проверьте данные и попробуйте ещё раз.'),
   });
@@ -456,7 +470,7 @@ export default function Gradebook() {
               ) : subGrades.map(g => (
                 <tr key={g.id}>
                   <td className="gb-grade">{g.value}</td>
-                  <td className="gb-muted">{new Date(g.date).toLocaleDateString()}</td>
+                  <td className="gb-muted">{gradeDay(g.date)}</td>
                   <td className="gb-right">
                     <button type="button" onClick={() => deleteGradeMutation.mutate(g.id)} className="gb-icon-btn gb-danger" aria-label="Удалить оценку" title="Удалить оценку">
                       <Trash2 aria-hidden="true" />
@@ -484,14 +498,18 @@ export default function Gradebook() {
             <span className="gb-avg-of">из {maxScore.toFixed(0)}</span>
           </p>
         </div>
-        <div className="gb-hero-acts">
-          <button type="button" onClick={() => setShowScan(true)} className="sf-secondary gb-with-icon">
-            <Camera aria-hidden="true" />
-            <span>Распознать по фото</span>
-          </button>
-          <button type="button" onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="sf-primary">
-            <span>Добавить оценку</span>
-          </button>
+        <div className="gb-hero-side">
+          <div className="gb-hero-acts">
+            <button type="button" onClick={() => setShowScan(true)} className="sf-secondary gb-with-icon">
+              <Camera aria-hidden="true" />
+              <span>Распознать по фото</span>
+            </button>
+            <button type="button" onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="sf-primary">
+              <span>Добавить оценку</span>
+            </button>
+          </div>
+          {/* The price is said before the photo is sent, as next to «Начать работу над ошибками» (LIB-18). */}
+          <p className="gb-cost">{scanCostLine}</p>
         </div>
       </section>
 
@@ -513,7 +531,17 @@ export default function Gradebook() {
         </div>
       </div>
 
-      {viewMode === 'cards' ? (
+      {subjectStats.length === 0 ? (
+        // No subjects yet (LIB-34): what the list will hold and how it fills, instead of an empty space.
+        <div className="gb-card gb-empty">
+          <p className="gb-empty-t">Предметов пока нет</p>
+          <p className="gb-quiet">Добавьте предмет и его оценки или распознайте фото зачётки: предметы из неё появятся здесь сами.</p>
+          <button type="button" onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="sf-secondary gb-with-icon gb-empty-act">
+            <Plus aria-hidden="true" />
+            Добавить предмет
+          </button>
+        </div>
+      ) : viewMode === 'cards' ? (
         <div className="gb-grid">
           {subjectStats.map(sub => (
             <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="gb-subject">
@@ -535,7 +563,7 @@ export default function Gradebook() {
                 </span>
                 <span className="gb-subject-meta">
                   <span>Цель: {sub.target_grade.toFixed(1)}</span>
-                  <span>{sub.count} оценок</span>
+                  <span>{sub.count} {pluralRu(sub.count, ['оценка', 'оценки', 'оценок'])}</span>
                 </span>
               </div>
               <div className="gb-track" aria-hidden="true">
@@ -701,7 +729,7 @@ export default function Gradebook() {
                       {msg.images && msg.images.length > 0 && (
                         <div className="gb-shots" data-one={msg.images.length === 1 ? '' : undefined}>
                           {msg.images.map((img, idx) => (
-                            <img key={idx} src={`data:image/jpeg;base64,${img}`} alt="Scan target" className="gb-shot" />
+                            <img key={idx} src={`data:image/jpeg;base64,${img}`} alt="Фото с оценками" className="gb-shot" />
                           ))}
                         </div>
                       )}
@@ -712,7 +740,7 @@ export default function Gradebook() {
                 {scanning && (
                   <div className="gb-msg" data-role="assistant">
                     <div className="gb-bubble gb-busy" role="status">
-                      Изучаю оценки...
+                      Распознаём оценки…
                     </div>
                   </div>
                 )}
@@ -723,7 +751,7 @@ export default function Gradebook() {
                   <div className="gb-previews">
                     {scanImages.map((img, idx) => (
                       <div key={idx} className="gb-preview">
-                        <img src={`data:image/jpeg;base64,${img}`} alt="Preview" />
+                        <img src={`data:image/jpeg;base64,${img}`} alt="Выбранное фото" />
                         <button type="button" onClick={() => setScanImages(prev => prev.filter((_, i) => i !== idx))} className="gb-preview-x" aria-label="Убрать фото">
                           <X aria-hidden="true" />
                         </button>
@@ -738,7 +766,7 @@ export default function Gradebook() {
                     <span className="sr-only">Добавить фото</span>
                   </label>
                   <textarea
-                    placeholder="Напишите комментарий..."
+                    placeholder="Комментарий к фото"
                     aria-label="Комментарий"
                     value={scanText}
                     onChange={e => setScanText(e.target.value)}
@@ -761,6 +789,7 @@ export default function Gradebook() {
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                   </button>
                 </div>
+                <p className="gb-cost gb-cost-foot">{scanCostLine}</p>
               </div>
             </motion.div>
           </div>

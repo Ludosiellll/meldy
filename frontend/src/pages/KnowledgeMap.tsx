@@ -19,14 +19,42 @@ import {
   neighbourhood,
   searchNodes,
   subjectsOf,
+  MAX_WEAK_SINGLE,
   type Highlight,
   type MapView,
   type NodeId,
 } from '../components/knowledge/model';
 import { useKnowledgeData } from '../components/knowledge/useKnowledgeData';
 import SectionCrumb from '../components/SectionCrumb';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { ty } from '../components/landing/typo';
 import '../styles/paper.css';
 import '../components/knowledge/knowledge.css';
+
+/**
+ * What «Понятия» shows besides «все» (LIB-24): the concepts shared by lectures, and next to them the
+ * concepts of one lecture with an open mistake (buildMapView adds those). The words name both, so
+ * «общие 0» never stands over a map that shows five concepts.
+ */
+export function conceptsShown(view: Pick<MapView, 'counts' | 'conceptByKey'>): { shared: number; weak: number } {
+  let weak = 0;
+  for (const concept of view.conceptByKey.values()) if (!concept.shared && concept.weak) weak += 1;
+  return { shared: view.counts.shared, weak: Math.min(weak, MAX_WEAK_SINGLE) };
+}
+
+/** The first choice of «Понятия»: «общие», «с ошибками» or «общие и с ошибками». */
+export function sharedChoiceLabel(shown: { shared: number; weak: number }): string {
+  if (shown.weak === 0) return 'общие';
+  return shown.shared === 0 ? 'с ошибками' : 'общие и с ошибками';
+}
+
+/** The line over the list in that choice. */
+export function sharedChoiceLine(shown: { shared: number; weak: number }): string {
+  if (shown.shared === 0 && shown.weak === 0) return 'Общих понятий нет.';
+  if (shown.shared === 0) return 'Общих понятий нет — показаны понятия с открытыми ошибками.';
+  if (shown.weak === 0) return 'Показаны общие понятия.';
+  return 'Показаны общие понятия и понятия с открытыми ошибками.';
+}
 
 /**
  * «Карта знаний»: the student's lectures as index cards in rows, in their order, and between the rows
@@ -81,6 +109,7 @@ function nodeDrawn(view: MapView, node: NodeId): boolean {
 }
 
 export default function KnowledgeMap() {
+  useDocumentTitle('Карта знаний');
   const { user } = useAuth();
   const { status, input, missing, retry } = useKnowledgeData(user?.id);
   const frame = useFrame<HTMLDivElement>();
@@ -311,6 +340,7 @@ export default function KnowledgeMap() {
     ) : null;
 
   const showToggle = view.counts.concepts > 0 && (view.counts.shared < view.counts.concepts || showAll);
+  const shown = conceptsShown(view);
   // On the sheet's top left on computers; on a phone the sheet is too narrow, so it stands above it.
   const conceptsToggle = showToggle ? (
     <div className={phone ? 'km-show km-show-desk' : 'km-show'}>
@@ -318,7 +348,8 @@ export default function KnowledgeMap() {
       <ul className="sf-tabs" aria-label="Какие понятия показать">
         <li>
           <button type="button" aria-pressed={!showAll} onClick={() => setShowAll(false)}>
-            общие<span className="sf-tabs-n">{view.counts.shared}</span>
+            {sharedChoiceLabel(shown)}
+            <span className="sf-tabs-n">{shown.shared + shown.weak}</span>
           </button>
         </li>
         <li>
@@ -341,7 +372,8 @@ export default function KnowledgeMap() {
         <div className="min-w-0">
           <SectionCrumb to="/analytics" label="Прогресс" />
           <h1 className="sf-h1">Карта знаний</h1>
-          {lede ? <p className="sf-lede">{lede}</p> : null}
+          {/* «через 13 дней» and «21 октября» stay whole at the end of a line. */}
+          {lede ? <p className="sf-lede">{ty(lede).replace(/через /g, 'через\u00a0').replace(/(\d) (?=[а-яё])/gi, '$1\u00a0')}</p> : null}
         </div>
         {exam ? (
           <Link className="sf-secondary" to={`/exams/${exam.id}`}>
@@ -388,7 +420,8 @@ export default function KnowledgeMap() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onSearchKey}
-            placeholder="Найти лекцию или понятие"
+            // A phone's field is narrow: the whole phrase was cut to «Найти лекцию ил» (LIB-24); the label says it all.
+            placeholder={phone ? 'Найти' : 'Найти лекцию или понятие'}
             aria-label="Найти лекцию или понятие"
           />
           <ul className="sf-tabs" aria-label="Вид">
@@ -471,9 +504,9 @@ export default function KnowledgeMap() {
           <div className="km-main">
             {showToggle ? (
               <p className="km-quiet" style={{ marginBottom: 6 }}>
-                {showAll ? `Показаны все понятия: ${count(view.counts.concepts, CONCEPTS)}. ` : `Показаны общие понятия. `}
+                {showAll ? `Показаны все понятия: ${count(view.counts.concepts, CONCEPTS)}. ` : `${ty(sharedChoiceLine(shown))} `}
                 <button type="button" className="sf-link" onClick={() => setShowAll((value) => !value)}>
-                  {showAll ? 'Только общие' : `Все понятия (${view.counts.concepts})`}
+                  {showAll ? `Только ${sharedChoiceLabel(shown)}` : `Все понятия (${view.counts.concepts})`}
                 </button>
               </p>
             ) : null}

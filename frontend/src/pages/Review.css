@@ -54,6 +54,7 @@
   text-overflow: ellipsis;
 }
 .rv-where b { font-weight: 600; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.rv-total { font-variant-numeric: tabular-nums; }
 .rv-end { flex: none; }
 
 /* A calm line: the share of the queue that is done, in the one blue. */
@@ -162,7 +163,30 @@
 }
 
 /* ---------------------------------------------------------------- under the card */
-.rv-controls { margin-top: 54px; }
+/* The controls follow the reader (LIB-1): when the card is taller than the window — a long answer, a
+   phone — «Перевернуть» and then the three words stay at the foot of the screen, above the phone's
+   tab bar and its safe area, over a fade of the canvas; scrolled to the end, they sit under the card
+   as before. The fade starts 20 px above the pills (34 + 20 = the old 54 px gap; the cards peeking
+   under the deck end 32 px below it). */
+.rv-controls {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  /* 12 px wider than the column on each side, so a stuck row also covers the card's ring. */
+  margin: 34px -12px 0;
+  padding: 20px 12px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, transparent, var(--sf-canvas) 20px);
+  scroll-margin-bottom: 16px;
+}
+@media (max-width: 1023px) {
+  /* Above the bottom tabs: the bar is --sf-tabs-h tall plus the safe area (components/layout.css). */
+  .sf-shell[data-tabs] .rv .rv-controls {
+    bottom: calc(var(--sf-tabs-h, 62px) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 12px;
+    scroll-margin-bottom: calc(var(--sf-tabs-h, 62px) + env(safe-area-inset-bottom, 0px) + 12px);
+  }
+}
+.rv-controls + .rv-diary { margin-top: 38px; }
 .rv-flip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; }
 .rv-flip-row .rv-quiet { flex: 1 1 16em; }
 .rv-judged { margin: 0; font-size: 19px; line-height: 28px; font-weight: 500; color: var(--sf-ink); }
@@ -222,6 +246,7 @@
 }
 .rv-empty .rv-art { margin-bottom: 18px; }
 .rv-empty .rv-acts { justify-content: center; }
+.rv-empty-p { max-width: 34em; }
 .rv-note-card {
   padding: 32px 36px;
   border-radius: 40px;
@@ -413,7 +438,10 @@
   .rv-a[data-long] { font-size: 17px; }
   .rv-hand { right: 18px; top: 14px; }
   .rv-when { right: 22px; top: 24px; }
-  .rv-controls { margin-top: 40px; }
+  /* 22 + 18 = the old 40 px gap; the card's own label names where it comes from. */
+  .rv-controls { margin: 22px -8px 0; padding-top: 18px; padding-left: 8px; padding-right: 8px; background: linear-gradient(to bottom, transparent, var(--sf-canvas) 16px); }
+  .rv-controls + .rv-diary { margin-top: 28px; }
+  .rv-ctx { display: none; }
   .rv-grades { gap: 8px; }
   .rv-grade { justify-content: center; min-height: 54px; padding: 6px 8px; font-size: 16px; text-align: center; }
   .rv-key { display: none; }
@@ -427,6 +455,26 @@
   .rv-days-h { font-size: 24px; }
   .rv-cols { grid-template-columns: minmax(0, 1fr); }
   .rv-day { border-radius: 32px; }
+}
+
+/* The narrowest phones: «всего на сегодня 24» goes under «1 из 20» instead of being cut, and the three
+   words keep one line each. */
+@media (max-width: 374px) {
+  .rv-top { align-items: flex-start; }
+  .rv-where { white-space: normal; }
+  .rv-where b,
+  .rv-total { white-space: nowrap; }
+  .rv-total { display: block; }
+  .rv-sep {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .rv-grade { padding: 6px 4px; font-size: 15px; letter-spacing: -.01em; }
 }
 
 @media (prefers-reduced-motion: reduce) {
