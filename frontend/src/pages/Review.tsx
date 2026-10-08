@@ -8,7 +8,7 @@ import 'katex/dist/katex.min.css';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
-import { getDueCards, updateCardProgress, type DueCard } from '../api/flashcards';
+import { countDueCards, getDueCards, updateCardProgress, type DueCard } from '../api/flashcards';
 import { recordStudyActivity } from '../api/studyActivity';
 import { newEventId } from '../api/learning';
 import { supabase } from '../lib/supabase';
@@ -19,6 +19,10 @@ import './Review.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { stripSourceMarkers } from '../components/summary/fragmentModel';
 import { countBucket, track } from '../lib/telemetry';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { sessionTotalWords } from '../lib/learning/cardCounts';
+import { localDateKey } from '../utils/streak';
+import { ty } from '../components/landing/typo';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -150,6 +154,103 @@ function MistakesEntry({ count }: { count: number | null }) {
   );
 }
 
+/**
+ * What an empty queue means: how many cards the student has at all (of the material, with
+ * `?material`), how many come later today and when the next one comes. Each part is null when it
+ * cannot be read, and the page then says only what it knows.
+ */
+export interface ReviewOutlook {
+  total: number | null;
+  laterToday: number | null;
+  nextAt: string | null;
+}
+
+/** The first moment of the next local day, for «later today». */
+function startOfTomorrow(now: Date): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+}
+
+export async function reviewOutlook(userId: string, materialId: string | null, now: Date = new Date()): Promise<ReviewOutlook> {
+  const nowIso = now.toISOString();
+  const tomorrowIso = startOfTomorrow(now).toISOString();
+  // HEAD requests with count=exact: no rows are transferred.
+  const count = async (later: boolean): Promise<number | null> => {
+    try {
+      let query = supabase.from('flashcard_progress').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+      if (materialId) query = query.eq('material_id', materialId);
+      if (later) query = query.gt('next_review', nowIso).lt('next_review', tomorrowIso);
+      const { count: value, error } = await query;
+      return error || typeof value !== 'number' ? null : Math.max(0, value);
+    } catch {
+      return null;
+    }
+  };
+  const next = async (): Promise<string | null> => {
+    try {
+      let query = supabase.from('flashcard_progress').select('next_review').eq('user_id', userId).gt('next_review', nowIso);
+      if (materialId) query = query.eq('material_id', materialId);
+      const { data, error } = await query.order('next_review', { ascending: true }).limit(1);
+      const value = !error && Array.isArray(data) ? (data[0] as { next_review?: unknown } | undefined)?.next_review : null;
+      return typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null;
+    } catch {
+      return null;
+    }
+  };
+  const [total, laterToday, nextAt] = await Promise.all([count(false), count(true), next()]);
+  return { total, laterToday, nextAt };
+}
+
+/** «сегодня в 18:40», «завтра», «12 октября»: when the next card comes. */
+export function nextReviewWords(iso: string, now: Date = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const day = localDateKey(date);
+  if (day === localDateKey(now)) return `сегодня в ${format(date, 'H:mm')}`;
+  if (day === localDateKey(startOfTomorrow(now))) return 'завтра';
+  return format(date, date.getFullYear() === now.getFullYear() ? 'd MMMM' : 'd MMMM yyyy', { locale: ru });
+}
+
+/** «Ещё 2 карточки придут сегодня, первая — в 18:40.» or ''. */
+function laterTodaySentence(later: number, nextAt: string | null, now: Date): string {
+  if (later <= 0) return '';
+  const time = nextAt && localDateKey(new Date(nextAt)) === localDateKey(now) ? format(new Date(nextAt), 'H:mm') : '';
+  if (later === 1) return `Ещё одна карточка придёт сегодня${time ? ` в ${time}` : ''}.`;
+  return `Ещё ${later} ${pluralRu(later, ['карточка придёт', 'карточки придут', 'карточек придут'])} сегодня${time ? `, первая — в ${time}` : ''}.`;
+}
+
+/**
+ * The words of an empty queue (LIB-14): a student without cards hears where cards come from, a day
+ * with more cards later says when they come, a finished day says when the next review is. With
+ * `material`, the same for one lecture. `kind` picks the actions: 'none' has one, «Разобрать лекцию».
+ */
+export function emptyQueueCopy(
+  outlook: ReviewOutlook | null,
+  material: boolean,
+  now: Date = new Date(),
+): { kind: 'none' | 'later' | 'done' | 'unknown'; title: string; text: string } {
+  const later = outlook?.laterToday ?? 0;
+  const next = outlook?.nextAt ? nextReviewWords(outlook.nextAt, now) : '';
+  if (material) {
+    if (outlook?.total === 0) return { kind: 'none', title: 'Карточек этой лекции в повторении нет', text: 'Карточки попадают в повторение после разбора лекции.' };
+    const title = 'Карточек этой лекции к повторению сейчас нет';
+    if (later > 0) return { kind: 'later', title, text: laterTodaySentence(later, outlook?.nextAt ?? null, now) };
+    return { kind: next ? 'done' : 'unknown', title, text: next ? `Следующее повторение — ${next}.` : 'Срок следующего повторения ещё не наступил.' };
+  }
+  if (outlook?.total === 0) {
+    return {
+      kind: 'none',
+      title: 'Карточек пока нет',
+      text: 'Они появятся после разбора лекции. Сюда же придут вопросы экзаменатора, на которые вы не ответили в билете.',
+    };
+  }
+  if (later > 0) return { kind: 'later', title: 'Сейчас повторять нечего', text: laterTodaySentence(later, outlook?.nextAt ?? null, now) };
+  if (outlook && outlook.total !== null && outlook.laterToday === 0) {
+    return { kind: 'done', title: 'На сегодня всё', text: next ? `Следующее повторение — ${next}.` : 'Карточек с наступившим сроком повторения нет.' };
+  }
+  // The counts could not be read: only what is certain.
+  return { kind: 'unknown', title: 'Сейчас повторять нечего', text: 'Карточек с наступившим сроком повторения нет.' };
+}
+
 /** Titles of the cards' lectures, for the face and the back of a card; nothing when they cannot be read. */
 async function loadLectureTitles(cards: DueCard[]): Promise<Record<string, string>> {
   const ids = Array.from(new Set(cards.map((card) => card.material_id).filter((id): id is string => typeof id === 'string' && UUID.test(id))));
@@ -180,12 +281,18 @@ async function loadLectureTitles(cards: DueCard[]): Promise<Record<string, strin
  * No sounds, no traffic-light buttons, no spinner.
  */
 export default function Review() {
+  useDocumentTitle('Повторение');
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const materialParam = searchParams.get('material');
   const materialFilter = materialParam ? materialParam.trim() : null;
   const [cards, setCards] = useState<DueCard[]>([]);
+  /** All cards due now when the session holds only the first page of them (decision 4: «всего на сегодня»). */
+  const [dueTotal, setDueTotal] = useState<number | null>(null);
+  /** What an empty queue means (no cards yet, more later today, the next day); null until read. */
+  const [outlook, setOutlook] = useState<ReviewOutlook | null>(null);
+  const loadSeq = useRef(0);
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -226,15 +333,30 @@ export default function Review() {
       setLoading(false);
       return;
     }
+    const seq = (loadSeq.current += 1);
+    const userId = user.id;
     setLoading(true);
     setLoadError(null);
     setSaveError(null);
+    setDueTotal(null);
     processingRef.current = false;
     try {
-      const data =
-        materialFilter && !UUID.test(materialFilter)
-          ? []
-          : await getDueCards(user.id, materialFilter ? { materialId: materialFilter } : {});
+      const validFilter = !materialFilter || UUID.test(materialFilter);
+      const scope = materialFilter ? { materialId: materialFilter } : {};
+      const data = validFilter ? await getDueCards(userId, scope) : [];
+      // An empty queue waits for its meaning, so «Карточек пока нет» never flashes «На сегодня всё» first.
+      const meaning = data.length === 0 && validFilter ? await reviewOutlook(userId, materialFilter) : null;
+      if (seq !== loadSeq.current) return;
+      setOutlook(meaning);
+      if (data.length >= QUEUE_SIZE) {
+        // A full page: more cards may be due than this session holds.
+        void Promise.resolve()
+          .then(() => countDueCards(userId, scope))
+          .then((value) => {
+            if (seq === loadSeq.current) setDueTotal(value);
+          })
+          .catch(() => undefined);
+      }
       setCards(data);
       setIdx(0);
       setFlipped(false);
@@ -245,11 +367,13 @@ export default function Review() {
       setDone(false);
       void loadLectureTitles(data).then(setTitles);
     } catch (error) {
+      if (seq !== loadSeq.current) return;
       console.error('Error loading due cards:', error);
       setCards([]);
       setLoadError('Карточки на месте — повторите через минуту.');
     } finally {
-      setLoading(false);
+      // A newer load owns the page now.
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [user?.id, materialFilter]);
 
@@ -275,9 +399,17 @@ export default function Review() {
     setFlipped(true);
   };
 
-  // The three words take the focus once the card is turned over, so 1, 2, 3 and Tab start there.
+  // The three words take the focus once the card is turned over, so 1, 2, 3 and Tab start there. A long
+  // answer or a phone's height can put them below the window: they stick to its foot (Review.css), and
+  // the page brings them into view in case the reader had scrolled past them.
   useEffect(() => {
-    if (flipped && !judged) gradesRef.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    if (!flipped || judged) return;
+    const grades = gradesRef.current;
+    grades?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    if (grades && typeof grades.scrollIntoView === 'function') {
+      const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      grades.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
+    }
   }, [flipped, judged]);
 
   const recordActivity = () => {
@@ -405,47 +537,52 @@ export default function Review() {
 
   // No cards due
   if (cards.length === 0) {
+    const copy = emptyQueueCopy(outlook, materialFilter !== null);
     return (
       <div className="sf-page rv">
         <div className="rv-col rv-state">
-          <section className="rv-empty">
+          <section className="rv-empty" data-kind={copy.kind}>
             <div className="rv-art" aria-hidden="true">
               <b />
               <b />
               <b>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12.5l4.5 4.5L19 7.5" />
-                </svg>
+                {/* A tick only when the day's cards are done; a student without cards sees a blank card. */}
+                {copy.kind === 'done' ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" />
+                  </svg>
+                ) : null}
               </b>
             </div>
+            <h1 className="rv-h2">{ty(copy.title)}</h1>
+            <p className="rv-quiet rv-gap-s rv-empty-p">{ty(copy.text)}</p>
             {materialFilter ? (
-              <>
-                <h1 className="rv-h2">Карточек этого материала к повторению сейчас нет</h1>
-                <p className="rv-quiet rv-gap-s">Срок следующего повторения ещё не наступил.</p>
-                <div className="rv-acts">
-                  <button type="button" className="sf-secondary" onClick={() => navigate('/review')}>
-                    Все карточки к повторению
+              <div className="rv-acts">
+                <button type="button" className="sf-secondary" onClick={() => navigate('/review')}>
+                  Все карточки к повторению
+                </button>
+                {UUID.test(materialFilter) ? (
+                  <button type="button" className="sf-link" data-muted="" onClick={() => navigate(`/library/${materialFilter}`)}>
+                    К лекции
                   </button>
-                  {UUID.test(materialFilter) ? (
-                    <button type="button" className="sf-link" data-muted="" onClick={() => navigate(`/library/${materialFilter}`)}>
-                      К материалу
-                    </button>
-                  ) : null}
-                </div>
-              </>
+                ) : null}
+              </div>
+            ) : copy.kind === 'none' ? (
+              // A student without cards: the one way to get them.
+              <div className="rv-acts">
+                <Link className="sf-primary" to="/analyze">
+                  Разобрать лекцию
+                </Link>
+              </div>
             ) : (
-              <>
-                <h1 className="rv-h2">На сегодня всё</h1>
-                <p className="rv-quiet rv-gap-s">Карточек с наступившим сроком повторения нет.</p>
-                <div className="rv-acts">
-                  <Link className="sf-secondary" to="/exams">
-                    Экзамены
-                  </Link>
-                  <Link className="sf-link" data-muted="" to="/library">
-                    Лекции
-                  </Link>
-                </div>
-              </>
+              <div className="rv-acts">
+                <Link className="sf-secondary" to="/exams">
+                  Экзамены
+                </Link>
+                <Link className="sf-link" data-muted="" to="/library">
+                  Лекции
+                </Link>
+              </div>
             )}
           </section>
           <MistakesEntry count={openMistakes} />
@@ -482,8 +619,9 @@ export default function Review() {
                     Продолжить
                   </button>
                 ) : null}
+                {/* The list of exams, named as it is: it used to say «Лист экзамена» and open the list. */}
                 <Link className="sf-secondary" to="/exams">
-                  Лист экзамена
+                  Экзамены
                 </Link>
                 <Link className="sf-link" data-muted="" to="/library">
                   Лекции
@@ -542,6 +680,8 @@ export default function Review() {
   const judgedWord = judged ? GRADES.find((item) => item.grade === judged.grade)?.word ?? '' : '';
   // The cards still waiting under this one (at most two are drawn).
   const under = Math.min(2, cards.length - idx - 1);
+  // «1 из 20 · всего на сегодня 24» when the session is a page of a longer day (decision 4).
+  const dayTotal = sessionTotalWords(cards.length, dueTotal);
 
   return (
     <div className="sf-page rv">
@@ -553,7 +693,14 @@ export default function Review() {
             <b>
               {idx + 1} из {cards.length}
             </b>
-            {context ? ` · ${context}` : ''}
+            {dayTotal ? (
+              <span className="rv-total">
+                <span className="rv-sep"> · </span>
+                {dayTotal}
+              </span>
+            ) : null}
+            {/* Where the card comes from; on a phone the card's own label says it. */}
+            {context ? <span className="rv-ctx">{` · ${context}`}</span> : null}
           </p>
           <button type="button" className="sf-link rv-end" data-muted="" onClick={finish}>
             Закончить

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { CheckCircle2, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -9,6 +10,10 @@ import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import SectionCrumb from '../components/SectionCrumb';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { groupMistakes, mistakeDay, notNamed, quoted, splitOralAnswer } from '../lib/learning/mistakeText';
+import { pluralRu } from '../components/conversation/visuals';
+import { ty } from '../components/landing/typo';
 import '../styles/paper.css';
 import './MistakeDiary.css';
 
@@ -48,7 +53,114 @@ interface MistakePracticeQuestion {
   explanation: string;
 }
 
+/** «Ответ на билет · Базы данных · 7 окт.», with « · исправлена» for a fixed one; the date only when asked. */
+function metaLine(mistake: Mistake, withDate: boolean, withOrigin = true): string {
+  const parts: string[] = [];
+  if (withOrigin) parts.push(mistakeOriginLabel(mistake.origin));
+  if (withOrigin && mistake.topic) parts.push(mistake.topic);
+  if (withDate) parts.push(mistakeDay(mistake.created_at));
+  if (mistake.is_resolved) parts.push(withOrigin ? 'исправлена' : 'исправлено');
+  return parts.filter(Boolean).join(' · ');
+}
+
+/** «Из лекции «Модель данных», фрагмент 4» under the lecture's words; «Из лекции» when it has no title. */
+function sourceCaption(source: string | null): string {
+  if (!source || source === 'Лекция') return 'Из лекции';
+  if (source.startsWith('Лекция')) return `Из лекции${source.slice('Лекция'.length)}`;
+  return `Из лекции ${source}`;
+}
+
+interface MistakeItemProps {
+  mistake: Mistake;
+  /** A point of a ticket answer under its question (the question is the group's head). */
+  point: boolean;
+  /** The row shows its own date (a single mistake, or a point of a group answered on several days). */
+  withDate: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onResolve: () => void;
+  onDelete: () => void;
+  busy: boolean;
+  error: string | null;
+}
+
+/**
+ * One mistake as a row: a ticket's point (the point is the row, the question is above it) or a test's
+ * question. Opened, it shows the student's answer and what had to be said — for a ticket's point, the
+ * lecture's own words with their source.
+ */
+function MistakeItem({ mistake, point, withDate, expanded, onToggle, onResolve, onDelete, busy, error }: MistakeItemProps) {
+  const fromQuiz = mistake.origin === 'quiz';
+  const oral = mistake.origin === 'oral_ticket';
+  const parts = oral ? splitOralAnswer(mistake.correct_answer) : null;
+  const title = point && parts ? parts.point || mistake.question : mistake.question;
+  const meta = metaLine(mistake, withDate, !point);
+  const missing = notNamed(mistake.student_answer);
+  return (
+    <li className="md-item" data-point={point ? '' : undefined} data-open={expanded ? '' : undefined}>
+      <button type="button" aria-expanded={expanded} onClick={onToggle} className="md-row">
+        <span className="md-dot" data-tone={mistake.is_resolved ? 'resolved' : 'open'} aria-hidden="true" />
+        <span className="md-main">
+          <span className="md-q">{title}</span>
+          {meta ? <span className="md-meta">{meta}</span> : null}
+        </span>
+        <span className="md-chev" aria-hidden="true">
+          <ChevronDown />
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="md-detail">
+          <div className="md-ans">
+            <p className="md-ans-l">Ваш ответ</p>
+            {oral && missing ? (
+              <p className="md-ans-t" data-none="">
+                Вы не назвали этот пункт.
+              </p>
+            ) : (
+              <p className="md-ans-t">{mistake.student_answer || 'Ответа нет.'}</p>
+            )}
+          </div>
+          {parts && parts.quote ? (
+            <div className="md-ans" data-right="">
+              <p className="md-ans-l">Как сказано в лекции</p>
+              <p className="md-ans-t">{quoted(parts.quote)}</p>
+              <p className="md-src">{sourceCaption(parts.source)}</p>
+            </div>
+          ) : (
+            <div className="md-ans" data-right="">
+              <p className="md-ans-l">{fromQuiz ? 'Правильный ответ' : 'Что нужно было сказать'}</p>
+              <p className="md-ans-t">{parts ? parts.point : mistake.correct_answer}</p>
+            </div>
+          )}
+          <div className="md-acts">
+            {!mistake.is_resolved && (
+              <button type="button" onClick={onResolve} disabled={busy} className="sf-secondary md-act">
+                <CheckCircle2 aria-hidden="true" />
+                Отметить как исправленную
+              </button>
+            )}
+            <button type="button" onClick={onDelete} disabled={busy} className="md-del">
+              <Trash2 aria-hidden="true" />
+              Удалить
+            </button>
+          </div>
+          {error ? (
+            <p role="alert" className="md-alert">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </li>
+  );
+}
+
+const RESOLVE_FAILED = 'Не удалось отметить ошибку. Проверьте соединение и попробуйте ещё раз.';
+const DELETE_FAILED = 'Не удалось удалить ошибку. Проверьте соединение и попробуйте ещё раз.';
+
 export default function MistakeDiary() {
+  useDocumentTitle('Дневник ошибок');
   const { user } = useAuth();
   const { confirm } = useConfirm();
   const { verifyEnergy } = useEnergyConfirm();
@@ -243,17 +355,51 @@ export default function MistakeDiary() {
     fetchMistakes();
   }, [user?.id]);
 
+  /** The row whose action is being saved, and an action that failed (shown under its row). */
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; text: string } | null>(null);
+
+  // A change is shown only after the database took it (LIB-29): a failed write keeps the row and says so.
   const markResolved = async (id: string) => {
-    await supabase
-      .from('mistake_diary')
-      .update({ is_resolved: true, resolved_at: new Date().toISOString() })
-      .eq('id', id);
-    setMistakes(prev => prev.map(m => m.id === id ? { ...m, is_resolved: true } : m));
+    setBusyId(id);
+    setRowError(null);
+    try {
+      const { error } = await supabase
+        .from('mistake_diary')
+        .update({ is_resolved: true, resolved_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      setMistakes(prev => prev.map(m => m.id === id ? { ...m, is_resolved: true } : m));
+    } catch (e) {
+      console.error('Marking a mistake as fixed failed:', e);
+      setRowError({ id, text: RESOLVE_FAILED });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const deleteMistake = async (id: string) => {
-    await supabase.from('mistake_diary').delete().eq('id', id);
-    setMistakes(prev => prev.filter(m => m.id !== id));
+    const ok = await confirm({
+      title: 'Удалить ошибку?',
+      message: 'Её не будет в дневнике и в «Работе над ошибками». Вернуть удалённую ошибку нельзя.',
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      type: 'danger',
+    });
+    if (!ok) return;
+    setBusyId(id);
+    setRowError(null);
+    try {
+      const { error } = await supabase.from('mistake_diary').delete().eq('id', id);
+      if (error) throw error;
+      setMistakes(prev => prev.filter(m => m.id !== id));
+      setExpandedId(current => (current === id ? null : current));
+    } catch (e) {
+      console.error('Deleting a mistake failed:', e);
+      setRowError({ id, text: DELETE_FAILED });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const filtered = mistakes.filter(m => {
@@ -407,7 +553,7 @@ export default function MistakeDiary() {
             <div className="min-w-0">
               <SectionCrumb to="/review" label="Повторение" />
               <h1 className="sf-h1">Дневник ошибок</h1>
-              <p className="sf-lede">Ошибки из тестов, ответов на билеты и устных экзаменов. Правильный ответ открывается по нажатию.</p>
+              <p className="sf-lede">{ty('Ошибки из тестов и ответов на билеты. Нажмите на строку — откроется, что нужно было сказать.')}</p>
             </div>
           </header>
 
@@ -432,7 +578,9 @@ export default function MistakeDiary() {
                     {practiceLoading ? 'Готовим задания…' : 'Начать работу над ошибками'}
                   </button>
                   <p className="md-note">
-                    Задания по {Math.min(openCount, 5)} {Math.min(openCount, 5) === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует 2 единицы дневного лимита ИИ, если задания получились.
+                    Задания по {Math.min(openCount, 5)} {Math.min(openCount, 5) === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует{' '}
+                    {AI_COSTS.mistakesPractice} {pluralRu(AI_COSTS.mistakesPractice, ['единицу', 'единицы', 'единиц'])} дневного лимита ИИ, если задания
+                    получились.
                   </p>
                   {practiceError && (
                     <p role="alert" className="md-alert">
@@ -444,21 +592,23 @@ export default function MistakeDiary() {
             </section>
           )}
 
-          {/* Фильтры */}
-          <div className="md-bar">
-            <ul className="sf-tabs md-tabs" aria-label="Какие ошибки показать">
-              {FILTERS.map(({ key, label }) => (
-                <li key={key}>
-                  <button type="button" onClick={() => setFilter(key)} aria-pressed={filter === key}>
-                    {label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button type="button" onClick={fetchMistakes} className="md-round" title="Обновить" aria-label="Обновить">
-              <RefreshCw aria-hidden="true" />
-            </button>
-          </div>
+          {/* Фильтры: only when there is something to filter. */}
+          {loading || loadError || mistakes.length > 0 ? (
+            <div className="md-bar">
+              <ul className="sf-tabs md-tabs" aria-label="Какие ошибки показать">
+                {FILTERS.map(({ key, label }) => (
+                  <li key={key}>
+                    <button type="button" onClick={() => setFilter(key)} aria-pressed={filter === key}>
+                      {label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button type="button" onClick={fetchMistakes} className="md-round" title="Обновить" aria-label="Обновить">
+                <RefreshCw aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
 
           {/* Список ошибок */}
           {loading ? (
@@ -475,60 +625,71 @@ export default function MistakeDiary() {
               </button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="md-card md-state md-empty">
-              <h2 className="md-h3">{filter === 'open' ? 'Открытых ошибок нет' : 'Пока пусто'}</h2>
-              <p className="md-text">
-                {filter === 'open' ? 'Все ошибки отмечены как исправленные.' : 'Ошибки из тестов и ответов на билеты появятся здесь.'}
-              </p>
-            </div>
+            mistakes.length === 0 ? (
+              // A diary that never had a mistake: where they come from, and the one way to get there (LIB-14).
+              <div className="md-card md-state md-empty">
+                <h2 className="md-h3">Ошибок пока нет</h2>
+                <p className="md-text">
+                  {ty('Сюда попадут пункты, которые вы не назвали в ответе на билет, и вопросы тестов, на которые вы ответили неверно.')}
+                </p>
+                <Link className="sf-secondary md-state-act" to="/exams">
+                  Ответить на билет
+                </Link>
+              </div>
+            ) : (
+              <div className="md-card md-state md-empty">
+                <h2 className="md-h3">{filter === 'open' ? 'Открытых ошибок нет' : 'Исправленных пока нет'}</h2>
+                <p className="md-text">
+                  {filter === 'open'
+                    ? 'Все ошибки отмечены как исправленные.'
+                    : ty('Отметьте ошибку исправленной, когда разберёте её, или пройдите работу над ошибками.')}
+                </p>
+              </div>
+            )
           ) : (
             <ul className="md-list">
-              {filtered.map(mistake => {
-                const expanded = expandedId === mistake.id;
-                const fromQuiz = mistake.origin === 'quiz';
+              {groupMistakes(filtered).map((entry) => {
+                const itemProps = (mistake: Mistake) => ({
+                  mistake,
+                  expanded: expandedId === mistake.id,
+                  onToggle: () => setExpandedId(expandedId === mistake.id ? null : mistake.id),
+                  onResolve: () => void markResolved(mistake.id),
+                  onDelete: () => void deleteMistake(mistake.id),
+                  busy: busyId === mistake.id,
+                  error: rowError?.id === mistake.id ? rowError.text : null,
+                });
+                if (entry.kind === 'single') {
+                  return <MistakeItem key={entry.key} point={false} withDate {...itemProps(entry.item)} />;
+                }
+                // The points of one ticket question under it: the question once, the points as rows (LIB-11).
+                const head = entry.items[0];
+                const days = new Set(entry.items.map((item) => mistakeDay(item.created_at)));
+                const open = entry.items.filter((item) => !item.is_resolved).length;
+                const lead = [mistakeOriginLabel(head.origin), head.topic].filter(Boolean).join(' · ');
+                // The date and the count wrap together: a line never starts with « · 4 пункта».
+                const tail = [
+                  days.size === 1 ? mistakeDay(head.created_at) : '',
+                  entry.items.length > 1
+                    ? `${entry.items.length} ${pluralRu(entry.items.length, ['пункт', 'пункта', 'пунктов'])}${open < entry.items.length ? `, открыто ${open}` : ''}`
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
                 return (
-                  <li key={mistake.id} className="md-item" data-open={expanded ? '' : undefined}>
-                    <button type="button" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : mistake.id)} className="md-row">
-                      <span className="md-dot" data-tone={mistake.is_resolved ? 'resolved' : 'open'} aria-hidden="true" />
-                      <span className="md-main">
-                        <span className="md-q">{mistake.question}</span>
-                        <span className="md-meta">
-                          {mistakeOriginLabel(mistake.origin)}
-                          {mistake.topic ? ` · ${mistake.topic}` : ''}
-                          {' · '}
-                          {new Date(mistake.created_at).toLocaleDateString('ru-RU')}
-                          {mistake.is_resolved ? ' · исправлена' : ''}
-                        </span>
-                      </span>
-                      <span className="md-chev" aria-hidden="true">
-                        <ChevronDown />
-                      </span>
-                    </button>
-
-                    {expanded && (
-                      <div className="md-detail">
-                        <div className="md-ans">
-                          <p className="md-ans-l">Ваш ответ</p>
-                          <p className="md-ans-t">{mistake.student_answer || '(пусто)'}</p>
-                        </div>
-                        <div className="md-ans" data-right="">
-                          <p className="md-ans-l">{fromQuiz ? 'Правильный ответ' : 'Что нужно было сказать'}</p>
-                          <p className="md-ans-t">{mistake.correct_answer}</p>
-                        </div>
-                        <div className="md-acts">
-                          {!mistake.is_resolved && (
-                            <button type="button" onClick={() => markResolved(mistake.id)} className="sf-secondary md-act">
-                              <CheckCircle2 aria-hidden="true" />
-                              Отметить как исправленную
-                            </button>
-                          )}
-                          <button type="button" onClick={() => deleteMistake(mistake.id)} className="md-del">
-                            <Trash2 aria-hidden="true" />
-                            Удалить
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                  <li key={entry.key} className="md-group">
+                    <div className="md-group-head">
+                      <p className="md-group-q">{entry.question}</p>
+                      <p className="md-meta">
+                        {lead}
+                        {lead && tail ? ' · ' : ''}
+                        {tail ? <span className="md-nowrap">{tail}</span> : null}
+                      </p>
+                    </div>
+                    <ul className="md-points" aria-label={`Пункты ответа: ${entry.question}`}>
+                      {entry.items.map((item) => (
+                        <MistakeItem key={item.id} point withDate={days.size > 1} {...itemProps(item)} />
+                      ))}
+                    </ul>
                   </li>
                 );
               })}

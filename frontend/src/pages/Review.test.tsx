@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Review, { openMistakesLine } from './Review';
+import Review, { emptyQueueCopy, nextReviewWords, openMistakesLine } from './Review';
 import { supabase } from '../lib/supabase';
 
 const api = vi.hoisted(() => ({
   getDueCards: vi.fn(),
+  countDueCards: vi.fn(),
   updateCardProgress: vi.fn(),
   recordStudyActivity: vi.fn(),
   playFlipSound: vi.fn(),
@@ -15,6 +16,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('../api/flashcards', () => ({
   getDueCards: api.getDueCards,
+  countDueCards: api.countDueCards,
   updateCardProgress: api.updateCardProgress,
 }));
 
@@ -37,6 +39,11 @@ vi.mock('../hooks/useSound', () => ({
 }));
 
 const MATERIAL_ID = '11111111-2222-4333-8444-555555555555';
+
+/** The whole text, whatever spaces ty() put between its words (no-break after short words). */
+function typeset(text: string): RegExp {
+  return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s')}$`);
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -195,7 +202,7 @@ describe('Review answer persistence', () => {
     expect(screen.getByText('А что будет при росте ставки?')).toBeInTheDocument();
   });
 
-  it('ends early with «Закончить» and offers the exam sheet', async () => {
+  it('ends early with «Закончить» and offers the exams, named as what it opens', async () => {
     api.getDueCards.mockResolvedValue([
       { id: 'card-1', question: 'Первый вопрос', answer: 'Первый ответ' },
       { id: 'card-2', question: 'Второй вопрос', answer: 'Второй ответ' },
@@ -206,9 +213,44 @@ describe('Review answer persistence', () => {
     await screen.findByRole('button', { name: 'Перевернуть' });
     await user.click(screen.getByRole('button', { name: 'Закончить' }));
     expect(await screen.findByRole('heading', { name: 'Повторили 1 карточку' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams');
+    // It opens the list of exams, so it is called «Экзамены» (it used to say «Лист экзамена»).
+    expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
+    expect(screen.queryByRole('link', { name: 'Лист экзамена' })).toBeNull();
     // The second card is still due: the queue can go on.
     expect(screen.getByRole('button', { name: 'Продолжить' })).toBeInTheDocument();
+  });
+
+  it('says how many cards wait today when the session holds only the first 20 (decision 4)', async () => {
+    api.getDueCards.mockResolvedValue(Array.from({ length: 20 }, (_, i) => ({ id: `card-${i}`, question: `Вопрос ${i + 1}`, answer: `Ответ ${i + 1}` })));
+    api.countDueCards.mockResolvedValue(24);
+    renderReview();
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    const where = document.querySelector('.rv-where') as HTMLElement;
+    await waitFor(() => expect(where.textContent?.replace(/\s+/g, ' ')).toBe('1 из 20 · всего на сегодня 24'));
+    expect(api.countDueCards).toHaveBeenCalledWith('user-1', {});
+  });
+
+  it('names no day’s total when the session holds every due card', async () => {
+    api.getDueCards.mockResolvedValue([
+      { id: 'card-1', question: 'Первый вопрос', answer: 'Первый ответ' },
+      { id: 'card-2', question: 'Второй вопрос', answer: 'Второй ответ' },
+    ]);
+    renderReview();
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    expect(document.querySelector('.rv-where')?.textContent).toBe('1 из 2');
+    expect(api.countDueCards).not.toHaveBeenCalled();
+  });
+
+  it('brings the three words into view when the card is turned over', async () => {
+    // The setup gives jsdom a no-op scrollIntoView on HTMLElement.
+    const scrolled = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+    const user = userEvent.setup();
+    renderReview();
+    await user.click(await screen.findByRole('button', { name: 'Перевернуть' }));
+    expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest' }));
+    expect(scrolled.mock.contexts[0]).toBe(screen.getByRole('group', { name: 'Как вспомнилось' }));
+    // The first word takes the focus for 1, 2, 3 and Tab.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Не помню' }));
   });
 });
 
@@ -330,16 +372,96 @@ describe('Review of one material', () => {
     api.getDueCards.mockResolvedValue([]);
     renderReview(`/review?material=${MATERIAL_ID}`);
 
-    expect(await screen.findByRole('heading', { name: 'Карточек этого материала к повторению сейчас нет' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: typeset('Карточек этой лекции к повторению сейчас нет') })).toBeInTheDocument();
     expect(screen.queryByText('На сегодня всё')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Все карточки к повторению' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'К лекции' })).toBeInTheDocument();
   });
 
   it('does not query with a material id that is not a uuid', async () => {
     renderReview('/review?material=abc');
 
-    expect(await screen.findByRole('heading', { name: 'Карточек этого материала к повторению сейчас нет' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: typeset('Карточек этой лекции к повторению сейчас нет') })).toBeInTheDocument();
     expect(api.getDueCards).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A Supabase query for the empty queue's counts: a HEAD count of the cards (with gt/lt: the ones
+ * later today) and the next review date.
+ */
+function cardsQuery(outlook: { total: number; later: number; next: string | null }) {
+  const calls: Array<[string, unknown[]]> = [];
+  const chain: Record<string, unknown> = {};
+  for (const method of ['select', 'eq', 'gt', 'lt', 'order', 'limit', 'in']) {
+    chain[method] = (...args: unknown[]) => {
+      calls.push([method, args]);
+      return chain;
+    };
+  }
+  chain.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
+    const head = calls.some(([method, args]) => method === 'select' && (args[1] as { head?: boolean } | undefined)?.head);
+    const later = calls.some(([method]) => method === 'lt');
+    const result = head ? { count: later ? outlook.later : outlook.total, error: null } : { data: outlook.next ? [{ next_review: outlook.next }] : [], error: null };
+    return Promise.resolve(result).then(resolve, reject);
+  };
+  return chain;
+}
+
+describe('an empty queue says what it means (LIB-14)', () => {
+  beforeEach(() => {
+    api.getDueCards.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.mocked(supabase.from).mockReset();
+  });
+
+  function withOutlook(outlook: { total: number; later: number; next: string | null }) {
+    vi.mocked(supabase.from).mockImplementation(((table: string) =>
+      table === 'flashcard_progress' ? cardsQuery(outlook) : query({ count: 0, error: null })) as unknown as typeof supabase.from);
+  }
+
+  it('tells a student without cards where cards come from, with one way to get them', async () => {
+    withOutlook({ total: 0, later: 0, next: null });
+    renderReview();
+    expect(await screen.findByRole('heading', { name: 'Карточек пока нет' })).toBeInTheDocument();
+    expect(screen.getByText(/появятся после разбора лекции/)).toHaveTextContent(/вопросы экзаменатора, на которые вы не ответили в билете/);
+    expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+    // No «done» for someone who has not started, and no tick on the picture.
+    expect(screen.queryByText('На сегодня всё')).toBeNull();
+    expect(document.querySelector('.rv-empty .rv-art svg')).toBeNull();
+  });
+
+  it('says that more cards come later today, and when', async () => {
+    const at = new Date();
+    at.setHours(23, 40, 0, 0);
+    withOutlook({ total: 26, later: 2, next: at.toISOString() });
+    renderReview();
+    expect(await screen.findByRole('heading', { name: 'Сейчас повторять нечего' })).toBeInTheDocument();
+    expect(screen.getByText('Ещё 2 карточки придут сегодня, первая — в 23:40.')).toBeInTheDocument();
+  });
+
+  it('says «На сегодня всё» only when nothing else comes today, with the next review', async () => {
+    const at = new Date();
+    at.setDate(at.getDate() + 1);
+    at.setHours(9, 0, 0, 0);
+    withOutlook({ total: 26, later: 0, next: at.toISOString() });
+    renderReview();
+    expect(await screen.findByRole('heading', { name: typeset('На сегодня всё') })).toBeInTheDocument();
+    expect(screen.getByText('Следующее повторение — завтра.')).toBeInTheDocument();
+  });
+
+  it('words each case', () => {
+    const now = new Date(2026, 9, 8, 15, 0);
+    const today = new Date(2026, 9, 8, 18, 40).toISOString();
+    expect(emptyQueueCopy({ total: 5, laterToday: 1, nextAt: today }, false, now).text).toBe('Ещё одна карточка придёт сегодня в 18:40.');
+    expect(emptyQueueCopy({ total: 5, laterToday: 0, nextAt: new Date(2026, 9, 12, 9).toISOString() }, false, now).text).toBe('Следующее повторение — 12 октября.');
+    expect(emptyQueueCopy({ total: 0, laterToday: 0, nextAt: null }, true, now).title).toBe('Карточек этой лекции в повторении нет');
+    expect(emptyQueueCopy(null, false, now)).toEqual({ kind: 'unknown', title: 'Сейчас повторять нечего', text: 'Карточек с наступившим сроком повторения нет.' });
+    expect(nextReviewWords(today, now)).toBe('сегодня в 18:40');
+    expect(nextReviewWords(new Date(2026, 9, 9, 7).toISOString(), now)).toBe('завтра');
   });
 });
 
@@ -370,9 +492,10 @@ describe('the mistakes diary in «Повторение»', () => {
 
   afterEach(cleanup);
 
-  it('is one card under «На сегодня всё», with the open mistakes counted by a HEAD request', async () => {
+  it('is one card under the empty queue, with the open mistakes counted by a HEAD request', async () => {
     renderReview();
-    expect(await screen.findByRole('heading', { name: 'На сегодня всё' })).toBeInTheDocument();
+    // The card counts cannot be read here, so the page says only what is certain.
+    expect(await screen.findByRole('heading', { name: 'Сейчас повторять нечего' })).toBeInTheDocument();
     const diary = screen.getByRole('region', { name: 'Дневник ошибок' });
     expect(await within(diary).findByText('5 открытых ошибок.')).toBeInTheDocument();
     expect(within(diary).getByRole('link', { name: 'Открыть дневник ошибок' })).toHaveAttribute('href', '/mistakes');

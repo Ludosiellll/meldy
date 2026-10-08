@@ -32,13 +32,18 @@ import {
   type TodoItem,
 } from '../utils/progressModel';
 import { analysisCards } from '../utils/lectureCards';
-import { currentStreak, isDateKey, localDateKey, shiftDateKey } from '../utils/streak';
+import { isDateKey, localDateKey, shiftDateKey } from '../utils/streak';
 import { pluralRu } from '../components/conversation/visuals';
 import { confirmedShares } from '../components/exams/sheetModel';
 import { percent } from '../lib/exams/ticketMath';
 import { daysUntil, formatDay, KIND_WORDS, relativeDays, subjectOf } from '../lib/exams/format';
 import { READINESS_LABELS } from '../lib/learning/readiness';
 import { displayMaterialTitle } from '../utils/materialTitle';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { dueToday, laterTodayWords, originPhrase, originSplit, waitingNowWords, FOLLOW_UP_ORIGIN } from '../lib/learning/cardCounts';
+import { answersByDay, studyStreak, type DayAnswers } from '../lib/learning/studyDays';
+import SectionCrumb from '../components/SectionCrumb';
+import { ty } from '../components/landing/typo';
 import '../styles/paper.css';
 import './Analytics.css';
 
@@ -260,6 +265,11 @@ function count(n: number, forms: readonly [string, string, string]): string {
   return `${n} ${pluralRu(n, forms)}`;
 }
 
+/** ty() plus a number kept with the word after it: «с 3 октября» never breaks after «3». */
+function typeset(text: string): string {
+  return ty(text).replace(/(\d) (?=[а-яё])/gi, '$1\u00a0');
+}
+
 /** Ends a sentence with one period: «… 4 окт.» already has it. */
 function sentence(text: string): string {
   return text.endsWith('.') ? text : `${text}.`;
@@ -417,8 +427,10 @@ function ReadinessDots({ exam }: { exam: ExamBlock }) {
 
 export default function Analytics() {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const gradebook = searchParams.get('tab') === 'gradebook';
+  // The gradebook is a page of its own inside «Прогресс», with its own title.
+  useDocumentTitle(gradebook ? 'Оценки из зачётки' : 'Прогресс');
   const [sources, setSources] = useState<Sources>(LOADING);
   const [loadingLine, setLoadingLine] = useState(false);
 
@@ -455,15 +467,14 @@ export default function Analytics() {
 
   if (gradebook) {
     return (
-      <div className="sf-page pg">
+      <div className="sf-page pg pg-gb">
         <header className="sf-head">
-          <div>
+          <div className="min-w-0">
+            {/* «‹ Прогресс» as on the other pages inside a section (the map, the diary). The top line of a
+                phone cannot show it here (it reads the path, not ?tab), so this crumb stays on phones too. */}
+            <SectionCrumb to="/analytics" label="Прогресс" />
             <h1 className="sf-h1">Оценки из зачётки</h1>
-            <p className="sf-lede">
-              <button type="button" className="sf-link" data-muted="" style={{ minHeight: 0 }} onClick={() => setSearchParams({})}>
-                Прогресс
-              </button>
-            </p>
+            <p className="sf-lede">{ty('Оценки по предметам и средний балл. Их можно ввести вручную или распознать по фото зачётки.')}</p>
           </div>
         </header>
         <div className="pg-gradebook">
@@ -524,6 +535,10 @@ function ledeOf(sources: Sources): string {
       if (event.kind === 'exam_answer' && event.local_date >= weekFrom && event.local_date <= today) tickets += 1;
     }
   }
+  // A student without a single card or answer starts with a lecture: «повторение карточек» needs cards.
+  if (lastDay === null && sources.cards.status === 'ok' && sources.cards.data.length === 0) {
+    return 'Здесь будет видно, как вы запоминаете лекции. Начните с разбора первой лекции.';
+  }
   return weekLede({ cardAnswers, tests: tests.size, tickets, lastDay: lastDay ? formatDay(lastDay) : null });
 }
 
@@ -542,7 +557,18 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
 
   const states = useMemo(() => cardStates(allCards, now), [allCards, now]);
   const due = useMemo(() => dueCount(allCards, now), [allCards, now]);
+  // Decision 4: what waits now and what comes later today are named apart («24 ждут сейчас · ещё 2 — позже сегодня»).
+  const laterToday = useMemo(() => dueToday(allCards, now).later, [allCards, now]);
   const week = useMemo(() => forecast(allCards, now), [allCards, now]);
+  // Cards from answers to tickets, in all and per lecture: «18 из лекций, 8 из ответов на билеты».
+  const origins = useMemo(() => originSplit(allCards), [allCards]);
+  const answersByLecture = useMemo(() => {
+    const byLecture = new Map<string, number>();
+    for (const card of allCards) {
+      if (card.origin === FOLLOW_UP_ORIGIN && card.material_id) byLecture.set(card.material_id, (byLecture.get(card.material_id) ?? 0) + 1);
+    }
+    return byLecture;
+  }, [allCards]);
   const recall = useMemo(() => recallTally(journalEvents, windowFrom, today), [journalEvents, windowFrom, today]);
 
   const rows = useMemo(
@@ -593,14 +619,16 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
 
   const active = rows.filter((row) => !row.textOnly);
   const textOnly = rows.filter((row) => row.textOnly);
+  // Nothing to look at yet: no lecture with cards or a test. «Пробелов не видно» would be false comfort.
+  const nothingYet = materials.status === 'ok' && active.length === 0;
 
   return (
     <>
       <section className="pg-tiles" aria-label="Сводка">
-        <KnowledgeTile cards={cards} states={states} onRetry={() => reload('cards')} />
+        <KnowledgeTile cards={cards} states={states} origins={origins} onRetry={() => reload('cards')} />
         {/* Unknown cards (still loading or failed) read as «there are cards»: the neutral sentence. */}
         <MemoryTile journal={journal} recall={recall} span={span} hasCards={cards.status !== 'ok' || states.total > 0} onRetry={() => reload('journal')} />
-        <AheadTile cards={cards} due={due} week={week} onRetry={() => reload('cards')} />
+        <AheadTile cards={cards} due={due} laterToday={laterToday} hasCards={states.total > 0} week={week} onRetry={() => reload('cards')} />
       </section>
 
       <Section title="Что подтянуть" id="pg-todo">
@@ -618,6 +646,17 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
                 />
               ))}
             </ul>
+          ) : everythingRead && nothingYet ? (
+            <div className="pg-todo-empty">
+              <Quiet>
+                {materials.status === 'ok' && materials.data.length > 0
+                  ? 'Пока нечего подтягивать: у лекций, загруженных только текстом, нет карточек и теста. Разберите лекцию, и здесь появятся её пробелы.'
+                  : 'Пока нечего подтягивать — разберите первую лекцию, и здесь появятся её пробелы.'}
+              </Quiet>
+              <Link className="sf-secondary" to="/analyze">
+                Разобрать лекцию
+              </Link>
+            </div>
           ) : everythingRead ? (
             <Quiet>Пробелов не видно: карточки в повторении, тесты пройдены, открытых ошибок нет.</Quiet>
           ) : (
@@ -702,6 +741,7 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
                     now={now}
                     cardsKnown={cards.status === 'ok'}
                     quizKnown={quiz.status === 'ok'}
+                    fromAnswers={answersByLecture.get(row.id) ?? 0}
                     syncing={syncing}
                     failed={syncFailed}
                     onAdd={(lecture) => void addToReview(lecture)}
@@ -730,7 +770,7 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
         )}
       </Section>
 
-      <ActivitySection activity={activity} quiz={quiz} onRetry={() => reload('activity')} />
+      <ActivitySection activity={activity} quiz={quiz} journal={journal} onRetry={() => reload('activity')} onRetryJournal={() => reload('journal')} />
 
       {(legacyExams.status === 'error' || (legacyExams.status === 'ok' && legacyExams.data.length > 0)) && (
         <Section title="Устные экзамены (прежний формат)" id="pg-legacy">
@@ -769,8 +809,13 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
           </p>
           <p>
             «Повторения на неделю» — сколько карточек придёт на повторение в каждый из ближайших дней по их расписанию; в «сегодня»
-            входят и пропущенные. «Тест» — первая попытка теста лекции, повторные показаны отдельно. Вопрос экзамена «подтверждён»,
-            когда дважды, в разные дни, в ответе на него названо достаточно пунктов.
+            входят и пропущенные, и те, что придут позже сегодня. Карточки из ответов на билеты — вопросы экзаменатора, на которые вы
+            не ответили; они считаются вместе с карточками лекций. «Тест» — первая попытка теста лекции, повторные показаны отдельно.
+            Вопрос экзамена «подтверждён», когда дважды, в разные дни, в ответе на него названо достаточно пунктов.
+          </p>
+          <p>
+            «Занятия по дням» — ответы на карточки и на билеты за каждый день; день, когда вы проходили тест, тоже считается днём
+            занятий.
           </p>
         </div>
       ) : null}
@@ -791,9 +836,10 @@ function StateBar({ states }: { states: CardStates }) {
   );
 }
 
-function KnowledgeTile({ cards, states, onRetry }: { cards: Source<CardRow[]>; states: CardStates; onRetry: () => void }) {
+function KnowledgeTile({ cards, states, origins, onRetry }: { cards: Source<CardRow[]>; states: CardStates; origins: ReturnType<typeof originSplit>; onRetry: () => void }) {
+  const fromWhere = originPhrase(origins, 'many');
   return (
-    <article className="pg-tile" aria-labelledby="pg-k-cards">
+    <article className="pg-tile" data-tile="cards" aria-labelledby="pg-k-cards">
       <h2 className="pg-k" id="pg-k-cards">
         Карточки
       </h2>
@@ -803,7 +849,7 @@ function KnowledgeTile({ cards, states, onRetry }: { cards: Source<CardRow[]>; s
         <Quiet>Загружаем…</Quiet>
       ) : states.total === 0 ? (
         <>
-          <p className="pg-note">Карточек в повторении пока нет. Они появляются после разбора лекции.</p>
+          <p className="pg-note">{ty('Карточек в повторении пока нет. Они появятся после разбора лекции и после ответов на билеты.')}</p>
           <Link className="sf-link pg-tile-link" to="/analyze">
             Разобрать лекцию
           </Link>
@@ -830,6 +876,8 @@ function KnowledgeTile({ cards, states, onRetry }: { cards: Source<CardRow[]>; s
               новые {states.fresh}
             </li>
           </ul>
+          {/* «Лекции» counts a lecture's own cards; here the cards from ticket answers are in the total too. */}
+          {fromWhere ? <p className="pg-note pg-note--small">{`Всего ${states.total}: ${fromWhere}.`}</p> : null}
         </>
       )}
     </article>
@@ -858,7 +906,7 @@ function MemoryTile({
   const share = recallShare(recall, RECALL_MIN_ANSWERS);
   const forgot = recall.answers - recall.recalled;
   return (
-    <article className="pg-tile pg-tile--blue" aria-labelledby="pg-k-memory">
+    <article className="pg-tile pg-tile--blue" data-tile="memory" data-empty={share === null ? '' : undefined} aria-labelledby="pg-k-memory">
       <h2 className="pg-k" id="pg-k-memory">
         Вспомнили {periodText(span)}
       </h2>
@@ -890,14 +938,18 @@ function MemoryTile({
       ) : (
         <>
           <p className="pg-note">
-            {recall.answers === 0
-              ? `Ответов на карточки ${periodText(span)} пока нет.`
-              : `Пока ${count(recall.answers, ANSWER_FORMS)} на карточки — долю покажем с ${RECALL_MIN_ANSWERS}, осталось ${RECALL_MIN_ANSWERS - recall.answers}.`}
+            {typeset(
+              recall.answers === 0
+                ? `Ответов на карточки ${periodText(span)} пока нет.`
+                : `Пока ${count(recall.answers, ANSWER_FORMS)} на карточки — долю покажем с ${RECALL_MIN_ANSWERS}, осталось ${RECALL_MIN_ANSWERS - recall.answers}.`,
+            )}
           </p>
           <p className="pg-note pg-note--small">
-            {hasCards
-              ? 'Здесь будет доля карточек, которые вы вспомнили при повторении: ответы «Помню» и «С трудом».'
-              : 'Карточки появятся после разбора лекции, а здесь — доля тех, что вы вспомнили при повторении.'}
+            {typeset(
+              hasCards
+                ? 'Здесь будет доля карточек, которые вы вспомнили при повторении: ответы «Помню» и «С трудом».'
+                : 'Карточки появятся после разбора лекции, а здесь — доля тех, что вы вспомнили при повторении.',
+            )}
           </p>
         </>
       )}
@@ -905,12 +957,27 @@ function MemoryTile({
   );
 }
 
-function AheadTile({ cards, due, week, onRetry }: { cards: Source<CardRow[]>; due: number; week: ForecastDay[]; onRetry: () => void }) {
+function AheadTile({
+  cards,
+  due,
+  laterToday,
+  hasCards,
+  week,
+  onRetry,
+}: {
+  cards: Source<CardRow[]>;
+  due: number;
+  laterToday: number;
+  hasCards: boolean;
+  week: ForecastDay[];
+  onRetry: () => void;
+}) {
   const later = week.slice(1).reduce((sum, day) => sum + day.count, 0);
   const total = later + (week[0]?.count ?? 0);
   const tomorrow = week[1]?.count ?? 0;
+  const rest = laterTodayWords(laterToday, due > 0);
   return (
-    <article className="pg-tile" aria-labelledby="pg-k-ahead">
+    <article className="pg-tile" data-tile="ahead" aria-labelledby="pg-k-ahead">
       <h2 className="pg-k" id="pg-k-ahead">
         Повторения на неделю
       </h2>
@@ -918,19 +985,27 @@ function AheadTile({ cards, due, week, onRetry }: { cards: Source<CardRow[]>; du
         <ErrorLine text="Расписание карточек не загрузилось." onRetry={onRetry} />
       ) : cards.status === 'loading' ? (
         <Quiet>Загружаем…</Quiet>
+      ) : !hasCards ? (
+        // No cards at all: no big «0» and no empty week.
+        <p className="pg-note">{ty('Повторять пока нечего. Расписание на неделю появится вместе с карточками.')}</p>
       ) : (
         <>
-          <p className="pg-big">{due}</p>
-          <p className="pg-cap">{due > 0 ? `${pluralRu(due, ['карточка ждёт', 'карточки ждут', 'карточек ждут'])} сейчас` : 'сейчас повторять нечего'}</p>
+          {/* The number and the one action side by side: on a phone «Повторить» is on the first screen. */}
+          <div className="pg-ahead-head">
+            <p className="pg-big">{due}</p>
+            {due > 0 ? (
+              <Link className="sf-primary pg-tile-cta" to="/review">
+                Повторить
+              </Link>
+            ) : null}
+          </div>
+          {/* Decision 4: what waits now, then what comes later today («ещё 2 — позже сегодня»). */}
+          <p className="pg-cap">{waitingNowWords(due)}</p>
+          {rest ? <p className="pg-cap pg-cap-later">{rest}</p> : null}
           {week.some((day) => day.count > 0) ? <ForecastBars days={week} /> : null}
           <p className="pg-note pg-note--small">
             {later > 0 ? `${tomorrow > 0 ? `Завтра — ${tomorrow}` : 'Завтра повторений нет'}, всего на неделю — ${total}.` : 'На следующие 6 дней повторений нет.'}
           </p>
-          {due > 0 ? (
-            <Link className="sf-primary pg-tile-cta" to="/review">
-              Повторить
-            </Link>
-          ) : null}
         </>
       )}
     </article>
@@ -1126,6 +1201,7 @@ function LectureLine({
   now,
   cardsKnown,
   quizKnown,
+  fromAnswers,
   syncing,
   failed,
   onAdd,
@@ -1135,6 +1211,8 @@ function LectureLine({
   now: Date;
   cardsKnown: boolean;
   quizKnown: boolean;
+  /** The lecture's cards that came from answers to tickets (decision 4). */
+  fromAnswers: number;
   syncing: string | null;
   failed: string | null;
   onAdd: (lecture: LectureRow) => void;
@@ -1142,6 +1220,8 @@ function LectureLine({
   const share = recallShare(row.recall, LECTURE_RECALL_MIN);
   const meta = lectureMeta(row, quizKnown);
   const name = displayMaterialTitle(row.title);
+  const answers = Math.min(fromAnswers, row.states.total);
+  const fromWhere = originPhrase({ total: row.states.total, lecture: row.states.total - answers, answers }, 'one');
   let action: ReactNode = null;
   if (cardsKnown && row.action?.kind === 'review') {
     action = (
@@ -1183,6 +1263,8 @@ function LectureLine({
               закреплено {row.states.solid} из {row.states.total}
               {row.states.fresh > 0 ? ` · новых ${row.states.fresh}` : ''}
             </span>
+            {/* «Лекции» shows the lecture's own cards; the rest came from answers to its tickets. */}
+            {fromWhere ? <span className="pg-lec-cap pg-lec-origin">{fromWhere}</span> : null}
           </>
         ) : (
           <span className="pg-lec-cap">{row.notInReview > 0 ? `${count(row.notInReview, CARD_FORMS)} не в повторении` : 'карточек нет'}</span>
@@ -1207,41 +1289,47 @@ function LectureLine({
   );
 }
 
-function ActivitySection({ activity, quiz, onRetry }: { activity: Source<SessionRow[]>; quiz: Source<LearningEvent[]>; onRetry: () => void }) {
+/**
+ * «Занятия по дням» (LIB-12): the answers of the last 30 days — to cards (the daily counters) and to
+ * exam tickets (the journal) — as columns, and one sentence. A day with a test counts as a day of
+ * study too. The header of the page counts ticket answers, so this section does as well.
+ */
+function ActivitySection({
+  activity,
+  quiz,
+  journal,
+  onRetry,
+  onRetryJournal,
+}: {
+  activity: Source<SessionRow[]>;
+  quiz: Source<LearningEvent[]>;
+  journal: Source<LearningEvent[]>;
+  onRetry: () => void;
+  onRetryJournal: () => void;
+}) {
   const today = localDateKey();
   const firstDay = shiftDateKey(today, -(ACTIVITY_DAYS - 1));
-  const chartData = useMemo(() => {
-    const byDate = new Map<string, number>();
-    if (activity.status === 'ok') {
-      for (const row of activity.data) {
-        const key = typeof row.date === 'string' ? row.date.slice(0, 10) : '';
-        byDate.set(key, (byDate.get(key) ?? 0) + (Number(row.cards_reviewed) || 0));
-      }
-    }
-    return Array.from({ length: ACTIVITY_DAYS }, (_, i) => {
-      const key = shiftDateKey(today, i - (ACTIVITY_DAYS - 1));
-      return { key, value: byDate.get(key) ?? 0 };
-    });
-  }, [activity, today]);
+  // Ticket answers from the journal (its card answers are the same as the daily counters) and the tests.
+  const events = useMemo(
+    () => [...(journal.status === 'ok' ? journal.data.filter((event) => event.kind === 'exam_answer') : []), ...(quiz.status === 'ok' ? quiz.data : [])],
+    [journal, quiz],
+  );
+  const sessions = useMemo(() => (activity.status === 'ok' ? activity.data : []), [activity]);
+  const days = useMemo(() => answersByDay({ sessions, events, from: firstDay, to: today }), [sessions, events, firstDay, today]);
 
-  // One sentence about the last 30 days. Only what happened is named: no «0 ответов», no «0 дней
-  // подряд»; a day with a test counts as a day of study too.
-  const cardAnswers = chartData.reduce((sum, day) => sum + day.value, 0);
+  // One sentence about the last 30 days. Only what happened is named: no «0 ответов», no «0 дней подряд».
+  const cardAnswers = days.reduce((sum, day) => sum + day.cards, 0);
+  const ticketAnswers = days.reduce((sum, day) => sum + day.tickets, 0);
   const summaryParts: string[] = [];
   if (activity.status === 'ok') {
     const recentQuiz = quiz.status === 'ok' ? quiz.data.filter((e) => e.local_date >= firstDay && e.local_date <= today) : [];
-    const studyDays = new Set([
-      ...activity.data
-        .filter((row) => (Number(row.cards_reviewed) || 0) > 0)
-        .map((row) => row.date.slice(0, 10))
-        .filter((key) => key >= firstDay && key <= today),
-      ...recentQuiz.map((e) => e.local_date),
-    ]).size;
+    const studyDays = days.filter((day) => day.cards + day.tickets + day.tests > 0).length;
     const tests = new Set(recentQuiz.filter((e) => e.session_id).map((e) => e.session_id)).size;
     if (cardAnswers > 0) summaryParts.push(`${count(cardAnswers, ANSWER_FORMS)} на карточки`);
+    if (ticketAnswers > 0) summaryParts.push(`${count(ticketAnswers, ANSWER_FORMS)} на билеты`);
     if (tests > 0) summaryParts.push(count(tests, ['тест', 'теста', 'тестов']));
     if (studyDays > 0) summaryParts.push(`занятия в ${studyDays} из ${ACTIVITY_DAYS} дней`);
-    const streak = currentStreak(activity.data.filter((row) => (Number(row.cards_reviewed) || 0) > 0).map((row) => row.date));
+    const streak = studyStreak({ sessions: activity.data, events });
     if (streak > 0) summaryParts.push(`сейчас ${count(streak, ['день', 'дня', 'дней'])} подряд`);
   }
 
@@ -1253,11 +1341,12 @@ function ActivitySection({ activity, quiz, onRetry }: { activity: Source<Session
         <Quiet>Загружаем…</Quiet>
       ) : (
         <div className="pg-card pg-activity">
-          <Quiet>
-            {summaryParts.length > 0 ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.` : `За ${ACTIVITY_DAYS} дней ответов на карточки и тестов не было.`}
-          </Quiet>
+          <Quiet>{summaryParts.length > 0 ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.` : `За ${ACTIVITY_DAYS} дней занятий не было.`}</Quiet>
+          {journal.status === 'error' ? (
+            <ErrorLine text="Ответы на билеты не загрузились, их дни здесь не учтены." onRetry={onRetryJournal} />
+          ) : null}
           {/* Bars only when there is something to draw: no empty axis. */}
-          {cardAnswers > 0 && <DayBars data={chartData} />}
+          {cardAnswers + ticketAnswers > 0 ? <DayBars data={days} /> : null}
         </div>
       )}
     </Section>
@@ -1287,46 +1376,71 @@ function LegacyExams({ rows }: { rows: LegacyExamRow[] }) {
 }
 
 /**
- * Answers per day as plain columns: the blue, rounded tops, the value over a non-zero day, a stub
- * on a zero day, an axis from the first day to «сегодня». No hover; a table for screen readers.
+ * Answers per day as plain columns: card answers in the blue, answers to tickets in the ink on top of
+ * them (a hairline between), the total over a non-zero day, a stub on a zero day, an axis from the
+ * first day to «сегодня». No hover; a key when both kinds are there; a table for screen readers.
  */
-function DayBars({ data }: { data: Array<{ key: string; value: number }> }) {
-  const max = Math.max(1, ...data.map((day) => day.value));
-  const peak = data.reduce((best, day) => (day.value > best.value ? day : best), data[0]);
+function DayBars({ data }: { data: DayAnswers[] }) {
+  const totalOf = (day: DayAnswers) => day.cards + day.tickets;
+  const max = Math.max(1, ...data.map(totalOf));
+  const peak = data.reduce((best, day) => (totalOf(day) > totalOf(best) ? day : best), data[0]);
+  const hasCards = data.some((day) => day.cards > 0);
+  const hasTickets = data.some((day) => day.tickets > 0);
+  const what = hasCards && hasTickets ? 'Ответы на карточки и билеты' : hasTickets ? 'Ответы на билеты' : 'Ответы на карточки';
   return (
     <figure className="sf-bars pg-bars">
       <div className="sf-bars-plot" aria-hidden="true">
-        {data.map((day) => (
-          <div key={day.key} className="sf-bars-day">
-            {day.value > 0 ? (
-              <>
-                <span className="sf-bars-val">{day.value}</span>
-                <span className="sf-bars-bar" style={{ height: `${Math.max(3, (day.value / max) * 100)}px` }} />
-              </>
-            ) : (
-              <span className="sf-bars-bar" data-zero="" />
-            )}
-          </div>
-        ))}
+        {data.map((day) => {
+          const total = totalOf(day);
+          return (
+            <div key={day.key} className="sf-bars-day">
+              {total > 0 ? (
+                <>
+                  <span className="sf-bars-val">{total}</span>
+                  <span className="pg-bar-stack" style={{ height: `${Math.max(3, (total / max) * 100)}px` }}>
+                    {day.tickets > 0 ? <span className="pg-bar-part" data-kind="tickets" style={{ flexGrow: day.tickets }} /> : null}
+                    {day.cards > 0 ? <span className="pg-bar-part" data-kind="cards" style={{ flexGrow: day.cards }} /> : null}
+                  </span>
+                </>
+              ) : (
+                <span className="sf-bars-bar" data-zero="" />
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="sf-bars-axis" aria-hidden="true">
         <span>{shortDay(data[0].key)}</span>
         <span>сегодня</span>
       </div>
-      <figcaption className="pg-figcap">{sentence(`Ответы на карточки по дням; больше всего ${peak.value} — ${shortDay(peak.key)}`)}</figcaption>
+      {hasCards && hasTickets ? (
+        <ul className="pg-bar-keys" aria-hidden="true">
+          <li>
+            <i data-kind="cards" />
+            на карточки
+          </li>
+          <li>
+            <i data-kind="tickets" />
+            на билеты
+          </li>
+        </ul>
+      ) : null}
+      <figcaption className="pg-figcap">{sentence(`${what} по дням; больше всего ${totalOf(peak)} — ${shortDay(peak.key)}`)}</figcaption>
       <table className="sr-only">
-        <caption>Ответов на карточки по дням</caption>
+        <caption>Ответов по дням</caption>
         <thead>
           <tr>
             <th scope="col">День</th>
-            <th scope="col">Ответов</th>
+            <th scope="col">На карточки</th>
+            <th scope="col">На билеты</th>
           </tr>
         </thead>
         <tbody>
           {data.map((day) => (
             <tr key={day.key}>
               <td>{shortDay(day.key)}</td>
-              <td>{day.value}</td>
+              <td>{day.cards}</td>
+              <td>{day.tickets}</td>
             </tr>
           ))}
         </tbody>
