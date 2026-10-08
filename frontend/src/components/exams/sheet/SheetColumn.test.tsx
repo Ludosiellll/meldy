@@ -235,6 +235,52 @@ describe('SheetSummaryCard', () => {
   });
 });
 
+describe('SheetSummaryCard on the exam page’s phone (one block above the paper, Phone_Declutter_2026-10-08)', () => {
+  it('the count, both switches once something is erased, the last answer and the history in sight; the rest behind «Подробнее»', () => {
+    const props = summary({ variant: 'phone', more: <p className="cs-unwritable">{unwritableLine(2)}</p> });
+    expect(document.querySelector('.cs-big')?.textContent).toBe('39');
+    expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
+    expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Скрыть строки, стёртые совсем', 'Спрятать строки']);
+    // The words are short for one row on a 360 px phone; the names are whole.
+    const replay = screen.getByRole('button', { name: 'Показать последний ответ' });
+    expect(replay).toHaveTextContent('Последний ответ');
+    fireEvent.click(replay);
+    expect(props.onReplay).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'История шпаргалки' }));
+    expect(props.onHistory).toHaveBeenCalledTimes(1);
+    // What the count means, the rule, the share and the questions without points: one tap away.
+    expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
+    expect(document.querySelector('.cs-rule')).toBeNull();
+    expect(document.querySelector('.cs-share')).toBeNull();
+    const details = screen.getByRole('button', { name: 'Подробнее' });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'true');
+    const more = document.getElementById(details.getAttribute('aria-controls') ?? '') as HTMLElement;
+    expect(plain(more.querySelector('.cs-sub')?.textContent)).toBe('главных строк — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · у 6 вопросов нет пунктов ответа');
+    expect(plain(more.querySelector('.cs-rule')?.textContent)).toBe(SHEET_RULE);
+    expect(plain(more.querySelector('.cs-share')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях');
+    expect(plain(more.querySelector('.cs-unwritable')?.textContent)).toBe(unwritableLine(2).replace(/\u00a0/g, ' '));
+  });
+
+  it('nothing erased: only «Спрятать строки»; while the history plays, the count rolls and the rest steps aside', () => {
+    summary({ variant: 'phone', counts: { ...COUNTS, erased: 0 } });
+    expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Спрятать строки']);
+    cleanup();
+    const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
+    summary({ variant: 'phone', history: { frame: first, first, lowest: first.left, running: true } });
+    expect(document.querySelector('.cs-big')?.textContent).toBe('180');
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Подробнее' })).toBeNull();
+    cleanup();
+    const last: HistoryFrame = { day: '2026-10-06', at: 0, left: 61, total: 180 };
+    const props = summary({ variant: 'phone', history: { frame: last, first, lowest: 61, running: false } });
+    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('180 → 61 строка за 5 недель');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть историю шпаргалки' }));
+    expect(props.onHistoryStop).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('historyResult', () => {
   it('counts days under two weeks and weeks after', () => {
     const at = (day: string, left: number): HistoryFrame => ({ day, at: 0, left, total: 180 });

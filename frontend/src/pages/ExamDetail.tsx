@@ -744,6 +744,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       writeFromStatus: pageStatus?.action?.kind === 'write',
       quietGaps: pageStatus?.quietGaps ?? false,
       unitsLeft,
+      oneBlock: phone,
     },
     sheetData,
   );
