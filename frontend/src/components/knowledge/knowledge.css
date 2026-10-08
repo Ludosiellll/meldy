@@ -673,7 +673,6 @@
 .sf-page[data-frame='s'] .km-row-n { min-width: 26px; height: 26px; font-size: 12px; }
 .sf-page[data-frame='s'] .km-row-title { font-size: 18px; line-height: 25px; }
 .sf-page[data-frame='s'] .km-row-meta { font-size: 14px; line-height: 20px; }
-.sf-page[data-frame='s'] .km-list-h { font-size: 22px; }
 .sf-page[data-frame='s'] .km-guide > section { padding: 22px 22px 20px; border-radius: 28px; }
 
 /* One row on a phone (10_Project/Phone_Declutter_2026-10-08): the exam as a choice that fits any name (it shrinks
@@ -761,6 +760,36 @@
 .sf-page[data-frame='s'] .km-row-n,
 .sf-page[data-frame='s'] .km-row[data-selected] .km-row-n { min-width: 0; height: 26px; padding: 0; background: none; box-shadow: none; font-size: 15px; font-weight: 500; color: var(--sf-muted); }
 .sf-page[data-frame='s'] .km-row[data-selected] .km-row-n { color: var(--sf-ink); }
+
+/* A phone's lists (10_Project/Phone_Declutter_2026-10-08): the lectures, and the concepts under them, are rows of one
+   white card with a hairline between them, as «Сегодня» and «Лекции» — not a card per row. The row's title is 17/600,
+   its number a plain figure 17/500 like the numbers of «Лекции»; the chosen row has its number in ink. */
+@media (max-width: 639px) {
+  .sf-page .km-rows {
+    gap: 0;
+    padding: 0 16px;
+    border-radius: 28px;
+    background: var(--sf-surface);
+    box-shadow: 0 0 0 1px var(--sf-line);
+  }
+  .sf-page .km-row,
+  .sf-page .km-row:hover,
+  .sf-page .km-row[data-selected] { border-radius: 0; background: none; box-shadow: none; transform: none; }
+  .sf-page .km-row + .km-row { border-top: 1px solid var(--sf-line); }
+  .sf-page[data-frame='s'] .km-row-btn { grid-template-columns: 26px minmax(0, 1fr); column-gap: 8px; min-height: 52px; padding: 14px 0 15px; border-radius: 0; }
+  .sf-page[data-frame='s'] .km-row-btn:focus-visible { border-radius: 12px; }
+  .sf-page[data-frame='s'] .km-row-concept { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
+  .sf-page[data-frame='s'] .km-row-n,
+  .sf-page[data-frame='s'] .km-row[data-selected] .km-row-n { justify-self: start; height: 24px; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .sf-page[data-frame='s'] .km-row-title { font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -.01em; }
+}
+/* A small phone (360 px): the row and «Карта · Список» come closer, so the exam's choice beside them shows a name like
+   «Базы данных» whole. */
+@media (max-width: 379px) {
+  .sf-page[data-frame='s'] .km-bar.km-bar-one { gap: 6px; }
+  .sf-page[data-frame='s'] .km-bar-one .km-view button { padding: 0 7px; }
+  .sf-page .km-bar-one .km-pick { padding-right: 26px; background-position: right 10px center; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .sf-page .km-card,

@@ -3,7 +3,7 @@
  */
 import type { CoverageValue } from '../../api/exams';
 import { READINESS_LABELS, type Readiness } from '../../lib/learning/readiness';
-import { daysUntil, formatDay, KIND_LABELS, KIND_WORDS, relativeDays } from '../../lib/exams/format';
+import { daysUntil, formatDay, KIND_WORDS, phoneExamDay, relativeDays } from '../../lib/exams/format';
 import { pluralRu } from '../conversation/visuals';
 import { fragmentsPhrase, readinessWords } from '../exams/sheetModel';
 import type { ExamEntry, MapLecture, QuestionView } from './model';
@@ -73,12 +73,12 @@ export function examLine(exam: ExamEntry, now: Date = new Date()): string {
 }
 
 /**
- * «Экзамен через 12 дней», «Зачёт завтра»; «Экзамен» without a date: the phone's one-line meta of the map, where the
- * exam's name is in the choice of exams beside it and its date on the exam sheet.
+ * «21 октября, через 13 дней», «Зачёт 9 октября, завтра»; «Экзамен» without a date: the head of the phone's one-line
+ * meta of the map, as on «Лекции» and the exam sheet (lib/exams/format phoneExamDay); the exam's name is in the choice
+ * of exams under it.
  */
 export function examShort(exam: Pick<ExamEntry, 'kind' | 'examDate'>, now: Date = new Date()): string {
-  const days = daysUntil(exam.examDate, now);
-  return days === null ? KIND_LABELS[exam.kind] : `${KIND_LABELS[exam.kind]} ${relativeDays(days)}`;
+  return phoneExamDay(exam.kind, exam.examDate, now);
 }
 
 export const READINESS_ORDER: Readiness[] = ['confirmed', 'once', 'not_passed', 'untested'];

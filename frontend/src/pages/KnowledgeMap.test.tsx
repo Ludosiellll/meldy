@@ -6,6 +6,7 @@ import KnowledgeMap, { conceptsShown, sharedChoiceLabel, sharedChoiceLine } from
 import { sampleRows, type SampleRows } from '../components/knowledge/sampleCourse';
 import type { MapConcept, MapView } from '../components/knowledge/model';
 import { examShort } from '../components/knowledge/copy';
+import { PHONE_QUERY } from '../lib/usePhone';
 
 const api = vi.hoisted(() => ({ from: vi.fn() }));
 
@@ -267,12 +268,23 @@ describe('closing', () => {
   });
 });
 
+/** matchMedia that says «a phone» (lib/usePhone, max-width 639px) and nothing else: jsdom has none of its own. */
+function phoneScreen() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (media: string) => ({ matches: media === PHONE_QUERY, media, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
+  });
+}
+
 describe('on a phone', () => {
   const width = window.innerWidth;
   beforeEach(() => {
+    // The window says «a phone» (usePhone); the page frame measures the same 390 px (useFrame reads the window in jsdom).
+    phoneScreen();
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
   });
   afterEach(() => {
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
   });
 
@@ -281,7 +293,7 @@ describe('on a phone', () => {
     renderPage();
     const lectures = await screen.findByRole('region', { name: 'Лекции' });
     expect(screen.queryByRole('group', { name: /^Карта связей/ })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Списком' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Список' })).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(within(lectures).getByRole('button', { name: /Инфляция: причины и последствия/ }));
     const panel = screen.getByRole('region', { name: 'Инфляция: причины и последствия' });
@@ -325,7 +337,8 @@ describe('on a phone', () => {
     renderPage();
     await screen.findByRole('region', { name: 'Лекции' });
     const head = document.querySelector('.km-head') as HTMLElement;
-    expect(head.querySelector('.sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^Экзамен через 12 дней · \d+ лекци(я|и|й)$/);
+    // «21 октября, через 13 дней · 3 лекции»: the kind is named only when it is not an exam.
+    expect(head.querySelector('.sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^\d{1,2} [а-я]+( \d{4})?, через 12 дней · \d+ лекци(я|и|й)$/);
     expect(within(head).queryByRole('link', { name: 'Лист экзамена' })).toBeNull();
   });
 
@@ -338,13 +351,13 @@ describe('on a phone', () => {
     expect(within(exam).getAllByRole('option').map((option) => option.textContent)).toEqual(['Макроэкономика', 'Эконометрика', 'Все лекции']);
     expect(exam).toHaveValue('exam-macro');
     expect(within(row).getByRole('button', { name: 'Карта' })).toBeInTheDocument();
-    expect(within(row).getByRole('button', { name: 'Списком' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(row).getByRole('button', { name: 'Список' })).toHaveAttribute('aria-pressed', 'true');
     expect(within(row).getByRole('button', { name: 'Найти лекцию или понятие' })).toBeInTheDocument();
     await user.selectOptions(exam, 'Все лекции');
     expect(exam).toHaveValue('');
     expect(await screen.findByRole('list', { name: 'Предмет' })).toBeInTheDocument();
     await user.selectOptions(exam, 'Эконометрика');
-    expect(document.querySelector('.km-head .sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^Коллоквиум через 26 дней · /);
+    expect(document.querySelector('.km-head .sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^Коллоквиум \d{1,2} [а-я]+( \d{4})?, через 26 дней · /);
   });
 
   it('folds the legend under «Обозначения»: words in the list, filters on the map', async () => {
@@ -468,11 +481,33 @@ describe('a computer keeps what a phone leaves out', () => {
 });
 
 describe('the phone’s meta', () => {
-  it('names the kind of the exam and how soon it is, or only the kind without a date', () => {
+  it('says the day of the exam and how soon it is, naming the kind only when it is not an exam', () => {
     const now = new Date(2026, 9, 8, 12);
-    expect(examShort({ kind: 'exam', examDate: '2026-10-21' }, now)).toBe('Экзамен через 13 дней');
-    expect(examShort({ kind: 'credit', examDate: '2026-10-08' }, now)).toBe('Зачёт сегодня');
-    expect(examShort({ kind: 'colloquium', examDate: '2026-10-09' }, now)).toBe('Коллоквиум завтра');
+    expect(examShort({ kind: 'exam', examDate: '2026-10-21' }, now)).toBe('21 октября, через 13 дней');
+    expect(examShort({ kind: 'credit', examDate: '2026-10-08' }, now)).toBe('Зачёт 8 октября, сегодня');
+    expect(examShort({ kind: 'colloquium', examDate: '2026-10-09' }, now)).toBe('Коллоквиум 9 октября, завтра');
     expect(examShort({ kind: 'exam', examDate: null }, now)).toBe('Экзамен');
+  });
+});
+
+describe('a computer window narrowed by its scrollbar', () => {
+  const width = window.innerWidth;
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+  });
+
+  it('keeps the computer’s map when only the page is under 640 px (a 650 px window less its scrollbar), not the window', async () => {
+    // The page frame measures 630 px (useFrame: «s»); the window is not a phone (no matchMedia match).
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 630 });
+    renderPage();
+    await screen.findByRole('group', { name: /^Карта связей/ });
+    expect(document.querySelector('.sf-page')).toHaveAttribute('data-frame', 's');
+    const head = document.querySelector('.km-head') as HTMLElement;
+    expect(within(head).getByRole('link', { name: 'Лист экзамена' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Экзамен' })).toBeInTheDocument();
+    expect(document.querySelector('.km-bar-one')).toBeNull();
+    expect(screen.getByRole('searchbox', { name: 'Найти лекцию или понятие' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Списком' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('list', { name: 'Показать на карте' })).toBeInTheDocument();
   });
 });

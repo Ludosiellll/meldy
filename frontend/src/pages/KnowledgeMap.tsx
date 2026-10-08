@@ -29,6 +29,7 @@ import {
 import { useKnowledgeData } from '../components/knowledge/useKnowledgeData';
 import SectionCrumb from '../components/SectionCrumb';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { isPhone, usePhone } from '../lib/usePhone';
 import { ty } from '../components/landing/typo';
 import '../styles/paper.css';
 import '../components/knowledge/knowledge.css';
@@ -67,8 +68,10 @@ export function sharedChoiceLine(shown: { shared: number; weak: number }): strin
  * the map. A list says the same in words (the phone's first view and the screen reader's). Read-only.
  *
  * On a phone (10_Project/Phone_Declutter_2026-10-08) the meta is one line, the exam sheet is reached from
- * «Экзамены» (no «Лист экзамена» here), the exam, «Карта · Списком» and the search share one row (the search
- * is a button that opens its field), and the legend folds under «Обозначения».
+ * «Экзамены» (no «Лист экзамена» here), the exam, «Карта · Список» and the search share one row (the search
+ * is a button that opens its field), and the legend folds under «Обозначения». «A phone» is the window, as the
+ * stylesheets say it (lib/usePhone: up to 639 px); the page's own width (useFrame) decides only what is about the
+ * room the page has — the panel beside the map or over it.
  */
 
 type Mode = 'map' | 'list';
@@ -124,7 +127,7 @@ export default function KnowledgeMap() {
   const [examChoice, setExamChoice] = useState<string | null | undefined>(initialExam === 'all' ? null : initialExam || undefined);
   const [subject, setSubject] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [mode, setMode] = useState<Mode>(() => (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth < 640 ? 'list' : 'map'));
+  const [mode, setMode] = useState<Mode>(() => (isPhone() ? 'list' : 'map'));
   const [selected, setSelected] = useState<NodeId | null>(null);
   const [hover, setHover] = useState<NodeId | null>(null);
   const [focused, setFocused] = useState<NodeId | null>(null);
@@ -152,7 +155,8 @@ export default function KnowledgeMap() {
   const subjectFilter = examId === null && subjects.length > 1 ? subject : null;
   const view = useMemo(() => (base ? buildMapView(base, { examId, subject: subjectFilter, showAll }) : null), [base, examId, subjectFilter, showAll]);
   const side = frame.side;
-  const phone = frame.size === 's';
+  // A phone by the window (a 640–655 px window with a scrollbar has a page under 640 px: it keeps the computer's map).
+  const phone = usePhone();
   // On a computer the sheet is as tall as the window allows and the map is laid out for its shape.
   // On a phone the cards stand one under another at full size and the sheet is as tall as the map:
   // the page scrolls through it with one finger (no pinching needed to read it).
@@ -328,8 +332,8 @@ export default function KnowledgeMap() {
 
   // ------------------------------------------------------------------ the map
   const exam = view.exam;
-  // A phone: one line, «Экзамен через 13 дней · 3 лекции» (the exam's name is in the choice below, the shared concepts
-  // in the concepts' own line, KnowledgeList).
+  // A phone: one line, «21 октября, через 13 дней · 3 лекции» (the exam's name is in the choice below, the shared
+  // concepts in the concepts' own line, KnowledgeList).
   const lede = phone
     ? [exam ? examShort(exam, now) : '', count(view.lectures.length, LECTURES), !exam && exams.length ? count(exams.length, ['экзамен', 'экзамена', 'экзаменов']) : '']
         .filter(Boolean)
@@ -437,7 +441,7 @@ export default function KnowledgeMap() {
       ) : null}
 
       {phone ? (
-        // One row: the exam (a choice that fits any name), «Карта · Списком», the search button.
+        // One row: the exam (a choice that fits any name), «Карта · Список», the search button.
         <>
           <div className="km-bar km-bar-one">
             {exams.length > 0 ? (
@@ -460,7 +464,7 @@ export default function KnowledgeMap() {
               </li>
               <li>
                 <button type="button" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>
-                  Списком
+                  Список
                 </button>
               </li>
             </ul>
