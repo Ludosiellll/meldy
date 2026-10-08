@@ -136,6 +136,9 @@ html[data-stage] .md-crumb { display: none; }
 
 /* ---------------------------------------------------------------- the panel */
 .md-panel { min-width: 0; }
+/* The cards tab's own «Повторить карточки» is the header's here (and the bar's below 1024 px): one link, not two.
+   The cards of /analyze keep theirs. */
+.md-panel .fc-go { display: none; }
 .md-panel > .cv,
 .md-panel > .xp-sheet,
 .md-panel > .xp-empty { margin-top: 24px; }
@@ -147,9 +150,8 @@ html[data-stage] .md-crumb { display: none; }
    keeps «Поговорить о лекции» and «⋯». */
 .md-bottom { display: none; }
 @media (max-width: 1023px) {
-  /* The header's «Повторить карточки» and the cards tab's own are the bar at the bottom here. */
-  .md-page[data-bottom] .md-review,
-  .md-page[data-bottom] .fc-go { display: none; }
+  /* The header's «Повторить карточки» is the bar at the bottom here. */
+  .md-page[data-bottom] .md-review { display: none; }
   .md-bottom {
     position: sticky;
     bottom: 0;

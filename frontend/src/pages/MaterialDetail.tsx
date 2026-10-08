@@ -687,9 +687,10 @@ export default function MaterialDetail() {
         </div>
 
         {/* A low window (1532×734, the 1280×720 projector) has no row for the meta line under the title: it is shown
-            here, between the tabs and the actions, and read from the header (MaterialDetail.css). */}
+            here, between the tabs and the actions, and read from the header (MaterialDetail.css). Where it is cut
+            short (a 1024 px window), the pointer shows it whole. */}
         {editingSubject ? null : (
-          <p className="md-toolbar-meta" aria-hidden="true">
+          <p className="md-toolbar-meta" aria-hidden="true" title={metaLine}>
             {metaLine}
           </p>
         )}
