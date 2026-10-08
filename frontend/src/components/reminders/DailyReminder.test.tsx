@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import DailyReminder from './DailyReminder';
+import DailyReminder, { profileReminderNote } from './DailyReminder';
+import { PHONE_QUERY } from '../../lib/usePhone';
 import { reminderUid } from '../../lib/reminders/ics';
 import { REMINDER_PREFIX } from '../../lib/reminders/dailyReminder';
 import { danglingControls } from '../../test/a11y';
@@ -256,5 +257,31 @@ describe('«Напоминать каждый день» in «Профиль»',
     render(<DailyReminder variant="profile" />);
     expect(screen.getByText('Напоминание в 21:00')).toBeInTheDocument();
     expect(mocks.leadingExamId).not.toHaveBeenCalled();
+  });
+});
+
+describe('«Напоминать каждый день» in «Профиль» on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (media: string) => ({ matches: media === PHONE_QUERY, media, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
+    });
+  });
+  afterEach(() => {
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('says what the row does in one line; the window still says that the calendar reminds and Meldy does not see it', async () => {
+    render(<DailyReminder variant="profile" />);
+    expect(screen.getByText('Событие в вашем календаре.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Выбрать время' }));
+    expect(await screen.findByText(/Напоминает календарь на вашем телефоне или компьютере, Meldy его не видит/)).toBeInTheDocument();
+  });
+
+  it('words the row on a phone and on a computer', () => {
+    expect(profileReminderNote(false, true)).toBe('Событие в вашем календаре.');
+    expect(profileReminderNote(true, true)).toBe('Каждый день — событие в календаре.');
+    expect(profileReminderNote(false, false)).toBe('Ваш календарь будет каждый день в выбранное время напоминать ответить на билет.');
+    expect(profileReminderNote(true, false)).toBe('Каждый день — событие в вашем календаре.');
   });
 });

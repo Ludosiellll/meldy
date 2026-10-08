@@ -414,6 +414,10 @@
   box-shadow: 0 0 0 1px var(--sf-line);
 }
 .rv-empty + .rv-diary { margin-top: 20px; }
+/* A phone's session (Review.tsx MistakesLine): «Дневник ошибок · 17 открытых →», one quiet line under the card. */
+.rv-diary-line { margin: 2px 0 0; }
+.rv-diary-arrow { margin-left: 8px; transition: transform .5s var(--m-ease); }
+.rv-diary-line .sf-link:hover .rv-diary-arrow { transform: translateX(3px); }
 .rv-diary-main { flex: 1 1 18rem; min-width: 0; }
 .rv-diary-h { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -.015em; color: var(--sf-ink); }
 .rv-diary-p { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
@@ -441,6 +445,8 @@
   /* 22 + 18 = the old 40 px gap; the card's own label names where it comes from. */
   .rv-controls { margin: 22px -8px 0; padding-top: 18px; padding-left: 8px; padding-right: 8px; background: linear-gradient(to bottom, transparent, var(--sf-canvas) 16px); }
   .rv-controls + .rv-diary { margin-top: 28px; }
+  /* The hint under «Перевернуть» until the first card of the page is turned over (10_Project/Phone_Declutter_2026-10-08). */
+  .rv-flip-row[data-seen] .rv-quiet { display: none; }
   .rv-ctx { display: none; }
   .rv-grades { gap: 8px; }
   .rv-grade { justify-content: center; min-height: 54px; padding: 6px 8px; font-size: 16px; text-align: center; }
@@ -450,6 +456,9 @@
   .rv-note-card { padding: 24px 22px; border-radius: 32px; }
   .rv-done { grid-template-columns: minmax(0, 1fr); padding: 28px 22px 30px; border-radius: 36px; }
   .rv-art-done { display: none; }
+  /* A status is words, not a pill (10_Project/Phone_Declutter_2026-10-08). */
+  .rv-saved { display: block; margin-top: 10px; padding: 0; background: none; }
+  .rv-saved::before { display: none; }
   .rv-done-line { font-size: 17px; }
   .rv-days { margin-top: 40px; }
   .rv-days-h { font-size: 24px; }
@@ -480,8 +489,10 @@
 @media (prefers-reduced-motion: reduce) {
   .rv-progress i,
   .rv-grade,
-  .rv-key { transition: none; }
+  .rv-key,
+  .rv-diary-arrow { transition: none; }
   .rv-grade:hover .rv-key,
-  .rv-grade:active { transform: none; }
+  .rv-grade:active,
+  .rv-diary-line .sf-link:hover .rv-diary-arrow { transform: none; }
   .rv .rv-deck[data-enter] .sf-flip { animation: none; }
 }

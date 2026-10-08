@@ -18,6 +18,7 @@ import {
 } from '../../lib/reminders/dailyReminder';
 import { glue } from '../exams/sheetModel';
 import { track } from '../../lib/telemetry';
+import { usePhone } from '../../lib/usePhone';
 import './reminder.css';
 
 /**
@@ -86,8 +87,18 @@ function EventPreview({ time }: { time: string }) {
   );
 }
 
+/**
+ * The row's description in «Профиль»: on a phone one line (10_Project/Phone_Declutter_2026-10-08); that the calendar
+ * reminds and Meldy never sees it is said in the window, over «Скачать файл календаря».
+ */
+export function profileReminderNote(chosen: boolean, phone: boolean): string {
+  if (chosen) return phone ? 'Каждый день — событие в календаре.' : 'Каждый день — событие в вашем календаре.';
+  return phone ? 'Событие в вашем календаре.' : 'Ваш календарь будет каждый день в выбранное время напоминать ответить на билет.';
+}
+
 export default function DailyReminder({ variant, examId }: Props) {
   const { user } = useAuth();
+  const phone = usePhone();
   const userId = user?.id ?? null;
   const ids = useId();
   const panelId = `${ids}-panel`;
@@ -282,9 +293,7 @@ export default function DailyReminder({ variant, examId }: Props) {
             <p className="ac-row-t" id={`${ids}-title`}>
               {choice ? `Напоминание в ${clock(choice.time)}` : 'Напоминать каждый день'}
             </p>
-            <p className="ac-row-d">
-              {glue(choice ? 'Каждый день — событие в вашем календаре.' : 'Ваш календарь будет каждый день в выбранное время напоминать ответить на билет.')}
-            </p>
+            <p className="ac-row-d">{glue(profileReminderNote(choice !== null, phone))}</p>
           </div>
           <button type="button" className="ac-btn ac-row-btn" aria-describedby={`${ids}-title`} {...opener}>
             {choice ? 'Изменить' : 'Выбрать время'}

@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import MistakeDiary, { mistakeOriginLabel } from './MistakeDiary';
+import MistakeDiary, { mistakeOriginLabel, practiceNote } from './MistakeDiary';
+import { PHONE_QUERY } from '../lib/usePhone';
 
 const api = vi.hoisted(() => ({
   from: vi.fn(),
@@ -470,5 +471,100 @@ describe('the points of a ticket answer (LIB-11) and the row actions (LIB-29)', 
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
     await user.click(await screen.findByRole('button', { name: 'Исправленные' }));
     expect(screen.getByRole('heading', { name: 'Исправленных пока нет' })).toBeInTheDocument();
+  });
+});
+
+/** A phone for usePhone (max-width 639px): jsdom has no matchMedia of its own. */
+function phoneScreen() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (media: string) => ({ matches: media === PHONE_QUERY, media, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
+  });
+}
+
+describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  const open = [
+    { id: 'a', origin: 'quiz', question: 'Что такое ВВП?', correct_answer: 'Стоимость конечных товаров', student_answer: 'Доход', topic: 'Экономика', is_resolved: false, created_at: '2026-10-02T08:00:00Z', material_id: null },
+    { id: 'b', origin: 'quiz', question: 'Что такое инфляция?', correct_answer: 'Рост цен', student_answer: 'Рост зарплат', topic: 'Экономика', is_resolved: false, created_at: '2026-10-02T08:00:00Z', material_id: null },
+  ];
+
+  function rowsQuery(data: unknown[]) {
+    const query: any = {};
+    query.select = vi.fn(() => query);
+    query.eq = vi.fn(() => query);
+    query.order = vi.fn().mockResolvedValue({ data, error: null });
+    return query;
+  }
+
+  beforeEach(phoneScreen);
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('keeps the intro and the price to one short line each', async () => {
+    api.from.mockReturnValue(rowsQuery(open));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    expect(await screen.findByText('Нажмите на строку — откроется ответ.')).toBeInTheDocument();
+    expect(screen.queryByText(/Ошибки из тестов и ответов на билеты/)).toBeNull();
+    expect(await screen.findByText('2 ошибки · 2 единицы лимита ИИ')).toBeInTheDocument();
+    // «Обновить» stays in the page for a computer; a phone does not draw it (MistakeDiary.css).
+    expect(screen.getByRole('button', { name: 'Обновить' })).toHaveClass('md-round');
+  });
+
+  it('words the price on a phone and on a computer', () => {
+    expect(practiceNote(17, true)).toBe('5 ошибок · 2 единицы лимита ИИ');
+    expect(practiceNote(1, true)).toBe('1 ошибка · 2 единицы лимита ИИ');
+    expect(practiceNote(17, false)).toBe('Задания по 5 открытым ошибкам. Расходует 2 единицы дневного лимита ИИ, если задания получились.');
+    expect(practiceNote(1, false)).toBe('Задания по 1 открытой ошибке. Расходует 2 единицы дневного лимита ИИ, если задания получились.');
+  });
+});
+
+describe('the diary reads itself again when the app comes back to the screen', () => {
+  function rowsQuery(data: unknown[] | null, error: unknown = null) {
+    const query: any = {};
+    query.select = vi.fn(() => query);
+    query.eq = vi.fn(() => query);
+    query.order = vi.fn().mockResolvedValue({ data, error });
+    return query;
+  }
+  const first = { id: 'a', origin: 'quiz', question: 'Что такое ВВП?', correct_answer: 'Стоимость', student_answer: 'Доход', topic: 'Экономика', is_resolved: false, created_at: '2026-10-02T08:00:00Z', material_id: null };
+  const added = { id: 'n', origin: 'quiz', question: 'Что такое дефляция?', correct_answer: 'Падение цен', student_answer: 'Рост цен', topic: 'Экономика', is_resolved: false, created_at: '2026-10-03T08:00:00Z', material_id: null };
+
+  function comeBack() {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+  });
+
+  it('shows a mistake made meanwhile, without «Загружаем…» and without a button', async () => {
+    api.from.mockReturnValue(rowsQuery([first]));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    expect(await screen.findByText('Что такое ВВП?')).toBeInTheDocument();
+    api.from.mockReturnValue(rowsQuery([added, first]));
+    comeBack();
+    expect(screen.queryByText('Загружаем…')).toBeNull();
+    expect(await screen.findByText('Что такое дефляция?')).toBeInTheDocument();
+    expect(screen.getByText('Что такое ВВП?')).toBeInTheDocument();
+  });
+
+  it('keeps the rows when the read fails', async () => {
+    api.from.mockReturnValue(rowsQuery([first]));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    expect(await screen.findByText('Что такое ВВП?')).toBeInTheDocument();
+    const failing = rowsQuery(null, { message: 'offline' });
+    api.from.mockReturnValue(failing);
+    comeBack();
+    await waitFor(() => expect(failing.order).toHaveBeenCalled());
+    expect(screen.getByText('Что такое ВВП?')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

@@ -24,6 +24,7 @@ import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { sessionTotalWords } from '../lib/learning/cardCounts';
 import { localDateKey } from '../utils/streak';
 import { ty } from '../components/landing/typo';
+import { usePhone } from '../lib/usePhone';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -133,7 +134,7 @@ export function openMistakesLine(count: number | null): string {
 
 /**
  * The mistakes diary lives in «Повторение»: one card at the foot of the page in every state, with
- * the number of open mistakes when it could be counted.
+ * the number of open mistakes when it could be counted (a phone's session has the line below instead).
  */
 function MistakesEntry({ count }: { count: number | null }) {
   const line = openMistakesLine(count);
@@ -152,6 +153,41 @@ function MistakesEntry({ count }: { count: number | null }) {
         Открыть дневник ошибок
       </Link>
     </section>
+  );
+}
+
+/** «17 открытых», «открытых нет», or nothing when the count is not known: the tail of the phone's diary line. */
+export function openMistakesShort(count: number | null): string {
+  if (count === null) return '';
+  if (count === 0) return 'открытых нет';
+  return `${count} ${pluralRu(count, ['открытая', 'открытые', 'открытых'])}`;
+}
+
+/**
+ * During a session a phone shows the diary as one quiet line under the card, «Дневник ошибок · 17 открытых →»
+ * (10_Project/Phone_Declutter_2026-10-08): the card and its three words keep the screen.
+ */
+function MistakesLine({ count }: { count: number | null }) {
+  const tail = openMistakesShort(count);
+  return (
+    <p className="rv-diary-line">
+      <Link className="sf-link" data-muted="" to="/mistakes">
+        {/* One run of text: the link is a flex box, which would trim the spaces around «·». */}
+        <span>
+          Дневник ошибок
+          {tail ? (
+            <>
+              <span aria-hidden="true">{' · '}</span>
+              <span className="sr-only">, </span>
+              {tail}
+            </>
+          ) : null}
+        </span>
+        <span className="rv-diary-arrow" aria-hidden="true">
+          →
+        </span>
+      </Link>
+    </p>
   );
 }
 
@@ -284,6 +320,7 @@ async function loadLectureTitles(cards: DueCard[]): Promise<Record<string, strin
 export default function Review() {
   useDocumentTitle('Повторение');
   const { user } = useAuth();
+  const phone = usePhone();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const materialParam = searchParams.get('material');
@@ -297,6 +334,8 @@ export default function Review() {
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  /** A card was turned over on this page: a phone drops the hint under «Перевернуть» from then on. */
+  const [flippedOnce, setFlippedOnce] = useState(false);
   const [judged, setJudged] = useState<Judged | null>(null);
   const [counts, setCounts] = useState<Record<Grade, number>>({ forgot: 0, hard: 0, remember: 0 });
   const [tomorrow, setTomorrow] = useState(0);
@@ -398,6 +437,7 @@ export default function Review() {
   const flip = () => {
     if (flipped || judged) return;
     setFlipped(true);
+    setFlippedOnce(true);
   };
 
   // The three words take the focus once the card is turned over, so 1, 2, 3 and Tab start there. A long
@@ -620,8 +660,9 @@ export default function Review() {
                     Продолжить
                   </button>
                 ) : null}
-                {/* The list of exams, named as it is: it used to say «Лист экзамена» and open the list. */}
-                <Link className="sf-secondary" to="/exams">
+                {/* The list of exams, named as it is: it used to say «Лист экзамена» and open the list. Beside
+                    «Продолжить» a phone makes it a quiet link: one pill on the screen. */}
+                <Link className={phone && mayHaveMore ? 'sf-link' : 'sf-secondary'} to="/exams">
                   Экзамены
                 </Link>
                 <Link className="sf-link" data-muted="" to="/library">
@@ -758,11 +799,13 @@ export default function Review() {
 
         <div className="rv-controls" aria-busy={processing}>
           {!flipped ? (
-            <div className="rv-flip-row">
+            // The hint stays on a computer; a phone shows it shorter, in one line, and only until the first card is
+            // turned over (Review.css).
+            <div className="rv-flip-row" data-seen={flippedOnce ? '' : undefined}>
               <button ref={flipButtonRef} type="button" className="sf-primary" onClick={flip} aria-keyshortcuts="Space Enter">
                 Перевернуть
               </button>
-              <p className="rv-quiet">Сначала вспомните ответ, потом переверните карточку.</p>
+              <p className="rv-quiet">{phone ? 'Вспомните ответ, потом переверните.' : 'Сначала вспомните ответ, потом переверните карточку.'}</p>
             </div>
           ) : judged ? (
             <p className="rv-judged" role="status">
@@ -799,7 +842,7 @@ export default function Review() {
             </p>
           ) : null}
         </div>
-        <MistakesEntry count={openMistakes} />
+        {phone ? <MistakesLine count={openMistakes} /> : <MistakesEntry count={openMistakes} />}
       </div>
     </div>
   );

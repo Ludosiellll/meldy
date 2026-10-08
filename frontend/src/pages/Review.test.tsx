@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Review, { emptyQueueCopy, nextReviewWords, openMistakesLine } from './Review';
+import Review, { emptyQueueCopy, nextReviewWords, openMistakesLine, openMistakesShort } from './Review';
 import { supabase } from '../lib/supabase';
+import { PHONE_QUERY } from '../lib/usePhone';
 
 const api = vi.hoisted(() => ({
   getDueCards: vi.fn(),
@@ -540,5 +541,111 @@ describe('the mistakes diary in «Повторение»', () => {
     expect(openMistakesLine(21)).toBe('21 открытая ошибка.');
     expect(openMistakesLine(0)).toBe('Открытых ошибок нет.');
     expect(openMistakesLine(null)).toBe('');
+  });
+});
+
+/** A phone for usePhone (max-width 639px): jsdom has no matchMedia of its own. */
+function phoneScreen() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (media: string) => ({ matches: media === PHONE_QUERY, media, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
+  });
+}
+
+describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  const twoCards = [
+    { id: 'card-1', question: 'Первый вопрос', answer: 'Первый ответ' },
+    { id: 'card-2', question: 'Второй вопрос', answer: 'Второй ответ' },
+  ];
+
+  beforeEach(() => {
+    phoneScreen();
+    api.getDueCards.mockResolvedValue(twoCards);
+    api.updateCardProgress.mockResolvedValue({ card_id: 'card-1', duplicate: false, interval_days: 1 });
+    api.recordStudyActivity.mockResolvedValue(undefined);
+    vi.mocked(supabase.from).mockImplementation(((table: string) =>
+      table === 'mistake_diary' ? query({ count: 17, error: null }) : query({ data: [], error: null })) as unknown as typeof supabase.from);
+  });
+
+  afterEach(() => {
+    cleanup();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    vi.mocked(supabase.from).mockReset();
+  });
+
+  it('shows the diary as one quiet line under the card during a session', async () => {
+    renderReview();
+    const flip = await screen.findByRole('button', { name: 'Перевернуть' });
+    expect(screen.queryByRole('region', { name: 'Дневник ошибок' })).toBeNull();
+    const line = await screen.findByRole('link', { name: /^Дневник ошибок,\s*17 открытых$/ });
+    expect(line).toHaveAttribute('href', '/mistakes');
+    expect(line).toHaveClass('sf-link');
+    expect(flip.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('says the hint under «Перевернуть» in one short line, until the first card is turned over', async () => {
+    const user = userEvent.setup();
+    renderReview();
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    const row = () => document.querySelector('.rv-flip-row') as HTMLElement;
+    expect(row()).toHaveTextContent('Вспомните ответ, потом переверните.');
+    expect(row()).not.toHaveAttribute('data-seen');
+    await revealAndChoose(user);
+    // The second card: the hint is marked seen, and a phone does not draw it (Review.css).
+    await waitFor(() => expect(screen.getByText('Второй вопрос')).toBeInTheDocument(), { timeout: 2000 });
+    expect(row()).toHaveAttribute('data-seen');
+    // The grades and the session are as on a computer.
+    expect(api.updateCardProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps one pill beside «Продолжить» on the done screen, and the diary card under it', async () => {
+    const user = userEvent.setup();
+    renderReview();
+    await revealAndChoose(user);
+    await screen.findByText('Второй вопрос', undefined, { timeout: 2000 });
+    await user.click(screen.getByRole('button', { name: 'Закончить' }));
+    expect(await screen.findByRole('heading', { name: 'Повторили 1 карточку' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Продолжить' })).toHaveClass('sf-primary');
+    expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveClass('sf-link');
+    expect(screen.getByRole('region', { name: 'Дневник ошибок' })).toBeInTheDocument();
+  });
+
+  it('keeps the diary card under an empty queue', async () => {
+    api.getDueCards.mockResolvedValue([]);
+    renderReview();
+    const diary = await screen.findByRole('region', { name: 'Дневник ошибок' });
+    expect(await within(diary).findByText('17 открытых ошибок.')).toBeInTheDocument();
+  });
+
+  it('words the tail of the line', () => {
+    expect(openMistakesShort(1)).toBe('1 открытая');
+    expect(openMistakesShort(3)).toBe('3 открытые');
+    expect(openMistakesShort(17)).toBe('17 открытых');
+    expect(openMistakesShort(0)).toBe('открытых нет');
+    expect(openMistakesShort(null)).toBe('');
+  });
+});
+
+describe('a computer keeps the session as it was', () => {
+  beforeEach(() => {
+    api.getDueCards.mockResolvedValue([
+      { id: 'card-1', question: 'Первый вопрос', answer: 'Первый ответ' },
+      { id: 'card-2', question: 'Второй вопрос', answer: 'Второй ответ' },
+    ]);
+    api.updateCardProgress.mockResolvedValue({ card_id: 'card-1', duplicate: false, interval_days: 1 });
+    api.recordStudyActivity.mockResolvedValue(undefined);
+  });
+  afterEach(cleanup);
+
+  it('says the whole hint, and «Экзамены» stays a pill beside «Продолжить»', async () => {
+    const user = userEvent.setup();
+    renderReview();
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    expect(document.querySelector('.rv-flip-row')).toHaveTextContent('Сначала вспомните ответ, потом переверните карточку.');
+    await revealAndChoose(user);
+    await screen.findByText('Второй вопрос', undefined, { timeout: 2000 });
+    await user.click(screen.getByRole('button', { name: 'Закончить' }));
+    await screen.findByRole('heading', { name: 'Повторили 1 карточку' });
+    expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveClass('sf-secondary');
   });
 });

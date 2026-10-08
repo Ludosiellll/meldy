@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import KnowledgeMap, { conceptsShown, sharedChoiceLabel, sharedChoiceLine } from './KnowledgeMap';
 import { sampleRows, type SampleRows } from '../components/knowledge/sampleCourse';
 import type { MapConcept, MapView } from '../components/knowledge/model';
+import { examShort } from '../components/knowledge/copy';
 
 const api = vi.hoisted(() => ({ from: vi.fn() }));
 
@@ -295,10 +296,85 @@ describe('on a phone', () => {
     expect(screen.getByRole('group', { name: /^Карта связей/ })).toBeInTheDocument();
   });
 
-  it('keeps the search hint short enough for the phone’s field, the label whole (LIB-24)', async () => {
+  it('opens the search from its button: a short hint for the phone’s field, the label whole (LIB-24)', async () => {
+    const user = userEvent.setup();
     renderPage();
-    const search = await screen.findByRole('searchbox', { name: 'Найти лекцию или понятие' });
+    await screen.findByRole('region', { name: 'Лекции' });
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    const find = screen.getByRole('button', { name: 'Найти лекцию или понятие' });
+    expect(find).toHaveAttribute('aria-expanded', 'false');
+    await user.click(find);
+    const search = screen.getByRole('searchbox', { name: 'Найти лекцию или понятие' });
     expect(search).toHaveAttribute('placeholder', 'Найти');
+    expect(search).toHaveFocus();
+    expect(find).toHaveAttribute('aria-expanded', 'true');
+    expect(find).toHaveAttribute('aria-controls', search.id);
+    await user.type(search, 'Инфляц');
+    const lectures = screen.getByRole('region', { name: 'Лекции' });
+    expect(within(lectures).getAllByRole('button')).toHaveLength(1);
+    // Esc clears the words, a second Esc closes the field and gives the focus back to the button.
+    await user.keyboard('{Escape}');
+    expect(search).toHaveValue('');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    await waitFor(() => expect(find).toHaveFocus());
+    expect(find).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('says the meta in one line and leaves the exam sheet to «Экзамены» and the lecture’s panel', async () => {
+    renderPage();
+    await screen.findByRole('region', { name: 'Лекции' });
+    const head = document.querySelector('.km-head') as HTMLElement;
+    expect(head.querySelector('.sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^Экзамен через 12 дней · \d+ лекци(я|и|й)$/);
+    expect(within(head).queryByRole('link', { name: 'Лист экзамена' })).toBeNull();
+  });
+
+  it('puts the exam, the view and the search in one row; the exam is a choice that fits any name', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole('region', { name: 'Лекции' });
+    const row = document.querySelector('.km-bar-one') as HTMLElement;
+    const exam = within(row).getByRole('combobox', { name: 'Экзамен' });
+    expect(within(exam).getAllByRole('option').map((option) => option.textContent)).toEqual(['Макроэкономика', 'Эконометрика', 'Все лекции']);
+    expect(exam).toHaveValue('exam-macro');
+    expect(within(row).getByRole('button', { name: 'Карта' })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Списком' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(row).getByRole('button', { name: 'Найти лекцию или понятие' })).toBeInTheDocument();
+    await user.selectOptions(exam, 'Все лекции');
+    expect(exam).toHaveValue('');
+    expect(await screen.findByRole('list', { name: 'Предмет' })).toBeInTheDocument();
+    await user.selectOptions(exam, 'Эконометрика');
+    expect(document.querySelector('.km-head .sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^Коллоквиум через 26 дней · /);
+  });
+
+  it('folds the legend under «Обозначения»: words in the list, filters on the map', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const fold = await screen.findByRole('button', { name: 'Обозначения' });
+    expect(fold).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('list', { name: 'Показать на карте' })).toBeNull();
+    await user.click(fold);
+    expect(fold).toHaveAttribute('aria-expanded', 'true');
+    const words = screen.getByRole('list', { name: 'Обозначения' });
+    expect(fold).toHaveAttribute('aria-controls', words.id);
+    // The list view does not light anything: the items say what the marks mean.
+    expect(within(words).queryAllByRole('button')).toHaveLength(0);
+    expect(within(words).getByText('подтверждено')).toBeInTheDocument();
+    expect(within(words).getByText('открытые ошибки')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Карта' }));
+    const filters = screen.getByRole('list', { name: 'Показать на карте' });
+    await user.click(within(filters).getByRole('button', { name: /открытые ошибки/ }));
+    expect(within(filters).getByRole('button', { name: /открытые ошибки/ })).toHaveAttribute('aria-pressed', 'true');
+    // The fold names the chosen filter, so a lit map says why it is lit.
+    expect(screen.getByRole('button', { name: 'Обозначения: открытые ошибки' })).toBeInTheDocument();
+  });
+
+  it('says which concepts are shown at the head of the concepts, after the lectures', async () => {
+    renderPage();
+    const lectures = await screen.findByRole('region', { name: 'Лекции' });
+    const all = screen.getByRole('button', { name: /^Все понятия \(\d+\)$/ });
+    expect(lectures.compareDocumentPosition(all) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(all.closest('.km-list')).not.toBeNull();
   });
 });
 
@@ -373,5 +449,30 @@ describe('states', () => {
     await renderMap();
     expect(screen.getByText('Не удалось загрузить экзамены; карта показана без этих данных.')).toBeInTheDocument();
     expect(lectureCards()).toHaveLength(15);
+  });
+});
+
+describe('a computer keeps what a phone leaves out', () => {
+  it('has «Лист экзамена» in the header, the exams as a rail, the search field and the legend as filters', async () => {
+    renderPage();
+    await screen.findByRole('group', { name: /^Карта связей/ });
+    const head = document.querySelector('.km-head') as HTMLElement;
+    expect(within(head).getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-macro');
+    expect(head.querySelector('.sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^Макроэкономика — экзамен .+, через 12 дней · /);
+    expect(screen.getByRole('list', { name: 'Экзамен' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Экзамен' })).toBeNull();
+    expect(screen.getByRole('searchbox', { name: 'Найти лекцию или понятие' })).toHaveAttribute('placeholder', 'Найти лекцию или понятие');
+    expect(screen.getByRole('list', { name: 'Показать на карте' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Обозначения' })).toBeNull();
+  });
+});
+
+describe('the phone’s meta', () => {
+  it('names the kind of the exam and how soon it is, or only the kind without a date', () => {
+    const now = new Date(2026, 9, 8, 12);
+    expect(examShort({ kind: 'exam', examDate: '2026-10-21' }, now)).toBe('Экзамен через 13 дней');
+    expect(examShort({ kind: 'credit', examDate: '2026-10-08' }, now)).toBe('Зачёт сегодня');
+    expect(examShort({ kind: 'colloquium', examDate: '2026-10-09' }, now)).toBe('Коллоквиум завтра');
+    expect(examShort({ kind: 'exam', examDate: null }, now)).toBe('Экзамен');
   });
 });

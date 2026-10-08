@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, updateProfile, uploadAvatar, UserProfile } from '../api/social';
-import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, Edit3, X, Bell, BellOff, Camera, Star, Ticket } from 'lucide-react';
+import { UserCircle2, GraduationCap, Loader2, Edit3, X, Bell, BellOff, Camera, Star } from 'lucide-react';
 import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
 import UniversitySelect from '../components/UniversitySelect';
 import toast from 'react-hot-toast';
@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { pluralRu } from '../components/conversation/visuals';
 import { studyStreak, windowStart, type JournalDay, type SessionDay } from '../lib/learning/studyDays';
+import { usePhone } from '../lib/usePhone';
 import './Profile.css';
 
 /** How far back the streak looks: a longer streak still counts these days. */
@@ -72,12 +73,15 @@ export async function loadProfileStats(userId: string, now: Date = new Date()): 
 }
 
 /**
- * Профиль (Meldy 2026-10-04): белая карточка с цветной обложкой и аватаром, действия — пилюли,
- * цифры — в отдельных карточках. Стили — .ac-* в styles/legacy.css и Profile.css. Только свой профиль.
+ * Профиль (Meldy 2026-10-04): белая карточка с цветной обложкой и аватаром, действия — пилюли, цифры —
+ * одна строка текста под именем («2 дня подряд · 3 лекции · 15 ответов на билеты», на всех размерах:
+ * 10_Project/Phone_Declutter_2026-10-08; раньше — три карточки со значками). Стили — .ac-* в
+ * styles/legacy.css и Profile.css. Только свой профиль.
  */
 export default function Profile() {
   useDocumentTitle('Профиль');
   const { user } = useAuth();
+  const phone = usePhone();
   const userId = user?.id;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -210,12 +214,45 @@ export default function Profile() {
     );
   }
 
-  // Counted live (LIB-13); «—» while counting or when a figure could not be read, never an invented 0.
+  // Counted live (LIB-13); «—» when a figure could not be read, never an invented 0. While counting, the line keeps
+  // its place but shows nothing (no row of dashes for a moment).
   const figures = [
-    { key: 'streak', value: stats?.streak ?? null, forms: ['день подряд', 'дня подряд', 'дней подряд'] as const, icon: Trophy, tone: 'p' },
-    { key: 'lectures', value: stats?.lectures ?? null, forms: ['лекция', 'лекции', 'лекций'] as const, icon: BookOpen, tone: 'b' },
-    { key: 'answers', value: stats?.answers ?? null, forms: ['ответ на билет', 'ответа на билеты', 'ответов на билеты'] as const, icon: Ticket, tone: 'g' },
+    { key: 'streak', value: stats?.streak ?? null, forms: ['день подряд', 'дня подряд', 'дней подряд'] as const },
+    { key: 'lectures', value: stats?.lectures ?? null, forms: ['лекция', 'лекции', 'лекций'] as const },
+    { key: 'answers', value: stats?.answers ?? null, forms: ['ответ на билет', 'ответа на билеты', 'ответов на билеты'] as const },
   ];
+  // A line longer than «2 дня подряд · 3 лекции · 15 ответов на билеты» does not fit a phone's card in one line: it
+  // breaks before the answers instead (Profile.css), never with «·» at the start of a line.
+  const lineLength = figures.reduce((sum, { value, forms }) => sum + String(value ?? '—').length + 1 + pluralRu(value ?? 0, forms).length, 0) + 3 * (figures.length - 1);
+  const statLine = (
+    <p className="ac-statline" aria-busy={stats === null} data-long={lineLength > 46 ? '' : undefined}>
+      {figures.map(({ key, value, forms }, index) => (
+        <Fragment key={key}>
+          {index > 0 ? (
+            <>
+              {/* data-sep: the narrowest phones break the line at the second one instead of starting a line with «·». */}
+              <span aria-hidden="true" data-sep={index}>
+                {' · '}
+              </span>
+              <span className="sr-only">, </span>
+            </>
+          ) : null}
+          {/* The word agrees with the number: «1 день подряд», «3 лекции», «14 ответов на билеты». */}
+          <span data-stat={key}>
+            {value === null ? (
+              <>
+                <span aria-hidden="true">—</span>
+                <span className="sr-only">{stats === null ? 'считаем' : 'не удалось посчитать'}</span>
+              </>
+            ) : (
+              <b>{value}</b>
+            )}{' '}
+            {pluralRu(value ?? 0, forms)}
+          </span>
+        </Fragment>
+      ))}
+    </p>
+  );
 
   return (
     <div className="sf-page ac-profile">
@@ -269,6 +306,8 @@ export default function Profile() {
                 {profile.university}
               </p>
             )}
+
+            {statLine}
 
             <div className="ac-actions">
               <button
@@ -331,28 +370,6 @@ export default function Profile() {
         </section>
       )}
 
-      <div className="ac-stats ac-rise" aria-busy={stats === null}>
-        {figures.map(({ key, value, forms, icon: Icon, tone }) => (
-          <div key={key} className="ac-stat" data-stat={key}>
-            <span className={`ac-stat-i ac-stat-i--${tone}`} aria-hidden="true">
-              <Icon />
-            </span>
-            <span className="ac-stat-v">
-              {value === null ? (
-                <>
-                  <span aria-hidden="true">—</span>
-                  <span className="sr-only">{stats === null ? 'считаем' : 'не удалось посчитать'}</span>
-                </>
-              ) : (
-                value
-              )}
-            </span>
-            {/* The word agrees with the number: «1 день подряд», «3 лекции», «14 ответов на билеты». */}
-            <span className="ac-stat-l">{pluralRu(value ?? 0, forms)}</span>
-          </div>
-        ))}
-      </div>
-
       <section className="ac-card ac-rise" aria-labelledby="profile-push-title">
         <h2 id="profile-push-title" className="ac-card-h">Уведомления</h2>
         {/* First: a calendar event on the student's own device (push subscriptions do not survive a release). */}
@@ -363,7 +380,8 @@ export default function Profile() {
           </span>
           <div className="ac-row-text">
             <p className="ac-row-t">Напоминания о повторении</p>
-            <p className="ac-row-d">Meldy сообщит, когда карточки будут готовы к повторению.</p>
+            {/* A phone keeps a setting's description to one line. */}
+            <p className="ac-row-d">{phone ? 'Meldy сообщит, когда пора повторять.' : 'Meldy сообщит, когда карточки будут готовы к повторению.'}</p>
           </div>
           <button
             type="button"

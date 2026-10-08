@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Profile, { loadProfileStats } from './Profile';
+import { PHONE_QUERY } from '../lib/usePhone';
 
 const db = vi.hoisted(() => ({
   queries: [] as Array<{ table: string; calls: Array<[string, unknown[]]> }>,
@@ -107,3 +108,77 @@ describe('the profile’s figures (LIB-13)', () => {
     expect(lectures).toHaveTextContent('—');
   });
 });
+
+describe('the figures as one line of text (10_Project/Phone_Declutter_2026-10-08, every size)', () => {
+  it('says them in one line under the name, without cards or icons', async () => {
+    db.answer = liveRows(new Date());
+    const { container } = render(<MemoryRouter><Profile /></MemoryRouter>);
+    const name = await screen.findByRole('heading', { level: 1, name: 'Анна' });
+    const line = container.querySelector('.ac-statline') as HTMLElement;
+    await within(line).findByText('14');
+    expect(Array.from(line.querySelectorAll('[data-stat]')).map((part) => part.textContent?.replace(/\s+/g, ' '))).toEqual(['3 дня подряд', '3 лекции', '14 ответов на билеты']);
+    expect(line.querySelector('svg')).toBeNull();
+    expect(container.querySelector('.ac-stats, .ac-stat')).toBeNull();
+    expect(line).toHaveAttribute('aria-busy', 'false');
+    // In the hero, under the name.
+    expect(name.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(line.closest('.ac-hero')).not.toBeNull();
+  });
+
+  it('marks a line too long for a phone’s card, which then breaks before the answers (never with «·» first)', async () => {
+    db.answer = liveRows(new Date());
+    const { container } = render(<MemoryRouter><Profile /></MemoryRouter>);
+    await within(await waitForLine(container)).findByText('14');
+    expect(container.querySelector('.ac-statline')).not.toHaveAttribute('data-long');
+    cleanup();
+
+    db.answer = (table, calls) => (table === 'learning_events' && isHead(calls) ? { count: 1500, error: null } : liveRows(new Date())(table, calls));
+    const second = render(<MemoryRouter><Profile /></MemoryRouter>);
+    const line = await waitForLine(second.container);
+    await within(line).findByText('1500');
+    expect(line).toHaveAttribute('data-long');
+    // The break is the second «·», drawn as nothing (Profile.css): the words stay whole.
+    expect(line.querySelector('[data-sep="2"]')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('keeps its place, blank, while the figures are counted', async () => {
+    db.answer = () => new Promise(() => {});
+    const { container } = render(<MemoryRouter><Profile /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Анна' });
+    const line = container.querySelector('.ac-statline') as HTMLElement;
+    expect(line).toHaveAttribute('aria-busy', 'true');
+    expect(line.textContent).not.toMatch(/\d/);
+  });
+});
+
+describe('on a phone', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (media: string) => ({ matches: media === PHONE_QUERY, media, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
+    });
+  });
+  afterEach(() => {
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('keeps a setting’s description to one line (a computer has the whole sentence)', async () => {
+    db.answer = liveRows(new Date());
+    render(<MemoryRouter><Profile /></MemoryRouter>);
+    expect(await screen.findByText('Meldy сообщит, когда пора повторять.')).toBeInTheDocument();
+    expect(screen.queryByText('Meldy сообщит, когда карточки будут готовы к повторению.')).toBeNull();
+  });
+});
+
+describe('on a computer', () => {
+  it('says the push setting in its whole sentence', async () => {
+    db.answer = liveRows(new Date());
+    render(<MemoryRouter><Profile /></MemoryRouter>);
+    expect(await screen.findByText('Meldy сообщит, когда карточки будут готовы к повторению.')).toBeInTheDocument();
+  });
+});
+
+async function waitForLine(container: HTMLElement): Promise<HTMLElement> {
+  await screen.findByRole('heading', { level: 1, name: 'Анна' });
+  return container.querySelector('.ac-statline') as HTMLElement;
+}

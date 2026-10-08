@@ -14,6 +14,7 @@ import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { groupMistakes, mistakeDay, notNamed, quoted, splitOralAnswer } from '../lib/learning/mistakeText';
 import { pluralRu } from '../components/conversation/visuals';
 import { ty } from '../components/landing/typo';
+import { usePhone } from '../lib/usePhone';
 import '../styles/paper.css';
 import './MistakeDiary.css';
 
@@ -159,9 +160,22 @@ function MistakeItem({ mistake, point, withDate, expanded, onToggle, onResolve, 
 const RESOLVE_FAILED = 'Не удалось отметить ошибку. Проверьте соединение и попробуйте ещё раз.';
 const DELETE_FAILED = 'Не удалось удалить ошибку. Проверьте соединение и попробуйте ещё раз.';
 
+/**
+ * What the practice takes, under its button: «Задания по 5 открытым ошибкам. Расходует 2 единицы дневного лимита ИИ,
+ * если задания получились.»; on a phone one short line, «5 ошибок · 2 единицы лимита ИИ» (that a failed set costs
+ * nothing is said in the limit window, under the limit in the top line).
+ */
+export function practiceNote(open: number, phone: boolean): string {
+  const n = Math.min(open, 5);
+  const cost = AI_COSTS.mistakesPractice;
+  if (phone) return `${n} ${pluralRu(n, ['ошибка', 'ошибки', 'ошибок'])} · ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} лимита ИИ`;
+  return `Задания по ${n} ${n === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует ${cost} ${pluralRu(cost, ['единицу', 'единицы', 'единиц'])} дневного лимита ИИ, если задания получились.`;
+}
+
 export default function MistakeDiary() {
   useDocumentTitle('Дневник ошибок');
   const { user } = useAuth();
+  const phone = usePhone();
   const { confirm } = useConfirm();
   const { verifyEnergy } = useEnergyConfirm();
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
@@ -354,6 +368,34 @@ export default function MistakeDiary() {
   useEffect(() => {
     fetchMistakes();
   }, [user?.id]);
+
+  // Back on the screen (another tab, the phone's app switcher), the diary reads itself again, quietly: no
+  // «Загружаем…», the rows stay as they are until the new ones arrive, and a failed read keeps them. Not during the
+  // practice, which works on the mistakes it started with.
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || isPracticing) return undefined;
+    let alive = true;
+    const onVisible = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const { data, error } = await supabase
+          .from('mistake_diary')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        if (!error && alive) setMistakes(data || []);
+      } catch {
+        // The rows on the screen stay; «Обновить» on a computer and the next visit read them again.
+      }
+    };
+    const listener = () => void onVisible();
+    document.addEventListener('visibilitychange', listener);
+    return () => {
+      alive = false;
+      document.removeEventListener('visibilitychange', listener);
+    };
+  }, [user?.id, isPracticing]);
 
   /** The row whose action is being saved, and an action that failed (shown under its row). */
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -553,7 +595,10 @@ export default function MistakeDiary() {
             <div className="min-w-0">
               <SectionCrumb to="/review" label="Повторение" />
               <h1 className="sf-h1">Дневник ошибок</h1>
-              <p className="sf-lede">{ty('Ошибки из тестов и ответов на билеты. Нажмите на строку — откроется, что нужно было сказать.')}</p>
+              {/* A phone keeps one line: where a mistake came from is on every row. */}
+              <p className="sf-lede">
+                {phone ? 'Нажмите на строку — откроется ответ.' : ty('Ошибки из тестов и ответов на билеты. Нажмите на строку — откроется, что нужно было сказать.')}
+              </p>
             </div>
           </header>
 
@@ -577,11 +622,7 @@ export default function MistakeDiary() {
                   <button type="button" onClick={startPractice} disabled={practiceLoading} className="sf-primary md-start" aria-busy={practiceLoading}>
                     {practiceLoading ? 'Готовим задания…' : 'Начать работу над ошибками'}
                   </button>
-                  <p className="md-note">
-                    Задания по {Math.min(openCount, 5)} {Math.min(openCount, 5) === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует{' '}
-                    {AI_COSTS.mistakesPractice} {pluralRu(AI_COSTS.mistakesPractice, ['единицу', 'единицы', 'единиц'])} дневного лимита ИИ, если задания
-                    получились.
-                  </p>
+                  <p className="md-note">{practiceNote(openCount, phone)}</p>
                   {practiceError && (
                     <p role="alert" className="md-alert">
                       {practiceError}
@@ -604,6 +645,7 @@ export default function MistakeDiary() {
                   </li>
                 ))}
               </ul>
+              {/* Not on a phone (MistakeDiary.css): the diary reads itself on every visit and when the app comes back to the screen. */}
               <button type="button" onClick={fetchMistakes} className="md-round" title="Обновить" aria-label="Обновить">
                 <RefreshCw aria-hidden="true" />
               </button>
