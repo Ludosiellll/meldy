@@ -434,7 +434,13 @@ describe('«Попробовать на примере» (/try)', () => {
     renderAt('/try?view=questions');
     fireEvent.click(screen.getByRole('button', { name: '1 вопроса нет ни в одной лекции. Показать его' }));
     const sheet = screen.getByRole('article', { name: 'Список вопросов кафедры с пометками' });
-    expect(within(sheet).getAllByRole('button').map((row) => plain(row.textContent))).toEqual(['Рынок труда: спрос на труд и заработная плата.']);
+    // A row's button is named by its question; the status pill inside it is for the eye only (aria-hidden).
+    const spoken = (row: Element) => {
+      const copy = row.cloneNode(true) as Element;
+      copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
+      return plain(copy.textContent);
+    };
+    expect(within(sheet).getAllByRole('button').map(spoken)).toEqual(['Рынок труда: спрос на труд и заработная плата.']);
     fireEvent.click(screen.getByRole('button', { name: /^Все/ }));
     expect(within(sheet).getAllByRole('button')).toHaveLength(12);
     const lectures = screen.getByRole('region', { name: 'Лекции примера' });
