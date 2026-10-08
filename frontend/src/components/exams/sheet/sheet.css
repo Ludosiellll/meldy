@@ -14,7 +14,9 @@
 }
 .cs-wrap[data-slow] { --cs-marker-ms: 900ms; }
 
-.cs-paper {
+/* The paper's own light tokens; a piece of it in the column's key (SheetLegend: .cs-swatch) has them too. */
+.cs-paper,
+.cs-swatch {
   --cs-paper: #fffefa;
   --cs-grid: rgba(31, 61, 148, .13);
   --cs-margin: #e3a2b8;
@@ -47,6 +49,8 @@
   --ph-graphite-desk: var(--cs-graphite);
   --ph-focus: var(--cs-focus);
   color-scheme: light;
+}
+.cs-paper {
   position: relative;
   padding: var(--cs-row) var(--cs-pad-r) var(--cs-row) var(--cs-pad-l);
   border-radius: 3px;
@@ -72,11 +76,12 @@
   background: var(--cs-margin);
   pointer-events: none;
 }
-.dark .cs-paper {
+.dark .cs-paper,
+.dark .cs-swatch {
   --cs-paper: #dedbd1;
   --cs-margin: #c98a9f;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 30px 60px -30px rgba(0, 0, 0, .8);
 }
+.dark .cs-paper { box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 30px 60px -30px rgba(0, 0, 0, .8); }
 /* A phone's paper: the 24 px grid too (every line a 24 px target for a finger, WCAG 2.5.8), the
    handwriting at 20/24 (its baseline at 18.6 px: on the line at 18). The squares start at the
    bullets' column, so no bullet stands across a vertical line. */
@@ -235,6 +240,28 @@
   -webkit-tap-highlight-color: transparent;
 }
 .cs-lbtn:focus-visible { outline: calc(2px / var(--cs-zoom, 1)) solid var(--cs-focus); outline-offset: 2px; border-radius: 6px; }
+/* A finger (EX-23, PUB-28): the lines stay on the 24 px grid (WCAG 2.5.8, spec 14.1), and a line's target
+   takes the free rows around it — its pencil note's row (the note is the line's own words, not a control)
+   and half of the air under a question's last line — so a line with a note is a 48 px target and the
+   last one 36 px; a question's printed line takes the other half of that air (36 px for one row). The
+   overlays belong to the buttons (a line's positioned box is .cs-line, a question's its own button).
+   Lines next to each other keep 24 px each: a taller target would need a taller grid. */
+@media (pointer: coarse) {
+  .cs-lbtn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  .cs-line:last-child > .cs-lbtn::after { bottom: calc(var(--cs-row) / -2); }
+  /* The note is drawn over the line's overlay (it comes later): a tap on it goes through to the line. */
+  .cs-line > .cs-note { pointer-events: none; }
+  /* A question's printed line takes the other half of the air above it. */
+  .cs-qbtn::after {
+    content: '';
+    position: absolute;
+    inset: calc(var(--cs-row) / -2) 0 0;
+  }
+}
 .cs-bullet {
   text-align: center;
   transition: opacity 180ms linear var(--cs-delay, 0ms);
@@ -529,12 +556,41 @@
 }
 
 /* ---------------------------------------------------------------- Meldy's column beside the sheet */
-/* The card «Шпаргалка»: its flag in the pink of the paper's margin line, the big count, the quiet switches. */
-.sf-page .cs-sum > .cs-flag {
+/* The card «Шпаргалка»: its flag in the pink of the paper's margin line, the big count, the quiet switches.
+   Beside the flag, «Весь лист на экране»: a quiet pill with a magnifier — a zoom of the paper (EX-14), not
+   a third switch under «Скрыть строки…» (where «Вся шпаргалка» read as «show all»). */
+.sf-page .cs-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 4px; }
+.sf-page .cs-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  margin: -4px -8px -4px 0;
+  padding: 0 14px 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--sf-line-strong);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--sf-ink);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .2s ease, box-shadow .2s ease;
+}
+.sf-page .cs-zoom:hover { background: var(--ex-hover); box-shadow: inset 0 0 0 1px var(--sf-ink); }
+.sf-page .cs-zoom:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+.sf-page .cs-zoom-i { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+@media (pointer: coarse) {
+  .sf-page .cs-zoom { min-height: 44px; }
+}
+.sf-page .cs-sum .cs-flag {
   display: inline-flex;
   align-items: center;
   height: 32px;
-  margin: 0 0 4px;
+  margin: 0;
   padding: 0 26px 0 14px;
   background: var(--m-pink);
   color: #0b121c;
@@ -551,12 +607,14 @@
 .sf-page .cs-change-note { margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; animation: cs-fade 300ms ease-out both; }
 .sf-page .cs-share { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--sf-line); font-size: 16px; line-height: 23px; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .cs-toggles { display: grid; gap: 2px; margin: 16px -8px 0; }
+/* A switch: the track by the label's first line; under the label, smaller, what it does or why it cannot
+   be turned now (EX-14, PUB-16). */
 .sf-page .cs-toggle {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   min-height: 40px;
-  padding: 4px 8px;
+  padding: 9px 8px;
   border: 0;
   border-radius: 12px;
   background: none;
@@ -570,11 +628,23 @@
 }
 .sf-page .cs-toggle:hover { background: var(--ex-hover); }
 .sf-page .cs-toggle:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 1px; }
+.sf-page .cs-toggle-text { display: grid; min-width: 0; }
+/* A label of two lines breaks evenly («Скрыть строки, / стёртые совсем»), never a word alone. */
+.sf-page .cs-toggle-t { text-wrap: balance; }
+.sf-page .cs-toggle-hint { font-size: 14px; line-height: 20px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .cs-toggle[aria-disabled='true'] { cursor: default; }
+.sf-page .cs-toggle[aria-disabled='true']:hover { background: none; }
+.sf-page .cs-toggle[aria-disabled='true'] .cs-toggle-t { color: var(--sf-muted); }
+.sf-page .cs-toggle[aria-disabled='true'] .cs-toggle-box { opacity: .5; }
+@media (pointer: coarse) {
+  .sf-page .cs-toggle { min-height: 44px; padding-block: 11px; }
+}
 .sf-page .cs-toggle-box {
   position: relative;
   flex: none;
   width: 34px;
   height: 20px;
+  margin-top: 1px;
   border-radius: 999px;
   background: var(--sf-line-strong);
   /* Off, the track and its knob still stand out from the card (3:1, WCAG 1.4.11). */
@@ -612,10 +682,44 @@
 .sf-page .cs-outcome { font-weight: 500; }
 .sf-page .cs-write .ex-fine + .ex-fine { margin-top: 4px; }
 
-/* The rule under the counter, and what «Закрыть строки» does. */
-.sf-page .cs-rule { margin-top: 10px; font-size: 15px; line-height: 22px; color: var(--sf-ink); text-wrap: pretty; }
-.sf-page .cs-sum[data-variant='top'] .cs-rule { margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+/* The rule under the counter, with a piece of the paper after «наполовину» and after «совсем» (SheetLegend,
+   EX-17): the line in that state drawn by the sheet's own masks; and what «Спрятать строки» does. */
+.sf-page .cs-rule { margin-top: 10px; font-size: 15px; line-height: 24px; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .cs-key { white-space: nowrap; }
 .sf-page .cs-cover-note { margin-top: 4px; }
+/* A piece of the paper: its grid, two handwritten words, the paper’s ring; light in both themes, as the sheet. */
+.cs-swatch {
+  --cs-row: 22px;
+  --cs-base: 17px;
+  display: inline-block;
+  box-sizing: border-box;
+  height: var(--cs-row);
+  margin: 0 1px 0 6px;
+  padding: 0 7px;
+  border-radius: 3px;
+  vertical-align: -6px;
+  background-color: var(--cs-paper);
+  background-image:
+    linear-gradient(to bottom, transparent var(--cs-base), var(--cs-grid) var(--cs-base), var(--cs-grid) calc(var(--cs-base) + 1px), transparent calc(var(--cs-base) + 1px)),
+    linear-gradient(to right, var(--cs-grid) 1px, transparent 1px);
+  background-size: 100% var(--cs-row), var(--cs-row) 100%;
+  box-shadow: 0 0 0 1px rgba(16, 41, 90, .14);
+  font-family: 'Meldy Hand', var(--ph-sans);
+  font-size: 17px;
+  line-height: var(--cs-row);
+  font-weight: 500;
+  color: var(--cs-ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dark .cs-swatch { box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); }
+.cs-swatch .cs-line { display: block; }
+.cs-swatch .cs-body { display: inline-block; vertical-align: top; }
+/* Its word is CSS content, not text: the rule reads and copies as the sentence it is. */
+.cs-swatch .cs-ink::before { content: 'пункт ответа'; }
+.cs-swatch .cs-patch[data-whole] { inset: 1px -5px; }
+/* The page's next step in the card, between what the answer changed and the rule (the example's own exam). */
+.sf-page .cs-next { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--sf-line); }
 
 /* A phone: the end of the after-answer show over the bottom bar (the column with it is above the paper). */
 .cs-chip {
@@ -676,8 +780,9 @@
 .sf-page .cs-lp h3:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; border-radius: 6px; }
 
 /* Bars over the paper are opaque: the handwriting does not show through them as a grey haze (dark theme
-   above all); a short fade above the bottom ones. */
-body:has(.cs-paper) .sf-bar {
+   above all); a short fade above the bottom ones. The example's room line (/try, .sf-room-bar) too. */
+body:has(.cs-paper) .sf-bar,
+body:has(.cs-paper) .sf-room-bar {
   background: var(--sf-canvas);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;

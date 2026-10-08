@@ -76,6 +76,8 @@ export interface BlockRowOptions {
    * already, so the questions do not move between the columns while the sheet is being written.
    */
   estimate?: number;
+  /** Lines that say in pencil what their look means (CheatSheet.explainedLines): a note's row each. */
+  explained?: ReadonlyMap<string, string>;
 }
 
 /** Questions whose lines are still to be written (or written again). */
@@ -106,7 +108,7 @@ export function blockRows(block: SheetBlock, metrics: RowMetrics, options: Block
       if (hidden(line)) continue;
       rows += rowsFor(line.text, metrics.hand);
       // The pencil note under it (copy.lineNote).
-      if (state === 'missed' || state === 'returned' || state === 'due' || line.status.peekedToday) rows += 1;
+      if (state === 'missed' || state === 'returned' || state === 'due' || line.status.peekedToday || options.explained?.has(line.key)) rows += 1;
     }
     if (options.note) rows += rowsFor(options.note, metrics.note);
     if (options.estimate && toBeWritten(block)) rows += options.estimate;

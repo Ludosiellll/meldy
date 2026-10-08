@@ -57,6 +57,12 @@ describe('the paper layout', () => {
     expect(blockRows(sheet.blocks[1], metrics, { note: 'x'.repeat(100), heading: true })).toBe(1 + 1 + 3 + 1);
   });
 
+  it('counts the pencil row of a line that says what its look means', () => {
+    const block = buildSheet([question(1, 3)], [], Date.now()).blocks[0];
+    const metrics = rowMetrics(360);
+    expect(blockRows(block, metrics, { explained: new Map([[block.lines[1].key, 'стёрта наполовину: пункт назван 4 окт.']]) })).toBe(1 + 3 + 1 + 1);
+  });
+
   it('under «Только то, что осталось» counts no erased line, except the ones kept in view', () => {
     const sheet = buildSheet([question(1, 3)], [], Date.now());
     const block = sheet.blocks[0];

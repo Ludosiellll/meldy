@@ -8,6 +8,7 @@ import { EXAMPLE_QUESTIONS, answerableQuestions, type ExampleQuestion } from '..
 import { drawExampleQuestion } from './exampleFlow';
 import TryBar from './TryBar';
 import { track } from '../../lib/telemetry';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 /** «Случайно из 11 вопросов, которые есть в лекциях примера.» — what the card is drawn from. */
 export function examplePoolLine(): string {
@@ -33,6 +34,7 @@ function cardOf(question: ExampleQuestion): DrawnCardQuestion {
  * The draw is lib/exams/draw over the questions the lectures cover; nothing is voiced or saved.
  */
 export default function ExampleDraw() {
+  useDocumentTitle('Тянуть билет · пример');
   const navigate = useNavigate();
   const reduced = usePrefersReducedMotion();
   const [drawn, setDrawn] = useState<{ key: number; question: ExampleQuestion } | null>(null);

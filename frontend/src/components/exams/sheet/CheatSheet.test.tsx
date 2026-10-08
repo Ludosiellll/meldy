@@ -3,7 +3,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LearningEvent } from '../../../api/learning';
 import { buildSheet, localDayOf, sheetChanges, sheetWithout, type SheetBlock, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
+import { formatShortDay } from '../../../lib/exams/format';
 import CheatSheet, { animFor, changeGroups, writeMs, type CheatSheetProps, type SheetReplay } from './CheatSheet';
+
+const plain = (text: string | null | undefined) => (text ?? '').replace(/\u00a0/g, ' ');
 
 const NOW = new Date(2026, 9, 5, 12, 0).getTime();
 const RUBRIC_A = '00000000-0000-4000-8000-00000000000a';
@@ -475,6 +478,179 @@ describe('the cheat sheet', () => {
     fireEvent.click(within(container.querySelector<HTMLElement>('#cs-q-q2')!).getAllByRole('button')[1]);
     expect(p.onZoomPick).toHaveBeenCalledWith('q2');
     expect(p.onLine).not.toHaveBeenCalled();
+  });
+
+  it('the first rubbed and the first erased line say in pencil what their look means; the others do not (EX-17)', () => {
+    const q1 = question(1);
+    const q2 = question(2);
+    const events = [
+      named(q1, 'p1', NOW - DAY),
+      named(q1, 'p2', NOW - DAY),
+      // Question 2's first point named on two days: erased.
+      named(q2, 'p1', NOW - 3 * DAY),
+      named(q2, 'p1', NOW - DAY),
+      named(q2, 'p2', NOW - DAY),
+    ];
+    const sheet = buildSheet([q1, q2], events, NOW);
+    const { container, rerender } = renderSheet(props(sheet.blocks));
+    const noteOf = (id: string, index: number) => {
+      const line = container.querySelectorAll<HTMLElement>(`#cs-q-${id} .cs-line`)[index];
+      const note = line.querySelector<HTMLElement>('.cs-note');
+      return note ? [line.dataset.state, plain(note.textContent), note.dataset.kind, note.hasAttribute('data-reserve')] : [line.dataset.state, null];
+    };
+    expect(noteOf('q1', 0)).toEqual(['rubbed', 'стёрта наполовину: назван 4 окт.', 'explain', false]);
+    expect(noteOf('q1', 1)).toEqual(['rubbed', null]);
+    expect(noteOf('q2', 0)).toEqual(['erased', 'стёрта совсем: назван в разные дни', 'explain', false]);
+    // For the eye: the line's own name says its state to a screen reader.
+    expect(container.querySelector('#cs-q-q1 .cs-note')).toHaveAttribute('aria-hidden', 'true');
+    // «Скрыть строки, стёртые совсем»: the erased line is gone, and no other one explains in its place.
+    rerender(
+      <MemoryRouter>
+        <CheatSheet {...props(sheet.blocks, { mode: { onlyLeft: true, cover: false, zoom: false } })} />
+      </MemoryRouter>,
+    );
+    expect([...container.querySelectorAll<HTMLElement>('.cs-note[data-kind="explain"]')].map((note) => plain(note.textContent))).toEqual(['стёрта наполовину: назван 4 окт.']);
+    // A line uncovered today keeps its own note: the next rubbed line explains.
+    const peeked = new Map([[`${RUBRIC_A}:p1`, Date.now() + 6000]]);
+    rerender(
+      <MemoryRouter>
+        <CheatSheet {...props(sheet.blocks, { peeked })} />
+      </MemoryRouter>,
+    );
+    expect(noteOf('q1', 0)).toEqual(['rubbed', 'подсмотрели — сегодня не сотрётся', 'peek', false]);
+  });
+
+  it('while a show draws the explained line as it was, its row waits empty, so nothing moves', async () => {
+    vi.useFakeTimers();
+    const q1 = question(1);
+    const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
+    const after = buildSheet([q1], answer, NOW);
+    const changes = sheetChanges(sheetWithout([q1], answer, 'last', NOW), after);
+    const p = props(after.blocks, { replay: { token: 11, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } });
+    const { container } = renderSheet(p);
+    const first = () => container.querySelector<HTMLElement>('#cs-q-q1 .cs-line')!;
+    expect(first().dataset.state).toBe('fresh');
+    expect(first().querySelector('.cs-note')?.hasAttribute('data-reserve')).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(p.onReplayEnd).toHaveBeenCalledWith(11);
+    expect(first().dataset.state).toBe('rubbed');
+    expect(first().querySelector('.cs-note')?.hasAttribute('data-reserve')).toBe(false);
+    expect(plain(first().querySelector('.cs-note')?.textContent)).toBe(`стёрта наполовину: назван ${plain(formatShortDay(localDayOf(NOW - 60_000)))}`);
+  });
+
+  describe('the rubbed paper under a line’s rows of words (EX-18)', () => {
+    // jsdom lays nothing out: the words of a line lie in rows of the body's width (WORDS px in all), measured
+    // by stubs; the observers of size are fakes the test reports through.
+    const WORDS = 450;
+    let bodyWidth = 600;
+    let wrapWidth = 1000;
+    const seen: string[] = [];
+    const observers: Array<{ callback: ResizeObserverCallback; targets: Element[] }> = [];
+    const rowsOf = () => {
+      const out: Array<{ left: number; top: number; width: number; height: number }> = [];
+      for (let left = WORDS, row = 0; left > 0; left -= bodyWidth, row += 1) out.push({ left: 0, top: row * 24, width: Math.min(bodyWidth, left), height: 24 });
+      return out;
+    };
+    const descriptors = new Map<string, PropertyDescriptor | undefined>();
+    const stub = (target: object, key: string, descriptor: PropertyDescriptor) => {
+      descriptors.set(`${target === Element.prototype ? 'E' : 'H'}:${key}`, Object.getOwnPropertyDescriptor(target, key));
+      Object.defineProperty(target, key, { configurable: true, ...descriptor });
+    };
+
+    beforeEach(() => {
+      bodyWidth = 600;
+      wrapWidth = 1000;
+      seen.length = 0;
+      observers.length = 0;
+      const rects = Element.prototype.getClientRects;
+      const box = HTMLElement.prototype.getBoundingClientRect;
+      stub(Element.prototype, 'getClientRects', {
+        value(this: Element) {
+          if (!this.classList.contains('cs-ink-t')) return rects.call(this);
+          // How the paper was laid out when the line measured its words.
+          seen.push(this.closest('.cs-paper')?.getAttribute('data-columns') ?? '?');
+          return rowsOf().map((row) => ({ ...row, right: row.left + row.width, bottom: row.top + row.height, x: row.left, y: row.top }));
+        },
+      });
+      stub(HTMLElement.prototype, 'getBoundingClientRect', {
+        value(this: HTMLElement) {
+          if (!this.classList.contains('cs-body')) return box.call(this);
+          const height = rowsOf().length * 24;
+          return { left: 0, top: 0, width: bodyWidth, height, right: bodyWidth, bottom: height, x: 0, y: 0, toJSON: () => null } as DOMRect;
+        },
+      });
+      stub(HTMLElement.prototype, 'offsetWidth', { get(this: HTMLElement) { return this.classList.contains('cs-body') ? bodyWidth : 0; } });
+      stub(HTMLElement.prototype, 'offsetHeight', { get(this: HTMLElement) { return this.classList.contains('cs-body') ? rowsOf().length * 24 : 0; } });
+      stub(HTMLElement.prototype, 'clientWidth', { get(this: HTMLElement) { return this.classList.contains('cs-wrap') ? wrapWidth : 0; } });
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          entry: { callback: ResizeObserverCallback; targets: Element[] };
+          constructor(callback: ResizeObserverCallback) {
+            this.entry = { callback, targets: [] };
+            observers.push(this.entry);
+          }
+          observe(target: Element) {
+            this.entry.targets.push(target);
+          }
+          unobserve() {}
+          disconnect() {
+            this.entry.targets = [];
+          }
+        },
+      );
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      for (const [key, descriptor] of descriptors) {
+        const [where, name] = key.split(':');
+        const target = where === 'E' ? Element.prototype : HTMLElement.prototype;
+        if (descriptor) Object.defineProperty(target, name, descriptor);
+        else delete (target as unknown as Record<string, unknown>)[name];
+      }
+      descriptors.clear();
+    });
+
+    /** Every observer of a line's body reports (as a browser does after layout). */
+    const reportBodies = async () => {
+      await act(async () => {
+        for (const observer of observers) if (observer.targets.some((target) => target.classList.contains('cs-body'))) observer.callback([], {} as ResizeObserver);
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+    };
+    const patches = (container: HTMLElement) =>
+      [...container.querySelectorAll<HTMLElement>('.cs-line[data-state="rubbed"] .cs-patch')].map((patch) => ({ top: patch.style.top, width: patch.style.width }));
+
+    it('lays the questions out in the paper’s columns before a line measures its words', () => {
+      const q1 = question(1);
+      const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY)], NOW);
+      renderSheet(props(sheet.blocks));
+      // A line that measured its words in a paper of one column kept strips as wide as the whole paper.
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen[0]).toBe('2');
+    });
+
+    it('one strip per row of words, never wider than the line’s body; measured again when the body changes, its first report too', async () => {
+      const q1 = question(1);
+      const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY)], NOW);
+      const { container } = renderSheet(props(sheet.blocks));
+      expect(patches(container)).toEqual([{ top: '1px', width: `${WORDS + 16}px` }]);
+      // The body narrowed between the first measure and the observer's first report (the paper got its columns,
+      // a font, a scrollbar): three rows of words, three strips — not the one wide strip measured before.
+      bodyWidth = 200;
+      await reportBodies();
+      expect(patches(container)).toEqual([
+        { top: '1px', width: '216px' },
+        { top: '25px', width: '216px' },
+        { top: '49px', width: '66px' },
+      ]);
+      // A report of the size already measured measures nothing again.
+      const calls = seen.length;
+      await reportBodies();
+      expect(seen.length).toBe(calls);
+    });
   });
 
   it('keeps line keys stable for the page', () => {
