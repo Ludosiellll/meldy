@@ -67,7 +67,7 @@ describe('SheetSummaryCard', () => {
     expect(screen.getByText('Шпаргалка')).toBeTruthy();
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47');
-    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · 6 вопросов без пунктов');
+    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных строк — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · у 6 вопросов нет пунктов ответа');
     // The rule, word for word, with a piece of the paper after «наполовину» and «совсем» (EX-17): for the eye only.
     const rule = document.querySelector('.cs-rule') as HTMLElement;
     expect(plain(rule.textContent)).toBe(SHEET_RULE);
@@ -163,7 +163,7 @@ describe('SheetSummaryCard', () => {
   it('after (a phone, under the paper): what the count means, the change, the rule, the share, the self-test and the links', () => {
     summary({ variant: 'after', changeNote: 'Подсмотренное сегодня ответ не стирает.' });
     expect(document.querySelector('.cs-big')).toBeNull();
-    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · 6 вопросов без пунктов');
+    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных строк — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · у 6 вопросов нет пунктов ответа');
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(plain(document.querySelector('.cs-change-note')?.textContent)).toBe('Подсмотренное сегодня ответ не стирает.');
     expect(document.querySelector('.cs-rule')).toBeTruthy();
