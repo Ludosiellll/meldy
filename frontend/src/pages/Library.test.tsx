@@ -7,6 +7,8 @@ const data = vi.hoisted(() => ({
   materials: [] as unknown[],
   shelves: [] as unknown[],
   failMaterials: false,
+  /** The request for the lectures never answers (the page stays in its loading state). */
+  hangMaterials: false,
   confirm: vi.fn(async () => true),
   deleteMaterial: vi.fn(async () => undefined),
   updateMaterialTitle: vi.fn(async () => undefined),
@@ -18,6 +20,7 @@ vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } })
 vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: data.confirm }) }));
 vi.mock('../api/materials', () => ({
   getMaterials: vi.fn(async () => {
+    if (data.hangMaterials) return new Promise<never>(() => undefined);
     if (data.failMaterials) throw new Error('offline');
     return data.materials;
   }),
@@ -31,7 +34,7 @@ vi.mock('../lib/followupCards', async (importOriginal) => ({
   followupCardsByLecture: vi.fn(async () => data.followups),
 }));
 
-import Library, { lectureMeta, lecturesLine, libraryLayout, SEARCH_FROM, shortDate, toEntry, type LibraryEntry } from './Library';
+import Library, { lectureMeta, lecturesLine, libraryLayout, phoneExamWhen, SEARCH_FROM, shortDate, toEntry, type LibraryEntry } from './Library';
 import { PHONE_QUERY } from '../lib/usePhone';
 
 function material(id: string, title: string, created: string, extra: Record<string, unknown> = {}) {
@@ -61,6 +64,7 @@ beforeEach(() => {
   data.materials = [];
   data.shelves = [];
   data.failMaterials = false;
+  data.hangMaterials = false;
   data.followups = new Map();
   data.confirm = vi.fn(async () => true);
   window.localStorage.clear();
@@ -314,6 +318,52 @@ describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', 
     expect(plain(lectureMeta(entry('b', '2026-09-01', { summary: false, cards: 6 }), 0, true))).toBe('без конспекта · 6 карточек');
     expect(plain(lectureMeta(entry('c', '2026-09-01', { textOnly: true, summary: false }), 2, true))).toBe('только текст, конспекта нет · 2 карточки из ответов на билеты');
   });
+
+  /** The local day `days` from today as 'yyyy-MM-dd'. */
+  const dayFromToday = (days: number) => {
+    const day = new Date();
+    day.setDate(day.getDate() + days);
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  };
+
+  it('starts the meta line with the exam’s day, naming its kind only when it is not an exam', async () => {
+    const now = new Date(2026, 9, 8, 12);
+    // The day keeps its month and «через» its number: the line breaks after the comma or at a dot.
+    expect(phoneExamWhen({ kind: 'exam', exam_date: '2026-10-21' }, now)).toBe('21\u00a0октября, через\u00a013\u00a0дней');
+    expect(plain(phoneExamWhen({ kind: 'credit', exam_date: '2026-10-09' }, now))).toBe('Зачёт 9 октября, завтра');
+    expect(plain(phoneExamWhen({ kind: 'exam', exam_date: null }, now))).toBe('Экзамен');
+
+    data.materials = lectures();
+    data.shelves = [shelf('e1', [['m1', '1'], ['m2', '2'], ['m3', '3']], { title: 'Базы данных', exam_date: dayFromToday(13) })];
+    renderLibrary();
+    await screen.findByText('Реляционная модель данных');
+    expect(plain(document.querySelector('.lib-head .sf-lede')?.textContent ?? '')).toMatch(/^\d{1,2} [а-я]+( \d{4})?, через 13 дней · 3 лекции · 18 карточек$/);
+  });
+
+  it('names the exam’s day over its section too', async () => {
+    data.materials = [...lectures(), material('m4', 'Без экзамена', '2026-09-04T00:00:00Z')];
+    data.shelves = [shelf('e1', [['m1', '1'], ['m2', '2']], { title: 'Базы данных', exam_date: dayFromToday(13) })];
+    renderLibrary();
+    const section = (await screen.findByRole('heading', { name: 'Базы данных' })).closest('section') as HTMLElement;
+    expect(plain(section.querySelector('.sf-lede')?.textContent ?? '')).toMatch(/^\d{1,2} [а-я]+( \d{4})?, через 13 дней · 2 лекции$/);
+    expect(within(section).getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/e1');
+  });
+
+  it('offers «Разобрать лекцию» while the list loads and when it cannot be loaded', async () => {
+    data.hangMaterials = true;
+    const view = renderLibrary();
+    expect(screen.getByRole('status', { name: 'Загружаем библиотеку' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+    view.unmount();
+
+    data.hangMaterials = false;
+    data.failMaterials = true;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderLibrary();
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить библиотеку' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+  });
 });
 
 describe('«Лекции» on a computer', () => {
@@ -324,5 +374,21 @@ describe('«Лекции» on a computer', () => {
     await screen.findByText('Спрос');
     expect(screen.queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveClass('lib-pill');
+    expect(plain(document.querySelector('.lib-head .sf-lede')?.textContent ?? '')).toBe('Экзамен · 1 лекция');
+  });
+
+  it('keeps its loading and failure states without a start of their own', async () => {
+    data.hangMaterials = true;
+    const view = renderLibrary();
+    expect(screen.getByRole('status', { name: 'Загружаем библиотеку' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
+    view.unmount();
+
+    data.hangMaterials = false;
+    data.failMaterials = true;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderLibrary();
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить библиотеку' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
   });
 });
