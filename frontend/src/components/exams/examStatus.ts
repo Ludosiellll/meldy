@@ -74,7 +74,8 @@ export interface ExamStatus {
   text: string | null;
   /**
    * The same in one short line for a phone (10_Project/Phone_Declutter_2026-10-08: «heading and one line»): what to
-   * do and what it costs; null where every word of `text` is needed (a server's message, nothing found).
+   * do and what it costs. Every state with a `text` has one (a server's message: its first sentence; nothing found: the
+   * way out); null only where there is no text either (loading).
    */
   brief: string | null;
   action: ExamStatusAction | null;
@@ -153,6 +154,21 @@ function ofQuestions(count: number): string {
   return `${count} ${count % 10 === 1 && count % 100 !== 11 ? 'вопроса' : 'вопросов'}`;
 }
 
+/**
+ * The draw from the questions whose lines an answer erases today, as the button says it: «Тянуть билет из 4 вопросов»
+ * (the bar at the bottom of a phone stands far from the headline that names them: «из них» said nothing there); one
+ * question per ticket: «Тянуть один из 4 вопросов».
+ */
+export function awaitingDrawLabel(drawLabel: string, count: number): string {
+  if (drawLabel === 'Тянуть вопрос' && count > 1) return `Тянуть один из ${ofQuestions(count)}`;
+  return `${drawLabel} из ${ofQuestions(count)}`;
+}
+
+/** The plain draw beside it (a phone's «⋯»): «Тянуть билет из всех вопросов», «Тянуть вопрос из всего списка». */
+export function allDrawLabel(drawLabel: string): string {
+  return drawLabel === 'Тянуть вопрос' ? 'Тянуть вопрос из всего списка' : `${drawLabel} из всех вопросов`;
+}
+
 function lectures(count: number): string {
   return `${count} ${pluralRu(count, ['лекция', 'лекции', 'лекций'])}`;
 }
@@ -198,6 +214,11 @@ function splitMessage(message: string): { head: string; rest: string } {
   const match = /^(.+?[.!?])\s+(.+)$/.exec(clean);
   if (!match) return { head: clean.replace(/[.!]$/, ''), rest: '' };
   return { head: match[1].replace(/[.!]$/, ''), rest: match[2] };
+}
+
+/** The first sentence of a text (a phone's one line under a server's message). */
+function firstSentence(text: string): string {
+  return /^(.+?[.!?])\s/.exec(text)?.[1] ?? text;
 }
 
 const ERASE_RULE = 'названный пункт стирает строку наполовину, названный снова в другой день — совсем';
@@ -298,13 +319,15 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
 
   if (mapping.phase === 'failed' && mapping.message) {
     const { head, rest } = splitMessage(mapping.message);
+    const text = rest || 'Повторите сверку через минуту.';
     return {
       ...BASE,
       key: 'failed',
       tone: 'you',
       flag: 'Сверка с лекциями',
       title: plain(head),
-      text: rest || 'Повторите сверку через минуту.',
+      text,
+      brief: firstSentence(text),
       action: { kind: 'map', label: 'Повторить сверку' },
       blocked: limit,
       hideCoverage: mapped === 0 || unmapped > 0,
@@ -480,9 +503,11 @@ function nothingFound(input: ExamStatusInput): ExamStatus {
   else if (total === 1) did = `Meldy сверил вопрос с ${one ? 'ней' : withLectures(lectureCount)} и ответа не нашёл.`;
   else did = `Meldy сверил с ${one ? 'ней' : withLectures(lectureCount)} все ${questions(total)} и не нашёл ни одного ответа.`;
 
-  // The way out: choose other lectures or add new ones, then check again.
+  // The way out: choose other lectures or add new ones, then check again. A phone says only the way out, in one short
+  // line (the headline already says that nothing was found; the button names the step).
   const cost = examMappingCost(coverage.none + coverage.partial + coverage.unverified);
   let next: string;
+  let brief: string;
   let action: ExamStatusAction;
   const topics = found > 0 ? 'по темам остальных' : 'по темам вопросов';
   // A copy from a group link keeps its other way out: the author's new link.
@@ -494,15 +519,19 @@ function nothingFound(input: ExamStatusInput): ExamStatus {
       fit.titles.length === 1
         ? `Подходит ваша лекция ${named}: выберите её и сверьте заново${orAuthor}.`
         : `Подходят ваши лекции ${named}${more}: выберите их и сверьте заново${orAuthor}.`;
+    brief = fit.titles.length === 1 ? `Подходит ваша лекция ${named}.` : `Подходят ваши лекции ${named}${more}.`;
     action = { kind: 'lectures', label: fit.titles.length === 1 ? 'Выбрать лекцию' : 'Выбрать лекции' };
   } else if (copy) {
     next = `Добавьте свои лекции ${topics} и сверьте заново${cost > 0 ? ` (${unitsAcc(cost)})` : ''}${orAuthor}.`;
+    brief = 'Добавьте свои лекции или попросите у автора новую ссылку.';
     action = { kind: 'lectures', label: 'Добавить свои лекции' };
   } else if (fit.state === 'none') {
     next = `Среди ваших лекций подходящих нет. Добавьте лекции ${topics} и сверьте заново.`;
+    brief = 'Среди ваших лекций подходящих нет.';
     action = { kind: 'lectures', label: 'Добавить лекции' };
   } else {
     next = `Выберите лекции ${topics} или добавьте новые, потом сверьте заново.`;
+    brief = `Выберите лекции ${topics} или добавьте новые.`;
     action = { kind: 'lectures', label: 'Выбрать или добавить лекции' };
   }
   return {
@@ -514,6 +543,7 @@ function nothingFound(input: ExamStatusInput): ExamStatus {
     flag: copy ? 'Лекции из ссылки' : 'Сверка с лекциями',
     title,
     text: `${did} ${next}`,
+    brief,
     action,
     hideCoverage: true,
     quietGaps: true,
@@ -616,7 +646,7 @@ function answeringStatus(input: ExamStatusInput): ExamStatus {
       title: marked('Сегодня можно стереть ', 'строки шпаргалки', ` у ${ofQuestions(count)}`),
       text: `Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.`,
       brief: 'Назовите их пункты снова в ответе.',
-      action: { kind: 'awaiting', label: `${input.drawLabel} из них` },
+      action: { kind: 'awaiting', label: awaitingDrawLabel(input.drawLabel, count) },
     };
   }
   if (sheet.state === 'ready' && sheet.nextErasable) {
@@ -624,6 +654,7 @@ function answeringStatus(input: ExamStatusInput): ExamStatus {
       ...base,
       title: plain(sheet.nextErasable.replace(/\.$/, '')),
       text: answers.untested > 0 ? `А пока отвечайте на вопросы, которых ещё не было: их ${answers.untested}.` : 'А пока можно повторить другие вопросы.',
+      brief: 'А пока отвечайте на другие вопросы.',
       action: draw,
     };
   }

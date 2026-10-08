@@ -2287,8 +2287,29 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   /* No placeholder picture over the first exam's card: the words and the button say it. */
   .sf-page.ex-list-page .ex-empty-art { display: none; }
 
-  /* The exam page's header: the subject and one meta line. */
+  /* The exam page's header: the subject with the round «⋯» of the page's other links on its row (as on a lecture: a
+     white circle with a ring, by the heading's first line), and one meta line. */
   .sf-page.ex-detail .ex-meta { margin-top: 8px; line-height: 1.4; }
+  /* The heading is set so that its longest word fits the room beside the «⋯» (--ex-h1-word: its letters, from the page;
+     about .6 em a letter): «Микроэкономика» stays whole at 360 px instead of «Микроэкономик / а»; short words keep 36 px. */
+  .sf-page.ex-detail .ex-titlerow { display: flex; align-items: flex-start; gap: 12px; }
+  .sf-page.ex-detail .ex-titlerow > .ex-h1 {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: min(36px, calc((100vw - 2 * var(--sf-g, 16px) - 60px) / (var(--ex-h1-word, 1) * .6)));
+  }
+  .sf-page.ex-detail .ex-titlerow > .ex-more { flex: none; margin-top: -5px; }
+  .sf-page.ex-detail .ex-more .mm-round.sf-more {
+    width: 48px;
+    height: 48px;
+    background: var(--sf-surface);
+    box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+    color: var(--sf-ink);
+  }
+  .sf-page.ex-detail .ex-more .mm-round.sf-more:hover,
+  .sf-page.ex-detail .ex-more .mm-round.sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
+  .sf-page.ex-detail .ex-more .mm-round.sf-more svg { width: 22px; height: 22px; }
+  .sf-page.ex-detail .ex-more .sf-menu.mm-menu { top: calc(100% + 8px); min-width: 276px; }
   /* «Шпаргалка · Вопросы»: 44 px to a finger, as every other target of the page. */
   .sf-page.ex-detail .ex-views [role='tab'] { min-height: 44px; }
 
@@ -2303,23 +2324,31 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page.ex-detail .ex-psum-n { font-weight: 600; color: var(--ex-figure); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .sf-page.ex-detail .ex-psum-line { margin-top: 4px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
   .sf-page.ex-detail .ex-psum-line b { font-weight: 600; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+  /* «Пора проверить…», «Второй ответ после разбора…»: a muted line each under the answers' count. */
+  .sf-page.ex-detail .ex-psum-note { margin-top: 2px; }
   .sf-page.ex-detail .ex-psum .sf-link.ex-psum-how { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; white-space: nowrap; }
   .sf-page.ex-detail .ex-psum-calc { margin-top: 12px; }
   .sf-page.ex-detail .ex-psum-calc > .ex-fine:first-child { margin-top: 0; }
   .sf-page.ex-detail .ex-psum-calc .ex-calc-assume { display: block; }
   .sf-page.ex-detail .ex-psum-calc .ex-act { margin-top: 10px; font-size: 16px; line-height: 24px; }
   .sf-page.ex-detail .ex-psum-calc .ex-blk { margin-top: 18px; padding-top: 14px; }
-  .sf-page.ex-detail .ex-psum-calc .ex-rl { margin-left: -6px; margin-right: -6px; }
 
-  /* The filter: one line of words, no wrap; past the screen's edge it scrolls under a fading edge. */
+  /* The filter: one line of text tabs, the app's one look for them (lecture tabs, «Разобрать лекцию»): 16/500 muted
+     words, the chosen one in ink at the same weight on a 2 px ink bar that stands on the row's 1 px hairline; counts
+     14 px, muted, in tabular figures (the chosen one's in ink). The pencil marks before «есть», «частично», «нет» are
+     the key to the marks at the rows' ends, in their colours. No tab says 0. Past the screen's edge the row scrolls
+     under a fading edge; the hairline keeps the gutters. */
   .sf-page.ex-detail .ex-filter {
+    flex: 1 1 auto;
+    min-width: 0;
     flex-wrap: nowrap;
-    gap: 0 20px;
+    gap: 0 22px;
     margin: 0 calc(-1 * var(--sf-g)) 10px;
-    padding: 0 var(--sf-g);
+    padding: 0 var(--sf-g) 1px;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
+    background: linear-gradient(var(--sf-line), var(--sf-line)) var(--sf-g) 100% / calc(100% - 2 * var(--sf-g)) 1px no-repeat;
     -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - var(--sf-g) - 8px), transparent);
     mask-image: linear-gradient(90deg, #000 calc(100% - var(--sf-g) - 8px), transparent);
   }
@@ -2327,20 +2356,49 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page.ex-detail .ex-filter li { flex: none; }
   .sf-page.ex-detail .ex-filter button,
   .sf-page.ex-detail .ex-filter button[data-cov] {
-    gap: 6px;
-    min-height: 44px;
+    position: relative;
+    gap: 0;
+    min-height: 46px;
     padding: 0;
     border-radius: 0;
     background: none;
     box-shadow: none;
     font-size: 16px;
+    font-weight: 500;
     color: var(--sf-muted);
   }
   .sf-page.ex-detail .ex-filter button:hover { box-shadow: none; color: var(--sf-ink); }
-  .sf-page.ex-detail .ex-filter button[aria-pressed='true'] { background: none; color: var(--sf-ink); box-shadow: inset 0 -2px 0 var(--sf-ink); }
-  .sf-page.ex-detail .ex-filter .ex-count { font-weight: 500; }
-  .sf-page.ex-detail .ex-filter button[aria-pressed='true'] .ex-count { font-weight: 600; }
-  .sf-page.ex-detail .ex-filter-mark { display: none; }
+  .sf-page.ex-detail .ex-filter button[aria-pressed='true'] { background: none; color: var(--sf-ink); box-shadow: none; }
+  .sf-page.ex-detail .ex-filter button[aria-pressed='true']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--sf-ink);
+  }
+  .sf-page.ex-detail .ex-filter button:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -2px; border-radius: 6px; }
+  .sf-page.ex-detail .ex-filter .ex-count { margin-left: 5px; font-size: 14px; font-weight: 500; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+  .sf-page.ex-detail .ex-filter button[aria-pressed='true'] .ex-count { color: var(--sf-ink); }
+  /* «Все»: its count is the meta line's «20 вопросов» (a screen reader still hears «Все 20»); so the row fits a 360 px
+     phone with its words whole. */
+  .sf-page.ex-detail .ex-filter li:first-child .ex-count {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .sf-page.ex-detail .ex-filter button:has(.ex-filter-mark) { padding-left: 0; }
+  .sf-page.ex-detail .ex-filter-mark { width: auto; height: 16px; margin-right: 4px; }
+  .sf-page.ex-detail .ex-filter button[data-cov='full'] .ex-filter-mark,
+  .sf-page.ex-detail .ex-filter button[data-cov='unverified'] .ex-filter-mark { color: var(--ex-ok-fg); }
+  .sf-page.ex-detail .ex-filter button[data-cov='partial'] .ex-filter-mark { color: var(--ex-half-fg); }
+  .sf-page.ex-detail .ex-filter button[data-cov='none'] .ex-filter-mark { color: var(--ex-no-fg); }
   .sf-page.ex-detail .ex-filter-long {
     position: absolute;
     width: 1px;
@@ -2351,8 +2409,9 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
     white-space: nowrap;
   }
 
-  /* The list: its heading is the page's own (read by screen readers); one line says that a question opens. */
-  .sf-page.ex-detail .ex-sheet { padding-top: 14px; }
+  /* The list: as wide as the blocks above it; its heading is the page's own (read by screen readers); one line says that
+     a question opens, with «Обозначения» at its end (the key to the number circles opens under it). */
+  .sf-page.ex-detail .ex-sheet { margin: 0; padding-top: 14px; }
   .sf-page.ex-detail .ex-sheet-h h2 {
     position: absolute;
     width: 1px;
@@ -2365,6 +2424,10 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page.ex-detail .ex-sheet-h[data-hint] { padding: 0 12px 12px; }
   .sf-page.ex-detail .ex-sheet-h:not([data-hint]) { padding: 0; border-bottom: 0; }
   .sf-page.ex-detail .ex-sheet-hint { font-size: 15px; line-height: 21px; color: var(--sf-muted); text-wrap: balance; }
+  .sf-page.ex-detail .ex-sheet-hint .sf-link.ex-keys-link { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; white-space: nowrap; }
+  .sf-page.ex-detail .ex-keys { margin: 12px -4px 0; padding: 4px 4px; border-radius: 22px; background: var(--sf-surface-soft); }
+  .sf-page.ex-detail .ex-keys .ex-rl { margin: 0; }
+  .sf-page.ex-detail .ex-keys .ex-rl button { min-height: 44px; padding-right: 12px; font-size: 15px; line-height: 20px; }
   /* No line of lecture and fragment under each question: a tap on the row opens them («почему»). */
   .sf-page.ex-detail .ex-qnote { display: none; }
   .sf-page.ex-detail .ex-open { -webkit-tap-highlight-color: transparent; }
@@ -2375,30 +2438,44 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   /* A section of the department's list: a plain heading, not capitals. */
   .sf-page.ex-detail .ex-sec { font-size: 16px; letter-spacing: 0; text-transform: none; }
 
-  /* Under the list (and the paper): «Ещё» and the request about answer texts, two quiet lines. */
-  .sf-page.ex-detail .ex-links-after { margin-top: 14px; }
-  .sf-page.ex-detail .ex-more .mm-text { font-size: 16px; }
-  .sf-page.ex-detail .ex-more .sf-menu.mm-menu { min-width: 248px; }
-  .sf-page.ex-detail .ex-col-after .ex-more { margin-top: -4px; }
-  .sf-page.ex-detail .ex-consent[data-short] { display: block; margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+  /* Under the paper: the write card when there is one (the links are in the heading's «⋯»). */
+  .sf-page.ex-detail .ex-col-after:empty { display: none; }
+  /* Under the list (and the paper): the request about answer texts, one quiet sentence with its two choices apart. */
+  .sf-page.ex-detail .ex-consent[data-short] { display: block; margin-top: 18px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
   .sf-page.ex-detail .ex-consent[data-short] .ex-consent-acts { white-space: nowrap; }
   .sf-page.ex-detail .ex-consent[data-short] .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; color: var(--sf-ink); vertical-align: baseline; }
+  .sf-page.ex-detail .ex-consent[data-short] .sf-link + .sf-link { margin-left: 14px; }
   .sf-page.ex-detail .ex-consent[data-short] .sf-link[data-muted] { color: var(--sf-muted); }
   .sf-page.ex-detail .ex-consent[data-short] [role='alert'] { margin-top: 6px; color: var(--sf-ink); }
 
-  /* «Шпаргалка»: one block above the paper — the count, the switches, the last answer and the history. */
-  .sf-page.ex-detail .ex-col > .cs-sum[data-variant='phone'] { padding: 16px 16px 8px; border-radius: 24px; }
+  /* «Шпаргалка»: one block above the paper — the count, the switches, the last answer and the history — bare, as the
+     summary over the list of «Вопросы» (the two views keep one container). */
+  .sf-page.ex-detail .ex-col:has(> .cs-sum[data-variant='phone']) { margin: 18px 0 14px; }
+  .sf-page.ex-detail .ex-col > .cs-sum[data-variant='phone'] { padding: 0; border-radius: 0; background: none; box-shadow: none; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count { margin-top: 0; gap: 2px 10px; align-items: center; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .ex-big { font-size: 40px; }
-  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count-l { font-size: 16px; line-height: 22px; }
+  /* «строки осталось из 63. Как стираются строки» beside the figure, as «… в лекциях. Как считается» on «Вопросы». */
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count-l { flex: 1 1 0; min-width: 0; font-size: 16px; line-height: 22px; text-wrap: pretty; }
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count-l .sf-link.cs-how { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; white-space: nowrap; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-toggles { margin-top: 4px; }
-  /* The three links in one row down to 360 px. */
-  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-acts { gap: 0 12px; margin-top: 0; }
+  /* The last answer and the history in one row down to 360 px. */
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-acts { gap: 0 16px; margin-top: 0; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-acts .sf-link { min-height: 44px; font-size: 15px; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-change { margin-top: 8px; font-size: 16px; line-height: 23px; }
-  .sf-page.ex-detail .cs-more { margin: 2px 0 10px; padding-top: 10px; border-top: 1px solid var(--sf-line); }
+  .sf-page.ex-detail .cs-more { margin: 12px 0 6px; padding: 10px 0 12px; border-top: 1px solid var(--sf-line); border-bottom: 1px solid var(--sf-line); }
   .sf-page.ex-detail .cs-more > .cs-sub:first-child,
   .sf-page.ex-detail .cs-more > .cs-rule:first-child { margin-top: 0; }
   .sf-page.ex-detail .cs-more .cs-share { margin-top: 10px; padding-top: 0; border-top: 0; font-size: 15px; line-height: 22px; }
   .sf-page.ex-detail .cs-more .cs-unwritable { margin-top: 8px; }
+}
+@media (max-width: 374px) {
+  /* As the lecture's tabs: a narrow phone sets the filter tighter before it scrolls. */
+  .sf-page.ex-detail .ex-filter { gap: 0 18px; }
+  .sf-page.ex-detail .ex-filter button,
+  .sf-page.ex-detail .ex-filter button[data-cov] { font-size: 15px; }
+}
+@media (max-width: 359px) {
+  /* A 320 px phone: a long label of the bar («Тянуть билет из 4 вопросов», «Выбрать или добавить лекции») wraps
+     inside the pill instead of pushing the page wider than the screen. */
+  .sf-page.ex-detail .ex-cta .sf-primary { padding-left: 20px; gap: 10px; font-size: 16px; line-height: 1.15; white-space: normal; text-align: left; }
 }

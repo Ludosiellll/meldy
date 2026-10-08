@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  ANSWER_TEXT_CONSENT_ASK,
   ANSWER_TEXT_CONSENT_TEXT,
   onAnswerTextConsent,
   readAnswerTextConsent,
@@ -13,15 +12,19 @@ import { glue } from './sheetModel';
 export const CONSENT_GRANTED_LINE = 'Спасибо! Тексты ответов будут сохраняться. Выключить можно в профиле.';
 export const CONSENT_DECLINED_LINE = 'Хорошо, тексты ответов не сохраняются. Передумаете — включите в профиле.';
 export const CONSENT_FAILED_LINE = 'Не удалось сохранить выбор. Попробуйте ещё раз.';
+/**
+ * A phone's ask: the request and the two terms of the full text (lib/oral/answerTexts.ts) — no name with the texts,
+ * deleted in «Профиль» — in one sentence. The phone's first short ask had lost the terms (critics' round, 2026-10-08).
+ */
+export const CONSENT_SHORT_ASK = 'Помогите проверить точность Meldy: разрешите сохранять текст ответов — без имени, удалить можно в профиле.';
 
 /**
  * The one question about keeping answer texts (plan 2026-10-07, «Текст ответа с согласия») on the exam
  * page: shown until the student answers it once, «Разрешить» or «Нет, спасибо»; «Профиль» changes the answer
  * later. Nothing is shown while the consent is read, when it cannot be read (the table not there yet, no
  * network) or once it is answered. `ready` — the page has laid out what is above (the sheet's paper), so the
- * question at the bottom never pushes anything. `short` — a phone: the request alone with its two choices, as one
- * quiet line (10_Project/Phone_Declutter_2026-10-08); the rest of the consent text stands by the same switch in
- * «Профиль».
+ * question at the bottom never pushes anything. `short` — a phone: one quiet sentence with its terms and the two
+ * choices (10_Project/Phone_Declutter_2026-10-08).
  */
 export default function AnswerTextConsent({ ready = true, short = false }: { ready?: boolean; short?: boolean }) {
   const { user } = useAuth();
@@ -78,12 +81,12 @@ export default function AnswerTextConsent({ ready = true, short = false }: { rea
     return (
       <section className="ex-consent" data-short="" aria-label="Тексты ответов для проверки точности">
         <p>
-          {glue(ANSWER_TEXT_CONSENT_ASK)}{' '}
+          {glue(CONSENT_SHORT_ASK)}{' '}
+          {/* The two choices apart, without a «·» between them. */}
           <span className="ex-consent-acts">
             <button type="button" className="sf-link" disabled={busy} onClick={() => void choose(true)}>
               Разрешить
-            </button>
-            <span aria-hidden="true"> · </span>
+            </button>{' '}
             <button type="button" className="sf-link" data-muted="" disabled={busy} onClick={() => void choose(false)}>
               Нет, спасибо
             </button>

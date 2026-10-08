@@ -240,9 +240,41 @@ interface ReadinessBlockProps {
    * confidence vs answers) goes under it.
    */
   part?: 'all' | 'head' | 'rest';
+  /** The readiness legend in the block (a phone opens it from «Обозначения» over the list instead). */
+  legend?: boolean;
 }
 
 const READINESS_ORDER: Readiness[] = ['confirmed', 'once', 'not_passed', 'untested'];
+
+/** The readiness counts of the legend. */
+export function readinessCounts(summary: Pick<AnswerSummary, 'confirmed' | 'once' | 'notPassed' | 'untested'>): Record<Readiness, number> {
+  return { confirmed: summary.confirmed, once: summary.once, not_passed: summary.notPassed, untested: summary.untested };
+}
+
+/**
+ * The key to the number circles: the four readiness marks of the sheet (filled and marked as the rows are), their words
+ * and counts. Each row shows those questions (a second press shows all again). The column's readiness block and, on a
+ * phone, «Обозначения» over the list use it.
+ */
+export function ReadinessLegend({ counts, filter, onFilter }: { counts: Record<Readiness, number>; filter: SheetFilter; onFilter: (filter: SheetFilter) => void }) {
+  return (
+    <ul className="ex-rl" aria-label="Показать вопросы по ответам">
+      {READINESS_ORDER.map((readiness) => {
+        const value: SheetFilter = `rd:${readiness}` as SheetFilter;
+        const active = filter === value;
+        return (
+          <li key={readiness}>
+            <button type="button" aria-pressed={active} onClick={() => onFilter(active ? 'all' : value)}>
+              <LegendNumber readiness={readiness} />
+              <span className="ex-rl-word">{READINESS_LABELS[readiness]}</span>{' '}
+              <span className="ex-count">{counts[readiness]}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 /**
  * The number circle of the sheet without a number, filled and marked as the sheet marks that readiness: a sample
@@ -304,13 +336,7 @@ export function ReadinessBlock(props: ReadinessBlockProps) {
   return <ReadinessSummary {...props} part={part} />;
 }
 
-function ReadinessSummary({ summary, confidence, selfRated = false, filter, onFilter, onRateMode, growth, staleLine, secondAnswer, part = 'all' }: ReadinessBlockProps) {
-  const counts: Record<Readiness, number> = {
-    confirmed: summary.confirmed,
-    once: summary.once,
-    not_passed: summary.notPassed,
-    untested: summary.untested,
-  };
+function ReadinessSummary({ summary, confidence, selfRated = false, filter, onFilter, onRateMode, growth, staleLine, secondAnswer, part = 'all', legend = true }: ReadinessBlockProps) {
   const head = part !== 'rest';
   const rest = part !== 'head';
   return (
@@ -333,21 +359,7 @@ function ReadinessSummary({ summary, confidence, selfRated = false, filter, onFi
           {staleLine && <p className="ex-fine ex-stale">{glue(staleLine)}</p>}
           <p className="ex-fine">{CONFIRMED_MEANING}</p>
           {secondAnswer && <p className="ex-fine ex-second">{glue(secondAnswer)}</p>}
-          <ul className="ex-rl" aria-label="Показать вопросы по ответам">
-            {READINESS_ORDER.map((readiness) => {
-              const value: SheetFilter = `rd:${readiness}` as SheetFilter;
-              const active = filter === value;
-              return (
-                <li key={readiness}>
-                  <button type="button" aria-pressed={active} onClick={() => onFilter(active ? 'all' : value)}>
-                    <LegendNumber readiness={readiness} />
-                    <span className="ex-rl-word">{READINESS_LABELS[readiness]}</span>{' '}
-                    <span className="ex-count">{counts[readiness]}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          {legend && <ReadinessLegend counts={readinessCounts(summary)} filter={filter} onFilter={onFilter} />}
           {selfRated && (
             <p className="ex-fine" style={{ marginTop: 12 }}>
               {glue(confidenceSentence(confidence))}{' '}
@@ -376,11 +388,17 @@ export interface PhoneSummaryProps {
   id: string;
 }
 
+/** «Подтверждено ответами — 0 вопросов из 20» (a phone names what is counted: «0 из 20» alone read as a score). */
+export function confirmedCountWords(confirmed: number, total: number): string {
+  return `${confirmed}${NBSP}${pluralRu(confirmed, ['вопрос', 'вопроса', 'вопросов'])} из${NBSP}${total}`;
+}
+
 /**
  * The summary above the list on a phone (10_Project/Phone_Declutter_2026-10-08): the figure in one line with «Как
- * считается», and the answers' count. «Как считается» opens the rest: what the list was checked against, the numbers
+ * считается», and the answers' count; under it, one quiet line each, what asks for an answer now («Пора проверить…»)
+ * and «Второй ответ после разбора…». «Как считается» opens the rest: what the list was checked against, the numbers
  * behind the figure, the line about «частично», the assumption (here it also says how many questions a ticket has) and
- * the formulas, then what «подтверждено» means with the readiness legend, which still filters the list.
+ * the formulas, then what «подтверждено» means. The readiness legend opens from «Обозначения» over the list.
  */
 export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, open, onToggle, id }: PhoneSummaryProps) {
   const counts = coverage?.counts ?? null;
@@ -390,8 +408,9 @@ export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, ope
   const answers = readiness && confirmedSentence(readiness.summary) ? readiness : null;
   if (!figure && !answers) return null;
   const action = figure && coverage && counts && coverage.closed ? closePartialLine(counts.partial, coverage.shares, coverage.closed) : null;
+  // An explanation, not a step: a muted link (the app's quiet links: ink for what goes somewhere or does something).
   const toggle = (
-    <button type="button" className="sf-link ex-psum-how" aria-expanded={open} aria-controls={open ? id : undefined} onClick={onToggle}>
+    <button type="button" className="sf-link ex-psum-how" data-muted="" aria-expanded={open} aria-controls={open ? id : undefined} onClick={onToggle}>
       Как считается
     </button>
   );
@@ -399,24 +418,18 @@ export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, ope
     <div className="ex-psum">
       {figure && (
         <p className="ex-psum-fig">
-          <b className="ex-psum-n">{figure.figure}</b> {glue(figure.label)}
-          {NBSP}· {toggle}
+          <b className="ex-psum-n">{figure.figure}</b> {glue(figure.label)}. {toggle}
         </p>
       )}
       {answers && (
-        <p className="ex-psum-line">
-          Подтверждено ответами{NBSP}—{' '}
-          <b>
-            {answers.summary.confirmed}
-            {NBSP}из{NBSP}
-            {answers.summary.total}
-          </b>
-          {figure ? null : (
-            <>
-              {NBSP}· {toggle}
-            </>
-          )}
-        </p>
+        <>
+          <p className="ex-psum-line">
+            Подтверждено ответами{NBSP}— <b>{confirmedCountWords(answers.summary.confirmed, answers.summary.total)}</b>
+            {figure ? null : <>. {toggle}</>}
+          </p>
+          {answers.staleLine && <p className="ex-psum-line ex-psum-note">{glue(answers.staleLine)}</p>}
+          {answers.secondAnswer && <p className="ex-psum-line ex-psum-note">{glue(answers.secondAnswer)}</p>}
+        </>
       )}
       {open && (
         <div className="ex-calc ex-psum-calc" id={id}>
@@ -433,7 +446,8 @@ export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, ope
               />
             </>
           )}
-          {answers && <ReadinessBlock {...answers} part="rest" />}
+          {/* The lines that ask for an answer stand above, in sight; the legend opens from «Обозначения». */}
+          {answers && <ReadinessBlock {...answers} staleLine={null} secondAnswer={null} legend={false} part="rest" />}
         </div>
       )}
     </div>

@@ -236,10 +236,12 @@ describe('SheetSummaryCard', () => {
 });
 
 describe('SheetSummaryCard on the exam page’s phone (one block above the paper, Phone_Declutter_2026-10-08)', () => {
-  it('the count, both switches once something is erased, the last answer and the history in sight; the rest behind «Подробнее»', () => {
+  it('the count, both switches once something is erased, the last answer and the history in sight; the rest behind «Как стираются строки»', () => {
     const props = summary({ variant: 'phone', more: <p className="cs-unwritable">{unwritableLine(2)}</p> });
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
+    // The count's words, then the rule a tap away — as «… в лекциях. Как считается» over the list (a muted link: it explains).
+    expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47. Как стираются строки');
     expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Скрыть строки, стёртые совсем', 'Спрятать строки']);
     // The words are short for one row on a 360 px phone; the names are whole.
     const replay = screen.getByRole('button', { name: 'Показать последний ответ' });
@@ -252,11 +254,17 @@ describe('SheetSummaryCard on the exam page’s phone (one block above the paper
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(document.querySelector('.cs-rule')).toBeNull();
     expect(document.querySelector('.cs-share')).toBeNull();
-    const details = screen.getByRole('button', { name: 'Подробнее' });
+    expect(screen.queryByRole('button', { name: 'Подробнее' })).toBeNull();
+    const details = screen.getByRole('button', { name: 'Как стираются строки' });
+    expect(details).toHaveAttribute('data-muted');
     expect(details).toHaveAttribute('aria-expanded', 'false');
+    expect(details).not.toHaveAttribute('aria-controls');
     fireEvent.click(details);
     expect(details).toHaveAttribute('aria-expanded', 'true');
     const more = document.getElementById(details.getAttribute('aria-controls') ?? '') as HTMLElement;
+    // The sentence that says what the sheet is comes first, right under the count.
+    expect(more.firstElementChild).toHaveClass('cs-rule');
+    expect(document.querySelector('.cs-count')?.nextElementSibling).toBe(more);
     expect(plain(more.querySelector('.cs-sub')?.textContent)).toBe('главных строк — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · у 6 вопросов нет пунктов ответа');
     expect(plain(more.querySelector('.cs-rule')?.textContent)).toBe(SHEET_RULE);
     expect(plain(more.querySelector('.cs-share')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях');
@@ -271,7 +279,8 @@ describe('SheetSummaryCard on the exam page’s phone (one block above the paper
     summary({ variant: 'phone', history: { frame: first, first, lowest: first.left, running: true } });
     expect(document.querySelector('.cs-big')?.textContent).toBe('180');
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
-    expect(screen.queryByRole('button', { name: 'Подробнее' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Как стираются строки' })).toBeNull();
+    expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 180');
     cleanup();
     const last: HistoryFrame = { day: '2026-10-06', at: 0, left: 61, total: 180 };
     const props = summary({ variant: 'phone', history: { frame: last, first, lowest: 61, running: false } });

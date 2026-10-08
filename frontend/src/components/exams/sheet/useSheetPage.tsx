@@ -620,7 +620,9 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         written={data.written}
         toWrite={data.toWrite}
         units={data.units}
-        unwritable={oneBlock ? 0 : data.unwritable}
+        // The phone's one block says it behind «Как стираются строки» — only when there is a block: a sheet of no lines
+        // has none, and the note stays here.
+        unwritable={oneBlock && counts.total > 0 ? 0 : data.unwritable}
         unitsLeft={unitsLeft}
         write={data.write}
         onWrite={onWrite}
