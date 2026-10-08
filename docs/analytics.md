@@ -80,6 +80,9 @@ Meldy сам записывает, какими экранами и функци
 - `try_checked` — в примере ответ проверен; `by`: `ai` (проверил ИИ, `/api/try/evaluate`), `dont_know` (ответ «не
   знаю», без проверки) или `keywords` (проверка ИИ не состоялась, проверено по ключевым словам); у `keywords` —
   `reason`: `no_key`, `day_cap`, `busy`, `timeout`, `failed`, `client_limit`, `offline` или `too_long`.
+- `try_followup_checked` — в примере проверен ответ на вопрос экзаменатора; `by`: `ai` (`/api/try/evaluate` с
+  `point_id`) или `keywords`; у `keywords` — `reason`: `no_key`, `day_cap`, `busy`, `timeout`, `failed`,
+  `client_limit`, `offline` или `too_long`. Ответ «не знаю» события не шлёт.
 - `try_answer_paste_refused` — в примере не вставлен готовый текст, как в настоящем билете (см.
   `answer_paste_refused`).
 - `signup_view` — открыта страница регистрации.
