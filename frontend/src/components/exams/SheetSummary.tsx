@@ -100,8 +100,8 @@ export function questionsLine(counts: CoverageCounts): string {
 /**
  * Peak 1, simplified (owner, 2026-10-07: one number that matters, the rest behind «Как считается»): the share of
  * tickets where every question is in the lectures — or, for one question per ticket, the share of questions — with
- * its label, the short caveat and «Как считается», and the action line «Закройте 7 вопросов «частично» — …» under
- * it. Inside «Как считается»: how many questions are in the lectures, the tickets without «есть», what is not
+ * its label, the short caveat and «Как считается», and the action line «7 вопросов «частично»: добавьте к ним
+ * материал — …» under it. Inside «Как считается»: how many questions are in the lectures, the tickets without «есть», what is not
  * known yet, the assumption and the formulas. Every number follows the exam's own ticket layout. The page does not
  * show this card while nothing is checked or almost nothing is found: the status block at the top says that.
  */
@@ -143,10 +143,9 @@ export function CoverageSummary(props: CoverageSummaryProps) {
 
   const actionLine = action ? (
     <p className="ex-act">
-      Закройте{' '}
       <button type="button" className="sf-link ex-act-link" aria-pressed={filter === 'cov:partial'} onClick={() => toggle('cov:partial')}>
         {glue(action.link)}
-      </button>{' '}
+      </button>
       {glue(action.rest)}
     </p>
   ) : null;
@@ -221,13 +220,16 @@ interface ReadinessBlockProps {
 
 const READINESS_ORDER: Readiness[] = ['confirmed', 'once', 'not_passed', 'untested'];
 
-/** «12» in the number circle of the sheet, filled and marked as the sheet marks that readiness. */
+/**
+ * The number circle of the sheet without a number, filled and marked as the sheet marks that readiness: a sample
+ * «12» in it beside the real counts («(12) подтверждено 0») read as one more count (audit of 2026-10-08).
+ */
 function LegendNumber({ readiness }: { readiness: Readiness }) {
   const kind = READINESS_MARK[readiness];
   if (!kind)
     return (
       <span className="ex-k" data-readiness={readiness} aria-hidden="true">
-        <span className="ex-k-n">12</span>
+        <span className="ex-k-n" />
       </span>
     );
   return (
@@ -241,7 +243,7 @@ function LegendNumber({ readiness }: { readiness: Readiness }) {
         dy={kind === 'ring' ? undefined : 4}
         weight={kind === 'wave' ? 2.4 : undefined}
       >
-        12
+        {null}
       </TextMark>
     </span>
   );

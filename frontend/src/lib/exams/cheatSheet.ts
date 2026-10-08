@@ -931,9 +931,9 @@ export interface ErasableNow {
 }
 
 /**
- * «Можно стереть: N вопросов» on «Сегодня» and the draw «Ждут подтверждения» (Сегодня-lite): the questions
- * where naming a point now erases its line — a rubbed line whose moment has come, or a line due for its
- * check (erasableAt) — and when the next such moment comes for the rest of the sheet.
+ * «Сегодня можно стереть строки шпаргалки у N вопросов» on «Сегодня» and the draw «Ждут подтверждения»
+ * (Сегодня-lite): the questions where naming a point now erases its line — a rubbed line whose moment has
+ * come, or a line due for its check (erasableAt) — and when the next such moment comes for the rest of the sheet.
  */
 export function erasableNow(sheet: Sheet, now: Date | number = new Date()): ErasableNow {
   const at = timeOf(now);

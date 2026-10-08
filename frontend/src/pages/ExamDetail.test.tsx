@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { ExamBundle, ExamQuestion, ExamRow } from '../api/exams';
 import type { LearningEvent } from '../api/learning';
@@ -323,6 +323,7 @@ describe('ExamDetail: the sheet', () => {
     renderDetail();
     await opened();
     expect(screen.getByRole('heading', { level: 2, name: 'Макроэкономика: вопросы к экзамену' })).toBeInTheDocument();
+    expect(document.title).toBe('Макроэкономика — Meldy');
 
     const coverage: Array<[string, string, string | null, string]> = [
       ['q1', 'full', 'tick', 'есть в лекциях'],
@@ -334,10 +335,13 @@ describe('ExamDetail: the sheet', () => {
     ];
     for (const [id, state, mark, words] of coverage) {
       expect(row(id)).toHaveAttribute('data-coverage', state);
-      const cell = row(id).querySelector('.ex-cov') as HTMLElement;
-      expect(cell.querySelector('svg')?.getAttribute('data-mark') ?? null).toBe(mark);
-      expect(cell.querySelector('svg')?.getAttribute('aria-hidden') ?? 'true').toBe('true');
-      expect(cell).toHaveTextContent(words);
+      // The pill sits at the top right of the question, inside its button, for the eye (owner's example of
+      // 2026-10-08: a column of its own held 176 px beside every line); a screen reader hears the long words first.
+      const pill = row(id).querySelector('.ex-open .ex-cov') as HTMLElement;
+      expect(pill).toHaveAttribute('aria-hidden', 'true');
+      expect(pill.querySelector('svg')?.getAttribute('data-mark') ?? null).toBe(mark);
+      expect(row(id).firstElementChild).toHaveClass('ex-cov-sr');
+      expect(row(id).firstElementChild).toHaveTextContent(words);
     }
     // Stored marks are simply there: nothing is drawn in on opening the sheet.
     expect(document.querySelectorAll('.ex-cov svg[data-drawn="live"]')).toHaveLength(0);
@@ -378,7 +382,7 @@ describe('ExamDetail: the sheet', () => {
     const how = within(side).getByRole('button', { name: 'Как считается' });
     expect(plain(how.closest('.ex-caveat')?.textContent)).toBe('Это доля билетов, а не вероятность сдать. Как считается');
     const action = side.querySelector('.ex-act') as HTMLElement;
-    expect(plain(action.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(action.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     // Nothing about answers before the first one: the status at the top says what to do.
     await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalled());
     expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность|Подтверждено ответами/);
@@ -423,7 +427,7 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     const side = column();
     expect(plain(side.querySelector('.ex-figs-now')?.textContent)).toBe('36 %');
-    expect(plain(side.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(side.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     fireEvent.click(within(side).getByRole('button', { name: 'Как считается' }));
     expect(within(side).getByText(named('В 16 % билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
     const [main, gap] = within(side).getAllByRole('math').map((formula) => plain(formula.textContent));
@@ -932,6 +936,43 @@ describe('ExamDetail: «почему»', () => {
     expect(within(statusCard()).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
     expect(screen.queryByRole('heading', { name: named('Есть в ваших лекциях') })).toBeNull();
     expect(within(column()).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
+  });
+
+  it('keeps the status’s pill filled while the panel’s «Ответить на этот вопрос» is out of the window', async () => {
+    // Audit of 2026-10-08 at 1532×734: the status stepped down to white for a link 1 482 px down the column, and the
+    // window had no filled pill at all.
+    type Report = (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void;
+    const watched: Array<{ element: Element; report: Report }> = [];
+    class FakeObserver {
+      private report: Report;
+      constructor(report: Report) {
+        this.report = report;
+      }
+      observe(element: Element) {
+        watched.push({ element, report: this.report });
+      }
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeObserver);
+    try {
+      mocks.loadExamBundle.mockResolvedValue(bundle(mixed()));
+      renderDetail();
+      await opened();
+      fireEvent.click(screen.getByRole('button', { name: 'Вопрос 1 о денежном рынке' }));
+      const go = within(column()).getByRole('link', { name: 'Ответить на этот вопрос' });
+      const seen = watched.find((entry) => entry.element === go)!;
+      act(() => seen.report([{ isIntersecting: false, intersectionRatio: 0 }]));
+      expect(within(statusCard()).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
+      act(() => seen.report([{ isIntersecting: true, intersectionRatio: 1 }]));
+      expect(within(statusCard()).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('ex-secondary');
+      expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('explains a gap with the nearest fragment and marks it by hand only after a confirmation', async () => {
@@ -1647,7 +1688,7 @@ describe('ExamDetail on a phone', () => {
     const after = screen.getByRole('region', { name: 'Ответы по билетам' });
     const sheet = document.querySelector('.ex-sheet') as HTMLElement;
     expect(sheet.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(plain(after.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(after.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
   });
   it('closes the phone menu with Escape and gives the focus back', async () => {
     setWidth(390);
@@ -1897,7 +1938,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's-old')]);
     renderDetail();
     await opened();
-    await statusSays('Сегодня можно стереть строки у 1 вопроса');
+    await statusSays('Сегодня можно стереть строки шпаргалки у 1 вопроса');
     expect(statusText()).toBe('Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.');
     expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет из них' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=awaiting');
     expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');

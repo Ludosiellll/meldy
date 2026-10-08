@@ -72,14 +72,16 @@ interface ExamSheetProps {
 
 /**
  * The row's status pill: the pencil mark and the legend's word («есть в лекциях», «частично», «нет ни в
- * одной»…) in the status colour; on a narrow sheet only its round badge. The word on the pill is for
- * the eye; a screen reader hears the long words.
+ * одной»…) in the status colour; on a narrow sheet only its round badge. It stands at the top right of the
+ * question, which runs on under it (owner's example of 2026-10-08: as a column of its own it held 176 px beside
+ * every line of the question). The pill is for the eye (aria-hidden: it sits inside the row's button, whose name
+ * is the question); a screen reader hears the long words before the number (CoverageWords).
  */
-function CoverageCell({ examId, row }: { examId: string; row: SheetRowView }) {
+function CoveragePill({ examId, row }: { examId: string; row: SheetRowView }) {
   const kind = COVERAGE_MARK[row.coverage];
   const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
   return (
-    <span className="ex-cov" data-mark={kind ?? undefined}>
+    <span className="ex-cov" data-mark={kind ?? undefined} aria-hidden="true">
       {kind && size && (
         <Mark
           kind={kind}
@@ -91,12 +93,14 @@ function CoverageCell({ examId, row }: { examId: string; row: SheetRowView }) {
           delayMs={row.appearance?.delayMs ?? 0}
         />
       )}
-      <span className="ex-cov-word" aria-hidden="true">
-        {COVERAGE_PILL_WORDS[row.coverage]}
-      </span>
-      <span className="ex-sr">{COVERAGE_WORDS[row.coverage]}</span>
+      <span className="ex-cov-word">{COVERAGE_PILL_WORDS[row.coverage]}</span>
     </span>
   );
+}
+
+/** The row's status in the long words, for a screen reader, first in the row as before. */
+function CoverageWords({ row }: { row: SheetRowView }) {
+  return <span className="ex-sr ex-cov-sr">{COVERAGE_WORDS[row.coverage]}</span>;
 }
 
 function NumberCell({ examId, row, drawIn }: { examId: string; row: SheetRowView; drawIn: boolean }) {
@@ -215,10 +219,11 @@ export default function ExamSheet(props: ExamSheetProps) {
                 data-coverage={row.coverage}
                 data-readiness={row.readiness}
               >
-                <CoverageCell examId={examId} row={row} />
+                <CoverageWords row={row} />
                 <NumberCell examId={examId} row={row} drawIn={Boolean(isPeak && peak?.animate)} />
                 {rateMode ? (
                   <span className="ex-open" style={{ cursor: 'default' }}>
+                    <CoveragePill examId={examId} row={row} />
                     {question.text}
                   </span>
                 ) : (
@@ -229,6 +234,7 @@ export default function ExamSheet(props: ExamSheetProps) {
                     aria-controls={selected ? props.whyId : undefined}
                     onClick={() => props.onOpen(question.id)}
                   >
+                    <CoveragePill examId={examId} row={row} />
                     {question.text}
                   </button>
                 )}

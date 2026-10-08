@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { DrawMode } from '../../lib/exams/draw';
 import type { FrameBox } from './useFrame';
@@ -13,12 +13,16 @@ export const DRAW_CAPTIONS: Record<DrawMode, string> = {
   awaiting: 'Из вопросов, которые ждут подтверждения',
 };
 
+/**
+ * One short line under each way (audit 2026-10-08: the four took 425 px and ran off a 734 px window). The exact
+ * rule of «ждут подтверждения» (another day, 20 hours, a line due for its check) is the cheat sheet's, on its page.
+ */
 export const DRAW_HINTS: Record<DrawMode, string> = {
-  exam: 'Случайные вопросы; известные билеты — целиком. Отметки пунктов во время ответа выключены.',
-  weak: 'Чаще не проверявшиеся и те, где названо недостаточно; вопросов без материала не будет.',
+  // In the answer screen's own words for «Как на экзамене»: «пункты ответа и цитаты — только в протоколе».
+  exam: 'Случайный билет; пункты ответа и цитаты — только в протоколе.',
+  weak: 'Чаще вопросы без ответов и те, где названо недостаточно.',
   answered: 'Только вопросы, на которые вы уже отвечали.',
-  // The cheat sheet's rule (Сегодня-lite): «в другой день» belongs to it too — 20 hours later on the same day erases nothing.
-  awaiting: 'Вопросы, где ответ может стереть строку шпаргалки: пункт назван в другой день и не меньше 20 часов назад, или стёртую строку пора проверить.',
+  awaiting: 'Вопросы, где ответ сегодня может стереть строку шпаргалки.',
 };
 
 /** 'exam' is the default and stays out of the address: /draw, /draw?mode=weak|answered|awaiting. */
@@ -48,11 +52,25 @@ interface DrawModeMenuProps {
  */
 export default function DrawModeMenu({ mode, onChange, variant, sheetHost, frameBox, className = '' }: DrawModeMenuProps) {
   const [open, setOpen] = useState(false);
+  // The popover opens upward when the window has no room for it below the link (the draw page at 1532 × 734: 315 px
+  // of it were under the window's edge, audit 2026-10-08). Measured before the paint, so it never jumps.
+  const [up, setUp] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const sheet = variant === 'sheet';
+
+  useLayoutEffect(() => {
+    if (!open || sheet) return;
+    const menu = menuRef.current;
+    const opener = openerRef.current;
+    if (!menu || !opener) return;
+    const box = opener.getBoundingClientRect();
+    const below = window.innerHeight - box.bottom - 12;
+    const above = box.top - 12;
+    setUp(menu.offsetHeight > below && above > below);
+  }, [open, sheet]);
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -145,7 +163,7 @@ export default function DrawModeMenu({ mode, onChange, variant, sheetHost, frame
         </div>
       </>
     ) : (
-      <div ref={menuRef} id={menuId} className="ex-mode-menu" role="menu" aria-label="Как тянуть билет" onKeyDown={onMenuKey}>
+      <div ref={menuRef} id={menuId} className="ex-mode-menu" role="menu" aria-label="Как тянуть билет" data-up={up ? '' : undefined} onKeyDown={onMenuKey}>
         {items}
       </div>
     )

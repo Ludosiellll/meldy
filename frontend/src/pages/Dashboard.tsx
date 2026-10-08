@@ -28,6 +28,7 @@ import { counterLabel, erasableLine, nextErasableLine } from '../components/exam
 import type { ErasableNow } from '../lib/exams/cheatSheet';
 import DailyReminder from '../components/reminders/DailyReminder';
 import QuestionOfDay from '../components/exams/share/QuestionOfDay';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -35,14 +36,18 @@ import QuestionOfDay from '../components/exams/share/QuestionOfDay';
  *
  * - The greeting with the date and one hand-drawn yellow line under «повторим».
  * - One main card of what to do now: the nearest exam (a flag with the days left, the subject, the
- *   meta line, «9 вопросов без материала» first, the share of tickets for the exam's own layout as
- *   the large figure, the list in miniature as status dots with the pencil marks, the answers line
- *   and a dated note about the last two days, «Тянуть билет»). Without an exam the cards lead.
+ *   meta line, then at once the next step — «Тянуть билет», or «Тянуть билет из них» when an answer can
+ *   erase lines of the cheat sheet today — so it is on the first screen at every size (audit of
+ *   2026-10-08: below the readiness it stood at y 1053 in a 734 px window); then «9 вопросов без
+ *   материала», the share of tickets for the exam's own layout as the large figure, the list in
+ *   miniature as status dots with the pencil marks, the answers line and a dated note about the last
+ *   two days). Without an exam the cards lead.
  * - Beside it the task cards: today's review cards (a coloured panel with the first due question)
- *   and two weeks of reviews; below, the four latest lectures as cards.
- * - «Первые шаги» above it all until they are done: a lecture with text, a question list, a ticket
- *   answered — the first run around the core (owner, 2026-10-04). A new account sees only them. They
- *   can be folded (remembered per account on this device) and are gone once all three are done.
+ *   and two weeks of cards; below, the four latest lectures as cards.
+ * - «Первые шаги» above it all until they are done, in the order of «Новый экзамен»: a question list,
+ *   lectures with text, a ticket answered — the first run around the core (owner, 2026-10-04). A new
+ *   account sees only them. They can be folded (remembered per account on this device) and are gone
+ *   once all three are done.
  * Every number on the page is read from the account; nothing is invented (no ticket numbers, no zeros
  * on an empty account).
  */
@@ -655,7 +660,7 @@ export function dueLead(count: number): { count: string; time: string } {
 export function activityLine(streak: number, today: number): string {
   const parts: string[] = [];
   if (streak >= 2) parts.push(`${streak} ${pluralRu(streak, ['день', 'дня', 'дней'])} подряд.`);
-  parts.push(today > 0 ? `Сегодня — ${today} ${pluralRu(today, CARD_FORMS)}.` : 'Сегодня повторений ещё не было.');
+  parts.push(today > 0 ? `Сегодня — ${today} ${pluralRu(today, CARD_FORMS)}.` : 'Сегодня карточки ещё не повторялись.');
   return parts.join(' ');
 }
 
@@ -856,6 +861,7 @@ function DayBars({ days }: { days: Array<{ key: string; value: number }> }) {
 // The page
 
 export default function Dashboard() {
+  useDocumentTitle('Сегодня');
   const { user } = useAuth();
   const frame = useFrame<HTMLDivElement>();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -1021,24 +1027,30 @@ interface StepView {
   wait?: string;
 }
 
-/** The three steps in their order, with what each one does next. */
+/**
+ * The three steps in the order of «Новый экзамен» (1 the list, 2 the lectures, then the answers), with what each
+ * one does next (audit of 2026-10-08: «Добавить лекцию» as step 1 led to /exams/new#lectures, whose first step asks
+ * for the list and has no lectures block).
+ */
 export function firstStepViews(steps: FirstSteps): StepView[] {
   return [
     {
-      key: 'lecture',
-      title: 'Добавьте лекцию',
-      text: 'Файл лекции с текстом: PDF, DOCX, PPTX, TXT или MD. Meldy возьмёт текст без расхода лимита и сверит с ним вопросы экзамена.',
-      done: steps.lecture,
-      // Free and straight to the core: «Новый экзамен» with its text-only import of lectures, not the
-      // analysis (/analyze: 20 units a lecture, live run of 07.10 — three answers left on FREE after it).
-      action: { to: '/exams/new#lectures', label: 'Добавить лекцию' },
-    },
-    {
       key: 'list',
       title: 'Вставьте список вопросов к экзамену',
-      text: 'Meldy сверит каждый вопрос с вашими лекциями: есть, частично или нет.',
+      text: 'Скопируйте его из файла кафедры или выберите сам файл. Meldy найдёт вопросы, разделы и билеты.',
       done: steps.list,
       action: { to: '/exams/new', label: 'Создать экзамен' },
+    },
+    {
+      key: 'lecture',
+      title: 'Добавьте лекции',
+      text: 'Файлы лекций с текстом: PDF, DOCX, PPTX, TXT или MD. Meldy возьмёт текст без расхода лимита и сверит с ним каждый вопрос: есть, частично или нет.',
+      done: steps.lecture,
+      // Free and straight to the core: the lectures of the exam in its editor, with their text-only import — not
+      // the analysis (/analyze: 20 units a lecture, live run of 07.10 — three answers left on FREE after it).
+      // Without an exam the lectures come in the new exam itself, right after its list.
+      action: steps.drawExamId ? { to: `/exams/${steps.drawExamId}/edit#lectures`, label: 'Добавить лекции' } : null,
+      wait: 'Их добавляют в новом экзамене — сразу после списка вопросов.',
     },
     {
       key: 'answer',
@@ -1053,8 +1065,8 @@ export function firstStepViews(steps: FirstSteps): StepView[] {
 
 /**
  * «Первые шаги»: the three steps of the core with their state and one action each — the next step's
- * action is the page's blue pill while the card is unfolded. Without lectures, «Попробовать на
- * примере» opens the sample course. The card folds to one line (remembered on this device).
+ * action is the page's blue pill while the card is unfolded. Without a list, «Попробовать на примере»
+ * opens the sample exam. The card folds to one line (remembered on this device).
  */
 function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; folded: boolean; lead: boolean; onToggle: () => void }) {
   const listId = useId();
@@ -1108,7 +1120,8 @@ function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; 
                     ) : (
                       <p className="td-fs-wait">{glue(view.wait ?? '')}</p>
                     )}
-                    {view.key === 'lecture' && !view.done ? (
+                    {/* No list at hand yet: the sample exam shows the whole way first. */}
+                    {view.key === 'list' && !view.done ? (
                       <Link className="sf-link td-fs-try" data-muted="" to="/try">
                         Попробовать на примере
                       </Link>
@@ -1125,9 +1138,23 @@ function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; 
 }
 
 /** A link as the page's one blue pill, or as the white pill with the dark circle when something else leads. */
-function ActionLink({ to, blue, size, children }: { to: string; blue: boolean; size?: 's'; children: ReactNode }) {
+function ActionLink({
+  to,
+  blue,
+  size,
+  describedBy,
+  onClick,
+  children,
+}: {
+  to: string;
+  blue: boolean;
+  size?: 's';
+  describedBy?: string;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
   return (
-    <Link className={blue ? 'sf-primary' : 'sf-secondary td-pill'} data-size={size} to={to}>
+    <Link className={blue ? 'sf-primary' : 'sf-secondary td-pill'} data-size={size} to={to} aria-describedby={describedBy} onClick={onClick}>
       {children}
       {blue ? null : <PillDot />}
     </Link>
@@ -1231,7 +1258,7 @@ function Desk({
   if (dueCount > 0 && exam) {
     const [count, ...words] = dueTitle(dueCount).split(' ');
     cards = (
-      <article className="td-card td-due td-rise" data-d="3" aria-labelledby="td-due-h">
+      <article className="td-card td-due td-rise" data-d="3" data-split={firstQuestion ? '' : undefined} aria-labelledby="td-due-h">
         {firstQuestion ? <CardStack question={firstQuestion} /> : null}
         <div className="td-due-body">
           <span className="td-flag" data-tone="b">
@@ -1275,38 +1302,21 @@ function Desk({
 }
 
 /**
- * «Сегодня-lite» (2026-10-07): one line under the cheat sheet's count — how many questions have a line an
- * answer erases now (lib/exams/cheatSheet.erasableNow: a rubbed line named on another day and 20 hours
- * ago, or a line due for its check), with «Ответить» into the draw «Ждут подтверждения», which draws from
- * exactly these questions. With none: when the next lines can be erased, if any line waits for that.
+ * «Сегодня-lite» (2026-10-07) with nothing to erase now: when the next lines can be erased, if any line waits for
+ * that — a quiet line under the cheat sheet's count. When an answer can erase lines now (lib/exams/cheatSheet.
+ * erasableNow: a rubbed line named on another day and 20 hours ago, or a line due for its check), the card's next
+ * step says it itself (ExamBlock): «Сегодня можно стереть строки шпаргалки у 4 вопросов…» with the one main action
+ * «Тянуть билет из них» into the draw «Ждут подтверждения» — audit of 2026-10-08: «Можно стереть: 4 вопроса ·
+ * Ответить» beside «Тянуть билет» read as «удалить 4 вопроса» and gave two look-alike buttons.
  */
-function EraseLine({ examId, erasable }: { examId: string; erasable: ErasableNow }) {
-  const textId = useId();
-  const count = erasable.questions.length;
-  if (count === 0) {
-    const next = nextErasableLine(erasable.next);
-    return next ? <p className="td-note td-erase-next">{glue(next)}</p> : null;
-  }
-  return (
-    <div className="td-erase">
-      <p className="td-erase-t" id={textId}>
-        {glue(erasableLine(count))}
-      </p>
-      <Link
-        className="sf-secondary td-pill"
-        data-size="s"
-        to={`/exams/${examId}/draw?mode=awaiting`}
-        aria-describedby={textId}
-        onClick={() => track('today_erase_open', { questions: countBucket(count) })}
-      >
-        Ответить
-        <PillDot />
-      </Link>
-    </div>
-  );
+function NextEraseLine({ erasable }: { erasable: ErasableNow }) {
+  if (erasable.questions.length > 0) return null;
+  const next = nextErasableLine(erasable.next);
+  return next ? <p className="td-note td-erase-next">{glue(next)}</p> : null;
 }
 
 function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lead: boolean }) {
+  const eraseId = useId();
   const tally = coverageTally(exam.questions);
   const total = tally.total;
   const mapped = total > 0 && tally.unmapped < total;
@@ -1325,11 +1335,14 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   const heading = examHeadingParts({ title: exam.title, kind: exam.kind, daysLeft: exam.daysLeft });
   const soon = exam.daysLeft !== null && exam.daysLeft <= 3;
   const drawWord = exam.layout.mode !== 'fixed' && exam.layout.per_ticket === 1 ? 'Тянуть вопрос' : 'Тянуть билет';
-  // «Шпаргалка: 39 строк осталось из 47» once the exam's cheat sheet has lines (sheet spec 4.4), right under it
-  // «Можно стереть: N вопросов · Ответить» (Сегодня-lite), then the two ways back on another day: the student's
-  // own calendar («Напоминать каждый день») and, for the author of an open group link, «Скопировать вопрос дня».
+  // «Шпаргалка: 39 строк осталось из 47» once the exam's cheat sheet has lines (sheet spec 4.4), under it when the next
+  // lines can be erased (Сегодня-lite), then the two ways back on another day: the student's own calendar
+  // («Напоминать каждый день») and, for the author of an open group link, «Скопировать вопрос дня».
   const sheet = useSheetToday(mapped ? exam.id : null, exam.examDate);
   const sheetCounts = sheet?.counts ?? null;
+  // Questions whose cheat-sheet lines an answer erases now: then the draw from exactly them is the next step.
+  const canDraw = total > 0 && !neverMapped && !nothingFound;
+  const erasable = canDraw ? sheet?.erasable.questions.length ?? 0 : 0;
   const sheetLine = sheetCounts ? (
     <p className="td-sheet">
       <Link className="td-sheet-link" to={`/exams/${exam.id}?view=sheet`}>
@@ -1344,7 +1357,7 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   const sheetLines = sheet ? (
     <>
       {sheetLine}
-      <EraseLine examId={exam.id} erasable={sheet.erasable} />
+      <NextEraseLine erasable={sheet.erasable} />
       <div className="td-back">
         <DailyReminder variant="today" examId={exam.id} />
         <QuestionOfDay examId={exam.id} examTitle={exam.title} questions={sheet.questions} from="today" />
@@ -1352,6 +1365,61 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
     </>
   ) : null;
   const ready = Boolean(figure) || mapped || Boolean(sentence) || Boolean(note);
+
+  // The next step, right under the exam's name and date, so it is on the first screen at every size; the page's
+  // one blue pill (white while «Первые шаги» lead). The exam page's status leads the same way (examStatus.ts).
+  let primary: ReactNode = null;
+  if (nothingFound) {
+    primary = (
+      <ActionLink to={`/exams/${exam.id}/edit#lectures`} blue={lead}>
+        Выбрать или добавить лекции
+      </ActionLink>
+    );
+  } else if (total === 0) {
+    primary = (
+      <ActionLink to={`/exams/${exam.id}/edit`} blue={lead}>
+        Добавить вопросы
+      </ActionLink>
+    );
+  } else if (erasable > 0) {
+    primary = (
+      <ActionLink
+        to={`/exams/${exam.id}/draw?mode=awaiting`}
+        blue={lead}
+        describedBy={eraseId}
+        onClick={() => track('today_erase_open', { questions: countBucket(erasable) })}
+      >
+        {`${drawWord} из них`}
+      </ActionLink>
+    );
+  } else if (canDraw) {
+    primary = (
+      <ActionLink to={`/exams/${exam.id}/draw`} blue={lead}>
+        {drawWord}
+      </ActionLink>
+    );
+  }
+  const next = (
+    <div className="td-next">
+      {erasable > 0 ? (
+        <p className="td-erase-t" id={eraseId}>
+          {glue(erasableLine(erasable))}
+        </p>
+      ) : null}
+      <div className="td-actions">
+        {primary}
+        <ActionLink to={`/exams/${exam.id}`} blue={lead && neverMapped}>
+          Лист экзамена
+        </ActionLink>
+        {/* «Тянуть билет из них» leads; any ticket stays one quiet click away, as on the exam page. */}
+        {erasable > 0 ? (
+          <Link className="sf-link td-alt" to={`/exams/${exam.id}/draw`}>
+            {drawWord}
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
   return (
     <article className="td-card td-main td-exam td-rise" data-d="2" aria-labelledby="td-exam-h">
       {heading.when ? (
@@ -1368,6 +1436,7 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
       </h2>
       {meta ? <p className="td-meta">{glue(meta)}</p> : null}
       {total === 0 ? <p className="td-body">Вопросов в списке пока нет.</p> : null}
+      {next}
       {gap ? (
         <div className="td-gap">
           <Link className="td-gap-link" to={`/exams/${exam.id}?filter=cov:none`}>
@@ -1402,20 +1471,6 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
       ) : (
         sheetLines
       )}
-      <div className="td-actions">
-        {nothingFound ? (
-          <ActionLink to={`/exams/${exam.id}/edit#lectures`} blue={lead}>
-            Выбрать или добавить лекции
-          </ActionLink>
-        ) : total > 0 && !neverMapped ? (
-          <ActionLink to={`/exams/${exam.id}/draw`} blue={lead}>
-            {drawWord}
-          </ActionLink>
-        ) : null}
-        <ActionLink to={`/exams/${exam.id}`} blue={lead && neverMapped}>
-          Лист экзамена
-        </ActionLink>
-      </div>
     </article>
   );
 }
@@ -1506,13 +1561,17 @@ function NoExam({
   );
 }
 
-/** Two weeks of reviews: a task card beside the main one. */
+/**
+ * Two weeks of review cards: a task card beside the main one. It counts cards only (study_sessions.cards_reviewed),
+ * and says so: «Повторения… не было» beside «Сегодня: ответ на вопрос 1» read as if the answer had not counted (audit
+ * of 2026-10-08); the answers to tickets are on the exam card.
+ */
 function Activity({ days, streak }: { days: Array<{ key: string; value: number }>; streak: number }) {
   const any = days.some((day) => day.value > 0);
   return (
     <section className="td-card td-activity td-rise" data-d="4" aria-labelledby="td-activity-h">
       <h2 className="td-h3" id="td-activity-h">
-        Повторения за две недели
+        Карточки за две недели
       </h2>
       {any ? (
         <>
@@ -1520,7 +1579,7 @@ function Activity({ days, streak }: { days: Array<{ key: string; value: number }
           <DayBars days={days} />
         </>
       ) : (
-        <p className="td-meta">За две недели повторений не было.</p>
+        <p className="td-meta">За две недели карточки не повторялись.</p>
       )}
     </section>
   );

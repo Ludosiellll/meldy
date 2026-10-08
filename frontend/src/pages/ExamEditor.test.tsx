@@ -183,10 +183,15 @@ describe('ExamEditor: a new exam', () => {
   it('parses the pasted list, suggests the title and keeps the department’s tickets', async () => {
     await pasteAndParse();
     expect(mocks.parseQuestionList).toHaveBeenCalledWith({ text: PARSE.source_text });
-    expect(screen.getByLabelText('Название экзамена')).toHaveValue('Макроэкономика');
+    expect(screen.getByLabelText('Предмет')).toHaveValue('Макроэкономика');
     // Only the subject goes here; the kind of exam is chosen next to it.
-    expect(screen.getByLabelText('Название экзамена')).toHaveAttribute('placeholder', 'Например, Микроэкономика');
-    expect(screen.getByLabelText('Название экзамена')).toHaveAccessibleDescription('Только предмет — вид экзамена выбирается рядом');
+    expect(screen.getByLabelText('Предмет')).toHaveAttribute('placeholder', 'Например, Микроэкономика');
+    expect(screen.getByLabelText('Предмет')).toHaveAccessibleDescription('Только предмет — вид экзамена выбирается рядом');
+    // Each field says what it is when filled in too (audit of 2026-10-08: three bare fields).
+    expect(screen.getByText('Предмет', { selector: 'label' })).toBeVisible();
+    expect(screen.getByText('Вид', { selector: '.nx-flbl' })).toBeVisible();
+    expect(screen.getByRole('combobox', { name: 'Вид экзамена' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Дата экзамена')).toHaveAccessibleDescription(/осталось\sдо\sэкзамена\.$/);
     expect(screen.getByRole('combobox', { name: 'Как составлены билеты' })).toHaveAttribute('data-value', 'fixed');
     expect(screen.getByText(/2 билета из списка кафедры/)).toBeInTheDocument();
     expect(screen.getByText('Раздел 1. Введение')).toBeInTheDocument();
@@ -321,7 +326,7 @@ describe('ExamEditor: a new exam', () => {
     expect(scan).toBeDisabled();
     expect(within(list).getByText('нет текста — не участвует')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Название экзамена'), { target: { value: 'История' } });
+    fireEvent.change(screen.getByLabelText('Предмет'), { target: { value: 'История' } });
     expect(within(list).getByRole('checkbox', { name: /Лекция 3/ })).toBeChecked();
     expect(within(list).getByRole('checkbox', { name: /Денежный рынок/ })).toBeChecked();
     expect(within(list).getByRole('checkbox', { name: /Механика/ })).toBeChecked();
@@ -392,17 +397,24 @@ describe('ExamEditor: a new exam', () => {
 
   it('never shows a dead main button: on an empty field it says what to do, with text it recognises', async () => {
     renderEditor();
+    expect(document.title).toBe('Новый экзамен — Meldy');
     // Step 1 is the list alone: the exam's form comes with step 2.
-    expect(screen.queryByLabelText('Название экзамена')).toBeNull();
+    expect(screen.queryByLabelText('Предмет')).toBeNull();
     expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Список вопросов');
     const field = screen.getByRole('textbox', { name: 'Список вопросов' });
     expect(field.getAttribute('placeholder')).toMatch(/^Вопросы к экзамену\n1\. /);
 
-    // Pressed on an empty field: the cursor goes into it and a line says why nothing was recognised.
+    // Pressed on an empty field: the cursor goes into it and a line says why nothing was recognised — brought into
+    // the window where the buttons wrap (audit of 2026-10-08: under the window's edge).
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, writable: true, value: scroll });
     const main = screen.getByRole('button', { name: 'Распознать вопросы' });
     expect(main).toBeEnabled();
     fireEvent.click(main);
-    expect(screen.getByText('Сначала вставьте сюда список — или выберите файл.')).toBeInTheDocument();
+    const hint = screen.getByText('Сначала вставьте сюда список — или выберите файл.');
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
+    expect(scroll.mock.contexts).toContain(hint);
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     expect(field).toHaveFocus();
     expect(mocks.parseQuestionList).not.toHaveBeenCalled();
 
@@ -414,15 +426,20 @@ describe('ExamEditor: a new exam', () => {
     expect(mocks.parseQuestionList).toHaveBeenCalledWith({ text: PARSE.source_text });
 
     // Step 2: the exam's form and its button, which says what the press does.
-    expect(screen.getByLabelText('Название экзамена')).toBeInTheDocument();
+    expect(screen.getByLabelText('Предмет')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Сверить с лекциями' })).toBeEnabled());
-    expect(plain(document.querySelector('.nx-go-note')?.textContent)).toBe('Meldy сверит каждый вопрос с 2 выбранными лекциями — пометки появятся на листе экзамена.');
+    // On a computer the line stands beside the button in the bar at the bottom of the window, so both are on the
+    // first screen (audit of 2026-10-08: the button was below it at 1532×734).
+    const bar = screen.getByRole('button', { name: 'Сверить с лекциями' }).closest('.ex-cta')!;
+    expect(bar).toHaveAttribute('data-row');
+    expect(plain(bar.querySelector('.ex-cta-why[data-next]')?.textContent)).toBe('Meldy сверит каждый вопрос с 2 выбранными лекциями — пометки появятся на листе экзамена.');
+    expect(document.querySelector('.nx-go-note')).toBeNull();
     expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Проверка и лекции');
   });
 
   it('step 2: the main button without a title takes the cursor to the title field instead of staying dead', async () => {
     await pasteAndParse();
-    const title = screen.getByLabelText('Название экзамена');
+    const title = screen.getByLabelText('Предмет');
     fireEvent.change(title, { target: { value: '' } });
     const main = screen.getByRole('button', { name: 'Сверить с лекциями' });
     expect(main).toBeEnabled();
@@ -575,6 +592,7 @@ describe('ExamEditor: editing a saved exam', () => {
     mocks.loadExamBundle.mockResolvedValue(savedBundle());
     renderEditor('/exams/exam-1/edit');
     expect(await screen.findByText(/В списке 3 вопроса/)).toBeInTheDocument();
+    expect(document.title).toBe('Изменить экзамен — Meldy');
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 2:/ }));

@@ -127,11 +127,41 @@ describe('ExamDraw', () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
     renderDraw();
     const card = await screen.findByRole('article', { name: /Случайный билет: вопросы 1 и 2/ });
+    expect(document.title).toBe('Тянуть билет — Meldy');
     expect(card).toHaveTextContent('Вопрос номер 1 о рынке');
     expect(card).toHaveTextContent('Вопрос номер 2 о рынке');
     fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
     // «Как на экзамене» hands the answer screen its mode: no point marks while answering.
     expect(location).toBe('/exams/exam-1/ticket?q=q1,q2&mode=exam');
+  });
+
+  it('prepares no answer points for a question whose points cannot be built: the server would only answer 422', async () => {
+    // Audit of 2026-10-08: each draw of such a ticket asked for its points, got 422 and logged an error.
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
+    mocks.fetchSheet.mockResolvedValue({
+      examId: 'exam-1',
+      mappingState: 'done',
+      questions: [
+        { question_id: 'q1', unwritable: false },
+        { question_id: 'q2', unwritable: true },
+      ],
+      toWrite: 0,
+      units: 0,
+      job: null,
+    });
+    const first = renderDraw();
+    await screen.findByRole('article', { name: /Случайный билет: вопросы 1 и 2/ });
+    await waitFor(() => expect(mocks.prefetchRubric).toHaveBeenCalledTimes(1));
+    expect(mocks.prefetchRubric).toHaveBeenCalledWith('exam-1', 'q1');
+    expect(mocks.fetchSheet).toHaveBeenCalledWith('exam-1');
+    first.unmount();
+
+    // The sheet cannot be read: every question in the lectures gets its points prepared, as before.
+    mocks.prefetchRubric.mockReset();
+    mocks.fetchSheet.mockRejectedValue(new Error('offline'));
+    renderDraw();
+    await screen.findByRole('article', { name: /Случайный билет: вопросы 1 и 2/ });
+    await waitFor(() => expect(mocks.prefetchRubric).toHaveBeenCalledTimes(2));
   });
 
   it('sends a mode only from «Как на экзамене»', async () => {
@@ -443,6 +473,32 @@ describe('ExamDraw', () => {
     await waitFor(() => expect(location).toBe('/exams/exam-1/draw?mode=answered'));
     expect(await screen.findByRole('article', { name: 'Вопрос 2' })).toBeInTheDocument();
     expect(screen.getByText('Из вопросов, на которые вы уже отвечали')).toBeInTheDocument();
+  });
+
+  it('opens the menu of ways upward when the window has no room for it below the link', async () => {
+    // Audit of 2026-10-08 at 1532×734: the menu ran 315 px under the window's edge.
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
+    renderDraw();
+    await screen.findByRole('article', { name: /Случайный билет/ });
+    const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 290 });
+    vi.stubGlobal('innerHeight', 734);
+    try {
+      // The link low in the window: 82 px below it, 588 above.
+      rect.mockReturnValue({ top: 600, bottom: 640, left: 0, right: 100, width: 100, height: 40, x: 0, y: 600, toJSON: () => ({}) } as DOMRect);
+      fireEvent.click(screen.getByRole('button', { name: 'изменить' }));
+      expect(screen.getByRole('menu', { name: 'Как тянуть билет' })).toHaveAttribute('data-up');
+      fireEvent.keyDown(screen.getByRole('menu', { name: 'Как тянуть билет' }), { key: 'Escape' });
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+      // High in the window: it opens down as before.
+      rect.mockReturnValue({ top: 120, bottom: 160, left: 0, right: 100, width: 100, height: 40, x: 0, y: 120, toJSON: () => ({}) } as DOMRect);
+      fireEvent.click(screen.getByRole('button', { name: 'изменить' }));
+      expect(screen.getByRole('menu', { name: 'Как тянуть билет' })).not.toHaveAttribute('data-up');
+    } finally {
+      if (height) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', height);
+      else delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight;
+    }
   });
 
   it('explains an empty answered pool and offers the exam mode', async () => {

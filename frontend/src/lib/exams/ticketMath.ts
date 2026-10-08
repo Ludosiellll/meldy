@@ -272,8 +272,8 @@ export function layoutShares(input: ShareInput): LayoutShares {
 }
 
 /**
- * The same shares if the `promoted` questions qualified too: «Закройте 7 вопросов «частично» —
- * оба вопроса будут в лекциях в 60 % билетов» (C(31, 2) / C(40, 2) = 465 / 780). Questions whose
+ * The same shares if the `promoted` questions qualified too: «7 вопросов «частично»: добавьте к ним материал —
+ * тогда оба вопроса будут в лекциях в 60 % билетов» (C(31, 2) / C(40, 2) = 465 / 780). Questions whose
  * status is still unknown keep widening the range, exactly as in layoutShares.
  */
 export function layoutSharesIf(input: ShareInput, promoted: Iterable<string>): LayoutShares {

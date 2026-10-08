@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ExamQuestion } from '../../api/exams';
 import type { LearningEvent } from '../../api/learning';
-import WhyPanel, { attemptLabel, nearestSentence, readinessLine, unverifiedLead, type WhyPanelProps } from './WhyPanel';
+import WhyPanel, { attemptLabel, genericOnlySentence, nearestSentence, readinessLine, unverifiedLead, type WhyPanelProps } from './WhyPanel';
 import { questionState } from '../../lib/learning/readiness';
 import type { SheetCoverage } from './marks';
 
@@ -392,6 +392,101 @@ describe('WhyPanel on a phone', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('nearestSentence: each word once', () => {
+  it('names a word once however many of its forms matched, and leaves out the words of the question’s form', () => {
+    // Audit of 2026-10-08: «совпали слова «Назначение», «выполнения», «запросе», «запроса»».
+    const item = { material_id: 'm', material_title: 'Базы данных', source_id: 'M1:S04', excerpt: '', matched: ['Назначение', 'выполнения', 'запросе', 'запроса'] };
+    expect(nearestSentence(item).replace(/ /g, ' ')).toBe('Ближе всего — «Базы данных», фрагмент 4: совпало только слово «запросе».');
+    expect(genericOnlySentence(item)).toBeNull();
+  });
+});
+
+describe('genericOnlySentence', () => {
+  const item = (matched: string[]) => ({ material_id: 'm', material_title: 'Базы данных', source_id: 'M1:S04', excerpt: '', matched });
+
+  it('says that only the question’s form words matched, each once', () => {
+    expect(genericOnlySentence(item(['Назначение', 'выполнения', 'выполнение']))).toBe(
+      'Похожих мест в лекциях нет — совпали только общие слова «назначение», «выполнения».',
+    );
+    expect(genericOnlySentence(item(['Виды']))).toBe('Похожих мест в лекциях нет — совпало только общее слово «виды».');
+    expect(genericOnlySentence(item([]))).toBeNull();
+  });
+
+  it('is what the panel says for a gap whose nearest fragment shares only such words: no fragment shown', () => {
+    renderPanel({
+      question: question({
+        text: 'Назначение и порядок выполнения оператора MERGE.',
+        nearest: [{ material_id: 'm3', material_title: 'Транзакции', source_id: 'S08', excerpt: 'Назначение журнала — порядок выполнения.', matched: ['Назначение', 'выполнения'] }],
+      }),
+    });
+    expect(screen.getByText(/^Похожих мест в лекциях нет — совпали только общие слова «назначение», «выполнения»\.$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Ближе всего/)).toBeNull();
+    expect(screen.queryByText(/Назначение журнала/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Добавить материал к вопросу' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+  });
+});
+
+describe('WhyPanel: the next step under the verdict', () => {
+  const evidence = [{ material_id: 'm1', material_title: 'Денежный рынок', source_id: 'S14', excerpt: 'Инфляция — это устойчивый рост общего уровня цен.' }];
+
+  it('puts «Ответить на этот вопрос» right under the verdict, before the fragment, and «Закрыть» at the top', () => {
+    // Audit of 2026-10-08: at the end of a long fragment the answer link stood 1 000 px down the column.
+    renderPanel({ question: question({ id: 'q7', coverage: 'full', coverage_reason: 'Во фрагменте есть определение', evidence, nearest: [] }) }, 'full');
+    const go = screen.getByRole('link', { name: 'Ответить на этот вопрос' });
+    const verdict = screen.getByRole('heading', { name: named('Есть в ваших лекциях') });
+    const fragment = screen.getByText('Инфляция — это устойчивый рост общего уровня цен.');
+    expect(verdict.compareDocumentPosition(go) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(go.compareDocumentPosition(fragment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const close = screen.getByRole('button', { name: 'Закрыть' });
+    expect(close).toHaveClass('ex-why-close');
+    expect(close.compareDocumentPosition(fragment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('tells the page whether the answer link is in the window; without IntersectionObserver it counts as seen', () => {
+    const seen = vi.fn();
+    const full = question({ id: 'q7', coverage: 'full', coverage_reason: 'Во фрагменте есть определение', evidence, nearest: [] });
+    renderPanel({ question: full, onAnswerVisible: seen }, 'full');
+    expect(seen).toHaveBeenLastCalledWith(true);
+    cleanup();
+
+    type Report = (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void;
+    const reports: Report[] = [];
+    const observed: Element[] = [];
+    const disconnect = vi.fn();
+    class FakeObserver {
+      constructor(callback: Report) {
+        reports.push(callback);
+      }
+      observe(element: Element) {
+        observed.push(element);
+      }
+      disconnect() {
+        disconnect();
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeObserver);
+    try {
+      seen.mockClear();
+      renderPanel({ question: full, onAnswerVisible: seen }, 'full');
+      expect(observed).toEqual([screen.getByRole('link', { name: 'Ответить на этот вопрос' })]);
+      const report = reports[reports.length - 1];
+      act(() => report([{ isIntersecting: false, intersectionRatio: 0 }]));
+      expect(seen).toHaveBeenLastCalledWith(false);
+      act(() => report([{ isIntersecting: true, intersectionRatio: 0.5 }]));
+      expect(seen).toHaveBeenLastCalledWith(false);
+      act(() => report([{ isIntersecting: true, intersectionRatio: 1 }]));
+      expect(seen).toHaveBeenLastCalledWith(true);
+      act(() => report([{ isIntersecting: false, intersectionRatio: 0 }]));
+      cleanup();
+      // Closed: the page's own pill is back.
+      expect(disconnect).toHaveBeenCalled();
+      expect(seen).toHaveBeenLastCalledWith(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

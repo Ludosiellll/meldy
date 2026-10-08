@@ -591,7 +591,9 @@ function answeringStatus(input: ExamStatusInput): ExamStatus {
     const count = sheet.erasable;
     return {
       ...base,
-      title: marked('Сегодня можно ', 'стереть строки', ` у ${ofQuestions(count)}`),
+      // «строки шпаргалки»: on «Вопросы» the sheet is not on screen, and «стереть строки» alone said nothing (audit
+      // 2026-10-08). The marked words never wrap: two of them fit a 320 px phone.
+      title: marked('Сегодня можно стереть ', 'строки шпаргалки', ` у ${ofQuestions(count)}`),
       text: `Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.`,
       action: { kind: 'awaiting', label: `${input.drawLabel} из них` },
     };

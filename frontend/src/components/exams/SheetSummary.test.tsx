@@ -76,7 +76,7 @@ describe('peak 1, simplified: one figure, the rest behind «Как считае�
   it('keeps the action line right under «Как считается»; its link filters the sheet to «частично»', () => {
     const { container, onFilter } = renderSummary(seeded());
     const action = container.querySelector('.ex-act') as HTMLElement;
-    expect(plain(action.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(action.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     expect(screen.getByRole('button', { name: 'Как считается' }).closest('.ex-caveat')?.nextElementSibling).toBe(action);
     fireEvent.click(within(action).getByRole('button', { name: named('7 вопросов «частично»') }));
     expect(onFilter).toHaveBeenCalledWith('cov:partial');
@@ -85,7 +85,7 @@ describe('peak 1, simplified: one figure, the rest behind «Как считае�
   it('one question per section: 36 %, and 60 % with «частично» closed; the assumption of sections inside', () => {
     const { container } = renderSummary(seeded(), { mode: 'sections', per_ticket: 2 }, { howOpen: true });
     expect(plain(container.querySelector('.ex-figs-now')?.textContent)).toBe('36 %');
-    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     expect(screen.getByText(named('В 16 % билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
     expect(plain(container.querySelector('.ex-calc-assume')?.textContent)).toBe(
       'Это доля билетов, а не вероятность сдать: считаем, что в билете по одному случайному вопросу из каждого раздела.',
@@ -99,14 +99,14 @@ describe('peak 1, simplified: one figure, the rest behind «Как считае�
     expect(screen.getByText('билетов, где все вопросы есть в лекциях')).toBeInTheDocument();
     expect(screen.getByText(named('Билетов кафедры, где все вопросы есть в лекциях, — 6 из 20.'))).toBeInTheDocument();
     expect(screen.getByText(named('В 2 из 20 билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
-    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — все вопросы будут в лекциях в 11 из 20 билетов.');
+    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда все вопросы будут в лекциях в 11 из 20 билетов.');
   });
 
   it('one question per ticket: the share of questions, no line about tickets without «есть»', () => {
     const { container } = renderSummary(seeded(), { mode: 'random', per_ticket: 1 }, { howOpen: true });
     expect(plain(container.querySelector('.ex-figs-now')?.textContent)).toBe('60 %');
     expect(screen.getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
-    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — в лекциях будет 78 % вопросов.');
+    expect(plain(container.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда в лекциях будет 78 % вопросов.');
     expect(plain(container.textContent)).not.toContain('нет ни одного вопроса с отметкой «есть»');
   });
 

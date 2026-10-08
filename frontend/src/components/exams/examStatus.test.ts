@@ -317,7 +317,7 @@ describe('examStatus: the cheat sheet and the answers', () => {
   it('answering: what can be erased today, else when the next lines can be, else how many lines are left', () => {
     const erase = examStatus(input({ coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, erasable: 3 }, answers: { answered: 3, untested: 15 } }));
     expect(erase.key).toBe('answering');
-    expect(title(erase)).toBe('Сегодня можно стереть строки у 3 вопросов');
+    expect(title(erase)).toBe('Сегодня можно стереть строки шпаргалки у 3 вопросов');
     expect(erase.text).toBe('Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.');
     expect(erase.action).toEqual({ kind: 'awaiting', label: 'Тянуть билет из них' });
     const later = examStatus(
