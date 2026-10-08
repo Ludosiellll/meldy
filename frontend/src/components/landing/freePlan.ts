@@ -12,7 +12,7 @@ export function freePlanLine(): string {
   const lectures = perDay(FREE_DAILY_UNITS, 'lecture');
   const answers = perDay(FREE_DAILY_UNITS, 'answer');
   return (
-    `Аккаунт бесплатный: каждый день ${FREE_DAILY_UNITS} ${plural(FREE_DAILY_UNITS, ['единица', 'единицы', 'единиц'])} ИИ — это ` +
-    `${lectures} ${plural(lectures, ['лекция', 'лекции', 'лекций'])} или ${answers} ${plural(answers, ['проверенный ответ', 'проверенных ответа', 'проверенных ответов'])}.`
+    `Аккаунт бесплатный: каждый день ${FREE_DAILY_UNITS}\u00a0${plural(FREE_DAILY_UNITS, ['единица', 'единицы', 'единиц'])} ИИ\u00a0— это ` +
+    `${lectures}\u00a0${plural(lectures, ['лекция', 'лекции', 'лекций'])} или\u00a0${answers}\u00a0${plural(answers, ['проверенный ответ', 'проверенных ответа', 'проверенных ответов'])}.`
   );
 }

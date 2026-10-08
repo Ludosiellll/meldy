@@ -76,6 +76,10 @@ export default function SharedMaterial() {
           Meldy
         </Link>
         {material ? <span className="shm-bar-label">Общий материал</span> : null}
+        {/* «Войти» is always there for a guest (decision 5 of 2026-10-08), sign-up beside it. */}
+        <Link to="/login" className="shm-signin">
+          Войти
+        </Link>
         <button type="button" onClick={() => navigate('/register')} className="shm-cta">
           Создать аккаунт
         </button>
@@ -193,8 +197,8 @@ export default function SharedMaterial() {
 
         {/* CTA */}
         <section className="shm-final" aria-labelledby="shm-final-title">
-          <h2 id="shm-final-title">{'Готовитесь к устному экзамену?'}</h2>
-          <p>{'Вставьте список вопросов кафедры и загрузите свои лекции. Meldy спросит билет вслух и переспросит о том, что вы пропустили.'}</p>
+          <h2 id="shm-final-title">{'Готовитесь к\u00a0устному экзамену?'}</h2>
+          <p>{'Вставьте список вопросов кафедры и\u00a0загрузите свои лекции. Meldy спросит билет вслух и\u00a0переспросит о\u00a0том, что вы пропустили.'}</p>
           <button type="button" onClick={() => navigate('/register')} className="shm-white-pill">
             Начать со своего списка
             <span className="shm-dot" aria-hidden="true">

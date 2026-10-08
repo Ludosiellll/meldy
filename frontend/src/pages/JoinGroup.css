@@ -25,6 +25,17 @@
 /* The author's own open link, kept on this device for «Вопрос дня» (lib/groups/groupLinks.ts). */
 .jg-kept { margin: 14px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 
+/* Small phones: the pill's words and its circle fit the card (at 320 px the circle went past it). */
+@media (max-width: 380px) {
+  .jg-next .sf-primary,
+  .jg-retry.sf-primary { gap: 10px; padding-left: 20px; font-size: 16px; }
+}
+@media (max-width: 359px) {
+  .jg-next .sf-primary,
+  .jg-retry.sf-primary { padding-right: 20px; }
+  .jg-next .sf-primary::after,
+  .jg-retry.sf-primary::after { display: none; }
+}
 @media (max-width: 639px) {
   .jg { --au-g: 16px; }
   .jg-main { align-content: start; }

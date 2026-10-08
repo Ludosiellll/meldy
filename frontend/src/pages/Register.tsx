@@ -370,7 +370,7 @@ export default function Register() {
               <Link to="/try" className="au-link">
                 попробуйте на примере
               </Link>
-              {' — без регистрации.'}
+              {' — без регистрации.'}
             </p>
           </div>
         </section>

@@ -8,6 +8,8 @@
 
 .mr-figure {
   margin: 0;
+  /* The controls follow the figure's own width, not the window's: a short window makes the figure narrow. */
+  container: mr-figure / inline-size;
 }
 
 .mr-frame {
@@ -1646,6 +1648,7 @@
   background: #2869dd;
   color: #fff;
   font: 500 18px/1 'Onest Variable', 'Onest', system-ui, sans-serif;
+  white-space: nowrap;
   cursor: pointer;
   transform: translate(-50%, -50%);
   box-shadow: 0 18px 40px -16px rgba(16, 41, 90, 0.7);
@@ -1708,10 +1711,11 @@
 }
 
 /*
- * Phones: six equal chapters, each a 44 px tall tap area with a thin bar drawn inside it (audit 2026-10-08, PUB-10:
- * the bars were the buttons, 12 px tall and 13–69 px wide). The chapter's name and what it shows are the caption.
+ * A narrow figure (a phone; a short window, where the frame is capped by the height): six equal chapters, each a
+ * 44 px tall tap area with a thin bar drawn inside it (audit 2026-10-08, PUB-10: the bars were the buttons, 12 px
+ * tall and 13–69 px wide). The chapter's name and what it shows are the caption. From 600 px the labels fit.
  */
-@media (max-width: 640px) {
+@container mr-figure (max-width: 599px) {
   .mr-controls {
     gap: 10px;
     margin-top: 12px;
@@ -1777,10 +1781,23 @@
   .mr-caption {
     display: block;
   }
+
+  /* «Смотреть ролик» over the poster (reduced motion): one line on a phone's frame. */
+  .mr-start {
+    gap: 10px;
+    height: 48px;
+    padding: 0 7px 0 20px;
+    font-size: 16px;
+  }
+
+  .mr-start i {
+    width: 34px;
+    height: 34px;
+  }
 }
 
-/* 320 px: no gaps between the chapters, the bars drawn 2 px in from each edge: each tap area is as wide as it can be. */
-@media (max-width: 359px) {
+/* A 320 px phone: no gaps between the chapters, the bars 2 px in from each edge: each tap area as wide as it can be. */
+@container mr-figure (max-width: 300px) {
   .mr-chapters,
   .dark .mr-chapters {
     gap: 0;

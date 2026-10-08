@@ -52,8 +52,24 @@
   font-weight: 500;
   color: var(--sf-muted);
 }
-.shm-cta {
+.shm-signin {
+  display: inline-flex;
+  align-items: center;
   margin-left: auto;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: box-shadow .45s var(--m-ease);
+}
+.shm-signin:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+.shm-cta {
   min-height: 48px;
   padding: 0 22px;
   border: 0;
@@ -231,7 +247,9 @@
 @media (max-width: 639px) {
   .shm-bar-in { height: 64px; padding: 0 16px; }
   .shm-logo { font-size: 24px; }
-  .shm-cta { min-height: 44px; padding: 0 18px; }
+  .shm-bar-in { gap: 8px; }
+  .shm-cta,
+  .shm-signin { min-height: 44px; padding: 0 14px; }
   .shm-main { padding: 0 16px 64px; }
   .shm-head { padding: 28px 0 20px; }
   .shm-h1 { font-size: 34px; }
@@ -244,8 +262,20 @@
   .shm-missing { margin-top: 40px; padding: 32px 22px; }
   .shm-missing-acts .sf-primary { width: 100%; justify-content: space-between; }
 }
+/* Small phones: the pill's words and its circle fit the card. */
+@media (max-width: 380px) {
+  .shm-missing-acts .sf-primary { gap: 10px; padding-left: 20px; font-size: 16px; }
+}
+/* 320 px: the sign-up waits in the page (the invitation's «Начать со своего списка»), «Войти» stays; the pill
+   keeps its words without the circle. */
+@media (max-width: 359px) {
+  .shm-cta { display: none; }
+  .shm-missing-acts .sf-primary { justify-content: center; padding-right: 20px; }
+  .shm-missing-acts .sf-primary::after { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .shm-cta,
+  .shm-signin,
   .shm-white-pill,
   .shm-dot { transition: none; }
   .shm-white-pill:hover .shm-dot,

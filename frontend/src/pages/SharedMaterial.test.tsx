@@ -63,6 +63,8 @@ describe('SharedMaterial (finding F5)', () => {
     expect(screen.getByRole('link', { name: 'Что такое Meldy' })).toHaveAttribute('href', '/');
     expect(screen.queryByText('Общий материал')).toBeNull();
     expect(screen.getByRole('button', { name: 'Создать аккаунт' })).toBeInTheDocument();
+    // «Войти» is always there for a guest (decision 5).
+    expect(screen.getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
     expect(document.title).toBe('Общий материал — Meldy');
   });
 

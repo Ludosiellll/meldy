@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AI_COSTS, FREE_DAILY_UNITS } from '../../lib/plans';
 import { freePlanLine } from './freePlan';
 
-const plain = (text: string) => text.replace(/ /g, ' ');
+const plain = (text: string) => text.replace(/\u00a0/g, ' ');
 
 describe('freePlanLine', () => {
   it('says what the free account gives, in the numbers of lib/plans.ts', () => {

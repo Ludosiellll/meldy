@@ -96,7 +96,7 @@ export default function ForgotPassword() {
                 <p className="au-aside">
                   {GOOGLE_ONLY_NOTE}{' '}
                   <Link to="/login" className="au-link">
-                    {'войдите через Google'}
+                    {'войдите через\u00a0Google'}
                   </Link>
                   {' на странице входа.'}
                 </p>
