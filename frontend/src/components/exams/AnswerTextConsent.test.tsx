@@ -26,7 +26,7 @@ vi.mock('../../lib/oral/answerTexts', async (importOriginal) => ({
 }));
 
 import AnswerTextConsent, { CONSENT_DECLINED_LINE, CONSENT_FAILED_LINE, CONSENT_GRANTED_LINE } from './AnswerTextConsent';
-import { ANSWER_TEXT_CONSENT_TEXT } from '../../lib/oral/answerTexts';
+import { ANSWER_TEXT_CONSENT_ASK, ANSWER_TEXT_CONSENT_TEXT } from '../../lib/oral/answerTexts';
 
 beforeEach(() => {
   Object.assign(mocks, { user: { id: 'user-1' }, consent: 'unknown', readFails: false, writeFails: false });
@@ -69,6 +69,26 @@ describe('the question about keeping answer texts on the exam page', () => {
     await waitFor(() => expect(mocks.read).toHaveBeenCalledWith('user-1'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('a phone asks in one quiet line: the request and its two choices (the rest of the text stands by the switch in «Профиль»)', async () => {
+    const { container } = render(<AnswerTextConsent short />);
+    const ask = await screen.findByRole('region', { name: 'Тексты ответов для проверки точности' });
+    expect(ask).toHaveAttribute('data-short');
+    expect(ask).not.toHaveClass('ex-note');
+    expect(ask.textContent?.replace(/\u00a0/g, ' ')).toContain(ANSWER_TEXT_CONSENT_ASK);
+    expect(container.textContent).not.toContain('Имя к ним не прикладывается');
+    fireEvent.click(screen.getByRole('button', { name: 'Нет, спасибо' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(CONSENT_DECLINED_LINE);
+    expect(mocks.write).toHaveBeenCalledWith('user-1', false);
+  });
+
+  it('a phone’s failed save says so and keeps the two choices', async () => {
+    mocks.writeFails = true;
+    render(<AnswerTextConsent short />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Разрешить' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(CONSENT_FAILED_LINE);
+    expect(screen.getByRole('button', { name: 'Разрешить' })).toBeEnabled();
   });
 
   it('waits for the page above it and needs an account', async () => {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { TicketLayout } from '../../api/exams';
 import type { SheetCoverage } from './marks';
-import { CoverageSummary, PeakSummary, ReadinessBlock, peakCountLine, type PeakView } from './SheetSummary';
+import { CoverageSummary, PeakSummary, PhoneSummary, ReadinessBlock, peakCountLine, type PeakView } from './SheetSummary';
 import { closedPartialShares, coverageCounts, coverageShares, type SheetFilter, type ShareSubject } from './sheetModel';
 
 /** The seeded stage list: 24 «есть», 7 «частично», 9 «нет»; sections 13 · 4 · 3 and 11 · 3 · 6. */
@@ -209,6 +209,78 @@ describe('the readiness block', () => {
   it('says nothing before the first answer', () => {
     const { container } = block({ summary: { ...summary, confirmed: 0, once: 0, notPassed: 0, untested: 40, stale: 0 } });
     expect(container.textContent).toBe('');
+  });
+});
+
+describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
+  const answers = {
+    summary: { total: 40, confirmed: 7, once: 3, notPassed: 2, untested: 28, since: '2026-10-01', stale: 0 },
+    confidence: { ratedKnow: 0, ratedKnowAnswered: 0, ratedKnowPassed: 0, enoughData: false },
+    answers: 'ready' as const,
+    answersError: null,
+    filter: 'all' as SheetFilter,
+    onFilter: vi.fn(),
+    onRateMode: vi.fn(),
+  };
+  function phone(extra: Partial<Parameters<typeof PhoneSummary>[0]> = {}) {
+    const questions = seeded();
+    const onFilter = vi.fn();
+    const onToggle = vi.fn();
+    const props = {
+      coverage: { counts: coverageCounts(questions), shares: coverageShares(questions, RANDOM), closed: closedPartialShares(questions, RANDOM), layout: RANDOM },
+      readiness: answers,
+      facts: '2 лекции · сверка от 7 октября, 15:39',
+      filter: 'all' as SheetFilter,
+      onFilter,
+      open: false,
+      onToggle,
+      id: 'how',
+      ...extra,
+    };
+    const view = render(<PhoneSummary {...props} />);
+    return { ...view, onFilter, onToggle };
+  }
+
+  it('the figure in one line with «Как считается», the answers’ count; nothing else until it opens', () => {
+    const { container, onToggle } = phone();
+    expect(plain(container.querySelector('.ex-psum-fig')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях · Как считается');
+    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 из 40');
+    expect(container.querySelector('.ex-calc')).toBeNull();
+    const how = screen.getByRole('button', { name: 'Как считается' });
+    expect(how).toHaveAttribute('aria-expanded', 'false');
+    expect(how).not.toHaveAttribute('aria-controls');
+    fireEvent.click(how);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('open: the facts of the meta line, the numbers, the action line, the assumption, the formulas, then what «подтверждено» means and the legend', () => {
+    const { container, onFilter } = phone({ open: true });
+    const panel = container.querySelector('#how') as HTMLElement;
+    const lines = Array.from(panel.querySelectorAll(':scope > p.ex-fine, :scope > p.ex-act')).map((item) => plain(item.textContent));
+    expect(lines.slice(0, 5)).toEqual([
+      '2 лекции · сверка от 7 октября, 15:39',
+      'В лекциях есть 24 вопроса из 40 (60 %), частично — 7, ни в одной лекции — 9.',
+      'В 15 % билетов нет ни одного вопроса с отметкой «есть».',
+      '7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.',
+      'Это доля билетов, а не вероятность сдать: считаем, что билет — два случайных вопроса из 40.',
+    ]);
+    expect(panel.querySelector('.ex-formula')).not.toBeNull();
+    expect(plain(panel.querySelector('.ex-blk')?.textContent)).toContain('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.');
+    fireEvent.click(within(panel).getByRole('button', { name: named('7 вопросов «частично»') }));
+    expect(onFilter).toHaveBeenCalledWith('cov:partial');
+    expect(within(panel).getByRole('list', { name: 'Показать вопросы по ответам' })).toBeInTheDocument();
+  });
+
+  it('only the answers while the share says nothing, only the share before the first answer, nothing with neither', () => {
+    const { container } = phone({ coverage: null });
+    expect(container.querySelector('.ex-psum-fig')).toBeNull();
+    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 из 40 · Как считается');
+    cleanup();
+    const first = phone({ readiness: null });
+    expect(first.container.querySelector('.ex-psum-line')).toBeNull();
+    cleanup();
+    const none = phone({ coverage: null, readiness: null });
+    expect(none.container.textContent).toBe('');
   });
 });
 

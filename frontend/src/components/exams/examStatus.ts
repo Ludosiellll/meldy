@@ -72,6 +72,11 @@ export interface ExamStatus {
   /** The headline in three parts: the middle one gets the hand-drawn yellow line (empty: no line). */
   title: { lead: string; mark: string; tail: string };
   text: string | null;
+  /**
+   * The same in one short line for a phone (10_Project/Phone_Declutter_2026-10-08: «heading and one line»): what to
+   * do and what it costs; null where every word of `text` is needed (a server's message, nothing found).
+   */
+  brief: string | null;
   action: ExamStatusAction | null;
   /** Why the action is not available now (the daily limit); the action stays where it is, unavailable. */
   blocked: string | null;
@@ -212,7 +217,7 @@ export function statusTitleText(status: Pick<ExamStatus, 'title'>): string {
 
 // ------------------------------------------------------------------------------------------- the picker
 
-const BASE = { blocked: null, draw: true, hideCoverage: false, quietGaps: false } as const;
+const BASE = { blocked: null, draw: true, hideCoverage: false, quietGaps: false, brief: null } as const;
 
 /** Questions found in the lectures (fully or partly; a mark made by hand counts as found). */
 function foundCount(coverage: CoverageCounts): number {
@@ -255,6 +260,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Вопросы',
       title: marked('В экзамене пока ', 'нет вопросов'),
       text: 'Вставьте список вопросов кафедры — Meldy сверит его с вашими лекциями.',
+      brief: 'Вставьте список вопросов кафедры.',
       action: { kind: 'list', label: 'Добавить вопросы' },
       draw: false,
       hideCoverage: true,
@@ -270,6 +276,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Сверка с лекциями',
       title: plain('Meldy сверяет вопросы с лекциями'),
       text: `${progress ? `Проверено ${progress.checked} из ${progress.total}. ` : ''}Пометки появляются в списке по ходу проверки; не закрывайте вкладку, пока сверка не закончится.`,
+      brief: `${progress ? `Проверено ${progress.checked} из ${progress.total}. ` : ''}Не закрывайте вкладку.`,
       action: null,
       hideCoverage: true,
     };
@@ -283,6 +290,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Сверка с лекциями',
       title: plain('Сверка уже идёт'),
       text: 'Её запустили в другой вкладке или на другом устройстве. Список обновится сам, когда она закончится.',
+      brief: 'Список обновится сам, когда она закончится.',
       action: null,
       hideCoverage: true,
     };
@@ -318,6 +326,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
         : rest > 0
           ? `Проверено ${progress.checked} из ${progress.total}. Продолжите — Meldy проверит ${rest === 1 ? 'оставшийся вопрос' : `оставшиеся ${questions(rest)}`}${price}.`
           : `Проверено ${progress.checked} из ${progress.total}, но сверка не успела завершиться. Запустите её ещё раз${price}.`,
+      brief: progress && rest > 0 ? `Проверено ${progress.checked} из ${progress.total}.${mapping.cost > 0 ? ` Продолжение стоит ${unitsAcc(mapping.cost)}.` : ''}` : `Запустите сверку ещё раз${price}.`,
       action: { kind: 'map', label: 'Продолжить сверку' },
       blocked: limit,
       hideCoverage: true,
@@ -332,6 +341,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Лекции',
       title: marked('К экзамену ', 'не добавлены', ' лекции'),
       text: 'Meldy ищет ответы на вопросы в ваших лекциях. Добавьте лекции по этому предмету, и он отметит, на какие вопросы в них есть ответ.',
+      brief: 'Meldy ищет ответы на вопросы в ваших лекциях.',
       action: { kind: 'lectures', label: 'Добавить лекции' },
       hideCoverage: true,
     };
@@ -350,6 +360,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Сверка с лекциями',
       title: marked('Вопросы ещё ', 'не сверены', ' с лекциями'),
       text: `${what}${costSentence(mapping.cost)}`,
+      brief: mapping.cost > 0 ? `Сверка стоит ${unitsAcc(mapping.cost)}.` : 'Meldy отметит, где в лекциях есть ответ.',
       action: { kind: 'map', label: 'Сверить с лекциями' },
       blocked: limit,
       hideCoverage: true,
@@ -378,6 +389,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Сверка с лекциями',
       title,
       text: `${text}${costSentence(mapping.cost)}`,
+      brief: `Сверьте заново${mapping.cost > 0 ? ` — это стоит ${unitsAcc(mapping.cost)}` : ''}.`,
       action: { kind: 'map', label: 'Сверить заново' },
       blocked: limit,
     };
@@ -392,6 +404,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Сверка с лекциями',
       title: marked(`${questions(unmapped)} ещё `, `не ${verb}`, ' с лекциями'),
       text: `${unmapped === 1 ? 'Его' : 'Их'} добавили или изменили после сверки. Meldy проверит только ${unmapped === 1 ? 'его' : 'их'}${mapping.cost > 0 ? ` — это стоит ${unitsAcc(mapping.cost)}` : ''}.`,
+      brief: `Meldy проверит только ${unmapped === 1 ? 'его' : 'их'}${mapping.cost > 0 ? ` — это стоит ${unitsAcc(mapping.cost)}` : ''}.`,
       action: { kind: 'map', label: 'Сверить с лекциями' },
       blocked: limit,
     };
@@ -412,6 +425,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Сверка с лекциями',
       title: marked(`${questions(count)} ${one ? 'проверен' : 'проверены'} `, 'только по словам'),
       text: `Сервис был занят, и Meldy сравнил ${them} с лекциями только по совпадению слов. Проверьте ${them} снова — это стоит ${unitsAcc(examMappingCost(count))}.`,
+      brief: `Проверьте ${them} снова — это стоит ${unitsAcc(examMappingCost(count))}.`,
       action: { kind: 'recheck', label: 'Проверить снова' },
       blocked: limit,
     };
@@ -426,6 +440,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       flag: 'Шпаргалка',
       title: plain('Meldy пишет шпаргалку'),
       text: `${all > 0 ? `Готово ${done} из ${all}. ` : ''}Страницу можно закрыть — шпаргалка допишется.`,
+      brief: `${all > 0 ? `Готово ${done} из ${all}. ` : ''}Страницу можно закрыть.`,
       action: null,
     };
   }
@@ -530,6 +545,7 @@ function writeSheet(input: ExamStatusInput): ExamStatus {
       flag: 'Шпаргалка',
       title: found >= total ? marked('В лекциях ', 'есть ответы', ` на все ${questions(total)}`) : marked('В лекциях ', 'есть ответы', ` на ${questions(found)} из ${total}`),
       text: `Теперь Meldy выпишет из лекций пункты ответа — получится шпаргалка, строки которой стирают ваши ответы.${price}${tail}`,
+      brief: `Meldy выпишет из них пункты ответа.${price}${tail}`,
       action: { kind: 'write', label, count },
       blocked,
     };
@@ -541,6 +557,7 @@ function writeSheet(input: ExamStatusInput): ExamStatus {
     flag: 'Шпаргалка',
     title: marked('Шпаргалка написана ', 'не полностью'),
     text: `У ${ofQuestions(sheet.toWrite)} ещё нет пунктов ответа. Допишите ${sheet.toWrite === 1 ? 'его' : 'их'}.${price}${tail}`,
+    brief: `Допишите ${sheet.toWrite === 1 ? 'его' : 'их'}.${price}${tail}`,
     action: { kind: 'write', label, count },
     blocked,
   };
@@ -558,6 +575,7 @@ function ready(input: ExamStatusInput): ExamStatus {
       flag: 'Из ссылки группы',
       title: marked('Экзамен из ссылки группы ', 'готов'),
       text: `Вопросы уже сверены с лекциями автора, шпаргалка написана. Тяните ${ticket} и отвечайте вслух: ${ERASE_RULE}.`,
+      brief: `Тяните ${ticket} и отвечайте вслух.`,
       action: draw,
     };
   }
@@ -569,6 +587,7 @@ function ready(input: ExamStatusInput): ExamStatus {
       flag: 'Ответы',
       title: marked('Шпаргалка ', 'готова', ' — можно отвечать'),
       text: `Тяните ${ticket} и отвечайте вслух: ${ERASE_RULE}.`,
+      brief: `Тяните ${ticket} и отвечайте вслух.`,
       action: draw,
     };
   }
@@ -579,6 +598,7 @@ function ready(input: ExamStatusInput): ExamStatus {
     flag: 'Ответы',
     title: marked('Можно ', 'отвечать', ' на билеты'),
     text: `Тяните ${ticket} и отвечайте вслух — Meldy проверит ответ по вашим лекциям.`,
+    brief: `Тяните ${ticket} и отвечайте вслух.`,
     action: draw,
   };
 }
@@ -595,6 +615,7 @@ function answeringStatus(input: ExamStatusInput): ExamStatus {
       // 2026-10-08). The marked words never wrap: two of them fit a 320 px phone.
       title: marked('Сегодня можно стереть ', 'строки шпаргалки', ` у ${ofQuestions(count)}`),
       text: `Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.`,
+      brief: 'Назовите их пункты снова в ответе.',
       action: { kind: 'awaiting', label: `${input.drawLabel} из них` },
     };
   }
@@ -613,6 +634,7 @@ function answeringStatus(input: ExamStatusInput): ExamStatus {
       ...base,
       title: plain(`На шпаргалке ${verb} ${left} ${pluralRu(left, ['строка', 'строки', 'строк'])} из ${total}`),
       text: `Отвечайте дальше: ${ERASE_RULE}.`,
+      brief: 'Отвечайте дальше: ответы стирают строки.',
       action: draw,
     };
   }
@@ -620,6 +642,7 @@ function answeringStatus(input: ExamStatusInput): ExamStatus {
     ...base,
     title: plain(`Подтверждено ответами: ${answers.confirmed} из ${input.total}`),
     text: 'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.',
+    brief: 'Отвечайте дальше.',
     action: draw,
   };
 }

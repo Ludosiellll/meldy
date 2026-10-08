@@ -2275,8 +2275,9 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
 }
 
 /* ---------------------------------------------------------------- a phone without overload (release 34) */
-/* 10_Project/Phone_Declutter_2026-10-08: one line of each thing, one blue pill, the rest behind a link. Only below
-   640 px, only on «Экзамены» (.ex-list-page). */
+/* 10_Project/Phone_Declutter_2026-10-08: one line of each thing, one blue pill, the rest behind «Как считается»,
+   «Подробнее» and «Ещё». Only below 640 px, only on «Экзамены» (.ex-list-page) and the exam page (.ex-detail): the
+   example (/try) shares the list and the sheet and keeps its own layout. */
 @media (max-width: 639px) {
   /* «Экзамены»: the title clears the arrow; the meta line and the counts take the card's width. */
   .sf-page.ex-list-page .ex-row { padding-right: 0; }
@@ -2285,4 +2286,103 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page.ex-list-page .ex-row-counts { margin: -6px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
   /* No placeholder picture over the first exam's card: the words and the button say it. */
   .sf-page.ex-list-page .ex-empty-art { display: none; }
+
+  /* The exam page's header: the subject and one meta line. */
+  .sf-page.ex-detail .ex-meta { margin-top: 8px; line-height: 1.4; }
+  /* «Шпаргалка · Вопросы»: 44 px to a finger, as every other target of the page. */
+  .sf-page.ex-detail .ex-views [role='tab'] { min-height: 44px; }
+
+  /* The status: the heading and one line, no flag. */
+  .sf-page.ex-detail .ex-st[data-brief] { padding: 16px 20px 18px; }
+  .sf-page.ex-detail .ex-st[data-brief] .ex-st-title { font-size: 20px; line-height: 1.25; letter-spacing: -.018em; }
+  .sf-page.ex-detail .ex-st[data-brief] .ex-st-text { margin-top: 6px; font-size: 16px; line-height: 1.45; }
+
+  /* The summary above the list: two lines of text, «Как считается» opens the rest. */
+  .sf-page.ex-detail .ex-col:has(> .ex-psum) { margin: 18px 0 10px; }
+  .sf-page.ex-detail .ex-psum-fig { font-size: 17px; line-height: 24px; color: var(--sf-ink); text-wrap: pretty; }
+  .sf-page.ex-detail .ex-psum-n { font-weight: 600; color: var(--ex-figure); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sf-page.ex-detail .ex-psum-line { margin-top: 4px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+  .sf-page.ex-detail .ex-psum-line b { font-weight: 600; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+  .sf-page.ex-detail .ex-psum .sf-link.ex-psum-how { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; white-space: nowrap; }
+  .sf-page.ex-detail .ex-psum-calc { margin-top: 12px; }
+  .sf-page.ex-detail .ex-psum-calc > .ex-fine:first-child { margin-top: 0; }
+  .sf-page.ex-detail .ex-psum-calc .ex-calc-assume { display: block; }
+  .sf-page.ex-detail .ex-psum-calc .ex-act { margin-top: 10px; font-size: 16px; line-height: 24px; }
+  .sf-page.ex-detail .ex-psum-calc .ex-blk { margin-top: 18px; padding-top: 14px; }
+  .sf-page.ex-detail .ex-psum-calc .ex-rl { margin-left: -6px; margin-right: -6px; }
+
+  /* The filter: one line of words, no wrap; past the screen's edge it scrolls under a fading edge. */
+  .sf-page.ex-detail .ex-filter {
+    flex-wrap: nowrap;
+    gap: 0 20px;
+    margin: 0 calc(-1 * var(--sf-g)) 10px;
+    padding: 0 var(--sf-g);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - var(--sf-g) - 8px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - var(--sf-g) - 8px), transparent);
+  }
+  .sf-page.ex-detail .ex-filter::-webkit-scrollbar { display: none; }
+  .sf-page.ex-detail .ex-filter li { flex: none; }
+  .sf-page.ex-detail .ex-filter button,
+  .sf-page.ex-detail .ex-filter button[data-cov] {
+    gap: 6px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    font-size: 16px;
+    color: var(--sf-muted);
+  }
+  .sf-page.ex-detail .ex-filter button:hover { box-shadow: none; color: var(--sf-ink); }
+  .sf-page.ex-detail .ex-filter button[aria-pressed='true'] { background: none; color: var(--sf-ink); box-shadow: inset 0 -2px 0 var(--sf-ink); }
+  .sf-page.ex-detail .ex-filter .ex-count { font-weight: 500; }
+  .sf-page.ex-detail .ex-filter button[aria-pressed='true'] .ex-count { font-weight: 600; }
+  .sf-page.ex-detail .ex-filter-mark { display: none; }
+  .sf-page.ex-detail .ex-filter-long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* The list: its heading is the page's own (read by screen readers); one line says that a question opens. */
+  .sf-page.ex-detail .ex-sheet { padding-top: 14px; }
+  .sf-page.ex-detail .ex-sheet-h h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .sf-page.ex-detail .ex-sheet-h[data-hint] { padding: 0 12px 12px; }
+  .sf-page.ex-detail .ex-sheet-h:not([data-hint]) { padding: 0; border-bottom: 0; }
+  .sf-page.ex-detail .ex-sheet-hint { font-size: 15px; line-height: 21px; color: var(--sf-muted); text-wrap: balance; }
+  /* No line of lecture and fragment under each question: a tap on the row opens them («почему»). */
+  .sf-page.ex-detail .ex-qnote { display: none; }
+  .sf-page.ex-detail .ex-open { -webkit-tap-highlight-color: transparent; }
+  .sf-page.ex-detail .ex-q:has(> .ex-open:active) { background: var(--ex-hover); }
+  /* The row's status is its pencil mark in the status colour, without a circle under it. */
+  .sf-page.ex-detail .ex-q .ex-cov { background: none; box-shadow: none; }
+  .sf-page.ex-detail .ex-q .ex-cov svg { transform: scale(1.45); }
+  /* A section of the department's list: a plain heading, not capitals. */
+  .sf-page.ex-detail .ex-sec { font-size: 16px; letter-spacing: 0; text-transform: none; }
+
+  /* Under the list (and the paper): «Ещё» and the request about answer texts, two quiet lines. */
+  .sf-page.ex-detail .ex-links-after { margin-top: 14px; }
+  .sf-page.ex-detail .ex-more .mm-text { font-size: 16px; }
+  .sf-page.ex-detail .ex-more .sf-menu.mm-menu { min-width: 248px; }
+  .sf-page.ex-detail .ex-col-after .ex-more { margin-top: -4px; }
+  .sf-page.ex-detail .ex-consent[data-short] { display: block; margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+  .sf-page.ex-detail .ex-consent[data-short] .ex-consent-acts { white-space: nowrap; }
+  .sf-page.ex-detail .ex-consent[data-short] .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; color: var(--sf-ink); vertical-align: baseline; }
+  .sf-page.ex-detail .ex-consent[data-short] .sf-link[data-muted] { color: var(--sf-muted); }
+  .sf-page.ex-detail .ex-consent[data-short] [role='alert'] { margin-top: 6px; color: var(--sf-ink); }
 }

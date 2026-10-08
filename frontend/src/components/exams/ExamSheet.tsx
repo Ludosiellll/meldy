@@ -68,6 +68,11 @@ interface ExamSheetProps {
   peak: SheetPeak | null;
   dim: boolean;
   emptyText: string | null;
+  /**
+   * One line under the list's heading (a phone: the rows have no line of their lecture and fragment, so it says that a
+   * tap opens them).
+   */
+  hint?: string | null;
 }
 
 /**
@@ -181,8 +186,9 @@ export default function ExamSheet(props: ExamSheetProps) {
       data-dim={props.dim ? '' : undefined}
       data-rate={rateMode ? '' : undefined}
     >
-      <header className="ex-sheet-h">
+      <header className="ex-sheet-h" data-hint={props.hint ? '' : undefined}>
         <h2>{props.title}</h2>
+        {props.hint ? <p className="ex-sheet-hint">{props.hint}</p> : null}
       </header>
       {rateMode && (
         <p className="ex-rate-intro">

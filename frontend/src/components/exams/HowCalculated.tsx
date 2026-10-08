@@ -222,13 +222,39 @@ interface HowCalculatedProps {
 }
 
 /**
+ * What «Как считается» opens: the numbers behind the figure, the assumption, the formulas of the share and, when
+ * some questions are unknown, of its upper bound. The phone's summary puts the same inside its own panel.
+ */
+export function CalcBody({ shares, assumption, details, unknown }: Pick<HowCalculatedProps, 'shares' | 'assumption' | 'details' | 'unknown'>) {
+  const high = shares.isRange && shares.high.ok ? shares.high : null;
+  return (
+    <>
+      {details}
+      {assumption && <p className="ex-fine ex-calc-assume">{assumption}</p>}
+      {shares.fallbackReason && <p className="ex-fine">{shares.fallbackReason} Поэтому считаем как для случайных билетов.</p>}
+      {sharesFormulas(shares.low, 'marked')}
+      {high && (
+        <>
+          <p className="ex-fine" style={{ marginTop: 14 }}>
+            {upperBoundLead(unknown)}
+          </p>
+          {sharesFormulas(high, 'upper')}
+        </>
+      )}
+      {shares.low.ok && shares.low.mode === 'random' && shares.low.q > 1 && (
+        <p className="ex-fine">Вопросы в билете считаем разными и случайными: так устроен список, когда билеты неизвестны.</p>
+      )}
+    </>
+  );
+}
+
+/**
  * «Как считается»: the exact formula behind the ticket share (C²₂₄ / C²₄₀ = 276 / 780 ≈ 35 %) and
  * behind «ни одного вопроса с отметкой «есть»» (C²₁₆ / C²₄₀ = 120 / 780 ≈ 15 %, «частично» counted
  * as «нет»), the product for one question per section, a direct count for known tickets, and the
  * upper bound when some questions were checked only by words or are not checked yet.
  */
 export default function HowCalculated({ shares, open, onToggle, id, lead, after, assumption, details, unknown }: HowCalculatedProps) {
-  const high = shares.isRange && shares.high.ok ? shares.high : null;
   // aria-controls only while the formula is there: collapsed, it is not rendered (QA 2026-10-07).
   const toggle = (
     <button type="button" className="sf-link" aria-expanded={open} aria-controls={open ? id : undefined} onClick={onToggle}>
@@ -248,21 +274,7 @@ export default function HowCalculated({ shares, open, onToggle, id, lead, after,
       {after}
       {open && (
         <div className="ex-calc" id={id}>
-          {details}
-          {assumption && <p className="ex-fine ex-calc-assume">{assumption}</p>}
-          {shares.fallbackReason && <p className="ex-fine">{shares.fallbackReason} Поэтому считаем как для случайных билетов.</p>}
-          {sharesFormulas(shares.low, 'marked')}
-          {high && (
-            <>
-              <p className="ex-fine" style={{ marginTop: 14 }}>
-                {upperBoundLead(unknown)}
-              </p>
-              {sharesFormulas(high, 'upper')}
-            </>
-          )}
-          {shares.low.ok && shares.low.mode === 'random' && shares.low.q > 1 && (
-            <p className="ex-fine">Вопросы в билете считаем разными и случайными: так устроен список, когда билеты неизвестны.</p>
-          )}
+          <CalcBody shares={shares} assumption={assumption} details={details} unknown={unknown} />
         </div>
       )}
     </div>
