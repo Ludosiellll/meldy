@@ -32,6 +32,27 @@
 @media (pointer: coarse) {
   .srf-button { min-height: 44px; }
 }
+/* A phone (10_Project/Phone_Declutter_2026-10-08): «фрагменты 1, 4» is a quiet small link, as under the summary's
+   sections — no pill and no dot; still a 44 px target. */
+@media (max-width: 639px) {
+  .srf-compact { margin-top: 6px; }
+  .srf-button {
+    min-height: 44px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--sf-muted);
+    font-size: 14px;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
+    text-underline-offset: 4px;
+  }
+  .srf-button::before { display: none; }
+  .srf-button:hover { background: none; color: var(--sf-ink); }
+  .srf-button[aria-expanded='true'] { background: none; color: var(--sf-ink); }
+  .srf-slips { margin-top: 4px; }
+}
 
 .srf-slips { display: grid; gap: 10px; margin-top: 12px; cursor: auto; }
 .srf-slip {

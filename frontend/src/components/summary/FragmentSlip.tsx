@@ -2,7 +2,8 @@ import { Fragment, useEffect, useId, useMemo, useState } from 'react';
 import { PencilUnder, seedFrom } from '../marks';
 import { normalizeForMatch, wordStem } from '../conversation/visuals';
 import { splitFragmentHeading } from '../../utils/fragmentText';
-import { fragmentWord, underlineStems, type SourceFragment } from './fragmentModel';
+import { usePhone } from '../../lib/usePhone';
+import { fragmentNumber, fragmentWord, underlineStems, type SourceFragment } from './fragmentModel';
 
 /** Longer fragments open with «Показать целиком». */
 const SLIP_LIMIT = 560;
@@ -95,12 +96,66 @@ interface FragmentRefsProps {
   compact?: boolean;
 }
 
-/** «фрагмент 1 · фрагмент 4» after a section or a term (spec 5.3: .sf-ref, 32 px high). */
+/** The fragments in the order of their numbers: «фрагменты 7, 8», not «8, 7». */
+function byNumber(ids: string[]): string[] {
+  return [...ids].sort((a, b) => (fragmentNumber(a) ?? 0) - (fragmentNumber(b) ?? 0));
+}
+
+/** «фрагменты 2, 3»: the numbers of the fragments in words, without the «S» of their ids, in order. */
+export function fragmentsLine(ids: string[]): string {
+  const numbers = byNumber(ids).map((id) => String(fragmentNumber(id) ?? id));
+  return `${numbers.length === 1 ? 'фрагмент' : 'фрагменты'} ${numbers.join(', ')}`;
+}
+
+/**
+ * A phone (10_Project/Phone_Declutter_2026-10-08): one small line «фрагменты 2, 3» under a section or a term instead
+ * of a pill per fragment with its number twice; a tap opens the fragments under it, one slip each, and «Закрыть»
+ * under the last puts them away.
+ */
+function FragmentLine({ ids: given, sources, stems, captionFor, compact }: Pick<FragmentRefsProps, 'ids' | 'sources' | 'stems' | 'captionFor' | 'compact'>) {
+  const [open, setOpen] = useState(false);
+  const slipsId = useId();
+  const ids = byNumber(given);
+  const textOf = (id: string) => sources.find((source) => source.id === id)?.text;
+  return (
+    <div className={`sv-refs sv-refs-line${compact ? ' sv-refs-compact' : ''}`}>
+      <button
+        type="button"
+        className="sf-link sv-refs-link"
+        data-muted=""
+        aria-expanded={open}
+        aria-controls={open ? slipsId : undefined}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {fragmentsLine(ids)}
+      </button>
+      {open && (
+        <div id={slipsId} className="sv-refs-slips">
+          {ids.map((id, index) => (
+            <FragmentSlip
+              key={id}
+              id={id}
+              text={textOf(id)}
+              stems={stems}
+              caption={captionFor(id)}
+              onClose={index === ids.length - 1 ? () => setOpen(false) : undefined}
+              className="sv-inline-slip"
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** «фрагмент 1 · фрагмент 4» after a section or a term (spec 5.3: .sf-ref, 32 px high); on a phone one small line. */
 export function FragmentRefs({ ids, sources, stems, mode, current = null, onPick, captionFor, compact = false }: FragmentRefsProps) {
   const [open, setOpen] = useState<string | null>(null);
   const slipId = useId();
+  const phone = usePhone();
   const textOf = (id: string) => sources.find((source) => source.id === id)?.text;
   if (ids.length === 0) return null;
+  if (phone && mode === 'inline') return <FragmentLine ids={ids} sources={sources} stems={stems} captionFor={captionFor} compact={compact} />;
 
   return (
     <div className={`sv-refs${compact ? ' sv-refs-compact' : ''}`}>

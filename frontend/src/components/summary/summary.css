@@ -265,6 +265,37 @@
 @media (pointer: coarse) {
   .sv-doc .sv-ref.sf-ref { min-height: 44px; padding-right: 16px; }
 }
+
+/* A phone (10_Project/Phone_Declutter_2026-10-08): the fragments of a section or a term are one small quiet line,
+   «фрагменты 2, 3», a 44 px target that opens their slips (FragmentSlip.tsx renders it on phones only); the terms
+   are a plain list on the white sheet, the count in words' colour next to the heading, not in a chip. */
+.sv-refs-line { margin-top: 4px; }
+.sv-refs-line.sv-refs-compact { margin-top: 0; }
+.sv-doc .sv-refs-link.sf-link { font-size: 14px; line-height: 20px; }
+.sv-refs-slips { display: grid; gap: 16px; margin: 6px 0 4px; }
+.sv-refs-slips .sv-inline-slip { margin: 0; }
+@media (max-width: 639px) {
+  .sv-dl { display: block; }
+  .sv-term {
+    padding: 14px 0 6px;
+    border-top: 1px solid var(--sv-sec-line);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .sv-term:last-child { padding-bottom: 0; }
+  .sv-terms-head { justify-content: flex-start; gap: 10px; margin-bottom: 10px; }
+  .sv-terms-n {
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    font-size: 17px;
+    font-weight: 500;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .sv-margin-slip { animation: none; }
   .sv-doc .sv-ref.sf-ref,

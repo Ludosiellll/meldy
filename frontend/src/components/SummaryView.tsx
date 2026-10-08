@@ -7,6 +7,7 @@ import { SummaryInfo } from '../types';
 import { FragmentRefs, FragmentSlip } from './summary/FragmentSlip';
 import { buildSections, fragmentWord, stemsOf, stripSourceMarkers, type RefKind, type SourceFragment } from './summary/fragmentModel';
 import { repairMathEscapes } from '../lib/mathEscapes';
+import { usePhone } from '../lib/usePhone';
 import './summary/summary.css';
 
 export { stripSourceMarkers };
@@ -130,6 +131,8 @@ export default function SummaryView({ data, sources = [], card = false }: { data
   const rootRef = useRef<HTMLDivElement>(null);
   const uid = useId();
   const wide = useWide(rootRef);
+  // A phone says nothing about the fragments: «фрагменты 2, 3» under a section says it (Phone_Declutter_2026-10-08).
+  const phone = usePhone();
   const hasFragments = sections.some((section) => section.refs.length > 0) || termRefs.some((refs) => refs.length > 0);
   const outline = [
     ...sections.filter((section) => section.title).map((section) => ({ part: section.index, title: section.title as string })),
@@ -217,7 +220,7 @@ export default function SummaryView({ data, sources = [], card = false }: { data
   return (
     <div ref={rootRef} className="sv-doc" data-margin={margin ? '' : undefined} data-card={card ? '' : undefined}>
       <div className="sv-text">
-        {hasFragments && (
+        {hasFragments && !phone && (
           <p className="sv-origin">
             {margin ? 'Справа от разделов — фрагменты лекции, ближайшие к ним.' : 'Под разделами — фрагменты лекции, ближайшие к ним.'}
           </p>
