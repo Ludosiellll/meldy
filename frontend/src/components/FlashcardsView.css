@@ -276,6 +276,26 @@
 .fc-result-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
 
 @media (max-width: 639px) {
+  /* 10_Project/Phone_Declutter_2026-10-08: «Показать все · Скрыть все» are two quiet links, not pills with eyes;
+     «Нажмите, чтобы увидеть ответ» is said once, on the first card. */
+  .fc-bar { margin-bottom: 12px; }
+  .fc-bar-quiet { gap: 0 22px; }
+  .fc-bar-quiet .fc-chip {
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--sf-muted);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
+    text-underline-offset: 5px;
+  }
+  .fc-bar-quiet .fc-chip svg { display: none; }
+  .fc-bar-quiet .fc-chip:hover { background: none; color: var(--sf-ink); }
+  .fc-note { margin: 0 0 16px; }
+  .fc-card:not(:first-child) .fc-hint { display: none; }
+  .fc-hint svg { display: none; }
   .fc-card { padding: 22px 22px 20px; border-radius: 28px; }
   .fc-q { font-size: 18px; }
   .fc-answer { padding: 14px 16px; font-size: 16px; }

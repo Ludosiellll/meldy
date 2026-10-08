@@ -247,14 +247,87 @@ html[data-stage] .md-crumb { display: none; }
   .md-acts .md-dot { width: 36px; height: 36px; }
   .md-round.sf-more { width: 48px; height: 48px; }
 }
+/* ---------------------------------------------------------------- one row of tabs (phones) */
+/* 10_Project/Phone_Declutter_2026-10-08, «Лекция»: «Конспект · Карточки 6 · Тест 5 · Подкаст» in one row of quiet
+   words on a hairline, the current one in ink on a 2 px ink bar — in place of the white capsule of the modes and the
+   results' row of pills. The page renders it on phones only (usePhone); a row that does not fit (320 px, or with
+   «Кратко») scrolls, and its right edge fades. */
+.md-ptabs {
+  display: flex;
+  gap: 0 22px;
+  margin: 14px 0 0;
+  padding: 0;
+  border-bottom: 1px solid var(--sf-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.md-ptabs::-webkit-scrollbar { display: none; }
+.md-ptabs [role='tab'] {
+  position: relative;
+  flex: none;
+  display: block;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 46px;
+  white-space: nowrap;
+  color: var(--sf-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* More tabs past an edge (MaterialDetail sets data-more: right, left or both): that edge fades over 28 px, so the
+   cut word reads as «more». */
+.md-ptabs[data-more='right'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.md-ptabs[data-more='left'] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+.md-ptabs[data-more='both'] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+.md-ptabs [role='tab'][aria-selected='true'] { color: var(--sf-ink); }
+.md-ptabs [role='tab'][aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--sf-ink);
+}
+.md-ptabs [role='tab']:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -2px; border-radius: 6px; }
+.md-ptab-n { font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+/* Five tabs (with «Кратко») and narrow phones: the row is set tighter before it scrolls. */
+.md-ptabs[data-many] { gap: 0 18px; }
+.md-ptabs[data-many] [role='tab'] { font-size: 15px; }
+@media (max-width: 374px) {
+  .md-ptabs { gap: 0 18px; }
+  .md-ptabs [role='tab'] { font-size: 15px; }
+}
+
 @media (max-width: 639px) {
   .md-head { padding-top: 16px; }
   .md-head .md-title.sf-h1-serif { font-size: 28px; line-height: 1.14; letter-spacing: -.028em; }
   .md-head .md-meta { margin-top: 8px; font-size: 15px; line-height: 1.4; }
   /* The compact phone header: «Поговорить о лекции» and «⋯» on one row above the tabs; «Повторить карточки» is
-     the bar at the bottom. */
+     the bar at the bottom. A lecture with «⋯» alone (someone else's: «Экспорт…») keeps it on the right. */
   .md-toolbar { gap: 12px; margin-top: 16px; }
   .md-acts { order: -1; width: 100%; flex-wrap: nowrap; gap: 8px; }
+  .md-acts:not(:has(.md-talk)) { justify-content: flex-end; }
+  /* The panel under the one row: the results' notes and the white sheet come closer. */
+  .md-panel .rp-head { padding-top: 14px; }
+  .md-panel .rp-body { padding-top: 16px; }
+  /* «⋯» rows are 44 px targets on a phone, as in «Ещё» (MoreMenu). */
+  .md-menu.sf-menu button { min-height: 44px; }
   /* On «Подкаст» the bar gives the bottom of the screen to the player: the review is a tab away. */
   .md-acts .md-review { display: none; }
   .md-acts .md-pill.sf-secondary { flex: 1 1 auto; justify-content: space-between; min-height: 48px; padding: 4px 4px 4px 18px; font-size: 16px; }

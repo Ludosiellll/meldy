@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import SummaryView, { stripSourceMarkers } from './SummaryView';
+import { PHONE_QUERY } from '../lib/usePhone';
 
 const SOURCES = [
   { id: 'S01', text: 'Нейронная сеть состоит из слоёв: входного, скрытых и выходного. Каждый слой передаёт сигнал дальше.' },
@@ -190,5 +191,61 @@ describe('<SummaryView> on a wide page', () => {
   it('keeps one column when there is nothing for the margin', () => {
     render(<SummaryView data={{ content: '## Один раздел\n\nКороткий текст.' } as never} sources={[]} />);
     expect(screen.queryByRole('complementary')).toBeNull();
+  });
+});
+
+describe('<SummaryView> on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  beforeEach(() => {
+    setWindow(390, 844);
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query === PHONE_QUERY, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    });
+  });
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('says nothing about the fragments and gives a section one small line of them, the number once', () => {
+    render(<SummaryView data={DATA} sources={SOURCES} card />);
+    expect(screen.queryByText(/фрагменты лекции, ближайшие к ним/)).toBeNull();
+    const architecture = screen.getByRole('heading', { name: 'Архитектура' }).closest('section') as HTMLElement;
+    const line = within(architecture).getByRole('button', { name: 'фрагменты 1, 3' });
+    expect(within(architecture).getAllByRole('button')).toEqual([line]);
+    expect(line).toHaveAttribute('aria-expanded', 'false');
+    // No number in a circle before the word: «фрагмент 2», not «2 фрагмент 2».
+    expect(line).not.toHaveAttribute('data-n');
+    const learning = screen.getByRole('heading', { name: 'Обучение' }).closest('section') as HTMLElement;
+    // Its nearest fragments by words, in order (2 then 1 by score).
+    expect(within(learning).getByRole('button', { name: 'фрагменты 1, 2' })).toBeInTheDocument();
+  });
+
+  it('opens the fragments of the line under it, one slip each, and «Закрыть» under the last puts them away', () => {
+    render(<SummaryView data={DATA} sources={SOURCES} card />);
+    const architecture = screen.getByRole('heading', { name: 'Архитектура' }).closest('section') as HTMLElement;
+    const line = within(architecture).getByRole('button', { name: 'фрагменты 1, 3' });
+    fireEvent.click(line);
+    expect(line).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById(line.getAttribute('aria-controls') ?? '')).not.toBeNull();
+    expect(within(architecture).getByText('Фрагмент 1 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
+    expect(within(architecture).getByText('Фрагмент 3 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
+    const close = within(architecture).getAllByRole('button', { name: 'Закрыть' });
+    expect(close).toHaveLength(1);
+    fireEvent.click(close[0]);
+    expect(line).toHaveAttribute('aria-expanded', 'false');
+    expect(within(architecture).queryByText(/Фрагмент 1 лекции/)).toBeNull();
+  });
+
+  it('writes the numbers in order, in the sections and the terms', () => {
+    const data = {
+      content: '## Сеть\n\nСлои и функции активации [S03, S01].',
+      terms: [{ term: 'Сигмоида', definition: 'Гладкая функция активации.', source_ids: ['S03', 'S01'] }],
+    } as never;
+    render(<SummaryView data={data} sources={SOURCES} />);
+    const section = screen.getByRole('heading', { name: 'Сеть' }).closest('section') as HTMLElement;
+    expect(within(section).getByRole('button', { name: 'фрагменты 1, 3' })).toBeInTheDocument();
+    const term = screen.getByText('Сигмоида').closest('div') as HTMLElement;
+    fireEvent.click(within(term).getByRole('button', { name: 'фрагменты 1, 3' }));
+    expect(within(term).getByText('Фрагмент 1 лекции — ближайший по словам к термину «Сигмоида»')).toBeInTheDocument();
   });
 });

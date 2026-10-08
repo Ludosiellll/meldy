@@ -241,7 +241,20 @@
   .qz-pres-options { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 639px) {
+  /* 10_Project/Phone_Declutter_2026-10-08: on a phone the tab above already says «Тест 5»; «Проверочный тест · 5
+     вопросов по материалу» stays for screen readers only, and the first question comes up. */
+  .qz-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .qz-title { font-size: 26px; }
+  /* «Отвечено 0 из 5» is a line of text, not a pill (rule 5: counters in words). */
+  .qz-progress { min-height: 0; padding: 0; background: none; box-shadow: none; font-size: 15px; }
   .qz-card { padding: 22px 20px 20px; border-radius: 28px; }
   .qz-q { font-size: 18px; }
   .qz-opt { padding: 12px 14px; border-radius: 16px; font-size: 15px; }
