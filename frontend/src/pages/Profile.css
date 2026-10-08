@@ -1,16 +1,41 @@
 /* «Профиль»: what styles/legacy.css (.ac-*) does not say. Page root: .sf-page.ac-profile.
  *
- * On a phone the three figures stand in one row (LIB-26: the third used to take a whole row of its
- * own), so each tile is smaller: a 30 px icon, the number at 26 px, the word under it at 13 px. */
+ * The three figures are one line of text under the name, on every size (10_Project/Phone_Declutter_2026-10-08;
+ * they used to be three cards with an icon each): «2 дня подряд · 3 лекции · 15 ответов на билеты». A figure
+ * stays whole on a line; the line breaks between them. While they are counted the line keeps its place, blank. */
+.ac-profile .ac-statline { margin: 12px 0 0; font-size: 17px; line-height: 1.45; color: var(--sf-muted); text-wrap: balance; }
+.ac-profile .ac-statline b { font-weight: 600; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.ac-profile .ac-statline [data-stat] { white-space: nowrap; }
+.ac-profile .ac-statline[aria-busy='true'] { visibility: hidden; }
 
+/* A phone: a lower cover and a smaller avatar, no icons in circles before the settings, a setting's words across
+   the card with its button (its own width) or switch under them. */
 @media (max-width: 639px) {
-  .ac-profile .ac-stat { gap: 2px; padding: 14px 12px 14px; border-radius: 24px; }
-  .ac-profile .ac-stat-i { width: 30px; height: 30px; margin-bottom: 8px; }
-  .ac-profile .ac-stat-i svg { width: 16px; height: 16px; }
-  .ac-profile .ac-stat-v { font-size: 26px; }
-  .ac-profile .ac-stat-l { font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; hyphens: auto; }
+  .ac-profile .ac-hero { margin-top: 16px; padding-bottom: 22px; }
+  .ac-profile .ac-card { padding: 22px 20px; }
+  .ac-profile .ac-card-h { margin-bottom: 12px; }
+  .ac-profile .ac-cover { height: 64px; border-radius: 28px; }
+  .ac-profile .ac-avatar-wrap { margin-top: -44px; }
+  .ac-profile .ac-avatar { width: 92px; height: 92px; border-width: 5px; }
+  .ac-profile .ac-avatar > svg { width: 48px; height: 48px; }
+  .ac-profile .ac-avatar-edit { top: 50px; right: -10px; }
+  .ac-profile .ac-hero-body { padding: 0 6px; }
+  .ac-profile .ac-who { padding-top: 12px; }
+  .ac-profile .ac-name { font-size: 30px; }
+  .ac-profile .ac-statline { margin-top: 8px; font-size: 14px; }
+  .ac-profile .ac-actions { margin-top: 14px; }
+  .ac-profile .ac-row-i { display: none; }
+  .ac-profile .ac-row { gap: 12px; }
+  .ac-profile .ac-row-text { flex-basis: 100%; }
+  .ac-profile .ac-row-btn { width: auto; }
+  .ac-profile .ac-switch { margin: -6px 0 -6px -12px; }
+  .ac-profile .ac-levelline { font-size: 15px; }
 }
-@media (max-width: 359px) {
-  .ac-profile .ac-stat { padding: 12px 10px; }
-  .ac-profile .ac-stat-v { font-size: 24px; }
+/* Where the line does not fit, it breaks after «3 лекции» and that «·» is not drawn: a phone under 381 px, a long line
+   on any phone, and 640–719 px, where the name's column beside the avatar is 330–400 px wide. */
+@media (max-width: 380px), (min-width: 640px) and (max-width: 719px) {
+  .ac-profile .ac-statline [data-sep='2'] { display: block; height: 0; overflow: hidden; }
+}
+@media (max-width: 639px) {
+  .ac-profile .ac-statline[data-long] [data-sep='2'] { display: block; height: 0; overflow: hidden; }
 }
