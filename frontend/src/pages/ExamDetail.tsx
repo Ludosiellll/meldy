@@ -39,6 +39,7 @@ import {
   ReadinessBlock,
   ReadinessLegend,
   readinessCounts,
+  useShownAfter,
   type PeakView,
 } from '../components/exams/SheetSummary';
 import { checkedCount, getMapJob, MAPPING_COST, mappingTargets, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
@@ -96,6 +97,8 @@ import '../components/exams/exams.css';
 
 const DIM_MS = 3000;
 const SCROLL_PAUSE_MS = 700;
+/** How long the bar at the bottom waits for the first status before it shows «Тянуть билет» anyway (a slow read). */
+export const BAR_WAIT_MS = 2000;
 
 export { DRAW_CAPTIONS };
 
@@ -721,6 +724,19 @@ function ExamSheetPage({ examId }: { examId: string }) {
       })
     : null;
   const hideShare = pageStatus?.hideCoverage ?? false;
+  // The bar at the bottom of a phone or a tablet waits for the first status while the sheet and the answers are
+  // read: it stood as «Тянуть билет» with «Как на экзамене · изменить» and turned into «Тянуть билет из 4 вопросов»
+  // or another action half a second later. The bar keeps its room (nothing moves); a slow read shows it after
+  // BAR_WAIT_MS as before; a later read (after a run, a retry) leaves it in place.
+  const statusLoading = pageStatus?.key === 'loading';
+  const statusKnown = pageStatus !== null && !statusLoading;
+  const [statusSeen, setStatusSeen] = useState(false);
+  useEffect(() => {
+    if (statusKnown) setStatusSeen(true);
+  }, [statusKnown]);
+  const firstRead = statusLoading && !statusSeen;
+  const barLate = useShownAfter(firstRead, BAR_WAIT_MS);
+  const barWaits = firstRead && !barLate;
 
   // «35 % билетов, где оба вопроса есть в лекциях» beside the sheet's counter, as «Вопросы» says it — not while the
   // share says nothing (nothing checked, almost nothing found: the status says that).
@@ -1571,7 +1587,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       )}
 
       {!frame.side && primary && (
-        <div className="ex-cta">
+        <div className="ex-cta" data-wait={barWaits ? '' : undefined}>
           {primary}
           {/* Phones and tablets choose the way of drawing here too (stage QA round 2): a bottom sheet. */}
           {drawsFirst && (

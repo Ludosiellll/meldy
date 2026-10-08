@@ -1165,6 +1165,9 @@
   box-shadow: 0 -1px 0 var(--sf-line);
 }
 .sf-page .ex-cta .sf-primary { width: 100%; justify-content: space-between; }
+/* The first status is still being read (pages/ExamDetail.tsx, BAR_WAIT_MS): the bar keeps its room and shows nothing
+   instead of an action that changes half a second later. */
+.sf-page .ex-cta[data-wait] { visibility: hidden; }
 .sf-page .ex-cta-why { margin: 0 0 8px; font-size: 15px; line-height: 20px; color: var(--sf-ink); text-align: center; text-wrap: balance; }
 /* The editor's step 2 on a computer: the same bar, one row under the content — what the press does (or what is
    missing) beside the button on the right. The button stood at the end of the long form, 540–890 px under the

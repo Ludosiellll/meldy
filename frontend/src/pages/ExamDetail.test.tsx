@@ -84,7 +84,7 @@ vi.mock('../components/exams/preload', () => ({
   whenIdle: () => () => undefined,
 }));
 
-import ExamDetail, { phoneMetaLine, ROW_HINT } from './ExamDetail';
+import ExamDetail, { BAR_WAIT_MS, phoneMetaLine, ROW_HINT } from './ExamDetail';
 import { resetMapJobsForTests } from '../components/exams/mapJobs';
 import { PHONE_QUERY } from '../lib/usePhone';
 
@@ -1698,6 +1698,34 @@ describe('ExamDetail on a phone', () => {
     expect(within(cta).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=answered');
     expect(plain(cta.querySelector('.ex-draw-mode')?.textContent)).toBe('Из вопросов, на которые вы уже отвечали · изменить');
     await waitFor(() => expect(change).toHaveFocus());
+  });
+
+  it('keeps the bar empty while the first status is read, so «Тянуть билет» does not turn into another action a moment later', async () => {
+    setPhone();
+    let release: (value: unknown) => void = () => {};
+    mocks.fetchSheet.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(document.querySelector('.ex-cta')).toHaveAttribute('data-wait');
+    release({ examId: 'exam-1', mappingState: 'none', questions: [], toWrite: 0, units: 0, job: null });
+    await waitFor(() => expect(document.querySelector('.ex-cta')).not.toHaveAttribute('data-wait'));
+    expect(within(document.querySelector('.ex-cta') as HTMLElement).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
+  });
+
+  it('shows «Тянуть билет» after a while when the sheet is slow to read', async () => {
+    setPhone();
+    mocks.fetchSheet.mockReturnValue(new Promise(() => {}));
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(document.querySelector('.ex-cta')).toHaveAttribute('data-wait');
+    await waitFor(() => expect(document.querySelector('.ex-cta')).not.toHaveAttribute('data-wait'), { timeout: BAR_WAIT_MS + 1500 });
+    expect(within(document.querySelector('.ex-cta') as HTMLElement).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
   });
 
   it('keeps the one figure with «Как считается» above the sheet on a tablet, the action line under it (redesign critique 10)', async () => {
