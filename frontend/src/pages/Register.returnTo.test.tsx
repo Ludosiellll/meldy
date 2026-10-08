@@ -42,7 +42,7 @@ function fillAndSubmit() {
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'alina@example.com' } });
   fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Secret123' } });
   fireEvent.change(screen.getByLabelText('Повтор пароля'), { target: { value: 'Secret123' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
 }
 
 beforeEach(() => {
@@ -59,14 +59,14 @@ describe('Register: the way back (lib/returnTo)', () => {
     fillAndSubmit();
     await waitFor(() => expect(auth.signUp).toHaveBeenCalledTimes(1));
     expect(auth.signUp.mock.calls[0][0].options.emailRedirectTo).toBe(`${window.location.origin}/join/abcd2fghjkmn`);
-    fireEvent.click(await screen.findByRole('button', { name: 'Отправить письмо еще раз' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Отправить письмо ещё раз' }));
     await waitFor(() => expect(auth.resend).toHaveBeenCalledTimes(1));
     expect(auth.resend.mock.calls[0][0].options.emailRedirectTo).toBe(`${window.location.origin}/join/abcd2fghjkmn`);
   });
 
   it('Google goes through /auth/callback with the way back; «Войти» keeps it', async () => {
     renderAt('/register?next=%2Fjoin%2Fabcd2fghjkmn');
-    fireEvent.click(screen.getByRole('button', { name: 'Войти через Google' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить с Google' }));
     await waitFor(() => expect(auth.signInWithOAuth).toHaveBeenCalledTimes(1));
     expect(auth.signInWithOAuth.mock.calls[0][0].options.redirectTo).toBe(
       `${window.location.origin}/auth/callback?next=%2Fjoin%2Fabcd2fghjkmn`,
@@ -77,7 +77,7 @@ describe('Register: the way back (lib/returnTo)', () => {
 
   it('without a way back (or an unsafe one) everything is as before: «Сегодня»', async () => {
     renderAt('/register?next=%2F%2Fevil.example');
-    fireEvent.click(screen.getByRole('button', { name: 'Войти через Google' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить с Google' }));
     await waitFor(() => expect(auth.signInWithOAuth).toHaveBeenCalledTimes(1));
     expect(auth.signInWithOAuth.mock.calls[0][0].options.redirectTo).toBe(`${window.location.origin}/auth/callback`);
     fillAndSubmit();

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
+import { ty } from '../landing/typo';
 import { REEL_EVENT, takePendingChapter, type ReelChapter } from '../home/reelJump';
 import { ReelClock } from './clock';
 import { put } from './engine';
@@ -29,6 +30,19 @@ export const SEGMENTS: Array<{ label: string; from: number; to: number; id?: Ree
 ];
 
 const segmentAt = (t: number) => Math.max(0, SEGMENTS.findIndex((segment) => t >= segment.from && t < segment.to));
+
+/**
+ * The page's line under the bar on a phone, one per segment, in the reel's own words (its transcript below): on a
+ * 390 px screen the stage's text is 3–9 px. Page text outside the stage: the film itself is not changed.
+ */
+export const CAPTIONS: readonly string[] = [
+  'Сессия начинается со списка вопросов.',
+  'Вопросы сверены с вашими лекциями.',
+  'Экзаменатор спрашивает о пропущенном пункте.',
+  'Строки стирают только ответы.',
+  'Назвали снова в другой день — строка стёрлась совсем.',
+  'Вспоминать полезнее, чем перечитывать.',
+];
 
 /** The reel's length in whole seconds, as the landing's heading «Meldy за … секунд» says it. */
 export const REEL_SECONDS = Math.round(TOTAL / 1000);
@@ -236,16 +250,13 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
           <button type="button" className="mr-play" onClick={toggle} aria-label={playing ? 'Пауза' : 'Смотреть'}>
             {playing ? <PauseIcon /> : <PlayIcon />}
           </button>
-          <span className="mr-now" aria-hidden="true">
-            {SEGMENTS[segment].label}
-          </span>
           <div ref={bar} className="mr-chapters">
             {SEGMENTS.map((span, index) => (
               <button
                 key={span.label}
                 type="button"
                 className="mr-chapter"
-                style={{ flexGrow: span.to - span.from }}
+                style={{ '--mr-grow': span.to - span.from } as CSSProperties}
                 onClick={() => jump(index)}
                 aria-label={`Перейти: ${span.label}`}
                 aria-current={index === segment ? 'step' : undefined}
@@ -258,6 +269,11 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
             ))}
           </div>
         </div>
+      )}
+      {exporting ? null : (
+        <p className="mr-caption" aria-hidden="true">
+          <b>{SEGMENTS[segment].label}.</b> {ty(CAPTIONS[segment])}
+        </p>
       )}
     </figure>
   );

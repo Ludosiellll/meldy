@@ -77,10 +77,18 @@ export const JOIN_PENDING_KEY = 'meldy_join_pending';
 export const JOIN_CODE = /^[0-9a-hjkmnp-tv-z]{12}$/;
 const JOIN_PENDING_MS = 24 * 60 * 60 * 1000;
 
-/** The code of a group link as typed or pasted: no spaces or dashes, lower case; null when it is not one. */
+/**
+ * The code of a group link as typed or pasted: no spaces or dashes, lower case; null when it is not one. A link that
+ * ends a sentence in a chat brings the sentence's mark along («…/join/abcd2fghjkmn.», audit 2026-10-08 PUB-25), and
+ * a link in brackets or quotes its bracket: such marks around the code are dropped (none of them is in a code).
+ */
 export function normalizeJoinCode(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const value = raw.replace(/[\s-]+/g, '').toLowerCase();
+  const value = raw
+    .replace(/[\s-]+/g, '')
+    .replace(/[.,;:!?…)\]}»"'’”`]+$/u, '')
+    .replace(/^[(\[{«"'‘“`]+/u, '')
+    .toLowerCase();
   return JOIN_CODE.test(value) ? value : null;
 }
 

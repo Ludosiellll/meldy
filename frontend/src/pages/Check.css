@@ -95,12 +95,14 @@
 }
 .ck-card-top {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px 16px;
 }
+/* The state stays on the title's right on every card; a long title wraps instead (audit 2026-10-08, PUB-27: on a
+   phone the state sat under the title on one card and beside it on the next). */
 .ck-title {
+  flex: 1 1 auto;
   margin: 0;
   min-width: 0;
   font-size: 22px;
@@ -115,6 +117,7 @@
 .ck-state {
   --ck-soft: var(--sf-tint);
   --ck-ink: var(--sf-muted);
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -232,6 +235,10 @@
   color: var(--sf-muted);
 }
 .ck-foot a {
+  /* A taller tap area than the line (audit PUB-28), the line itself unchanged. */
+  display: inline-block;
+  padding: 10px 2px;
+  margin: -10px -2px;
   color: var(--sf-accent-fg);
   font-weight: 500;
   text-decoration: underline;
@@ -254,6 +261,10 @@
   .ck-card { padding: 20px 20px 22px; border-radius: 26px; }
   .ck-title { font-size: 20px; }
   .ck-text { font-size: 16px; }
+}
+/* 320 px: too narrow for both on one row; the state goes under the title on every card alike. */
+@media (max-width: 359px) {
+  .ck-card-top { flex-direction: column; gap: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -21,7 +21,7 @@ vi.mock('../lib/supabase', () => ({
 }));
 vi.mock('../components/authReel/AuthReel', () => ({ default: () => null }));
 
-import JoinGroup from './JoinGroup';
+import JoinGroup, { UNREADABLE_LINK } from './JoinGroup';
 import Login from './Login';
 import { GUIDE_LATER_KEY } from '../components/guide/guideLater';
 import { JOIN_PENDING_KEY } from '../lib/returnTo';
@@ -196,11 +196,24 @@ describe('/join/<код> signed out', () => {
     }
   });
 
-  it('refuses a broken code without asking the server', async () => {
+  it('refuses a broken code without asking the server, and offers the example as the way on', async () => {
     const { calls } = server();
     renderAt('/join/not-a-code');
-    expect(plain((await screen.findByRole('alert')).textContent)).toBe('Ссылка неполная. Проверьте, что она скопирована целиком.');
+    expect(plain((await screen.findByRole('alert')).textContent)).toBe(plain(UNREADABLE_LINK));
     expect(calls).toEqual([]);
+    expect(screen.getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
+    expect(screen.getByRole('link', { name: 'Что такое Meldy' })).toHaveAttribute('href', '/');
+    expect(document.title).toBe('Приглашение в группу — Meldy');
+  });
+
+  it('reads a link that ends a sentence in a chat: the trailing dot is not part of the code (audit PUB-25)', async () => {
+    const { calls } = server();
+    renderAt(`/join/${CODE}.`);
+    const heading = await screen.findByRole('heading', { level: 1, name: /Вас пригласили/ });
+    expect(plain(heading.textContent)).toBe('Вас пригласили готовиться к экзамену «Макроэкономика» в Meldy');
+    expect(calls).toEqual(['POST /api/exam-shares/preview']);
+    // The way back carries the clean code.
+    expect(screen.getByRole('link', { name: 'Войти по почте' })).toHaveAttribute('href', `/login?next=%2Fjoin%2F${CODE}`);
   });
 });
 

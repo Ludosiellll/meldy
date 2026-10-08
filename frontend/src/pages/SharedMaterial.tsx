@@ -11,34 +11,63 @@ import './SharedMaterial.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { stripSourceMarkers } from '../components/summary/fragmentModel';
 import { displayCheatsheet } from '../utils/cheatsheetDisplay';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
+
+type Load =
+  | { state: 'loading' }
+  | { state: 'ready'; material: any }
+  /** No such material, or its author keeps it closed: the RPC answers null (or refuses a malformed id). */
+  | { state: 'missing' }
+  /** No answer: no network, a timeout or the server failing. Another try may work. */
+  | { state: 'failed' };
+
+/** No network (status 0), a timeout, too many requests or the server failing: worth another try. */
+const retryable = (status: number | undefined) => !status || status === 408 || status === 429 || status >= 500;
 
 /**
  * A material opened by its link, without an account (Meldy 2026-10-04): the top line with the wordmark and
- * «Создать свой», the title, the summary (or the cheat sheet) in a white card, and an invitation on a blue panel.
+ * «Создать аккаунт», the title, the summary (or the cheat sheet) in a white card, and an invitation on a blue panel.
+ *
+ * Audit 2026-10-08 (PUB-26): a material that is not there and a load that failed are told apart (the second offers
+ * «Обновить»); the label «Общий материал» is plain text and only over a material; the way on is the example.
  */
 export default function SharedMaterial() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [material, setMaterial] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [load, setLoad] = useState<Load>({ state: 'loading' });
+  const [attempt, setAttempt] = useState(0);
+  const material = load.state === 'ready' ? load.material : null;
+  useDocumentTitle(material ? displayMaterialTitle(material.title) : 'Общий материал');
 
   useEffect(() => {
-    async function loadMaterial() {
-      try {
-        // Only what the link shows (title, subject, summary, cheat sheet), never the lecture's own text;
-        // null while the author keeps the material closed (migration *_shared_material_read.sql).
-        const { data, error } = await supabase.rpc('shared_material', { p_id: id });
-
-        if (error) throw error;
-        setMaterial(data && typeof data === 'object' ? data : null);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    if (!id) {
+      setLoad({ state: 'missing' });
+      return undefined;
     }
-    if (id) loadMaterial();
-  }, [id]);
+    let live = true;
+    setLoad({ state: 'loading' });
+    // Only what the link shows (title, subject, summary, cheat sheet), never the lecture's own text;
+    // null while the author keeps the material closed (migration *_shared_material_read.sql).
+    Promise.resolve(supabase.rpc('shared_material', { p_id: id })).then(
+      ({ data, error, status }) => {
+        if (!live) return;
+        if (error) {
+          console.error(error);
+          setLoad(retryable(status) ? { state: 'failed' } : { state: 'missing' });
+          return;
+        }
+        setLoad(data && typeof data === 'object' ? { state: 'ready', material: data } : { state: 'missing' });
+      },
+      (error: unknown) => {
+        if (!live) return;
+        console.error(error);
+        setLoad({ state: 'failed' });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [id, attempt]);
 
   const bar = (
     <header className="shm-bar">
@@ -46,15 +75,19 @@ export default function SharedMaterial() {
         <Link className="shm-logo" to="/">
           Meldy
         </Link>
-        <span className="shm-bar-label">Общий материал</span>
+        {material ? <span className="shm-bar-label">Общий материал</span> : null}
+        {/* «Войти» is always there for a guest (decision 5 of 2026-10-08), sign-up beside it. */}
+        <Link to="/login" className="shm-signin">
+          Войти
+        </Link>
         <button type="button" onClick={() => navigate('/register')} className="shm-cta">
-          Создать свой
+          Создать аккаунт
         </button>
       </div>
     </header>
   );
 
-  if (loading) {
+  if (load.state === 'loading') {
     return (
       <div className="shm">
         {bar}
@@ -73,17 +106,41 @@ export default function SharedMaterial() {
     );
   }
 
-  if (!material) {
+  if (load.state === 'failed') {
     return (
       <div className="shm">
         {bar}
         <main className="shm-main">
-          <section className="shm-card shm-missing">
-            <h1>Материал не найден</h1>
+          <section className="shm-card shm-missing" aria-labelledby="shm-failed-title">
+            <h1 id="shm-failed-title">Не удалось загрузить материал</h1>
+            <p>Проверьте интернет и попробуйте ещё раз.</p>
+            <div className="shm-missing-acts">
+              <button type="button" onClick={() => setAttempt((value) => value + 1)} className="sf-primary">
+                Обновить
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  if (load.state === 'missing') {
+    return (
+      <div className="shm">
+        {bar}
+        <main className="shm-main">
+          <section className="shm-card shm-missing" aria-labelledby="shm-missing-title">
+            <h1 id="shm-missing-title">Материал не найден</h1>
             <p>Возможно, ссылка устарела или автор закрыл к нему доступ.</p>
-            <button type="button" onClick={() => navigate('/')} className="sf-primary">
-              На главную
-            </button>
+            <div className="shm-missing-acts">
+              <Link to="/try" className="sf-primary">
+                Попробовать на примере
+              </Link>
+              <Link to="/" className="shm-link">
+                Что такое Meldy
+              </Link>
+            </div>
           </section>
         </main>
       </div>

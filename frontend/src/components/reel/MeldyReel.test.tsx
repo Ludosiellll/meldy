@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QUOTE } from './content';
-import MeldyReel, { REEL_SECONDS, SEGMENTS } from './MeldyReel';
+import MeldyReel, { CAPTIONS, REEL_SECONDS, SEGMENTS } from './MeldyReel';
 import { OUTRO_CTA_LABEL } from './scenes/Outro';
 import { CHAPTERS, TOTAL } from './timeline';
 
@@ -97,6 +97,24 @@ describe('MeldyReel', () => {
     });
     expect(screen.getByRole('button', { name: 'Перейти: Ответ вслух' })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('button', { name: 'Перейти: Билеты' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('sizes each chapter by its length beyond its label, and names the chapter in a line of page text under the bar (audit PUB-10, PUB-11)', () => {
+    const { container } = render(<MeldyReel />);
+    const chapters = Array.from(container.querySelectorAll<HTMLElement>('.mr-chapter'));
+    expect(chapters.map((chapter) => Number(chapter.style.getPropertyValue('--mr-grow')))).toEqual(SEGMENTS.map((segment) => segment.to - segment.from));
+    expect(CAPTIONS).toHaveLength(SEGMENTS.length);
+    // Outside the stage, hidden from screen readers (they have the transcript), in step with the bar.
+    const caption = container.querySelector('.mr-caption') as HTMLElement;
+    expect(container.querySelector('.mr-stage')?.contains(caption)).toBe(false);
+    expect(caption).toHaveAttribute('aria-hidden', 'true');
+    expect(caption.textContent?.replace(/\u00a0/g, ' ')).toBe(`${SEGMENTS[0].label}. ${CAPTIONS[0]}`);
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Перейти: Шпаргалка' }));
+    });
+    expect(caption.textContent).toBe('Шпаргалка. Строки стирают только ответы.');
+    // No numbers of its own: the film's numbers stay in the film.
+    for (const line of CAPTIONS) expect(line).not.toMatch(/\d/);
   });
 
   it('keeps only «MELDY» in the corners: no brackets, chapter label, timecode or chapter dots', () => {

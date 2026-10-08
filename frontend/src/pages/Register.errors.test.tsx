@@ -34,7 +34,7 @@ function submit() {
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'alina@example.com' } });
   fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Secret123' } });
   fireEvent.change(screen.getByLabelText('Повтор пароля'), { target: { value: 'Secret123' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
 }
 
 beforeEach(() => {
@@ -80,7 +80,7 @@ describe('Register: an empty form never reaches Supabase', () => {
   // «Не удалось зарегистрироваться…».
   it('says under each empty field what to fill in, like the other field errors, and sends nothing', () => {
     renderRegister();
-    fireEvent.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
     expect(auth.signUp).not.toHaveBeenCalled();
     const alerts = screen.getAllByRole('alert').map((element) => element.textContent);
     expect(alerts).toEqual([EMPTY_FIELD_MESSAGES.name, EMPTY_FIELD_MESSAGES.email, EMPTY_FIELD_MESSAGES.password]);
@@ -98,7 +98,7 @@ describe('Register: an empty form never reaches Supabase', () => {
     renderRegister();
     fireEvent.change(screen.getByLabelText('Имя'), { target: { value: '   ' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'alina@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Зарегистрироваться' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
     expect(auth.signUp).not.toHaveBeenCalled();
     expect(screen.getAllByRole('alert').map((element) => element.textContent)).toEqual([
       EMPTY_FIELD_MESSAGES.name,
@@ -110,7 +110,7 @@ describe('Register: an empty form never reaches Supabase', () => {
 
   it('the form checks itself (no browser bubbles in another language) and still marks the fields as required', () => {
     renderRegister();
-    expect(screen.getByRole('button', { name: 'Зарегистрироваться' }).closest('form')).toHaveAttribute('novalidate');
+    expect(screen.getByRole('button', { name: 'Создать аккаунт' }).closest('form')).toHaveAttribute('novalidate');
     for (const label of ['Имя', 'Email', 'Пароль']) expect(screen.getByLabelText(label)).toBeRequired();
   });
 
