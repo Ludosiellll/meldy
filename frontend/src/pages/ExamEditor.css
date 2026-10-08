@@ -1,0 +1,79 @@
+/* «Новый экзамен» and «Изменить экзамен» (ExamEditor.tsx, MaterialPicker.tsx): the editor's own rules over the shared
+   components/exams/exams.css, loaded after it. The headings below apply on every size; everything else is the phone
+   (up to 639 px, lib/usePhone): one line per explanation, quiet links beside the one blue button, the longer lines
+   one tap away (10_Project/Phone_Declutter_2026-10-08). Tablet and computer keep their look. */
+
+/* The form's groups «Экзамен · Лекции · Билеты» and the headings of step 1's quiet column: plain headings instead of
+   spaced blue capitals (the owner reads those as a generated look). Margins come from the page (headings start at 0). */
+.sf-page .nx-h {
+  font-family: var(--ph-sans);
+  font-size: 21px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -.015em;
+  color: var(--sf-ink);
+}
+.sf-page .nx-h3 {
+  font-family: var(--ph-sans);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--sf-ink);
+}
+
+@media (max-width: 639px) {
+  /* The second half of a long line: what the screen already says, or what the next screen shows. */
+  .sf-page .nx-wide { display: none; }
+
+  /* Step 1: the blue button across the card; «Выбрать файл» a quiet link with the formats under it; the drawn rows of
+     «Что сделает Meldy» (a picture, not information) stay on larger screens. */
+  .sf-page .nx-start-acts { gap: 6px 14px; margin-top: 18px; }
+  .sf-page .nx-start-acts .sf-primary { width: 100%; justify-content: space-between; }
+  .sf-page .nx-start-acts .ex-secondary {
+    min-height: 44px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    font-size: 16px;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
+    text-underline-offset: 5px;
+  }
+  .sf-page .nx-start-acts .ex-secondary:hover { box-shadow: none; text-decoration-color: var(--m-yellow); }
+  .sf-page .nx-start-acts .ex-secondary:disabled { background: none; box-shadow: none; }
+  .sf-page .nx-start-acts .ex-secondary:focus-visible { border-radius: 4px; }
+  .sf-page .nx-start-fmt { flex-basis: 100%; margin-top: -8px; }
+  .sf-page .nx-start-hint { flex-basis: 100%; }
+  .sf-page .nx-start-more { margin-top: 4px; }
+  .sf-page .nx-start-side { margin-top: 8px; padding-top: 18px; }
+  .sf-page .nx-start-art { display: none; }
+  .sf-page .nx-start-art + .nx-start-p { margin-top: 8px; }
+
+  /* Under the list: «Показать все 20» and «Вставить заново» in one row of quiet links. */
+  .sf-page .nx-body > section > .nx-acts { display: inline-flex; margin-right: 24px; }
+
+  /* «Лекции»: the count with the one bulk link at its right; «Отметить подходящие (N)» under the fitting count while
+     the ticks differ from it; «Добавить лекции» with «Подробнее» in one row, the longer lines under it once opened. */
+  .sf-page .nx-pick-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 16px; margin-top: 4px; }
+  .sf-page .nx-pick-top > .nx-line { margin-top: 0; }
+  .sf-page .nx-pick-toggle { font-size: 15px; }
+  .sf-page .nx-pickbox > .nx-pick-fitpick { font-size: 15px; color: var(--ph-pencil-desk); }
+  .sf-page .nx-import-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .sf-page .nx-import-top .sf-link { min-height: 44px; margin: 0; }
+  .sf-page .nx-import-top .sf-link[data-muted] { font-size: 15px; }
+  .sf-page .nx-pick-more > p + p { margin-top: 8px; }
+  .sf-page .nx-pick-more { margin-bottom: 4px; }
+}
+
+/* A small phone (360 px, a common Android width): the cards' sides a little narrower, so the one-line explanations stay
+   on one line. */
+@media (max-width: 379px) {
+  .sf-page[data-frame='s'] .nx-body > .nx-form,
+  .sf-page[data-frame='s'] .nx-start.nx-start { padding-left: 16px; padding-right: 16px; }
+  .sf-page[data-frame='s'] .nx-start .nx-start-sub,
+  .sf-page .nx-pickbox .nx-pick-fitsum { font-size: 15px; }
+  .sf-page .nx-pick-unmatched .sf-pnote { font-size: 14px; }
+}

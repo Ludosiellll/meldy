@@ -5,7 +5,10 @@
  * chips, the text field, the link field); 2 — what will be made, one line with «Изменить», which opens
  * SettingsPanel (styled in styles/legacy.css); 3 — the blue pill that starts the analysis and the line about
  * the daily limit, which stays at the bottom of the screen until its place in the page comes (finding LIB-8:
- * it was 1 218 px under the file field). Blue text is --sf-accent-fg; --sf-accent only fills. */
+ * it was 1 218 px under the file field). Blue text is --sf-accent-fg; --sf-accent only fills.
+ *
+ * A phone (under 640 px) drops the panel and the drop zone: one plain frame with «Выбрать файл», the formats as a line
+ * of text, the camera as a quiet link; the source tabs a light row of words (10_Project/Phone_Declutter_2026-10-08). */
 
 .az-upload { padding-top: 32px; }
 
@@ -341,29 +344,6 @@
 .az-upload .az-chip:focus-visible,
 .az-upload .az-demo:focus-visible { border-radius: 999px; }
 
-/* «Сфотографировать конспект» (phones only, as before). */
-.az-camera { display: none; }
-.az-camera-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 52px;
-  padding: 0 22px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--sf-surface);
-  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
-  color: var(--sf-ink);
-  font-family: var(--ph-sans);
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.az-camera-icon { flex: none; width: 20px; height: 20px; color: var(--sf-accent-fg); }
-.az-upload .az-camera-btn:focus-visible { border-radius: 999px; }
-
 .az-error {
   margin: 14px 0 0;
   padding: 12px 18px;
@@ -518,10 +498,65 @@
 @media (max-width: 1023px) {
   .az-tabs { margin-left: 0; }
 }
+/* A phone's file picker (UploadZone renders it under 640 px): one plain frame of the canvas colour with «Выбрать файл»,
+   the formats as one line of text and «Сфотографировать конспект» as a quiet link — nothing to drag a file from, so no
+   drop zone, no dashed edge, no coloured panel around it (10_Project/Phone_Declutter_2026-10-08). */
+.az-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 16px 8px;
+  border-radius: 22px;
+  background: var(--sf-canvas);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  text-align: center;
+}
+.az-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: box-shadow .45s var(--m-ease);
+}
+.az-pick-btn:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 1px 2px rgba(11, 18, 28, .05); }
+.az-pick-btn:disabled { color: var(--sf-muted); cursor: wait; }
+.az-upload .az-pick-btn:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent-fg)); outline-offset: 2px; border-radius: 999px; }
+.az-pick-fmt { margin: 0; font-size: 14px; line-height: 20px; color: var(--sf-muted); text-wrap: balance; }
+.az-pick-cam {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
+  text-underline-offset: 5px;
+  cursor: pointer;
+}
+.az-pick-cam:hover { text-decoration-color: var(--m-yellow); }
+
 @media (max-width: 639px) {
   .az-upload { padding-top: 20px; }
   .az-h1 { font-size: 36px; line-height: 1.06; }
   .az-lede { margin-top: 12px; font-size: 17px; }
+  /* The second half of a long line: what the screen already says. */
+  .az-wide { display: none; }
   .az-card { margin-top: 14px; padding: 24px 18px 24px; border-radius: 38px; }
   .az-layout { margin-top: 24px; }
   .az-plan { padding: 20px 18px 20px; border-radius: 34px; }
@@ -529,22 +564,68 @@
   .az-plan-line { margin-top: 10px; font-size: 16px; }
   .az-step-n { width: 36px; height: 36px; font-size: 16px; }
   .az-h2 { font-size: 24px; }
-  .az-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); order: 3; width: 100%; border-radius: 26px; }
-  .az-tab { padding: 0 10px; }
+  /* The four sources stay, lighter: one row of words without the track (it fits from 320 px), the current one in ink
+     and underlined, as the kit's text tabs; each still a 44 px target. */
+  .az-tabs { display: flex; flex-wrap: wrap; order: 3; width: 100%; gap: 0 14px; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .az-tab { position: relative; min-width: 44px; padding: 0; border-radius: 0; color: var(--sf-muted); }
+  .az-tab:hover { background: none; color: var(--sf-ink); }
+  .az-tab[aria-selected='true'] { background: none; color: var(--sf-ink); font-weight: 600; }
+  .az-tab[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 6px; height: 2px; border-radius: 1px; background: var(--sf-ink); }
+  .az-upload .az-tab:focus-visible { border-radius: 4px; }
   .az-tab-icon { display: none; }
-  .az-tabpanel { margin-top: 18px; }
-  .az-panel { padding: 12px; border-radius: 30px; }
-  .az-window { border-radius: 22px; }
-  .az-drop { padding: 28px 16px 26px; }
-  .az-drop::after { inset: 8px; border-radius: 16px; }
-  .az-drop-title { font-size: 20px; }
-  .az-formats { gap: 6px; margin-top: 14px; }
-  .az-format { padding: 6px 10px; }
-  .az-file { gap: 12px; padding: 14px; }
+  .az-tabpanel { margin-top: 12px; }
+  /* One frame: no coloured panel around the text, the link or a chosen file; the text and the file are soft frames of
+     the canvas colour, the link is its own field. */
+  .az-panel { padding: 0; border-radius: 0; background: none; overflow: visible; }
+  .az-panel[data-tone] { background: none; }
+  .az-panel::before { display: none; }
+  .az-panel[data-drag] { box-shadow: none; }
+  .az-window { border-radius: 22px; background: var(--sf-canvas); box-shadow: inset 0 0 0 1px var(--sf-line); }
   .az-field { padding: 16px 16px 12px; }
+  .az-field:not(.az-field-text) { padding: 0; background: none; box-shadow: none; }
+  .az-field-text:focus-within { box-shadow: inset 0 0 0 2px var(--sf-accent-fg); }
+  .az-file { gap: 12px; padding: 10px 10px 10px 18px; }
+  .az-file-icon { display: none; }
   .az-textarea { min-height: 220px; font-size: 16px; }
-  .az-camera { display: block; margin-top: 12px; }
+  .az-scan-note,
+  .az-media-note { padding: 0 2px; }
+  /* The link's examples: quiet links in the line «Например: …», not two more pills. */
+  .az-examples { gap: 0 16px; margin-top: 4px; }
+  .az-chip {
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+    text-underline-offset: 5px;
+  }
+  .az-chip:hover { box-shadow: none; text-decoration-color: currentColor; }
+  .az-upload .az-chip:focus-visible { border-radius: 4px; }
+  /* «Изменить» of step 2: a quiet link with its chevron, not a second pill. */
+  .az-change {
+    gap: 6px;
+    margin-top: 6px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    font-size: 16px;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
+    text-underline-offset: 5px;
+  }
+  .az-change:hover { box-shadow: none; text-decoration-color: var(--m-yellow); }
+  .az-change:disabled { box-shadow: none; text-decoration-color: transparent; }
+  .az-upload .az-change:focus-visible { border-radius: 4px; }
   .az-upload .az-start { width: 100%; }
+}
+/* A small phone (360 px, a common Android width): the one-line lead and notes stay on one line. */
+@media (max-width: 379px) {
+  .az-lede { font-size: 16px; }
+  .az-card { padding-left: 14px; padding-right: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

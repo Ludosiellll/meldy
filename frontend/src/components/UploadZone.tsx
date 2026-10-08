@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { Camera, ChevronDown, FileText, Link as LinkIcon, Type, Video, X, type LucideIcon } from 'lucide-react';
+import { ChevronDown, FileText, Link as LinkIcon, Type, Video, X, type LucideIcon } from 'lucide-react';
 import SettingsPanel, { settingsSummary } from './SettingsPanel';
 import type { AnalysisSettings } from '../types';
 import { hasBadWords } from '../utils/moderation';
@@ -7,7 +7,8 @@ import { compressImage } from '../lib/imageCompression';
 import { charactersLabel, pastedTextFile, pastedTextProblem, pastedTextTitle } from '../utils/pastedText';
 import { DEMO_SETTINGS, isDemoText } from '../data/demo';
 import { PPTX_MIME, PPT_LEGACY_MESSAGE, isLegacyPpt } from '../lib/lectureFormats';
-import { ty } from './landing/typo';
+import { usePhone } from '../lib/usePhone';
+import { NBSP, ty } from './landing/typo';
 import './UploadZone.css';
 
 export type UploadTab = 'file' | 'text' | 'url' | 'media';
@@ -69,6 +70,8 @@ const DOC_FORMATS = ['PDF', 'DOCX', 'PPTX', 'HTML', 'TXT', 'MD', 'JPG', 'PNG'];
 const MEDIA_FORMATS = ['MP4', 'MP3', 'WAV', 'MPEG', 'M4A'];
 const DOC_FORMATS_TEXT = `PDF, DOCX, PPTX, HTML, TXT, MD, JPG и PNG — до ${MAX_SIZE_MB} МБ`;
 const MEDIA_FORMATS_TEXT = `MP4, MP3, WAV, MPEG и M4A — до ${MAX_SIZE_MB} МБ, примерно ${MEDIA_LENGTH}`;
+/** A phone writes the formats as one line of text, not chips (10_Project/Phone_Declutter_2026-10-08). */
+const formatsLine = (formats: string[]) => `${formats.join(', ')} · до ${MAX_SIZE_MB}${NBSP}МБ`;
 /** What the demo text is analysed with, whatever the panel says (Analyze.startRun uses DEMO_SETTINGS). */
 const DEMO_LOCKED = 'Для демо-текста настройки не меняются.';
 
@@ -89,6 +92,10 @@ function megabytes(bytes: number, digits: number): string {
  * 868 px of optional settings with good defaults, under a slogan. Now: the button's own name as the heading; step 1
  * is the source; step 2 is one line — what will be made — that «Изменить» opens; step 3, the start with the line about
  * the daily limit, follows the reader at the bottom of the screen until its place comes.
+ *
+ * A phone (10_Project/Phone_Declutter_2026-10-08) has nothing to drag a file from: one plain frame with «Выбрать
+ * файл», the formats as one line of text and «Сфотографировать конспект» under it; the lead is one line; the source
+ * tabs and «Изменить» are lighter (UploadZone.css).
  */
 export default function UploadZone({
   settings,
@@ -111,6 +118,7 @@ export default function UploadZone({
   const [fileError, setFileError] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const phone = usePhone();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const tabRefs = useRef<Partial<Record<UploadTab, HTMLButtonElement | null>>>({});
@@ -235,7 +243,9 @@ export default function UploadZone({
           </span>
         </h1>
         <p className="az-lede">
-          {ty('Загрузите файл или вставьте текст — Meldy сделает конспект, карточки и тест со ссылками на фрагменты лекции.')}
+          {phone
+            ? 'Meldy сделает конспект, карточки и тест.'
+            : ty('Загрузите файл или вставьте текст — Meldy сделает конспект, карточки и тест со ссылками на фрагменты лекции.')}
         </p>
       </header>
 
@@ -335,7 +345,9 @@ export default function UploadZone({
                     </button>
                   )}
                 </div>
-                <p className="az-help">Подойдёт открытая страница: Meldy возьмёт основной текст без меню и рекламы.</p>
+                <p className="az-help">
+                  Подойдёт открытая страница<span className="az-wide">: Meldy возьмёт основной текст без меню и рекламы</span>.
+                </p>
                 <div className="az-examples">
                   <span className="az-examples-l">Например:</span>
                   <button type="button" onClick={() => onUrlChange('https://ru.wikipedia.org/wiki/Законы_Ньютона')} className="az-chip">
@@ -351,83 +363,102 @@ export default function UploadZone({
 
           {isFileTab && (
             <>
-              <div
-                className="az-panel"
-                data-tone={PANEL_TONE[tab]}
-                data-drag={dragOver && !file ? '' : undefined}
-                // Пока файл не выбран, файл можно бросить на всю цветную панель, а не только в окно.
-                onDragOver={
-                  file
-                    ? undefined
-                    : event => {
-                        event.preventDefault();
-                        setDragOver(true);
-                      }
-                }
-                onDragLeave={file ? undefined : () => setDragOver(false)}
-                onDrop={file ? undefined : handleDrop}
-              >
-                {file ? (
-                  <div className="az-window az-file">
-                    <span className="az-file-icon" aria-hidden="true">
-                      {tab === 'file' ? <FileText /> : <Video />}
-                    </span>
-                    <div className="az-file-text">
-                      <p className="az-file-name">{file.name}</p>
-                      <p className="az-file-size">{megabytes(file.size, 2)} МБ</p>
-                    </div>
-                    <button type="button" onClick={() => setFile(null)} aria-label="Убрать файл" className="az-round">
-                      <X aria-hidden="true" />
+              {phone && !file ? (
+                // A phone: one plain frame — the button, the formats as one line of text and, for a lecture, the camera.
+                <div className="az-pick">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isCompressing} className="az-pick-btn">
+                    {isCompressing ? 'Сжимаем изображение…' : 'Выбрать файл'}
+                  </button>
+                  <p className="az-pick-fmt">{formatsLine(formats)}</p>
+                  {tab === 'file' && (
+                    <button type="button" onClick={() => cameraInputRef.current?.click()} className="az-pick-cam">
+                      Сфотографировать конспект
                     </button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isCompressing} className="az-window az-drop">
-                    <span className="az-drop-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M12 16V5M7 10l5-5 5 5M5 19h14" />
-                      </svg>
-                    </span>
-                    <span className="az-drop-title">{isCompressing ? 'Сжимаем изображение…' : 'Перетащите файл сюда'}</span>
-                    <span className="az-drop-sub">или нажмите, чтобы выбрать</span>
-                    <span className="az-formats" aria-hidden="true">
-                      {formats.map(format => (
-                        <span key={format} className="az-format">
-                          {format}
-                        </span>
-                      ))}
-                      <span className="az-format-max">до {MAX_SIZE_MB} МБ</span>
-                    </span>
-                    <span className="sr-only">{tab === 'file' ? DOC_FORMATS_TEXT : MEDIA_FORMATS_TEXT}</span>
-                  </button>
-                )}
-              </div>
-              {!file && tab === 'file' && (
-                <div className="az-camera">
-                  <button type="button" onClick={() => cameraInputRef.current?.click()} className="az-camera-btn">
-                    <Camera aria-hidden="true" className="az-camera-icon" /> Сфотографировать конспект
-                  </button>
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={event => {
-                      const picked = event.target.files?.[0];
-                      if (picked) void validateAndSet(picked);
-                      event.target.value = '';
-                    }}
-                  />
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="az-panel"
+                  data-tone={PANEL_TONE[tab]}
+                  data-drag={dragOver && !file ? '' : undefined}
+                  // Пока файл не выбран, файл можно бросить на всю цветную панель, а не только в окно.
+                  onDragOver={
+                    file
+                      ? undefined
+                      : event => {
+                          event.preventDefault();
+                          setDragOver(true);
+                        }
+                  }
+                  onDragLeave={file ? undefined : () => setDragOver(false)}
+                  onDrop={file ? undefined : handleDrop}
+                >
+                  {file ? (
+                    <div className="az-window az-file">
+                      <span className="az-file-icon" aria-hidden="true">
+                        {tab === 'file' ? <FileText /> : <Video />}
+                      </span>
+                      <div className="az-file-text">
+                        <p className="az-file-name">{file.name}</p>
+                        <p className="az-file-size">{megabytes(file.size, 2)} МБ</p>
+                      </div>
+                      <button type="button" onClick={() => setFile(null)} aria-label="Убрать файл" className="az-round">
+                        <X aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isCompressing} className="az-window az-drop">
+                      <span className="az-drop-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                          <path d="M12 16V5M7 10l5-5 5 5M5 19h14" />
+                        </svg>
+                      </span>
+                      <span className="az-drop-title">{isCompressing ? 'Сжимаем изображение…' : 'Перетащите файл сюда'}</span>
+                      <span className="az-drop-sub">или нажмите, чтобы выбрать</span>
+                      <span className="az-formats" aria-hidden="true">
+                        {formats.map(format => (
+                          <span key={format} className="az-format">
+                            {format}
+                          </span>
+                        ))}
+                        <span className="az-format-max">до {MAX_SIZE_MB} МБ</span>
+                      </span>
+                      <span className="sr-only">{tab === 'file' ? DOC_FORMATS_TEXT : MEDIA_FORMATS_TEXT}</span>
+                    </button>
+                  )}
                 </div>
               )}
+              {/* «Сфотографировать конспект» is the phone's (in its frame above): a camera is a phone's thing. */}
+              {!file && tab === 'file' && (
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={event => {
+                    const picked = event.target.files?.[0];
+                    if (picked) void validateAndSet(picked);
+                    event.target.value = '';
+                  }}
+                />
+              )}
+              {/* One line on a phone: «Сканы и фото распознаёт Google Gemini.» */}
               {tab === 'file' && (
                 <p className="az-help az-scan-note">
-                  Сканы и фото страниц распознаёт <span className="az-nowrap">ИИ-сервис</span> Google Gemini.
+                  Сканы и фото<span className="az-wide"> страниц</span> распознаёт{' '}
+                  <span className="az-wide">
+                    <span className="az-nowrap">ИИ-сервис</span>{' '}
+                  </span>
+                  Google Gemini.
                 </p>
               )}
+              {/* A phone: the length only (the frame says «до 15 МБ»; a recording too long is refused with the advice). */}
               {tab === 'media' && (
                 <p className="az-help az-media-note">
-                  {ty(`До ${MAX_SIZE_MB} МБ — это примерно ${MEDIA_LENGTH}. Запись целой пары обычно больше: разделите её на части.`)}
+                  {phone
+                    ? ty(`${MAX_SIZE_MB} МБ — это примерно ${MEDIA_LENGTH}.`)
+                    : ty(`До ${MAX_SIZE_MB} МБ — это примерно ${MEDIA_LENGTH}. Запись целой пары обычно больше: разделите её на части.`)}
                 </p>
               )}
               <input

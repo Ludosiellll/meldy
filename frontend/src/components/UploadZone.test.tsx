@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import UploadZone, { type UploadOptions, type UploadTab } from './UploadZone';
@@ -305,5 +305,69 @@ describe('«Разобрать лекцию»: three steps, the start on the fir
     const settings = screen.getByRole('region', { name: 'Настройки разбора' });
     expect(plan.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(start.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe('«Разобрать лекцию» on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  const PHONE_QUERY = '(max-width: 639px)';
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === PHONE_QUERY,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+      }),
+    });
+  });
+  afterEach(() => {
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('leads with one line and picks the file with «Выбрать файл» in one frame: no drag line, the formats as text', async () => {
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="file" />);
+    expect(screen.getByText('Meldy сделает конспект, карточки и тест.')).toBeInTheDocument();
+    expect(screen.queryByText(/Перетащите файл/)).toBeNull();
+    expect(document.querySelectorAll('.az-format')).toHaveLength(0);
+    expect(screen.getByText('PDF, DOCX, PPTX, HTML, TXT, MD, JPG, PNG · до 15 МБ')).toBeInTheDocument();
+    // The four sources and both other ways stay.
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Файл', 'Текст', 'Ссылка', 'Аудио и видео']);
+    expect(screen.getByRole('button', { name: 'Попробовать на демо-тексте' })).toBeEnabled();
+    expect(screen.getByRole('heading', { level: 2, name: 'Что подготовить' })).toBeInTheDocument();
+
+    const input = screen.getByTestId('upload-file-input') as HTMLInputElement;
+    const pick = vi.spyOn(input, 'click');
+    fireEvent.click(screen.getByRole('button', { name: 'Выбрать файл' }));
+    expect(pick).toHaveBeenCalledTimes(1);
+    const camera = document.querySelector('input[capture]') as HTMLInputElement;
+    expect(camera).toHaveAttribute('accept', 'image/*');
+    const shoot = vi.spyOn(camera, 'click');
+    fireEvent.click(screen.getByRole('button', { name: 'Сфотографировать конспект' }));
+    expect(shoot).toHaveBeenCalledTimes(1);
+
+    const file = new File(['Текст лекции'], 'lecture.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByText('lecture.pdf')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Выбрать файл' })).toBeNull();
+    fireEvent.click(startButton());
+    expect(onUpload).toHaveBeenCalledWith(file, undefined, undefined);
+  });
+
+  it('says who recognises scans in one line, still naming the service', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    // The words a phone leaves out are only drawn wider (az-wide); the service is named on every size.
+    expect(document.querySelector('.az-scan-note')?.textContent).toBe('Сканы и фото страниц распознаёт ИИ-сервис Google Gemini.');
+    expect(Array.from(document.querySelectorAll('.az-scan-note .az-wide')).map(span => span.textContent?.trim())).toEqual(['страниц', 'ИИ-сервис']);
+  });
+
+  it('the audio tab: the formats as text and the length in one line', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="media" />);
+    expect(screen.getByText('MP4, MP3, WAV, MPEG, M4A · до 15 МБ')).toBeInTheDocument();
+    expect(document.querySelector('.az-media-note')?.textContent?.replace(/\s/g, ' ')).toBe('15 МБ — это примерно 15–30 минут звука.');
+    expect(screen.queryByRole('button', { name: 'Сфотографировать конспект' })).toBeNull();
   });
 });

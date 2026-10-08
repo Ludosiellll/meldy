@@ -53,8 +53,10 @@ import { COVERAGE_MARK, COVERAGE_MARK_SIZE, COVERAGE_PILL_WORDS, PILL_MARK_SCALE
 import { Mark } from '../components/marks/PencilSvg';
 import { useFrame } from '../components/exams/useFrame';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { usePhone } from '../lib/usePhone';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
+import './ExamEditor.css';
 
 const PARSE_ACCEPT = '.docx,.pdf,.txt,.md';
 const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
@@ -80,6 +82,15 @@ const TICK_HINTS = {
   'no-title': 'Пока отмечены все: когда вы назовёте экзамен, Meldy оставит лекции этого предмета.',
   'by-title': 'Отмечены лекции, подходящие к названию экзамена. Лишние снимите, нужные отметьте.',
   'no-match': 'По названию экзамена лекций не нашлось — отмечены все. Лишние снимите.',
+} as const;
+/**
+ * The same on a phone, in one line each (10_Project/Phone_Declutter_2026-10-08: an explanation is one line). Ticks
+ * that came from the questions need no line there: the count above the list and each lecture's note say why.
+ */
+const TICK_HINTS_PHONE = {
+  'no-title': 'Пока отмечены все лекции.',
+  'by-title': 'Отмечены лекции по названию экзамена.',
+  'no-match': 'Отмечены все: по названию лекций нет.',
 } as const;
 const TITLE_ID = 'exam-title';
 const DATE_ID = 'exam-date';
@@ -132,6 +143,10 @@ export default function ExamEditor() {
   const { verifyEnergy } = useEnergyConfirm();
   const { confirm } = useConfirm();
   const frame = useFrame<HTMLDivElement>();
+  // A phone keeps one line per explanation and the rest one tap away (10_Project/Phone_Declutter_2026-10-08).
+  const phone = usePhone();
+  /** Step 1 on a phone: «Что сделает Meldy», the lectures and where to find the list wait behind one link. */
+  const [startMore, setStartMore] = useState(false);
   const job = useMapJob(editId);
 
   // existing exam (edit mode)
@@ -647,11 +662,9 @@ export default function ExamEditor() {
         >
           <div className="nx-start-main">
             <h2 className="nx-start-h">Вставьте список вопросов</h2>
-            {/* A phone has nothing to drag a file from: there the formats go into this line instead. */}
+            {/* A phone has nothing to drag a file from, and keeps the line to one: the formats stand under «Выбрать файл». */}
             <p className="nx-start-sub">
-              {frame.size === 's'
-                ? 'Скопируйте его из файла кафедры как есть — или выберите сам файл: DOCX, PDF (сканы тоже), TXT или MD.'
-                : 'Скопируйте его из файла кафедры как есть — или перетащите сюда сам файл.'}
+              {phone ? 'Скопируйте из файла кафедры как есть.' : 'Скопируйте его из файла кафедры как есть — или перетащите сюда сам файл.'}
             </p>
             <div className="nx-field">
               <textarea
@@ -684,7 +697,7 @@ export default function ExamEditor() {
                   {EMPTY_HINT}
                 </p>
               ) : (
-                frame.size !== 's' && <span className="nx-start-fmt">DOCX, PDF, TXT или MD · сканы тоже</span>
+                <span className="nx-start-fmt">DOCX, PDF, TXT или MD · сканы тоже</span>
               )}
               <input
                 ref={fileRef}
@@ -709,9 +722,21 @@ export default function ExamEditor() {
                 {parseError}
               </p>
             )}
+            {phone && (
+              <button
+                type="button"
+                className="sf-link nx-start-more"
+                data-muted=""
+                aria-expanded={startMore}
+                aria-controls="nx-start-side"
+                onClick={() => setStartMore((open) => !open)}
+              >
+                {startMore ? 'Свернуть' : 'Где взять список и что дальше'}
+              </button>
+            )}
           </div>
-          <aside className="nx-start-side" aria-label="Что будет дальше">
-            <p className="nx-lbl">Что сделает Meldy</p>
+          <aside id="nx-start-side" className="nx-start-side" aria-label="Что будет дальше" hidden={phone && !startMore}>
+            <h3 className="nx-h3">Что сделает Meldy</h3>
             <ul className="nx-start-art" aria-hidden="true">
               {SHEET_PREVIEW.map((row) => {
                 const kind = COVERAGE_MARK[row.coverage];
@@ -738,9 +763,9 @@ export default function ExamEditor() {
             <p className="nx-start-p">
               {glue('Найдёт вопросы, разделы и билеты, а после проверки сверит каждый вопрос с вашими лекциями.')}
             </p>
-            <p className="nx-lbl nx-start-lbl2">Лекции</p>
+            <h3 className="nx-h3 nx-start-lbl2">Лекции</h3>
             <p className="nx-start-p">{glue(lecturesAhead)}</p>
-            <p className="nx-lbl nx-start-lbl2">Где взять список</p>
+            <h3 className="nx-h3 nx-start-lbl2">Где взять список</h3>
             <p className="nx-start-p">{glue(LIST_SOURCE_HINT)}</p>
           </aside>
           {dragging && (
@@ -758,7 +783,11 @@ export default function ExamEditor() {
                   (sections > 0 ? `, ${sections} ${pluralRu(sections, ['раздел', 'раздела', 'разделов'])}` : ''),
               )}
             </p>
-            <p className="ex-meta">{glue('Нажмите на строку, чтобы поправить её, склеить со следующей или удалить.')}</p>
+            {/* A phone keeps the first clause: the row's editor names the rest when it opens. */}
+            <p className="ex-meta">
+              {glue('Нажмите на строку, чтобы поправить её')}
+              <span className="nx-wide">{glue(', склеить со следующей или удалить')}</span>.
+            </p>
             {/* «Пропустили N строк…» stays while a skipped line waits at its place in the full list (the folded
                 preview shows only questions) or when the parser did not list them all. */}
             {parseWarnings
@@ -786,7 +815,7 @@ export default function ExamEditor() {
 
           <aside className="nx-form" aria-label="Экзамен, билеты и лекции">
             <div className="nx-grp">
-              <p className="nx-lbl">Экзамен</p>
+              <h2 className="nx-h">Экзамен</h2>
               {/* Each field with its name: filled in, the three fields said nothing of what is what (audit 2026-10-08). */}
               <div className="nx-fields">
                 <div className="nx-fld nx-fld-title">
@@ -829,7 +858,8 @@ export default function ExamEditor() {
                 </div>
               </div>
               <p className="ex-meta" id="exam-date-hint">
-                {glue('Дату можно не указывать: с ней Meldy покажет, сколько дней осталось до экзамена.')}
+                {glue('Дату можно не указывать')}
+                <span className="nx-wide">{glue(': с ней Meldy покажет, сколько дней осталось до экзамена')}</span>.
               </p>
               {/* The example in the field («Например, Микроэкономика») shows it; screen readers hear it in words. */}
               <p className="ex-sr" id="exam-title-hint">
@@ -839,13 +869,13 @@ export default function ExamEditor() {
 
             {/* Right after the title: the marks depend on these lectures, and the questions (else the title) tick them. */}
             <div className="nx-grp">
-              <p className="nx-lbl">Лекции</p>
+              <h2 className="nx-h">Лекции</h2>
               <MaterialPicker
                 materials={materials}
                 selected={selected}
                 onToggle={toggleMaterial}
                 onSetMany={setManyMaterials}
-                hint={autoTicks ? (tickByFit ? FIT_TICK_HINT : TICK_HINTS[suggestionReason(materials, title)]) : null}
+                hint={autoTicks ? (tickByFit ? (phone ? null : FIT_TICK_HINT) : (phone ? TICK_HINTS_PHONE : TICK_HINTS)[suggestionReason(materials, title)]) : null}
                 fit={pickerFit}
                 onImport={(files) => void importFiles(files)}
                 imports={imports}
@@ -857,7 +887,7 @@ export default function ExamEditor() {
             </div>
 
             <div className="nx-grp">
-              <p className="nx-lbl">Билеты</p>
+              <h2 className="nx-h">Билеты</h2>
               <p className="nx-line">
                 В билете{' '}
                 <PaperSelect
@@ -882,7 +912,16 @@ export default function ExamEditor() {
               </p>
               {layoutMode === 'fixed' ? (
                 <p className="ex-meta">
-                  {glue(`${preview.tickets.length} ${pluralRu(preview.tickets.length, ['билет', 'билета', 'билетов'])} из списка кафедры: доли посчитаем по ним.`)}
+                  {glue(`${preview.tickets.length} ${pluralRu(preview.tickets.length, ['билет', 'билета', 'билетов'])} из списка кафедры`)}
+                  <span className="nx-wide">{glue(': доли посчитаем по ним')}</span>.
+                </p>
+              ) : phone ? (
+                // One line on a phone: the question and the way to do it.
+                <p className="ex-meta nx-tickets-hint">
+                  Знаете билеты?{' '}
+                  <button type="button" className="sf-link" onClick={startOver} disabled={lockedByMapping || saving}>
+                    Вставьте список с ними
+                  </button>
                 </p>
               ) : (
                 // The form has no field for the tickets: they come with the list (audit 2026-10-08: «вставьте их» — but where).
@@ -894,14 +933,16 @@ export default function ExamEditor() {
                   {glue('вместе с билетами — Meldy посчитает доли по ним.')}
                 </p>
               )}
-              {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta">Один вопрос в билете: на листе будет «Тянуть вопрос».</p>}
+              {/* Not on a phone: the sheet's own button says «Тянуть вопрос». */}
+              {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta nx-wide">Один вопрос в билете: на листе будет «Тянуть вопрос».</p>}
             </div>
 
             {/* The main button is in the bar at the bottom of the window (below); the form ends with what the press
-                does on a phone, where the bar keeps only the button, and with «Удалить экзамен». */}
-            {((!frame.side && nextNote) || (editing && bundle)) && (
+                does on a tablet, where the bar keeps only the button, and with «Удалить экзамен». A phone leaves the
+                line out: the button names the press, «Лекции» above say with how many lectures. */}
+            {((!frame.side && !phone && nextNote) || (editing && bundle)) && (
               <div className="nx-go">
-                {!frame.side && nextNote && <p className="ex-meta nx-go-note">{glue(nextNote)}</p>}
+                {!frame.side && !phone && nextNote && <p className="ex-meta nx-go-note">{glue(nextNote)}</p>}
                 {editing && bundle && (
                   <button type="button" className="sf-link" data-muted="" onClick={() => void remove()} disabled={saving}>
                     Удалить экзамен

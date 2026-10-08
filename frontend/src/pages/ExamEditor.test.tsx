@@ -816,3 +816,96 @@ describe('ExamEditor: which lectures fit the questions', () => {
     expect(screen.getByRole('button', { name: 'Сохранить и сверить' })).toBeEnabled();
   });
 });
+
+describe('ExamEditor: plain headings on every size', () => {
+  it('names the form’s groups and step 1’s quiet column with headings, not spaced capitals', async () => {
+    renderEditor();
+    expect(screen.getByRole('heading', { level: 3, name: 'Что сделает Meldy' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'Где взять список' })).toBeInTheDocument();
+    expect(document.querySelector('.nx-lbl')).toBeNull();
+    cleanup();
+
+    await pasteAndParse();
+    const form = screen.getByRole('complementary', { name: 'Экзамен, билеты и лекции' });
+    expect(within(form).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['Экзамен', 'Лекции', 'Билеты']);
+    expect(document.querySelector('.nx-lbl')).toBeNull();
+  });
+});
+
+describe('ExamEditor on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  const PHONE_QUERY = '(max-width: 639px)';
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === PHONE_QUERY,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+      }),
+    });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 390 });
+  });
+  afterEach(() => {
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1024 });
+  });
+
+  it('step 1: one line under the heading, the formats under «Выбрать файл», the quiet column behind one link', () => {
+    renderEditor();
+    expect(screen.getByText('Скопируйте из файла кафедры как есть.')).toBeInTheDocument();
+    expect(screen.getByText('DOCX, PDF, TXT или MD · сканы тоже')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Выбрать файл' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button').filter((button) => button.classList.contains('sf-primary')).map((button) => button.textContent)).toEqual([
+      'Распознать вопросы',
+    ]);
+
+    const side = document.getElementById('nx-start-side');
+    expect(side).not.toBeVisible();
+    const more = screen.getByRole('button', { name: 'Где взять список и что дальше' });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(more).toHaveAttribute('aria-controls', 'nx-start-side');
+    fireEvent.click(more);
+    expect(side).toBeVisible();
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(more).toHaveTextContent('Свернуть');
+    expect(screen.getByText(/рабочей программе дисциплины/)).toBeVisible();
+  });
+
+  it('step 2: why the lectures are ticked and how to give the tickets, one line each; nothing under the form but the bar', async () => {
+    mocks.parseQuestionList.mockResolvedValue({ ...PARSE, tickets: [] });
+    await pasteAndParse();
+    expect(plain(document.querySelector('.nx-pick-hint')?.textContent)).toBe('Отмечены лекции по названию экзамена.');
+    // The one bulk link stands beside the count; no row of three.
+    expect(document.querySelector('.nx-pick-bulk')).toBeNull();
+    expect(within(document.querySelector('.nx-pick-top') as HTMLElement).getByRole('button', { name: 'Выбрать все' })).toBeInTheDocument();
+    // What the press does is not repeated under the form: the button says it.
+    expect(document.querySelector('.nx-go-note')).toBeNull();
+    expect(document.querySelector('.ex-cta')).not.toHaveAttribute('data-row');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Сверить с лекциями' })).toBeEnabled());
+
+    const tickets = document.querySelector('.nx-tickets-hint') as HTMLElement;
+    expect(plain(tickets.textContent)).toBe('Знаете билеты? Вставьте список с ними');
+    fireEvent.click(within(tickets).getByRole('button', { name: 'Вставьте список с ними' }));
+    expect(screen.getByRole('textbox', { name: 'Список вопросов' })).toBeInTheDocument();
+  });
+
+  it('ticks that came from the questions need no line: the count says how many fit', async () => {
+    mocks.fetchLectureFit.mockResolvedValue(fits([['m1'], ['m1'], ['m1', 'm4'], []]));
+    await pasteAndParse();
+    await asked();
+    await waitFor(() => expect(plain(document.querySelector('.nx-pick-fitsum')?.textContent)).toBe('К вопросам списка подходят 2 лекции. Они отмечены.'));
+    expect(document.querySelector('.nx-pick-hint')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: /Денежный рынок/ })).toBeChecked();
+  });
+
+  it('editing: one blue button, «Удалить экзамен» still there', async () => {
+    mocks.loadExamBundle.mockResolvedValue(savedBundle());
+    renderEditor('/exams/exam-1/edit');
+    await screen.findByText(/В списке 3 вопроса/);
+    expect(screen.getAllByRole('button').filter((button) => button.classList.contains('sf-primary')).map((button) => button.textContent)).toEqual(['Сохранить']);
+    expect(screen.getByRole('button', { name: 'Удалить экзамен' })).toBeInTheDocument();
+  });
+});
