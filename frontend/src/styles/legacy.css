@@ -1061,6 +1061,38 @@
 .ac-limit-prices .ac-cost dd { font-size: 15px; }
 .ac-limit-prices .ac-cost dt small { font-size: 13px; }
 .ac-limit-prices .ac-modal-p.ac-costs-back { margin-top: 6px; font-size: 14px; }
+/* The rarer actions under «Ещё: …» (a native disclosure: keyboard and screen readers for free). */
+.ac-costs-more { border-top: 1px solid var(--sf-line); }
+.ac-costs-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 0;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--sf-accent-fg);
+  cursor: pointer;
+  list-style: none;
+}
+.ac-costs-more > summary::-webkit-details-marker { display: none; }
+.ac-costs-more > summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: -3px 2px 0 auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform .2s ease;
+}
+.ac-costs-more[open] > summary::after { margin-top: 3px; transform: rotate(-135deg); }
+.ac-costs-more > .ac-costs { margin-top: 0; }
+.ac-limit-side .ac-modal-p.ac-limit-free { margin-top: 8px; color: var(--sf-muted); }
+@media (prefers-reduced-motion: reduce) {
+  .ac-costs-more > summary::after { transition: none; }
+}
 .ac-limit-acts { grid-area: acts; align-self: end; margin-top: 18px; }
 .ac-limit-acts .ac-modal-ok,
 .ac-limit-acts .ac-modal-alt { min-height: 48px; font-size: 16px; }

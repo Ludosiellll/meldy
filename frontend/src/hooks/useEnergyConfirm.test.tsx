@@ -26,6 +26,7 @@ import { ConfirmProvider } from '../contexts/ConfirmContext';
 import TokenInfoModal from '../components/TokenInfoModal';
 import { formatLimitReset, nextLimitReset, reportAILimit, resetAILimitReportsForTests } from '../api/limits';
 import { AI_COSTS, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, OPEN_PRO_EVENT } from '../lib/plans';
+import { WITHOUT_UNITS } from '../components/pro/planCopy';
 
 type Verify = ReturnType<typeof useEnergyConfirm>['verifyEnergy'];
 
@@ -128,11 +129,13 @@ describe('verifyEnergy', () => {
     await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
     const options = h.alert.mock.calls[0][0];
     expect(options.title).toBe('Дневной лимит исчерпан');
-    expect(options.message).toMatch(/^Анализ материала расходует 20 единиц, а на сегодня осталось 0\. Лимит обновится в \d{1,2}:\d{2}\.$/);
+    expect(options.message).toMatch(/^Анализ материала расходует 20 единиц, а на сегодня осталось 0\. Лимит обновится в \d{1,2}:\d{2}\. /);
+    // A spent day also says what still works without units.
+    expect(options.message.endsWith(` ${WITHOUT_UNITS}`)).toBe(true);
 
     h.alert.mockClear();
     h.check.mockResolvedValue({ allowed: false, isPro: false, count: 130, ok: true }); // старый клиент мог перерасходовать
-    await expect(host.verify('user-1', 5, 'Разговор')).resolves.toBe(false);
+    await expect(host.verify('user-1', 5, 'Подкаст')).resolves.toBe(false);
     expect(h.alert.mock.calls[0][0].title).toBe('Дневной лимит исчерпан');
     expect(h.alert.mock.calls[0][0].message).toMatch(/осталось 0\./);
   });
@@ -237,12 +240,23 @@ describe('TokenInfoModal', () => {
     expect(rows).toEqual([
       [`Анализ лекциискан PDF — ещё ${AI_COSTS.scanPages} за каждые ${OCR_PAGES_PER_CHARGE} страниц`, String(AI_COSTS.lecture)],
       ['Проверка ответа на билет', String(AI_COSTS.answer)],
-      ['«Разговор» по лекции', String(AI_COSTS.conversation)],
-      ['«Поговорить о лекции»за каждый ответ репетитора', String(AI_COSTS.tutorTurn)],
-      ['Выжимка лекции', String(AI_COSTS.cheatsheet)],
+      ['Пункты ответа к новому вопросуодин раз на вопрос', String(AI_COSTS.answerPoints)],
       [`Сверка списка вопросовза каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`, String(AI_COSTS.examMapping)],
+      ['Подкаст по лекциидва ведущих обсуждают лекцию', String(AI_COSTS.conversation)],
+      ['«Поговорить о лекции»за каждый ответ репетитора', String(AI_COSTS.tutorTurn)],
+      // Under «Ещё: …»: the rarer actions, so every action that spends units has its price here.
+      ['Выжимка лекции', String(AI_COSTS.cheatsheet)],
+      ['Схемы к подкасту', String(AI_COSTS.visuals)],
+      ['Работа над ошибками', String(AI_COSTS.mistakesPractice)],
+      ['Оценки по фото', String(AI_COSTS.gradebookScan)],
+      ['Раздел анализа заново' + 'раздел, который не получился при анализе, — бесплатно', String(AI_COSTS.analysisSection)],
     ]);
+    // One row per priced action of lib/plans.ts (scan pages are the note under the analysis): a new
+    // price there fails here until the window lists it.
+    expect(rows).toHaveLength(Object.keys(AI_COSTS).length - 1);
+    expect(container.querySelector('details.ac-costs-more > summary')).toHaveTextContent('Ещё: выжимка, схемы, работа над ошибками, оценки по фото');
     expect(screen.getByText('Если ИИ не справился, единицы возвращаются.')).toBeInTheDocument();
+    expect(screen.getByText(WITHOUT_UNITS)).toBeInTheDocument();
     // What PRO gives, in the same numbers; no price, no checkout here.
     expect(screen.getByText('С PRO — 1000 единиц ИИ в день.')).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/⚡|Энергия|₽|оплат/);
@@ -311,7 +325,9 @@ describe('AILimitDialogHost', () => {
       reportAILimit({ used: 100, limit: 100, units: 20, resetsAt, pro: false });
     });
     expect(await screen.findByText('Дневной лимит исчерпан')).toBeInTheDocument();
-    expect(screen.getByText(`Единицы ИИ на сегодня закончились. Лимит обновится в ${formatLimitReset(resetsAt)}.`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`Единицы ИИ на сегодня закончились. Лимит обновится в ${formatLimitReset(resetsAt)}. ${WITHOUT_UNITS}`),
+    ).toBeInTheDocument();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Что даёт PRO' }));
     });

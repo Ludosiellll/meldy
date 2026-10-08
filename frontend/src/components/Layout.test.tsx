@@ -144,6 +144,10 @@ describe('the menu: five sections around the core', () => {
     expect(cta).toHaveAttribute('aria-current', 'page');
     expect(cta.querySelector('.sf-cta-plus')).toHaveAttribute('aria-hidden', 'true');
     expect(cta.querySelector('.sf-cta-t')).toHaveTextContent('Разобрать лекцию');
+    // On a phone «+ Лекция» (the word for the eye only; the name stays «Разобрать лекцию»), so it is
+    // not taken for a page's own «Новый экзамен +».
+    expect(cta.querySelector('.sf-cta-short')).toHaveTextContent('Лекция');
+    expect(cta.querySelector('.sf-cta-short')).toHaveAttribute('aria-hidden', 'true');
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 });
@@ -163,6 +167,26 @@ describe('phones and tablets (spec 4.2)', () => {
     expect(PHONE_TABS.map((item) => item.to)).toEqual(['/dashboard', '/exams', '/library', '/review', '/analytics']);
     expect(DESK_LINKS).toBe(NAV_ITEMS);
     expect(PHONE_TABS).toBe(NAV_ITEMS);
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('puts the cards due on the «Повторение» tab as a badge, «99+» above 99', async () => {
+    renderAt('/dashboard');
+    const tabs = tabBar()!;
+    await waitFor(() => expect(within(tabs).getByRole('link', { name: 'Повторение 11' })).toBeInTheDocument());
+    expect(tabs.querySelectorAll('.sf-tab-n')).toHaveLength(1);
+    expect(tabs.querySelector('.sf-tab-n')).toHaveTextContent('11');
+    cleanup();
+
+    mocks.countDueCards.mockResolvedValue(140);
+    renderAt('/review');
+    await waitFor(() => expect(within(tabBar()!).getByRole('link', { name: 'Повторение 99+' })).toBeInTheDocument());
+    cleanup();
+
+    mocks.countDueCards.mockResolvedValue(0);
+    renderAt('/dashboard');
+    await waitFor(() => expect(mocks.countDueCards).toHaveBeenCalled());
+    expect(tabBar()!.querySelector('.sf-tab-n')).toBeNull();
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
@@ -275,9 +299,16 @@ describe('account menu', () => {
     fireEvent.click(button);
     const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
     expect(button).toHaveAttribute('aria-expanded', 'true');
-    expect(within(menu).getByText('alina@example.com')).toBeInTheDocument();
+    expect(within(menu).getByText('alina@example.com')).toHaveAttribute('title', 'alina@example.com');
     expect(within(menu).getByRole('link', { name: 'Профиль' })).toHaveAttribute('href', '/profile');
     expect(within(menu).getByRole('button', { name: 'Светлая' })).toHaveAttribute('aria-pressed', 'true');
+    // Three one-word themes in one row; the third explains itself on hover.
+    expect(within(within(menu).getByRole('group', { name: 'Тема' })).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'Светлая',
+      'Тёмная',
+      'Системная',
+    ]);
+    expect(within(menu).getByRole('button', { name: 'Системная' })).toHaveAttribute('title', 'Как в настройках устройства');
     fireEvent.click(within(menu).getByRole('button', { name: 'Тёмная' }));
     expect(mocks.setTheme).toHaveBeenCalledWith('dark');
     expect(within(menu).getByRole('switch', { name: /Показ на проекторе/ })).toBeInTheDocument();

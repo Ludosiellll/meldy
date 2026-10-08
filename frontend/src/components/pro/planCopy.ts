@@ -39,6 +39,9 @@ export function unitsPerDay(units: number): string {
   return `${units} ${plural(units, UNITS)} ИИ в день`;
 }
 
+/** What still works when the day's units are spent (the limit window and the refusal dialog say it). */
+export const WITHOUT_UNITS = 'Без единиц работают повторение карточек и тесты, а на билеты можно отвечать без проверки ИИ.';
+
 /** What PRO changes: «До 1000 единиц ИИ в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.» */
 export function proGainLine(): string {
   return `До ${unitsPerDay(PRO_DAILY_UNITS)} вместо ${FREE_DAILY_UNITS} — это примерно ${checks(PRO_DAILY_UNITS)} или ${lectures(PRO_DAILY_UNITS)}.`;

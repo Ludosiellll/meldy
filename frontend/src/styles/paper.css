@@ -366,7 +366,7 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 }
 .sf-acct-who { padding: 8px 16px 10px; }
 .sf-acct-name { font-size: 15px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
-.sf-acct-mail { font-size: 15px; line-height: 22px; color: var(--sf-muted); overflow-wrap: anywhere; }
+.sf-acct-mail { font-size: 15px; line-height: 22px; color: var(--sf-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sf-acct-item {
   display: flex;
   align-items: center;
@@ -391,28 +391,39 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 .sf-acct-item:hover { background: var(--sf-tint); }
 .sf-acct-state { color: var(--sf-muted); font-weight: 500; }
 .sf-acct-sep { height: 1px; margin: 6px 0; background: var(--sf-line); }
-.sf-acct-row { display: grid; gap: 2px; padding: 6px 16px; }
+.sf-acct-row { display: grid; gap: 6px; padding: 6px 16px 8px; }
 .sf-acct-label { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
-.sf-acct-themes { display: flex; flex-wrap: wrap; gap: 0 12px; }
+/* The three themes: one segmented row of equal parts, the chosen one raised. */
+.sf-acct-themes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--sf-tint);
+}
 .sf-acct-themes button {
-  min-height: 36px;
-  padding: 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 4px;
   border: 0;
+  border-radius: 999px;
   background: none;
   font-family: var(--ph-sans);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--sf-muted);
+  white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 .sf-acct-themes button:hover { color: var(--sf-ink); }
 .sf-acct-themes button[aria-pressed='true'] {
+  background: var(--sf-surface);
+  box-shadow: 0 1px 3px rgba(16, 41, 90, .14), 0 0 0 1px var(--sf-line);
   color: var(--sf-ink);
   font-weight: 600;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 6px;
 }
 @media (min-width: 1024px) {
   .sf-acct-phone { display: none; }
@@ -561,7 +572,8 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 .sf-toc-date { font-size: 15px; line-height: 28px; color: var(--sf-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sf-toc-date-inline { display: none; }
 .sf-toc-more { position: absolute; right: 2px; top: 6px; }
-.sf-toc-more > .sf-more { opacity: 0; }
+/* Quiet at rest, so a newcomer sees that a row has actions; full on hover or focus. */
+.sf-toc-more > .sf-more { opacity: .45; }
 .sf-toc-row:hover .sf-toc-more > .sf-more,
 .sf-toc-row:focus-within .sf-toc-more > .sf-more,
 .sf-toc-more > .sf-more[aria-expanded='true'] { opacity: 1; }
@@ -1020,7 +1032,6 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
 .sf-menu { border-radius: 20px; padding: 6px; }
 .sf-acct-item,
 .sf-menu button { border-radius: 14px; }
-.sf-acct-themes button[aria-pressed='true'] { text-decoration-color: var(--m-yellow); text-decoration-thickness: 3px; }
 
 @media (max-width: 1023px) {
   .sf-tabbar {
@@ -1052,6 +1063,13 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
 @media (max-width: 359px) {
   .sf-tabbar { padding-left: 4px; padding-right: 4px; }
   .sf-tablink { padding: 0 5px; font-size: 12px; }
+}
+/* Without the blur (older WebViews) the translucent lines would show the page's words through
+   themselves: then they are solid. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .sf-bar,
+  .sf-room-bar,
+  .sf-tabbar { background: var(--sf-canvas); }
 }
 
 /* ---------------------------------------------------------------- page header */

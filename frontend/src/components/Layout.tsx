@@ -22,7 +22,8 @@ import './layout.css';
  * The shell of the interior: one line on top like the landing's navbar — the wordmark, the five
  * sections as pills, «Разобрать лекцию» (the analysis, /analyze: 20 units — named apart from the free «Добавить
  * лекцию» of «Сегодня», which leads to the exam's lectures as text), the daily AI limit (QuotaMeter) and the account button; on
- * phones a short line with «+» and the limit's ring, and five tabs at the bottom, an icon over a word.
+ * phones a short line with «+ Лекция» and the limit's ring, and five tabs at the bottom, an icon over a word
+ * («Повторение» with a badge of the cards due).
  * The menu is the core of Meldy: «Сегодня», «Экзамены», «Лекции», «Повторение» (with the mistakes
  * diary) and «Прогресс» (with the knowledge map). The window scrolls (not <main>), so a page opens at
  * its top and «назад» returns to where it was.
@@ -192,10 +193,22 @@ function NavCount({ value }: { value: number | null }) {
   );
 }
 
-const THEME_CHOICES: Array<{ value: 'light' | 'dark' | 'system'; label: string }> = [
+/** The same count on the phone tab: a small badge on the icon, «99+» above 99. */
+function TabCount({ value }: { value: number | null }) {
+  if (!value) return null;
+  return (
+    <>
+      {' '}
+      <span className="sf-tab-n">{value > 99 ? '99+' : value}</span>
+    </>
+  );
+}
+
+// One word each, so the three fit one row of the menu: «Системная» follows the device's setting.
+const THEME_CHOICES: Array<{ value: 'light' | 'dark' | 'system'; label: string; hint?: string }> = [
   { value: 'light', label: 'Светлая' },
   { value: 'dark', label: 'Тёмная' },
-  { value: 'system', label: 'Как в системе' },
+  { value: 'system', label: 'Системная', hint: 'Как в настройках устройства' },
 ];
 
 export default function Layout() {
@@ -335,7 +348,12 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
     <div ref={menuRef} id={menuId} className="sf-acct" role="dialog" aria-label="Меню аккаунта" tabIndex={-1}>
       <div className="sf-acct-who">
         {name ? <p className="sf-acct-name">{name}</p> : null}
-        {email ? <p className="sf-acct-mail">{email}</p> : null}
+        {/* One line with «…» when it is long; the whole address in the tooltip. */}
+        {email ? (
+          <p className="sf-acct-mail" title={email}>
+            {email}
+          </p>
+        ) : null}
       </div>
       <Link className="sf-acct-item" to="/profile">Профиль</Link>
       <button
@@ -353,7 +371,13 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         <span className="sf-acct-label">Тема</span>
         <span className="sf-acct-themes">
           {THEME_CHOICES.map((choice) => (
-            <button key={choice.value} type="button" aria-pressed={theme === choice.value} onClick={() => setTheme(choice.value)}>
+            <button
+              key={choice.value}
+              type="button"
+              aria-pressed={theme === choice.value}
+              title={choice.hint}
+              onClick={() => setTheme(choice.value)}
+            >
               {choice.label}
             </button>
           ))}
@@ -427,10 +451,14 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
             ))}
           </nav>
           <div className="sf-bar-right">
-            {/* On a phone the same link is a round «+» (the words stay for screen readers). */}
+            {/* On a phone the same link is «+ Лекция» (a round «+» where the line is short; the full words stay
+                for screen readers), so it is not taken for the page's own «Новый экзамен +». */}
             <Link className="sf-nav-cta" to="/analyze" aria-current={onAnalyze ? 'page' : undefined} data-guide-spot={spot?.spot === 'cta' ? '' : undefined}>
               <span className="sf-cta-plus" aria-hidden="true" />
               <span className="sf-cta-t">Разобрать лекцию</span>
+              <span className="sf-cta-short" aria-hidden="true">
+                Лекция
+              </span>
             </Link>
             <QuotaMeter
               remaining={remainingUnits}
@@ -495,6 +523,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
                   <Icon strokeWidth={1.9} />
                 </span>
                 <span className="sf-tab-t">{item.label}</span>
+                {item.counter ? <TabCount value={due} /> : null}
               </Link>
             );
           })}

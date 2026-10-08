@@ -4,6 +4,7 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { AI_LIMIT_EVENT, checkAILimit, formatLimitReset, nextLimitReset, remainingUnits, type AILimitInfo } from '../api/limits';
 import { dailyUnits, openProWindow } from '../lib/plans';
 import { track } from '../lib/telemetry';
+import { WITHOUT_UNITS } from '../components/pro/planCopy';
 
 /** «1 единицу», «2 единицы», «5 единиц» (винительный падеж после «расходует»). */
 export function unitsWord(n: number): string {
@@ -51,7 +52,7 @@ export function refusalMessage(info: AILimitInfo): { remaining: number; message:
       message: `${need} на сегодня осталось ${remaining}. Лимит обновится в ${resetAt}.`,
     };
   }
-  return { remaining: 0, message: `Единицы ИИ на сегодня закончились. Лимит обновится в ${resetAt}.` };
+  return { remaining: 0, message: `Единицы ИИ на сегодня закончились. Лимит обновится в ${resetAt}. ${WITHOUT_UNITS}` };
 }
 
 /**
@@ -84,7 +85,9 @@ export function useEnergyConfirm() {
     await showLimitDialog(alert, {
       remaining,
       isPro: status.isPro,
-      message: `${actionName} расходует ${cost} ${unitsWord(cost)}, а на сегодня осталось ${remaining}. Лимит обновится в ${resetAt}.`,
+      message:
+        `${actionName} расходует ${cost} ${unitsWord(cost)}, а на сегодня осталось ${remaining}. Лимит обновится в ${resetAt}.` +
+        (remaining <= 0 ? ` ${WITHOUT_UNITS}` : ''),
     });
     return false;
   };

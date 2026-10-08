@@ -2,7 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
 import { AI_COSTS, dailyUnits, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, PRO_DAILY_UNITS } from '../lib/plans';
-import { unitsPerDay } from './pro/planCopy';
+import { unitsPerDay, WITHOUT_UNITS } from './pro/planCopy';
 
 interface Props {
   isOpen: boolean;
@@ -15,23 +15,53 @@ interface Props {
   onOpenPro?: () => void;
 }
 
-/** What an action costs, with a note under it where the price depends on the size. Numbers: lib/plans.ts. */
-export const LIMIT_COSTS: ReadonlyArray<{ what: string; units: number; note?: string }> = [
+/**
+ * What an action costs, with a note under it where the price depends on the size. Numbers: lib/plans.ts.
+ * Every action that spends units is here; the rarer ones (`more`) sit under «Ещё», so the window stays
+ * as low as the laptop's screen.
+ */
+export const LIMIT_COSTS: ReadonlyArray<{ what: string; units: number; note?: string; more?: true }> = [
   {
     what: 'Анализ лекции',
     units: AI_COSTS.lecture,
     note: `скан PDF — ещё ${AI_COSTS.scanPages} за каждые ${OCR_PAGES_PER_CHARGE} страниц`,
   },
   { what: 'Проверка ответа на билет', units: AI_COSTS.answer },
-  { what: '«Разговор» по лекции', units: AI_COSTS.conversation },
-  { what: '«Поговорить о лекции»', units: AI_COSTS.tutorTurn, note: 'за каждый ответ репетитора' },
-  { what: 'Выжимка лекции', units: AI_COSTS.cheatsheet },
+  { what: 'Пункты ответа к новому вопросу', units: AI_COSTS.answerPoints, note: 'один раз на вопрос' },
   {
     what: 'Сверка списка вопросов',
     units: AI_COSTS.examMapping,
     note: `за каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`,
   },
+  { what: 'Подкаст по лекции', units: AI_COSTS.conversation, note: 'два ведущих обсуждают лекцию' },
+  { what: '«Поговорить о лекции»', units: AI_COSTS.tutorTurn, note: 'за каждый ответ репетитора' },
+  { what: 'Выжимка лекции', units: AI_COSTS.cheatsheet, more: true },
+  { what: 'Схемы к подкасту', units: AI_COSTS.visuals, more: true },
+  { what: 'Работа над ошибками', units: AI_COSTS.mistakesPractice, more: true },
+  { what: 'Оценки по фото', units: AI_COSTS.gradebookScan, more: true },
+  {
+    what: 'Раздел анализа заново',
+    units: AI_COSTS.analysisSection,
+    note: 'раздел, который не получился при анализе, — бесплатно',
+    more: true,
+  },
 ];
+
+function CostRows({ rows }: { rows: ReadonlyArray<(typeof LIMIT_COSTS)[number]> }) {
+  return (
+    <dl className="ac-costs">
+      {rows.map((row) => (
+        <div key={row.what} className="ac-cost">
+          <dt>
+            {row.what}
+            {row.note ? <small>{row.note}</small> : null}
+          </dt>
+          <dd>{row.units}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 /**
  * Окно «Дневной лимит ИИ» (открывается счётчиком в верхней строке): сколько единиц осталось, когда
@@ -97,22 +127,17 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, lim
               {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}
               {isPro ? ` У аккаунта PRO — до ${PRO_DAILY_UNITS} единиц в день.` : ''}
             </p>
+            <p className="ac-modal-p ac-limit-free">{WITHOUT_UNITS}</p>
             {isPro ? null : <p className="ac-limit-pro">С PRO — {unitsPerDay(PRO_DAILY_UNITS)}.</p>}
           </div>
 
           <div className="ac-limit-prices">
             <p className="ac-modal-p ac-costs-h">Единицы списываются, когда Meldy обращается к ИИ:</p>
-            <dl className="ac-costs">
-              {LIMIT_COSTS.map((row) => (
-                <div key={row.what} className="ac-cost">
-                  <dt>
-                    {row.what}
-                    {row.note ? <small>{row.note}</small> : null}
-                  </dt>
-                  <dd>{row.units}</dd>
-                </div>
-              ))}
-            </dl>
+            <CostRows rows={LIMIT_COSTS.filter((row) => !row.more)} />
+            <details className="ac-costs-more">
+              <summary>Ещё: выжимка, схемы, работа над ошибками, оценки по фото</summary>
+              <CostRows rows={LIMIT_COSTS.filter((row) => row.more)} />
+            </details>
             <p className="ac-modal-p ac-costs-back">Если ИИ не справился, единицы возвращаются.</p>
           </div>
 

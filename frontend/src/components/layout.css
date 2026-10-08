@@ -5,6 +5,7 @@
 
 /* ---------------------------------------------------------------- «Добавить лекцию» */
 .sf-cta-plus { display: none; }
+.sf-cta-short { display: none; }
 
 /* ---------------------------------------------------------------- the account menu */
 /* «Что даёт PRO»: a quiet blue line of the same row height. */
@@ -64,6 +65,29 @@
   .sf-shell .sf-bar .sf-cta-plus::after { transform: rotate(90deg); }
   .sf-shell .sf-nav-cta:focus-visible { border-radius: 50%; }
 
+  /* «Повторение» on a phone: the cards due as a small badge on the tab's icon (the top line has the
+     number on a computer). The space before it keeps «Повторение 24» one phrase for screen readers. */
+  .sf-shell .sf-tablink { position: relative; }
+  .sf-shell .sf-tab-n {
+    position: absolute;
+    top: 5px;
+    left: calc(50% + 7px);
+    box-sizing: border-box;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--sf-accent);
+    box-shadow: 0 0 0 2px var(--sf-canvas);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 19px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
   /* «‹ Лист экзамена» gives way first when the line is short (the limit's ring, «+», «?» and the
      avatar keep their size): its word ends with «…», the link stays whole for screen readers. */
   .sf-shell[data-back] .sf-back { flex: 0 1 auto; min-width: 0; }
@@ -114,11 +138,38 @@
   .sf-shell .sf-tablink:focus-visible { outline-offset: -2px; }
   .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom)); }
 }
+/* Where the line has room — a section's own page (the wordmark, not «‹ Родитель») from 360 px — the «+»
+   carries its word, «+ Лекция», so it reads apart from a page's own «Новый экзамен +». On a detail page
+   the back link needs that room, so the «+» stays round. */
+@media (min-width: 360px) and (max-width: 1023px) {
+  .sf-shell:not([data-back]) .sf-bar .sf-nav-cta {
+    display: inline-flex;
+    gap: 6px;
+    width: auto;
+    padding: 0 16px 0 13px;
+    border-radius: 999px;
+  }
+  .sf-shell:not([data-back]) .sf-bar .sf-cta-short {
+    display: inline;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -.01em;
+  }
+  .sf-shell:not([data-back]) .sf-nav-cta:focus-visible { border-radius: 999px; }
+}
+
 /* Phones up to 419 px: the line holds «‹ Родитель» or the wordmark, «+», the limit's ring, «?» and the
    avatar, so the gaps are a little tighter. */
 @media (max-width: 419px) {
   .sf-shell .sf-bar-in { gap: 10px; }
   .sf-shell .sf-bar-right { gap: 8px; }
+}
+/* Under 360 px «?» leaves the line so «‹ Повторение» fits whole; the guide stays in the account menu
+   («Как пользоваться Meldy»). */
+@media (max-width: 359px) {
+  .sf-shell .sf-bar .sf-help { display: none; }
+  .sf-shell .sf-bar-right .sf-help + .sf-me-hit { margin-left: 0; }
 }
 @media (max-width: 374px) {
   .sf-shell .sf-tabbar { padding-left: 2px; padding-right: 2px; gap: 0; }
