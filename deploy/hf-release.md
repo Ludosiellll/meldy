@@ -4,6 +4,11 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-08 — Release 34.1: the exam page's bar on a phone no longer shows «Тянуть билет» for a moment before its real action (from the commit of this entry)
+
+- **The bar waits for the first status.** The live check of release 34 (the video and a watch of the bar every 40 ms) showed, on every opening of an exam on a phone, «Тянуть билет» with «Как на экзамене · изменить» for 40–250 ms (0.7 s in the video), then «Тянуть билет из 4 вопросов» without the line. The page drew its status before the sheet and the answers were read (that loading state dates from release 30). Now the bar keeps its room and stays empty while the first status is read (`pages/ExamDetail.tsx: BAR_WAIT_MS`, `.ex-cta[data-wait]`), and shows «Тянуть билет» after 2 s if the read is slow; a later read (after a run, a retry) leaves the bar in place. Phones and tablets only (the bar); the computer's status block is unchanged.
+- No migrations, frontend only. Verified before release: Vitest 187 files, 3099 tests (two new: the bar waits, the bar shows after 2 s); `tsc -b`; production build; the bar watched on the build with the live data, three openings: «Тянуть билет из 4 вопросов» comes straight after an empty bar of about 0.4 s (on release 34: «Тянуть билет» + the line first, in 3 of 3).
+
 ## 2026-10-08 — Release 34: the app on a phone, decluttered — three things in the top bar, one main action per screen, the rest one tap away (from the commit of this entry)
 
 The owner: «на телефоне очень перегружен интерфейс именно в самом приложении почти везде, надо что-то с этим делать». The 13 main screens were measured on the live site at 390×844 and 360×780 (both themes) with the test account, then five area agents, three critics on the after-shots and two fix rounds. Phones only (`max-width: 639px`; `usePhone()` where the structure differs); the computer and the tablet stay as they were except the list below. Spec: meldy-notes `10_Project/Phone_Declutter_2026-10-08.md`.
