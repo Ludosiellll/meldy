@@ -162,13 +162,14 @@ const DELETE_FAILED = 'Не удалось удалить ошибку. Пров
 
 /**
  * What the practice takes, under its button: «Задания по 5 открытым ошибкам. Расходует 2 единицы дневного лимита ИИ,
- * если задания получились.»; on a phone one short line, «5 ошибок · 2 единицы лимита ИИ» (that a failed set costs
- * nothing is said in the limit window, under the limit in the top line).
+ * если задания получились.»; on a phone one short line, «Задания по 5 ошибкам · 2 единицы лимита ИИ» (that a failed
+ * set costs nothing is said in the limit window, under the limit in the top line). «Задания по» keeps the 5 from
+ * reading as the count of mistakes right under «Открыто 17».
  */
 export function practiceNote(open: number, phone: boolean): string {
   const n = Math.min(open, 5);
   const cost = AI_COSTS.mistakesPractice;
-  if (phone) return `${n} ${pluralRu(n, ['ошибка', 'ошибки', 'ошибок'])} · ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} лимита ИИ`;
+  if (phone) return `Задания по ${n} ${n === 1 ? 'ошибке' : 'ошибкам'} · ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} лимита ИИ`;
   return `Задания по ${n} ${n === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует ${cost} ${pluralRu(cost, ['единицу', 'единицы', 'единиц'])} дневного лимита ИИ, если задания получились.`;
 }
 
@@ -645,10 +646,12 @@ export default function MistakeDiary() {
                   </li>
                 ))}
               </ul>
-              {/* Not on a phone (MistakeDiary.css): the diary reads itself on every visit and when the app comes back to the screen. */}
-              <button type="button" onClick={fetchMistakes} className="md-round" title="Обновить" aria-label="Обновить">
-                <RefreshCw aria-hidden="true" />
-              </button>
+              {/* Not on a phone: the diary reads itself on every visit and when the app comes back to the screen. */}
+              {phone ? null : (
+                <button type="button" onClick={fetchMistakes} className="md-round" title="Обновить" aria-label="Обновить">
+                  <RefreshCw aria-hidden="true" />
+                </button>
+              )}
             </div>
           ) : null}
 

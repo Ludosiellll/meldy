@@ -10,7 +10,7 @@
    title has the whole column, at a size for long lecture titles, and nothing changes between tabs. */
 
 /* ---------------------------------------------------------------- header */
-.md-head { padding-top: 32px; }
+:where(.md-page) .md-head { padding-top: 32px; }
 
 .md-crumb {
   display: inline-flex;
@@ -41,7 +41,7 @@ html[data-stage] .md-crumb { display: none; }
 /* A size for long lecture titles (44 px on a laptop, the language's smallest page title), across the whole
    column, so «Язык SQL: SELECT, соединения, подзапросы и агрегатные функции» is one line at 1532. Two lines share
    the words evenly. (0,3,0) beats the kit's .dark .sf-h1-serif. */
-.md-head .md-title.sf-h1-serif {
+:where(.md-page) .md-head .md-title.sf-h1-serif {
   max-width: none;
   margin: 0;
   font-size: clamp(32px, 2.9vw, 44px);
@@ -51,9 +51,9 @@ html[data-stage] .md-crumb { display: none; }
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
-.md-head .md-meta { margin-top: 10px; font-size: 17px; line-height: 1.45; }
-.md-head .sf-inline-edit { margin-top: 6px; }
-.md-head .sf-inline-edit .sf-input { border-radius: 16px; }
+:where(.md-page) .md-head .md-meta { margin-top: 10px; font-size: 17px; line-height: 1.45; }
+:where(.md-page) .md-head .sf-inline-edit { margin-top: 6px; }
+:where(.md-page) .md-head .sf-inline-edit .sf-input { border-radius: 16px; }
 
 /* ---------------------------------------------------------------- the tabs and the actions */
 /* The modes on the left, the lecture's actions on the right of the same row; a narrow window puts the actions on
@@ -66,9 +66,9 @@ html[data-stage] .md-crumb { display: none; }
   gap: 12px 24px;
   margin-top: 24px;
 }
-.md-tabs.sf-viewtabs { flex: none; margin: 0; padding: 4px; }
-.md-tabs.sf-viewtabs [role='tab'] { min-height: 44px; padding: 0 22px; font-size: 16px; }
-.md-acts { flex-wrap: wrap; gap: 10px; }
+:where(.md-page) .md-tabs.sf-viewtabs { flex: none; margin: 0; padding: 4px; }
+:where(.md-page) .md-tabs.sf-viewtabs [role='tab'] { min-height: 44px; padding: 0 22px; font-size: 16px; }
+:where(.md-page) .md-acts { flex-wrap: wrap; gap: 10px; }
 /* The meta line's place on a low window (below); elsewhere it is under the title. */
 .md-toolbar-meta { display: none; }
 
@@ -84,7 +84,7 @@ html[data-stage] .md-crumb { display: none; }
 }
 .md-pill.sf-secondary:hover { border: 0; box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
 .md-pill-back.sf-secondary { padding: 6px 22px 6px 6px; }
-.md-dot {
+:where(.md-page) .md-dot {
   flex: none;
   display: grid;
   place-items: center;
@@ -95,12 +95,12 @@ html[data-stage] .md-crumb { display: none; }
   color: var(--sf-canvas);
   transition: transform .7s var(--m-ease);
 }
-.md-dot svg { width: 18px; height: 18px; }
+:where(.md-page) .md-dot svg { width: 18px; height: 18px; }
 .md-pill:hover .md-dot { transform: translateX(4px); }
 .md-pill-back:hover .md-dot { transform: translateX(-4px); }
 
 /* «⋯»: a round white button with a ring (the prototype's .round). */
-.md-round.sf-more {
+:where(.md-page) .md-round.sf-more {
   width: 52px;
   height: 52px;
   background: var(--sf-surface);
@@ -108,9 +108,9 @@ html[data-stage] .md-crumb { display: none; }
   color: var(--sf-ink);
   transition: background-color .4s var(--m-ease), box-shadow .6s var(--m-ease);
 }
-.md-round.sf-more:hover,
-.md-round.sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
-.md-round.sf-more svg { width: 22px; height: 22px; }
+:where(.md-page) .md-round.sf-more:hover,
+:where(.md-page) .md-round.sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
+:where(.md-page) .md-round.sf-more svg { width: 22px; height: 22px; }
 .md-menu.sf-menu { top: calc(100% + 8px); right: 0; min-width: 270px; max-width: min(320px, calc(100vw - 32px)); }
 
 /* A small blue pill (Сохранить in the rename and subject fields). */
@@ -198,7 +198,7 @@ html[data-stage] .md-crumb { display: none; }
   to { background-position: 0 0; }
 }
 
-.md-state.sf-state {
+:where(.md-page) .md-state.sf-state {
   max-width: 560px;
   margin-top: 56px;
   padding: 40px 44px 44px;
@@ -215,10 +215,10 @@ html[data-stage] .md-crumb { display: none; }
    smaller. The same on every tab: «Подкаст» fits its sheet, subtitle and player under it without scrolling
    (conversation.css: 100vh − 476 for the sheet with a two-line title). */
 @media (min-width: 1024px) and (max-height: 780px) {
-  .md-head { padding-top: 18px; }
+  :where(.md-page) .md-head { padding-top: 18px; }
   .md-crumb { display: none; }
-  .md-head .md-title.sf-h1-serif { font-size: clamp(30px, 2.4vw, 36px); line-height: 1.1; }
-  .md-head .md-meta {
+  :where(.md-page) .md-head .md-title.sf-h1-serif { font-size: clamp(30px, 2.4vw, 36px); line-height: 1.1; }
+  :where(.md-page) .md-head .md-meta {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -242,10 +242,10 @@ html[data-stage] .md-crumb { display: none; }
     -webkit-line-clamp: 2;
     line-clamp: 2;
   }
-  .md-tabs.sf-viewtabs { padding: 2px; }
-  .md-acts .md-pill.sf-secondary { min-height: 48px; padding: 4px 4px 4px 20px; }
-  .md-acts .md-dot { width: 36px; height: 36px; }
-  .md-round.sf-more { width: 48px; height: 48px; }
+  :where(.md-page) .md-tabs.sf-viewtabs { padding: 2px; }
+  :where(.md-page) .md-acts .md-pill.sf-secondary { min-height: 48px; padding: 4px 4px 4px 20px; }
+  :where(.md-page) .md-acts .md-dot { width: 36px; height: 36px; }
+  :where(.md-page) .md-round.sf-more { width: 48px; height: 48px; }
 }
 /* ---------------------------------------------------------------- one row of tabs (phones) */
 /* 10_Project/Phone_Declutter_2026-10-08, «Лекция»: «Конспект · Карточки 6 · Тест 5 · Подкаст» in one row of quiet
@@ -315,40 +315,40 @@ html[data-stage] .md-crumb { display: none; }
 }
 
 @media (max-width: 639px) {
-  .md-head { padding-top: 16px; }
-  .md-head .md-title.sf-h1-serif { font-size: 28px; line-height: 1.14; letter-spacing: -.028em; }
-  .md-head .md-meta { margin-top: 8px; font-size: 15px; line-height: 1.4; }
+  :where(.md-page) .md-head { padding-top: 16px; }
+  :where(.md-page) .md-head .md-title.sf-h1-serif { font-size: 28px; line-height: 1.14; letter-spacing: -.028em; }
+  :where(.md-page) .md-head .md-meta { margin-top: 8px; font-size: 15px; line-height: 1.4; }
   /* The compact phone header: «Поговорить о лекции» and «⋯» on one row above the tabs; «Повторить карточки» is
      the bar at the bottom. A lecture with «⋯» alone (someone else's: «Экспорт…») keeps it on the right. */
   .md-toolbar { gap: 12px; margin-top: 16px; }
-  .md-acts { order: -1; width: 100%; flex-wrap: nowrap; gap: 8px; }
-  .md-acts:not(:has(.md-talk)) { justify-content: flex-end; }
+  :where(.md-page) .md-acts { order: -1; width: 100%; flex-wrap: nowrap; gap: 8px; }
+  :where(.md-page) .md-acts:not(:has(.md-talk)) { justify-content: flex-end; }
   /* The panel under the one row: the results' notes and the white sheet come closer. */
   .md-panel .rp-head { padding-top: 14px; }
   .md-panel .rp-body { padding-top: 16px; }
   /* «⋯» rows are 44 px targets on a phone, as in «Ещё» (MoreMenu). */
   .md-menu.sf-menu button { min-height: 44px; }
   /* On «Подкаст» the bar gives the bottom of the screen to the player: the review is a tab away. */
-  .md-acts .md-review { display: none; }
-  .md-acts .md-pill.sf-secondary { flex: 1 1 auto; justify-content: space-between; min-height: 48px; padding: 4px 4px 4px 18px; font-size: 16px; }
-  .md-round.sf-more { flex: none; width: 48px; height: 48px; }
-  .md-tabs.sf-viewtabs [role='tab'] { padding: 0 16px; font-size: 15px; }
+  :where(.md-page) .md-acts .md-review { display: none; }
+  :where(.md-page) .md-acts .md-pill.sf-secondary { flex: 1 1 auto; justify-content: space-between; min-height: 48px; padding: 4px 4px 4px 18px; font-size: 16px; }
+  :where(.md-page) .md-round.sf-more { flex: none; width: 48px; height: 48px; }
+  :where(.md-page) .md-tabs.sf-viewtabs [role='tab'] { padding: 0 16px; font-size: 15px; }
   .md-panel > .cv,
   .md-panel > .xp-sheet,
   .md-panel > .xp-empty { margin-top: 16px; }
   .md-skel-card { padding: 30px 22px; border-radius: 36px; }
-  .md-state.sf-state { margin-top: 32px; padding: 28px 22px 30px; border-radius: 32px; }
+  :where(.md-page) .md-state.sf-state { margin-top: 32px; padding: 28px 22px 30px; border-radius: 32px; }
 }
 @media (max-width: 360px) {
-  .md-head .md-title.sf-h1-serif { font-size: 26px; }
-  .md-acts .md-pill.sf-secondary { padding-left: 14px; font-size: 15px; }
+  :where(.md-page) .md-head .md-title.sf-h1-serif { font-size: 26px; }
+  :where(.md-page) .md-acts .md-pill.sf-secondary { padding-left: 14px; font-size: 15px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .md-crumb,
   .md-crumb svg,
-  .md-dot,
-  .md-round.sf-more,
+  :where(.md-page) .md-dot,
+  :where(.md-page) .md-round.sf-more,
   .md-small-pill { transition: none; }
   .md-crumb:hover svg,
   .md-pill:hover .md-dot,

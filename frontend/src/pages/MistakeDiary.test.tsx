@@ -508,14 +508,14 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
     expect(await screen.findByText('Нажмите на строку — откроется ответ.')).toBeInTheDocument();
     expect(screen.queryByText(/Ошибки из тестов и ответов на билеты/)).toBeNull();
-    expect(await screen.findByText('2 ошибки · 2 единицы лимита ИИ')).toBeInTheDocument();
-    // «Обновить» stays in the page for a computer; a phone does not draw it (MistakeDiary.css).
-    expect(screen.getByRole('button', { name: 'Обновить' })).toHaveClass('md-round');
+    expect(await screen.findByText('Задания по 2 ошибкам · 2 единицы лимита ИИ')).toBeInTheDocument();
+    // A phone does not draw «Обновить»: the diary reads itself when the app comes back to the screen.
+    expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();
   });
 
   it('words the price on a phone and on a computer', () => {
-    expect(practiceNote(17, true)).toBe('5 ошибок · 2 единицы лимита ИИ');
-    expect(practiceNote(1, true)).toBe('1 ошибка · 2 единицы лимита ИИ');
+    expect(practiceNote(17, true)).toBe('Задания по 5 ошибкам · 2 единицы лимита ИИ');
+    expect(practiceNote(1, true)).toBe('Задания по 1 ошибке · 2 единицы лимита ИИ');
     expect(practiceNote(17, false)).toBe('Задания по 5 открытым ошибкам. Расходует 2 единицы дневного лимита ИИ, если задания получились.');
     expect(practiceNote(1, false)).toBe('Задания по 1 открытой ошибке. Расходует 2 единицы дневного лимита ИИ, если задания получились.');
   });

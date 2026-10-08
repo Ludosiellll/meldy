@@ -18,7 +18,7 @@
 .md-alert { margin: 12px 0 0; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--sf-ink); }
 
 /* ---------------------------------------------------------------- the summary card */
-.md-head { max-width: 900px; }
+:where(.md) .md-head { max-width: 900px; }
 .md-summary {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -52,7 +52,7 @@
 }
 .md .md-tabs button { min-height: 42px; padding: 0 18px; white-space: nowrap; }
 .md .md-tabs button:focus-visible { outline-offset: 1px; }
-.md-round {
+:where(.md) .md-round {
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -66,13 +66,13 @@
   cursor: pointer;
   transition: border-color .3s ease, transform .7s var(--m-ease);
 }
-.md-round:hover { border-color: var(--sf-ink); }
-.md-round:hover svg { transform: rotate(60deg); }
-.md-round svg { width: 18px; height: 18px; transition: transform .7s var(--m-ease); }
+:where(.md) .md-round:hover { border-color: var(--sf-ink); }
+:where(.md) .md-round:hover svg { transform: rotate(60deg); }
+:where(.md) .md-round svg { width: 18px; height: 18px; transition: transform .7s var(--m-ease); }
 
 /* ---------------------------------------------------------------- the list */
 .md-loading { padding: 28px 4px; }
-.md-state { margin-top: 18px; padding: 32px 36px 34px; }
+:where(.md) .md-state { margin-top: 18px; padding: 32px 36px 34px; }
 .md-state-act { margin-top: 18px; }
 .md-empty { text-align: center; }
 .md-empty .md-text { margin-top: 8px; }
@@ -80,7 +80,7 @@
 /* One column that never grows past the page: an opened row's actions used to widen every row at 320. */
 .md-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
 /* A diary that never had a mistake has no figures and no filters: its card keeps the summary's distance. */
-.md-head + .md-card { margin-top: 36px; }
+:where(.md) .md-head + .md-card { margin-top: 36px; }
 .md-item {
   border-radius: 28px;
   background: var(--sf-surface);
@@ -105,9 +105,9 @@
   text-align: left;
   cursor: pointer;
 }
-.md-dot { width: 12px; height: 12px; margin-top: 7px; border-radius: 50%; }
-.md-dot[data-tone='open'] { background: var(--m-pink); }
-.md-dot[data-tone='resolved'] { background: var(--m-green); }
+:where(.md) .md-dot { width: 12px; height: 12px; margin-top: 7px; border-radius: 50%; }
+:where(.md) .md-dot[data-tone='open'] { background: var(--m-pink); }
+:where(.md) .md-dot[data-tone='resolved'] { background: var(--m-green); }
 .md-main { display: grid; gap: 4px; min-width: 0; }
 .md-q {
   display: -webkit-box;
@@ -120,7 +120,7 @@
   letter-spacing: -.012em;
   overflow-wrap: anywhere;
 }
-.md-meta { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+:where(.md) .md-meta { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 /* An opened row shows its whole title. */
 .md-item[data-open] .md-q { display: block; -webkit-line-clamp: unset; }
 .md-chev {
@@ -169,7 +169,7 @@
 .md-group .md-q { font-size: 17px; line-height: 25px; font-weight: 400; letter-spacing: 0; }
 .md-group .md-dot { margin-top: 7px; }
 .md-group .md-chev { margin-top: -4px; }
-.md-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 6px; }
+:where(.md) .md-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 6px; }
 .md-act { gap: 8px; }
 .md-act svg,
 .md-del svg { width: 18px; height: 18px; flex: none; }
@@ -259,9 +259,6 @@
   .md-summary { margin-top: 26px; }
   .md-figs { gap: 12px 36px; }
   .md-bar { margin-top: 26px; }
-  /* No «Обновить» on a phone (10_Project/Phone_Declutter_2026-10-08): the diary reads itself on every visit and when
-     the app comes back to the screen (MistakeDiary.tsx). */
-  .md-round { display: none; }
   .md .md-tabs { flex-wrap: nowrap; min-width: 0; }
   .md .md-tabs button { min-height: 44px; padding: 0 12px; }
   .md-row { grid-template-columns: 10px minmax(0, 1fr) 36px; column-gap: 12px; padding: 16px 12px 16px 18px; border-radius: 24px; }
@@ -271,9 +268,9 @@
   .md-group-q { font-size: 17px; line-height: 24px; }
   .md-group .md-row { padding-top: 12px; padding-bottom: 12px; }
   .md-group .md-q { font-size: 16px; line-height: 24px; }
-  .md-dot { width: 10px; height: 10px; }
+  :where(.md) .md-dot { width: 10px; height: 10px; }
   .md-q { font-size: 17px; line-height: 24px; }
-  .md-meta { font-size: 14px; line-height: 20px; }
+  :where(.md) .md-meta { font-size: 14px; line-height: 20px; }
   .md-chev { width: 36px; height: 36px; margin-top: -5px; }
   .md-detail { padding: 0 16px 18px; }
   .md-ans { border-radius: 18px; padding: 14px 16px 16px; }
@@ -285,7 +282,7 @@
   .md-done { padding: 28px 22px 30px; }
   .md-next .sf-primary,
   .md-done-acts .sf-primary { width: 100%; }
-  .md-state { padding: 26px 22px 28px; }
+  :where(.md) .md-state { padding: 26px 22px 28px; }
 }
 
 /* The narrowest phones: the three filters share the row with «Обновить» (they ran 66 px past their rail
@@ -295,18 +292,18 @@
   .md .md-tabs { flex: 1 1 auto; gap: 2px; }
   .md .md-tabs li { flex: 1 1 auto; }
   .md .md-tabs button { width: 100%; padding: 0 6px; font-size: 13.5px; }
-  .md-round { width: 44px; height: 44px; }
+  :where(.md) .md-round { width: 44px; height: 44px; }
   .md-act { height: auto; min-height: 44px; padding-top: 8px; padding-bottom: 8px; white-space: normal; text-align: left; line-height: 1.25; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .md-item,
   .md-chev,
-  .md-round,
-  .md-round svg,
+  :where(.md) .md-round,
+  :where(.md) .md-round svg,
   .md-opt,
   .md-progress i,
   .md-del { transition: none; }
   .md-item:hover,
-  .md-round:hover svg { transform: none; }
+  :where(.md) .md-round:hover svg { transform: none; }
 }
