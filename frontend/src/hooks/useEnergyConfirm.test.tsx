@@ -154,7 +154,7 @@ describe('verifyEnergy', () => {
     const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
     h.check.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     const host = renderHookHost();
-    await host.verify('user-1', 5, 'Разговор');
+    await host.verify('user-1', 5, 'Подкаст');
     expect(getItem).not.toHaveBeenCalledWith('studyforge_hide_energy_confirm');
     expect(removeItem).not.toHaveBeenCalled();
     expect(h.alert).toHaveBeenCalledTimes(1); // флаг больше не прячет сообщение о нехватке

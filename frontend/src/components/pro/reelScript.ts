@@ -47,7 +47,7 @@ export const CHIP_WORD: Partial<Record<AICostKind, string>> = {
   lecture: 'Лекция',
   answer: 'Ответ',
   examMapping: 'Сверка',
-  conversation: 'Разговор',
+  conversation: 'Подкаст',
 };
 
 /** «Лекция −20» (a real minus). */
@@ -204,7 +204,7 @@ export const PRO_REEL: AuthScript = {
   transcript: [
     'Сессия. Сто вопросов к экзамену.',
     `Бесплатно — ${units(FREE_DAILY_UNITS)} ИИ в день. Лекция: минус ${AI_COSTS.lecture}, ответ: минус ${AI_COSTS.answer}. Счётчик доходит до ${FREE_LEFT}: «Дневной лимит исчерпан».`,
-    `С PRO — ${units(PRO_DAILY_UNITS)} в день: билет за билетом проверяется, список из ${SESSION_QUESTIONS} вопросов сверяется с лекциями, играет разговор, а на счётчике ещё ${PRO_LEFT}.`,
+    `С PRO — ${units(PRO_DAILY_UNITS)} в день: билет за билетом проверяется, список из ${SESSION_QUESTIONS} вопросов сверяется с лекциями, играет подкаст, а на счётчике ещё ${PRO_LEFT}.`,
     'Готовьтесь, сколько нужно. Meldy.',
   ],
 };

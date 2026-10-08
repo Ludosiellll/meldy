@@ -573,7 +573,7 @@ export default function Gradebook() {
               {sub.avg > 0 && sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) && (
                 <div className="gb-warn">
                   <AlertTriangle aria-hidden="true" />
-                  <span>Средний балл ниже цели. Повторите последнюю тему: карточки, тест или разговор по материалу.</span>
+                  <span>Средний балл ниже цели. Повторите последнюю тему: карточки, тест или подкаст по материалу.</span>
                 </div>
               )}
             </div>

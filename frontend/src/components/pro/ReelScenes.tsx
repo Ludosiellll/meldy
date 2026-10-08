@@ -473,7 +473,7 @@ function Pro() {
           </div>
           <div className="pr-panel pr-panel--3">
             <div className="fm-card pr-talk">
-              <p className="pr-talk-c">Разговор · Эластичность спроса</p>
+              <p className="pr-talk-c">Подкаст · Эластичность спроса</p>
               <p className="pr-talk-who">Софья</p>
               <p className="pr-talk-line">
                 {TALK_WORDS.map((word, index) => (

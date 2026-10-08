@@ -18,6 +18,7 @@ import '../styles/paper.css';
 import './Review.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { stripSourceMarkers } from '../components/summary/fragmentModel';
+import { repairMathEscapes } from '../lib/mathEscapes';
 import { countBucket, track } from '../lib/telemetry';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { sessionTotalWords } from '../lib/learning/cardCounts';
@@ -724,7 +725,7 @@ export default function Review() {
               >
                 <p className={followUp ? 'rv-chip' : 'rv-label'}>{followUp ? 'Вопрос экзаменатора' : title ?? 'Вопрос'}</p>
                 <div className={`${PAPER_MD} rv-q`} data-long={longQuestion ? '' : undefined}>
-                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{stripSourceMarkers(card.question)}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{repairMathEscapes(stripSourceMarkers(card.question))}</ReactMarkdown>
                 </div>
               </section>
               <section
@@ -737,7 +738,7 @@ export default function Review() {
                 <p className="rv-label">Ответ</p>
                 {flipped ? (
                   <div className={`${PAPER_MD} rv-a`} data-long={longAnswer ? '' : undefined}>
-                    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{stripSourceMarkers(card.answer)}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{repairMathEscapes(stripSourceMarkers(card.answer))}</ReactMarkdown>
                   </div>
                 ) : null}
                 {note ? <p className="sf-pnote rv-source">{note}</p> : null}

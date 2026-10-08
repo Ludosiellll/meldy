@@ -189,7 +189,7 @@ export function lectureMeta(material: Pick<LectureDetail, 'summary_json' | 'flas
   if (cards > 0) parts.push(`${cards} ${pluralRu(cards, CARD_FORMS)}`);
   const quiz = isRecord(material.quiz_json) && Array.isArray(material.quiz_json.quiz) ? material.quiz_json.quiz.length : 0;
   if (quiz > 0) parts.push('тест');
-  if (Array.isArray(summary.podcast) && summary.podcast.length > 0) parts.push('разговор');
+  if (Array.isArray(summary.podcast) && summary.podcast.length > 0) parts.push('подкаст');
   return parts.join(' · ');
 }
 

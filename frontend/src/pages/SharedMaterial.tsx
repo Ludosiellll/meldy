@@ -10,6 +10,7 @@ import '../styles/paper.css';
 import './SharedMaterial.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { stripSourceMarkers } from '../components/summary/fragmentModel';
+import { repairMathEscapes } from '../lib/mathEscapes';
 import { displayCheatsheet } from '../utils/cheatsheetDisplay';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 
@@ -181,7 +182,7 @@ export default function SharedMaterial() {
           <article className="shm-card">
             <p className="shm-kicker">Выжимка</p>
             <div className="shm-md">
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{displayCheatsheet(stripSourceMarkers(cheatsheet))}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{displayCheatsheet(repairMathEscapes(stripSourceMarkers(cheatsheet)))}</ReactMarkdown>
             </div>
           </article>
         ) : (
@@ -189,7 +190,7 @@ export default function SharedMaterial() {
             {/* The fragment marks «[S02]» are internal ids: a reader of the link never sees them. */}
             <div className="shm-md">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                {stripSourceMarkers(extractCleanContent(material.summary_json)) || 'У этого материала пока нет конспекта.'}
+                {repairMathEscapes(stripSourceMarkers(extractCleanContent(material.summary_json))) || 'У этого материала пока нет конспекта.'}
               </ReactMarkdown>
             </div>
           </article>

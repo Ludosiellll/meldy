@@ -36,6 +36,11 @@ vi.mock('./api/materials', () => ({
 }));
 const shelves = vi.hoisted(() => ({ list: [] as unknown[] }));
 vi.mock('./api/exams', () => ({ listExamShelves: vi.fn(async () => shelves.list) }));
+// «Лекции» also counts the cards from ticket answers; here none, and no request leaves the test.
+vi.mock('./lib/followupCards', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./lib/followupCards')>()),
+  followupCardsByLecture: vi.fn(async () => new Map()),
+}));
 vi.mock('./contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => false) }));
 
 import App from './App';
@@ -190,7 +195,7 @@ describe('library', () => {
     expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-1');
     const rows = screen.getAllByRole('listitem');
     expect(rows.map((row) => within(row).getByRole('link').getAttribute('href'))).toEqual(['/library/m-1', '/library/m-2']);
-    expect(within(rows[0]).getByText('конспект · 2 карточки · тест · разговор')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('конспект · 2 карточки · тест · подкаст')).toBeInTheDocument();
     expect(container.innerHTML).not.toMatch(/uppercase|tracking-wider|Только для меня|Пакетный выбор|Статистика/);
     expect(screen.queryByText('Экономика')).toBeNull();
   });

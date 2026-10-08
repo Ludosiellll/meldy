@@ -9,6 +9,7 @@ import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
 import { stripSourceMarkers } from './summary/fragmentModel';
+import { repairMathEscapes } from '../lib/mathEscapes';
 import { displayCheatsheet } from '../utils/cheatsheetDisplay';
 import { ConversationError, postJson, saveCheatsheet } from './conversation/persistence';
 import { runJob, useJobStatus } from './conversation/jobs';
@@ -122,7 +123,7 @@ export default function ExpressPrepView({
         </header>
         <div className="xp-md">
           <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-            {displayCheatsheet(stripSourceMarkers(cheatsheet))}
+            {displayCheatsheet(repairMathEscapes(stripSourceMarkers(cheatsheet)))}
           </ReactMarkdown>
         </div>
       </article>

@@ -1090,7 +1090,7 @@ describe('«Сегодня»: below the desk', () => {
     const rows = within(section).getAllByRole('listitem');
     expect(rows).toHaveLength(4);
     expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/library/m1');
-    expect(within(rows[0]).getByText(byText('конспект · 8 карточек · тест · разговор'))).toBeInTheDocument();
+    expect(within(rows[0]).getByText(byText('конспект · 8 карточек · тест · подкаст'))).toBeInTheDocument();
     expect(within(rows[1]).getByText('только текст, конспекта нет')).toBeInTheDocument();
     expect(within(section).getByRole('link', { name: named('Все 5') })).toHaveAttribute('href', '/library');
     // The four latest with their details; the first step asks for one lecture with text at most.
@@ -1169,7 +1169,7 @@ describe('«Сегодня»: below the desk', () => {
   });
 
   it('describes a lecture as the Library does and notes missing cards only when they exist', () => {
-    expect(lectureMeta(LECTURES[0])).toBe('конспект · 8 карточек · тест · разговор');
+    expect(lectureMeta(LECTURES[0])).toBe('конспект · 8 карточек · тест · подкаст');
     expect(lectureMeta(LECTURES[1])).toBe('только текст, конспекта нет');
     expect(lectureMeta({ summary_json: null, flashcards_json: null, quiz_json: null })).toBe('');
     const inReview = new Set(['m1']);

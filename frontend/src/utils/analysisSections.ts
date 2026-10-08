@@ -25,7 +25,7 @@ export const SECTION_LABELS: Record<SectionName, string> = {
   flashcards: 'Карточки',
   quiz: 'Тест',
   cheatsheet: 'Выжимка',
-  podcast: 'Разговор',
+  podcast: 'Подкаст',
 };
 
 /** «Готовим конспект, карточки и тест»: формы для перечня. */
@@ -34,7 +34,7 @@ export const SECTION_ACCUSATIVE: Record<SectionName, string> = {
   flashcards: 'карточки',
   quiz: 'тест',
   cheatsheet: 'выжимку',
-  podcast: 'разговор',
+  podcast: 'подкаст',
 };
 
 const FAILED_VERB: Record<SectionName, string> = {

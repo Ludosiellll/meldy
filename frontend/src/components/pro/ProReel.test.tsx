@@ -94,7 +94,7 @@ describe('the numbers of the reel come from lib/plans.ts', () => {
     expect(proMeterAt(PRO_TIMES.fill + PRO_TIMES.fillFor)).toBe(PRO_DAILY_UNITS);
     // A list of 100 questions is checked at 10 units per started 40: 30.
     expect(LIST_CHECK_COST).toBe(30);
-    expect(PRO_SPENDS.map(chipText)).toEqual(['Ответ −4', 'Ответ −4', 'Ответ −4', 'Ответ −4', 'Сверка −30', 'Разговор −5']);
+    expect(PRO_SPENDS.map(chipText)).toEqual(['Ответ −4', 'Ответ −4', 'Ответ −4', 'Ответ −4', 'Сверка −30', 'Подкаст −5']);
     expect(PRO_LEFT).toBe(PRO_DAILY_UNITS - 4 * AI_COSTS.answer - 30 - AI_COSTS.conversation);
     expect(proMeterAt(PRO_TIMES.leave)).toBe(PRO_LEFT);
     for (const spend of PRO_SPENDS) expect(spend.lands).toBeLessThan(PRO_TIMES.leave);
