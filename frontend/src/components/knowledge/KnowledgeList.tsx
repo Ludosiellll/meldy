@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { seedFrom } from '../marks';
 import { cardNoteWords, count, inLectures, questionWords, CONCEPTS } from './copy';
 import { conceptNode, lectureNode, normalizeQuery, type MapConcept, type MapLecture, type MapView, type NodeId } from './model';
@@ -15,6 +15,11 @@ interface ListProps {
   query: string;
   onSelect: (node: NodeId) => void;
   registerNode: (node: NodeId, element: HTMLButtonElement | null) => void;
+  /**
+   * Which concepts are shown and the way to all of them («Все понятия (13)»), at the head of the concepts. A phone
+   * puts it here, after the lectures it is not about; a computer has it over the list.
+   */
+  conceptsNote?: ReactNode;
 }
 
 const LectureRow = memo(function LectureRow({
@@ -91,7 +96,7 @@ const ConceptRow = memo(function ConceptRow({
   );
 });
 
-export default function KnowledgeList({ view, selected, query, onSelect, registerNode }: ListProps) {
+export default function KnowledgeList({ view, selected, query, onSelect, registerNode, conceptsNote }: ListProps) {
   const needle = normalizeQuery(query);
   const matches = (text: string) => !needle || normalizeQuery(text).includes(needle);
   const shared = view.concepts.filter((concept) => concept.lectureIds.length > 1 && matches(concept.label));
@@ -129,9 +134,11 @@ export default function KnowledgeList({ view, selected, query, onSelect, registe
           ))}
         </section>
       ) : null}
+      {conceptsNote && !shared.length && !single.length ? <div className="km-list-note">{conceptsNote}</div> : null}
       {shared.length > 0 ? (
         <section aria-label="Общие понятия">
           <h2 className="km-list-h">Общие понятия</h2>
+          {conceptsNote ? <div className="km-list-note">{conceptsNote}</div> : null}
           <ul className="km-rows">
             {shared.map((concept) => (
               <ConceptRow key={concept.key} concept={concept} view={view} selected={selected === conceptNode(concept.key)} onSelect={onSelect} registerNode={registerNode} />
@@ -142,6 +149,7 @@ export default function KnowledgeList({ view, selected, query, onSelect, registe
       {single.length > 0 ? (
         <section aria-label="Понятия одной лекции">
           <h2 className="km-list-h">{shared.length > 0 ? 'Понятия одной лекции' : 'Понятия'}</h2>
+          {conceptsNote && shared.length === 0 ? <div className="km-list-note">{conceptsNote}</div> : null}
           <ul className="km-rows">
             {single.map((concept) => (
               <ConceptRow key={concept.key} concept={concept} view={view} selected={selected === conceptNode(concept.key)} onSelect={onSelect} registerNode={registerNode} />

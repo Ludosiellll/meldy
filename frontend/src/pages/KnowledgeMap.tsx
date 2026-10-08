@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useFrame } from '../components/exams/useFrame';
 import { Mark, seedFrom } from '../components/marks';
@@ -7,7 +9,7 @@ import KnowledgeCanvas, { mapLabel, sheetHeight, type LitState } from '../compon
 import KnowledgeLegend from '../components/knowledge/KnowledgeLegend';
 import KnowledgeList from '../components/knowledge/KnowledgeList';
 import { KnowledgePanel, MapGuide } from '../components/knowledge/KnowledgePanel';
-import { count, examLine, CONCEPTS, LECTURES, NBSP, SHARED } from '../components/knowledge/copy';
+import { count, examLine, examShort, CONCEPTS, LECTURES, NBSP, SHARED } from '../components/knowledge/copy';
 import { cardsAcross, layoutMap } from '../components/knowledge/layout';
 import {
   buildKnowledgeBase,
@@ -63,6 +65,10 @@ export function sharedChoiceLine(shown: { shared: number; weak: number }): strin
  * lectures they were found in, with the exam sheet's readiness marks; open mistakes and due cards are
  * noted on the cards. Hover or focus lights a node's neighbourhood, a click opens it on a sheet beside
  * the map. A list says the same in words (the phone's first view and the screen reader's). Read-only.
+ *
+ * On a phone (10_Project/Phone_Declutter_2026-10-08) the meta is one line, the exam sheet is reached from
+ * «Экзамены» (no «Лист экзамена» here), the exam, «Карта · Списком» and the search share one row (the search
+ * is a button that opens its field), and the legend folds under «Обозначения».
  */
 
 type Mode = 'map' | 'list';
@@ -124,6 +130,11 @@ export default function KnowledgeMap() {
   const [focused, setFocused] = useState<NodeId | null>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const [query, setQuery] = useState('');
+  /** A phone's search field, opened by its button. */
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchField = useRef<HTMLInputElement | null>(null);
+  const searchButton = useRef<HTMLButtonElement | null>(null);
+  const searchId = useId();
   const nodeRefs = useRef(new Map<NodeId, HTMLButtonElement>());
   const panelHeading = useRef<HTMLHeadingElement | null>(null);
   const openedFrom = useRef<NodeId | null>(null);
@@ -233,10 +244,27 @@ export default function KnowledgeMap() {
     setHighlight(null);
   };
 
+  // A phone's search: the button opens the field and gives it the focus in the same tap (so the keyboard comes up);
+  // pressed again, or Esc in an empty field, it closes the field, clears the search and takes the focus back.
+  const openSearch = () => {
+    flushSync(() => setSearchOpen(true));
+    searchField.current?.focus();
+  };
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setQuery('');
+    window.setTimeout(() => searchButton.current?.focus(), 0);
+  };
+  // Words already typed keep their field in sight (a window that turned from a computer's into a phone's).
+  const searchShown = searchOpen || query !== '';
+
   const onSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape' && query) {
       event.preventDefault();
       setQuery('');
+    } else if (event.key === 'Escape' && phone && searchShown) {
+      event.preventDefault();
+      closeSearch();
     } else if (event.key === 'Enter' && searchHits && searchHits.size > 0) {
       event.preventDefault();
       select([...searchHits][0]);
@@ -300,7 +328,13 @@ export default function KnowledgeMap() {
 
   // ------------------------------------------------------------------ the map
   const exam = view.exam;
-  const lede = exam
+  // A phone: one line, «Экзамен через 13 дней · 3 лекции» (the exam's name is in the choice below, the shared concepts
+  // in the concepts' own line, KnowledgeList).
+  const lede = phone
+    ? [exam ? examShort(exam, now) : '', count(view.lectures.length, LECTURES), !exam && exams.length ? count(exams.length, ['экзамен', 'экзамена', 'экзаменов']) : '']
+        .filter(Boolean)
+        .join(' · ')
+    : exam
     ? [examLine(exam, now), count(view.lectures.length, LECTURES), view.counts.shared ? count(view.counts.shared, SHARED) : 'общих понятий нет'].join(' · ')
     : [
         count(view.lectures.length, LECTURES),
@@ -361,6 +395,16 @@ export default function KnowledgeMap() {
     </div>
   ) : null;
 
+  // The list's line about the concepts; a phone has it at the head of the concepts, after the lectures (KnowledgeList).
+  const conceptsLine = (
+    <p className="km-quiet" style={{ marginBottom: 6 }}>
+      {showAll ? `Показаны все понятия: ${count(view.counts.concepts, CONCEPTS)}. ` : `${ty(sharedChoiceLine(shown))} `}
+      <button type="button" className="sf-link" onClick={() => setShowAll((value) => !value)}>
+        {showAll ? `Только ${sharedChoiceLabel(shown)}` : `Все понятия (${view.counts.concepts})`}
+      </button>
+    </p>
+  );
+
   const noHits = Boolean(query.trim()) && searchHits !== null && searchHits.size === 0 && mode === 'map';
   const panel = selected ? (
     <KnowledgePanel ref={panelHeading} view={view} node={selected} now={now} sheet={!side} onSelect={select} onClose={close} />
@@ -375,7 +419,8 @@ export default function KnowledgeMap() {
           {/* «через 13 дней» and «21 октября» stay whole at the end of a line. */}
           {lede ? <p className="sf-lede">{ty(lede).replace(/через /g, 'через\u00a0').replace(/(\d) (?=[а-яё])/gi, '$1\u00a0')}</p> : null}
         </div>
-        {exam ? (
+        {/* A phone reaches the exam sheet from «Экзамены» (and «Показать на листе» under the map). */}
+        {exam && !phone ? (
           <Link className="sf-secondary" to={`/exams/${exam.id}`}>
             Лист экзамена
           </Link>
@@ -391,53 +436,108 @@ export default function KnowledgeMap() {
         </p>
       ) : null}
 
-      <div className="km-bar">
-        {exams.length > 0 ? (
-          <div className="km-scroll">
-            <ul className="sf-tabs" aria-label="Экзамен">
-              {exams.map((item) => (
-                <li key={item.id}>
-                  <button type="button" aria-pressed={examId === item.id} onClick={() => chooseExam(item.id)}>
+      {phone ? (
+        // One row: the exam (a choice that fits any name), «Карта · Списком», the search button.
+        <>
+          <div className="km-bar km-bar-one">
+            {exams.length > 0 ? (
+              <select className="km-pick" aria-label="Экзамен" value={examId ?? ''} onChange={(event) => chooseExam(event.target.value || null)}>
+                {exams.map((item) => (
+                  <option key={item.id} value={item.id}>
                     {item.title}
-                    <span className="sf-tabs-n">{item.lectureIds.length}</span>
+                  </option>
+                ))}
+                <option value="">Все лекции</option>
+              </select>
+            ) : (
+              <span className="km-pick-none" />
+            )}
+            <ul className="sf-tabs km-view" aria-label="Вид">
+              <li>
+                <button type="button" aria-pressed={mode === 'map'} onClick={() => setMode('map')}>
+                  Карта
+                </button>
+              </li>
+              <li>
+                <button type="button" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>
+                  Списком
+                </button>
+              </li>
+            </ul>
+            <button
+              ref={searchButton}
+              type="button"
+              className="km-find"
+              aria-label="Найти лекцию или понятие"
+              aria-expanded={searchShown}
+              aria-controls={searchShown ? searchId : undefined}
+              onClick={() => (searchShown ? closeSearch() : openSearch())}
+            >
+              <Search aria-hidden="true" strokeWidth={1.9} />
+            </button>
+          </div>
+          {searchShown ? (
+            <input
+              ref={searchField}
+              id={searchId}
+              className="sf-input km-search km-search-open"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKey}
+              placeholder="Найти"
+              aria-label="Найти лекцию или понятие"
+            />
+          ) : null}
+        </>
+      ) : (
+        <div className="km-bar">
+          {exams.length > 0 ? (
+            <div className="km-scroll">
+              <ul className="sf-tabs" aria-label="Экзамен">
+                {exams.map((item) => (
+                  <li key={item.id}>
+                    <button type="button" aria-pressed={examId === item.id} onClick={() => chooseExam(item.id)}>
+                      {item.title}
+                      <span className="sf-tabs-n">{item.lectureIds.length}</span>
+                    </button>
+                  </li>
+                ))}
+                <li>
+                  <button type="button" aria-pressed={examId === null} onClick={() => chooseExam(null)}>
+                    Все лекции<span className="sf-tabs-n">{base.lectures.length}</span>
                   </button>
                 </li>
-              ))}
+              </ul>
+            </div>
+          ) : (
+            <span />
+          )}
+          <div className="km-tools">
+            <input
+              className="sf-input km-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKey}
+              placeholder="Найти лекцию или понятие"
+              aria-label="Найти лекцию или понятие"
+            />
+            <ul className="sf-tabs" aria-label="Вид">
               <li>
-                <button type="button" aria-pressed={examId === null} onClick={() => chooseExam(null)}>
-                  Все лекции<span className="sf-tabs-n">{base.lectures.length}</span>
+                <button type="button" aria-pressed={mode === 'map'} onClick={() => setMode('map')}>
+                  Карта
+                </button>
+              </li>
+              <li>
+                <button type="button" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>
+                  Списком
                 </button>
               </li>
             </ul>
           </div>
-        ) : (
-          <span />
-        )}
-        <div className="km-tools">
-          <input
-            className="sf-input km-search"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onSearchKey}
-            // A phone's field is narrow: the whole phrase was cut to «Найти лекцию ил» (LIB-24); the label says it all.
-            placeholder={phone ? 'Найти' : 'Найти лекцию или понятие'}
-            aria-label="Найти лекцию или понятие"
-          />
-          <ul className="sf-tabs" aria-label="Вид">
-            <li>
-              <button type="button" aria-pressed={mode === 'map'} onClick={() => setMode('map')}>
-                Карта
-              </button>
-            </li>
-            <li>
-              <button type="button" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>
-                Списком
-              </button>
-            </li>
-          </ul>
         </div>
-      </div>
+      )}
 
       {examId === null && subjects.length > 1 ? (
         <div className="km-subjects km-scroll">
@@ -460,9 +560,16 @@ export default function KnowledgeMap() {
         </div>
       ) : null}
 
-      <div className="km-row2 km-scroll">
-        <KnowledgeLegend view={view} highlight={highlight} onToggle={toggleHighlight} />
-      </div>
+      {phone ? (
+        // The legend folds under «Обозначения»: its row of pills ran past the screen's edge.
+        <div className="km-row2">
+          <KnowledgeLegend view={view} highlight={highlight} onToggle={toggleHighlight} folded interactive={mode === 'map'} />
+        </div>
+      ) : (
+        <div className="km-row2 km-scroll">
+          <KnowledgeLegend view={view} highlight={highlight} onToggle={toggleHighlight} />
+        </div>
+      )}
       {noHits ? (
         <p className="km-quiet" role="status" style={{ marginBottom: 10 }}>
           Ничего не найдено. Попробуйте другое слово.
@@ -494,7 +601,8 @@ export default function KnowledgeMap() {
           />
           <p className="km-hint" id={hintId}>
             {phone
-              ? 'Карта листается вместе со страницей. Масштаб — двумя пальцами или кнопками «+» и «−». Нажмите на карточку или понятие, чтобы открыть подробности.'
+              ? // One line on a phone: the page scrolls with one finger and the zoom buttons are in sight.
+                'Нажмите на карточку — откроются подробности.'
               : 'Карту можно сдвинуть мышью или пальцем. Масштаб — Ctrl и колесо мыши, щипок или кнопки «+» и «−». Tab переходит по карточкам и понятиям, Enter открывает подробности, Esc закрывает их.'}
           </p>
           <MapGuide view={view} onSelect={select} />
@@ -502,15 +610,15 @@ export default function KnowledgeMap() {
       ) : (
         <div className="km-body" data-side={side && panel ? '' : undefined}>
           <div className="km-main">
-            {showToggle ? (
-              <p className="km-quiet" style={{ marginBottom: 6 }}>
-                {showAll ? `Показаны все понятия: ${count(view.counts.concepts, CONCEPTS)}. ` : `${ty(sharedChoiceLine(shown))} `}
-                <button type="button" className="sf-link" onClick={() => setShowAll((value) => !value)}>
-                  {showAll ? `Только ${sharedChoiceLabel(shown)}` : `Все понятия (${view.counts.concepts})`}
-                </button>
-              </p>
-            ) : null}
-            <KnowledgeList view={view} selected={selected} query={query} onSelect={select} registerNode={registerNode} />
+            {showToggle && !phone ? conceptsLine : null}
+            <KnowledgeList
+              view={view}
+              selected={selected}
+              query={query}
+              onSelect={select}
+              registerNode={registerNode}
+              conceptsNote={showToggle && phone ? conceptsLine : undefined}
+            />
           </div>
           {side && panel ? <aside className="km-side">{panel}</aside> : null}
         </div>

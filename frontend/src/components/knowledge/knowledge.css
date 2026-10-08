@@ -676,6 +676,92 @@
 .sf-page[data-frame='s'] .km-list-h { font-size: 22px; }
 .sf-page[data-frame='s'] .km-guide > section { padding: 22px 22px 20px; border-radius: 28px; }
 
+/* One row on a phone (10_Project/Phone_Declutter_2026-10-08): the exam as a choice that fits any name (it shrinks
+   and cuts the name with «…»; the open list shows it whole), «Карта · Списком», and the search as a round button
+   that opens its field under the row. */
+.sf-page[data-frame='s'] .km-bar.km-bar-one { flex-wrap: nowrap; gap: 8px; }
+.sf-page .km-pick {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 48px;
+  padding: 0 28px 0 12px;
+  border: 1px solid var(--sf-line);
+  border-radius: 999px;
+  background: var(--sf-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%234b515b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 11px center;
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dark .sf-page .km-pick { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23a7adb7' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); color-scheme: dark; }
+.sf-page .km-pick:hover { border-color: var(--sf-control-edge); }
+.sf-page .km-pick:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+.sf-page .km-pick-none { flex: 1 1 auto; }
+.sf-page .km-bar-one .km-view { flex: none; gap: 2px; padding: 1px; border: 1px solid var(--sf-line); border-radius: 999px; background: var(--sf-surface); }
+.sf-page[data-frame='s'] .km-bar-one .km-view button { min-height: 44px; padding: 0 10px; white-space: nowrap; }
+.sf-page .km-bar-one .km-view button:focus-visible { outline-offset: 1px; }
+.sf-page .km-find {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--sf-line);
+  border-radius: 50%;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: border-color .3s ease, background-color .3s ease;
+}
+.sf-page .km-find:hover { border-color: var(--sf-ink); }
+.sf-page .km-find[aria-expanded='true'] { border-color: var(--sf-ink); background: var(--sf-ink); color: var(--sf-surface); }
+.sf-page .km-find svg { width: 19px; height: 19px; }
+.sf-page[data-frame='s'] .km-search.km-search-open { display: block; width: 100%; height: 50px; margin-top: 10px; padding: 0 18px; border-radius: 999px; }
+
+/* «Обозначения»: one quiet line; open, the items stand as a list (the marks as on the cards, then the words). */
+.sf-page .km-legend-fold { display: grid; justify-items: start; }
+.sf-page .km-legend-toggle { font-size: 15px; }
+.sf-page .km-legend[data-folded] { display: grid; gap: 2px; width: 100%; margin: 2px 0 4px; }
+.sf-page .km-legend[data-folded] button,
+.sf-page .km-legend[data-folded] .km-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px 0 4px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  white-space: normal;
+  text-align: left;
+}
+.sf-page .km-legend[data-folded] button { min-height: 44px; }
+.sf-page .km-legend[data-folded] button:hover { background: var(--sf-tint); border-color: transparent; }
+.sf-page .km-legend[data-folded] button[aria-pressed='true'] { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
+.sf-page .km-legend[data-folded] .km-legend-mark { flex: none; width: 28px; min-width: 28px; }
+.sf-page .km-legend[data-folded] .km-legend-text { min-width: 0; }
+.sf-page .km-legend-item .km-count { color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+
+/* A phone's line about the concepts, under their heading (KnowledgeList conceptsNote). */
+.sf-page .km-list-note { margin: -6px 0 10px; }
+.sf-page .km-list > .km-list-note { margin-top: 24px; }
+
+/* The lecture's number in the list is a plain figure on a phone (no circle). */
+.sf-page[data-frame='s'] .km-row-n,
+.sf-page[data-frame='s'] .km-row[data-selected] .km-row-n { min-width: 0; height: 26px; padding: 0; background: none; box-shadow: none; font-size: 15px; font-weight: 500; color: var(--sf-muted); }
+.sf-page[data-frame='s'] .km-row[data-selected] .km-row-n { color: var(--sf-ink); }
+
 @media (prefers-reduced-motion: reduce) {
   .sf-page .km-card,
   .sf-page .km-card > *,
@@ -685,6 +771,7 @@
   .sf-page .km-legend button,
   .sf-page .km-row,
   .sf-page .km-zoom-btn,
+  .sf-page .km-find,
   .sf-page .km-close { transition: none; }
   .sf-page .km-row:hover { transform: none; }
 }
