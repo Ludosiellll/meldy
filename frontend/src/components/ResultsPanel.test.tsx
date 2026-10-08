@@ -149,18 +149,29 @@ describe('header', () => {
     expect(screen.getByText('Выжимка не получилась: модель не ответила.')).toBeInTheDocument();
   });
 
-  it('calls lexical source links «наиболее похожий фрагмент», never confirmed', () => {
+  it('says what the cards and the test rest on in the student’s words, never «confirmed» (finding LIB-19)', () => {
     const { unmount } = renderPanel({
       results: { ...partialResults(), grounding: { ...grounding, source_count: 23, citable_items: 9 } },
     });
-    expect(screen.getByText('Основано на 23 фрагментах исходника')).toBeInTheDocument();
-    expect(screen.getByText('у 9 пунктов есть ссылка на наиболее похожий фрагмент')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/подтвержд/i);
+    expect(screen.getByText('Конспект, карточки и тест опираются на 23 фрагмента лекции')).toBeInTheDocument();
+    // Links found by matching words, not checked: «похожий фрагмент».
+    expect(screen.getByText('у 9 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/подтвержд|исходник|наиболее похож/i);
     unmount();
 
     renderPanel({ results: { ...partialResults(), grounding: { ...grounding, source_count: 21, citable_items: 1 } } });
-    expect(screen.getByText('Основано на 21 фрагменте исходника')).toBeInTheDocument();
-    expect(screen.getByText('у 1 пункта есть ссылка на наиболее похожий фрагмент')).toBeInTheDocument();
+    expect(screen.getByText('Конспект, карточки и тест опираются на 21 фрагмент лекции')).toBeInTheDocument();
+    expect(screen.getByText('у 1 пункта есть ссылка на похожий фрагмент')).toBeInTheDocument();
+  });
+
+  it('on the material page says it in one line next to the cards and the test', () => {
+    renderPanel({
+      embedded: true,
+      initialTab: 'flashcards',
+      results: { ...partialResults(), grounding: { ...grounding, source_count: 17, citable_items: 17 } },
+    });
+    expect(screen.getByText('Карточки и тест опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/исходник|наиболее похож/i);
   });
 
   it('on the material page says «Обработан частично» as a plain line when a saved section is not ok', () => {
@@ -184,14 +195,27 @@ describe('header', () => {
     expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
   });
 
-  it('on the material page shows no conversation tab or line: the page has its own «Разговор»', () => {
+  it('on the material page shows no podcast tab or line: the page has its own «Подкаст»', () => {
     renderPanel({
       embedded: true,
       results: { ...partialResults(), quiz, sections: { summarizer: { status: 'ok' }, quiz: { status: 'ok' }, podcast: { status: 'busy' } } },
     });
     expect(screen.getByRole('button', { name: /^Тест/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Разговор/ })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Разговор не получился/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Подкаст|Разговор/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/(Подкаст|Разговор) не получился/)).not.toBeInTheDocument();
+  });
+
+  it('on the analysis page names the two-host audio «Подкаст» (decision 1)', () => {
+    renderPanel({
+      results: {
+        ...partialResults(),
+        quiz,
+        podcast: { podcast: [{ speaker: 'Макс', text: 'Что такое энтропия?' }, { speaker: 'Софья', text: 'Мера беспорядка.' }] },
+        sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' }, podcast: { status: 'ok' } },
+      } as AnalysisResults,
+    });
+    expect(screen.getByRole('button', { name: /^Подкаст/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Разговор/ })).not.toBeInTheDocument();
   });
 });
 
@@ -421,6 +445,30 @@ describe('quiz journal props', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
     await screen.findByText('Тест на экране');
     expect(db.quizProps).toMatchObject({ materialId: null, topic: 'Лекция про энтропию', surface: 'material' });
+  });
+});
+
+describe('the test on a screen for an audience (finding LIB-17)', () => {
+  it('opens from «Экспорт» on the test tab, not from inside the student’s test', async () => {
+    renderPanel({ results: { ...partialResults(), quiz, sections: { quiz: { status: 'ok' } } } });
+    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    await screen.findByText('Тест на экране');
+    expect(db.quizProps).toMatchObject({ presenting: false });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Показать тест на экране' }));
+    expect(db.quizProps).toMatchObject({ presenting: true });
+    expect(screen.queryByRole('menu', { name: 'Экспорт' })).not.toBeInTheDocument();
+
+    act(() => (db.quizProps?.onExitPresentation as () => void)());
+    expect(db.quizProps).toMatchObject({ presenting: false });
+  });
+
+  it('is not offered on the other tabs', () => {
+    renderPanel({ results: { ...partialResults(), quiz, sections: { quiz: { status: 'ok' } } } });
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    expect(screen.getByRole('menu', { name: 'Экспорт' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Показать тест на экране' })).not.toBeInTheDocument();
   });
 });
 

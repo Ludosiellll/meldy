@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildKnowledgeBase,
   buildMapView,
@@ -17,6 +17,10 @@ import {
   type KnowledgeInput,
 } from './model';
 import { sampleInput } from './sampleCourse';
+import { libraryLayout, toEntry, type LibraryEntry } from '../../pages/Library';
+
+// «Лекции» is imported for its ordering only: no client, no requests.
+vi.mock('../../lib/supabase', () => ({ supabase: {} }));
 
 const NOW = new Date('2026-10-04T10:00:00Z');
 
@@ -144,6 +148,28 @@ describe('one map', () => {
     const metrics = buildMapView(knowledge, { examId: null, subject: 'Эконометрика', showAll: false });
     expect(metrics.lectures.map((lecture) => lecture.id)).toEqual(['metrics-1', 'metrics-2', 'metrics-3', 'metrics-4']);
     expect(metrics.concepts.map((concept) => concept.label).sort()).toEqual(['Коэффициент детерминации', 'Метод наименьших квадратов', 'Остатки']);
+  });
+});
+
+describe('the numbers of an exam’s lectures (finding LIB-7)', () => {
+  it('are the numbers «Лекции» gives: added to the exam, then uploaded, whatever order the rows came in', () => {
+    const input = sampleInput(NOW);
+    // Three lectures attached in one request (one time) and read back newest first.
+    const together = '2026-10-01T10:00:00.000Z';
+    const exams = input.exams.map((exam) =>
+      exam.id === 'exam-metrics' ? { ...exam, materials: [...exam.materials].reverse().map((link) => ({ ...link, addedAt: together })) } : exam,
+    );
+    const knowledge = base({ ...input, exams });
+    const map = knowledge.exams.find((exam) => exam.id === 'exam-metrics')!.lectureIds;
+    expect(map).toEqual(['metrics-1', 'metrics-2', 'metrics-3', 'metrics-4']);
+
+    // «Лекции» lays out the same exam the same way.
+    const entries = input.materials.map(toEntry).filter((entry): entry is LibraryEntry => entry !== null);
+    const shelf = exams.find((exam) => exam.id === 'exam-metrics')!;
+    const layout = libraryLayout(entries, [{ id: shelf.id, title: shelf.title, kind: shelf.kind, exam_date: shelf.exam_date, created_at: shelf.created_at, materials: shelf.materials.map((link) => ({ id: link.id, addedAt: link.addedAt ?? '' })) }]);
+    const listed =
+      layout.mode === 'sections' ? layout.groups.find((group) => group.key === 'exam-metrics')!.entries : layout.mode === 'single' ? layout.entries : [];
+    expect(listed.map((entry) => entry.id)).toEqual(map);
   });
 });
 

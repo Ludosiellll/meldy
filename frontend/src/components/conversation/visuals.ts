@@ -456,7 +456,7 @@ function findSourceFact(
 /** Заставка первой реплики: только название материала, без выдуманной подписи. */
 function openingScene(title: string | undefined): Visual {
   const clean = cleanText(title, VISUAL_LIMITS.title);
-  return { type: 'scene', title: clean ?? 'Разговор по материалу', icon: 'book', caption: '' };
+  return { type: 'scene', title: clean ?? 'Подкаст по лекции', icon: 'book', caption: '' };
 }
 
 /** Короче этого совпадение ещё не цитата. */
@@ -806,7 +806,7 @@ export function conversationMeta(speakers: readonly string[], lineCount: number,
   const names = speakers.filter(Boolean).slice(0, 3);
   const who =
     names.length === 0
-      ? 'Разговор по лекции'
+      ? 'Подкаст по лекции'
       : names.length === 1
         ? `${names[0]} рассказывает о лекции`
         : `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]} обсуждают лекцию`;

@@ -10,7 +10,7 @@
  * поэтому лист не прыгает между репликами), не ниже --cv-min и не выше --cv-max. Схема и график занимают --cv-h
  * (их же повторяет sheetMetrics() в ConversationPlayer, чтобы схема знала, сколько у неё места): 392 от 1024 px,
  * 360 уже, 336 на телефоне; в низком окне (от 1024, не выше 780) — то, что остаётся от 100vh после строки меню,
- * шапки материала со вкладками, субтитра в три строки, плеера и воздуха между ними: 100vh − 415, не меньше 240,
+ * шапки лекции со вкладками (одной на все вкладки), субтитра в три строки, плеера и воздуха между ними: 100vh − 476, не меньше 240,
  * и лист не растёт.
  * Разговор из терминов и шагов получает лист ниже (от 300 / 280 / 240 px), а не пустые 400 px. Изображение, которое
  * короче листа, стоит посередине; прокрутка внутри листа (с затуханием низа) — только если длиннее листа само
@@ -40,7 +40,9 @@
   .cv { --cv-h: 336px; --cv-min: 240px; --cv-pad-y: 30px; }
 }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .cv { --cv-h: max(240px, calc(100vh - 415px)); --cv-min: min(300px, var(--cv-h)); --cv-max: var(--cv-h); --cv-pad-y: 40px; }
+  /* 476 = ConversationPlayer.LOW_WINDOW_ROOM: the top line 76, the lecture's header with a two-line title 159 (one
+     header on every tab since 2026-10-08), the panel's air, the three subtitle lines and the player 241. */
+  .cv { --cv-h: max(240px, calc(100vh - 476px)); --cv-min: min(300px, var(--cv-h)); --cv-max: var(--cv-h); --cv-pad-y: 40px; }
 }
 
 /* ---------------------------------------------------------------- the panel */
@@ -652,6 +654,8 @@ html[data-stage] .cv-meta { display: none; }
 .cv-empty p { max-width: 34em; margin: 12px 0 0; font-size: 18px; line-height: 1.5; color: var(--sf-muted); }
 .cv-empty .sf-primary { margin-top: 26px; }
 .cv-empty .sf-primary:disabled { opacity: .7; cursor: wait; }
+/* What «Создать подкаст» spends, right under it (lib/plans.ts AI_COSTS.conversation). */
+.cv-empty p.cv-cost { margin-top: 12px; font-size: 15px; line-height: 22px; }
 .cv-empty .cv-error { padding: 0; }
 .cv-empty-art {
   position: relative;
@@ -717,37 +721,13 @@ html[data-stage] .cv-meta { display: none; }
 }
 
 /* ---------------------------------------------------------------- the talk tab of a material in the low window */
-/* MaterialDetail marks its page data-tab="talk": on a 1280×720 projector window the header shrinks to the
-   title (30/36) and the tabs (44), the crumb and the meta line fold away, so the sheet, three subtitle lines and the
-   player fit without scrolling the page. The room comes from the sheet (--cv-h), not from the air around the voice
-   and the player: 14–16 px everywhere, the halo of ▶ clear of the edge. Other tabs keep the ordinary header. */
+/* MaterialDetail marks its page data-tab="talk". On a low window (the 1280×720 projector, a 1532×734 laptop) the
+   sheet, three subtitle lines and the player fit without scrolling the page under the lecture's header, which is
+   the same on every tab (finding LIB-3: the header used to shrink here and the tabs jumped 259 px). The room comes
+   from the sheet (--cv-h, 100vh − 476 above), not from the air around the voice and the player: 14–16 px
+   everywhere, the halo of ▶ clear of the edge. */
 @media (min-width: 1024px) and (max-height: 780px) {
-  /* The sum at 1280×720: top line 76 + title row 8 + 44 + tabs 2 + 44 + panel 6 + 14 + sheet 305 + voice 16 + 20 + 4
-     + 99 + player 16 + 52 + 14 = 720. */
   .sf-page[data-tab='talk'] { padding-bottom: 0; }
-  .sf-page[data-tab='talk'] .sf-detail-head { padding-top: 8px; }
-  .sf-page[data-tab='talk'] .sf-crumb { display: none; }
-  .sf-page[data-tab='talk'] .sf-h1-serif { max-width: none; font-size: 30px; line-height: 36px; }
-  /* The title and the header's pills share one row down to 1024 px: a long title ends with «…» (it is whole on
-     «Материал»), and the pills never drop under it and push the player off the window. */
-  .sf-page[data-tab='talk'] .md-head .sf-detail-main { flex-basis: 12rem; }
-  .sf-page[data-tab='talk'] .md-head .sf-h1-serif { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .sf-page[data-tab='talk'] .md-head .sf-head-actions { flex-wrap: nowrap; }
-  .sf-page[data-tab='talk'] .sf-detail-main > .sf-lede {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  .sf-page[data-tab='talk'] .sf-viewtabs { margin-top: 2px; padding: 2px; }
-  .sf-page[data-tab='talk'] .sf-head-actions .sf-secondary { min-height: 44px; padding-top: 2px; padding-bottom: 2px; }
-  .sf-page[data-tab='talk'] .sf-head-actions .sf-secondary .md-dot { width: 36px; height: 36px; }
-  .sf-page[data-tab='talk'] .sf-head-actions .sf-more { width: 44px; height: 44px; }
-  .sf-page[data-tab='talk'] .sf-viewtabs [role='tab'] { min-height: 40px; }
   .sf-page[data-tab='talk'] .cv-show { margin-top: 6px; padding: 14px 16px; border-radius: 44px; }
   .sf-page[data-tab='talk'] .cv-show .cv-sheet.sf-sheet { border-radius: 30px; }
   .sf-page[data-tab='talk'] .cv-voice { margin-top: 16px; }

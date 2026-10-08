@@ -24,6 +24,8 @@ const state = vi.hoisted(() => ({
   writes: [] as Array<Record<string, unknown>>,
   updateError: false,
   userId: 'user-1',
+  /** Cards the lecture got from ticket answers (lib/followupCards). */
+  followups: 0,
   increment: vi.fn(),
   confirm: vi.fn(),
   toastSuccess: vi.fn(),
@@ -67,6 +69,12 @@ vi.mock('../api/materials', async importOriginal => ({
   getMaterialById: vi.fn(async (id: string) => clone(rowById(id))),
   updateMaterialSubject: vi.fn(),
   updateMaterialTitle: vi.fn(),
+  deleteMaterial: vi.fn(async () => undefined),
+}));
+// The count of follow-up cards is one request to flashcard_progress: the tests say what it returns.
+vi.mock('../lib/followupCards', async importOriginal => ({
+  ...(await importOriginal<typeof import('../lib/followupCards')>()),
+  followupCardsOf: vi.fn(async () => state.followups),
 }));
 // The server charges the AI jobs; the page only refreshes the meter afterwards.
 vi.mock('../api/limits', () => ({
@@ -189,6 +197,7 @@ beforeEach(() => {
   state.writes = [];
   state.updateError = false;
   state.userId = 'user-1';
+  state.followups = 0;
   state.material = makeMaterial({ podcast: [] });
   state.increment = vi.fn(async () => undefined);
   state.confirm = vi.fn(async () => true);
@@ -219,8 +228,8 @@ afterEach(() => {
 describe('summary_json writes do not overwrite each other', () => {
   it('keeps a conversation that was saved while the cheatsheet was being made', async () => {
     renderPage('/library/m1?mode=express');
-    fireEvent.click(await screen.findByRole('tab', { name: /Разговор/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Создать разговор' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /Подкаст/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать подкаст' }));
     await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
@@ -237,8 +246,8 @@ describe('summary_json writes do not overwrite each other', () => {
     expect(state.increment).toHaveBeenCalledTimes(2); // both jobs refreshed the meter (the server charged them)
 
     expect(await screen.findByRole('heading', { name: 'Главное' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
-    expect(screen.queryByText('Для этого материала разговор ещё не создан')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
+    expect(screen.queryByText('Подкаста по этой лекции ещё нет')).not.toBeInTheDocument();
     expect(screen.getByText('Что такое энтропия?', { selector: 'section[aria-label="Субтитры"] p' })).toBeInTheDocument();
   });
 
@@ -259,7 +268,7 @@ describe('model jobs outlive the tab that started them', () => {
     await waitFor(() => expect(pending['/api/podcast/visuals']).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
-    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
 
     const busy = await screen.findByRole('button', { name: /Подбираем схемы/ });
     expect(busy).toBeDisabled();
@@ -283,7 +292,7 @@ describe('model jobs outlive the tab that started them', () => {
     await waitFor(() => expect(pending['/api/podcast/visuals']).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
-    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Слушать' }));
     await waitFor(() => expect(FakeAudio.instances.length).toBeGreaterThan(0));
     const audio = FakeAudio.instances[FakeAudio.instances.length - 1];
@@ -353,11 +362,11 @@ describe('model jobs outlive the tab that started them', () => {
       </MemoryRouter>,
     );
     state.material = makeMaterial({ podcast: legacyLines });
-    fireEvent.click(screen.getByRole('button', { name: /Разговор/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Подкаст/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Добавить схемы/ }));
     await waitFor(() => expect(pending['/api/podcast/visuals']).toHaveLength(1));
     fireEvent.click(screen.getByRole('button', { name: /Конспект/ }));
-    fireEvent.click(screen.getByRole('button', { name: /^Разговор/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Подкаст/ }));
     expect(await screen.findByRole('button', { name: /Подбираем схемы/ })).toBeDisabled();
   });
 });
@@ -379,7 +388,7 @@ describe('a job that finishes after the page moved to another material', () => {
         </Routes>
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать разговор' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать подкаст' }));
     await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
 
     act(() => go('/library/m2?mode=express&tab=podcast'));
@@ -389,7 +398,7 @@ describe('a job that finishes after the page moved to another material', () => {
     await waitFor(() => expect(state.increment).toHaveBeenCalledTimes(1));
     expect(savedPodcast()).toHaveLength(2);
     expect(second.summary_json.podcast).toEqual([]);
-    expect(screen.getByText('Для этого материала разговор ещё не создан')).toBeInTheDocument();
+    expect(screen.getByText('Подкаста по этой лекции ещё нет')).toBeInTheDocument();
   });
 });
 
@@ -397,12 +406,12 @@ describe('materials of other authors', () => {
   it('offers no paid model work and no sharing to a student on a teacher material', async () => {
     state.material = makeMaterial({ podcast: [] }, 'teacher-1');
     renderPage('/library/m1?mode=express&tab=podcast');
-    expect(await screen.findByText('Разговор может создать только автор материала.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Подкаст может создать только автор лекции.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать подкаст' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Поделиться' })).not.toBeInTheDocument();
     // Only the author gets «⋯» (rename, subject, sharing); the meta line says whose it is.
     expect(screen.queryByRole('button', { name: 'Действия с лекцией' })).not.toBeInTheDocument();
-    expect(screen.getByText(/материал другого автора/)).toBeInTheDocument();
+    expect(screen.getByText(/материал другого автора/, { selector: '.md-meta' })).toBeInTheDocument();
   });
 
   it('hides «Добавить схемы» on someone else’s legacy conversation', async () => {
@@ -432,7 +441,7 @@ describe('sharing a material', () => {
     expect(state.confirm.mock.calls[0][0].message).not.toMatch(/другие студенты/);
     expect(state.writes).toHaveLength(0);
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-    expect(screen.getByText(/только для меня/)).toBeInTheDocument();
+    expect(screen.getByText(/только для меня/, { selector: '.md-meta' })).toBeInTheDocument();
   });
 
   it('does not claim success when the update fails', async () => {
@@ -442,7 +451,7 @@ describe('sharing a material', () => {
     await waitFor(() => expect(state.toastError).toHaveBeenCalledWith('Не удалось открыть доступ. Попробуйте ещё раз.'));
     expect(state.toastSuccess).not.toHaveBeenCalled();
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-    expect(screen.getByText(/только для меня/)).toBeInTheDocument();
+    expect(screen.getByText(/только для меня/, { selector: '.md-meta' })).toBeInTheDocument();
   });
 
   it('publishes, then copies the link', async () => {
@@ -451,7 +460,7 @@ describe('sharing a material', () => {
     await waitFor(() => expect(state.toastSuccess).toHaveBeenCalledWith('Доступ открыт, ссылка скопирована'));
     expect(state.writes).toEqual([{ is_public: true }]);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/shared/m1`);
-    expect(screen.getByText(/открыт по ссылке/)).toBeInTheDocument();
+    expect(screen.getByText(/открыт по ссылке/, { selector: '.md-meta' })).toBeInTheDocument();
     // The menu closed and gave the focus back to «⋯».
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toHaveFocus();
@@ -464,7 +473,7 @@ describe('sharing a material', () => {
     // «Закрыть доступ» appears only for a public material and makes it private again.
     await chooseFromMenu('Закрыть доступ');
     await waitFor(() => expect(state.writes).toEqual([{ is_public: true }, { is_public: false }]));
-    expect(await screen.findByText(/только для меня/)).toBeInTheDocument();
+    expect(await screen.findByText(/только для меня/, { selector: '.md-meta' })).toBeInTheDocument();
   });
 });
 
@@ -472,8 +481,23 @@ describe('the lecture header (design critique 12)', () => {
   it('says subject, who sees it and when it was added in one line, without chips or a numeric date', async () => {
     renderPage('/library/m1');
     expect(await screen.findByRole('heading', { level: 1, name: 'Энтропия' })).toBeInTheDocument();
-    expect(screen.getByText(/^Физика · только для меня · 1 октября, \d{1,2}:00$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Физика · только для меня · 1 октября, \d{1,2}:00$/, { selector: '.md-meta' })).toBeInTheDocument();
     expect(screen.queryByText(/\d{2}\.\d{2}\.\d{4}/)).not.toBeInTheDocument();
+  });
+
+  it('repeats the meta line in the row of the tabs for a low window, hidden from screen readers', async () => {
+    const { container } = renderPage('/library/m1');
+    await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
+    const copy = container.querySelector('.md-toolbar-meta') as HTMLElement;
+    expect(copy).toHaveAttribute('aria-hidden', 'true');
+    expect(copy.textContent).toBe((container.querySelector('.md-meta') as HTMLElement).textContent);
+    expect(copy.closest('.md-toolbar')).toContainElement(screen.getByRole('tablist', { name: 'Режим' }));
+
+    // While the subject is being edited, the field says it; the copy waits.
+    await chooseFromMenu('Изменить предмет');
+    expect(container.querySelector('.md-toolbar-meta')).toBeNull();
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Предмет' }), { key: 'Escape' });
+    expect(container.querySelector('.md-toolbar-meta')).not.toBeNull();
   });
 
   it('has no «Новый анализ» and no second filled button; «Экспорт» is a link with a menu', async () => {
@@ -504,7 +528,7 @@ describe('the lecture header (design critique 12)', () => {
     const subject = screen.getByRole('textbox', { name: 'Предмет' });
     fireEvent.change(subject, { target: { value: 'Термодинамика' } });
     fireEvent.keyDown(subject, { key: 'Escape' });
-    expect(screen.getByText(/^Физика · /)).toBeInTheDocument();
+    expect(screen.getByText(/^Физика · /, { selector: '.md-meta' })).toBeInTheDocument();
     expect(api.updateMaterialSubject).not.toHaveBeenCalled();
   });
 });
@@ -528,11 +552,11 @@ describe('mode switcher', () => {
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', brief.id);
 
     fireEvent.keyDown(brief, { key: 'End' });
-    expect(screen.getByRole('tab', { name: /Разговор/ })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole('tab', { name: /Разговор/ }), { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: /Подкаст/ })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('tab', { name: /Подкаст/ }), { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: /Материал/ })).toHaveFocus();
     fireEvent.keyDown(screen.getByRole('tab', { name: /Материал/ }), { key: 'ArrowLeft' });
-    expect(screen.getByRole('tab', { name: /Разговор/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Подкаст/ })).toHaveAttribute('aria-selected', 'true');
   });
 });
 
@@ -622,9 +646,9 @@ describe('section statuses saved with the material', () => {
     expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
     expect(screen.queryByText(/не получил/)).not.toBeInTheDocument();
     // У разговора здесь свой режим: внутри «Материала» второй вкладки «Разговор» нет.
-    expect(screen.queryByRole('button', { name: /Разговор/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('tab', { name: /Разговор/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /Подкаст/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать подкаст' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('tab', { name: /Подкаст/ })).toHaveLength(1);
     expect(state.writes).toHaveLength(0);
   });
 
@@ -633,10 +657,10 @@ describe('section statuses saved with the material', () => {
     renderPage('/library/m1');
     expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
     expect(screen.queryByText(/Разговор не получился/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Разговор/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
-    expect(await screen.findByRole('button', { name: 'Создать разговор' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Подкаст/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать подкаст' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
+    expect(await screen.findByRole('button', { name: 'Создать подкаст' })).toBeInTheDocument();
   });
 
   it('a cheat sheet that failed and is still missing: the line stays and «Кратко» offers to make it', async () => {
@@ -686,8 +710,8 @@ describe('section statuses saved with the material', () => {
     await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
 
     // Пока тест создаётся, пользователь делает разговор в соседнем режиме.
-    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать разговор' }));
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать подкаст' }));
     await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
     await act(async () => pending['/api/podcast/generate'][0].resolve(jsonResponse(generated)));
     await waitFor(() => expect(savedPodcast()).toHaveLength(2));
@@ -705,9 +729,9 @@ describe('section statuses saved with the material', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
     expect(await screen.findByText(/Убывает ли энтропия изолированной системы\?/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
     expect(await screen.findByText('Что такое энтропия?', { selector: 'section[aria-label="Субтитры"] p' })).toBeInTheDocument();
-    expect(screen.queryByText('Для этого материала разговор ещё не создан')).not.toBeInTheDocument();
+    expect(screen.queryByText('Подкаста по этой лекции ещё нет')).not.toBeInTheDocument();
     expect(state.increment).toHaveBeenCalledTimes(1);
   });
 });
@@ -725,16 +749,29 @@ describe('text-only materials and review link', () => {
     expect(screen.queryByRole('link', { name: 'Повторить карточки' })).not.toBeInTheDocument();
   });
 
-  it('links to review for a material with cards', async () => {
+  it('links to review for a material with cards: a pill in the header and, below 1024 px, a bar at the bottom', async () => {
     state.material = {
       ...makeMaterial(),
       flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
     };
-    renderPage('/library/m1');
+    const { container } = renderPage('/library/m1');
     // An outlined pill, not a second filled button; no count, because review shows only the cards due today.
-    const link = await screen.findByRole('link', { name: 'Повторить карточки' });
-    expect(link).toHaveAttribute('href', '/review?material=m1');
-    expect(link).toHaveClass('sf-secondary');
+    const [pill, bottom] = await screen.findAllByRole('link', { name: 'Повторить карточки' });
+    expect(pill).toHaveAttribute('href', '/review?material=m1');
+    expect(pill).toHaveClass('sf-secondary', 'md-review');
+    // Finding LIB-31: on a phone or a tablet the lecture keeps its one action at the bottom while it scrolls;
+    // MaterialDetail.css shows the bar below 1024 px only and hides the header pill there.
+    expect(bottom).toHaveAttribute('href', '/review?material=m1');
+    expect(bottom).toHaveClass('sf-primary', 'md-bottom-go');
+    expect(bottom.closest('.md-bottom')).not.toBeNull();
+    const page = container.querySelector('.md-page') as HTMLElement;
+    expect(page).toHaveAttribute('data-bottom');
+
+    // On «Подкаст» the player's controls hold the bottom of the screen.
+    fireEvent.click(screen.getByRole('tab', { name: 'Подкаст' }));
+    expect(page).not.toHaveAttribute('data-bottom');
+    expect(screen.getAllByRole('link', { name: 'Повторить карточки' })).toHaveLength(1);
+    expect(container.querySelector('.md-bottom')).toBeNull();
   });
 });
 
@@ -748,7 +785,7 @@ describe('«Поговорить о лекции»', () => {
     const talk = await screen.findByRole('link', { name: 'Поговорить о лекции' });
     expect(talk).toHaveAttribute('href', '/library/m1/talk');
     expect(talk).toHaveClass('sf-secondary', 'md-pill');
-    const review = screen.getByRole('link', { name: 'Повторить карточки' });
+    const [review] = screen.getAllByRole('link', { name: 'Повторить карточки' });
     expect(talk.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -772,21 +809,172 @@ describe('«Поговорить о лекции»', () => {
   });
 });
 
-describe('«Разговор» on the 1280×720 projector window (spec 5.7)', () => {
-  it('marks only the talk tab, so that the low window folds the header there and nowhere else', async () => {
-    state.material = makeMaterial({ podcast: legacyLines });
+describe('one header for every tab (finding LIB-3)', () => {
+  it('keeps the title, the meta line, the tabs and the actions in place when the tab changes', async () => {
+    state.material = {
+      ...makeMaterial({ podcast: legacyLines }),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
     const { container } = renderPage('/library/m1');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Энтропия' })).toBeInTheDocument();
-    const page = container.querySelector('.sf-page') as HTMLElement;
+    const title = await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
+    const meta = screen.getByText(/^Физика · только для меня/, { selector: '.md-meta' });
+    const tabs = screen.getByRole('tablist', { name: 'Режим' });
+    const talk = screen.getByRole('link', { name: 'Поговорить о лекции' });
+    const page = container.querySelector('.md-page') as HTMLElement;
+    // The title has a row of its own; the lecture's actions share the row of the tabs.
+    expect(title.closest('header')).toContainElement(meta);
+    expect(title.closest('header')).not.toContainElement(tabs);
+    expect(tabs.parentElement).toContainElement(talk);
     expect(page).not.toHaveAttribute('data-tab');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Разговор' }));
-    expect(page).toHaveAttribute('data-tab', 'talk');
+    fireEvent.click(screen.getByRole('tab', { name: 'Подкаст' }));
     expect(await screen.findByRole('region', { name: 'Сцена' })).toBeInTheDocument();
-    // The meta line stays in the page for screen readers; only the low window hides it from sight.
-    expect(screen.getByText(/Физика · только для меня/)).toBeInTheDocument();
+    // The same elements: nothing was folded or moved for the podcast.
+    expect(screen.getByRole('heading', { level: 1, name: 'Энтропия' })).toBe(title);
+    expect(screen.getByText(/^Физика · только для меня/, { selector: '.md-meta' })).toBe(meta);
+    expect(screen.getByRole('link', { name: 'Поговорить о лекции' })).toBe(talk);
+    // The podcast tab marks the page, so that a low window tightens the player (conversation.css), not the header.
+    expect(page).toHaveAttribute('data-tab', 'talk');
 
     fireEvent.click(screen.getByRole('tab', { name: 'Материал' }));
     expect(page).not.toHaveAttribute('data-tab');
+    expect(screen.getByRole('heading', { level: 1, name: 'Энтропия' })).toBe(title);
+  });
+});
+
+describe('the browser tab and the meta line', () => {
+  it('names the browser tab after the lecture, and «Лекция не найдена» when there is none', async () => {
+    state.material = { ...makeMaterial(), title: 'Реляционная модель данных: ключи и ограничения целостности' };
+    const { unmount } = renderPage('/library/m1');
+    await screen.findByRole('heading', { level: 1, name: 'Реляционная модель данных: ключи и ограничения целостности' });
+    expect(document.title).toBe('Реляционная модель данных: ключи и ограничения целостности — Meldy');
+    unmount();
+
+    const api = await import('../api/materials');
+    vi.mocked(api.getMaterialById).mockRejectedValueOnce(new Error('not found'));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderPage('/library/gone');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Лекция не найдена' })).toBeInTheDocument();
+    expect(document.title).toBe('Лекция не найдена — Meldy');
+    quiet.mockRestore();
+  });
+
+  it('keeps the day with its month and never starts a line with «·» (finding LIB-21)', async () => {
+    renderPage('/library/m1');
+    await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
+    const meta = document.querySelector('.md-meta') as HTMLElement;
+    expect(meta.textContent).toMatch(/^Физика · только для меня · 1 октября, \d{1,2}:00$/);
+  });
+});
+
+describe('cards from ticket answers (finding LIB-6)', () => {
+  it('says how many of the lecture’s cards come from ticket answers, next to «Повторить карточки»', async () => {
+    const cards = await import('../lib/followupCards');
+    state.followups = 4;
+    state.material = {
+      ...makeMaterial(),
+      flashcards_json: {
+        flashcards: Array.from({ length: 6 }, (_, index) => ({ id: index + 1, question: `Вопрос ${index + 1}`, answer: 'Ответ' })),
+      },
+    };
+    renderPage('/library/m1?section=flashcards');
+    expect(await screen.findByText('В повторении: 6 карточек · ещё 4 из ответов на билеты.')).toBeInTheDocument();
+    expect(cards.followupCardsOf).toHaveBeenCalledWith('user-1', 'm1');
+  });
+
+  it('does not ask for someone else’s lecture', async () => {
+    const cards = await import('../lib/followupCards');
+    vi.mocked(cards.followupCardsOf).mockClear();
+    state.followups = 4;
+    state.material = {
+      ...makeMaterial({}, 'teacher-1'),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
+    renderPage('/library/m1?section=flashcards');
+    await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
+    expect(cards.followupCardsOf).not.toHaveBeenCalled();
+    expect(screen.queryByText(/из ответов на билеты/)).not.toBeInTheDocument();
+  });
+});
+
+describe('the lecture’s «⋯» moves it to a folder and deletes it (finding LIB-9)', () => {
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => window.localStorage.clear());
+
+  it('says folders stay on this device, makes a folder with the lecture in it and takes it out again', async () => {
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Действия с лекцией' }));
+    const menu = screen.getByRole('menu', { name: 'Действия с лекцией' });
+    expect(within(menu).getByText('Папка — только на этом устройстве')).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitemradio', { name: 'Без папки' })).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Новая папка…' }));
+    fireEvent.change(within(menu).getByRole('textbox', { name: 'Название папки' }), { target: { value: 'Термодинамика' } });
+    fireEvent.click(within(menu).getByRole('button', { name: 'Создать' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toHaveFocus();
+
+    const folders = JSON.parse(window.localStorage.getItem('library_folders_user-1') ?? '[]');
+    expect(folders).toEqual([expect.objectContaining({ name: 'Термодинамика' })]);
+    expect(JSON.parse(window.localStorage.getItem('library_folder_assignments_user-1') ?? '{}')).toEqual({ m1: folders[0].id });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    const again = screen.getByRole('menu', { name: 'Действия с лекцией' });
+    expect(within(again).getByRole('menuitemradio', { name: 'Термодинамика' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(within(again).getByRole('menuitemradio', { name: 'Без папки' }));
+    expect(JSON.parse(window.localStorage.getItem('library_folder_assignments_user-1') ?? '{}')).toEqual({});
+  });
+
+  it('deletes the lecture after the question «Лекций» asks, forgets its folder and goes back to the list', async () => {
+    const api = await import('../api/materials');
+    vi.mocked(api.deleteMaterial).mockClear();
+    window.localStorage.setItem('library_folder_assignments_user-1', JSON.stringify({ m1: 'folder_9', m2: 'folder_9' }));
+    window.localStorage.setItem('library_entries_user-1', JSON.stringify({ items: [{ id: 'm1' }, { id: 'm2' }] }));
+    render(
+      <MemoryRouter initialEntries={['/library/m1']}>
+        <Routes>
+          <Route path="/library/:id" element={<MaterialDetail />} />
+          <Route path="/library" element={<p>Список лекций</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    state.confirm = vi.fn(async () => false);
+    await chooseFromMenu('Удалить лекцию…');
+    await waitFor(() => expect(state.confirm).toHaveBeenCalledTimes(1));
+    expect(state.confirm.mock.calls[0][0]).toEqual({
+      title: 'Удалить лекцию?',
+      message: '«Энтропия» исчезнет из библиотеки вместе с конспектом, карточками и тестом. Это нельзя отменить.',
+      confirmText: 'Удалить',
+      cancelText: 'Оставить',
+    });
+    expect(api.deleteMaterial).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { level: 1, name: 'Энтропия' })).toBeInTheDocument();
+
+    state.confirm = vi.fn(async () => true);
+    await chooseFromMenu('Удалить лекцию…');
+    expect(await screen.findByText('Список лекций')).toBeInTheDocument();
+    expect(api.deleteMaterial).toHaveBeenCalledWith('m1');
+    expect(state.toastSuccess).toHaveBeenCalledWith('Лекция удалена');
+    expect(JSON.parse(window.localStorage.getItem('library_folder_assignments_user-1') ?? '{}')).toEqual({ m2: 'folder_9' });
+    expect(JSON.parse(window.localStorage.getItem('library_entries_user-1') ?? '{}')).toEqual({ items: [{ id: 'm2' }] });
+  });
+
+  it('stays on the lecture and says so when the deletion fails', async () => {
+    const api = await import('../api/materials');
+    vi.mocked(api.deleteMaterial).mockRejectedValueOnce(new Error('network'));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderPage('/library/m1');
+    await chooseFromMenu('Удалить лекцию…');
+    await waitFor(() => expect(state.toastError).toHaveBeenCalledWith('Не удалось удалить лекцию. Повторите через минуту.'));
+    expect(screen.getByRole('heading', { level: 1, name: 'Энтропия' })).toBeInTheDocument();
+    expect(state.toastSuccess).not.toHaveBeenCalled();
+    quiet.mockRestore();
+  });
+
+  it('is not there on someone else’s lecture', async () => {
+    state.material = makeMaterial({}, 'teacher-1');
+    renderPage('/library/m1');
+    await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
+    expect(screen.queryByRole('button', { name: 'Действия с лекцией' })).not.toBeInTheDocument();
   });
 });

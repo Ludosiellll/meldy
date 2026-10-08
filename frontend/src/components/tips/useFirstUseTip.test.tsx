@@ -201,6 +201,31 @@ describe('useFirstUseTip', () => {
     expect(mocks.track.mock.calls.filter(([name]) => name === 'tip_action')).toHaveLength(1);
   });
 
+  it('seen on two visits it is put away, as if «Не сейчас» was pressed (finding LIB-4)', async () => {
+    render(<Probe />);
+    await settle();
+    expect(shown()).toBe(true);
+    await settle(0);
+    // Only looked at: it comes once more.
+    expect(window.localStorage.getItem('meldy_tip_talk')).toBeNull();
+    expect(mocks.markSeen).not.toHaveBeenCalled();
+
+    cleanup();
+    render(<Probe />);
+    await settle();
+    // The second visit still shows it, and marks it seen here and in the profile.
+    expect(shown()).toBe(true);
+    await settle(0);
+    expect(window.localStorage.getItem('meldy_tip_talk')).toBe('1');
+    expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'tip_talk');
+    expect(mocks.track.mock.calls.filter(([name]) => name === 'tip_action')).toHaveLength(0);
+
+    cleanup();
+    render(<Probe />);
+    await settle(2000);
+    expect(shown()).toBe(false);
+  });
+
   it('needs an account', async () => {
     mocks.userId = undefined;
     render(<Probe />);

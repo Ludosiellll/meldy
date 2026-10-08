@@ -151,13 +151,20 @@ describe('UploadZone demo text', () => {
     expect(onDemo).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('tab', { name: 'Текст' })).toHaveAttribute('aria-selected', 'true');
     expect(textarea().value).toBe(DEMO_TEXT);
-    expect(screen.getByText('Демо-текст: лимит не списывается, настройки по умолчанию')).toBeInTheDocument();
+    expect(screen.getByText('Демо-текст: лимит не списывается')).toBeInTheDocument();
     // За демо-текст лимит не списывается, поэтому строки о расходе нет.
     expect(screen.queryByText('Анализ расходует 20 из 100 единиц дневного лимита.')).not.toBeInTheDocument();
+    // The demo is analysed with its own settings: step 2 says what will be made, why it cannot be changed, and waits.
+    expect(screen.getByText('Конспект, 6 карточек и тест из 5 вопросов')).toBeInTheDocument();
+    const change = screen.getByRole('button', { name: 'Изменить' });
+    expect(change).toBeDisabled();
+    expect(change).toHaveAccessibleDescription('Для демо-текста настройки не меняются.');
 
     fireEvent.change(textarea(), { target: { value: `${DEMO_TEXT} Мой абзац.` } });
-    expect(screen.queryByText('Демо-текст: лимит не списывается, настройки по умолчанию')).not.toBeInTheDocument();
+    expect(screen.queryByText('Демо-текст: лимит не списывается')).not.toBeInTheDocument();
     expect(screen.getByText('Анализ расходует 20 из 100 единиц дневного лимита.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Изменить' })).toBeEnabled();
+    expect(screen.queryByText('Для демо-текста настройки не меняются.')).not.toBeInTheDocument();
   });
 });
 
@@ -225,6 +232,23 @@ describe('UploadZone lecture formats', () => {
     expect(note()).toBeNull();
   });
 
+  it('says how long a recording fits into 15 МБ, on the audio tab (finding LIB-20)', async () => {
+    render(<Harness onUpload={vi.fn()} initialTab="media" />);
+    const plain = (node: Element | null) => node?.textContent?.replace(/\s/g, ' ');
+    expect(plain(document.querySelector('.az-media-note'))).toBe(
+      'До 15 МБ — это примерно 15–30 минут звука. Запись целой пары обычно больше: разделите её на части.',
+    );
+    expect(screen.getByText('MP4, MP3, WAV, MPEG и M4A — до 15 МБ, примерно 15–30 минут звука')).toBeInTheDocument();
+
+    // A whole pair is refused at once, with the same numbers and what to do.
+    const pair = new File(['x'], 'Пара 3.mp3', { type: 'audio/mpeg' });
+    Object.defineProperty(pair, 'size', { value: 60 * 1024 * 1024 });
+    fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [pair] } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Файл занимает 60,0 МБ, а можно до 15 МБ — примерно 15–30 минут звука. Разделите запись на части.',
+    );
+  });
+
   it('starts an analysis of a presentation', async () => {
     const onUpload = vi.fn();
     render(<Harness onUpload={onUpload} initialTab="file" />);
@@ -246,5 +270,40 @@ describe('UploadZone lecture formats', () => {
     expect(screen.queryByText('Лекция 3.PPT')).toBeNull();
     expect(startButton()).toBeDisabled();
     expect(onUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('«Разобрать лекцию»: three steps, the start on the first screen (finding LIB-8)', () => {
+  it('names the page by its action and the steps in plain words', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Разобрать лекцию' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['Что разобрать', 'Что подготовить']);
+    expect(document.body.textContent).not.toMatch(/Модули|генерац|агент/i);
+  });
+
+  it('folds what will be made into one line that «Изменить» opens and «Свернуть настройки» closes', () => {
+    render(<Harness onUpload={vi.fn()} initialText={lecture(400)} />);
+    expect(screen.getByText('Конспект, 6 карточек и тест из 5 вопросов')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Настройки разбора' })).not.toBeInTheDocument();
+    const change = screen.getByRole('button', { name: 'Изменить' });
+    expect(change).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(change);
+    const settings = screen.getByRole('region', { name: 'Настройки разбора' });
+    expect(settings).toBeInTheDocument();
+    expect(change).toHaveAttribute('aria-expanded', 'true');
+    expect(change).toHaveAttribute('aria-controls', settings.id);
+    expect(change).toHaveTextContent('Свернуть настройки');
+    fireEvent.click(change);
+    expect(screen.queryByRole('region', { name: 'Настройки разбора' })).not.toBeInTheDocument();
+  });
+
+  it('puts the start right after the two steps, before the settings', () => {
+    render(<Harness onUpload={vi.fn()} initialText={lecture(400)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
+    const start = startButton();
+    const plan = screen.getByRole('heading', { level: 2, name: 'Что подготовить' });
+    const settings = screen.getByRole('region', { name: 'Настройки разбора' });
+    expect(plan.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(start.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

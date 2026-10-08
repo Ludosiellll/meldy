@@ -229,13 +229,13 @@ describe('a term and a scene on the sheet', () => {
     const { rerender } = render(<ConversationVisual visual={scene} origin="model" provenance={{ kind: 'none' }} outline={outline} />);
     expect(screen.getByRole('heading', { name: 'Выручка фирмы' })).toHaveClass('cv-scene-title');
     expect(screen.getByText('Что происходит с деньгами, когда растёт цена')).toHaveClass('cv-scene-lede');
-    expect(screen.queryByText('О чём разговор')).not.toBeInTheDocument();
+    expect(screen.queryByText('О чём подкаст')).not.toBeInTheDocument();
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
 
     // The same scene on the first line: the kicker and the plan, rows that seek.
     const onSeek = vi.fn();
     rerender(<ConversationVisual visual={scene} origin="model" provenance={{ kind: 'none' }} outline={outline} opening onSeek={onSeek} />);
-    expect(screen.getByText('О чём разговор')).toHaveClass('cv-kicker');
+    expect(screen.getByText('О чём подкаст')).toHaveClass('cv-kicker');
     fireEvent.click(screen.getByRole('button', { name: 'Цена, реплика 4' }));
     expect(onSeek).toHaveBeenCalledWith(3);
   });

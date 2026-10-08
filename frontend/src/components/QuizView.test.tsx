@@ -244,8 +244,8 @@ describe('QuizView journal', () => {
   });
 
   it('never records the presentation mode', () => {
-    renderQuiz();
-    fireEvent.click(screen.getByRole('button', { name: 'Режим презентации для аудитории' }));
+    const exit = vi.fn();
+    renderQuiz({ presenting: true, onExitPresentation: exit });
     const dialog = screen.getByRole('dialog', { name: 'Режим презентации' });
     expect(within(dialog).getByText('Режим презентации · ответы зрителей не сохраняются')).toBeInTheDocument();
 
@@ -259,14 +259,52 @@ describe('QuizView journal', () => {
     expect(within(dialog).getByText('3 из 3')).toBeInTheDocument();
     expect(journal.record).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть презентацию' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(exit).toHaveBeenCalledTimes(1);
     expect(journal.record).not.toHaveBeenCalled();
   });
 
   it('uses neither gradients nor uppercase labels in the presentation mode', () => {
-    renderQuiz();
-    fireEvent.click(screen.getByRole('button', { name: 'Режим презентации для аудитории' }));
+    renderQuiz({ presenting: true, onExitPresentation: vi.fn() });
     const dialog = screen.getByRole('dialog', { name: 'Режим презентации' });
     expect(dialog.outerHTML).not.toMatch(/gradient|uppercase/);
+  });
+});
+
+describe('QuizView for the student (findings LIB-15, LIB-17)', () => {
+  beforeEach(() => {
+    journal.record.mockReset();
+    journal.record.mockResolvedValue(savedResult());
+  });
+
+  afterEach(cleanup);
+
+  it('has no presentation button inside the student’s own test', () => {
+    renderQuiz();
+    expect(screen.getByText(/^1\. Что измеряет энтропия\?/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /презентац/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('letters the options «А) Б) В) Г)» whatever the model wrote, and still scores by the model’s letter', async () => {
+    renderQuiz();
+    const question = screen.getByText(/^1\. Что измеряет энтропия\?/);
+    const group = screen.getByRole('group', { name: question.textContent ?? '' });
+    const letters = Array.from(group.querySelectorAll('.qz-opt-letter')).map((node) => node.textContent);
+    expect(letters).toEqual(['А)', 'Б)', 'В)', 'Г)']);
+    expect(group.textContent).not.toMatch(/[ABCD]\)/);
+
+    answerTwoOfThree();
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить ответы' }));
+    expect(await screen.findByText('Результат сохранён')).toBeInTheDocument();
+    // The third question's right answer is «Клаузиус», the second option: «Б)» on screen.
+    expect(within(screen.getByRole('group', { name: /^3\. / })).getByRole('button', { name: /^Б\) Клаузиус\s*— правильный ответ$/ })).toBeInTheDocument();
+    expect(journal.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Cyrillic letters in the presentation mode too', () => {
+    renderQuiz({ presenting: true, onExitPresentation: vi.fn() });
+    const dialog = screen.getByRole('dialog', { name: 'Режим презентации' });
+    const letters = Array.from(dialog.querySelectorAll('.qz-letter')).map((node) => node.textContent);
+    expect(letters).toEqual(['А', 'Б', 'В', 'Г']);
   });
 });

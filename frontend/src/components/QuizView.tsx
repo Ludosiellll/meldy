@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { CheckCircle2, Maximize2, RotateCcw, X, XCircle } from 'lucide-react';
+import { CheckCircle2, RotateCcw, X, XCircle } from 'lucide-react';
 import SourceReferences from './SourceReferences';
 import { pluralRu } from './conversation/visuals';
 import { stripSourceMarkers } from './summary/fragmentModel';
@@ -26,7 +26,11 @@ import './QuizView.css';
  * failed save is retried with the same session (the RPC is idempotent). `materialId === null`
  * means the material is not in the library yet; the attempt is saved as soon as an id arrives.
  * Without the prop nothing is recorded.
- * The presentation mode is for an audience and is never recorded.
+ * The presentation mode is for an audience and is never recorded; it opens from «Экспорт» → «Показать на экране»
+ * (ResultsPanel passes `presenting`), not from a button in a student's test (finding LIB-17).
+ *
+ * Options are lettered «А) Б) В) Г)» on screen whatever the model wrote («A) B) C) D)», whose «B» and «C» read as
+ * Cyrillic «В» and «С» — finding LIB-15); the journal keeps the option's own letter, so matching is unchanged.
  */
 
 export interface QuizViewProps {
@@ -35,6 +39,10 @@ export interface QuizViewProps {
   materialId?: string | null;
   topic?: string;
   surface?: 'analysis' | 'material';
+  /** The full-screen mode for an audience is open (ResultsPanel's «Экспорт» → «Показать на экране»). */
+  presenting?: boolean;
+  /** Leaving the full-screen mode (Escape, «Выйти», «Закрыть презентацию»). */
+  onExitPresentation?: () => void;
 }
 
 interface NormalizedQuestion {
@@ -130,6 +138,11 @@ export function correctOptionIndex(options: unknown, correct: unknown): number |
 
 function displayLetter(labels: (string | null)[], index: number): string {
   return labels[index] ?? LATIN_LETTERS[index] ?? String(index + 1);
+}
+
+/** The letter the student sees: «А», «Б», «В», «Г»… by the option's place. */
+export function shownLetter(index: number): string {
+  return CYRILLIC_LETTERS[index] ?? String(index + 1);
 }
 
 function normalizeQuestions(quiz: unknown[]): NormalizedQuestion[] {
@@ -308,7 +321,7 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
                   onClick={() => setAnswers((prev) => ({ ...prev, [index]: j }))}
                   className="qz-pres-opt"
                 >
-                  <span className="qz-letter">{displayLetter(q.labels, j)}</span>
+                  <span className="qz-letter">{shownLetter(j)}</span>
                   <span>{optionBody(option, q.labels[j])}</span>
                 </button>
               );
@@ -351,7 +364,7 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
                         ? 'Правильный ответ не указан, вопрос не учитывается.'
                         : right
                           ? 'Верно.'
-                          : `Правильный ответ: ${displayLetter(item.labels, item.correctIndex)}) ${optionBody(item.options[item.correctIndex], item.labels[item.correctIndex])}`}
+                          : `Правильный ответ: ${shownLetter(item.correctIndex)}) ${optionBody(item.options[item.correctIndex], item.labels[item.correctIndex])}`}
                     </p>
                   </div>
                 </li>
@@ -367,14 +380,13 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
   );
 }
 
-export default function QuizView({ data, sources = [], materialId, topic = '', surface = 'analysis' }: QuizViewProps) {
+export default function QuizView({ data, sources = [], materialId, topic = '', surface = 'analysis', presenting = false, onExitPresentation }: QuizViewProps) {
   const reduceMotion = useReducedMotion();
   const quiz: unknown = data?.quiz;
   const questions = Array.isArray(quiz) ? normalizeQuestions(quiz) : [];
 
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
-  const [presenting, setPresenting] = useState(false);
   const [save, setSave] = useState<SaveState>({ status: 'off' });
 
   const attemptRef = useRef<Attempt | null>(null);
@@ -424,7 +436,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
     }
   }, [materialId, save.status, saveAttempt]);
 
-  const exitPresentation = useCallback(() => setPresenting(false), []);
+  const exitPresentation = useCallback(() => onExitPresentation?.(), [onExitPresentation]);
 
   if (questions.length === 0) {
     return (
@@ -481,12 +493,6 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
             {total} {pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])} по материалу
           </p>
         </div>
-        {!submitted && (
-          <button type="button" onClick={() => setPresenting(true)} className="qz-chip">
-            <Maximize2 aria-hidden="true" strokeWidth={1.75} />
-            Режим презентации для аудитории
-          </button>
-        )}
       </div>
 
       {submitted && (
@@ -557,7 +563,9 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
                     >
                       {isRight && <CheckCircle2 className="qz-opt-mark" aria-hidden="true" />}
                       {isWrongChoice && <XCircle className="qz-opt-mark" aria-hidden="true" />}
-                      <span>{option}</span>
+                      <span>
+                        <span className="qz-opt-letter">{shownLetter(j)})</span> {optionBody(option, q.labels[j])}
+                      </span>
                       {isRight && <span className="sr-only"> — правильный ответ</span>}
                       {isWrongChoice && <span className="sr-only"> — ваш ответ, неверный</span>}
                     </button>

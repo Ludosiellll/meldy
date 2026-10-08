@@ -93,9 +93,9 @@ const HOST_VOICE = { fallback: 'none', persist: true };
 
 /** «Текст разговора» — ссылка в строке плеера; расшифровка открывается панелью поверх листа. */
 function openTranscript(): HTMLElement {
-  const link = screen.getByRole('button', { name: 'Текст разговора' });
+  const link = screen.getByRole('button', { name: 'Текст подкаста' });
   if (link.getAttribute('aria-expanded') !== 'true') fireEvent.click(link);
-  return screen.getByRole('complementary', { name: 'Текст разговора' });
+  return screen.getByRole('complementary', { name: 'Текст подкаста' });
 }
 
 describe('ConversationPlayer', () => {
@@ -126,17 +126,17 @@ describe('ConversationPlayer', () => {
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
 
     // No permanent 340 px column: the transcript opens from «Текст разговора».
-    expect(screen.queryByRole('complementary', { name: 'Текст разговора' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Текст подкаста' })).not.toBeInTheDocument();
     const transcript = openTranscript();
     for (const line of modelLines) {
       expect(within(transcript).getByText(line.text)).toBeInTheDocument();
     }
-    fireEvent.click(within(transcript).getByRole('button', { name: 'Закрыть текст разговора' }));
+    fireEvent.click(within(transcript).getByRole('button', { name: 'Закрыть текст подкаста' }));
     expect(screen.getByText('Реплика 1 из 4')).toBeInTheDocument();
     expect(screen.getByText('Макс и Софья обсуждают лекцию · 4 реплики, около минуты')).toBeInTheDocument();
 
     const scene = activeScene();
-    expect(within(scene).getByText('О чём разговор')).toBeInTheDocument();
+    expect(within(scene).getByText('О чём подкаст')).toBeInTheDocument();
     expect(within(scene).getByText('Тепло и работа')).toBeInTheDocument();
     expect(within(scene).getByRole('button', { name: /Энтропия.*реплика 2/ })).toBeInTheDocument();
     expect(screen.queryByText('Из конспекта')).not.toBeInTheDocument();
@@ -164,11 +164,11 @@ describe('ConversationPlayer', () => {
     render(<ConversationPlayer lines={saved} title="Тема 4. Эластичность" />);
 
     const scene = activeScene();
-    expect(within(scene).getByText('О чём разговор')).toHaveClass('cv-kicker');
+    expect(within(scene).getByText('О чём подкаст')).toHaveClass('cv-kicker');
     expect(within(scene).getByRole('heading', { name: 'Эластичность спроса' })).toBeInTheDocument();
     // The caption is the lede under the topic, not a question over a list of answers.
     expect(within(scene).getByText('Как изменение цены влияет на покупки?')).toHaveClass('cv-scene-lede');
-    const plan = within(scene).getByRole('list', { name: 'Дальше в разговоре' });
+    const plan = within(scene).getByRole('list', { name: 'Дальше в подкасте' });
     const names = (list: HTMLElement) => within(list).getAllByRole('button').map(button => button.getAttribute('aria-label'));
     expect(names(plan)).toEqual([
       'Эластичный спрос, реплика 2',
@@ -198,7 +198,7 @@ describe('ConversationPlayer', () => {
     ];
     render(<ConversationPlayer lines={legacy} title="Тема 4. Эластичность" terms={terms} />);
     let cover = activeScene();
-    expect(within(cover).getByText('О чём разговор')).toBeInTheDocument();
+    expect(within(cover).getByText('О чём подкаст')).toBeInTheDocument();
     expect(within(cover).getByRole('heading', { name: 'Тема 4. Эластичность' })).toBeInTheDocument();
     expect(names(within(cover).getByRole('list'))).toEqual(['Эластичность спроса, реплика 2', 'Выручка, реплика 3']);
     cleanup();
@@ -283,7 +283,7 @@ describe('ConversationPlayer', () => {
 
   it('moves between lines with the keyboard; Space starts a line and presses while it loads change nothing', () => {
     render(<ConversationPlayer lines={modelLines} />);
-    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
     // The warm-up: the first two lines are prepared as soon as the player is on screen.
     expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
 
@@ -425,7 +425,7 @@ describe('ConversationPlayer', () => {
     render(<ConversationPlayer lines={modelLines} />);
     const body = screen.getByRole('region', { name: 'Сцена' }).querySelector('.cv-sheet-body') as HTMLElement;
     body.scrollTop = 30;
-    fireEvent.keyDown(screen.getByRole('region', { name: 'Разговор по материалу' }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Подкаст по лекции' }), { key: 'ArrowRight' });
     expect(within(activeScene()).getByRole('heading', { name: 'Энтропия' })).toBeInTheDocument();
     expect(body.scrollTop).toBe(0);
   });
@@ -515,12 +515,14 @@ describe('ConversationPlayer', () => {
     const onLinesUpdate = vi.fn();
 
     render(<ConversationPlayer lines={[]} title="Термодинамика" materialId="material-1" onLinesUpdate={onLinesUpdate} />);
-    expect(screen.getByText('Для этого материала разговор ещё не создан')).toBeInTheDocument();
+    expect(screen.getByText('Подкаста по этой лекции ещё нет')).toBeInTheDocument();
+    // What it spends, under the button and in its description (finding LIB-18); the number is AI_COSTS.conversation.
+    expect(screen.getByRole('button', { name: 'Создать подкаст' })).toHaveAccessibleDescription('Расходует 5 единиц дневного лимита ИИ.');
 
-    await user.click(screen.getByRole('button', { name: 'Создать разговор' }));
+    await user.click(screen.getByRole('button', { name: 'Создать подкаст' }));
 
     await waitFor(() => expect(onLinesUpdate).toHaveBeenCalled());
-    expect(energy.verifyEnergy).toHaveBeenCalledWith('user-1', 5, 'Создание разговора');
+    expect(energy.verifyEnergy).toHaveBeenCalledWith('user-1', 5, 'Создание подкаста');
     expect(fetchMock).toHaveBeenCalledWith('/api/podcast/generate', expect.objectContaining({ method: 'POST' }));
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body).toEqual({
@@ -542,7 +544,7 @@ describe('ConversationPlayer', () => {
     expect(saved).not.toHaveProperty('_startTab');
     expect(limits.incrementAIUsage).toHaveBeenCalledWith();
     expect(onLinesUpdate).toHaveBeenCalledWith(generated);
-    expect(toasts.success).toHaveBeenCalledWith('Разговор готов');
+    expect(toasts.success).toHaveBeenCalledWith('Подкаст готов');
 
     await screen.findByRole('region', { name: 'Сцена' });
     const transcript = openTranscript();
@@ -560,7 +562,7 @@ describe('ConversationPlayer', () => {
     });
 
     render(<ConversationPlayer lines={[]} title="Тема" materialId="material-1" />);
-    await user.click(screen.getByRole('button', { name: 'Создать разговор' }));
+    await user.click(screen.getByRole('button', { name: 'Создать подкаст' }));
     await waitFor(() => expect(db.update).toHaveBeenCalled());
     const saved = (db.update.mock.calls[0][0] as { summary_json: Record<string, unknown> }).summary_json;
     expect(saved).toEqual({ content: 'Конспект', cheatsheet: 'Новая выжимка', podcast: generated });
@@ -572,13 +574,13 @@ describe('ConversationPlayer', () => {
     db.snapshot = { summary_json: { content: 'Конспект' }, original_text: 'Текст' };
 
     render(<ConversationPlayer lines={[]} title="Тема" materialId="material-1" />);
-    await user.click(screen.getByRole('button', { name: 'Создать разговор' }));
+    await user.click(screen.getByRole('button', { name: 'Создать подкаст' }));
 
     await waitFor(() => expect(energy.verifyEnergy).toHaveBeenCalled());
     expect(fetchMock).not.toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Создать разговор' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Создать подкаст' })).toBeEnabled();
   });
 
   it('shows a calm error with retry when creation fails and does not charge energy', async () => {
@@ -587,7 +589,7 @@ describe('ConversationPlayer', () => {
     fetchMock.mockImplementation(() => fetchResponse({ detail: 'Не удалось подготовить разговор. Попробуйте ещё раз.' }, false, 502));
 
     render(<ConversationPlayer lines={[]} title="Тема" materialId="material-1" />);
-    await user.click(screen.getByRole('button', { name: 'Создать разговор' }));
+    await user.click(screen.getByRole('button', { name: 'Создать подкаст' }));
 
     const alert = await screen.findByRole('alert');
     expect(within(alert).getByText('Не удалось подготовить разговор. Попробуйте ещё раз.')).toBeInTheDocument();
@@ -630,7 +632,7 @@ describe('ConversationPlayer', () => {
   });
   it('tells screen readers about the line the user moved to', () => {
     render(<ConversationPlayer lines={modelLines} />);
-    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
     const live = player.querySelector('[aria-live="polite"][aria-atomic="true"]') as HTMLElement;
     expect(live).toBeTruthy();
     expect(live.textContent?.trim()).toBe('');
@@ -651,7 +653,7 @@ describe('ConversationPlayer', () => {
   it('keeps keyboard focus inside the player when a scene control is used', async () => {
     const user = userEvent.setup();
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
-    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
 
     // Строка плана исчезает вместе со сценой — фокус переходит на плеер, клавиши продолжают работать.
     await user.click(within(activeScene()).getByRole('button', { name: /Энтропия/ }));
@@ -762,8 +764,8 @@ describe('ConversationPlayer', () => {
 
   it('does not offer paid model work on a material the user cannot change', () => {
     render(<ConversationPlayer lines={[]} materialId="material-1" canEdit={false} />);
-    expect(screen.getByText('Разговор может создать только автор материала.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
+    expect(screen.getByText('Подкаст может создать только автор лекции.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать подкаст' })).not.toBeInTheDocument();
     cleanup();
     render(<ConversationPlayer lines={legacyLines} materialId="material-1" canEdit={false} />);
     expect(screen.queryByRole('button', { name: /Добавить схемы/ })).not.toBeInTheDocument();
@@ -832,12 +834,12 @@ describe('ConversationPlayer', () => {
   it('opens the transcript as a panel over the sheet from its link; Escape and × close it and give the focus back', async () => {
     const user = userEvent.setup();
     render(<ConversationPlayer lines={modelLines} />);
-    const link = screen.getByRole('button', { name: 'Текст разговора' });
+    const link = screen.getByRole('button', { name: 'Текст подкаста' });
     expect(link).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(link);
     expect(link).toHaveAttribute('aria-expanded', 'true');
-    const panel = screen.getByRole('complementary', { name: 'Текст разговора' });
+    const panel = screen.getByRole('complementary', { name: 'Текст подкаста' });
     expect(link).toHaveAttribute('aria-controls', panel.id);
     // The panel lies over the sheet (inside the stage), not in a column next to it.
     expect(panel.closest('.cv-stage')).not.toBeNull();
@@ -846,21 +848,21 @@ describe('ConversationPlayer', () => {
     expect(within(panel).getByRole('button', { name: /Привет! Сегодня разбираем термодинамику/ })).toHaveFocus();
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('complementary', { name: 'Текст разговора' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Текст подкаста' })).not.toBeInTheDocument();
     expect(link).toHaveFocus();
     expect(link).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(link);
-    await user.click(screen.getByRole('button', { name: 'Закрыть текст разговора' }));
-    expect(screen.queryByRole('complementary', { name: 'Текст разговора' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Закрыть текст подкаста' }));
+    expect(screen.queryByRole('complementary', { name: 'Текст подкаста' })).not.toBeInTheDocument();
     expect(link).toHaveFocus();
 
     // The keys of the player keep working while the panel is open.
     await user.click(link);
-    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
     fireEvent.keyDown(player, { key: 'ArrowRight' });
     expect(screen.getByText('Реплика 2 из 4')).toBeInTheDocument();
-    expect(within(screen.getByRole('complementary', { name: 'Текст разговора' })).getByRole('button', { name: /Начнём с\sглавного понятия/ })).toHaveAttribute(
+    expect(within(screen.getByRole('complementary', { name: 'Текст подкаста' })).getByRole('button', { name: /Начнём с\sглавного понятия/ })).toHaveAttribute(
       'aria-current',
       'true',
     );
@@ -887,7 +889,7 @@ describe('ConversationPlayer', () => {
     const kinds = [...sheet.querySelectorAll('[data-scene-layer="measure"] [class~="min-w-0"]')].length;
     expect(kinds).toBeGreaterThanOrEqual(5);
 
-    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
     const shown: string[] = [];
     for (let index = 0; index < old.length; index += 1) {
       shown.push(activeScene().querySelector('[data-visual-type]')?.getAttribute('data-visual-type') ?? '');
@@ -903,9 +905,10 @@ describe('ConversationPlayer', () => {
     expect(sheetMetrics(1024, 900).height).toBe(392);
     expect(sheetMetrics(800, 900)).toEqual({ height: 360, max: 520, padTop: 28, padBottom: 26 });
     expect(sheetMetrics(390, 844)).toEqual({ height: 336, max: 520, padTop: 16, padBottom: 14 });
-    // The low window (≥1024 wide, ≤780 high): what is left of 100vh, at least 240, and no growth.
-    expect(sheetMetrics(1280, 720)).toEqual({ height: 305, max: 305, padTop: 22, padBottom: 18 });
-    expect(sheetMetrics(1536, 734)).toEqual({ height: 319, max: 319, padTop: 22, padBottom: 18 });
+    // The low window (≥1024 wide, ≤780 high): what is left of 100vh under the lecture's header (the same header on
+    // every tab, finding LIB-3), at least 240, and no growth.
+    expect(sheetMetrics(1280, 720)).toEqual({ height: 244, max: 244, padTop: 22, padBottom: 18 });
+    expect(sheetMetrics(1536, 734)).toEqual({ height: 258, max: 258, padTop: 22, padBottom: 18 });
     expect(sheetMetrics(1366, 640)).toEqual({ height: 240, max: 240, padTop: 22, padBottom: 18 });
     expect(sheetMetrics(1280, 781).height).toBe(392);
   });
@@ -923,7 +926,7 @@ describe('ConversationPlayer', () => {
       const line = within(screen.getByRole('region', { name: 'Субтитры' })).getByText(modelLines[0].text);
       expect(line).toHaveAttribute('data-fit', '2');
       heights['0'] = 100;
-      fireEvent.keyDown(screen.getByRole('region', { name: 'Разговор по материалу' }), { key: 'ArrowRight' });
+      fireEvent.keyDown(screen.getByRole('region', { name: 'Подкаст по лекции' }), { key: 'ArrowRight' });
       expect(within(screen.getByRole('region', { name: 'Субтитры' })).getByText(modelLines[1].text)).toHaveAttribute('data-fit', '0');
     } finally {
       spy.mockRestore();

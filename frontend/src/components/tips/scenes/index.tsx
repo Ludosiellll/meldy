@@ -88,7 +88,7 @@ function Talk() {
       <Beat lines={['Спросит', 'и подскажет.']}>
         <div className="ts-bar">
           <Wordmark className="ts-bar-mark" />
-          <span className="ts-bar-where">Разговор о лекции</span>
+          <span className="ts-bar-where">Поговорить о лекции</span>
           <span className="ts-bar-back">
             <BackArrow />К лекции
           </span>

@@ -179,9 +179,16 @@
 .rp-result-notes p { margin: 0; }
 
 @media (max-width: 639px) {
+  .rp-tabsrow { gap: 6px 16px; margin-top: 16px; }
   .rp-tabsrow .sf-sectabs button { padding: 0 14px; }
   .rp-result-acts { width: 100%; }
   .rp-result-acts .sf-primary { flex: 1 1 auto; }
+}
+/* 320 px: «Конспект», «Карточки 6» and «Тест 5» used to scroll out of the row with nothing to show it
+   (finding LIB-28); the pills get tighter, and a pill that still does not fit goes to the next line. */
+@media (max-width: 374px) {
+  .rp-tabsrow .sf-sectabs { flex-wrap: wrap; overflow: visible; }
+  .rp-tabsrow .sf-sectabs button { padding: 0 11px; font-size: 14.5px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .rp-export-pill,

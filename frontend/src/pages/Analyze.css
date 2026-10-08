@@ -15,6 +15,11 @@
 }
 /* The results keep the width they were laid out for. */
 .az[data-phase='done'] { max-width: 1024px; padding: 24px 24px 96px; }
+/* The upload steps take two columns on a wide screen (UploadZone.css): the source and, beside it, what will be made
+   and the start. */
+@media (min-width: 1100px) {
+  .az[data-phase='upload'] { max-width: calc(1240px + 2 * var(--az-g)); }
+}
 
 /* A white pill with the dark circle and an arrow (the second action of the language). */
 .az .az-pill2 {

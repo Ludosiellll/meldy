@@ -29,6 +29,7 @@ import {
   hasModelVisuals,
   mergeVisualsByIndex,
   parseGeneratedLines,
+  pluralRu,
   visualCaption,
   visualLabel,
   type HostVoice,
@@ -82,7 +83,7 @@ type AudioProblem = 'unavailable' | 'timeout' | 'failed';
 export const SPEEDS = [1, 1.25, 1.5, 2] as const;
 
 const AUDIO_MESSAGES: Record<AudioProblem, string> = {
-  unavailable: 'Звук недоступен в этом браузере. Реплики можно читать в тексте разговора.',
+  unavailable: 'Звук недоступен в этом браузере. Реплики можно читать в тексте подкаста.',
   timeout: 'Звук не загрузился. Попробуйте ещё раз.',
   failed: 'Не удалось воспроизвести реплику. Попробуйте ещё раз.',
 };
@@ -127,7 +128,7 @@ const HOST_VOICE: PlayTTSOptions = { fallback: 'none', persist: true };
 /** На сколько реплик вперёд готовим звук: по одной, когда текущая уже зазвучала. */
 const PREFETCH_AHEAD = 3;
 
-const CREATE_FAILED = 'Не удалось создать разговор. Попробуйте ещё раз.';
+const CREATE_FAILED = 'Не удалось создать подкаст. Попробуйте ещё раз.';
 const VISUALS_FAILED = 'Не удалось добавить схемы. Попробуйте ещё раз.';
 
 const NBSP = String.fromCharCode(160);
@@ -192,15 +193,17 @@ export interface SheetMetrics {
 }
 
 /**
- * Высота листа «Разговора» для схемы и графика и его поля по размеру окна — те же числа, что
+ * Высота листа «Подкаста» для схемы и графика и его поля по размеру окна — те же числа, что
  * в conversation.css (--cv-h, --cv-max): 392 от 1024 px, 360 уже, 336 на телефоне; в низком окне
- * (от 1024, не выше 780) — остаток 100vh под строкой меню, шапкой материала, субтитром в три строки
- * и плеером с их отступами (100vh − 415, не меньше 240 px), и лист не растёт. Разговор из одних
- * терминов и шагов получает лист ниже — по самому высокому своему изображению, но не ниже --cv-min.
+ * (от 1024, не выше 780) — остаток 100vh под строкой меню, шапкой лекции (одной на все вкладки, с
+ * названием в две строки), субтитром в три строки и плеером с их отступами (100vh − LOW_WINDOW_ROOM,
+ * не меньше 240 px), и лист не растёт. Подкаст из одних терминов и шагов получает лист ниже — по самому
+ * высокому своему изображению, но не ниже --cv-min.
  */
+export const LOW_WINDOW_ROOM = 476;
 export function sheetMetrics(width: number, height: number): SheetMetrics {
   if (width >= 1024 && height <= 780) {
-    const low = Math.max(240, height - 415);
+    const low = Math.max(240, height - LOW_WINDOW_ROOM);
     return { height: low, max: low, padTop: 22, padBottom: 18 };
   }
   if (width >= 1024) return { height: 392, max: 520, padTop: 28, padBottom: 26 };
@@ -257,6 +260,7 @@ export default function ConversationPlayer({
   const { verifyEnergy } = useEnergyConfirm();
   const reduceMotion = Boolean(useReducedMotion());
   const transcriptId = `cv-transcript-${useId().replace(/:/g, '')}`;
+  const costId = `${transcriptId}-cost`;
   const viewport = useViewport();
   const sheet = sheetMetrics(viewport.width, viewport.height);
   const budget = sheet.height - sheet.padTop - sheet.padBottom;
@@ -564,7 +568,7 @@ export default function ConversationPlayer({
             clearWaitNote();
             setPlayback('idle');
             setFinished(true);
-            announce('Разговор закончился.');
+            announce('Подкаст закончился.');
           }
         },
         error => {
@@ -740,24 +744,24 @@ export default function ConversationPlayer({
       'create',
       id,
       async begin => {
-        if (!(await energyAllows(userId, 'Создание разговора'))) return;
+        if (!(await energyAllows(userId, 'Создание подкаста'))) return;
         begin();
         const snapshot = await loadMaterialSnapshot(id);
         const context = conversationContext(snapshot);
-        if (!context) throw new ConversationError('В материале слишком мало текста, чтобы составить разговор.');
+        if (!context) throw new ConversationError('В лекции слишком мало текста, чтобы составить подкаст.');
         const payload = await postJson('/api/podcast/generate', {
           context,
           title: materialTitle,
           terms: conversationTerms(snapshot, fallbackTerms),
         });
         const generated = parseGeneratedLines(payload);
-        if (!generated.length) throw new ConversationError('Не получилось составить разговор. Попробуйте ещё раз.');
+        if (!generated.length) throw new ConversationError('Не получилось составить подкаст. Попробуйте ещё раз.');
         await saveConversationLines(id, generated);
         // Энергию списываем только после успешного сохранения.
         await chargeEnergy(userId);
         publishLines(id, generated);
         deliver?.(generated);
-        toast.success('Разговор готов');
+        toast.success('Подкаст готов');
       },
       CREATE_FAILED,
     );
@@ -810,25 +814,29 @@ export default function ConversationPlayer({
   if (!total || !active) {
     const creating = createJob.state === 'working';
     return (
-      <section aria-label="Разговор по материалу" className="cv cv-empty">
+      <section aria-label="Подкаст по лекции" className="cv cv-empty">
         <div className="cv-empty-text">
-          <h2>Для этого материала разговор ещё не создан</h2>
+          <h2>Подкаста по этой лекции ещё нет</h2>
           <p>
             Два ведущих, Макс и Софья, обсудят лекцию простыми словами, а на листе рядом будут появляться схемы, графики и
             термины из неё.
           </p>
           {materialId && canEdit ? (
             <>
-              <button type="button" onClick={createConversation} disabled={creating} className="sf-primary">
-                {creating ? 'Составляем разговор…' : 'Создать разговор'}
+              <button type="button" onClick={createConversation} disabled={creating} aria-describedby={costId} className="sf-primary">
+                {creating ? 'Готовим подкаст…' : 'Создать подкаст'}
               </button>
+              {/* What it spends, as «Работа над ошибками» says it (finding LIB-18); the number is lib/plans.ts. */}
+              <p id={costId} className="cv-cost">
+                Расходует {AI_COSTS.conversation} {pluralRu(AI_COSTS.conversation, ['единицу', 'единицы', 'единиц'])} дневного лимита ИИ.
+              </p>
               {createJob.state === 'error' && <JobError message={createJob.message} onRetry={createConversation} />}
             </>
           ) : (
             <p>
               {materialId
-                ? 'Разговор может создать только автор материала.'
-                : 'Разговор можно создать на странице материала в библиотеке.'}
+                ? 'Подкаст может создать только автор лекции.'
+                : 'Подкаст можно создать на странице лекции в «Лекциях».'}
             </p>
           )}
         </div>
@@ -859,13 +867,13 @@ export default function ConversationPlayer({
   return (
     <section
       ref={rootRef}
-      aria-label="Разговор по материалу"
+      aria-label="Подкаст по лекции"
       aria-keyshortcuts="Space K ArrowLeft ArrowRight"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       className="cv cv-show"
     >
-      <h2 className="sr-only">Разговор по материалу</h2>
+      <h2 className="sr-only">Подкаст по лекции</h2>
       <p className="cv-meta">{meta}</p>
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
@@ -924,7 +932,7 @@ export default function ConversationPlayer({
         {transcriptOpen && (
           <aside
             id={transcriptId}
-            aria-label="Текст разговора"
+            aria-label="Текст подкаста"
             className="sf-sheet cv-panel"
             onKeyDown={event => {
               if (event.key !== 'Escape') return;
@@ -934,8 +942,8 @@ export default function ConversationPlayer({
             }}
           >
             <div className="cv-panel-head">
-              <h3 className="cv-panel-title">Текст разговора</h3>
-              <button type="button" className="cv-ico" onClick={closeTranscript} aria-label="Закрыть текст разговора">
+              <h3 className="cv-panel-title">Текст подкаста</h3>
+              <button type="button" className="cv-ico" onClick={closeTranscript} aria-label="Закрыть текст подкаста">
                 <X aria-hidden="true" strokeWidth={1.75} />
               </button>
             </div>
@@ -1058,7 +1066,7 @@ export default function ConversationPlayer({
           aria-expanded={transcriptOpen}
           aria-controls={transcriptOpen ? transcriptId : undefined}
         >
-          Текст разговора
+          Текст подкаста
         </button>
 
         {/* Отдельной строкой внутри плеера: на телефоне плеер прилипает к низу экрана, и строка видна вместе с ним. */}

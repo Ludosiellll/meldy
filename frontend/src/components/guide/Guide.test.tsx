@@ -109,10 +109,17 @@ describe('the guide chapters', () => {
     const resetAt = formatLimitReset(nextLimitReset());
     expect(limit.text).toBe(limitChapterText(resetAt));
     expect(limit.text).toBe(
-      `Действия с ИИ тратят единицы дневного лимита: анализ лекции — ${AI_COSTS.lecture}, проверка ответа — ${AI_COSTS.answer}, разговор — ${AI_COSTS.conversation}. ` +
+      `Действия с ИИ тратят единицы дневного лимита: анализ лекции — ${AI_COSTS.lecture}, проверка ответа — ${AI_COSTS.answer}, подкаст — ${AI_COSTS.conversation}. ` +
         `В день — ${FREE_DAILY_UNITS} единиц, с PRO — ${PRO_DAILY_UNITS}; лимит обновляется ночью, в ${resetAt}, а остаток виден вверху справа.`,
     );
     expect(limitChapterText('3:00')).toContain('лимит обновляется ночью, в 3:00,');
+    // Decision 1 and finding LIB-20: the two-host audio is «Подкаст»; 15 МБ hold a part of a pair, not a whole one.
+    const analyze = GUIDE_CHAPTERS.find((chapter) => chapter.route === '/analyze')!;
+    expect(analyze.title).toBe('Разобрать лекцию');
+    expect(analyze.text).toContain('запись части пары');
+    const lectures = GUIDE_CHAPTERS.find((chapter) => chapter.route === '/library')!;
+    expect(lectures.text).toContain('во вкладке «Подкаст»');
+    expect(GUIDE_CHAPTERS.map((chapter) => chapter.text).join(' ')).not.toMatch(/[Рр]азговор/);
     expect(limit.phone).toBe('На телефоне — кружок с числом.');
   });
 

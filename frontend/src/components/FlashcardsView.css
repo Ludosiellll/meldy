@@ -1,12 +1,16 @@
 /* The cards of a material in the Meldy language: big rounded cards with the answer in a soft panel, quiet
-   pills for «Показать все / Скрыть все», the white pill with the black circle for «Начать обучение», and a deck
-   for learning one card at a time (two tinted cards under the white one, as on «Сегодня»). */
+   pills for «Показать все / Скрыть все», the white pill with the black circle for «Повторить карточки» (the
+   lecture's review), and — for a result not in the library — a deck to leaf through one card at a time (two
+   tinted cards under the white one, as on «Сегодня»). */
 
 .fc-none { margin: 0; color: var(--sf-muted); }
 
 /* ---------------------------------------------------------------- the bar */
 .fc-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; margin-bottom: 20px; }
 .fc-bar-quiet { display: flex; flex-wrap: wrap; gap: 8px; }
+/* What the review holds, or that leafing through saves nothing: one quiet line under the bar. */
+.fc-note { margin: -8px 0 20px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.fc-n { font-variant-numeric: tabular-nums; }
 
 .fc-chip {
   display: inline-flex;
@@ -275,6 +279,7 @@
   .fc-card { padding: 22px 22px 20px; border-radius: 28px; }
   .fc-q { font-size: 18px; }
   .fc-answer { padding: 14px 16px; font-size: 16px; }
+  .fc-bar .fc-go { width: 100%; }
   .fc-bar .fc-pill { width: 100%; justify-content: space-between; }
   .fc-big { min-height: 300px; padding: 34px 22px; border-radius: 36px; }
   .fc-under { border-radius: 36px; }

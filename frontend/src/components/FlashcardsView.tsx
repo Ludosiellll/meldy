@@ -1,4 +1,5 @@
-import { useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { FlashcardsInfo, Flashcard } from '../types/index';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Check, Copy, Eye, EyeOff, GraduationCap, RotateCcw } from 'lucide-react';
@@ -7,19 +8,54 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import SourceReferences from './SourceReferences';
 import { stripSourceMarkers } from './summary/fragmentModel';
+import { repairMathEscapes } from '../lib/mathEscapes';
+import { cardsLine } from '../lib/followupCards';
 import 'katex/dist/katex.min.css';
 import './FlashcardsView.css';
 
+/** Inside the question's button only inline text: no links, pictures, headings or lists from the model's Markdown. */
+const NOT_IN_A_QUESTION = ['a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'table', 'hr', 'ul', 'ol', 'li'];
+
+/** A question with a formula keeps the formula; any other question stays plain text (no Markdown surprises). */
+function QuestionText({ text }: { text: string }) {
+  if (!text.includes('$')) return <>{text}</>;
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      disallowedElements={NOT_IN_A_QUESTION}
+      unwrapDisallowed
+      components={{ p: ({ children }: { children?: ReactNode }) => <>{children}</> }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
+}
+
+interface FlashcardsViewProps {
+  data: FlashcardsInfo;
+  sources?: { id: string; text: string }[];
+  /**
+   * The lecture's review (/review?material=…): spaced repetition with «Не помню / С трудом / Помню», saved and
+   * counted in «Прогресс». Without it (a result not in the library) the cards can only be leafed through here.
+   */
+  reviewHref?: string;
+  /** Cards this lecture got from ticket answers: reviewed together with its own (lib/followupCards). */
+  followups?: number;
+}
+
 /**
- * The cards of a material (Meldy 2026-10-04): big rounded cards, the question on top and the answer in a soft
- * panel under it; «Начать обучение» turns them into a deck, one card at a time, with «Знаю» and «Ещё раз».
+ * The cards of a material (Meldy 2026-10-04): big rounded cards, numbered «1.», the question on top and the answer
+ * in a soft panel under it. The way to learn them is «Повторить карточки», the lecture's review (finding LIB-10:
+ * «Начать обучение» here was a deck that saved nothing beside the real review). A result that is not in the
+ * library yet has only that deck, named for what it is: «Пролистать без записи».
  */
-export default function FlashcardsView({ data, sources = [] }: { data: FlashcardsInfo; sources?: { id: string; text: string }[] }) {
-  // Без меток фрагментов «[S02]», которые модель иногда копирует из входа.
+export default function FlashcardsView({ data, sources = [], reviewHref, followups = 0 }: FlashcardsViewProps) {
+  // Без меток фрагментов «[S02]», которые модель иногда копирует из входа; формулы — с обратной чертой (LIB-2).
   const cards = data?.flashcards?.map((card) => ({
     ...card,
-    question: typeof card.question === 'string' ? stripSourceMarkers(card.question) : card.question,
-    answer: typeof card.answer === 'string' ? stripSourceMarkers(card.answer) : card.answer,
+    question: typeof card.question === 'string' ? repairMathEscapes(stripSourceMarkers(card.question)) : card.question,
+    answer: typeof card.answer === 'string' ? repairMathEscapes(stripSourceMarkers(card.answer)) : card.answer,
   }));
 
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
@@ -82,7 +118,7 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
             Результат: {knownCount} из {cards.length}
           </h3>
           <p className="fc-result-p">
-            {knownCount === cards.length ? 'Отлично! Вы знаете все карточки!' :
+            {knownCount === cards.length ? 'Вы знаете все карточки.' :
              knownCount >= cards.length / 2 ? 'Неплохо, но есть что подтянуть.' :
              'Стоит повторить материал ещё раз.'}
           </p>
@@ -115,7 +151,9 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
           <span className="fc-under" data-n="1" aria-hidden="true" />
           <span className="fc-under" data-n="2" aria-hidden="true" />
           <motion.div key={studyIdx} initial={still ? false : { opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="fc-big">
-            <p className="fc-big-q">{cards[studyIdx].question}</p>
+            <p className="fc-big-q">
+              <QuestionText text={String(cards[studyIdx].question ?? '')} />
+            </p>
 
             <AnimatePresence mode="wait">
               {!studyRevealed ? (
@@ -186,13 +224,31 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
             Скрыть все
           </button>
         </div>
-        <button type="button" onClick={startStudy} className="fc-pill">
-          Начать обучение
-          <span className="fc-dot" aria-hidden="true">
-            <ArrowRight strokeWidth={2} />
-          </span>
-        </button>
+        {reviewHref ? (
+          <div className="fc-go">
+            <Link to={reviewHref} className="fc-pill">
+              Повторить карточки
+              <span className="fc-dot" aria-hidden="true">
+                <ArrowRight strokeWidth={2} />
+              </span>
+            </Link>
+          </div>
+        ) : (
+          <div className="fc-go">
+            <button type="button" onClick={startStudy} className="fc-pill">
+              Пролистать без записи
+              <span className="fc-dot" aria-hidden="true">
+                <ArrowRight strokeWidth={2} />
+              </span>
+            </button>
+          </div>
+        )}
       </div>
+      {reviewHref && followups > 0 ? (
+        <p className="fc-note">В повторении: {cardsLine(cards.length, followups)}.</p>
+      ) : !reviewHref ? (
+        <p className="fc-note">Ответы здесь не сохраняются и не двигают повторение.</p>
+      ) : null}
 
       <ol className="fc-list">
         {cards.map((c: Flashcard, i: number) => (
@@ -207,13 +263,13 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
           >
             <div className="fc-card-top">
               <button type="button" className="fc-q" aria-expanded={Boolean(revealed[i])} onClick={() => toggle(i)}>
-                Q{i+1}: {c.question}
+                <span className="fc-n">{i + 1}.</span> <QuestionText text={String(c.question ?? '')} />
               </button>
               <button
                 type="button"
                 aria-label={copiedIdx === i ? 'Скопировано' : 'Скопировать карточку'}
                 onClick={() => {
-                  navigator.clipboard.writeText(`Q: ${c.question}\nA: ${c.answer}`);
+                  navigator.clipboard.writeText(`Вопрос: ${c.question}\nОтвет: ${c.answer}`);
                   setCopiedIdx(i);
                   setTimeout(() => setCopiedIdx(-1), 1500);
                 }}

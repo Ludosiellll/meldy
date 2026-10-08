@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import katex from 'katex';
+import { repairFormula } from '../../lib/mathEscapes';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
 import { ArrowRight, X } from 'lucide-react';
@@ -193,7 +194,8 @@ function useFitFormula(wrapperRef: { current: HTMLDivElement | null }, innerRef:
 }
 
 function FormulaBody({ visual }: { visual: FormulaVisual }) {
-  const html = useMemo(() => renderLatex(visual.latex, true), [visual.latex]);
+  // A backspace the server's JSON reading made of «\beta» (before 2026-10-08) is a command again (lib/mathEscapes).
+  const html = useMemo(() => renderLatex(repairFormula(visual.latex), true), [visual.latex]);
   const legend = visual.legend ?? [];
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
@@ -306,7 +308,7 @@ function keepDash(text: string): string {
  */
 function Chapters({ items, onSeek, interactive }: { items: OutlineItem[]; onSeek?: (position: number) => void; interactive: boolean }) {
   return (
-    <ol className="cv-chapters" aria-label="Дальше в разговоре">
+    <ol className="cv-chapters" aria-label="Дальше в подкасте">
       {items.map(item => (
         <li key={item.position}>
           {/* The name is set whole: engines join the inline parts of a button differently («Тема,реплика 2»). */}
@@ -347,7 +349,7 @@ function SceneCard({
   return (
     <div className="cv-scene" data-chapters={chapters.length ? '' : undefined}>
       <div className="cv-scene-head">
-        {opening && <p className="cv-kicker">О чём разговор</p>}
+        {opening && <p className="cv-kicker">О чём подкаст</p>}
         <h3 className="cv-scene-title">{keepDash(visual.title)}</h3>
         {visual.caption && <p className="cv-scene-lede">{keepDash(visual.caption)}</p>}
       </div>

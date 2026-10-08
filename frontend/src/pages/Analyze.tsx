@@ -18,6 +18,7 @@ import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
 import { OCR_NOTICE, OCR_PHOTO_NOTICE, lectureFormatOf } from '../lib/lectureFormats';
 import { secondsBucket, track } from '../lib/telemetry';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import {
   SECTION_LABELS,
   SECTION_NAMES,
@@ -150,6 +151,7 @@ const INLINE_ACTION =
   'min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:opacity-60';
 
 export default function Analyze() {
+  useDocumentTitle('Разобрать лекцию');
   const [state, setState] = useState<AnalysisState>({
     phase: 'upload', agents: initAgents, results: null, settings: DEFAULT_SETTINGS,
   });

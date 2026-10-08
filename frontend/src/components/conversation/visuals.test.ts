@@ -548,7 +548,7 @@ describe('words on the paper sheet (spec 5.7)', () => {
     expect(conversationMeta(['Макс', 'Софья'], 14, 1)).toBe('Макс и Софья обсуждают лекцию · 14 реплик, около минуты');
     expect(conversationMeta(['Макс', 'Софья', 'Анна', 'Борис'], 3, 2)).toBe('Макс, Софья и Анна обсуждают лекцию · 3 реплики, около 2 минут');
     expect(conversationMeta(['Софья'], 1, 0)).toBe('Софья рассказывает о лекции · 1 реплика');
-    expect(conversationMeta([], 21, 21)).toBe('Разговор по лекции · 21 реплика, около 21 минуты');
+    expect(conversationMeta([], 21, 21)).toBe('Подкаст по лекции · 21 реплика, около 21 минуты');
     expect(minutesPhrase(1)).toBe('около минуты');
     expect(minutesPhrase(5)).toBe('около 5 минут');
   });
