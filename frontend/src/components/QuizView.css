@@ -108,6 +108,8 @@
 .qz-opt[data-state='chosen'] { background: var(--sf-surface-soft); box-shadow: inset 0 0 0 1.5px var(--sf-muted); }
 .qz-opt[data-state='rest'] { color: var(--sf-muted); }
 .qz-opt-mark { flex: none; width: 20px; height: 20px; }
+/* «А)», «Б)»: the option's letter, as the student writes it. */
+.qz-opt-letter { font-weight: 600; font-variant-numeric: tabular-nums; }
 .qz-opt[data-state='right'] .qz-opt-mark { color: var(--m-green-ink); }
 .qz-opt[data-state='wrong'] .qz-opt-mark { color: var(--ph-wrong); }
 

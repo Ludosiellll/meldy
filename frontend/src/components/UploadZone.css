@@ -1,15 +1,16 @@
-/* «Добавить лекцию» — the upload screen in the Meldy language (notes: 10_Project/Design_Language_2026-10-04).
+/* «Разобрать лекцию» — the upload screen in the Meldy language (notes: 10_Project/Design_Language_2026-10-04).
  *
  * Three numbered step cards (radius 48, the long soft shadow): 1 — the source as pill tabs over a coloured
  * panel with halftone dots and a white window inside (the drop zone with the accepted formats as
- * chips, the text field, the link field); 2 — what to prepare (SettingsPanel, styled in
- * styles/legacy.css); 3 — the blue pill that starts the analysis and the line about the daily limit.
- * Blue text is --sf-accent-fg; --sf-accent only fills. */
+ * chips, the text field, the link field); 2 — what will be made, one line with «Изменить», which opens
+ * SettingsPanel (styled in styles/legacy.css); 3 — the blue pill that starts the analysis and the line about
+ * the daily limit, which stays at the bottom of the screen until its place in the page comes (finding LIB-8:
+ * it was 1 218 px under the file field). Blue text is --sf-accent-fg; --sf-accent only fills. */
 
-.az-upload { padding-top: 40px; }
+.az-upload { padding-top: 32px; }
 
 /* ---------------------------------------------------------------- the heading */
-.az-head { max-width: 780px; }
+.az-head { max-width: none; }
 .az-h1 {
   margin: 0;
   font-family: var(--ph-sans);
@@ -20,7 +21,7 @@
   color: var(--sf-ink);
   text-wrap: balance;
 }
-/* One hand-drawn yellow line on the screen, under «полный цикл». */
+/* One hand-drawn yellow line on the screen, under «лекцию». */
 .az-mark { position: relative; display: inline-block; white-space: nowrap; }
 .az-mark svg {
   position: absolute;
@@ -42,7 +43,7 @@
 }
 /* A dash never starts a line: «материал —» stays together. */
 .az-nowrap { white-space: nowrap; }
-.az-lede { margin: 18px 0 0; max-width: 36em; font-size: 19px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.az-lede { margin: 14px 0 0; max-width: 52em; font-size: 19px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 
 /* ---------------------------------------------------------------- the step cards */
 .az-card {
@@ -150,7 +151,7 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 54px 24px 46px;
+  padding: 44px 24px 38px;
   border: 0;
   font-family: var(--ph-sans);
   text-align: center;
@@ -316,7 +317,8 @@
 .az-url-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
 .az-help { margin: 14px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
 /* Under the file panel: who recognises scans and photos. */
-.az-scan-note { padding: 0 6px; text-wrap: pretty; }
+.az-scan-note,
+.az-media-note { padding: 0 6px; text-wrap: pretty; }
 .az-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .az-examples-l { margin-right: 2px; font-size: 15px; color: var(--sf-muted); }
 .az-chip {
@@ -395,19 +397,60 @@
 .az-demo:hover .az-arrow { transform: translateX(4px); }
 .az-demo:disabled .az-arrow { transform: none; }
 
-/* ---------------------------------------------------------------- step 2: SettingsPanel inside */
-.az-settings { margin-top: 24px; }
+/* ---------------------------------------------------------------- the steps' layout */
+/* Step 1 (the source), step 2 (what will be made, folded) and step 3 (the start). A wide screen puts 2 and 3 in a
+   column beside 1 — the start stays in sight while the page scrolls, and the width is used; a narrower one stacks
+   them, and the start follows the reader in a bar at the bottom of the screen until its place comes. */
+.az-layout { margin-top: 34px; }
+.az-layout > .az-source { margin-top: 0; }
+
+/* ---------------------------------------------------------------- step 2: one line, «Изменить» opens the panel */
+.az-plan { padding: 24px 26px 24px; border-radius: 36px; }
+.az-plan-head { display: flex; align-items: center; gap: 14px; }
+.az-plan-h.az-h2 { font-size: 24px; line-height: 1.2; letter-spacing: -.018em; }
+.az-plan-line { margin: 14px 0 0; font-size: 17px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.az-plan-why { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
+.az-change {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 0 14px 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: box-shadow .3s ease, background-color .3s ease;
+}
+.az-change:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+.az-change:disabled { color: var(--sf-muted); box-shadow: inset 0 0 0 1px var(--sf-line); cursor: not-allowed; }
+.az-change-icon { width: 18px; height: 18px; transition: transform .4s var(--m-ease); }
+.az-change[aria-expanded='true'] .az-change-icon { transform: rotate(180deg); }
+.az-upload .az-change:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent-fg)); outline-offset: 2px; border-radius: 999px; }
+/* What the analysis spends, or why it cannot start now: under what it makes, right above the start. */
+.az-note { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--sf-line); font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+
+/* The settings, opened by «Изменить»: a card under the steps. */
+.az-settings-card { margin-top: 22px; }
 /* SettingsPanel (styles/legacy.css) keeps its shapes when focused: the shell's focus rule squares corners. */
-.az-settings .ac-mod:focus-visible { border-radius: 24px; }
-.az-settings .ac-seg-btn:focus-visible,
-.az-settings .ac-range:focus-visible { border-radius: 999px; }
+.az-settings-card .ac-mod:focus-visible { border-radius: 24px; }
+.az-settings-card .ac-seg-btn:focus-visible,
+.az-settings-card .ac-range:focus-visible { border-radius: 999px; }
 
 /* ---------------------------------------------------------------- step 3: the start */
-.az-launch { display: flex; align-items: center; gap: 16px 18px; padding: 20px 24px; border-radius: 40px; }
-.az-launch-main { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 12px 22px; min-width: 0; }
-.az-note { flex: 1 1 18em; margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.az-launch { display: flex; align-items: center; gap: 14px; }
+.az-launch .az-start { flex: 1 1 auto; justify-content: space-between; }
 /* Not ready yet: the pill turns quiet and says what is missing (its words stay readable, 7:1). */
 .az-upload .az-start:disabled {
+  justify-content: center;
   padding: 0 26px;
   background: var(--sf-surface-soft);
   box-shadow: inset 0 0 0 1px var(--sf-line);
@@ -416,6 +459,48 @@
 }
 .az-upload .az-start:disabled::after { display: none; }
 .az-upload .az-start:focus-visible { border-radius: 999px; }
+
+/* A wide screen: two columns; 2 and 3 on the right, the start sticks under the top line while step 1 scrolls. */
+@media (min-width: 1100px) {
+  .az-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-rows: auto auto 1fr;
+    column-gap: 24px;
+    align-items: start;
+  }
+  .az-layout > .az-source { grid-column: 1; grid-row: 1 / 4; }
+  .az-layout > .az-plan { grid-column: 2; grid-row: 1; margin-top: 0; }
+  .az-layout > .az-launch {
+    position: sticky;
+    top: calc(var(--sf-bar-h, 76px) + 16px);
+    grid-column: 2;
+    grid-row: 2 / 4;
+    align-self: start;
+    margin-top: 14px;
+    padding: 14px 14px 14px 18px;
+    border-radius: 999px;
+    background: var(--sf-surface);
+    box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  }
+}
+/* A narrower screen: the start is a bar at the bottom of the screen (above the tab bar) while the steps scroll. */
+@media (max-width: 1099px) {
+  .az-launch {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    margin: 14px calc(-1 * var(--az-g)) 0;
+    padding: 12px var(--az-g) calc(12px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--sf-canvas) 86%, transparent);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    backdrop-filter: saturate(1.4) blur(14px);
+    box-shadow: 0 -1px 0 var(--sf-line);
+  }
+  .sf-shell[data-tabs] .az-launch { bottom: calc(var(--sf-tabs-h, 0px) + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+  .az-launch .az-step-n { display: none; }
+  .az-launch .az-start { max-width: 560px; margin: 0 auto; }
+}
 
 /* ---------------------------------------------------------------- motion */
 .az-rise { animation: az-rise 1s var(--m-ease) both; }
@@ -434,11 +519,14 @@
   .az-tabs { margin-left: 0; }
 }
 @media (max-width: 639px) {
-  .az-upload { padding-top: 24px; }
+  .az-upload { padding-top: 20px; }
   .az-h1 { font-size: 36px; line-height: 1.06; }
   .az-lede { margin-top: 12px; font-size: 17px; }
   .az-card { margin-top: 14px; padding: 24px 18px 24px; border-radius: 38px; }
-  .az-head + .az-card { margin-top: 24px; }
+  .az-layout { margin-top: 24px; }
+  .az-plan { padding: 20px 18px 20px; border-radius: 34px; }
+  .az-plan-h.az-h2 { font-size: 21px; }
+  .az-plan-line { margin-top: 10px; font-size: 16px; }
   .az-step-n { width: 36px; height: 36px; font-size: 16px; }
   .az-h2 { font-size: 24px; }
   .az-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); order: 3; width: 100%; border-radius: 26px; }
@@ -447,7 +535,7 @@
   .az-tabpanel { margin-top: 18px; }
   .az-panel { padding: 12px; border-radius: 30px; }
   .az-window { border-radius: 22px; }
-  .az-drop { padding: 34px 16px 30px; }
+  .az-drop { padding: 28px 16px 26px; }
   .az-drop::after { inset: 8px; border-radius: 16px; }
   .az-drop-title { font-size: 20px; }
   .az-formats { gap: 6px; margin-top: 14px; }
@@ -456,12 +544,7 @@
   .az-field { padding: 16px 16px 12px; }
   .az-textarea { min-height: 220px; font-size: 16px; }
   .az-camera { display: block; margin-top: 12px; }
-  /* The number and the pill on one row, the line about the limit under them. */
-  .az-launch { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 16px 16px 18px; border-radius: 34px; }
-  .az-launch-main { display: contents; }
-  .az-note { grid-column: 1 / -1; padding: 0 4px; }
-  .az-upload .az-start { width: 100%; justify-content: space-between; }
-  .az-upload .az-start:disabled { justify-content: center; }
+  .az-upload .az-start { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

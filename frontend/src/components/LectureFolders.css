@@ -1,0 +1,45 @@
+/* The lecture's actions in a «⋯» menu (LectureFolders.tsx), the same in «Лекции» and on the lecture page: the
+   folder label that says where folders are kept, the folders as radio rows with a dot, the field of a new
+   folder with a small blue «Создать», and the quieter red «Удалить лекцию…». */
+
+.lf-menu .sf-menu-label { padding: 8px 14px 4px; font-size: 13px; line-height: 18px; }
+.lf-menu button[role='menuitemradio']::after {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--sf-line-strong, #cfd0c8);
+}
+.lf-menu button[role='menuitemradio'][aria-checked='true']::after { background: var(--sf-accent); box-shadow: none; transform: scale(1.2); }
+.lf-menu button[data-danger] { color: var(--ph-wrong); }
+.lf-menu form { display: flex; align-items: center; gap: 8px; padding: 6px 8px 8px 10px; }
+.lf-input.sf-input { flex: 1 1 auto; min-width: 0; height: 40px; padding: 0 12px; border-radius: 14px; font-size: 15px; }
+/* The kit's menu buttons are full-width rows; «Создать» stays a small blue pill. */
+.lf-menu .lf-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-accent);
+  color: #fff;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .3s ease;
+}
+.lf-menu .lf-pill:hover { background: var(--sf-accent-hover); }
+/* The kit marks a focused menu row by its tint and removes the ring; a blue pill needs the ring back. */
+.lf-menu .lf-pill:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lf-menu .lf-pill { transition: none; }
+}

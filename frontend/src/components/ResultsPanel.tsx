@@ -36,6 +36,7 @@ import {
 } from '../utils/analysisSections';
 import { charactersLabel } from '../utils/pastedText';
 import { pluralRu } from './conversation/visuals';
+import { repairMathEscapes } from '../lib/mathEscapes';
 import ConversationPlayer from './conversation/ConversationPlayer';
 import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
 import './ResultsPanel.css';
@@ -148,7 +149,7 @@ export function buildHtmlExport(results: AnalysisResults, displayTitle: string):
   const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   
-  const cleanSummary = stripSourceMarkers(extractCleanContent(results.summarizer));
+  const cleanSummary = repairMathEscapes(stripSourceMarkers(extractCleanContent(results.summarizer)));
   const summaryHtml = parseMarkdownToHtml(cleanSummary) || '<p style="color:#94a3b8">Нет данных</p>';
   
   const flashcards = results.flashcards?.flashcards || [];
@@ -510,6 +511,7 @@ export default function ResultsPanel({
   analysisSettings,
   notices,
   initialTab,
+  followupCards = 0,
 }: {
   results: AnalysisResults;
   onReset: () => void;
@@ -518,8 +520,8 @@ export default function ResultsPanel({
   sourceFileName?: string;
   materialId?: string;
   /**
-   * Панель на странице материала: шапка без названия, а у разговора там свой режим
-   * «Разговор», поэтому своей вкладки «Разговор» и строки о нём панель не показывает.
+   * Панель на странице материала: шапка без названия, а у подкаста там свой режим
+   * «Подкаст», поэтому своей вкладки «Подкаст» и строки о нём панель не показывает.
    */
   embedded?: boolean;
   /** Исходный текст материала: по нему «Создать … заново» просит раздел у сервера. */
@@ -544,12 +546,14 @@ export default function ResultsPanel({
   notices?: ReactNode;
   /** Вкладка, с которой открыть панель (ссылки из «Прогресса»), если в ней есть содержимое. */
   initialTab?: 'summary' | 'flashcards' | 'quiz';
+  /** Карточки лекции из ответов на билеты (lib/followupCards): их повторяют вместе с карточками лекции. */
+  followupCards?: number;
 }) {
   const { user } = useAuth();
   // В режиме просмотра у результата нет материала, в который можно писать.
   const materialId = preview ? undefined : savedMaterialId;
   const canEdit = ownerCanEdit && !preview;
-  // На странице материала разговор живёт в своём режиме «Разговор».
+  // На странице материала подкаст живёт в своём режиме «Подкаст».
   const showConversation = !embedded;
   // Раздел, созданный заново, показывается сразу, даже если родитель не обновил результат.
   const [override, setOverride] = useState<AnalysisResults | null>(null);
@@ -574,6 +578,8 @@ export default function ResultsPanel({
 
   const [copied, setCopied] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  // The test for an audience, full screen: opened from «Экспорт», not from the student's own test (LIB-17).
+  const [presentingQuiz, setPresentingQuiz] = useState(false);
   const exportButtonRef = useRef<HTMLButtonElement | null>(null);
   // On a phone «Экспорт» stands at the left of its row: the menu, laid along its right edge, comes back on screen.
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -621,7 +627,7 @@ export default function ResultsPanel({
       { id: 'summary', label: 'Конспект' },
       { id: 'flashcards', label: 'Карточки', count: flashcardCount },
       { id: 'quiz', label: 'Тест', count: quizCount },
-      { id: 'podcast', label: 'Разговор', count: conversationCount },
+      { id: 'podcast', label: 'Подкаст', count: conversationCount },
     ];
     if (textOnly) return [];
     return rawTabs.filter(t => {
@@ -747,7 +753,7 @@ export default function ResultsPanel({
   const hasText = Boolean(originalText?.trim());
 
   const getContent = () => {
-    if (tab === 'summary') return stripSourceMarkers(view.summarizer?.content || (view.summarizer as any)?.raw || '');
+    if (tab === 'summary') return repairMathEscapes(stripSourceMarkers(view.summarizer?.content || (view.summarizer as any)?.raw || ''));
     if (tab === 'flashcards') return JSON.stringify(view.flashcards?.flashcards || view.flashcards, null, 2);
     if (tab === 'podcast') {
       return conversationLines
@@ -813,14 +819,21 @@ export default function ResultsPanel({
 
   // Попытка теста попадает в журнал этого материала (QuizView: materialId, topic, surface).
   // null — материал ещё сохраняется; в режиме просмотра журнала нет вовсе (materialId не передаётся).
-  // «Основано на 22 фрагментах исходника · у 3 пунктов есть ссылка на наиболее похожий фрагмент».
+  // «Карточки и тест опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент»
+  // (finding LIB-19: «исходника» and «наиболее похожий» were the program's words). The links are found by
+  // matching words, not checked: «похожий фрагмент».
   const sourceCount = view.grounding?.source_count ?? 0;
   const citable = view.grounding?.citable_items ?? 0;
-  const groundingText = sourceCount
-    ? `Основано на ${sourceCount} ${sourceCount % 10 === 1 && sourceCount % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника${
-        citable > 0 ? ` · у ${citable} ${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на наиболее похожий фрагмент` : ''
-      }`
-    : '';
+  // A number keeps its word, «·» the word before it.
+  const groundingLine = (what: string) =>
+    sourceCount
+      ? `${what} ${sourceCount}\u00a0${pluralRu(sourceCount, ['фрагмент', 'фрагмента', 'фрагментов'])} лекции${
+          citable > 0 ? `\u00a0· у\u00a0${citable}\u00a0${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на\u00a0похожий фрагмент` : ''
+        }`
+      : '';
+  const groundingText = groundingLine('Карточки и тест опираются на');
+  // The reviewing of these cards is «Повторение» of this lecture: its own cards and those from ticket answers.
+  const reviewHref = materialId ? `/review?material=${encodeURIComponent(materialId)}` : undefined;
 
   const quizJournal: { materialId?: string | null; topic: string; surface: 'analysis' | 'material' } = {
     materialId: preview ? undefined : materialId ?? null,
@@ -859,6 +872,11 @@ export default function ResultsPanel({
       {tab === 'flashcards' && flashcardCount > 0 && (
         <button type="button" role="menuitem" onClick={() => { handleExportAnki(); setShowExport(false); }}>
           Файл для Anki
+        </button>
+      )}
+      {tab === 'quiz' && quizCount > 0 && !isFailed('quiz') && (
+        <button type="button" role="menuitem" onClick={() => { setPresentingQuiz(true); setShowExport(false); }}>
+          Показать тест на экране
         </button>
       )}
       {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
@@ -908,7 +926,7 @@ export default function ResultsPanel({
           <header className="no-print rp-head">
             <div className="rp-notes">
               {!allRequestedOk && <p className="rp-status">{statusLabel}</p>}
-              {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
+              {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «похожий фрагмент». */}
               {/* On «Конспект» the fragments stand next to the sections and say so themselves. */}
               {!textOnly && groundingText && tab !== 'summary' ? <p>{groundingText}</p> : null}
               {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
@@ -997,19 +1015,17 @@ export default function ResultsPanel({
             )}
           </div>
 
-          {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
-          {!textOnly && view.grounding?.source_count ? (
+          {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «похожий фрагмент». */}
+          {!textOnly && sourceCount ? (
             <p className="rp-grounding">
               <span>
-                Основано на {view.grounding.source_count}{' '}
-                {view.grounding.source_count % 10 === 1 && view.grounding.source_count % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника
+                Конспект, карточки и тест опираются на {`${sourceCount}\u00a0${pluralRu(sourceCount, ['фрагмент', 'фрагмента', 'фрагментов'])}`} лекции
               </span>
-              {view.grounding.citable_items > 0 ? (
+              {citable > 0 ? (
                 <>
                   <span aria-hidden="true">·</span>
                   <span>
-                    у {view.grounding.citable_items} {pluralRu(view.grounding.citable_items, ['пункта', 'пунктов', 'пунктов'])} есть
-                    ссылка на наиболее похожий фрагмент
+                    {`у\u00a0${citable}\u00a0${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на\u00a0похожий фрагмент`}
                   </span>
                 </>
               ) : null}
@@ -1081,7 +1097,7 @@ export default function ResultsPanel({
                       </button>
                     </p>
                   )}
-                  <FlashcardsView data={view.flashcards} sources={view.grounding?.sources} />
+                  <FlashcardsView data={view.flashcards} sources={view.grounding?.sources} reviewHref={reviewHref} followups={followupCards} />
                 </>
               )
             )}
@@ -1089,7 +1105,13 @@ export default function ResultsPanel({
               isFailed('quiz') ? (
                 <SectionFailure {...failureProps('quiz')} />
               ) : (
-                <QuizView data={view.quiz} sources={view.grounding?.sources} {...quizJournal} />
+                <QuizView
+                  data={view.quiz}
+                  sources={view.grounding?.sources}
+                  {...quizJournal}
+                  presenting={presentingQuiz}
+                  onExitPresentation={() => setPresentingQuiz(false)}
+                />
               )
             )}
             {tab === 'podcast' && (

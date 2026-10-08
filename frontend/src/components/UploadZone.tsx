@@ -1,12 +1,13 @@
 import { useId, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { Camera, FileText, Link as LinkIcon, Type, Video, X, type LucideIcon } from 'lucide-react';
-import SettingsPanel from './SettingsPanel';
+import { Camera, ChevronDown, FileText, Link as LinkIcon, Type, Video, X, type LucideIcon } from 'lucide-react';
+import SettingsPanel, { settingsSummary } from './SettingsPanel';
 import type { AnalysisSettings } from '../types';
 import { hasBadWords } from '../utils/moderation';
 import { compressImage } from '../lib/imageCompression';
 import { charactersLabel, pastedTextFile, pastedTextProblem, pastedTextTitle } from '../utils/pastedText';
-import { isDemoText } from '../data/demo';
+import { DEMO_SETTINGS, isDemoText } from '../data/demo';
 import { PPTX_MIME, PPT_LEGACY_MESSAGE, isLegacyPpt } from '../lib/lectureFormats';
+import { ty } from './landing/typo';
 import './UploadZone.css';
 
 export type UploadTab = 'file' | 'text' | 'url' | 'media';
@@ -50,14 +51,26 @@ const TABS: { id: UploadTab; label: string; icon: LucideIcon }[] = [
 /** Цвет панели у каждого источника (язык Meldy: синяя, голубая, розовая и тёплая панели). */
 const PANEL_TONE: Record<UploadTab, string> = { file: 'blue', text: 'sky', url: 'rose', media: 'warm' };
 
-const MAX_SIZE = 15 * 1024 * 1024;
+export const MAX_SIZE_MB = 15;
+const MAX_SIZE = MAX_SIZE_MB * 1024 * 1024;
+/**
+ * How long a recording fits into MAX_SIZE (finding LIB-20: the guide promised «запись пары», and a 90-minute pair is
+ * 40–85 МБ): sound at 128 and 64 kbit/s, rounded down to 5 minutes — «примерно 15–30 минут звука».
+ */
+const AUDIO_KBPS = [128, 64] as const;
+function audioMinutes(kbps: number): number {
+  return Math.floor((MAX_SIZE * 8) / (kbps * 1000) / 60 / 5) * 5;
+}
+export const MEDIA_LENGTH = `${audioMinutes(AUDIO_KBPS[0])}–${audioMinutes(AUDIO_KBPS[1])} минут звука`;
 const DOC_ACCEPT = `.pdf,.docx,.pptx,.txt,.md,.html,.htm,.jpg,.jpeg,.png,${PPTX_MIME}`;
 const MEDIA_ACCEPT = '.mp4,.mp3,.wav,.mpeg,.m4a';
 /** Форматы на плашках — ровно то, что принимает поле выбора файла (HTM и JPEG — те же HTML и JPG). */
 const DOC_FORMATS = ['PDF', 'DOCX', 'PPTX', 'HTML', 'TXT', 'MD', 'JPG', 'PNG'];
 const MEDIA_FORMATS = ['MP4', 'MP3', 'WAV', 'MPEG', 'M4A'];
-const DOC_FORMATS_TEXT = 'PDF, DOCX, PPTX, HTML, TXT, MD, JPG и PNG — до 15 МБ';
-const MEDIA_FORMATS_TEXT = 'MP4, MP3, WAV, MPEG и M4A — до 15 МБ';
+const DOC_FORMATS_TEXT = `PDF, DOCX, PPTX, HTML, TXT, MD, JPG и PNG — до ${MAX_SIZE_MB} МБ`;
+const MEDIA_FORMATS_TEXT = `MP4, MP3, WAV, MPEG и M4A — до ${MAX_SIZE_MB} МБ, примерно ${MEDIA_LENGTH}`;
+/** What the demo text is analysed with, whatever the panel says (Analyze.startRun uses DEMO_SETTINGS). */
+const DEMO_LOCKED = 'Для демо-текста настройки не меняются.';
 
 function ArrowIcon() {
   return (
@@ -67,6 +80,16 @@ function ArrowIcon() {
   );
 }
 
+function megabytes(bytes: number, digits: number): string {
+  return (bytes / 1024 / 1024).toFixed(digits).replace('.', ',');
+}
+
+/**
+ * «Разобрать лекцию» (finding LIB-8, 2026-10-08). The start button used to be 1 218 px under the file field, behind
+ * 868 px of optional settings with good defaults, under a slogan. Now: the button's own name as the heading; step 1
+ * is the source; step 2 is one line — what will be made — that «Изменить» opens; step 3, the start with the line about
+ * the daily limit, follows the reader at the bottom of the screen until its place comes.
+ */
 export default function UploadZone({
   settings,
   onSettingsChange,
@@ -87,6 +110,7 @@ export default function UploadZone({
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const tabRefs = useRef<Partial<Record<UploadTab, HTMLButtonElement | null>>>({});
@@ -95,6 +119,8 @@ export default function UploadZone({
   const textId = `${ids}-text`;
   const textHintId = `${ids}-text-hint`;
   const noteId = `${ids}-note`;
+  const settingsId = `${ids}-settings-panel`;
+  const settingsWhyId = `${ids}-settings-why`;
 
   const isFileTab = tab === 'file' || tab === 'media';
   const demoText = tab === 'text' && isDemoText(text);
@@ -122,7 +148,12 @@ export default function UploadZone({
       setIsCompressing(false);
     }
     if (finalFile.size > MAX_SIZE) {
-      setFileError(`Файл занимает ${(finalFile.size / 1024 / 1024).toFixed(1)} МБ. Максимальный размер — 15 МБ.`);
+      const media = finalFile.type.startsWith('audio/') || finalFile.type.startsWith('video/');
+      setFileError(
+        media
+          ? `Файл занимает ${megabytes(finalFile.size, 1)} МБ, а можно до ${MAX_SIZE_MB} МБ — примерно ${MEDIA_LENGTH}. Разделите запись на части.`
+          : `Файл занимает ${megabytes(finalFile.size, 1)} МБ. Максимальный размер — ${MAX_SIZE_MB} МБ.`,
+      );
       setFile(null);
     } else if (hasBadWords(finalFile.name)) {
       setFileError('Название файла содержит недопустимые слова. Пожалуйста, переименуйте файл.');
@@ -187,26 +218,29 @@ export default function UploadZone({
 
   const startNote = limited ? startDisabledReason : demoText ? undefined : costNote;
   const formats = tab === 'media' ? MEDIA_FORMATS : DOC_FORMATS;
+  // The demo text is analysed with its own settings: the line says what will be made, and «Изменить» waits.
+  const summary = settingsSummary(demoText ? DEMO_SETTINGS : settings);
+  const showSettings = settingsOpen && !demoText;
 
   return (
     <div className="az-upload">
       <header className="az-head az-rise">
         <h1 className="az-h1">
-          Один <span className="az-nowrap">материал —</span>{' '}
+          Разобрать{' '}
           <span className="az-mark">
-            полный цикл
+            лекцию
             <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
               <path pathLength={1} d="M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9" />
             </svg>
-          </span>{' '}
-          подготовки
+          </span>
         </h1>
         <p className="az-lede">
-          Загрузите или вставьте лекцию. Meldy подготовит конспект, карточки и тест со ссылками на исходный текст.
+          {ty('Загрузите файл или вставьте текст — Meldy сделает конспект, карточки и тест со ссылками на фрагменты лекции.')}
         </p>
       </header>
 
-      <section className="az-card az-step az-rise" data-d="1" aria-labelledby={`${ids}-source`}>
+      <div className="az-layout">
+      <section className="az-card az-step az-source az-rise" data-d="1" aria-labelledby={`${ids}-source`}>
         <div className="az-step-head">
           <span className="az-step-n" aria-hidden="true">
             1
@@ -261,7 +295,7 @@ export default function UploadZone({
                 <div id={textHintId} className="az-hint">
                   <span>
                     {demoText
-                      ? 'Демо-текст: лимит не списывается, настройки по умолчанию'
+                      ? 'Демо-текст: лимит не списывается'
                       : trimmedLength > 0 && textProblem
                         ? textProblem
                         : ''}
@@ -340,7 +374,7 @@ export default function UploadZone({
                     </span>
                     <div className="az-file-text">
                       <p className="az-file-name">{file.name}</p>
-                      <p className="az-file-size">{(file.size / 1024 / 1024).toFixed(2)} МБ</p>
+                      <p className="az-file-size">{megabytes(file.size, 2)} МБ</p>
                     </div>
                     <button type="button" onClick={() => setFile(null)} aria-label="Убрать файл" className="az-round">
                       <X aria-hidden="true" />
@@ -361,7 +395,7 @@ export default function UploadZone({
                           {format}
                         </span>
                       ))}
-                      <span className="az-format-max">до 15 МБ</span>
+                      <span className="az-format-max">до {MAX_SIZE_MB} МБ</span>
                     </span>
                     <span className="sr-only">{tab === 'file' ? DOC_FORMATS_TEXT : MEDIA_FORMATS_TEXT}</span>
                   </button>
@@ -391,6 +425,11 @@ export default function UploadZone({
                   Сканы и фото страниц распознаёт <span className="az-nowrap">ИИ-сервис</span> Google Gemini.
                 </p>
               )}
+              {tab === 'media' && (
+                <p className="az-help az-media-note">
+                  {ty(`До ${MAX_SIZE_MB} МБ — это примерно ${MEDIA_LENGTH}. Запись целой пары обычно больше: разделите её на части.`)}
+                </p>
+              )}
               <input
                 ref={fileInputRef}
                 data-testid="upload-file-input"
@@ -413,46 +452,73 @@ export default function UploadZone({
         </div>
 
         <button type="button" onClick={onDemo} disabled={busy} className="az-demo">
-          Попробовать на демо-тексте
+          {/* «демо-тексте» never breaks at its hyphen. */}
+          <span>
+            Попробовать на <span className="az-nowrap">демо-тексте</span>
+          </span>
           <ArrowIcon />
         </button>
       </section>
 
-      <section className="az-card az-step az-rise" data-d="2" aria-labelledby={`${ids}-settings`}>
-        <div className="az-step-head">
+      {/* Step 2, folded: what will be made, in one line, and what it spends; the defaults are good, «Изменить» opens
+          the settings under the steps. */}
+      <section className="az-card az-plan az-rise" data-d="2" aria-labelledby={`${ids}-settings`}>
+        <div className="az-plan-head">
           <span className="az-step-n" aria-hidden="true">
             2
           </span>
-          <h2 id={`${ids}-settings`} className="az-h2">
+          <h2 id={`${ids}-settings`} className="az-h2 az-plan-h">
             Что подготовить
           </h2>
         </div>
-        <div className="az-settings">
-          <SettingsPanel settings={settings} onChange={onSettingsChange} />
-        </div>
+        <p className="az-plan-line">{summary.charAt(0).toUpperCase() + summary.slice(1)}</p>
+        {demoText ? (
+          <p id={settingsWhyId} className="az-plan-why">
+            {DEMO_LOCKED}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="az-change"
+          aria-expanded={showSettings}
+          aria-controls={settingsId}
+          aria-describedby={demoText ? settingsWhyId : undefined}
+          disabled={demoText}
+          onClick={() => setSettingsOpen(open => !open)}
+        >
+          {showSettings ? 'Свернуть настройки' : 'Изменить'}
+          <ChevronDown aria-hidden="true" className="az-change-icon" />
+        </button>
+        {startNote && (
+          <p id={noteId} className="az-note">
+            {startNote}
+          </p>
+        )}
       </section>
 
-      <div className="az-card az-launch az-rise" data-d="3">
+      {/* Step 3: beside step 1 on a wide screen; below it on a narrow one, where it follows the reader at the
+          bottom of the screen until its place comes. */}
+      <div className="az-launch az-rise" data-d="3">
         <span className="az-step-n" aria-hidden="true">
           3
         </span>
-        <div className="az-launch-main">
-          <button
-            type="button"
-            onClick={handleStart}
-            disabled={!canStart}
-            aria-describedby={startNote ? noteId : undefined}
-            className="sf-primary az-start"
-          >
-            {startLabel}
-          </button>
-          {startNote && (
-            <p id={noteId} className="az-note">
-              {startNote}
-            </p>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={handleStart}
+          disabled={!canStart}
+          aria-describedby={startNote ? noteId : undefined}
+          className="sf-primary az-start"
+        >
+          {startLabel}
+        </button>
       </div>
+      </div>
+
+      {showSettings ? (
+        <section id={settingsId} className="az-card az-settings-card" aria-label="Настройки разбора">
+          <SettingsPanel settings={settings} onChange={onSettingsChange} />
+        </section>
+      ) : null}
     </div>
   );
 }

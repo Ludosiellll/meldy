@@ -135,3 +135,91 @@ describe('TipCard', () => {
     expect(card()).not.toHaveAttribute('data-aside');
   });
 });
+
+describe('TipCard never covers the page’s controls (finding LIB-4)', () => {
+  const rect = (left: number, top: number, right: number, bottom: number) =>
+    ({ left, top, right, bottom, width: right - left, height: bottom - top, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+
+  function Header({ tabTop = 170 }: { tabTop?: number }) {
+    const pill = useRef<HTMLAnchorElement>(null);
+    const group = useRef<HTMLDivElement>(null);
+    return (
+      <div data-box="row">
+        <div ref={group} data-box="group">
+          <a ref={pill} href="/library/m1/talk" data-box="pill">
+            Поговорить о лекции
+          </a>
+          <TipCard tip={TIPS.talk} anchor={pill} alignTo={group} to="/library/m1/talk" onAction={vi.fn()} onDismiss={vi.fn()} />
+        </div>
+        <div role="tablist" aria-label="Режим">
+          <button type="button" role="tab" data-box="tab" data-top={tabTop}>
+            Материал
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function layout(tabTop: number) {
+    const boxes: Record<string, DOMRect> = {
+      row: rect(0, 80, 1400, 260),
+      group: rect(900, 100, 1400, 152),
+      pill: rect(900, 100, 1150, 152),
+      tab: rect(880, tabTop, 1100, tabTop + 44),
+    };
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const box = this instanceof HTMLElement ? this.dataset.box : undefined;
+      return (box && boxes[box]) || rect(0, 0, 0, 0);
+    });
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('on a wide screen hangs below the tabs right under its pill, joined to the pill by a line', () => {
+    vi.stubGlobal('innerWidth', 1532);
+    layout(170);
+    render(
+      <MemoryRouter>
+        <Header />
+      </MemoryRouter>,
+    );
+    // The tabs end at 214: the card starts 14 px below them, and the line covers the 62 px it moved down.
+    expect(card().style.top).toBe('228px');
+    expect(card().style.getPropertyValue('--tp-lead')).toBe('65px');
+    expect(card().dataset.layout).not.toBe('sheet');
+  });
+
+  it('hangs right under its pill when nothing is there', () => {
+    vi.stubGlobal('innerWidth', 1532);
+    layout(400);
+    render(
+      <MemoryRouter>
+        <Header />
+      </MemoryRouter>,
+    );
+    expect(card().style.top).toBe('166px');
+    expect(card().style.getPropertyValue('--tp-lead')).toBe('');
+  });
+
+  it('on a phone is a sheet at the bottom of the screen, without the clip', async () => {
+    vi.stubGlobal('innerWidth', 390);
+    layout(170);
+    render(
+      <MemoryRouter>
+        <Header />
+      </MemoryRouter>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(card().dataset.layout).toBe('sheet');
+    expect(card().querySelector('.tp-clip')).toBeNull();
+    expect(card().style.top).toBe('');
+    expect(screen.getByRole('link', { name: 'Попробовать' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Поговорить о лекции' })).toHaveAttribute('data-tip-spot');
+  });
+});
+

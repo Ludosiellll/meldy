@@ -9,11 +9,25 @@ import ResultsPanel from '../components/ResultsPanel';
 import ExpressPrepView from '../components/ExpressPrepView';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
+import { deleteMaterial, getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
 import { parseSections, sectionHasContent } from '../utils/analysisSections';
 import TipCard from '../components/tips/TipCard';
 import { TIPS } from '../components/tips/tips';
 import { useFirstUseTip } from '../components/tips/useFirstUseTip';
+import {
+  FolderItems,
+  deleteLectureConfirm,
+  forgetLecture,
+  readAssignments,
+  readFolders,
+  withFolder,
+  withNewFolder,
+  writeAssignments,
+  writeFolders,
+  type LibraryFolder,
+} from '../components/LectureFolders';
+import { followupCardsOf } from '../lib/followupCards';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
 import './MaterialDetail.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
@@ -22,7 +36,9 @@ type Mode = 'full' | 'express' | 'podcast';
 
 const PANEL_ID = 'material-mode-panel';
 const tabId = (mode: Mode) => `material-mode-${mode}`;
-const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: 'Кратко', podcast: 'Разговор' };
+/** Decision 1 of 2026-10-08: the two hosts' audio is «Подкаст»; «Поговорить о лекции» is the tutor. */
+const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: 'Кратко', podcast: 'Подкаст' };
+const NBSP = '\u00a0';
 /**
  * What opening a material means, said plainly: the link shows the title and the summary without an account
  * (public.shared_material — never the lecture's own text). There is no public feed of materials any more.
@@ -32,15 +48,15 @@ export const PUBLISH_MESSAGE =
 /** Spec 4.6: nothing for the first 300 ms, then one quiet line instead of a spinner. */
 const LOADING_LINE_MS = 300;
 
-/** «13 сентября, 23:16»: when the lecture was added, in words. */
+/** «13 сентября, 23:16»: when the lecture was added, in words; the day and the month never part (finding LIB-21). */
 export function addedAt(iso: string | null | undefined): string {
   const date = iso ? new Date(iso) : null;
-  return date && !Number.isNaN(date.getTime()) ? format(date, 'd MMMM, H:mm', { locale: ru }) : '';
+  return date && !Number.isNaN(date.getTime()) ? format(date, `d'${NBSP}'MMMM, H:mm`, { locale: ru }) : '';
 }
 
 /**
  * One meta line under the title (design critique 12, spec 5.2) instead of chips and «13.09.2026, 23:16»:
- * «Экономика · только для меня · 3 октября, 20:35».
+ * «Экономика · только для меня · 3 октября, 20:35». A line breaks only after a dot, never before one.
  */
 export function materialMeta(input: { subject?: string | null; isPublic: boolean; own: boolean; createdAt: string | null | undefined }): string {
   const line = [
@@ -49,8 +65,28 @@ export function materialMeta(input: { subject?: string | null; isPublic: boolean
     addedAt(input.createdAt),
   ]
     .filter(Boolean)
-    .join(' · ');
+    .join(`${NBSP}· `);
   return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+/**
+ * A phone too short for the first-use tip's sheet (320×640): under the lecture's header the sheet could only lie over
+ * the tabs (finding LIB-4), so the tip waits for a taller screen; the pill's own words say what it does.
+ */
+const NO_ROOM_FOR_TIP = '(max-width: 639px) and (max-height: 719px)';
+
+function useMediaQuery(query: string): boolean {
+  const read = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
+  const [matches, setMatches] = useState(read);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const list = window.matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener?.('change', update);
+    return () => list.removeEventListener?.('change', update);
+  }, [query]);
+  return matches;
 }
 
 /** The lecture's cards: an array (older materials) or `{ flashcards: [...] }`. */
@@ -73,7 +109,7 @@ function hasSavedCheatsheet(summary: Record<string, unknown>): boolean {
 
 /**
  * Статусы разделов для панели. Анализ записал их в момент запуска, а выжимку и
- * разговор могли создать позже в «Кратко» и «Разговоре»: если они сохранены, раздел есть,
+ * подкаст могли создать позже в «Кратко» и «Подкасте»: если они сохранены, раздел есть,
  * что бы ни было записано тогда. Так панель не пишет о сбое того, что уже создано.
  */
 function panelSections(summary: Record<string, unknown>): SectionStates | undefined {
@@ -87,7 +123,7 @@ function panelSections(summary: Record<string, unknown>): SectionStates | undefi
 
 /**
  * Поля, которые «Создать … заново» записало в материал (ResultsPanel, persistSection):
- * созданный раздел, статусы и фрагменты. Остальное (другие разделы, выжимка, разговор)
+ * созданный раздел, статусы и фрагменты. Остальное (другие разделы, выжимка, подкаст)
  * могло измениться, пока раздел создавался, поэтому в состояние страницы попадает только это.
  */
 function recreatedFields(materialId: string, next: AnalysisResults, section: CoreSectionName) {
@@ -108,25 +144,48 @@ interface MaterialMenuProps {
   open: boolean;
   isPublic: boolean;
   hasSubject: boolean;
+  folders: LibraryFolder[];
+  folderId: string;
   onToggle: () => void;
   onClose: () => void;
   onRename: () => void;
   onSubject: () => void;
   onShare: () => void;
   onCloseAccess: () => void;
+  onMove: (folderId: string) => void;
+  onNewFolder: (name: string) => void;
+  onDelete: () => void;
 }
 
+const MENU_ITEMS = '[role="menuitem"], [role="menuitemradio"]';
+
 /**
- * «⋯» of the lecture (spec 5.2): rename, subject, share, close access. Only the author sees it.
- * Arrows move between items, Escape closes and returns focus to «⋯».
+ * «⋯» of the lecture (spec 5.2): rename, subject, share, close access, the folder (kept on this device) and
+ * «Удалить лекцию…» — on a phone the list of lectures has no «⋯» of its own, so this one has everything
+ * (finding LIB-9). Only the author sees it. Arrows move between items, Escape closes and returns focus to «⋯».
  */
-function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename, onSubject, onShare, onCloseAccess }: MaterialMenuProps) {
+function MaterialMenu({
+  open,
+  isPublic,
+  hasSubject,
+  folders,
+  folderId,
+  onToggle,
+  onClose,
+  onRename,
+  onSubject,
+  onShare,
+  onCloseAccess,
+  onMove,
+  onNewFolder,
+  onDelete,
+}: MaterialMenuProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    rootRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    rootRef.current?.querySelector<HTMLButtonElement>(MENU_ITEMS)?.focus();
     const onPointer = (event: MouseEvent) => {
       if (rootRef.current && event.target instanceof Node && !rootRef.current.contains(event.target)) onClose();
     };
@@ -142,7 +201,7 @@ function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename,
       return;
     }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+    const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>(MENU_ITEMS) ?? []);
     if (items.length === 0) return;
     event.preventDefault();
     const at = items.indexOf(document.activeElement as HTMLButtonElement);
@@ -156,6 +215,8 @@ function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename,
     if (refocus) buttonRef.current?.focus();
     action();
   };
+  const move = (folderId: string) => pick(() => onMove(folderId), true)();
+  const newFolder = (name: string) => pick(() => onNewFolder(name), true)();
 
   return (
     <div className="sf-head-more" ref={rootRef} onKeyDown={onKeyDown}>
@@ -171,7 +232,7 @@ function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename,
         <MoreHorizontal aria-hidden="true" strokeWidth={1.75} />
       </button>
       {open ? (
-        <div className="sf-menu md-menu" role="menu" aria-label="Действия с лекцией">
+        <div className="sf-menu md-menu lf-menu" role="menu" aria-label="Действия с лекцией">
           <button type="button" role="menuitem" onClick={pick(onRename, false)}>
             Переименовать
           </button>
@@ -187,6 +248,12 @@ function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename,
               Закрыть доступ
             </button>
           ) : null}
+          <div className="sf-menu-sep" role="separator" />
+          <FolderItems folders={folders} folderId={folderId} onMove={move} onNewFolder={newFolder} />
+          <div className="sf-menu-sep" role="separator" />
+          <button type="button" role="menuitem" data-danger="" onClick={pick(onDelete, true)}>
+            Удалить лекцию…
+          </button>
         </div>
       ) : null}
     </div>
@@ -219,15 +286,25 @@ export default function MaterialDetail() {
   // Ссылки «Повторить за 5 минут» ведут сюда и без выжимки: тогда вкладка «Кратко»
   // остаётся видна, чтобы выжимку можно было создать.
   const [expressRequested] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') !== 'podcast');
-  // Ссылка прямо на разговор: один раз показываем плеер целиком, дальше прокрутку не трогаем.
+  // Ссылка прямо на подкаст: один раз показываем плеер целиком, дальше прокрутку не трогаем.
   const [revealPlayer, setRevealPlayer] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') === 'podcast');
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const talkPillRef = useRef<HTMLAnchorElement | null>(null);
   const headActsRef = useRef<HTMLDivElement | null>(null);
+  // Folders of «Лекции» (this device only) for the lecture's «⋯».
+  const [folders, setFolders] = useState<LibraryFolder[]>([]);
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  // Cards this lecture got from ticket answers: they are reviewed with its own (lib/followupCards).
+  const [followups, setFollowups] = useState(0);
+  // The browser tab carries the lecture's name (page titles, 2026-10-08).
+  useDocumentTitle(material ? displayMaterialTitle(material.title) : !loading ? 'Лекция не найдена' : null);
   // The first time a lecture the tutor can talk about is open (its own, with text and cards), a tip points at
-  // «Поговорить о лекции» — on «Материал», the tab a lecture opens on, with no menu or field open.
+  // «Поговорить о лекции» — on «Материал», the tab a lecture opens on, with no menu or field open, on a screen
+  // with room for it.
+  const noRoomForTip = useMediaQuery(NO_ROOM_FOR_TIP);
   const talkTip = useFirstUseTip('talk', {
     enabled:
+      !noRoomForTip &&
       !loading &&
       Boolean(material) &&
       canTalkAbout(material, user?.id) &&
@@ -255,6 +332,24 @@ export default function MaterialDetail() {
     const timer = window.setTimeout(() => setLoadingLine(true), LOADING_LINE_MS);
     return () => window.clearTimeout(timer);
   }, [loading]);
+
+  useEffect(() => {
+    setFolders(readFolders(user?.id));
+    setAssignments(readAssignments(user?.id));
+  }, [user?.id]);
+
+  const ownLecture = Boolean(material && user?.id && material.user_id === user.id);
+  useEffect(() => {
+    setFollowups(0);
+    if (!ownLecture || !user?.id || !id) return;
+    let live = true;
+    void followupCardsOf(user.id, id).then(count => {
+      if (live) setFollowups(count);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ownLecture, user?.id, id]);
 
   const saveSubject = async () => {
     if (!id) return;
@@ -336,6 +431,38 @@ export default function MaterialDetail() {
     }
   };
 
+  const moveToFolder = (folderId: string) => {
+    if (!id) return;
+    const next = withFolder(assignments, id, folderId);
+    setAssignments(next);
+    writeAssignments(user?.id, next);
+  };
+
+  const newFolder = (name: string) => {
+    if (!id) return;
+    const next = withNewFolder(folders, assignments, id, name);
+    setFolders(next.folders);
+    setAssignments(next.assignments);
+    writeFolders(user?.id, next.folders);
+    writeAssignments(user?.id, next.assignments);
+  };
+
+  /** «Удалить лекцию…»: the same question as in «Лекции»; afterwards the list, without it. */
+  const removeLecture = async () => {
+    if (!id || !material) return;
+    if (!(await confirm(deleteLectureConfirm(displayMaterialTitle(material.title))))) return;
+    try {
+      await deleteMaterial(id);
+    } catch (err) {
+      console.error(err);
+      toast.error('Не удалось удалить лекцию. Повторите через минуту.');
+      return;
+    }
+    forgetLecture(user?.id, id);
+    toast.success('Лекция удалена');
+    navigate('/library', { replace: true });
+  };
+
   const closeAccess = async () => {
     if (!id || !material?.is_public) return;
     try {
@@ -348,7 +475,7 @@ export default function MaterialDetail() {
   };
 
   // Результат для панели: статусы разделов и «только текст» берутся из summary_json.
-  // Выжимка передаётся, чтобы строка о её сбое смотрела на сохранённый текст; разговор
+  // Выжимка передаётся, чтобы строка о её сбое смотрела на сохранённый текст; подкаст
   // панель здесь не показывает (у него свой режим), поэтому его реплики не передаются.
   const panelResults = useMemo<AnalysisResults | null>(() => {
     if (!material) return null;
@@ -411,12 +538,12 @@ export default function MaterialDetail() {
   const hasCheatsheet = hasSavedCheatsheet(summaryJson);
   // Выжимку просили при анализе, а её нет: «Материал» пишет о сбое, «Кратко» предлагает создать.
   const cheatsheetMissing = Boolean(parseSections(summaryJson.sections)?.cheatsheet) && !hasCheatsheet;
-  // Менять материал (создавать выжимку и разговор, открывать доступ) может только автор:
+  // Менять материал (создавать выжимку и подкаст, открывать доступ) может только автор:
   // назначенные преподавателем и чужие открытые материалы только для чтения.
   const canEdit = Boolean(user?.id) && material.user_id === user?.id;
   const cardCount = cardCountOf(material);
   const canTalk = canTalkAbout(material, user?.id);
-  // «Разговор» доступен всегда: если его ещё нет, там можно его создать.
+  // «Подкаст» доступен всегда: если его ещё нет, там можно его создать.
   const showExpress = hasCheatsheet || expressRequested || cheatsheetMissing;
   const modes: Mode[] = ['full', ...(showExpress ? (['express'] as const) : []), 'podcast'];
 
@@ -455,88 +582,124 @@ export default function MaterialDetail() {
     });
   };
 
+  const lectureTitle = displayMaterialTitle(material.title);
+  const metaLine = materialMeta({ subject: material.subject, isPublic: Boolean(material.is_public), own: canEdit, createdAt: material.created_at });
+  const reviewHref = `/review?material=${encodeURIComponent(material.id)}`;
+  const talkHref = `/library/${encodeURIComponent(material.id)}/talk`;
+  // Below 1024 px the tab bar steps aside on a lecture (Layout.hidesBottomNav: a detail page keeps its one action
+  // at the bottom), so the lecture's own action stays there while the page scrolls (finding LIB-31). On «Подкаст»
+  // the player's controls hold the bottom of the screen instead.
+  const bottomAction = cardCount > 0 && mode !== 'podcast';
+
   return (
-    // On «Разговор» a low window (1280×720 projector) folds the crumb and the meta line and shrinks the title, so the
-    // sheet, the subtitle and the player fit without page scroll (components/conversation/conversation.css).
-    <div className="sf-page md-page" data-tab={mode === 'podcast' ? 'talk' : undefined}>
-      {/* Spec 5.2, critique 12 and the Meldy prototype (Material.dc.html): a crumb pill, the big title, one meta line;
-          «Повторить карточки» as the white pill with the black circle and «⋯» as a round button on the right.
-          No chips and no second filled button. */}
-      <header className="sf-head sf-detail-head md-head">
-        <div className="sf-detail-main">
-          <Link to="/library" className="sf-crumb md-crumb">
-            <ArrowLeft aria-hidden="true" strokeWidth={2} />
-            Лекции
-          </Link>
-          {editingTitle ? (
-            <form
-              className="sf-inline-edit"
-              onSubmit={event => {
-                event.preventDefault();
-                void saveTitle();
+    <div className="sf-page md-page" data-tab={mode === 'podcast' ? 'talk' : undefined} data-bottom={bottomAction ? '' : undefined}>
+      {/* One header for every tab (finding LIB-3): the crumb (a desktop with room to spare), the title on a row of its
+          own across the whole column at a size for long lecture titles, one meta line; then the tabs with the
+          lecture's actions on their row. Nothing moves when a tab changes. */}
+      <header className="md-head">
+        <Link to="/library" className="sf-crumb md-crumb">
+          <ArrowLeft aria-hidden="true" strokeWidth={2} />
+          Лекции
+        </Link>
+        {editingTitle ? (
+          <form
+            className="sf-inline-edit"
+            onSubmit={event => {
+              event.preventDefault();
+              void saveTitle();
+            }}
+          >
+            <input
+              className="sf-input sf-inline-title"
+              aria-label="Название лекции"
+              value={titleInput}
+              onChange={event => setTitleInput(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Escape') cancelTitle();
               }}
-            >
-              <input
-                className="sf-input sf-inline-title"
-                aria-label="Название лекции"
-                value={titleInput}
-                onChange={event => setTitleInput(event.target.value)}
-                onKeyDown={event => {
-                  if (event.key === 'Escape') cancelTitle();
-                }}
-                autoFocus
-              />
-              <button type="submit" className="md-small-pill">
-                Сохранить
-              </button>
-              <button type="button" className="sf-link" data-muted="" onClick={cancelTitle}>
-                Отмена
-              </button>
-            </form>
-          ) : (
-            <h1 className="sf-h1 sf-h1-serif md-title [overflow-wrap:anywhere]">{displayMaterialTitle(material.title)}</h1>
-          )}
-          {editingSubject ? (
-            <form
-              className="sf-inline-edit"
-              onSubmit={event => {
-                event.preventDefault();
-                void saveSubject();
+              autoFocus
+            />
+            <button type="submit" className="md-small-pill">
+              Сохранить
+            </button>
+            <button type="button" className="sf-link" data-muted="" onClick={cancelTitle}>
+              Отмена
+            </button>
+          </form>
+        ) : (
+          <h1 className="sf-h1 sf-h1-serif md-title">{lectureTitle}</h1>
+        )}
+        {editingSubject ? (
+          <form
+            className="sf-inline-edit"
+            onSubmit={event => {
+              event.preventDefault();
+              void saveSubject();
+            }}
+          >
+            <input
+              className="sf-input"
+              aria-label="Предмет"
+              placeholder="Предмет"
+              value={subjectInput}
+              onChange={event => setSubjectInput(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Escape') cancelSubject();
               }}
-            >
-              <input
-                className="sf-input"
-                aria-label="Предмет"
-                placeholder="Предмет"
-                value={subjectInput}
-                onChange={event => setSubjectInput(event.target.value)}
-                onKeyDown={event => {
-                  if (event.key === 'Escape') cancelSubject();
+              autoFocus
+            />
+            <button type="submit" className="md-small-pill">
+              Сохранить
+            </button>
+            <button type="button" className="sf-link" data-muted="" onClick={cancelSubject}>
+              Отмена
+            </button>
+          </form>
+        ) : (
+          <p className="sf-lede md-meta">{metaLine}</p>
+        )}
+      </header>
+
+      <div className="md-toolbar">
+        {/* Режимы: вкладки-пилюли в белой капсуле, текущая — тёмная пилюля (язык Meldy). */}
+        <div role="tablist" aria-label="Режим" className="sf-viewtabs md-tabs">
+          {modes.map((item, index) => {
+            const selected = mode === item;
+            return (
+              <button
+                key={item}
+                ref={element => {
+                  tabRefs.current[item] = element;
                 }}
-                autoFocus
-              />
-              <button type="submit" className="md-small-pill">
-                Сохранить
+                id={tabId(item)}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls={PANEL_ID}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => selectMode(item)}
+                onKeyDown={event => handleTabKeyDown(event, index)}
+              >
+                {MODE_LABELS[item]}
               </button>
-              <button type="button" className="sf-link" data-muted="" onClick={cancelSubject}>
-                Отмена
-              </button>
-            </form>
-          ) : (
-            <p className="sf-lede">
-              {materialMeta({ subject: material.subject, isPublic: Boolean(material.is_public), own: canEdit, createdAt: material.created_at })}
-            </p>
-          )}
+            );
+          })}
         </div>
+
+        {/* A low window (1532×734, the 1280×720 projector) has no row for the meta line under the title: it is shown
+            here, between the tabs and the actions, and read from the header (MaterialDetail.css). */}
+        {editingSubject ? null : (
+          <p className="md-toolbar-meta" aria-hidden="true">
+            {metaLine}
+          </p>
+        )}
+
+        {/* Spec 5.2 and the Meldy prototype (Material.dc.html): the white pills with the black circle and «⋯» as a
+            round button. No chips and no second filled button. */}
         {cardCount > 0 || canEdit ? (
           <div className="sf-head-actions md-acts" ref={headActsRef}>
             {canTalk && (
-              <Link
-                ref={talkPillRef}
-                className="sf-secondary md-pill"
-                to={`/library/${encodeURIComponent(material.id)}/talk`}
-                onClick={talkTip.done}
-              >
+              <Link ref={talkPillRef} className="sf-secondary md-pill md-talk" to={talkHref} onClick={talkTip.done}>
                 Поговорить о лекции
                 <span className="md-dot" aria-hidden="true">
                   <ArrowRight strokeWidth={2} />
@@ -545,17 +708,10 @@ export default function MaterialDetail() {
             )}
             {/* Right after the pill, so Tab goes from the pill to its tip; the card lies over the page. */}
             {canTalk && talkTip.show ? (
-              <TipCard
-                tip={TIPS.talk}
-                anchor={talkPillRef}
-                alignTo={headActsRef}
-                to={`/library/${encodeURIComponent(material.id)}/talk`}
-                onAction={talkTip.done}
-                onDismiss={talkTip.dismiss}
-              />
+              <TipCard tip={TIPS.talk} anchor={talkPillRef} alignTo={headActsRef} to={talkHref} onAction={talkTip.done} onDismiss={talkTip.dismiss} />
             ) : null}
             {cardCount > 0 && (
-              <Link className="sf-secondary md-pill" to={`/review?material=${encodeURIComponent(material.id)}`}>
+              <Link className="sf-secondary md-pill md-review" to={reviewHref}>
                 Повторить карточки
                 <span className="md-dot" aria-hidden="true">
                   <ArrowRight strokeWidth={2} />
@@ -567,6 +723,8 @@ export default function MaterialDetail() {
                 open={menuOpen}
                 isPublic={Boolean(material.is_public)}
                 hasSubject={Boolean(material.subject)}
+                folders={folders}
+                folderId={assignments[material.id] ?? ''}
                 onToggle={() => setMenuOpen(value => !value)}
                 onClose={closeMenu}
                 onRename={() => {
@@ -579,66 +737,53 @@ export default function MaterialDetail() {
                 }}
                 onShare={() => void shareMaterial()}
                 onCloseAccess={() => void closeAccess()}
+                onMove={moveToFolder}
+                onNewFolder={newFolder}
+                onDelete={() => void removeLecture()}
               />
             )}
           </div>
         ) : null}
-      </header>
-
-      {/* Режимы: вкладки-пилюли в белой капсуле, текущая — тёмная пилюля (язык Meldy). */}
-      <div role="tablist" aria-label="Режим" className="sf-viewtabs md-tabs">
-        {modes.map((item, index) => {
-          const selected = mode === item;
-          return (
-            <button
-              key={item}
-              ref={element => {
-                tabRefs.current[item] = element;
-              }}
-              id={tabId(item)}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              aria-controls={PANEL_ID}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => selectMode(item)}
-              onKeyDown={event => handleTabKeyDown(event, index)}
-            >
-              {MODE_LABELS[item]}
-            </button>
-          );
-        })}
       </div>
 
       {/* Контент в зависимости от выбранного режима */}
       <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)} className="md-panel">
-      {mode === 'full' ? (
-        <ResultsPanel
-          results={panelResults as AnalysisResults}
-          onReset={() => navigate('/analyze')}
-          textLength={material.original_text?.length || material.summary_json?.content?.length || 0}
-          sourceFileName={material.title}
-          materialId={material.id}
-          originalText={material.original_text || ''}
-          canEdit={canEdit}
-          onResultsChange={(next, section) => updateMaterialFields(recreatedFields(material.id, next, section))}
-          embedded
-          initialTab={sectionParam}
-        />
-      ) : (
-        <ExpressPrepView
-          materialId={material.id}
-          materialTitle={displayMaterialTitle(material.title)}
-          originalText={material.original_text || ''}
-          summaryJson={material.summary_json}
-          flashcards={Array.isArray(material.flashcards_json) ? material.flashcards_json : material.flashcards_json?.flashcards}
-          tab={mode === 'podcast' ? 'podcast' : 'cheatsheet'}
-          revealPlayer={revealPlayer}
-          onUpdate={updateMaterialFields}
-          canEdit={canEdit}
-        />
-      )}
+        {mode === 'full' ? (
+          <ResultsPanel
+            results={panelResults as AnalysisResults}
+            onReset={() => navigate('/analyze')}
+            textLength={material.original_text?.length || material.summary_json?.content?.length || 0}
+            sourceFileName={material.title}
+            materialId={material.id}
+            originalText={material.original_text || ''}
+            canEdit={canEdit}
+            onResultsChange={(next, section) => updateMaterialFields(recreatedFields(material.id, next, section))}
+            embedded
+            initialTab={sectionParam}
+            followupCards={followups}
+          />
+        ) : (
+          <ExpressPrepView
+            materialId={material.id}
+            materialTitle={lectureTitle}
+            originalText={material.original_text || ''}
+            summaryJson={material.summary_json}
+            flashcards={Array.isArray(material.flashcards_json) ? material.flashcards_json : material.flashcards_json?.flashcards}
+            tab={mode === 'podcast' ? 'podcast' : 'cheatsheet'}
+            revealPlayer={revealPlayer}
+            onUpdate={updateMaterialFields}
+            canEdit={canEdit}
+          />
+        )}
       </div>
+
+      {bottomAction ? (
+        <div className="md-bottom">
+          <Link className="sf-primary md-bottom-go" to={reviewHref}>
+            Повторить карточки
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

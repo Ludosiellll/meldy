@@ -45,6 +45,7 @@ import {
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { glue } from '../lib/oral/format';
 import { minutesBucket, track, waitBucket } from '../lib/telemetry';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 
 /**
  * «Поговорить о лекции» (notes: 10_Project/Voice_Tutor_Spec_2026-10-05): Meldy asks the lecture's
@@ -235,8 +236,9 @@ function TalkBar({ materialId, title }: { materialId: string; title: string }) {
           Meldy
         </Link>
         <span className="or-where">
-          <span className="or-long">{title ? glue(`Разговор о лекции · ${title}`) : 'Разговор о лекции'}</span>
-          <span className="or-short">Разговор о лекции</span>
+          {/* The pill's own name (decision 1 of 2026-10-08): «Разговор» is no longer a second name for it. */}
+          <span className="or-long">{title ? glue(`Поговорить о лекции · ${title}`) : 'Поговорить о лекции'}</span>
+          <span className="or-short">Поговорить о лекции</span>
         </span>
       </div>
       <div className="or-bar-right">
@@ -417,6 +419,7 @@ function TalkSheet({ rows, onClose }: { rows: readonly ProtocolRow[]; onClose: (
 
 export default function LectureTalk() {
   const { id = '' } = useParams();
+  useDocumentTitle('Поговорить о лекции');
   return <TalkRoom key={id} materialId={id} />;
 }
 
@@ -1170,7 +1173,7 @@ function TalkRoom({ materialId }: { materialId: string }) {
         <section className="or-left lt-left" aria-label="Лекция и текст разговора">
           <div className="sf-sheet lt-paper">
             <h1 className="lt-title">
-              <span className="sr-only">Разговор о лекции: </span>
+              <span className="sr-only">Поговорить о лекции: </span>
               {title}
             </h1>
             <p className="lt-meta">

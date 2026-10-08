@@ -12,6 +12,7 @@
 import type { CoverageValue, EvidenceItem, ExamKind } from '../../api/exams';
 import type { QuestionState, Readiness } from '../../lib/learning/readiness';
 import { daysUntil, questionNumber } from '../../lib/exams/format';
+import { orderExamLectures } from '../../lib/lectureOrder';
 import { normalizeForMatch, wordStem } from '../conversation/visuals';
 import { displayMaterialTitle } from '../../utils/materialTitle';
 
@@ -361,7 +362,10 @@ export function buildKnowledgeBase(input: KnowledgeInput): KnowledgeBase {
         examDate: exam.exam_date,
         createdAt: exam.created_at,
         daysLeft: daysUntil(exam.exam_date, now),
-        lectureIds: Array.from(new Set(exam.materials.map((item) => item.id))).filter((id) => lectureById.has(id)),
+        // Numbered as «Лекции» numbers them (lib/lectureOrder): «Лекция 1» is the same lecture on both pages.
+        lectureIds: orderExamLectures(exam.materials, (id) => lectureById.get(id)?.createdAt)
+          .map((item) => item.id)
+          .filter((id) => lectureById.has(id)),
       })),
   );
 

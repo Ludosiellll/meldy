@@ -1,18 +1,23 @@
 /* The material page in the Meldy language (prototype Material.dc.html, notes: 10_Project/Design_Language_2026-10-04):
-   a crumb pill, the big title with one meta line, «Повторить карточки» as the white pill with the black circle,
-   «⋯» as a round white button, the modes as pills in a white capsule. The panels below the tabs style themselves
-   (ResultsPanel.css, summary/summary.css, conversation/conversation.css …). */
+   a crumb pill, the big title with one meta line, the modes as pills in a white capsule with the lecture's actions
+   on their row — «Поговорить о лекции» and «Повторить карточки» as white pills with the black circle, «⋯» as a
+   round white button. The panels below the tabs style themselves (ResultsPanel.css, summary/summary.css,
+   conversation/conversation.css …).
+
+   One header for every tab (finding LIB-3, 2026-10-08). The title used to share its row with the actions: in a
+   683 px column beside an empty area a 58 px title took three lines, the lecture's first line started at y=583 of
+   the laptop's 734, and on the podcast tab (then «Разговор») a smaller header made the tabs jump 259 px. Now the
+   title has the whole column, at a size for long lecture titles, and nothing changes between tabs. */
 
 /* ---------------------------------------------------------------- header */
-.md-head { align-items: flex-end; gap: 20px 32px; padding-top: 36px; }
-.md-head .sf-detail-main { flex: 1 1 34rem; }
+.md-head { padding-top: 32px; }
 
 .md-crumb {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-height: 40px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   padding: 0 16px 0 10px;
   border-radius: 999px;
   background: var(--sf-surface);
@@ -25,7 +30,7 @@
   transition: background-color .4s var(--m-ease), box-shadow .4s var(--m-ease);
 }
 .md-crumb svg { width: 18px; height: 18px; flex: none; transition: transform .6s var(--m-ease); }
-/* Below 1024 px the top line shows «‹ Библиотека», and the stage shows no crumbs (spec 4.7), as the kit says. */
+/* Below 1024 px the top line shows «‹ Лекции», and the stage shows no crumbs (spec 4.7), as the kit says. */
 @media (max-width: 1023px) {
   .md-crumb { display: none; }
 }
@@ -33,34 +38,52 @@ html[data-stage] .md-crumb { display: none; }
 .md-crumb:hover { background: var(--sf-surface-soft); }
 .md-crumb:hover svg { transform: translateX(-3px); }
 
-/* (0,2,0) beats the kit's .dark .sf-h1-serif by order; the projector rule in conversation.css stays stronger. */
-.md-title.sf-h1-serif {
-  max-width: 17em;
-  font-size: clamp(36px, 4.2vw, 58px);
-  line-height: 1.05;
+/* A size for long lecture titles (44 px on a laptop, the language's smallest page title), across the whole
+   column, so «Язык SQL: SELECT, соединения, подзапросы и агрегатные функции» is one line at 1532. Two lines share
+   the words evenly. (0,3,0) beats the kit's .dark .sf-h1-serif. */
+.md-head .md-title.sf-h1-serif {
+  max-width: none;
+  margin: 0;
+  font-size: clamp(32px, 2.9vw, 44px);
+  line-height: 1.1;
   font-weight: 500;
-  letter-spacing: -.034em;
+  letter-spacing: -.03em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
-.md-head .sf-lede { margin-top: 14px; font-size: 18px; line-height: 1.45; }
+.md-head .md-meta { margin-top: 10px; font-size: 17px; line-height: 1.45; }
 .md-head .sf-inline-edit { margin-top: 6px; }
 .md-head .sf-inline-edit .sf-input { border-radius: 16px; }
 
-/* «Поговорить о лекции», «Повторить карточки» and «⋯»: on a narrow screen the pills take a line each
-   rather than push the page sideways. */
+/* ---------------------------------------------------------------- the tabs and the actions */
+/* The modes on the left, the lecture's actions on the right of the same row; a narrow window puts the actions on
+   a row of their own. */
+.md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-top: 24px;
+}
+.md-tabs.sf-viewtabs { flex: none; margin: 0; padding: 4px; }
+.md-tabs.sf-viewtabs [role='tab'] { min-height: 44px; padding: 0 22px; font-size: 16px; }
 .md-acts { flex-wrap: wrap; gap: 10px; }
+/* The meta line's place on a low window (below); elsewhere it is under the title. */
+.md-toolbar-meta { display: none; }
 
 /* The second button of the language: a white pill with a black circle and an arrow. */
 .md-pill.sf-secondary {
   gap: 14px;
-  min-height: 56px;
-  padding: 8px 8px 8px 24px;
+  min-height: 52px;
+  padding: 6px 6px 6px 22px;
   border: 0;
   box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 500;
 }
 .md-pill.sf-secondary:hover { border: 0; box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
-.md-pill-back.sf-secondary { padding: 8px 24px 8px 8px; }
+.md-pill-back.sf-secondary { padding: 6px 22px 6px 6px; }
 .md-dot {
   flex: none;
   display: grid;
@@ -78,8 +101,8 @@ html[data-stage] .md-crumb { display: none; }
 
 /* «⋯»: a round white button with a ring (the prototype's .round). */
 .md-round.sf-more {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
   color: var(--sf-ink);
@@ -88,7 +111,7 @@ html[data-stage] .md-crumb { display: none; }
 .md-round.sf-more:hover,
 .md-round.sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
 .md-round.sf-more svg { width: 22px; height: 22px; }
-.md-menu.sf-menu { top: calc(100% + 8px); min-width: 250px; }
+.md-menu.sf-menu { top: calc(100% + 8px); right: 0; min-width: 270px; max-width: min(320px, calc(100vw - 32px)); }
 
 /* A small blue pill (Сохранить in the rename and subject fields). */
 .md-small-pill {
@@ -111,13 +134,38 @@ html[data-stage] .md-crumb { display: none; }
 }
 .md-small-pill:hover { background: var(--sf-accent-hover); }
 
-/* ---------------------------------------------------------------- modes */
-.md-tabs.sf-viewtabs { margin-top: 30px; padding: 6px; }
-.md-tabs.sf-viewtabs [role='tab'] { min-height: 46px; padding: 0 22px; font-size: 16px; }
+/* ---------------------------------------------------------------- the panel */
 .md-panel { min-width: 0; }
 .md-panel > .cv,
 .md-panel > .xp-sheet,
-.md-panel > .xp-empty { margin-top: 28px; }
+.md-panel > .xp-empty { margin-top: 24px; }
+
+/* ---------------------------------------------------------------- the action at the bottom (phones, tablets) */
+/* Below 1024 px a lecture has no tab bar (Layout.hidesBottomNav: a detail page keeps its one action at the bottom
+   of the screen), so «Повторить карточки» rides there on the translucent canvas, as the exam sheet's action does;
+   it takes its own room at the end of the page, so it never covers the last line (finding LIB-31). The header
+   keeps «Поговорить о лекции» and «⋯». */
+.md-bottom { display: none; }
+@media (max-width: 1023px) {
+  /* The header's «Повторить карточки» and the cards tab's own are the bar at the bottom here. */
+  .md-page[data-bottom] .md-review,
+  .md-page[data-bottom] .fc-go { display: none; }
+  .md-bottom {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: block;
+    margin: 24px calc(-1 * var(--sf-g)) -96px;
+    padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--sf-canvas) 86%, transparent);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    backdrop-filter: saturate(1.4) blur(14px);
+    box-shadow: 0 -1px 0 var(--sf-line);
+  }
+  .md-bottom .md-bottom-go { display: flex; width: 100%; max-width: 520px; margin: 0 auto; justify-content: space-between; }
+  /* A first-use tip shown as a sheet sits above the bar (TipCard, tips.css). */
+  .md-page[data-bottom] { --tp-sheet-lift: 80px; }
+}
 
 /* ---------------------------------------------------------------- loading and not found */
 .md-skeleton { display: grid; gap: 22px; margin-top: 24px; }
@@ -158,25 +206,67 @@ html[data-stage] .md-crumb { display: none; }
 }
 .md-state-acts { margin: 26px 0 0; }
 
-/* ---------------------------------------------------------------- narrower */
+/* ---------------------------------------------------------------- low windows and narrower */
+/* A low window — a 1532×734 laptop, the 1280×720 projector: the top line already has «Лекции» lit, so the crumb
+   gives its row to the lecture, and the meta line moves up into the row of the tabs, between them and the actions
+   (two lines at most, then «…»; screen readers read it under the title); the title and the pills are a size
+   smaller. The same on every tab: «Подкаст» fits its sheet, subtitle and player under it without scrolling
+   (conversation.css: 100vh − 476 for the sheet with a two-line title). */
 @media (min-width: 1024px) and (max-height: 780px) {
-  .md-head { padding-top: 20px; }
-  .md-crumb { margin-bottom: 12px; }
-  .md-tabs.sf-viewtabs { margin-top: 18px; }
-}
-@media (max-width: 1023px) {
-  .md-head .sf-detail-main { flex-basis: 100%; }
+  .md-head { padding-top: 18px; }
+  .md-crumb { display: none; }
+  .md-head .md-title.sf-h1-serif { font-size: clamp(30px, 2.4vw, 36px); line-height: 1.1; }
+  .md-head .md-meta {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .md-toolbar { margin-top: 14px; }
+  .md-toolbar-meta {
+    display: -webkit-box;
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--sf-muted);
+    font-size: 15px;
+    line-height: 20px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .md-tabs.sf-viewtabs { padding: 2px; }
+  .md-acts .md-pill.sf-secondary { min-height: 48px; padding: 4px 4px 4px 20px; }
+  .md-acts .md-dot { width: 36px; height: 36px; }
+  .md-round.sf-more { width: 48px; height: 48px; }
 }
 @media (max-width: 639px) {
-  .md-head { padding-top: 24px; gap: 16px; }
-  .md-title.sf-h1-serif { font-size: 34px; line-height: 1.08; }
-  .md-head .sf-lede { font-size: 16px; }
-  .md-pill.sf-secondary { min-height: 52px; padding: 6px 6px 6px 20px; font-size: 16px; }
-  .md-round.sf-more { width: 52px; height: 52px; }
-  .md-tabs.sf-viewtabs { margin-top: 22px; }
+  .md-head { padding-top: 16px; }
+  .md-head .md-title.sf-h1-serif { font-size: 28px; line-height: 1.14; letter-spacing: -.028em; }
+  .md-head .md-meta { margin-top: 8px; font-size: 15px; line-height: 1.4; }
+  /* The compact phone header: «Поговорить о лекции» and «⋯» on one row above the tabs; «Повторить карточки» is
+     the bar at the bottom. */
+  .md-toolbar { gap: 12px; margin-top: 16px; }
+  .md-acts { order: -1; width: 100%; flex-wrap: nowrap; gap: 8px; }
+  /* On «Подкаст» the bar gives the bottom of the screen to the player: the review is a tab away. */
+  .md-acts .md-review { display: none; }
+  .md-acts .md-pill.sf-secondary { flex: 1 1 auto; justify-content: space-between; min-height: 48px; padding: 4px 4px 4px 18px; font-size: 16px; }
+  .md-round.sf-more { flex: none; width: 48px; height: 48px; }
   .md-tabs.sf-viewtabs [role='tab'] { padding: 0 16px; font-size: 15px; }
+  .md-panel > .cv,
+  .md-panel > .xp-sheet,
+  .md-panel > .xp-empty { margin-top: 16px; }
   .md-skel-card { padding: 30px 22px; border-radius: 36px; }
   .md-state.sf-state { margin-top: 32px; padding: 28px 22px 30px; border-radius: 32px; }
+}
+@media (max-width: 360px) {
+  .md-head .md-title.sf-h1-serif { font-size: 26px; }
+  .md-acts .md-pill.sf-secondary { padding-left: 14px; font-size: 15px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

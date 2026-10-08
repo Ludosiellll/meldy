@@ -10,16 +10,39 @@ import { deleteMaterial, getMaterials, updateMaterialTitle } from '../api/materi
 import { listExamShelves, type ExamShelf } from '../api/exams';
 import { pluralRu } from '../components/conversation/visuals';
 import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, subjectOf } from '../lib/exams/format';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { orderExamLectures } from '../lib/lectureOrder';
+import { cardsLine as cardCountLine, followupCardsByLecture } from '../lib/followupCards';
+import {
+  DEFAULT_FOLDER_IDS,
+  FOLDERS_HERE_NOTE,
+  FolderItems,
+  deleteLectureConfirm,
+  forgetLecture,
+  legacyLibraryCacheKey,
+  libraryCacheKey,
+  readAssignments,
+  readFolders,
+  readJson,
+  withFolder,
+  withNewFolder,
+  writeAssignments,
+  writeFolders,
+  writeJson,
+  type LibraryFolder,
+} from '../components/LectureFolders';
 import '../styles/paper.css';
 import './Library.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
  * The Library as the course's table of contents (redesign spec 5.1): the lectures grouped by the
- * exam they were added to, in the order they were uploaded; one line per lecture with what it has
- * («конспект · 8 карточек · тест · разговор» or «только текст, конспекта нет») and its date. No
- * cards grid, chips, capitals, statistics tiles or quick-view drawer: a click opens the lecture.
- * Folders and search appear only when they help (a folder the student made, 13+ lectures).
+ * exam they were added to, in the order they were added (lib/lectureOrder, the map numbers them the
+ * same way); one line per lecture with what it has («конспект · 8 карточек · ещё 2 из ответов на
+ * билеты · тест · подкаст» or «только текст, конспекта нет») and its date. No cards grid, chips,
+ * capitals, statistics tiles or quick-view drawer: a click opens the lecture. Folders (kept on this
+ * device, and the page says so) and search appear only when they help (a folder the student made,
+ * 13+ lectures).
  */
 
 /** One lecture as the list shows it (a light view of the materials row; cached on this device). */
@@ -34,17 +57,13 @@ export interface LibraryEntry {
   talk: boolean;
 }
 
-interface Folder {
-  id: string;
-  name: string;
-  color?: string;
-  icon?: string;
-}
+type Folder = LibraryFolder;
 
-/** Folders the app once created for everyone: only folders the student made or filled are shown. */
-const DEFAULT_FOLDER_IDS = new Set(['folder_1', 'folder_2', 'folder_3']);
 /** A search field appears from this many lectures (spec 5.1). */
 export const SEARCH_FROM = 13;
+/** A number keeps its word and «·» its word before it: a line never starts with «·» or «окт.» (finding LIB-21). */
+const NBSP = '\u00a0';
+const DOT = `${NBSP}· `;
 const LOADING_LINE_MS = 300;
 const CACHE_VERSION = 2;
 /**
@@ -52,8 +71,8 @@ const CACHE_VERSION = 2;
  * client writes and reads without checking their shape: writing anything else there would break the Library
  * in an old tab (or after a rollback). It is only read here, as a fallback.
  */
-const cacheKey = (userId: string) => `library_entries_${userId}`;
-const legacyCacheKey = (userId: string) => `library_cache_${userId}`;
+const cacheKey = libraryCacheKey;
+const legacyCacheKey = legacyLibraryCacheKey;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -89,26 +108,26 @@ export function toEntry(raw: unknown): LibraryEntry | null {
   };
 }
 
-function cardsWord(count: number): string {
-  return `${count} ${pluralRu(count, ['карточка', 'карточки', 'карточек'])}`;
-}
-
-/** «конспект · 8 карточек · тест · разговор» (only what exists) or «только текст, конспекта нет». */
-export function lectureMeta(entry: LibraryEntry): string {
-  if (entry.textOnly) return 'только текст, конспекта нет';
+/**
+ * «конспект · 8 карточек · тест · подкаст» (only what exists) or «только текст, конспекта нет». Cards the
+ * lecture got from ticket answers are named apart (decision 4): «6 карточек · ещё 4 из ответов на билеты».
+ */
+export function lectureMeta(entry: LibraryEntry, followups = 0): string {
+  const cards = cardCountLine(entry.cards, followups);
+  if (entry.textOnly) return ['только текст, конспекта нет', cards].filter(Boolean).join(DOT);
   const parts: string[] = [];
   if (entry.summary) parts.push('конспект');
-  if (entry.cards > 0) parts.push(cardsWord(entry.cards));
+  if (cards) parts.push(cards);
   if (entry.quiz) parts.push('тест');
-  if (entry.talk) parts.push('разговор');
-  return parts.join(' · ');
+  if (entry.talk) parts.push('подкаст');
+  return parts.join(DOT);
 }
 
 /** «15 сент.», with the year when it is not this year. */
 export function shortDate(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   if (!iso || Number.isNaN(date.getTime())) return '';
-  return format(date, date.getFullYear() === now.getFullYear() ? 'd MMM' : 'd MMM yyyy', { locale: ru });
+  return format(date, date.getFullYear() === now.getFullYear() ? `d'${NBSP}'MMM` : `d'${NBSP}'MMM yyyy`, { locale: ru });
 }
 
 /** «9 лекций: 3 разобраны, 6 загружены только текстом». */
@@ -116,16 +135,17 @@ export function lecturesLine(entries: LibraryEntry[]): string {
   const total = entries.length;
   const textOnly = entries.filter((entry) => entry.textOnly).length;
   const analyzed = total - textOnly;
-  const head = `${total} ${lecturesWord(total)}`;
+  const head = `${total}${NBSP}${lecturesWord(total)}`;
   if (textOnly === 0) return head;
   const loaded = `${pluralRu(textOnly, ['загружена', 'загружены', 'загружены'])} только текстом`;
   if (analyzed === 0) return `${head}, ${loaded}`;
-  return `${head}: ${analyzed} ${pluralRu(analyzed, ['разобрана', 'разобраны', 'разобраны'])}, ${textOnly} ${loaded}`;
+  return `${head}: ${analyzed}${NBSP}${pluralRu(analyzed, ['разобрана', 'разобраны', 'разобраны'])}, ${textOnly}${NBSP}${loaded}`;
 }
 
-function cardsLine(entries: LibraryEntry[]): string {
-  const cards = entries.reduce((sum, entry) => sum + entry.cards, 0);
-  return cards > 0 ? cardsWord(cards) : '';
+function cardsLine(entries: LibraryEntry[], followups: ReadonlyMap<string, number> = new Map()): string {
+  const own = entries.reduce((sum, entry) => sum + entry.cards, 0);
+  const extra = entries.reduce((sum, entry) => sum + (followups.get(entry.id) ?? 0), 0);
+  return cardCountLine(own, extra);
 }
 
 /** «Экзамен 15 октября» / «экзамен 15 октября»; without a date just the kind. */
@@ -153,20 +173,18 @@ function time(entry: LibraryEntry): number {
 
 /**
  * How the lectures are grouped (spec 5.1): by exam (exam_materials), in the order they were added to
- * it and then uploaded; lectures in no exam under «Другие материалы», newest first. All lectures in
- * one exam: the exam is the page. No exams: one list, newest first. A lecture in two exams is shown
- * in both.
+ * it and then uploaded (lib/lectureOrder, as the knowledge map numbers them); lectures in no exam under
+ * «Другие материалы», newest first. All lectures in one exam: the exam is the page. No exams: one list,
+ * newest first. A lecture in two exams is shown in both.
  */
 export function libraryLayout(entries: LibraryEntry[], shelves: ExamShelf[]): LibraryLayout {
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   const placed = new Set<string>();
   const groups: LibraryGroup[] = [];
   for (const shelf of shelves) {
-    const items = shelf.materials
-      .map((link, index) => ({ entry: byId.get(link.id), addedAt: link.addedAt, index }))
-      .filter((item): item is { entry: LibraryEntry; addedAt: string; index: number } => Boolean(item.entry))
-      .sort((a, b) => (a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : time(a.entry) - time(b.entry) || a.index - b.index))
-      .map((item) => item.entry);
+    const items = orderExamLectures(shelf.materials, (id) => byId.get(id)?.created_at)
+      .map((link) => byId.get(link.id))
+      .filter((entry): entry is LibraryEntry => Boolean(entry));
     if (items.length === 0) continue;
     for (const item of items) placed.add(item.id);
     groups.push({ key: shelf.id, exam: shelf, entries: items });
@@ -183,22 +201,6 @@ function normalizeQuery(text: string): string {
   return text.toLocaleLowerCase('ru-RU').replace(/ё/g, 'е').trim();
 }
 
-function readJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson(key: string, value: unknown) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Storage full or blocked: the page works without it.
-  }
-}
 
 /** The cached list of this device: the new light entries, or the full rows an older version stored. */
 export function readCache(userId: string): LibraryEntry[] | null {
@@ -222,19 +224,13 @@ interface RowMenuProps {
   onDelete: () => void;
 }
 
-/** «⋯» of a lecture row: rename, folder, delete. */
+/** «⋯» of a lecture row: rename, folder (kept on this device), delete. The lecture page's «⋯» has the same. */
 function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, onMove, onNewFolder, onDelete }: RowMenuProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const [naming, setNaming] = useState(false);
-  const [name, setName] = useState('');
 
   useEffect(() => {
-    if (!open) {
-      setNaming(false);
-      setName('');
-      return;
-    }
+    if (!open) return;
     rootRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]')?.focus();
     const onPointer = (event: MouseEvent) => {
       if (rootRef.current && event.target instanceof Node && !rootRef.current.contains(event.target)) onClose();
@@ -259,13 +255,6 @@ function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, 
     items[next].focus();
   };
 
-  const submitFolder = (event: FormEvent) => {
-    event.preventDefault();
-    const clean = name.trim();
-    if (!clean) return;
-    onNewFolder(clean);
-  };
-
   return (
     <div className="sf-toc-more" ref={rootRef} onKeyDown={onKeyDown}>
       <button
@@ -280,45 +269,15 @@ function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, 
         <MoreHorizontal aria-hidden="true" strokeWidth={1.75} />
       </button>
       {open ? (
-        <div className="sf-menu" role="menu" aria-label={entry.title}>
+        <div className="sf-menu lf-menu" role="menu" aria-label={entry.title}>
           <button type="button" role="menuitem" onClick={onRename}>
             Переименовать
           </button>
           <div className="sf-menu-sep" role="separator" />
-          <p className="sf-menu-label">Папка</p>
-          {folders.map((folder) => (
-            <button key={folder.id} type="button" role="menuitemradio" aria-checked={folderId === folder.id} onClick={() => onMove(folder.id)}>
-              {folder.name}
-            </button>
-          ))}
-          {folderId ? (
-            <button type="button" role="menuitemradio" aria-checked={false} onClick={() => onMove('')}>
-              Без папки
-            </button>
-          ) : null}
-          {naming ? (
-            <form onSubmit={submitFolder}>
-              <input
-                className="sf-input lib-menu-input"
-                aria-label="Название папки"
-                placeholder="Название папки"
-                maxLength={60}
-                autoFocus
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-              <button type="submit" className="lib-small-pill">
-                Создать
-              </button>
-            </form>
-          ) : (
-            <button type="button" role="menuitem" onClick={() => setNaming(true)}>
-              Новая папка…
-            </button>
-          )}
+          <FolderItems folders={folders} folderId={folderId} onMove={onMove} onNewFolder={onNewFolder} />
           <div className="sf-menu-sep" role="separator" />
           <button type="button" role="menuitem" data-danger="" onClick={onDelete}>
-            Удалить
+            Удалить лекцию…
           </button>
         </div>
       ) : null}
@@ -328,6 +287,8 @@ function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, 
 
 interface LectureListProps {
   entries: LibraryEntry[];
+  /** Cards each lecture got from ticket answers (lib/followupCards). */
+  followups: ReadonlyMap<string, number>;
   folders: Folder[];
   assignments: Record<string, string>;
   openMenu: string | null;
@@ -387,12 +348,12 @@ function RenameRow({ entry, onSave, onCancel }: { entry: LibraryEntry; onSave: (
   );
 }
 
-function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, listKey, actions }: LectureListProps) {
+function LectureList({ entries, followups, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, listKey, actions }: LectureListProps) {
   return (
     <ol className="sf-toc">
       {entries.map((entry, index) => {
         const menuKey = `${listKey}:${entry.id}`;
-        const meta = lectureMeta(entry);
+        const meta = lectureMeta(entry, followups.get(entry.id) ?? 0);
         const date = shortDate(entry.created_at);
         return (
           <li
@@ -421,7 +382,7 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
                     {meta || date ? (
                       <span className="sf-toc-meta">
                         {meta}
-                        {date ? <span className="sf-toc-date-inline">{`${meta ? ' · ' : ''}${date}`}</span> : null}
+                        {date ? <span className="sf-toc-date-inline">{`${meta ? DOT : ''}${date}`}</span> : null}
                       </span>
                     ) : null}
                   </span>
@@ -461,9 +422,11 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
 }
 
 export default function Library() {
+  useDocumentTitle('Лекции');
   const { user } = useAuth();
   const { confirm } = useConfirm();
   const userId = user?.id ?? '';
+  const [followups, setFollowups] = useState<ReadonlyMap<string, number>>(() => new Map());
 
   const [entries, setEntries] = useState<LibraryEntry[] | null>(() => (userId ? readCache(userId) : null));
   const [shelves, setShelves] = useState<ExamShelf[]>([]);
@@ -485,6 +448,8 @@ export default function Library() {
     setLoading(true);
     setFailed(false);
     const shelvesRequest = listExamShelves(userId).catch(() => null);
+    // Cards from ticket answers come in their own request; the list does not wait for them.
+    void followupCardsByLecture(userId).then(setFollowups);
     try {
       const rows = await getMaterials(userId);
       const next = (rows ?? []).map(toEntry).filter((entry): entry is LibraryEntry => entry !== null);
@@ -514,19 +479,17 @@ export default function Library() {
 
   // Folders of this device (the app no longer creates default ones).
   useEffect(() => {
-    const key = userId || 'default_user';
-    setFolders(readJson<Folder[]>(`library_folders_${key}`, []).filter((folder) => isRecord(folder) && typeof folder.id === 'string'));
-    setAssignments(readJson<Record<string, string>>(`library_folder_assignments_${key}`, {}));
+    setFolders(readFolders(userId));
+    setAssignments(readAssignments(userId));
   }, [userId]);
 
-  const storageKey = userId || 'default_user';
   const saveAssignments = (next: Record<string, string>) => {
     setAssignments(next);
-    writeJson(`library_folder_assignments_${storageKey}`, next);
+    writeAssignments(userId, next);
   };
   const saveFolders = (next: Folder[]) => {
     setFolders(next);
-    writeJson(`library_folders_${storageKey}`, next);
+    writeFolders(userId, next);
   };
 
   const list = entries ?? [];
@@ -551,24 +514,14 @@ export default function Library() {
         toast.error('Не удалось переименовать. Повторите через минуту.');
       }
     },
-    move: (entry, folderId) => {
-      const next = { ...assignments };
-      if (folderId) next[entry.id] = folderId;
-      else delete next[entry.id];
-      saveAssignments(next);
-    },
+    move: (entry, folderId) => saveAssignments(withFolder(assignments, entry.id, folderId)),
     newFolder: (entry, name) => {
-      const folder: Folder = { id: `folder_${Date.now()}`, name };
-      saveFolders([...folders, folder]);
-      saveAssignments({ ...assignments, [entry.id]: folder.id });
+      const next = withNewFolder(folders, assignments, entry.id, name);
+      saveFolders(next.folders);
+      saveAssignments(next.assignments);
     },
     remove: async (entry) => {
-      const ok = await confirm({
-        title: 'Удалить лекцию?',
-        message: `«${entry.title}» исчезнет из библиотеки вместе с конспектом, карточками и тестом. Это нельзя отменить.`,
-        confirmText: 'Удалить',
-        cancelText: 'Оставить',
-      });
+      const ok = await confirm(deleteLectureConfirm(displayMaterialTitle(entry.title)));
       if (!ok) return;
       try {
         await deleteMaterial(entry.id);
@@ -577,15 +530,13 @@ export default function Library() {
         return;
       }
       setEntries((previous) => (previous ?? []).filter((item) => item.id !== entry.id));
-      if (assignments[entry.id]) {
-        const next = { ...assignments };
-        delete next[entry.id];
-        saveAssignments(next);
-      }
+      // Its folder mark and its row in this device's list go too (the same as from the lecture page).
+      forgetLecture(userId, entry.id);
+      if (assignments[entry.id]) setAssignments(withFolder(assignments, entry.id, ''));
     },
   };
 
-  const listProps = { folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, actions };
+  const listProps = { followups, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, actions };
 
   // ── The heading: the exam when every lecture belongs to it, else «Библиотека» ──
   let heading = 'Лекции';
@@ -593,10 +544,10 @@ export default function Library() {
   let sheetLink: string | null = null;
   if (whole.mode === 'single') {
     heading = subjectOf(whole.exam.title) || 'Лекции';
-    lede = [examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries)].filter(Boolean).join(' · ');
+    lede = [examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries, followups)].filter(Boolean).join(DOT);
     sheetLink = `/exams/${whole.exam.id}`;
   } else if (list.length > 0) {
-    lede = [`${list.length} ${lecturesWord(list.length)}`, cardsLine(list)].filter(Boolean).join(' · ');
+    lede = [`${list.length}${NBSP}${lecturesWord(list.length)}`, cardsLine(list, followups)].filter(Boolean).join(DOT);
   }
 
   if (entries === null && loading) {
@@ -714,6 +665,7 @@ export default function Library() {
               ))}
             </ul>
           ) : null}
+          {visibleFolders.length > 0 ? <p className="lib-folders-note">{FOLDERS_HERE_NOTE}</p> : null}
           {list.length >= SEARCH_FROM ? (
             <label className="lib-search">
               <Search aria-hidden="true" strokeWidth={2} />

@@ -83,6 +83,8 @@
 .lib-offline::before { content: ''; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--m-yellow); }
 
 /* ---------------------------------------------------------------- folders and search */
+/* Folders are kept in this browser only: the row with them says so, quietly. */
+.lib-folders-note { margin: 0; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
 .lib-filters {
   display: flex;
   flex-wrap: wrap;
@@ -183,40 +185,20 @@
 .lib-page .sf-toc-meta { margin-top: 3px; }
 .lib-page .sf-toc-date { line-height: 1.3; }
 
-/* «⋯» of a row: a circle that turns white with a ring under the pointer. */
+/* «⋯» of a row: a circle that turns white with a ring under the pointer. At rest it stays in sight, quieter
+   (finding LIB-32: rename, folder and delete were invisible until the pointer found the row); .65 keeps the
+   dots at 3.3:1 on the white row (3.8:1 at night). */
 .lib-page .sf-toc-more { top: 50%; right: 14px; transform: translateY(-50%); }
-.lib-page .sf-toc-more > .sf-more { width: 48px; height: 48px; }
+.lib-page .sf-toc-more > .sf-more { width: 48px; height: 48px; opacity: .65; transition: opacity .3s ease, background-color .3s ease, box-shadow .3s ease; }
+.lib-page .sf-toc-row:hover .sf-toc-more > .sf-more,
+.lib-page .sf-toc-row:focus-within .sf-toc-more > .sf-more,
+.lib-page .sf-toc-more > .sf-more[aria-expanded='true'] { opacity: 1; }
 .lib-page .sf-toc-more > .sf-more:hover,
 .lib-page .sf-toc-more > .sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line); }
 
-/* The row menu: the kit's soft menu with a folder mark and a quieter delete. */
+/* The row menu: the kit's soft menu; the folder rows, the field of a new folder and the quieter delete
+   come with LectureFolders.css (the lecture page's «⋯» has the same). */
 .lib-page .sf-menu { min-width: 260px; }
-.lib-page .sf-menu .sf-menu-label { padding: 8px 14px 4px; font-size: 13px; }
-.lib-page .sf-menu button[role='menuitemradio']::after {
-  content: '';
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1.5px var(--sf-line-strong, #cfd0c8);
-}
-.lib-page .sf-menu button[role='menuitemradio'][aria-checked='true']::after { background: var(--sf-accent); box-shadow: none; transform: scale(1.2); }
-.lib-page .sf-menu button[data-danger] { color: var(--ph-wrong); }
-.lib-page .sf-menu form { align-items: center; padding: 6px 8px 8px 10px; }
-.lib-menu-input.sf-input { flex: 1 1 auto; min-width: 0; height: 40px; padding: 0 12px; border-radius: 14px; font-size: 15px; }
-/* The kit's menu buttons are full-width rows; «Создать» stays a small blue pill. */
-.lib-page .sf-menu .lib-small-pill {
-  justify-content: center;
-  width: auto;
-  min-height: 40px;
-  padding: 0 16px;
-  border-radius: 999px;
-  background: var(--sf-accent);
-  color: #fff;
-}
-.lib-page .sf-menu .lib-small-pill:hover { background: var(--sf-accent-hover); }
-/* The kit marks a focused menu row by its tint and removes the ring; a blue pill needs the ring back. */
-.lib-page .sf-menu .lib-small-pill:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
 
 /* A small blue pill (Создать, Сохранить) and the rename row of a lecture. */
 .lib-small-pill {
@@ -394,7 +376,8 @@
   .lib-pill,
   .lib-dot,
   .lib-more svg,
-  .lib-small-pill { transition: none; }
+  .lib-small-pill,
+  .lib-page .sf-toc-more > .sf-more { transition: none; }
   .lib-pill:hover .lib-dot,
   .lib-more:hover svg,
   .lib-pill:active { transform: none; }

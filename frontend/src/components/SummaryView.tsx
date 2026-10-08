@@ -6,6 +6,7 @@ import 'katex/dist/katex.min.css';
 import { SummaryInfo } from '../types';
 import { FragmentRefs, FragmentSlip } from './summary/FragmentSlip';
 import { buildSections, fragmentWord, stemsOf, stripSourceMarkers, type RefKind, type SourceFragment } from './summary/fragmentModel';
+import { repairMathEscapes } from '../lib/mathEscapes';
 import './summary/summary.css';
 
 export { stripSourceMarkers };
@@ -116,7 +117,8 @@ interface MarginPick {
  * cards. Pages that put the summary into their own box leave it off.
  */
 export default function SummaryView({ data, sources = [], card = false }: { data: SummaryInfo; sources?: SourceFragment[]; card?: boolean }) {
-  const content = extractContent(data);
+  // Formulas of lectures analysed before 2026-10-08 lost their backslashes on the server («\text» → TAB + «ext»).
+  const content = repairMathEscapes(extractContent(data));
   const terms = extractTerms(data);
   const sections = useMemo(() => buildSections(content, sources), [content, sources]);
   const termRefs = useMemo(() => {

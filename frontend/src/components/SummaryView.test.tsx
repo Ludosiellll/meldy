@@ -112,6 +112,23 @@ describe('<SummaryView> on a narrow page', () => {
   });
 });
 
+describe('<SummaryView> formulas (finding LIB-2)', () => {
+  beforeEach(() => setWindow(800));
+
+  it('shows a formula the old server stored without its backslash («\\text» as a TAB and «ext») as a formula', () => {
+    const TAB = '\u0009';
+    const content = ['## Агрегатные функции', '', `Для подсчёта строк — $${TAB}ext{COUNT}(x)$, для суммы — $${TAB}ext{SUM}(x)$.`].join('\n');
+    render(<SummaryView data={{ content, terms: [], source_ids: [] } as never} />);
+    const section = screen.getByRole('heading', { level: 2, name: 'Агрегатные функции' }).closest('section') as HTMLElement;
+    expect(section.querySelectorAll('.katex')).toHaveLength(2);
+    // What the reader sees, without KaTeX's own copy of the source for screen readers.
+    const shown = Array.from(section.querySelectorAll('.katex-html')).map((node) => node.textContent).join(' ');
+    expect(shown).toContain('COUNT');
+    expect(shown).not.toContain('ext');
+    expect(section.textContent).not.toContain(TAB);
+  });
+});
+
 describe('<SummaryView> on a wide page', () => {
   beforeEach(() => {
     setWindow(1440);

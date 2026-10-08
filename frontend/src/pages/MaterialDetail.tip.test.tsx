@@ -36,6 +36,11 @@ vi.mock('../api/social', () => ({
   markOnboardingTourSeen: (...args: unknown[]) => state.markSeen(...args),
 }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: state.userId } }) }));
+// The count of cards from ticket answers is a request to flashcard_progress: none here.
+vi.mock('../lib/followupCards', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/followupCards')>()),
+  followupCardsOf: vi.fn(async () => 0),
+}));
 vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: vi.fn(async () => true), alert: vi.fn() }) }));
 vi.mock('../lib/telemetry', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/telemetry')>()),
@@ -43,7 +48,7 @@ vi.mock('../lib/telemetry', async (importOriginal) => ({
 }));
 // The panels under the tabs have their own tests; here they only take their place.
 vi.mock('../components/ResultsPanel', () => ({ default: () => <div data-testid="panel">Конспект</div> }));
-vi.mock('../components/ExpressPrepView', () => ({ default: () => <div data-testid="express">Разговор</div> }));
+vi.mock('../components/ExpressPrepView', () => ({ default: () => <div data-testid="express">Подкаст</div> }));
 vi.mock('../components/tips/clipPart', async () => {
   const { lazyPart } = await import('../lib/lazyPart');
   return { tipClipPart: lazyPart(async () => () => <div data-testid="clip" />) };
@@ -201,10 +206,65 @@ describe('the «Поговорить о лекции» tip on the lecture page',
     expect(state.getProfile).not.toHaveBeenCalled();
   });
 
-  it('is not shown on «Разговор», where the conversation plays', async () => {
+  it('is not shown on «Подкаст», where the podcast plays', async () => {
     renderPage('/library/m1?mode=express&tab=podcast');
     await settle(3000);
     expect(screen.getByTestId('express')).toBeInTheDocument();
+    expect(tip()).toBeNull();
+  });
+
+  describe('on a phone too short for its sheet (320×640, finding LIB-4)', () => {
+    const query = '(max-width: 639px) and (max-height: 719px)';
+    let matches = true;
+    beforeEach(() => {
+      matches = true;
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (media: string) => ({
+          media,
+          matches: media === query && matches,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }),
+      });
+    });
+    afterEach(() => {
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    });
+
+    it('waits for a taller screen and reads nothing, so it counts no visit', async () => {
+      renderPage();
+      await settle(3000);
+      expect(talkPill()).toBeInTheDocument();
+      expect(tip()).toBeNull();
+      expect(state.getProfile).not.toHaveBeenCalled();
+      expect(window.localStorage.getItem('meldy_tip_views_talk')).toBeNull();
+    });
+
+    it('comes on a screen with room for it', async () => {
+      matches = false;
+      renderPage();
+      await settle();
+      await settle();
+      expect(tip()).not.toBeNull();
+    });
+  });
+
+  it('seen on two visits does not come a third time (finding LIB-4)', async () => {
+    renderPage();
+    await settle();
+    await settle();
+    expect(tip()).not.toBeNull();
+    cleanup();
+    renderPage();
+    await settle();
+    await settle();
+    expect(tip()).not.toBeNull();
+    expect(state.markSeen).toHaveBeenCalledWith('user-1', 'tip_talk');
+    cleanup();
+    renderPage();
+    await settle(3000);
+    expect(talkPill()).toBeInTheDocument();
     expect(tip()).toBeNull();
   });
 });

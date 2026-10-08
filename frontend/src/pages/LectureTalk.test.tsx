@@ -236,6 +236,17 @@ afterEach(() => {
 
 // ── Tests ───────────────────────────────────────────────────────────────────────────
 
+describe('the room’s name (finding LIB-5)', () => {
+  it('is the pill’s own name with the lecture’s title, in the bar and in the browser tab', async () => {
+    const { container } = renderRoom();
+    await screen.findByRole('heading', { name: 'Поговорить о лекции' });
+    expect(container.querySelector('.or-where .or-long')?.textContent?.replace(/\s/g, ' ')).toBe('Поговорить о лекции · Макроэкономика');
+    expect(container.querySelector('.or-where .or-short')?.textContent).toBe('Поговорить о лекции');
+    expect(document.title).toBe('Поговорить о лекции — Meldy');
+    expect(container.textContent).not.toMatch(/Разговор о лекции/);
+  });
+});
+
 describe('the start card', () => {
   it('says what will happen before any microphone prompt', async () => {
     renderRoom();

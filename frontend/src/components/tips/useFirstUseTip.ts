@@ -30,6 +30,23 @@ function rememberHere(id: TipId) {
   }
 }
 
+/** A tip shown on this many visits is put away, as if «Не сейчас» was pressed (finding LIB-4). */
+export const TIP_SEEN_VISITS = 2;
+/** How many visits showed the tip on this device. */
+const viewsKey = (id: TipId) => `${TIP_KEY_PREFIX}views_${id}`;
+
+/** One more visit that showed the tip; the count after it. */
+function countVisit(id: TipId): number {
+  try {
+    const seen = Number.parseInt(window.localStorage.getItem(viewsKey(id)) ?? '0', 10);
+    const next = (Number.isFinite(seen) && seen > 0 ? seen : 0) + 1;
+    window.localStorage.setItem(viewsKey(id), String(next));
+    return next;
+  } catch {
+    return 1;
+  }
+}
+
 /** What the profile says, once read: the tip and the guide seen on any device. */
 interface ProfileFlags {
   tip: boolean;
@@ -55,8 +72,9 @@ export interface FirstUseTip {
  * shown, as with the guide's first run.
  *
  * dismiss() and done() write both marks; the tip never comes back. A tip that was only looked at
- * comes again on the next visit. Statistics: tip_shown once per page visit, tip_action with
- * `action` try or dismiss (try only when the tip was on screen).
+ * comes once more, on the next visit; shown on TIP_SEEN_VISITS visits it writes both marks as it
+ * shows (it stays for that visit, and the next one does not see it). Statistics: tip_shown once per
+ * page visit, tip_action with `action` try or dismiss (try only when the tip was on screen).
  */
 export function useFirstUseTip(id: TipId, { enabled }: { enabled: boolean }): FirstUseTip {
   const { user } = useAuth();
@@ -123,7 +141,12 @@ export function useFirstUseTip(id: TipId, { enabled }: { enabled: boolean }): Fi
     if (!show || reported.current) return;
     reported.current = true;
     track('tip_shown', { id });
-  }, [show, id]);
+    // Seen on two visits is enough: the tip does not come a third time (on any device).
+    if (countVisit(id) >= TIP_SEEN_VISITS && !closedRef.current) {
+      rememberHere(id);
+      if (userId) void Promise.resolve().then(() => markOnboardingTourSeen(userId, tipProfileKey(id))).catch(() => undefined);
+    }
+  }, [show, id, userId]);
 
   const finish = useCallback(
     (action: 'try' | 'dismiss') => {

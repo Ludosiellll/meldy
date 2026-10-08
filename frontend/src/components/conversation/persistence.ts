@@ -80,7 +80,7 @@ export async function patchSummaryJson(
 
 /** Сохраняет реплики в summary_json.podcast, остальные поля не трогает. */
 export function saveConversationLines(materialId: string, lines: unknown[]): Promise<Record<string, unknown>> {
-  return patchSummaryJson(materialId, { podcast: lines }, 'Не удалось сохранить разговор. Попробуйте ещё раз.');
+  return patchSummaryJson(materialId, { podcast: lines }, 'Не удалось сохранить подкаст. Попробуйте ещё раз.');
 }
 
 /** Сохраняет выжимку в summary_json.cheatsheet, остальные поля не трогает. */

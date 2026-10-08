@@ -5,13 +5,15 @@ import { tipClipPart } from './clipPart';
 import type { TipDef } from './tips';
 import './tips.css';
 
-/** Phones: the card takes the width of the screen less the gutters. */
+/** Phones: the card is a sheet at the bottom of the screen (finding LIB-4: hung under the pill it covered seven of
+    the lecture's controls, its tabs among them). */
 const PHONE_MAX = 639;
 const GUTTER = 16;
 /** From the anchor's bottom to the card's top edge; the arrow (10 px tall) lives in it. */
 const GAP = 14;
-/** Less when buttons that wrapped under the anchor are to be covered whole, never less than this. */
-const MIN_GAP = 9;
+/** A row of controls (tabs) this close under the anchor is never covered: the card goes below it. */
+const CONTROL_BAND = 96;
+const CONTROLS = 'a[href], button, [role="tab"], input, select, textarea, summary';
 /** The arrow keeps this far from the card's sides (clear of the rounded corners). */
 const ARROW_EDGE = 44;
 const MIN_W = 400;
@@ -26,6 +28,11 @@ const ROW_CLIP_W = 272;
 const MIN_CLIP_W = 200;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+function viewportWidth(): number {
+  if (typeof window === 'undefined') return 1280;
+  return document.documentElement.clientWidth || window.innerWidth;
+}
 
 interface TipCardProps {
   tip: TipDef;
@@ -46,8 +53,13 @@ interface TipCardProps {
  * A first-use tip (tips.ts, useFirstUseTip): a card under the thing it is about, with a small arrow
  * at it — the clip, the title, a sentence or two, «Попробовать» and the quiet «Не сейчас». Not a
  * dialog: the page stays usable around it, it never takes the focus, and a polite live region says
- * it once. Escape inside it is «Не сейчас». The card lies over the page (it moves nothing) and never
- * over its anchor; a control under it that gets the keyboard's focus makes it step aside.
+ * it once. Escape inside it is «Не сейчас». The card lies over the page (it moves nothing), never
+ * over its anchor and never over a row of controls right under it (a page's tabs): then it hangs
+ * below that row, joined to the anchor by a thin line. A control under it that gets the keyboard's
+ * focus makes it step aside.
+ *
+ * On a phone it is a sheet at the bottom of the screen, without the clip (the anchor keeps its ring);
+ * a page with its own bar at the bottom says how high it is with the CSS variable --tp-sheet-lift.
  *
  * Render it right after the anchor, inside a positioned box: the Tab key then goes from the anchor to
  * the tip. The card measures the anchor and places itself, also when the window or the page changes:
@@ -59,6 +71,7 @@ export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss 
   const textId = useId();
   const [said, setSaid] = useState('');
   const [aside, setAside] = useState(false);
+  const [sheet, setSheet] = useState(() => viewportWidth() <= PHONE_MAX);
   const Clip = useLazyPart(tipClipPart, true, {
     onError: (error) => console.error('Ролик подсказки не загрузился:', error),
   });
@@ -67,56 +80,77 @@ export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss 
     const el = card.current;
     const target = anchor.current;
     if (!el || !target) return;
+    const vw = viewportWidth();
+    const phone = vw <= PHONE_MAX;
+    setSheet(phone);
+    if (phone) {
+      // A sheet at the bottom of the screen (tips.css): nothing to measure.
+      el.dataset.layout = 'sheet';
+      for (const name of ['width', 'left', 'top', '--tp-arrow-x', '--tp-lead', '--tp-clip-w']) el.style.removeProperty(name);
+      return;
+    }
     const group = alignTo?.current ?? target;
     const host = (el.offsetParent as HTMLElement | null) ?? document.documentElement;
     const hostBox = host.getBoundingClientRect();
     const a = target.getBoundingClientRect();
     const g = group.getBoundingClientRect();
     const row = group.parentElement?.getBoundingClientRect() ?? g;
-    const vw = document.documentElement.clientWidth || window.innerWidth;
-    const phone = vw <= PHONE_MAX;
     const centre = a.left + a.width / 2;
-    // Buttons of the group that wrapped under the anchor (a phone) are covered whole, not left peeking out.
-    let top = a.bottom + GAP;
-    for (const item of Array.from(group.children)) {
-      if (item === el) continue;
-      const box = item.getBoundingClientRect();
-      if (box.height > 0 && box.top >= a.bottom) top = Math.min(top, Math.max(box.top, a.bottom + MIN_GAP));
-    }
     const endsRow = Math.abs(g.right - row.right) <= 2 && g.left - row.left > 2;
 
     /** The card's left edge: lined up with the group, the arrow within reach of the anchor, inside the window. */
     const leftFor = (width: number) => {
-      if (phone) return GUTTER;
       let left = endsRow ? g.right - width : g.left;
       left = clamp(left, centre + ARROW_EDGE - width, centre - ARROW_EDGE);
       return clamp(left, GUTTER, vw - GUTTER - width);
     };
+    /** Under the anchor, or under a row of controls (a page's tabs) that lies right under it where the card goes. */
+    const topFor = (width: number) => {
+      const left = leftFor(width);
+      let below = a.bottom + GAP;
+      for (const control of Array.from(document.querySelectorAll<HTMLElement>(CONTROLS))) {
+        if (el.contains(control) || control === target || target.contains(control)) continue;
+        const box = control.getBoundingClientRect();
+        if (box.width < 1 || box.height < 1) continue;
+        if (box.top < a.bottom - 1 || box.top > a.bottom + CONTROL_BAND) continue;
+        if (box.right <= left || box.left >= left + width) continue;
+        below = Math.max(below, box.bottom + GAP);
+      }
+      return below;
+    };
+    let top = a.bottom + GAP;
     const apply = (width: number, layout: 'column' | 'row') => {
       const left = leftFor(width);
+      top = topFor(width);
       el.dataset.layout = layout;
       el.style.width = `${width}px`;
       el.style.left = `${Math.round(left - hostBox.left - host.clientLeft)}px`;
       el.style.top = `${Math.round(top - hostBox.top - host.clientTop)}px`;
       el.style.setProperty('--tp-arrow-x', `${Math.round(clamp(centre - left, ARROW_EDGE, width - ARROW_EDGE))}px`);
+      // Below a row of controls the arrow no longer touches the anchor: a thin line joins them.
+      const lead = Math.round(top - a.bottom - GAP);
+      if (lead > 0) el.style.setProperty('--tp-lead', `${lead + 3}px`);
+      else el.style.removeProperty('--tp-lead');
     };
 
     // A card that ends where the group ends is as wide as it takes for the arrow to reach the anchor.
     const fit = vw - 2 * GUTTER;
-    let width = phone ? fit : Math.min(endsRow ? clamp(Math.round(g.right - centre + ARROW_EDGE), MIN_W, MAX_W) : MIN_W, fit);
+    let width = Math.min(endsRow ? clamp(Math.round(g.right - centre + ARROW_EDGE), MIN_W, MAX_W) : MIN_W, fit);
     apply(width, 'column');
 
     // The whole card in the window as the page first shows it: on a short window the clip gets smaller
-    // or, when it would be much narrower than the card, goes beside the words.
+    // or, when it would be much narrower than the card, goes beside the words. A bar the page keeps at the
+    // bottom of the screen (--tp-sheet-lift) is not room.
     const clip = el.querySelector<HTMLElement>('.tp-clip');
     if (!clip) return;
-    const room = window.innerHeight - GUTTER - (top + window.scrollY);
     const style = window.getComputedStyle(el);
+    const lift = parseFloat(style.getPropertyValue('--tp-sheet-lift')) || 0;
+    const room = window.innerHeight - GUTTER - lift - (top + window.scrollY);
     const inner = width - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
     el.style.setProperty('--tp-clip-w', `${inner}px`);
     const words = el.offsetHeight - clip.offsetHeight;
     const columnClip = Math.floor((room - words) * CLIP_RATIO);
-    if (phone || columnClip >= inner * COLUMN_CLIP_SHARE) {
+    if (columnClip >= inner * COLUMN_CLIP_SHARE) {
       el.style.setProperty('--tp-clip-w', `${clamp(columnClip, Math.min(MIN_CLIP_W, inner), inner)}px`);
       return;
     }
@@ -197,9 +231,11 @@ export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss 
       data-aside={aside ? '' : undefined}
       onKeyDown={onKeyDown}
     >
-      <div className="tp-clip">
-        {Clip ? <Clip id={tip.id} active={!aside} /> : <div className="tp-box" data-playing="false" aria-hidden="true" />}
-      </div>
+      {sheet ? null : (
+        <div className="tp-clip">
+          {Clip ? <Clip id={tip.id} active={!aside} /> : <div className="tp-box" data-playing="false" aria-hidden="true" />}
+        </div>
+      )}
       <h2 id={titleId} className="tp-title">
         {tip.title}
       </h2>

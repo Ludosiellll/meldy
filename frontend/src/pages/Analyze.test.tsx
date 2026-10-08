@@ -191,7 +191,7 @@ function renderAnalyze(wrap: (node: ReactNode) => ReactNode = node => node) {
 }
 
 const startButton = () => screen.getByRole('button', { name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Запускаем/ });
-const uploadScreen = () => screen.findByRole('heading', { name: 'Один материал — полный цикл подготовки' });
+const uploadScreen = () => screen.findByRole('heading', { name: 'Разобрать лекцию' });
 
 async function pasteText(text: string) {
   await uploadScreen();
@@ -259,6 +259,14 @@ afterEach(() => {
 });
 
 /* ── Исходы потока ─────────────────────────────────────────────────────────── */
+
+describe('the page’s name', () => {
+  it('is the action it offers, on the page and in the browser tab', async () => {
+    renderAnalyze();
+    expect(await uploadScreen()).toBeInTheDocument();
+    expect(document.title).toBe('Разобрать лекцию — Meldy');
+  });
+});
 
 describe('stream outcomes', () => {
   it('a clean EOF after agent_start shows «Анализ не завершён»; «Повторить» resends the same file and settings', async () => {
@@ -415,6 +423,8 @@ describe('HTTP errors before the stream', () => {
     streams = [() => new Response('<html><title>413 Request Entity Too Large</title></html>', { status: 413, headers: { 'content-type': 'text/html' } })];
     renderAnalyze();
     await uploadScreen();
+    // Step 2 is folded into one line; «Изменить» opens the settings.
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
     fireEvent.click(screen.getByRole('button', { name: 'Подробный' }));
     await chooseFile();
     fireEvent.click(startButton());
@@ -423,6 +433,8 @@ describe('HTTP errors before the stream', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Выбрать другой файл' }));
     await uploadScreen();
+    expect(screen.getByText(/^Подробный конспект, 6 карточек и тест из 5 вопросов$/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
     expect(screen.getByRole('button', { name: 'Подробный' }).className).toMatch(/font-medium/);
   });
 
@@ -553,7 +565,7 @@ describe('one run per click', () => {
     await act(async () => release(true));
     await act(async () => new Promise(resolve => setTimeout(resolve, 30)));
     expect(analyzeCalls()).toHaveLength(1);
-    expect(screen.getByRole('heading', { name: 'Один материал — полный цикл подготовки' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Отменить' })).not.toBeInTheDocument();
   });
 
@@ -602,10 +614,16 @@ describe('demo text', () => {
   it('is free, ignores changed settings and is saved once with demo markers', async () => {
     renderAnalyze();
     await uploadScreen();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
     fireEvent.click(screen.getByRole('button', { name: 'Подробный' }));
-    fireEvent.click(screen.getByText('Разговор', { selector: 'span' }));
+    fireEvent.click(screen.getByText('Подкаст', { selector: 'span' }));
     await loadDemo();
-    expect(screen.getByText('Демо-текст: лимит не списывается, настройки по умолчанию')).toBeInTheDocument();
+    expect(screen.getByText('Демо-текст: лимит не списывается')).toBeInTheDocument();
+    // The demo text is made with its own settings: step 2 says what, the settings close and «Изменить» waits.
+    expect(screen.getByText(/^Конспект, 6 карточек и тест из 5 вопросов$/)).toBeInTheDocument();
+    expect(screen.getByText('Для демо-текста настройки не меняются.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Изменить' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Подробный' })).not.toBeInTheDocument();
     fireEvent.click(startButton());
 
     expect(await screen.findByText('Демо-текст: лимит не списывается.')).toBeInTheDocument();
