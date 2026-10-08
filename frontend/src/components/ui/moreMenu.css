@@ -1,0 +1,36 @@
+/* «Ещё» (MoreMenu): the `.sf-menu` of the lecture's «⋯», with links styled as its buttons. */
+.mm-root { position: relative; display: inline-flex; }
+.mm-text {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.sf-menu.mm-menu { min-width: 220px; }
+.sf-menu.mm-menu[data-up] { top: auto; bottom: calc(100% + 2px); }
+.sf-menu.mm-menu[data-start] { right: auto; left: 0; }
+.sf-menu a.mm-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+}
+.sf-menu a.mm-item:hover,
+.sf-menu a.mm-item:focus-visible { background: var(--sf-tint); outline: none; }
+.sf-menu .mm-item[data-danger] { color: var(--ph-wrong); }
+@media (max-width: 639px) {
+  /* Phone rows are 44 px targets. */
+  .sf-menu a.mm-item,
+  .sf-menu button.mm-item { min-height: 44px; }
+}
