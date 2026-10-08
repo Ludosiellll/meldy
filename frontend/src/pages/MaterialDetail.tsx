@@ -59,24 +59,27 @@ export const PUBLISH_MESSAGE =
 /** Spec 4.6: nothing for the first 300 ms, then one quiet line instead of a spinner. */
 const LOADING_LINE_MS = 300;
 
-/** «13 сентября, 23:16»: when the lecture was added, in words; the day and the month never part (finding LIB-21). */
-export function addedAt(iso: string | null | undefined): string {
+/**
+ * «13 сентября, 23:16»: when the lecture was added, in words; the day and the month never part (finding LIB-21).
+ * Without `withTime` the day alone, «13 сентября».
+ */
+export function addedAt(iso: string | null | undefined, withTime = true): string {
   const date = iso ? new Date(iso) : null;
-  return date && !Number.isNaN(date.getTime()) ? format(date, `d'${NBSP}'MMMM, H:mm`, { locale: ru }) : '';
+  return date && !Number.isNaN(date.getTime()) ? format(date, withTime ? `d'${NBSP}'MMMM, H:mm` : `d'${NBSP}'MMMM`, { locale: ru }) : '';
 }
 
 /**
  * One meta line under the title (design critique 12, spec 5.2) instead of chips and «13.09.2026, 23:16»:
  * «Экономика · только для меня · 3 октября, 20:35». A line breaks only after a dot, never before one.
- * `short` (a phone, 10_Project/Phone_Declutter_2026-10-08): the usual «только для меня» is left out — «⋯» has
- * «Поделиться»; a lecture open by link or someone else's still says so.
+ * `short` (a phone, 10_Project/Phone_Declutter_2026-10-08): «Экономика · 3 октября» — the usual «только для меня» is
+ * left out («⋯» has «Поделиться»), and so is the time of day; a lecture open by link or someone else's still says so.
  */
 export function materialMeta(input: { subject?: string | null; isPublic: boolean; own: boolean; createdAt: string | null | undefined; short?: boolean }): string {
   const whoSees = input.own ? (input.isPublic ? 'открыт по ссылке' : input.short ? '' : 'только для меня') : 'материал другого автора';
   const line = [
     typeof input.subject === 'string' ? input.subject.trim() : '',
     whoSees,
-    addedAt(input.createdAt),
+    addedAt(input.createdAt, !input.short),
   ]
     .filter(Boolean)
     .join(`${NBSP}· `);

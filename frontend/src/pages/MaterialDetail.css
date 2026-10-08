@@ -251,13 +251,15 @@ html[data-stage] .md-crumb { display: none; }
 /* 10_Project/Phone_Declutter_2026-10-08, «Лекция»: «Конспект · Карточки 6 · Тест 5 · Подкаст» in one row of quiet
    words on a hairline, the current one in ink on a 2 px ink bar — in place of the white capsule of the modes and the
    results' row of pills. The page renders it on phones only (usePhone); a row that does not fit (320 px, or with
-   «Кратко») scrolls, and its right edge fades. */
+   «Кратко») scrolls, and its right edge fades. The phone's text tabs: 16/500 muted, the current one ink at the same
+   weight, its 2 px bar flush on the row's 1 px hairline (drawn inside the row, so the scrolling row does not clip
+   the bar), the counts 14 muted, the current one's in ink. */
 .md-ptabs {
   display: flex;
   gap: 0 22px;
   margin: 14px 0 0;
   padding: 0;
-  border-bottom: 1px solid var(--sf-line);
+  box-shadow: inset 0 -1px 0 var(--sf-line);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -301,17 +303,16 @@ html[data-stage] .md-crumb { display: none; }
   right: 0;
   bottom: 0;
   height: 2px;
-  border-radius: 2px;
   background: var(--sf-ink);
 }
 .md-ptabs [role='tab']:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -2px; border-radius: 6px; }
 .md-ptab-n { font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
-/* Five tabs (with «Кратко») and narrow phones: the row is set tighter before it scrolls. */
+.md-ptabs [role='tab'][aria-selected='true'] .md-ptab-n { color: var(--sf-ink); }
+/* Five tabs (with «Кратко») and narrow phones: the words stay 16 px, the gaps narrow before the row scrolls (at 360 the
+   four tabs fit). */
 .md-ptabs[data-many] { gap: 0 18px; }
-.md-ptabs[data-many] [role='tab'] { font-size: 15px; }
 @media (max-width: 374px) {
-  .md-ptabs { gap: 0 18px; }
-  .md-ptabs [role='tab'] { font-size: 15px; }
+  .md-ptabs { gap: 0 16px; }
 }
 
 @media (max-width: 639px) {

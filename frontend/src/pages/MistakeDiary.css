@@ -258,20 +258,61 @@
   .md-card { border-radius: 32px; }
   .md-summary { margin-top: 26px; }
   .md-figs { gap: 12px 36px; }
+  /* The figures are their words and numbers: no coloured dots before «Открыто» and «Исправлено». */
+  .md-fig-l::before { display: none; }
   .md-bar { margin-top: 26px; }
-  .md .md-tabs { flex-wrap: nowrap; min-width: 0; }
-  .md .md-tabs button { min-height: 44px; padding: 0 12px; }
-  .md-row { grid-template-columns: 10px minmax(0, 1fr) 36px; column-gap: 12px; padding: 16px 12px 16px 18px; border-radius: 24px; }
+  /* The filter is the phone's row of text tabs with their counts, «Все 17 · Открытые 17» (MistakeDiary.tsx leaves out
+     an empty tab that is not chosen): 16/500 muted words on a hairline under the whole row, the chosen one in ink at
+     the same weight on a 2 px ink bar flush on the hairline, the counts 14 muted (the chosen one's in ink). */
+  .md .md-tabs {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    width: auto;
+    min-width: 0;
+    gap: 0 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: inset 0 -1px 0 var(--sf-line);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .md .md-tabs::-webkit-scrollbar { display: none; }
+  .md .md-tabs li { flex: none; }
+  .md .md-tabs button {
+    position: relative;
+    min-height: 46px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--sf-muted);
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .md .md-tabs button:hover { background: none; color: var(--sf-ink); }
+  .md .md-tabs button[aria-pressed='true'] { background: none; color: var(--sf-ink); font-weight: 500; }
+  .md .md-tabs button[aria-pressed='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--sf-ink); }
+  .md .md-tabs button:focus-visible { outline-offset: -2px; border-radius: 4px; }
+  .md .md-tab-n { font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+  .md .md-tabs button[aria-pressed='true'] .md-tab-n { color: var(--sf-ink); }
+  /* A row: its words and a bare chevron. An open mistake is the usual case and has no mark; a fixed one keeps its green
+     dot, hung in the row's left margin, so every title starts at the same edge. */
+  .md-row { position: relative; grid-template-columns: minmax(0, 1fr) 24px; column-gap: 12px; padding: 16px 14px 16px 18px; border-radius: 24px; }
   .md-item { border-radius: 24px; }
   .md-group { border-radius: 24px; }
   .md-group-head { padding: 16px 16px 6px 18px; }
   .md-group-q { font-size: 17px; line-height: 24px; }
   .md-group .md-row { padding-top: 12px; padding-bottom: 12px; }
   .md-group .md-q { font-size: 16px; line-height: 24px; }
-  :where(.md) .md-dot { width: 10px; height: 10px; }
+  :where(.md) .md-row > .md-dot[data-tone='open'] { display: none; }
+  :where(.md) .md-row > .md-dot[data-tone='resolved'] { position: absolute; left: 6px; top: 25px; width: 7px; height: 7px; margin: 0; }
+  :where(.md) .md-group .md-row > .md-dot[data-tone='resolved'] { top: 21px; }
   .md-q { font-size: 17px; line-height: 24px; }
   :where(.md) .md-meta { font-size: 14px; line-height: 20px; }
-  .md-chev { width: 36px; height: 36px; margin-top: -5px; }
+  .md-chev,
+  .md-group .md-chev { width: 24px; height: 24px; margin-top: 0; border-radius: 0; background: none; color: var(--sf-muted); }
+  .md-row[aria-expanded='true'] .md-chev { background: none; color: var(--sf-ink); }
   .md-detail { padding: 0 16px 18px; }
   .md-ans { border-radius: 18px; padding: 14px 16px 16px; }
   .md-ans-t { font-size: 16px; line-height: 24px; }
@@ -285,13 +326,11 @@
   :where(.md) .md-state { padding: 26px 22px 28px; }
 }
 
-/* The narrowest phones: the three filters share the row with «Обновить» (they ran 66 px past their rail
-   at 320), and a long action wraps inside its pill. */
+/* The narrowest phones: the three tabs come closer (they scroll at 320 when all three have mistakes), and a long
+   action wraps inside its pill. */
 @media (max-width: 374px) {
   .md-bar { gap: 8px; }
-  .md .md-tabs { flex: 1 1 auto; gap: 2px; }
-  .md .md-tabs li { flex: 1 1 auto; }
-  .md .md-tabs button { width: 100%; padding: 0 6px; font-size: 13.5px; }
+  .md .md-tabs { gap: 0 18px; }
   :where(.md) .md-round { width: 44px; height: 44px; }
   .md-act { height: auto; min-height: 44px; padding-top: 8px; padding-bottom: 8px; white-space: normal; text-align: left; line-height: 1.25; }
 }

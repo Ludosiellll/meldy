@@ -387,7 +387,9 @@ export default function Profile() {
             type="button"
             onClick={handleTogglePush}
             disabled={pushLoading || pushEnabled}
-            className={`ac-btn ac-row-btn ${pushLoading ? 'ac-btn--quiet' : pushEnabled ? 'ac-btn--ok' : 'ac-btn--blue'}`}
+            // A phone keeps it white, as «Выбрать время» above it: not the page's only blue
+            // (10_Project/Phone_Declutter_2026-10-08).
+            className={`ac-btn ac-row-btn ${pushLoading ? 'ac-btn--quiet' : pushEnabled ? 'ac-btn--ok' : phone ? '' : 'ac-btn--blue'}`}
           >
             {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
           </button>

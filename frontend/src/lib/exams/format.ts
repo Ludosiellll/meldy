@@ -107,6 +107,20 @@ export function examWhenLine(kind: ExamKind, examDate: string | null, now: Date 
   return `${KIND_WORDS[kind]} · ${day}${days === null ? '' : `, ${relativeDays(days)}`}`;
 }
 
+/**
+ * The day of an exam at the head of a phone's meta line (10_Project/Phone_Declutter_2026-10-08): «21 октября, через
+ * 13 дней». The kind is named only when it is not an exam («Зачёт 21 октября, завтра»), when the day has passed
+ * («Экзамен прошёл 21 октября») and when there is no day («Экзамен»).
+ */
+export function phoneExamDay(kind: ExamKind, examDate: string | null | undefined, now: Date = new Date()): string {
+  const day = formatDay(examDate, now);
+  if (!day) return KIND_LABELS[kind];
+  const days = daysUntil(examDate, now);
+  if (days !== null && days < 0) return `${KIND_LABELS[kind]} прошёл ${day}`;
+  const when = `${day}${days === null ? '' : `, ${relativeDays(days)}`}`;
+  return kind === 'exam' ? when : `${KIND_LABELS[kind]} ${when}`;
+}
+
 function parseInstant(iso: string | null | undefined): Date | null {
   if (!iso) return null;
   const date = new Date(iso);

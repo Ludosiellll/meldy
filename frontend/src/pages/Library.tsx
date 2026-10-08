@@ -9,7 +9,8 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { deleteMaterial, getMaterials, updateMaterialTitle } from '../api/materials';
 import { listExamShelves, type ExamShelf } from '../api/exams';
 import { pluralRu } from '../components/conversation/visuals';
-import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, subjectOf } from '../lib/exams/format';
+import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, phoneExamDay, subjectOf } from '../lib/exams/format';
+import { glue } from '../lib/oral/format';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
 import { orderExamLectures } from '../lib/lectureOrder';
@@ -158,6 +159,15 @@ function examWhen(exam: ExamShelf, capital: boolean): string {
   const kind = capital ? KIND_LABELS[exam.kind] : KIND_WORDS[exam.kind];
   const day = formatDay(exam.exam_date);
   return day ? `${kind} ${day}` : kind;
+}
+
+/**
+ * A phone's head of the meta line (10_Project/Phone_Declutter_2026-10-08): «21 октября, через 13 дней», the kind named
+ * only when it is not an exam (lib/exams/format phoneExamDay). The day keeps its month and «через» its number, so the
+ * line breaks after the comma or at a dot.
+ */
+export function phoneExamWhen(exam: Pick<ExamShelf, 'kind' | 'exam_date'>, now: Date = new Date()): string {
+  return glue(phoneExamDay(exam.kind, exam.exam_date, now)).replace(/через /g, `через${NBSP}`);
 }
 
 export interface LibraryGroup {
@@ -352,6 +362,18 @@ function RenameRow({ entry, onSave, onCancel }: { entry: LibraryEntry; onSave: (
         Отмена
       </button>
     </form>
+  );
+}
+
+/** «Разобрать лекцию», the white pill with a plus: a phone's start of «Лекции», in every state of the page. */
+function AnalyzePill() {
+  return (
+    <Link className="lib-pill lib-new" to="/analyze">
+      Разобрать лекцию
+      <span className="lib-dot" aria-hidden="true">
+        <Plus strokeWidth={2.2} />
+      </span>
+    </Link>
   );
 }
 
@@ -554,7 +576,10 @@ export default function Library() {
   let sheetLink: string | null = null;
   if (whole.mode === 'single') {
     heading = subjectOf(whole.exam.title) || 'Лекции';
-    lede = [examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries, followups, phone)].filter(Boolean).join(DOT);
+    // A phone: «21 октября, через 13 дней · 3 лекции · 18 карточек».
+    lede = [phone ? phoneExamWhen(whole.exam) : examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries, followups, phone)]
+      .filter(Boolean)
+      .join(DOT);
     sheetLink = `/exams/${whole.exam.id}`;
   } else if (list.length > 0) {
     lede = [`${list.length}${NBSP}${lecturesWord(list.length)}`, cardsLine(list, followups, phone)].filter(Boolean).join(DOT);
@@ -563,9 +588,15 @@ export default function Library() {
   if (entries === null && loading) {
     return (
       <div className="sf-page lib-page">
-        <div className="sf-head lib-head" role="status" aria-label="Загружаем библиотеку">
+        <div className="sf-head lib-head lib-wait" role="status" aria-label="Загружаем библиотеку">
           {loadingLine ? <p className="lib-loading-text">Загружаем библиотеку…</p> : null}
         </div>
+        {/* The page's one start on a phone does not wait for the list (the top line has no «+ Лекция» there). */}
+        {phone ? (
+          <div className="lib-head-acts lib-start">
+            <AnalyzePill />
+          </div>
+        ) : null}
         {loadingLine ? (
           // The shape of the list while it loads: four quiet rows, no numbers or titles.
           <ol className="sf-toc lib-skeleton" aria-hidden="true">
@@ -599,6 +630,12 @@ export default function Library() {
             </span>
           </button>
         </section>
+        {/* A phone keeps its way to a new lecture under the card: the top line has no «+ Лекция» there. */}
+        {phone ? (
+          <div className="lib-head-acts lib-start">
+            <AnalyzePill />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -647,12 +684,7 @@ export default function Library() {
         {phone ? (
           // The page's one start on a phone, as «Новый экзамен» on «Экзамены»; «Лист экзамена» a quiet link by it.
           <div className="lib-head-acts">
-            <Link className="lib-pill lib-new" to="/analyze">
-              Разобрать лекцию
-              <span className="lib-dot" aria-hidden="true">
-                <Plus strokeWidth={2.2} />
-              </span>
-            </Link>
+            <AnalyzePill />
             {sheetLink ? (
               <Link className="sf-link lib-sheet" to={sheetLink}>
                 Лист экзамена
@@ -720,7 +752,9 @@ export default function Library() {
                   </h2>
                   <p className="sf-lede">
                     {group.exam
-                      ? `${examWhen(group.exam, false)} · ${group.entries.length} ${lecturesWord(group.entries.length)}`
+                      ? phone
+                        ? `${phoneExamWhen(group.exam)}${DOT}${group.entries.length}${NBSP}${lecturesWord(group.entries.length)}`
+                        : `${examWhen(group.exam, false)} · ${group.entries.length} ${lecturesWord(group.entries.length)}`
                       : `${group.entries.length} ${lecturesWord(group.entries.length)}, новые сверху`}
                   </p>
                 </div>

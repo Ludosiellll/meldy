@@ -414,8 +414,10 @@
   box-shadow: 0 0 0 1px var(--sf-line);
 }
 .rv-empty + .rv-diary { margin-top: 20px; }
-/* A phone's session (Review.tsx MistakesLine): «Дневник ошибок · 17 открытых →», one quiet line under the card. */
+/* A phone's session (Review.tsx MistakesLine): «Дневник ошибок: 17 открытых →», one line under the card — a row link,
+   ink without an underline, the arrow at its end. */
 .rv-diary-line { margin: 2px 0 0; }
+.rv-diary-line .sf-link { text-decoration: none; }
 .rv-diary-arrow { margin-left: 8px; transition: transform .5s var(--m-ease); }
 .rv-diary-line .sf-link:hover .rv-diary-arrow { transform: translateX(3px); }
 .rv-diary-main { flex: 1 1 18rem; min-width: 0; }
@@ -442,6 +444,8 @@
   .rv-a[data-long] { font-size: 17px; }
   .rv-hand { right: 18px; top: 14px; }
   .rv-when { right: 22px; top: 24px; }
+  /* «Вопрос экзаменатора» is plain muted words over the question, as «Вопрос» of the other cards (no yellow pill). */
+  .rv-chip { display: block; padding: 0; border-radius: 0; background: none; color: var(--ph-paper-muted); line-height: 22px; }
   /* 22 + 18 = the old 40 px gap; the card's own label names where it comes from. */
   .rv-controls { margin: 22px -8px 0; padding-top: 18px; padding-left: 8px; padding-right: 8px; background: linear-gradient(to bottom, transparent, var(--sf-canvas) 16px); }
   .rv-controls + .rv-diary { margin-top: 28px; }

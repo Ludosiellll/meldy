@@ -164,25 +164,17 @@ export function openMistakesShort(count: number | null): string {
 }
 
 /**
- * During a session a phone shows the diary as one quiet line under the card, «Дневник ошибок · 17 открытых →»
- * (10_Project/Phone_Declutter_2026-10-08): the card and its three words keep the screen.
+ * During a session a phone shows the diary as one line under the card, «Дневник ошибок: 17 открытых →»
+ * (10_Project/Phone_Declutter_2026-10-08): the card and its three words keep the screen. A row link: ink, no underline,
+ * the arrow at its end (Review.css).
  */
 function MistakesLine({ count }: { count: number | null }) {
   const tail = openMistakesShort(count);
   return (
     <p className="rv-diary-line">
-      <Link className="sf-link" data-muted="" to="/mistakes">
-        {/* One run of text: the link is a flex box, which would trim the spaces around «·». */}
-        <span>
-          Дневник ошибок
-          {tail ? (
-            <>
-              <span aria-hidden="true">{' · '}</span>
-              <span className="sr-only">, </span>
-              {tail}
-            </>
-          ) : null}
-        </span>
+      <Link className="sf-link" to="/mistakes">
+        {/* One run of text: the link is a flex box, which would trim a space at the edge of a child. */}
+        <span>{ty(`Дневник ошибок${tail ? `: ${tail}` : ''}`).replace(/(\d) /g, '$1\u00a0')}</span>
         <span className="rv-diary-arrow" aria-hidden="true">
           →
         </span>

@@ -562,18 +562,38 @@
   .az-plan { padding: 20px 18px 20px; border-radius: 34px; }
   .az-plan-h.az-h2 { font-size: 21px; }
   .az-plan-line { margin-top: 10px; font-size: 16px; }
-  .az-step-n { width: 36px; height: 36px; font-size: 16px; }
-  .az-h2 { font-size: 24px; }
-  /* The four sources stay, lighter: one row of words without the track (it fits from 320 px), the current one in ink
-     and underlined, as the kit's text tabs; each still a 44 px target. */
-  .az-tabs { display: flex; flex-wrap: wrap; order: 3; width: 100%; gap: 0 14px; padding: 0; border-radius: 0; background: none; box-shadow: none; }
-  .az-tab { position: relative; min-width: 44px; padding: 0; border-radius: 0; color: var(--sf-muted); }
+  /* No numbered discs before «Что разобрать» and «Что подготовить»: the cards stand in their order, and the headings
+     say what each is (group headings inside a card, 21/500). */
+  .az-step-head .az-step-n,
+  .az-plan-head .az-step-n { display: none; }
+  .az-h2 { font-size: 21px; }
+  /* The four sources stay, lighter: the phone's text tabs, 16/500 muted words on a hairline under the whole row, the
+     current one in ink at the same weight on a 2 px ink bar flush on the hairline; each still a 44 px target. The row
+     scrolls where it does not fit (under 350 px). */
+  .az-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    order: 3;
+    width: 100%;
+    gap: 0 20px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: inset 0 -1px 0 var(--sf-line);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .az-tabs::-webkit-scrollbar { display: none; }
+  .az-tab { position: relative; flex: none; min-width: 44px; min-height: 46px; padding: 0; border-radius: 0; color: var(--sf-muted); font-size: 16px; }
   .az-tab:hover { background: none; color: var(--sf-ink); }
-  .az-tab[aria-selected='true'] { background: none; color: var(--sf-ink); font-weight: 600; }
-  .az-tab[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 6px; height: 2px; border-radius: 1px; background: var(--sf-ink); }
-  .az-upload .az-tab:focus-visible { border-radius: 4px; }
+  .az-tab[aria-selected='true'] { background: none; color: var(--sf-ink); }
+  .az-tab[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--sf-ink); }
+  .az-upload .az-tab:focus-visible { outline-offset: -2px; border-radius: 4px; }
   .az-tab-icon { display: none; }
-  .az-tabpanel { margin-top: 12px; }
+  .az-tabpanel { margin-top: 16px; }
+  /* «Попробовать на демо-тексте →»: a row link in ink (no blue text links on a phone), no underline, the arrow at its end. */
+  .az-demo { padding: 0; color: var(--sf-ink); }
+  .az-demo:hover { text-decoration: none; }
   /* One frame: no coloured panel around the text, the link or a chosen file; the text and the file are soft frames of
      the canvas colour, the link is its own field. */
   .az-panel { padding: 0; border-radius: 0; background: none; overflow: visible; }
@@ -622,10 +642,21 @@
   .az-upload .az-change:focus-visible { border-radius: 4px; }
   .az-upload .az-start { width: 100%; }
 }
-/* A small phone (360 px, a common Android width): the one-line lead and notes stay on one line. */
+/* A small phone (360 px, a common Android width): the one-line lead and notes stay on one line, and the four sources
+   come closer so «Аудио и видео» stays in the row. */
 @media (max-width: 379px) {
   .az-lede { font-size: 16px; }
   .az-card { padding-left: 14px; padding-right: 14px; }
+  .az-tabs { gap: 0 12px; }
+}
+/* Narrower still (320 px), the row of sources scrolls: its right edge fades, so the cut word reads as «more», and the
+   row ends in room enough for the last word to scroll clear of the fade. */
+@media (max-width: 359px) {
+  .az-tabs {
+    padding-right: 24px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

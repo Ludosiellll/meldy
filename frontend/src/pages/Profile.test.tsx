@@ -168,6 +168,14 @@ describe('on a phone', () => {
     expect(await screen.findByText('Meldy сообщит, когда пора повторять.')).toBeInTheDocument();
     expect(screen.queryByText('Meldy сообщит, когда карточки будут готовы к повторению.')).toBeNull();
   });
+
+  it('makes «Включить» a white pill like «Выбрать время», not the page’s only blue', async () => {
+    db.answer = liveRows(new Date());
+    render(<MemoryRouter><Profile /></MemoryRouter>);
+    const turnOn = await screen.findByRole('button', { name: 'Включить' });
+    expect(turnOn).toHaveClass('ac-btn');
+    expect(turnOn).not.toHaveClass('ac-btn--blue');
+  });
 });
 
 describe('on a computer', () => {
@@ -175,6 +183,7 @@ describe('on a computer', () => {
     db.answer = liveRows(new Date());
     render(<MemoryRouter><Profile /></MemoryRouter>);
     expect(await screen.findByText('Meldy сообщит, когда карточки будут готовы к повторению.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Включить' })).toHaveClass('ac-btn--blue');
   });
 });
 

@@ -743,6 +743,45 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     expect(within(summary).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
   });
 
+  it('calls the way to the mistakes «Дневник ошибок» (here «Разобрать» also means a lecture)', async () => {
+    setTable('mistake_diary', () => ({ data: [{ topic: 'Физика', material_id: 'm1' }, { topic: 'Химия', material_id: null }] }));
+    renderProgress();
+    const todo = (await screen.findByRole('heading', { name: 'Что подтянуть' })).closest('section') as HTMLElement;
+    const row = within(todo).getByText('2 открытые ошибки: Физика, Химия').closest('li') as HTMLElement;
+    expect(within(row).getByRole('link', { name: 'Дневник ошибок' })).toHaveAttribute('href', '/mistakes');
+    expect(within(row).queryByRole('link', { name: 'Разобрать' })).toBeNull();
+  });
+
+  it('makes «Все экзамены» and «Все лекции» ink links, and an exam’s meta its day: «15 октября, через 12 дней»', async () => {
+    setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', kind: 'exam', exam_date: '2026-10-15', mapped_at: null }] }));
+    setTable('exam_questions', () => ({ data: [{ id: 'q0', exam_id: 'e1', section: null, question_hash: 'a'.repeat(32), coverage: null }] }));
+    renderProgress();
+    const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li') as HTMLElement;
+    const meta = row.querySelector('.sf-ledger-meta') as HTMLElement;
+    expect(meta.firstChild?.textContent).toBe('15\u00a0октября, через 12\u00a0дней');
+    for (const name of ['Все экзамены', 'Все лекции']) {
+      const link = screen.getByRole('link', { name });
+      expect(link).toHaveClass('sf-link');
+      expect(link).not.toHaveAttribute('data-muted');
+    }
+  });
+
+  it('draws the days of study as columns only from five days with answers, and keeps the sentence', async () => {
+    const twoDays = [examAnswer('a'.repeat(32), '2026-10-02', true, 't1'), examAnswer('b'.repeat(32), '2026-10-03', false, 't2')];
+    setJournal(twoDays, []);
+    const view = renderProgress();
+    expect(await screen.findByText('За 30 дней: 2 ответа на билеты, занятия в 2 из 30 дней, сейчас 2 дня подряд.')).toBeInTheDocument();
+    expect(document.querySelector('.pg-bars')).toBeNull();
+    view.unmount();
+
+    const fiveDays = ['2026-09-27', '2026-09-29', '2026-09-30', '2026-10-02', '2026-10-03'].map((day, i) => examAnswer(String(i).repeat(32), day, true, `t${i}`));
+    setJournal(fiveDays, []);
+    renderProgress();
+    expect(await screen.findByText(/^За 30 дней: 5 ответов на билеты, занятия в 5 из 30 дней/)).toBeInTheDocument();
+    expect(document.querySelector('.pg-bars')).not.toBeNull();
+    expect(document.querySelectorAll('.pg-bar-part[data-kind="tickets"]')).toHaveLength(5);
+  });
+
   it('makes the gradebook a quiet link and the map one row', async () => {
     renderProgress();
     await screen.findByRole('heading', { name: 'Что подтянуть' });
@@ -801,6 +840,22 @@ function ledgerInput() {
 }
 
 describe('the days of study', () => {
+  it('keeps a short word with the next one, a number with its word and a dash with the number before it', async () => {
+    setJournal([examAnswer('a'.repeat(32), '2026-10-02', true, 't1'), examAnswer('b'.repeat(32), '2026-10-03', false, 't2'), examAnswer('c'.repeat(32), '2026-10-03', true, 't3')], []);
+    renderProgress();
+    const line = await screen.findByText(/^За 30 дней: 3 ответа на билеты/);
+    expect(line.textContent).toContain('занятия в\u00a02\u00a0из\u00a030\u00a0дней');
+    expect(screen.getByText(/^Ответы на билеты по дням/).textContent).toMatch(/больше всего 2\u00a0— 3\u00a0окт\.$/);
+  });
+
+  it('keeps «ни в одной» whole in the row about questions in no lecture', async () => {
+    setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', kind: 'exam', exam_date: '2026-10-15', mapped_at: '2026-10-01T09:00:00Z' }] }));
+    setTable('exam_questions', () => ({ data: [{ id: 'q0', exam_id: 'e1', section: null, question_hash: 'a'.repeat(32), coverage: 'none' }] }));
+    renderProgress();
+    const todo = (await screen.findByRole('heading', { name: 'Что подтянуть' })).closest('section') as HTMLElement;
+    expect((await within(todo).findByText(/нет ни в одной лекции$/)).textContent).toBe('«Макроэкономика»: 1\u00a0вопрос нет ни\u00a0в\u00a0одной лекции');
+  });
+
   it('keeps the screen readers’ table in a box that takes no room (it stretched the page by its 30 rows)', async () => {
     setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 3 }] }));
     renderProgress();

@@ -143,6 +143,17 @@
   }
   .az .az-fail-acts:has(.sf-primary) .az-back:hover { text-decoration-color: var(--m-yellow); }
   .az .az-fail-acts:has(.sf-primary) .az-back:focus-visible { border-radius: 4px; }
+  /* The links inside the notes over a result («Открыть его», «Сохранить ещё раз», «Повторить»): ink words that do
+     something, not blue ones (blue text on a phone is Meldy's note or a figure). */
+  .az .az-inline-act {
+    color: var(--sf-ink);
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
+    text-underline-offset: 5px;
+  }
+  .az .az-inline-act:hover { text-decoration-color: var(--m-yellow); }
 }
 @media (prefers-reduced-motion: reduce) {
   .az-pill2-dot { transition: none; }
