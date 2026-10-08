@@ -4,6 +4,16 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-08 — Release 31: the landing film rebuilt — one sheet of paper, one camera, 48 seconds, an end card that opens the example (from the commit of this entry)
+
+- **The film.** One sheet of squared paper and one camera over it, with no cuts. Every step is the app's own: the department's list is typed; the lecture slip and the fit count come from the lecture check; the four points of the answer are written by hand as the examiner's words name them; the answer's words are typed in the transcript; the lines are rubbed after the answer and erased on another day; a line forgotten comes back in ink with the note «была стёрта · пункт не назван». Then the copy for the group, and the end card.
+- **The data.** The example of /try (12 questions, question 7 with four points), not the earlier sample. The fit counts come from the app's lecture check on that example.
+- **The end card** «Попробовать на примере» opens /try (it used to open the sign-up).
+- **The heading** «Meldy за 48 секунд»; the chapter bar's second label is «Лекции» (it was cut at laptop width).
+- **The lecture slip.** Its «Отметить подходящие (4)» wraps under the text instead of sticking out of the white card, and the camera centres the focus column, so the slip, the ticket and the points stay whole.
+- **Not changed.** No migrations, no backend change, nothing in the app's own cheat sheet.
+- Verified before release: Vitest 169 files; `tsc -b`; production build; no «Засчитано», «удовлетворительно», «оценки по пунктам» or «ПРОВЕРЕНО» in the bundle. In the browser (the merged build): the heading, seven chapters, no horizontal scroll at 1532 and 390 px, the end card opens /try, no page errors; the focus column checked at 14, 23 and 37 s.
+
 ## 2026-10-08 — Release 30.2: the video in the landing's first screen, bigger and under the headline; the cheat sheet below the steps (from the commit of this entry)
 
 - **The first screen.** The headline and the lead run across the full width; the video (the motion reel) is under them at full width, on every screen size. On a phone the text is shorter, so the video starts on the first screen.

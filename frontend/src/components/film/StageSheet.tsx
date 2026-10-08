@@ -46,8 +46,8 @@ function maskImage(left: InkState, right: InkState): string | null {
   return `linear-gradient(90deg,${level(left)} 46%,${level(right)} 54%),linear-gradient(90deg,${whole(left)} 46%,${whole(right)} 54%),var(--ss-pass-a),var(--ss-pass-b)`;
 }
 
-/** Writes one line of the sheet for its frame `f`. */
-function paintLine(f: InkFrame, els: { line?: HTMLElement; ink?: HTMLElement; bullet?: HTMLElement; patch?: HTMLElement; note?: HTMLElement }) {
+/** Writes one line of the sheet for its frame `f` (also used by the landing film's paper). */
+export function paintLine(f: InkFrame, els: { line?: HTMLElement; ink?: HTMLElement; bullet?: HTMLElement; patch?: HTMLElement; note?: HTMLElement }) {
   const { line, ink, bullet, patch, note } = els;
   let left = f.state;
   let right = f.state;

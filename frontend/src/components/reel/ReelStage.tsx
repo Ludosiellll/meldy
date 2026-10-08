@@ -1,87 +1,14 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import type { ReelClock } from './clock';
-import { ClockProvider, SceneProvider, opacity, put, text, flag, useEls, useFrame } from './engine';
-import Brand from './scenes/Brand';
-import Chaos from './scenes/Chaos';
-import Intro from './scenes/Intro';
-import Days from './scenes/Days';
-import Oral from './scenes/Oral';
-import Outro from './scenes/Outro';
-import Sheet from './scenes/Sheet';
-import Tickets from './scenes/Tickets';
-import Tour from './scenes/Tour';
-import { CHAPTERS, activeScenes, chapterAt, ease, mix, sceneWindow, seg, timecode, type SceneId } from './timeline';
+import { ClockProvider, SceneProvider, put, useFrame } from './engine';
+import End from './scenes/End';
+import Paper from './scenes/Paper';
+import { activeScenes, sceneWindow, type SceneId } from './timeline';
 
 const SCENE_VIEWS: Record<SceneId, ComponentType> = {
-  intro: Intro,
-  chaos: Chaos,
-  brand: Brand,
-  tour: Tour,
-  tickets: Tickets,
-  oral: Oral,
-  sheet: Sheet,
-  days: Days,
-  outro: Outro,
+  paper: Paper,
+  end: End,
 };
-
-/** The corner labels: visible over the chaos and over the chapters, light on dark scenes. */
-const HUD_SPANS = [
-  { from: sceneWindow('chaos').from + 300, to: sceneWindow('brand').from + 150, label: '00 / Сессия' },
-  { from: sceneWindow('tickets').from + 150, to: sceneWindow('days').to - 350, label: '' },
-];
-
-function hudLabel(t: number): { text: string; since: number } {
-  const chapter = chapterAt(t);
-  if (chapter) return { text: `${chapter.number} / ${chapter.label}`, since: chapter.at };
-  return { text: HUD_SPANS[0].label, since: HUD_SPANS[0].from };
-}
-
-/** 1 = white corner labels (the dark opening), 0 = ink (the paper of every chapter). */
-function hudLight(t: number): number {
-  return t < sceneWindow('brand').from + 400 ? 1 : 0;
-}
-
-function Hud() {
-  const root = useRef<HTMLDivElement>(null);
-  const { one, all } = useEls(root);
-  useFrame((_, t) => {
-    let show = 0;
-    for (const span of HUD_SPANS) show = Math.max(show, Math.min(seg(t, span.from, 300), 1 - seg(t, span.to - 300, 300)));
-    opacity(root.current, show);
-    if (show <= 0) return;
-    const light = hudLight(t);
-    const channel = Math.round(mix(11, 255, light));
-    put(root.current, 'color', `rgb(${channel},${Math.round(mix(18, 255, light))},${Math.round(mix(28, 255, light))})`);
-    const label = hudLabel(t);
-    const typed = Math.floor(((t - label.since) * 30) / 1000);
-    text(one('label'), label.text.toUpperCase().slice(0, Math.max(0, typed)));
-    text(one('time'), timecode(t));
-    const chapter = chapterAt(t);
-    all('dot').forEach((dot, index) => flag(dot, 'is-on', Boolean(chapter && CHAPTERS[index].id === chapter.id)));
-    const slide = 1 - ease.brand(show);
-    all('corner').forEach((corner, index) => {
-      const sx = index % 2 === 0 ? -1 : 1;
-      const sy = index < 2 ? -1 : 1;
-      put(corner, 'transform', `translate3d(${(sx * 14 * slide).toFixed(2)}px,${(sy * 14 * slide).toFixed(2)}px,0)`);
-    });
-  });
-  return (
-    <div ref={root} className="mr-hud" aria-hidden="true">
-      <span data-a="corner" className="mr-hud-c mr-hud-c--tl" />
-      <span data-a="corner" className="mr-hud-c mr-hud-c--tr" />
-      <span data-a="corner" className="mr-hud-c mr-hud-c--bl" />
-      <span data-a="corner" className="mr-hud-c mr-hud-c--br" />
-      <span className="mr-hud-t mr-hud-t--tl">MELDY</span>
-      <span data-a="label" className="mr-hud-t mr-hud-t--tr" />
-      <span data-a="time" className="mr-hud-t mr-hud-t--bl" />
-      <span className="mr-hud-t mr-hud-t--br">
-        {CHAPTERS.map((chapter) => (
-          <i key={chapter.id} data-a="dot" className="mr-hud-dot" />
-        ))}
-      </span>
-    </div>
-  );
-}
 
 /** Hides a scene mounted ahead of its time: before its first moment nothing of it shows. */
 function SceneGate({ from, children }: { from: number; children: ReactNode }) {
@@ -98,7 +25,7 @@ const sameScenes = (a: SceneId[], b: SceneId[]) => a.length === b.length && a.ev
 
 /**
  * The stage: the scenes that are on at the clock's time (each mounted a little before it shows,
- * unmounted after it ends) and the corner labels. React renders only when that set changes.
+ * unmounted after it ends). React renders only when that set changes; the frames are written by the scenes.
  */
 export default function ReelStage({ clock, scale }: { clock: ReelClock; scale: number }) {
   const [scenes, setScenes] = useState<SceneId[]>(() => activeScenes(clock.time));
@@ -126,7 +53,6 @@ export default function ReelStage({ clock, scale }: { clock: ReelClock; scale: n
             </SceneProvider>
           );
         })}
-        <Hud />
       </div>
     </ClockProvider>
   );
