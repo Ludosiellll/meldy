@@ -77,6 +77,7 @@ import { nextErasableLine } from '../components/exams/sheet/copy';
 import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import InviteGroup from '../components/exams/share/InviteGroup';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -191,6 +192,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [bundle, setBundle] = useState<ExamBundle | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [loadError, setLoadError] = useState('');
+  // The tab is named as the page's heading: the subject («Базы данных»).
+  useDocumentTitle(bundle ? subjectOf(bundle.exam.title) : null);
   const [events, setEvents] = useState<LearningEvent[]>([]);
   const [eventsState, setEventsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [eventsError, setEventsError] = useState<string | null>(null);
@@ -206,6 +209,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [manualError, setManualError] = useState<string | null>(null);
   const [drawMode, setDrawMode] = useState<DrawMode>('exam');
   const [limit, setLimit] = useState<MappingLimit | null>(null);
+  // «Ответить на этот вопрос» of the open «почему» is in the window (WhyPanel watches it): only then the status's pill
+  // steps down to white — with the panel's pill out of view the page had no blue pill at all (audit 2026-10-08).
+  const [whyGoVisible, setWhyGoVisible] = useState(true);
   // «Сверить с лекциями» had the focus when its run started: the focus goes to the status that replaces it.
   const mapPillFocused = useRef(false);
   const drawPillRef = useRef<HTMLAnchorElement>(null);
@@ -438,7 +444,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     [allRows],
   );
   const shares = useMemo(() => coverageShares(shareSubjects, layout), [shareSubjects, layout]);
-  // The same layout with every «частично» closed: «Закройте 7 вопросов «частично» — …».
+  // The same layout with every «частично» closed: «7 вопросов «частично»: добавьте к ним материал — …».
   const closed = useMemo(() => closedPartialShares(shareSubjects, layout), [shareSubjects, layout]);
   const hashes = useMemo(() => questions.map(hashKey), [questions]);
   const summary = useMemo(() => examSummary(hashes, states), [hashes, states]);
@@ -937,8 +943,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const whyId = `exam-why-${exam.id}`;
   const showPeak = Boolean(peak) && !rateMode && !selectedRow;
   // The open «почему» has its own filled pill «Ответить на этот вопрос» (not for a question missing from
-  // the lectures or being checked): then the status's action steps down to an outlined pill.
-  const whyAnswers = Boolean(selectedRow && selectedRow.coverage !== 'none' && selectedRow.coverage !== 'checking');
+  // the lectures or being checked): while it is in the window the status's action steps down to an outlined pill.
+  const whyAnswers = Boolean(selectedRow && selectedRow.coverage !== 'none' && selectedRow.coverage !== 'checking' && whyGoVisible);
 
   // The column: nothing that says nothing (owner, 2026-10-07). The ticket share only once something is found; the
   // answers only once there are answers; confidence vs answers only after «Самооценка».
@@ -1043,6 +1049,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         manualPending={manualPending}
         manualError={manualError}
         onRecheck={recheck}
+        onAnswerVisible={setWhyGoVisible}
       />
     ) : null;
 
@@ -1191,6 +1198,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
     </>
   );
 
+  // Phones: «Изменить список · Лекции · Самооценка · Пригласить группу · Отчёт для преподавателя» took three or four
+  // rows above the status (audit 2026-10-08); they go under the list, as under the paper on «Шпаргалка».
+  const linksBelow = !frame.side && (onSheet || frame.size === 's');
   const examLinks = (
     <div className="ex-links">
       {/* A copy from a group link: its list is the author's (the member keeps «Лекции» to add their own). */}
@@ -1217,6 +1227,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
             chooseView('questions');
             setRateMode(true);
             return;
+          }
+          // On a phone these links stand under the list: the list's top, with its «Отметьте…» line, comes into view.
+          if (linksBelow && !rateMode) {
+            window.setTimeout(() => document.querySelector('.ex-sheet')?.scrollIntoView?.({ block: 'start', behavior: reduced ? 'auto' : 'smooth' }), 0);
           }
           setRateMode((value) => !value);
         }}
@@ -1250,8 +1264,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
           </h1>
           {/* A phone's sheet: the day of the exam only, so the paper's lines are on the first screen («Вопросы» says the rest). */}
           <p className="ex-meta">{glue((onSheet && !frame.side ? metaParts.slice(0, 1) : metaParts).join(' · '))}</p>
-          {/* A phone's sheet: the paper's lines on the first screen; these links go under it. */}
-          {!(onSheet && !frame.side) && examLinks}
+          {/* Phones (and a tablet's sheet): the status and the list on the first screen; these links go under them. */}
+          {!linksBelow && examLinks}
         </div>
       </header>
 
@@ -1370,6 +1384,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
           {showReadiness && readiness('rest')}
         </section>
       )}
+
+      {linksBelow && !onSheet && <div className="ex-col-after ex-links-after">{examLinks}</div>}
 
       {!frame.side && selectedRow && <div id={whyId}>{whyPanel('sheet')}</div>}
 

@@ -30,6 +30,7 @@ import {
   numberOf,
   ratingCounts,
   shareText,
+  shortenTitle,
   unmappedSentence,
   unverifiedSentence,
   type ShareSubject,
@@ -144,11 +145,21 @@ describe('rows', () => {
     expect(text(8)).toBe('там же, фрагмент 9');
   });
 
-  it('cuts a long lecture title at a word so that the fragment still fits in two lines', () => {
-    const long = 'Денежно-кредитная политика центрального банка в условиях открытой экономики и плавающего курса';
+  it('names the lecture whole when it fits; cuts only a very long title, at a word, never after «и» or «в»', () => {
+    // The owner's laptop, 2026-10-08: «Реляционная модель данных: ключи и…, фрагменты 3, 4» on a wide sheet.
+    const [whole] = marginNotes([
+      { section: null, footnote: { title: 'Реляционная модель данных: ключи и связи', fragments: 'фрагменты 3, 4', manual: false, materialId: 'm1' } },
+    ]);
+    expect(whole?.lead).toBe('Реляционная модель данных: ключи и связи');
+    const long = 'Денежно-кредитная политика центрального банка в условиях открытой экономики и плавающего курса национальной валюты';
     const [view] = marginNotes([{ section: null, footnote: { title: long, fragments: 'фрагмент 12', manual: false, materialId: 'm1' } }]);
     expect(view?.lead.endsWith('…')).toBe(true);
-    expect(`${view?.lead}, ${view?.fragments}`.length).toBeLessThanOrEqual(56);
+    expect(`${view?.lead}, ${view?.fragments}`.length).toBeLessThanOrEqual(90);
+    expect(view?.lead).toBe('Денежно-кредитная политика центрального банка в условиях открытой экономики…');
+    // A cut that would end on a conjunction or a preposition steps back to the word before it.
+    expect(shortenTitle('Модели данных и их связи между собой', 20)).toBe('Модели данных…');
+    expect(shortenTitle('Нормализация отношений и функциональные зависимости', 30)).toBe('Нормализация отношений…');
+    expect(shortenTitle('Короткое название', 40)).toBe('Короткое название');
   });
 
   it('numbers a question by the department’s label, else by position', () => {
@@ -239,8 +250,10 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     expect(plain(shareText(shares, 'all'))).toBe('35 %');
     expect(plain(noneTicketsLine(shares))).toBe('в 15 % билетов нет ни одного вопроса с отметкой «есть»');
     const line = closePartialLine(7, shares, closedPartialShares(seeded(), layout));
-    expect(plain(line?.text ?? null)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
+    // «Закройте 7 вопросов» read as «закройте окно» (audit 2026-10-08): the line says what to do, the link first.
+    expect(plain(line?.text ?? null)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     expect(line?.link).toBe('7 вопросов «частично»');
+    expect(plain(line?.rest ?? null)).toBe(': добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
   });
 
   it('one question per section: 13/20 × 11/20 → 36 %, «в 16 %», closing «частично» → 60 %', () => {
@@ -249,7 +262,7 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     expect(plain(shareText(shares, 'all'))).toBe('36 %');
     expect(plain(noneTicketsLine(shares))).toBe('в 16 % билетов нет ни одного вопроса с отметкой «есть»');
     expect(plain(closePartialLine(7, shares, closedPartialShares(seeded(), layout))?.text ?? null)).toBe(
-      'Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.',
+      '7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.',
     );
   });
 
@@ -258,7 +271,7 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     const shares = coverageShares(seeded(), layout);
     expect(plain(noneTicketsLine(shares))).toBe('в 2 из 20 билетов нет ни одного вопроса с отметкой «есть»');
     expect(plain(closePartialLine(7, shares, closedPartialShares(seeded(), layout))?.text ?? null)).toBe(
-      'Закройте 7 вопросов «частично» — все вопросы будут в лекциях в 11 из 20 билетов.',
+      '7 вопросов «частично»: добавьте к ним материал — тогда все вопросы будут в лекциях в 11 из 20 билетов.',
     );
   });
 
@@ -271,7 +284,7 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     expect(plain(noneTicketsLine(shares))).toBe('в 15–24 % билетов нет ни одного вопроса с отметкой «есть»');
     // With «частично» closed: C(27, 2) = 351 (45 %) to C(31, 2) = 465 (60 %).
     expect(plain(closePartialLine(7, shares, closedPartialShares(seeded(unknown), layout))?.text ?? null)).toBe(
-      'Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 45–60 % билетов.',
+      '7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 45–60 % билетов.',
     );
     const fixed = coverageShares(seeded(unknown), { mode: 'fixed', per_ticket: 2, tickets });
     expect(plain(noneTicketsLine(fixed))).toMatch(/^в \d+–\d+ из 20 билетов нет ни одного вопроса с отметкой «есть»$/);
@@ -288,9 +301,11 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     const singleShares = coverageShares(seeded(), single);
     expect(noneTicketsLine(singleShares)).toBeNull();
     expect(plain(closePartialLine(7, singleShares, closedPartialShares(seeded(), single))?.text ?? null)).toBe(
-      'Закройте 7 вопросов «частично» — в лекциях будет 78 % вопросов.',
+      '7 вопросов «частично»: добавьте к ним материал — тогда в лекциях будет 78 % вопросов.',
     );
-    expect(closePartialLine(1, singleShares, closedPartialShares(seeded(), single))?.link).toBe('1 вопрос «частично»');
+    const one = closePartialLine(1, singleShares, closedPartialShares(seeded(), single));
+    expect(one?.link).toBe('1 вопрос «частично»');
+    expect(one?.rest.startsWith(': добавьте к нему материал — тогда')).toBe(true);
   });
 
   it('shows the question share as a range with unverified and unmapped questions: 17 «есть» and 10 «только по словам» of 40 → 43–68 %', () => {

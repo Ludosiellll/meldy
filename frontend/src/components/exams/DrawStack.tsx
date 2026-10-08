@@ -54,10 +54,14 @@ interface Face {
   questions: DrawnCardQuestion[] | null;
 }
 
+/** A ticket whose questions run longer than this (in characters) is set smaller on a phone (exams.css). */
+const LONG_TICKET_CHARS = 150;
+
 function FaceContent({ face, examMode = false }: { face: Face; examMode?: boolean }) {
   if (!face.questions) return <p className="dw-back">Билеты</p>;
   const head = cardHead(face.ticketNumber, face.questions);
   const single = face.ticketNumber === null && face.questions.length === 1;
+  const long = face.questions.reduce((sum, question) => sum + question.text.length, 0) > LONG_TICKET_CHARS;
   return (
     <>
       {/* The ticket's tag (navy pill) and its questions' numbers; the dot between them is for reading only. */}
@@ -70,7 +74,7 @@ function FaceContent({ face, examMode = false }: { face: Face; examMode?: boolea
           </>
         )}
       </p>
-      <ol className="dw-qs" data-single={single ? '' : undefined}>
+      <ol className="dw-qs" data-single={single ? '' : undefined} data-long={long ? '' : undefined}>
         {face.questions.map((question) => (
           <li key={question.id} className="dw-q">
             {!single && (

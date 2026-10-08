@@ -21,8 +21,22 @@ import { glue, numberOf } from '../components/exams/sheetModel';
 import { subjectOf } from '../lib/exams/format';
 import { track } from '../lib/telemetry';
 import { readSheetToday } from '../components/exams/sheet/sheetCount';
+import { fetchSheet } from '../api/cheatSheet';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
+
+/**
+ * The questions whose answer points cannot be built (the sheet marks them unwritable: their quotes failed the check
+ * twice). The draw does not prepare points for them: the server only answers 422 (audit 2026-10-08), and the answer
+ * screen says why when the student opens it. An unreadable sheet leaves out nothing.
+ */
+export function unbuildableIds(examId: string): Promise<ReadonlySet<string>> {
+  return fetchSheet(examId).then(
+    (sheet) => new Set(sheet.questions.filter((question) => question.unwritable).map((question) => question.question_id)),
+    () => new Set<string>(),
+  );
+}
 
 /** «Отвечать будете на один вопрос: вопроса 36 нет в ваших лекциях.» */
 export function skippedNote(answerable: number, missing: string[]): string {
@@ -59,11 +73,14 @@ interface Drawn {
  * The answer keys are requested while the card lifts. Nothing is voiced.
  */
 export default function ExamDraw() {
+  useDocumentTitle('Тянуть билет');
   const { id: examId = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const mode = drawModeOf(params.get('mode'));
   const navigate = useNavigate();
   const reduced = usePrefersReducedMotion();
+  // Read once per visit, next to the exam: which questions get no answer points prepared in advance.
+  const unbuildable = useRef<Promise<ReadonlySet<string>> | null>(null);
 
   const [bundle, setBundle] = useState<ExamBundle | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
@@ -73,12 +90,14 @@ export default function ExamDraw() {
   const [drawn, setDrawn] = useState<Drawn | null>(null);
   const counter = useRef(0);
   // «Ждут подтверждения» draws from the questions whose cheat-sheet lines an answer erases now — the ones
-  // «Сегодня» counts in «Можно стереть: N вопросов» (Сегодня-lite), by the sheet's own rules. Read when the
-  // mode is chosen; 'failed': the sheet could not be read, the readiness rule's «ждут» stands in.
+  // «Сегодня» counts in «Сегодня можно стереть строки шпаргалки у N вопросов» (Сегодня-lite), by the sheet's
+  // own rules. Read when the mode is chosen; 'failed': the sheet could not be read, the readiness rule's «ждут»
+  // stands in.
   const [sheetPool, setSheetPool] = useState<{ examId: string; ids: ReadonlySet<string> | 'failed' } | null>(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
+    unbuildable.current = unbuildableIds(examId);
     try {
       const next = await loadExamBundle(examId);
       if (!next) {
@@ -167,10 +186,17 @@ export default function ExamDraw() {
     if (result.ok) {
       rememberTicket(bundle.exam.id, result.ticket.key);
       track('ticket_drawn', { mode, questions: result.ticket.questionIds.length });
-      // The answer keys are prepared while the card lifts (a question not in the lectures has none).
-      for (const id of result.ticket.questionIds) {
+      // The answer keys are prepared while the card lifts (a question not in the lectures has none, and one whose
+      // points cannot be built gets none either).
+      const examId = bundle.exam.id;
+      const ids = result.ticket.questionIds.filter((id) => {
         const question = bundle.questions.find((item) => item.id === id);
-        if (question && question.coverage !== 'none') prefetchRubric(bundle.exam.id, id);
+        return Boolean(question && question.coverage !== 'none');
+      });
+      if (ids.length > 0) {
+        void (unbuildable.current ?? Promise.resolve(new Set<string>())).then((skip) => {
+          for (const id of ids) if (!skip.has(id)) prefetchRubric(examId, id);
+        });
       }
     }
     counter.current += 1;

@@ -24,12 +24,14 @@ const NBSP = ' ';
 const plain = (text: string | null) => (text ?? '').replace(/ /g, ' ');
 
 describe('«Сегодня-lite»: what an answer can erase now', () => {
-  it('counts the questions: «Можно стереть: 3 вопроса»', () => {
-    expect(plain(erasableLine(1))).toBe('Можно стереть: 1 вопрос');
-    expect(plain(erasableLine(3))).toBe('Можно стереть: 3 вопроса');
-    expect(plain(erasableLine(12))).toBe('Можно стереть: 12 вопросов');
-    // The number never parts from its word.
-    expect(erasableLine(3)).toContain(`3${NBSP}вопроса`);
+  it('says whose lines an answer erases and what to do: «Сегодня можно стереть строки шпаргалки у 3 вопросов…»', () => {
+    // «Можно стереть: 4 вопроса» read as «удалить 4 вопроса» (audit 2026-10-08).
+    expect(plain(erasableLine(1))).toBe('Сегодня можно стереть строки шпаргалки у 1 вопроса — назовите его пункты снова.');
+    expect(plain(erasableLine(3))).toBe('Сегодня можно стереть строки шпаргалки у 3 вопросов — назовите их пункты снова.');
+    expect(plain(erasableLine(21))).toBe('Сегодня можно стереть строки шпаргалки у 21 вопроса — назовите их пункты снова.');
+    expect(plain(erasableLine(12))).toBe('Сегодня можно стереть строки шпаргалки у 12 вопросов — назовите их пункты снова.');
+    // The number never parts from its word, nor «у» from the number.
+    expect(erasableLine(3)).toContain(`у${NBSP}3${NBSP}вопросов`);
   });
 
   it('says when the next lines can be erased, in the sheet’s words for such a moment', () => {
@@ -73,12 +75,14 @@ describe('cheat sheet words', () => {
 
   it('lists what else matters under the counter: the main lines left of all main ones, the half-erased, the due, the questions without points', () => {
     const counts = { total: 47, left: 39, essentialTotal: 30, essentialLeft: 21, rubbed: 5, erased: 3, due: 3, readable: 34, learned: 1, withoutLines: 9, gaps: 3, unwritten: 6, rebuilt: 0, unmapped: 0, unverified: 0, questions: 40 };
-    // «Без пунктов» are the questions the lectures do not answer (and the unchecked ones): the 6 still to
-    // be written are counted by «Дописать 6 вопросов».
-    expect(plain(counterDetails(counts))).toBe('главных — 21 из 30 · стёрты наполовину — 5 · пора проверить — 3 · 3 вопроса без пунктов');
-    expect(plain(counterDetails({ ...counts, gaps: 1, unmapped: 1, unverified: 1, rubbed: 0 }))).toBe('главных — 21 из 30 · пора проверить — 3 · 3 вопроса без пунктов');
+    // The questions without answer points are the ones the lectures do not answer (and the unchecked ones): the 6
+    // still to be written are counted by «Дописать 6 вопросов». «Главных — 21 из 30» said not of what (audit 2026-10-08).
+    expect(plain(counterDetails(counts))).toBe('главных строк — 21 из 30 · стёрты наполовину — 5 · пора проверить — 3 · у 3 вопросов нет пунктов ответа');
+    expect(plain(counterDetails({ ...counts, gaps: 1, unmapped: 1, unverified: 1, rubbed: 0 }))).toBe('главных строк — 21 из 30 · пора проверить — 3 · у 3 вопросов нет пунктов ответа');
+    expect(plain(counterDetails({ ...counts, gaps: 1, rubbed: 0, due: 0 }))).toBe('главных строк — 21 из 30 · у 1 вопроса нет пунктов ответа');
     // Every part holds together; a row breaks only after a dot.
     expect(counterDetails(counts)).toContain(`стёрты${NBSP}наполовину${NBSP}—${NBSP}5${NBSP}· `);
+    expect(counterDetails(counts)).toContain(`у${NBSP}3${NBSP}вопросов${NBSP}нет${NBSP}пунктов${NBSP}ответа`);
     expect(counterDetails({ ...counts, due: 0, rubbed: 0, gaps: 0, essentialTotal: 47 })).toBe('');
   });
 

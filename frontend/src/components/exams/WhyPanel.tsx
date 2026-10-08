@@ -17,6 +17,7 @@ import { normalizeForMatch } from '../conversation/visuals';
 import { focusWindow, fragmentView, type Span } from '../../utils/fragmentText';
 import { PencilUnder, seedFrom } from '../marks';
 import type { SheetCoverage } from './marks';
+import { isGenericWord, telling } from './matchedWords';
 import { confirmedAgeSentence, glue, lecturesGenitive, NBSP } from './sheetModel';
 import type { FrameBox } from './useFrame';
 
@@ -55,6 +56,11 @@ export interface WhyPanelProps {
   onRecheck: (() => void) | null;
   /** The moment the ages are counted from (the page passes the time the journal was read). */
   now?: Date;
+  /**
+   * Whether «Ответить на этот вопрос» is in the window now (it may be under the fold or scrolled out of the column):
+   * the page steps its own pill down to white only then. Without IntersectionObserver it is taken as visible.
+   */
+  onAnswerVisible?: (visible: boolean) => void;
 }
 
 interface Verdict {
@@ -127,13 +133,31 @@ function quoted(words: string[]): string {
   return words.map((word) => `«${word}»`).join(', ');
 }
 
-/** «Ближе всего — «Поведение потребителя», фрагмент 12: совпало только слово «выбор».» */
+/**
+ * «Ближе всего — «Поведение потребителя», фрагмент 12: совпало только слово «выбор».» Each word once, however many
+ * forms of it matched («запросе», «запроса»), and the words of the question's subject before those of its form
+ * («назначение», «выполнения»), which match a fragment of any lecture (matchedWords.ts).
+ */
 export function nearestSentence(item: NearestItem): string {
   const where = `«${item.material_title || 'Лекция'}», ${fragmentLabel(item)}`;
-  const words = Array.from(new Set(item.matched.filter((word) => word.trim()))).slice(0, 4);
+  const words = telling(item.matched).words.slice(0, 4);
   if (words.length === 0) return `Ближе всего — ${where}.`;
   if (words.length === 1) return `Ближе всего — ${where}: совпало только слово ${quoted(words)}.`;
   return `Ближе всего — ${where}: совпали слова ${quoted(words)}.`;
+}
+
+/**
+ * A question in no lecture whose nearest fragment shares only words of the question's form with it: «Похожих мест в
+ * лекциях нет — совпали только общие слова «назначение», «выполнения».» (the fragment itself is not shown: it is not
+ * about the question). Null when a word of the subject matched too.
+ */
+export function genericOnlySentence(item: NearestItem): string | null {
+  const { words, generic } = telling(item.matched);
+  if (!generic) return null;
+  const shown = words.slice(0, 4);
+  return shown.length === 1
+    ? `Похожих мест в лекциях нет — совпало только общее слово ${quoted(shown)}.`
+    : `Похожих мест в лекциях нет — совпали только общие слова ${quoted(shown)}.`;
 }
 
 /** The fragment text with the matched words underlined by pencil (no regex lookbehind: Safari). */
@@ -279,12 +303,36 @@ export function readinessLine(state: QuestionState, answers: LearningEvent[], no
  * matched — the answers aloud with dates (each opens its protocol) and what to do next.
  */
 export default function WhyPanel(props: WhyPanelProps) {
-  const { examId, question, number, coverage, variant, onClose } = props;
+  const { examId, question, number, coverage, variant, onClose, onAnswerVisible } = props;
   const rootRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const goRef = useRef<HTMLAnchorElement>(null);
   const dragStart = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
   const sheet = variant === 'sheet';
+  const canAnswer = coverage !== 'none' && coverage !== 'checking';
+
+  // «Ответить на этот вопрос» in the window or not: under the fold, scrolled out of the column, under the menu line.
+  useEffect(() => {
+    if (!onAnswerVisible) return undefined;
+    const element = goRef.current;
+    if (!element || typeof IntersectionObserver === 'undefined') {
+      onAnswerVisible(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[entries.length - 1];
+        if (entry) onAnswerVisible(entry.isIntersecting && entry.intersectionRatio >= 0.9);
+      },
+      { rootMargin: '-80px 0px 0px 0px', threshold: [0, 0.5, 0.9, 1] },
+    );
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      onAnswerVisible(true);
+    };
+  }, [onAnswerVisible, canAnswer, question.id]);
 
   useEffect(() => {
     if (sheet) closeRef.current?.focus();
@@ -357,7 +405,6 @@ export default function WhyPanel(props: WhyPanelProps) {
   const answers = [...props.answers].reverse();
   const reviewMaterial = evidence.find((item) => item.material_id)?.material_id ?? null;
   const canMark = coverage !== 'checking' && coverage !== 'full' && question.coverage_method !== 'manual';
-  const canAnswer = coverage !== 'none' && coverage !== 'checking';
   const seedKey = `${examId}:${question.position}:why`;
 
   let body: ReactNode = null;
@@ -386,13 +433,18 @@ export default function WhyPanel(props: WhyPanelProps) {
     });
   } else if (nearest.length > 0) {
     const first = nearest[0];
-    body = (
+    // A gap whose nearest fragment shares only the question's form words: said so, the fragment left out.
+    const onlyGeneric = coverage === 'none' ? genericOnlySentence(first) : null;
+    const shown = telling(first.matched);
+    body = onlyGeneric ? (
+      <p className="ex-stmt">{glue(onlyGeneric)}</p>
+    ) : (
       <>
         <p className="ex-stmt">{glue(nearestSentence(first))}</p>
         <p className="ex-slip-cap">
           Лекция «{first.material_title || 'без названия'}», {fragmentLabel(first)}
         </p>
-        <Excerpt item={first} matched={first.matched} seedKey={seedKey} />
+        <Excerpt item={first} matched={shown.generic ? first.matched : first.matched.filter((word) => !isGenericWord(word))} seedKey={seedKey} />
       </>
     );
   } else if (coverage === 'none') {
@@ -410,6 +462,28 @@ export default function WhyPanel(props: WhyPanelProps) {
           {glue(line)}
         </p>
       ))}
+      {/* The panel's next step right under its verdict, before the fragment: at the end of a long fragment
+          «Ответить на этот вопрос» stood 1 000 px down the column (audit 2026-10-08). The panel's one filled pill
+          (redesign critique 6, round 2): on stage the step from row 12 to its answer. */}
+      {canAnswer || coverage === 'none' ? (
+        <div className="ex-why-go">
+          {canAnswer ? (
+            <Link ref={goRef} className="sf-primary" to={`/exams/${examId}/ticket?q=${encodeURIComponent(question.id)}`}>
+              Ответить на этот вопрос
+            </Link>
+          ) : (
+            <Link className="ex-secondary" to={`/exams/${examId}/edit#lectures`}>
+              Добавить материал к вопросу
+            </Link>
+          )}
+        </div>
+      ) : null}
+      {/* In the column: at the panel's top right, level with «Вопрос 12» (the phone's sheet has its own at the top). */}
+      {!sheet && (
+        <button type="button" className="sf-link ex-why-close" data-muted="" onClick={onClose}>
+          Закрыть
+        </button>
+      )}
       {body}
 
       {(answers.length > 0 || props.answersError) && (
@@ -440,42 +514,25 @@ export default function WhyPanel(props: WhyPanelProps) {
           {props.manualError}
         </p>
       )}
-      {/* The panel's one filled pill (redesign critique 6, round 2): on stage the step from row 12 to its
-          answer. The sheet's «Тянуть билет» steps down to an outlined pill while the panel is open. */}
-      {canAnswer && (
-        <div className="ex-why-go">
-          <Link className="sf-primary" to={`/exams/${examId}/ticket?q=${encodeURIComponent(question.id)}`}>
-            Ответить на этот вопрос
-          </Link>
+      {(reviewMaterial || (coverage === 'unverified' && props.onRecheck) || canMark) && (
+        <div className="ex-why-acts">
+          {reviewMaterial && (
+            <Link className="sf-link" to={`/review?material=${encodeURIComponent(reviewMaterial)}`}>
+              Повторить карточки этой лекции
+            </Link>
+          )}
+          {coverage === 'unverified' && props.onRecheck && (
+            <button type="button" className="sf-link" onClick={props.onRecheck}>
+              Проверить снова
+            </button>
+          )}
+          {canMark && (
+            <button type="button" className="sf-link" onClick={props.onManualMark} disabled={props.manualPending}>
+              {props.manualPending ? 'Сохраняем…' : 'Это есть в лекции…'}
+            </button>
+          )}
         </div>
       )}
-      <div className="ex-why-acts">
-        {reviewMaterial && (
-          <Link className="sf-link" to={`/review?material=${encodeURIComponent(reviewMaterial)}`}>
-            Повторить карточки этой лекции
-          </Link>
-        )}
-        {coverage === 'unverified' && props.onRecheck && (
-          <button type="button" className="sf-link" onClick={props.onRecheck}>
-            Проверить снова
-          </button>
-        )}
-        {coverage === 'none' && (
-          <Link className="sf-link" to={`/exams/${examId}/edit#lectures`}>
-            Добавить материал к вопросу
-          </Link>
-        )}
-        {canMark && (
-          <button type="button" className="sf-link" onClick={props.onManualMark} disabled={props.manualPending}>
-            {props.manualPending ? 'Сохраняем…' : 'Это есть в лекции…'}
-          </button>
-        )}
-        {!sheet && (
-          <button type="button" className="sf-link" data-muted="" onClick={onClose}>
-            Закрыть
-          </button>
-        )}
-      </div>
     </>
   );
 

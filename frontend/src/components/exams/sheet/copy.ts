@@ -37,22 +37,23 @@ export function writtenLabel(total: number): string {
 }
 
 /**
- * «главных — 28 из 33 · стёрты наполовину — 3 · пора проверить — 1 · 9 вопросов без пунктов» (as «43
- * строки осталось из 47» above it: main lines left of all main lines); empty parts are left out.
+ * «главных строк — 28 из 33 · стёрты наполовину — 3 · пора проверить — 1 · у 9 вопросов нет пунктов ответа» (as
+ * «43 строки осталось из 47» above it: main lines left of all main lines); empty parts are left out. «Главных — 28
+ * из 33» did not say of what, «9 вопросов без пунктов» not of what points (audit of 2026-10-08).
  * Due lines are not «left» (they are erased, waiting for a check), so nothing here says «из них».
- * «Без пунктов» are the questions the lectures do not answer or that are not checked against them:
- * the ones that can still be written are counted by «Дописать N вопросов».
+ * The questions without answer points are the ones the lectures do not answer or that are not checked against
+ * them: the ones that can still be written are counted by «Дописать N вопросов».
  */
 export function counterDetails(counts: SheetCounts): string {
   const parts: string[] = [];
   // Each part holds together on one row, and no row starts with «·»: a break falls only after a dot.
   if (counts.essentialTotal > 0 && counts.essentialTotal !== counts.total) {
-    parts.push(`главных${NBSP}—${NBSP}${counts.essentialLeft}${NBSP}из${NBSP}${counts.essentialTotal}`);
+    parts.push(`главных${NBSP}строк${NBSP}—${NBSP}${counts.essentialLeft}${NBSP}из${NBSP}${counts.essentialTotal}`);
   }
   if (counts.rubbed > 0) parts.push(`стёрты${NBSP}наполовину${NBSP}—${NBSP}${counts.rubbed}`);
   if (counts.due > 0) parts.push(`пора${NBSP}проверить${NBSP}—${NBSP}${counts.due}`);
   const without = counts.gaps + counts.unmapped + counts.unverified;
-  if (without > 0) parts.push(`${without}${NBSP}${questionsWord(without)} без${NBSP}пунктов`);
+  if (without > 0) parts.push(`у${NBSP}${without}${NBSP}${questionsGenitive(without)}${NBSP}нет${NBSP}пунктов${NBSP}ответа`);
   return parts.join(`${NBSP}· `);
 }
 
@@ -315,9 +316,19 @@ export function protocolSheetLine(summary: ChangeSummary, quiet: QuietReason | n
   return `На шпаргалке строки не изменились${why}`;
 }
 
-/** «Сегодня» (Сегодня-lite): «Можно стереть: 3 вопроса» — the questions with a line an answer erases now. */
+/** «вопроса» after «у 1», «у 21»; «вопросов» after «у 3», «у 11». */
+function questionsGenitive(count: number): string {
+  return count % 10 === 1 && count % 100 !== 11 ? 'вопроса' : 'вопросов';
+}
+
+/**
+ * «Сегодня» (Сегодня-lite), above «Тянуть билет из них»: the questions with a line an answer erases now —
+ * «Сегодня можно стереть строки шпаргалки у 3 вопросов — назовите их пункты снова.» The lines are the cheat
+ * sheet's and the answer erases them: «Можно стереть: 3 вопроса» read as «удалить 3 вопроса» (audit 2026-10-08).
+ */
 export function erasableLine(count: number): string {
-  return `Можно стереть: ${count}${NBSP}${questionsWord(count)}`;
+  const them = count === 1 ? 'его' : 'их';
+  return `Сегодня можно стереть строки шпаргалки у${NBSP}${count}${NBSP}${questionsGenitive(count)} — назовите ${them} пункты снова.`;
 }
 
 /**

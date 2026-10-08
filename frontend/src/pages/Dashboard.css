@@ -203,6 +203,14 @@
 
 /* ---------------------------------------------------------------- the exam card */
 .td-exam .td-flag + .td-h2 { margin-top: 18px; }
+/* The next step right under the name and the date (on the first screen at every size): when an answer can erase
+   lines of the cheat sheet, one line saying so over the pills, then «Тянуть билет из них», «Лист экзамена» and any
+   ticket as a quiet link. */
+.td-next { margin-top: 24px; }
+.td-next .td-actions { margin-top: 0; }
+.td-next .td-erase-t + .td-actions { margin-top: 14px; }
+.td-next .td-erase-t { max-width: 36em; font-size: 17px; line-height: 1.45; font-weight: 500; text-wrap: pretty; }
+.td .td-alt { font-size: 16px; }
 
 /* «9 вопросов без материала»: the first line of the exam, a «нет» status pill into the filtered sheet. */
 .td-gap { margin-top: 22px; }
@@ -327,9 +335,8 @@
 .td-sheet-link .td-nowrap { white-space: nowrap; }
 .td-sheet-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 .td-ready > .td-answers:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
-/* «Сегодня-lite»: «Можно стереть: 3 вопроса» with «Ответить» (a white pill: the card keeps one blue one),
-   right under the sheet's line; with nothing to erase now, a quiet line says when the next lines can be. */
-.td-erase { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 4px 0 0; }
+/* «Сегодня-lite»: with nothing to erase now, a quiet line under the sheet's line says when the next lines can be
+   (with lines to erase, the card's next step at the top says it). */
 .td-erase-t { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; color: var(--sf-ink); }
 .td-erase-next { margin-top: 2px; }
 /* Under it the ways back on another day (components/reminders, components/exams/share/QuestionOfDay): quiet lines. */
@@ -755,12 +762,17 @@
 }
 
 /* ---------------------------------------------------------------- sizes */
-/* Below 1200 px the dots would get too small beside the task cards: the main card takes the row. */
+/* Below 1200 px the dots would get too small beside the task cards: the main card takes the row. The task cards go
+   one under another, each across the page — side by side the tall review card left a 375 px hole beside the two
+   weeks of cards at 1024 (audit 2026-10-08) — and the review card lies on its side: the stack left, the words right. */
 @media (max-width: 1199px) {
   .td-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   .td-grid > .td-main,
   .td-grid > .td-lectures { grid-column: auto; grid-row: auto; }
-  .td-side { grid-column: auto; grid-row: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .td-side { grid-column: auto; grid-row: auto; display: flex; flex-direction: column; }
+  .td-due[data-split] { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1fr); align-items: center; gap: 6px; padding: 10px; }
+  .td-due[data-split] .td-stack-panel { height: 100%; min-height: 236px; }
+  .td-due[data-split] .td-due-body { padding: 20px 22px 22px 16px; }
   /* One column: the exam, the side, the lectures, 56 px above the lectures as before. */
   .td-grid > .td-lectures { margin-top: calc(56px - var(--td-gap)); }
 }
@@ -804,6 +816,10 @@
   .td-big-time { font-size: 20px; }
   .td-due { padding: 8px 8px 24px; border-radius: 38px; }
   .td-due-body { padding: 20px 14px 0; }
+  /* A phone: the review card stands up again, the stack over the words. */
+  .td-due[data-split] { display: block; padding: 8px 8px 24px; }
+  .td-due[data-split] .td-stack-panel { height: 210px; min-height: 0; }
+  .td-due[data-split] .td-due-body { padding: 20px 14px 0; }
   .td-due-none { padding: 26px 20px 26px; }
   .td-stack-panel { height: 210px; border-radius: 30px; }
   .td-stack { height: 150px; }

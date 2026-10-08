@@ -286,10 +286,11 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(examMeta({ examDate: null, layout: { mode: 'sections', per_ticket: 2 }, total: 40 })).toBe('40 вопросов, в билете по вопросу из каждого раздела');
   });
 
-  it('leads with the seeded exam: flag, heading, meta, «9 вопросов без материала» first, share, ribbon, legend, answers, note, actions', async () => {
+  it('leads with the seeded exam: flag, heading, meta, the actions, then «9 вопросов без материала», share, ribbon, legend, answers, note', async () => {
     exam();
     renderDashboard();
     const heading = await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
+    expect(document.title).toBe('Сегодня — Meldy');
     expect(heading.textContent).not.toMatch(/Экзамен:|\.$/);
     const block = heading.closest('article')!;
     // The flag shows the end of the heading; screen readers read it in the heading.
@@ -313,8 +314,11 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(draw).toHaveClass('sf-primary');
     expect(sheet).toHaveAttribute('href', '/exams/e-1');
 
-    // Reading order: the gap first, then the share, the ribbon, the legend, the answers, the note and the actions.
-    const order = [gap, share, ribbon, legend, answers, note, draw, sheet];
+    // Reading order: the next step right under the meta, so it is on the first screen at every size (audit of 2026-10-08:
+    // below the readiness it stood at y 1053 in a 734 px window); then the gap, the share, the ribbon, the legend, the
+    // answers and the note.
+    const meta = within(block).getByText(byText('15 октября · 40 вопросов, в билете два'));
+    const order = [heading, meta, draw, sheet, gap, share, ribbon, legend, answers, note];
     for (let i = 1; i < order.length; i += 1) {
       expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
@@ -371,9 +375,9 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(line).toHaveAttribute('href', '/exams/e-1?view=sheet');
     expect(db.fetchSheet).toHaveBeenCalledWith('e-1');
     expect(db.fetchSheetEvents).toHaveBeenCalledWith([hash(1), hash(2)]);
-    // Above the actions, still one tactile primary.
+    // Under the next step, which leads the card; still one tactile primary.
     const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
-    expect(line.compareDocumentPosition(draw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(draw.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
   });
 
@@ -392,7 +396,7 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(within(again.closest('article')!).queryByRole('link', { name: /Шпаргалка/ })).toBeNull();
   });
 
-  describe('«Сегодня-lite»: «Можно стереть: N вопросов» over the draw «Ждут подтверждения»', () => {
+  describe('«Сегодня-lite»: the lines an answer can erase today, over the draw «Ждут подтверждения»', () => {
     const written = (position: number) => ({
       question_id: `q${position}`,
       position,
@@ -444,14 +448,24 @@ describe('«Сегодня»: the exam on the desk', () => {
       sheetOf([YESTERDAY, HOUR_AGO, ...DUE]);
       renderDashboard();
       const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      // Audit of 2026-10-08: «Можно стереть: 4 вопроса» read as «удалить 4 вопроса», and its «Ответить» beside
+      // «Тянуть билет» gave two look-alike buttons. The line says whose lines, and the card has one main action.
       const line = await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
-      expect(plain(line.textContent)).toBe('Можно стереть: 2 вопроса');
-      const answer = within(block).getByRole('link', { name: (name) => plain(name) === 'Ответить' });
+      expect(plain(line.textContent)).toBe('Сегодня можно стереть строки шпаргалки у 2 вопросов — назовите их пункты снова.');
+      const answer = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет из них' });
       expect(answer).toHaveAttribute('href', '/exams/e-1/draw?mode=awaiting');
-      expect(answer).toHaveAccessibleDescription(/^Можно стереть: 2\sвопроса$/);
-      // Right under the sheet's count; the card keeps one blue pill.
+      expect(answer).toHaveClass('sf-primary');
+      // Screen readers hear the line with the action.
+      expect(document.getElementById(answer.getAttribute('aria-describedby') ?? '')).toBe(line);
+      expect(within(block).queryByRole('link', { name: (name) => plain(name) === 'Ответить' })).toBeNull();
+      // Any ticket stays one quiet click away.
+      const any = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
+      expect(any).toHaveAttribute('href', '/exams/e-1/draw');
+      expect(any).not.toHaveClass('sf-primary');
+      // The next step under the meta, above the sheet's count; the card keeps one blue pill.
       const sheet = within(block).getByRole('link', { name: (name) => plain(name).startsWith('Шпаргалка:') });
-      expect(sheet.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(line.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(answer.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
       expect(within(block).queryByText(/Следующие строки/)).toBeNull();
     });
@@ -464,7 +478,8 @@ describe('«Сегодня»: the exam on the desk', () => {
       // Named at 11:00: from 20 hours on, the next morning.
       const next = await within(block).findByText((_, node) => node?.classList.contains('td-erase-next') === true);
       expect(plain(next.textContent)).toBe('Следующие строки можно стереть после 4 окт., 7:00.');
-      expect(within(block).queryByRole('link', { name: (name) => plain(name) === 'Ответить' })).toBeNull();
+      expect(within(block).queryByRole('link', { name: (name) => plain(name) === 'Тянуть билет из них' })).toBeNull();
+      expect(within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' })).toHaveAttribute('href', '/exams/e-1/draw');
       cleanup();
 
       // Lines written, nothing named yet: neither line (the count of lines stays).
@@ -473,21 +488,22 @@ describe('«Сегодня»: the exam on the desk', () => {
       renderDashboard();
       const again = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       expect(await within(again).findByRole('link', { name: (name) => plain(name) === 'Шпаргалка: 9 строк осталось из 9' })).toBeInTheDocument();
-      expect(again.querySelector('.td-erase, .td-erase-next')).toBeNull();
+      expect(again.querySelector('.td-erase-t, .td-erase-next')).toBeNull();
     });
 
     // Week 2 of the plan: the sheet erases lines only with answers on different days, so «Сегодня» offers two ways
     // back — the student's own calendar and, for the author of an open group link, «Вопрос дня» for the chat.
-    it('offers «Напоминать каждый день» under «Можно стереть», quietly: the card keeps one blue pill', async () => {
+    it('offers «Напоминать каждый день» under the sheet’s count, quietly: the card keeps one blue pill', async () => {
       exam();
       sheetOf([YESTERDAY, HOUR_AGO, ...DUE]);
       renderDashboard();
       const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
-      const line = await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
+      await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
+      const sheet = within(block).getByRole('link', { name: (name) => plain(name).startsWith('Шпаргалка:') });
       const remind = within(block).getByRole('button', { name: 'Напоминать каждый день' });
-      expect(line.compareDocumentPosition(remind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
-      expect(remind.compareDocumentPosition(draw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(sheet.compareDocumentPosition(remind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет из них' });
+      expect(draw.compareDocumentPosition(remind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
       fireEvent.click(remind);
       expect(within(block).getByRole('group', { name: 'Во сколько напоминать' })).toBeInTheDocument();
@@ -850,17 +866,22 @@ describe('«Сегодня»: without an exam, and a new account', () => {
     expect(await screen.findByRole('heading', { level: 1, name: named('Алина, с чего начнём?') })).toBeInTheDocument();
     const card = stepsCard()!;
     expect(within(card).getByText('Сделано 0 из 3')).toBeInTheDocument();
-    const add = within(stepItem('Добавьте лекцию')).getByRole('link', { name: named('Добавить лекцию') });
-    // Free: «Новый экзамен» with its text-only import of lectures, not the analysis (20 units a lecture).
-    expect(add).toHaveAttribute('href', '/exams/new#lectures');
-    expect(add).toHaveClass('sf-primary');
-    expect(within(stepItem('Добавьте лекцию')).getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
-
-    expect(within(stepItem('Вставьте список вопросов к экзамену')).getByRole('link', { name: named('Создать экзамен') })).toHaveClass('sf-secondary');
+    // In the order of «Новый экзамен»: the list first, its lectures right after it (audit of 2026-10-08: «Добавить
+    // лекцию» as step 1 opened the list step of a new exam, which has no lectures block).
+    const list = stepItem('Вставьте список вопросов к экзамену');
+    const create = within(list).getByRole('link', { name: named('Создать экзамен') });
+    expect(create).toHaveAttribute('href', '/exams/new');
+    expect(create).toHaveClass('sf-primary');
+    expect(within(list).getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
+    // No exam yet: the lectures come in the new exam itself, after its list — free, not the analysis (20 units a lecture).
+    const lectures = stepItem('Добавьте лекции');
+    expect(within(lectures).queryByRole('link')).toBeNull();
+    expect(within(lectures).getByText(byText('Их добавляют в новом экзамене — сразу после списка вопросов.'))).toBeInTheDocument();
+    expect(list.compareDocumentPosition(lectures) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const ticket = stepItem('Вытяните билет и ответьте');
     expect(within(ticket).queryByRole('link')).toBeNull();
     expect(within(ticket).getByText(byText('Станет доступно, когда появится список вопросов.'))).toBeInTheDocument();
-    expect(screen.queryByText(/Повторения за две недели/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/за две недели/)).not.toBeInTheDocument();
     expect(screen.queryByText('Карточек к повторению на сегодня нет.')).not.toBeInTheDocument();
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
@@ -887,23 +908,24 @@ describe('«Сегодня»: without an exam, and a new account', () => {
 
 describe('«Сегодня»: «Первые шаги»', () => {
   it('names the free first step and the paid analysis apart: the same words never lead to two places at two prices', async () => {
-    // Live run of 2026-10-07: «Добавить лекцию» of step 1 led to the free lectures-as-text of a new exam, the one in
+    // Live run of 2026-10-07: «Добавить лекцию» of the steps led to the free lectures-as-text of a new exam, the one in
     // the empty lectures place to the analysis (/analyze, 20 units). The analysis is «Разобрать лекцию», as in the top line.
+    // Audit of 2026-10-08: the step opens the lectures of the exam with the list, in its editor.
     db.tables.materials = () => ({ data: [] });
     exam();
     renderDashboard();
-    const lecture = await waitForStep('Добавьте лекцию');
-    expect(within(lecture).getByRole('link', { name: named('Добавить лекцию') })).toHaveAttribute('href', '/exams/new#lectures');
-    for (const link of screen.getAllByRole('link', { name: /Добавить лекцию/ })) expect(link).toHaveAttribute('href', '/exams/new#lectures');
+    const lecture = await waitForStep('Добавьте лекции');
+    expect(within(lecture).getByRole('link', { name: named('Добавить лекции') })).toHaveAttribute('href', '/exams/e-1/edit#lectures');
+    for (const link of screen.getAllByRole('link', { name: /Добавить лекци/ })) expect(link).toHaveAttribute('href', '/exams/e-1/edit#lectures');
     expect(screen.getByRole('link', { name: /^Разобрать лекцию/ })).toHaveAttribute('href', '/analyze');
   });
 
-  it('reads step 1 as a lecture with text: a scan without text does not count', async () => {
+  it('reads the lectures step as a lecture with text: a scan without text does not count', async () => {
     db.tables.materials = (query) => (query.select === 'id' ? { data: [] } : { data: query.select.includes('summary_json') ? LECTURES : LECTURES.map(({ id, title, created_at }) => ({ id, title, created_at })) });
     exam();
     renderDashboard();
-    const lecture = await waitForStep('Добавьте лекцию');
-    expect(within(lecture).getByRole('link', { name: named('Добавить лекцию') })).toHaveClass('sf-primary');
+    const lecture = await waitForStep('Добавьте лекции');
+    expect(within(lecture).getByRole('link', { name: named('Добавить лекции') })).toHaveClass('sf-primary');
     const [text] = stepQueries('materials', 'id');
     expect(text.calls).toEqual([
       ['select', ['id']],
@@ -926,7 +948,7 @@ describe('«Сегодня»: «Первые шаги»', () => {
     const draw = within(ticket).getByRole('link', { name: named('Тянуть билет') });
     expect(draw).toHaveAttribute('href', '/exams/e-1/draw');
     expect(draw).toHaveClass('sf-primary');
-    expect(within(stepItem('Добавьте лекцию')).getByText('Сделано')).toBeInTheDocument();
+    expect(within(stepItem('Добавьте лекции')).getByText('Сделано')).toBeInTheDocument();
     expect(within(stepItem('Вставьте список вопросов к экзамену')).getByText('Сделано')).toBeInTheDocument();
     const [journal] = stepQueries('learning_events', 'id');
     expect(journal.calls).toEqual([
@@ -1014,12 +1036,16 @@ describe('«Сегодня»: «Первые шаги»', () => {
     expect(firstStepsDone(steps)).toBe(1);
     expect(firstStepsDone({ lecture: true, list: true, answer: true, drawExamId: 'e-1' })).toBe(3);
     const views = firstStepViews(steps);
-    expect(views.map((view) => view.title)).toEqual(['Добавьте лекцию', 'Вставьте список вопросов к экзамену', 'Вытяните билет и ответьте']);
-    expect(views.map((view) => view.action?.to ?? null)).toEqual(['/exams/new#lectures', '/exams/new', null]);
+    // The order of «Новый экзамен»: the list, then its lectures, then a ticket.
+    expect(views.map((view) => view.title)).toEqual(['Вставьте список вопросов к экзамену', 'Добавьте лекции', 'Вытяните билет и ответьте']);
+    expect(views.map((view) => view.action?.to ?? null)).toEqual(['/exams/new', null, null]);
+    expect(views[1].wait).toBe('Их добавляют в новом экзамене — сразу после списка вопросов.');
     // The step adds a lecture's text for free: it promises no summary and no cards.
-    expect(views[0].text).not.toMatch(/конспект|карточ/i);
-    expect(views[0].text).toMatch(/без расхода лимита/);
-    expect(firstStepViews({ ...steps, list: true, drawExamId: 'e-7' })[2].action).toEqual({ to: '/exams/e-7/draw', label: 'Тянуть билет' });
+    expect(views[1].text).not.toMatch(/конспект|карточ/i);
+    expect(views[1].text).toMatch(/без расхода лимита/);
+    const withList = firstStepViews({ ...steps, list: true, drawExamId: 'e-7' });
+    expect(withList[1].action).toEqual({ to: '/exams/e-7/edit#lectures', label: 'Добавить лекции' });
+    expect(withList[2].action).toEqual({ to: '/exams/e-7/draw', label: 'Тянуть билет' });
     expect(views.map((view) => `${view.title} ${view.text}`).join(' ')).not.toMatch(/разметк|эталон|Библиотек/i);
     expect(startGreeting('Алина Соколова')).toBe('Алина, с чего начнём?');
     expect(startGreeting(undefined)).toBe('С чего начнём?');
@@ -1110,7 +1136,8 @@ describe('«Сегодня»: below the desk', () => {
     });
     exam();
     renderDashboard();
-    const section = (await screen.findByRole('heading', { name: named('Повторения за две недели') })).closest('section')!;
+    // Cards only (study_sessions): the answers to tickets are on the exam card (audit of 2026-10-08).
+    const section = (await screen.findByRole('heading', { name: named('Карточки за две недели') })).closest('section')!;
     expect(within(section).getByText(byText('6 дней подряд. Сегодня — 4 карточки.'))).toBeInTheDocument();
     const bars = section.querySelectorAll('.td-bar');
     expect(bars).toHaveLength(14);
@@ -1126,18 +1153,19 @@ describe('«Сегодня»: below the desk', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(15);
   });
 
-  it('says that there were no reviews instead of an empty chart', async () => {
+  it('says that no cards were reviewed instead of an empty chart, never that nothing was done', async () => {
+    // «За две недели повторений не было» beside «Сегодня: ответ на вопрос 1» read as if the answer had not counted.
     exam();
     renderDashboard();
-    const section = (await screen.findByRole('heading', { name: named('Повторения за две недели') })).closest('section')!;
-    expect(within(section).getByText('За две недели повторений не было.')).toBeInTheDocument();
+    const section = (await screen.findByRole('heading', { name: named('Карточки за две недели') })).closest('section')!;
+    expect(within(section).getByText('За две недели карточки не повторялись.')).toBeInTheDocument();
     expect(section.querySelector('.td-bars')).toBeNull();
   });
 
   it('words the activity line', () => {
     expect(activityLine(6, 4)).toBe('6 дней подряд. Сегодня — 4 карточки.');
     expect(activityLine(1, 1)).toBe('Сегодня — 1 карточка.');
-    expect(activityLine(3, 0)).toBe('3 дня подряд. Сегодня повторений ещё не было.');
+    expect(activityLine(3, 0)).toBe('3 дня подряд. Сегодня карточки ещё не повторялись.');
   });
 
   it('describes a lecture as the Library does and notes missing cards only when they exist', () => {

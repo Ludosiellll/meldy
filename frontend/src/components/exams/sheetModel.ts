@@ -91,8 +91,17 @@ export interface NoteView {
   named: boolean;
 }
 
-/** A long title is cut at a word so that «, фрагмент 12» still fits in the two lines of the margin. */
-const NOTE_CHARS = 54;
+/**
+ * The note runs under the question at the question's width and the row grows with it (spec 5.9): a title is cut only
+ * when the note would run past two lines of a phone's row. The old margin's 54 characters cut «Реляционная модель
+ * данных: ключи и связи» on a wide laptop sheet to «ключи и…» (audit 2026-10-08).
+ */
+const NOTE_CHARS = 90;
+/** Words a cut title never ends on: «ключи и…», «модели в…» read as broken. */
+const TAIL_WORDS = new Set([
+  'и', 'а', 'но', 'или', 'либо', 'да', 'в', 'во', 'на', 'с', 'со', 'к', 'ко', 'о', 'об', 'обо', 'по', 'для', 'из', 'от', 'до',
+  'за', 'при', 'про', 'у', 'без', 'над', 'под', 'через', 'между', 'как', 'что', 'не', 'ни', 'их', 'его', 'её', 'the', 'of', 'and',
+]);
 
 /**
  * Margin notes of the visible rows, in order (redesign critique 3): the lecture is named on the first
@@ -126,12 +135,17 @@ export function marginNotes(rows: Array<{ section: number | null; footnote: Foot
   });
 }
 
-function shortenTitle(title: string, max: number): string {
+/** A title cut at a word, never after a conjunction or a preposition, with «…». */
+export function shortenTitle(title: string, max: number): string {
   const clean = title.trim().replace(/\s+/g, ' ');
   if (clean.length <= max) return clean;
   const cut = clean.slice(0, max - 1);
   const space = cut.lastIndexOf(' ');
-  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,.;:–-]+$/, '')}…`;
+  if (space <= max * 0.6) return `${cut.replace(/[\s,.;:–-]+$/, '')}…`;
+  const words = cut.slice(0, space).split(' ');
+  const bare = (word: string) => word.toLowerCase().replace(/[^a-zа-яё]/g, '');
+  while (words.length > 1 && (TAIL_WORDS.has(bare(words[words.length - 1])) || bare(words[words.length - 1]) === '')) words.pop();
+  return `${words.join(' ').replace(/[\s,.;:–—-]+$/, '')}…`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -265,8 +279,8 @@ export function coverageShares(questions: ShareSubject[], layout: TicketLayout):
 }
 
 /**
- * The same shares if every «частично» question were closed (counted as «есть»): the number of the
- * action line «Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов».
+ * The same shares if every «частично» question were closed (counted as «есть»): the number of the action line
+ * «7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов».
  */
 export function closedPartialShares(questions: ShareSubject[], layout: TicketLayout): LayoutShares {
   const partial = questions.filter((question) => question.coverage === 'partial').map((question) => question.id);
@@ -381,35 +395,38 @@ export function noneTicketsLine(shares: LayoutShares): string | null {
 export interface ClosePartialLine {
   /** «7 вопросов «частично»»: a link that filters the sheet to «частично». */
   link: string;
-  /** «— оба вопроса будут в лекциях в 60 % билетов.» */
+  /** Right after the link: «: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.» */
   rest: string;
-  /** The whole sentence, «Закройте 7 вопросов «частично» — …». */
+  /** The whole sentence, «7 вопросов «частично»: добавьте к ним материал — тогда …». */
   text: string;
 }
 
 /**
- * The action line under «Как считается» (Jury_Check item 10): «Закройте 7 вопросов «частично» — оба
- * вопроса будут в лекциях в 60 % билетов.» It is computed by the same layout with «частично» counted
- * as «есть» (a range while some questions are unknown); one question per ticket reads «… — в лекциях
- * будет 78 % вопросов». Null without «частично» questions and when closing them does not raise the
- * share.
+ * The action line under «Как считается» (Jury_Check item 10): «7 вопросов «частично»: добавьте к ним материал —
+ * тогда оба вопроса будут в лекциях в 60 % билетов.» It is computed by the same layout with «частично» counted as
+ * «есть» (a range while some questions are unknown); one question per ticket reads «… — тогда в лекциях будет 78 %
+ * вопросов». «Закройте 7 вопросов» read as «закройте окно» (audit of 2026-10-08): the line says what to do. The link
+ * (it shows these questions) comes first, so the line never breaks before it. Null without «частично» questions and
+ * when closing them does not raise the share.
  */
 export function closePartialLine(partial: number, shares: LayoutShares, closed: LayoutShares): ClosePartialLine | null {
   if (partial <= 0 || !shares.low.ok || !closed.low.ok) return null;
   const link = `${partial} ${pluralRu(partial, ['вопрос', 'вопроса', 'вопросов'])} «частично»`;
-  let rest: string;
+  const them = partial === 1 ? 'нему' : 'ним';
+  let effect: string;
   if (closed.low.mode === 'fixed' && shares.low.mode === 'fixed') {
     if (closed.low.allCount <= shares.low.allCount) return null;
     const most = closed.high.ok && closed.high.mode === 'fixed' ? closed.high.allCount : closed.low.allCount;
     const count = most !== closed.low.allCount ? `${closed.low.allCount}–${most}` : String(closed.low.allCount);
-    rest = `— все вопросы будут в лекциях в ${count} из ${closed.low.tickets} ${genitiveOf(closed.low.tickets, 'билета', 'билетов')}.`;
+    effect = `все вопросы будут в лекциях в ${count} из ${closed.low.tickets} ${genitiveOf(closed.low.tickets, 'билета', 'билетов')}.`;
   } else {
     if (percent(closed.low.all) <= percent(shares.low.all)) return null;
     const value = shareText(closed, 'all') ?? pct(percent(closed.low.all));
     const q = perTicketOf(closed.low, 2);
-    rest = q <= 1 ? `— в лекциях будет ${value} вопросов.` : `— ${allQuestionsWord(q)} будут в лекциях в ${value} билетов.`;
+    effect = q <= 1 ? `в лекциях будет ${value} вопросов.` : `${allQuestionsWord(q)} будут в лекциях в ${value} билетов.`;
   }
-  return { link, rest, text: `Закройте ${link} ${rest}` };
+  const rest = `: добавьте к ${them} материал — тогда ${effect}`;
+  return { link, rest, text: `${link}${rest}` };
 }
 
 /** The caveat under the pair: what a «ticket» is in this calculation. Always visible. */

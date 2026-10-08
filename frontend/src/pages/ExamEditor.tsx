@@ -52,6 +52,7 @@ import { glue } from '../components/exams/sheetModel';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, COVERAGE_PILL_WORDS, PILL_MARK_SCALE } from '../components/exams/marks';
 import { Mark } from '../components/marks/PencilSvg';
 import { useFrame } from '../components/exams/useFrame';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -81,6 +82,7 @@ const TICK_HINTS = {
   'no-match': 'По названию экзамена лекций не нашлось — отмечены все. Лишние снимите.',
 } as const;
 const TITLE_ID = 'exam-title';
+const DATE_ID = 'exam-date';
 const SAVE_WHY_ID = 'exam-save-why';
 
 const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
@@ -122,6 +124,7 @@ function ticketSize(tickets: Array<{ keys: string[] }>): number {
 export default function ExamEditor() {
   const { id: editId } = useParams();
   const editing = Boolean(editId);
+  useDocumentTitle(editing ? 'Изменить экзамен' : 'Новый экзамен');
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const navigate = useNavigate();
@@ -141,6 +144,7 @@ export default function ExamEditor() {
   const [pasted, setPasted] = useState('');
   const [emptyTried, setEmptyTried] = useState(false);
   const listRef = useRef<HTMLTextAreaElement>(null);
+  const emptyHintRef = useRef<HTMLParagraphElement>(null);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseWarnings, setParseWarnings] = useState<ParseResult['warnings']>([]);
@@ -245,6 +249,12 @@ export default function ExamEditor() {
     if (location.hash !== '#lectures' || loadState === 'loading') return;
     window.setTimeout(() => document.getElementById('lectures')?.scrollIntoView?.({ block: 'start' }), 0);
   }, [location.hash, loadState]);
+
+  // The line under a press on the empty field: where the buttons wrap (1024 px, phones) it fell under the window's
+  // edge. Brought into the window by the least scroll, above the phone's tab bar (scroll-margin, exams.css).
+  useEffect(() => {
+    if (emptyTried) emptyHintRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [emptyTried]);
 
   // ------------------------------------------------------------------ the list
   const total = questionCount(preview);
@@ -497,6 +507,8 @@ export default function ExamEditor() {
         ? 'Назовите экзамен.'
         : listIssue;
 
+  /** What «Сверить с лекциями» does, said beside it: «Meldy сверит каждый вопрос с 3 выбранными лекциями — …». */
+  const nextNote = !editing && canSave && usableSelected.length > 0 ? mapNext(usableSelected.length) : null;
   const sizeOptions = [1, 2, 3, 4];
   // Like «Распознать вопросы», the main button of step 2 always answers: while something is missing
   // it takes the student there (the title field, or the line of the list to fix) instead of staying
@@ -506,7 +518,7 @@ export default function ExamEditor() {
       type="button"
       className="sf-primary"
       disabled={saving || lockedByMapping || !user}
-      aria-describedby={disabledReason ? SAVE_WHY_ID : undefined}
+      aria-describedby={disabledReason && !saveError ? SAVE_WHY_ID : undefined}
       onClick={() => {
         if (titleMissing) {
           setTitleTried(true);
@@ -666,7 +678,14 @@ export default function ExamEditor() {
               <button type="button" className="ex-secondary" disabled={parsing || lockedByMapping} onClick={() => fileRef.current?.click()}>
                 Выбрать файл
               </button>
-              {frame.size !== 's' && <span className="nx-start-fmt">DOCX, PDF, TXT или MD · сканы тоже</span>}
+              {/* Beside the buttons, in place of the formats: under them the line was below a laptop's window. */}
+              {emptyTried && !parsing && pasted.trim() === '' ? (
+                <p ref={emptyHintRef} className="nx-start-hint" role="status">
+                  {EMPTY_HINT}
+                </p>
+              ) : (
+                frame.size !== 's' && <span className="nx-start-fmt">DOCX, PDF, TXT или MD · сканы тоже</span>
+              )}
               <input
                 ref={fileRef}
                 type="file"
@@ -680,11 +699,6 @@ export default function ExamEditor() {
                 }}
               />
             </div>
-            {emptyTried && !parsing && pasted.trim() === '' && (
-              <p className="ex-note" role="status">
-                {EMPTY_HINT}
-              </p>
-            )}
             {parsing && (
               <p className="ex-meta" role="status">
                 Распознаём список…
@@ -744,7 +758,7 @@ export default function ExamEditor() {
                   (sections > 0 ? `, ${sections} ${pluralRu(sections, ['раздел', 'раздела', 'разделов'])}` : ''),
               )}
             </p>
-            <p className="ex-meta">Строку можно поправить, склеить или удалить.</p>
+            <p className="ex-meta">{glue('Нажмите на строку, чтобы поправить её, склеить со следующей или удалить.')}</p>
             {/* «Пропустили N строк…» stays while a skipped line waits at its place in the full list (the folded
                 preview shows only questions) or when the parser did not list them all. */}
             {parseWarnings
@@ -773,32 +787,50 @@ export default function ExamEditor() {
           <aside className="nx-form" aria-label="Экзамен, билеты и лекции">
             <div className="nx-grp">
               <p className="nx-lbl">Экзамен</p>
+              {/* Each field with its name: filled in, the three fields said nothing of what is what (audit 2026-10-08). */}
               <div className="nx-fields">
-                <span className="nx-sel nx-sel-title" data-missing={titleTried && titleMissing ? '' : undefined}>
-                  <PaperSuggestInput
-                    id={TITLE_ID}
-                    aria-label="Название экзамена"
-                    aria-describedby="exam-title-hint"
-                    aria-invalid={titleTried && titleMissing ? true : undefined}
-                    placeholder="Например, Микроэкономика"
-                    value={title}
-                    maxLength={200}
-                    suggestions={subjects}
-                    onValueChange={setTitle}
+                <div className="nx-fld nx-fld-title">
+                  <label className="nx-flbl" htmlFor={TITLE_ID}>
+                    Предмет
+                  </label>
+                  <span className="nx-sel nx-sel-title" data-missing={titleTried && titleMissing ? '' : undefined}>
+                    <PaperSuggestInput
+                      id={TITLE_ID}
+                      aria-describedby="exam-title-hint"
+                      aria-invalid={titleTried && titleMissing ? true : undefined}
+                      placeholder="Например, Микроэкономика"
+                      value={title}
+                      maxLength={200}
+                      suggestions={subjects}
+                      onValueChange={setTitle}
+                      disabled={saving}
+                    />
+                  </span>
+                </div>
+                <div className="nx-fld">
+                  <span className="nx-flbl" aria-hidden="true">
+                    Вид
+                  </span>
+                  <PaperSelect
+                    ariaLabel="Вид экзамена"
+                    value={kind}
+                    options={EXAM_KINDS.map((value) => ({ value, label: KIND_WORDS[value] }))}
+                    onChange={(value) => setKind(value)}
                     disabled={saving}
                   />
-                </span>
-                <PaperSelect
-                  ariaLabel="Тип"
-                  value={kind}
-                  options={EXAM_KINDS.map((value) => ({ value, label: KIND_WORDS[value] }))}
-                  onChange={(value) => setKind(value)}
-                  disabled={saving}
-                />
-                <span className="nx-sel">
-                  <input type="date" aria-label="Дата, необязательно" value={examDate} onChange={(event) => setExamDate(event.target.value)} disabled={saving} />
-                </span>
+                </div>
+                <div className="nx-fld">
+                  <label className="nx-flbl" htmlFor={DATE_ID}>
+                    Дата экзамена
+                  </label>
+                  <span className="nx-sel">
+                    <input id={DATE_ID} type="date" aria-describedby="exam-date-hint" value={examDate} onChange={(event) => setExamDate(event.target.value)} disabled={saving} />
+                  </span>
+                </div>
               </div>
+              <p className="ex-meta" id="exam-date-hint">
+                {glue('Дату можно не указывать: с ней Meldy покажет, сколько дней осталось до экзамена.')}
+              </p>
               {/* The example in the field («Например, Микроэкономика») shows it; screen readers hear it in words. */}
               <p className="ex-sr" id="exam-title-hint">
                 Только предмет — вид экзамена выбирается рядом
@@ -848,45 +880,57 @@ export default function ExamEditor() {
                   disabled={saving}
                 />
               </p>
-              <p className="ex-meta">
-                {layoutMode === 'fixed'
-                  ? glue(`${preview.tickets.length} ${pluralRu(preview.tickets.length, ['билет', 'билета', 'билетов'])} из списка кафедры: доли посчитаем по ним.`)
-                  : 'Знаете состав билетов? Вставьте и их список — посчитаем по нему.'}
-              </p>
+              {layoutMode === 'fixed' ? (
+                <p className="ex-meta">
+                  {glue(`${preview.tickets.length} ${pluralRu(preview.tickets.length, ['билет', 'билета', 'билетов'])} из списка кафедры: доли посчитаем по ним.`)}
+                </p>
+              ) : (
+                // The form has no field for the tickets: they come with the list (audit 2026-10-08: «вставьте их» — but where).
+                <p className="ex-meta nx-tickets-hint">
+                  Знаете состав билетов?{' '}
+                  <button type="button" className="sf-link" onClick={startOver} disabled={lockedByMapping || saving}>
+                    Вставьте список заново
+                  </button>{' '}
+                  {glue('вместе с билетами — Meldy посчитает доли по ним.')}
+                </p>
+              )}
               {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta">Один вопрос в билете: на листе будет «Тянуть вопрос».</p>}
             </div>
 
-            <div className="nx-go">
-              {frame.side && primary}
-              {!editing && canSave && usableSelected.length > 0 && <p className="ex-meta nx-go-note">{glue(mapNext(usableSelected.length))}</p>}
-              {disabledReason && total > 0 && (
-                <p className="ex-note" id={frame.side ? SAVE_WHY_ID : undefined}>
-                  {disabledReason}
-                </p>
-              )}
-              {saveError && (
-                <p className="ex-note" role="alert">
-                  {saveError}
-                </p>
-              )}
-              {editing && bundle && (
-                <button type="button" className="sf-link" data-muted="" onClick={() => void remove()} disabled={saving}>
-                  Удалить экзамен
-                </button>
-              )}
-            </div>
+            {/* The main button is in the bar at the bottom of the window (below); the form ends with what the press
+                does on a phone, where the bar keeps only the button, and with «Удалить экзамен». */}
+            {((!frame.side && nextNote) || (editing && bundle)) && (
+              <div className="nx-go">
+                {!frame.side && nextNote && <p className="ex-meta nx-go-note">{glue(nextNote)}</p>}
+                {editing && bundle && (
+                  <button type="button" className="sf-link" data-muted="" onClick={() => void remove()} disabled={saving}>
+                    Удалить экзамен
+                  </button>
+                )}
+              </div>
+            )}
           </aside>
         </div>
       )}
 
-      {!frame.side && total > 0 && (
-        <div className="ex-cta">
-          {/* A phone: why the button is off, right above it (the form with the same line is far below). */}
-          {disabledReason && (
+      {/* Step 2's button follows the reader on every size (on a computer it stood at the end of the long form, 540–890
+          px under the window's edge — audit 2026-10-08): a bar at the bottom of the window. Beside it on a computer,
+          above it on a phone: what is missing, or a failed save; on a computer also what the press does. */}
+      {total > 0 && (
+        <div className="ex-cta" data-row={frame.side ? '' : undefined}>
+          {saveError ? (
+            <p className="ex-cta-why" role="alert">
+              {saveError}
+            </p>
+          ) : disabledReason ? (
             <p className="ex-cta-why" id={SAVE_WHY_ID}>
               {disabledReason}
             </p>
-          )}
+          ) : frame.side && nextNote ? (
+            <p className="ex-cta-why" data-next="">
+              {glue(nextNote)}
+            </p>
+          ) : null}
           {primary}
         </div>
       )}

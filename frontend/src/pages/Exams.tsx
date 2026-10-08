@@ -9,6 +9,7 @@ import { pluralRu } from '../components/conversation/visuals';
 import { useMapJob } from '../components/exams/mapJobs';
 import { glue } from '../components/exams/sheetModel';
 import { useFrame } from '../components/exams/useFrame';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -126,6 +127,7 @@ function ExamRow({ item, states }: { item: ExamListItem; states: Map<string, Que
  * pills of the sheet.
  */
 export default function Exams() {
+  useDocumentTitle('Экзамены');
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const navigate = useNavigate();

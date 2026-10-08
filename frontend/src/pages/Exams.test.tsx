@@ -93,6 +93,7 @@ describe('Exams', () => {
     renderList();
 
     const list = await screen.findByRole('list', { name: 'Ваши экзамены' });
+    expect(document.title).toBe('Экзамены — Meldy');
     const links = within(list).getAllByRole('link').filter((link) => link.classList.contains('ex-row'));
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/exams/exam-1', '/exams/exam-2', '/exams/exam-3']);
     // A ticket is drawn right from the card once some question is in the lectures; not before the mapping.
