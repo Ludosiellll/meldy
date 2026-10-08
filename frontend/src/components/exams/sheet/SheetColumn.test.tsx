@@ -9,6 +9,7 @@ import { localDayOf, type HistoryFrame, type LineState, type LineStatus, type Sh
 import { formatShortDay } from '../../../lib/exams/format';
 import { historyResult, LinePanel, outcomeLine, quoteText, SheetSummaryCard, SheetWriteCard, unwritableLine, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
 import { examSheetLinks } from './useSheetPage';
+import { SHEET_RULE } from './copy';
 
 afterEach(() => {
   cleanup();
@@ -61,26 +62,87 @@ function summary(extra: Partial<SheetSummaryProps> = {}) {
 }
 
 describe('SheetSummaryCard', () => {
-  it('full: the flag, the count with its details, the change, the share, three switches and the links', () => {
+  it('full: the flag with «Весь лист на экране», the count with its details, the change, the rule with how a line looks, the share, two switches and the links', () => {
     const props = summary();
     expect(screen.getByText('Шпаргалка')).toBeTruthy();
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47');
     expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · 6 вопросов без пунктов');
-    expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Строки стирают только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.');
+    // The rule, word for word, with a piece of the paper after «наполовину» and «совсем» (EX-17): for the eye only.
+    const rule = document.querySelector('.cs-rule') as HTMLElement;
+    expect(plain(rule.textContent)).toBe(SHEET_RULE);
+    expect([...rule.querySelectorAll<HTMLElement>('.cs-swatch')].map((swatch) => [swatch.dataset.state, swatch.getAttribute('aria-hidden')])).toEqual([
+      ['rubbed', 'true'],
+      ['erased', 'true'],
+    ]);
+    expect(rule.querySelector('.cs-swatch .cs-line[data-state="rubbed"] .cs-patch')).not.toBeNull();
     // The rolling digits are hidden from a screen reader; the count is read once, whole.
     expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(plain(document.querySelector('.cs-share')?.textContent)).toContain('35 % билетов');
+    // Two switches by their names (EX-14); what «Спрятать строки» is for is said under it, and is its description.
     const switches = screen.getAllByRole('switch');
-    expect(switches.map((item) => item.textContent)).toEqual(['Только то, что осталось', 'Спрятать строки', 'Вся шпаргалка']);
+    expect(switches.map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Скрыть строки, стёртые совсем', 'Спрятать строки']);
     expect(switches.every((item) => item.getAttribute('aria-checked') === 'false')).toBe(true);
-    fireEvent.click(screen.getByRole('switch', { name: 'Вся шпаргалка' }));
+    expect(switches[0]).toHaveAccessibleName('Скрыть строки, стёртые совсем');
+    expect(switches[0]).not.toHaveAttribute('aria-disabled');
+    expect(switches[1]).toHaveAccessibleName('Спрятать строки');
+    expect(switches[1]).toHaveAccessibleDescription(/^и\sпроверить,\sчто\sпомните\sих$/);
+    expect(switches[1]).not.toHaveAttribute('title');
+    fireEvent.click(switches[0]);
+    expect(props.onMode).toHaveBeenCalledWith({ ...MODE, onlyLeft: true });
+    // «Вся шпаргалка» is a zoom: a button by the flag with a magnifier, named by what it does.
+    const zoom = screen.getByRole('button', { name: 'Весь лист на экране' });
+    expect(zoom.closest('.cs-head')?.querySelector('.cs-flag')).not.toBeNull();
+    expect(zoom.querySelector('svg.cs-zoom-i')).not.toBeNull();
+    fireEvent.click(zoom);
     expect(props.onMode).toHaveBeenCalledWith({ ...MODE, zoom: true });
     fireEvent.click(screen.getByRole('button', { name: 'Показать последний ответ' }));
     expect(props.onReplay).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'История шпаргалки' }));
     expect(props.onHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('zoomed: the button says how to go back; the self-test switch on: its note replaces the hint', () => {
+    const props = summary({ mode: { ...MODE, zoom: true, cover: true } });
+    fireEvent.click(screen.getByRole('button', { name: 'Обычный размер' }));
+    expect(props.onMode).toHaveBeenCalledWith({ ...MODE, cover: true, zoom: false });
+    const cover = screen.getByRole('switch', { name: 'Спрятать строки' });
+    expect(cover).toHaveAttribute('aria-checked', 'true');
+    expect(cover.querySelector('.cs-toggle-hint')).toBeNull();
+    expect(document.querySelector('.cs-cover-note')).not.toBeNull();
+  });
+
+  it('nothing erased yet: «Скрыть строки, стёртые совсем» says so and cannot be turned (PUB-16); a phone leaves it out', () => {
+    const none = { ...COUNTS, erased: 0 };
+    const props = summary({ counts: none });
+    const only = screen.getByRole('switch', { name: 'Скрыть строки, стёртые совсем' });
+    expect(only).toHaveAttribute('aria-disabled', 'true');
+    expect(only).toHaveAttribute('aria-checked', 'false');
+    expect(only).toHaveAccessibleDescription('Таких строк пока нет');
+    fireEvent.click(only);
+    expect(props.onMode).not.toHaveBeenCalled();
+    cleanup();
+    // The page's own words (the example names the answer that erases), even when the switch was on by itself.
+    summary({ counts: none, mode: { ...MODE, onlyLeft: true }, onlyLeftNone: 'Таких строк пока нет: ответьте на вопрос 5' });
+    const page = screen.getByRole('switch', { name: 'Скрыть строки, стёртые совсем' });
+    expect(page).toHaveAttribute('aria-checked', 'false');
+    expect(page).toHaveAccessibleDescription(/^Таких\sстрок\sпока\sнет:\sответьте\sна\sвопрос\s5$/);
+    cleanup();
+    summary({ counts: none, variant: 'top' });
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+  });
+
+  it('the page’s next step stands in the column’s card under the change, before the rule; not on a phone', () => {
+    summary({ next: <a href="/register?next=%2Fexams%2Fnew">Начать со своего списка</a> });
+    const next = document.querySelector('.cs-next') as HTMLElement;
+    expect(within(next).getByRole('link', { name: 'Начать со своего списка' })).toBeTruthy();
+    const order = [...(document.querySelector('.cs-sum') as HTMLElement).children].map((child) => child.className);
+    expect(order.indexOf('cs-change')).toBeLessThan(order.indexOf('cs-next'));
+    expect(order.indexOf('cs-next')).toBeLessThan(order.indexOf('cs-rule'));
+    cleanup();
+    summary({ variant: 'after', next: <a href="/register">Начать со своего списка</a> });
+    expect(document.querySelector('.cs-next')).toBeNull();
   });
 
   it('top (a phone, above the paper): the count and «Только то, что осталось» in one row, so the paper’s lines are on the first screen', () => {
@@ -105,8 +167,10 @@ describe('SheetSummaryCard', () => {
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(plain(document.querySelector('.cs-change-note')?.textContent)).toBe('Подсмотренное сегодня ответ не стирает.');
     expect(document.querySelector('.cs-rule')).toBeTruthy();
+    expect(document.querySelector('.cs-rule .cs-swatch')).toBeTruthy();
     expect(document.querySelector('.cs-share')).toBeTruthy();
-    expect(screen.getAllByRole('switch').map((item) => item.textContent)).toEqual(['Спрятать строки']);
+    expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Спрятать строки']);
+    expect(screen.queryByRole('button', { name: 'Весь лист на экране' })).toBeNull();
     expect(screen.getByRole('button', { name: 'История шпаргалки' })).toBeTruthy();
   });
 

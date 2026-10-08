@@ -106,8 +106,14 @@
   .sf-room-bar.tx-bar { gap: 8px; }
   .tx-bar .tx-pill { padding: 0 14px; }
 }
+/* A small phone (320 px): «Войти» stays (decision 5: a guest always has the way in), as a quiet word of the
+   same 44 px height beside the blue «Создать аккаунт»; the wordmark is a little smaller. */
 @media (max-width: 359px) {
-  .tx-bar .tx-pill:not([data-blue]) { display: none; }
+  .sf-room-bar.tx-bar { gap: 6px; }
+  .tx-bar .tx-logo { font-size: 24px; }
+  .tx-bar .tx-bar-right { gap: 2px; }
+  .tx-bar .tx-pill { padding: 0 11px; font-size: 14px; }
+  .tx-bar .tx-pill.tx-login { padding: 0 9px; background: none; box-shadow: none; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
 }
 
 /* ---------------------------------------------------------------- the example's sheet */
@@ -129,9 +135,20 @@
 .sf-page .ex-note.tx-note { flex-wrap: nowrap; align-items: flex-start; }
 .sf-page .ex-note.tx-note::before { margin-top: 7px; }
 .sf-page .tx-sheet-hint { margin: -6px 2px 14px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
-/* The example's cheat sheet: yesterday's answers said plainly above the paper (sheet spec 4.3). */
-.sf-page .tx-sheet-cap { max-width: 46em; margin: 0 2px 16px; font-size: 16px; line-height: 24px; color: var(--sf-ink); text-wrap: pretty; }
-.sf-page .tx-sheet-cap .sf-ref { font-weight: 600; }
+/* The example's cheat sheet: yesterday's answers said plainly above the paper (sheet spec 4.3), and under
+   them the one thing the example is built around, «Ответить на вопрос 5», as the page's blue pill until the
+   guest has answered (PUB-15; a phone has it in the bar at the bottom). */
+.sf-page .tx-sheet-cap { max-width: 52em; margin: 0 2px 16px; font-size: 16px; line-height: 24px; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .tx-sheet-cap:has(+ .tx-sheet-go) { margin-bottom: 14px; }
+.sf-page .tx-sheet-go { margin: 0 2px 22px; }
+/* After the guest's answer: their own exam, in the column's card under what the answer changed (PUB-18). */
+.sf-page .tx-own .ex-stmt { font-size: 17px; line-height: 25px; text-wrap: pretty; }
+.sf-page .tx-own-go-row { margin-top: 14px; }
+.sf-page .tx-own-go-row .sf-primary { max-width: 100%; }
+/* Where the example's answers go (PUB-3): a plain statement on the panel, not its large lead line. */
+.sf-page .ex-col > .ex-blk > .ex-stmt.tx-privacy { font-size: 17px; line-height: 25px; letter-spacing: 0; }
+/* A phone's bar: the step the page is about, the random draw as a quiet line under it. */
+.sf-page .tx-cta .ex-cta-alt { margin: 6px 0 0; }
 /* «Вставить ответ примера» under the field of question 5. */
 .sf-page .tx-insert { min-height: 44px; margin-top: 6px; }
 /* Yesterday's answer of the example, in its own words, on its read-only protocol. */
@@ -139,9 +156,23 @@
 .sf-page .tx-quote { font-family: var(--ph-sans); }
 .sf-page .tx-why-fine { margin-top: 18px; font-size: 16px; line-height: 24px; }
 
-/* The lectures the sheet was checked against: three white cards that open into their fragments. */
+/* The lectures the sheet was checked against: three white cards that open into their fragments. On a
+   computer the section takes the page's width (PUB-12: a 760 px list had 540 px of empty canvas beside it):
+   its heading on the left, following the reader down an opened lecture, the cards on the right. */
 .sf-page .tx-lectures { max-width: 760px; margin-top: 64px; }
 .sf-page[data-frame='s'] .tx-lectures { margin-top: 44px; }
+.sf-page:is([data-frame='xl'], [data-frame='l']) .tx-lectures {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  column-gap: 48px;
+  align-items: start;
+  max-width: none;
+}
+.sf-page:is([data-frame='xl'], [data-frame='l']) .tx-lectures-head { position: sticky; top: 88px; }
+.sf-page:is([data-frame='xl'], [data-frame='l']) .tx-lecture-list { margin-top: 0; }
+/* An opened lecture keeps its lines readable in the wide card. */
+.sf-page .tx-frag-h,
+.sf-page .tx-frag-t { max-width: 46em; }
 .sf-page .tx-h2 { margin: 0; font-size: clamp(30px, 3vw, 40px); line-height: 1.08; font-weight: 500; letter-spacing: -.03em; }
 .sf-page .tx-sub { margin: 10px 0 0; max-width: 36em; font-size: 17px; line-height: 25px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .tx-lecture-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 22px; }

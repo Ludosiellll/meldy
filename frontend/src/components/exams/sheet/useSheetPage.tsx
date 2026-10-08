@@ -19,7 +19,7 @@ import {
 import { countBucket, track } from '../../../lib/telemetry';
 import type { PeakFlag } from '../peak';
 import type { FrameBox } from '../useFrame';
-import CheatSheet, { writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
+import CheatSheet, { topLineBottom, writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
 import { historyResult, LinePanel, SheetSummaryCard, SheetWriteCard, useUnitsLeft } from './SheetColumn';
 import { changeNote, changeSentence, counterLabel } from './copy';
 import { isSheetFontSettled, loadSheetFont } from './sheetFont';
@@ -41,12 +41,6 @@ const FRESH_SETTLE_MARGIN_MS = 400;
 const MAX_RUN_QUESTIONS = 60;
 /** A phone: the end of the after-answer show stays on screen this long over the bottom bar. */
 const CHIP_MS = 4500;
-
-/** The bottom of the page's top line, px from the window's top. */
-function topLineBottom(): number {
-  const bar = typeof document !== 'undefined' ? document.querySelector('.sf-bar') : null;
-  return bar ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
-}
 
 /** A phone: the paper's top under the top line (the history and the pen play there, not below the fold). */
 function paperTopIntoView(): void {
@@ -123,6 +117,10 @@ export interface SheetPageInput {
   unitsLeft?: number | null;
   /** (Almost) every question is in no lecture: the paper does not repeat that under each one (the status says it once). */
   quietGaps?: boolean;
+  /** The page's next step in the column's card, under what the last answer changed (the example: an exam of one's own). */
+  next?: ReactNode;
+  /** What «Скрыть строки, стёртые совсем» says while nothing is erased (the example names the answer that erases). */
+  onlyLeftNone?: string | null;
 }
 
 export interface SheetPage {
@@ -596,6 +594,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       onHistoryStop={() => (history?.running ? stopHistory() : setHistory(null))}
       onShow={side ? waitingShow : null}
       notice={data.peekSaveFailed ? <PeekNotice onRetry={data.retryPeeks} /> : null}
+      next={input.next}
+      onlyLeftNone={input.onlyLeftNone}
       variant={variant}
     />
   );

@@ -26,12 +26,29 @@ import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, answerableQuestions,
 import { parsePeakFlags, type PeakFlag } from '../exams/peak';
 import { loadSheetFont } from '../exams/sheet/sheetFont';
 import { useSheetView, type SheetLinks } from '../exams/sheet/useSheetPage';
+import { useAuth } from '../../hooks/useAuth';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import ExampleWhy from './ExampleWhy';
-import TryBar from './TryBar';
+import TryBar, { CREATE_ACCOUNT_LABEL, CREATE_EXAM_LABEL, ownExamHref, START_OWN_LABEL, useMinWidth } from './TryBar';
 import { EXAMPLE_ANSWER_QUESTION, TRY_VIEW_KEY, findTryAnswer, isSeededSession, takeTryPeak, useTrySheetData } from './trySheet';
 
 /** The honest note of the example (the owner's brief, word for word). */
 export const EXAMPLE_NOTE = 'Пример: три лекции и список вопросов уже сверены. В своём экзамене это сделает Meldy по вашим лекциям.';
+
+/**
+ * Where the example's answers go (PUB-3): the text of an answer goes to Meldy's server and to Google Gemini for
+ * the check (tryCheck.ts, backend try_api.py) and is kept nowhere; the answers are remembered by this tab only.
+ * The same words as the answer screen's privacy line.
+ */
+export const EXAMPLE_ANSWERS_NOTE =
+  'Для проверки текст ответа отправляется на сервер Meldy и в ИИ-сервис Google Gemini. Meldy его не сохраняет: ваши ответы примера помнит только эта вкладка.';
+
+/** The example's scripted moment (PUB-15): question 5 was answered yesterday, so naming its points again erases them. */
+export const ANSWER_Q5_LABEL = 'Ответить на вопрос 5';
+/** After the guest's answer (PUB-18): what their own exam starts with, beside «Начать со своего списка». */
+export const OWN_EXAM_LINE = 'Это был пример. В своём экзамене вы вставите список вопросов кафедры и добавите свои лекции.';
+/** «Скрыть строки, стёртые совсем» while nothing is erased: which answer erases lines here (PUB-16). */
+export const ONLY_LEFT_NONE_TRY = `Таких строк пока нет: ответьте на вопрос${NBSP}5`;
 
 const WHY_ID = 'tx-why';
 
@@ -79,8 +96,12 @@ const FILTERS: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string
  * mark, the lectures themselves to read, and «Тянуть билет».
  */
 export default function ExampleSheet() {
+  useDocumentTitle('Пример экзамена');
   const navigate = useNavigate();
+  const { user } = useAuth();
   const frame = useFrame<HTMLDivElement>();
+  // «Начать со своего списка» fits a full-width pill from 360 px; a smaller phone gets «Создать аккаунт».
+  const roomy = useMinWidth(360);
   const [params, setParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<SheetFilter>('all');
@@ -100,6 +121,26 @@ export default function ExampleSheet() {
     peakFlags.current = parsePeakFlags(takeTryPeak());
   }, []);
   const sheetData = useTrySheetData();
+  // The guest has answered (yesterday's answers of the example are not theirs): the next step is an exam of
+  // their own (PUB-18); until then it is the scripted answer to question 5 (PUB-15).
+  const answered = sheetData.events.some((event) => event.session_id !== null && !isSeededSession(event.session_id));
+  const ownLink = (
+    <Link className="sf-primary tx-own-go" to={ownExamHref(Boolean(user))}>
+      {user ? CREATE_EXAM_LABEL : roomy ? START_OWN_LABEL : CREATE_ACCOUNT_LABEL}
+    </Link>
+  );
+  const ownExam = (
+    <div className="tx-own">
+      <p className="ex-stmt">{glue(OWN_EXAM_LINE)}</p>
+      <div className="tx-own-go-row">{ownLink}</div>
+    </div>
+  );
+  // The column's own filled pill («Ответить на этот вопрос» of a line or of «почему») takes the place of this one.
+  const q5Link = (filled: boolean) => (
+    <Link className={`${filled ? 'sf-primary' : 'ex-secondary'} tx-q5`} to={`/try/ticket?q=${EXAMPLE_ANSWER_QUESTION}`}>
+      {ANSWER_Q5_LABEL}
+    </Link>
+  );
   const sheetPage = useSheetView(
     {
       examId: EXAMPLE_EXAM.id,
@@ -120,6 +161,9 @@ export default function ExampleSheet() {
       openQuestionId: onSheet ? selectedId : null,
       questionPanelId: WHY_ID,
       links: TRY_LINKS,
+      // A computer: the guest's own exam in the column's card, under what their answer changed (a phone has it in the bar).
+      next: frame.side && answered ? ownExam : null,
+      onlyLeftNone: ONLY_LEFT_NONE_TRY,
     },
     sheetData,
   );
@@ -204,8 +248,9 @@ export default function ExampleSheet() {
         <p className="ex-fine">Билет — один вопрос, поэтому доля билетов та же.</p>
         <p className="ex-caveat">{glue(caveatSentence(shares, counts.total))}</p>
       </div>
+      {frame.side && answered ? <div className="ex-blk tx-own-blk">{ownExam}</div> : null}
       <div className="ex-blk">
-        <p className="ex-stmt">Ответы примера не уходят на сервер: их помнит только эта вкладка.</p>
+        <p className="ex-stmt tx-privacy">{glue(EXAMPLE_ANSWERS_NOTE)}</p>
         <p className="ex-fine">
           {glue(`В своём экзамене вопрос подтверждается, когда дважды, в разные дни, в ответе на него названо достаточно пунктов. Тянуть билет можно из ${answerable} ${pluralRu(answerable, ['вопроса', 'вопросов', 'вопросов'])} примера, которые есть в лекциях.`)}
         </p>
@@ -228,13 +273,33 @@ export default function ExampleSheet() {
     ) : null;
 
   // While «почему» or a line offers «Ответить на этот вопрос» beside the sheet, that is the one filled
-  // pill and «Тянуть билет» steps down to the white one (the real sheet's rule, ExamDetail).
+  // pill and «Тянуть билет» steps down to the white one (the real sheet's rule, ExamDetail). So it does
+  // beside the scripted «Ответить на вопрос 5» under the caption (a random draw rarely gives question 5),
+  // and beside the guest's own exam once they have answered.
   const whyAnswers = frame.side && selected !== null && selected.coverage !== 'none';
-  const drawSteps = whyAnswers || (onSheet && sheetPage.primaryInColumn);
+  const columnPrimary = whyAnswers || (onSheet && sheetPage.primaryInColumn);
+  const q5Pill = frame.side && onSheet && !answered;
+  const ownInColumn = frame.side && answered && selected === null && !(onSheet && sheetPage.lineOpen);
+  const drawSteps = columnPrimary || q5Pill || ownInColumn;
   const drawButton = (
     <button type="button" className={drawSteps ? 'ex-secondary' : 'sf-primary'} onClick={draw}>
       Тянуть билет
     </button>
+  );
+  // A phone's bar at the bottom: the step the page is about now — question 5 on the sheet, then the guest's own
+  // exam — with the random draw as a quiet line under it; «Тянуть билет» itself everywhere else.
+  const barMain = answered ? ownLink : onSheet ? q5Link(true) : null;
+  const bar = barMain ? (
+    <>
+      {barMain}
+      <p className="ex-cta-alt">
+        <button type="button" className="sf-link" data-muted="" onClick={draw}>
+          {answered ? 'Тянуть ещё билет' : 'Тянуть случайный билет'}
+        </button>
+      </p>
+    </>
+  ) : (
+    drawButton
   );
 
   const viewTabs = (
@@ -267,32 +332,34 @@ export default function ExampleSheet() {
 
   // Yesterday's answers of the example, said plainly above the paper (sheet spec 4.3); the guest who
   // answered or peeked can start the example again (a rehearsal must not use up the show).
-  const touched = sheetData.events.some((event) => event.kind === 'sheet_peek' || (event.session_id !== null && !isSeededSession(event.session_id)));
+  const touched = answered || sheetData.events.some((event) => event.kind === 'sheet_peek');
+  // The scripted moment is a pill of its own under the caption (PUB-15): an inline link in three lines of text
+  // lost to «Тянуть билет», and its «5» stood alone on the next line (PUB-14).
   const sheetCaption = (
-    <p className="tx-sheet-cap">
-      {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. ')}
-      <Link className="sf-ref" to={`/try/ticket?q=${EXAMPLE_ANSWER_QUESTION}`}>
-        Ответьте на вопрос 5
-      </Link>
-      {glue(' — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.')}
-      {touched ? (
-        <>
-          {' '}
-          <button
-            type="button"
-            className="sf-link tx-restart"
-            data-muted=""
-            onClick={() => {
-              sheetData.restart();
-              // The button goes with the guest's answers: the keyboard goes to «Ответьте на вопрос 5».
-              window.setTimeout(() => document.querySelector<HTMLElement>('.tx-sheet-cap a')?.focus(), 0);
-            }}
-          >
-            Начать пример заново
-          </button>
-        </>
-      ) : null}
-    </p>
+    <>
+      <p className="tx-sheet-cap">
+        {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. ')}
+        {glue(`Ответьте на вопрос${NBSP}5 — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.`)}
+        {touched ? (
+          <>
+            {' '}
+            <button
+              type="button"
+              className="sf-link tx-restart"
+              data-muted=""
+              onClick={() => {
+                sheetData.restart();
+                // The button goes with the guest's answers: the keyboard goes to «Ответить на вопрос 5».
+                window.setTimeout(() => document.querySelector<HTMLElement>('.tx-q5')?.focus(), 0);
+              }}
+            >
+              Начать пример заново
+            </button>
+          </>
+        ) : null}
+      </p>
+      {q5Pill ? <div className="tx-sheet-go">{q5Link(!columnPrimary)}</div> : null}
+    </>
   );
   const sheetColumn = selected ? whyPanel('column') : sheetPage.column;
 
@@ -313,7 +380,7 @@ export default function ExampleSheet() {
         {/* The note is about the list checked in advance; the sheet's own caption says what is set up there. */}
         {onSheet ? null : (
           <div className="ex-notes">
-            <p className="ex-note tx-note">{EXAMPLE_NOTE}</p>
+            <p className="ex-note tx-note">{glue(EXAMPLE_NOTE)}</p>
           </div>
         )}
 
@@ -366,7 +433,7 @@ export default function ExampleSheet() {
                       );
                     })}
                   </ul>
-                  <p className="tx-sheet-hint">Нажмите на вопрос, чтобы увидеть, где в лекциях ответ на него.</p>
+                  <p className="tx-sheet-hint">{glue('Нажмите на вопрос, чтобы увидеть, где в лекциях ответ на него.')}</p>
                   <ExamSheet
                     examId={EXAMPLE_EXAM.id}
                     title={EXAMPLE_EXAM.sheetTitle}
@@ -402,7 +469,7 @@ export default function ExampleSheet() {
 
         <ExampleLectures />
 
-        {!frame.side ? <div className="ex-cta">{drawButton}</div> : null}
+        {!frame.side ? <div className="ex-cta tx-cta">{bar}</div> : null}
       </div>
     </>
   );
@@ -412,10 +479,12 @@ export default function ExampleSheet() {
 function ExampleLectures() {
   return (
     <section className="tx-lectures" aria-labelledby="tx-lectures-h">
-      <h2 id="tx-lectures-h" className="tx-h2">
-        Лекции примера
-      </h2>
-      <p className="tx-sub">Все цитаты из лекций взяты из этих текстов слово в слово.</p>
+      <div className="tx-lectures-head">
+        <h2 id="tx-lectures-h" className="tx-h2">
+          Лекции примера
+        </h2>
+        <p className="tx-sub">{glue('Все цитаты из лекций взяты из этих текстов слово в слово. Откройте лекцию, чтобы прочитать её фрагменты.')}</p>
+      </div>
       <div className="tx-lecture-list">
         {EXAMPLE_LECTURES.map((lecture) => (
           <details key={lecture.key} className="tx-lecture">

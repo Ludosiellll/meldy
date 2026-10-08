@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AI_USAGE_EVENT, checkAILimit, formatLimitReset, nextLimitReset } from '../../../api/limits';
 import type { SheetWriteState } from '../../../api/cheatSheet';
@@ -17,10 +17,10 @@ import {
   linesWord,
   priceLine,
   questionsWord,
-  SHEET_RULE,
   writtenLabel,
 } from './copy';
 import type { SheetViewMode } from './CheatSheet';
+import { SheetRule } from './SheetLegend';
 import type { SheetLinks } from './useSheetPage';
 
 /**
@@ -115,20 +115,85 @@ export interface SheetSummaryProps {
   /** A word that something went wrong (a peek not saved), under the change. */
   notice?: ReactNode;
   /**
-   * full — the column beside the sheet; on a phone the card is cut in two: top — the count and «Только
-   * то, что осталось» in one row above the paper (the paper's lines on the first screen), after — what
-   * the count means, the last answer's change, the rule, the share, the self-test, the last answer and
-   * the history under it.
+   * The page's next step after the change (the example: its own exam after the guest's answer), between
+   * what the answer changed and the rule; the column's card only.
+   */
+  next?: ReactNode;
+  /**
+   * What «Скрыть строки, стёртые совсем» says while no line is erased (the example: which answer erases
+   * them); by default ONLY_LEFT_NONE.
+   */
+  onlyLeftNone?: string | null;
+  /**
+   * full — the column beside the sheet; on a phone the card is cut in two: top — the count and «Скрыть
+   * строки, стёртые совсем» in one row above the paper (the paper's lines on the first screen), after —
+   * what the count means, the last answer's change, the rule, the share, the self-test, the last answer
+   * and the history under it.
    */
   variant?: 'full' | 'top' | 'after';
 }
 
-function Toggle({ label, on, onChange, hint }: { label: string; on: boolean; onChange: (on: boolean) => void; hint?: string }) {
+/** «Скрыть строки, стёртые совсем»: hides the erased lines and folds a question with nothing left (spec 4.1). */
+export const ONLY_LEFT_LABEL = 'Скрыть строки, стёртые совсем';
+/** Said under it while no line is erased yet, so the switch does not seem to do nothing (PUB-16). */
+export const ONLY_LEFT_NONE = 'Таких строк пока нет';
+/** «Спрятать строки» (spec 7.3), and under it what it is for: a newcomer read the name as «удалить». */
+export const COVER_LABEL = 'Спрятать строки';
+export const COVER_HINT = 'и проверить, что помните их';
+/**
+ * «Вся шпаргалка» (spec 7.4) is a zoom, not a third filter beside «Скрыть строки…» (EX-14: it read as
+ * «show all»): a quiet button with a magnifier by the card's flag, named by what it does.
+ */
+export const ZOOM_IN_LABEL = 'Весь лист на экране';
+export const ZOOM_OUT_LABEL = 'Обычный размер';
+
+interface ToggleProps {
+  label: string;
+  on: boolean;
+  onChange: (on: boolean) => void;
+  /** Under the label, smaller, for everyone (it was only a `title`, which a phone never shows). */
+  hint?: string | null;
+  /** The switch cannot be turned now: why, in place of the hint. It stays a stop of the keyboard. */
+  unavailable?: string | null;
+}
+
+function Toggle({ label, on, onChange, hint, unavailable }: ToggleProps) {
+  const id = useId();
+  const note = unavailable ?? hint ?? null;
   return (
-    <button type="button" className="cs-toggle" role="switch" aria-checked={on} onClick={() => onChange(!on)} title={hint}>
+    <button
+      type="button"
+      className="cs-toggle"
+      role="switch"
+      aria-checked={unavailable ? false : on}
+      aria-disabled={unavailable ? true : undefined}
+      aria-describedby={note ? id : undefined}
+      onClick={() => {
+        if (!unavailable) onChange(!on);
+      }}
+    >
       <span className="cs-toggle-box" aria-hidden="true" />
-      <span className="cs-toggle-t">{label}</span>
+      <span className="cs-toggle-text">
+        <span className="cs-toggle-t">{label}</span>
+        {/* The name is the label; the note is the switch's description (and seen under it). */}
+        {note && (
+          <span className="cs-toggle-hint" id={id} aria-hidden="true">
+            {glue(note)}
+          </span>
+        )}
+      </span>
     </button>
+  );
+}
+
+/** A magnifier with a minus (the whole sheet, smaller) or a plus (back to its size). */
+function ZoomIcon({ out }: { out: boolean }) {
+  return (
+    <svg className="cs-zoom-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M15.5 15.5 20 20M7.5 10.5h6" />
+      {out ? null : <path d="M10.5 7.5v6" />}
+    </svg>
   );
 }
 
@@ -146,6 +211,8 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
   const countLabel = firstLines ? writtenLabel(counts.total) : counterLabel({ left: shownLeft, total: shownTotal });
   const countValue = firstLines ? counts.total : shownLeft;
   const playing = Boolean(history?.running);
+  // Nothing erased yet: «Скрыть строки, стёртые совсем» would change nothing — it says so instead (PUB-16).
+  const onlyLeftNone = counts.erased === 0 ? (props.onlyLeftNone ?? ONLY_LEFT_NONE) : null;
 
   // The keyboard follows the buttons that replace each other («История шпаргалки» → «Остановить» →
   // «Закрыть историю» → «История шпаргалки»), when it stood on them (not when it is elsewhere).
@@ -211,7 +278,17 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
   );
   return (
     <div className="ex-summary cs-sum" data-variant={variant} id={props.id} tabIndex={props.id ? -1 : undefined} ref={rootRef}>
-      {variant === 'full' && <p className="ex-why-t cs-flag">Шпаргалка</p>}
+      {variant === 'full' && (
+        <div className="cs-head">
+          <p className="ex-why-t cs-flag">Шпаргалка</p>
+          {counts.total > 0 && !playing && (
+            <button type="button" className="cs-zoom" onClick={() => onMode({ ...mode, zoom: !mode.zoom })}>
+              <ZoomIcon out={!mode.zoom} />
+              {mode.zoom ? ZOOM_OUT_LABEL : ZOOM_IN_LABEL}
+            </button>
+          )}
+        </div>
+      )}
       {showCount && (
         <div className="cs-count">
           <span className="ex-big cs-big" aria-hidden="true">
@@ -222,10 +299,10 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
           </span>
           {/* Read in place, whole; what changed is told once, by the page's status line, not by every new number. */}
           <span className="sr-only">{`${countValue} ${countLabel}`}</span>
-          {/* A phone: the one switch beside the count, in the same row. */}
-          {variant === 'top' && counts.total > 0 && !playing && (
+          {/* A phone: the one switch beside the count, in the same row — once there is something for it to hide. */}
+          {variant === 'top' && counts.total > 0 && !playing && !onlyLeftNone && (
             <span className="cs-count-switch">
-              <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />
+              <Toggle label={ONLY_LEFT_LABEL} on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />
             </span>
           )}
         </div>
@@ -234,14 +311,14 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
       {explains && props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
       {explains && props.changeLine && props.changeNote && !history && <p className="cs-change-note">{glue(props.changeNote)}</p>}
       {explains && props.notice}
-      {/* The promise stays on screen after the first-use tip: what erases the lines. */}
-      {explains && counts.total > 0 && !history && <p className="cs-rule">{glue(SHEET_RULE)}</p>}
+      {variant === 'full' && props.next && !history && <div className="cs-next">{props.next}</div>}
+      {/* The promise stays on screen after the first-use tip: what erases the lines, and how such a line looks. */}
+      {explains && counts.total > 0 && !history && <SheetRule />}
       {explains && props.shareLine && !history && <p className="cs-share">{glue(props.shareLine)}</p>}
       {counts.total > 0 && !playing && variant !== 'top' && (
         <div className="cs-toggles">
-          {variant === 'full' && <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />}
-          <Toggle label="Спрятать строки" on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint="Спрятать читаемые строки и вспомнить их по памяти" />
-          {variant === 'full' && <Toggle label="Вся шпаргалка" on={mode.zoom} onChange={(on) => onMode({ ...mode, zoom: on })} />}
+          {variant === 'full' && <Toggle label={ONLY_LEFT_LABEL} on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} unavailable={onlyLeftNone} />}
+          <Toggle label={COVER_LABEL} on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint={mode.cover ? null : COVER_HINT} />
         </div>
       )}
       {mode.cover && variant !== 'top' && !playing && <p className="cs-sub cs-cover-note">Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.</p>}

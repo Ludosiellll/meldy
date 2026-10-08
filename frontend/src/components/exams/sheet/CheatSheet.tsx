@@ -12,7 +12,8 @@ import {
   type RefObject,
 } from 'react';
 import { Link } from 'react-router-dom';
-import type { LineChange, LineState, LineStatus, SheetBlock, SheetLine } from '../../../lib/exams/cheatSheet';
+import { localDayOf, type LineChange, type LineState, type LineStatus, type SheetBlock, type SheetLine } from '../../../lib/exams/cheatSheet';
+import { formatShortDay } from '../../../lib/exams/format';
 import { MarginStroke, Mark, PencilUnder, seedFrom } from '../../marks';
 import { usePrefersReducedMotion } from '../../landing/usePrefersReducedMotion';
 import { glue, NBSP } from '../sheetModel';
@@ -229,9 +230,12 @@ async function bringIntoView(element: HTMLElement, smooth: boolean, signal: Sign
   });
 }
 
-/** The bottom of the page's top line (it stays over the page), px from the window's top. */
-function topLineBottom(): number {
-  const bar = typeof document !== 'undefined' ? document.querySelector('.sf-bar') : null;
+/**
+ * The bottom of the page's top line (it stays over the page), px from the window's top: the app's line
+ * (.sf-bar) or a room's own (.sf-room-bar: the example /try, the draw and the answer).
+ */
+export function topLineBottom(): number {
+  const bar = typeof document !== 'undefined' ? document.querySelector('.sf-bar, .sf-room-bar') : null;
   return bar ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
 }
 
@@ -263,10 +267,15 @@ function useRows(text: RefObject<HTMLElement>, active: boolean, content: string)
       return undefined;
     }
     let frame = 0;
+    // The body's size the rows were measured at.
+    let size = { width: -1, height: -1 };
     const measure = () => {
+      size = { width: host.offsetWidth, height: host.offsetHeight };
       const box = host.getBoundingClientRect();
       const scale = host.offsetWidth > 0 && box.width > 0 ? box.width / host.offsetWidth : 1;
       const row = parseFloat(getComputedStyle(host).getPropertyValue('--cs-row')) || 24;
+      // No strip reaches past the line's own body (its column): words never lie outside it.
+      const limit = host.offsetWidth > 0 ? host.offsetWidth : Number.POSITIVE_INFINITY;
       // One strip per grid row: an arrow drawn in ink is a box of its own, and the words around it are
       // more rects on the same row — strips per rect overlapped, and their seams showed lighter.
       const byRow = new Map<number, { left: number; right: number }>();
@@ -274,8 +283,9 @@ function useRows(text: RefObject<HTMLElement>, active: boolean, content: string)
         if (rect.width <= 0 || rect.height <= 0) continue;
         const middle = (rect.top + rect.height / 2 - box.top) / scale;
         const top = Math.max(0, Math.floor(middle / row) * row);
-        const left = (rect.left - box.left) / scale;
-        const right = left + rect.width / scale;
+        const left = Math.max(0, (rect.left - box.left) / scale);
+        const right = Math.min(limit, (rect.left - box.left + rect.width) / scale);
+        if (right <= left) continue;
         const seen = byRow.get(top);
         byRow.set(top, seen ? { left: Math.min(seen.left, left), right: Math.max(seen.right, right) } : { left, right });
       }
@@ -293,14 +303,12 @@ function useRows(text: RefObject<HTMLElement>, active: boolean, content: string)
     measure();
     let observer: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      // A new observer reports the size it starts with: that one is measured above already (a second
-      // measure of every patched line would lay a long sheet out once more).
-      let initial = true;
+      // A new observer reports the size it starts with. When that is the size measured above, nothing is
+      // measured again (a second measure of every patched line would lay a long sheet out once more); a
+      // body that changed in between — the paper laid out in its columns after this line first measured
+      // its words (EX-18: one strip 671 px wide under a line of three rows, over the next column) — is.
       observer = new ResizeObserver(() => {
-        if (initial) {
-          initial = false;
-          return;
-        }
+        if (host.offsetWidth === size.width && host.offsetHeight === size.height) return;
         schedule();
       });
       observer.observe(host);
@@ -331,13 +339,19 @@ interface LineViewProps {
   covered: boolean;
   /** A pencil note that appears or goes during the show: its row is kept, empty, so nothing below moves. */
   reserve: string | null;
+  /**
+   * The first rubbed and the first erased line of the sheet say in pencil what their look means (EX-17):
+   * «стёрта наполовину: назван 7 окт.». Its row is there all along; the words show once the line is
+   * drawn in the state they describe (not while a show still draws it as it was).
+   */
+  explain: string | null;
   /** «Вся шпаргалка»: not a stop of the keyboard (a question is picked by its printed line). */
   inert: boolean;
   reduced: boolean;
   onLine: (line: SheetLine, block: SheetBlock) => void;
 }
 
-const LineView = memo(function LineView({ line, block, status, motion, selected, peeked, covered, reserve, inert, reduced, onLine }: LineViewProps) {
+const LineView = memo(function LineView({ line, block, status, motion, selected, peeked, covered, reserve, explain, inert, reduced, onLine }: LineViewProps) {
   const [rubNote, setRubNote] = useState<{ top: number; left: number | null } | null>(null);
   const pointer = useRef<{ x: number; moved: boolean } | null>(null);
   const timer = useRef<number | null>(null);
@@ -408,19 +422,21 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
   const patched = PATCHED.has(state);
   const rows = useRows(textRef, patched || covered, line.text);
   // The note keeps its row under a hidden line too (hidden with it): the self-test does not move the sheet.
-  const note = lineNote(status, peeked);
+  const lineOwn = lineNote(status, peeked);
+  const explained = !lineOwn && explain && status.state === line.status.state ? explain : null;
+  const note = lineOwn ?? explained;
 
   // A note that appears under the eye (after «Подсмотреть») opens its row instead of pushing the sheet down at once.
   const [noteEnters, setNoteEnters] = useState(false);
-  const hadNote = useRef(Boolean(note));
+  const hadNote = useRef(Boolean(note) || Boolean(explain));
   useLayoutEffect(() => {
     const had = hadNote.current;
-    hadNote.current = Boolean(note);
+    hadNote.current = Boolean(note) || Boolean(explain);
     if (had || !note || !peeked || reduced) return undefined;
     setNoteEnters(true);
     const end = window.setTimeout(() => setNoteEnters(false), 260);
     return () => window.clearTimeout(end);
-  }, [note, peeked, reduced]);
+  }, [note, explain, peeked, reduced]);
 
   const shown = motion ?? (recover ? { anim: 'rub' as const, delay: 0, ms: RECOVER_MS } : null);
   const wave = state === 'missed' || state === 'returned';
@@ -435,7 +451,7 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
     </span>
   );
   const drawWave = shown?.anim === 'miss' || shown?.anim === 'return';
-  const shownNote = note ?? reserve;
+  const shownNote = note ?? reserve ?? explain;
   return (
     <li
       ref={itemRef}
@@ -510,7 +526,7 @@ const LineView = memo(function LineView({ line, block, status, motion, selected,
       {selected && <MarginStroke seed={seedFrom(line.key, 'selected')} />}
       {/* The line's name or description says the note already: here it is for the eye only. */}
       {shownNote && (
-        <p className="cs-note" data-kind={peeked ? 'peek' : state} data-reserve={note ? undefined : ''} data-enter={noteEnters ? '' : undefined} aria-hidden="true">
+        <p className="cs-note" data-kind={peeked ? 'peek' : explained ? 'explain' : state} data-reserve={note ? undefined : ''} data-enter={noteEnters ? '' : undefined} aria-hidden="true">
           {shownNote}
         </p>
       )}
@@ -537,6 +553,8 @@ interface BlockViewProps {
   motions: ReadonlyMap<string, Motion>;
   /** Notes whose rows are kept while the show plays. */
   reserves: ReadonlyMap<string, string>;
+  /** The lines that say what their look means (the first rubbed and the first erased of the sheet). */
+  explained: ReadonlyMap<string, string>;
   /** Erased lines that stay in view under «Только то, что осталось» (the last answer erased them). */
   kept: ReadonlySet<string>;
   tickDelay: number | null;
@@ -568,6 +586,7 @@ const BlockView = memo(function BlockView({
   statuses,
   motions,
   reserves,
+  explained,
   kept,
   tickDelay,
   tickOut,
@@ -654,6 +673,7 @@ const BlockView = memo(function BlockView({
                   peeked={peekedNow}
                   covered={mode.cover && READABLE.has(status.state) && !opened.has(line.key) && !peekedNow}
                   reserve={reserves.get(line.key) ?? null}
+                  explain={explained.get(line.key) ?? null}
                   inert={mode.zoom}
                   reduced={reduced}
                   onLine={onLine}
@@ -701,6 +721,43 @@ const NO_ZOOM: Zoom = { columns: 0, scale: 1, width: 0, height: 0, offset: 0 };
 function isNoneGap(block: SheetBlock): boolean {
   return block.kind === 'gap' && block.coverage === 'none';
 }
+
+/** «стёрта наполовину: назван 7 окт.», «стёрта совсем: назван в разные дни» (EX-17); else null. */
+export function explainNote(status: LineStatus): string | null {
+  if (status.state === 'erased') return 'стёрта совсем: назван в разные дни';
+  if (status.state !== 'rubbed') return null;
+  const last = [...status.history].reverse().find((event) => event.outcome === 'named') ?? null;
+  const time = last ? Date.parse(last.at) : Number.NaN;
+  const day = last ? (Number.isFinite(time) ? localDayOf(time) : last.date) : null;
+  const when = day ? formatShortDay(day).replace(/ /g, NBSP) : '';
+  return when ? `стёрта наполовину: назван ${when}` : 'стёрта наполовину: назван';
+}
+
+/**
+ * The first rubbed and the first erased line of the sheet, in the department's order (down the first column,
+ * then the second), with what they say. `shownErased`: under «Скрыть строки, стёртые совсем» the erased lines
+ * still in view (the ones the last answer erased); null when every line is shown.
+ */
+export function explainedLines(blocks: readonly SheetBlock[], shownErased: ReadonlySet<string> | null): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  const wanted = new Set<LineState>(['rubbed', 'erased']);
+  for (const block of blocks) {
+    for (const line of block.lines) {
+      const state = line.status.state;
+      if (!wanted.has(state)) continue;
+      if (state === 'erased' && shownErased && !shownErased.has(line.key)) continue;
+      // A line uncovered today says so; the next one of its kind explains.
+      if (lineNote(line.status)) continue;
+      const note = explainNote(line.status);
+      if (!note) continue;
+      out.set(line.key, note);
+      wanted.delete(state);
+    }
+    if (wanted.size === 0) break;
+  }
+  return out;
+}
+
 const NO_NOTES: ReadonlyMap<string, string> = new Map();
 const NO_MARKERS: ReadonlyMap<string, 'draw' | 'still'> = new Map();
 const NO_TIMES: ReadonlyMap<string, number> = new Map();
@@ -742,6 +799,10 @@ export default function CheatSheet({
   const wrapRef = useRef<HTMLElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  // The questions are laid out once the paper's width is known: a line that measured its rows of words
+  // in a paper of one column, before the paper had its two, kept strips as wide as the whole paper
+  // (EX-18). The width is read before the first paint, so nothing is seen without its questions.
+  const [sized, setSized] = useState(false);
   // The page waits for the font before it shows the paper (useSheetView): then it is ready at once.
   const [fontReady, setFontReady] = useState(isSheetFontSettled);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -788,6 +849,7 @@ export default function CheatSheet({
     if (!element) return undefined;
     const measure = () => setWidth((previous) => (previous === element.clientWidth ? previous : element.clientWidth));
     measure();
+    setSized(true);
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -798,6 +860,10 @@ export default function CheatSheet({
 
   // The question that starts the second column, held while the sheet is being written.
   const secondStart = useRef<string | null>(null);
+
+  // The first rubbed and the first erased line the eye meets say in pencil what their look means (EX-17:
+  // a rubbed line read as a page in a broken encoding). A line with a note of its own keeps it.
+  const explained = useMemo(() => explainedLines(blocks, mode.onlyLeft ? kept : null), [blocks, mode.onlyLeft, kept]);
 
   // Section titles and notes, and each block's height in grid rows. While a run writes the sheet,
   // «Ещё не написано» does not appear under every question at once: it waits for the run's end.
@@ -815,10 +881,10 @@ export default function CheatSheet({
     const metrics = rowMetrics(geometry.column);
     const estimate = estimateRows(blocks, metrics);
     const rows = items.map((item) =>
-      blockRows(item.block, metrics, { hideErased: mode.onlyLeft, keep: kept, note: item.note, heading: Boolean(item.heading), estimate }),
+      blockRows(item.block, metrics, { hideErased: mode.onlyLeft, keep: kept, note: item.note, heading: Boolean(item.heading), estimate, explained }),
     );
     return { items, rows };
-  }, [blocks, sectionTitles, writeNotes, lectureCount, quietGaps, anyWritten, geometry.column, mode.onlyLeft, kept]);
+  }, [blocks, sectionTitles, writeNotes, lectureCount, quietGaps, anyWritten, geometry.column, mode.onlyLeft, kept, explained]);
 
   // The split into columns by the blocks' heights. A question still to be written counts as tall as the
   // written ones, so the split hardly moves when it gets its lines; while the writing goes on (and while
@@ -1142,7 +1208,7 @@ export default function CheatSheet({
             {stamp}
           </p>
         )}
-        {laid.map((column, index) => (
+        {(sized ? laid : []).map((column, index) => (
           // A column is the same column while its first question is: blocks that stay do not remount (and the keyboard stays on them).
           <div className="cs-col" key={column[0]?.block.questionId ?? `empty-${index}`}>
             {column.map(({ block, heading, note }) => (
@@ -1156,6 +1222,7 @@ export default function CheatSheet({
                 statuses={overrides}
                 motions={motions}
                 reserves={reserves}
+                explained={explained}
                 kept={kept}
                 tickDelay={ticks.get(block.questionId) ?? null}
                 tickOut={unticks.get(block.questionId) ?? null}
