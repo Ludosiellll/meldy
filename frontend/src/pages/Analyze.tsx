@@ -147,8 +147,9 @@ function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?
   };
 }
 
+/** A link or a button inside a line of the results' notes; on a phone an ink link (Analyze.css: no blue links there). */
 const INLINE_ACTION =
-  'min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:opacity-60';
+  'az-inline-act min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:opacity-60';
 
 export default function Analyze() {
   useDocumentTitle('Разобрать лекцию');
@@ -514,7 +515,7 @@ export default function Analyze() {
       {save.status === 'existing' && save.materialId && (
         <p>
           Этот результат не сохранён: демо-материал уже есть в библиотеке.{' '}
-          <Link to={`/library/${save.materialId}`} className="font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">
+          <Link to={`/library/${save.materialId}`} className="az-inline-act font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">
             Открыть его
           </Link>
         </p>
