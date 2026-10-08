@@ -264,22 +264,21 @@ describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
     expect(confirmedCountWords(21, 40).replace(/\u00a0/g, ' ')).toBe('21 вопрос из 40');
   });
 
-  it('what asks for an answer now stays in sight: «Пора проверить» and «Второй ответ после разбора», a muted line each under the count', () => {
+  it('what asks for an answer now stays in sight: «Пора проверить», a muted line under the count; «Второй ответ после разбора» waits in «Как считается»', () => {
     const second = 'Второй ответ после разбора: по 3 вопросам в первый раз раскрыто 40 % пунктов, во второй — 70 %.';
     const stale = 'Пора проверить: 2 — подтверждены больше 14 дней назад.';
     const { container } = phone({ readiness: { ...answers, staleLine: stale, secondAnswer: second } });
     expect(Array.from(container.querySelectorAll('.ex-psum-line')).map((item) => plain(item.textContent))).toEqual([
       'Подтверждено ответами — 7 вопросов из 40',
       stale,
-      second,
     ]);
-    expect(container.querySelectorAll('.ex-psum-note')).toHaveLength(2);
+    expect(container.querySelectorAll('.ex-psum-note')).toHaveLength(1);
     cleanup();
-    // Not said twice behind «Как считается».
+    // «Пора проверить» is not said twice; the figure about past answers is behind «Как считается».
     const open = phone({ open: true, readiness: { ...answers, staleLine: stale, secondAnswer: second } });
     const panel = open.container.querySelector('#how') as HTMLElement;
     expect(plain(panel.textContent)).not.toContain('Пора проверить');
-    expect(plain(panel.textContent)).not.toContain('Второй ответ после разбора');
+    expect(plain(panel.textContent)).toContain(second);
   });
 
   it('open: the facts of the meta line, the numbers, the action line, the assumption, the formulas, then what «подтверждено» means — the legend is «Обозначения» over the list', () => {

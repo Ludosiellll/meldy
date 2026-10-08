@@ -2005,7 +2005,7 @@ describe('ExamDetail on a phone: what the critics found (2026-10-08)', () => {
     expect(plain(document.querySelector('.ex-sheet-hint')?.textContent)).toBe('Нажмите на вопрос — увидите, где он в лекциях');
   });
 
-  it('what asks for an answer stays in sight: «Пора проверить» and «Второй ответ после разбора» under the answers’ count', async () => {
+  it('what asks for an answer stays in sight: «Пора проверить» under the answers’ count; «Второй ответ после разбора» in «Как считается»', async () => {
     setPhone();
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-20), true, 's1'), answer(1, dayKey(-18), true, 's2')]);
@@ -2013,17 +2013,16 @@ describe('ExamDetail on a phone: what the critics found (2026-10-08)', () => {
     renderDetail();
     await opened();
     const summary = screen.getByRole('region', { name: 'Сводка' });
-    await waitFor(() => expect(summary.querySelectorAll('.ex-psum-line')).toHaveLength(3));
+    await waitFor(() => expect(summary.querySelectorAll('.ex-psum-line')).toHaveLength(2));
     expect(Array.from(summary.querySelectorAll('.ex-psum-line')).map((item) => plain(item.textContent))).toEqual([
       'Подтверждено ответами — 1 вопрос из 40',
       'Пора проверить: 1 — подтверждён больше 14 дней назад.',
-      'Второй ответ после разбора: по 1 вопросу в первый раз раскрыто 50 % пунктов, во второй — 100 %.',
     ]);
-    // Not behind «Как считается» a second time.
+    // «Пора проверить» is not repeated behind «Как считается»; the figure about past answers waits there.
     fireEvent.click(within(summary).getByRole('button', { name: 'Как считается' }));
     const panel = summary.querySelector('.ex-psum-calc') as HTMLElement;
     expect(plain(panel.textContent)).not.toContain('Пора проверить');
-    expect(plain(panel.textContent)).not.toContain('Второй ответ после разбора');
+    await waitFor(() => expect(plain(panel.textContent)).toContain('Второй ответ после разбора: по 1 вопросу в первый раз раскрыто 50 % пунктов, во второй — 100 %.'));
   });
 
   it('the filter shows no tab with 0 on a phone and keeps the marks before its words; the computer keeps «нет … 0»', async () => {

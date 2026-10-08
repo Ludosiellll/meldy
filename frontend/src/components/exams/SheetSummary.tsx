@@ -395,10 +395,10 @@ export function confirmedCountWords(confirmed: number, total: number): string {
 
 /**
  * The summary above the list on a phone (10_Project/Phone_Declutter_2026-10-08): the figure in one line with «Как
- * считается», and the answers' count; under it, one quiet line each, what asks for an answer now («Пора проверить…»)
- * and «Второй ответ после разбора…». «Как считается» opens the rest: what the list was checked against, the numbers
- * behind the figure, the line about «частично», the assumption (here it also says how many questions a ticket has) and
- * the formulas, then what «подтверждено» means. The readiness legend opens from «Обозначения» over the list.
+ * считается», and the answers' count; under it, one quiet line for what asks for an answer now («Пора проверить…»).
+ * «Как считается» opens the rest: what the list was checked against, the numbers behind the figure, the line about
+ * «частично», the assumption (here it also says how many questions a ticket has) and the formulas, then what
+ * «подтверждено» means and «Второй ответ после разбора…». The readiness legend opens from «Обозначения» over the list.
  */
 export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, open, onToggle, id }: PhoneSummaryProps) {
   const counts = coverage?.counts ?? null;
@@ -428,7 +428,6 @@ export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, ope
             {figure ? null : <>. {toggle}</>}
           </p>
           {answers.staleLine && <p className="ex-psum-line ex-psum-note">{glue(answers.staleLine)}</p>}
-          {answers.secondAnswer && <p className="ex-psum-line ex-psum-note">{glue(answers.secondAnswer)}</p>}
         </>
       )}
       {open && (
@@ -446,8 +445,10 @@ export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, ope
               />
             </>
           )}
-          {/* The lines that ask for an answer stand above, in sight; the legend opens from «Обозначения». */}
-          {answers && <ReadinessBlock {...answers} staleLine={null} secondAnswer={null} legend={false} part="rest" />}
+          {/* «Пора проверить» asks for an answer and stands above, in sight; «Второй ответ после разбора» is a figure
+              about past answers and stays here (three lines of it pushed the list down the first screen). The legend
+              opens from «Обозначения». */}
+          {answers && <ReadinessBlock {...answers} staleLine={null} legend={false} part="rest" />}
         </div>
       )}
     </div>
