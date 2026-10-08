@@ -468,11 +468,15 @@ export default function MistakeDiary() {
   const openCount = mistakes.filter(m => !m.is_resolved).length;
   const resolvedCount = mistakes.filter(m => m.is_resolved).length;
 
-  const FILTERS: Array<{ key: 'all' | 'open' | 'resolved'; label: string }> = [
-    { key: 'all', label: 'Все' },
-    { key: 'open', label: 'Открытые' },
-    { key: 'resolved', label: 'Исправленные' },
+  const FILTERS: Array<{ key: 'all' | 'open' | 'resolved'; label: string; count: number }> = [
+    { key: 'all', label: 'Все', count: mistakes.length },
+    { key: 'open', label: 'Открытые', count: openCount },
+    { key: 'resolved', label: 'Исправленные', count: resolvedCount },
   ];
+  // A phone's filter is a row of text tabs with their counts, «Все 17 · Открытые 17»: a tab with nothing in it is left
+  // out unless it is the one chosen; while the diary loads (or did not load) the counts are not known yet.
+  const counted = phone && !loading && !loadError;
+  const filters = counted ? FILTERS.filter(({ key, count }) => count > 0 || key === filter) : FILTERS;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -634,8 +638,9 @@ export default function MistakeDiary() {
               {/* Работа над ошибками */}
               {openCount > 0 && (
                 <div className="md-cta">
+                  {/* A phone says it in three words, so the pill keeps one line from 360 px. */}
                   <button type="button" onClick={startPractice} disabled={practiceLoading} className="sf-primary md-start" aria-busy={practiceLoading}>
-                    {practiceLoading ? 'Готовим задания…' : 'Начать работу над ошибками'}
+                    {practiceLoading ? 'Готовим задания…' : phone ? 'Работать над ошибками' : 'Начать работу над ошибками'}
                   </button>
                   <p className="md-note">{practiceNote(openCount, phone)}</p>
                   {practiceError && (
@@ -652,10 +657,16 @@ export default function MistakeDiary() {
           {loading || loadError || mistakes.length > 0 ? (
             <div className="md-bar">
               <ul className="sf-tabs md-tabs" aria-label="Какие ошибки показать">
-                {FILTERS.map(({ key, label }) => (
+                {filters.map(({ key, label, count }) => (
                   <li key={key}>
                     <button type="button" onClick={() => setFilter(key)} aria-pressed={filter === key}>
                       {label}
+                      {counted ? (
+                        <>
+                          {' '}
+                          <span className="md-tab-n">{count}</span>
+                        </>
+                      ) : null}
                     </button>
                   </li>
                 ))}

@@ -471,6 +471,10 @@ describe('the points of a ticket answer (LIB-11) and the row actions (LIB-29)', 
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
     await user.click(await screen.findByRole('button', { name: 'Исправленные' }));
     expect(screen.getByRole('heading', { name: 'Исправленных пока нет' })).toBeInTheDocument();
+    // A computer keeps its three filters as they were, without counts.
+    const tabs = screen.getByRole('list', { name: 'Какие ошибки показать' });
+    expect(within(tabs).getAllByRole('button').map((tab) => tab.textContent)).toEqual(['Все', 'Открытые', 'Исправленные']);
+    expect(screen.getByRole('button', { name: 'Начать работу над ошибками' })).toBeInTheDocument();
   });
 });
 
@@ -511,6 +515,40 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     expect(await screen.findByText('Задания по 2 ошибкам · 2 единицы лимита ИИ')).toBeInTheDocument();
     // A phone does not draw «Обновить»: the diary reads itself when the app comes back to the screen.
     expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();
+  });
+
+  it('says «Работать над ошибками» on its one blue button, so it keeps one line', async () => {
+    api.from.mockReturnValue(rowsQuery(open));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    expect(await screen.findByRole('button', { name: 'Работать над ошибками' })).toHaveClass('sf-primary');
+    expect(screen.queryByRole('button', { name: 'Начать работу над ошибками' })).toBeNull();
+  });
+
+  it('filters with a row of text tabs and their counts, leaving out an empty tab unless it is chosen', async () => {
+    const fixed = { ...open[1], id: 'c', question: 'Что такое дефляция?', is_resolved: true };
+    api.from.mockReturnValue(rowsQuery(open));
+    const first = render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    const names = async () => within(await screen.findByRole('list', { name: 'Какие ошибки показать' })).getAllByRole('button').map((tab) => tab.textContent);
+    await screen.findByText('Что такое ВВП?');
+    expect(await names()).toEqual(['Все 2', 'Открытые 2']);
+    expect(screen.getByRole('button', { name: 'Все 2' })).toHaveAttribute('aria-pressed', 'true');
+    first.unmount();
+
+    // A fixed one: three tabs; chosen, «Исправленные» stays after its last mistake is deleted.
+    api.confirm.mockResolvedValue(true);
+    api.from.mockImplementation(diaryTable([...open, fixed]));
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    await screen.findByText('Что такое ВВП?');
+    expect(await names()).toEqual(['Все 3', 'Открытые 2', 'Исправленные 1']);
+    await user.click(screen.getByRole('button', { name: 'Исправленные 1' }));
+    await user.click(screen.getByRole('button', { name: /^Что такое дефляция\?/ }));
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(screen.queryByText('Что такое дефляция?')).toBeNull());
+    expect(await names()).toEqual(['Все 2', 'Открытые 2', 'Исправленные 0']);
+    expect(screen.getByRole('button', { name: 'Исправленные 0' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Все 2' }));
+    expect(await names()).toEqual(['Все 2', 'Открытые 2']);
   });
 
   it('words the price on a phone and on a computer', () => {
