@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import type { PickerMaterial } from '../../api/exams';
@@ -347,5 +347,113 @@ describe('MaterialPicker: which lectures fit the questions', () => {
     render(<Harness materials={LONG} fit={fit({ view: view({ p1: 2 }, [], 18, 2) })} />);
     expect(screen.getByText('2 старые лекции не проверены: в библиотеке слишком много текста.')).toBeInTheDocument();
     expect(document.querySelector('.nx-pick-unmatched')).toBeNull();
+  });
+});
+
+describe('MaterialPicker on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  const PHONE_QUERY = '(max-width: 639px)';
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === PHONE_QUERY,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+      }),
+    });
+  });
+  afterEach(() => {
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  function view(counts: Record<string, number>, unmatched: string[] = [], total = 18): FitView {
+    const entries = Object.entries(counts);
+    return { counts: new Map(entries), fitting: entries.map(([id]) => id), unmatched, total, strong: entries.some(([, count]) => count >= 2), notChecked: 0 };
+  }
+  function fit(overrides: Partial<PickerFit> = {}): PickerFit {
+    return { status: 'ready', view: view({ p1: 3, p2: 1, e2: 2 }, ['9', '12', '17']), ticked: false, picked: false, onPick: vi.fn(), onRetry: vi.fn(), ...overrides };
+  }
+  const plainText = (element: Element | null | undefined) => (element?.textContent ?? '').replace(/\u00a0/g, ' ');
+
+  it('keeps one link beside the count that changes: «Выбрать все» while a lecture is unticked, then «Снять все»', () => {
+    const onSetMany = vi.fn();
+    render(<Harness materials={SHORT} initial={['m1']} onSetMany={onSetMany} />);
+    // No row of three bulk actions; the one link stands with the count.
+    expect(document.querySelector('.nx-pick-bulk')).toBeNull();
+    const top = document.querySelector('.nx-pick-top');
+    expect(plainText(top?.querySelector('.nx-line'))).toBe('1 из 2 лекций');
+    fireEvent.click(within(top as HTMLElement).getByRole('button', { name: 'Выбрать все' }));
+    expect(onSetMany).toHaveBeenLastCalledWith(['m1', 'm2'], true);
+    expect(summary()).toContain('Все 2 лекции');
+    expect(screen.queryByRole('button', { name: 'Выбрать все' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Снять все' }));
+    expect(onSetMany).toHaveBeenLastCalledWith(['m1', 'm2'], false);
+    expect(summary()).toContain('Лекции не выбраны');
+    expect(screen.getByRole('button', { name: 'Выбрать все' })).toBeEnabled();
+    // A scan is never ticked by it.
+    expect(screen.getByRole('checkbox', { name: /Скан лекции/ })).not.toBeChecked();
+  });
+
+  it('offers «Отметить подходящие (N)» only while it changes the ticks and differs from «Выбрать все»', () => {
+    const onPick = vi.fn();
+    const { rerender } = render(<Harness materials={LONG} fit={fit({ onPick })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Отметить подходящие (3)' }));
+    expect(onPick).toHaveBeenCalledTimes(1);
+    // The ticks are the fitting lectures already: nothing to offer (a computer shows it switched off).
+    rerender(<Harness materials={LONG} fit={fit({ onPick, picked: true })} />);
+    expect(screen.queryByRole('button', { name: /Отметить подходящие/ })).toBeNull();
+    // Every lecture with text fits: it would do what «Выбрать все» does.
+    cleanup();
+    render(<Harness materials={SHORT} fit={fit({ view: view({ m1: 2, m2: 1 }) })} />);
+    expect(screen.queryByRole('button', { name: /Отметить подходящие/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Выбрать все' })).toBeInTheDocument();
+  });
+
+  it('says how many fit and which questions have no lecture in one line each; the rest waits behind «Подробнее»', () => {
+    render(<Harness materials={LONG} fit={fit()} />);
+    expect(plainText(document.querySelector('.nx-pick-fitsum'))).toBe('К вопросам списка подходят 3 лекции.');
+    expect(plainText(document.querySelector('.nx-pick-unmatched'))).toBe('Без подходящей лекции: вопросы 9, 12 и 17.');
+    expect(document.querySelector('.nx-pick-foot')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Добавить лекции' })).toBeInTheDocument();
+
+    const more = screen.getByRole('button', { name: 'Подробнее' });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    const region = document.getElementById(more.getAttribute('aria-controls') ?? '');
+    expect(region).not.toBeNull();
+    expect(region).not.toBeVisible();
+    expect(screen.getByText(/по совпадению слов в вопросах и лекциях, без ИИ/)).not.toBeVisible();
+
+    fireEvent.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(more).toHaveTextContent('Свернуть');
+    expect(region).toBeVisible();
+    // What to do about the questions without a lecture, what the import takes and what a scan costs (the user's limit),
+    // how the hint is counted, what «только текст» means.
+    expect(plainText(region)).toContain('Если лекции по ним есть, добавьте их — иначе сверка отметит, что их нет в лекциях.');
+    expect(plainText(region)).toContain(
+      '«Добавить лекции» — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт ИИ-сервис Google Gemini — 5 единиц лимита за каждые 15 страниц.',
+    );
+    expect(region?.querySelector('.ex-nb')?.textContent).toBe('ИИ-сервис');
+    expect(plainText(region)).toContain('Meldy подбирает лекции по совпадению слов в вопросах и лекциях, без ИИ. Точнее покажет сверка.');
+    expect(plainText(region)).toContain('«Только текст» — лекция без конспекта: для сверки с лекциями этого хватает.');
+  });
+
+  it('a search still says what it found, and the link ticks only the found lectures', () => {
+    const onSetMany = vi.fn();
+    render(<Harness materials={LONG} onSetMany={onSetMany} />);
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти лекцию' }), { target: { value: 'спрос' } });
+    expect(screen.getByRole('status')).toHaveTextContent('нашлось 2 из 10');
+    fireEvent.click(screen.getByRole('button', { name: 'Выбрать найденные' }));
+    expect(onSetMany).toHaveBeenLastCalledWith(['e1', 'e2'], true);
+    expect(screen.getByRole('button', { name: 'Снять найденные' })).toBeInTheDocument();
+  });
+
+  it('without lectures says in one line that the list is saved anyway', () => {
+    render(<Harness materials={[]} />);
+    expect(screen.getByText('Список вопросов сохранится и без них.')).toBeInTheDocument();
+    expect(screen.queryByText(/не сможет отметить покрытие/)).toBeNull();
   });
 });

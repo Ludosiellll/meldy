@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import type { PickerMaterial } from '../../api/exams';
 import { OCR_NOTICE, PPTX_MIME } from '../../lib/lectureFormats';
 import { AI_COSTS, OCR_PAGES_PER_CHARGE } from '../../lib/plans';
+import { usePhone } from '../../lib/usePhone';
 import { displayMaterialTitle } from '../../utils/materialTitle';
 import { pluralRu } from '../conversation/visuals';
 import {
@@ -59,6 +60,11 @@ interface MaterialPickerProps {
 }
 
 export const IMPORT_ACCEPT = `.pdf,.docx,.pptx,.txt,.md,.html,.htm,${PPTX_MIME}`;
+
+/** What «Добавить лекции» takes and what it costs: nothing, a scan's recognition by an outside AI service aside. */
+const IMPORT_TERMS = ' — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт ';
+const IMPORT_PRICE = ` Google Gemini — ${AI_COSTS.scanPages} единиц лимита за каждые ${OCR_PAGES_PER_CHARGE} страниц.`;
+const TEXT_ONLY_NOTE = '«Только текст» — лекция без конспекта: для сверки с лекциями этого хватает.';
 
 /** From this many lectures the list gets a search line and is split by subject. */
 export const PICKER_LONG_LIST = 8;
@@ -137,9 +143,10 @@ function GroupCheckbox(props: { state: GroupState; label: string; disabled: bool
  * answer loads, that it is coming; then how many lectures fit (unless the hint above already says the
  * ticks came from the questions) and how it is counted; a failure is one quiet line with «Повторить» —
  * the hint is optional and never stands in the way of saving. One polite live region: a screen reader
- * hears the answer when it comes, and that the questions ticked the lectures.
+ * hears the answer when it comes, and that the questions ticked the lectures. A phone leaves out how it is counted:
+ * that line waits behind the picker's «Подробнее».
  */
-function FitNote({ fit, disabled }: { fit: PickerFit; disabled?: boolean }) {
+function FitNote({ fit, disabled, phone }: { fit: PickerFit; disabled?: boolean; phone: boolean }) {
   const { view, status } = fit;
   const retry = (
     <button type="button" className="sf-link nx-pick-retry" onClick={fit.onRetry} disabled={disabled}>
@@ -158,7 +165,7 @@ function FitNote({ fit, disabled }: { fit: PickerFit; disabled?: boolean }) {
             {glue(fitSummary(view.fitting.length))}
             {fit.ticked ? <span className="ex-sr"> Они отмечены.</span> : null}
           </p>
-          <p className="ex-meta">{glue(FIT_METHOD)}</p>
+          {!phone && <p className="ex-meta">{glue(FIT_METHOD)}</p>}
           {view.notChecked > 0 && <p className="ex-meta">{glue(notCheckedText(view.notChecked))}</p>}
           {status === 'error' && <p className="ex-meta">Подсказка не обновилась. {retry}</p>}
         </>
@@ -179,11 +186,19 @@ function FitNote({ fit, disabled }: { fit: PickerFit; disabled?: boolean }) {
  * With a list of questions (`fit`), Meldy's pencil notes say which lectures fit it: «подходит к 3
  * вопросам» on a lecture, «подходят 2 лекции» on a subject, «Отметить подходящие (N)» next to «Выбрать
  * все», and under the list the questions no lecture fits.
+ *
+ * A phone (10_Project/Phone_Declutter_2026-10-08) keeps one changing link beside the count — «Выбрать все» while a
+ * lecture is unticked, else «Снять все» — and «Отметить подходящие (N)» only while the ticks differ from the fitting
+ * lectures. How the hint is counted, what to do about the questions without a lecture, what «Добавить лекции» takes
+ * and what a scan costs, and what «только текст» means wait behind one «Подробнее» beside «Добавить лекции».
  */
 export default function MaterialPicker(props: MaterialPickerProps) {
   const { materials, selected } = props;
+  const phone = usePhone();
   const fileRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
+  const [more, setMore] = useState(false);
+  const moreId = useId();
   const usable = materials.filter((material) => material.textLength > 0);
   const chosen = usable.filter((material) => selected.has(material.id));
   const textOnly = materials.filter((material) => material.textOnly).length;
@@ -244,11 +259,46 @@ export default function MaterialPicker(props: MaterialPickerProps) {
     );
   };
 
+  const summary = <p className="nx-line">{props.loading ? 'Загружаем лекции…' : glue(lecturesSummary(chosen.length, usable.length))}</p>;
+  // A phone's one bulk link: it ticks what is unticked, and once everything is ticked it unticks it all.
+  const toggle =
+    phone && usable.length > 1 && materials.length > 0 && visibleUsable.length > 0 ? (
+      <button
+        type="button"
+        className="sf-link nx-pick-toggle"
+        disabled={props.disabled}
+        onClick={() => props.onSetMany(visibleUsable.map((material) => material.id), canTick)}
+      >
+        {canTick ? (filtering ? 'Выбрать найденные' : 'Выбрать все') : filtering ? 'Снять найденные' : 'Снять все'}
+      </button>
+    ) : null;
+  // A phone's «Отметить подходящие (N)»: only while it would change the ticks, and only when it differs from «Выбрать все»
+  // (some lecture with text does not fit).
+  const pickFitting =
+    phone && props.fit && fitting > 0 && fitting < usable.length && !props.fit.picked && !props.loading ? (
+      <button type="button" className="sf-link nx-pick-fitpick" disabled={props.disabled} onClick={props.fit.onPick}>
+        Отметить подходящие ({fitting})
+      </button>
+    ) : null;
+  const foundNote = filtering ? (
+    <span className="nx-pick-found" role="status">
+      {visible.length === 0 ? 'ничего не нашлось' : `нашлось ${visible.length} из ${materials.length}`}
+    </span>
+  ) : null;
+
   return (
     <div id="lectures" className="nx-pickbox">
-      <p className="nx-line">{props.loading ? 'Загружаем лекции…' : glue(lecturesSummary(chosen.length, usable.length))}</p>
+      {toggle ? (
+        <div className="nx-pick-top">
+          {summary}
+          {toggle}
+        </div>
+      ) : (
+        summary
+      )}
       {!props.loading && props.hint && usable.length > 0 && <p className="ex-meta nx-pick-hint">{glue(props.hint)}</p>}
-      {!props.loading && props.fit && usable.length > 0 && <FitNote fit={props.fit} disabled={props.disabled} />}
+      {!props.loading && props.fit && usable.length > 0 && <FitNote fit={props.fit} disabled={props.disabled} phone={phone} />}
+      {pickFitting}
       {props.error && (
         <p className="ex-note" role="alert">
           {props.error}{' '}
@@ -258,7 +308,7 @@ export default function MaterialPicker(props: MaterialPickerProps) {
         </p>
       )}
       {materials.length === 0 && !props.loading && !props.error && (
-        <p className="ex-meta">Без лекций Meldy не сможет отметить покрытие. Список вопросов сохранится и без них.</p>
+        <p className="ex-meta">{phone ? 'Список вопросов сохранится и без них.' : 'Без лекций Meldy не сможет отметить покрытие. Список вопросов сохранится и без них.'}</p>
       )}
       {materials.length > 0 && (
         <div className="nx-pick-panel">
@@ -285,7 +335,9 @@ export default function MaterialPicker(props: MaterialPickerProps) {
               )}
             </label>
           )}
-          {usable.length > 1 && (
+          {/* A phone's bulk link stands beside the count above; the search line still says what it found. */}
+          {phone && foundNote && <p className="nx-pick-bulk">{foundNote}</p>}
+          {!phone && usable.length > 1 && (
             <p className="nx-pick-bulk">
               {/* «Отметить подходящие (6) · Выбрать все · Снять все»: each dot goes with the action after it, and
                   a dot at the start of a line is clipped, so a wrapped line never starts or ends with one. */}
@@ -332,11 +384,7 @@ export default function MaterialPicker(props: MaterialPickerProps) {
                   </button>
                 </span>
               </span>
-              {filtering && (
-                <span className="nx-pick-found" role="status">
-                  {visible.length === 0 ? 'ничего не нашлось' : `нашлось ${visible.length} из ${materials.length}`}
-                </span>
-              )}
+              {foundNote}
             </p>
           )}
           {visible.length > 0 && grouped && (
@@ -389,11 +437,17 @@ export default function MaterialPicker(props: MaterialPickerProps) {
       {/* The questions no lecture fits, right above «Добавить лекции»: the missing lecture is added there. */}
       {!props.loading && unmatched && usable.length > 0 && (
         <p className="nx-pick-unmatched">
-          <span className="sf-pnote">{glue(unmatched.lead)}</span> <span className="ex-meta">{glue(unmatched.advice)}</span>
+          <span className="sf-pnote">{glue(unmatched.lead)}</span>
+          {!phone && (
+            <>
+              {' '}
+              <span className="ex-meta">{glue(unmatched.advice)}</span>
+            </>
+          )}
         </p>
       )}
       {/* Each row says «только текст»; once, under the list, what that means for the mapping. */}
-      {textOnly > 0 && <p className="ex-meta nx-pick-foot">{glue('«Только текст» — лекция без конспекта: для сверки с лекциями этого хватает.')}</p>}
+      {!phone && textOnly > 0 && <p className="ex-meta nx-pick-foot">{glue(TEXT_ONLY_NOTE)}</p>}
       <div className="nx-import">
         <input
           ref={fileRef}
@@ -408,18 +462,50 @@ export default function MaterialPicker(props: MaterialPickerProps) {
             if (files.length > 0) props.onImport(files);
           }}
         />
-        {/* One line: the link and what it costs (nothing, a scan's recognition aside). */}
-        <p className="nx-import-line">
-          <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
-            Добавить лекции
-          </button>
-          {/* What it takes and what it costs; scans are recognised by an outside AI service, said so, with the price. */}
-          <span className="ex-meta">
-            {' — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт '}
-            <span className="ex-nb">ИИ-сервис</span>
-            {` Google Gemini — ${AI_COSTS.scanPages} единиц лимита за каждые ${OCR_PAGES_PER_CHARGE} страниц.`}
-          </span>
-        </p>
+        {phone ? (
+          // A phone: the link, and «Подробнее» for the group's longer lines (the scan's price among them).
+          <>
+            <p className="nx-import-line nx-import-top">
+              <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
+                Добавить лекции
+              </button>
+              <button
+                type="button"
+                className="sf-link"
+                data-muted=""
+                aria-expanded={more}
+                aria-controls={moreId}
+                onClick={() => setMore((open) => !open)}
+              >
+                {more ? 'Свернуть' : 'Подробнее'}
+              </button>
+            </p>
+            <div id={moreId} className="nx-pick-more" hidden={!more}>
+              {!props.loading && unmatched && usable.length > 0 && <p className="ex-meta">{glue(unmatched.advice)}</p>}
+              <p className="ex-meta">
+                {'«Добавить лекции»'}
+                {IMPORT_TERMS}
+                <span className="ex-nb">ИИ-сервис</span>
+                {IMPORT_PRICE}
+              </p>
+              {fitView && <p className="ex-meta">{glue(FIT_METHOD)}</p>}
+              {textOnly > 0 && <p className="ex-meta">{glue(TEXT_ONLY_NOTE)}</p>}
+            </div>
+          </>
+        ) : (
+          /* One line: the link and what it costs (nothing, a scan's recognition aside). */
+          <p className="nx-import-line">
+            <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
+              Добавить лекции
+            </button>
+            {/* What it takes and what it costs; scans are recognised by an outside AI service, said so, with the price. */}
+            <span className="ex-meta">
+              {IMPORT_TERMS}
+              <span className="ex-nb">ИИ-сервис</span>
+              {IMPORT_PRICE}
+            </span>
+          </p>
+        )}
         {props.imports.map((item) => (
           <p key={item.key} className="nx-import-row" role={item.state === 'error' ? 'alert' : undefined}>
             {item.state === 'pending' && `«${item.name}»: читаем текст…`}
