@@ -431,6 +431,93 @@
   .pg-row { padding-left: 16px; }
   .pg-exam-empty { padding: 22px 20px; }
 }
+/* ---------------------------------------------------------------- phones: less on the screen */
+/* 10_Project/Phone_Declutter_2026-10-08. The three tiles are one card (PhoneSummary, drawn only on a phone): the
+   cards that wait with the page's one blue «Повторить», the week in a line, then under a hairline the cards by
+   state and the share recalled. */
+.pg-sum {
+  margin-top: 24px;
+  padding: 22px 22px 20px;
+  border-radius: 30px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.pg-sum-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'n go' 'cap cap'; align-items: center; column-gap: 16px; }
+.pg-sum-top .pg-big { grid-area: n; }
+.pg-sum-top .pg-cap { grid-area: cap; margin-top: 8px; }
+.pg-sum-go { grid-area: go; }
+.pg-sum-none { margin: 0; font-size: 19px; line-height: 26px; font-weight: 500; letter-spacing: -.01em; color: var(--sf-ink); }
+.pg-sum-line { margin: 6px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.pg-sum-known { display: grid; gap: 4px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
+.pg-sum-known p { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-ink); text-wrap: pretty; }
+.pg-sum-known .pg-sum-muted { color: var(--sf-muted); }
+.pg-sum-known .pg-state { height: 8px; margin: 2px 0 8px; }
+.pg-sum .pg-error { margin: 0; }
+/* The way into the map: one row with its name, a few words and the arrow (no picture, no paragraph). */
+.pg-maprow {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 44px;
+  min-height: 64px;
+  padding: 10px 20px;
+  border-radius: 24px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  text-decoration: none;
+}
+.pg-maprow-t { flex: none; font-size: 18px; line-height: 24px; font-weight: 500; letter-spacing: -.012em; }
+.pg-maprow-d { flex: 1 1 auto; min-width: 0; font-size: 15px; line-height: 21px; color: var(--sf-muted); }
+.pg-maprow-go { flex: none; font-size: 18px; color: var(--sf-muted); transition: transform .5s var(--m-ease, ease); }
+.pg-maprow:hover .pg-maprow-go { transform: translateX(3px); color: var(--sf-ink); }
+
+@media (max-width: 639px) {
+  /* The header's «Оценки из зачётки» is a quiet link on a phone (Analytics.tsx): no gap to make up. */
+  .pg-head { gap: 4px 32px; }
+  /* «Что подтянуть»: a row is its words and one quiet link under them; no coloured dots, no stripes. */
+  .pg-todo { padding: 4px 18px; }
+  .pg-todo-list { gap: 0; }
+  .pg-todo-row,
+  .pg-todo-row:nth-child(odd) { grid-template-columns: minmax(0, 1fr); gap: 0; min-height: 0; padding: 12px 0 2px; border-radius: 0; background: none; }
+  .pg-todo-row + .pg-todo-row { box-shadow: 0 -1px 0 var(--sf-line); }
+  .pg-todo-dot { display: none; }
+  .pg-todo-row .pg-act { grid-column: 1; }
+  .pg-todo > .pg-quiet { padding: 14px 0; }
+  /* The rows' actions («Разобрать», «Повторить 10», «Пройти тест»): quiet links; the blue is «Повторить» on top. */
+  .pg-act,
+  .pg-act[data-blue] {
+    min-height: 44px;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--sf-ink);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+    text-underline-offset: 5px;
+  }
+  .pg-act:hover,
+  .pg-act[data-blue]:hover { background: none; box-shadow: none; text-decoration-color: currentColor; }
+  .pg-act:focus-visible { border-radius: 4px; }
+  /* An exam: its name, the date in one line, the figure, the foot. The dots and their legend and the counts of a
+     finished mapping are on the exam sheet (the card opens it). */
+  .pg .sf-ledger-row { gap: 6px; padding: 20px 20px 18px; }
+  .pg .sf-ledger-name { font-size: 21px; }
+  .pg-exam-since,
+  .pg .sf-ledger-meta[data-mapped],
+  .pg-ready,
+  .pg .sf-ledger-foot [data-empty] { display: none; }
+  .pg .sf-ledger-figs > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+  .pg .sf-ledger-fig { font-size: 30px; line-height: 38px; }
+  .pg .sf-ledger-fig .sf-of { font-size: 19px; }
+  .pg .sf-ledger-cap { max-width: none; margin-top: 0; }
+  /* A lecture: the bar only when it shows more than «all new»; where its cards came from is on the lecture's page. */
+  .pg-lec { gap: 6px; padding: 14px 10px 10px; border-radius: 0; }
+  .pg-lec-cards .pg-state[data-fresh],
+  .pg-lec-origin { display: none; }
+}
+
 /* ---------------------------------------------------------------- the gradebook page */
 /* «‹ Прогресс» stays on phones here: the top line reads the path (/analytics), not ?tab=gradebook. */
 @media (max-width: 1023px) {
@@ -453,5 +540,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pg-act { transition: none; }
+  .pg-act,
+  .pg-maprow-go { transition: none; }
+  .pg-maprow:hover .pg-maprow-go { transform: none; }
 }

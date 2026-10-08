@@ -44,6 +44,7 @@ import { dueToday, laterTodayWords, originPhrase, originSplit, waitingNowWords, 
 import { answersByDay, studyStreak, type DayAnswers } from '../lib/learning/studyDays';
 import SectionCrumb from '../components/SectionCrumb';
 import { ty } from '../components/landing/typo';
+import { usePhone } from '../lib/usePhone';
 import '../styles/paper.css';
 import './Analytics.css';
 
@@ -59,6 +60,10 @@ import './Analytics.css';
  * of study. The numbers come from utils/progressModel.ts (pure, tested); every block reads its own
  * source and fails on its own with «Повторить», never with zeros. No mastery percentage, no
  * invented scores: «Как считается» at the end says how each number is made.
+ *
+ * On a phone (10_Project/Phone_Declutter_2026-10-08) the three tiles are one card with the page's one
+ * blue «Повторить», a part without data is not drawn, the rows' actions are quiet links, the exam card
+ * keeps its date, figure and foot (the dots stay on the exam sheet), and the map is one link row.
  */
 
 const PAGE_SIZE = 1000;
@@ -287,13 +292,20 @@ export function mappingDateText(mappedAt: string | null | undefined): string | n
   return Number.isNaN(date.getTime()) ? null : `Сверка с лекциями от ${format(date, 'd MMMM, H:mm', { locale: ru })}.`;
 }
 
-/** «экзамен 15 октября, через 12 дней · ответы на билеты с 27 сентября». */
-function examLine(exam: ExamBlock): string {
+/** «экзамен 15 октября, через 12 дней» and «ответы на билеты с 27 сентября»: the two parts of the exam's meta line. */
+function examLineParts(exam: ExamBlock): { when: string; answers: string } {
   const day = formatDay(exam.examDate);
   const days = daysUntil(exam.examDate);
   const when = day ? `${KIND_WORDS[exam.kind]} ${day}${days === null ? '' : days < 0 ? ', прошёл' : `, ${relativeDays(days)}`}` : KIND_WORDS[exam.kind];
   const answers = exam.summary.since ? `ответы на билеты с ${formatDay(exam.summary.since)}` : 'ответов на билеты ещё не было';
-  return `${when} · ${answers}`;
+  return { when, answers };
+}
+
+/** A sentence of the ledger foot; `empty` when it says only that there is nothing yet («мало данных»): a phone leaves it out. */
+export interface FootPart {
+  key: 'answers' | 'tickets' | 'self';
+  text: string;
+  empty?: boolean;
 }
 
 /**
@@ -301,26 +313,35 @@ function examLine(exam: ExamBlock): string {
  * названо недостаточно — 1.» (no «засчитано» since Ф1), then the share of tickets with every question confirmed as a small line
  * («Билетов, где подтверждены оба вопроса, — 3 %.»), then self-assessment against answers.
  */
-export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'confirmedTickets' | 'perTicket'>): string {
+export function ledgerFootParts(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'confirmedTickets' | 'perTicket'>): FootPart[] {
   const { summary, confidence } = exam;
   const answered = summary.confirmed + summary.once + summary.notPassed > 0;
-  const parts: string[] = [];
+  const parts: FootPart[] = [];
   if (answered) {
     const once = READINESS_LABELS.once;
-    parts.push(`${once[0].toUpperCase()}${once.slice(1)} — ${summary.once}, ${READINESS_LABELS.not_passed} — ${summary.notPassed}.`);
+    parts.push({ key: 'answers', text: `${once[0].toUpperCase()}${once.slice(1)} — ${summary.once}, ${READINESS_LABELS.not_passed} — ${summary.notPassed}.` });
   } else {
-    parts.push('Ответов по билетам ещё не было.');
+    parts.push({ key: 'answers', text: 'Ответов по билетам ещё не было.' });
   }
   if (summary.confirmed > 0 && exam.confirmedTickets !== null && exam.perTicket > 1) {
     const word = exam.perTicket === 2 ? 'оба вопроса' : exam.perTicket === 3 ? 'все три вопроса' : 'все четыре вопроса';
-    parts.push(`Билетов, где подтверждены ${word}, — ${exam.confirmedTickets} %.`);
+    parts.push({ key: 'tickets', text: `Билетов, где подтверждены ${word}, — ${exam.confirmedTickets} %.` });
   }
   parts.push(
     confidence.enoughData
-      ? `Вы отметили «знаю» у ${count(confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${confidence.ratedKnowAnswered} таких, на которые вы ответили, в ${confidence.ratedKnowPassed} названо достаточно.`
-      : 'Самооценка против ответов: мало данных.',
+      ? {
+          key: 'self',
+          text: `Вы отметили «знаю» у ${count(confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${confidence.ratedKnowAnswered} таких, на которые вы ответили, в ${confidence.ratedKnowPassed} названо достаточно.`,
+        }
+      : { key: 'self', text: 'Самооценка против ответов: мало данных.', empty: true },
   );
-  return parts.join(' ');
+  return parts;
+}
+
+export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'confirmedTickets' | 'perTicket'>): string {
+  return ledgerFootParts(exam)
+    .map((part) => part.text)
+    .join(' ');
 }
 
 /** «Есть в лекциях: 24 из 40 · частично 7 · нет 9», or that the list was not checked against the lectures yet. */
@@ -396,6 +417,20 @@ function KnowledgeMapCard() {
   );
 }
 
+/** On a phone the way into the map is one link row: its name, what it shows in a few words, the arrow. */
+function KnowledgeMapRow() {
+  return (
+    <Link className="pg-maprow" to="/knowledge-map">
+      <span className="pg-maprow-t">Карта знаний</span>
+      <span className="sr-only">: </span>
+      <span className="pg-maprow-d">лекции и понятия</span>
+      <span className="pg-maprow-go" aria-hidden="true">
+        →
+      </span>
+    </Link>
+  );
+}
+
 /** The exam's questions as dots, as on «Сегодня»: confirmed, once, not passed, then the untested ones. */
 function ReadinessDots({ exam }: { exam: ExamBlock }) {
   const { confirmed, once, notPassed } = exam.summary;
@@ -427,6 +462,7 @@ function ReadinessDots({ exam }: { exam: ExamBlock }) {
 
 export default function Analytics() {
   const { user } = useAuth();
+  const phone = usePhone();
   const [searchParams] = useSearchParams();
   const gradebook = searchParams.get('tab') === 'gradebook';
   // The gradebook is a page of its own inside «Прогресс», with its own title.
@@ -491,7 +527,8 @@ export default function Analytics() {
           <h1 className="sf-h1">Прогресс</h1>
           <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : typeset(ledeOf(sources))}</p>
         </div>
-        <Link className="sf-secondary pg-head-link" to="/analytics?tab=gradebook">
+        {/* On a phone a quiet link under the line: the page's one pill is «Повторить». */}
+        <Link className={phone ? 'sf-link pg-head-link' : 'sf-secondary pg-head-link'} data-muted={phone ? '' : undefined} to="/analytics?tab=gradebook">
           Оценки из зачётки
         </Link>
       </header>
@@ -544,6 +581,7 @@ function ledeOf(sources: Sources): string {
 
 function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (key: SourceKey) => void; userId: string | null }) {
   const { materials, cards, quiz, journal, activity, legacyExams, mistakes, exams } = sources;
+  const phone = usePhone();
   const [howOpen, setHowOpen] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncFailed, setSyncFailed] = useState<string | null>(null);
@@ -621,15 +659,34 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
   const textOnly = rows.filter((row) => row.textOnly);
   // Nothing to look at yet: no lecture with cards or a test. «Пробелов не видно» would be false comfort.
   const nothingYet = materials.status === 'ok' && active.length === 0;
+  // «Что подтянуть» then offers «Разобрать лекцию» itself: a phone shows one way there, not two.
+  const analyzeInTodo = todo.items.length === 0 && everythingRead && nothingYet;
 
   return (
     <>
-      <section className="pg-tiles" aria-label="Сводка">
-        <KnowledgeTile cards={cards} states={states} origins={origins} onRetry={() => reload('cards')} />
-        {/* Unknown cards (still loading or failed) read as «there are cards»: the neutral sentence. */}
-        <MemoryTile journal={journal} recall={recall} span={span} hasCards={cards.status !== 'ok' || states.total > 0} onRetry={() => reload('journal')} />
-        <AheadTile cards={cards} due={due} laterToday={laterToday} hasCards={states.total > 0} week={week} onRetry={() => reload('cards')} />
-      </section>
+      {phone ? (
+        <PhoneSummary
+          cards={cards}
+          journal={journal}
+          states={states}
+          origins={origins}
+          recall={recall}
+          span={span}
+          due={due}
+          laterToday={laterToday}
+          week={week}
+          offerAnalyze={!analyzeInTodo}
+          onRetryCards={() => reload('cards')}
+          onRetryJournal={() => reload('journal')}
+        />
+      ) : (
+        <section className="pg-tiles" aria-label="Сводка">
+          <KnowledgeTile cards={cards} states={states} origins={origins} onRetry={() => reload('cards')} />
+          {/* Unknown cards (still loading or failed) read as «there are cards»: the neutral sentence. */}
+          <MemoryTile journal={journal} recall={recall} span={span} hasCards={cards.status !== 'ok' || states.total > 0} onRetry={() => reload('journal')} />
+          <AheadTile cards={cards} due={due} laterToday={laterToday} hasCards={states.total > 0} week={week} onRetry={() => reload('cards')} />
+        </section>
+      )}
 
       <Section title="Что подтянуть" id="pg-todo">
         <div className="pg-card pg-todo">
@@ -680,40 +737,63 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
           </div>
         ) : (
           <ul className="sf-ledger">
-            {exams.data.map((exam) => (
-              <li key={exam.id}>
-                <div className="sf-ledger-row">
-                  <span className="min-w-0">
-                    {/* The name is the link; the whole row answers to it (::after covers the row). */}
-                    <Link className="sf-ledger-name sf-stretch" to={`/exams/${exam.id}`}>
-                      {subjectOf(exam.title)}
-                    </Link>
-                    <span className="sf-ledger-meta">{examLine(exam)}</span>
-                    <span className="sf-ledger-meta">{coverageLine(exam)}</span>
-                  </span>
-                  {exam.total > 0 ? (
-                    <span className="sf-ledger-figs">
-                      <span>
-                        <span className="sf-ledger-fig">
-                          {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
-                        </span>
-                        <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
+            {exams.data.map((exam) => {
+              const line = examLineParts(exam);
+              // A phone keeps the date and the figure: the counts of a finished mapping are on the exam sheet, one tap away.
+              const mapped = exam.total > 0 && exam.coverage.unmapped === 0;
+              return (
+                <li key={exam.id}>
+                  <div className="sf-ledger-row">
+                    <span className="min-w-0">
+                      {/* The name is the link; the whole row answers to it (::after covers the row). */}
+                      <Link className="sf-ledger-name sf-stretch" to={`/exams/${exam.id}`}>
+                        {subjectOf(exam.title)}
+                      </Link>
+                      <span className="sf-ledger-meta">
+                        {line.when}
+                        <span className="pg-exam-since">{` · ${line.answers}`}</span>
+                      </span>
+                      <span className="sf-ledger-meta" data-mapped={mapped ? '' : undefined}>
+                        {coverageLine(exam)}
                       </span>
                     </span>
-                  ) : null}
-                  {exam.total > 0 ? <ReadinessDots exam={exam} /> : null}
-                  {/* The share of tickets is a small line of the foot, never a big «0 %» (Jury_Check 4). */}
-                  {exam.total > 0 ? <span className="sf-ledger-foot">{ledgerFoot(exam)}</span> : null}
-                </div>
-              </li>
-            ))}
+                    {exam.total > 0 ? (
+                      <span className="sf-ledger-figs">
+                        <span>
+                          <span className="sf-ledger-fig">
+                            {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
+                          </span>
+                          <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
+                        </span>
+                      </span>
+                    ) : null}
+                    {exam.total > 0 ? <ReadinessDots exam={exam} /> : null}
+                    {/* The share of tickets is a small line of the foot, never a big «0 %» (Jury_Check 4). */}
+                    {exam.total > 0 ? (
+                      <span className="sf-ledger-foot">
+                        {ledgerFootParts(exam).map((part, index) => (
+                          <span key={part.key} data-empty={part.empty ? '' : undefined}>
+                            {index > 0 ? ' ' : ''}
+                            {part.text}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Section>
 
-      <Section title="Карта знаний" id="pg-map">
-        <KnowledgeMapCard />
-      </Section>
+      {phone ? (
+        <KnowledgeMapRow />
+      ) : (
+        <Section title="Карта знаний" id="pg-map">
+          <KnowledgeMapCard />
+        </Section>
+      )}
 
       <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted="">Все лекции</Link>}>
         {materials.status === 'error' ? (
@@ -823,12 +903,15 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
   );
 }
 
-/** A thin bar of the cards by state: закреплены (green), учатся (blue), новые (grey). */
+/**
+ * A thin bar of the cards by state: закреплены (green), учатся (blue), новые (grey). `data-fresh`: every card is
+ * new, so the bar is all grey and says nothing its line does not; a phone leaves it out.
+ */
 function StateBar({ states }: { states: CardStates }) {
   if (states.total === 0) return null;
   const width = (n: number) => `${(n / states.total) * 100}%`;
   return (
-    <span className="pg-state" aria-hidden="true">
+    <span className="pg-state" aria-hidden="true" data-fresh={states.solid + states.learning === 0 ? '' : undefined}>
       {states.solid > 0 ? <i data-s="solid" style={{ width: width(states.solid) }} /> : null}
       {states.learning > 0 ? <i data-s="learning" style={{ width: width(states.learning) }} /> : null}
       {states.fresh > 0 ? <i data-s="fresh" style={{ width: width(states.fresh) }} /> : null}
@@ -888,6 +971,109 @@ function KnowledgeTile({ cards, states, origins, onRetry }: { cards: Source<Card
 function periodText(span: RecallWindow, short = false): string {
   if (!span.sinceJournal) return `за ${RECALL_WINDOW_DAYS} дней`;
   return `с ${short ? dayLabel(span.from) : formatDay(span.from)}`;
+}
+
+/** «Завтра — 2, всего на неделю — 6.» or that the next six days have none (the week's tile and the phone's card). */
+function weekSentence(week: ForecastDay[]): string {
+  const later = week.slice(1).reduce((sum, day) => sum + day.count, 0);
+  const total = later + (week[0]?.count ?? 0);
+  const tomorrow = week[1]?.count ?? 0;
+  return later > 0 ? `${tomorrow > 0 ? `Завтра — ${tomorrow}` : 'Завтра повторений нет'}, всего на неделю — ${total}.` : 'На следующие 6 дней повторений нет.';
+}
+
+/** «Закреплено 3 из 8 · учатся 2 · новых 3»: the cards by state in one line, only the states that have cards. */
+function statesLine(states: CardStates): string {
+  const parts = [`Закреплено ${states.solid} из ${states.total}`];
+  if (states.learning > 0) parts.push(`учатся ${states.learning}`);
+  if (states.fresh > 0) parts.push(`новых ${states.fresh}`);
+  return parts.join(' · ');
+}
+
+/**
+ * The phone's summary (10_Project/Phone_Declutter_2026-10-08): the three tiles in one card. On top, what comes next —
+ * the cards that wait now with the page's one blue «Повторить», and the week in a line; under a hairline, what is
+ * known — the cards by state, where they came from, and the share recalled once there is one. A part without data
+ * is not drawn: no empty week of bars, no «пока нет» tile.
+ */
+function PhoneSummary({
+  cards,
+  journal,
+  states,
+  origins,
+  recall,
+  span,
+  due,
+  laterToday,
+  week,
+  offerAnalyze,
+  onRetryCards,
+  onRetryJournal,
+}: {
+  cards: Source<CardRow[]>;
+  journal: Source<LearningEvent[]>;
+  states: CardStates;
+  origins: ReturnType<typeof originSplit>;
+  recall: { answers: number; recalled: number };
+  span: RecallWindow;
+  due: number;
+  laterToday: number;
+  week: ForecastDay[];
+  /** «Разобрать лекцию» under «Карточек пока нет», unless «Что подтянуть» already offers it. */
+  offerAnalyze: boolean;
+  onRetryCards: () => void;
+  onRetryJournal: () => void;
+}) {
+  if (cards.status !== 'ok' || states.total === 0) {
+    return (
+      <section className="pg-sum" aria-label="Сводка">
+        {cards.status === 'error' ? (
+          <ErrorLine text="Карточки не загрузились." onRetry={onRetryCards} />
+        ) : cards.status === 'loading' ? (
+          <Quiet>Загружаем…</Quiet>
+        ) : (
+          <>
+            <p className="pg-note">{ty('Карточек в повторении пока нет. Они появятся после разбора лекции и после ответов на билеты.')}</p>
+            {offerAnalyze ? (
+              <Link className="sf-link pg-tile-link" to="/analyze">
+                Разобрать лекцию
+              </Link>
+            ) : null}
+          </>
+        )}
+      </section>
+    );
+  }
+  const share = recallShare(recall, RECALL_MIN_ANSWERS);
+  const rest = laterTodayWords(laterToday, due > 0);
+  const fromWhere = originPhrase(origins, 'many');
+  return (
+    <section className="pg-sum" aria-label="Сводка">
+      {due > 0 ? (
+        // «26 карточек ждут сейчас», then «Повторить»: the reading order; the grid sets the button beside the number.
+        <div className="pg-sum-top">
+          <p className="pg-big">{due}</p>
+          <p className="pg-cap">{waitingNowWords(due)}</p>
+          <Link className="sf-primary pg-sum-go" to="/review">
+            Повторить
+          </Link>
+        </div>
+      ) : (
+        <p className="pg-sum-none">Сейчас повторять нечего</p>
+      )}
+      {rest ? <p className="pg-sum-line">{`${rest[0].toUpperCase()}${rest.slice(1)}.`}</p> : null}
+      <p className="pg-sum-line">{weekSentence(week)}</p>
+      <div className="pg-sum-known">
+        {states.solid + states.learning > 0 ? <StateBar states={states} /> : null}
+        <p>{statesLine(states)}</p>
+        {fromWhere ? <p className="pg-sum-muted">{`${fromWhere[0].toUpperCase()}${fromWhere.slice(1)}.`}</p> : null}
+        {journal.status === 'error' ? (
+          <ErrorLine text="Журнал ответов не загрузился." onRetry={onRetryJournal} />
+        ) : share !== null ? (
+          <p>{typeset(`Вспомнили ${Math.round(share * 100)} % ${periodText(span)}: ${recall.recalled} из ${count(recall.answers, ANSWER_FORMS)}`)}</p>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
 function MemoryTile({
@@ -972,9 +1158,6 @@ function AheadTile({
   week: ForecastDay[];
   onRetry: () => void;
 }) {
-  const later = week.slice(1).reduce((sum, day) => sum + day.count, 0);
-  const total = later + (week[0]?.count ?? 0);
-  const tomorrow = week[1]?.count ?? 0;
   const rest = laterTodayWords(laterToday, due > 0);
   return (
     // With cards to repeat now, this tile leads on a phone: «Повторить» is the page's next step.
@@ -1004,9 +1187,7 @@ function AheadTile({
           <p className="pg-cap">{waitingNowWords(due)}</p>
           {rest ? <p className="pg-cap pg-cap-later">{rest}</p> : null}
           {week.some((day) => day.count > 0) ? <ForecastBars days={week} /> : null}
-          <p className="pg-note pg-note--small">
-            {later > 0 ? `${tomorrow > 0 ? `Завтра — ${tomorrow}` : 'Завтра повторений нет'}, всего на неделю — ${total}.` : 'На следующие 6 дней повторений нет.'}
-          </p>
+          <p className="pg-note pg-note--small">{weekSentence(week)}</p>
         </>
       )}
     </article>
@@ -1427,25 +1608,29 @@ function DayBars({ data }: { data: DayAnswers[] }) {
         </ul>
       ) : null}
       <figcaption className="pg-figcap">{sentence(`${what} по дням; больше всего ${totalOf(peak)} — ${shortDay(peak.key)}`)}</figcaption>
-      <table className="sr-only">
-        <caption>Ответов по дням</caption>
-        <thead>
-          <tr>
-            <th scope="col">День</th>
-            <th scope="col">На карточки</th>
-            <th scope="col">На билеты</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((day) => (
-            <tr key={day.key}>
-              <td>{shortDay(day.key)}</td>
-              <td>{day.cards}</td>
-              <td>{day.tickets}</td>
+      {/* The box that hides it is a div: a table keeps the height of its 30 rows under .sr-only, and that
+          stretched the page by some 600 px of empty canvas below «Как считается». */}
+      <div className="sr-only">
+        <table>
+          <caption>Ответов по дням</caption>
+          <thead>
+            <tr>
+              <th scope="col">День</th>
+              <th scope="col">На карточки</th>
+              <th scope="col">На билеты</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.map((day) => (
+              <tr key={day.key}>
+                <td>{shortDay(day.key)}</td>
+                <td>{day.cards}</td>
+                <td>{day.tickets}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

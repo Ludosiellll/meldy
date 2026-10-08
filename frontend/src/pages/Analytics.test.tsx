@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Analytics, { ledgerFoot, mappingDateText } from './Analytics';
+import Analytics, { ledgerFoot, ledgerFootParts, mappingDateText } from './Analytics';
 import { danglingControls } from '../test/a11y';
+import { PHONE_QUERY } from '../lib/usePhone';
 
 const db = vi.hoisted(() => {
   const state = {
@@ -658,5 +659,155 @@ describe('Progress sources', () => {
 
     expect(await screen.findByText(/Экзамены не загрузились/)).toBeInTheDocument();
     expect(within(await lectureRow('Энтропия')).getByText('тест 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
+  });
+});
+
+/** A phone for usePhone (max-width 639px): jsdom has no matchMedia of its own. */
+function phoneScreen() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (media: string) => ({ matches: media === PHONE_QUERY, media, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
+  });
+}
+
+describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  beforeEach(phoneScreen);
+  afterEach(() => {
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('says the three tiles in one card, with the page’s one blue «Повторить»', async () => {
+    renderProgress();
+    await screen.findByRole('heading', { name: 'Что подтянуть' });
+    for (const name of ['Карточки', 'Вспомнили с 3 октября', 'Повторения на неделю']) expect(screen.queryByRole('heading', { name })).toBeNull();
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    expect(summary.querySelector('.pg-big')?.textContent).toBe('1');
+    expect(within(summary).getByText('карточка ждёт сейчас')).toBeInTheDocument();
+    expect(within(summary).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review');
+    expect(within(summary).getByText('Завтра — 2, всего на неделю — 6.')).toBeInTheDocument();
+    expect(within(summary).getByText('Закреплено 5 из 8 · учатся 2 · новых 1')).toBeInTheDocument();
+    expect(within(summary).getByText(/^Вспомнили\s50\s%\sс\s3\sоктября:\s6\sиз\s12\sответов$/)).toBeInTheDocument();
+    // No week of bars: the line says it.
+    expect(summary.querySelector('.pg-mini')).toBeNull();
+    // One blue pill on the screen: the rows' «Повторить» are quiet (Analytics.css), the top one is the button.
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Повторить 1 карточку: Энтропия' })).not.toHaveClass('sf-primary');
+  });
+
+  it('leaves out a part without data: no share before ten answers, no state bar of new cards only', async () => {
+    setJournal(demoJournal.slice(0, 4));
+    setTable('flashcard_progress', () => ({ data: [{ id: 'n1', material_id: 'm1', repetitions: 0, next_review: local(3, 8), last_reviewed_at: null }] }));
+    renderProgress();
+    await screen.findByRole('heading', { name: 'Что подтянуть' });
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    expect(within(summary).queryByText(/Вспомнили/)).toBeNull();
+    expect(within(summary).getByText('Закреплено 0 из 1 · новых 1')).toBeInTheDocument();
+    expect(summary.querySelector('.pg-state')).toBeNull();
+    expect(within(summary).getByText('На следующие 6 дней повторений нет.')).toBeInTheDocument();
+    // A lecture's all-grey bar is marked so a phone leaves it out.
+    expect((await lectureRow('Энтропия')).querySelector('.pg-state')).toHaveAttribute('data-fresh');
+  });
+
+  it('names where the cards came from, and says when nothing waits now', async () => {
+    const followUps = ['f1', 'f2'].map((id) => ({ id, material_id: 'm1', origin: 'oral_followup', repetitions: 0, next_review: local(4, 9), last_reviewed_at: null }));
+    setTable('flashcard_progress', () => ({ data: [...demoCards.filter((card) => card.id !== 'c5'), ...followUps] }));
+    renderProgress();
+    await screen.findByRole('heading', { name: 'Что подтянуть' });
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    expect(within(summary).getByText('Сейчас повторять нечего')).toBeInTheDocument();
+    expect(within(summary).queryByRole('link', { name: 'Повторить' })).toBeNull();
+    expect(within(summary).getByText('7 из лекций, 2 из ответов на билеты.')).toBeInTheDocument();
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(0);
+  });
+
+  it('keeps one way to the first lecture for a newcomer', async () => {
+    setTable('materials', () => ({ data: [] }));
+    setTable('flashcard_progress', () => ({ data: [] }));
+    setJournal([], []);
+    renderProgress();
+    expect(await screen.findByText('Пока нечего подтягивать — разберите первую лекцию, и здесь появятся её пробелы.')).toBeInTheDocument();
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    expect(within(summary).getByText(/Карточек в повторении пока нет/)).toBeInTheDocument();
+    // «Что подтянуть» offers the lecture under the card; the card does not offer it again.
+    expect(within(summary).queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
+    const todo = screen.getByRole('heading', { name: 'Что подтянуть' }).closest('section') as HTMLElement;
+    expect(within(todo).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+  });
+
+  it('offers the first lecture under «Карточек пока нет» when «Что подтянуть» does not', async () => {
+    // Lectures with cards that never reached review: «Что подтянуть» offers «Добавить», not a new lecture.
+    setTable('flashcard_progress', () => ({ data: [] }));
+    renderProgress();
+    await screen.findByRole('heading', { name: 'Что подтянуть' });
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    expect(within(summary).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+  });
+
+  it('makes the gradebook a quiet link and the map one row', async () => {
+    renderProgress();
+    await screen.findByRole('heading', { name: 'Что подтянуть' });
+    const gradebook = screen.getByRole('link', { name: 'Оценки из зачётки' });
+    expect(gradebook).toHaveAttribute('href', '/analytics?tab=gradebook');
+    expect(gradebook).toHaveClass('sf-link');
+    expect(gradebook).not.toHaveClass('sf-secondary');
+    expect(screen.queryByRole('heading', { name: 'Карта знаний' })).toBeNull();
+    expect(document.querySelector('.pg-map-art')).toBeNull();
+    expect(screen.getByRole('link', { name: /^Карта знаний:\s*лекции и понятия$/ })).toHaveAttribute('href', '/knowledge-map');
+  });
+});
+
+describe('what a phone leaves out of an exam card (marked, on every size)', () => {
+  it('marks the answers’ start, the counts of a finished mapping and an empty self-assessment', async () => {
+    const [a, b, c] = ['a', 'b', 'c'].map((ch) => ch.repeat(32));
+    setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', kind: 'exam', exam_date: '2026-10-15', mapped_at: '2026-10-01T09:00:00Z', ticket_layout: { mode: 'random', per_ticket: 2 } }] }));
+    setTable('exam_questions', () => ({
+      data: [a, b, c].map((hash, index) => ({ id: `q${index}`, exam_id: 'e1', section: null, question_hash: hash, coverage: index === 2 ? 'none' : 'full' })),
+    }));
+    db.fetchQuestionEvents.mockResolvedValue([examAnswer(a, '2026-10-01', true, '1')]);
+    renderProgress();
+    const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li') as HTMLElement;
+    expect(row.querySelector('.pg-exam-since')?.textContent).toBe(' · ответы на билеты с 1 октября');
+    expect(within(row).getByText(/^Есть в ваших лекциях: 2 из 3/)).toHaveAttribute('data-mapped');
+    const foot = row.querySelector('.sf-ledger-foot') as HTMLElement;
+    expect(foot.querySelector('[data-empty]')?.textContent).toBe(' Самооценка против ответов: мало данных.');
+    expect(foot.textContent).toBe(ledgerFoot({ ...ledgerInput(), confirmedTickets: null, perTicket: 2 }));
+  });
+
+  it('keeps a list that was never mapped in sight', async () => {
+    setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', exam_date: '2026-10-15', mapped_at: null }] }));
+    setTable('exam_questions', () => ({ data: [{ id: 'q0', exam_id: 'e1', section: null, question_hash: 'a'.repeat(32), coverage: null }] }));
+    renderProgress();
+    const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li') as HTMLElement;
+    expect(within(row).getByText('Сверки с лекциями ещё не было.')).not.toHaveAttribute('data-mapped');
+  });
+
+  it('splits the foot into its sentences', () => {
+    const summary = { total: 40, confirmed: 7, once: 3, notPassed: 2, untested: 28, since: '2026-10-01', stale: 0 };
+    const parts = ledgerFootParts({ summary, confidence: { ratedKnow: 0, ratedKnowAnswered: 0, ratedKnowPassed: 0, enoughData: false }, confirmedTickets: 3, perTicket: 2 });
+    expect(parts.map((part) => [part.key, Boolean(part.empty)])).toEqual([
+      ['answers', false],
+      ['tickets', false],
+      ['self', true],
+    ]);
+  });
+});
+
+/** The ledger input of the exam above: one question named enough once, two untested. */
+function ledgerInput() {
+  return {
+    summary: { total: 3, confirmed: 0, once: 1, notPassed: 0, untested: 2, since: '2026-10-01', stale: 0 },
+    confidence: { ratedKnow: 0, ratedKnowAnswered: 0, ratedKnowPassed: 0, enoughData: false },
+  };
+}
+
+describe('the days of study', () => {
+  it('keeps the screen readers’ table in a box that takes no room (it stretched the page by its 30 rows)', async () => {
+    setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 3 }] }));
+    renderProgress();
+    await screen.findByText(/^Ответы на карточки по дням/);
+    const table = screen.getByRole('table', { name: 'Ответов по дням' });
+    expect(table).not.toHaveClass('sr-only');
+    expect(table.parentElement).toHaveClass('sr-only');
+    expect(table.parentElement?.tagName).toBe('DIV');
   });
 });
