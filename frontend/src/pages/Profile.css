@@ -13,7 +13,8 @@
 @media (max-width: 639px) {
   .ac-profile .ac-hero { margin-top: 16px; padding-bottom: 22px; }
   .ac-profile .ac-card { padding: 22px 20px; }
-  .ac-profile .ac-card-h { margin-bottom: 12px; }
+  /* «Уведомления» and the other cards' headings: a group heading inside a card, 21/500. */
+  .ac-profile .ac-card-h { margin-bottom: 12px; font-size: 21px; line-height: 1.2; font-weight: 500; }
   .ac-profile .ac-cover { height: 64px; border-radius: 28px; }
   .ac-profile .ac-avatar-wrap { margin-top: -44px; }
   .ac-profile .ac-avatar { width: 92px; height: 92px; border-width: 5px; }
