@@ -332,11 +332,15 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
   );
 }
 
+/** The phone block's disclosure: the rule of erasing — the sentence that says what the sheet is — and the rest. */
+export const ERASE_RULE_LABEL = 'Как стираются строки';
+
 /**
  * The exam page's sheet on a phone: one block above the paper instead of the count above it and three cards under it
  * (10_Project/Phone_Declutter_2026-10-08). The count, the two switches, «Показать последний ответ» and «История
- * шпаргалки» in sight; what the count means, the rule of erasing, the share and the questions without points behind
- * «Подробнее». While the history plays its day and «Остановить» ride over the bottom bar, as before.
+ * шпаргалки» in sight; the rule of erasing, what the count means, the share and the questions without points behind
+ * «Как стираются строки» after the count's words (a muted link: it explains; as «Подробнее» it hid the sentence that
+ * says what the sheet is). While the history plays its day and «Остановить» ride over the bottom bar, as before.
  */
 function PhoneSummaryCard(props: SheetSummaryProps) {
   const { counts, mode, onMode } = props;
@@ -353,17 +357,33 @@ function PhoneSummaryCard(props: SheetSummaryProps) {
   const erasedSome = counts.erased > 0;
   if (counts.total === 0) return null;
   const sub = history && !playing ? historyResult(history.first, history.frame, history.lowest) : null;
+  const hasActs = Boolean(props.onReplay || props.onHistory || history);
+  // The rule a tap away, after the count's words — as «… в лекциях. Как считается» over the list of «Вопросы».
+  const disclosure = playing ? null : (
+    <button type="button" className="sf-link cs-how" data-muted="" aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen((value) => !value)}>
+      {ERASE_RULE_LABEL}
+    </button>
+  );
   return (
     <div className="ex-summary cs-sum" data-variant="phone" id={props.id} tabIndex={props.id ? -1 : undefined}>
       <div className="cs-count">
         <span className="ex-big cs-big" aria-hidden="true">
           <RollingNumber value={countValue} roll={props.roll || Boolean(history)} />
         </span>
-        <span className="cs-count-l" aria-hidden="true">
-          {countLabel}
-        </span>
         <span className="sr-only">{`${countValue} ${countLabel}`}</span>
+        <span className="cs-count-l">
+          <span aria-hidden="true">{disclosure ? `${countLabel}.` : countLabel}</span>
+          {disclosure ? <> {disclosure}</> : null}
+        </span>
       </div>
+      {open && !playing && (
+        <div className="cs-more" id={detailsId}>
+          <SheetRule />
+          {details && <p className="cs-sub">{details}</p>}
+          {props.shareLine && <p className="cs-share">{glue(props.shareLine)}</p>}
+          {props.more}
+        </div>
+      )}
       {sub && <p className="cs-sub">{sub}</p>}
       {props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
       {props.changeLine && props.changeNote && !history && <p className="cs-change-note">{glue(props.changeNote)}</p>}
@@ -376,7 +396,7 @@ function PhoneSummaryCard(props: SheetSummaryProps) {
         </div>
       )}
       {mode.cover && !playing && <p className="cs-sub cs-cover-note">Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.</p>}
-      {!playing && (
+      {!playing && hasActs && (
         // One row on a 360 px phone: the visible words are short, the names whole (the words are part of them).
         <div className="cs-acts">
           {props.onReplay && (
@@ -394,17 +414,6 @@ function PhoneSummaryCard(props: SheetSummaryProps) {
               Закрыть историю
             </button>
           )}
-          <button type="button" className="sf-link" data-muted="" aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen((value) => !value)}>
-            Подробнее
-          </button>
-        </div>
-      )}
-      {open && !playing && (
-        <div className="cs-more" id={detailsId}>
-          {details && <p className="cs-sub">{details}</p>}
-          <SheetRule />
-          {props.shareLine && <p className="cs-share">{glue(props.shareLine)}</p>}
-          {props.more}
         </div>
       )}
     </div>

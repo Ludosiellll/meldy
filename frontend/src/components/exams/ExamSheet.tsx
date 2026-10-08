@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, type ReactNode } from 'react';
 import type { ExamQuestion } from '../../api/exams';
 import type { SelfRating as Rating } from '../../api/learning';
 import { READINESS_LABELS, type Readiness } from '../../lib/learning/readiness';
@@ -73,6 +73,10 @@ interface ExamSheetProps {
    * tap opens them).
    */
   hint?: string | null;
+  /** A quiet link at the end of that line (a phone: «Обозначения», the key to the number circles). */
+  hintAction?: ReactNode;
+  /** What the link opens, under the line. */
+  hintPanel?: ReactNode;
 }
 
 /**
@@ -186,9 +190,16 @@ export default function ExamSheet(props: ExamSheetProps) {
       data-dim={props.dim ? '' : undefined}
       data-rate={rateMode ? '' : undefined}
     >
-      <header className="ex-sheet-h" data-hint={props.hint ? '' : undefined}>
+      <header className="ex-sheet-h" data-hint={props.hint || props.hintAction ? '' : undefined}>
         <h2>{props.title}</h2>
-        {props.hint ? <p className="ex-sheet-hint">{props.hint}</p> : null}
+        {props.hint || props.hintAction ? (
+          <p className="ex-sheet-hint">
+            {props.hint}
+            {props.hint && props.hintAction ? ' ' : null}
+            {props.hintAction}
+          </p>
+        ) : null}
+        {props.hintPanel}
       </header>
       {rateMode && (
         <p className="ex-rate-intro">

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { TicketLayout } from '../../api/exams';
 import type { SheetCoverage } from './marks';
-import { CoverageSummary, PeakSummary, PhoneSummary, ReadinessBlock, peakCountLine, type PeakView } from './SheetSummary';
+import { confirmedCountWords, CoverageSummary, PeakSummary, PhoneSummary, ReadinessBlock, ReadinessLegend, peakCountLine, readinessCounts, type PeakView } from './SheetSummary';
 import { closedPartialShares, coverageCounts, coverageShares, type SheetFilter, type ShareSubject } from './sheetModel';
 
 /** The seeded stage list: 24 «есть», 7 «частично», 9 «нет»; sections 13 · 4 · 3 and 11 · 3 · 6. */
@@ -241,19 +241,48 @@ describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
     return { ...view, onFilter, onToggle };
   }
 
-  it('the figure in one line with «Как считается», the answers’ count; nothing else until it opens', () => {
+  it('the figure in one line with «Как считается» (muted: it explains), the answers’ count; nothing else until it opens', () => {
     const { container, onToggle } = phone();
-    expect(plain(container.querySelector('.ex-psum-fig')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях · Как считается');
-    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 из 40');
+    // A sentence, then the link — no «·» glue outside a meta line.
+    expect(plain(container.querySelector('.ex-psum-fig')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях. Как считается');
+    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 вопросов из 40');
     expect(container.querySelector('.ex-calc')).toBeNull();
     const how = screen.getByRole('button', { name: 'Как считается' });
+    expect(how).toHaveAttribute('data-muted');
     expect(how).toHaveAttribute('aria-expanded', 'false');
     expect(how).not.toHaveAttribute('aria-controls');
     fireEvent.click(how);
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it('open: the facts of the meta line, the numbers, the action line, the assumption, the formulas, then what «подтверждено» means and the legend', () => {
+  it('names what is counted, in its plural: 1, 2, 5, 21', () => {
+    expect(confirmedCountWords(0, 20).replace(/\u00a0/g, ' ')).toBe('0 вопросов из 20');
+    expect(confirmedCountWords(1, 20).replace(/\u00a0/g, ' ')).toBe('1 вопрос из 20');
+    expect(confirmedCountWords(2, 20).replace(/\u00a0/g, ' ')).toBe('2 вопроса из 20');
+    expect(confirmedCountWords(5, 20).replace(/\u00a0/g, ' ')).toBe('5 вопросов из 20');
+    expect(confirmedCountWords(11, 40).replace(/\u00a0/g, ' ')).toBe('11 вопросов из 40');
+    expect(confirmedCountWords(21, 40).replace(/\u00a0/g, ' ')).toBe('21 вопрос из 40');
+  });
+
+  it('what asks for an answer now stays in sight: «Пора проверить» and «Второй ответ после разбора», a muted line each under the count', () => {
+    const second = 'Второй ответ после разбора: по 3 вопросам в первый раз раскрыто 40 % пунктов, во второй — 70 %.';
+    const stale = 'Пора проверить: 2 — подтверждены больше 14 дней назад.';
+    const { container } = phone({ readiness: { ...answers, staleLine: stale, secondAnswer: second } });
+    expect(Array.from(container.querySelectorAll('.ex-psum-line')).map((item) => plain(item.textContent))).toEqual([
+      'Подтверждено ответами — 7 вопросов из 40',
+      stale,
+      second,
+    ]);
+    expect(container.querySelectorAll('.ex-psum-note')).toHaveLength(2);
+    cleanup();
+    // Not said twice behind «Как считается».
+    const open = phone({ open: true, readiness: { ...answers, staleLine: stale, secondAnswer: second } });
+    const panel = open.container.querySelector('#how') as HTMLElement;
+    expect(plain(panel.textContent)).not.toContain('Пора проверить');
+    expect(plain(panel.textContent)).not.toContain('Второй ответ после разбора');
+  });
+
+  it('open: the facts of the meta line, the numbers, the action line, the assumption, the formulas, then what «подтверждено» means — the legend is «Обозначения» over the list', () => {
     const { container, onFilter } = phone({ open: true });
     const panel = container.querySelector('#how') as HTMLElement;
     const lines = Array.from(panel.querySelectorAll(':scope > p.ex-fine, :scope > p.ex-act')).map((item) => plain(item.textContent));
@@ -268,19 +297,41 @@ describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
     expect(plain(panel.querySelector('.ex-blk')?.textContent)).toContain('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.');
     fireEvent.click(within(panel).getByRole('button', { name: named('7 вопросов «частично»') }));
     expect(onFilter).toHaveBeenCalledWith('cov:partial');
-    expect(within(panel).getByRole('list', { name: 'Показать вопросы по ответам' })).toBeInTheDocument();
+    expect(within(panel).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
   });
 
   it('only the answers while the share says nothing, only the share before the first answer, nothing with neither', () => {
     const { container } = phone({ coverage: null });
     expect(container.querySelector('.ex-psum-fig')).toBeNull();
-    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 из 40 · Как считается');
+    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 вопросов из 40. Как считается');
     cleanup();
     const first = phone({ readiness: null });
     expect(first.container.querySelector('.ex-psum-line')).toBeNull();
     cleanup();
     const none = phone({ coverage: null, readiness: null });
     expect(none.container.textContent).toBe('');
+  });
+});
+
+describe('the readiness legend (the key to the number circles)', () => {
+  it('four marks with their words and counts; a row shows those questions, a second press all again', () => {
+    const onFilter = vi.fn();
+    const counts = readinessCounts({ confirmed: 7, once: 3, notPassed: 2, untested: 28 });
+    const view = render(<ReadinessLegend counts={counts} filter="all" onFilter={onFilter} />);
+    const list = screen.getByRole('list', { name: 'Показать вопросы по ответам' });
+    expect(within(list).getAllByRole('button').map((item) => plain(item.textContent))).toEqual([
+      'подтверждено 7',
+      'названо достаточно, не подтверждено 3',
+      'названо недостаточно 2',
+      'не проверялось 28',
+    ]);
+    fireEvent.click(within(list).getByRole('button', { name: /^названо недостаточно/ }));
+    expect(onFilter).toHaveBeenCalledWith('rd:not_passed');
+    view.rerender(<ReadinessLegend counts={counts} filter="rd:not_passed" onFilter={onFilter} />);
+    const pressed = within(list).getByRole('button', { name: /^названо недостаточно/ });
+    expect(pressed).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(pressed);
+    expect(onFilter).toHaveBeenLastCalledWith('all');
   });
 });
 

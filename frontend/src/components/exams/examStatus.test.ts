@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { examStatus, isNothingFound, mappingLimitLine, statusTitleText, type ExamStatus, type ExamStatusInput } from './examStatus';
+import { allDrawLabel, awaitingDrawLabel, examStatus, isNothingFound, mappingLimitLine, statusTitleText, type ExamStatus, type ExamStatusInput } from './examStatus';
 import type { CoverageCounts } from './sheetModel';
 
 type Overrides = Partial<Omit<ExamStatusInput, 'mapping' | 'sheet' | 'answers' | 'coverage'>> & {
@@ -319,7 +319,8 @@ describe('examStatus: the cheat sheet and the answers', () => {
     expect(erase.key).toBe('answering');
     expect(title(erase)).toBe('Сегодня можно стереть строки шпаргалки у 3 вопросов');
     expect(erase.text).toBe('Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.');
-    expect(erase.action).toEqual({ kind: 'awaiting', label: 'Тянуть билет из них' });
+    // The bar at the bottom of a phone stands far from the headline: it names the questions itself.
+    expect(erase.action).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 3 вопросов' });
     const later = examStatus(
       input({ coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, nextErasable: 'Следующие строки можно стереть после 9 окт., 15:40.' }, answers: { answered: 3, untested: 15 } }),
     );
@@ -373,12 +374,97 @@ describe('examStatus: a phone’s one line (Phone_Declutter_2026-10-08)', () => 
     expect(brief({ coverage: MAPPED, sheet: { lines: { left: 30, total: 40 } }, answers: { answered: 6 } })).toBe('Отвечайте дальше: ответы стирают строки.');
   });
 
-  it('keeps every word where they all matter: a server’s message, nothing found', () => {
-    expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Сервис ИИ сейчас перегружен. Повторите через минуту.' } })).toBeNull();
-    expect(brief({})).toBeNull();
+  it('a server’s message: its first sentence after the headline; nothing found: only the way out', () => {
+    expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Сервис ИИ сейчас перегружен. Повторите через минуту.' } })).toBe('Повторите через минуту.');
+    expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Сервис ИИ сейчас перегружен' } })).toBe('Повторите сверку через минуту.');
+    expect(
+      brief({ coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Сверка остановилась. Лимит обновится в 3:00. Пометки сохранены.' } }),
+    ).toBe('Лимит обновится в 3:00.');
+    // The owner's exam: the headline says nothing was found; the line says what to do.
+    expect(brief({})).toBe('Выберите лекции по темам вопросов или добавьте новые.');
+    expect(brief({ coverage: { full: 2, partial: 1, none: 15 } })).toBe('Выберите лекции по темам остальных или добавьте новые.');
+    expect(brief({ lectureFit: { state: 'none' } })).toBe('Среди ваших лекций подходящих нет.');
+    expect(brief({ lectureFit: { state: 'some', titles: ['Деньги и банки'] } })).toBe('Подходит ваша лекция «Деньги и банки».');
+    expect(brief({ lectureFit: { state: 'some', titles: ['Деньги', 'Банки', 'Кредит'] } })).toBe('Подходят ваши лекции «Деньги» и «Банки» и ещё 1.');
+    expect(brief({ copy: true })).toBe('Добавьте свои лекции или попросите у автора новую ссылку.');
+    // Answered, the next lines erasable later.
+    expect(
+      brief({ coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, nextErasable: 'Следующие строки можно стереть после 9 окт., 15:40.' }, answers: { answered: 3 } }),
+    ).toBe('А пока отвечайте на другие вопросы.');
     // The full text stays the computer's.
     expect(examStatus(input({ coverage: MAPPED, sheet: { lines: { left: 40, total: 40 }, erasable: 4 }, answers: { answered: 6 } })).text).toBe(
       'Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.',
     );
+  });
+
+  it('every state with words has its one line: a phone never falls back to the computer’s paragraph', () => {
+    const states: Overrides[] = [
+      { total: 0 },
+      { coverage: { unmapped: 18 }, mapping: { phase: 'running', progress: { checked: 7, total: 18 } } },
+      { coverage: { unmapped: 18 }, mapping: { phase: 'waiting' } },
+      { coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Сервис ИИ сейчас перегружен. Повторите через минуту.' } },
+      { coverage: { full: 7, unmapped: 11 }, mapping: { phase: 'interrupted', progress: { checked: 7, total: 18 } } },
+      { coverage: { full: 7, unmapped: 11 }, mapping: { phase: 'interrupted', progress: null } },
+      { lectures: [] },
+      { coverage: { unmapped: 18 } },
+      { coverage: MAPPED, mapping: { added: 1 } },
+      { coverage: MAPPED, mapping: { removed: 2 } },
+      { coverage: MAPPED, mapping: { added: 1, removed: 1 } },
+      { coverage: { ...MAPPED, none: 1, unmapped: 3 } },
+      {},
+      { copy: true },
+      { coverage: { full: 2, none: 16 }, lectureFit: { state: 'some', titles: ['Деньги'] } },
+      { coverage: { ...MAPPED, none: 0, unverified: 4 } },
+      { coverage: MAPPED, sheet: { writing: { done: 5, total: 14 } } },
+      { coverage: MAPPED, sheet: { toWrite: 14, units: 14 } },
+      { coverage: MAPPED, sheet: { written: 4, toWrite: 10, units: 10 } },
+      { coverage: MAPPED, sheet: { lines: { left: 40, total: 40 } } },
+      { coverage: MAPPED, sheet: { state: 'error' } },
+      { copy: true, coverage: MAPPED, sheet: { written: 14, lines: { left: 42, total: 42 } } },
+      { coverage: MAPPED, sheet: { lines: { left: 40, total: 40 }, erasable: 4 }, answers: { answered: 6 } },
+      { coverage: MAPPED, sheet: { lines: { left: 40, total: 42 }, nextErasable: 'Следующие строки можно стереть после 9 окт., 15:40.' }, answers: { answered: 3, untested: 15 } },
+      { coverage: MAPPED, sheet: { lines: { left: 30, total: 40 } }, answers: { answered: 6 } },
+      { coverage: MAPPED, sheet: { state: 'error' }, answers: { answered: 5, confirmed: 2 } },
+    ];
+    const keys = new Set<string>();
+    for (const overrides of states) {
+      const status = examStatus(input(overrides));
+      keys.add(status.key);
+      expect(status.text, status.key).not.toBeNull();
+      expect(status.brief, `${status.key}: ${status.text}`).toBeTruthy();
+      // One short line: a sentence or two, never the computer's paragraph.
+      expect(status.brief!.length, status.brief!).toBeLessThanOrEqual(110);
+    }
+    // Every state but the moment of loading (no words at all) is here.
+    expect([...keys].sort()).toEqual(
+      ['answering', 'empty', 'failed', 'interrupted', 'lectures-changed', 'mapping', 'no-lectures', 'nothing-found', 'ready', 'some-unmapped', 'unmapped', 'unverified', 'waiting', 'write-sheet', 'writing'].sort(),
+    );
+    const loading = examStatus(input({ coverage: MAPPED, sheet: { state: 'loading' } }));
+    expect(loading.key).toBe('loading');
+    expect(loading.text).toBeNull();
+    expect(loading.brief).toBeNull();
+  });
+});
+
+describe('examStatus: the draw from what an answer erases today', () => {
+  it('names the questions in the genitive after «из»: 1, 21, 31 — «вопроса», the rest «вопросов»', () => {
+    const label = (erasable: number, drawLabel = 'Тянуть билет') =>
+      examStatus(input({ drawLabel, coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, erasable }, answers: { answered: 3 } })).action;
+    expect(label(1)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 1 вопроса' });
+    expect(label(2)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 2 вопросов' });
+    expect(label(4)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 4 вопросов' });
+    expect(label(5)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 5 вопросов' });
+    expect(label(11)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 11 вопросов' });
+    expect(label(21)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 21 вопроса' });
+    expect(label(31)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 31 вопроса' });
+    // A ticket of one question: «один из», never «вопрос из 4 вопросов».
+    expect(label(4, 'Тянуть вопрос')).toEqual({ kind: 'awaiting', label: 'Тянуть один из 4 вопросов' });
+    expect(label(21, 'Тянуть вопрос')).toEqual({ kind: 'awaiting', label: 'Тянуть один из 21 вопроса' });
+    expect(awaitingDrawLabel('Тянуть вопрос', 1)).toBe('Тянуть вопрос из 1 вопроса');
+  });
+
+  it('the plain draw beside it says it is from every question', () => {
+    expect(allDrawLabel('Тянуть билет')).toBe('Тянуть билет из всех вопросов');
+    expect(allDrawLabel('Тянуть вопрос')).toBe('Тянуть вопрос из всего списка');
   });
 });

@@ -25,7 +25,7 @@ vi.mock('../../lib/oral/answerTexts', async (importOriginal) => ({
   onAnswerTextConsent: () => () => undefined,
 }));
 
-import AnswerTextConsent, { CONSENT_DECLINED_LINE, CONSENT_FAILED_LINE, CONSENT_GRANTED_LINE } from './AnswerTextConsent';
+import AnswerTextConsent, { CONSENT_DECLINED_LINE, CONSENT_FAILED_LINE, CONSENT_GRANTED_LINE, CONSENT_SHORT_ASK } from './AnswerTextConsent';
 import { ANSWER_TEXT_CONSENT_ASK, ANSWER_TEXT_CONSENT_TEXT } from '../../lib/oral/answerTexts';
 
 beforeEach(() => {
@@ -71,13 +71,17 @@ describe('the question about keeping answer texts on the exam page', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('a phone asks in one quiet line: the request and its two choices (the rest of the text stands by the switch in «Профиль»)', async () => {
+  it('a phone asks in one quiet sentence with the terms — no name, deleted in the profile — and its two choices', async () => {
     const { container } = render(<AnswerTextConsent short />);
     const ask = await screen.findByRole('region', { name: 'Тексты ответов для проверки точности' });
     expect(ask).toHaveAttribute('data-short');
     expect(ask).not.toHaveClass('ex-note');
-    expect(ask.textContent?.replace(/\u00a0/g, ' ')).toContain(ANSWER_TEXT_CONSENT_ASK);
-    expect(container.textContent).not.toContain('Имя к ним не прикладывается');
+    const text = (ask.querySelector('p')?.textContent ?? '').replace(/\u00a0/g, ' ');
+    expect(text).toBe(`${CONSENT_SHORT_ASK} Разрешить Нет, спасибо`);
+    expect(CONSENT_SHORT_ASK).toBe('Помогите проверить точность Meldy: разрешите сохранять текст ответов — без имени, удалить можно в профиле.');
+    // No «·» glue between the choices; the computer keeps its full text.
+    expect(container.textContent).not.toContain('·');
+    expect(ANSWER_TEXT_CONSENT_TEXT).toBe(`${ANSWER_TEXT_CONSENT_ASK} Имя к ним не прикладывается, удалить можно в профиле.`);
     fireEvent.click(screen.getByRole('button', { name: 'Нет, спасибо' }));
     expect(await screen.findByRole('status')).toHaveTextContent(CONSENT_DECLINED_LINE);
     expect(mocks.write).toHaveBeenCalledWith('user-1', false);

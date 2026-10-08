@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   EXAM_MESSAGES,
@@ -11,6 +11,7 @@ import {
   type CoverageItem,
   type ExamBundle,
   type ExamQuestion,
+  type TicketLayout,
 } from '../api/exams';
 import { fetchQuestionEvents, fetchSessionPoints, localDate, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
@@ -26,10 +27,20 @@ import { usePrefersReducedMotion } from '../components/landing/usePrefersReduced
 import { Mark } from '../components/marks';
 import ExamSheet, { type SheetPeak, type SheetRowView } from '../components/exams/ExamSheet';
 import ExamStatusCard, { type StatusNote } from '../components/exams/ExamStatus';
-import { examStatus, isNothingFound, mappingLimitLine } from '../components/exams/examStatus';
+import { allDrawLabel, examStatus, isNothingFound, mappingLimitLine } from '../components/exams/examStatus';
 import { useExamLectureFit } from '../components/exams/examLectureFit';
 import WhyPanel from '../components/exams/WhyPanel';
-import { CoverageSummary, PeakSummary, PhoneSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
+import {
+  CoverageSummary,
+  PeakSummary,
+  PhoneSummary,
+  peakCountLine,
+  RateSummary,
+  ReadinessBlock,
+  ReadinessLegend,
+  readinessCounts,
+  type PeakView,
+} from '../components/exams/SheetSummary';
 import { checkedCount, getMapJob, MAPPING_COST, mappingTargets, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../components/exams/marks';
 import {
@@ -78,7 +89,6 @@ import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import InviteGroup, { InviteGroupDialog } from '../components/exams/share/InviteGroup';
 import MoreMenu, { type MoreMenuItem } from '../components/ui/MoreMenu';
-import { pluralRu } from '../components/conversation/visuals';
 import { usePhone } from '../lib/usePhone';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
@@ -163,12 +173,12 @@ function examWhen(kind: keyof typeof KIND_LABELS, examDate: string | null): stri
 }
 
 /**
- * A phone's meta line (10_Project/Phone_Declutter_2026-10-08): the day and the number of questions, «21 октября, через
- * 13 дней · 20 вопросов». The kind is named only when it is not an exam; the ticket's size, the lectures and the
- * mapping are in «Как считается» and «Ещё».
+ * A phone's meta line (10_Project/Phone_Declutter_2026-10-08): the day, the number of questions and the ticket's size,
+ * «21 октября, через 13 дней · 20 вопросов, в билете два» (two lines at 360 px). The kind is named only when it is not
+ * an exam; the lectures and the mapping are in «Как считается».
  */
-export function phoneMetaLine(kind: keyof typeof KIND_LABELS, examDate: string | null, total: number, now: Date = new Date()): string {
-  const questions = `${total} ${pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])}`;
+export function phoneMetaLine(kind: keyof typeof KIND_LABELS, examDate: string | null, total: number, layout: TicketLayout, now: Date = new Date()): string {
+  const questions = layoutPhrase(total, layout);
   const day = formatDay(examDate, now);
   if (!day) return `${KIND_LABELS[kind]} · ${questions}`;
   const days = daysUntil(examDate, now);
@@ -177,8 +187,11 @@ export function phoneMetaLine(kind: keyof typeof KIND_LABELS, examDate: string |
   return `${kind === 'exam' ? when : `${KIND_LABELS[kind]} ${when}`} · ${questions}`;
 }
 
-/** A phone's list has no line of lecture and fragment under each question: this line says where they are. */
-export const ROW_HINT = 'Нажмите на вопрос — увидите фрагмент';
+/**
+ * A phone's list has no line of lecture and fragment under each question: this line says where they are — once the list
+ * is checked against the lectures and something was found there (before, a tap shows no lecture at all).
+ */
+export const ROW_HINT = 'Нажмите на вопрос — увидите, где он в лекциях';
 
 /** A filter's words: a phone shows `keep` («есть», «нет»), the rest of `word` stays for screen readers. */
 function FilterWord({ word, keep }: { word: string; keep: string }) {
@@ -261,9 +274,11 @@ function ExamSheetPage({ examId }: { examId: string }) {
   // «Ответить на этот вопрос» of the open «почему» is in the window (WhyPanel watches it): only then the status's pill
   // steps down to white — with the panel's pill out of view the page had no blue pill at all (audit 2026-10-08).
   const [whyGoVisible, setWhyGoVisible] = useState(true);
-  // «Пригласить группу» opened from a phone's «Ещё»; the focus goes back to «Ещё» when it closes.
+  // «Пригласить группу» opened from a phone's «⋯»; the focus goes back to «⋯» when it closes.
   const [inviteOpen, setInviteOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  // A phone: «Обозначения» over the list opens the key to the number circles (the readiness legend).
+  const [keysOpen, setKeysOpen] = useState(false);
   // «Сверить с лекциями» had the focus when its run started: the focus goes to the status that replaces it.
   const mapPillFocused = useRef(false);
   const drawPillRef = useRef<HTMLAnchorElement>(null);
@@ -991,8 +1006,11 @@ function ExamSheetPage({ examId }: { examId: string }) {
   if (eventsState === 'error' && eventsError) statusNotes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) } });
 
   const editLocked = running || job.phase === 'waiting' || (examFresh && exam.mapping_state === 'running' && isMappingLocked(exam));
-  // Only «Все 40» until something is mapped: three filters showing 0 said nothing (redesign critique 7).
+  // Only «Все 40» until something is mapped: three filters showing 0 said nothing (redesign critique 7). A phone shows no
+  // filter with 0 at all (its row is one line; the chosen one stays).
   const showCoverageFilters = mappedCount > 0 || running;
+  // A phone with an empty list: the heading, the status and its button — nothing that would only say «0».
+  const phoneEmpty = phone && questions.length === 0;
   const whyId = `exam-why-${exam.id}`;
   const showPeak = Boolean(peak) && !rateMode && !selectedRow;
   // The open «почему» has its own filled pill «Ответить на этот вопрос» (not for a question missing from
@@ -1122,7 +1140,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
       />
     ) : null;
 
-  // `keep`: the words a phone shows, so the filter is one line (the rest stays for screen readers).
+  // `keep`: the words a phone shows, so the filter is one line (the rest stays for screen readers); its pencil marks are
+  // the key to the marks at the rows' ends.
   const coverageFilters: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string; keep: string; count: number }> = [
     { value: 'cov:full', coverage: 'full', word: 'есть в лекциях', keep: 'есть', count: counts.full },
     { value: 'cov:partial', coverage: 'partial', word: 'частично', keep: 'частично', count: counts.partial },
@@ -1271,9 +1290,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
     </>
   );
 
-  // Phones: «Изменить список · Лекции · Самооценка · Пригласить группу · Отчёт для преподавателя» took three or four
-  // rows above the status (audit 2026-10-08); they go under the list, as under the paper on «Шпаргалка».
-  const linksBelow = !frame.side && (onSheet || frame.size === 's' || phone);
+  // Tablets: «Изменить список · Лекции · Самооценка · Пригласить группу · Отчёт для преподавателя» took three or four
+  // rows above the status (audit 2026-10-08); they go under the list, as under the paper on «Шпаргалка». A phone has
+  // them in the «⋯» of the heading.
+  const linksBelow = !frame.side && !phone && (onSheet || frame.size === 's');
   const startRate = () => {
     setSelectedId(null);
     setFilter('all');
@@ -1282,28 +1302,29 @@ function ExamSheetPage({ examId }: { examId: string }) {
       setRateMode(true);
       return;
     }
-    // On a phone these links stand under the list: the list's top, with its «Отметьте…» line, comes into view.
-    if (linksBelow && !rateMode) {
+    // From the links under the list, or a phone's «⋯» at the top: the list's top, with its «Отметьте…» line, comes into view.
+    if ((linksBelow || phone) && !rateMode) {
       window.setTimeout(() => document.querySelector('.ex-sheet')?.scrollIntoView?.({ block: 'start', behavior: reduced ? 'auto' : 'smooth' }), 0);
     }
     setRateMode((value) => !value);
   };
-  // A phone: the five links as one «Ещё» under the list (10_Project/Phone_Declutter_2026-10-08). «Изменить список» is
-  // left out while a mapping holds the list (the status says it is running); the lectures say how many there are.
+  // A phone: the five links as one round «⋯» on the heading's row, as on a lecture (10_Project/Phone_Declutter_2026-10-08;
+  // under the list a newcomer did not find «Изменить список» or «Пригласить группу»). «Изменить список» is left out for a
+  // group link's copy and while a mapping holds the list (the status says it is running).
   const moreItems: MoreMenuItem[] = [
-    ...(drawInMore ? [{ key: 'draw', label: drawLabel, to: drawHref }] : []),
+    ...(drawInMore ? [{ key: 'draw', label: allDrawLabel(drawLabel), to: drawHref }] : []),
     ...(copy || editLocked ? [] : [{ key: 'edit', label: 'Изменить список', to: `/exams/${exam.id}/edit` }]),
-    { key: 'lectures', label: bundle.materials.length > 0 ? `Лекции · ${bundle.materials.length}` : 'Лекции', to: `/exams/${exam.id}/edit#lectures` },
+    { key: 'lectures', label: 'Лекции', to: `/exams/${exam.id}/edit#lectures` },
     { key: 'rate', label: rateMode && !onSheet ? 'Закончить самооценку' : 'Самооценка', onSelect: startRate },
     ...(copy ? [] : [{ key: 'invite', label: 'Пригласить группу', onSelect: () => setInviteOpen(true) }]),
     { key: 'report', label: 'Отчёт для преподавателя', to: `/exams/${exam.id}/report` },
   ];
   const moreMenu = (
     <div className="ex-more" ref={moreRef}>
-      <MoreMenu items={moreItems} label="Ещё: лист экзамена" up alignStart />
+      <MoreMenu items={moreItems} label="Ещё: лист экзамена" variant="round" />
     </div>
   );
-  const examLinks = phone ? moreMenu : (
+  const examLinks = (
     <div className="ex-links">
       {/* A copy from a group link: its list is the author's (the member keeps «Лекции» to add their own). */}
       {copy ? null : editLocked ? (
@@ -1332,9 +1353,44 @@ function ExamSheetPage({ examId }: { examId: string }) {
   );
 
   // Phones and tablets under the sheet: the action line of the share and the readiness legend, when there are any.
-  // A phone has them behind «Как считается» (PhoneSummary).
+  // A phone has them behind «Как считается» (PhoneSummary) and «Обозначения».
   const answersBelow = !frame.side && !phone && !onSheet && !rateMode && !showPeak && (Boolean(closeLine) || showReadiness);
   const topColumn = onSheet ? sheetPage.top : rateMode ? rateColumn : showPeak ? peakColumn : compactColumn;
+
+  // A phone: the line over the list says that a question opens its place in the lectures — once something was found
+  // there (before a mapping, or for a list in no lecture, a tap shows none). «Обозначения» at its end opens the key to
+  // the number circles, once answers have marked them; its rows still filter the list.
+  const foundInLectures = counts.full + counts.partial + counts.unverified > 0;
+  const rowHint = phone && !rateMode && rows.length > 0 && foundInLectures ? ROW_HINT : null;
+  const keysShown = phone && !rateMode && showReadiness;
+  const keysId = `${whyId}-keys`;
+  const keysLink = keysShown ? (
+    <button
+      type="button"
+      className="sf-link ex-keys-link"
+      data-muted=""
+      aria-expanded={keysOpen}
+      aria-controls={keysOpen ? keysId : undefined}
+      onClick={() => setKeysOpen((open) => !open)}
+    >
+      Обозначения
+    </button>
+  ) : null;
+  const keysPanel =
+    keysShown && keysOpen ? (
+      <div className="ex-keys" id={keysId}>
+        <ReadinessLegend counts={readinessCounts(summary)} filter={filter} onFilter={setFilter} />
+      </div>
+    ) : null;
+
+  const subject = subjectOf(exam.title);
+  // A phone sizes the heading to its longest word, which must fit beside the «⋯» (exams.css, .ex-titlerow).
+  const longestWord = Math.max(1, ...subject.split(/\s+/).map((word) => word.length));
+  const heading = (
+    <h1 className="ex-h1" title={exam.title} style={phone ? ({ '--ex-h1-word': longestWord } as CSSProperties) : undefined}>
+      {subject}
+    </h1>
+  );
 
   return (
     <div className="sf-page ex-detail" ref={frame.ref} data-frame={frame.size} data-view={view}>
@@ -1344,16 +1400,28 @@ function ExamSheetPage({ examId }: { examId: string }) {
           <p className="ex-crumb">
             <Link to="/exams">Экзамены</Link>
           </p>
-          <h1 className="ex-h1" title={exam.title}>
-            {subjectOf(exam.title)}
-          </h1>
-          {/* A phone: the day and the number of questions, one line on both views. A tablet's sheet: the day of the exam
-              only, so the paper's lines are on the first screen («Вопросы» says the rest). */}
-          <p className="ex-meta">
-            {glue(phone ? phoneMetaLine(exam.kind, exam.exam_date, questions.length) : (onSheet && !frame.side ? metaParts.slice(0, 1) : metaParts).join(' · '))}
-          </p>
-          {/* Phones (and a tablet's sheet): the status and the list on the first screen; these links go under them. */}
-          {!linksBelow && examLinks}
+          {/* A phone: the heading and the round «⋯» of the page's other links on one row, as on a lecture. */}
+          {phone && !phoneEmpty ? (
+            <div className="ex-titlerow">
+              {heading}
+              {moreMenu}
+            </div>
+          ) : (
+            heading
+          )}
+          {/* A phone: the day, the number of questions and the ticket's size, on both views (an empty list: none of it). A
+              tablet's sheet: the day of the exam only, so the paper's lines are on the first screen («Вопросы» says the rest). */}
+          {phoneEmpty ? null : (
+            <p className="ex-meta">
+              {glue(
+                phone
+                  ? phoneMetaLine(exam.kind, exam.exam_date, questions.length, exam.ticket_layout)
+                  : (onSheet && !frame.side ? metaParts.slice(0, 1) : metaParts).join(' · '),
+              )}
+            </p>
+          )}
+          {/* A tablet's sheet: the status and the list on the first screen; these links go under them. */}
+          {!linksBelow && !phone && examLinks}
         </div>
       </header>
 
@@ -1361,107 +1429,118 @@ function ExamSheetPage({ examId }: { examId: string }) {
       <ExamStatusCard ref={statusHeadingRef} id={`ex-st-${exam.id}`} status={pageStatus} actions={statusActions} notes={statusNotes} brief={phone} />
 
       {/* Phones and tablets: the two views right under the status, above everything they change. */}
-      {!frame.side && <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div>}
+      {!frame.side && !phoneEmpty && <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div>}
 
-      {!frame.side && topColumn && (
+      {!frame.side && !phoneEmpty && topColumn && (
         <section className="ex-col" aria-label={onSheet ? 'Шпаргалка: сколько осталось' : 'Сводка'}>
           {topColumn}
         </section>
       )}
 
-      <div className="ex-body" data-solo={frame.side && !sideColumn ? '' : undefined}>
-        <div style={{ minWidth: 0 }}>
-          <div className="ex-viewbar" data-empty={!frame.side && onSheet ? '' : undefined}>
-            {frame.side && viewTabs}
-            {!onSheet && (
-              <ul className="ex-filter" aria-label="Показать вопросы">
-                <li>
-                  <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-                    <span className="ex-filter-word">Все</span> <span className="ex-count">{counts.total}</span>
-                  </button>
-                </li>
-                {coverageFilters
-                  .filter((item) => showCoverageFilters && (item.count > 0 || item.value === 'cov:full' || item.value === 'cov:partial' || item.value === 'cov:none'))
-                  .map((item) => {
-                    const kind = COVERAGE_MARK[item.coverage];
-                    const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
-                    const active = filter === item.value;
-                    return (
-                      <li key={item.value}>
-                        {/* A status pill in its colour, with the same pencil mark as the rows' pills. */}
-                        <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => setFilter(active ? 'all' : item.value)}>
-                          {kind && size && (
-                            <span className="ex-filter-mark" aria-hidden="true">
-                              <Mark
-                                kind={kind}
-                                seed={301 + item.value.length}
-                                width={Math.round(size.width * PILL_MARK_SCALE)}
-                                height={Math.round(size.height * PILL_MARK_SCALE)}
-                                weight={size.weight}
-                              />
-                            </span>
-                          )}
-                          <FilterWord word={item.word} keep={item.keep} /> <span className="ex-count">{item.count}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
-              </ul>
-            )}
+      {phoneEmpty ? null : (
+        <div className="ex-body" data-solo={frame.side && !sideColumn ? '' : undefined}>
+          <div style={{ minWidth: 0 }}>
+            <div className="ex-viewbar" data-empty={!frame.side && onSheet ? '' : undefined}>
+              {frame.side && viewTabs}
+              {!onSheet && (
+                <ul className="ex-filter" aria-label="Показать вопросы">
+                  <li>
+                    <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+                      <span className="ex-filter-word">Все</span> <span className="ex-count">{counts.total}</span>
+                    </button>
+                  </li>
+                  {coverageFilters
+                    .filter(
+                      (item) =>
+                        showCoverageFilters &&
+                        (phone
+                          ? item.count > 0 || filter === item.value
+                          : item.count > 0 || item.value === 'cov:full' || item.value === 'cov:partial' || item.value === 'cov:none'),
+                    )
+                    .map((item) => {
+                      const kind = COVERAGE_MARK[item.coverage];
+                      const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
+                      const active = filter === item.value;
+                      return (
+                        <li key={item.value}>
+                          {/* A status pill in its colour, with the same pencil mark as the rows' pills. */}
+                          <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => setFilter(active ? 'all' : item.value)}>
+                            {kind && size && (
+                              <span className="ex-filter-mark" aria-hidden="true">
+                                <Mark
+                                  kind={kind}
+                                  seed={301 + item.value.length}
+                                  width={Math.round(size.width * PILL_MARK_SCALE)}
+                                  height={Math.round(size.height * PILL_MARK_SCALE)}
+                                  weight={size.weight}
+                                />
+                              </span>
+                            )}
+                            <FilterWord word={item.word} keep={item.keep} /> <span className="ex-count">{item.count}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                </ul>
+              )}
+            </div>
+            <div id="ex-view-panel" role="tabpanel" aria-labelledby={`ex-view-${view}`}>
+              {onSheet ? (
+                (sheetPage.paper ?? (sheetPage.data.status === 'loading' ? <p className="ex-loading">Загружаем шпаргалку…</p> : null))
+              ) : (
+                <ExamSheet
+                  examId={exam.id}
+                  title={sheetTitle}
+                  rows={rows}
+                  sectionTitles={exam.ticket_layout.section_titles ?? []}
+                  selectedId={selectedId}
+                  rateMode={rateMode}
+                  frame={frame.size}
+                  whyId={whyId}
+                  onOpen={(id) => {
+                    setManualError(null);
+                    setSelectedId((currentId) => (currentId === id ? null : id));
+                  }}
+                  onRate={(row, rating) => void onRate(row, rating)}
+                  onRateDone={() => {
+                    setRateMode(false);
+                    setFilter('all');
+                  }}
+                  ratingPending={ratingPending}
+                  ratingErrors={ratingErrors}
+                  peak={
+                    peak
+                      ? ({
+                          questionId: peak.questionId,
+                          animate: peak.phase === 'draw' && peak.draws,
+                          because: peak.because,
+                          count: frame.side ? undefined : peakCountLine(peak.view),
+                        } satisfies SheetPeak)
+                      : null
+                  }
+                  dim={Boolean(peak?.dim)}
+                  emptyText={rows.length === 0 ? (questions.length === 0 ? 'В списке пока нет вопросов.' : 'В этом фильтре вопросов нет.') : null}
+                  hint={rowHint && keysLink ? `${rowHint}.` : rowHint}
+                  hintAction={keysLink}
+                  hintPanel={keysPanel}
+                />
+              )}
+            </div>
           </div>
-          <div id="ex-view-panel" role="tabpanel" aria-labelledby={`ex-view-${view}`}>
-            {onSheet ? (
-              (sheetPage.paper ?? (sheetPage.data.status === 'loading' ? <p className="ex-loading">Загружаем шпаргалку…</p> : null))
-            ) : (
-              <ExamSheet
-                examId={exam.id}
-                title={sheetTitle}
-                rows={rows}
-                sectionTitles={exam.ticket_layout.section_titles ?? []}
-                selectedId={selectedId}
-                rateMode={rateMode}
-                frame={frame.size}
-                whyId={whyId}
-                onOpen={(id) => {
-                  setManualError(null);
-                  setSelectedId((currentId) => (currentId === id ? null : id));
-                }}
-                onRate={(row, rating) => void onRate(row, rating)}
-                onRateDone={() => {
-                  setRateMode(false);
-                  setFilter('all');
-                }}
-                ratingPending={ratingPending}
-                ratingErrors={ratingErrors}
-                peak={
-                  peak
-                    ? ({
-                        questionId: peak.questionId,
-                        animate: peak.phase === 'draw' && peak.draws,
-                        because: peak.because,
-                        count: frame.side ? undefined : peakCountLine(peak.view),
-                      } satisfies SheetPeak)
-                    : null
-                }
-                dim={Boolean(peak?.dim)}
-                emptyText={rows.length === 0 ? (questions.length === 0 ? 'В списке пока нет вопросов.' : 'В этом фильтре вопросов нет.') : null}
-                hint={phone && !rateMode && rows.length > 0 ? ROW_HINT : null}
-              />
-            )}
-          </div>
+          {frame.side && sideColumn && (
+            <aside className="ex-col" aria-label={onSheet ? 'Колонка шпаргалки' : 'Что это значит для билетов'} id={selectedRow ? whyId : undefined}>
+              {sideColumn}
+            </aside>
+          )}
         </div>
-        {frame.side && sideColumn && (
-          <aside className="ex-col" aria-label={onSheet ? 'Колонка шпаргалки' : 'Что это значит для билетов'} id={selectedRow ? whyId : undefined}>
-            {sideColumn}
-          </aside>
-        )}
-      </div>
+      )}
 
-      {/* With the paper, not before it: the paper's arrival would push this down under the eye. */}
-      {!frame.side && onSheet && sheetPage.settled && (
+      {/* With the paper, not before it: the paper's arrival would push this down under the eye. A phone's links are in the
+          heading's «⋯»: there the section holds at most the write card, and an empty one is not shown (exams.css). */}
+      {!frame.side && !phoneEmpty && onSheet && sheetPage.settled && (
         <section className="ex-col ex-col-after">
           {sheetPage.after}
-          {examLinks}
+          {!phone && examLinks}
         </section>
       )}
 
@@ -1478,7 +1557,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
       {!frame.side && selectedRow && <div id={whyId}>{whyPanel('sheet')}</div>}
 
-      <AnswerTextConsent ready={!onSheet || sheetPage.settled} short={phone} />
+      {phoneEmpty ? null : <AnswerTextConsent ready={!onSheet || sheetPage.settled} short={phone} />}
 
       {inviteOpen && (
         <InviteGroupDialog

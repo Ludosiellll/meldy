@@ -1779,12 +1779,12 @@ describe('ExamDetail on a phone', () => {
 });
 
 describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10-08)', () => {
-  it('says the day and the number of questions in one line; the lectures and the mapping wait behind «Как считается»', async () => {
+  it('says the day, the number of questions and the ticket’s size; the lectures and the mapping wait behind «Как считается»', async () => {
     setPhone();
     mocks.loadExamBundle.mockResolvedValue(bundle(forty(), { exam_date: dayKey(13) }));
     renderDetail();
     await opened();
-    expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toBe(`${formatDay(dayKey(13))}, через 13 дней · 40 вопросов`);
+    expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toBe(`${formatDay(dayKey(13))}, через 13 дней · 40 вопросов, в билете два`);
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
     const panel = document.querySelector('.ex-psum-calc') as HTMLElement;
     expect(plain(panel.querySelector('.ex-psum-facts')?.textContent)).toBe('2 лекции · сверка от 21 января, 9:40');
@@ -1792,23 +1792,26 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(plain(panel.textContent)).toContain('Это доля билетов, а не вероятность сдать: считаем, что билет — два случайных вопроса из 40.');
   });
 
-  it('words the meta line: an exam by its day, another kind by name, no day, a day gone by', () => {
+  it('words the meta line: an exam by its day, another kind by name, no day, a day gone by — with the ticket’s size', () => {
     const now = new Date(2026, 9, 8, 12, 0, 0);
-    expect(phoneMetaLine('exam', '2026-10-21', 20, now)).toBe('21 октября, через 13 дней · 20 вопросов');
-    expect(phoneMetaLine('credit', '2026-10-09', 1, now)).toBe('Зачёт 9 октября, завтра · 1 вопрос');
-    expect(phoneMetaLine('exam', null, 18, now)).toBe('Экзамен · 18 вопросов');
-    expect(phoneMetaLine('colloquium', '2026-10-01', 3, now)).toBe('Коллоквиум прошёл 1 октября · 3 вопроса');
+    const two = { mode: 'random' as const, per_ticket: 2 };
+    expect(phoneMetaLine('exam', '2026-10-21', 20, two, now)).toBe('21 октября, через 13 дней · 20 вопросов, в билете два');
+    expect(phoneMetaLine('credit', '2026-10-09', 1, { mode: 'random', per_ticket: 1 }, now)).toBe('Зачёт 9 октября, завтра · 1 вопрос, в билете один');
+    expect(phoneMetaLine('exam', null, 18, two, now)).toBe('Экзамен · 18 вопросов, в билете два');
+    expect(phoneMetaLine('colloquium', '2026-10-01', 3, { mode: 'sections', per_ticket: 3 }, now)).toBe(
+      'Коллоквиум прошёл 1 октября · 3 вопроса, в билете по вопросу из каждого раздела',
+    );
   });
 
-  it('the figure in one line with «Как считается»; behind it the action line, the formulas, what «подтверждено» means and the legend, which still filters', async () => {
+  it('the figure in one line with «Как считается»; behind it the action line, the formulas and what «подтверждено» means', async () => {
     setPhone();
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
     renderDetail();
     await opened();
     const summary = screen.getByRole('region', { name: 'Сводка' });
-    expect(plain(summary.querySelector('.ex-psum-fig')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях · Как считается');
-    await waitFor(() => expect(plain(summary.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 1 из 40'));
+    expect(plain(summary.querySelector('.ex-psum-fig')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях. Как считается');
+    await waitFor(() => expect(plain(summary.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 1 вопрос из 40'));
     // Until «Как считается» opens: no caveat, no action line, no legend, nothing under the list.
     expect(screen.queryByText(/Это доля билетов, а не вероятность сдать/)).toBeNull();
     expect(document.querySelector('.ex-act')).toBeNull();
@@ -1822,9 +1825,8 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(plain(panel.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     expect(panel.querySelector('.ex-formula')).not.toBeNull();
     expect(plain(panel.textContent)).toContain('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.');
-    const legend = within(panel).getByRole('list', { name: 'Показать вопросы по ответам' });
-    fireEvent.click(within(legend).getByRole('button', { name: /^подтверждено/ }));
-    expect(document.querySelectorAll('.ex-q')).toHaveLength(1);
+    // The legend of the number circles is «Обозначения» over the list, not here.
+    expect(within(panel).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
     fireEvent.click(within(panel).getByRole('button', { name: named('7 вопросов «частично»') }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(7);
   });
@@ -1847,7 +1849,7 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('«Ещё» under the list holds the five links: the list, the lectures with their count, the self-rating, the group and the report', async () => {
+  it('the round «⋯» on the heading’s row holds the five links: the list, the lectures, the self-rating, the group and the report', async () => {
     setPhone();
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })));
@@ -1855,12 +1857,19 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     await opened();
     expect(document.querySelector('.ex-links')).toBeNull();
     const more = screen.getByRole('button', { name: 'Ещё: лист экзамена' });
+    // Beside the heading, before the status and the list (a newcomer did not find «Изменить список» under the list).
+    expect(more).toHaveClass('sf-more');
+    expect(more.closest('.ex-titlerow')?.querySelector('h1')).toHaveTextContent('Макроэкономика');
     const sheet = document.querySelector('.ex-sheet') as HTMLElement;
-    expect(sheet.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more.compareDocumentPosition(statusCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // One «Ещё» on the page: none under the list.
+    expect(screen.getAllByRole('button', { name: 'Ещё: лист экзамена' })).toHaveLength(1);
+    expect(document.querySelector('.ex-links-after')).toBeNull();
     fireEvent.click(more);
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции · 2', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя']);
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя']);
     expect(screen.getByRole('menuitem', { name: 'Изменить список' })).toHaveAttribute('href', '/exams/exam-1/edit');
-    expect(screen.getByRole('menuitem', { name: 'Лекции · 2' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+    expect(screen.getByRole('menuitem', { name: 'Лекции' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
     expect(screen.getByRole('menuitem', { name: 'Отчёт для преподавателя' })).toHaveAttribute('href', '/exams/exam-1/report');
     fireEvent.click(screen.getByRole('menuitem', { name: 'Пригласить группу' }));
     expect(await screen.findByRole('dialog', { name: 'Пригласить группу' })).toBeInTheDocument();
@@ -1876,13 +1885,13 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(screen.getByRole('menuitem', { name: 'Закончить самооценку' })).toBeInTheDocument();
   });
 
-  it('a group link’s copy: «Ещё» has no list editing and no invitation; a running mapping takes «Изменить список» out', async () => {
+  it('a group link’s copy: «⋯» has no list editing and no invitation; a running mapping takes «Изменить список» out', async () => {
     setPhone();
     mocks.loadExamBundle.mockResolvedValue({ ...bundle(forty()), copy: true });
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Лекции · 2', 'Самооценка', 'Отчёт для преподавателя']);
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Лекции', 'Самооценка', 'Отчёт для преподавателя']);
     cleanup();
     mocks.loadExamBundle.mockResolvedValue(bundle(forty(), { mapping_state: 'running', mapping_started_at: new Date().toISOString() }));
     mocks.fetchExamMappingState.mockResolvedValue({ mapping_state: 'running', mapping_started_at: new Date().toISOString(), mapped_at: null });
@@ -1891,6 +1900,191 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
     expect(screen.queryByRole('menuitem', { name: 'Изменить список' })).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Пригласить группу' })).toBeInTheDocument();
+  });
+});
+
+describe('ExamDetail on a phone: what the critics found (2026-10-08)', () => {
+  /** An oral point of an answer's session: «Второй ответ после разбора» pools them. */
+  function point(session: string, id: string, status: 'covered' | 'missing'): LearningEvent {
+    return {
+      id: `pt-${session}-${id}`,
+      created_at: '2026-01-01T10:00:00Z',
+      local_date: '2026-01-01',
+      material_id: null,
+      kind: 'oral_point',
+      item_key: `oral:r1:${id}`,
+      correct: status === 'covered',
+      score: null,
+      confidence: null,
+      source_ids: [],
+      session_id: session,
+      payload: { v: 1, question_hash: hash(1), rubric_id: 'r1', point_id: id, title: id, status, essential: true, live: true, followup_status: null },
+    };
+  }
+  const header = () => document.querySelector('.ex-sheet-h') as HTMLElement;
+
+  it('«Обозначения» at the end of the hint opens the key to the number circles; its rows still filter the list', async () => {
+    setPhone();
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2'), answer(2, dayKey(-1), false, 's3')]);
+    renderDetail();
+    await opened();
+    const keys = await screen.findByRole('button', { name: 'Обозначения' });
+    expect(plain(header().querySelector('.ex-sheet-hint')?.textContent)).toBe('Нажмите на вопрос — увидите, где он в лекциях. Обозначения');
+    // A quiet disclosure: muted, a 44 px target in the stylesheet, aria-controls only while open.
+    expect(keys).toHaveClass('sf-link');
+    expect(keys).toHaveAttribute('data-muted');
+    expect(keys).toHaveAttribute('aria-expanded', 'false');
+    expect(keys).not.toHaveAttribute('aria-controls');
+    expect(screen.queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
+    fireEvent.click(keys);
+    expect(keys).toHaveAttribute('aria-expanded', 'true');
+    const legend = screen.getByRole('list', { name: 'Показать вопросы по ответам' });
+    const panel = legend.closest('.ex-keys') as HTMLElement;
+    expect(keys).toHaveAttribute('aria-controls', panel.id);
+    expect(header().contains(panel)).toBe(true);
+    expect(within(legend).getAllByRole('button').map((item) => plain(item.textContent))).toEqual([
+      'подтверждено 1',
+      'названо достаточно, не подтверждено 0',
+      'названо недостаточно 1',
+      'не проверялось 38',
+    ]);
+    fireEvent.click(within(legend).getByRole('button', { name: /^названо недостаточно/ }));
+    expect(document.querySelectorAll('.ex-q')).toHaveLength(1);
+    expect(row('q2')).toBeInTheDocument();
+    fireEvent.click(within(legend).getByRole('button', { name: /^названо недостаточно/ }));
+    expect(document.querySelectorAll('.ex-q')).toHaveLength(40);
+    fireEvent.click(keys);
+    expect(screen.queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
+  });
+
+  it('no «Обозначения» before the first answer, nor while rating; the computer keeps its legend in the column', async () => {
+    setPhone();
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(plain(header().querySelector('.ex-sheet-hint')?.textContent)).toBe(ROW_HINT);
+    expect(screen.queryByRole('button', { name: 'Обозначения' })).toBeNull();
+    cleanup();
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's1')]);
+    renderDetail();
+    await opened();
+    await screen.findByRole('button', { name: 'Обозначения' });
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Самооценка' }));
+    expect(screen.queryByRole('button', { name: 'Обозначения' })).toBeNull();
+    expect(document.querySelector('.ex-sheet-hint')).toBeNull();
+    cleanup();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    setWidth(1280);
+    renderDetail();
+    await opened();
+    expect(await within(column()).findByRole('list', { name: 'Показать вопросы по ответам' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Обозначения' })).toBeNull();
+    expect(document.querySelector('.ex-sheet-hint')).toBeNull();
+  });
+
+  it('the hint speaks of the lectures only once something was found there', async () => {
+    setPhone();
+    // Not checked yet: a tap shows no lecture.
+    mocks.loadExamBundle.mockResolvedValue(bundle(Array.from({ length: 6 }, (_, index) => question(index + 1, null))));
+    renderDetail();
+    await opened();
+    expect(document.querySelector('.ex-sheet-hint')).toBeNull();
+    expect(header()).not.toHaveAttribute('data-hint');
+    cleanup();
+    // Checked, and in no lecture at all.
+    mocks.loadExamBundle.mockResolvedValue(bundle(Array.from({ length: 6 }, (_, index) => question(index + 1, 'none'))));
+    renderDetail();
+    await opened();
+    expect(document.querySelector('.ex-sheet-hint')).toBeNull();
+    cleanup();
+    mocks.loadExamBundle.mockResolvedValue(bundle(mixed()));
+    renderDetail();
+    await opened();
+    expect(plain(document.querySelector('.ex-sheet-hint')?.textContent)).toBe('Нажмите на вопрос — увидите, где он в лекциях');
+  });
+
+  it('what asks for an answer stays in sight: «Пора проверить» and «Второй ответ после разбора» under the answers’ count', async () => {
+    setPhone();
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-20), true, 's1'), answer(1, dayKey(-18), true, 's2')]);
+    mocks.fetchSessionPoints.mockResolvedValue([point('s1', 'p1', 'covered'), point('s1', 'p2', 'missing'), point('s2', 'p1', 'covered'), point('s2', 'p2', 'covered')]);
+    renderDetail();
+    await opened();
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    await waitFor(() => expect(summary.querySelectorAll('.ex-psum-line')).toHaveLength(3));
+    expect(Array.from(summary.querySelectorAll('.ex-psum-line')).map((item) => plain(item.textContent))).toEqual([
+      'Подтверждено ответами — 1 вопрос из 40',
+      'Пора проверить: 1 — подтверждён больше 14 дней назад.',
+      'Второй ответ после разбора: по 1 вопросу в первый раз раскрыто 50 % пунктов, во второй — 100 %.',
+    ]);
+    // Not behind «Как считается» a second time.
+    fireEvent.click(within(summary).getByRole('button', { name: 'Как считается' }));
+    const panel = summary.querySelector('.ex-psum-calc') as HTMLElement;
+    expect(plain(panel.textContent)).not.toContain('Пора проверить');
+    expect(plain(panel.textContent)).not.toContain('Второй ответ после разбора');
+  });
+
+  it('the filter shows no tab with 0 on a phone and keeps the marks before its words; the computer keeps «нет … 0»', async () => {
+    setPhone();
+    const noNone = Array.from({ length: 10 }, (_, index) => question(index + 1, index < 7 ? 'full' : 'partial'));
+    mocks.loadExamBundle.mockResolvedValue(bundle(noNone));
+    renderDetail();
+    await opened();
+    const filters = screen.getByRole('list', { name: 'Показать вопросы' });
+    expect(within(filters).getAllByRole('button').map((item) => plain(item.textContent))).toEqual(['Все 10', 'есть в лекциях 7', 'частично 3']);
+    expect(within(filters).getByRole('button', { name: 'есть в лекциях 7' }).querySelector('.ex-filter-mark svg')).not.toBeNull();
+    expect(within(filters).getByRole('button', { name: 'частично 3' }).querySelector('.ex-filter-mark svg')).not.toBeNull();
+    cleanup();
+    // A link to a filter with nothing in it keeps its tab, pressed.
+    renderDetail({ path: '/exams/exam-1?filter=cov:none' });
+    await opened();
+    expect(within(screen.getByRole('list', { name: 'Показать вопросы' })).getByRole('button', { name: 'нет ни в одной 0' })).toHaveAttribute('aria-pressed', 'true');
+    cleanup();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    setWidth(1280);
+    renderDetail();
+    await opened();
+    expect(within(screen.getByRole('list', { name: 'Показать вопросы' })).getByRole('button', { name: 'нет ни в одной 0' })).toBeInTheDocument();
+  });
+
+  it('an exam with no questions: the heading, the status and its button — no views, no filter, no list, no «⋯», no meta', async () => {
+    setPhone();
+    mocks.loadExamBundle.mockResolvedValue(bundle([], { exam_date: dayKey(13) }));
+    renderDetail();
+    await opened();
+    await statusSays('В экзамене пока нет вопросов');
+    expect(statusText()).toBe('Вставьте список вопросов кафедры.');
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Показать вопросы' })).toBeNull();
+    expect(document.querySelector('.ex-sheet')).toBeNull();
+    expect(screen.queryByText('В списке пока нет вопросов.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ещё: лист экзамена' })).toBeNull();
+    expect(document.querySelector('.ex-meta')).toBeNull();
+    expect(within(document.querySelector('.ex-cta') as HTMLElement).getByRole('link', { name: 'Добавить вопросы' })).toHaveAttribute('href', '/exams/exam-1/edit');
+    cleanup();
+    // The computer keeps its page as it was.
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    setWidth(1280);
+    renderDetail();
+    await opened();
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(screen.getByText('В списке пока нет вопросов.')).toBeInTheDocument();
+    expect(document.querySelector('.ex-meta')).not.toBeNull();
+  });
+
+  it('the heading sizes itself to its longest word beside the «⋯»; the computer’s heading has no such style', async () => {
+    setPhone();
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty(), { title: 'Теория вероятностей и математическая статистика' }));
+    renderDetail();
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.getByRole('heading', { level: 1 }).style.getPropertyValue('--ex-h1-word')).toBe('14');
+    cleanup();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    setWidth(1280);
+    renderDetail();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Теория вероятностей и математическая статистика' })).not.toHaveAttribute('style');
   });
 });
 
@@ -2072,7 +2266,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('answering: what an answer can erase today, with «Тянуть билет из них» into the draw of those questions', async () => {
+  it('answering: what an answer can erase today, with «Тянуть билет из 1 вопроса» into the draw of those questions', async () => {
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
     mocks.fetchSheetEvents.mockResolvedValue([pointEvent(1, 'p1', dayKey(-3), 's-old'), pointEvent(1, 'p2', dayKey(-3), 's-old')]);
     mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's-old')]);
@@ -2080,7 +2274,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     await opened();
     await statusSays('Сегодня можно стереть строки шпаргалки у 1 вопроса');
     expect(statusText()).toBe('Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.');
-    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет из них' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=awaiting');
+    expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет из 1 вопроса' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=awaiting');
     expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');
   });
 
@@ -2168,7 +2362,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(document.querySelector('.cs-chip')).toBeNull();
   });
 
-  it('a phone, answering: the heading and one line, no flag and no second «Тянуть билет»; the plain draw is the first item of «Ещё»', async () => {
+  it('a phone, answering: the heading and one line, no flag and no second «Тянуть билет»; the plain draw is the first item of «⋯»', async () => {
     setPhone();
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
     mocks.fetchSheetEvents.mockResolvedValue([pointEvent(1, 'p1', dayKey(-3), 's-old'), pointEvent(1, 'p2', dayKey(-3), 's-old')]);
@@ -2180,14 +2374,15 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(statusCard().querySelector('.ex-st-flag')).toBeNull();
     expect(within(statusCard()).queryByRole('link')).toBeNull();
     const cta = document.querySelector('.ex-cta') as HTMLElement;
-    expect(within(cta).getByRole('link', { name: 'Тянуть билет из них' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=awaiting');
+    // The bar names the questions it draws from: the headline that names them is out of view down there.
+    expect(within(cta).getByRole('link', { name: 'Тянуть билет из 1 вопроса' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=awaiting');
     expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
-    expect(screen.getAllByRole('menuitem')[0]).toHaveTextContent('Тянуть билет');
-    expect(screen.getByRole('menuitem', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
+    expect(screen.getAllByRole('menuitem')[0]).toHaveTextContent('Тянуть билет из всех вопросов');
+    expect(screen.getByRole('menuitem', { name: 'Тянуть билет из всех вопросов' })).toHaveAttribute('href', '/exams/exam-1/draw');
   });
 
-  it('a phone’s «Шпаргалка»: one block above the paper — the count, the switch, the last answer, the history; the rest behind «Подробнее»; «Ещё» under the paper', async () => {
+  it('a phone’s «Шпаргалка»: one block above the paper — the count, the switch, the last answer, the history; the rest behind «Как стираются строки»; the «⋯» at the top', async () => {
     setPhone();
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     mocks.fetchSheet.mockResolvedValue({ ...sheetOf(forty(), [1]), unwritable: 1 });
@@ -2205,23 +2400,41 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(within(block).queryByRole('switch', { name: 'Скрыть строки, стёртые совсем' })).toBeNull();
     expect(within(block).getByRole('button', { name: 'Показать последний ответ' })).toHaveTextContent('Последний ответ');
     expect(within(block).getByRole('button', { name: 'История шпаргалки' })).toHaveTextContent('История');
-    // What the count means, the rule and the questions without points: behind «Подробнее».
+    // The rule, what the count means and the questions without points: behind «Как стираются строки», a muted link after
+    // the count's words (as «Как считается» on «Вопросы»).
     expect(block.querySelector('.cs-rule')).toBeNull();
-    const details = within(block).getByRole('button', { name: 'Подробнее' });
+    expect(within(block).queryByRole('button', { name: 'Подробнее' })).toBeNull();
+    const details = within(block).getByRole('button', { name: 'Как стираются строки' });
+    expect(details).toHaveAttribute('data-muted');
+    expect(details.closest('.cs-count')).not.toBeNull();
     expect(details).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(details);
     expect(details).toHaveAttribute('aria-expanded', 'true');
-    expect(block.querySelector('.cs-rule')).not.toBeNull();
+    const more = block.querySelector('.cs-more') as HTMLElement;
+    expect(details).toHaveAttribute('aria-controls', more.id);
+    // The sentence that says what the sheet is comes first.
+    expect(more.firstElementChild).toHaveClass('cs-rule');
     expect(plain(block.querySelector('.cs-more .cs-sub')?.textContent)).toBe('главных строк — 1 из 1 · стёрты наполовину — 1 · у 9 вопросов нет пунктов ответа');
     expect(plain(block.querySelector('.cs-unwritable')?.textContent)).toBe('У 1 вопроса пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
-    // No card under the paper and no skip link past it: «Ещё» stands there.
+    // No card under the paper and no skip link past it; the «⋯» of the page's links is on the heading's row.
     expect(document.querySelector('.cs-sum[data-variant="after"]')).toBeNull();
     expect(screen.queryByRole('button', { name: 'К счётчику и переключателям' })).toBeNull();
-    const more = await screen.findByRole('button', { name: 'Ещё: лист экзамена' });
-    expect(paper.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const menu = await screen.findByRole('button', { name: 'Ещё: лист экзамена' });
+    expect(menu.closest('.ex-titlerow')).not.toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Ещё: лист экзамена' })).toHaveLength(1);
     // The self-test from the block.
     fireEvent.click(within(block).getByRole('switch', { name: 'Спрятать строки' }));
     expect(within(block).getByRole('switch', { name: 'Спрятать строки' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('a phone’s sheet with no lines yet still says which questions could not be written (no one block there to say it)', async () => {
+    setPhone();
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.fetchSheet.mockResolvedValue({ ...sheetOf(forty(), []), unwritable: 1 });
+    renderDetail();
+    await opened();
+    expect(await screen.findByText(named('У 1 вопроса пункты не записаны: Meldy не смог подтвердить их цитатами из лекций'))).toHaveClass('cs-unwritable');
+    expect(document.querySelector('.cs-sum[data-variant="phone"]')).toBeNull();
   });
 
   it('the paper waits for the journal; a failed read says so, and «Повторить» reads it again', async () => {
