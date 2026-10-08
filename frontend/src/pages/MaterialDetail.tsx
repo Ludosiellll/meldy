@@ -325,12 +325,14 @@ export default function MaterialDetail() {
   const [sectionChoice, setSectionChoice] = useState<ResultTab | null>(null);
   // What «Экспорт» offers on the section on screen: ResultsPanel keeps it current, «⋯» reads it when it opens.
   const exportItemsRef = useRef<ResultExportItem[]>([]);
-  // The phone's row fades at the right while more tabs are hidden there (320 px, or with «Кратко»).
+  // The phone's row fades at an edge while more tabs are hidden past it (320 px, or with «Кратко»).
   const phoneRowRef = useRef<HTMLDivElement | null>(null);
-  const [rowMore, setRowMore] = useState(false);
+  const [rowMore, setRowMore] = useState<'' | 'right' | 'left' | 'both'>('');
   const measureRow = useCallback(() => {
     const row = phoneRowRef.current;
-    setRowMore(Boolean(row && row.scrollLeft + row.clientWidth < row.scrollWidth - 1));
+    const right = Boolean(row && row.scrollLeft + row.clientWidth < row.scrollWidth - 1);
+    const left = Boolean(row && row.scrollLeft > 1);
+    setRowMore(right && left ? 'both' : right ? 'right' : left ? 'left' : '');
   }, []);
   // The tab selected in the phone's row (set while rendering it) and the one last brought into the row's view.
   const rowSelectedRef = useRef<string | null>(null);
@@ -884,7 +886,7 @@ export default function MaterialDetail() {
           ref={phoneRowRef}
           onScroll={measureRow}
           data-many={lectureTabs.length > 4 ? '' : undefined}
-          data-more={rowMore ? '' : undefined}
+          data-more={rowMore || undefined}
         >
           {lectureTabs.map((item, index) => {
             const selected = lectureTab === item.key;

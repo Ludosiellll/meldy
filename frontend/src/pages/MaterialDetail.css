@@ -279,10 +279,19 @@ html[data-stage] .md-crumb { display: none; }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* More tabs to the right (MaterialDetail sets data-more): the last 28 px fade, so the cut word reads as «more». */
-.md-ptabs[data-more] {
+/* More tabs past an edge (MaterialDetail sets data-more: right, left or both): that edge fades over 28 px, so the
+   cut word reads as «more». */
+.md-ptabs[data-more='right'] {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.md-ptabs[data-more='left'] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+.md-ptabs[data-more='both'] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
 }
 .md-ptabs [role='tab'][aria-selected='true'] { color: var(--sf-ink); }
 .md-ptabs [role='tab'][aria-selected='true']::after {
