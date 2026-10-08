@@ -9,6 +9,7 @@ import { pluralRu } from '../components/conversation/visuals';
 import { useMapJob } from '../components/exams/mapJobs';
 import { glue } from '../components/exams/sheetModel';
 import { useFrame } from '../components/exams/useFrame';
+import { usePhone } from '../lib/usePhone';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
@@ -35,6 +36,27 @@ export function examCoverageLine(item: ExamListItem, confirmed: number | null, m
   else line = `${item.coverage.full} из ${total} ${pluralRu(total, ['вопроса', 'вопросов', 'вопросов'])} есть в лекциях`;
   if (confirmed !== null && confirmed > 0) line += ` · подтверждено ${confirmed}`;
   return line;
+}
+
+/**
+ * A phone's card (10_Project/Phone_Declutter_2026-10-08): one meta line — the day, the kind only when it is not an
+ * exam («21 октября, через 13 дней», «зачёт · 4 октября, завтра», «экзамен, дата не указана»).
+ */
+export function examPhoneDateLine(item: Pick<ExamListItem, 'kind' | 'exam_date'>, now: Date = new Date()): string {
+  const line = examDateLine(item, now);
+  const prefix = `${KIND_WORDS.exam} · `;
+  return item.kind === 'exam' && line.startsWith(prefix) && !line.includes('прошёл') ? line.slice(prefix.length) : line;
+}
+
+/**
+ * A phone's line under the bar, in place of the status pills: «есть 15 · частично 3 · нет 2 · подтверждено 6»; before
+ * the first mapping and while one runs, what the meta line says on a computer («20 вопросов · идёт сверка с лекциями»).
+ */
+export function examPhoneCountsLine(item: ExamListItem, confirmed: number | null, mappingNow: boolean): string {
+  const pills = examPills(item, mappingNow);
+  if (pills.length === 0) return examCoverageLine(item, confirmed, mappingNow);
+  const line = pills.map((pill) => `${pill.word} ${pill.count}`).join(' · ');
+  return confirmed !== null && confirmed > 0 ? `${line} · подтверждено ${confirmed}` : line;
 }
 
 /**
@@ -67,7 +89,7 @@ export function examIsNear(item: Pick<ExamListItem, 'exam_date'>, now: Date = ne
   return days !== null && days >= 0 && days <= 7;
 }
 
-function ExamRow({ item, states }: { item: ExamListItem; states: Map<string, QuestionState> | null }) {
+function ExamRow({ item, states, phone }: { item: ExamListItem; states: Map<string, QuestionState> | null; phone: boolean }) {
   const job = useMapJob(item.id);
   const confirmed = states ? examSummary(item.hashes, states).confirmed : null;
   const mappingNow = job.phase === 'running';
@@ -81,7 +103,7 @@ function ExamRow({ item, states }: { item: ExamListItem; states: Map<string, Que
       <Link className="ex-row" to={`/exams/${item.id}`}>
         <span className="ex-row-title">{subjectOf(item.title)}</span>
         <span className="ex-row-meta" style={{ display: 'block' }}>
-          {glue(`${examDateLine(item)} · ${examCoverageLine(item, confirmed, mappingNow)}`)}
+          {glue(phone ? examPhoneDateLine(item) : `${examDateLine(item)} · ${examCoverageLine(item, confirmed, mappingNow)}`)}
         </span>
       </Link>
       {/* The questions by their marks, as one bar: «есть», «частично», «нет», not checked yet. */}
@@ -96,9 +118,11 @@ function ExamRow({ item, states }: { item: ExamListItem; states: Map<string, Que
           <i />
         </span>
       ) : null}
+      {/* A phone: the counts as one line of text under the bar, not three pills (10_Project/Phone_Declutter_2026-10-08). */}
+      {phone ? <p className="ex-row-counts">{glue(examPhoneCountsLine(item, confirmed, mappingNow))}</p> : null}
       {(pills.length > 0 || canDraw) && (
         <div className="ex-row-foot">
-          {pills.length > 0 && (
+          {pills.length > 0 && !phone && (
             <p className="ex-pills">
               {pills.map((pill) => (
                 <span key={pill.key} className="ex-pill" data-k={pill.key}>
@@ -132,6 +156,7 @@ export default function Exams() {
   const userId = user?.id ?? null;
   const navigate = useNavigate();
   const frame = useFrame<HTMLDivElement>();
+  const phone = usePhone();
   const [items, setItems] = useState<ExamListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [states, setStates] = useState<Map<string, QuestionState> | null>(null);
@@ -164,7 +189,7 @@ export default function Exams() {
   }, []);
 
   return (
-    <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
+    <div className="sf-page ex-list-page" ref={frame.ref} data-frame={frame.size}>
       <header className="ex-head">
         <div>
           <h1 className="ex-h1">Экзамены</h1>
@@ -229,7 +254,7 @@ export default function Exams() {
       ) : (
         <ul className="ex-list" aria-label="Ваши экзамены">
           {items.map((item) => (
-            <ExamRow key={item.id} item={item} states={states} />
+            <ExamRow key={item.id} item={item} states={states} phone={phone} />
           ))}
         </ul>
       )}

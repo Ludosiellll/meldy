@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import {
+  ANSWER_TEXT_CONSENT_ASK,
   ANSWER_TEXT_CONSENT_TEXT,
   onAnswerTextConsent,
   readAnswerTextConsent,
@@ -18,9 +19,11 @@ export const CONSENT_FAILED_LINE = 'Не удалось сохранить вы�
  * page: shown until the student answers it once, «Разрешить» or «Нет, спасибо»; «Профиль» changes the answer
  * later. Nothing is shown while the consent is read, when it cannot be read (the table not there yet, no
  * network) or once it is answered. `ready` — the page has laid out what is above (the sheet's paper), so the
- * question at the bottom never pushes anything.
+ * question at the bottom never pushes anything. `short` — a phone: the request alone with its two choices, as one
+ * quiet line (10_Project/Phone_Declutter_2026-10-08); the rest of the consent text stands by the same switch in
+ * «Профиль».
  */
-export default function AnswerTextConsent({ ready = true }: { ready?: boolean }) {
+export default function AnswerTextConsent({ ready = true, short = false }: { ready?: boolean; short?: boolean }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const [consent, setConsent] = useState<Consent | null>(null);
@@ -70,6 +73,26 @@ export default function AnswerTextConsent({ ready = true }: { ready?: boolean })
       setBusy(false);
     }
   };
+
+  if (short) {
+    return (
+      <section className="ex-consent" data-short="" aria-label="Тексты ответов для проверки точности">
+        <p>
+          {glue(ANSWER_TEXT_CONSENT_ASK)}{' '}
+          <span className="ex-consent-acts">
+            <button type="button" className="sf-link" disabled={busy} onClick={() => void choose(true)}>
+              Разрешить
+            </button>
+            <span aria-hidden="true"> · </span>
+            <button type="button" className="sf-link" data-muted="" disabled={busy} onClick={() => void choose(false)}>
+              Нет, спасибо
+            </button>
+          </span>
+        </p>
+        {failed && <p role="alert">{CONSENT_FAILED_LINE}</p>}
+      </section>
+    );
+  }
 
   return (
     <section className="ex-note ex-consent" aria-label="Тексты ответов для проверки точности">

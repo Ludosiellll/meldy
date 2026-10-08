@@ -5,7 +5,7 @@ import { READINESS_LABELS } from '../../lib/learning/readiness';
 import type { LayoutShares } from '../../lib/exams/ticketMath';
 import { pluralRu } from '../conversation/visuals';
 import { TextMark } from '../marks';
-import HowCalculated from './HowCalculated';
+import HowCalculated, { CalcBody } from './HowCalculated';
 import { READINESS_MARK } from './marks';
 import { daysPhrase, type PeakGrowth } from './peak';
 import {
@@ -25,6 +25,7 @@ import {
   unmappedSentence,
   unverifiedSentence,
   type AnswerSummary,
+  type ClosePartialLine,
   type CoverageCounts,
   type RatingCounts,
   type SheetFilter,
@@ -85,6 +86,57 @@ interface CoverageSummaryProps {
   compact?: boolean;
 }
 
+/**
+ * The one figure of the list and its label: the share of tickets where every question is in the lectures, or, for
+ * one question per ticket, the share of questions («35 %» · «билетов, где оба вопроса есть в лекциях»).
+ */
+export function coverageFigure(counts: CoverageCounts, shares: LayoutShares, layout: TicketLayout): { figure: string; label: string } {
+  const low = shares.low;
+  const single = low.ok && (low.mode === 'random' || low.mode === 'sections') && low.q <= 1;
+  const q = perTicketOf(low, layout.per_ticket);
+  const ticketShare = low.ok && !single ? shareText(shares, 'all') : null;
+  const figure = ticketShare ?? questionShareText(counts);
+  const label =
+    ticketShare === null
+      ? 'вопросов есть в ваших лекциях'
+      : low.ok && low.mode === 'fixed'
+        ? 'билетов, где все вопросы есть в лекциях'
+        : `билетов, где ${allQuestionsWord(q)} есть в лекциях`;
+  return { figure, label };
+}
+
+/** The numbers behind the figure, inside «Как считается»: the questions in the lectures, the tickets without «есть», what is unknown. */
+function CoverageDetails({ counts, shares }: { counts: CoverageCounts; shares: LayoutShares }) {
+  const low = shares.low;
+  const noneLine = noneTicketsLine(shares);
+  return (
+    <>
+      <p className="ex-fine ex-calc-q">{glue(questionsLine(counts))}</p>
+      {noneLine && <p className="ex-fine">{glue(`${noneLine.charAt(0).toUpperCase()}${noneLine.slice(1)}.`)}</p>}
+      {counts.unverified > 0 && <p className="ex-fine">{glue(unverifiedSentence(counts.unverified, shares))}</p>}
+      {counts.unmapped > 0 && <p className="ex-fine">{glue(unmappedSentence(counts.unmapped, shares))}</p>}
+      {low.ok && low.mode === 'fixed' && <p className="ex-fine">{glue(`Билетов кафедры, где все вопросы есть в лекциях, — ${low.allCount} из ${low.tickets}.`)}</p>}
+    </>
+  );
+}
+
+/** «7 вопросов «частично»: добавьте к ним материал — …»: the link shows those questions. */
+function ActionLine({ action, filter, onFilter }: { action: ClosePartialLine; filter: SheetFilter; onFilter?: (filter: SheetFilter) => void }) {
+  return (
+    <p className="ex-act">
+      <button
+        type="button"
+        className="sf-link ex-act-link"
+        aria-pressed={filter === 'cov:partial'}
+        onClick={() => onFilter?.(filter === 'cov:partial' ? 'all' : 'cov:partial')}
+      >
+        {glue(action.link)}
+      </button>
+      {glue(action.rest)}
+    </p>
+  );
+}
+
 /** «В лекциях есть 24 вопроса из 40 (60 %), частично — 7, ни в одной лекции — 9.» — inside «Как считается». */
 export function questionsLine(counts: CoverageCounts): string {
   const parts: string[] = [];
@@ -126,29 +178,9 @@ export function CoverageSummary(props: CoverageSummaryProps) {
   if (mapped === 0) return null;
 
   const low = shares.low;
-  const questionShare = questionShareText(counts);
-  const single = low.ok && (low.mode === 'random' || low.mode === 'sections') && low.q <= 1;
-  const q = perTicketOf(low, layout.per_ticket);
-  const ticketShare = low.ok && !single ? shareText(shares, 'all') : null;
-  const figure = ticketShare ?? questionShare;
-  const label =
-    ticketShare === null
-      ? 'вопросов есть в ваших лекциях'
-      : low.ok && low.mode === 'fixed'
-        ? 'билетов, где все вопросы есть в лекциях'
-        : `билетов, где ${allQuestionsWord(q)} есть в лекциях`;
-  const noneLine = noneTicketsLine(shares);
+  const { figure, label } = coverageFigure(counts, shares, layout);
   const action = props.closed ? closePartialLine(counts.partial, shares, props.closed) : null;
-  const toggle = (value: SheetFilter) => onFilter?.(filter === value ? 'all' : value);
-
-  const actionLine = action ? (
-    <p className="ex-act">
-      <button type="button" className="sf-link ex-act-link" aria-pressed={filter === 'cov:partial'} onClick={() => toggle('cov:partial')}>
-        {glue(action.link)}
-      </button>
-      {glue(action.rest)}
-    </p>
-  ) : null;
+  const actionLine = action ? <ActionLine action={action} filter={filter} onFilter={onFilter} /> : null;
 
   if (part === 'rest') {
     if (!actionLine) return null;
@@ -160,15 +192,7 @@ export function CoverageSummary(props: CoverageSummaryProps) {
   }
 
   const compact = part === 'head';
-  const details = (
-    <>
-      <p className="ex-fine ex-calc-q">{glue(questionsLine(counts))}</p>
-      {noneLine && <p className="ex-fine">{glue(`${noneLine.charAt(0).toUpperCase()}${noneLine.slice(1)}.`)}</p>}
-      {counts.unverified > 0 && <p className="ex-fine">{glue(unverifiedSentence(counts.unverified, shares))}</p>}
-      {counts.unmapped > 0 && <p className="ex-fine">{glue(unmappedSentence(counts.unmapped, shares))}</p>}
-      {low.ok && low.mode === 'fixed' && <p className="ex-fine">{glue(`Билетов кафедры, где все вопросы есть в лекциях, — ${low.allCount} из ${low.tickets}.`)}</p>}
-    </>
-  );
+  const details = <CoverageDetails counts={counts} shares={shares} />;
   return (
     <div className="ex-summary" data-part={part}>
       <p className="ex-big ex-figs" data-range={figure.includes('–') ? '' : undefined}>
@@ -333,6 +357,84 @@ function ReadinessSummary({ summary, confidence, selfRated = false, filter, onFi
             </p>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+export interface PhoneSummaryProps {
+  /** The list's coverage; null while it says nothing (nothing checked, almost nothing found: the status says that). */
+  coverage: { counts: CoverageCounts; shares: LayoutShares; closed: LayoutShares | null; layout: TicketLayout } | null;
+  /** The answers, once there are any (the readiness legend and what «подтверждено» means go inside «Как считается»). */
+  readiness: Omit<ReadinessBlockProps, 'part'> | null;
+  /** «3 лекции · сверка от 7 октября, 15:39»: what the computer's meta line says beside the date. */
+  facts: string;
+  filter: SheetFilter;
+  onFilter: (filter: SheetFilter) => void;
+  open: boolean;
+  onToggle: () => void;
+  id: string;
+}
+
+/**
+ * The summary above the list on a phone (10_Project/Phone_Declutter_2026-10-08): the figure in one line with «Как
+ * считается», and the answers' count. «Как считается» opens the rest: what the list was checked against, the numbers
+ * behind the figure, the line about «частично», the assumption (here it also says how many questions a ticket has) and
+ * the formulas, then what «подтверждено» means with the readiness legend, which still filters the list.
+ */
+export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, open, onToggle, id }: PhoneSummaryProps) {
+  const counts = coverage?.counts ?? null;
+  const mapped = counts ? counts.full + counts.partial + counts.none + counts.unverified : 0;
+  // While a run checks the list the share waits (the status says so); the computer's column says the same.
+  const figure = coverage && counts && counts.total > 0 && mapped > 0 && counts.checking === 0 ? coverageFigure(counts, coverage.shares, coverage.layout) : null;
+  const answers = readiness && confirmedSentence(readiness.summary) ? readiness : null;
+  if (!figure && !answers) return null;
+  const action = figure && coverage && counts && coverage.closed ? closePartialLine(counts.partial, coverage.shares, coverage.closed) : null;
+  const toggle = (
+    <button type="button" className="sf-link ex-psum-how" aria-expanded={open} aria-controls={open ? id : undefined} onClick={onToggle}>
+      Как считается
+    </button>
+  );
+  return (
+    <div className="ex-psum">
+      {figure && (
+        <p className="ex-psum-fig">
+          <b className="ex-psum-n">{figure.figure}</b> {glue(figure.label)}
+          {NBSP}· {toggle}
+        </p>
+      )}
+      {answers && (
+        <p className="ex-psum-line">
+          Подтверждено ответами{NBSP}—{' '}
+          <b>
+            {answers.summary.confirmed}
+            {NBSP}из{NBSP}
+            {answers.summary.total}
+          </b>
+          {figure ? null : (
+            <>
+              {NBSP}· {toggle}
+            </>
+          )}
+        </p>
+      )}
+      {open && (
+        <div className="ex-calc ex-psum-calc" id={id}>
+          {facts && <p className="ex-fine ex-psum-facts">{glue(facts)}</p>}
+          {figure && coverage && counts && (
+            <>
+              <CoverageDetails counts={counts} shares={coverage.shares} />
+              {!coverage.shares.low.ok && <p className="ex-fine">{coverage.shares.low.reason}</p>}
+              {action && <ActionLine action={action} filter={filter} onFilter={onFilter} />}
+              <CalcBody
+                shares={coverage.shares}
+                assumption={glue(caveatSentence(coverage.shares, counts.total))}
+                unknown={{ unverified: counts.unverified, unmapped: counts.unmapped + counts.checking }}
+              />
+            </>
+          )}
+          {answers && <ReadinessBlock {...answers} part="rest" />}
+        </div>
       )}
     </div>
   );

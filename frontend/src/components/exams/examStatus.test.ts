@@ -348,3 +348,37 @@ describe('examStatus: the cheat sheet and the answers', () => {
     }
   });
 });
+
+describe('examStatus: a phone’s one line (Phone_Declutter_2026-10-08)', () => {
+  const brief = (overrides: Overrides) => examStatus(input(overrides)).brief;
+
+  it('says what to do in one short line and keeps every price and limit', () => {
+    expect(brief({ total: 0 })).toBe('Вставьте список вопросов кафедры.');
+    expect(brief({ lectures: [] })).toBe('Meldy ищет ответы на вопросы в ваших лекциях.');
+    expect(brief({ coverage: { unmapped: 18 } })).toBe('Сверка стоит 10 единиц ИИ.');
+    expect(brief({ coverage: { unmapped: 18 }, mapping: { cost: 0 } })).toBe('Meldy отметит, где в лекциях есть ответ.');
+    expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'running', progress: { checked: 7, total: 18 } } })).toBe('Проверено 7 из 18. Не закрывайте вкладку.');
+    expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'waiting' } })).toBe('Список обновится сам, когда она закончится.');
+    expect(brief({ coverage: { full: 7, unmapped: 11 }, mapping: { phase: 'interrupted', progress: { checked: 7, total: 18 } } })).toBe('Проверено 7 из 18. Продолжение стоит 10 единиц ИИ.');
+    expect(brief({ coverage: MAPPED, mapping: { added: 2 } })).toBe('Сверьте заново — это стоит 10 единиц ИИ.');
+    expect(brief({ coverage: { ...MAPPED, none: 1, unmapped: 3 } })).toBe('Meldy проверит только их — это стоит 10 единиц ИИ.');
+    expect(brief({ coverage: { ...MAPPED, none: 0, unverified: 4 } })).toBe('Проверьте их снова — это стоит 10 единиц ИИ.');
+    expect(brief({ coverage: MAPPED, sheet: { toWrite: 14, units: 14 } })).toBe('Meldy выпишет из них пункты ответа. Это стоит 14 единиц ИИ.');
+    expect(brief({ coverage: MAPPED, sheet: { toWrite: 14, units: 14, unitsLeft: 5 } })).toBe(
+      'Meldy выпишет из них пункты ответа. Это стоит 14 единиц ИИ. Сегодня хватит на 5 вопросов, остальные — после 3:00.',
+    );
+    expect(brief({ coverage: MAPPED, sheet: { writing: { done: 5, total: 14 } } })).toBe('Готово 5 из 14. Страницу можно закрыть.');
+    expect(brief({ coverage: MAPPED, sheet: { lines: { left: 40, total: 40 } } })).toBe('Тяните билет и отвечайте вслух.');
+    expect(brief({ coverage: MAPPED, sheet: { lines: { left: 40, total: 40 }, erasable: 4 }, answers: { answered: 6 } })).toBe('Назовите их пункты снова в ответе.');
+    expect(brief({ coverage: MAPPED, sheet: { lines: { left: 30, total: 40 } }, answers: { answered: 6 } })).toBe('Отвечайте дальше: ответы стирают строки.');
+  });
+
+  it('keeps every word where they all matter: a server’s message, nothing found', () => {
+    expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Сервис ИИ сейчас перегружен. Повторите через минуту.' } })).toBeNull();
+    expect(brief({})).toBeNull();
+    // The full text stays the computer's.
+    expect(examStatus(input({ coverage: MAPPED, sheet: { lines: { left: 40, total: 40 }, erasable: 4 }, answers: { answered: 6 } })).text).toBe(
+      'Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.',
+    );
+  });
+});

@@ -29,7 +29,7 @@ import ExamStatusCard, { type StatusNote } from '../components/exams/ExamStatus'
 import { examStatus, isNothingFound, mappingLimitLine } from '../components/exams/examStatus';
 import { useExamLectureFit } from '../components/exams/examLectureFit';
 import WhyPanel from '../components/exams/WhyPanel';
-import { CoverageSummary, PeakSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
+import { CoverageSummary, PeakSummary, PhoneSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
 import { checkedCount, getMapJob, MAPPING_COST, mappingTargets, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../components/exams/marks';
 import {
@@ -76,7 +76,10 @@ import { useUnitsLeft } from '../components/exams/sheet/SheetColumn';
 import { nextErasableLine } from '../components/exams/sheet/copy';
 import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
-import InviteGroup from '../components/exams/share/InviteGroup';
+import InviteGroup, { InviteGroupDialog } from '../components/exams/share/InviteGroup';
+import MoreMenu, { type MoreMenuItem } from '../components/ui/MoreMenu';
+import { pluralRu } from '../components/conversation/visuals';
+import { usePhone } from '../lib/usePhone';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
@@ -159,6 +162,49 @@ function examWhen(kind: keyof typeof KIND_LABELS, examDate: string | null): stri
   return `${KIND_LABELS[kind]} ${day}${days === null ? '' : `, ${relativeDays(days)}`}`;
 }
 
+/**
+ * A phone's meta line (10_Project/Phone_Declutter_2026-10-08): the day and the number of questions, «21 октября, через
+ * 13 дней · 20 вопросов». The kind is named only when it is not an exam; the ticket's size, the lectures and the
+ * mapping are in «Как считается» and «Ещё».
+ */
+export function phoneMetaLine(kind: keyof typeof KIND_LABELS, examDate: string | null, total: number, now: Date = new Date()): string {
+  const questions = `${total} ${pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])}`;
+  const day = formatDay(examDate, now);
+  if (!day) return `${KIND_LABELS[kind]} · ${questions}`;
+  const days = daysUntil(examDate, now);
+  if (days !== null && days < 0) return `${KIND_LABELS[kind]} прошёл ${day} · ${questions}`;
+  const when = `${day}${days === null ? '' : `, ${relativeDays(days)}`}`;
+  return `${kind === 'exam' ? when : `${KIND_LABELS[kind]} ${when}`} · ${questions}`;
+}
+
+/** A phone's list has no line of lecture and fragment under each question: this line says where they are. */
+export const ROW_HINT = 'Нажмите на вопрос — увидите фрагмент';
+
+/** A filter's words: a phone shows `keep` («есть», «нет»), the rest of `word` stays for screen readers. */
+function FilterWord({ word, keep }: { word: string; keep: string }) {
+  const at = word.indexOf(keep);
+  if (keep === word || at < 0) return <span className="ex-filter-word">{word}</span>;
+  // The spaces stay outside the hidden words: the accessible name trims a hidden word's own edges («нетни в одной»).
+  const before = word.slice(0, at).trim();
+  const after = word.slice(at + keep.length).trim();
+  return (
+    <span className="ex-filter-word">
+      {before ? (
+        <>
+          <span className="ex-filter-long">{before}</span>{' '}
+        </>
+      ) : null}
+      {keep}
+      {after ? (
+        <>
+          {' '}
+          <span className="ex-filter-long">{after}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 /** What the header says when the daily limit does not cover a mapping run (no dialog: spec 4.6, 5.11). */
 export interface MappingLimit {
   remaining: number;
@@ -187,6 +233,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const { confirm } = useConfirm();
   const reduced = usePrefersReducedMotion();
   const frame = useFrame<HTMLDivElement>();
+  // A phone (max-width 639px): the page keeps one line of each thing and moves the rest behind «Как считается» and
+  // «Ещё» (10_Project/Phone_Declutter_2026-10-08). Tablets and computers are as they were.
+  const phone = usePhone();
   const job = useMapJob(examId);
 
   const [bundle, setBundle] = useState<ExamBundle | null>(null);
@@ -212,6 +261,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
   // «Ответить на этот вопрос» of the open «почему» is in the window (WhyPanel watches it): only then the status's pill
   // steps down to white — with the panel's pill out of view the page had no blue pill at all (audit 2026-10-08).
   const [whyGoVisible, setWhyGoVisible] = useState(true);
+  // «Пригласить группу» opened from a phone's «Ещё»; the focus goes back to «Ещё» when it closes.
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   // «Сверить с лекциями» had the focus when its run started: the focus goes to the status that replaces it.
   const mapPillFocused = useRef(false);
   const drawPillRef = useRef<HTMLAnchorElement>(null);
@@ -692,6 +744,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       writeFromStatus: pageStatus?.action?.kind === 'write',
       quietGaps: pageStatus?.quietGaps ?? false,
       unitsLeft,
+      oneBlock: phone,
     },
     sheetData,
   );
@@ -953,25 +1006,23 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const selfRated = ratings.know + ratings.unsure + ratings.dont_know > 0;
   const closeLine = showCoverage ? closePartialLine(counts.partial, shares, closed) : null;
 
-  const readiness = (part: 'all' | 'head' | 'rest') => (
-    <ReadinessBlock
-      part={part}
-      summary={summary}
-      confidence={confidence}
-      selfRated={selfRated}
-      answers={eventsState}
-      answersError={eventsState === 'error' ? eventsError : null}
-      filter={filter}
-      onFilter={setFilter}
-      onRateMode={() => {
-        setSelectedId(null);
-        setRateMode(true);
-      }}
-      growth={growthSentence(summary, now)}
-      staleLine={staleSentence(summary.stale)}
-      secondAnswer={secondAnswer}
-    />
-  );
+  const readinessProps = {
+    summary,
+    confidence,
+    selfRated,
+    answers: eventsState,
+    answersError: eventsState === 'error' ? eventsError : null,
+    filter,
+    onFilter: setFilter,
+    onRateMode: () => {
+      setSelectedId(null);
+      setRateMode(true);
+    },
+    growth: growthSentence(summary, now),
+    staleLine: staleSentence(summary.stale),
+    secondAnswer,
+  };
+  const readiness = (part: 'all' | 'head' | 'rest') => <ReadinessBlock part={part} {...readinessProps} />;
   const coverage = (part: 'all' | 'head' | 'rest') => (
     <CoverageSummary
       part={part}
@@ -998,13 +1049,31 @@ function ExamSheetPage({ examId }: { examId: string }) {
       </>
     ) : null;
   // Phones and tablets: the figure with «Как считается» and «Подтверждено ответами» above the sheet, so the
-  // paper starts on the first screen; the action line and the readiness legend go under it.
+  // paper starts on the first screen; the action line and the readiness legend go under it. A phone: the figure and
+  // the answers' count as two lines; everything else — the lectures and the mapping of the meta line, the action
+  // line, the formulas, what «подтверждено» means and the legend — behind «Как считается».
   const compactColumn =
     showCoverage || showReadiness ? (
-      <>
-        {showCoverage && coverage('head')}
-        {showReadiness && readiness('head')}
-      </>
+      phone ? (
+        <PhoneSummary
+          coverage={showCoverage ? { counts, shares, closed, layout: exam.ticket_layout } : null}
+          readiness={showReadiness ? readinessProps : null}
+          facts={`${lecturesPhrase(bundle.materials.length)} · ${mappingMeta}`}
+          filter={filter}
+          onFilter={(next) => {
+            setRateMode(false);
+            setFilter(next);
+          }}
+          open={howOpen}
+          onToggle={() => setHowOpen((open) => !open)}
+          id={`${whyId}-how`}
+        />
+      ) : (
+        <>
+          {showCoverage && coverage('head')}
+          {showReadiness && readiness('head')}
+        </>
+      )
     ) : null;
   const rateColumn = (
     <RateSummary
@@ -1053,12 +1122,13 @@ function ExamSheetPage({ examId }: { examId: string }) {
       />
     ) : null;
 
-  const coverageFilters: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string; count: number }> = [
-    { value: 'cov:full', coverage: 'full', word: 'есть в лекциях', count: counts.full },
-    { value: 'cov:partial', coverage: 'partial', word: 'частично', count: counts.partial },
-    { value: 'cov:none', coverage: 'none', word: 'нет ни в одной', count: counts.none },
-    { value: 'cov:unverified', coverage: 'unverified', word: 'только по словам', count: counts.unverified },
-    { value: 'cov:unmapped', coverage: 'unmapped', word: 'не сверено', count: counts.unmapped + counts.checking },
+  // `keep`: the words a phone shows, so the filter is one line (the rest stays for screen readers).
+  const coverageFilters: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string; keep: string; count: number }> = [
+    { value: 'cov:full', coverage: 'full', word: 'есть в лекциях', keep: 'есть', count: counts.full },
+    { value: 'cov:partial', coverage: 'partial', word: 'частично', keep: 'частично', count: counts.partial },
+    { value: 'cov:none', coverage: 'none', word: 'нет ни в одной', keep: 'нет', count: counts.none },
+    { value: 'cov:unverified', coverage: 'unverified', word: 'только по словам', keep: 'по словам', count: counts.unverified },
+    { value: 'cov:unmapped', coverage: 'unmapped', word: 'не сверено', keep: 'не сверено', count: counts.unmapped + counts.checking },
   ];
   const sheetTitle = sheetHeader(exam.title, exam.kind);
   const column = selectedRow ? whyPanel('column') : rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn;
@@ -1156,6 +1226,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
         {drawLabel}
       </Link>
     ) : null;
+  // A phone whose bar at the bottom draws already («Тянуть билет из них»): no second «Тянуть билет» in the status
+  // (10_Project/Phone_Declutter_2026-10-08); the plain draw is the first item of «Ещё».
+  const drawInMore = phone && quietDraw !== null && action?.kind === 'awaiting';
   const statusActions = frame.side ? (
     primary || quietDraw ? (
       <div className="ex-draw">
@@ -1164,7 +1237,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         {quietDraw}
       </div>
     ) : null
-  ) : (
+  ) : drawInMore ? null : (
     quietDraw
   );
 
@@ -1200,8 +1273,37 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
   // Phones: «Изменить список · Лекции · Самооценка · Пригласить группу · Отчёт для преподавателя» took three or four
   // rows above the status (audit 2026-10-08); they go under the list, as under the paper on «Шпаргалка».
-  const linksBelow = !frame.side && (onSheet || frame.size === 's');
-  const examLinks = (
+  const linksBelow = !frame.side && (onSheet || frame.size === 's' || phone);
+  const startRate = () => {
+    setSelectedId(null);
+    setFilter('all');
+    if (onSheet) {
+      chooseView('questions');
+      setRateMode(true);
+      return;
+    }
+    // On a phone these links stand under the list: the list's top, with its «Отметьте…» line, comes into view.
+    if (linksBelow && !rateMode) {
+      window.setTimeout(() => document.querySelector('.ex-sheet')?.scrollIntoView?.({ block: 'start', behavior: reduced ? 'auto' : 'smooth' }), 0);
+    }
+    setRateMode((value) => !value);
+  };
+  // A phone: the five links as one «Ещё» under the list (10_Project/Phone_Declutter_2026-10-08). «Изменить список» is
+  // left out while a mapping holds the list (the status says it is running); the lectures say how many there are.
+  const moreItems: MoreMenuItem[] = [
+    ...(drawInMore ? [{ key: 'draw', label: drawLabel, to: drawHref }] : []),
+    ...(copy || editLocked ? [] : [{ key: 'edit', label: 'Изменить список', to: `/exams/${exam.id}/edit` }]),
+    { key: 'lectures', label: bundle.materials.length > 0 ? `Лекции · ${bundle.materials.length}` : 'Лекции', to: `/exams/${exam.id}/edit#lectures` },
+    { key: 'rate', label: rateMode && !onSheet ? 'Закончить самооценку' : 'Самооценка', onSelect: startRate },
+    ...(copy ? [] : [{ key: 'invite', label: 'Пригласить группу', onSelect: () => setInviteOpen(true) }]),
+    { key: 'report', label: 'Отчёт для преподавателя', to: `/exams/${exam.id}/report` },
+  ];
+  const moreMenu = (
+    <div className="ex-more" ref={moreRef}>
+      <MoreMenu items={moreItems} label="Ещё: лист экзамена" up alignStart />
+    </div>
+  );
+  const examLinks = phone ? moreMenu : (
     <div className="ex-links">
       {/* A copy from a group link: its list is the author's (the member keeps «Лекции» to add their own). */}
       {copy ? null : editLocked ? (
@@ -1216,25 +1318,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       <Link className="sf-link" to={`/exams/${exam.id}/edit#lectures`}>
         Лекции
       </Link>
-      <button
-        type="button"
-        className="sf-link"
-        aria-pressed={rateMode && !onSheet}
-        onClick={() => {
-          setSelectedId(null);
-          setFilter('all');
-          if (onSheet) {
-            chooseView('questions');
-            setRateMode(true);
-            return;
-          }
-          // On a phone these links stand under the list: the list's top, with its «Отметьте…» line, comes into view.
-          if (linksBelow && !rateMode) {
-            window.setTimeout(() => document.querySelector('.ex-sheet')?.scrollIntoView?.({ block: 'start', behavior: reduced ? 'auto' : 'smooth' }), 0);
-          }
-          setRateMode((value) => !value);
-        }}
-      >
+      <button type="button" className="sf-link" aria-pressed={rateMode && !onSheet} onClick={startRate}>
         Самооценка
       </button>
       {/* «Группа по ссылке»: the author's link for the group (components/exams/share/InviteGroup); a copy is not
@@ -1248,11 +1332,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
   );
 
   // Phones and tablets under the sheet: the action line of the share and the readiness legend, when there are any.
-  const answersBelow = !frame.side && !onSheet && !rateMode && !showPeak && (Boolean(closeLine) || showReadiness);
+  // A phone has them behind «Как считается» (PhoneSummary).
+  const answersBelow = !frame.side && !phone && !onSheet && !rateMode && !showPeak && (Boolean(closeLine) || showReadiness);
   const topColumn = onSheet ? sheetPage.top : rateMode ? rateColumn : showPeak ? peakColumn : compactColumn;
 
   return (
-    <div className="sf-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
+    <div className="sf-page ex-detail" ref={frame.ref} data-frame={frame.size} data-view={view}>
       {onSheet && sheetPage.status}
       <header className="ex-head">
         <div style={{ minWidth: 0 }}>
@@ -1262,15 +1347,18 @@ function ExamSheetPage({ examId }: { examId: string }) {
           <h1 className="ex-h1" title={exam.title}>
             {subjectOf(exam.title)}
           </h1>
-          {/* A phone's sheet: the day of the exam only, so the paper's lines are on the first screen («Вопросы» says the rest). */}
-          <p className="ex-meta">{glue((onSheet && !frame.side ? metaParts.slice(0, 1) : metaParts).join(' · '))}</p>
+          {/* A phone: the day and the number of questions, one line on both views. A tablet's sheet: the day of the exam
+              only, so the paper's lines are on the first screen («Вопросы» says the rest). */}
+          <p className="ex-meta">
+            {glue(phone ? phoneMetaLine(exam.kind, exam.exam_date, questions.length) : (onSheet && !frame.side ? metaParts.slice(0, 1) : metaParts).join(' · '))}
+          </p>
           {/* Phones (and a tablet's sheet): the status and the list on the first screen; these links go under them. */}
           {!linksBelow && examLinks}
         </div>
       </header>
 
       {/* What Meldy did, what it found, the one thing to do next — above everything that details it. */}
-      <ExamStatusCard ref={statusHeadingRef} id={`ex-st-${exam.id}`} status={pageStatus} actions={statusActions} notes={statusNotes} />
+      <ExamStatusCard ref={statusHeadingRef} id={`ex-st-${exam.id}`} status={pageStatus} actions={statusActions} notes={statusNotes} brief={phone} />
 
       {/* Phones and tablets: the two views right under the status, above everything they change. */}
       {!frame.side && <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div>}
@@ -1313,7 +1401,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
                               />
                             </span>
                           )}
-                          <span className="ex-filter-word">{item.word}</span> <span className="ex-count">{item.count}</span>
+                          <FilterWord word={item.word} keep={item.keep} /> <span className="ex-count">{item.count}</span>
                         </button>
                       </li>
                     );
@@ -1357,6 +1445,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
                 }
                 dim={Boolean(peak?.dim)}
                 emptyText={rows.length === 0 ? (questions.length === 0 ? 'В списке пока нет вопросов.' : 'В этом фильтре вопросов нет.') : null}
+                hint={phone && !rateMode && rows.length > 0 ? ROW_HINT : null}
               />
             )}
           </div>
@@ -1389,7 +1478,18 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
       {!frame.side && selectedRow && <div id={whyId}>{whyPanel('sheet')}</div>}
 
-      <AnswerTextConsent ready={!onSheet || sheetPage.settled} />
+      <AnswerTextConsent ready={!onSheet || sheetPage.settled} short={phone} />
+
+      {inviteOpen && (
+        <InviteGroupDialog
+          examId={exam.id}
+          examTitle={exam.title}
+          onClose={() => {
+            setInviteOpen(false);
+            window.setTimeout(() => moreRef.current?.querySelector<HTMLButtonElement>('button')?.focus(), 0);
+          }}
+        />
+      )}
 
       {!frame.side && primary && (
         <div className="ex-cta">

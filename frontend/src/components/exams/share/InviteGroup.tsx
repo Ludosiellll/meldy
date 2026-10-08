@@ -100,20 +100,23 @@ export default function InviteGroup({ examId, examTitle }: Props) {
       >
         Пригласить группу
       </button>
-      {open &&
-        createPortal(
-          <InviteDialog
-            examId={examId}
-            examTitle={examTitle}
-            onClose={() => {
-              setOpen(false);
-              window.setTimeout(() => openerRef.current?.focus(), 0);
-            }}
-          />,
-          document.body,
-        )}
+      {open && (
+        <InviteGroupDialog
+          examId={examId}
+          examTitle={examTitle}
+          onClose={() => {
+            setOpen(false);
+            window.setTimeout(() => openerRef.current?.focus(), 0);
+          }}
+        />
+      )}
     </>
   );
+}
+
+/** The invitation itself, for an opener of the page's own (a phone's «Ещё» menu): the caller gives the focus back. */
+export function InviteGroupDialog({ examId, examTitle, onClose }: Props & { onClose: () => void }) {
+  return createPortal(<InviteDialog examId={examId} examTitle={examTitle} onClose={onClose} />, document.body);
 }
 
 function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => void }) {

@@ -17,10 +17,11 @@ import {
   type SheetLine,
 } from '../../../lib/exams/cheatSheet';
 import { countBucket, track } from '../../../lib/telemetry';
+import { glue } from '../sheetModel';
 import type { PeakFlag } from '../peak';
 import type { FrameBox } from '../useFrame';
 import CheatSheet, { topLineBottom, writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
-import { historyResult, LinePanel, SheetSummaryCard, SheetWriteCard, useUnitsLeft } from './SheetColumn';
+import { historyResult, LinePanel, SheetSummaryCard, SheetWriteCard, unwritableLine, useUnitsLeft } from './SheetColumn';
 import { changeNote, changeSentence, counterLabel } from './copy';
 import { isSheetFontSettled, loadSheetFont } from './sheetFont';
 import { useCheatSheet, type CheatSheetData } from './useCheatSheet';
@@ -121,6 +122,12 @@ export interface SheetPageInput {
   next?: ReactNode;
   /** What «Скрыть строки, стёртые совсем» says while nothing is erased (the example names the answer that erases). */
   onlyLeftNone?: string | null;
+  /**
+   * A phone on the exam page (10_Project/Phone_Declutter_2026-10-08): one summary block above the paper — the count,
+   * the switches, the last answer and the history, the rest behind «Подробнее» — instead of the count above the paper
+   * and the cards under it. The paper itself is drawn as before.
+   */
+  oneBlock?: boolean;
 }
 
 export interface SheetPage {
@@ -576,7 +583,10 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const skipTarget = useCallback(() => document.getElementById(`cs-sum-${examId}`) ?? document.getElementById(`cs-lp-${examId}`), [examId]);
   const skip = useMemo(() => ({ label: 'К счётчику и переключателям', target: skipTarget }), [skipTarget]);
 
-  const summary = (variant: 'full' | 'top' | 'after') => (
+  const oneBlock = Boolean(input.oneBlock) && !side;
+  // The phone's block says the questions whose points could not be written behind «Подробнее» (not a card of their own).
+  const unwritableMore = oneBlock && data.unwritable > 0 ? <p className="ex-fine cs-unwritable">{glue(unwritableLine(data.unwritable))}</p> : null;
+  const summary = (variant: 'full' | 'top' | 'after' | 'phone') => (
     <SheetSummaryCard
       id={variant === 'top' ? undefined : `cs-sum-${examId}`}
       counts={shownCounts}
@@ -597,6 +607,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       next={input.next}
       onlyLeftNone={input.onlyLeftNone}
       variant={variant}
+      more={variant === 'phone' ? unwritableMore : undefined}
     />
   );
   const writeCard = (compact: boolean) =>
@@ -609,7 +620,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         written={data.written}
         toWrite={data.toWrite}
         units={data.units}
-        unwritable={data.unwritable}
+        unwritable={oneBlock ? 0 : data.unwritable}
         unitsLeft={unitsLeft}
         write={data.write}
         onWrite={onWrite}
@@ -693,7 +704,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const top = shown ? (
     counts.total > 0 || topWrites ? (
       <>
-        {counts.total > 0 && summary('top')}
+        {counts.total > 0 && summary(oneBlock ? 'phone' : 'top')}
         {topWrites && writeCard(true)}
       </>
     ) : null
@@ -705,7 +716,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     paperShown && (counts.total > 0 || !firstWrite) ? (
       <>
         {!(firstWrite || writing || input.unmapped) && writeCard(true)}
-        {counts.total > 0 && summary('after')}
+        {counts.total > 0 && !oneBlock && summary('after')}
       </>
     ) : null;
 
@@ -789,7 +800,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       openQuestionId={input.openQuestionId ?? null}
       questionPanelId={input.questionPanelId}
       onWaiting={onWaiting}
-      skip={counts.total > 0 ? skip : null}
+      skip={counts.total > 0 && !oneBlock ? skip : null}
       onLine={onLine}
       onQuestion={onQuestion}
       onZoomPick={onZoomPick}

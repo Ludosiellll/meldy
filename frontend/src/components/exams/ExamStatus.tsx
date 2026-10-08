@@ -19,6 +19,8 @@ interface ExamStatusCardProps {
   /** The action and the quiet link beside it: the page renders them (they need its handlers and its menu). */
   actions?: ReactNode;
   notes?: StatusNote[];
+  /** A phone: the heading and one line (`status.brief`), the flag left out (10_Project/Phone_Declutter_2026-10-08). */
+  brief?: boolean;
 }
 
 /**
@@ -27,13 +29,22 @@ interface ExamStatusCardProps {
  * one or two sentences, and the one action. The headline is a live region: a screen reader hears the new state
  * (a mapping that ended, a sheet written), not every number of a run going on.
  */
-const ExamStatusCard = forwardRef<HTMLHeadingElement, ExamStatusCardProps>(function ExamStatusCard({ status, id, actions, notes = [] }, headingRef) {
+const ExamStatusCard = forwardRef<HTMLHeadingElement, ExamStatusCardProps>(function ExamStatusCard({ status, id, actions, notes = [], brief = false }, headingRef) {
   const loading = status.key === 'loading';
   // The first 300 ms show nothing: a quick read does not flash a word that is gone at once.
   const showLoading = useShownAfter(loading);
   const { lead, mark, tail } = status.title;
+  const text = brief ? status.brief ?? status.text : status.text;
   return (
-    <section className="ex-st" id={id} data-tone={status.tone} data-state={status.key} aria-labelledby={loading ? undefined : `${id}-t`} aria-busy={loading || undefined}>
+    <section
+      className="ex-st"
+      id={id}
+      data-tone={status.tone}
+      data-state={status.key}
+      data-brief={brief ? '' : undefined}
+      aria-labelledby={loading ? undefined : `${id}-t`}
+      aria-busy={loading || undefined}
+    >
       {loading ? (
         <>
           <p className="ex-st-wait" role="status">
@@ -43,7 +54,7 @@ const ExamStatusCard = forwardRef<HTMLHeadingElement, ExamStatusCardProps>(funct
         </>
       ) : (
         <>
-          <p className="ex-st-flag">{status.flag}</p>
+          {brief ? null : <p className="ex-st-flag">{status.flag}</p>}
           <div className="ex-st-body">
             <h2 className="ex-st-title" id={`${id}-t`} ref={headingRef} tabIndex={-1} aria-live="polite" aria-atomic="true">
               {glue(lead)}
@@ -58,7 +69,7 @@ const ExamStatusCard = forwardRef<HTMLHeadingElement, ExamStatusCardProps>(funct
               ) : null}
               {glue(tail)}
             </h2>
-            {status.text ? <p className="ex-st-text">{glue(status.text)}</p> : null}
+            {text ? <p className="ex-st-text">{glue(text)}</p> : null}
             {status.blocked ? (
               <p className="ex-st-blocked" role="status">
                 {glue(status.blocked)}
