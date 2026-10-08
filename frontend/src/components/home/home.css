@@ -1551,10 +1551,11 @@
   color: #fff;
 }
 
-/* One line where it fits (a wide panel); on a phone it breaks as «Начните / со списка / вопросов». */
+/* One line where the panel is wide enough (it runs above the circles, not over them); on a phone it breaks as
+   «Начните / со списка / вопросов». */
 .hm-final .hm-h2 {
   position: relative;
-  max-width: 820px;
+  max-width: none;
   color: #fff;
   text-align: left;
 }
