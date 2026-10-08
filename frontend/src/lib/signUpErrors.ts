@@ -33,7 +33,8 @@ export const SIGN_UP_MESSAGES = {
 export const EMPTY_FIELD_MESSAGES = {
   name: 'Введите имя',
   email: 'Введите адрес почты',
-  password: 'Придумайте пароль: от 8 символов, с заглавной буквой и цифрой',
+  // The rules are shown with the field from the start (components/auth/PasswordRules), so the hint only asks.
+  password: 'Придумайте пароль',
 } as const;
 
 /** The message for each empty field of the sign-up form ('' — filled). */
