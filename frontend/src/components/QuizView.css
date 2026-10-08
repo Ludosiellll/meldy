@@ -241,9 +241,11 @@
   .qz-pres-options { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 639px) {
-  /* 10_Project/Phone_Declutter_2026-10-08: on a phone the tab above already says «Тест 5»; «Проверочный тест · 5
-     вопросов по материалу» stays for screen readers only, and the first question comes up. */
-  .qz-head {
+  /* 10_Project/Phone_Declutter_2026-10-08: on a phone a row of tabs above already says «Тест 5» (the lecture page's
+     row, or the results' own row on /analyze); «Проверочный тест · 5 вопросов по материалу» stays for screen readers
+     only, and the first question comes up. A result of the test alone (/analyze, no row) keeps its heading. */
+  .md-page .qz-head,
+  .rp-body:not([data-single]) .qz-head {
     position: absolute;
     width: 1px;
     height: 1px;

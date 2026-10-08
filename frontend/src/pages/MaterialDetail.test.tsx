@@ -1028,8 +1028,8 @@ describe('the lecture on a phone', () => {
     expect(summary).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', summary.id);
     expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
-    // One line: the usual «только для меня» is left to «⋯» (Поделиться).
-    expect(plainText(document.querySelector('.md-meta')?.textContent)).toMatch(/^Физика · 1 октября, \d{1,2}:00$/);
+    // One line: the usual «только для меня» is left to «⋯» (Поделиться), and the day goes without its time.
+    expect(plainText(document.querySelector('.md-meta')?.textContent)).toBe('Физика · 1 октября');
     // The lecture's actions stay: «Поговорить о лекции», «⋯», and «Повторить карточки» at the bottom.
     expect(screen.getByRole('link', { name: 'Поговорить о лекции' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toBeInTheDocument();
@@ -1163,11 +1163,11 @@ describe('the lecture on a computer keeps its layout', () => {
 });
 
 describe('materialMeta', () => {
-  it('leaves out the usual «только для меня» on a phone, and still names a link or another author', () => {
+  it('leaves out the usual «только для меня» and the time of day on a phone, and still names a link or another author', () => {
     const base = { subject: 'Физика', createdAt: '2026-10-01T10:00:00Z' };
-    expect(plainText(materialMeta({ ...base, isPublic: false, own: true, short: true }))).toMatch(/^Физика · 1 октября, \d{1,2}:00$/);
-    expect(plainText(materialMeta({ ...base, isPublic: false, own: true }))).toMatch(/^Физика · только для меня · 1 октября/);
-    expect(plainText(materialMeta({ ...base, isPublic: true, own: true, short: true }))).toMatch(/^Физика · открыт по ссылке · 1 октября/);
-    expect(plainText(materialMeta({ ...base, isPublic: false, own: false, short: true }))).toMatch(/^Физика · материал другого автора · /);
+    expect(plainText(materialMeta({ ...base, isPublic: false, own: true, short: true }))).toBe('Физика · 1 октября');
+    expect(plainText(materialMeta({ ...base, isPublic: false, own: true }))).toMatch(/^Физика · только для меня · 1 октября, \d{1,2}:00$/);
+    expect(plainText(materialMeta({ ...base, isPublic: true, own: true, short: true }))).toBe('Физика · открыт по ссылке · 1 октября');
+    expect(plainText(materialMeta({ ...base, isPublic: false, own: false, short: true }))).toBe('Физика · материал другого автора · 1 октября');
   });
 });
