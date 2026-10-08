@@ -332,9 +332,23 @@ export default function MaterialDetail() {
     const row = phoneRowRef.current;
     setRowMore(Boolean(row && row.scrollLeft + row.clientWidth < row.scrollWidth - 1));
   }, []);
-  // After every render (the tabs may have changed) and when the window or the fonts change.
+  // The tab selected in the phone's row (set while rendering it) and the one last brought into the row's view.
+  const rowSelectedRef = useRef<string | null>(null);
+  const rowShownRef = useRef<string | null>(null);
+  // After every render (the tabs may have changed) and when the window or the fonts change. A newly selected tab
+  // that the row hides on the right (or left) is brought into it: the row scrolls, never the page.
   useEffect(() => {
     measureRow();
+    const key = rowSelectedRef.current;
+    const row = phoneRowRef.current;
+    if (!key || !row || key === rowShownRef.current) return;
+    rowShownRef.current = key;
+    const tab = tabRefs.current[key];
+    if (!tab) return;
+    const bounds = row.getBoundingClientRect();
+    const box = tab.getBoundingClientRect();
+    if (box.right > bounds.right) row.scrollLeft += box.right - bounds.right + 28;
+    else if (box.left < bounds.left) row.scrollLeft -= bounds.left - box.left;
   });
   useEffect(() => {
     window.addEventListener('resize', measureRow);
@@ -654,6 +668,7 @@ export default function MaterialDetail() {
     { key: 'podcast', label: MODE_LABELS.podcast, mode: 'podcast' as Mode },
   ];
   const lectureTab = mode === 'full' && sectionTabs.length > 0 ? section : mode;
+  rowSelectedRef.current = phone ? lectureTab : null;
   const selectLectureTab = (item: LectureTab) => {
     selectMode(item.mode);
     if (item.section) setSectionChoice(item.section);
