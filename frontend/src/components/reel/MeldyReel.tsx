@@ -5,9 +5,8 @@ import { REEL_EVENT, takePendingChapter, type ReelChapter } from '../home/reelJu
 import { ReelClock } from './clock';
 import { put } from './engine';
 import ReelStage from './ReelStage';
-import { END_CTA } from './scenes/End';
-import * as C from './content';
-import { CHAPTERS, CUT, POSTER_AT, STAGE_H, STAGE_W, TOTAL, chapterAt, clamp } from './timeline';
+import { OUTRO_CTA, OUTRO_CTA_AT } from './scenes/Outro';
+import { POSTER_AT, STAGE_H, STAGE_W, TOTAL, clamp, sceneWindow } from './timeline';
 import './reel.css';
 
 declare global {
@@ -18,29 +17,27 @@ declare global {
   }
 }
 
-/** The bar under the reel: the seven chapters, by their length. */
-export const SEGMENTS: Array<{ label: string; from: number; to: number; id: ReelChapter; at: number }> = CHAPTERS.map((chapter, index) => ({
-  label: chapter.label,
-  from: chapter.from,
-  to: CHAPTERS[index + 1]?.from ?? TOTAL,
-  id: chapter.id,
-  at: chapter.at,
-}));
+/** The bar under the reel: the opening, the four chapters and the ending, by their length. */
+export const SEGMENTS: Array<{ label: string; from: number; to: number; id?: ReelChapter }> = [
+  { label: 'Начало', from: 0, to: sceneWindow('tickets').from },
+  { label: 'Билеты', from: sceneWindow('tickets').from, to: sceneWindow('oral').from, id: 'tickets' },
+  { label: 'Ответ вслух', from: sceneWindow('oral').from, to: sceneWindow('sheet').from, id: 'oral' },
+  { label: 'Шпаргалка', from: sceneWindow('sheet').from, to: sceneWindow('days').from, id: 'sheet' },
+  { label: 'Разные дни', from: sceneWindow('days').from, to: sceneWindow('outro').from, id: 'days' },
+  { label: 'Итог', from: sceneWindow('outro').from, to: TOTAL },
+];
 
-const segmentAt = (t: number) => Math.max(0, CHAPTERS.indexOf(chapterAt(t)));
-
-/** When the button of the end card is on the stage (the card's own fade-in). */
-const CTA_AT = CUT + 1700;
+const segmentAt = (t: number) => Math.max(0, SEGMENTS.findIndex((segment) => t >= segment.from && t < segment.to));
 
 /** What the reel says, for screen readers (the stage itself is hidden from them). */
 const TRANSCRIPT = [
-  `Список кафедры: ${C.RECOGNIZED.toLowerCase()}.`,
-  `Ответы из лекций: лекция «${C.SLIP.lecture}» ${C.FIT_HINT}. Цитата: «${C.SLIP.quote}». ${C.UNMATCHED_LINE}`,
-  'Шпаргалка: пункты ответа записаны под вопросом, каждый строкой.',
-  `Билет вслух: «${C.TICKET.turns[0].text}» Экзаменатор: «${C.TICKET.turns[1].text}» «${C.TICKET.turns[2].text}» ${C.TICKET.countLine}.`,
-  'Разные дни: 7 окт. пункт назван, строка стёрлась наполовину. 8 окт. её назвали снова, строка стёрлась совсем. 10 окт. её не назвали, и она вернулась: «была стёрта · пункт не назван».',
-  `Группе: ${C.GROUP.statement.toLowerCase()}. ${C.GROUP.questionOfDay}, ${C.GROUP.reminderTime.toLowerCase()}.`,
-  'Meldy. ИИ не отвечает за вас — он вас спрашивает. Попробовать на примере.',
+  'Сессия: 40 вопросов, 12 дней. С чего начать?',
+  'Meldy. Сессия начинается со списка вопросов.',
+  'Билеты: 24 из 40 вопросов уже есть в ваших лекциях. Тянуть билет.',
+  'Ответ вслух, как на экзамене: пункты ответа отмечаются, экзаменатор спрашивает о пропущенном, ответ проверен по пунктам.',
+  'Шпаргалка: строки стирают только ответы. После ответа 4 строки стёрлись наполовину, а пункт, названный только после вопроса экзаменатора, не стёрся.',
+  'Разные дни: одного ответа мало. Назвали снова в другой день — строка стёрлась совсем; стёртую строку не назвали — она вернулась.',
+  'Meldy. Вспоминать полезнее, чем перечитывать. Билеты по вашим лекциям, ответ вслух с вопросом экзаменатора, шпаргалка, которую стирают только ответы.',
 ];
 
 const exportRequested = () => typeof window !== 'undefined' && window.__MELDY_REEL_EXPORT__ === true;
@@ -63,7 +60,7 @@ function PauseIcon() {
 }
 
 /**
- * «Meldy за 48 секунд»: the reel on the page. It plays silently while it is on screen and the tab
+ * «Meldy за 35 секунд»: the reel on the page. It plays silently while it is on screen and the tab
  * is visible, loops, can be paused and jumped by chapter. With reduced motion it shows one still
  * frame and plays only when asked.
  */
@@ -127,7 +124,7 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
     else clock.pause();
   }, [playing, clock]);
 
-  // The chapter bar fills with the clock; React state changes only when the chapter changes.
+  // The chapter bar fills with the clock; React state changes only when the segment changes.
   useEffect(
     () =>
       clock.addFrame((t) => {
@@ -141,7 +138,7 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
           shown.current.segment = next;
           setSegment(next);
         }
-        const cta = t >= CTA_AT;
+        const cta = t >= sceneWindow('outro').from + OUTRO_CTA_AT;
         if (cta !== shown.current.cta) {
           shown.current.cta = cta;
           setCtaOn(cta);
@@ -177,7 +174,7 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
 
   const jump = useCallback(
     (index: number) => {
-      clock.seek(SEGMENTS[index].at);
+      clock.seek(SEGMENTS[index].from + (index === 0 ? 0 : 60));
       setAsked(true);
       setUserPaused(false);
     },
@@ -200,16 +197,16 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
   }, [jump]);
 
   const ctaStyle = {
-    left: `${(END_CTA.left / STAGE_W) * 100}%`,
-    top: `${(END_CTA.top / STAGE_H) * 100}%`,
-    width: `${(END_CTA.width / STAGE_W) * 100}%`,
-    height: `${(END_CTA.height / STAGE_H) * 100}%`,
+    left: `${((OUTRO_CTA.x - OUTRO_CTA.w / 2) / STAGE_W) * 100}%`,
+    top: `${((OUTRO_CTA.y - OUTRO_CTA.h / 2) / STAGE_H) * 100}%`,
+    width: `${(OUTRO_CTA.w / STAGE_W) * 100}%`,
+    height: `${(OUTRO_CTA.h / STAGE_H) * 100}%`,
   };
 
   return (
     <figure className="mr-figure" aria-labelledby={captionId}>
       <figcaption id={captionId} className="mr-sr">
-        Ролик о Meldy, 48 секунд, без звука.
+        Ролик о Meldy, 35 секунд, без звука.
       </figcaption>
       <ol className="mr-sr">
         {TRANSCRIPT.map((line) => (
@@ -241,7 +238,7 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
           <div ref={bar} className="mr-chapters">
             {SEGMENTS.map((span, index) => (
               <button
-                key={span.id}
+                key={span.label}
                 type="button"
                 className="mr-chapter"
                 style={{ flexGrow: span.to - span.from }}

@@ -1,14 +1,60 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import type { ReelClock } from './clock';
-import { ClockProvider, SceneProvider, put, useFrame } from './engine';
-import End from './scenes/End';
-import Paper from './scenes/Paper';
-import { activeScenes, sceneWindow, type SceneId } from './timeline';
+import { ClockProvider, SceneProvider, opacity, put, useFrame } from './engine';
+import Brand from './scenes/Brand';
+import Chaos from './scenes/Chaos';
+import Intro from './scenes/Intro';
+import Days from './scenes/Days';
+import Oral from './scenes/Oral';
+import Outro from './scenes/Outro';
+import Sheet from './scenes/Sheet';
+import Tickets from './scenes/Tickets';
+import Tour from './scenes/Tour';
+import { activeScenes, mix, sceneWindow, seg, type SceneId } from './timeline';
 
 const SCENE_VIEWS: Record<SceneId, ComponentType> = {
-  paper: Paper,
-  end: End,
+  intro: Intro,
+  chaos: Chaos,
+  brand: Brand,
+  tour: Tour,
+  tickets: Tickets,
+  oral: Oral,
+  sheet: Sheet,
+  days: Days,
+  outro: Outro,
 };
+
+/**
+ * The corner mark «MELDY», over the chaos and over the chapters, white on the dark opening and ink on paper.
+ * Only this mark: the corner brackets, the chapter label, the timecode and the chapter dots were taken out
+ * (the owner, 2026-10-08: «не нравилась рамка по бокам вначале и надписи по углам, кроме Meldy»).
+ */
+const HUD_SPANS = [
+  { from: sceneWindow('chaos').from + 300, to: sceneWindow('brand').from + 150 },
+  { from: sceneWindow('tickets').from + 150, to: sceneWindow('days').to - 350 },
+];
+
+/** 1 = white mark (the dark opening), 0 = ink (the paper of every chapter). */
+function hudLight(t: number): number {
+  return t < sceneWindow('brand').from + 400 ? 1 : 0;
+}
+
+function Hud() {
+  const root = useRef<HTMLDivElement>(null);
+  useFrame((_, t) => {
+    let show = 0;
+    for (const span of HUD_SPANS) show = Math.max(show, Math.min(seg(t, span.from, 300), 1 - seg(t, span.to - 300, 300)));
+    opacity(root.current, show);
+    if (show <= 0) return;
+    const light = hudLight(t);
+    put(root.current, 'color', `rgb(${Math.round(mix(11, 255, light))},${Math.round(mix(18, 255, light))},${Math.round(mix(28, 255, light))})`);
+  });
+  return (
+    <div ref={root} className="mr-hud" aria-hidden="true">
+      <span className="mr-hud-t mr-hud-t--tl">MELDY</span>
+    </div>
+  );
+}
 
 /** Hides a scene mounted ahead of its time: before its first moment nothing of it shows. */
 function SceneGate({ from, children }: { from: number; children: ReactNode }) {
@@ -25,7 +71,7 @@ const sameScenes = (a: SceneId[], b: SceneId[]) => a.length === b.length && a.ev
 
 /**
  * The stage: the scenes that are on at the clock's time (each mounted a little before it shows,
- * unmounted after it ends). React renders only when that set changes; the frames are written by the scenes.
+ * unmounted after it ends) and the corner labels. React renders only when that set changes.
  */
 export default function ReelStage({ clock, scale }: { clock: ReelClock; scale: number }) {
   const [scenes, setScenes] = useState<SceneId[]>(() => activeScenes(clock.time));
@@ -53,6 +99,7 @@ export default function ReelStage({ clock, scale }: { clock: ReelClock; scale: n
             </SceneProvider>
           );
         })}
+        <Hud />
       </div>
     </ClockProvider>
   );

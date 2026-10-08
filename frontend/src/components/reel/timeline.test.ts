@@ -1,71 +1,146 @@
 import { describe, expect, it } from 'vitest';
-import { cameraAt } from './paper/camera';
-import { CAMERA_KEYS, PUSH_IN } from './paper/layout';
-import { activeScenes, CHAPTERS, chapterAt, CUT, POSTER_AT, SCENES, sceneWindow, TOTAL } from './timeline';
+import { ReelClock } from './clock';
+import { SHEET_ROWS, SHEET_TOTALS, TICKET } from './content';
+import { MARK_AT } from './scenes/Tickets';
+import { CHAPTERS, POSTER_AT, SCENES, TOTAL, activeScenes, chapterAt, ease, plural, rng, seg } from './timeline';
 
 describe('the reel timeline', () => {
-  it('is one sheet of paper and an end card, cut once at the end of the sheet', () => {
-    expect(SCENES.map((scene) => scene.id)).toEqual(['paper', 'end']);
-    expect(sceneWindow('paper')).toEqual({ id: 'paper', from: 0, to: CUT });
-    expect(sceneWindow('end')).toEqual({ id: 'end', from: CUT, to: TOTAL });
-    expect(TOTAL).toBe(48000);
+  it('plays the scenes in story order, each overlapping the next for its transition, within the reel', () => {
+    expect(SCENES.map((scene) => scene.id)).toEqual(['intro', 'chaos', 'brand', 'tour', 'tickets', 'oral', 'sheet', 'days', 'outro']);
+    expect(SCENES[0].from).toBe(0);
+    expect(SCENES[SCENES.length - 1].to).toBe(TOTAL);
+    for (let i = 1; i < SCENES.length; i += 1) {
+      expect(SCENES[i].from).toBeGreaterThan(SCENES[i - 1].from);
+      expect(SCENES[i].from).toBeLessThan(SCENES[i - 1].to);
+    }
   });
 
-  it('puts the sheet on the stage from the start and the end card only after the cut', () => {
-    expect(activeScenes(0)).toEqual(['paper']);
-    expect(activeScenes(CUT - 100)).toEqual(['paper', 'end']);
-    expect(activeScenes(CUT)).toEqual(['end']);
-    expect(activeScenes(TOTAL - 1)).toEqual(['end']);
+  it('mounts at most three scenes at a time, ahead of their start', () => {
+    for (let t = 0; t < TOTAL; t += 50) expect(activeScenes(t).length).toBeLessThanOrEqual(3);
+    // The chaos scene is put on the stage with the intro, hidden until 3 s.
+    expect(activeScenes(0)).toEqual(['intro', 'chaos']);
+    expect(activeScenes(2700)).toEqual(['intro', 'chaos']);
+    expect(activeScenes(6400)).toEqual(['chaos', 'brand']);
+    expect(activeScenes(TOTAL - 1)).toEqual(['outro']);
   });
 
-  it('has seven chapters in order, each starting and arriving inside its own stretch of the sheet', () => {
-    expect(CHAPTERS.map((chapter) => chapter.number)).toEqual(['01', '02', '03', '04', '05', '06', '07']);
-    expect(CHAPTERS.map((chapter) => chapter.label)).toEqual([
-      'Список кафедры',
-      'Лекции',
-      'Шпаргалка',
-      'Билет вслух',
-      'Разные дни',
-      'Группе',
-      'Итог',
-    ]);
-    expect(new Set(CHAPTERS.map((chapter) => chapter.id)).size).toBe(7);
-    CHAPTERS.forEach((chapter, index) => {
-      const next = CHAPTERS[index + 1]?.from ?? TOTAL;
-      expect(chapter.at).toBeGreaterThanOrEqual(chapter.from);
-      expect(chapter.at).toBeLessThan(next);
-    });
-    expect(chapterAt(0).id).toBe('tickets');
-    expect(chapterAt(CUT + 10).id).toBe('end');
+  it('names the chapters 01–04 and knows which one plays', () => {
+    expect(CHAPTERS.map((chapter) => `${chapter.number} ${chapter.label}`)).toEqual(['01 Билеты', '02 Ответ вслух', '03 Шпаргалка', '04 Разные дни']);
+    expect(chapterAt(1000)).toBeNull();
+    expect(chapterAt(POSTER_AT)?.label).toBe('Билеты');
+    expect(chapterAt(CHAPTERS[2].at + 10)?.label).toBe('Шпаргалка');
+    expect(chapterAt(CHAPTERS[3].at + 10)?.label).toBe('Разные дни');
+    expect(chapterAt(TOTAL - 10)).toBeNull();
   });
 
-  it('keeps the poster on the answer, inside the sheet', () => {
-    expect(POSTER_AT).toBeGreaterThan(CHAPTERS[3].from);
-    expect(POSTER_AT).toBeLessThan(CUT);
+  it('eases like the CSS curves it stands for', () => {
+    expect(ease.brand(0)).toBe(0);
+    expect(ease.brand(1)).toBe(1);
+    // cubic-bezier(.16, 1, .3, 1) is past 90 % of the way at 40 % of the time.
+    expect(ease.brand(0.4)).toBeGreaterThan(0.9);
+    expect(ease.inOut(0.5)).toBeCloseTo(0.5, 5);
+    expect(ease.back(0.7)).toBeGreaterThan(1);
+    expect(seg(50, 100, 200)).toBe(0);
+    expect(seg(200, 100, 200)).toBe(0.5);
+    expect(seg(400, 100, 200)).toBe(1);
+  });
+
+  it('draws the same particles for the same seed', () => {
+    const a = rng(42);
+    const b = rng(42);
+    expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+    expect(rng(43)()).not.toBe(rng(42)());
+  });
+
+  it('declines Russian nouns after numbers', () => {
+    const forms = ['вопрос', 'вопроса', 'вопросов'] as const;
+    expect([1, 2, 5, 11, 21, 24, 40].map((n) => plural(n, forms))).toEqual(['вопрос', 'вопроса', 'вопросов', 'вопросов', 'вопрос', 'вопроса', 'вопросов']);
   });
 });
 
-describe('the camera over the sheet', () => {
-  it('stands at each station for the chapter it shows, and pushes in slowly', () => {
-    for (const [t, centre] of CAMERA_KEYS) {
-      const cam = cameraAt(t);
-      // The point of the sheet the camera looks at lands in the middle of the stage.
-      expect((960 - cam.x) / cam.scale).toBeCloseTo(centre, 0);
-    }
-    expect(cameraAt(0).scale).toBeCloseTo(1, 5);
-    expect(cameraAt(CUT).scale).toBeCloseTo(1 + PUSH_IN, 5);
+describe('the reel content', () => {
+  it('uses the stage list of the app: 40 questions, 24 «есть», 7 «частично», 9 «нет»', () => {
+    expect(SHEET_ROWS).toHaveLength(40);
+    expect(SHEET_TOTALS).toEqual({ ok: 24, half: 7, no: 9 });
   });
 
-  it('moves without jumps: no frame moves the sheet by more than a pan allows', () => {
-    let previous = cameraAt(0);
-    let largest = 0;
-    for (let t = 1000 / 30; t < CUT; t += 1000 / 30) {
-      const cam = cameraAt(t);
-      largest = Math.max(largest, Math.abs(cam.x - previous.x));
-      previous = cam;
-    }
-    // The longest pans cover about 2000 px in 1.8 s; ease-in-out peaks at three times its average speed:
-    // about 115 px a frame at 30 frames a second.
-    expect(largest).toBeLessThan(130);
+  it('marks the rows of the ticket sheet in order, every one while the chapter plays', () => {
+    for (let i = 1; i < MARK_AT.length; i += 1) expect(MARK_AT[i]).toBeGreaterThanOrEqual(MARK_AT[i - 1]);
+    const chapter = SCENES.find((scene) => scene.id === 'tickets')!;
+    expect(MARK_AT[MARK_AT.length - 1]).toBeLessThan(chapter.to - chapter.from - 1500);
+  });
+
+  it('names every point of the ticket but the missed one during the answer', () => {
+    const words = TICKET.answer.split(' ');
+    const named = Object.keys(TICKET.namedAfterWord).map(Number);
+    expect(named).not.toContain(TICKET.missed);
+    expect(named.sort()).toEqual([1, 2, 3, 4]);
+    for (const index of Object.values(TICKET.namedAfterWord)) expect(index).toBeLessThan(words.length);
+  });
+});
+
+describe('ReelClock', () => {
+  function manual() {
+    let now = 0;
+    const queue = new Map<number, (time: number) => void>();
+    let next = 1;
+    const scheduler = {
+      request: (callback: (time: number) => void) => {
+        queue.set(next, callback);
+        return next++;
+      },
+      cancel: (id: number) => {
+        queue.delete(id);
+      },
+      now: () => now,
+    };
+    const step = (ms: number) => {
+      now += ms;
+      const callbacks = Array.from(queue.values());
+      queue.clear();
+      for (const callback of callbacks) callback(now);
+    };
+    return { scheduler, step };
+  }
+
+  it('advances with frames while playing, loops at the end, and stops on pause', () => {
+    const { scheduler, step } = manual();
+    const clock = new ReelClock(1000, scheduler);
+    const seen: number[] = [];
+    clock.addFrame((t) => seen.push(t));
+    expect(seen).toEqual([0]);
+    clock.play();
+    step(16);
+    step(16);
+    expect(clock.time).toBe(32);
+    clock.seek(990);
+    step(16);
+    expect(clock.time).toBe(6);
+    clock.pause();
+    step(16);
+    expect(clock.time).toBe(6);
+    expect(clock.isPlaying).toBe(false);
+  });
+
+  it('moves one short step after a long pause between frames, never a jump', () => {
+    const { scheduler, step } = manual();
+    const clock = new ReelClock(10_000, scheduler);
+    clock.play();
+    step(5000);
+    expect(clock.time).toBe(64);
+  });
+
+  it('tells watchers about play, pause and seek, and clamps seeks to the reel', () => {
+    const { scheduler } = manual();
+    const clock = new ReelClock(1000, scheduler);
+    let calls = 0;
+    clock.watch(() => {
+      calls += 1;
+    });
+    clock.play();
+    clock.seek(5000);
+    clock.pause();
+    expect(calls).toBe(3);
+    expect(clock.time).toBe(1000);
   });
 });

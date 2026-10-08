@@ -4,6 +4,12 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-08 — Release 31.1: the previous landing reel back, without the corner frame and the corner labels (from the commit of this entry)
+
+- **The reel.** The owner preferred the previous film («нет, верни видео которое было… мне нравилось прошлое больше»): the 35-second reel of release 30.2 is back as it was, and the one-sheet film of release 31 is reverted (`Landing.tsx` is the 30.2 one again: «Meldy за 35 секунд», the end card leads to the sign-up).
+- **The corners.** The four corner brackets (the frame over the blue opening), the chapter label, the timecode and the chapter dots are gone; only the small «MELDY» mark stays (the owner: «не нравилась только рамка по бокам вначале и надписи по углам, кроме Meldy»).
+- No migrations, no backend change. Verified before release: Vitest 168 files, 2701 tests; `tsc -b`; production build; frames at 1.6, 4.2, 5.4, 9.5, 13, 19, 24.5 and 33.5 s show the scenes of release 30.2 with «MELDY» as the only corner mark.
+
 ## 2026-10-08 — Release 31: the landing film rebuilt — one sheet of paper, one camera, 48 seconds, an end card that opens the example (from the commit of this entry)
 
 - **The film.** One sheet of squared paper and one camera over it, with no cuts. Every step is the app's own: the department's list is typed; the lecture slip and the fit count come from the lecture check; the four points of the answer are written by hand as the examiner's words name them; the answer's words are typed in the transcript; the lines are rubbed after the answer and erased on another day; a line forgotten comes back in ink with the note «была стёрта · пункт не назван». Then the copy for the group, and the end card.

@@ -1,150 +1,142 @@
 /**
- * What the reel shows. Every fact comes from the example «Микроэкономика» (/try: data/example): its
- * department list, its lecture fragments, its answer points, the examiner's follow-up. The counts of
- * the lecture check are the editor's own fit (backend/lecture_fit.py run on this example): «подходит к 4
- * вопросам» for the lecture «Эластичность спроса», and the two questions no lecture fits. Only the
- * student's words are written for the film: a spoken answer that names the points by their key words.
+ * What the reel shows. The example is the landing's own course (microeconomics, the ticket about
+ * the bakery and the coffee shop) and the stage list of the app: 40 questions, 24 «есть»,
+ * 7 «частично», 9 «нет» (lib/exams, sheetModel tests); then the ticket's cheat sheet over three days
+ * of answers. No figures about users: only the product.
  */
-import { EXAMPLE_EXAM, EXAMPLE_QUESTIONS, lectureOf, type ExampleQuestion } from '../../data/example';
+import type { Coverage } from './parts';
 
-const question = (number: number): ExampleQuestion => {
-  const found = EXAMPLE_QUESTIONS.find((item) => item.number === number);
-  if (!found) throw new Error(`The example has no question ${number}`);
-  return found;
+export interface FloatingCard {
+  kind: 'question' | 'file' | 'ticket';
+  title: string;
+  meta: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotate: number;
+  /** 0 = far (small, soft), 1 = middle (sharp), 2 = near (big, soft). */
+  depth: 0 | 1 | 2;
+}
+
+/** The scattered materials of a session, around the question «С чего начать?». */
+export const CHAOS_CARDS: FloatingCard[] = [
+  { kind: 'question', title: 'Денежный мультипликатор', meta: 'Вопрос 14', x: 330, y: 200, scale: 0.95, rotate: -6, depth: 1 },
+  { kind: 'file', title: 'Лекция 4.3 — Инфляция.pdf', meta: '38 страниц', x: 760, y: 150, scale: 0.72, rotate: 4, depth: 0 },
+  { kind: 'ticket', title: 'Билет 7', meta: '3 вопроса', x: 1190, y: 175, scale: 0.86, rotate: -3, depth: 1 },
+  { kind: 'question', title: 'Кривая Филлипса', meta: 'Вопрос 22', x: 1600, y: 225, scale: 1.04, rotate: 7, depth: 1 },
+  { kind: 'file', title: 'Семинар 6 — задачи.pdf', meta: '12 страниц', x: 150, y: 540, scale: 0.78, rotate: 5, depth: 0 },
+  { kind: 'file', title: 'Конспект_финал_2.docx', meta: 'изменён вчера', x: 1780, y: 580, scale: 0.82, rotate: -8, depth: 0 },
+  { kind: 'question', title: 'ВВП и способы его расчёта', meta: 'Вопрос 3', x: 430, y: 880, scale: 1.08, rotate: -4, depth: 1 },
+  { kind: 'file', title: 'Запись лекции 12.m4a', meta: '1 ч 24 мин', x: 930, y: 965, scale: 0.74, rotate: 6, depth: 0 },
+  { kind: 'question', title: 'Монетарная политика ЦБ', meta: 'Вопрос 31', x: 1390, y: 890, scale: 1.0, rotate: -5, depth: 1 },
+  { kind: 'ticket', title: 'Билет 19', meta: '3 вопроса', x: 1850, y: 800, scale: 1.32, rotate: 9, depth: 2 },
+  { kind: 'question', title: 'Эластичность спроса', meta: 'Вопрос 8', x: 70, y: 770, scale: 1.36, rotate: -10, depth: 2 },
+  { kind: 'file', title: 'Лекция 2 — Спрос.pdf', meta: '24 страницы', x: 600, y: 420, scale: 0.56, rotate: -2, depth: 0 },
+  { kind: 'question', title: 'Излишек потребителя', meta: 'Вопрос 17', x: 1370, y: 410, scale: 0.6, rotate: 3, depth: 0 },
+  { kind: 'question', title: 'Рыночное равновесие', meta: 'Вопрос 5', x: 985, y: 300, scale: 0.5, rotate: -6, depth: 0 },
+  { kind: 'file', title: 'Список вопросов.docx', meta: '40 вопросов', x: 1890, y: 340, scale: 1.4, rotate: -12, depth: 2 },
+  { kind: 'question', title: 'Внешние эффекты', meta: 'Вопрос 40', x: 50, y: 390, scale: 1.22, rotate: 8, depth: 2 },
+  { kind: 'question', title: 'Совершенная конкуренция', meta: 'Вопрос 26', x: 760, y: 735, scale: 0.6, rotate: 5, depth: 0 },
+  { kind: 'file', title: 'Лекция 7 — Деньги.pdf', meta: '31 страница', x: 1230, y: 730, scale: 0.64, rotate: -4, depth: 0 },
+];
+
+export interface SheetRow {
+  title: string;
+  status: Coverage;
+}
+
+/** The exam list of the ticket chapter: 40 questions, 24 «есть», 7 «частично», 9 «нет». */
+export const SHEET_ROWS: SheetRow[] = [
+  { title: 'Предмет и метод экономической теории', status: 'ok' },
+  { title: 'Спрос и закон спроса', status: 'ok' },
+  { title: 'Эластичность спроса и её виды', status: 'ok' },
+  { title: 'Выручка и эластичность', status: 'ok' },
+  { title: 'Предложение и его факторы', status: 'ok' },
+  { title: 'Рыночное равновесие', status: 'half' },
+  { title: 'Излишек потребителя', status: 'ok' },
+  { title: 'Государство на рынке: налоги', status: 'no' },
+  { title: 'Теория поведения потребителя', status: 'ok' },
+  { title: 'Кривые безразличия', status: 'half' },
+  { title: 'Бюджетное ограничение', status: 'ok' },
+  { title: 'Производство и его факторы', status: 'ok' },
+  { title: 'Издержки в краткосрочном периоде', status: 'ok' },
+  { title: 'Издержки в долгосрочном периоде', status: 'no' },
+  { title: 'Совершенная конкуренция', status: 'ok' },
+  { title: 'Монополия', status: 'ok' },
+  { title: 'Ценовая дискриминация', status: 'half' },
+  { title: 'Олигополия', status: 'no' },
+  { title: 'Монополистическая конкуренция', status: 'ok' },
+  { title: 'Рынок труда', status: 'ok' },
+  { title: 'Рынок капитала', status: 'no' },
+  { title: 'Рынок земли и рента', status: 'no' },
+  { title: 'Внешние эффекты', status: 'ok' },
+  { title: 'Общественные блага', status: 'half' },
+  { title: 'ВВП и способы его расчёта', status: 'ok' },
+  { title: 'Номинальный и реальный ВВП', status: 'ok' },
+  { title: 'Безработица', status: 'ok' },
+  { title: 'Инфляция: виды и причины', status: 'ok' },
+  { title: 'Кривая Филлипса', status: 'half' },
+  { title: 'Деньги и их функции', status: 'ok' },
+  { title: 'Денежный мультипликатор', status: 'ok' },
+  { title: 'Центральный банк', status: 'no' },
+  { title: 'Монетарная политика', status: 'ok' },
+  { title: 'Фискальная политика', status: 'half' },
+  { title: 'Государственный долг', status: 'no' },
+  { title: 'Экономический рост', status: 'ok' },
+  { title: 'Экономические циклы', status: 'half' },
+  { title: 'Платёжный баланс', status: 'no' },
+  { title: 'Валютный курс', status: 'ok' },
+  { title: 'Международная торговля', status: 'no' },
+];
+
+export const SHEET_TOTALS = {
+  ok: SHEET_ROWS.filter((row) => row.status === 'ok').length,
+  half: SHEET_ROWS.filter((row) => row.status === 'half').length,
+  no: SHEET_ROWS.filter((row) => row.status === 'no').length,
 };
 
-/** The department's list: the heading and the twelve questions, in their order. */
-export const LIST_TITLE = EXAMPLE_EXAM.sheetTitle;
-export const LIST = EXAMPLE_QUESTIONS.map((item) => ({ number: item.number, text: item.text }));
-/** The editor's line after the list is read («Распознано N вопросов»). */
-export const RECOGNIZED = `Распознано ${LIST.length} вопросов`;
-
-/** The question of the ticket: the one lecture-backed question with four answer points. */
-const FOCUS = question(7);
-export const FOCUS_NUMBER = FOCUS.number;
-export const FOCUS_TEXT = FOCUS.text;
-
-/** The lecture that fits the focus question, with the fragment the mark quotes. */
-const LECTURE = lectureOf(FOCUS.lecture ?? 'M2');
-const FRAGMENT = FOCUS.evidence.find((item) => item.lecture === LECTURE.key && item.fragment === 'S05') ?? FOCUS.evidence[0];
-export const SLIP = {
-  lecture: LECTURE.title,
-  caption: `Лекция «${LECTURE.title}» · фрагмент ${Number(FRAGMENT.fragment.slice(1))}`,
-  quote: FRAGMENT.quote,
-  /** The editor's hint on the lecture, and its button: the questions this lecture fits. */
-  fit: 4,
-  /** The questions no lecture of the student's fits (the editor's line). */
-  unmatched: [11, 12] as const,
-};
-export const FIT_HINT = `подходит к ${SLIP.fit} вопросам`;
-export const FIT_BUTTON = `Отметить подходящие (${SLIP.fit})`;
-export const UNMATCHED_LINE = `Без подходящей лекции: вопросы ${SLIP.unmatched.join(' и ')}.`;
-
-/** The answer points of the focus question, in their order: the cheat sheet writes each one as its short line. */
-export const POINTS = FOCUS.points.map((point) => ({ short: point.short, essential: point.essential }));
-/** The examiner's follow-up for each point (the point's own question of the example). */
-export const FOLLOWUPS = FOCUS.points.map((point) => point.followup.question);
-
-/** The first answer names point 0; the examiner's question brings point 2 out, named after it. */
-const NAMED_IN_ANSWER: readonly number[] = [0];
-const NAMED_AFTER_QUESTION: readonly number[] = [2];
-
+/** The ticket of the oral chapter: the landing's question and its answer sheet, shortened. */
 export const TICKET = {
-  label: 'Билет',
-  question: FOCUS_TEXT,
-  /** The student's and the examiner's turns, in order; each word is typed at its own moment. */
-  turns: [
-    {
-      speaker: 'student' as const,
-      text: 'Выручка продавца — это цена, умноженная на количество проданного товара.',
-      at: 20200,
-      wordMs: 420,
-    },
-    {
-      speaker: 'examiner' as const,
-      text: FOLLOWUPS[2],
-      at: 25300,
-      wordMs: 330,
-    },
-    {
-      speaker: 'student' as const,
-      text: 'Если спрос неэластичный, повысить цену: выручка вырастет.',
-      at: 28600,
-      wordMs: 420,
-    },
+  name: 'Билет 7',
+  subject: 'Микроэкономика',
+  question: 'Почему пекарня, подняв цену на хлеб, может заработать больше, а кофейня, подняв цену на капучино, — меньше?',
+  /** What the student says, word by word. */
+  answer:
+    'У кофе много замен: подорожал капучино — часть покупателей уходит к другим, и выручка падает. А хлеб покупают почти столько же, поэтому выручка растёт.',
+  points: [
+    'Когда спрос эластичен',
+    'Кофе легко заменить',
+    'Хлеб — спрос неэластичен',
+    'Эластичный спрос: выручка падает',
+    'Неэластичный: выручка растёт',
   ],
-  /**
-   * Point index → [turn, word]: the word of the student's turn after which the point is named, the
-   * word that completes its key-word groups (anchors of the example). Point 0 is named in the first
-   * answer; point 2 is named after the examiner's question (the third turn).
-   */
-  namedAfterWord: { 0: [0, 7], 2: [2, 3] } as Record<number, readonly [number, number]>,
-  /** Points named in the answer itself, and the one named only after the examiner's question. */
-  namedInAnswer: NAMED_IN_ANSWER,
-  namedAfterQuestion: NAMED_AFTER_QUESTION,
-  /** Points the answer does not name at all. */
-  notNamed: [1, 3] as readonly number[],
-  /** The count of the editor: named points out of all points (the answer and the question name two of four). */
-  countLine: `По ключевым словам: ${NAMED_IN_ANSWER.length + NAMED_AFTER_QUESTION.length} из ${POINTS.length}`,
-  /** The same count on two lines, large: the label, then the numbers. */
-  countHead: 'По ключевым словам:',
-  countTail: `${NAMED_IN_ANSWER.length + NAMED_AFTER_QUESTION.length} из ${POINTS.length}`,
-  countFine: 'итог — после ответа',
-  examinerLabel: 'Экзаменатор',
-  /** The label over the student's turns, beside the voice wave: «Отвечать голосом» (the app's button). */
-  voiceLabel: 'Отвечать голосом',
-};
-
-/** The moment of a word of a turn (ms): the word appears in the transcript at this time. */
-export function wordAt(turnIndex: number, word: number): number {
-  const turn = TICKET.turns[turnIndex];
-  return turn.at + word * turn.wordMs;
-}
-
-/** The moment a point is named (the word appears) and the lag of the rub after it (ms). */
-export const RUB_LAG = 60;
-
-export function namedAt(point: number): number {
-  const at = TICKET.namedAfterWord[point];
-  if (!at) throw new Error(`Point ${point} is not named in the answer`);
-  return wordAt(at[0], at[1]);
-}
-
-/** The dates the cheat sheet writes in its corner: the answer's day, then the next answers' days. */
-export const DAYS = {
-  first: '7 окт.',
-  second: '8 окт.',
-  third: '10 окт.',
-};
-
-/** The notes the sheet writes under a line (the exam page's words; the copy tests keep them to the app). */
-export const NOTES = {
-  afterQuestion: 'назван только после вопроса экзаменатора',
-  notNamed: 'пункт не назван',
-  returned: 'была стёрта · пункт не назван',
-};
-
-/** The rest of the copy: the group, the day of the question, the reminder (the app's own words). */
-export const GROUP = {
-  statement: 'Каждый однокурсник получит свою копию экзамена',
-  copyLabel: 'У каждого будет своя копия',
-  questionOfDay: 'Вопрос дня',
-  remind: 'Напоминать каждый день',
-  reminderTime: 'Напоминание в 20:00',
+  /** Point index → the answer word after which it is named. */
+  namedAfterWord: { 1: 3, 3: 14, 2: 20, 4: 23 } as Record<number, number>,
+  missed: 0,
+  examiner: 'Хорошо. А когда спрос называют эластичным?',
+  reply: 'Когда покупки меняются сильнее, чем цена.',
 };
 
 /**
- * The statements of the chapters, line by line (the app's own sentences, or plain facts about the app):
- * one message per chapter, set at 88 units on the 1920 × 1080 stage.
+ * The ticket's answer points as the lines of its cheat sheet, short and by hand, in the order of
+ * TICKET.points (the sheet's rule: the point's own words, ↑ ↓ → for «растёт», «падает», «значит»).
  */
-export const STATEMENTS = {
-  list: [RECOGNIZED],
-  lectures: ['Ответы — цитатами из ваших лекций'],
-  sheet: ['Пункты ответа — под каждым вопросом'],
-  oral: ['Билет — вслух, с переспросом'],
-  days: ['Строки стирают только ответы', 'в разные дни'],
-  group: ['Каждый однокурсник получит', 'свою копию экзамена'],
-};
+export const TICKET_LINES = [
+  'спрос эластичен: покупки меняются сильнее цены',
+  'кофе легко заменить',
+  'хлеб — спрос неэластичен',
+  'эластичный спрос: выручка ↓',
+  'неэластичный: выручка ↑',
+] as const;
 
-/** The one line left on the paper at the end: the first point's own short line, written by hand. */
-export const END_LINE = POINTS[0].short;
+/** The exam page's words for the sheet (components/exams/sheet/copy.ts; reel tests hold them to it). */
+export const SHEET_WORDS = {
+  /** The note of a point named only after the examiner's question. */
+  afterQuestion: 'назван только после вопроса экзаменатора',
+  /** The note of an erased line that came back (the landing's sheet says it without dates). */
+  returned: 'была стёрта · пункт не назван',
+  /** What the answer of the oral chapter did, the next answer on another day, and one more. */
+  first: 'После ответа: 4\u00a0строки стёрлись наполовину, 1\u00a0не стёрлась.',
+  second: 'После ответа 8\u00a0окт.: 4\u00a0строки стёрлись, 1\u00a0—\u00a0наполовину.',
+  third: 'После ответа 10\u00a0окт.: 1\u00a0строка стёрлась, 1\u00a0вернулась.',
+} as const;
