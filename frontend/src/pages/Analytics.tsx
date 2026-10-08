@@ -489,7 +489,7 @@ export default function Analytics() {
       <header className="sf-head pg-head">
         <div>
           <h1 className="sf-h1">Прогресс</h1>
-          <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : ledeOf(sources)}</p>
+          <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : typeset(ledeOf(sources))}</p>
         </div>
         <Link className="sf-secondary pg-head-link" to="/analytics?tab=gradebook">
           Оценки из зачётки
@@ -977,7 +977,8 @@ function AheadTile({
   const tomorrow = week[1]?.count ?? 0;
   const rest = laterTodayWords(laterToday, due > 0);
   return (
-    <article className="pg-tile" data-tile="ahead" aria-labelledby="pg-k-ahead">
+    // With cards to repeat now, this tile leads on a phone: «Повторить» is the page's next step.
+    <article className="pg-tile" data-tile="ahead" data-lead={cards.status === 'ok' && due > 0 ? '' : undefined} aria-labelledby="pg-k-ahead">
       <h2 className="pg-k" id="pg-k-ahead">
         Повторения на неделю
       </h2>

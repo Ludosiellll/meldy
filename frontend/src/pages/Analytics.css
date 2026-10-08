@@ -384,9 +384,11 @@
   .pg-lec-recall { grid-column: 2; grid-row: 2; }
 }
 @media (max-width: 879px) {
-  /* Two columns: the week with «Повторить» on top across both, the cards and the memory under it. */
+  /* Two columns: the week across both, on top when it has «Повторить» (data-lead), the cards and the
+     memory side by side. */
   .pg-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pg-tile[data-tile='ahead'] { order: -1; grid-column: 1 / -1; }
+  .pg-tile[data-tile='ahead'] { grid-column: 1 / -1; }
+  .pg-tile[data-lead] { order: -1; }
 }
 @media (max-width: 767px) {
   .pg-tiles { gap: 14px; margin-top: 28px; }

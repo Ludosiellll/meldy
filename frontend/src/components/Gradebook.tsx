@@ -766,7 +766,7 @@ export default function Gradebook() {
                     <span className="sr-only">Добавить фото</span>
                   </label>
                   <textarea
-                    placeholder="Комментарий к фото, если нужен"
+                    placeholder="Комментарий к фото"
                     aria-label="Комментарий"
                     value={scanText}
                     onChange={e => setScanText(e.target.value)}

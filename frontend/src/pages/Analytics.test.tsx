@@ -256,6 +256,8 @@ describe('Progress page', () => {
     expect(Array.from(ahead.querySelectorAll('.pg-mini-val')).map((v) => v.textContent)).toEqual(['1', '2', '3']);
     expect(within(ahead).getByText('Завтра — 2, всего на неделю — 6.')).toBeInTheDocument();
     expect(within(ahead).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review');
+    // With cards waiting, this tile comes first on a phone (LIB-25).
+    expect(ahead).toHaveAttribute('data-lead');
   });
 
   it('says which due cards wait now and which come later today (decision 4)', async () => {
@@ -512,6 +514,8 @@ describe('Progress sources', () => {
     // No big «0» in the week's tile when there are no cards at all.
     expect(tile('Повторения на неделю').querySelector('.pg-big')).toBeNull();
     expect(within(tile('Повторения на неделю')).getByText(/Повторять пока нечего/)).toBeInTheDocument();
+    // Nothing to repeat: on a phone the week does not lead, the cards' tile with «Разобрать лекцию» does.
+    expect(tile('Повторения на неделю')).not.toHaveAttribute('data-lead');
   });
 
   it('names only what happened in 30 days and draws no empty axis', async () => {
