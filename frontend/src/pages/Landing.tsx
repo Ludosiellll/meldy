@@ -18,17 +18,11 @@ import { TELEMETRY_NOTE } from '../lib/telemetry';
  */
 const meldyReelPart = lazyPart(() => import('../components/reel/MeldyReel').then((module) => module.default));
 
-/**
- * One face on every entry (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07): the same
- * promise as the page title, the link preview, the manifest and the README — «Meldy — тренажёр
- * устного экзамена по билетам кафедры. ИИ не отвечает за студента — он его спрашивает».
- */
-export const EYEBROW = 'Тренажёр устного экзамена по билетам кафедры';
-export const HEADLINE = 'ИИ не отвечает за вас — он вас спрашивает';
+export { EYEBROW, HEADLINE, TRY_LABEL } from '../components/home/landingCopy';
+import { EYEBROW, HEADLINE, TRY_LABEL } from '../components/home/landingCopy';
+
 export const LEAD =
   'Вставьте список вопросов кафедры и загрузите свои лекции. Meldy сверит с ними каждый вопрос, спросит билет вслух и переспросит о том, что вы пропустили.';
-/** The first action of the page: the example exam (/try), no account needed. */
-export const TRY_LABEL = 'Попробовать на примере';
 /** Sign-up, to start with one's own list of questions; the final call repeats it. */
 export const START_LABEL = 'Начать со своего списка';
 /** The honest result (Ф1): Meldy gives no mark, in the words of the answer's protocol. */
@@ -397,7 +391,7 @@ function ResultAndGroup() {
   );
 }
 
-/** «Meldy за 35 секунд»: the motion reel (loaded after the first screen). */
+/** «Meldy за 48 секунд»: the motion reel (loaded after the first screen). Its end leads to the example, as the hero's first button does. */
 function ReelSection() {
   const navigate = useNavigate();
   const MeldyReel = useLazyPart(meldyReelPart, true, {
@@ -407,11 +401,11 @@ function ReelSection() {
     <section id="reel" className="hm-wrap hm-sec" aria-labelledby="reel-heading">
       <div className="hm-reel-head">
         <h2 id="reel-heading" className="hm-h2">
-          Meldy за 35 секунд
+          Meldy за 48 секунд
         </h2>
         <p className="hm-sub">{ty('От списка вопросов до пустой шпаргалки. Ролик без звука — главы можно листать.')}</p>
       </div>
-      {MeldyReel ? <MeldyReel onCta={() => navigate('/register')} /> : <div className="hm-reel-wait" aria-hidden="true" />}
+      {MeldyReel ? <MeldyReel onCta={() => navigate('/try')} /> : <div className="hm-reel-wait" aria-hidden="true" />}
     </section>
   );
 }

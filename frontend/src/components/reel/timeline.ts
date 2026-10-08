@@ -1,17 +1,18 @@
 /**
- * The reel's time: which scene plays when, the chapters, and the small math every scene animates
- * with. Everything on the stage is a pure function of one number, the reel time in milliseconds, so
- * the same moment always looks the same: on the page, in tests and when frames are exported.
+ * The reel's time: the two scenes (the sheet and the end card), the seven chapters and the small math
+ * every scene animates with. Everything on the stage is a pure function of one number, the reel time
+ * in milliseconds, so the same moment always looks the same: on the page, in tests and in exported frames.
  */
+import type { ReelChapter } from '../home/reelJump';
 
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
 
-export type SceneId = 'intro' | 'chaos' | 'brand' | 'tour' | 'tickets' | 'oral' | 'sheet' | 'days' | 'outro';
+export type SceneId = 'paper' | 'end';
 
 export interface SceneWindow {
   id: SceneId;
-  /** First moment the scene is on the stage (its entrance overlaps the previous scene's exit). */
+  /** First moment the scene is on the stage. */
   from: number;
   /** The scene is gone from this moment. */
   to: number;
@@ -19,23 +20,17 @@ export interface SceneWindow {
   lead?: number;
 }
 
-/** In order of the story; a later scene lies above an earlier one. */
-export const SCENES: readonly SceneWindow[] = [
-  { id: 'intro', from: 0, to: 3500 },
-  // Mounted with the intro, while the stage is still dark: mounting it 0.4 s ahead fell on the
-  // intro's slow push-in and showed as a hitch right before the burst.
-  { id: 'chaos', from: 3000, to: 7100, lead: 3000 },
-  { id: 'brand', from: 6700, to: 10000 },
-  { id: 'tour', from: 9500, to: 12000 },
-  { id: 'tickets', from: 11700, to: 16300 },
-  { id: 'oral', from: 15900, to: 22100 },
-  // The cheat sheet after the answer, then over different days: one paper handed from scene to scene.
-  { id: 'sheet', from: 21700, to: 25300 },
-  { id: 'days', from: 24900, to: 31300 },
-  { id: 'outro', from: 30900, to: 35000 },
-];
+/**
+ * One sheet of paper for the whole film; the only cut is into the end card (CUT). The paper is never
+ * remounted between the chapters: the camera moves along it.
+ */
+export const CUT = 45000;
+export const TOTAL = 48000;
 
-export const TOTAL = 35000;
+export const SCENES: readonly SceneWindow[] = [
+  { id: 'paper', from: 0, to: CUT },
+  { id: 'end', from: CUT, to: TOTAL },
+];
 
 /** A scene is put on the stage this early, hidden, so its first visible frame is ready. */
 export const PREMOUNT = 400;
@@ -52,30 +47,35 @@ export function activeScenes(t: number): SceneId[] {
 }
 
 export interface Chapter {
-  id: SceneId;
+  /** The reelJump id the landing asks for. */
+  id: ReelChapter;
   number: string;
   label: string;
-  /** Where «go to the chapter» lands: a little after the scene starts, when its title is readable. */
+  /** The chapter starts here (its camera move begins, or its first beat). */
+  from: number;
+  /** «Go to the chapter» lands here: the camera has arrived and the chapter's first beat is readable. */
   at: number;
 }
 
 export const CHAPTERS: readonly Chapter[] = [
-  { id: 'tickets', number: '01', label: 'Билеты', at: sceneWindow('tickets').from },
-  { id: 'oral', number: '02', label: 'Ответ вслух', at: sceneWindow('oral').from },
-  { id: 'sheet', number: '03', label: 'Шпаргалка', at: sceneWindow('sheet').from },
-  { id: 'days', number: '04', label: 'Разные дни', at: sceneWindow('days').from },
+  { id: 'tickets', number: '01', label: 'Список кафедры', from: 0, at: 0 },
+  { id: 'lectures', number: '02', label: 'Ответы из лекций', from: 6900, at: 8900 },
+  { id: 'sheet', number: '03', label: 'Шпаргалка', from: 12000, at: 13900 },
+  { id: 'oral', number: '04', label: 'Билет вслух', from: 18000, at: 19900 },
+  { id: 'days', number: '05', label: 'Разные дни', from: 34000, at: 35900 },
+  { id: 'group', number: '06', label: 'Группе', from: 40600, at: 43000 },
+  { id: 'end', number: '07', label: 'Итог', from: CUT, at: CUT },
 ];
 
-/** The chapter playing at `t`, or null before the first one and after the last one ends. */
-export function chapterAt(t: number): Chapter | null {
-  let found: Chapter | null = null;
-  for (const chapter of CHAPTERS) if (t >= chapter.at) found = chapter;
-  if (found && t >= sceneWindow(found.id).to) return null;
+/** The chapter playing at `t` (the last one that has started). */
+export function chapterAt(t: number): Chapter {
+  let found = CHAPTERS[0];
+  for (const chapter of CHAPTERS) if (t >= chapter.from) found = chapter;
   return found;
 }
 
-/** The poster: the moment shown when motion is reduced (the ticket sheet, fully marked). */
-export const POSTER_AT = 14300;
+/** The poster: the moment shown when motion is reduced (the answer is given, its marks are on the sheet). */
+export const POSTER_AT = 33600;
 
 // ---------------------------------------------------------------------------------------------
 // Math
@@ -137,7 +137,7 @@ export const ease = {
     return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
   },
   sine: (p: number) => -(Math.cos(Math.PI * clamp(p)) - 1) / 2,
-  /** Overshoots a little and settles: for things that pop in. */
+  /** Overshoots a little and settles: for things that pop in (the authoring reels; the landing film uses none). */
   back: (p: number) => {
     const x = clamp(p);
     const c1 = 1.7;
@@ -156,27 +156,6 @@ export const ease = {
 export function pulse(t: number, start: number, dur: number): number {
   const p = seg(t, start, dur);
   return Math.sin(Math.PI * p);
-}
-
-/** Deterministic pseudo-random numbers (mulberry32): the same seed gives the same particles. */
-export function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let x = a;
-    x = Math.imul(x ^ (x >>> 15), x | 1);
-    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** «00:00:12:07»: the corner timecode, frames at 30 per second. */
-export function timecode(t: number): string {
-  const ms = Math.max(0, Math.floor(t));
-  const seconds = Math.floor(ms / 1000);
-  const frames = Math.floor(((ms % 1000) / 1000) * 30);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `00:${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}:${pad(frames)}`;
 }
 
 /** Plural of a Russian noun after a number: forms for 1, 2–4 and 5+. */
