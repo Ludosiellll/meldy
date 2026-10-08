@@ -567,4 +567,72 @@ describe('the diary reads itself again when the app comes back to the screen', (
     expect(screen.getByText('Что такое ВВП?')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  /**
+   * The table for a read overtaken by a write: the first read answers with `rows`, the next ones wait for
+   * `answerRead`; every update or delete answers at once (it worked).
+   */
+  function overtakenTable(rows: unknown[]) {
+    const pending: Array<(value: { data: unknown; error: null }) => void> = [];
+    let reads = 0;
+    const from = () => {
+      let op = 'select';
+      const query: any = {};
+      query.select = vi.fn(() => query);
+      query.order = vi.fn(() => {
+        reads += 1;
+        if (reads === 1) return Promise.resolve({ data: rows, error: null });
+        return new Promise((resolve) => pending.push(resolve));
+      });
+      query.update = vi.fn(() => {
+        op = 'update';
+        return query;
+      });
+      query.delete = vi.fn(() => {
+        op = 'delete';
+        return query;
+      });
+      query.eq = vi.fn(() => (op === 'select' ? query : Promise.resolve({ error: null })));
+      return query;
+    };
+    return { from, pending, answerRead: async (data: unknown[]) => act(async () => pending.shift()?.({ data, error: null })) };
+  }
+
+  it('drops a read that a fix overtook: a mistake marked fixed does not come back open', async () => {
+    const table = overtakenTable([first]);
+    api.from.mockImplementation(table.from);
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /^Что такое ВВП\?/ }));
+    // Back on the screen: the quiet read leaves, and the database answers it as it was before the fix.
+    comeBack();
+    await waitFor(() => expect(table.pending).toHaveLength(1));
+    await user.click(screen.getByRole('button', { name: 'Отметить как исправленную' }));
+    await waitFor(() => expect(screen.getByText('Открыто').closest('p')).toHaveTextContent(/^Открыто\s*0$/));
+    await table.answerRead([first]);
+    expect(screen.getByText('Открыто').closest('p')).toHaveTextContent(/^Открыто\s*0$/);
+    expect(screen.getByText(/· исправлена$/)).toBeInTheDocument();
+
+    // A read that leaves after the fix is taken as it comes.
+    comeBack();
+    await waitFor(() => expect(table.pending).toHaveLength(1));
+    await table.answerRead([first, added]);
+    expect(await screen.findByText('Что такое дефляция?')).toBeInTheDocument();
+  });
+
+  it('drops a read that a delete overtook: the deleted mistake does not come back', async () => {
+    api.confirm.mockResolvedValue(true);
+    const table = overtakenTable([first, added]);
+    api.from.mockImplementation(table.from);
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /^Что такое ВВП\?/ }));
+    comeBack();
+    await waitFor(() => expect(table.pending).toHaveLength(1));
+    await user.click(screen.getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(screen.queryByText('Что такое ВВП?')).toBeNull());
+    await table.answerRead([first, added]);
+    expect(screen.queryByText('Что такое ВВП?')).toBeNull();
+    expect(screen.getByText('Что такое дефляция?')).toBeInTheDocument();
+  });
 });

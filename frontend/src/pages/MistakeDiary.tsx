@@ -204,6 +204,12 @@ export default function MistakeDiary() {
   const [practiceError, setPracticeError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   /**
+   * Bumped when a write (a mistake marked fixed, deleted, or fixed by the practice) has answered. A read that was on
+   * its way meanwhile may have been answered before that write and would bring the row back as it was: its rows are
+   * dropped, and the screen keeps the write (the next read brings the rest).
+   */
+  const writes = useRef(0);
+  /**
    * Set before the first await: the limit check takes two reads, and a second press in that time
    * must not start a second request and a second charge.
    */
@@ -326,6 +332,7 @@ export default function MistakeDiary() {
             .from('mistake_diary')
             .update({ is_resolved: true, resolved_at: new Date().toISOString() })
             .in('id', resolvedIds);
+          writes.current += 1;
           if (error) throw error;
         } catch {
           setPracticeSaveError(true);
@@ -348,6 +355,7 @@ export default function MistakeDiary() {
 
   const fetchMistakes = async () => {
     if (!user) return;
+    const since = writes.current;
     setLoading(true);
     setLoadError(false);
     try {
@@ -357,7 +365,8 @@ export default function MistakeDiary() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setMistakes(data || []);
+      // A write answered while this read was on its way: the rows on the screen have it, these may not.
+      if (since === writes.current) setMistakes(data || []);
     } catch (e) {
       console.error('Loading the mistake diary failed:', e);
       setLoadError(true);
@@ -379,13 +388,16 @@ export default function MistakeDiary() {
     let alive = true;
     const onVisible = async () => {
       if (document.visibilityState !== 'visible') return;
+      const since = writes.current;
       try {
         const { data, error } = await supabase
           .from('mistake_diary')
           .select('*')
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
-        if (!error && alive) setMistakes(data || []);
+        // A mistake marked fixed or deleted while this read was on its way would come back as it was: the read is
+        // dropped (the write is on the screen; the next visit reads the rest).
+        if (!error && alive && since === writes.current) setMistakes(data || []);
       } catch {
         // The rows on the screen stay; «Обновить» on a computer and the next visit read them again.
       }
@@ -411,6 +423,7 @@ export default function MistakeDiary() {
         .from('mistake_diary')
         .update({ is_resolved: true, resolved_at: new Date().toISOString() })
         .eq('id', id);
+      writes.current += 1;
       if (error) throw error;
       setMistakes(prev => prev.map(m => m.id === id ? { ...m, is_resolved: true } : m));
     } catch (e) {
@@ -434,6 +447,7 @@ export default function MistakeDiary() {
     setRowError(null);
     try {
       const { error } = await supabase.from('mistake_diary').delete().eq('id', id);
+      writes.current += 1;
       if (error) throw error;
       setMistakes(prev => prev.filter(m => m.id !== id));
       setExpandedId(current => (current === id ? null : current));
