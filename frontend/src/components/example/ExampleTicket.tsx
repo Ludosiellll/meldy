@@ -32,7 +32,7 @@ import { saysDontKnow } from '../../lib/oral/followup';
 import { FINISH_SHORTCUTS, finishKeysLabel, isFinishKey, useDeskColumn } from '../oral/roomDesk';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import ExampleGrade from './ExampleGrade';
-import TryBar from './TryBar';
+import TryBar, { ownExamHref } from './TryBar';
 import { countBucket, track } from '../../lib/telemetry';
 import { usePasteGuard } from '../oral/usePasteGuard';
 import PasteNotice from '../oral/PasteNotice';
@@ -656,7 +656,8 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const heading = ticketHeading(null, 0, 1, String(question.number));
   const seedBase = `example:${question.id}`;
   const elapsed = answerTime(state, now);
-  const createHref = user ? '/exams/new' : '/register';
+  // A guest signs up and lands on a new exam, as from the top bar's «Начать со своего списка».
+  const createHref = ownExamHref(Boolean(user));
 
   // ── The protocol ──
   if (state.phase === 'protocol' && rubric && state.evaluation.status === 'done') {

@@ -187,6 +187,10 @@ describe('«Попробовать на примере» (/try)', () => {
     // (a) The example's sheet: the subject, the honest note, numbers from the marks, the twelve questions.
     expect(screen.getByRole('heading', { level: 1, name: 'Микроэкономика' })).toBeInTheDocument();
     expect(screen.getByText(EXAMPLE_NOTE)).toBeInTheDocument();
+    // Where the answers go, truly (PUB-3): the text goes to the server and to Gemini for the check; the tab keeps the answers.
+    expect(plain(document.querySelector('.tx-privacy')?.textContent)).toBe(
+      'Для проверки текст ответа отправляется на сервер Meldy и в ИИ-сервис Google Gemini. Meldy его не сохраняет: ваши ответы примера помнит только эта вкладка.',
+    );
     expect(plain(document.querySelector('.ex-meta')?.textContent)).toBe('Экзамен · 12 вопросов, в билете один · 3 лекции');
     expect(screen.getByRole('button', { name: '1 вопроса нет ни в одной лекции. Показать его' })).toBeInTheDocument();
     expect(plain(document.querySelector('.ex-figs-now')?.textContent)).toBe('75 %');
@@ -214,6 +218,7 @@ describe('«Попробовать на примере» (/try)', () => {
     // (b) «Тянуть билет»: the draw room turns the first card over.
     fireEvent.click(screen.getByRole('button', { name: 'Тянуть билет' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Тянуть билет' })).toBeInTheDocument();
+    expect(document.title).toBe('Тянуть билет · пример — Meldy');
     const card = screen.getByRole('article', { name: 'Вопрос 1' });
     expect(card).toHaveAttribute('aria-live', 'polite');
     expect(within(card).getByText('Спрос. Закон спроса и кривая спроса.')).toBeInTheDocument();
@@ -298,7 +303,7 @@ describe('«Попробовать на примере» (/try)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
     expect(plain(document.querySelector('.or-how')?.textContent)).toContain('строку шпаргалки такой пункт не стирает');
     expect(document.querySelector('.or-how')?.textContent).not.toMatch(/из 100|→/);
-    expect(screen.getByRole('link', { name: 'Создать свой экзамен' })).toHaveAttribute('href', '/register');
+    expect(screen.getByRole('link', { name: 'Создать свой экзамен' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
     expectAccessibleScreen();
 
     // «Ещё билет»: the next question, not the same one again.
@@ -389,7 +394,9 @@ describe('«Попробовать на примере» (/try)', () => {
     renderAt('/try');
     const bar = screen.getByRole('navigation', { name: 'Вход и регистрация' });
     expect(within(bar).getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
-    expect(within(bar).getByRole('link', { name: 'Создать аккаунт' })).toHaveAttribute('href', '/register');
+    // Decision 5: the call to start with one's own list where there is room («Создать аккаунт» on a phone); the
+    // sign-up leads on to a new exam, where the list comes first.
+    expect(within(bar).getByRole('link', { name: 'Начать со своего списка' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
     expect(screen.getByRole('link', { name: 'Meldy, на главную' })).toHaveAttribute('href', '/');
   });
 
@@ -440,7 +447,11 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(plain(document.querySelector('.tx-sheet-cap')?.textContent)).toBe(
       'Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.',
     );
-    expect(screen.getByRole('link', { name: 'Ответьте на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');
+    // The scripted moment is the page's blue pill under the caption (PUB-15); «Тянуть билет» (a random question) is the white one.
+    expect(screen.getByRole('link', { name: 'Ответить на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');
+    expect(screen.getByRole('link', { name: 'Ответить на вопрос 5' })).toHaveClass('sf-primary');
+    expect(screen.getByRole('button', { name: 'Тянуть билет' })).toHaveClass('ex-secondary');
+    expect(document.title).toBe('Пример экзамена — Meldy');
     const paper = screen.getByRole('tabpanel', { name: 'Шпаргалка' });
     const states = (id: string) => [...paper.querySelectorAll<HTMLElement>(`#cs-q-${id} .cs-line`)].map((line) => line.dataset.state);
     expect(states('q5')).toEqual(['rubbed', 'rubbed', 'rubbed', 'missed', 'missed']);
@@ -518,6 +529,12 @@ describe('«Попробовать на примере» (/try)', () => {
     expect([...paper.querySelectorAll<HTMLElement>('#cs-q-q5 .cs-line')].map((node) => node.dataset.state)).toEqual(['erased', 'erased', 'erased', 'rubbed', 'missed']);
     // Every main line erased: the question's tick.
     expect(paper.querySelector('#cs-q-q5 .cs-tick')).not.toBeNull();
+    // The guest has answered: an exam of their own is the next step, in the column under what changed (PUB-18).
+    const next = document.querySelector('.cs-next') as HTMLElement;
+    expect(within(next).getByRole('link', { name: 'Начать со своего списка' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
+    expect(within(next).getByRole('link', { name: 'Начать со своего списка' })).toHaveClass('sf-primary');
+    expect(screen.queryByRole('link', { name: 'Ответить на вопрос 5' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Тянуть билет' })).toHaveClass('ex-secondary');
     expect(tryRequests.map((request) => request.body)).toEqual([{ question_id: 'q5', transcript: EXAMPLE_ANSWER_Q5 }]);
     // The sheet replays the answer in real time (its own wait is up to 8 s): the default 5 s is too tight on a busy machine.
   }, 15_000);
