@@ -144,8 +144,8 @@ export default function Landing() {
       <main>
         <Hero />
         <HowSection />
+        <SheetSection />
         <ResultAndGroup />
-        <ReelSection />
         <Ticker />
         <MethodSection />
         <FinalCall />
@@ -206,8 +206,9 @@ function Hero() {
         </div>
         <p className="hm-also hm-rise hm-d3">Пример открывается без регистрации.</p>
       </div>
-      <div className="hm-hero-sheet hm-rise hm-d2">
-        <HeroSheet />
+      {/* The video is the first thing after the text, on every screen (the owner, 2026-10-08). */}
+      <div className="hm-hero-reel hm-rise hm-d2">
+        <ReelSection />
       </div>
     </section>
   );
@@ -309,6 +310,17 @@ function ShowOnSheet() {
       Показать на шпаргалке
       <Arrow />
     </button>
+  );
+}
+
+/** The cheat sheet itself, after «Как это работает» (the owner, 2026-10-08: the video first, the sheet below the steps). */
+function SheetSection() {
+  return (
+    <section id="sheet" className="hm-wrap hm-sec" aria-label="Шпаргалка">
+      <div className="hm-sheet-box">
+        <HeroSheet />
+      </div>
+    </section>
   );
 }
 

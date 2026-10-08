@@ -203,9 +203,9 @@
 
 .hm-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 556px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 56px;
-  align-items: center;
+  align-items: start;
   padding-top: 18px;
   padding-bottom: 64px;
 }
@@ -221,7 +221,7 @@
 
 .hm-h1 {
   margin: 16px 0 0;
-  font-size: clamp(40px, 4.3vw, 66px);
+  font-size: clamp(44px, 7.4vw, 124px);
   line-height: 1.04;
   font-weight: 500;
   letter-spacing: -0.035em;
@@ -256,9 +256,9 @@
 }
 
 .hm-lead {
-  max-width: 600px;
+  max-width: 1040px;
   margin: 26px 0 0;
-  font-size: clamp(18px, 1.5vw, 22px);
+  font-size: clamp(18px, 1.7vw, 26px);
   line-height: 1.45;
   color: var(--sf-muted);
 }
@@ -278,8 +278,28 @@
 }
 
 .hm-hero-text,
-.hm-hero-sheet {
+.hm-hero-reel,
+.hm-sheet-box {
   min-width: 0;
+}
+
+/* The video in the hero: its section heading is smaller than the sections' (the owner, 2026-10-08). */
+.hm-hero-reel .hm-sec {
+  padding: 0;
+}
+
+.hm-hero-reel .hm-reel-head {
+  margin-bottom: 18px;
+}
+
+.hm-hero-reel .hm-h2 {
+  font-size: clamp(26px, 2.6vw, 36px);
+}
+
+/* The cheat sheet below «Как это работает»: a column of its own, centred. */
+.hm-sheet-box {
+  max-width: 640px;
+  margin: 0 auto;
 }
 
 /* ---------------------------------------------------------------- the vanishing sheet (HeroSheet) */
@@ -1465,8 +1485,7 @@
   }
 
   .hm-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 470px);
-    gap: 40px;
+    gap: 44px;
   }
 
   .hs-paper {
@@ -1489,12 +1508,7 @@
   }
 
   .hm-hero {
-    grid-template-columns: 1fr;
     gap: 40px;
-  }
-
-  .hm-hero-sheet {
-    max-width: 600px;
   }
 
   .hm-duo,
@@ -1529,6 +1543,39 @@
 @media (max-width: 560px) {
   .hm-nav-in {
     height: 64px;
+  }
+
+  /* The video is on the first phone screen, under the text (the owner, 2026-10-08): the text takes less room. */
+  .hm-hero {
+    gap: 28px;
+    padding-top: 8px;
+    padding-bottom: 40px;
+  }
+
+  .hm-h1 {
+    font-size: 36px;
+    margin-top: 12px;
+  }
+
+  .hm-lead {
+    margin-top: 14px;
+    font-size: 16px;
+  }
+
+  .hm-acts {
+    margin-top: 20px;
+  }
+
+  .hm-hero-reel .hm-h2 {
+    font-size: 24px;
+  }
+
+  .hm-hero-reel .hm-reel-head {
+    margin-bottom: 12px;
+  }
+
+  .hm-hero-reel .hm-reel-head .hm-sub {
+    display: none;
   }
 
   .hm-end .hm-pill--white {

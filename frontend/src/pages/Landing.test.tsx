@@ -84,10 +84,12 @@ describe('Landing page', () => {
     expect(LEAD).toContain('спросит билет вслух и переспросит');
   });
 
-  it('shows the vanishing cheat sheet on the first screen, with its rule in words', () => {
+  it('shows the vanishing cheat sheet below how it works, with its rule in words', () => {
     renderLanding();
-    const hero = document.querySelector('.hm-hero') as HTMLElement;
-    const sheet = within(hero).getByRole('figure', { name: SHEET_TITLE });
+    // Below «Как это работает» (the owner, 2026-10-08): the video is on the first screen, the sheet is not.
+    const section = document.getElementById('sheet') as HTMLElement;
+    expect(document.querySelector('.hm-hero')?.contains(section)).toBe(false);
+    const sheet = within(section).getByRole('figure', { name: SHEET_TITLE });
     expect(SHEET_TITLE).toBe('Шпаргалка, которая исчезает');
     expect(sheet.querySelector('.hs-paper')).toHaveAttribute('aria-hidden', 'true');
     expect(sheet.querySelectorAll('.hs-line').length).toBeGreaterThanOrEqual(4);
@@ -117,18 +119,20 @@ describe('Landing page', () => {
     expect(within(nav).getByRole('button', { name: 'Начать' })).toBeInTheDocument();
   });
 
-  it('orders the sections: first screen, how it works, the result and the group, the reel, the questions, the method, the final call', () => {
+  it('orders the sections: first screen with the video, how it works, the cheat sheet, the result and the group, the questions, the method, the final call', () => {
     const { container } = renderLanding();
     expect(sectionNames(container)).toEqual([
       HEADLINE,
       'Как это работает',
+      'Шпаргалка',
       'Итог и группа',
-      'Meldy за 35 секунд',
       'Примеры вопросов',
       'Вспоминать полезнее, чем перечитывать',
       'Начните со списка вопросов',
     ]);
-    expect(Array.from(container.querySelectorAll('main > section')).map((s) => s.id)).toEqual(['', 'how', '', 'reel', '', 'method', 'start']);
+    expect(Array.from(container.querySelectorAll('main > section')).map((s) => s.id)).toEqual(['', 'how', 'sheet', '', '', 'method', 'start']);
+    // The video is on the first screen, inside the hero, right after the text (the owner, 2026-10-08).
+    expect(container.querySelector('.hm-hero .hm-hero-reel #reel')).not.toBeNull();
   });
 
   it('tells how it works in the four steps of the promise, in their order and numbered', () => {

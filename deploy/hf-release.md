@@ -4,6 +4,13 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-08 — Release 30.2: the video in the landing's first screen, bigger and under the headline; the cheat sheet below the steps (from the commit of this entry)
+
+- **The first screen.** The headline and the lead run across the full width; the video (the motion reel) is under them at full width, on every screen size. On a phone the text is shorter, so the video starts on the first screen.
+- **Order of the page.** The first screen, then «Как это работает», then the cheat sheet itself (the /try example) in its own section. The sheet used to sit in the first screen on a phone.
+- **Not changed yet.** The reel's content and its heading «Meldy за 35 секунд» stay until the rebuilt reel is merged (its own release).
+- No migrations. Verified before release: landing tests 21/21 after the last change, the full Vitest run 2702/2702 (168 files) before the last style changes, `tsc -b`, production build; no «Засчитано», «удовлетворительно», «оценки по пунктам» or «ПРОВЕРЕНО» in the bundle.
+
 ## 2026-10-07 — Release 30.1: what the live check of release 30 found (from the commit of this entry)
 
 - **A token «from the future».** Right after sign-in, «Сегодня» failed once with 401 PGRST303 («JWT issued at
