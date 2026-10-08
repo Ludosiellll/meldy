@@ -74,6 +74,8 @@ export const SHEET_CHANGE = 'После ответа: 1\u00a0строка стё
 export const SHEET_RULE = 'Строки стирают только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.';
 export const SHEET_BACK = 'Не назвали потом — строка вернётся.';
 export const SHEET_TITLE = 'Шпаргалка, которая исчезает';
+/** The flag when a heading of the page names the sheet (the landing's section): only which example it is. */
+export const SHEET_EXAMPLE = 'Микроэкономика · пример';
 export const REPLAY_LABEL = 'Показать ещё раз';
 /** Elsewhere on the page («Показать на шпаргалке»): plays the answer on this sheet again. */
 export const SHEET_REPLAY_EVENT = 'meldy-sheet-replay';
@@ -125,7 +127,12 @@ function Line({ line, phase, delay, seed }: { line: HeroLine; phase: Phase; dela
   );
 }
 
-export default function HeroSheet() {
+/**
+ * `labelledBy`: the id of a heading on the page that names the sheet (the landing's «Шпаргалка, которая исчезает»,
+ * audit 2026-10-08 PUB-12). The flag then says only which example it is, and the rule is the section's legend, so
+ * the caption keeps what the answer did and «Показать ещё раз».
+ */
+export default function HeroSheet({ labelledBy }: { labelledBy?: string } = {}) {
   const titleId = useId();
   const root = useRef<HTMLElement>(null);
   const reduce = usePrefersReducedMotion();
@@ -200,12 +207,12 @@ export default function HeroSheet() {
 
   let order = 0;
   return (
-    <figure ref={root} className="hs" aria-labelledby={titleId}>
+    <figure ref={root} className="hs" aria-labelledby={labelledBy ? `${labelledBy} ${titleId}` : titleId}>
       <div className="hs-top">
         <span id={titleId} className="hs-flag">
-          {SHEET_TITLE}
+          {labelledBy ? SHEET_EXAMPLE : SHEET_TITLE}
         </span>
-        <span className="hs-meta">Микроэкономика · пример</span>
+        {labelledBy ? null : <span className="hs-meta">{SHEET_EXAMPLE}</span>}
       </div>
       <p className="sr-only">{DESCRIPTION}</p>
       <div className="hs-paper" data-font={fontReady ? 'ready' : 'waiting'} aria-hidden="true">
@@ -241,7 +248,7 @@ export default function HeroSheet() {
             </button>
           )}
         </span>
-        <span className="hs-rule">{ty(`${SHEET_RULE} ${SHEET_BACK}`)}</span>
+        {labelledBy ? null : <span className="hs-rule">{ty(`${SHEET_RULE} ${SHEET_BACK}`)}</span>}
       </figcaption>
     </figure>
   );

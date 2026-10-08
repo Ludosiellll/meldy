@@ -16,6 +16,7 @@ import {
 import { deferGuideOnce } from '../components/guide/guideLater';
 import { track } from '../lib/telemetry';
 import { rememberGroupLink } from '../lib/groups/groupLinks';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import './JoinGroup.css';
 
 /**
@@ -70,6 +71,9 @@ const OWN_HEADINGS: Record<NonNullable<SharePreview['link']> | 'unknown', string
 
 const NEW_LINK = 'Новую ссылку можно сделать на странице экзамена — кнопка «Пригласить группу».';
 
+/** A link whose code cannot be read (audit 2026-10-08, PUB-25: «Ссылка неполная» was said of any malformed code). */
+export const UNREADABLE_LINK = 'Ссылка не распознана. Проверьте, что она скопирована целиком, или попросите прислать её ещё\u00a0раз.';
+
 function ownLede(value: SharePreview): string {
   switch (value.link) {
     case 'active':
@@ -98,6 +102,7 @@ function statusMessage(status: SharePreview['status']): string | null {
 }
 
 export default function JoinGroup() {
+  useDocumentTitle('Приглашение в группу');
   const params = useParams();
   const code = normalizeJoinCode(params.code);
   const navigate = useNavigate();
@@ -190,7 +195,7 @@ export default function JoinGroup() {
   const value = preview.state === 'ready' ? preview.value : null;
   const live = value && (value.status === 'active' || value.status === 'joined');
   const problem = !code
-    ? 'Ссылка неполная. Проверьте, что она скопирована целиком.'
+    ? UNREADABLE_LINK
     : preview.state === 'error'
       ? preview.message
       : value
@@ -303,13 +308,24 @@ export default function JoinGroup() {
               </div>
             )}
 
-            {(problem || join.state === 'failed') && (
-              <p className="au-foot">
-                <Link className="au-link" to={user ? '/dashboard' : '/'}>
-                  {user ? 'На «Сегодня»' : 'Что такое Meldy'}
-                </Link>
-              </p>
-            )}
+            {/* A way on when the invitation did not open: a guest can look at the example meanwhile (audit PUB-25). */}
+            {(problem || join.state === 'failed') &&
+              (user ? (
+                <p className="au-foot">
+                  <Link className="au-link" to="/dashboard">
+                    На «Сегодня»
+                  </Link>
+                </p>
+              ) : (
+                <div className="jg-next">
+                  <Link className="sf-primary" to="/try">
+                    Попробовать на примере
+                  </Link>
+                  <Link className="au-link" to="/">
+                    Что такое Meldy
+                  </Link>
+                </div>
+              ))}
           </div>
         </section>
       </main>

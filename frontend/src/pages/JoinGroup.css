@@ -20,6 +20,8 @@
 .jg-wait { margin: 24px 0 0; font-size: 16px; color: var(--sf-muted); }
 .jg-failed { display: grid; gap: 14px; justify-items: start; }
 .jg-actions { margin: 24px 0 0; }
+/* After an invitation that did not open: the example as the way on, «Что такое Meldy» beside it. */
+.jg-next { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 24px; }
 /* The author's own open link, kept on this device for «Вопрос дня» (lib/groups/groupLinks.ts). */
 .jg-kept { margin: 14px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 
@@ -27,5 +29,7 @@
   .jg { --au-g: 16px; }
   .jg-main { align-content: start; }
   .jg-card { padding: 24px 20px; border-radius: 28px; }
-  .jg-retry.sf-primary { width: 100%; }
+  .jg-retry.sf-primary,
+  .jg-next .sf-primary { width: 100%; }
+  .jg-next { justify-content: center; }
 }

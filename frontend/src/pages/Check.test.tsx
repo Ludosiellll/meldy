@@ -125,6 +125,16 @@ describe('/check', () => {
     expect(urls).not.toContain('/api/health/deep'); // the AI is checked only by its button
   });
 
+  it('names its tab, and no longer calls the example «без ИИ»: its answers are checked by the AI, key words without it (audit PUB-27)', async () => {
+    renderPage();
+    expect(document.title).toBe('Проверка перед показом — Meldy');
+    const foot = document.querySelector('.ck-foot') as HTMLElement;
+    expect(foot.textContent).not.toMatch(/без ИИ/);
+    expect(foot.textContent?.replace(/\s+/g, ' ')).toContain('Пример экзамена без входа — /try: ответы там проверяет ИИ, а если он не отвечает — ключевые слова.');
+    expect(within(foot).getByRole('link', { name: '/try' })).toHaveAttribute('href', '/try');
+    await screen.findByText(/^Сайт отвечает за/);
+  });
+
   it('a network that blocks supabase.co is the first problem named, with the phone as the fix', async () => {
     answers.supabase = 'network';
     renderPage();

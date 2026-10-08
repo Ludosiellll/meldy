@@ -82,6 +82,15 @@ describe('a group link waiting on this device', () => {
     expect(joinPath('abcd2fghjkmn')).toBe('/join/abcd2fghjkmn');
   });
 
+  it('drops the marks a chat sentence puts around a link (audit PUB-25)', () => {
+    for (const raw of ['abcd2fghjkmn.', 'abcd2fghjkmn,', 'abcd2fghjkmn!', 'abcd2fghjkmn?!', 'abcd2fghjkmn…', 'abcd2fghjkmn).', '(abcd2fghjkmn)', '«abcd2fghjkmn»', '"abcd2fghjkmn".']) {
+      expect(normalizeJoinCode(raw)).toBe('abcd2fghjkmn');
+    }
+    // A mark inside a code is not a code.
+    expect(normalizeJoinCode('abcd2.fghjkmn')).toBeNull();
+    expect(normalizeJoinCode('.')).toBeNull();
+  });
+
   it('waits a day, then is forgotten', () => {
     const now = Date.UTC(2026, 9, 7, 10);
     rememberPendingJoin('abcd2fghjkmn', now);

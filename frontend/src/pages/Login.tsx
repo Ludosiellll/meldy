@@ -8,6 +8,7 @@ import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
 import { afterSignIn, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
 import { detectInAppBrowser } from '../lib/inAppBrowser';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import InAppNote from '../components/InAppNote';
 
 /**
@@ -20,8 +21,12 @@ import InAppNote from '../components/InAppNote';
  * открыть ссылку в Chrome или Safari, что на /join (components/InAppNote), а вход по почте остаётся. Ссылку из
  * Telegram, открытую в Chrome Custom Tabs или SFSafariViewController, это не касается: там Google работает
  * (lib/inAppBrowser). Стили — .au-* в styles/legacy.css.
+ *
+ * Audit 2026-10-08 (PUB-4): the address is checked only for its form, when the form is sent. No guess about typos
+ * here: an account on mail.com, inbox.lv or yandex.ua signs in like any other.
  */
 export default function Login() {
+  useDocumentTitle('Вход');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -60,7 +65,7 @@ export default function Login() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (!error) track('login_done', { method: 'email' });
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
@@ -111,7 +116,7 @@ export default function Login() {
                   value={email}
                   onChange={e => {
                     setEmail(e.target.value);
-                    setEmailError(validateEmail(e.target.value));
+                    if (emailError) setEmailError(validateEmail(e.target.value));
                   }}
                   aria-invalid={Boolean(emailError)}
                   aria-describedby={emailError ? 'login-email-error' : undefined}
@@ -169,14 +174,14 @@ export default function Login() {
             )}
 
             <p className="au-foot">
-              Нет аккаунта?{' '}
+              Впервые в Meldy?{' '}
               <button type="button" onClick={() => navigate(withReturn('/register', returnTo))} className="au-link">
-                Зарегистрироваться
+                Создать аккаунт
               </button>
             </p>
             <p className="au-foot">
               Или сначала{' '}
-              <Link to="/try" className="au-link" style={{ minHeight: 44 }}>
+              <Link to="/try" className="au-link">
                 попробуйте на примере
               </Link>
               {' — без регистрации.'}

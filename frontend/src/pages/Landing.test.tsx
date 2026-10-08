@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import Landing, { EYEBROW, HEADLINE, LEAD, RESULT_NOTE, RESULT_TITLE, START_LABEL, STEPS, TRY_LABEL } from './Landing';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import Landing, { EYEBROW, HEADLINE, LEAD, RESULT_NOTE, RESULT_SAMPLE, RESULT_TITLE, SHEET_LEGEND, SIGN_UP_SHORT, START_LABEL, STEPS, TRY_LABEL } from './Landing';
 import { REEL_EVENT } from '../components/home/reelJump';
-import { SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
+import { SHEET_EXAMPLE, SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
+import { freePlanLine } from '../components/landing/freePlan';
 import { OUTRO_CTA_LABEL } from '../components/reel/scenes/Outro';
 import { TOTAL } from '../components/reel/timeline';
 
@@ -43,10 +44,16 @@ function renderLanding() {
         <Route path="/" element={<Landing />} />
         <Route path="/register" element={<p>Страница регистрации</p>} />
         <Route path="/login" element={<p>Страница входа</p>} />
-        <Route path="/try" element={<p>Пример экзамена</p>} />
+        <Route path="/try" element={<TryStub />} />
       </Routes>
     </MemoryRouter>,
   );
+}
+
+/** The example's page, telling which of its views was asked for. */
+function TryStub() {
+  const { search } = useLocation();
+  return <p>Пример экзамена{search ? ` ${search}` : ''}</p>;
 }
 
 const plain = (s: string | null | undefined) => (s ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
@@ -91,12 +98,33 @@ describe('Landing page', () => {
     // Below «Как это работает» (the owner, 2026-10-08): the video is on the first screen, the sheet is not.
     const section = document.getElementById('sheet') as HTMLElement;
     expect(document.querySelector('.hm-hero')?.contains(section)).toBe(false);
-    const sheet = within(section).getByRole('figure', { name: SHEET_TITLE });
+    const sheet = within(section).getByRole('figure', { name: `${SHEET_TITLE} ${SHEET_EXAMPLE}` });
     expect(SHEET_TITLE).toBe('Шпаргалка, которая исчезает');
     expect(sheet.querySelector('.hs-paper')).toHaveAttribute('aria-hidden', 'true');
     expect(sheet.querySelectorAll('.hs-line').length).toBeGreaterThanOrEqual(4);
     expect(plain(sheet.textContent)).toContain('Микроэкономика · пример');
-    expect(plain(sheet.querySelector('figcaption')?.textContent)).toContain('Строки стирают только ответы');
+    expect(plain(section.textContent)).toContain('Строки стирают только ответы');
+  });
+
+  it('names the sheet in a heading beside it and explains its three kinds of line, drawn as the paper draws them (audit PUB-12)', () => {
+    renderLanding();
+    const section = document.getElementById('sheet') as HTMLElement;
+    expect(section).toHaveAttribute('aria-labelledby', 'sheet-h');
+    expect(plain(within(section).getByRole('heading', { level: 2 }).textContent)).toBe(SHEET_TITLE);
+    // The flag no longer repeats the heading: it says which example this is.
+    expect(plain(section.querySelector('.hs-flag')?.textContent)).toBe(SHEET_EXAMPLE);
+    const items = Array.from(section.querySelectorAll('.hm-legend li'));
+    expect(items.map((item) => item.getAttribute('data-state'))).toEqual(['fresh', 'rubbed', 'erased']);
+    expect(items.map((item) => plain(item.querySelector('.hm-legend-t')?.textContent))).toEqual(SHEET_LEGEND.map((entry) => `${entry.name}: ${entry.text}`));
+    expect(SHEET_LEGEND.map((entry) => entry.name)).toEqual(['Написано', 'Стёрто наполовину', 'Стёрто совсем']);
+    // Each state on a strip of the same paper, the line in the sheet's hand; the strips are pictures.
+    for (const strip of section.querySelectorAll('.hm-legend-paper')) {
+      expect(strip).toHaveAttribute('aria-hidden', 'true');
+      expect(plain(strip.textContent)).toBe('выручка = цена × количество');
+    }
+    expect(plain(section.textContent)).toContain('Не назвали потом — строка вернётся.');
+    fireEvent.click(within(section).getByRole('button', { name: TRY_LABEL }));
+    expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
   });
 
   it('offers the example first, then the own list, and says the example needs no account', () => {
@@ -106,7 +134,7 @@ describe('Landing page', () => {
     expect(buttons.map((button) => plain(button.textContent))).toEqual([TRY_LABEL, START_LABEL]);
     expect(buttons[0]).toHaveClass('hm-pill--blue');
     expect(buttons[1]).toHaveClass('hm-pill--white');
-    expect(plain(document.querySelector('.hm-hero .hm-also')?.textContent)).toBe('Пример открывается без регистрации.');
+    expect(plain(document.querySelector('.hm-hero .hm-also')?.textContent)).toBe(`Пример открывается без регистрации. ${plain(freePlanLine())}`);
     fireEvent.click(buttons[0]);
     expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
   });
@@ -118,7 +146,21 @@ describe('Landing page', () => {
     expect(links.map((a) => a.textContent)).toEqual(['Как это работает', 'Ролик', 'Подход']);
     for (const href of links.map((a) => a.getAttribute('href'))) expect(container.querySelector(href!)).not.toBeNull();
     expect(within(nav).getByRole('button', { name: 'Войти' })).toBeInTheDocument();
-    expect(within(nav).getByRole('button', { name: 'Начать' })).toBeInTheDocument();
+    // Decision 5 of 2026-10-08: sign-up is «Начать со своего списка», «Создать аккаунт» where space is short.
+    expect(within(nav).getByRole('button', { name: SIGN_UP_SHORT })).toBeInTheDocument();
+    expect(SIGN_UP_SHORT).toBe('Создать аккаунт');
+    expect(within(nav).queryByRole('button', { name: 'Начать' })).toBeNull();
+    fireEvent.click(within(nav).getByRole('button', { name: SIGN_UP_SHORT }));
+    expect(screen.getByText('Страница регистрации')).toBeInTheDocument();
+  });
+
+  it('says what the free account gives, from lib/plans.ts, on the first screen (audit PUB-21)', () => {
+    renderLanding();
+    expect(plain(document.querySelector('.hm-hero .hm-also .hm-free')?.textContent)).toBe(
+      'Аккаунт бесплатный: каждый день 100 единиц ИИ — это 5 лекций или 25 проверенных ответов.',
+    );
+    // The phone's copy of the line, after the video (one of the two is shown, by the width).
+    expect(plain(document.querySelector('.hm-hero .hm-free-m')?.textContent)).toBe(plain(freePlanLine()));
   });
 
   it('orders the sections: first screen with the video, how it works, the cheat sheet, the result and the group, the questions, the method, the final call', () => {
@@ -126,7 +168,7 @@ describe('Landing page', () => {
     expect(sectionNames(container)).toEqual([
       HEADLINE,
       'Как это работает',
-      'Шпаргалка',
+      'Шпаргалка, которая исчезает',
       'Итог и группа',
       'Примеры вопросов',
       'Вспоминать полезнее, чем перечитывать',
@@ -184,8 +226,9 @@ describe('Landing page', () => {
     expect(replays).toHaveLength(1);
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
 
+    // Step 2 is about the quotes: they are in the example's «Вопросы» view (audit PUB-13).
     fireEvent.click(within(how).getByRole('button', { name: /Открыть пример/ }));
-    expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
+    expect(screen.getByText('Пример экзамена ?view=questions')).toBeInTheDocument();
   });
 
   it('says that the teacher gives the mark and that a group shares one exam by link', () => {
@@ -194,6 +237,9 @@ describe('Landing page', () => {
     expect(RESULT_TITLE).toBe('Отметку ставит преподаватель');
     expect(RESULT_NOTE).toBe('Meldy проверяет только, назвали ли вы пункты из своих лекций.');
     expect(plain(document.body.textContent)).toContain(RESULT_NOTE);
+    // The sample result in the protocol's words (decision 2 of 2026-10-08), as the card's text says it.
+    expect(plain(RESULT_SAMPLE)).toBe('Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
+    expect(plain(document.querySelector('.hm-proto-l')?.textContent)).toBe(plain(RESULT_SAMPLE));
     const group = screen.getByRole('heading', { level: 2, name: 'Одна ссылка на всю группу' }).closest('article')!;
     expect(plain(group.textContent)).toContain('У каждого будет своя копия');
     expect(plain(group.textContent)).toContain('Ответы каждого видит только он сам.');

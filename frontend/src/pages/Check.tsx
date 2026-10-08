@@ -12,6 +12,7 @@ import { recognitionConstructor, useSpeechAnswer } from '../hooks/useSpeechAnswe
 import { RecorderError, SegmentRecorder, recorderSupported } from '../lib/oral/recorder';
 import { TranscribeError, transcribeAudio } from '../lib/oral/transcribe';
 import { supabase } from '../lib/supabase';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { isTTSUnavailable, playTTS, stopTTS } from '../utils/tts';
 import {
   CHECK_ORDER,
@@ -123,6 +124,7 @@ function initialResults(): Record<CheckId, CheckResult> {
 }
 
 export default function Check() {
+  useDocumentTitle('Проверка перед показом');
   const { user, loading: authLoading } = useAuth();
   const signedIn = Boolean(user);
   const [results, setResults] = useState<Record<CheckId, CheckResult>>(initialResults);
@@ -544,8 +546,10 @@ export default function Check() {
           })}
         </ol>
 
+        {/* Since the example's answers are checked by the AI (audit 2026-10-08, PUB-27), it is not «без ИИ» any more. */}
         <p className="ck-foot">
-          Пример экзамена без входа и без ИИ — <Link to="/try">/try</Link>. Если сайт не открывается совсем, показывайте запасное видео.
+          Пример экзамена без входа — <Link to="/try">/try</Link>: ответы там проверяет ИИ, а если он не отвечает — ключевые слова. Если
+          сайт не открывается совсем, показывайте запасное видео.
         </p>
       </main>
     </div>

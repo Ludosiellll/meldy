@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import HeroSheet, { HERO_SHEET, REPLAY_LABEL, SHEET_CHANGE, SHEET_REPLAY_EVENT, SHEET_RULE, SHEET_TITLE, SWEEP_MS } from './HeroSheet';
+import HeroSheet, { HERO_SHEET, REPLAY_LABEL, SHEET_CHANGE, SHEET_EXAMPLE, SHEET_REPLAY_EVENT, SHEET_RULE, SHEET_TITLE, SWEEP_MS } from './HeroSheet';
 import { EXAMPLE_QUESTIONS } from '../../data/example';
 import { SHEET_RULE as EXAM_PAGE_RULE, changeSentence } from '../exams/sheet/copy';
 import { changeSummary, type LineChange } from '../../lib/exams/cheatSheet';
@@ -78,6 +78,22 @@ describe('HeroSheet', () => {
     expect(container.querySelectorAll('.hs-line')).toHaveLength(lines.length);
     // The arrows are drawn in ink, the characters stay for copying and screen readers.
     expect(container.querySelectorAll('.cs-arrow-ink').length).toBeGreaterThan(0);
+  });
+
+  it('named by a heading of the page, it says only which example it is and leaves the rule to that section', () => {
+    const { container } = render(
+      <>
+        <h2 id="sheet-h">{SHEET_TITLE}</h2>
+        <HeroSheet labelledBy="sheet-h" />
+      </>,
+    );
+    expect(screen.getByRole('figure', { name: `${SHEET_TITLE} ${SHEET_EXAMPLE}` })).toBeInTheDocument();
+    expect(container.querySelector('.hs-flag')?.textContent).toBe(SHEET_EXAMPLE);
+    expect(container.querySelector('.hs-meta')).toBeNull();
+    expect(container.querySelector('.hs-rule')).toBeNull();
+    // What the answer did and the replay stay under the paper.
+    expect(plain(container.querySelector('figcaption')?.textContent)).toContain(plain(SHEET_CHANGE));
+    expect(screen.getByRole('button', { name: REPLAY_LABEL })).toBeInTheDocument();
   });
 
   it('plays one answer once in view: the line named before is erased, two rub half away, then it says so', () => {

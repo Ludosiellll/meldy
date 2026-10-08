@@ -8,6 +8,7 @@
 .hm {
   --hm-g: 40px;
   --hm-wrap: 1280px;
+  --hm-nav-h: 76px;
   min-height: 100vh;
   overflow-x: clip;
   background: var(--sf-canvas);
@@ -47,13 +48,14 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  height: 76px;
+  height: var(--hm-nav-h);
 }
 
 .hm-logo {
   display: inline-flex;
   align-items: baseline;
-  padding: 0;
+  /* A 44 px tap height around the wordmark, the dot still on its baseline. */
+  padding: calc((44px - 1em) / 2) 0;
   border: 0;
   background: none;
   color: var(--sf-ink);
@@ -219,9 +221,11 @@
   text-wrap: balance;
 }
 
+/* The size follows the window's height too (audit 2026-10-08, PUB-9): at 1912×920 the 124 px cap broke the line
+   into three and pushed the video to 845 px; at 1532×734 it is 92 px instead of 113, two lines either way. */
 .hm-h1 {
   margin: 16px 0 0;
-  font-size: clamp(44px, 7.4vw, 124px);
+  font-size: clamp(44px, min(7.4vw, 12.5vh), 112px);
   line-height: 1.04;
   font-weight: 500;
   letter-spacing: -0.035em;
@@ -275,6 +279,22 @@
   font-size: 15px;
   line-height: 1.4;
   color: var(--sf-muted);
+  text-wrap: pretty;
+}
+
+/* What the free account gives (components/landing/freePlan, from lib/plans.ts): after the example's line; on a
+   phone, under the video instead (.hm-free-m), so the video and its bar stay on the first screen. */
+.hm-free {
+  color: var(--sf-ink);
+}
+
+.hm-free-m {
+  display: none;
+  margin: 0 0 0 2px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--sf-ink);
+  text-wrap: pretty;
 }
 
 .hm-hero-text,
@@ -290,6 +310,28 @@
  */
 .hm-hero-reel .hm-sec {
   padding: 0;
+  scroll-margin-top: calc(var(--hm-nav-h) + 12px);
+}
+
+/*
+ * The video is as wide as the column allows but never taller than the window can show under the menu together
+ * with its chapter bar (audit 2026-10-08, PUB-5: at 1532×734 the 1280×720 frame and its controls needed 786 px of
+ * the 658 px under the menu). The room it leaves: the menu, 12 px above, the controls (16 + 48 px), 12 px below.
+ * Centred: a film under the headline. The placeholder before the reel's chunk arrives has the same size and keeps
+ * the controls' place, so nothing below moves when it comes.
+ */
+.hm-hero-reel {
+  --hm-reel-room: calc(var(--hm-nav-h) + 12px + 64px + 12px);
+}
+
+.hm-hero-reel .mr-figure,
+.hm-hero-reel .hm-reel-wait {
+  max-width: min(100%, max(320px, calc((100vh - var(--hm-reel-room)) * 16 / 9)));
+  margin-inline: auto;
+}
+
+.hm-hero-reel .hm-reel-wait {
+  margin-bottom: 64px;
 }
 
 .hm-hero-reel .hm-reel-head {
@@ -305,10 +347,152 @@
   border: 0;
 }
 
-/* The cheat sheet below «Как это работает»: a column of its own, centred. */
+/*
+ * «Шпаргалка, которая исчезает» below «Как это работает» (audit 2026-10-08, PUB-12): its name, what is on it and a
+ * legend of its three kinds of line beside the sheet from 1100 px; above it, centred, on narrower screens.
+ */
+.hm-sheet-sec {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 44px;
+}
+
+.hm-sheet-text {
+  width: 100%;
+  max-width: 640px;
+}
+
 .hm-sheet-box {
+  width: 100%;
   max-width: 640px;
   margin: 0 auto;
+}
+
+.hm-sheet-lead {
+  margin: 20px 0 0;
+  font-size: clamp(18px, 1.5vw, 21px);
+  line-height: 1.5;
+  color: var(--sf-muted);
+  text-align: center;
+  text-wrap: pretty;
+}
+
+/* The legend: a strip of the same paper with one of the sheet's lines, in each of its states. */
+.hm-legend {
+  --hs-rub: 0.8;
+  --hs-erased: 0.07;
+  --hs-pass-a: repeating-linear-gradient(97deg, #000 0 0.41em, rgba(0, 0, 0, 0.04) 0.41em 1em);
+  --hs-pass-b: repeating-linear-gradient(83deg, #000 0 0.45em, rgba(0, 0, 0, 0.06) 0.45em 1em);
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hm-legend li {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.hm-legend-paper {
+  --hm-lp: #fffefa;
+  display: block;
+  overflow: hidden;
+  padding: 6px 12px 4px;
+  border-radius: 3px;
+  background-color: var(--hm-lp);
+  background-image:
+    linear-gradient(to bottom, transparent 30px, rgba(31, 61, 148, 0.13) 30px, rgba(31, 61, 148, 0.13) 31px, transparent 31px),
+    linear-gradient(to right, rgba(31, 61, 148, 0.13) 1px, transparent 1px);
+  background-size: 100% 100%, 22px 100%;
+  box-shadow: 0 0 0 1px rgba(16, 41, 90, 0.1), 0 10px 24px -16px rgba(16, 41, 90, 0.3);
+  color: #1f3d94;
+  font: 500 21px/28px 'Meldy Hand', var(--ph-sans);
+  white-space: nowrap;
+}
+
+.dark .hm-legend-paper {
+  --hm-lp: #dedbd1;
+}
+
+.hm-legend-ink {
+  display: inline-block;
+}
+
+.hm-legend .cs-arrow,
+.hm-legend .cs-glue {
+  white-space: nowrap;
+}
+
+.hm-legend .cs-arrow-ink {
+  display: inline;
+  height: auto;
+  margin: 0 0.05em;
+  overflow: visible;
+  fill: currentColor;
+  vertical-align: baseline;
+}
+
+.hm-legend li[data-state='rubbed'] .hm-legend-ink {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-composite: source-in, source-in;
+  mask-composite: intersect, intersect;
+}
+
+.hm-legend li[data-state='erased'] .hm-legend-ink {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-composite: source-in, source-in;
+  mask-composite: intersect, intersect;
+}
+
+.hm-legend-t {
+  display: grid;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--sf-muted);
+}
+
+.hm-legend-t b {
+  font-weight: 600;
+  color: var(--sf-ink);
+}
+
+.hm-sheet-back {
+  margin: 18px 0 0;
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--sf-muted);
+}
+
+.hm-sheet-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+@media (min-width: 1100px) {
+  .hm-sheet-sec {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 640px);
+    align-items: center;
+    justify-items: stretch;
+    gap: 56px;
+  }
+
+  .hm-sheet-text .hm-h2,
+  .hm-sheet-lead {
+    text-align: left;
+  }
+
+  .hm-sheet-text .hm-h2 {
+    font-size: clamp(38px, 3.6vw, 56px);
+  }
 }
 
 /* ---------------------------------------------------------------- the vanishing sheet (HeroSheet) */
@@ -643,7 +827,10 @@
 }
 
 .hs-replay {
-  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--sf-accent-fg);
@@ -697,6 +884,7 @@
   line-height: 1.45;
   color: var(--sf-muted);
   text-align: center;
+  text-wrap: balance;
 }
 
 /* The reel: heading on the left, the line on the right, the frame under them. */
@@ -1284,6 +1472,7 @@
   line-height: 1.3;
   font-weight: 600;
   letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 
 .hm-proto-s {
@@ -1362,9 +1551,10 @@
   color: #fff;
 }
 
+/* One line where it fits (a wide panel); on a phone it breaks as «Начните / со списка / вопросов». */
 .hm-final .hm-h2 {
   position: relative;
-  max-width: 640px;
+  max-width: 820px;
   color: #fff;
   text-align: left;
 }
@@ -1372,7 +1562,8 @@
 .hm-final .hm-lead {
   position: relative;
   max-width: 580px;
-  color: rgba(255, 255, 255, 0.85);
+  /* 4.6:1 on the panel's lightest corner (.85 was 4.2:1, under 4.5 for the 16 px phone size). */
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .hm-final .hm-acts {
@@ -1401,6 +1592,16 @@
   opacity: 0.95;
 }
 
+/* Below 1240 px the panel narrows under the art: it moves up into the corner, off the buttons (audit 2026-10-08,
+   PUB-7: at 981–1110 px the pink circle sat on «Попробовать на примере»). */
+@media (max-width: 1240px) {
+  .hm-final-art {
+    top: -150px;
+    right: -190px;
+    transform: none;
+  }
+}
+
 .hm-foot {
   display: flex;
   flex-wrap: wrap;
@@ -1419,6 +1620,13 @@
 
 .hm-foot a {
   color: var(--sf-ink);
+}
+
+/* «Наверх»: a 40 px tap height (audit PUB-28); the wordmark has its own. */
+.hm-foot a:not(.hm-logo) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 
 /* The statistics sentence (lib/telemetry TELEMETRY_NOTE): its own line under the footer row. */
@@ -1530,8 +1738,21 @@
     border-radius: 44px;
   }
 
+  /* No circles behind the text on narrow panels: the halftone of the other panels instead. */
   .hm-final-art {
-    opacity: 0.25;
+    display: none;
+  }
+
+  .hm-final::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.18;
+    background-image: radial-gradient(#fff 1.4px, transparent 1.6px);
+    background-size: 9px 9px;
+    -webkit-mask-image: linear-gradient(200deg, #000, transparent 60%);
+    mask-image: linear-gradient(200deg, #000, transparent 60%);
+    pointer-events: none;
   }
 
   .hm-panel {
@@ -1550,8 +1771,49 @@
 }
 
 @media (max-width: 560px) {
+  .hm {
+    --hm-nav-h: 64px;
+  }
+
   .hm-nav-in {
-    height: 64px;
+    gap: 12px;
+  }
+
+  .hm-nav .hm-logo {
+    font-size: 26px;
+  }
+
+  /* «Войти» stays on phones (decision 5 of 2026-10-08; audit PUB-6): two compact pills. */
+  .hm-end {
+    gap: 8px;
+  }
+
+  .hm-end .hm-pill--sm {
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+
+  .hm-also .hm-free {
+    display: none;
+  }
+
+  .hm-free-m {
+    display: block;
+  }
+
+  .hm-reel-wait {
+    margin-bottom: 106px;
+  }
+
+  /* The legend's strip over its words: the line is as long as on the sheet. */
+  .hm-legend li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .hm-legend-paper {
+    justify-self: start;
   }
 
   /* The video is on the first phone screen, under the text (the owner, 2026-10-08): the text takes less room. */
@@ -1575,9 +1837,6 @@
     margin-top: 20px;
   }
 
-  .hm-end .hm-pill--white {
-    display: none;
-  }
 
   .hm-card {
     border-radius: 40px;
@@ -1638,6 +1897,49 @@
   .hm-chat {
     left: 18px;
     right: 18px;
+  }
+}
+
+/* Small phones: the two actions take the width, the arrow at the end (audit 2026-10-08, PUB-8: at 320 px the pills
+   ran past the screen and the final panel cut them). */
+@media (max-width: 420px) {
+  .hm-acts .hm-pill {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .hm-final {
+    padding: 48px 20px;
+  }
+
+  .hm-final .hm-pill {
+    gap: 10px;
+    padding-left: 20px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 359px) {
+  /* The sign-up is on the first screen right under the headline; the top bar keeps «Войти». */
+  .hm-end .hm-pill--blue {
+    display: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .hm-pill {
+    gap: 10px;
+    padding-left: 20px;
+    font-size: 16px;
+  }
+
+  .hm-final .hm-pill {
+    justify-content: center;
+    padding: 8px 16px;
+  }
+
+  .hm-final .hm-pill .hm-dot {
+    display: none;
   }
 }
 

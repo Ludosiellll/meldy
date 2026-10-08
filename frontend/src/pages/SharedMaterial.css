@@ -1,5 +1,5 @@
 /* A material opened by its link (Meldy 2026-10-04): the landing's top line (the wordmark with the yellow dot,
-   «Создать свой» as the blue pill), the big title, the text in a white card with a large radius and the invitation
+   «Создать аккаунт» as the blue pill), the big title, the text in a white card with a large radius and the invitation
    on a blue panel with halftone dots and a white pill. The page lives outside the app shell. */
 
 .shm {
@@ -34,6 +34,8 @@
 .shm-logo {
   display: inline-flex;
   align-items: baseline;
+  /* A 44 px tap height, the dot on the baseline. */
+  padding: calc((44px - 1em) / 2) 0;
   color: var(--sf-ink);
   font-size: 28px;
   font-weight: 600;
@@ -44,15 +46,9 @@
 }
 .shm-logo::after { content: ''; display: inline-block; width: .3em; height: .3em; margin-left: .08em; border-radius: 50%; background: var(--m-yellow); }
 .shm-logo:focus-visible { outline-offset: 4px; }
+/* Which page this is, in plain words: not a pill, nothing to press (audit 2026-10-08, PUB-26). */
 .shm-bar-label {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--sf-surface);
-  box-shadow: 0 0 0 1px var(--sf-line);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--sf-muted);
 }
@@ -213,8 +209,21 @@
 }
 .shm-missing { max-width: 560px; margin: 72px auto 0; padding: 44px 44px 46px; text-align: center; }
 .shm-missing h1 { margin: 0; font-size: clamp(30px, 3vw, 40px); line-height: 1.1; font-weight: 500; letter-spacing: -.03em; }
-.shm-missing p { margin: 12px 0 0; font-size: 17px; line-height: 1.55; color: var(--sf-muted); }
-.shm-missing .sf-primary { margin-top: 28px; }
+.shm-missing p { margin: 12px 0 0; font-size: 17px; line-height: 1.55; color: var(--sf-muted); text-wrap: balance; }
+.shm-missing-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 24px; margin-top: 28px; }
+.shm-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--sf-accent-fg);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 4px;
+}
+.shm-link:hover { text-decoration-color: currentColor; }
 
 @media (max-width: 767px) {
   .shm-bar-label { display: none; }
@@ -233,6 +242,7 @@
   .shm-final { margin-top: 40px; padding: 40px 24px 36px; border-radius: 40px; }
   .shm-final p { font-size: 17px; }
   .shm-missing { margin-top: 40px; padding: 32px 22px; }
+  .shm-missing-acts .sf-primary { width: 100%; justify-content: space-between; }
 }
 @media (prefers-reduced-motion: reduce) {
   .shm-cta,

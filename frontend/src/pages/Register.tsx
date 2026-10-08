@@ -3,13 +3,23 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
-import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
+import { emailTypo, validateName, validateEmail, validatePassword, type EmailTypo } from '../utils/validators';
 import { SIGN_UP_MESSAGES, emptySignUpFields, signUpErrorMessage } from '../lib/signUpErrors';
 import AuthReel from '../components/authReel/AuthReel';
+import PasswordRules from '../components/auth/PasswordRules';
+import { freePlanLine } from '../components/landing/freePlan';
 import { track } from '../lib/telemetry';
 import { afterSignIn, emailRedirectTo, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
 import { detectInAppBrowser } from '../lib/inAppBrowser';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 import InAppNote from '../components/InAppNote';
+
+/** The sign-up's own words: the heading and the button say the same (decision 5 of 2026-10-08: «Создать аккаунт»). */
+export const SIGN_UP_TITLE = 'Создать аккаунт';
+export const GOOGLE_SIGN_UP = 'Продолжить с Google';
+export const MISMATCH = 'Пароли не совпадают';
+export const REPEAT_EMPTY = 'Повторите пароль';
+export const TYPO_NOTE = 'Возможно, опечатка в адресе.';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
@@ -17,18 +27,26 @@ import InAppNote from '../components/InAppNote';
  * рядом, чтобы форма помещалась на экране ноутбука. Во встроенном WebView — как на входе: просьба открыть
  * ссылку в Chrome или Safari вместо кнопки Google, регистрация по почте остаётся (lib/inAppBrowser: Custom Tabs и
  * SFSafariViewController — настоящие браузеры, там кнопка Google есть).
+ *
+ * Audit 2026-10-08: what the free account gives is said under the heading (PUB-21); the password's rules are on
+ * screen before typing and tick as they are met, a repeat that differs says so as it is typed (PUB-20); a likely
+ * typo in the address is a hint with a one-click fix, never a refusal (PUB-4); a field says what is wrong once it
+ * is left or the form is sent, and its message goes away as soon as it is right.
  */
 export default function Register() {
+  useDocumentTitle('Регистрация');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [emailHint, setEmailHint] = useState<EmailTypo | null>(null);
   const [passwordError, setPasswordError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [resendMessage, setResendMessage] = useState('');
@@ -46,11 +64,17 @@ export default function Register() {
 
   useEffect(() => track('signup_view'), []);
 
+  // The repeat says it differs once it is as long as the password (or after a refused submit), and stops as soon as it matches.
+  let confirmMessage = '';
+  if (confirm !== password) {
+    if (!confirm) confirmMessage = confirmError ? REPEAT_EMPTY : '';
+    else if (confirmError || (password.length > 0 && confirm.length >= password.length)) confirmMessage = MISMATCH;
+  }
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
-    setSuccess('');
+    setSuccess(false);
 
     // An empty field never goes to Supabase: it would take the form for an anonymous sign-up (422).
     const empty = emptySignUpFields({ name, email, password });
@@ -60,7 +84,6 @@ export default function Register() {
 
     if (ne || ee || pe) {
       setNameError(ne); setEmailError(ee); setPasswordError(pe);
-      setLoading(false);
       // The first field to fix gets the focus (its message is read out: role="alert").
       const first = ne ? 'register-name' : ee ? 'register-email' : 'register-password';
       document.getElementById(first)?.focus();
@@ -68,16 +91,17 @@ export default function Register() {
     }
 
     if (password !== confirm) {
-      setError('Пароли не совпадают');
-      setLoading(false);
+      setConfirmError(confirm ? MISMATCH : REPEAT_EMPTY);
+      document.getElementById('register-confirm')?.focus();
       return;
     }
 
+    setLoading(true);
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
-        data: { full_name: name },
+        data: { full_name: name.trim() },
         emailRedirectTo: emailRedirectTo(window.location.origin, returnTo),
       },
     });
@@ -94,7 +118,7 @@ export default function Register() {
       if (data.session) {
         navigate(afterSignIn(returnTo));
       } else {
-        setSuccess('Успешно! Мы отправили письмо с подтверждением на вашу почту. Пожалуйста, перейдите по ссылке в письме.');
+        setSuccess(true);
       }
     }
 
@@ -107,16 +131,16 @@ export default function Register() {
     setResendMessage('');
     const { error } = await supabase.auth.resend({
       type: 'signup',
-      email: email,
+      email: email.trim(),
       options: {
         emailRedirectTo: emailRedirectTo(window.location.origin, returnTo),
       }
     });
     setLoading(false);
     if (error) {
-      setError('Ошибка при повторной отправке. Возможно, вы пытаетесь отправить письмо слишком часто.');
+      setError('Не удалось отправить письмо ещё раз. Возможно, письма уходят слишком часто: попробуйте через несколько минут.');
     } else {
-      setResendMessage('Письмо отправлено повторно! Пожалуйста, проверьте папку "Спам".');
+      setResendMessage('Письмо отправлено ещё раз. Проверьте и папку «Спам».');
     }
   };
 
@@ -129,7 +153,16 @@ export default function Register() {
     });
   };
 
-  const strength = password.length > 0 ? Math.max(1, getPasswordStrength(password)) : 0;
+  const fixEmail = () => {
+    if (!emailHint) return;
+    setEmail(emailHint.fixed);
+    setEmailHint(null);
+    setEmailError('');
+    document.getElementById('register-email')?.focus();
+  };
+
+  const emailDescribedBy = [emailError ? 'register-email-error' : '', emailHint && !emailError ? 'register-email-hint' : ''].filter(Boolean).join(' ') || undefined;
+  const passwordDescribedBy = ['register-password-rules', passwordError ? 'register-password-error' : ''].filter(Boolean).join(' ');
 
   return (
     <div className="au">
@@ -142,8 +175,9 @@ export default function Register() {
       <main className="au-main">
         <section className="au-card au-rise" aria-labelledby="register-title">
           <div className="au-in">
-            <h1 id="register-title" className="au-h1">Создать аккаунт</h1>
+            <h1 id="register-title" className="au-h1">{SIGN_UP_TITLE}</h1>
             <p className="au-lede">Сохраните материалы и продолжайте подготовку с любого устройства.</p>
+            <p className="au-free">{freePlanLine()}</p>
 
             {browser.app && !success && (
               <InAppNote
@@ -165,12 +199,12 @@ export default function Register() {
                   <Mail />
                 </span>
                 <p className="au-done-title">Мы отправили письмо на</p>
-                <span className="au-done-mail">{email}</span>
+                <span className="au-done-mail">{email.trim()}</span>
                 <p>Проверьте «Входящие» и «Спам» и перейдите по ссылке из письма.</p>
 
                 <button type="button" onClick={handleResend} disabled={loading} className="au-quiet">
                   <RefreshCw aria-hidden="true" className={loading ? 'au-spinning' : undefined} />
-                  {loading ? 'Отправка...' : 'Отправить письмо еще раз'}
+                  {loading ? 'Отправляем…' : 'Отправить письмо ещё раз'}
                 </button>
 
                 {resendMessage && <span className="au-done-note">{resendMessage}</span>}
@@ -190,8 +224,9 @@ export default function Register() {
                       value={name}
                       onChange={e => {
                         setName(e.target.value);
-                        setNameError(validateName(e.target.value));
+                        if (nameError) setNameError(validateName(e.target.value));
                       }}
+                      onBlur={() => setNameError(validateName(name))}
                       aria-invalid={Boolean(nameError)}
                       aria-describedby={nameError ? 'register-name-error' : undefined}
                       className="au-input"
@@ -211,93 +246,113 @@ export default function Register() {
                       value={email}
                       onChange={e => {
                         setEmail(e.target.value);
-                        setEmailError(validateEmail(e.target.value));
+                        setEmailHint(null);
+                        if (emailError) setEmailError(validateEmail(e.target.value));
+                      }}
+                      onBlur={() => {
+                        const problem = validateEmail(email);
+                        setEmailError(problem);
+                        setEmailHint(problem ? null : emailTypo(email));
                       }}
                       aria-invalid={Boolean(emailError)}
-                      aria-describedby={emailError ? 'register-email-error' : undefined}
+                      aria-describedby={emailDescribedBy}
                       className="au-input"
                       placeholder="you@example.com"
                       required
                     />
                     {emailError && <p id="register-email-error" role="alert" className="au-hint au-hint--error">{emailError}</p>}
+                    {/* A hint, not an error: the form is sent as it is if the address is right (mail.com, inbox.lv…). */}
+                    {emailHint && !emailError && (
+                      <p id="register-email-hint" role="status" className="au-hint au-hint--warn au-typo">
+                        <span>{TYPO_NOTE}</span>
+                        <button type="button" className="au-typo-fix" onClick={fixEmail}>
+                          Исправить на {emailHint.domain}
+                        </button>
+                      </p>
+                    )}
                   </div>
 
                   <div className="au-pair">
-                  <div className="au-field">
-                    <label htmlFor="register-password" className="au-label">Пароль</label>
-                    <div className="au-control">
-                      <input
-                        id="register-password"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="new-password"
-                        value={password}
-                        onChange={e => {
-                          setPassword(e.target.value);
-                          setPasswordError(validatePassword(e.target.value));
-                        }}
-                        aria-invalid={Boolean(passwordError)}
-                        aria-describedby={passwordError ? 'register-password-error' : undefined}
-                        className="au-input au-input--eye"
-                        placeholder="••••••••"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="au-eye"
-                        aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                      >
-                        {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                      </button>
+                    <div className="au-field">
+                      <label htmlFor="register-password" className="au-label">Пароль</label>
+                      <div className="au-control">
+                        <input
+                          id="register-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={password}
+                          onChange={e => {
+                            setPassword(e.target.value);
+                            if (passwordError) setPasswordError(validatePassword(e.target.value));
+                          }}
+                          aria-invalid={Boolean(passwordError)}
+                          aria-describedby={passwordDescribedBy}
+                          className="au-input au-input--eye"
+                          placeholder="••••••••"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="au-eye"
+                          aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                        >
+                          {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                        </button>
+                      </div>
                     </div>
-                    {passwordError && <p id="register-password-error" role="alert" className="au-hint au-hint--warn">{passwordError}</p>}
-                    {/* Надёжность пароля: три полоски — розовая, жёлтая, зелёная. */}
-                    <div className="au-meter" data-level={strength} aria-hidden="true">
-                      <i />
-                      <i />
-                      <i />
-                    </div>
-                  </div>
 
-                  <div className="au-field">
-                    <label htmlFor="register-confirm" className="au-label">Повтор пароля</label>
-                    <div className="au-control">
-                      <input
-                        id="register-confirm"
-                        name="password-confirmation"
-                        type={showConfirm ? 'text' : 'password'}
-                        autoComplete="new-password"
-                        value={confirm}
-                        onChange={e => setConfirm(e.target.value)}
-                        className="au-input au-input--eye"
-                        placeholder="••••••••"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirm(!showConfirm)}
-                        className="au-eye"
-                        aria-label={showConfirm ? 'Скрыть повтор пароля' : 'Показать повтор пароля'}
-                      >
-                        {showConfirm ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                      </button>
+                    <div className="au-field">
+                      <label htmlFor="register-confirm" className="au-label">Повтор пароля</label>
+                      <div className="au-control">
+                        <input
+                          id="register-confirm"
+                          name="password-confirmation"
+                          type={showConfirm ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={confirm}
+                          onChange={e => {
+                            setConfirm(e.target.value);
+                            if (e.target.value === password) setConfirmError('');
+                          }}
+                          aria-invalid={Boolean(confirmMessage)}
+                          aria-describedby={confirmMessage ? 'register-confirm-error' : undefined}
+                          className="au-input au-input--eye"
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirm(!showConfirm)}
+                          className="au-eye"
+                          aria-label={showConfirm ? 'Скрыть повтор пароля' : 'Показать повтор пароля'}
+                        >
+                          {showConfirm ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                        </button>
+                      </div>
+                      {confirmMessage && <p id="register-confirm-error" role="alert" className="au-hint au-hint--error">{confirmMessage}</p>}
                     </div>
-                  </div>
+
+                    {/* Under both fields, the whole width: the rules before anything is typed, the refusal after a submit. */}
+                    <div className="au-pair-foot">
+                      <PasswordRules id="register-password-rules" password={password} flagged={Boolean(passwordError)} />
+                      {passwordError && <p id="register-password-error" role="alert" className="au-hint au-hint--warn">{passwordError}</p>}
+                    </div>
                   </div>
 
                   <button type="submit" disabled={loading} data-busy={loading ? '' : undefined} className="sf-primary au-submit">
-                    {loading ? 'Регистрируем...' : 'Зарегистрироваться'}
+                    {loading ? 'Создаём аккаунт…' : SIGN_UP_TITLE}
                   </button>
                 </form>
 
                 {/* Inside an embedded WebView Google refuses to sign in (lib/inAppBrowser): no button that cannot work. */}
                 {!browser.app && (
                   <>
-                    <div className="au-or">или войти через</div>
+                    <div className="au-or">или</div>
 
                     <button type="button" onClick={handleGoogleLogin} className="au-oauth">
                       <GoogleMark />
-                      Войти через Google
+                      {GOOGLE_SIGN_UP}
                     </button>
                   </>
                 )}
@@ -312,10 +367,10 @@ export default function Register() {
             </p>
             <p className="au-foot">
               Или сначала{' '}
-              <Link to="/try" className="au-link" style={{ minHeight: 44 }}>
+              <Link to="/try" className="au-link">
                 попробуйте на примере
               </Link>
-              {' — без регистрации.'}
+              {' — без регистрации.'}
             </p>
           </div>
         </section>

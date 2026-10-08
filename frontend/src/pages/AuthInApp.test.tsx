@@ -75,9 +75,9 @@ afterEach(() => {
 });
 
 describe.each([
-  ['/login', 'Войти по почте можно и здесь.', 'Войти'],
-  ['/register', 'Зарегистрироваться по почте можно и здесь.', 'Зарегистрироваться'],
-])('%s inside a messenger', (page, mailLine, submit) => {
+  ['/login', 'Войти по почте можно и здесь.', 'Войти', 'Войти через Google'],
+  ['/register', 'Зарегистрироваться по почте можно и здесь.', 'Создать аккаунт', 'Продолжить с Google'],
+])('%s inside a messenger', (page, mailLine, submit, google) => {
   it('in Telegram on Android: the /join note, the link with its way back into Chrome, no Google, e-mail stays', async () => {
     setAgent(UA.telegramAndroid);
     const writeText = vi.fn(async () => undefined);
@@ -95,7 +95,7 @@ describe.each([
     expect(chrome.getAttribute('href')).toMatch(
       new RegExp(`^intent://[^/]+${page}\\?next=%2Fjoin%2Fabcd2fghjkmn#Intent;scheme=https?;package=com\\.android\\.chrome;`),
     );
-    expect(screen.queryByRole('button', { name: 'Войти через Google' })).toBeNull();
+    expect(screen.queryByRole('button', { name: google })).toBeNull();
     expect(screen.queryByText(/^или/)).toBeNull();
     // E-mail stays, under the note.
     const button = screen.getByRole('button', { name: submit });
@@ -110,19 +110,19 @@ describe.each([
     expect(plain(box.textContent)).toContain('Это встроенный браузер приложения. В таких браузерах Google обычно не даёт войти');
     expect(plain(box.textContent)).toContain('Или нажмите «⋯» или «Поделиться» → «Открыть в Safari».');
     expect(within(box).queryByRole('link', { name: 'Открыть в Chrome' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Войти через Google' })).toBeNull();
+    expect(screen.queryByRole('button', { name: google })).toBeNull();
   });
 
   it('in Viber the same, by its name', () => {
     setAgent(UA.viberAndroid);
     renderAt(page);
     expect(plain(note().textContent)).toContain('Это встроенный браузер Viber. В таких браузерах Google обычно не даёт войти');
-    expect(screen.queryByRole('button', { name: 'Войти через Google' })).toBeNull();
+    expect(screen.queryByRole('button', { name: google })).toBeNull();
   });
 
   it('in a real browser: Google as before, no note', () => {
     renderAt(`${page}${NEXT}`);
-    expect(screen.getByRole('button', { name: 'Войти через Google' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: google })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Откройте ссылку в Chrome или Safari' })).toBeNull();
   });
 
@@ -132,7 +132,7 @@ describe.each([
   ] as const)('in %s: Google as in any browser, no note', (_name, agent) => {
     setAgent(UA[agent]);
     renderAt(`${page}${NEXT}`);
-    expect(screen.getByRole('button', { name: 'Войти через Google' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: google })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Откройте ссылку в Chrome или Safari' })).toBeNull();
     expect(document.body.textContent).not.toMatch(/не даёт войти|встроенный браузер/);
   });

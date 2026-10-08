@@ -1545,13 +1545,6 @@
   height: 18px;
 }
 
-.mr-now {
-  display: none;
-  min-width: 0;
-  font: 500 15px/1.2 'Onest Variable', 'Onest', system-ui, sans-serif;
-  white-space: nowrap;
-}
-
 .mr-chapters {
   display: flex;
   flex: 1;
@@ -1570,8 +1563,10 @@
 
 .mr-chapter {
   position: relative;
-  flex: 1;
-  min-width: 0;
+  /* The label sets the minimum; the chapter's length shares out the rest (--mr-grow, MeldyReel). With the length
+     alone «Шпаргалка» got 63 px for a 77 px label at 1024 px (audit 2026-10-08, PUB-11). */
+  flex: var(--mr-grow, 1) 1 auto;
+  min-width: max-content;
   height: 40px;
   padding: 0 12px;
   border: 0;
@@ -1676,6 +1671,30 @@
   border-radius: 999px;
 }
 
+/* Phones: the chapter in one line of page text under the bar (the stage's own words are 3–9 px there). Not part
+   of the film: the stage is untouched. Hidden from screen readers, who have the transcript. */
+.mr-caption {
+  display: none;
+  margin: 8px 2px 0;
+  min-height: calc(2 * 1.4em);
+  font: 400 15px/1.4 'Onest Variable', 'Onest', system-ui, sans-serif;
+  color: #4b515b;
+  text-wrap: pretty;
+}
+
+.mr-caption b {
+  font-weight: 600;
+  color: #0b121c;
+}
+
+.dark .mr-caption {
+  color: #a7adb7;
+}
+
+.dark .mr-caption b {
+  color: #f3f3f0;
+}
+
 .mr-sr {
   position: absolute;
   width: 1px;
@@ -1688,24 +1707,38 @@
   border: 0;
 }
 
+/*
+ * Phones: six equal chapters, each a 44 px tall tap area with a thin bar drawn inside it (audit 2026-10-08, PUB-10:
+ * the bars were the buttons, 12 px tall and 13–69 px wide). The chapter's name and what it shows are the caption.
+ */
 @media (max-width: 640px) {
-  .mr-now {
-    display: block;
+  .mr-controls {
+    gap: 10px;
+    margin-top: 12px;
   }
 
-  .mr-chapters {
-    padding: 3px;
-    gap: 3px;
+  .mr-chapters,
+  .dark .mr-chapters {
+    gap: 4px;
+    padding: 0;
+    background: none;
+    box-shadow: none;
   }
 
   .mr-chapter {
-    height: 12px;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 44px;
     padding: 0;
-    background: rgba(11, 18, 28, 0.1);
+    opacity: 1;
   }
 
-  .dark .mr-chapter {
-    background: rgba(255, 255, 255, 0.14);
+  .mr-chapter:hover,
+  .dark .mr-chapter:hover,
+  .mr-chapter[aria-current],
+  .dark .mr-chapter[aria-current] {
+    background: transparent;
+    color: inherit;
   }
 
   .mr-chapter-t {
@@ -1715,14 +1748,50 @@
   .mr-chapter-line {
     left: 0;
     right: 0;
-    top: 0;
-    bottom: 0;
+    top: 16px;
+    bottom: 16px;
     height: auto;
     border-radius: 999px;
+    background: rgba(11, 18, 28, 0.12);
+  }
+
+  .dark .mr-chapter-line {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .mr-chapter[aria-current] .mr-chapter-line {
+    background: #0b121c;
+    color: #fff;
+  }
+
+  .dark .mr-chapter[aria-current] .mr-chapter-line {
+    background: #f3f3f0;
+    color: #0b121c;
   }
 
   .mr-play {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .mr-caption {
+    display: block;
+  }
+}
+
+/* 320 px: no gaps between the chapters, the bars drawn 2 px in from each edge: each tap area is as wide as it can be. */
+@media (max-width: 359px) {
+  .mr-chapters,
+  .dark .mr-chapters {
+    gap: 0;
+  }
+
+  .mr-chapter-line {
+    left: 2px;
+    right: 2px;
+  }
+
+  .mr-caption {
+    font-size: 14px;
   }
 }

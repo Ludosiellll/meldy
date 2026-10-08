@@ -225,6 +225,9 @@ describe('the AI on the server (/api/health/deep)', () => {
     const both = deepView(deep({ ...healthy, gemini: down('timeout'), groq: down('unconfigured') }));
     expect(both.result.state).toBe('fail');
     expect(both.result.fix).toMatch(/\/try/);
+    // The example checks answers by the AI too; without it, by key words (audit PUB-27): never «работает без ИИ».
+    expect(both.result.fix).not.toMatch(/работает без ИИ/);
+    expect(both.result.fix).toContain('без ИИ он проверяет ответы по ключевым словам');
   });
 
   it('the server not reaching Supabase is a problem; speech synthesis down is a caveat', () => {

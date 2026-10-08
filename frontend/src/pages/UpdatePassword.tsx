@@ -2,12 +2,22 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ShieldCheck, KeyRound } from 'lucide-react';
+import PasswordRules from '../components/auth/PasswordRules';
+import { validatePassword } from '../utils/validators';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 
-/** Новый пароль (Meldy 2026-10-04): карточка с формой и синяя панель. */
+/**
+ * Новый пароль (Meldy 2026-10-04): карточка с формой и синяя панель. The new password follows the sign-up's rules,
+ * shown before typing (audit 2026-10-08: this page asked for six characters while sign-up asks for eight with a
+ * capital and a digit); a repeat that differs says so as it is typed.
+ */
 export default function UpdatePassword() {
+  useDocumentTitle('Новый пароль');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -26,28 +36,37 @@ export default function UpdatePassword() {
     };
   }, []);
 
+  let confirmMessage = '';
+  if (confirm !== password) {
+    if (!confirm) confirmMessage = confirmError ? 'Повторите пароль' : '';
+    else if (confirmError || (password.length > 0 && confirm.length >= password.length)) confirmMessage = 'Пароли не совпадают';
+  }
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
 
-    if (password.length < 6) {
-      setError('Пароль должен содержать минимум 6 символов');
+    const problem = password ? validatePassword(password) : 'Придумайте пароль';
+    if (problem) {
+      setPasswordError(problem);
+      document.getElementById('new-password')?.focus();
       return;
     }
 
     if (password !== confirm) {
-      setError('Пароли не совпадают');
+      setConfirmError(confirm ? 'Пароли не совпадают' : 'Повторите пароль');
+      document.getElementById('confirm-new-password')?.focus();
       return;
     }
 
     setLoading(true);
-    setError('');
 
     const { error } = await supabase.auth.updateUser({
       password: password
     });
 
     if (error) {
-      setError('Произошла ошибка при обновлении пароля.');
+      setError('Не удалось сохранить пароль. Откройте ссылку из письма ещё раз и попробуйте снова.');
     } else {
       setSuccess(true);
       setTimeout(() => {
@@ -69,7 +88,7 @@ export default function UpdatePassword() {
         <section className="au-card au-rise" aria-labelledby="new-password-title">
           <div className="au-in">
             <h1 id="new-password-title" className="au-h1">Новый пароль</h1>
-            <p className="au-lede">Используйте не менее шести символов.</p>
+            <p className="au-lede">Придумайте пароль для входа по почте.</p>
 
             {error && (
               <div role="alert" className="au-alert">
@@ -82,10 +101,10 @@ export default function UpdatePassword() {
                 <span className="au-done-mark" aria-hidden="true">
                   <ShieldCheck />
                 </span>
-                <p className="au-done-title">Пароль успешно изменён! Перенаправляем...</p>
+                <p className="au-done-title">Пароль изменён. Открываем Meldy…</p>
               </div>
             ) : (
-              <form onSubmit={handleUpdate} className="au-form">
+              <form onSubmit={handleUpdate} className="au-form" noValidate>
                 <div className="au-field">
                   <label htmlFor="new-password" className="au-label">Новый пароль</label>
                   <input
@@ -94,30 +113,43 @@ export default function UpdatePassword() {
                     type="password"
                     autoComplete="new-password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => {
+                      setPassword(e.target.value);
+                      if (passwordError) setPasswordError(validatePassword(e.target.value));
+                    }}
+                    aria-invalid={Boolean(passwordError)}
+                    aria-describedby={['new-password-rules', passwordError ? 'new-password-error' : ''].filter(Boolean).join(' ')}
                     className="au-input"
                     placeholder="••••••••"
                     required
                   />
+                  <PasswordRules id="new-password-rules" password={password} flagged={Boolean(passwordError)} />
+                  {passwordError && <p id="new-password-error" role="alert" className="au-hint au-hint--warn">{passwordError}</p>}
                 </div>
 
                 <div className="au-field">
-                  <label htmlFor="confirm-new-password" className="au-label">Подтвердите пароль</label>
+                  <label htmlFor="confirm-new-password" className="au-label">Повтор пароля</label>
                   <input
                     id="confirm-new-password"
                     name="confirm-new-password"
                     type="password"
                     autoComplete="new-password"
                     value={confirm}
-                    onChange={e => setConfirm(e.target.value)}
+                    onChange={e => {
+                      setConfirm(e.target.value);
+                      if (e.target.value === password) setConfirmError('');
+                    }}
+                    aria-invalid={Boolean(confirmMessage)}
+                    aria-describedby={confirmMessage ? 'confirm-new-password-error' : undefined}
                     className="au-input"
                     placeholder="••••••••"
                     required
                   />
+                  {confirmMessage && <p id="confirm-new-password-error" role="alert" className="au-hint au-hint--error">{confirmMessage}</p>}
                 </div>
 
                 <button type="submit" disabled={loading} data-busy={loading ? '' : undefined} className="sf-primary au-submit">
-                  {loading ? 'Сохраняем...' : 'Сохранить'}
+                  {loading ? 'Сохраняем…' : 'Сохранить'}
                 </button>
               </form>
             )}

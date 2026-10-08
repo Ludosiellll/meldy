@@ -2,11 +2,12 @@ import { useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '@fontsource-variable/onest/wght.css';
 import { useAuth } from '../hooks/useAuth';
-import HeroSheet, { SHEET_REPLAY_EVENT } from '../components/home/HeroSheet';
+import HeroSheet, { HERO_SHEET, SHEET_BACK, SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
 import { SheetText } from '../components/exams/sheet/SheetText';
 import { jumpToReel, type ReelChapter } from '../components/home/reelJump';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { ty } from '../components/landing/typo';
+import { freePlanLine } from '../components/landing/freePlan';
 import { lazyPart, useLazyPart } from '../lib/lazyPart';
 import '../components/home/home.css';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
@@ -31,9 +32,26 @@ export const LEAD =
 export const TRY_LABEL = 'Попробовать на примере';
 /** Sign-up, to start with one's own list of questions; the final call repeats it. */
 export const START_LABEL = 'Начать со своего списка';
+/** Sign-up where space is short: the top bar (decision 5 of 2026-10-08: one action, two names at most). */
+export const SIGN_UP_SHORT = 'Создать аккаунт';
 /** The honest result (Ф1): Meldy gives no mark, in the words of the answer's protocol. */
 export const RESULT_TITLE = 'Отметку ставит преподаватель';
 export const RESULT_NOTE = 'Meldy проверяет только, назвали ли вы пункты из своих лекций.';
+/**
+ * The sample answer's result, in the words of the protocol (decision 2 of 2026-10-08): three main points named
+ * unasked, one more after the examiner's question. On the sheet the three named lines changed (one erased, two
+ * rubbed); the one named only after the question did not.
+ */
+export const RESULT_SAMPLE = 'Сами назвали 3\u00a0из\u00a04 главных пунктов, ещё\u00a01\u00a0— после вопроса экзаменатора';
+
+/** The three states of a line on the sheet, as the legend beside it draws them (audit 2026-10-08, PUB-12). */
+export const SHEET_LEGEND: ReadonlyArray<{ state: 'fresh' | 'rubbed' | 'erased'; name: string; text: string }> = [
+  { state: 'fresh', name: 'Написано', text: 'пункт пока не назван' },
+  { state: 'rubbed', name: 'Стёрто наполовину', text: 'назвали один раз' },
+  { state: 'erased', name: 'Стёрто совсем', text: 'назвали снова, в другой день' },
+];
+/** The line the legend draws: one of the sheet's own (question 7, «выручка = цена × количество»). */
+const LEGEND_LINE = HERO_SHEET[1].lines[0].text;
 
 /** «Как это работает», in the order of the promise: the list, the lectures, the ticket aloud, the sheet. */
 export const STEPS: ReadonlyArray<{ flag: string; title: string; text: string; panel: 'blue' | 'warm' | 'sky' | 'rose'; color: 'sky' | 'yellow' | 'green' | 'pink' }> = [
@@ -173,7 +191,7 @@ function Navbar() {
             Войти
           </Pill>
           <Pill tone="blue" small onClick={() => navigate('/register')}>
-            Начать
+            {SIGN_UP_SHORT}
           </Pill>
         </div>
       </nav>
@@ -204,12 +222,17 @@ function Hero() {
             {START_LABEL}
           </Pill>
         </div>
-        <p className="hm-also hm-rise hm-d3">Пример открывается без регистрации.</p>
+        <p className="hm-also hm-rise hm-d3">
+          {'Пример открывается без\u00a0регистрации. '}
+          <span className="hm-free">{freePlanLine()}</span>
+        </p>
       </div>
       {/* The video is the first thing after the text, on every screen (the owner, 2026-10-08). */}
       <div className="hm-hero-reel hm-rise hm-d2">
         <ReelSection />
       </div>
+      {/* On a phone the line about the free account comes after the video, which stays whole on the first screen. */}
+      <p className="hm-free-m">{freePlanLine()}</p>
     </section>
   );
 }
@@ -313,12 +336,50 @@ function ShowOnSheet() {
   );
 }
 
-/** The cheat sheet itself, after «Как это работает» (the owner, 2026-10-08: the video first, the sheet below the steps). */
+/**
+ * The cheat sheet itself, after «Как это работает» (the owner, 2026-10-08: the video first, the sheet below the
+ * steps). Beside it (above it on narrow screens) its name, what is on it and a legend of its three kinds of line,
+ * drawn with the paper's own eraser masks (audit 2026-10-08, PUB-12: a lone 640 px card, its half-erased lines
+ * unexplained, half the screen empty).
+ */
 function SheetSection() {
+  const navigate = useNavigate();
   return (
-    <section id="sheet" className="hm-wrap hm-sec" aria-label="Шпаргалка">
-      <div className="hm-sheet-box">
-        <HeroSheet />
+    <section id="sheet" className="hm-wrap hm-sec" aria-labelledby="sheet-h">
+      <div className="hm-sheet-sec">
+        <div className="hm-sheet-text">
+          <h2 id="sheet-h" className="hm-h2 hm-reveal">
+            {ty(SHEET_TITLE)}
+          </h2>
+          <p className="hm-sheet-lead hm-reveal">{ty('Под каждым вопросом кафедры — пункты ответа из ваших лекций. Строки стирают только ответы.')}</p>
+          <ul className="hm-legend hm-reveal">
+            {SHEET_LEGEND.map((item) => (
+              <li key={item.state} data-state={item.state}>
+                <span className="hm-legend-paper" aria-hidden="true">
+                  <span className="hm-legend-ink">
+                    <SheetText text={LEGEND_LINE} seedBase={`landing:legend:${item.state}`} />
+                  </span>
+                </span>
+                <span className="hm-legend-t">
+                  <b>
+                    {item.name}
+                    <span className="sr-only">:</span>
+                  </b>{' '}
+                  <span>{ty(item.text)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="hm-sheet-back hm-reveal">{ty(SHEET_BACK)}</p>
+          <div className="hm-sheet-acts hm-reveal">
+            <Pill tone="white" onClick={() => navigate('/try')}>
+              {TRY_LABEL}
+            </Pill>
+          </div>
+        </div>
+        <div className="hm-sheet-box">
+          <HeroSheet labelledBy="sheet-h" />
+        </div>
       </div>
     </section>
   );
@@ -347,8 +408,9 @@ function HowSection() {
               <h3 className="hm-h3">{ty(step.title)}</h3>
               <p className="hm-p">{ty(step.text)}</p>
               {index === 0 && <More chapter="tickets" />}
+              {/* The quotes are in the example's «Вопросы» view, not on its sheet (audit PUB-13). */}
               {index === 1 && (
-                <button type="button" className="hm-more" onClick={() => navigate('/try')}>
+                <button type="button" className="hm-more" onClick={() => navigate('/try?view=questions')}>
                   Открыть пример
                   <Arrow />
                 </button>
@@ -372,7 +434,7 @@ function ResultAndGroup() {
           <div className="hm-dots" />
           <div className="hm-proto">
             <span className="hm-proto-tag">Пример</span>
-            <p className="hm-proto-l">Назвали сами 3 из 4 главных · после вопроса 1</p>
+            <p className="hm-proto-l">{RESULT_SAMPLE}</p>
             <p className="hm-proto-s">На шпаргалке: 1 строка стёрлась, 2 — наполовину</p>
           </div>
         </div>
@@ -493,12 +555,14 @@ function FinalCall() {
             </mask>
           </defs>
           <circle cx="260" cy="260" r="250" fill="url(#hm-f-dw)" mask="url(#hm-f-m)" opacity="0.7" />
-          <circle cx="330" cy="200" r="70" fill="#F4C45B" />
-          <circle cx="210" cy="330" r="46" fill="#F3A9C4" />
-          <circle cx="380" cy="350" r="26" fill="#FFFFFF" opacity="0.9" />
+          <g className="hm-final-dots">
+            <circle cx="330" cy="200" r="70" fill="#F4C45B" />
+            <circle cx="210" cy="330" r="46" fill="#F3A9C4" />
+            <circle cx="380" cy="350" r="26" fill="#FFFFFF" opacity="0.9" />
+          </g>
         </svg>
         <h2 id="final-heading" className="hm-h2">
-          Начните со списка вопросов
+          {ty('Начните со списка вопросов')}
         </h2>
         <p className="hm-lead">
           {ty('Список кафедры — текстом или файлом, лекции — файлами или текстом. Хотите сначала посмотреть — откройте готовый пример, без регистрации.')}
