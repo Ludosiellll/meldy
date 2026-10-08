@@ -259,6 +259,9 @@
   .md-summary { margin-top: 26px; }
   .md-figs { gap: 12px 36px; }
   .md-bar { margin-top: 26px; }
+  /* No «Обновить» on a phone (10_Project/Phone_Declutter_2026-10-08): the diary reads itself on every visit and when
+     the app comes back to the screen (MistakeDiary.tsx). */
+  .md-round { display: none; }
   .md .md-tabs { flex-wrap: nowrap; min-width: 0; }
   .md .md-tabs button { min-height: 44px; padding: 0 12px; }
   .md-row { grid-template-columns: 10px minmax(0, 1fr) 36px; column-gap: 12px; padding: 16px 12px 16px 18px; border-radius: 24px; }
