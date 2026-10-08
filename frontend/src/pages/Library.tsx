@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, MoreHorizontal, RotateCcw, Search } from 'lucide-react';
+import { ArrowRight, MoreHorizontal, Plus, RotateCcw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -11,6 +11,7 @@ import { listExamShelves, type ExamShelf } from '../api/exams';
 import { pluralRu } from '../components/conversation/visuals';
 import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, subjectOf } from '../lib/exams/format';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { usePhone } from '../lib/usePhone';
 import { orderExamLectures } from '../lib/lectureOrder';
 import { cardsLine as cardCountLine, followupCardsByLecture } from '../lib/followupCards';
 import {
@@ -111,12 +112,15 @@ export function toEntry(raw: unknown): LibraryEntry | null {
 /**
  * «конспект · 8 карточек · тест · подкаст» (only what exists) or «только текст, конспекта нет». Cards the
  * lecture got from ticket answers are named apart (decision 4): «6 карточек · ещё 4 из ответов на билеты».
+ * `short` (a phone, 10_Project/Phone_Declutter_2026-10-08): «6 карточек · тест» — a summary goes without saying
+ * and only its absence is named; the cards from ticket answers are counted on the lecture's «Карточки».
  */
-export function lectureMeta(entry: LibraryEntry, followups = 0): string {
-  const cards = cardCountLine(entry.cards, followups);
+export function lectureMeta(entry: LibraryEntry, followups = 0, short = false): string {
+  const cards = cardCountLine(entry.cards, short && entry.cards > 0 ? 0 : followups);
   if (entry.textOnly) return ['только текст, конспекта нет', cards].filter(Boolean).join(DOT);
   const parts: string[] = [];
-  if (entry.summary) parts.push('конспект');
+  if (entry.summary && !short) parts.push('конспект');
+  if (!entry.summary && short) parts.push('без конспекта');
   if (cards) parts.push(cards);
   if (entry.quiz) parts.push('тест');
   if (entry.talk) parts.push('подкаст');
@@ -142,10 +146,11 @@ export function lecturesLine(entries: LibraryEntry[]): string {
   return `${head}: ${analyzed}${NBSP}${pluralRu(analyzed, ['разобрана', 'разобраны', 'разобраны'])}, ${textOnly}${NBSP}${loaded}`;
 }
 
-function cardsLine(entries: LibraryEntry[], followups: ReadonlyMap<string, number> = new Map()): string {
+function cardsLine(entries: LibraryEntry[], followups: ReadonlyMap<string, number> = new Map(), short = false): string {
   const own = entries.reduce((sum, entry) => sum + entry.cards, 0);
   const extra = entries.reduce((sum, entry) => sum + (followups.get(entry.id) ?? 0), 0);
-  return cardCountLine(own, extra);
+  // A phone's line is the lectures' own cards; the ones from ticket answers are on each lecture's «Карточки».
+  return cardCountLine(own, short && own > 0 ? 0 : extra);
 }
 
 /** «Экзамен 15 октября» / «экзамен 15 октября»; without a date just the kind. */
@@ -296,6 +301,8 @@ interface LectureListProps {
   renaming: string | null;
   setRenaming: (id: string | null) => void;
   listKey: string;
+  /** A phone: the rows' short meta line (lectureMeta). */
+  short: boolean;
   actions: {
     rename: (entry: LibraryEntry, title: string) => Promise<void>;
     move: (entry: LibraryEntry, folderId: string) => void;
@@ -348,12 +355,12 @@ function RenameRow({ entry, onSave, onCancel }: { entry: LibraryEntry; onSave: (
   );
 }
 
-function LectureList({ entries, followups, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, listKey, actions }: LectureListProps) {
+function LectureList({ entries, followups, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, listKey, short, actions }: LectureListProps) {
   return (
     <ol className="sf-toc">
       {entries.map((entry, index) => {
         const menuKey = `${listKey}:${entry.id}`;
-        const meta = lectureMeta(entry, followups.get(entry.id) ?? 0);
+        const meta = lectureMeta(entry, followups.get(entry.id) ?? 0, short);
         const date = shortDate(entry.created_at);
         return (
           <li
@@ -425,6 +432,9 @@ export default function Library() {
   useDocumentTitle('Лекции');
   const { user } = useAuth();
   const { confirm } = useConfirm();
+  // A phone: «Разобрать лекцию» opens the page (the top line has no «+ Лекция» there), «Лист экзамена» is a quiet
+  // link, and the lines are shorter (10_Project/Phone_Declutter_2026-10-08).
+  const phone = usePhone();
   const userId = user?.id ?? '';
   const [followups, setFollowups] = useState<ReadonlyMap<string, number>>(() => new Map());
 
@@ -536,7 +546,7 @@ export default function Library() {
     },
   };
 
-  const listProps = { followups, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, actions };
+  const listProps = { followups, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, actions, short: phone };
 
   // ── The heading: the exam when every lecture belongs to it, else «Библиотека» ──
   let heading = 'Лекции';
@@ -544,10 +554,10 @@ export default function Library() {
   let sheetLink: string | null = null;
   if (whole.mode === 'single') {
     heading = subjectOf(whole.exam.title) || 'Лекции';
-    lede = [examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries, followups)].filter(Boolean).join(DOT);
+    lede = [examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries, followups, phone)].filter(Boolean).join(DOT);
     sheetLink = `/exams/${whole.exam.id}`;
   } else if (list.length > 0) {
-    lede = [`${list.length}${NBSP}${lecturesWord(list.length)}`, cardsLine(list, followups)].filter(Boolean).join(DOT);
+    lede = [`${list.length}${NBSP}${lecturesWord(list.length)}`, cardsLine(list, followups, phone)].filter(Boolean).join(DOT);
   }
 
   if (entries === null && loading) {
@@ -634,7 +644,22 @@ export default function Library() {
           <h1 className="sf-h1">{heading}</h1>
           {lede ? <p className="sf-lede">{lede}</p> : null}
         </div>
-        {sheetLink ? (
+        {phone ? (
+          // The page's one start on a phone, as «Новый экзамен» on «Экзамены»; «Лист экзамена» a quiet link by it.
+          <div className="lib-head-acts">
+            <Link className="lib-pill lib-new" to="/analyze">
+              Разобрать лекцию
+              <span className="lib-dot" aria-hidden="true">
+                <Plus strokeWidth={2.2} />
+              </span>
+            </Link>
+            {sheetLink ? (
+              <Link className="sf-link lib-sheet" to={sheetLink}>
+                Лист экзамена
+              </Link>
+            ) : null}
+          </div>
+        ) : sheetLink ? (
           <Link className="lib-pill" to={sheetLink}>
             Лист экзамена
             <span className="lib-dot" aria-hidden="true">

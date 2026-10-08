@@ -32,6 +32,7 @@ vi.mock('../lib/followupCards', async (importOriginal) => ({
 }));
 
 import Library, { lectureMeta, lecturesLine, libraryLayout, SEARCH_FROM, shortDate, toEntry, type LibraryEntry } from './Library';
+import { PHONE_QUERY } from '../lib/usePhone';
 
 function material(id: string, title: string, created: string, extra: Record<string, unknown> = {}) {
   return { id, title, subject: '', created_at: created, summary_json: { content: 'Конспект' }, flashcards_json: { flashcards: [] }, quiz_json: { quiz: [] }, ...extra };
@@ -262,5 +263,66 @@ describe('<Library>', () => {
     renderLibrary();
     expect(await screen.findByRole('heading', { name: 'Здесь будут ваши лекции' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+  });
+});
+
+describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query === PHONE_QUERY, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    });
+  });
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia;
+  });
+
+  const six = { flashcards: Array.from({ length: 6 }, () => ({})) };
+  const lectures = () => [
+    material('m1', 'Реляционная модель данных', '2026-09-01T00:00:00Z', { flashcards_json: six, quiz_json: { quiz: [{}] } }),
+    material('m2', 'Язык SQL', '2026-09-02T00:00:00Z', { flashcards_json: six, quiz_json: { quiz: [{}] } }),
+    material('m3', 'Нормализация', '2026-09-03T00:00:00Z', { flashcards_json: six, quiz_json: { quiz: [{}] } }),
+  ];
+
+  it('opens with «Разобрать лекцию»; «Лист экзамена» is a quiet link and the lines are short', async () => {
+    data.materials = lectures();
+    data.shelves = [shelf('e1', [['m1', '1'], ['m2', '2'], ['m3', '3']], { title: 'Базы данных' })];
+    data.followups = new Map([['m1', 1], ['m2', 4], ['m3', 3]]);
+    renderLibrary();
+    const row = (await screen.findByText('Реляционная модель данных')).closest('a') as HTMLElement;
+    expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+    const sheet = screen.getByRole('link', { name: 'Лист экзамена' });
+    expect(sheet).toHaveAttribute('href', '/exams/e1');
+    expect(sheet).toHaveClass('sf-link');
+    expect(sheet).not.toHaveClass('lib-pill');
+    // «Экзамен · 3 лекции · 18 карточек»; the cards from ticket answers are on each lecture's «Карточки».
+    await waitFor(() => expect(data.followups.size).toBe(3));
+    expect(plain(document.querySelector('.lib-head .sf-lede')?.textContent ?? '')).toBe('Экзамен · 3 лекции · 18 карточек');
+    // «6 карточек · тест · <date>»: a summary goes without saying.
+    expect(plain(row.querySelector('.sf-toc-meta')?.textContent ?? '')).toMatch(/^6 карточек · тест · \d{1,2} сент\./);
+    expect(row.textContent).not.toMatch(/конспект|из ответов/);
+  });
+
+  it('keeps one start on an empty «Лекции»', async () => {
+    renderLibrary();
+    expect(await screen.findByRole('heading', { name: 'Здесь будут ваши лекции' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Разобрать лекцию' })).toHaveLength(1);
+  });
+
+  it('names a missing summary, and the cards from ticket answers of a lecture with none of its own', () => {
+    expect(plain(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }), 4, true))).toBe('6 карточек · тест');
+    expect(plain(lectureMeta(entry('b', '2026-09-01', { summary: false, cards: 6 }), 0, true))).toBe('без конспекта · 6 карточек');
+    expect(plain(lectureMeta(entry('c', '2026-09-01', { textOnly: true, summary: false }), 2, true))).toBe('только текст, конспекта нет · 2 карточки из ответов на билеты');
+  });
+});
+
+describe('«Лекции» on a computer', () => {
+  it('has no «Разобрать лекцию» of its own (the top line has it) and «Лист экзамена» is the white pill', async () => {
+    data.materials = [material('m1', 'Спрос', '2026-09-01T00:00:00Z')];
+    data.shelves = [shelf('e1', [['m1', '1']])];
+    renderLibrary();
+    await screen.findByText('Спрос');
+    expect(screen.queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveClass('lib-pill');
   });
 });

@@ -348,6 +348,16 @@
   from { opacity: 0; transform: translate(-50%, -42%) rotate(-4deg); }
 }
 
+/* ---------------------------------------------------------------- the phone's start */
+/* 10_Project/Phone_Declutter_2026-10-08: the top line of a phone has no «+ Лекция», so «Лекции» opens with
+   «Разобрать лекцию» as a white pill with a plus (as «Новый экзамен» on «Экзамены»), and «Лист экзамена» is a quiet
+   link beside it. Library.tsx renders them on phones only. */
+.lib-head-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 22px; }
+.lib-pill.lib-new { gap: 12px; padding: 0 6px 0 20px; }
+.lib-new .lib-dot { width: 36px; height: 36px; }
+.lib-new .lib-dot svg { width: 16px; height: 16px; }
+.lib-sheet.sf-link { font-size: 16px; }
+
 /* ---------------------------------------------------------------- narrower */
 @media (max-width: 1023px) {
   .lib-empty { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px; border-radius: 44px; }
@@ -355,13 +365,34 @@
   .lib-art { height: 280px; border-radius: 34px; }
 }
 @media (max-width: 639px) {
-  .lib-page { --lib-tile: 44px; }
+  .lib-page { --lib-tile: 20px; }
+  /* The meta line, one line on a phone: «Экзамен 21 октября · 3 лекции · 18 карточек» (the lecture's own size). */
+  .lib-head .sf-lede { margin-top: 8px; font-size: 15px; line-height: 22px; }
   .lib-head .lib-pill { min-height: 48px; }
   .lib-search { flex-basis: 100%; max-width: none; margin-left: 0; }
   .lib-filters { margin-top: 22px; }
-  .lib-page .sf-toc-link { column-gap: 14px; padding: 14px 16px 14px 14px; }
-  .lib-page .sf-toc-n { border-radius: 15px; font-size: 16px; }
-  .lib-page .sf-toc-title { font-size: 18px; }
+  .lib-page .sf-toc-link { align-items: start; column-gap: 12px; padding: 14px 16px 15px; }
+  /* The lecture's place in the course as a plain number by its title: no tile, no dots (Phone_Declutter rule 8);
+     a lecture loaded only as text says so in its line. */
+  .lib-page .sf-toc-n,
+  .lib-page .sf-toc-row[data-text-only] .sf-toc-n {
+    display: block;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--sf-muted);
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+  .lib-page .sf-toc-n::after { display: none; }
+  .lib-page .sf-toc-title { font-size: 18px; line-height: 1.3; }
+  .lib-page .sf-toc-meta { margin-top: 4px; }
   .lib-page .sf-toc-row { border-radius: 24px; }
   .lib-page .sf-toc-edit { padding: 14px; }
   .lib-section { margin-top: 48px; }
@@ -369,7 +400,8 @@
   .lib-empty { margin-top: 28px; border-radius: 36px; }
   .lib-empty-text { padding: 16px 12px 22px; }
   .lib-empty-p { font-size: 17px; }
-  .lib-art { height: 220px; border-radius: 28px; }
+  /* An empty «Лекции» on a phone is its words and «Разобрать лекцию»: no picture of a lecture above them. */
+  .lib-art { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
