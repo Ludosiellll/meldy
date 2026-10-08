@@ -28,14 +28,25 @@ import {
 } from '../components/LectureFolders';
 import { followupCardsOf } from '../lib/followupCards';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { usePhone } from '../lib/usePhone';
+import { openingResultTab, resultTabs, type ResultExportItem, type ResultTab } from '../components/resultSections';
 import '../styles/paper.css';
 import './MaterialDetail.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 
 type Mode = 'full' | 'express' | 'podcast';
 
+/** A tab of the phone's one row: a section of «Материал» (Конспект, Карточки, Тест) or a mode of the page. */
+interface LectureTab {
+  key: string;
+  label: string;
+  count?: number;
+  mode: Mode;
+  section?: ResultTab;
+}
+
 const PANEL_ID = 'material-mode-panel';
-const tabId = (mode: Mode) => `material-mode-${mode}`;
+const tabId = (key: string) => `material-mode-${key}`;
 /** Decision 1 of 2026-10-08: the two hosts' audio is «Подкаст»; «Поговорить о лекции» is the tutor. */
 const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: 'Кратко', podcast: 'Подкаст' };
 const NBSP = '\u00a0';
@@ -57,11 +68,14 @@ export function addedAt(iso: string | null | undefined): string {
 /**
  * One meta line under the title (design critique 12, spec 5.2) instead of chips and «13.09.2026, 23:16»:
  * «Экономика · только для меня · 3 октября, 20:35». A line breaks only after a dot, never before one.
+ * `short` (a phone, 10_Project/Phone_Declutter_2026-10-08): the usual «только для меня» is left out — «⋯» has
+ * «Поделиться»; a lecture open by link or someone else's still says so.
  */
-export function materialMeta(input: { subject?: string | null; isPublic: boolean; own: boolean; createdAt: string | null | undefined }): string {
+export function materialMeta(input: { subject?: string | null; isPublic: boolean; own: boolean; createdAt: string | null | undefined; short?: boolean }): string {
+  const whoSees = input.own ? (input.isPublic ? 'открыт по ссылке' : input.short ? '' : 'только для меня') : 'материал другого автора';
   const line = [
     typeof input.subject === 'string' ? input.subject.trim() : '',
-    input.own ? (input.isPublic ? 'открыт по ссылке' : 'только для меня') : 'материал другого автора',
+    whoSees,
     addedAt(input.createdAt),
   ]
     .filter(Boolean)
@@ -142,6 +156,13 @@ function recreatedFields(materialId: string, next: AnalysisResults, section: Cor
 
 interface MaterialMenuProps {
   open: boolean;
+  /** The author's actions (rename, subject, share, folder, delete); without them the menu is «Экспорт» only. */
+  own: boolean;
+  /**
+   * A phone: «Экспорт» of the section on screen lives here (ResultsPanel's items, read when the menu opens), as
+   * «Экспорт…» that turns the menu into the list of formats. Elsewhere «Экспорт» is a link by the tabs.
+   */
+  exportItems?: () => ResultExportItem[];
   isPublic: boolean;
   hasSubject: boolean;
   folders: LibraryFolder[];
@@ -162,10 +183,13 @@ const MENU_ITEMS = '[role="menuitem"], [role="menuitemradio"]';
 /**
  * «⋯» of the lecture (spec 5.2): rename, subject, share, close access, the folder (kept on this device) and
  * «Удалить лекцию…» — on a phone the list of lectures has no «⋯» of its own, so this one has everything
- * (finding LIB-9). Only the author sees it. Arrows move between items, Escape closes and returns focus to «⋯».
+ * (finding LIB-9). Only the author sees them; on a phone «Экспорт…» is here too, for anyone who can read the
+ * lecture. Arrows move between items, Escape closes and returns focus to «⋯».
  */
 function MaterialMenu({
   open,
+  own,
+  exportItems,
   isPublic,
   hasSubject,
   folders,
@@ -182,16 +206,27 @@ function MaterialMenu({
 }: MaterialMenuProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  // «Экспорт…» turns the open menu into the list of formats; the menu opens on the actions again.
+  const [formats, setFormats] = useState(false);
+  const exportList = open && exportItems ? exportItems() : [];
+  const onlyExport = !own;
 
   useEffect(() => {
-    if (!open) return;
-    rootRef.current?.querySelector<HTMLButtonElement>(MENU_ITEMS)?.focus();
+    if (!open) {
+      setFormats(false);
+      return;
+    }
     const onPointer = (event: MouseEvent) => {
       if (rootRef.current && event.target instanceof Node && !rootRef.current.contains(event.target)) onClose();
     };
     document.addEventListener('mousedown', onPointer);
     return () => document.removeEventListener('mousedown', onPointer);
   }, [open, onClose]);
+
+  // The focus goes to the first item when the menu opens and when it turns into the formats.
+  useEffect(() => {
+    if (open) rootRef.current?.querySelector<HTMLButtonElement>(MENU_ITEMS)?.focus();
+  }, [open, formats]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape' && open) {
@@ -231,7 +266,15 @@ function MaterialMenu({
       >
         <MoreHorizontal aria-hidden="true" strokeWidth={1.75} />
       </button>
-      {open ? (
+      {open && (formats || onlyExport) ? (
+        <div className="sf-menu md-menu lf-menu" role="menu" aria-label="Экспорт">
+          {exportList.map((item) => (
+            <button key={item.key} type="button" role="menuitem" onClick={pick(item.run, true)}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : open ? (
         <div className="sf-menu md-menu lf-menu" role="menu" aria-label="Действия с лекцией">
           <button type="button" role="menuitem" onClick={pick(onRename, false)}>
             Переименовать
@@ -246,6 +289,11 @@ function MaterialMenu({
           {isPublic ? (
             <button type="button" role="menuitem" onClick={pick(onCloseAccess, true)}>
               Закрыть доступ
+            </button>
+          ) : null}
+          {exportList.length > 0 ? (
+            <button type="button" role="menuitem" aria-haspopup="menu" onClick={() => setFormats(true)}>
+              Экспорт…
             </button>
           ) : null}
           <div className="sf-menu-sep" role="separator" />
@@ -269,7 +317,30 @@ export default function MaterialDetail() {
   const sectionParam = sectionValue === 'quiz' || sectionValue === 'flashcards' || sectionValue === 'summary' ? sectionValue : undefined;
   const { user } = useAuth();
   const { confirm } = useConfirm();
-  const tabRefs = useRef<Partial<Record<Mode, HTMLButtonElement | null>>>({});
+  // A phone draws one row of tabs, «Конспект · Карточки 6 · Тест 5 · Подкаст», in place of the modes and the
+  // results' own row, and keeps «Экспорт» in «⋯» (10_Project/Phone_Declutter_2026-10-08).
+  const phone = usePhone();
+  const tabRefs = useRef<Partial<Record<string, HTMLButtonElement | null>>>({});
+  // The section of «Материал» the phone's row chose (null: the one the lecture opens on).
+  const [sectionChoice, setSectionChoice] = useState<ResultTab | null>(null);
+  // What «Экспорт» offers on the section on screen: ResultsPanel keeps it current, «⋯» reads it when it opens.
+  const exportItemsRef = useRef<ResultExportItem[]>([]);
+  // The phone's row fades at the right while more tabs are hidden there (320 px, or with «Кратко»).
+  const phoneRowRef = useRef<HTMLDivElement | null>(null);
+  const [rowMore, setRowMore] = useState(false);
+  const measureRow = useCallback(() => {
+    const row = phoneRowRef.current;
+    setRowMore(Boolean(row && row.scrollLeft + row.clientWidth < row.scrollWidth - 1));
+  }, []);
+  // After every render (the tabs may have changed) and when the window or the fonts change.
+  useEffect(() => {
+    measureRow();
+  });
+  useEffect(() => {
+    window.addEventListener('resize', measureRow);
+    void document.fonts?.ready?.then(measureRow);
+    return () => window.removeEventListener('resize', measureRow);
+  }, [measureRow]);
   const [material, setMaterial] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingLine, setLoadingLine] = useState(false);
@@ -490,6 +561,8 @@ export default function MaterialDetail() {
       text_only: summary.text_only === true,
     };
   }, [material]);
+  // The sections as ResultsPanel shows them (no podcast: the page has its own «Подкаст»).
+  const sectionTabs = useMemo(() => (panelResults ? resultTabs(panelResults) : []), [panelResults]);
 
   if (loading) {
     return (
@@ -566,6 +639,41 @@ export default function MaterialDetail() {
     tabRefs.current[target]?.focus();
   };
 
+  // The section of «Материал» on screen: the phone row's choice, else the one the lecture opens on (?section=…).
+  const section: ResultTab =
+    sectionChoice && sectionTabs.some(tab => tab.id === sectionChoice)
+      ? sectionChoice
+      : openingResultTab(sectionTabs, panelResults as AnalysisResults, sectionParam);
+  // The phone's one row: the sections of «Материал» («Материал» itself when there are none, as for a text-only
+  // lecture), then the page's «Кратко» and «Подкаст».
+  const lectureTabs: LectureTab[] = [
+    ...(sectionTabs.length > 0
+      ? sectionTabs.map(tab => ({ key: tab.id, label: tab.label, count: tab.count, mode: 'full' as Mode, section: tab.id }))
+      : [{ key: 'full', label: MODE_LABELS.full, mode: 'full' as Mode }]),
+    ...(showExpress ? [{ key: 'express', label: MODE_LABELS.express, mode: 'express' as Mode }] : []),
+    { key: 'podcast', label: MODE_LABELS.podcast, mode: 'podcast' as Mode },
+  ];
+  const lectureTab = mode === 'full' && sectionTabs.length > 0 ? section : mode;
+  const selectLectureTab = (item: LectureTab) => {
+    selectMode(item.mode);
+    if (item.section) setSectionChoice(item.section);
+  };
+  const handleLectureTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const count = lectureTabs.length;
+    let next = -1;
+    if (event.key === 'ArrowRight') next = (index + 1) % count;
+    else if (event.key === 'ArrowLeft') next = (index - 1 + count) % count;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = count - 1;
+    if (next < 0) return;
+    event.preventDefault();
+    const target = lectureTabs[next];
+    selectLectureTab(target);
+    tabRefs.current[target.key]?.focus();
+  };
+  // On a phone «Экспорт» of the section on screen is in «⋯»: for anyone who can read the lecture, as the link was.
+  const exportInMenu = phone && mode === 'full' && sectionTabs.length > 0;
+
   const updateMaterialFields = (updatedFields: any) => {
     setMaterial((prev: any) => {
       if (!prev) return prev;
@@ -583,7 +691,7 @@ export default function MaterialDetail() {
   };
 
   const lectureTitle = displayMaterialTitle(material.title);
-  const metaLine = materialMeta({ subject: material.subject, isPublic: Boolean(material.is_public), own: canEdit, createdAt: material.created_at });
+  const metaLine = materialMeta({ subject: material.subject, isPublic: Boolean(material.is_public), own: canEdit, createdAt: material.created_at, short: phone });
   const reviewHref = `/review?material=${encodeURIComponent(material.id)}`;
   const talkHref = `/library/${encodeURIComponent(material.id)}/talk`;
   // Below 1024 px the tab bar steps aside on a lecture (Layout.hidesBottomNav: a detail page keeps its one action
@@ -661,30 +769,33 @@ export default function MaterialDetail() {
       </header>
 
       <div className="md-toolbar">
-        {/* Режимы: вкладки-пилюли в белой капсуле, текущая — тёмная пилюля (язык Meldy). */}
-        <div role="tablist" aria-label="Режим" className="sf-viewtabs md-tabs">
-          {modes.map((item, index) => {
-            const selected = mode === item;
-            return (
-              <button
-                key={item}
-                ref={element => {
-                  tabRefs.current[item] = element;
-                }}
-                id={tabId(item)}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                aria-controls={PANEL_ID}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => selectMode(item)}
-                onKeyDown={event => handleTabKeyDown(event, index)}
-              >
-                {MODE_LABELS[item]}
-              </button>
-            );
-          })}
-        </div>
+        {/* Режимы: вкладки-пилюли в белой капсуле, текущая — тёмная пилюля (язык Meldy). A phone has its one row
+            below the actions instead. */}
+        {phone ? null : (
+          <div role="tablist" aria-label="Режим" className="sf-viewtabs md-tabs">
+            {modes.map((item, index) => {
+              const selected = mode === item;
+              return (
+                <button
+                  key={item}
+                  ref={element => {
+                    tabRefs.current[item] = element;
+                  }}
+                  id={tabId(item)}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={PANEL_ID}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => selectMode(item)}
+                  onKeyDown={event => handleTabKeyDown(event, index)}
+                >
+                  {MODE_LABELS[item]}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* A low window (1532×734, the 1280×720 projector) has no row for the meta line under the title: it is shown
             here, between the tabs and the actions, and read from the header (MaterialDetail.css). Where it is cut
@@ -697,7 +808,7 @@ export default function MaterialDetail() {
 
         {/* Spec 5.2 and the Meldy prototype (Material.dc.html): the white pills with the black circle and «⋯» as a
             round button. No chips and no second filled button. */}
-        {cardCount > 0 || canEdit ? (
+        {cardCount > 0 || canEdit || exportInMenu ? (
           <div className="sf-head-actions md-acts" ref={headActsRef}>
             {canTalk && (
               <Link ref={talkPillRef} className="sf-secondary md-pill md-talk" to={talkHref} onClick={talkTip.done}>
@@ -719,9 +830,11 @@ export default function MaterialDetail() {
                 </span>
               </Link>
             )}
-            {canEdit && (
+            {(canEdit || exportInMenu) && (
               <MaterialMenu
                 open={menuOpen}
+                own={canEdit}
+                exportItems={exportInMenu ? () => exportItemsRef.current : undefined}
                 isPublic={Boolean(material.is_public)}
                 hasSubject={Boolean(material.subject)}
                 folders={folders}
@@ -747,8 +860,49 @@ export default function MaterialDetail() {
         ) : null}
       </div>
 
+      {/* A phone: one row of tabs, the sections of «Материал» next to the page's own modes (spec «Лекция»). */}
+      {phone ? (
+        <div
+          role="tablist"
+          aria-label="Разделы лекции"
+          className="md-ptabs"
+          ref={phoneRowRef}
+          onScroll={measureRow}
+          data-many={lectureTabs.length > 4 ? '' : undefined}
+          data-more={rowMore ? '' : undefined}
+        >
+          {lectureTabs.map((item, index) => {
+            const selected = lectureTab === item.key;
+            return (
+              <button
+                key={item.key}
+                ref={element => {
+                  tabRefs.current[item.key] = element;
+                }}
+                id={tabId(item.key)}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls={PANEL_ID}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => selectLectureTab(item)}
+                onKeyDown={event => handleLectureTabKeyDown(event, index)}
+              >
+                {item.label}
+                {item.count ? (
+                  <>
+                    {' '}
+                    <span className="md-ptab-n">{item.count}</span>
+                  </>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {/* Контент в зависимости от выбранного режима */}
-      <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)} className="md-panel">
+      <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(phone ? lectureTab : mode)} className="md-panel">
         {mode === 'full' ? (
           <ResultsPanel
             results={panelResults as AnalysisResults}
@@ -758,10 +912,11 @@ export default function MaterialDetail() {
             materialId={material.id}
             originalText={material.original_text || ''}
             canEdit={canEdit}
-            onResultsChange={(next, section) => updateMaterialFields(recreatedFields(material.id, next, section))}
+            onResultsChange={(next, changed) => updateMaterialFields(recreatedFields(material.id, next, changed))}
             embedded
             initialTab={sectionParam}
             followupCards={followups}
+            pageTabs={phone ? { section, onSection: setSectionChoice, exportItems: exportItemsRef } : undefined}
           />
         ) : (
           <ExpressPrepView

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Edit3, Check, X } from 'lucide-react';
 import type {
@@ -32,8 +32,8 @@ import {
   parseGrounding,
   sectionFailureSentence,
   sectionHasContent,
-  sectionPayload,
 } from '../utils/analysisSections';
+import { openingResultTab, resultSectionFailed, resultTabs, type ResultExportItem, type ResultTab } from './resultSections';
 import { charactersLabel } from '../utils/pastedText';
 import { pluralRu } from './conversation/visuals';
 import { repairMathEscapes } from '../lib/mathEscapes';
@@ -41,7 +41,7 @@ import ConversationPlayer from './conversation/ConversationPlayer';
 import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
 import './ResultsPanel.css';
 
-type Tab = 'summary' | 'flashcards' | 'quiz' | 'podcast';
+type Tab = ResultTab;
 
 function extractCleanContent(data: any): string {
   let raw = data?.content || (data as any)?.raw || '';
@@ -512,6 +512,7 @@ export default function ResultsPanel({
   notices,
   initialTab,
   followupCards = 0,
+  pageTabs,
 }: {
   results: AnalysisResults;
   onReset: () => void;
@@ -548,6 +549,17 @@ export default function ResultsPanel({
   initialTab?: 'summary' | 'flashcards' | 'quiz';
   /** Карточки лекции из ответов на билеты (lib/followupCards): их повторяют вместе с карточками лекции. */
   followupCards?: number;
+  /**
+   * The lecture page on a phone draws one row of tabs for these sections and its own «Подкаст», and keeps
+   * «Экспорт» in its «⋯» (10_Project/Phone_Declutter_2026-10-08). The panel then shows `section`, draws no row and
+   * no «Экспорт» of its own, and keeps `exportItems` up to date with what «Экспорт» offers on that section.
+   * Without it the panel is as it always was.
+   */
+  pageTabs?: {
+    section: ResultTab;
+    onSection: (section: ResultTab) => void;
+    exportItems: MutableRefObject<ResultExportItem[]>;
+  };
 }) {
   const { user } = useAuth();
   // В режиме просмотра у результата нет материала, в который можно писать.
@@ -614,40 +626,25 @@ export default function ResultsPanel({
   const readingMinutes = textLength ? Math.max(1, Math.round(textLength / 800)) : null;
 
   /** Раздел запрошен, не получился и содержимого нет — показываем строку о сбое. */
-  const isFailed = (name: SectionName): boolean => {
-    const state = sections?.[name];
-    if (!state || state.status === 'ok') return false;
-    if (name === 'podcast') return showConversation && conversationCount === 0;
-    return !sectionHasContent(name, sectionPayload(view, name));
-  };
-  const summaryHasContent = Boolean(view.summarizer?.content || (view.summarizer as { raw?: string })?.raw);
+  const isFailed = (name: SectionName): boolean => resultSectionFailed(view, name, { showConversation, conversationCount });
 
-  const tabs = useMemo(() => {
-    const rawTabs: { id: Tab; label: string; count?: number }[] = [
-      { id: 'summary', label: 'Конспект' },
-      { id: 'flashcards', label: 'Карточки', count: flashcardCount },
-      { id: 'quiz', label: 'Тест', count: quizCount },
-      { id: 'podcast', label: 'Подкаст', count: conversationCount },
-    ];
-    if (textOnly) return [];
-    return rawTabs.filter(t => {
-      if (t.id === 'summary') return summaryHasContent || isFailed('summarizer');
-      if (t.id === 'flashcards') return flashcardCount > 0 || isFailed('flashcards');
-      if (t.id === 'quiz') return quizCount > 0 || isFailed('quiz');
-      if (t.id === 'podcast') return showConversation && (conversationCount > 0 || isFailed('podcast'));
-      return true;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, flashcardCount, quizCount, conversationCount, summaryHasContent, textOnly, showConversation]);
+  const tabs = useMemo(
+    () => resultTabs(view, { showConversation, conversationCount }),
+    [view, conversationCount, showConversation],
+  );
 
   // Первой открывается вкладка с содержимым, а не строка о сбое.
-  const [tab, setTab] = useState<Tab>(() => {
-    const hasContent = (id: Tab) =>
-      id === 'summary' ? summaryHasContent : id === 'flashcards' ? flashcardCount > 0 : id === 'quiz' ? quizCount > 0 : conversationCount > 0;
-    if (initialTab && tabs.some(t => t.id === initialTab) && hasContent(initialTab)) return initialTab;
-    const withContent = tabs.find(t => hasContent(t.id));
-    return withContent?.id ?? tabs[0]?.id ?? 'summary';
-  });
+  const [ownTab, setOwnTab] = useState<Tab>(() => openingResultTab(tabs, view, initialTab, conversationCount));
+  // A page that draws the row itself (pageTabs) chooses the section; the panel keeps it, should the row go away.
+  const pageSection = pageTabs?.section;
+  useEffect(() => {
+    if (pageSection) setOwnTab(pageSection);
+  }, [pageSection]);
+  const tab: Tab = pageSection && tabs.some(t => t.id === pageSection) ? pageSection : ownTab;
+  const setTab = (next: Tab) => {
+    setOwnTab(next);
+    if (pageTabs && next !== pageSection) pageTabs.onSection(next);
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -856,34 +853,28 @@ export default function ResultsPanel({
   // On the material page «Экспорт» stands at the end of the tab row when there is one: a row of its own just for
   // the link pushed the summary 50 px down (1280×720 projector).
   const exportInTabs = embedded && !textOnly && tabs.length > 1;
-  const headerHasText = Boolean(
-    !allRequestedOk || (!textOnly && groundingText && tab !== 'summary') || showPartialNotice || cheatsheetFailed || notices,
-  );
+  // The page's own row and «⋯» stand in for the panel's (pageTabs): then no row and no «Экспорт» here.
+  const ownExport = !pageTabs;
+  // The page's phone row (pageTabs) keeps to one-line explanations: each card and question has its «фрагмент N».
+  const groundingShown = !textOnly && Boolean(groundingText) && tab !== 'summary' && !pageTabs;
+  const headerHasText = Boolean(!allRequestedOk || groundingShown || showPartialNotice || cheatsheetFailed || notices);
+  const sectionShown = tab === 'summary' || tab === 'flashcards' || tab === 'quiz';
+  const exportItems: ResultExportItem[] = [
+    { key: 'copy', label: copied ? 'Скопировано' : 'Копировать', run: handleCopy },
+    ...(sectionShown ? [{ key: 'print', label: 'Печать или PDF', run: handlePrintPdf }] : []),
+    ...(tab === 'flashcards' && flashcardCount > 0 ? [{ key: 'anki', label: 'Файл для Anki', run: handleExportAnki }] : []),
+    ...(tab === 'quiz' && quizCount > 0 && !isFailed('quiz') ? [{ key: 'present', label: 'Показать тест на экране', run: () => setPresentingQuiz(true) }] : []),
+    ...(sectionShown ? [{ key: 'html', label: 'Скачать HTML', run: handleDownloadHtml }] : []),
+  ];
+  // The page reads them when its «⋯» opens; a text-only material offers no export.
+  if (pageTabs) pageTabs.exportItems.current = textOnly ? [] : exportItems;
   const exportMenu = showExport && (
     <div ref={exportMenuRef} className="sf-menu rp-export-menu" role="menu" aria-label="Экспорт">
-      <button type="button" role="menuitem" onClick={() => { handleCopy(); setShowExport(false); }}>
-        {copied ? 'Скопировано' : 'Копировать'}
-      </button>
-      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-        <button type="button" role="menuitem" onClick={() => { handlePrintPdf(); setShowExport(false); }}>
-          Печать или PDF
+      {exportItems.map(item => (
+        <button key={item.key} type="button" role="menuitem" onClick={() => { item.run(); setShowExport(false); }}>
+          {item.label}
         </button>
-      )}
-      {tab === 'flashcards' && flashcardCount > 0 && (
-        <button type="button" role="menuitem" onClick={() => { handleExportAnki(); setShowExport(false); }}>
-          Файл для Anki
-        </button>
-      )}
-      {tab === 'quiz' && quizCount > 0 && !isFailed('quiz') && (
-        <button type="button" role="menuitem" onClick={() => { setPresentingQuiz(true); setShowExport(false); }}>
-          Показать тест на экране
-        </button>
-      )}
-      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-        <button type="button" role="menuitem" onClick={() => { handleDownloadHtml(); setShowExport(false); }}>
-          Скачать HTML
-        </button>
-      )}
+      ))}
     </div>
   );
   const closeExportOnEscape = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -922,18 +913,18 @@ export default function ResultsPanel({
         // На странице материала (критика 12): строка о недостающем разделе, строка о фрагментах и «Экспорт»
         // ссылкой справа. «Новый анализ» здесь не нужен: «Разобрать лекцию» есть в верхней строке, а заливная
         // кнопка на экране одна.
-        (textOnly ? Boolean(showPartialNotice || notices) : headerHasText || !exportInTabs) && (
+        (textOnly ? Boolean(showPartialNotice || notices) : headerHasText || (ownExport && !exportInTabs)) && (
           <header className="no-print rp-head">
             <div className="rp-notes">
               {!allRequestedOk && <p className="rp-status">{statusLabel}</p>}
               {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «похожий фрагмент». */}
               {/* On «Конспект» the fragments stand next to the sections and say so themselves. */}
-              {!textOnly && groundingText && tab !== 'summary' ? <p>{groundingText}</p> : null}
+              {groundingShown ? <p>{groundingText}</p> : null}
               {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
               {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
               {notices}
             </div>
-            {!textOnly && !exportInTabs && exportControl}
+            {!textOnly && ownExport && !exportInTabs && exportControl}
           </header>
         )
       ) : (
@@ -1046,7 +1037,7 @@ export default function ResultsPanel({
         <p className="rp-text-only">{TEXT_ONLY_NOTICE}</p>
       ) : (
         <>
-          {tabs.length > 1 && (
+          {tabs.length > 1 && !pageTabs && (
             <div className="no-print rp-tabsrow" data-tight={embedded && headerHasText ? '' : undefined}>
               <nav className="sf-sectabs" aria-label="Разделы результата">
                 {tabs.map(item => {

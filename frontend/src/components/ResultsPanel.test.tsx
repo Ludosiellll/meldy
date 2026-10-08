@@ -49,6 +49,7 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 import ResultsPanel, { buildHtmlExport } from './ResultsPanel';
+import type { ResultExportItem, ResultTab } from './resultSections';
 
 const summary = { title: 'Энтропия', subject: 'Физика', content: 'Энтропия — мера беспорядка системы.', terms: [], source_ids: ['S01'] };
 const cards = { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка', source_ids: ['S01'] }] };
@@ -492,5 +493,62 @@ describe('HTML export', () => {
     expect(html).toMatch(/font-family: system-ui/);
     expect(html).not.toMatch(/text-transform:\s*uppercase/);
     expect(html).toContain('Энтропия');
+  });
+});
+
+describe('the lecture page’s own row on a phone (pageTabs, Phone_Declutter_2026-10-08)', () => {
+  const allOk = (): AnalysisResults => ({ ...partialResults(), quiz, sections: { quiz: { status: 'ok' } } });
+
+  function panel(section: ResultTab, results: AnalysisResults = allOk()) {
+    return (
+      <MemoryRouter>
+        <ResultsPanel
+          results={results}
+          onReset={() => undefined}
+          materialId="m1"
+          originalText="Энтропия — мера беспорядка системы."
+          embedded
+          pageTabs={{ section, onSection: vi.fn(), exportItems }}
+        />
+      </MemoryRouter>
+    );
+  }
+  let exportItems: { current: ResultExportItem[] };
+  beforeEach(() => {
+    exportItems = { current: [] };
+  });
+
+  it('shows the section the page chose, with no row and no «Экспорт» of its own, and hands «Экспорт» over', async () => {
+    render(panel('quiz'));
+    expect(await screen.findByText('Тест на экране')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Разделы результата' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Экспорт' })).toBeNull();
+    // On a phone each card and question keeps its «фрагмент N»: no sentence about all of them above.
+    expect(screen.queryByText(/опираются на/)).toBeNull();
+    expect(exportItems.current.map(item => item.label)).toEqual(['Копировать', 'Печать или PDF', 'Показать тест на экране', 'Скачать HTML']);
+    act(() => exportItems.current.find(item => item.key === 'present')?.run());
+    expect(db.quizProps).toMatchObject({ presenting: true });
+  });
+
+  it('follows the page to another section and offers that section’s formats', () => {
+    const view = render(panel('quiz'));
+    view.rerender(panel('flashcards'));
+    expect(screen.getByText('Что такое энтропия?')).toBeInTheDocument();
+    expect(exportItems.current.map(item => item.label)).toEqual(['Копировать', 'Печать или PDF', 'Файл для Anki', 'Скачать HTML']);
+  });
+
+  it('offers no export for a text-only material', () => {
+    render(panel('summary', { summarizer: { content: '' }, flashcards: { flashcards: [] }, quiz: { quiz: [] }, text_only: true } as AnalysisResults));
+    expect(screen.getByText('Только текст, конспекта нет. Материал участвует в сверке экзаменов с лекциями.')).toBeInTheDocument();
+    expect(exportItems.current).toEqual([]);
+  });
+
+  it('without it the panel keeps its row, its «Экспорт» and the line about fragments', () => {
+    renderPanel({ embedded: true, results: allOk() });
+    expect(screen.getByRole('navigation', { name: 'Разделы результата' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Карточки/ }));
+    expect(screen.getByText(/Карточки и тест опираются на 1/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Копировать', 'Печать или PDF', 'Файл для Anki', 'Скачать HTML']);
   });
 });

@@ -95,7 +95,8 @@ vi.mock('react-hot-toast', () => ({
   }),
 }));
 
-import MaterialDetail from './MaterialDetail';
+import MaterialDetail, { materialMeta } from './MaterialDetail';
+import { PHONE_QUERY } from '../lib/usePhone';
 import ResultsPanel from '../components/ResultsPanel';
 import { resetJobsForTests } from '../components/conversation/jobs';
 import { stopTTS } from '../utils/tts';
@@ -976,5 +977,197 @@ describe('the lecture’s «⋯» moves it to a folder and deletes it (finding L
     renderPage('/library/m1');
     await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
     expect(screen.queryByRole('button', { name: 'Действия с лекцией' })).not.toBeInTheDocument();
+  });
+});
+
+/* ── A phone (10_Project/Phone_Declutter_2026-10-08, «Лекция») ───────────────── */
+
+/** matchMedia that says «a phone» (lib/usePhone) and nothing else. */
+function installPhone() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({
+      matches: query === PHONE_QUERY,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }),
+  });
+}
+
+/** The meta line with its no-break spaces as plain ones (a day keeps its month, «·» its word). */
+const plainText = (text: string | null | undefined) => (text ?? '').replace(/\u00a0/g, ' ');
+
+function lectureWithEverything(owner = 'user-1'): Material {
+  return {
+    ...makeMaterial({}, owner),
+    flashcards_json: { flashcards: Array.from({ length: 6 }, (_, i) => ({ id: i + 1, question: `Вопрос ${i + 1}`, answer: `Ответ ${i + 1}` })) },
+    quiz_json: {
+      quiz: Array.from({ length: 5 }, (_, i) => ({ id: i + 1, question: `Тестовый вопрос ${i + 1}`, options: ['A) Да', 'B) Нет'], correct: 'A', explanation: '', source_ids: [] })),
+    },
+  };
+}
+
+describe('the lecture on a phone', () => {
+  beforeEach(() => {
+    installPhone();
+    state.material = lectureWithEverything();
+  });
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('has one row of tabs, «Конспект · Карточки 6 · Тест 5 · Подкаст», no «Экспорт» link and a short meta line', async () => {
+    renderPage('/library/m1');
+    const row = await screen.findByRole('tablist', { name: 'Разделы лекции' });
+    expect(within(row).getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Конспект', 'Карточки 6', 'Тест 5', 'Подкаст']);
+    expect(screen.getAllByRole('tablist')).toHaveLength(1);
+    expect(screen.queryByRole('navigation', { name: 'Разделы результата' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Экспорт' })).toBeNull();
+    const summary = screen.getByRole('tab', { name: 'Конспект' });
+    expect(summary).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', summary.id);
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    // One line: the usual «только для меня» is left to «⋯» (Поделиться).
+    expect(plainText(document.querySelector('.md-meta')?.textContent)).toMatch(/^Физика · 1 октября, \d{1,2}:00$/);
+    // The lecture's actions stay: «Поговорить о лекции», «⋯», and «Повторить карточки» at the bottom.
+    expect(screen.getByRole('link', { name: 'Поговорить о лекции' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toBeInTheDocument();
+    const review = screen.getAllByRole('link', { name: 'Повторить карточки' });
+    expect(review[review.length - 1]).toHaveClass('md-bottom-go');
+  });
+
+  it('follows the tabs pattern across the sections and the podcast: one tab stop, arrows, Home and End', async () => {
+    renderPage('/library/m1');
+    const summary = await screen.findByRole('tab', { name: 'Конспект' });
+    summary.focus();
+    fireEvent.keyDown(summary, { key: 'ArrowRight' });
+    const cards = screen.getByRole('tab', { name: 'Карточки 6' });
+    expect(cards).toHaveAttribute('aria-selected', 'true');
+    expect(cards).toHaveFocus();
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', cards.id);
+    expect(await screen.findByText('Вопрос 1')).toBeInTheDocument();
+
+    fireEvent.keyDown(cards, { key: 'End' });
+    const podcast = screen.getByRole('tab', { name: 'Подкаст' });
+    expect(podcast).toHaveFocus();
+    expect(podcast).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getAllByRole('tab').map(tab => tab.getAttribute('tabindex'))).toEqual(['-1', '-1', '-1', '0']);
+    expect(await screen.findByText('Подкаста по этой лекции ещё нет')).toBeInTheDocument();
+    // On «Подкаст» the player holds the bottom of the screen.
+    expect(document.querySelector('.md-bottom')).toBeNull();
+
+    fireEvent.keyDown(podcast, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Конспект' })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Конспект' }), { key: 'Home' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Конспект' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'Подкаст' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Тест 5' }));
+    expect(await screen.findByText(/Тестовый вопрос 1/)).toBeInTheDocument();
+  });
+
+  it('opens on the tab a link asks for: ?section=…, ?mode=express&tab=podcast, ?mode=express', async () => {
+    const first = renderPage('/library/m1?section=quiz');
+    expect(await screen.findByRole('tab', { name: 'Тест 5' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/Тестовый вопрос 1/)).toBeInTheDocument();
+    first.unmount();
+
+    const second = renderPage('/library/m1?mode=express&tab=podcast');
+    expect(await screen.findByRole('tab', { name: 'Подкаст' })).toHaveAttribute('aria-selected', 'true');
+    second.unmount();
+
+    renderPage('/library/m1?mode=express');
+    const brief = await screen.findByRole('tab', { name: 'Кратко' });
+    expect(brief).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Конспект', 'Карточки 6', 'Тест 5', 'Кратко', 'Подкаст']);
+    expect(await screen.findByRole('button', { name: 'Создать выжимку' })).toBeInTheDocument();
+  });
+
+  it('keeps «Экспорт» in «⋯»: «Экспорт…» turns the menu into the formats of the section on screen', async () => {
+    renderPage('/library/m1');
+    await screen.findByText('Конспект про энтропию');
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Действия с лекцией' })).getByRole('menuitem', { name: 'Экспорт…' }));
+    const formats = screen.getByRole('menu', { name: 'Экспорт' });
+    expect(within(formats).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Копировать', 'Печать или PDF', 'Скачать HTML']);
+    expect(within(formats).getByRole('menuitem', { name: 'Копировать' })).toHaveFocus();
+    fireEvent.click(within(formats).getByRole('menuitem', { name: 'Копировать' }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Конспект про энтропию');
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toHaveFocus();
+
+    // Escape leaves the formats and gives the focus back to «⋯»; the menu opens on the actions again.
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Экспорт…' }));
+    fireEvent.keyDown(screen.getByRole('menu', { name: 'Экспорт' }), { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    expect(screen.getByRole('menu', { name: 'Действия с лекцией' })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+
+    // On «Тест» the test can be shown on a screen for an audience, as from «Экспорт» on a computer.
+    fireEvent.click(screen.getByRole('tab', { name: 'Тест 5' }));
+    await screen.findByText(/Тестовый вопрос 1/);
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Экспорт…' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Показать тест на экране' }));
+    expect(screen.getByRole('dialog', { name: 'Режим презентации' })).toBeInTheDocument();
+  });
+
+  it('gives someone else’s lecture a «⋯» with «Экспорт» only', async () => {
+    state.material = lectureWithEverything('teacher-1');
+    renderPage('/library/m1');
+    await screen.findByText('Конспект про энтропию');
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    const menu = screen.getByRole('menu', { name: 'Экспорт' });
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Копировать', 'Печать или PDF', 'Скачать HTML']);
+    expect(screen.queryByRole('menuitem', { name: 'Переименовать' })).toBeNull();
+    expect(plainText(document.querySelector('.md-meta')?.textContent)).toMatch(/^Физика · материал другого автора · /);
+  });
+
+  it('a section that failed is a tab with its line and «Создать … заново»; the new test shows under its tab', async () => {
+    const quizPayload = { quiz: [{ id: 1, question: 'Убывает ли энтропия изолированной системы?', options: ['A) Нет', 'B) Да'], correct: 'A', explanation: '', source_ids: [] }] };
+    state.material = { ...makeMaterial({ sections: { summarizer: { status: 'ok' }, quiz: { status: 'busy', message: 'Сервис ИИ был перегружен' } } }), quiz_json: { quiz: [] } };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('tab', { name: 'Тест' }));
+    expect(screen.getByText('Тест не получился: сервис ИИ был перегружен.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    await act(async () => pending['/api/analyze/section'][0].resolve(jsonResponse({ section: 'quiz', status: 'ok', result: quizPayload })));
+    expect(await screen.findByText(/Убывает ли энтропия изолированной системы\?/)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Тест 1' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('shows «Материал» for a lecture loaded only as text', async () => {
+    state.material = { ...makeMaterial({ content: '', terms: [], text_only: true }), flashcards_json: { flashcards: [] }, quiz_json: { quiz: [] } };
+    renderPage('/library/m1');
+    expect(await screen.findByText('Только текст, конспекта нет. Материал участвует в сверке экзаменов с лекциями.')).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Материал', 'Подкаст']);
+    // Nothing to export from a text: no «⋯» items for it.
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    expect(screen.queryByRole('menuitem', { name: 'Экспорт…' })).toBeNull();
+  });
+});
+
+describe('the lecture on a computer keeps its layout', () => {
+  it('has the modes and the results’ row, «Экспорт» by the tabs and no «Экспорт…» in «⋯»', async () => {
+    state.material = lectureWithEverything();
+    renderPage('/library/m1');
+    expect(await screen.findByRole('tablist', { name: 'Режим' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Разделы результата' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Экспорт' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
+    expect(screen.queryByRole('menuitem', { name: 'Экспорт…' })).toBeNull();
+  });
+});
+
+describe('materialMeta', () => {
+  it('leaves out the usual «только для меня» on a phone, and still names a link or another author', () => {
+    const base = { subject: 'Физика', createdAt: '2026-10-01T10:00:00Z' };
+    expect(plainText(materialMeta({ ...base, isPublic: false, own: true, short: true }))).toMatch(/^Физика · 1 октября, \d{1,2}:00$/);
+    expect(plainText(materialMeta({ ...base, isPublic: false, own: true }))).toMatch(/^Физика · только для меня · 1 октября/);
+    expect(plainText(materialMeta({ ...base, isPublic: true, own: true, short: true }))).toMatch(/^Физика · открыт по ссылке · 1 октября/);
+    expect(plainText(materialMeta({ ...base, isPublic: false, own: false, short: true }))).toMatch(/^Физика · материал другого автора · /);
   });
 });
