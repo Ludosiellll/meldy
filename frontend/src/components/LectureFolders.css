@@ -14,7 +14,7 @@
 .lf-menu button[role='menuitemradio'][aria-checked='true']::after { background: var(--sf-accent); box-shadow: none; transform: scale(1.2); }
 .lf-menu button[data-danger] { color: var(--ph-wrong); }
 .lf-menu form { display: flex; align-items: center; gap: 8px; padding: 6px 8px 8px 10px; }
-.lf-input.sf-input { flex: 1 1 auto; min-width: 0; height: 40px; padding: 0 12px; border-radius: 14px; font-size: 15px; }
+.lf-input.sf-input { flex: 1 1 auto; min-width: 0; height: 44px; padding: 0 12px; border-radius: 14px; font-size: 15px; }
 /* The kit's menu buttons are full-width rows; «Создать» stays a small blue pill. */
 .lf-menu .lf-pill {
   display: inline-flex;
@@ -22,7 +22,7 @@
   align-items: center;
   justify-content: center;
   width: auto;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 16px;
   border: 0;
   border-radius: 999px;
