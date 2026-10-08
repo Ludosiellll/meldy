@@ -36,7 +36,7 @@ import { isDateKey, localDateKey, shiftDateKey } from '../utils/streak';
 import { pluralRu } from '../components/conversation/visuals';
 import { confirmedShares } from '../components/exams/sheetModel';
 import { percent } from '../lib/exams/ticketMath';
-import { daysUntil, formatDay, KIND_WORDS, relativeDays, subjectOf } from '../lib/exams/format';
+import { daysUntil, formatDay, KIND_WORDS, phoneExamDay, relativeDays, subjectOf } from '../lib/exams/format';
 import { READINESS_LABELS } from '../lib/learning/readiness';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -68,6 +68,8 @@ import './Analytics.css';
 
 const PAGE_SIZE = 1000;
 const ACTIVITY_DAYS = 30;
+/** A phone draws «Занятия по дням» as columns from this many days with answers; fewer, the sentence says it all. */
+export const PHONE_BAR_DAYS = 5;
 /** Card answers of the journal: the 30 days of the share, with a margin for the time zone. */
 const JOURNAL_DAYS = 32;
 const LOADING_LINE_MS = 300;
@@ -723,7 +725,8 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
         </div>
       </Section>
 
-      <Section title="Экзамены" id="pg-exams" aside={<Link to="/exams" className="sf-link" data-muted="">Все экзамены</Link>}>
+      {/* The heads' links lead somewhere: ink on a phone, as every such link there (the muted link explains). */}
+      <Section title="Экзамены" id="pg-exams" aside={<Link to="/exams" className="sf-link" data-muted={phone ? undefined : ''}>Все экзамены</Link>}>
         {exams.status === 'error' ? (
           <ErrorLine text="Экзамены не загрузились." onRetry={() => reload('exams')} />
         ) : exams.status === 'loading' ? (
@@ -750,7 +753,8 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
                         {subjectOf(exam.title)}
                       </Link>
                       <span className="sf-ledger-meta">
-                        {line.when}
+                        {/* A phone: «21 октября, через 13 дней», the kind named only when it is not an exam. */}
+                        {phone ? typeset(phoneExamDay(exam.kind, exam.examDate)) : line.when}
                         <span className="pg-exam-since">{` · ${line.answers}`}</span>
                       </span>
                       <span className="sf-ledger-meta" data-mapped={mapped ? '' : undefined}>
@@ -795,7 +799,7 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
         </Section>
       )}
 
-      <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted="">Все лекции</Link>}>
+      <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted={phone ? undefined : ''}>Все лекции</Link>}>
         {materials.status === 'error' ? (
           <ErrorLine text="Лекции не загрузились." onRetry={() => reload('materials')} />
         ) : materials.status === 'loading' ? (
@@ -1260,6 +1264,8 @@ function TodoLine({
   failed: string | null;
   onAdd: (lecture: LectureRow) => void;
 }) {
+  // A phone names the diary itself: «Разобрать» there also reads as «Разобрать лекцию» of this page.
+  const phone = usePhone();
   let tone: 'pink' | 'yellow' | 'blue';
   let text: ReactNode;
   let action: ReactNode;
@@ -1294,7 +1300,7 @@ function TodoLine({
       );
       action = (
         <Link className="pg-act" to="/mistakes">
-          Разобрать
+          {phone ? 'Дневник ошибок' : 'Разобрать'}
         </Link>
       );
       break;
@@ -1316,11 +1322,8 @@ function TodoLine({
       break;
     case 'exam':
       tone = 'blue';
-      text = (
-        <>
-          «{item.title}»: {count(item.none, ['вопрос', 'вопроса', 'вопросов'])} нет ни в одной лекции
-        </>
-      );
+      // «ни в одной» stays whole at the end of a line.
+      text = typeset(`«${item.title}»: ${count(item.none, ['вопрос', 'вопроса', 'вопросов'])} нет ни в одной лекции`);
       // The questions themselves, filtered: «Лист экзамена» named a place, not what to do there.
       action = (
         <Link className="pg-act" to={`/exams/${item.examId}?filter=cov:none`}>
@@ -1491,6 +1494,7 @@ function ActivitySection({
   onRetry: () => void;
   onRetryJournal: () => void;
 }) {
+  const phone = usePhone();
   const today = localDateKey();
   const firstDay = shiftDateKey(today, -(ACTIVITY_DAYS - 1));
   // Ticket answers from the journal (its card answers are the same as the daily counters) and the tests.
@@ -1504,6 +1508,10 @@ function ActivitySection({
   // One sentence about the last 30 days. Only what happened is named: no «0 ответов», no «0 дней подряд».
   const cardAnswers = days.reduce((sum, day) => sum + day.cards, 0);
   const ticketAnswers = days.reduce((sum, day) => sum + day.tickets, 0);
+  // The days that have a column. A phone draws the columns from PHONE_BAR_DAYS of them: one or two columns at the
+  // right edge of an empty month say no more than the sentence above them.
+  const barDays = days.filter((day) => day.cards + day.tickets > 0).length;
+  const drawBars = cardAnswers + ticketAnswers > 0 && (!phone || barDays >= PHONE_BAR_DAYS);
   const summaryParts: string[] = [];
   if (activity.status === 'ok') {
     const recentQuiz = quiz.status === 'ok' ? quiz.data.filter((e) => e.local_date >= firstDay && e.local_date <= today) : [];
@@ -1525,12 +1533,12 @@ function ActivitySection({
         <Quiet>Загружаем…</Quiet>
       ) : (
         <div className="pg-card pg-activity">
-          <Quiet>{summaryParts.length > 0 ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.` : `За ${ACTIVITY_DAYS} дней занятий не было.`}</Quiet>
+          <Quiet>{typeset(summaryParts.length > 0 ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.` : `За ${ACTIVITY_DAYS} дней занятий не было.`)}</Quiet>
           {journal.status === 'error' ? (
             <ErrorLine text="Ответы на билеты не загрузились, их дни здесь не учтены." onRetry={onRetryJournal} />
           ) : null}
           {/* Bars only when there is something to draw: no empty axis. */}
-          {cardAnswers + ticketAnswers > 0 ? <DayBars data={days} /> : null}
+          {drawBars ? <DayBars data={days} /> : null}
         </div>
       )}
     </Section>
@@ -1609,7 +1617,7 @@ function DayBars({ data }: { data: DayAnswers[] }) {
           </li>
         </ul>
       ) : null}
-      <figcaption className="pg-figcap">{sentence(`${what} по дням; больше всего ${totalOf(peak)} — ${shortDay(peak.key)}`)}</figcaption>
+      <figcaption className="pg-figcap">{typeset(sentence(`${what} по дням; больше всего ${totalOf(peak)} — ${shortDay(peak.key)}`))}</figcaption>
       {/* The box that hides it is a div: a table keeps the height of its 30 rows under .sr-only, and that
           stretched the page by some 600 px of empty canvas below «Как считается». */}
       <div className="sr-only">
