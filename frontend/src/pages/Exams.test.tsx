@@ -214,7 +214,7 @@ describe('Exams on a phone (Phone_Declutter_2026-10-08)', () => {
     const meta = (card: HTMLElement) => plain(card.querySelector('.ex-row-meta')?.textContent);
     const counts = (card: HTMLElement) => plain(card.querySelector('.ex-row-counts')?.textContent);
     expect(meta(cards[0])).toMatch(/^\d+ [а-я]+, через 12 дней$/);
-    await waitFor(() => expect(counts(cards[0])).toBe('есть 24 · частично 7 · нет 9 · подтверждено 6'));
+    await waitFor(() => expect(counts(cards[0])).toBe('В лекциях: есть 24 · частично 7 · нет 9 · подтверждено 6'));
     expect(cards[0].querySelector('.ex-pill')).toBeNull();
     // The card still draws a ticket and still opens the exam.
     expect(within(cards[0]).getByRole('link', { name: 'Тянуть билет: Микроэкономика' })).toHaveAttribute('href', '/exams/exam-1/draw');
@@ -228,9 +228,9 @@ describe('Exams on a phone (Phone_Declutter_2026-10-08)', () => {
     expect(examPhoneDateLine({ kind: 'credit', exam_date: '2026-10-04' }, now)).toBe('зачёт · 4 октября, завтра');
     expect(examPhoneDateLine({ kind: 'exam', exam_date: '2026-09-01' }, now)).toBe('экзамен · прошёл 1 сентября');
     expect(examPhoneDateLine({ kind: 'exam', exam_date: null }, now)).toBe('экзамен, дата не указана');
-    expect(examPhoneCountsLine(item(), 0, false)).toBe('есть 24 · частично 7 · нет 9');
+    expect(examPhoneCountsLine(item(), 0, false)).toBe('В лекциях: есть 24 · частично 7 · нет 9');
     expect(examPhoneCountsLine(item({ coverage: { full: 20, partial: 7, none: 9, unverified: 4, unmapped: 0 } }), null, false)).toBe(
-      'есть 20 · частично 7 · нет 9 · только по словам 4',
+      'В лекциях: есть 20 · частично 7 · нет 9 · только по словам 4',
     );
     expect(examPhoneCountsLine(item(), null, true)).toBe('40 вопросов · идёт сверка с лекциями');
   });

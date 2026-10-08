@@ -916,11 +916,12 @@ export default function ExamEditor() {
                   <span className="nx-wide">{glue(': доли посчитаем по ним')}</span>.
                 </p>
               ) : phone ? (
-                // One line on a phone: the question and the way to do it.
+                // One line on a phone: the question and the way to do it. «заново» says the list is pasted again (the
+                // link starts over), as on a computer.
                 <p className="ex-meta nx-tickets-hint">
                   Знаете билеты?{' '}
                   <button type="button" className="sf-link" onClick={startOver} disabled={lockedByMapping || saving}>
-                    Вставьте список с ними
+                    Вставьте список заново — с ними
                   </button>
                 </p>
               ) : (

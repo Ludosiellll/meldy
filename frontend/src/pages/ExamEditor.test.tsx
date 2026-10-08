@@ -887,8 +887,8 @@ describe('ExamEditor on a phone (10_Project/Phone_Declutter_2026-10-08)', () => 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Сверить с лекциями' })).toBeEnabled());
 
     const tickets = document.querySelector('.nx-tickets-hint') as HTMLElement;
-    expect(plain(tickets.textContent)).toBe('Знаете билеты? Вставьте список с ними');
-    fireEvent.click(within(tickets).getByRole('button', { name: 'Вставьте список с ними' }));
+    expect(plain(tickets.textContent)).toBe('Знаете билеты? Вставьте список заново — с ними');
+    fireEvent.click(within(tickets).getByRole('button', { name: 'Вставьте список заново — с ними' }));
     expect(screen.getByRole('textbox', { name: 'Список вопросов' })).toBeInTheDocument();
   });
 

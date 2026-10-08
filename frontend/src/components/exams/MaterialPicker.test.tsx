@@ -418,6 +418,8 @@ describe('MaterialPicker on a phone (10_Project/Phone_Declutter_2026-10-08)', ()
     expect(plainText(document.querySelector('.nx-pick-unmatched'))).toBe('Без подходящей лекции: вопросы 9, 12 и 17.');
     expect(document.querySelector('.nx-pick-foot')).toBeNull();
     expect(screen.getByRole('button', { name: 'Добавить лекции' })).toBeInTheDocument();
+    // What the import takes and what a scan costs stay in sight: the import charges a scan without asking.
+    expect(plainText(document.querySelector('.nx-import-price'))).toBe('Только текст, без лимита; сканы PDF — 5 единиц за каждые 15 страниц.');
 
     const more = screen.getByRole('button', { name: 'Подробнее' });
     expect(more).toHaveAttribute('aria-expanded', 'false');

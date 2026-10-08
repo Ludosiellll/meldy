@@ -1065,7 +1065,8 @@ function PhoneSummary({
       <div className="pg-sum-known">
         {states.solid + states.learning > 0 ? <StateBar states={states} /> : null}
         <p>{statesLine(states)}</p>
-        {fromWhere ? <p className="pg-sum-muted">{`${fromWhere[0].toUpperCase()}${fromWhere.slice(1)}.`}</p> : null}
+        {/* «Карточки: 18 из лекций, …»: the numbers name what they count (a newcomer read «18 из лекций» as lectures). */}
+        {fromWhere ? <p className="pg-sum-muted">{`Карточки: ${fromWhere}.`}</p> : null}
         {journal.status === 'error' ? (
           <ErrorLine text="Журнал ответов не загрузился." onRetry={onRetryJournal} />
         ) : share !== null ? (
@@ -1320,9 +1321,10 @@ function TodoLine({
           «{item.title}»: {count(item.none, ['вопрос', 'вопроса', 'вопросов'])} нет ни в одной лекции
         </>
       );
+      // The questions themselves, filtered: «Лист экзамена» named a place, not what to do there.
       action = (
-        <Link className="pg-act" to={`/exams/${item.examId}`}>
-          Лист экзамена
+        <Link className="pg-act" to={`/exams/${item.examId}?filter=cov:none`}>
+          Показать вопросы
         </Link>
       );
       break;

@@ -611,7 +611,7 @@ describe('Progress sources', () => {
 
     const todo = screen.getByRole('heading', { name: 'Что подтянуть' }).closest('section') as HTMLElement;
     const gap = within(todo).getByText('«Макроэкономика»: 1 вопрос нет ни в одной лекции').closest('li') as HTMLElement;
-    expect(within(gap).getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/e1');
+    expect(within(gap).getByRole('link', { name: 'Показать вопросы' })).toHaveAttribute('href', '/exams/e1?filter=cov:none');
   });
 
   it('counts «подтверждено» by the rule: two days and 20 hours between the first and the last passed answer', async () => {
@@ -716,7 +716,7 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     const summary = screen.getByRole('region', { name: 'Сводка' });
     expect(within(summary).getByText('Сейчас повторять нечего')).toBeInTheDocument();
     expect(within(summary).queryByRole('link', { name: 'Повторить' })).toBeNull();
-    expect(within(summary).getByText('7 из лекций, 2 из ответов на билеты.')).toBeInTheDocument();
+    expect(within(summary).getByText('Карточки: 7 из лекций, 2 из ответов на билеты.')).toBeInTheDocument();
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(0);
   });
 

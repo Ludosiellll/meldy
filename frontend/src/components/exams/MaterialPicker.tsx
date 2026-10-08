@@ -65,6 +65,8 @@ export const IMPORT_ACCEPT = `.pdf,.docx,.pptx,.txt,.md,.html,.htm,${PPTX_MIME}`
 const IMPORT_TERMS = ' — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт ';
 const IMPORT_PRICE = ` Google Gemini — ${AI_COSTS.scanPages} единиц лимита за каждые ${OCR_PAGES_PER_CHARGE} страниц.`;
 const TEXT_ONLY_NOTE = '«Только текст» — лекция без конспекта: для сверки с лекциями этого хватает.';
+/** A phone's one visible line under «Добавить лекции»: what it takes and what a scan costs (the user's limit). */
+export const IMPORT_PHONE_LINE = `Только текст, без лимита; сканы PDF — ${AI_COSTS.scanPages} единиц за каждые ${OCR_PAGES_PER_CHARGE} страниц.`;
 
 /** From this many lectures the list gets a search line and is split by subject. */
 export const PICKER_LONG_LIST = 8;
@@ -463,7 +465,8 @@ export default function MaterialPicker(props: MaterialPickerProps) {
           }}
         />
         {phone ? (
-          // A phone: the link, and «Подробнее» for the group's longer lines (the scan's price among them).
+          // A phone: the link with one line of what it takes and what a scan costs, and «Подробнее» for the group's
+          // longer lines.
           <>
             <p className="nx-import-line nx-import-top">
               <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
@@ -480,6 +483,7 @@ export default function MaterialPicker(props: MaterialPickerProps) {
                 {more ? 'Свернуть' : 'Подробнее'}
               </button>
             </p>
+            <p className="ex-meta nx-import-price">{glue(IMPORT_PHONE_LINE)}</p>
             <div id={moreId} className="nx-pick-more" hidden={!more}>
               {!props.loading && unmatched && usable.length > 0 && <p className="ex-meta">{glue(unmatched.advice)}</p>}
               <p className="ex-meta">

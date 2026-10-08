@@ -49,13 +49,14 @@ export function examPhoneDateLine(item: Pick<ExamListItem, 'kind' | 'exam_date'>
 }
 
 /**
- * A phone's line under the bar, in place of the status pills: «есть 15 · частично 3 · нет 2 · подтверждено 6»; before
- * the first mapping and while one runs, what the meta line says on a computer («20 вопросов · идёт сверка с лекциями»).
+ * A phone's line under the bar, in place of the status pills: «В лекциях: есть 15 · частично 3 · нет 2 · подтверждено 6»
+ * (the counts name what they count, in the bar's order); before the first mapping and while one runs, what the meta
+ * line says on a computer («20 вопросов · идёт сверка с лекциями»).
  */
 export function examPhoneCountsLine(item: ExamListItem, confirmed: number | null, mappingNow: boolean): string {
   const pills = examPills(item, mappingNow);
   if (pills.length === 0) return examCoverageLine(item, confirmed, mappingNow);
-  const line = pills.map((pill) => `${pill.word} ${pill.count}`).join(' · ');
+  const line = `В лекциях: ${pills.map((pill) => `${pill.word} ${pill.count}`).join(' · ')}`;
   return confirmed !== null && confirmed > 0 ? `${line} · подтверждено ${confirmed}` : line;
 }
 

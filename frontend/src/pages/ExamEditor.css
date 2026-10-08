@@ -64,6 +64,7 @@
   .sf-page .nx-import-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .sf-page .nx-import-top .sf-link { min-height: 44px; margin: 0; }
   .sf-page .nx-import-top .sf-link[data-muted] { font-size: 15px; }
+  .sf-page .nx-import-price { margin-top: 0; font-size: 15px; }
   .sf-page .nx-pick-more > p + p { margin-top: 8px; }
   .sf-page .nx-pick-more { margin-bottom: 4px; }
 }
