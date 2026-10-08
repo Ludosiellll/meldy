@@ -46,7 +46,7 @@ function renderAt(path: string, page: React.ReactNode = <p>Содержимое 
 const bar = () => document.querySelector('header.sf-bar') as HTMLElement;
 const deskNav = () => within(bar()).getByRole('navigation', { name: 'Разделы' });
 const tabBar = () => screen.queryByTestId('tab-bar');
-const openMenu = () => fireEvent.click(screen.getByRole('button', { name: /Алина: профиль, тема, выход/ }));
+const openMenu = () => fireEvent.click(screen.getByRole('button', { name: /Алина: профиль, справка, тема, выход/ }));
 /** The guide was seen, so a student's first run does not cover the shell in these tests (Guide.test.tsx covers it). */
 const profile = (extra: Record<string, unknown> = {}) => ({ is_pro: false, role: 'student', onboarding_status: { guide: true }, ...extra });
 
@@ -258,7 +258,7 @@ describe('the guide from the account menu (the only way to it on a phone, 10_Pro
   it('opens the guide from the account menu and gives the focus back to the account button', async () => {
     renderAt('/dashboard');
     await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
-    const button = screen.getByRole('button', { name: /Алина: профиль, тема, выход/ });
+    const button = screen.getByRole('button', { name: /Алина: профиль, справка, тема, выход/ });
     openMenu();
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('button', { name: 'Как пользоваться Meldy' }));
     expect(screen.queryByRole('dialog', { name: 'Меню аккаунта' })).toBeNull();
@@ -311,7 +311,7 @@ describe('the window scrolls (spec 4.1)', () => {
 describe('account menu', () => {
   it('holds the profile, the theme, projector mode, the way to PRO and «Выйти»; Escape closes it', async () => {
     renderAt('/dashboard');
-    const button = screen.getByRole('button', { name: /Алина: профиль, тема, выход/ });
+    const button = screen.getByRole('button', { name: /Алина: профиль, справка, тема, выход/ });
     expect(button).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(button);
     const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
@@ -381,6 +381,12 @@ describe('the daily limit meter in the top line', () => {
     expect(meter().querySelector('.sf-quota-tip')).toHaveTextContent(`Лимит ИИ: осталось 70 из 100, обновится в ${resetAt()}`);
     expect(meter()).toHaveAttribute('data-level', 'ok');
     expect(arc()).toBe('70.00 100');
+    // A phone draws the open gauge (quotaMeter.css): 92 % of the circle, the gap at the top, the arc in proportion.
+    const open = meter().querySelectorAll('.sf-quota-open');
+    expect(open).toHaveLength(2);
+    expect(open[0].getAttribute('stroke-dasharray')).toBe('92 100');
+    expect(open[1].getAttribute('stroke-dasharray')).toBe('64.40 100');
+    expect(open[1].getAttribute('transform')).toBe('rotate(-75.6 20 20)');
     expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 0);
   });
 

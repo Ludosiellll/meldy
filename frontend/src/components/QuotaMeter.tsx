@@ -125,6 +125,10 @@ interface MeterProps {
   spot?: boolean;
 }
 
+/** The phone's open gauge: 92 % of the circle, the gap of 8 % centred at the top. */
+const OPEN = 92;
+const OPEN_TURN = `rotate(${-90 + ((100 - OPEN) / 2) * 3.6} 20 20)`;
+
 /** The ring, the number and «Лимит ИИ». The ring and the words are drawn; the sentence is the name. */
 const QuotaMeter = forwardRef<HTMLButtonElement, MeterProps>(function QuotaMeter({ remaining, limit, isPro, loaded, onClick, spot }, ref) {
   const level = quotaLevel(remaining, limit, loaded);
@@ -147,15 +151,27 @@ const QuotaMeter = forwardRef<HTMLButtonElement, MeterProps>(function QuotaMeter
       onClick={onClick}
     >
       <svg className="sf-quota-ring" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-        <circle className="sf-quota-track" cx="20" cy="20" r="17.5" />
+        <circle className="sf-quota-track sf-quota-full" cx="20" cy="20" r="17.5" />
         <circle
-          className="sf-quota-arc"
+          className="sf-quota-arc sf-quota-full"
           cx="20"
           cy="20"
           r="17.5"
           pathLength={100}
           strokeDasharray={`${share.toFixed(2)} 100`}
           transform="rotate(-90 20 20)"
+        />
+        {/* A phone draws an open gauge, a gap at the top (quotaMeter.css): read as what is left, not as a second
+            avatar next to the account button. */}
+        <circle className="sf-quota-track sf-quota-open" cx="20" cy="20" r="17.5" pathLength={100} strokeDasharray={`${OPEN} 100`} transform={OPEN_TURN} />
+        <circle
+          className="sf-quota-arc sf-quota-open"
+          cx="20"
+          cy="20"
+          r="17.5"
+          pathLength={100}
+          strokeDasharray={`${((share * OPEN) / 100).toFixed(2)} 100`}
+          transform={OPEN_TURN}
         />
       </svg>
       <span className="sf-quota-t" aria-hidden="true">

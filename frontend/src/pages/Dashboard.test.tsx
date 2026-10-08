@@ -1312,7 +1312,7 @@ describe('«Сегодня» on a phone', () => {
     const meta = within(block).getByText(byText('15 октября · 40 вопросов'));
     // The tickets' layout is on the exam's sheet.
     expect(within(block).queryByText(/в билете два/)).toBeNull();
-    const today = await within(block).findByText(byText('Можно стереть строки у 2 вопросов.'));
+    const today = await within(block).findByText(byText('Можно стереть строки шпаргалки у 2 вопросов.'));
     const draw = within(block).getByRole('link', { name: named('Тянуть билет из них') });
     expect(draw).toHaveAttribute('href', '/exams/e-1/draw?mode=awaiting');
     expect(draw).toHaveClass('sf-primary');
@@ -1419,13 +1419,13 @@ describe('«Сегодня» on a phone', () => {
     expect(within(section).getByRole('table', { name: named('Повторения карточек по дням') })).toBeInTheDocument();
   });
 
-  it('lists the lectures as rows with a short meta, «+ Лекция» into the analysis, and «Все 5» while some are not listed', async () => {
+  it('lists the lectures as rows with a short meta, «Разобрать лекцию» into the analysis, and «Все 5» while some are not listed', async () => {
     exam();
     renderDashboard();
     const section = (await screen.findByRole('heading', { name: 'Лекции' })).closest('section')!;
     const add = within(section).getByRole('link', { name: 'Разобрать лекцию' });
     expect(add).toHaveAttribute('href', '/analyze');
-    expect(add).toHaveTextContent('+ Лекция');
+    expect(add).toHaveTextContent('Разобрать лекцию');
     expect(within(section).getByRole('link', { name: named('Все 5') })).toHaveAttribute('href', '/library');
     const rows = within(section).getAllByRole('listitem');
     expect(rows).toHaveLength(4);
@@ -1484,9 +1484,9 @@ describe('«Сегодня» on a phone', () => {
     expect(examMetaShort({ examDate: '2026-10-15', total: 40 })).toBe('15 октября · 40 вопросов');
     expect(examMetaShort({ examDate: null, total: 21 })).toBe('21 вопрос');
     expect(examMetaShort({ examDate: '2026-10-15', total: 0 })).toBe('15 октября');
-    expect(erasableShort(1)).toBe('Можно стереть строки у 1 вопроса.');
-    expect(erasableShort(4)).toBe('Можно стереть строки у 4 вопросов.');
-    expect(erasableShort(21)).toBe('Можно стереть строки у 21 вопроса.');
+    expect(plain(erasableShort(1))).toBe('Можно стереть строки шпаргалки у 1 вопроса.');
+    expect(plain(erasableShort(4))).toBe('Можно стереть строки шпаргалки у 4 вопросов.');
+    expect(plain(erasableShort(21))).toBe('Можно стереть строки шпаргалки у 21 вопроса.');
     expect(dueLine(26)).toBe('26 карточек · около 13 минут');
     expect(dueLine(1)).toBe('1 карточка · около минуты');
     expect(dueLine(41)).toBe('41 карточка · около 21 минуты');

@@ -122,7 +122,7 @@ export default function GuidePanel() {
   const opener = useRef<Element | null>(null);
   const open = Boolean(guide?.open);
   const mandatory = Boolean(guide?.mandatory);
-  // A phone's top line has no «+ Лекция»: its chapter says where the link is there.
+  // A phone's top line has no «+ Лекция»: its chapter says where «Разобрать лекцию» is there.
   const phone = usePhone();
   // The clip is a file of its own (clipPart.ts): until it arrives the card keeps its empty frame.
   const GuideClip = useLazyPart(guideClipPart, open, {

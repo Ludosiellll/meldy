@@ -962,9 +962,12 @@
   .td-bar-b { border-radius: 5px 5px 2px 2px; }
   .td-axis { margin-top: 6px; padding-top: 6px; }
 
-  /* The lectures: rows in one card, «+ Лекция» in the head. */
+  /* The lectures: rows in one card, «Разобрать лекцию» in the head. Section headings 24 px, as on every phone screen;
+     a link in a head is ink (blue text is Meldy's note or a figure, not a link). */
   .td-lectures[data-phone] .td-sec-head { align-items: center; }
   .td-sec-acts { display: inline-flex; align-items: center; gap: 18px; }
+  .td .td-sec-h { font-size: 24px; }
+  .td .td-more { color: var(--sf-ink); }
   .td-lectures[data-phone] .td-more { font-size: 16px; }
   .td-lectures[data-phone] .td-lecs {
     display: block;

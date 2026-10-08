@@ -25,6 +25,8 @@
 .sf-shell .sf-quota:hover { background: color-mix(in srgb, var(--sf-ink) 5%, var(--sf-surface)); }
 
 .sf-quota-ring { flex: none; width: 22px; height: 22px; overflow: visible; }
+/* The open gauge is the phone's (QuotaMeter.tsx); wider lines keep the full ring. */
+.sf-quota-open { display: none; }
 .sf-quota-track,
 .sf-quota-arc { fill: none; stroke-width: 5.5; }
 .sf-quota-track { stroke: var(--sf-line-strong); }
@@ -109,18 +111,30 @@
   .sf-quota[data-digits='4'] .sf-quota-n { font-size: 11px; letter-spacing: -.04em; }
 }
 /* A phone has no hover; the meter's name says the sentence, a tap explains the limit. The limit stays in sight
-   (owner, 2026-10-05) but lighter (2026-10-08, «на телефоне очень перегружен интерфейс»): a thin grey track and a
-   thin blue arc instead of the ink ring, the number in the regular weight, the target 44 px. Yellow when little is
-   left and the dashed ring when it could not be read stay as they are. */
+   (owner, 2026-10-05) but lighter (2026-10-08, «на телефоне очень перегружен интерфейс»): an open gauge — a thin grey
+   track and a thin blue arc with a gap at the top, so it reads as what is left and not as a second avatar beside the
+   account button — the number in the regular weight, the target 44 px. Yellow when little is left and the dashed ring
+   when it could not be read stay as they are. */
 @media (max-width: 639px) {
   .sf-quota-tip { display: none; }
   .sf-shell .sf-quota { width: 44px; height: 44px; }
-  .sf-quota-ring { inset: 2px; width: 40px; height: 40px; }
+  .sf-quota-ring { inset: 3px; width: 38px; height: 38px; }
+  .sf-quota-full { display: none; }
+  .sf-quota-open { display: inline; }
   .sf-quota-track,
-  .sf-quota-arc { stroke-width: 1.75; }
+  .sf-quota-arc { stroke-width: 2; }
   .sf-quota-track { stroke: var(--sf-line-strong); }
   .sf-quota-arc { stroke: var(--sf-accent-fg); }
   .sf-quota-n { font-weight: 400; }
+}
+/* On a section's own page (the wordmark at the left, not «‹ Родитель») the line has room for the word: «Лимит ИИ»
+   in muted text before the gauge, inside the same button. A newcomer read the bare «995» as points. */
+@media (min-width: 360px) and (max-width: 639px) {
+  .sf-shell:not([data-back]) .sf-quota { width: auto; gap: 6px; padding: 0 3px 0 4px; }
+  .sf-shell:not([data-back]) .sf-quota-t { display: inline; order: -1; font-size: 14px; }
+  .sf-shell:not([data-back]) .sf-quota-ring { left: auto; right: 3px; }
+  .sf-shell:not([data-back]) .sf-quota-n { width: 38px; text-align: center; }
+  .sf-shell:not([data-back]) .sf-quota:hover { background: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

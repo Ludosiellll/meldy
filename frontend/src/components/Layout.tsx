@@ -492,7 +492,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
               ref={menuButtonRef}
               type="button"
               className="sf-me-hit"
-              aria-label={name ? `${name}: профиль, тема, выход` : 'Меню аккаунта'}
+              aria-label={name ? `${name}: профиль, справка, тема, выход` : 'Меню аккаунта'}
               aria-expanded={menuOpen}
               aria-controls={menuOpen ? menuId : undefined}
               onClick={() => setMenuOpen((value) => !value)}

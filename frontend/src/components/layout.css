@@ -173,7 +173,10 @@
   .sf-shell .sf-bar .sf-bar-right .sf-nav-cta,
   .sf-shell .sf-bar .sf-bar-right .sf-help { display: none; }
   .sf-shell .sf-bar-right .sf-help + .sf-me-hit { margin-left: 0; }
-  .sf-shell .sf-bar-right { gap: 6px; }
+  /* The gauge and the avatar apart: two rounds side by side read as two avatars. */
+  .sf-shell .sf-bar-right { gap: 12px; }
+  /* The wordmark centred on the line with the gauge and the avatar (its 44 px box had the letters at the top). */
+  .sf-shell .sf-bar .sf-wordmark { min-height: 0; padding-block: 10px; }
 }
 @media (max-width: 374px) {
   .sf-shell .sf-tabbar { padding-left: 2px; padding-right: 2px; gap: 0; }

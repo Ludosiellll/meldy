@@ -122,9 +122,9 @@ describe('the guide chapters', () => {
     expect(lectures.text).toContain('во вкладке «Подкаст»');
     expect(GUIDE_CHAPTERS.map((chapter) => chapter.text).join(' ')).not.toMatch(/[Рр]азговор/);
     expect(limit.phone).toBe('На телефоне — кружок с числом.');
-    // A phone's top line has no «+» (10_Project/Phone_Declutter_2026-10-08): its wording says where «+ Лекция» is.
+    // A phone's top line has no «+» (10_Project/Phone_Declutter_2026-10-08): its wording says where «Разобрать лекцию» is.
     expect(analyze.phone).toBe('На телефоне — кнопка «+» вверху экрана.');
-    expect(analyze.narrow).toBe('На телефоне — «+ Лекция» в «Лекциях» и на «Сегодня».');
+    expect(analyze.narrow).toBe('На телефоне — «Разобрать лекцию» в начале «Лекций».');
     expect(limit.narrow).toBeUndefined();
   });
 
@@ -323,13 +323,13 @@ describe('the guide on a phone (max-width 639px; its top line holds the wordmark
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('lights the «Лекции» tab for «Разобрать лекцию» and says where «+ Лекция» is', async () => {
+  it('lights the «Лекции» tab for «Разобрать лекцию» and says where it is on a phone', async () => {
     renderAt('/dashboard');
     await firstRunOpen();
     next();
     expect(where()).toBe('/analyze');
     expect(within(panel()!).getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
-    expect(panel()!.querySelector('.gd-phone')).toHaveTextContent('На телефоне — «+ Лекция» в «Лекциях» и на «Сегодня».');
+    expect(panel()!.querySelector('.gd-phone')).toHaveTextContent('На телефоне — «Разобрать лекцию» в начале «Лекций».');
     expect(panel()!.textContent).not.toMatch(/кнопка «\+»/);
     // The «+» of the line is hidden on a phone (layout.css): the cut-out falls on the tab, the first lit item shown.
     const tab = document.querySelector('.sf-tablink[href="/library"]');

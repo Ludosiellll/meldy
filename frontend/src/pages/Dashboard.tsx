@@ -515,12 +515,12 @@ export function examMetaShort(exam: Pick<TodayExam, 'examDate'> & { total: numbe
 }
 
 /**
- * «Можно стереть строки у 4 вопросов.»: the exam card's next step on a phone, one line over «Тянуть билет из них»
- * (291 px of the 296 a 360 px phone gives it; the computer says it in full: erasableLine). «Строки» are the cheat
- * sheet's: its count closes the card.
+ * «Можно стереть строки шпаргалки у 4 вопросов.»: the exam card's next step on a phone, over «Тянуть билет из них»
+ * (the computer says it in full: erasableLine). «шпаргалки» stays even if it takes two lines at 360 px: without it a
+ * newcomer read «стереть строки у 4 вопросов» as deleting questions (audit 2026-10-08, critics of release 34).
  */
 export function erasableShort(count: number): string {
-  return `Можно стереть строки у ${count} ${pluralRu(count, ['вопроса', 'вопросов', 'вопросов'])}.`;
+  return glue(`Можно стереть строки шпаргалки у ${count} ${pluralRu(count, ['вопроса', 'вопросов', 'вопросов'])}.`);
 }
 
 export interface CoverageTally {
@@ -902,23 +902,27 @@ function DayBars({ days, tallest = 100 }: { days: Array<{ key: string; value: nu
         <span>{shortDay(days[0].key)}</span>
         <span>сегодня</span>
       </div>
-      <table className="sr-only">
-        <caption>Повторения карточек по дням</caption>
-        <thead>
-          <tr>
-            <th scope="col">День</th>
-            <th scope="col">Карточек</th>
-          </tr>
-        </thead>
-        <tbody>
-          {days.map((day, index) => (
-            <tr key={day.key}>
-              <td>{index === last ? 'сегодня' : shortDay(day.key)}</td>
-              <td>{day.value}</td>
+      {/* The box that hides it is a div: under .sr-only a table keeps the height of its rows and adds blank scroll
+          under the page (found on «Прогресс»). */}
+      <div className="sr-only">
+        <table>
+          <caption>Повторения карточек по дням</caption>
+          <thead>
+            <tr>
+              <th scope="col">День</th>
+              <th scope="col">Карточек</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {days.map((day, index) => (
+              <tr key={day.key}>
+                <td>{index === last ? 'сегодня' : shortDay(day.key)}</td>
+                <td>{day.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -1875,8 +1879,8 @@ function Lectures({
 
 /**
  * The lectures on a phone: rows in one card — the title and «8 карточек · тест · 2 окт.» — without the pictures; in the
- * head «+ Лекция» (the analysis, /analyze: the top line has no «+ Лекция» on a phone) and «Все 9» only when the page
- * does not list them all (the «Лекции» tab is one tap away).
+ * head «Разобрать лекцию» (/analyze, the same words as at the top of «Лекции»: the top line has no «+ Лекция» on a phone)
+ * and «Все 9» only when the page does not list them all (the «Лекции» tab is one tap away).
  */
 function PhoneLectures({
   data,
@@ -1897,8 +1901,8 @@ function PhoneLectures({
           Лекции
         </h2>
         <span className="td-sec-acts">
-          <Link className="td-more td-new" to="/analyze" aria-label="Разобрать лекцию">
-            + Лекция
+          <Link className="td-more td-new" to="/analyze">
+            Разобрать лекцию
           </Link>
           {count > data.recent.length ? (
             <Link className="td-more" to="/library">

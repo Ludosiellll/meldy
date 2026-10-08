@@ -70,6 +70,17 @@ describe('MoreMenu', () => {
     expect(screen.getByText('Редактор')).toBeInTheDocument();
   });
 
+  it('gives the focus back to «Ещё» when an action runs, and Tab closes the menu', () => {
+    renderMenu();
+    const button = screen.getByRole('button', { name: 'Ещё: лист экзамена' });
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Пригласить группу' }));
+    expect(button).toHaveFocus();
+    fireEvent.click(button);
+    fireEvent.keyDown(screen.getAllByRole('menuitem')[0], { key: 'Tab' });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
   it('closes on a click outside', () => {
     renderMenu();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));

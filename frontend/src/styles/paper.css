@@ -1254,6 +1254,15 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
 /* ---------------------------------------------------------------- the quiet link */
 .sf-link { text-decoration-color: color-mix(in srgb, currentColor 28%, transparent); }
 .sf-link:hover { text-decoration-color: var(--m-yellow); }
+/* A phone (10_Project/Phone_Declutter_2026-10-08): most secondary actions are words now, so the underline is what tells
+   a link from text — stronger, still quiet (about 3.5:1 in ink, 2.9:1 muted). Menu rows are 44 px targets. */
+@media (max-width: 639px) {
+  .sf-link { text-decoration-color: color-mix(in srgb, currentColor 50%, transparent); }
+  .sf-link[data-muted] { text-decoration-color: color-mix(in srgb, currentColor 60%, transparent); }
+  .sf-link:disabled,
+  .sf-link[aria-disabled='true'] { text-decoration-color: transparent; }
+  .sf-menu button { min-height: 44px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .sf-toc-row,

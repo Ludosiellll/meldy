@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { MoreHorizontal } from 'lucide-react';
 import './moreMenu.css';
@@ -6,7 +6,8 @@ import './moreMenu.css';
 /**
  * «Ещё»: the secondary actions of a screen in one menu, so the screen keeps one main action in sight
  * (10_Project/Phone_Declutter_2026-10-08). The same menu as the lecture's «⋯» (`.sf-menu`): arrows move between
- * items, Escape closes it and gives the focus back to the button, a click outside closes it.
+ * items, Escape closes it and gives the focus back to the button, Tab and a click outside close it; an action gives
+ * the focus back to the button before it runs.
  *
  * `variant="text"` is a quiet «Ещё» link in a row of links; `variant="round"` is the 44 px «⋯» circle.
  */
@@ -61,6 +62,11 @@ export default function MoreMenu({ items, label = 'Ещё', text = 'Ещё', var
   }, [open]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Tab leaves the menu: it closes behind the focus instead of staying open over the page.
+    if (event.key === 'Tab' && open) {
+      setOpen(false);
+      return;
+    }
     if (event.key === 'Escape' && open) {
       event.preventDefault();
       event.stopPropagation();
@@ -99,7 +105,7 @@ export default function MoreMenu({ items, label = 'Ещё', text = 'Ещё', var
       {open ? (
         <div id={menuId} className="sf-menu mm-menu" role="menu" aria-label={label} data-up={up ? '' : undefined} data-start={alignStart ? '' : undefined}>
           {items.map((item) => (
-            <MenuRow key={item.key} item={item} onPicked={close} />
+            <MenuRow key={item.key} item={item} onPicked={close} buttonRef={buttonRef} />
           ))}
         </div>
       ) : null}
@@ -107,7 +113,7 @@ export default function MoreMenu({ items, label = 'Ещё', text = 'Ещё', var
   );
 }
 
-function MenuRow({ item, onPicked }: { item: MoreMenuItem; onPicked: () => void }) {
+function MenuRow({ item, onPicked, buttonRef }: { item: MoreMenuItem; onPicked: () => void; buttonRef: RefObject<HTMLButtonElement | null> }) {
   const sep = item.separatorBefore || item.danger ? <div className="sf-menu-sep" role="separator" /> : null;
   if (item.to) {
     return (
@@ -129,6 +135,8 @@ function MenuRow({ item, onPicked }: { item: MoreMenuItem; onPicked: () => void 
         data-danger={item.danger ? '' : undefined}
         onClick={() => {
           onPicked();
+          // The focus goes back to «Ещё» (the item is gone with the menu); a dialog the action opens takes it from there.
+          buttonRef.current?.focus();
           item.onSelect?.();
         }}
       >
