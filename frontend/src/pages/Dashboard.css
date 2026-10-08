@@ -885,6 +885,122 @@
   .td-strip-row { grid-template-columns: 20px repeat(var(--td-cols, 10), minmax(0, 1fr)) 20px; column-gap: 3px; }
 }
 
+/* ---------------------------------------------------------------- a phone: the page cut to its core */
+/* Dashboard.tsx renders the phone's cards (usePhone, the same 639 px): one line about today's step over the one pill,
+   «Лист экзамена» under it as a quiet link, the share in one line and two quiet line-links under a hairline instead of
+   the tinted box; today's cards as a heading, one line and their action; the lectures as rows in one card.
+   10_Project/Phone_Declutter_2026-10-08. */
+@media (max-width: 639px) {
+  .td-exam[data-phone] > .td-meta { margin-top: 6px; }
+  .td-exam[data-phone] .td-next { margin-top: 18px; }
+  .td-exam[data-phone] .td-erase-t { max-width: none; font-size: 16px; line-height: 1.4; font-weight: 500; }
+  .td-exam[data-phone] .td-next .td-erase-t + .td-actions { margin-top: 14px; }
+  /* The pill, and under it the quiet link (never beside it, even when both would fit one row). */
+  .td-exam[data-phone] .td-actions,
+  .td-lead .td-actions { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .td-exam[data-phone] .td-actions { margin-top: 0; }
+  .td-exam[data-phone] .td-body + .td-next { margin-top: 16px; }
+
+  /* The share, the questions without material and the cheat sheet's count: lines under a hairline. */
+  .td-exam[data-phone] .td-ready {
+    margin-top: 18px;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--sf-line);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .td-exam[data-phone] .td-share { flex-wrap: nowrap; align-items: center; gap: 14px; padding: 4px 0 6px; }
+  .td-exam[data-phone] .td-share-fig { font-size: 40px; }
+  .td-exam[data-phone] .td-share-cap { flex: 1 1 auto; max-width: none; font-size: 15px; line-height: 1.35; }
+  .td-exam[data-phone] .td-gap,
+  .td-exam[data-phone] .td-sheet,
+  .td-exam[data-phone] .td-ready > .td-sheet:first-child { margin: 0; padding: 0; border-top: 0; }
+  /* 15 px, so «Шпаргалка: 63 строки осталось из 63 →» is one line from 360 px; 44 px tall to tap. */
+  .td-exam[data-phone] .td-gap-link,
+  .td-exam[data-phone] .td-sheet-link {
+    display: inline-block;
+    min-height: 0;
+    padding: 12px 0;
+    border-radius: 0;
+    background: none;
+    color: var(--sf-ink);
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 500;
+  }
+  .td-exam[data-phone] .td-gap-link:hover,
+  .td-exam[data-phone] .td-sheet-link:hover { box-shadow: none; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+  .td-exam[data-phone] .td-gap-link .td-arrow,
+  .td-exam[data-phone] .td-sheet-link .td-arrow { display: inline-block; width: 16px; height: 16px; margin-left: 6px; vertical-align: -3px; }
+  .sf-page.td .td-exam[data-phone] .td-gap-link:focus-visible,
+  .sf-page.td .td-exam[data-phone] .td-sheet-link:focus-visible { border-radius: 6px; }
+  /* The last line's own 12 px of tap room stand for part of the card's bottom padding. */
+  .td-exam[data-phone] .td-ready:last-child { margin-bottom: -12px; }
+  .td-exam[data-phone] > .qd { margin-top: 6px; }
+
+  /* Today's cards: «Повторение», «26 карточек · около 13 минут» and the action under it (beside an exam, and the card
+     that leads without one). */
+  .td-due[data-phone] { padding: 22px 20px 24px; border-radius: 34px; }
+  .td-due[data-phone] .td-h3 { font-size: 22px; }
+  .td-due[data-phone] .td-meta { margin-top: 6px; font-size: 16px; }
+  .td-due[data-phone] .td-actions { gap: 0; margin-top: 0; }
+  .td-due[data-phone] .sf-primary { margin: 16px 0 0; }
+  .td-due[data-phone] .td-alt { margin-top: 6px; }
+  /* A card that ends in a quiet link: the link's own tap room stands for part of the bottom padding. */
+  .td-due[data-phone] > .td-alt:last-child,
+  .td-due[data-phone] .td-actions:last-child > .td-alt:last-child,
+  .td-exam[data-phone] > .td-next:last-child .td-alt:last-child { margin-bottom: -10px; }
+  /* Nothing due: one line. */
+  .td-due-none[data-phone] { margin: 0; padding: 18px 20px; border-radius: 28px; font-size: 16px; line-height: 1.4; color: var(--sf-muted); }
+
+  /* Two weeks of cards, when there were reviews: low columns without their values (the table keeps them). */
+  .td-activity { padding: 22px 20px 20px; border-radius: 34px; }
+  .td-activity .td-h3 { font-size: 22px; }
+  .td-bars { height: 48px; margin-top: 16px; gap: 3px; }
+  .td-bar-v { display: none; }
+  .td-bar-b { border-radius: 5px 5px 2px 2px; }
+  .td-axis { margin-top: 6px; padding-top: 6px; }
+
+  /* The lectures: rows in one card, «+ Лекция» in the head. */
+  .td-lectures[data-phone] .td-sec-head { align-items: center; }
+  .td-sec-acts { display: inline-flex; align-items: center; gap: 18px; }
+  .td-lectures[data-phone] .td-more { font-size: 16px; }
+  .td-lectures[data-phone] .td-lecs {
+    display: block;
+    margin-top: 8px;
+    padding: 0 20px;
+    border-radius: 28px;
+    background: var(--sf-surface);
+    box-shadow: 0 0 0 1px var(--sf-line);
+  }
+  .td-lectures[data-phone] .td-lec { display: block; border-radius: 0; background: none; box-shadow: none; }
+  .td-lectures[data-phone] .td-lec + .td-lec { border-top: 1px solid var(--sf-line); }
+  .td-lectures[data-phone] .td-lec-link { display: block; padding: 14px 0 15px; border-radius: 0; }
+  .td-lectures[data-phone] .td-lec-title { display: block; margin: 0; font-size: 17px; line-height: 1.3; }
+  .td-lectures[data-phone] .td-lec-meta { display: block; margin: 3px 0 0; font-size: 14px; }
+  .td-lectures[data-phone] .td-lec-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 12px;
+    margin: -8px 0 6px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--sf-muted);
+  }
+  .td-lectures[data-phone] .td-lec-note .sf-link { font-size: 15px; }
+  .td-lecs-none { margin-top: 8px; }
+  .sf-page.td .td-lectures[data-phone] .td-lec-link:focus-visible { border-radius: 12px; }
+
+  /* «Первые шаги»: the next step with its words and action; a done or later step is its title. */
+  .td-fs-step:not([data-state='next']) { align-items: center; padding-top: 12px; padding-bottom: 12px; }
+  .td-fs-step:not([data-state='next']) .td-fs-p,
+  .td-fs-step:not([data-state='next']) .td-fs-acts { display: none; }
+  .td-fs-step:not([data-state='next']) .td-fs-step-h { font-size: 17px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .td *,
   .td *::before,
