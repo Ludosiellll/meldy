@@ -77,6 +77,134 @@ def repair_json(json_str: str) -> str:
             
     return "{}"
 
+# LaTeX inside JSON strings ------------------------------------------------
+#
+# A model that puts a formula into a JSON string often keeps LaTeX's single
+# backslash: "$\text{COUNT}$", "$\frac{a}{b}$". json.loads reads \t, \f, \b, \r
+# and \n as a TAB, a form feed, a backspace, a carriage return and a newline
+# («\text» turns into TAB + «ext», KaTeX then shows «extCOUNT»), and refuses the
+# whole answer at «\alpha» or «\sum» (not JSON escapes at all). Before json.loads,
+# repair_latex_escapes() doubles such a backslash, so the text keeps the command.
+#
+# Only backslashes inside JSON strings are looked at, and real escapes stay:
+# \" \\ \/ and \uXXXX always; \n and \t unless the letters after the backslash
+# spell exactly one LaTeX command («\nnot» is a newline and «not», «\neq» is ≠);
+# \r before a non-letter («\r\n»). \f and \b followed by a letter are always
+# LaTeX: a form feed or a backspace never belongs in a model's text. The
+# two-letter \ne and \ni count only inside $…$ (outside a formula «\ne» is as
+# likely a new line that starts with «e»).
+
+_LATEX_EDGE_RE = re.compile(r'["\\$]')
+_HEX4_RE = re.compile(r"[0-9a-fA-F]{4}")
+_ASCII_LETTERS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+# Commands that begin with \t (besides every \text…).
+_LATEX_T_NAMES = frozenset({
+    "tau", "theta", "times", "tilde", "to", "tan", "tanh", "tg", "th", "tag", "tfrac", "tbinom", "tiny",
+    "therefore", "thinspace", "thickspace", "thicksim", "thickapprox", "triangle", "triangleleft",
+    "triangleright", "trianglelefteq", "trianglerighteq", "triangleq", "triangledown",
+    "twoheadrightarrow", "twoheadleftarrow",
+})
+# Commands that begin with \n.
+_LATEX_N_NAMES = frozenset({
+    "nu", "neq", "neg", "not", "notin", "nabla", "natural", "nearrow", "nwarrow", "newline", "nolimits",
+    "nonumber", "notag", "nexists", "nleq", "ngeq", "nleqslant", "ngeqslant", "nsubseteq", "nsupseteq",
+    "nparallel", "nshortparallel", "nrightarrow", "nleftarrow", "nleftrightarrow", "nRightarrow",
+    "nLeftarrow", "nLeftrightarrow", "nvdash", "nvDash", "nVdash",
+})
+_LATEX_N_INLINE = frozenset({"ne", "ni"})
+
+
+def _letters_at(text: str, start: int) -> str:
+    end = start
+    while end < len(text) and text[end] in _ASCII_LETTERS:
+        end += 1
+    return text[start:end]
+
+
+def _is_latex_command(name: str, formula: int, previous: str) -> bool:
+    """Whether a backslash before `name` (its letters; the first one is a JSON escape) starts LaTeX.
+
+    formula: 0 outside a formula of this string, 1 inside $…$, 2 inside $$…$$.
+    """
+    letter = name[:1]
+    if letter in ("b", "f", "r"):
+        return len(name) >= 2
+    if letter == "t":
+        return name in _LATEX_T_NAMES or name.startswith("text")
+    if letter == "n":
+        if name in _LATEX_N_NAMES:
+            return True
+        return formula == 1 and name in _LATEX_N_INLINE and previous != "$"
+    return False
+
+
+def repair_latex_escapes(text: str) -> str:
+    """The model's JSON text with the backslash of every LaTeX command kept for json.loads.
+
+    Linear; a text without a backslash comes back as it is.
+    """
+    if not isinstance(text, str) or "\\" not in text:
+        return text
+    parts: list[str] = []
+    last = 0
+    in_string = False
+    formula = 0
+    position = 0
+    while True:
+        edge = _LATEX_EDGE_RE.search(text, position)
+        if edge is None:
+            break
+        at = edge.start()
+        char = text[at]
+        if char == '"':
+            in_string = not in_string
+            formula = 0
+            position = at + 1
+            continue
+        if not in_string:
+            position = at + 1
+            continue
+        if char == "$":
+            if text.startswith("$$", at):
+                formula = 0 if formula == 2 else 2 if formula == 0 else formula
+                position = at + 2
+            else:
+                formula = 0 if formula == 1 else 1 if formula == 0 else formula
+                position = at + 1
+            continue
+        following = text[at + 1:at + 2]
+        if not following:
+            break
+        if following in ('"', "/"):
+            position = at + 2
+            continue
+        if following == "\\":
+            # An escaped backslash; «\\$» is LaTeX's dollar sign, not the edge of a formula.
+            position = at + 3 if text.startswith("$", at + 2) else at + 2
+            continue
+        if following == "u" and _HEX4_RE.fullmatch(text, at + 2, at + 6):
+            position = at + 6
+            continue
+        if following in "bfnrt" and not _is_latex_command(_letters_at(text, at + 1), formula, text[at - 1:at]):
+            position = at + 2
+            continue
+        # LaTeX, or a backslash JSON does not know («\alpha», «\(», «\%»): kept as a backslash.
+        parts.append(text[last:at])
+        parts.append("\\\\")
+        last = at + 1
+        position = at + 2
+    if not parts:
+        return text
+    parts.append(text[last:])
+    return "".join(parts)
+
+
+def latex_safe_candidates(text: str) -> list[str]:
+    """What json.loads should try, in order: the text with LaTeX backslashes kept, then the text as it is."""
+    repaired = repair_latex_escapes(text)
+    return [repaired, text] if repaired != text else [text]
+
+
 def parse_llm_json(raw: str) -> Any:
     """Utility to extract and parse JSON from LLM string output, with auto-repair support."""
     if not isinstance(raw, str):
@@ -98,15 +226,20 @@ def parse_llm_json(raw: str) -> Any:
             json_str = json_str[start:]
             
     json_str = json_str.strip()
-    
-    try:
-        return json.loads(json_str)
-    except Exception as primary_error:
+
+    # LaTeX written with one backslash keeps it (repair_latex_escapes); the text as it is comes second.
+    primary_error: Exception | None = None
+    for candidate in latex_safe_candidates(json_str):
         try:
-            repaired = repair_json(json_str)
-            return json.loads(repaired)
+            return json.loads(candidate)
+        except Exception as error:
+            primary_error = primary_error or error
+    for candidate in latex_safe_candidates(json_str):
+        try:
+            return json.loads(repair_json(candidate))
         except Exception:
-            raise primary_error
+            continue
+    raise primary_error
 
 
 # Source grounding helpers -------------------------------------------------

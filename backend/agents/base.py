@@ -20,7 +20,7 @@ from google import genai
 from google.genai import types
 from groq import AsyncGroq
 
-from utils import parse_llm_json
+from utils import latex_safe_candidates, parse_llm_json
 
 
 # ---------------------------------------------------------------------------
@@ -28,6 +28,8 @@ from utils import parse_llm_json
 # fence, which destroys a valid JSON answer whose string values hold a Markdown
 # code block (a programming lecture's summary, a card or a verdict with code).
 # Every caller of a JSON answer goes through parse_model_json instead.
+# LaTeX the model wrote with one backslash keeps it («$\text{COUNT}$» would be
+# TAB + «ext{COUNT}» after json.loads): utils.repair_latex_escapes.
 # ---------------------------------------------------------------------------
 
 _FENCE_TAG_RE = re.compile(r"[A-Za-z0-9_+.-]{0,20}")
@@ -58,9 +60,11 @@ def parse_model_json(raw: Any) -> Any:
     """The JSON value of a model answer (ValueError for a non-string).
 
     The whole answer is read as JSON first, then the inside of one fence around the
-    whole answer, so code blocks inside string values survive. utils.parse_llm_json is
-    only the fallback, for answers with prose around the JSON; as before, it repairs
-    what it can and gives {} for text without JSON, which callers treat as unusable.
+    whole answer, so code blocks inside string values survive. Each is read with the
+    backslashes of LaTeX commands kept first (utils.repair_latex_escapes), then as it
+    is. utils.parse_llm_json is only the fallback, for answers with prose around the
+    JSON; as before, it repairs what it can and gives {} for text without JSON, which
+    callers treat as unusable.
     """
     if not isinstance(raw, str):
         raise ValueError("Ответ модели должен быть строкой")
@@ -70,12 +74,13 @@ def parse_model_json(raw: Any) -> Any:
     if fenced is not None:
         candidates.append(fenced[1])
     for candidate in candidates:
-        try:
-            parsed = json.loads(candidate)
-        except (ValueError, RecursionError):
-            continue
-        if isinstance(parsed, (dict, list)):
-            return parsed
+        for attempt in latex_safe_candidates(candidate):
+            try:
+                parsed = json.loads(attempt)
+            except (ValueError, RecursionError):
+                continue
+            if isinstance(parsed, (dict, list)):
+                return parsed
     return parse_llm_json(raw)
 
 
