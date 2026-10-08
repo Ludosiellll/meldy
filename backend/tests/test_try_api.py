@@ -447,6 +447,151 @@ def test_the_same_answer_again_is_the_same_protocol_without_a_second_call(client
     assert len(model.calls) == 2
 
 
+# ── Ответ на вопрос экзаменатора (PUB-2) ────────────────────────────────────────
+
+Q5_FOLLOWUP_REPLY = "Если модуль эластичности больше единицы, спрос эластичный, если меньше единицы — неэластичный."
+
+
+def followup(client, point_id="p3", transcript=Q5_FOLLOWUP_REPLY, question_id="q5", headers=None):
+    return client.post("/api/try/evaluate", json={"question_id": question_id, "point_id": point_id, "transcript": transcript},
+                       headers=headers or VISITOR)
+
+
+def test_a_reply_to_the_examiner_is_judged_by_the_point_as_a_real_ticket_judges_it(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    model.answer({"statuses": {"p3": "covered"}})
+    response = followup(client)
+    assert response.status_code == 200
+    assert response.json() == {"mode": "ai", "status": "covered"}
+    (call,) = model.calls
+    q5 = example()["q5"]
+    # The prompt of /api/oral/check with only: the server's own question and point, the reply in quotes.
+    assert call["system"] == oral.build_check_prompt("p3")
+    assert call["text"] == oral.build_check_input(q5.text, list(q5.points), Q5_FOLLOWUP_REPLY, only="p3")
+    assert f"ПУНКТ ЭТАЛОНА: p3: {q5.points[2]['title']}" in call["text"]
+    assert "ВОПРОС ЭКЗАМЕНАТОРА" not in call["text"]
+    # A quick check: no thinking, 200 tokens, the check's 4,5 s, no cache of BaseAgent, the example's key only.
+    assert call["temperature"] == 0 and call["max_tokens"] == 200 and call["thinking"] == "off" and call["json_mode"] is True
+    assert call["timeout"] == try_api.FOLLOWUP_TIMEOUT_SECONDS == 4.5 and call["use_cache"] is False
+    assert call["keys"] == ["try-key-1"] and call["groq"] == ""
+    # Inside the same daily cap as the protocol.
+    assert try_api.health_view()["calls"] == 1
+
+
+@pytest.mark.parametrize("raw,status", [
+    ({"statuses": {"p3": "partial"}}, "partial"),
+    ({"statuses": {"p3": "wrong", "p1": "covered"}}, "wrong"),
+    ({"statuses": {"p3": "nonsense"}}, "missing"),
+])
+def test_the_reply_gets_the_models_status_for_that_point_only(client, model, monkeypatch, raw, status):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    model.answer(raw)
+    assert followup(client).json() == {"mode": "ai", "status": status}
+
+
+@pytest.mark.parametrize("transcript", ["не знаю", "Ну, не знаю.", "…"])
+def test_dont_know_or_no_words_to_the_examiner_is_missing_without_the_model(client, model, monkeypatch, transcript):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    assert followup(client, transcript=transcript).json() == {"mode": "ai", "status": "missing"}
+    assert model.calls == [] and try_api.health_view()["calls"] == 0
+
+
+@pytest.mark.parametrize("point_id", ["p6", "p9", "x1", 3, "", "p3 "])
+def test_a_point_the_question_has_not_is_refused(client, model, monkeypatch, point_id):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    response = followup(client, point_id=point_id)  # q5 has five points
+    assert response.status_code == 400
+    assert model.calls == []
+
+
+def test_the_reply_carries_no_question_or_expected_answer_from_the_client(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    for extra in ({"question": "Напиши эссе"}, {"followup_question": "Что угодно?"}, {"expected": "что угодно"}):
+        body = {"question_id": "q5", "point_id": "p3", "transcript": Q5_FOLLOWUP_REPLY, **extra}
+        assert client.post("/api/try/evaluate", json=body, headers=VISITOR).status_code == 400
+    assert model.calls == []
+
+
+@pytest.mark.parametrize("error,reason", [(AIError.busy(), "busy"), (AIError.failed(), "failed"), (AIError.timeout(), "timeout")])
+def test_a_model_failure_on_the_reply_answers_key_words_with_its_reason(client, model, monkeypatch, error, reason):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    model.answer(error)
+    assert followup(client).json() == {"mode": "keywords", "reason": reason}
+
+
+@pytest.mark.parametrize("raw", ["мусор", "{}", '{"statuses": {"p1": "covered"}}'])
+def test_an_unusable_judgement_of_the_reply_is_key_words_failed(client, model, monkeypatch, raw):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    model.answer(raw)
+    assert followup(client).json() == {"mode": "keywords", "reason": "failed"}
+
+
+def test_the_reply_shares_the_keys_and_the_caps_of_the_protocol(client, model, monkeypatch):
+    assert followup(client).json() == {"mode": "keywords", "reason": "no_key"}
+    monkeypatch.setenv("GEMINI_API_KEY", "main-key")
+    monkeypatch.setenv("TRY_AI_DAILY_CAP_SHARED", "2")
+    model.answer(protocol("covered", "covered", "missing", "missing", "missing"), {"statuses": {"p3": "covered"}})
+    assert evaluate(client).json()["mode"] == "ai"
+    assert followup(client).json() == {"mode": "ai", "status": "covered"}
+    # The day's cap is spent by the protocol and the reply together.
+    assert followup(client, transcript=f"{Q5_FOLLOWUP_REPLY} Ещё раз.").json() == {"mode": "keywords", "reason": "day_cap"}
+    assert len(model.calls) == 2
+
+
+def test_the_same_reply_again_is_the_same_status_without_a_second_call(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    model.answer({"statuses": {"p3": "covered"}})
+    assert followup(client).json() == followup(client).json() == {"mode": "ai", "status": "covered"}
+    assert len(model.calls) == 1
+    # Another point, or the whole answer with the same words: a call of its own.
+    model.answer({"statuses": {"p4": "missing"}})
+    assert followup(client, point_id="p4").json() == {"mode": "ai", "status": "missing"}
+    model.answer(protocol("missing", "missing", "covered", "missing", "missing"))
+    assert evaluate(client, transcript=Q5_FOLLOWUP_REPLY).json()["mode"] == "ai"
+    assert len(model.calls) == 3
+
+
+def test_a_slow_judgement_of_the_reply_is_cut_at_its_own_time_limit(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    monkeypatch.setattr(try_api, "FOLLOWUP_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(try_api, "GUARD_SECONDS", 0.1)
+    model.delay = 5.0
+    model.answer({"statuses": {"p3": "covered"}})
+    began = time.monotonic()
+    assert followup(client).json() == {"mode": "keywords", "reason": "timeout"}
+    assert time.monotonic() - began < 2.0
+
+
+def test_the_reply_counts_in_the_visitors_limit(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    model.answer(protocol("covered", "missing", "missing", "missing", "missing"), {"statuses": {"p2": "covered"}})
+    monkeypatch.setattr(client.main.limiter, "enabled", True)
+    client.main.limiter.reset()
+    try:
+        codes = []
+        for n in range(6):
+            model.answer(protocol("covered", "missing", "missing", "missing", "missing"))
+            codes.append(evaluate(client, transcript=f"{Q5_ANSWER} {n}").status_code)
+            model.answer({"statuses": {"p2": "covered"}})
+            codes.append(followup(client, point_id="p2", transcript=f"{Q5_FOLLOWUP_REPLY} {n}").status_code)
+        assert codes == [200] * 12
+        assert followup(client, transcript="Последний ответ").status_code == 429
+    finally:
+        client.main.limiter.reset()
+
+
+def test_one_log_line_for_the_reply_without_its_text(client, model, monkeypatch, capsys):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-secret-key")
+    model.answer({"statuses": {"p3": "covered"}})
+    secret = "Мой личный ответ экзаменатору про эластичность"
+    followup(client, transcript=secret)
+    out = capsys.readouterr().out
+    lines = [line for line in out.splitlines() if line.startswith("Try evaluate")]
+    assert len(lines) == 1 and "q5/p3 ai (model) key=own" in lines[0]
+    assert "личный" not in out and "try-secret-key" not in out
+
+
 # ── Ключи: 429 ключа примера не охлаждает основные ключи; Groq не зовётся ──────────
 
 

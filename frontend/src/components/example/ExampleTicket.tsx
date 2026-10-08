@@ -16,7 +16,21 @@ import type { AnswerInput } from '../../lib/oral/oralPersistence';
 import { elapsedLabel, glue, longDateTime, plural } from '../../lib/oral/format';
 import { exampleQuestion, exampleRubricResponse, exampleTicket, type ExampleQuestion } from '../../data/example';
 import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
-import { checkLine, checkSummary, checkTryAnswer, keptEvaluation, parseCheckSummary, tryEvaluation, type TryCheck } from './tryCheck';
+import {
+  checkLine,
+  checkSummary,
+  checkTryAnswer,
+  checkTryFollowup,
+  followupPlan,
+  keptEvaluation,
+  parseCheckSummary,
+  tryEvaluation,
+  type TryCheck,
+  type TryFollowupCheck,
+} from './tryCheck';
+import { saysDontKnow } from '../../lib/oral/followup';
+import { FINISH_SHORTCUTS, finishKeysLabel, isFinishKey, useDeskColumn } from '../oral/roomDesk';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import ExampleGrade from './ExampleGrade';
 import TryBar from './TryBar';
 import { countBucket, track } from '../../lib/telemetry';
@@ -67,6 +81,12 @@ const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или на
 export const EXAMPLE_PRIVACY_LINE =
   'Речь распознаёт браузер, в Chrome — через сервис Google. Для проверки текст ответа отправляется на сервер Meldy и в ИИ-сервис Google Gemini. Meldy его не сохраняет.';
 
+/** Leaving an unfinished answer: the tab keeps finished answers (the sheet erases by them), not this one (PUB-3). */
+export const LEAVE_MESSAGE = 'Ответ пропадёт: незаконченный ответ нигде не сохраняется.';
+
+/** Before the answer, above the two ways to answer: what «Готово» leads to (EX-32 for the example; no units here). */
+export const EXAMPLE_NEXT_LINE = 'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из лекций.';
+
 function inputOf(usedSpeech: boolean, usedText: boolean): AnswerInput {
   if (usedSpeech && usedText) return 'mixed';
   return usedSpeech ? 'speech' : 'text';
@@ -94,6 +114,7 @@ export function exampleNoteLine(question: ExampleQuestion, points: number): stri
  * example cannot check (unknown, or in no lecture) gets an honest line and the way back.
  */
 export default function ExampleTicket() {
+  useDocumentTitle('Билет · пример');
   const [params] = useSearchParams();
   const question = exampleQuestion(params.get('q'));
   if (!question || question.coverage === 'none' || question.points.length === 0) return <TicketMissing question={question} />;
@@ -123,6 +144,7 @@ function sheetNoteOf(change: AnswerChange | null): string | null {
  * back to the sheet and to answering again.
  */
 function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer: TryAnswer }) {
+  const deskRef = useDeskColumn();
   const rubric = exampleRubric(question);
   if (!rubric) return <TicketMissing question={question} />;
   const checked = parseCheckSummary(answer.check) ?? { by: 'keywords' as const };
@@ -160,7 +182,7 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
             animate={false}
           />
         </section>
-        <section className="or-side" aria-label="Итог">
+        <section className="or-side" aria-label="Итог" ref={deskRef}>
           <p className="or-readonly-note">
             {glue(
               seeded
@@ -243,8 +265,12 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const focusTextRef = useRef(false);
   /** How the latest attempt was checked, once known: the AI's protocol, «не знаю», or key words and why. */
   const [check, setCheck] = useState<{ attemptId: string; result: TryCheck } | null>(null);
-  /** The AI check in flight: a new attempt or leaving the page stops it. */
+  /** The same, for the reply to the follow-up: whether its AI check is worth asking, and how long to wait. */
+  const checkRef = useRef<{ attemptId: string; result: TryCheck } | null>(null);
+  /** The AI checks in flight (the answer's, then the reply's): a new attempt or leaving the page stops them. */
   const checkAbortRef = useRef<AbortController | null>(null);
+  /** The desk column follows the reader on a computer (oral.css): «Готово» and the next steps stay in view. */
+  const deskRef = useDeskColumn();
 
   const rubric = state.rubric.status === 'ready' ? state.rubric.response.rubric : null;
   const points = useMemo(() => rubric?.points ?? [], [rubric]);
@@ -358,7 +384,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     setSheetChange(sheetChangeOf(answer, tryEvents(store)));
   }, [question.id, state.phase, state.evaluation, state.attempt, state.followup, state.named, check]);
 
-  // ── Leaving: an answer in progress is lost (nothing is saved), so ask first ──
+  // ── Leaving: an answer in progress is lost (only a finished one is kept in this tab), so ask first ──
   const inProgress = () => {
     const current = stateRef.current;
     if (current.phase === 'answering') return joinSpeech(current.mode === 'voice' ? speechRef.current.snapshot() : current.typed) !== '';
@@ -368,7 +394,8 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     if (inProgress()) {
       const ok = await confirm({
         title: 'Выйти из билета?',
-        message: 'Ответ пропадёт: пример ничего не сохраняет.',
+        // The tab keeps finished answers (the sheet erases by them): only this unfinished one is lost (PUB-3).
+        message: LEAVE_MESSAGE,
         confirmText: 'Выйти',
         cancelText: 'Остаться',
         type: 'warning',
@@ -433,6 +460,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     namedInRef.current = {};
     checkAbortRef.current?.abort();
     checkAbortRef.current = null;
+    checkRef.current = null;
     speech.reset('');
     setSheetOpen(false);
     setCheck(null);
@@ -493,6 +521,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       const checked = checkTryAnswer(question.id, transcript, pointIds, { signal: controller.signal });
       void checked.then((result) => {
         if (!mountedRef.current || attempt !== attemptRef.current) return;
+        checkRef.current = { attemptId, result };
         setCheck({ attemptId, result });
         track('try_checked', result.by === 'keywords' ? { by: result.by, reason: result.reason } : { by: result.by });
         dispatch({ type: 'evaluation_done', run: stateRef.current.run, result: tryEvaluation(result, pointIds, keywords) });
@@ -584,7 +613,19 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     dispatch({ type: 'followup_checking' });
     const answer = voice ? (await speech.stop()) || heard : heard;
     if (!mountedRef.current || token !== askRef.current) return;
-    const verdict = judgeFollowupAnswer(point, f.question, answer);
+    // «Не знаю» is the button's answer. Anything else goes to the AI once, judged by the point as a real
+    // ticket's reply is (PUB-2): the key words alone never name it. Without the AI — the key words, said so.
+    let reply: TryFollowupCheck | null = null;
+    if (!saysDontKnow(answer)) {
+      const known = checkRef.current && checkRef.current.attemptId === stateRef.current.attempt?.attemptId ? checkRef.current.result : null;
+      const plan = followupPlan(known);
+      reply = plan.ask
+        ? await checkTryFollowup(question.id, f.pointId, answer.trim(), { signal: checkAbortRef.current?.signal, timeoutMs: plan.timeoutMs })
+        : { by: 'keywords', reason: plan.reason };
+      if (!mountedRef.current || token !== askRef.current) return;
+      track('try_followup_checked', reply.by === 'keywords' ? { by: reply.by, reason: reply.reason } : { by: reply.by });
+    }
+    const verdict = judgeFollowupAnswer(point, f.question, answer, reply);
     dispatch({ type: 'followup_result', status: verdict.status, answer: answer.trim().slice(0, 160), judgedBy: verdict.judgedBy });
   };
 
@@ -645,7 +686,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
               animate
             />
           </section>
-          <section className="or-side" aria-label="Итог">
+          <section className="or-side" aria-label="Итог" ref={deskRef}>
             <ExampleGrade points={protocolPoints} followup={followupForProtocol} checked={checked}>
               {/* The example's story goes on on its sheet: the answer is played there (sheet spec 4.3). */}
               <div className="or-acts" data-wide="">
@@ -683,12 +724,14 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const answerFinalWords = answering ? underlinedFinalWords(points, named, finalText) : underlinedFinalWords(points, new Set(state.named), state.attempt?.transcript ?? '');
 
   // Two equal ways to answer: by voice (the blue pill) or in writing; only writing without the speech API.
+  // Below 360 px both say one word, so they share the bar's one line (PUB-8).
   const answerChoice = (
     <div className="or-acts or-choice">
       {speech.supported ? (
         <>
-          <button type="button" className="sf-primary" onClick={startVoice} data-anchor="">
-            Отвечать голосом
+          <button type="button" className="sf-primary" onClick={startVoice} data-anchor="" aria-label="Отвечать голосом">
+            <span className="or-pill-long">Отвечать голосом</span>
+            <span className="or-pill-short">Голосом</span>
           </button>
           <button type="button" className="or-alt" onClick={startText} aria-label="Ответить текстом">
             <span className="or-wide">Ответить текстом</span>
@@ -708,6 +751,8 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     side = (
       <>
         {!speech.supported ? <p className="or-message or-message-muted">{SPEECH_UNSUPPORTED_MESSAGE}</p> : null}
+        {/* What «Готово» leads to, before the first answer (EX-32 in the example's words: nothing is charged here). */}
+        <p className="or-next">{glue(EXAMPLE_NEXT_LINE)}</p>
         {answerChoice}
         {question.id === EXAMPLE_ANSWER_QUESTION ? (
           <button type="button" className="sf-link tx-insert" onClick={insertExample}>
@@ -753,7 +798,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
         ) : null}
         {elapsed >= LONG_ANSWER_MS ? <p className="or-hint">Обычно на ответ дают 2–3 минуты.</p> : null}
         <div className="or-acts">
-          <button type="button" className="sf-primary" onClick={finish} data-anchor={voiceAnswer ? '' : undefined}>
+          <button type="button" className="sf-primary" onClick={finish} data-anchor={voiceAnswer ? '' : undefined} aria-keyshortcuts={voiceAnswer ? undefined : FINISH_SHORTCUTS}>
             Готово
           </button>
           {voiceAnswer ? (
@@ -818,6 +863,11 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
                       onChange={(event) => {
                         followupPaste.clear();
                         dispatch({ type: 'followup_typed', text: event.target.value });
+                      }}
+                      onKeyDown={(event) => {
+                        if (!isFinishKey(event)) return;
+                        event.preventDefault();
+                        void finishFollowup();
                       }}
                       {...followupPaste.fieldProps}
                       data-anchor=""
@@ -895,6 +945,11 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
             answerPaste.clear();
             dispatch({ type: 'typed', text: event.target.value });
           }}
+          onKeyDown={(event) => {
+            if (!isFinishKey(event)) return;
+            event.preventDefault();
+            finish();
+          }}
           {...answerPaste.fieldProps}
           data-anchor=""
         />
@@ -905,6 +960,8 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
             Вставить ответ примера
           </button>
         ) : null}
+        {/* On a computer the hands are on the keys: «Готово» without the mouse (PUB-1). */}
+        <p className="or-keys">{`Готово — ${finishKeysLabel()}`}</p>
       </div>
     ) : (
       <LiveTranscript
@@ -960,7 +1017,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
             {transcriptShown ? answerBody : null}
           </div>
         </section>
-        <section className="or-side" aria-label="Экзаменатор">
+        <section className="or-side" aria-label="Экзаменатор" ref={deskRef}>
           {/* The follow-up is said once to screen readers too: the example shows it as text only. */}
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {state.phase === 'followup' && followup ? `Экзаменатор спрашивает: «${followup.question}»` : ''}

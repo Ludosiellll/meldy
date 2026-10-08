@@ -18,36 +18,37 @@ function line(points: SummaryPoint[], followup: SummaryFollowup | null = null): 
 
 describe('answerSummary: the result of an answer without a grade (Ф1)', () => {
   it('counts the main points named in the answer itself', () => {
-    expect(line(STAGE)).toBe('Назвали сами 2 из 4 главных');
+    expect(line(STAGE)).toBe('Сами назвали 2 из 4 главных пунктов');
     expect(answerSummary(STAGE, null)).toMatchObject({ basis: 'main', total: 4, own: 2, afterQuestion: 0, errors: 0 });
   });
 
   it('adds the point named only after the examiner’s question, and only when the reply covered it', () => {
-    expect(line(STAGE, { point_id: 'p4', status: 'covered' })).toBe('Назвали сами 2 из 4 главных · после вопроса 1');
+    expect(line(STAGE, { point_id: 'p4', status: 'covered' })).toBe('Сами назвали 2 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
     // «Не знаю», a wrong or a partial reply: nothing was named after the question.
-    for (const status of ['missing', 'wrong', 'partial']) expect(line(STAGE, { point_id: 'p4', status })).toBe('Назвали сами 2 из 4 главных');
+    for (const status of ['missing', 'wrong', 'partial']) expect(line(STAGE, { point_id: 'p4', status })).toBe('Сами назвали 2 из 4 главных пунктов');
     // A point already named in the answer is not counted twice.
-    expect(line(STAGE, { point_id: 'p1', status: 'covered' })).toBe('Назвали сами 2 из 4 главных');
+    expect(line(STAGE, { point_id: 'p1', status: 'covered' })).toBe('Сами назвали 2 из 4 главных пунктов');
     // A mentioned or wrong point put right on the question counts too.
-    expect(line(STAGE, { point_id: 'p3', status: 'covered' })).toBe('Назвали сами 2 из 4 главных · после вопроса 1');
+    expect(line(STAGE, { point_id: 'p3', status: 'covered' })).toBe('Сами назвали 2 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
   });
 
   it('counts the errors of every point, the main ones and the others', () => {
     const wrong = STAGE.map((point) => (point.id === 'p5' || point.id === 'p2' ? { ...point, status: 'wrong' } : point));
-    expect(line(wrong, { point_id: 'p4', status: 'covered' })).toBe('Назвали сами 1 из 4 главных · после вопроса 1 · ошибок: 2');
+    expect(line(wrong, { point_id: 'p4', status: 'covered' })).toBe('Сами назвали 1 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора. Ошибки в 2 пунктах');
+    expect(line(wrong.map((point) => (point.id === 'p5' ? { ...point, status: 'covered' } : point)))).toBe('Сами назвали 1 из 4 главных пунктов. Ошибка в 1 пункте');
     expect(answerSummary(wrong, null).errors).toBe(2);
   });
 
   it('counts every point when the rubric has no main ones, with the right word forms', () => {
     const plain = STAGE.map((point) => ({ ...point, essential: false }));
-    expect(line(plain)).toBe('Назвали сами 3 из 5 пунктов');
-    expect(line([{ id: 'p1', essential: false, status: 'missing' }])).toBe('Назвали сами 0 из 1 пункта');
-    expect(line([{ id: 'p1', essential: true, status: 'covered' }, { id: 'p2', essential: false, status: 'covered' }])).toBe('Назвали сами 1 из 1 главного');
+    expect(line(plain)).toBe('Сами назвали 3 из 5 пунктов');
+    expect(line([{ id: 'p1', essential: false, status: 'missing' }])).toBe('Сами назвали 0 из 1 пункта');
+    expect(line([{ id: 'p1', essential: true, status: 'covered' }, { id: 'p2', essential: false, status: 'covered' }])).toBe('Сами назвали 1 из 1 главного пункта');
   });
 
   it('keeps unrated points in the count and has no line when nothing was judged', () => {
     const half = STAGE.map((point) => (point.id === 'p2' ? { ...point, status: 'unrated' } : point));
-    expect(line(half)).toBe('Назвали сами 1 из 4 главных');
+    expect(line(half)).toBe('Сами назвали 1 из 4 главных пунктов');
     expect(answerSummary(half, null).counts).toMatchObject({ covered: 2, partial: 1, missing: 1, unrated: 1, total: 5 });
     expect(line(STAGE.map((point) => ({ ...point, status: 'unrated' })))).toBeNull();
     expect(line([])).toBeNull();

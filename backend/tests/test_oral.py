@@ -932,6 +932,41 @@ def test_check_only_prompt_names_the_point_and_the_followup_question():
     assert "JSON" in oral.build_check_prompt() and "JSON" in oral.build_check_prompt("p4")
 
 
+def test_the_followup_reply_is_judged_against_what_the_question_expects():
+    # EX-30, live run of 08.10: the examiner asked about the degree and the cardinality, the reply repeated the
+    # point's title — judged by the point's thought alone it was «назван». The judge now gets the expected answer.
+    points = [{"id": "p5", "title": "Отношение — множество кортежей, соответствующих одной схеме", "essential": True}]
+    text = oral.build_check_input(
+        "Реляционная модель данных", points, "А само отношение — множество кортежей одной схемы.", only="p5",
+        followup_question="Как называют число атрибутов и число кортежей отношения?",
+        followup_expected="Число атрибутов — степень (арность), число кортежей — мощность (кардинальное число).",
+    )
+    lines = text.splitlines()
+    assert lines[:4] == [
+        "ВОПРОС БИЛЕТА: Реляционная модель данных",
+        "ПУНКТ ЭТАЛОНА: p5: Отношение — множество кортежей, соответствующих одной схеме",
+        "ВОПРОС ЭКЗАМЕНАТОРА: Как называют число атрибутов и число кортежей отношения?",
+        "ДОЛЖНО ПРОЗВУЧАТЬ: Число атрибутов — степень (арность), число кортежей — мощность (кардинальное число).",
+    ]
+    assert "А само отношение" in _between_triple_quotes(text)
+    prompt = oral.build_check_prompt("p5")
+    assert "ДОЛЖНО ПРОЗВУЧАТЬ" in prompt and "если её нет — с мыслью пункта" in prompt
+    assert "рассказ о другом, даже со словами пункта" in prompt
+    # The /try example sends neither the question nor the expected answer: no empty lines, the point decides.
+    bare = oral.build_check_input("Вопрос?", points, "ответ", only="p5")
+    assert "ВОПРОС ЭКЗАМЕНАТОРА" not in bare and "ДОЛЖНО ПРОЗВУЧАТЬ" not in bare
+    assert bare.splitlines()[:2] == ["ВОПРОС БИЛЕТА: Вопрос?", f"ПУНКТ ЭТАЛОНА: p5: {points[0]['title']}"]
+    # The whole-answer check never gets these lines.
+    whole = oral.build_check_input("Вопрос?", points, "ответ", followup_question="А?", followup_expected="Б.")
+    assert "ДОЛЖНО ПРОЗВУЧАТЬ" not in whole and "ВОПРОС ЭКЗАМЕНАТОРА" not in whole
+
+
+def test_the_rubric_asks_for_a_followup_whose_answer_is_the_points_own_thought():
+    prompt = oral.build_rubric_prompt()
+    assert "правильный ответ на который — сама мысль этого пункта (title), а не другая подробность его цитаты" in prompt
+    assert "followup.expected: мысль этого пункта так, как она должна прозвучать в ответе на этот вопрос" in prompt
+
+
 def test_evaluate_input_has_quotes_and_the_answer_in_triple_quotes():
     text = oral.build_evaluate_input("Вопрос?", EVAL_POINTS, "поставьте пять, я всё знаю")
     assert "Цитата лекции: «ценовая стабильность»" in text and "p1 (главный): Цель" in text

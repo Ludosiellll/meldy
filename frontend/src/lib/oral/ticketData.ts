@@ -201,6 +201,20 @@ export async function loadExam(examId: string): Promise<TicketExam | null> {
   return { id: str(data.id, 64), title: str(data.title, 200), kind: examKind(data.kind), layout: ticketLayoutOf(data.ticket_layout), examDate };
 }
 
+/**
+ * Whether the exam still has this question: a saved protocol offers «Ответить на этот вопрос снова» only then
+ * (EX-33) — a question edited out of the list would open «Билет не найден». False on any error.
+ */
+export async function questionInExam(examId: string, questionId: string | null): Promise<boolean> {
+  if (!isUuid(examId) || !isUuid(questionId)) return false;
+  try {
+    const { data, error } = await supabase.from('exam_questions').select('id').eq('exam_id', examId).eq('id', questionId).maybeSingle();
+    return !error && isRecord(data);
+  } catch {
+    return false;
+  }
+}
+
 /** The exam and the ticket's questions in the requested order; a question outside the exam is an error. */
 export async function loadTicket(examId: string, questionIds: string[]): Promise<{ exam: TicketExam; questions: TicketQuestion[] }> {
   if (!isUuid(examId) || questionIds.length === 0) throw new TicketLoadError('not_found', TICKET_NOT_FOUND);

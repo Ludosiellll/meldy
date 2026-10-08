@@ -86,7 +86,7 @@ describe('<ProtocolSheet>', () => {
 
     const p4 = container.querySelector('[data-point="p4"]')!;
     expect(p4.querySelector('svg[data-mark="dash"]')).not.toBeNull();
-    expect(p4.querySelector('.or-ppt-st')?.textContent).toBe('главный пункт · не назван; на вопрос экзаменатора — «не знаю»');
+    expect(p4.querySelector('.or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('главный пункт · не назван; на вопрос экзаменатора — «не знаю»');
     expect(p4.textContent).toContain('в ответе не прозвучало');
 
     const p5 = container.querySelector('[data-point="p5"]')!;
@@ -157,10 +157,10 @@ describe('<ProtocolSheet>', () => {
     );
     expect(lines.p1).toBe('главный пункт · раскрыт · фрагмент\u00a012');
     expect(lines.p3).toBe('главный пункт · упомянут · фрагмент\u00a014');
-    expect(lines.p4).toBe('главный пункт · не назван; на вопрос экзаменатора — «не знаю»');
+    expect(lines.p4.replace(/\u00a0/g, ' ')).toBe('главный пункт · не назван; на вопрос экзаменатора — «не знаю»');
     // p5 is not a main point.
     expect(lines.p5).toBe('ошибка');
-    for (const point of DEMO_RUBRIC.points) expect(lines[point.id].startsWith('главный пункт · ')).toBe(point.essential);
+    for (const point of DEMO_RUBRIC.points) expect(lines[point.id].replace(/\u00a0/g, ' ').startsWith('главный пункт · ')).toBe(point.essential);
   });
 
   it('says when the follow-up was judged by key words, and never prints an empty quote', () => {
@@ -169,24 +169,65 @@ describe('<ProtocolSheet>', () => {
     const byKeywords = render(
       <ProtocolSheet heading="h" points={points} followup={{ ...followup, answer, status: 'partial', judgedBy: 'keywords' }} seed="a" />,
     );
-    expect(byKeywords.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe(
-      `главный пункт · не назван; на вопрос экзаменатора — «${answer}», по ключевым словам пункт упомянут`,
+    expect(byKeywords.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe(
+      'главный пункт · не назван; после вопроса экзаменатора по ключевым словам — упомянут',
     );
     expect(byKeywords.container.querySelector('.or-extra')?.textContent).toBe(
-      `Дополнительный вопрос: «${followup.question}» — ответ: «${answer}», по ключевым словам пункт упомянут.`,
+      `Дополнительный вопрос: «${followup.question}» — ответ: «${answer}». По ключевым словам пункт упомянут.`,
     );
     byKeywords.unmount();
 
     const byCheck = render(<ProtocolSheet heading="h" points={points} followup={{ ...followup, answer, status: 'partial', judgedBy: 'check' }} seed="a" />);
-    expect(byCheck.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe(`главный пункт · не назван; на вопрос экзаменатора — «${answer}»`);
-    expect(byCheck.container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${followup.question}» — ответ: «${answer}», пункт упомянут.`);
+    expect(byCheck.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('главный пункт · не назван; после вопроса экзаменатора — упомянут');
+    expect(byCheck.container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${followup.question}» — ответ: «${answer}». Пункт упомянут.`);
     expect(byCheck.container.textContent).not.toMatch(/засчитан/);
     byCheck.unmount();
 
     const silent = render(<ProtocolSheet heading="h" points={points} followup={{ ...followup, answer: '', status: 'missing' }} seed="a" />);
-    expect(silent.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe('главный пункт · не назван; на вопрос экзаменатора ответа не прозвучало');
+    expect(silent.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('главный пункт · не назван; на вопрос экзаменатора ответа не прозвучало');
     expect(silent.container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${followup.question}» — ответа не прозвучало.`);
     expect(silent.container.textContent).not.toContain('«»');
+  });
+
+  it('gives the asked point one status: named only after the examiner’s question, with the sheet’s words (EX-30)', () => {
+    // The live run of 08.10: point 5 «упомянут» in the answer, not named by key words, named in the reply — the card
+    // said «упомянут», «по ключевым словам не назван» and «пункт назван» at once.
+    const points = livePoints(DEMO_RUBRIC, evaluation, new Set(['p1', 'p2']));
+    const reply = 'Если шаг слишком большой, обучение колеблется и может разойтись.';
+    const asked: ProtocolFollowup = { ...followup, pointId: 'p3', answer: reply, status: 'covered', judgedBy: 'check' };
+    const { container } = render(<ProtocolSheet heading="h" points={points} followup={asked} seed="a" />);
+    const p3 = container.querySelector('[data-point="p3"]')!;
+    expect(p3.querySelector('.or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('главный пункт · назван только после вопроса экзаменатора');
+    // One status: no key-word aside on the asked point (the other points keep theirs).
+    expect(p3.querySelector('.or-ppt-why')).toBeNull();
+    // Half a point, as «упомянут»: the cup; the screen reader hears the same words as the line.
+    expect(p3).toHaveAttribute('data-after');
+    expect(p3.querySelector('svg[data-mark="cup"]')).not.toBeNull();
+    expect(p3.querySelector('.or-pt-m .sr-only')?.textContent).toBe('назван только после вопроса экзаменатора');
+    expect(container.querySelector('[data-point="p3"] .or-ppt-st')?.textContent).toContain('пункт\u00a0· назван');
+    // The model's comment on the answer itself stays: what was missing there.
+    expect(p3.textContent).toContain('Назван метод, про градиент по весам не сказано.');
+    // The line under the sheet: the reply without a doubled full stop, and what it did — the sheet keeps the line.
+    expect(container.querySelector('.or-extra')?.textContent).toBe(
+      `Дополнительный вопрос: «${followup.question}» — ответ: «${reply.slice(0, -1)}». Пункт назван после вопроса — строку шпаргалки это не стирает.`,
+    );
+    cleanup();
+
+    // A point said wrong and put right in the reply keeps its error; one not named and not named in the reply says so.
+    const fixed = render(<ProtocolSheet heading="h" points={points} followup={{ ...asked, pointId: 'p5' }} seed="a" />);
+    const p5 = fixed.container.querySelector('[data-point="p5"]')!;
+    expect(p5.querySelector('.or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('ошибка, верно — только после вопроса экзаменатора');
+    expect(p5.querySelector('svg[data-mark="cross"]')).not.toBeNull();
+    fixed.unmount();
+    const notNamed = render(<ProtocolSheet heading="h" points={points} followup={{ ...asked, pointId: 'p4', status: 'missing' }} seed="a" />);
+    expect(notNamed.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('главный пункт · не назван и после вопроса экзаменатора');
+    expect(notNamed.container.querySelector('[data-point="p4"]')).not.toHaveAttribute('data-after');
+    expect(notNamed.container.querySelector('.or-extra')?.textContent).toMatch(/». Пункт не назван\.$/);
+    notNamed.unmount();
+    // A point the answer itself had named: its status, and nothing about the sheet.
+    const named = render(<ProtocolSheet heading="h" points={points} followup={{ ...asked, pointId: 'p1' }} seed="a" />);
+    expect(named.container.querySelector('[data-point="p1"] .or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('главный пункт · раскрыт');
+    expect(named.container.querySelector('.or-extra')?.textContent).toMatch(/». Пункт назван\.$/);
   });
 
   it('labels the browser’s own marks as preliminary when the evaluation failed', () => {
@@ -220,7 +261,7 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
   it('says what was named, the counts in a sentence, «Как считается» on request and who grades', () => {
     render(<ProtocolResult points={points} followup={{ pointId: 'p4', status: 'missing' }} previous="Прошлый ответ, 1 окт." />);
     // The memo's stage example: «не знаю» on the follow-up about a missing main point.
-    expect(sum()).toBe('Назвали сами 2 из 4 главных');
+    expect(sum()).toBe('Сами назвали 2 из 4 главных пунктов');
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
     expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
     expect(SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-\u2060балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.');
@@ -268,7 +309,9 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
   it('adds the point named after the examiner’s question and the errors, only when there are any', () => {
     const wrong = points.map((point) => (point.id === 'p5' ? { ...point, status: 'wrong' as const } : point));
     render(<ProtocolResult points={wrong} followup={{ pointId: 'p4', status: 'covered' }} />);
-    expect(sum()).toBe('Назвали сами 2 из 4 главных · после вопроса 1 · ошибок: 1');
+    expect(sum()).toBe('Сами назвали 2 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора. Ошибка в 1 пункте');
+    // «ещё 1» never breaks on a narrow phone: a number alone at a line's start read as a new count.
+    expect(document.querySelector('.or-sum')?.textContent).toContain('ещё\u00a01');
   });
 
   it('says plainly when no point was judged, and lets the example put its own small lines', () => {
@@ -362,7 +405,7 @@ describe('a saved protocol', () => {
     expect(p3.textContent).not.toContain('Все четыре уровня названы.'); // written for «раскрыт»
     cleanup();
     render(<ProtocolResult points={points} followup={null} />);
-    expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Назвали сами 1 из 2 главных · ошибок: 1');
+    expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Сами назвали 1 из 2 главных пунктов. Ошибка в 1 пункте');
   });
 
   it('counts the result from its saved points and follow-up, whatever grade was saved', () => {
@@ -371,7 +414,7 @@ describe('a saved protocol', () => {
       const { unmount } = render(
         <ProtocolResult points={storedPoints({ ...stored, grade }, {})} followup={{ pointId: 'p4', status: 'covered' }} />,
       );
-      expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Назвали сами 2 из 4 главных · после вопроса 1');
+      expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Сами назвали 2 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
       expect(document.body.textContent).not.toMatch(new RegExp(`Оценка|${grade} ·`));
       unmount();
     }

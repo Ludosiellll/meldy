@@ -111,32 +111,64 @@ export function saidNothing(status: PointStatus): boolean {
   return status === 'missing' || status === 'unrated';
 }
 
-/** What the reply to the examiner's question did for the point: the words of the point lines, no verdict on the answer. */
-const FOLLOWUP_WORDS: Record<FollowupStatus, string> = {
-  covered: 'пункт назван',
-  partial: 'пункт упомянут',
-  missing: 'пункт не назван',
-  wrong: 'сказано неверно',
+/**
+ * The point named only once the examiner asked (missed, mentioned or said wrong in the answer, the reply
+ * covered it): the cheat sheet's own words (components/exams/sheet/copy.ts, after_question).
+ */
+export const AFTER_QUESTION = 'назван только после вопроса экзаменатора';
+
+/** What the reply to the examiner's question did for the point, in the words of the point lines. */
+const REPLY_WORDS: Record<FollowupStatus, string> = {
+  covered: 'назван',
+  partial: 'упомянут',
+  missing: 'не назван',
+  wrong: 'ошибка',
 };
 
-/** «пункт упомянут», or «по ключевым словам пункт упомянут» when the browser's rule decided. */
-function followupVerdict(followup: ProtocolFollowup): string {
-  const word = FOLLOWUP_WORDS[followup.status];
-  return followup.judgedBy === 'keywords' ? `по ключевым словам ${word}` : word;
+/** The reply named the point the answer had missed, mentioned or said wrong: «после вопроса экзаменатора». */
+export function namedAfterQuestion(status: PointStatus, followup: Pick<ProtocolFollowup, 'status'> | null): boolean {
+  return Boolean(followup) && followup?.status === 'covered' && (status === 'missing' || status === 'partial' || status === 'wrong');
 }
 
-/** The point's line about the follow-up: «на вопрос экзаменатора — «не знаю»» (redesign spec 5.12). */
-function askedLine(followup: ProtocolFollowup): string {
-  if (!followup.answer.trim()) return 'на вопрос экзаменатора ответа не прозвучало';
-  const said = `на вопрос экзаменатора — «${followup.answer}»`;
-  return followup.judgedBy === 'keywords' ? `${said}, ${followupVerdict(followup)}` : said;
+/**
+ * The asked point's one status (EX-30: «упомянут», «по ключевым словам не назван» and «пункт назван» on one
+ * card read as three verdicts): «назван только после вопроса экзаменатора» when the reply named it;
+ * otherwise the answer's own word and what the reply did — «упомянут; после вопроса экзаменатора — не назван»,
+ * «не назван и после вопроса экзаменатора», «не назван; на вопрос экзаменатора — «не знаю»»,
+ * «не назван; после вопроса экзаменатора по ключевым словам — упомянут».
+ */
+export function askedStatusLine(status: PointStatus, followup: ProtocolFollowup): string {
+  const word = STATUS_WORDS[status];
+  if (status === 'covered') return word;
+  if (namedAfterQuestion(status, followup)) return status === 'wrong' ? `${word}, верно — только после вопроса экзаменатора` : AFTER_QUESTION;
+  if (followup.answer === 'не знаю') return `${word}; на вопрос экзаменатора — «не знаю»`;
+  if (!followup.answer.trim()) return `${word}; на вопрос экзаменатора ответа не прозвучало`;
+  const keywords = followup.judgedBy === 'keywords';
+  if (REPLY_WORDS[followup.status] === word) return `${word} и после вопроса экзаменатора${keywords ? ', по ключевым словам' : ''}`;
+  return `${word}; после вопроса экзаменатора${keywords ? ' по ключевым словам' : ''} — ${REPLY_WORDS[followup.status]}`;
 }
 
-/** «ответ: не знаю.», «ответ: «…», пункт упомянут.» or «ответа не прозвучало.» */
-function extraLine(followup: ProtocolFollowup): string {
+/** The reply as quoted: without the full stop the quote would carry into «….». (No lookbehind: old Safari.) */
+function replyQuote(answer: string): string {
+  const text = answer.trim();
+  return text.endsWith('.') && !text.endsWith('..') ? text.slice(0, -1) : text;
+}
+
+/**
+ * Under «Дополнительный вопрос: «…» —»: the reply and what it did, in a sentence of its own. «ответ: не знаю.»,
+ * «ответа не прозвучало.», «ответ: «…». Пункт назван после вопроса — строку шпаргалки это не стирает.»,
+ * «ответ: «…». По ключевым словам пункт упомянут.» `status` is the asked point's status in the answer: a
+ * point the answer had already named says nothing about the sheet.
+ */
+export function extraLine(followup: ProtocolFollowup, status: PointStatus): string {
   if (followup.answer === 'не знаю') return 'ответ: не знаю.';
   if (!followup.answer.trim()) return 'ответа не прозвучало.';
-  return `ответ: «${followup.answer}», ${followupVerdict(followup)}.`;
+  const said = `ответ: «${replyQuote(followup.answer)}».`;
+  const word = REPLY_WORDS[followup.status];
+  if (followup.judgedBy === 'keywords') return `${said} По ключевым словам пункт ${word}.`;
+  if (namedAfterQuestion(status, followup)) return `${said} Пункт назван после вопроса — строку шпаргалки это не стирает.`;
+  if (followup.status === 'wrong') return `${said} Сказано неверно.`;
+  return `${said} Пункт ${word}.`;
 }
 
 /** The lecture's title in a source label «"Нейронные сети", фрагмент 12», or '' when it has none. */
@@ -250,13 +282,16 @@ function PointRow({
       </li>
     );
   }
-  const kind = MARKS[point.status];
-  const word = STATUS_WORDS[point.status];
+  // Named only after the examiner's question: half a point, as «упомянут» (the cup), unless it was an error.
+  const after = asked !== null && namedAfterQuestion(point.status, asked);
+  const kind = after && point.status !== 'wrong' ? 'cup' : MARKS[point.status];
+  const word = after ? AFTER_QUESTION : STATUS_WORDS[point.status];
   // The same words are underlined in «Вы» and in the lecture: what the point was counted for.
   const shared = sharedGroups(point.anchors, point.studentQuote, point.sourceQuote);
   const underDelay = (point.number - 1) * 60;
   const statusLine = asked ? (
-    <>{`${main}${word}; ${askedLine(asked)}`}</>
+    // The longest status line: typeset (glue), so «не | назван» and «— | …» never split at a line's end.
+    <>{glue(`${main}${askedStatusLine(point.status, asked)}`)}</>
   ) : point.fragments && (point.status === 'covered' || point.status === 'partial') ? (
     <>
       {main}
@@ -266,12 +301,20 @@ function PointRow({
   ) : (
     <>{`${main}${word}`}</>
   );
-  // The key-word mark said one thing, the check of the whole answer another: say so (Jury_Check item 7).
-  const why = keywordNote(point.live, point.status);
+  // The key-word mark said one thing, the check of the whole answer another: say so (Jury_Check item 7) — but not
+  // on the point the examiner asked about: there the question and the reply decide, and one status says it (EX-30).
+  const why = asked ? null : keywordNote(point.live, point.status);
   const showComment = Boolean(point.comment) && point.status !== 'unrated' && (point.status !== 'covered' || why !== null);
   return (
     // The asked point takes the focus from the line under the sheet's header («Пункт 4 не назван…»).
-    <li className="or-ppt" data-point={point.id} data-status={point.status} data-asked={asked ? '' : undefined} tabIndex={asked ? -1 : undefined}>
+    <li
+      className="or-ppt"
+      data-point={point.id}
+      data-status={point.status}
+      data-asked={asked ? '' : undefined}
+      data-after={after ? '' : undefined}
+      tabIndex={asked ? -1 : undefined}
+    >
       <span className="or-pt-m">
         {kind ? <Mark kind={kind} seed={markSeed} animate={animate} delayMs={(point.number - 1) * 60} /> : null}
         <span className="sr-only">{word}</span>
@@ -426,7 +469,7 @@ export function ProtocolSheet({ heading, points, followup, sheetNote = null, che
       </ol>
       {followup && !preliminary ? (
         <p className="or-extra">
-          <span className="or-extra-label">Дополнительный вопрос:</span> «{followup.question}» — {extraLine(followup)}
+          <span className="or-extra-label">Дополнительный вопрос:</span> «{followup.question}» — {extraLine(followup, asked?.status ?? 'unrated')}
         </p>
       ) : null}
     </div>
@@ -475,17 +518,17 @@ interface ProtocolResultProps {
 }
 
 /**
- * The summary line typeset (glue) with the number of «после вопроса 1» and «ошибок: 1» kept on its word's
- * line: on a 320–340 px phone the line broke as «после вопроса» / «1 · ошибок: 1».
+ * The summary line typeset (glue) with «ещё 1» kept on one line: on a 320–340 px phone a number left alone at
+ * the start of a line read as a new count.
  */
 function summaryText(line: string): string {
-  return glue(line).replace(/(вопроса|ошибок:) (\d)/g, '$1\u00a0$2');
+  return glue(line).replace(/(ещё) (\d)/g, '$1\u00a0$2');
 }
 
 /**
- * The result on the desk (Ф1, 2026-10-07): no grade, no «Засчитано» — «Назвали сами 3 из 4 главных ·
- * после вопроса 1 · ошибок: 1», the counts in a plain sentence, «Как считается» and the line that the
- * teacher grades on the 10-point scale.
+ * The result on the desk (Ф1, 2026-10-07; decision 2 of 2026-10-08): no grade, no «Засчитано» — «Сами назвали
+ * 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора», the counts in a plain sentence, «Как
+ * считается» and the line that the teacher grades on the 10-point scale.
  */
 export function ProtocolResult({ points, followup, previous, fine, children }: ProtocolResultProps) {
   const [open, setOpen] = useState(false);

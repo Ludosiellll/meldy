@@ -126,6 +126,23 @@
 .sf-page.or-room-single { display: block; max-width: calc(760px + 2 * var(--sf-g)); padding-top: 48px; }
 .sf-page .or-left, .sf-page .or-side { min-width: 0; }
 .sf-page .or-side { position: relative; }
+/* The desk follows the reader on a computer (PUB-1, EX-29): while a long answer or protocol scrolls, «Готово» and
+   the next steps stay in view under the top line (64 px + 16). A desk taller than the window (the result with
+   «Как считается» open and the card «завтра») scrolls with the page until its bottom is in view, then stays:
+   --or-side-h is its height (roomDesk.useDeskColumn). Sticky makes the column a stacking context, so the open
+   «Кто видит ответ» lifts it over the top line, or its scrim could not cover the line. */
+@media (min-width: 1024px) {
+  .sf-page.or-room > .or-side {
+    position: sticky;
+    top: min(80px, calc(100vh - var(--or-side-h, 0px) - 16px));
+  }
+  .sf-page.or-room > .or-side:has(.or-psh) { z-index: 30; }
+}
+
+/* The room's top line keeps the app bar's gutters (.sf-bar-in, paper.css): on a wide window its wordmark and
+   its way out line up with the page under it, not with the window's edges (LIB-27: 50 px against 114 px at
+   1532). The page is centred at --sf-page + 2 gutters; the same sum for the line. */
+.or-shell > .sf-room-bar { padding-inline: max(var(--sf-g), calc((100% - var(--sf-page)) / 2)); }
 
 /* Arriving from «Тянуть билет»: the card stays where it was; the answer sheet fades in under it,
    rising 4 px, and the right column cross-fades (150 ms, redesign critique 6). Fill «backwards» only:
@@ -483,6 +500,16 @@
 .sf-page .or-switch input:checked + .or-switch-track::after { transform: translateX(20px); }
 .sf-page .or-switch input:focus-visible + .or-switch-track { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
 .sf-page .or-privacy { margin: 28px 0 0; max-width: 34em; font-size: 14px; line-height: 21px; color: var(--sf-muted); text-wrap: pretty; }
+/* Before the first answer, above the two ways to answer: what «Готово» leads to and what the check costs (EX-32). */
+.sf-page .or-next { margin: 0; max-width: 32em; font-size: 16px; line-height: 23px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .or-next + .or-acts { margin-top: 18px; }
+/* «Готово — Ctrl + Enter» under the answer field: a computer's keyboard only (PUB-1, EX-29). */
+.sf-page .or-keys { display: none; margin: 8px 2px 0; font-size: 14px; line-height: 20px; color: var(--ph-paper-muted); }
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .sf-page .or-keys { display: block; }
+}
+/* The short label of the blue pill (below 360 px, where both ways to answer share the bar's one line). */
+.sf-page .or-pill-short { display: none; }
 /* The privacy paragraph is said in full before the first answer; while answering it is one link on every
    width, «Кто видит ответ» (16/500, a 44 px target), opening the same words in a sheet (redesign
    critique 5, round 2). */
@@ -622,6 +649,8 @@
 .sf-page .or-ppt[data-status='missing'] > .or-pt-m { background: var(--or-no-bg); color: var(--or-no-fg); }
 .sf-page .or-ppt[data-status='wrong'] > .or-pt-m { background: var(--or-pink-bg); color: var(--or-pink-fg); }
 .sf-page .or-ppt[data-asked] > .or-pt-m { background: var(--ph-paper); }
+/* Named only after the examiner's question: half a point, the cup in the colour of «упомянут» (EX-30). */
+.sf-page .or-ppt[data-after]:not([data-status='wrong']) > .or-pt-m { color: var(--or-half-fg); }
 /* Before the check (preliminary marks): Meldy's dot on the blue tint, or nothing. */
 .sf-page .or-ppt:not([data-status]) > .or-pt-m { --ph-pencil-desk: var(--ph-pencil); }
 .sf-page .or-ppt:not([data-status]) > .or-pt-m:has(svg) { background: var(--sf-accent-soft); }
@@ -826,7 +855,9 @@
   .sf-page .or-examiner-q[data-size='m'] { font-size: 27px; }
   .sf-page .or-examiner-q[data-size='s'] { font-size: 26px; }
   .sf-page .or-line { margin-top: 18px; }
-  /* The answer bar: links on the left, the one pill on the right, on the translucent canvas. */
+  /* The answer bar: links on the left, the one pill on the right, on the canvas — opaque: through the
+     translucent bar the page's last lines read as a second text under the buttons (LIB-27, the talk room at
+     320 px). A hairline on top. */
   .sf-page .or-acts {
     position: fixed;
     left: 0;
@@ -840,9 +871,7 @@
     gap: 8px 14px;
     margin: 0;
     padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--sf-canvas) 88%, transparent);
-    -webkit-backdrop-filter: saturate(1.4) blur(14px);
-    backdrop-filter: saturate(1.4) blur(14px);
+    background: var(--sf-canvas);
     box-shadow: 0 -1px 0 var(--sf-line);
   }
   .sf-page .or-examiner .or-acts { margin-top: 0; }
@@ -860,8 +889,11 @@
   .sf-page .or-acts .or-acts-extra { display: none; }
   .sf-page .or-wide { display: none; }
   .sf-page .or-narrow { display: inline; }
-  /* Before the answer the note explains the rows; once answering, the strip takes its place. */
-  .sf-page.or-room:not([data-phase='ready']) .or-note { display: none; }
+  /* Before the answer the note explains the rows; once answering, the strip takes its place. «Как на экзамене»
+     has no rows and no strip: its line stays, it says why nothing is marked (EX-28). */
+  .sf-page.or-room:not([data-phase='ready']) .or-note:not([data-exam]) { display: none; }
+  /* A saved protocol read later has no answer bar (EX-33: its question is gone): no room kept for one. */
+  .sf-page.or-room[data-phase='protocol']:not(:has(.or-acts)) { padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
   .sf-page .or-sheet[data-collapsed][data-empty] { display: none; }
   .sf-page .or-psheet { padding: 18px 10px 18px; border-radius: 32px; }
   .sf-page .or-ph, .sf-page .or-prelim, .sf-page .or-asked { padding-left: 8px; padding-right: 8px; }
@@ -879,6 +911,24 @@
 @media (max-width: 639px) {
   .sf-page .or-ph { gap: 6px 12px; }
   .sf-page .or-ph-sheet { font-size: 16px; line-height: 23px; }
+}
+
+/* 320–359 px (an iPhone SE, small Androids; EX-31, PUB-8): «Голосом» and «Текстом» share the bar's one line as two
+   equal pills — the long blue pill wrapped under the white one in a staircase, 136 px of bar over a page that
+   kept 96. A bar that still takes two lines (the follow-up's two links and «Отвечать», a protocol's link and its
+   pill) has room kept for it: the page's last lines and links stay reachable above it. */
+@media (max-width: 359px) {
+  .sf-page .or-choice > .sf-primary:not(:only-child),
+  .sf-page .or-choice > .or-alt { flex: 1 1 0; min-width: 0; }
+  .sf-page .or-choice > .sf-primary:not(:only-child) { margin-left: 0; justify-content: space-between; padding-left: 16px; }
+  /* A pill with a long label says it short («Голосом», «Ответить снова»); one alone in the bar keeps its words. */
+  .sf-page .or-acts .sf-primary .or-pill-long { display: none; }
+  .sf-page .or-acts .sf-primary .or-pill-short { display: inline; }
+  .sf-page .or-choice > .sf-primary:only-child .or-pill-long { display: inline; }
+  .sf-page .or-choice > .sf-primary:only-child .or-pill-short { display: none; }
+  .sf-page .or-choice > .or-alt { padding: 0 12px; }
+  .sf-page.or-room { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .sf-page .or-paste-note { scroll-margin-bottom: calc(150px + env(safe-area-inset-bottom)); }
 }
 
 /* Voice recognised on the server: the microphone level and what is happening with the words. */
