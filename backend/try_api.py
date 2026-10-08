@@ -4,8 +4,11 @@
 словами получал «не назван»: в живом прогоне 07.10 вердикты модели по пунктам совпали с известной правдой
 в 41 из 42 случаев, ключевые слова — в 23. Теперь ответ на вопрос примера проверяет тот же протокол, что
 и настоящий билет: oral_api.judge_answer (промпт D, повтор при обрыве, oral.validate_evaluation — пункт
-с ошибкой становится wrong, «не знаю» ничего не называет). Переспрос выбирает браузер; модель зовётся
-один раз на ответ.
+с ошибкой становится wrong, «не знаю» ничего не называет). Переспрос выбирает браузер. Ответ на вопрос
+экзаменатора проверяет тот же промпт по одному пункту, что у настоящего билета (/api/oral/check с only,
+oral.build_check_prompt): иначе верный ответ на переспрос в примере никогда не засчитывался — ключевые
+слова дают самое большее «упомянут» (PUB-2). Модель зовётся не больше двух раз на ответ: протокол ответа
+и ответ на переспрос; оба вызова — в тех же потолках и пределах.
 
 Путь открыт без входа (main.PUBLIC_API_PATHS), поэтому:
 - вопросы, пункты и цитаты лекций сервер берёт только из своей копии примера try_example.json. Её пишет
@@ -29,6 +32,12 @@
 timeout (TIMEOUT_SECONDS = 8 с), failed (сбой модели, непригодный ответ, нет копии примера). Пустой ответ
 и «не знаю» — протокол без модели, как у /api/oral/evaluate. Негодный запрос: 400, неизвестный вопрос —
 404, ответ длиннее TRANSCRIPT_CHARS — 413.
+
+Ответ на вопрос экзаменатора: тело {"question_id", "point_id", "transcript"} — id пункта из копии примера
+и текст ответа на переспрос (вопрос и ожидаемый ответ клиент не присылает: пример спрашивает о мысли
+пункта, и модель сверяет ответ с ней). Ответ: {"mode": "ai", "status": covered | partial | missing |
+wrong} или те же {"mode": "keywords", "reason": …}; бюджет FOLLOWUP_TIMEOUT_SECONDS = 4,5 с, как у быстрой
+проверки билета. Пустой ответ и «не знаю» — missing без модели; пункт, которого у вопроса нет, — 400.
 
 Счётчики потолков, пределы slowapi и кэш готовых протоколов живут в памяти процесса: Space работает
 одним процессом uvicorn, и для него этого достаточно; перезапуск или сон Space их обнуляет. Сутки
@@ -65,6 +74,8 @@ TRY_EVALUATE_PATH = "/api/try/evaluate"
 EXAMPLE_FILE = Path(__file__).resolve().parent / "try_example.json"
 
 TIMEOUT_SECONDS = 8.0
+# Ответ на вопрос экзаменатора: быстрая проверка одного пункта, бюджет как у /api/oral/check (4,5 с).
+FOLLOWUP_TIMEOUT_SECONDS = 4.5
 GUARD_SECONDS = 0.5  # жёсткий потолок поверх бюджета протокола
 MAX_BODY_BYTES = 32 * 1024
 TRANSCRIPT_CHARS = 4000
@@ -72,7 +83,8 @@ DEFAULT_DAILY_CAP = 400
 DEFAULT_SHARED_DAILY_CAP = 60
 DEFAULT_CLIENT_LIMIT = "12/10 minutes;40/day"
 CACHE_ENTRIES = 64
-BODY_KEYS = frozenset({"question_id", "transcript"})
+# Протокол ответа — id вопроса и ответ; ответ на вопрос экзаменатора — ещё id пункта. Других полей нет.
+BODY_KEYS = frozenset({"question_id", "transcript", "point_id"})
 REASONS = ("no_key", "day_cap", "busy", "timeout", "failed")
 
 UNKNOWN_QUESTION_DETAIL = "Такого вопроса в примере нет."
@@ -308,8 +320,9 @@ def reset_state() -> None:
 # ── POST /api/try/evaluate ──────────────────────────────────────────────────────
 
 
-def _fields(body: dict) -> tuple[str, str]:
-    """id вопроса и ответ; любое другое поле (пункты, лекции, вопрос) — 400."""
+def _fields(body: dict) -> tuple[str, str, str | None]:
+    """id вопроса, ответ и — для ответа на вопрос экзаменатора — id пункта; любое другое поле (пункты,
+    лекции, вопрос) — 400."""
     if set(body) - BODY_KEYS:
         raise oral_api._bad()
     question_id = body.get("question_id")
@@ -317,6 +330,9 @@ def _fields(body: dict) -> tuple[str, str]:
         raise oral_api._bad()
     if not _QUESTION_ID_RE.match(question_id):
         raise HTTPException(status_code=404, detail=UNKNOWN_QUESTION_DETAIL)
+    point_id = body.get("point_id")
+    if point_id is not None and (not isinstance(point_id, str) or not _POINT_ID_RE.match(point_id)):
+        raise oral_api._bad()
     transcript = body.get("transcript")
     if not isinstance(transcript, str):
         raise oral_api._bad()
@@ -324,7 +340,7 @@ def _fields(body: dict) -> tuple[str, str]:
         raise HTTPException(status_code=413, detail=TOO_LONG_DETAIL)
     if not transcript.strip():
         raise oral_api._bad()
-    return question_id, transcript
+    return question_id, transcript, point_id
 
 
 def _reason_of(exc: AIError) -> str:
@@ -342,13 +358,73 @@ def _keywords(reason: str) -> dict:
     return {"mode": "keywords", "reason": reason}
 
 
+async def _judge_followup(question: ExampleQuestion, points: list[dict], point_id: str, transcript: str, started: float) -> dict:
+    """Ответ на вопрос экзаменатора о пункте point_id: статус пункта промптом C по одному пункту, как у
+    /api/oral/check с only, — или «проверьте ключевыми словами» с причиной. Вопроса экзаменатора у копии
+    нет: модель сверяет ответ с мыслью пункта (вопросы примера спрашивают именно о ней)."""
+    where = f"{question.id}/{point_id}"
+    if not oral.words(transcript) or oral.says_dont_know(transcript):
+        # «Не знаю» — ответ кнопки: пункт не назван, без модели.
+        _log(where, "ai", "dont_know", None, transcript, started)
+        return {"mode": "ai", "status": "missing"}
+    key = _protocol_key(where, transcript)
+    cached = _cached_protocol(key)
+    if cached is not None:
+        _log(where, "ai", "cached", None, transcript, started)
+        return {"mode": "ai", "status": cached["status"]}
+    pool = current_pool()
+    if pool is None:
+        _log(where, "keywords", "no_key", None, transcript, started)
+        return _keywords("no_key")
+    if not _calls.take(pool):
+        _log(where, "keywords", "day_cap", pool, transcript, started)
+        return _keywords("day_cap")
+    agent = BaseAgent(api_key="", gemini_api_keys=pool.keys)
+    meta: dict = {}
+    try:
+        raw = await asyncio.wait_for(
+            oral_api._run_model(
+                oral.build_check_prompt(point_id),
+                oral.build_check_input(question.text, points, transcript, only=point_id),
+                budget=FOLLOWUP_TIMEOUT_SECONDS,
+                agent=agent,
+                thinking="off",
+                temperature=0,
+                max_tokens=oral_api.CHECK_MAX_TOKENS,
+                json_mode=True,
+                meta=meta,
+                use_cache=False,
+            ),
+            timeout=FOLLOWUP_TIMEOUT_SECONDS + GUARD_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        reason = why = "timeout"
+    except AIError as exc:
+        reason = why = _reason_of(exc)
+        if reason in ("busy", "no_key"):
+            _calls.give_back(pool)  # до модели не дошло или 429: квота не потрачена
+    except Exception as exc:  # текст исключения может цитировать ответ: в журнал — только класс
+        reason, why = "failed", f"failed: {type(exc).__name__}"
+    else:
+        ids = [point["id"] for point in points]
+        statuses = None if oral_api._cut_off(meta) else oral.validate_statuses(oral_api._parsed(raw), ids, point_id)
+        if statuses is not None:
+            _keep_protocol(key, {"status": statuses[point_id]})
+            _log(where, "ai", "model", pool, transcript, started)
+            return {"mode": "ai", "status": statuses[point_id]}
+        reason = why = "failed"
+    _log(where, "keywords", why, pool, transcript, started)
+    return _keywords(reason)
+
+
 @router.post(TRY_EVALUATE_PATH)
 @limiter.limit(client_limit, key_func=visitor_ip_key)
 async def try_evaluate(request: Request):
-    """Протокол ответа на вопрос примера моделью — или честное «проверьте ключевыми словами». См. модуль."""
+    """Протокол ответа на вопрос примера моделью — или честное «проверьте ключевыми словами»; с point_id —
+    статус пункта по ответу на вопрос экзаменатора. См. модуль."""
     started = time.monotonic()
     body = await oral_api._read_json(request, MAX_BODY_BYTES)
-    question_id, transcript = _fields(body)
+    question_id, transcript, point_id = _fields(body)
     example = example_questions()
     if example is None:
         _log(question_id, "keywords", "failed", None, transcript, started)
@@ -357,6 +433,10 @@ async def try_evaluate(request: Request):
     if question is None:
         raise HTTPException(status_code=404, detail=UNKNOWN_QUESTION_DETAIL)
     points = [dict(point) for point in question.points]
+    if point_id is not None:
+        if all(point["id"] != point_id for point in points):
+            raise oral_api._bad()
+        return await _judge_followup(question, points, point_id, transcript, started)
 
     shortcut = oral_api.dont_know_evaluation(points, transcript)
     if shortcut is not None:

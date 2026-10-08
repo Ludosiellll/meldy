@@ -10,8 +10,10 @@
  *   with an explicit miss), confirmed or changed by the key-word statuses in place of the quick check —
  *   main points first, then the others (chooseFollowup, §7.5).
  * - The answer to the follow-up: «не знаю» (said, typed or the button) does not name the point; anything else
- *   gets the browser's key-word rule (followupFallback, the one a real ticket uses when the check does
- *   not answer in time), labelled «по ключевым словам» in the protocol.
+ *   is judged by the AI on the server, by the point, as a real ticket's reply is (tryCheck.checkTryFollowup) —
+ *   and when the AI is not there, by the browser's key-word rule (followupFallback, the one a real ticket
+ *   uses when the check does not answer in time), labelled «по ключевым словам» in the protocol. The key
+ *   words never say «назван», so only the AI can name a point after the examiner's question (PUB-2).
  * - The grade is oralGrade.gradeAnswer, the app's formula.
  */
 import { drawTicket, ticketKey, RECENT_LIMIT } from '../../lib/exams/draw';
@@ -19,6 +21,7 @@ import { browserCandidate, chooseFollowup, decideFollowup, saysDontKnow, type Fo
 import { followupFallback, openingMatch, segmentText, words, type Anchors } from '../../lib/oral/rubricMatch';
 import type { CheckStatus, Evaluation, RubricPoint } from '../../lib/oral/oralApi';
 import { answerableQuestions, exampleQuestion, type ExampleQuestion } from '../../data/example';
+import type { TryFollowupCheck } from './tryCheck';
 
 /** The longest piece of the answer quoted in the protocol (backend oral.STUDENT_QUOTE_CHARS). */
 export const STUDENT_QUOTE_CHARS = 160;
@@ -95,13 +98,25 @@ export function exampleFollowup(points: ReadonlyArray<RubricPoint>, snapshot: st
 
 export interface FollowupVerdict {
   status: CheckStatus;
-  /** null — «не знаю»: an honest answer, trusted as the button is; keywords — the browser's key-word rule. */
-  judgedBy: 'keywords' | null;
+  /**
+   * null — «не знаю»: an honest answer, trusted as the button is; check — the AI judged the reply (as a real
+   * ticket's quick check); keywords — the browser's key-word rule.
+   */
+  judgedBy: 'check' | 'keywords' | null;
 }
 
-/** The answer to the follow-up: «не знаю» is not counted; anything else gets the key-word rule. */
-export function judgeFollowupAnswer(point: Pick<RubricPoint, 'anchors'>, question: string, answer: string): FollowupVerdict {
+/**
+ * The answer to the follow-up: «не знаю» is not counted; otherwise the AI's judgement of the reply when it
+ * came (`reply`, tryCheck.checkTryFollowup), else the key-word rule.
+ */
+export function judgeFollowupAnswer(
+  point: Pick<RubricPoint, 'anchors'>,
+  question: string,
+  answer: string,
+  reply: TryFollowupCheck | null = null,
+): FollowupVerdict {
   if (saysDontKnow(answer)) return { status: 'missing', judgedBy: null };
+  if (reply?.by === 'ai') return { status: reply.status, judgedBy: 'check' };
   return { status: followupFallback(point.anchors, question, answer), judgedBy: 'keywords' };
 }
 

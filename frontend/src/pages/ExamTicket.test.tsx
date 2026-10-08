@@ -5,7 +5,7 @@ import { createFakeSupabase } from '../lib/oral/testing/fakeSupabase';
 import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../lib/oral/testing/fixtures';
 import { CHECK_AFTER_FAILED_CHECK_MS, CHECK_CONFIRM_TIMEOUT_MS, CHECK_FOLLOWUP_TIMEOUT_MS, DONT_KNOW_VERDICT } from '../lib/oral/oralApi';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
-import { CHOSE_SERVER_NOTICE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE } from './ExamTicket';
+import { CHOSE_SERVER_NOTICE, EXAM_MODE_LINE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE, nextStepLine } from './ExamTicket';
 import { SCALE_NOTE } from '../components/oral/OralProtocol';
 import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
 
@@ -595,7 +595,7 @@ describe('ExamTicket: answering by text', () => {
 
     // The memo's stage example: «Не знаю» on the follow-up about a missing main point. Its grade, a 3
     // ((2 + 2 + 1 + 0 + 1) / 9 = 67, capped), goes to the save only (Ф1): the screen says what was named.
-    expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Назвали сами 2 из 4 главных');
+    expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Сами назвали 2 из 4 главных пунктов');
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
     expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Итог' })).toBeInTheDocument();
@@ -784,9 +784,9 @@ describe('ExamTicket: answering by text', () => {
   });
 
   it.each([
-    ['Если взять слишком большую скорость обучения', 'missing', 'по ключевым словам пункт не назван'],
-    ['Будут колебания, и сеть может не сойтись', 'partial', 'по ключевым словам пункт упомянут'],
-  ])('decides «%s» in the browser when the follow-up check fails → %s, and says so', async (answer, status, verdict) => {
+    ['Если взять слишком большую скорость обучения', 'missing', 'По ключевым словам пункт не назван', 'главный пункт · не назван и после вопроса экзаменатора, по ключевым словам'],
+    ['Будут колебания, и сеть может не сойтись', 'partial', 'По ключевым словам пункт упомянут', 'главный пункт · не назван; после вопроса экзаменатора по ключевым словам — упомянут'],
+  ])('decides «%s» in the browser when the follow-up check fails → %s, and says so', async (answer, status, verdict, line) => {
     const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
     seedDatabase({ rpc });
     api['/api/oral/check'].mockImplementation(async (body) =>
@@ -802,11 +802,12 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     await screen.findByText(/Сохранено в историю и/);
     const followupCheck = callsTo('/api/oral/check').map(bodyOf).find((body) => body.only === 'p4');
-    expect(followupCheck).toMatchObject({ only: 'p4', followup_question: Q4, transcript: answer });
+    // The reply is compared with what the question expects (EX-30).
+    expect(followupCheck).toMatchObject({ only: 'p4', followup_question: Q4, followup_expected: DEMO_RUBRIC.points[3].followup.expected, transcript: answer });
     expect((rpc.mock.calls[0] as unknown as [string, { p_attempt: { followup: { status: string } } }])[1].p_attempt.followup.status).toBe(status);
     // The browser's key-word rule decided, and the protocol does not pass it off as the check's verdict.
-    expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «${answer}», ${verdict}.`);
-    expect(container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toMatch(new RegExp(`, ${verdict}$`));
+    expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «${answer}». ${verdict}.`);
+    expect(container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe(line);
   });
 
   it('labels the follow-up as judged by key words when its check runs past 5.5 s', async () => {
@@ -829,7 +830,7 @@ describe('ExamTicket: answering by text', () => {
       await vi.advanceTimersByTimeAsync(CHECK_FOLLOWUP_TIMEOUT_MS - CHECK_AFTER_FAILED_CHECK_MS);
     });
     await screen.findByText(/Сохранено в историю и/);
-    expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам пункт упомянут.');
+    expect(container.querySelector('.or-extra')?.textContent).toContain('По ключевым словам пункт упомянут.');
   });
 
   it('waits only once in full: after the check at «Готово» ran out of time, the follow-up’s check waits 2.5 s', async () => {
@@ -854,7 +855,7 @@ describe('ExamTicket: answering by text', () => {
     await screen.findByText(/Сохранено в историю и/);
     const followupCheck = callsTo('/api/oral/check').find((call) => bodyOf(call).only === 'p4');
     expect((followupCheck?.[1] as RequestInit).signal?.aborted).toBe(true);
-    expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам пункт упомянут.');
+    expect(container.querySelector('.or-extra')?.textContent).toContain('По ключевым словам пункт упомянут.');
     const [, args] = rpc.mock.calls[0] as unknown as [string, { p_attempt: { followup: { chosen_by: string; status: string } } }];
     expect(args.p_attempt.followup).toMatchObject({ chosen_by: 'client', status: 'partial' });
   });
@@ -1341,7 +1342,7 @@ describe('ExamTicket: answering aloud', () => {
     const followupCheck = callsTo('/api/oral/check').map(bodyOf).find((body) => body.only === 'p4');
     expect(followupCheck).toMatchObject({ transcript: 'Будут колебания', followup_question: Q4 });
     // The check answered: its verdict is given as is.
-    expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «Будут колебания», пункт упомянут.`);
+    expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «Будут колебания». Пункт упомянут.`);
   });
 
   it('stages peak 2: one secondary count line, the question shows, the voice comes 300 ms later (redesign critique 3, round 2; Jury_Check 7, 9)', async () => {
@@ -1722,7 +1723,7 @@ describe('ExamTicket: a saved protocol, read only', () => {
     const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
     expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
     // A 4 saved with «не знаю» before formula v2: the grade is not shown (Ф1), only what was named.
-    expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
+    expect(summaryText()).toBe('Сами назвали 2 из 4 главных пунктов');
     expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/[Зз]асчитан|Оценк|хорошо ·|правилу, которое действовало/);
     // A saved protocol read later does not know what it did to the sheet then: no line under the date.
@@ -1749,10 +1750,39 @@ describe('ExamTicket: a saved protocol, read only', () => {
     const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
     expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
     expect(container.querySelector('.or-course')?.textContent?.replace(/\s+/g, ' ')).toBe('Зачёт по нейросетям, весна · ');
+    // «Лист экзамена» once, in the top line (EX-33: it was there and under the result).
     const links = screen.getAllByRole('button', { name: 'Лист экзамена' });
-    expect(links).toHaveLength(2);
-    fireEvent.click(links[1]);
+    expect(links).toHaveLength(1);
+    // That exam has no such question: nothing to answer again.
+    expect(screen.queryByRole('button', { name: 'Ответить на этот вопрос снова' })).toBeNull();
+    fireEvent.click(links[0]);
     await waitFor(() => expect(location).toBe(`/exams/${OTHER}`));
+  });
+
+  it('offers to answer the question again as its main action, in the exam that has it (EX-33)', async () => {
+    seedDatabase({ sessions: [sessionRow] });
+    const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
+    expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
+    const again = await screen.findByRole('button', { name: 'Ответить на этот вопрос снова' });
+    expect(again).toHaveClass('sf-primary');
+    expect(container.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Лист экзамена' })).toHaveLength(1);
+    fireEvent.click(again);
+    // The same question's ticket, in training, ready to be answered.
+    await readyToAnswer();
+    expect(screen.getByRole('article', { name: 'Вопрос 7' })).toBeInTheDocument();
+    expect(screen.queryByText('Ответ от 7 окт., 14:02')).toBeNull();
+  });
+
+  it('offers nothing to answer again when the exam no longer has the question', async () => {
+    const fake = seedDatabase({ sessions: [sessionRow] });
+    fake.tables.exam_questions.splice(0, fake.tables.exam_questions.length);
+    const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
+    expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ответить на этот вопрос снова' })).toBeNull();
+    // No answer bar at all, so no room is kept for one on a phone; the top line's «Лист экзамена» leads back.
+    expect(container.querySelector('.or-acts')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Лист экзамена' })).toHaveLength(1);
   });
 
   it('says the subject in the top line, not «Экзамен: …» once more', async () => {
@@ -1818,7 +1848,7 @@ describe('ExamTicket: a ticket of two questions', () => {
   });
 });
 
-/** The result's line («Назвали сами 2 из 4 главных · …») as plain text. */
+/** The result's line («Сами назвали 2 из 4 главных пунктов, ещё 1 — …») as plain text. */
 function summaryText(): string | undefined {
   return document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ');
 }
@@ -1859,7 +1889,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       await answerFollowup('Веса станут меньше');
       await screen.findByText(/Сохранено в историю и/);
       // The grade goes to the save (record_oral_attempt requires it); the screen says what was named.
-      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
+      expect(summaryText()).toBe('Сами назвали 2 из 4 главных пунктов');
       expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 3, followup: { status: 'wrong' } });
     });
 
@@ -1873,7 +1903,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       await answerFollowup('Будут колебания');
       await screen.findByText(/Сохранено в историю и/);
       // A partial reply to the question is no naming: «после вопроса» stays out.
-      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
+      expect(summaryText()).toBe('Сами назвали 2 из 4 главных пунктов');
       expect(container.querySelector('.or-stamp, svg[data-mark="oval"]')).toBeNull();
       expect(container.textContent).not.toMatch(/[Зз]асчитан|Оценк|хорошо ·/);
       fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
@@ -1892,8 +1922,8 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
         await vi.advanceTimersByTimeAsync(CHECK_FOLLOWUP_TIMEOUT_MS + 100);
       });
       await screen.findByText(/Сохранено в историю и/);
-      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
-      expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам пункт не назван');
+      expect(summaryText()).toBe('Сами назвали 2 из 4 главных пунктов');
+      expect(container.querySelector('.or-extra')?.textContent).toContain('По ключевым словам пункт не назван');
       expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 4, followup: { status: 'missing' } });
     });
 
@@ -1925,7 +1955,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       // Silence again: the follow-up is not answered.
       fireEvent.click(await screen.findByRole('button', { name: 'Готово' }));
       await screen.findByText(/Сохранено в историю и/);
-      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
+      expect(summaryText()).toBe('Сами назвали 2 из 4 главных пунктов');
       expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 3, followup: { status: 'missing' } });
     });
   });
@@ -1949,7 +1979,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       // Where the key words and the check agree, nothing is added.
       for (const id of ['p1', 'p2', 'p4', 'p5']) expect(container.querySelector(`[data-point="${id}"] .or-ppt-why`)).toBeNull();
       // Every main point says so; p5 is not one.
-      expect(container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe('главный пункт · не назван; на вопрос экзаменатора — «не знаю»');
+      expect(container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent?.replace(/\u00a0/g, ' ')).toBe('главный пункт · не назван; на вопрос экзаменатора — «не знаю»');
       expect(container.querySelector('[data-point="p5"] .or-ppt-st')?.textContent).toBe('раскрыт · фрагмент\u00a016');
     });
 
@@ -2037,28 +2067,31 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
   describe('«как на экзамене» (item 11)', () => {
     const examUrl = () => `/exams/${EXAM}/ticket?q=${Q1}&n=12&mode=exam`;
 
-    it('starts with marks off, no hint and no counter, and never writes the stored preference', async () => {
+    it('shows no rows, no count and no switch before the protocol, says so in one line, and never writes the stored preference', async () => {
       const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
       seedDatabase({ rpc });
       window.localStorage.setItem('meldy_oral_live_marks', '1');
       const { container } = await renderPage(examUrl());
       await readyToAnswer();
-      const toggle = screen.getByRole('checkbox', { name: 'Отмечать пункты во время ответа' });
-      expect(toggle).not.toBeChecked();
-      expect(container.textContent).not.toMatch(/В эталоне/);
-      // The switch works for this answer and leaves the training preference alone.
-      fireEvent.click(toggle);
-      expect(toggle).toBeChecked();
-      fireEvent.click(toggle);
-      expect(toggle).not.toBeChecked();
-      expect(window.localStorage.getItem('meldy_oral_live_marks')).toBe('1');
+      // Decision 3: the grey bars looked like a page still loading and told how many points there are (EX-28).
+      expect(screen.queryByRole('list', { name: 'Пункты ответа' })).toBeNull();
+      expect(container.querySelector('.or-pt, .or-pt-blank')).toBeNull();
+      expect(screen.queryByRole('checkbox', { name: 'Отмечать пункты во время ответа' })).toBeNull();
+      expect(container.textContent).not.toMatch(/В эталоне|Полный ответ — /);
+      const line = container.querySelector('.or-note[data-exam]');
+      expect(line?.textContent?.replace(/\u00a0/g, ' ')).toBe(EXAM_MODE_LINE);
+      expect(EXAM_MODE_LINE).toBe('Как на экзамене: пункты ответа и цитаты — только в протоколе.');
       fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
       typeAnswer(DEMO_ANSWER);
+      // The answer on a plain sheet; nothing marked, nothing counted, the one line still there.
+      expect(container.querySelector('.or-sheet[data-plain] textarea')).not.toBeNull();
       expect(container.querySelectorAll('[data-named]')).toHaveLength(0);
-      expect(container.querySelector('.or-count, .or-count-line, .or-strip')).toBeNull();
+      expect(container.querySelector('.or-count, .or-count-line, .or-strip, .or-pts')).toBeNull();
       expect(container.querySelector('.or-said .sf-under')).toBeNull();
-      expect(screen.getByText('Отметки во время ответа выключены: пункты откроются в протоколе.')).toBeInTheDocument();
+      expect(screen.queryByText('Отметки во время ответа выключены: пункты откроются в протоколе.')).toBeNull();
+      expect(container.querySelector('.or-note[data-exam]')).not.toBeNull();
       fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      // The examiner asks; the left side still names no point.
       fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
       await screen.findByText(/Сохранено в историю и/);
       expect(container.querySelector('.or-count-line')).toBeNull();
@@ -2165,7 +2198,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'covered', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: null }));
       await renderPage(`/exams/${EXAM}/ticket?q=${Q1}&mode=exam`);
       await readyToAnswer();
-      expect(screen.getByRole('checkbox', { name: 'Отмечать пункты во время ответа' })).not.toBeChecked();
+      expect(screen.queryByRole('checkbox', { name: 'Отмечать пункты во время ответа' })).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
       typeAnswer(FULL_ANSWER);
       fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
@@ -2177,5 +2210,69 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       });
       await screen.findByText(/Сохранено в историю и/);
     });
+  });
+});
+
+describe('ExamTicket: what «Готово» leads to, its keys, and the tab’s name', () => {
+  beforeEach(() => {
+    ttsFailing.add('Так…');
+  });
+
+  it('says before the answer what follows «Готово» and what the check costs, from the plans (EX-32)', async () => {
+    seedDatabase();
+    const { container } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    const line = container.querySelector('.or-next')?.textContent?.replace(/ /g, ' ');
+    expect(line).toBe(nextStepLine());
+    expect(nextStepLine()).toBe(
+      'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа — 4 единицы дневного лимита ИИ.',
+    );
+    expect(nextStepLine(1)).toMatch(/— 1 единица дневного/);
+    expect(nextStepLine(5)).toMatch(/— 5 единиц дневного/);
+    // Above the two ways to answer, in the same column.
+    expect(container.querySelector('.or-next + .or-choice')).not.toBeNull();
+    // Answering, it goes: the bar is the student's now.
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    expect(container.querySelector('.or-next')).toBeNull();
+  });
+
+  it('says nothing about a check when none can be made today', async () => {
+    seedDatabase();
+    mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
+    const { container } = await renderPage(ticketUrl());
+    await screen.findByText(/^Дневной лимит исчерпан/);
+    expect(container.querySelector('.or-next')).toBeNull();
+  });
+
+  it('takes Ctrl+Enter or ⌘+Enter in the answer field as «Готово», and a plain Enter as a new line (EX-29)', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    const { container } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    const field = screen.getByRole('textbox');
+    typeAnswer(DEMO_ANSWER);
+    expect(screen.getByRole('button', { name: 'Готово' })).toHaveAttribute('aria-keyshortcuts', 'Control+Enter Meta+Enter');
+    expect(container.querySelector('.or-keys')?.textContent).toMatch(/^Готово — (Ctrl|⌘) \+ Enter$/);
+    fireEvent.keyDown(field, { key: 'Enter' });
+    fireEvent.keyDown(field, { key: 'Enter', shiftKey: true, ctrlKey: true });
+    expect(callsTo('/api/oral/check')).toHaveLength(0);
+    fireEvent.keyDown(field, { key: 'Enter', metaKey: true });
+    expect(await screen.findByText(`«${Q4}»`)).toBeInTheDocument();
+    expect(callsTo('/api/oral/check')).toHaveLength(1);
+    // The reply to the examiner too.
+    const reply = await screen.findByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    fireEvent.change(reply, { target: { value: 'Будут колебания, и сеть может не сойтись' } });
+    fireEvent.keyDown(reply, { key: 'Enter', ctrlKey: true });
+    await screen.findByText(/Сохранено в историю и/);
+    expect(callsTo('/api/oral/check').map(bodyOf).some((body) => body.only === 'p4')).toBe(true);
+  });
+
+  it('names the tab after the page while it is open', async () => {
+    seedDatabase();
+    const { unmount } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    expect(document.title).toBe('Ответ на билет — Meldy');
+    unmount();
+    expect(document.title).not.toBe('Ответ на билет — Meldy');
   });
 });

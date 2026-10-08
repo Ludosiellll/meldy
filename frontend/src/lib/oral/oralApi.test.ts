@@ -163,6 +163,17 @@ describe('oral API', () => {
     expect(await short).toMatchObject({ kind: 'timeout' });
   });
 
+  it('sends the follow-up’s expected answer with the reply to it, and only then (EX-30)', async () => {
+    fetchMock.mockImplementation(async () => json(200, { statuses: { p1: 'missing' }, ask: null }));
+    const points = [{ id: 'p1', title: 'Пункт', essential: true }];
+    await checkAnswer({ question: 'Вопрос', points, transcript: 'ответ о другом', only: 'p1', followupQuestion: 'А почему?', followupExpected: '  Потому что так в лекции. ' });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toMatchObject({ only: 'p1', followup_question: 'А почему?', followup_expected: 'Потому что так в лекции.' });
+    // The whole answer's check, or a reply with no expected answer: no such field.
+    await checkAnswer({ question: 'Вопрос', points, transcript: 'ответ', followupExpected: 'Потому что так в лекции.' });
+    await checkAnswer({ question: 'Вопрос', points, transcript: 'ответ', only: 'p1', followupExpected: '   ' });
+    for (const call of fetchMock.mock.calls.slice(1)) expect(JSON.parse(String(call[1].body))).not.toHaveProperty('followup_expected');
+  });
+
   it('takes «не знаю» as the button: every point missing, no request, no model, no units', async () => {
     const points = [
       { id: 'p1', title: 'А', essential: false },

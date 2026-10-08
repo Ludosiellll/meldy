@@ -5,9 +5,13 @@ import {
   CHECKED_BY_KEYWORDS,
   TRY_CHECK_TIMEOUT_MS,
   TRY_EVALUATE_PATH,
+  TRY_FOLLOWUP_AFTER_FAILURE_MS,
+  TRY_FOLLOWUP_TIMEOUT_MS,
   checkLine,
   checkSummary,
   checkTryAnswer,
+  checkTryFollowup,
+  followupPlan,
   keptEvaluation,
   parseCheckSummary,
   parseTryResponse,
@@ -117,6 +121,56 @@ describe('checkTryAnswer', () => {
     const pending = checkTryAnswer('q1', 'Ответ', IDS, { signal: controller.signal });
     controller.abort();
     expect((await pending).by).toBe('keywords');
+  });
+});
+
+describe('checkTryFollowup: the reply to the examiner (PUB-2)', () => {
+  const REPLY = 'Если модуль эластичности больше единицы, спрос эластичный, если меньше единицы — неэластичный.';
+
+  it('sends the question’s id, the point’s id and the reply, nothing else, and returns the AI’s status', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { mode: 'ai', status: 'covered' }));
+    expect(await checkTryFollowup('q5', 'p3', REPLY)).toEqual({ by: 'ai', status: 'covered' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(TRY_EVALUATE_PATH);
+    expect(JSON.parse(String(init.body))).toEqual({ question_id: 'q5', point_id: 'p3', transcript: REPLY });
+  });
+
+  it.each([
+    [json(200, { mode: 'ai', status: 'partial' }), { by: 'ai', status: 'partial' }],
+    [json(200, { mode: 'ai', status: 'отлично' }), { by: 'keywords', reason: 'failed' }],
+    [json(200, { mode: 'keywords', reason: 'day_cap' }), { by: 'keywords', reason: 'day_cap' }],
+    [json(200, { mode: 'keywords', reason: 'made up' }), { by: 'keywords', reason: 'failed' }],
+    [json(429, { detail: 'Слишком много запросов.' }), { by: 'keywords', reason: 'client_limit' }],
+    [json(400, { detail: 'Неверный формат запроса.' }), { by: 'keywords', reason: 'failed' }],
+  ])('reads the server’s answer about the reply, or the key words with the reason (%#)', async (response, expected) => {
+    fetchMock.mockResolvedValueOnce(response);
+    expect(await checkTryFollowup('q5', 'p3', REPLY)).toEqual(expected);
+  });
+
+  it('waits 5.5 s by default and as long as it is told; a reply over 4000 characters is not sent', async () => {
+    expect(TRY_FOLLOWUP_TIMEOUT_MS).toBe(5_500);
+    vi.useFakeTimers();
+    const hang = (_url: string, init: RequestInit) =>
+      new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
+    fetchMock.mockImplementationOnce(hang);
+    const short = checkTryFollowup('q5', 'p3', REPLY, { timeoutMs: TRY_FOLLOWUP_AFTER_FAILURE_MS });
+    await vi.advanceTimersByTimeAsync(TRY_FOLLOWUP_AFTER_FAILURE_MS + 1);
+    expect(await short).toEqual({ by: 'keywords', reason: 'timeout' });
+    vi.useRealTimers();
+    expect(await checkTryFollowup('q5', 'p3', 'а'.repeat(4001))).toEqual({ by: 'keywords', reason: 'too_long' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks the AI about the reply by what the answer’s own check said: in full, briefly, or not at all', () => {
+    const ai = { by: 'ai' as const, evaluation: KEYWORDS };
+    expect(followupPlan(ai)).toEqual({ ask: true, timeoutMs: TRY_FOLLOWUP_TIMEOUT_MS });
+    expect(followupPlan({ by: 'dont_know' })).toEqual({ ask: true, timeoutMs: TRY_FOLLOWUP_TIMEOUT_MS });
+    expect(followupPlan({ by: 'keywords', reason: 'too_long' })).toEqual({ ask: true, timeoutMs: TRY_FOLLOWUP_TIMEOUT_MS });
+    // The AI was slow or failed, or has not answered yet: one short wait, as a real ticket after a failed check.
+    for (const reason of ['timeout', 'failed'] as const) expect(followupPlan({ by: 'keywords', reason })).toEqual({ ask: true, timeoutMs: TRY_FOLLOWUP_AFTER_FAILURE_MS });
+    expect(followupPlan(null)).toEqual({ ask: true, timeoutMs: TRY_FOLLOWUP_AFTER_FAILURE_MS });
+    // No AI check can be had now: the key words at once, for the same reason, with no request.
+    for (const reason of ['no_key', 'day_cap', 'busy', 'client_limit', 'offline'] as const) expect(followupPlan({ by: 'keywords', reason })).toEqual({ ask: false, reason });
   });
 });
 

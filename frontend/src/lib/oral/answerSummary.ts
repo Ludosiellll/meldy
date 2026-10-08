@@ -1,8 +1,9 @@
 /**
- * What an answer named, as the protocol says it (Ф1, 2026-10-07): «Назвали сами 3 из 4 главных · после
- * вопроса 1 · ошибок: 1». No grade on screen: the teacher grades on the 10-point scale, Meldy only checks
- * which points of the student's lectures were named. The internal grade (oralGrade.ts) still goes to
- * record_oral_attempt and decides «подтверждено»; the screen does not show it.
+ * What an answer named, as the protocol says it (Ф1, 2026-10-07; the sentence of the orchestrator's
+ * decision 2, 2026-10-08): «Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора». No
+ * grade on screen: the teacher grades on the 10-point scale, Meldy only checks which points of the
+ * student's lectures were named. The internal grade (oralGrade.ts) still goes to record_oral_attempt and
+ * decides «подтверждено»; the screen does not show it.
  *
  * The words follow the cheat sheet's rule (lib/exams/cheatSheet.ts, outcomeOf): a point is named «сами»
  * when the check found it covered in the answer itself; a point missed, mentioned or said wrong in the
@@ -61,21 +62,31 @@ export function answerSummary(points: readonly SummaryPoint[], followup: Summary
   };
 }
 
-/** «из 1 главного», «из 4 главных», «из 21 главного»; «из 1 пункта», «из 5 пунктов». */
+function one(n: number): boolean {
+  return n % 10 === 1 && n % 100 !== 11;
+}
+
+/** «из 1 главного пункта», «из 4 главных пунктов», «из 21 главного пункта»; «из 1 пункта», «из 5 пунктов». */
 function ofWord(total: number, basis: AnswerSummary['basis']): string {
-  const one = total % 10 === 1 && total % 100 !== 11;
-  if (basis === 'main') return one ? 'главного' : 'главных';
-  return one ? 'пункта' : 'пунктов';
+  if (basis === 'main') return one(total) ? 'главного пункта' : 'главных пунктов';
+  return one(total) ? 'пункта' : 'пунктов';
+}
+
+/** «Ошибка в 1 пункте», «Ошибки в 2 пунктах». */
+function errorsWord(errors: number): string {
+  return one(errors) ? `Ошибка в ${errors} пункте` : `Ошибки в ${errors} пунктах`;
 }
 
 /**
- * «Назвали сами 3 из 4 главных · после вопроса 1 · ошибок: 1»; «после вопроса» and «ошибок» only when they
- * are not zero. Null when the check gave no point a verdict (then nothing can be counted).
+ * «Сами назвали 3 из 4 главных пунктов» (decision 2); with the point the examiner's question brought,
+ * «Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора»; errors, when there are
+ * any, as a second sentence: «… Ошибка в 1 пункте». Null when the check gave no point a verdict (then
+ * nothing can be counted).
  */
 export function summaryLine(summary: AnswerSummary): string | null {
   if (summary.counts.total === 0 || summary.counts.unrated === summary.counts.total) return null;
-  const parts = [`Назвали сами ${summary.own} из ${summary.total} ${ofWord(summary.total, summary.basis)}`];
-  if (summary.afterQuestion > 0) parts.push(`после вопроса ${summary.afterQuestion}`);
-  if (summary.errors > 0) parts.push(`ошибок: ${summary.errors}`);
-  return parts.join(' · ');
+  let line = `Сами назвали ${summary.own} из ${summary.total} ${ofWord(summary.total, summary.basis)}`;
+  if (summary.afterQuestion > 0) line += `, ещё ${summary.afterQuestion} — после вопроса экзаменатора`;
+  if (summary.errors > 0) line += `. ${errorsWord(summary.errors)}`;
+  return line;
 }

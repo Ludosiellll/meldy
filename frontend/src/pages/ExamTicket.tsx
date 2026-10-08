@@ -61,6 +61,7 @@ import {
   loadRubricAnchors,
   loadTicket,
   parseQuestionIds,
+  questionInExam,
   type StoredProtocol,
   type TicketExam,
   type TicketQuestion,
@@ -86,6 +87,8 @@ import { usePasteGuard } from '../components/oral/usePasteGuard';
 import PasteNotice from '../components/oral/PasteNotice';
 import { useAnswerSheetChange } from '../components/exams/sheet/answerChange';
 import { protocolSheetLine } from '../components/exams/sheet/copy';
+import { FINISH_SHORTCUTS, finishKeysLabel, isFinishKey, useDeskColumn } from '../components/oral/roomDesk';
+import { useDocumentTitle } from '../lib/useDocumentTitle';
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
@@ -147,6 +150,21 @@ export function evaluationLimitMessage(resetAt: Date = nextLimitReset()): string
 const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».';
 
 /**
+ * «Как на экзамене» (decision 3 of 2026-10-08, Jury_Check item 11): no rows of the answer and no count before
+ * the protocol — the grey bars looked like a page still loading and told how many points there are (EX-28).
+ */
+export const EXAM_MODE_LINE = 'Как на экзамене: пункты ответа и цитаты — только в протоколе.';
+
+/**
+ * Before the first answer, above the two ways to answer: what «Готово» leads to and what the check costs
+ * (EX-32). The cost is the server's own (lib/plans.ts AI_COSTS.answer: the quick check, the follow-up and the
+ * protocol together).
+ */
+export function nextStepLine(units: number = AI_COSTS.answer): string {
+  return `После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа — ${units} ${plural(units, 'единица', 'единицы', 'единиц')} дневного лимита ИИ.`;
+}
+
+/**
  * The examiner's lines in the order they are prefetched (contracts §7.2): «Так…», the follow-ups,
  * the two closing lines («Хорошо, по существу всё», «Хорошо, спасибо»), «Не расслышал ответ».
  */
@@ -163,6 +181,7 @@ function pointsWord(n: number): string {
 }
 
 export default function ExamTicket() {
+  useDocumentTitle('Ответ на билет');
   const { id: examId = '' } = useParams();
   const [params] = useSearchParams();
   const sessionId = params.get('session');
@@ -396,6 +415,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   const lastFocusRef = useRef<HTMLElement | null>(null);
   /** The student chose to answer in writing: the field gets the focus as soon as it is there. */
   const focusTextRef = useRef(false);
+  /** The desk column follows the reader on a computer (oral.css): «Готово» and the next steps stay in view. */
+  const deskRef = useDeskColumn();
+  /** «Как на экзамене»: no rows, no count, no switch for the marks before the protocol (decision 3, EX-28). */
+  const examMode = mode === 'exam';
 
   const question = state.questions[state.index] ?? null;
   // The question's words help the server's recognition spell its terms.
@@ -1232,6 +1255,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           transcript: answer,
           only: f.pointId,
           followupQuestion: f.question,
+          // The reply is compared with what the question expects: a reply about something else is not the point (EX-30).
+          followupExpected: f.expected,
         },
         // One long wait per answer: after the check at «Готово» did not answer, this one waits 2.5 s.
         { signal: controllerRef.current?.signal, timeoutMs: followupCheckTimeout(f.chosenBy) },
@@ -1426,7 +1451,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             <section className="or-left" aria-label="Предварительные отметки">
               <ProtocolSheet heading={sheetHeading} points={livePoints(rubricResponse.rubric, null, new Set(state.named))} followup={null} seed={seed} preliminary />
             </section>
-            <section className="or-side" aria-label="Проверка ответа">
+            <section className="or-side" aria-label="Проверка ответа" ref={deskRef}>
               <h2 className="or-state-title">Ответ не проверен</h2>
               <p className="or-message" role="alert">
                 {state.evaluation.status === 'failed' ? state.evaluation.message : EVALUATION_FAILED_MESSAGE}
@@ -1506,7 +1531,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
               animate={!state.attempt?.restored}
             />
           </section>
-          <section className="or-side" aria-label="Итог">
+          <section className="or-side" aria-label="Итог" ref={deskRef}>
             <ProtocolResult points={protocolPoints} followup={followupForProtocol} previous={previousLink}>
               <div className="or-back">
                 {saved?.cardAdded && followupForProtocol ? (
@@ -1626,11 +1651,13 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
 
   // Two equal ways to answer: the one chosen last time is the blue pill, the other the white one.
   const voiceFirst = speech.supported && preferred === 'voice';
-  // On a phone the white pill says one word, so both fit the bar's one line.
+  // On a phone the white pill says one word, so both fit the bar's one line; below 360 px the blue one does
+  // too (EX-31: the two wrapped into a staircase over the page's last lines).
   const voiceButton = (main: boolean) =>
     main ? (
-      <button type="button" className="sf-primary" onClick={startVoice} data-anchor="">
-        Отвечать голосом
+      <button type="button" className="sf-primary" onClick={startVoice} data-anchor="" aria-label="Отвечать голосом">
+        <span className="or-pill-long">Отвечать голосом</span>
+        <span className="or-pill-short">Голосом</span>
       </button>
     ) : (
       <button type="button" className="or-alt" onClick={startVoice} aria-label="Отвечать голосом">
@@ -1640,8 +1667,9 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     );
   const textButton = (main: boolean) =>
     main ? (
-      <button type="button" className="sf-primary" onClick={startText} data-anchor="">
-        Ответить текстом
+      <button type="button" className="sf-primary" onClick={startText} data-anchor="" aria-label="Ответить текстом">
+        <span className="or-pill-long">Ответить текстом</span>
+        <span className="or-pill-short">Текстом</span>
       </button>
     ) : (
       <button type="button" className="or-alt" onClick={startText} aria-label="Ответить текстом">
@@ -1772,7 +1800,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
               ? 'Можно ответить без проверки — после ответа сравните его с пунктами из лекций сами.'
               : 'Можно ответить без проверки — голосом или текстом. После ответа отметьте, как получилось: отметка появится на листе экзамена.'}
           </p>
-        ) : null}
+        ) : (
+          // What «Готово» leads to and what it costs, before the first answer (EX-32).
+          <p className="or-next">{glue(nextStepLine())}</p>
+        )}
         {answerChoice}
         {!checkable && !ready ? (
           <p className="or-links">
@@ -1781,7 +1812,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             {sheetLink}
           </p>
         ) : null}
-        {ready ? (
+        {/* «Как на экзамене» marks nothing before the protocol: no switch for it either (decision 3). */}
+        {ready && !examMode ? (
           <label className="or-switch">
             <input type="checkbox" checked={liveMarksOn} onChange={(event) => toggleLiveMarks(event.target.checked)} />
             <span className="or-switch-track" aria-hidden="true" />
@@ -1809,7 +1841,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             </p>
             <p className="or-count-fine">итог — после ответа</p>
           </div>
-        ) : (
+        ) : examMode ? null : (
+          // «Как на экзамене» says it once, under the ticket (EXAM_MODE_LINE).
           <p className="or-message or-message-muted">Отметки во время ответа выключены: пункты откроются в протоколе.</p>
         )}
         {state.draftAt ? (
@@ -1841,7 +1874,14 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         ) : null}
         {elapsed >= LONG_ANSWER_MS ? <p className="or-hint">Обычно на ответ дают 2–3 минуты.</p> : null}
         <div className="or-acts">
-          <button type="button" className="sf-primary" onClick={() => void finish()} data-anchor={voiceAnswer ? '' : undefined} aria-busy={settling || undefined}>
+          <button
+            type="button"
+            className="sf-primary"
+            onClick={() => void finish()}
+            data-anchor={voiceAnswer ? '' : undefined}
+            aria-busy={settling || undefined}
+            aria-keyshortcuts={voiceAnswer ? undefined : FINISH_SHORTCUTS}
+          >
             Готово
           </button>
           {voiceAnswer ? (
@@ -1911,6 +1951,11 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                       onChange={(event) => {
                         followupPaste.clear();
                         dispatch({ type: 'followup_typed', text: event.target.value });
+                      }}
+                      onKeyDown={(event) => {
+                        if (!isFinishKey(event)) return;
+                        event.preventDefault();
+                        void finishFollowup();
                       }}
                       {...followupPaste.fieldProps}
                       data-anchor=""
@@ -1982,13 +2027,15 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     );
   }
 
-  // «Как на экзамене»: no «В эталоне N пунктов» hint (Jury_Check item 11).
-  const noteLine =
-    ready && points.length > 0 && mode !== 'exam' && !selfCheck
-      ? liveMarksOn
-        ? `Полный ответ — ${pointsWord(points.length)} из ваших лекций. Они откроются, когда вы их назовёте.`
-        : `Полный ответ — ${pointsWord(points.length)} из ваших лекций.`
-      : null;
+  // The rows of the answer under the ticket: in training only. «Как на экзамене» shows no rows and no count
+  // before the protocol, and says so in one quiet line instead (decision 3, Jury_Check item 11, EX-28).
+  const rowsShown = ready && points.length > 0 && !examMode;
+  const noteLine = rowsShown && !selfCheck
+    ? liveMarksOn
+      ? `Полный ответ — ${pointsWord(points.length)} из ваших лекций. Они откроются, когда вы их назовёте.`
+      : `Полный ответ — ${pointsWord(points.length)} из ваших лекций.`
+    : null;
+  const examLine = examMode && ready && points.length > 0 && !selfCheck ? EXAM_MODE_LINE : null;
 
   // The answer itself: the field while typing, the transcript otherwise (also after an unchecked answer).
   const answerBody =
@@ -2006,10 +2053,17 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             answerPaste.clear();
             dispatch({ type: 'typed', text: event.target.value });
           }}
+          onKeyDown={(event) => {
+            if (!isFinishKey(event)) return;
+            event.preventDefault();
+            void finish();
+          }}
           {...answerPaste.fieldProps}
           data-anchor=""
         />
         <PasteNotice guard={answerPaste} />
+        {/* On a computer the hands are on the keys: «Готово» without the mouse (EX-29). */}
+        <p className="or-keys">{`Готово — ${finishKeysLabel()}`}</p>
       </div>
     ) : (
       <LiveTranscript
@@ -2045,6 +2099,11 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         <section className="or-left" aria-label="Билет и пункты ответа">
           {question ? <TicketCard heading={heading} question={question.text} /> : null}
           {noteLine ? <p className="or-note">{noteLine}</p> : null}
+          {examLine ? (
+            <p className="or-note" data-exam="">
+              {glue(examLine)}
+            </p>
+          ) : null}
           {selfCheck ? (
             <>
               {/* The day's checks spent: the reference is there — its points, marked by key words, to compare with. */}
@@ -2068,12 +2127,13 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             </>
           ) : null}
           {selfCheck ? null : leftState}
-          {!selfCheck && answering && !(ready && points.length > 0) ? (
+          {/* The answer on a plain sheet: without a reference while answering; «как на экзамене» until the protocol. */}
+          {!selfCheck && !rowsShown && (examMode ? transcriptShown : answering) ? (
             <div className="sf-sheet or-sheet" data-plain="">
               {answerBody}
             </div>
           ) : null}
-          {!selfCheck && ready && points.length > 0 ? (
+          {!selfCheck && rowsShown ? (
             <div className="sf-sheet or-sheet" data-collapsed={sheetOpen ? undefined : ''} data-empty={transcriptShown ? undefined : ''}>
               {/* Phones: the strip «По ключевым словам: 3 из 5 · итог — после ответа» heads the answer sheet
                   itself — two paper objects instead of three (redesign critique 10, round 2); its marks are the
@@ -2116,7 +2176,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             </div>
           ) : null}
         </section>
-        <section className="or-side" aria-label="Экзаменатор">
+        <section className="or-side" aria-label="Экзаменатор" ref={deskRef}>
           {/* The follow-up is said once to screen readers too: the voice may fail, the text never does. */}
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {state.phase === 'followup' && followup ? `Экзаменатор спрашивает: «${followup.question}»` : ''}
@@ -2142,12 +2202,15 @@ type ReadOnlyState =
       /** Where «Лист экзамена» leads: that exam, or the address's exam when that one is gone. */
       sheetExamId: string;
       anchors: Record<string, string[][]>;
+      /** «Ответить на этот вопрос снова»: the question's ticket in that exam, while the exam still has it (EX-33). */
+      againPath: string | null;
     };
 
 function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: string }) {
   const [view, setView] = useState<ReadOnlyState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const navigate = useNavigate();
+  const deskRef = useDeskColumn();
 
   useEffect(() => {
     let active = true;
@@ -2167,15 +2230,17 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
         // History is kept by question text across exams: a «Зачёт» and an «Экзамен» with the same
         // question share it, so the protocol may belong to another exam than the address says.
         const ownerId = isUuid(protocol.examId) ? protocol.examId : examId;
-        const [owner, anchors] = await Promise.all([
+        const [owner, anchors, asked] = await Promise.all([
           loadExam(ownerId).then(
             (exam) => ({ exam, gone: exam === null }),
             () => ({ exam: null, gone: false }),
           ),
           loadRubricAnchors(protocol.rubricId),
+          questionInExam(ownerId, protocol.examQuestionId),
         ]);
         if (!active) return;
-        setView({ status: 'ready', protocol, exam: owner.exam, sheetExamId: owner.gone ? examId : ownerId, anchors });
+        const againPath = asked && !owner.gone && protocol.examQuestionId ? `/exams/${ownerId}/ticket?q=${encodeURIComponent(protocol.examQuestionId)}` : null;
+        setView({ status: 'ready', protocol, exam: owner.exam, sheetExamId: owner.gone ? examId : ownerId, anchors, againPath });
       } catch (error) {
         if (active) setView({ status: 'failed', message: error instanceof Error ? error.message : 'Не удалось загрузить протокол.' });
       }
@@ -2226,14 +2291,25 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
               seed={view.protocol.sessionId}
             />
           </section>
-          <section className="or-side" aria-label="Итог">
+          <section className="or-side" aria-label="Итог" ref={deskRef}>
             <p className="or-readonly-note">{`Ответ от ${shortDateTime(view.protocol.completedAt)}. Протокол только для чтения.`}</p>
             <ProtocolResult points={savedPoints} followup={savedFollowup}>
-              <div className="or-acts" data-wide="">
-                <button type="button" className="sf-link" onClick={() => navigate(sheetPath)}>
-                  Лист экзамена
-                </button>
-              </div>
+              {/* The way on is to answer the question again; «Лист экзамена» is the top line's (EX-33: it was here twice). */}
+              {view.againPath ? (
+                <div className="or-acts" data-wide="">
+                  <button
+                    type="button"
+                    className="sf-primary"
+                    onClick={() => navigate(view.againPath ?? sheetPath)}
+                    data-anchor=""
+                    aria-label="Ответить на этот вопрос снова"
+                  >
+                    {/* Below 360 px the long words would push the pill's circle off the screen. */}
+                    <span className="or-pill-long">Ответить на этот вопрос снова</span>
+                    <span className="or-pill-short">Ответить снова</span>
+                  </button>
+                </div>
+              ) : null}
             </ProtocolResult>
           </section>
         </main>

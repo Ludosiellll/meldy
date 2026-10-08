@@ -767,6 +767,25 @@ def test_check_only_mode_returns_one_status_and_no_ask(api):
     (call,) = api.model.calls
     assert "ВОПРОС ЭКЗАМЕНАТОРА: Как рост норм влияет на мультипликатор?" in call["text"]
     assert "ПУНКТ ЭТАЛОНА: p4: Нормы резервов" in call["text"] and '"p4"' in call["system"]
+    # Without the expected answer the reply is compared with the point's own thought.
+    assert "ДОЛЖНО ПРОЗВУЧАТЬ" not in call["text"]
+
+
+def test_check_only_mode_compares_the_reply_with_the_expected_answer(api):
+    # EX-30: a reply about something else, even with the point's words, is not the answer to the question.
+    api.model.answer({"statuses": {"p4": "missing"}})
+    body = check_body(
+        only="p4", transcript="Нормы резервов — это часть банковской системы",
+        followup_question="Как рост норм влияет на мультипликатор?", followup_expected="Сокращает денежный мультипликатор.",
+    )
+    assert api.post("/api/oral/check", json=body).json() == {"statuses": {"p4": "missing"}, "ask": None}
+    (call,) = api.model.calls
+    assert "ДОЛЖНО ПРОЗВУЧАТЬ: Сокращает денежный мультипликатор." in call["text"]
+    assert "ДОЛЖНО ПРОЗВУЧАТЬ" in call["system"]
+    # The whole answer's check never uses it.
+    api.model.answer({"statuses": {pid: "covered" for pid in ("p1", "p2", "p3", "p4")}})
+    api.post("/api/oral/check", json=check_body(followup_expected="Сокращает денежный мультипликатор."))
+    assert "ДОЛЖНО ПРОЗВУЧАТЬ" not in api.model.calls[1]["text"]
 
 
 def test_check_keeps_the_transcript_inside_the_quoted_block(api):
@@ -990,6 +1009,8 @@ def test_check_empty_answer_is_all_missing_without_a_model_call(api):
         {"points": [{"id": "p1", "title": "a", "essential": "да"}]},
         {"only": "p9"},
         {"followup_question": "А" * 201},
+        {"only": "p4", "followup_expected": "Б" * 401},
+        {"only": "p4", "followup_expected": 7},
         {"question": ""},
         {"question": "В" * 1001},
         {"transcript": 42},

@@ -36,6 +36,9 @@ Gemini 17 проверок из 18 упали ровно на 4,5 с, а Groq о
 вся проверка вместе с долей Gemini. Ответ Groq читается по тем же правилам, что ответ Gemini: статусы вне
 перечня и пропущенные пункты — missing, оборванный ответ — 502; переспрос (ask) выбирает сервер по
 правилу §7.5, а не модель. Пустой ответ и «не знаю» (oral.says_dont_know) — все пункты missing без модели.
+С only — ответ на переспрос: один статус этого пункта, а ответ сверяется с вопросом экзаменатора и с тем,
+что на него должно прозвучать (followup_question, followup_expected — из эталона); рассказ о другом со
+словами пункта не засчитывается.
 
 POST /api/oral/evaluate (10/мин). Протокол (температура 0,2, 1500 токенов, thinking low,
 15 с): каждый пункт ровно один раз, отрывки ответа — текст самой расшифровки. Ответ,
@@ -89,6 +92,9 @@ EVALUATE_TRANSCRIPT_CHARS = 6000
 POINT_TITLE_CHARS = 200
 POINT_QUOTE_CHARS = 300
 FOLLOWUP_QUESTION_CHARS = 200
+# Что должно прозвучать в ответе на переспрос (followup.expected эталона): эталон пишет до 200 знаков
+# (oral.FOLLOWUP_EXPECTED_CHARS), браузер читает до 400 — столько и принимается.
+FOLLOWUP_EXPECTED_CHARS = 400
 IN_FILTER_CHUNK = 50
 RUBRIC_VERSION = 1
 MODEL_CHARS = 80
@@ -281,6 +287,12 @@ async def oral_check(request: Request):
         not isinstance(followup_question, str) or len(followup_question) > FOLLOWUP_QUESTION_CHARS
     ):
         raise _bad()
+    # Ответ на переспрос сверяется с тем, что на него должно прозвучать (EX-30); без поля — с мыслью пункта.
+    followup_expected = body.get("followup_expected")
+    if followup_expected is not None and (
+        not isinstance(followup_expected, str) or len(followup_expected) > FOLLOWUP_EXPECTED_CHARS
+    ):
+        raise _bad()
 
     if not oral.words(transcript) or oral.says_dont_know(transcript):
         # Ничего не сказано или сказано «не знаю» — ни один пункт не прозвучал; модель не нужна.
@@ -289,7 +301,14 @@ async def oral_check(request: Request):
         meta: dict = {}
         raw = await _run_model(
             oral.build_check_prompt(only),
-            oral.build_check_input(question, points, transcript, only=only, followup_question=followup_question),
+            oral.build_check_input(
+                question,
+                points,
+                transcript,
+                only=only,
+                followup_question=followup_question,
+                followup_expected=followup_expected if only else None,
+            ),
             budget=check_timeout_seconds(),
             # Медленный Gemini не съедает весь бюджет: после своей доли он уступает остаток запасному Groq.
             gemini_timeout=check_gemini_seconds(),

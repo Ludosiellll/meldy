@@ -16,10 +16,18 @@ vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: moc
 import TryExample from './TryExample';
 import { EXAMPLE_NOTE } from '../components/example/ExampleSheet';
 import { EXAMPLE_GRADE_NOTE, EXAMPLE_GRADE_NOTE_AI, EXAMPLE_GRADE_NOTE_PLAIN, EXAMPLE_SCALE_NOTE } from '../components/example/ExampleGrade';
-import { CLOSING_PAUSE_MS, EXAMINER_PAUSE_MS, EXAMPLE_PRIVACY_LINE, FOLLOWUP_LISTEN_MS, FOLLOWUP_WAIT_MS } from '../components/example/ExampleTicket';
+import {
+  CLOSING_PAUSE_MS,
+  EXAMINER_PAUSE_MS,
+  EXAMPLE_NEXT_LINE,
+  EXAMPLE_PRIVACY_LINE,
+  FOLLOWUP_LISTEN_MS,
+  FOLLOWUP_WAIT_MS,
+  LEAVE_MESSAGE,
+} from '../components/example/ExampleTicket';
 import { resetExampleDraws } from '../components/example/exampleFlow';
 import { EXAMPLE_ANSWER_Q5 } from '../components/example/trySheet';
-import { CHECKED_BY_AI, TRY_CHECK_TIMEOUT_MS } from '../components/example/tryCheck';
+import { CHECKED_BY_AI, TRY_CHECK_TIMEOUT_MS, TRY_FOLLOWUP_TIMEOUT_MS } from '../components/example/tryCheck';
 import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
 import { DONT_KNOW_VERDICT } from '../lib/oral/oralApi';
 
@@ -220,6 +228,8 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Спрос. Закон спроса и кривая спроса.' })).toBeInTheDocument();
     expect(plain(document.querySelector('.or-note')?.textContent)).toBe('4 пункта ответа из лекций примера. Они откроются, когда вы их назовёте.');
     expect(screen.getByText(EXAMPLE_PRIVACY_LINE)).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-next')?.textContent)).toBe(plain(EXAMPLE_NEXT_LINE));
+    expect(EXAMPLE_NEXT_LINE).toBe('После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из лекций.');
     const points = screen.getByRole('list', { name: 'Пункты ответа' });
     expect(within(points).getAllByRole('listitem').map((row) => row.getAttribute('aria-label'))).toEqual([
       'Пункт 1, ещё не назван',
@@ -260,7 +270,7 @@ describe('«Попробовать на примере» (/try)', () => {
     // (d) The protocol: the points with the lecture quotes, what was named (no grade, Ф1), the honest lines, the way on.
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 1' })).toBeInTheDocument();
     // A partial reply to the question is no naming after it: only «сами».
-    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 1 из 2 главных');
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 1 из 2 главных пунктов');
     expect(plain(document.querySelector('.or-grade-why')?.textContent)).toBe('Раскрыто 2 пункта из 4, два не названы.');
     // The server had no key for the AI check: the key words checked the answer, and the protocol says so.
     expect(plain(document.querySelector('.or-ph-check')?.textContent)).toBe('Проверено по ключевым словам: проверка ИИ в примере сейчас недоступна.');
@@ -272,8 +282,11 @@ describe('«Попробовать на примере» (/try)', () => {
     const protocol = screen.getByRole('list', { name: 'Пункты ответа' });
     const statuses = within(protocol).getAllByRole('listitem').map((row) => row.getAttribute('data-status'));
     expect(statuses).toEqual(['missing', 'covered', 'covered', 'missing']);
-    expect(plain(within(protocol).getAllByRole('listitem')[0].textContent)).toContain(
-      `на вопрос экзаменатора — «${Q1_FOLLOWUP}», по ключевым словам пункт упомянут`,
+    expect(plain(within(protocol).getAllByRole('listitem')[0].querySelector('.or-ppt-st')?.textContent)).toBe(
+      'главный пункт · не назван; после вопроса экзаменатора по ключевым словам — упомянут',
+    );
+    expect(plain(document.querySelector('.or-extra')?.textContent)).toBe(
+      `Дополнительный вопрос: «Что экономисты называют спросом?» — ответ: «${Q1_FOLLOWUP}». По ключевым словам пункт упомянут.`,
     );
     expect(plain(within(protocol).getAllByRole('listitem')[0].textContent)).toContain(
       '«Спрос — это зависимость между ценой товара и тем количеством, которое покупатели готовы и могут купить за определённый период.»',
@@ -293,7 +306,8 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByRole('article', { name: 'Вопрос 2' })).toBeInTheDocument();
 
     // One request left the page: the AI check, with the question's id and the answer — no points, no lecture
-    // text, no token. The answer is kept only in this tab, for the example's cheat sheet.
+    // text, no token. The server had no key, so the reply to the examiner went to nobody: the key words judged it.
+    // The answer is kept only in this tab, for the example's cheat sheet.
     expect(tryRequests).toEqual([{ url: '/api/try/evaluate', body: { question_id: 'q1', transcript: Q1_PARTIAL }, auth: null }]);
     expect(window.localStorage.length).toBe(0);
     const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index));
@@ -312,7 +326,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByText('Хорошо, по существу всё.')).toBeInTheDocument();
     expect(screen.queryByText('Экзаменатор', { selector: '.or-examiner-who' })).toBeNull();
     await advance(CLOSING_PAUSE_MS + 100);
-    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 4 из 4 главных');
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 4 из 4 главных пунктов');
     expect(plain(document.querySelector('.or-grade-why')?.textContent)).toBe('Раскрыто 5 пунктов из 5.');
     expect(tryRequests.map((request) => request.body)).toEqual([{ question_id: 'q4', transcript: Q4_FULL }]);
   });
@@ -328,7 +342,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByText('«Как по закону спроса связаны цена и величина спроса?»')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 1' })).toBeInTheDocument();
-    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 1 из 2 главных');
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 1 из 2 главных пунктов');
     expect(plain(document.querySelector('.or-extra')?.textContent)).toBe('Дополнительный вопрос: «Как по закону спроса связаны цена и величина спроса?» — ответ: не знаю.');
     expect(document.body.textContent).not.toMatch(/Оценк|ограничил/);
   });
@@ -353,7 +367,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByText(Q1_FOLLOWUP)).toBeInTheDocument();
     fireEvent.click(within(document.querySelector('.or-examiner') as HTMLElement).getByRole('button', { name: 'Готово' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 1' })).toBeInTheDocument();
-    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 1 из 2 главных');
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 1 из 2 главных пунктов');
     // The recognised answer goes to the check once; the answer to the follow-up stays on the device.
     expect(tryRequests.map((request) => request.body)).toEqual([{ question_id: 'q1', transcript: Q1_PARTIAL }]);
   });
@@ -385,7 +399,9 @@ describe('«Попробовать на примере» (/try)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     fireEvent.change(screen.getByLabelText(/^Ваш ответ/), { target: { value: 'Спрос зависит от доходов' } });
     fireEvent.click(screen.getByRole('link', { name: 'Лист примера' }));
-    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Выйти из билета?', message: 'Ответ пропадёт: пример ничего не сохраняет.' }));
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Выйти из билета?', message: LEAVE_MESSAGE }));
+    // The tab keeps finished answers (the sheet erases by them): only this unfinished one is lost (PUB-3).
+    expect(LEAVE_MESSAGE).toBe('Ответ пропадёт: незаконченный ответ нигде не сохраняется.');
     await act(async () => undefined);
     expect(screen.getByLabelText(/^Ваш ответ/)).toHaveValue('Спрос зависит от доходов');
   });
@@ -458,7 +474,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(plain(document.querySelector('.or-readonly-note')?.textContent)).toBe(
       'Ответ примера: считаем, что он дан вчера, 3 октября, 19:30. Строки названных в нём пунктов этот ответ стёр на шпаргалке наполовину.',
     );
-    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 2 из 4 главных');
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 2 из 4 главных пунктов');
     // A kept answer read later: no line about the sheet under the date (the note above says it).
     expect(document.querySelector('.or-ph-sheet')).toBeNull();
     expect(screen.getByRole('link', { name: 'К шпаргалке' })).toHaveAttribute('href', '/try?view=sheet');
@@ -591,7 +607,7 @@ describe('the AI check of the example (/api/try/evaluate)', () => {
     expect(plain(rows[0].textContent)).toContain('По ключевым словам пункт не назван; проверка по всему ответу: раскрыт.');
     expect(plain(rows[1].textContent)).toContain('Вы:«подорожал — берут реже, подешевел — чаще»');
     expect(plain(rows[2].textContent)).toContain('О графике ничего не сказано.');
-    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 2 из 2 главных');
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 2 из 2 главных пунктов');
     expect(screen.getByText(EXAMPLE_GRADE_NOTE_AI)).toBeInTheDocument();
     expect(screen.queryByText(EXAMPLE_GRADE_NOTE)).toBeNull();
     // No grade and no «Засчитано» (Ф1).
@@ -658,12 +674,70 @@ describe('the AI check of the example (/api/try/evaluate)', () => {
     expect(checkLineText()).toBe(line);
     // Today's key-word check, as the example always did it.
     expect(protocolStatuses()).toEqual(['missing', 'covered', 'covered', 'missing']);
-    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 1 из 2 главных');
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 1 из 2 главных пунктов');
     expect(screen.getByText(EXAMPLE_GRADE_NOTE)).toBeInTheDocument();
     const store = JSON.parse(window.sessionStorage.getItem('meldy_try_sheet') ?? '{}') as { answers: Array<Record<string, unknown>> };
     const mine = store.answers.find((answer) => !String(answer.session).startsWith('try-seed-'))!;
     expect((mine.check as { by: string }).by).toBe('keywords');
     expect(mine.evaluation).toBeUndefined();
+  });
+
+  it('a correct reply to the examiner counts: the AI judges it by the point, «ещё 1 — после вопроса экзаменатора» (PUB-2)', async () => {
+    const answer = 'Спрос зависит от доходов, вкусов и цен других товаров. Когда меняется цена самого товара, это движение вдоль кривой.';
+    const reply = 'Вправо, а если спрос упал — влево.';
+    tryReply = (body) =>
+      body.point_id
+        ? { status: 200, body: { mode: 'ai', status: 'covered' } }
+        : ai([
+            ['p1', 'covered', 'Спрос зависит от доходов, вкусов и цен других товаров'],
+            ['p2', 'covered', 'Когда меняется цена самого товара, это движение вдоль кривой'],
+            ['p3', 'missing', '', 'О сдвиге кривой не сказано.'],
+          ]);
+    renderAt('/try/ticket?q=q2');
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    fireEvent.change(screen.getByLabelText(/^Ваш ответ/), { target: { value: answer } });
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await toExaminer();
+    expect(screen.getByText('«Куда сдвигается кривая спроса, если спрос на товар вырос?»')).toBeInTheDocument();
+    const field = screen.getByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    fireEvent.change(field, { target: { value: reply } });
+    // Ctrl+Enter in the field is «Готово».
+    fireEvent.keyDown(field, { key: 'Enter', ctrlKey: true });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 2' })).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 2 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора');
+    const rows = within(screen.getByRole('list', { name: 'Пункты ответа' })).getAllByRole('listitem');
+    expect(plain(rows[2].querySelector('.or-ppt-st')?.textContent)).toBe('главный пункт · назван только после вопроса экзаменатора');
+    expect(plain(document.querySelector('.or-extra')?.textContent)).toBe(
+      `Дополнительный вопрос: «Куда сдвигается кривая спроса, если спрос на товар вырос?» — ответ: «${reply.slice(0, -1)}». Пункт назван после вопроса — строку шпаргалки это не стирает.`,
+    );
+    // Two requests: the answer, then the reply with the point's id — no question, no expected answer.
+    expect(tryRequests.map((request) => request.body)).toEqual([
+      { question_id: 'q2', transcript: answer },
+      { question_id: 'q2', point_id: 'p3', transcript: reply },
+    ]);
+    // The example's sheet: the line of point 3 says how it was named.
+    fireEvent.click(screen.getByRole('link', { name: 'К шпаргалке' }));
+    const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    const note = () => plain(paper.querySelectorAll<HTMLElement>('#cs-q-q2 .cs-line')[2]?.querySelector('.cs-note')?.textContent);
+    await vi.waitFor(() => expect(note()).toBe('4 окт. назван только после вопроса экзаменатора'), { timeout: 9000, interval: 100 });
+    // The sheet replays the answer in real time (its own wait is up to 8 s).
+  }, 15_000);
+
+  it('a reply the AI could not judge in time is judged by the key words, and the protocol says so', async () => {
+    tryReply = (body) => (body.point_id ? 'hang' : Q1_PARTIAL_AI);
+    await answerQ1();
+    await toExaminer();
+    const field = screen.getByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    fireEvent.change(field, { target: { value: Q1_FOLLOWUP } });
+    fireEvent.click(within(field.closest('.or-examiner') as HTMLElement).getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByText('Экзаменатор слушает ответ…')).toBeInTheDocument();
+    await advance(TRY_FOLLOWUP_TIMEOUT_MS + 100);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 1' })).toBeInTheDocument();
+    // The answer itself was the AI's; the reply, the key words' — never «назван» by them.
+    expect(checkLineText()).toBe(CHECKED_BY_AI);
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 1 из 2 главных пунктов');
+    expect(plain(document.querySelector('.or-extra')?.textContent)).toMatch(/По ключевым словам пункт упомянут\.$/);
+    expect(tryRequests.map((request) => request.body.point_id ?? null)).toEqual([null, 'p1']);
   });
 
   it('a slow AI: the examiner asks by the key words after a few seconds, and the protocol waits for the AI', async () => {

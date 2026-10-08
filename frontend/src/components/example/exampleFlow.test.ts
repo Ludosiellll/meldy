@@ -114,6 +114,19 @@ describe('judgeFollowupAnswer: the answer to the examiner', () => {
   it('does not count an echo of the question', () => {
     expect(judgeFollowupAnswer(point, question, 'Экономисты называют спросом спрос')).toEqual({ status: 'missing', judgedBy: 'keywords' });
   });
+
+  it('takes the AI’s judgement of the reply when it came: a correct reply is named after the question (PUB-2)', () => {
+    const reply = 'Если модуль эластичности больше единицы, спрос эластичный, если меньше единицы — неэластичный.';
+    expect(judgeFollowupAnswer(point, question, reply, { by: 'ai', status: 'covered' })).toEqual({ status: 'covered', judgedBy: 'check' });
+    expect(judgeFollowupAnswer(point, question, reply, { by: 'ai', status: 'wrong' })).toEqual({ status: 'wrong', judgedBy: 'check' });
+    // Without the AI the key words decide — never «назван» — and say so.
+    expect(judgeFollowupAnswer(point, question, 'Это когда покупатели готовы купить определённое количество товара при каждой цене', { by: 'keywords', reason: 'timeout' })).toEqual({
+      status: 'partial',
+      judgedBy: 'keywords',
+    });
+    // «Не знаю» stays the button's answer whatever came back.
+    expect(judgeFollowupAnswer(point, question, 'не знаю', { by: 'ai', status: 'covered' })).toEqual({ status: 'missing', judgedBy: null });
+  });
 });
 
 describe('the grade: the app’s formula over the example’s check', () => {

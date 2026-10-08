@@ -329,6 +329,11 @@ export interface CheckInput {
   /** Only this point (the answer to the follow-up): one status back and ask null. */
   only?: string | null;
   followupQuestion?: string | null;
+  /**
+   * What the reply to the follow-up should say (the rubric's followup.expected): the model compares the
+   * reply with it, so a reply about something else is not counted for the point (EX-30). Sent with `only`.
+   */
+  followupExpected?: string | null;
 }
 
 /**
@@ -354,6 +359,7 @@ export async function checkAnswer(input: CheckInput, options: { signal?: AbortSi
     transcript: input.transcript.slice(0, 4000),
     only: input.only ?? null,
     followup_question: input.followupQuestion ? input.followupQuestion.slice(0, 200) : null,
+    ...(input.only && input.followupExpected?.trim() ? { followup_expected: input.followupExpected.trim().slice(0, 400) } : {}),
   };
   const timeoutMs = options.timeoutMs ?? (input.only ? CHECK_FOLLOWUP_TIMEOUT_MS : CHECK_CONFIRM_TIMEOUT_MS);
   const json = await postOral('/api/oral/check', body, timeoutMs, options.signal);
