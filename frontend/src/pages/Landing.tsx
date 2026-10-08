@@ -409,7 +409,11 @@ function ResultAndGroup() {
   );
 }
 
-/** «Meldy за 35 секунд»: the motion reel (loaded after the first screen). */
+/**
+ * «Meldy за 36 секунд»: the motion reel (loaded after the first screen). Its heading row is read by screen
+ * readers and named by the «Ролик» link, but not drawn (home.css), so the video starts right under the
+ * buttons. Its end card opens the example, as the hero's first button does.
+ */
 function ReelSection() {
   const navigate = useNavigate();
   const MeldyReel = useLazyPart(meldyReelPart, true, {
@@ -419,11 +423,11 @@ function ReelSection() {
     <section id="reel" className="hm-wrap hm-sec" aria-labelledby="reel-heading">
       <div className="hm-reel-head">
         <h2 id="reel-heading" className="hm-h2">
-          Meldy за 35 секунд
+          Meldy за 36 секунд
         </h2>
         <p className="hm-sub">{ty('От списка вопросов до пустой шпаргалки. Ролик без звука — главы можно листать.')}</p>
       </div>
-      {MeldyReel ? <MeldyReel onCta={() => navigate('/register')} /> : <div className="hm-reel-wait" aria-hidden="true" />}
+      {MeldyReel ? <MeldyReel onCta={() => navigate('/try')} /> : <div className="hm-reel-wait" aria-hidden="true" />}
     </section>
   );
 }

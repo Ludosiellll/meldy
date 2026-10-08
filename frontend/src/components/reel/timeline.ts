@@ -27,15 +27,16 @@ export const SCENES: readonly SceneWindow[] = [
   { id: 'chaos', from: 3000, to: 7100, lead: 3000 },
   { id: 'brand', from: 6700, to: 10000 },
   { id: 'tour', from: 9500, to: 12000 },
-  { id: 'tickets', from: 11700, to: 16300 },
-  { id: 'oral', from: 15900, to: 22100 },
+  // A second longer than before 2026-10-08: the cursor opens the lecture quote of one question.
+  { id: 'tickets', from: 11700, to: 17300 },
+  { id: 'oral', from: 16900, to: 23100 },
   // The cheat sheet after the answer, then over different days: one paper handed from scene to scene.
-  { id: 'sheet', from: 21700, to: 25300 },
-  { id: 'days', from: 24900, to: 31300 },
-  { id: 'outro', from: 30900, to: 35000 },
+  { id: 'sheet', from: 22700, to: 26300 },
+  { id: 'days', from: 25900, to: 32300 },
+  { id: 'outro', from: 31900, to: 36000 },
 ];
 
-export const TOTAL = 35000;
+export const TOTAL = 36000;
 
 /** A scene is put on the stage this early, hidden, so its first visible frame is ready. */
 export const PREMOUNT = 400;
@@ -74,8 +75,8 @@ export function chapterAt(t: number): Chapter | null {
   return found;
 }
 
-/** The poster: the moment shown when motion is reduced (the ticket sheet, fully marked). */
-export const POSTER_AT = 14300;
+/** The poster: the moment shown when motion is reduced (the ticket sheet, fully marked, with the quote open). */
+export const POSTER_AT = 15400;
 
 // ---------------------------------------------------------------------------------------------
 // Math

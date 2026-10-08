@@ -4,6 +4,13 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-08 — Release 32: the previous reel, better in its own style — a lecture quote in the ticket chapter, the group and the example at the end; the video starts under the buttons (from the commit of this entry)
+
+- **The reel, same look and motion** (the owner: «переработать прошлое видео, но получше, с такими же красивыми анимациями и в том же стиле»). In the ticket chapter the cursor stops on question 36 «Экономический рост» and its lecture quote opens under the row — «Экономический рост — увеличение реального ВВП за длительный период», «Лекция «Экономический рост» · фрагмент 4» — as the exam page shows it (the landing's «Ответы — цитатами из ваших лекций»); then «Тянуть билет» as before. The chapter is a second longer: «Meldy за 36 секунд».
+- **The end card** names four things instead of three — «Группа · копия экзамена у каждого» joins «Билеты», «Ответ вслух», «Шпаргалка» — and its button says the hero's «Попробовать на примере» and opens `/try` (it said «Начать подготовку» and opened the sign-up).
+- **The landing's first screen.** The reel's heading row («Meldy за … секунд» and its note) is no longer drawn in the hero — screen readers and the «Ролик» link keep it — so on a 1532×734 laptop the video's top shows under the buttons instead of starting below the first screen.
+- No migrations, no backend change. Verified before release: Vitest 168 files, 2703 tests; `tsc -b`; production build; frames of the ticket chapter at 14.3–16.8 s and of the end at 35.4 s; first screens at 1532, 1024 and 390 px without horizontal scroll or page errors.
+
 ## 2026-10-08 — Release 31.1: the previous landing reel back, without the corner frame and the corner labels (from the commit of this entry)
 
 - **The reel.** The owner preferred the previous film («нет, верни видео которое было… мне нравилось прошлое больше»): the 35-second reel of release 30.2 is back as it was, and the one-sheet film of release 31 is reverted (`Landing.tsx` is the 30.2 one again: «Meldy за 35 секунд», the end card leads to the sign-up).

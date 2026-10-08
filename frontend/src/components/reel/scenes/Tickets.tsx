@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { SHEET_ROWS, SHEET_TOTALS, TICKET } from '../content';
+import { QUOTE, SHEET_ROWS, SHEET_TOTALS, TICKET } from '../content';
 import { blur, opacity, put, text, useEls, useFrame } from '../engine';
 import { Counter, Cursor, Kinetic, Pill, Status, TypeLabel } from '../parts';
 import { clamp, ease, mix, pulse, seg } from '../timeline';
@@ -40,16 +40,22 @@ function marked(l: number, status?: string) {
   return sum;
 }
 
-const CLICK = 3280;
+/** The quote of row 36 opens under the row when the cursor reaches it, and closes as it moves on. */
+export const QUOTE_AT = 3050;
+const QUOTE_OUT = 3980;
+const CLICK = 4280;
 export const TICKETS_CURSOR = [
-  { at: 2500, x: 1990, y: 1160 },
-  { at: 3150, x: 1612, y: 884 },
-  { at: 3700, x: 1640, y: 900 },
+  { at: 2600, x: 1990, y: 1160 },
+  { at: 3000, x: 1300, y: 486 },
+  { at: 3800, x: 1314, y: 492 },
+  { at: 4150, x: 1612, y: 884 },
+  { at: 4700, x: 1640, y: 900 },
 ];
 
 /**
  * 5 · Chapter 01, «Билеты». The exam list lands as a sheet and every question gets its mark
- * against the student's lectures while the counter runs to 24 of 40; then a ticket is drawn.
+ * against the student's lectures while the counter runs to 24 of 40; the cursor opens the lecture
+ * quote of one question; then a ticket is drawn.
  */
 export default function Tickets() {
   const root = useRef<HTMLDivElement>(null);
@@ -59,7 +65,7 @@ export default function Tickets() {
     opacity(root.current, seg(l, 40, 280));
     const cam = one('cam');
     const enter = ease.brand(seg(l, 0, 420));
-    const push = mix(1, 1.03, ease.sine(seg(l, 400, 4300)));
+    const push = mix(1, 1.03, ease.sine(seg(l, 400, 5300)));
     put(cam, 'transform', `scale(${(mix(1.12, 1, enter) * push).toFixed(4)})`);
     blur(cam, (1 - enter) * 12);
     opacity(cam, seg(l, 0, 260));
@@ -94,9 +100,23 @@ export default function Tickets() {
     text(one('n-half'), String(Math.round(counts.half)));
     text(one('n-no'), String(Math.round(counts.no)));
 
+    // The cursor rests on row 36: the row lights up and its lecture quote opens under it, then closes.
+    const lit = seg(l, QUOTE_AT - 100, 250) * (1 - seg(l, QUOTE_OUT + 20, 250));
+    put(one('pick'), 'background-color', `rgba(40,105,221,${(0.08 * lit).toFixed(3)})`);
+    const quote = one('quote');
+    const open = seg(l, QUOTE_AT, 620);
+    const close = ease.in(seg(l, QUOTE_OUT, 260));
+    put(
+      quote,
+      'transform',
+      `translate3d(0,${(mix(-26, 0, ease.brand(open)) - 14 * close).toFixed(1)}px,0) scale(${(open <= 0 ? 0.86 : mix(0.86, 1, ease.back(open)) * mix(1, 0.97, close)).toFixed(3)})`,
+    );
+    opacity(quote, clamp(open * 3) * (1 - close));
+    blur(quote, (1 - ease.brand(open)) * 10 + close * 6);
+
     // The pill is hovered, pressed, and a ticket flies out of it to the middle of the stage.
     const pill = one('pill');
-    const hover = ease.brand(seg(l, 3020, 300));
+    const hover = ease.brand(seg(l, 4020, 300));
     const press = pulse(l, CLICK - 60, 260);
     put(pill, 'transform', `scale(${(1 - 0.05 * press).toFixed(3)})`);
     put(one('pill-dot'), 'transform', `translate3d(${(6 * hover).toFixed(2)}px,0,0)`);
@@ -104,7 +124,7 @@ export default function Tickets() {
     opacity(veil, ease.inOut(seg(l, CLICK + 40, 420)) * 0.82);
     const ticket = one('ticket');
     const draw = ease.brand(seg(l, CLICK + 40, 700));
-    const rush = ease.in(seg(l, 4020, 400));
+    const rush = ease.in(seg(l, 5020, 400));
     const x = mix(1612 - 960, 0, draw);
     const y = mix(884 - 540, 0, draw);
     put(
@@ -112,7 +132,7 @@ export default function Tickets() {
       'transform',
       `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) perspective(1400px) rotateX(${mix(72, 0, draw).toFixed(2)}deg) rotate(${mix(0, -3, draw).toFixed(2)}deg) scale(${(mix(0.16, 1, draw) * mix(1, 2.6, rush)).toFixed(3)})`,
     );
-    opacity(ticket, l >= CLICK + 40 ? clamp(seg(l, CLICK + 40, 120)) * (1 - seg(l, 4300, 140)) : 0);
+    opacity(ticket, l >= CLICK + 40 ? clamp(seg(l, CLICK + 40, 120)) * (1 - seg(l, 5300, 140)) : 0);
     blur(ticket, rush * 18);
   });
 
@@ -141,7 +161,7 @@ export default function Tickets() {
             <div className="mr-sheet-view">
               <div data-a="list" className="mr-sheet-list">
                 {SHEET_ROWS.map((row, index) => (
-                  <div key={row.title} className="mr-row">
+                  <div key={row.title} className="mr-row" data-a={index === QUOTE.row ? 'pick' : undefined}>
                     <span className="mr-num">{index + 1}</span>
                     <span className="mr-row-t">{row.title}</span>
                     <Status kind={row.status} name="st" />
@@ -167,13 +187,27 @@ export default function Tickets() {
           </div>
         </div>
 
+        <div data-a="quote" className="mr-quote" style={{ opacity: 0 }}>
+          <div className="mr-quote-h">
+            <b>
+              {QUOTE.row + 1}. {SHEET_ROWS[QUOTE.row].title}
+            </b>
+            <span className="mr-st mr-st--ok">
+              <i />
+              есть в лекциях
+            </span>
+          </div>
+          <p className="mr-quote-q">«{QUOTE.quote}»</p>
+          <small>{QUOTE.source}</small>
+        </div>
+
         <div data-a="veil" className="mr-veil" />
         <div data-a="ticket" className="mr-ticket">
           <b>{TICKET.name}</b>
           <p>{TICKET.question}</p>
           <small>{TICKET.subject} · 3 вопроса</small>
         </div>
-        <Cursor keys={TICKETS_CURSOR} clicks={[CLICK]} from={2500} to={3900} />
+        <Cursor keys={TICKETS_CURSOR} clicks={[CLICK]} from={2600} to={4900} />
       </div>
     </div>
   );

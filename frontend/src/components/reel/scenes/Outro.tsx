@@ -8,7 +8,7 @@ const MARK_TOP = 205;
 const MARK_SIZE = 210;
 
 /** The stage rectangle of the closing call (for the clickable area over the frame). */
-export const OUTRO_CTA = { x: 960, y: 874, w: 400, h: 72 };
+export const OUTRO_CTA = { x: 960, y: 880, w: 440, h: 80 };
 export const OUTRO_CTA_AT = 2550;
 /** How long the end is on the stage: it goes black over its last 320 ms, for the loop's first frame. */
 const LENGTH = sceneWindow('outro').to - sceneWindow('outro').from;
@@ -38,11 +38,27 @@ const FEATURES = [
     // Three lines by hand, the middle one rubbed half-way.
     icon: <path d="M4.5 5.5h11M4.5 10h2.2M9.2 10h1.6M13.3 10h2.2M4.5 14.5h7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
   },
+  {
+    // The group link (release 28): one link, and every classmate gets their own copy of the exam.
+    title: 'Группа',
+    sub: 'копия экзамена у каждого',
+    tone: { background: '#FBE6EE', color: '#9B2C5B' },
+    icon: (
+      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <circle cx="7.5" cy="7" r="2.6" />
+        <circle cx="13.6" cy="8.2" r="2.1" />
+        <path d="M3 16.2c.6-2.6 2.4-4 4.5-4s3.9 1.4 4.5 4M12.6 12.3c1.9-.1 3.6 1.1 4.2 3.6" />
+      </g>
+    ),
+  },
 ];
+
+/** The closing call: the landing's first action, the example exam that needs no account (pages/Landing.tsx TRY_LABEL). */
+export const OUTRO_CTA_LABEL = 'Попробовать на примере';
 
 /**
  * 9 · The end. Out of the line's bright head the paper opens again: the wordmark gathers, the
- * method in one line, what Meldy does in three cards, and the call to start.
+ * method in one line, what Meldy does in four cards, and the call to try the example.
  */
 export default function Outro() {
   const root = useRef<HTMLDivElement>(null);
@@ -156,7 +172,7 @@ export default function Outro() {
           ))}
         </div>
         <div className="mr-outro-cta">
-          <Pill name="cta">Начать подготовку</Pill>
+          <Pill name="cta">{OUTRO_CTA_LABEL}</Pill>
         </div>
       </div>
       <div data-a="black" className="mr-black" style={{ opacity: 0 }} />

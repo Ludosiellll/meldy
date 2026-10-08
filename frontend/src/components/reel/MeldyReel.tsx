@@ -5,8 +5,9 @@ import { REEL_EVENT, takePendingChapter, type ReelChapter } from '../home/reelJu
 import { ReelClock } from './clock';
 import { put } from './engine';
 import ReelStage from './ReelStage';
-import { OUTRO_CTA, OUTRO_CTA_AT } from './scenes/Outro';
-import { POSTER_AT, STAGE_H, STAGE_W, TOTAL, clamp, sceneWindow } from './timeline';
+import { QUOTE, SHEET_ROWS } from './content';
+import { OUTRO_CTA, OUTRO_CTA_AT, OUTRO_CTA_LABEL } from './scenes/Outro';
+import { POSTER_AT, STAGE_H, STAGE_W, TOTAL, clamp, plural, sceneWindow } from './timeline';
 import './reel.css';
 
 declare global {
@@ -29,15 +30,18 @@ export const SEGMENTS: Array<{ label: string; from: number; to: number; id?: Ree
 
 const segmentAt = (t: number) => Math.max(0, SEGMENTS.findIndex((segment) => t >= segment.from && t < segment.to));
 
+/** The reel's length in whole seconds, as the landing's heading «Meldy за … секунд» says it. */
+export const REEL_SECONDS = Math.round(TOTAL / 1000);
+
 /** What the reel says, for screen readers (the stage itself is hidden from them). */
 const TRANSCRIPT = [
   'Сессия: 40 вопросов, 12 дней. С чего начать?',
   'Meldy. Сессия начинается со списка вопросов.',
-  'Билеты: 24 из 40 вопросов уже есть в ваших лекциях. Тянуть билет.',
+  `Билеты: 24 из 40 вопросов уже есть в ваших лекциях. К вопросу «${SHEET_ROWS[QUOTE.row].title}» — цитата из лекции: «${QUOTE.quote}» (${QUOTE.source}). Тянуть билет.`,
   'Ответ вслух, как на экзамене: пункты ответа отмечаются, экзаменатор спрашивает о пропущенном, ответ проверен по пунктам.',
   'Шпаргалка: строки стирают только ответы. После ответа 4 строки стёрлись наполовину, а пункт, названный только после вопроса экзаменатора, не стёрся.',
   'Разные дни: одного ответа мало. Назвали снова в другой день — строка стёрлась совсем; стёртую строку не назвали — она вернулась.',
-  'Meldy. Вспоминать полезнее, чем перечитывать. Билеты по вашим лекциям, ответ вслух с вопросом экзаменатора, шпаргалка, которую стирают только ответы.',
+  `Meldy. Вспоминать полезнее, чем перечитывать. Билеты по вашим лекциям, ответ вслух с вопросом экзаменатора, шпаргалка, которую стирают только ответы, и копия экзамена у каждого в группе. ${OUTRO_CTA_LABEL}.`,
 ];
 
 const exportRequested = () => typeof window !== 'undefined' && window.__MELDY_REEL_EXPORT__ === true;
@@ -60,7 +64,7 @@ function PauseIcon() {
 }
 
 /**
- * «Meldy за 35 секунд»: the reel on the page. It plays silently while it is on screen and the tab
+ * «Meldy за 36 секунд»: the reel on the page. It plays silently while it is on screen and the tab
  * is visible, loops, can be paused and jumped by chapter. With reduced motion it shows one still
  * frame and plays only when asked.
  */
@@ -206,7 +210,7 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
   return (
     <figure className="mr-figure" aria-labelledby={captionId}>
       <figcaption id={captionId} className="mr-sr">
-        Ролик о Meldy, 35 секунд, без звука.
+        {`Ролик о Meldy, ${REEL_SECONDS} ${plural(REEL_SECONDS, ['секунда', 'секунды', 'секунд'])}, без звука.`}
       </figcaption>
       <ol className="mr-sr">
         {TRANSCRIPT.map((line) => (

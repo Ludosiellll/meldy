@@ -95,6 +95,17 @@ export const SHEET_TOTALS = {
   no: SHEET_ROWS.filter((row) => row.status === 'no').length,
 };
 
+/**
+ * The lecture quote of the ticket chapter: for a question found in the lectures the exam page shows the
+ * fragment that answers it (the landing's «Ответы — цитатами из ваших лекций»). Row 36 of the list is
+ * in view when the list stops scrolling.
+ */
+export const QUOTE = {
+  row: 35,
+  quote: 'Экономический рост — увеличение реального ВВП за длительный период',
+  source: 'Лекция «Экономический рост» · фрагмент 4',
+} as const;
+
 /** The ticket of the oral chapter: the landing's question and its answer sheet, shortened. */
 export const TICKET = {
   name: 'Билет 7',

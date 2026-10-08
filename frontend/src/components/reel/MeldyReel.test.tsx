@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import MeldyReel, { SEGMENTS } from './MeldyReel';
+import { QUOTE } from './content';
+import MeldyReel, { REEL_SECONDS, SEGMENTS } from './MeldyReel';
+import { OUTRO_CTA_LABEL } from './scenes/Outro';
 import { CHAPTERS, TOTAL } from './timeline';
 
 type Callback = (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void;
@@ -50,7 +52,8 @@ afterEach(() => {
 describe('MeldyReel', () => {
   it('is a captioned figure whose moving stage is hidden from screen readers, with a transcript instead', () => {
     const { container } = render(<MeldyReel />);
-    expect(screen.getByRole('figure', { name: 'Ролик о Meldy, 35 секунд, без звука.' })).toBeInTheDocument();
+    expect(screen.getByRole('figure', { name: 'Ролик о Meldy, 36 секунд, без звука.' })).toBeInTheDocument();
+    expect(REEL_SECONDS).toBe(Math.round(TOTAL / 1000));
     expect(container.querySelector('.mr-stage')).toHaveAttribute('aria-hidden', 'true');
     const transcript = container.querySelectorAll('ol.mr-sr li');
     expect(transcript.length).toBeGreaterThanOrEqual(6);
@@ -60,6 +63,10 @@ describe('MeldyReel', () => {
     expect(text).toContain('Шпаргалка: строки стирают только ответы.');
     expect(text).toContain('Разные дни: одного ответа мало.');
     expect(text).not.toMatch(/карточк|Готовность|Повторение:|в нужный день|твоих/i);
+    // The ticket chapter opens a lecture quote; the end names the group and calls to the example.
+    expect(transcript[2].textContent).toContain(`«${QUOTE.quote}» (${QUOTE.source})`);
+    expect(transcript[transcript.length - 1].textContent).toContain('копия экзамена у каждого в группе');
+    expect(transcript[transcript.length - 1].textContent).toContain(`${OUTRO_CTA_LABEL}.`);
   });
 
   it('plays only while it is on screen', () => {

@@ -283,17 +283,26 @@
   min-width: 0;
 }
 
-/* The video in the hero: its section heading is smaller than the sections' (the owner, 2026-10-08). */
+/*
+ * The video in the hero, right under the buttons (the owner, 2026-10-08). Its heading row stays for screen
+ * readers and the «Ролик» link but is not drawn: with it the video began below the first screen of a
+ * 1532×734 laptop; without it the video's top shows there.
+ */
 .hm-hero-reel .hm-sec {
   padding: 0;
 }
 
 .hm-hero-reel .hm-reel-head {
-  margin-bottom: 18px;
-}
-
-.hm-hero-reel .hm-h2 {
-  font-size: clamp(26px, 2.6vw, 36px);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* The cheat sheet below «Как это работает»: a column of its own, centred. */
@@ -1564,18 +1573,6 @@
 
   .hm-acts {
     margin-top: 20px;
-  }
-
-  .hm-hero-reel .hm-h2 {
-    font-size: 24px;
-  }
-
-  .hm-hero-reel .hm-reel-head {
-    margin-bottom: 12px;
-  }
-
-  .hm-hero-reel .hm-reel-head .hm-sub {
-    display: none;
   }
 
   .hm-end .hm-pill--white {

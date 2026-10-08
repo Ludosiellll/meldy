@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReelClock } from './clock';
-import { SHEET_ROWS, SHEET_TOTALS, TICKET } from './content';
-import { MARK_AT } from './scenes/Tickets';
+import { QUOTE, SHEET_ROWS, SHEET_TOTALS, TICKET } from './content';
+import { MARK_AT, QUOTE_AT, TICKETS_CURSOR } from './scenes/Tickets';
 import { CHAPTERS, POSTER_AT, SCENES, TOTAL, activeScenes, chapterAt, ease, plural, rng, seg } from './timeline';
 
 describe('the reel timeline', () => {
@@ -68,6 +68,17 @@ describe('the reel content', () => {
     for (let i = 1; i < MARK_AT.length; i += 1) expect(MARK_AT[i]).toBeGreaterThanOrEqual(MARK_AT[i - 1]);
     const chapter = SCENES.find((scene) => scene.id === 'tickets')!;
     expect(MARK_AT[MARK_AT.length - 1]).toBeLessThan(chapter.to - chapter.from - 1500);
+  });
+
+  it('opens the lecture quote of a question found in the lectures, after every row is marked and the cursor is on it', () => {
+    expect(SHEET_ROWS[QUOTE.row]).toEqual({ title: 'Экономический рост', status: 'ok' });
+    expect(QUOTE_AT).toBeGreaterThan(Math.max(...MARK_AT));
+    const onRow = TICKETS_CURSOR.find((key) => key.y < 600);
+    expect(onRow && onRow.at).toBeLessThanOrEqual(QUOTE_AT);
+    // The poster (reduced motion) shows the marked list with the quote open.
+    const tickets = SCENES.find((scene) => scene.id === 'tickets')!;
+    expect(POSTER_AT - tickets.from).toBeGreaterThan(QUOTE_AT + 620);
+    expect(POSTER_AT - tickets.from).toBeLessThan(3980);
   });
 
   it('names every point of the ticket but the missed one during the answer', () => {

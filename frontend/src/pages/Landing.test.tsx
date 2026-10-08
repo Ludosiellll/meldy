@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Landing, { EYEBROW, HEADLINE, LEAD, RESULT_NOTE, RESULT_TITLE, START_LABEL, STEPS, TRY_LABEL } from './Landing';
 import { REEL_EVENT } from '../components/home/reelJump';
 import { SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
+import { OUTRO_CTA_LABEL } from '../components/reel/scenes/Outro';
+import { TOTAL } from '../components/reel/timeline';
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: null }),
@@ -133,6 +135,12 @@ describe('Landing page', () => {
     expect(Array.from(container.querySelectorAll('main > section')).map((s) => s.id)).toEqual(['', 'how', 'sheet', '', '', 'method', 'start']);
     // The video is on the first screen, inside the hero, right after the text (the owner, 2026-10-08).
     expect(container.querySelector('.hm-hero .hm-hero-reel #reel')).not.toBeNull();
+  });
+
+  it('names the reel by its real length, and its end card calls to the example in the hero button’s words', () => {
+    renderLanding();
+    expect(screen.getByRole('heading', { name: `Meldy за ${Math.round(TOTAL / 1000)} секунд` })).toBeInTheDocument();
+    expect(OUTRO_CTA_LABEL).toBe(TRY_LABEL);
   });
 
   it('tells how it works in the four steps of the promise, in their order and numbered', () => {
