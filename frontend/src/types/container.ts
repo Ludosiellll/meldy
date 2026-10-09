@@ -141,9 +141,9 @@ export interface PlanInputsWire {
     id: Uuid; container: number; title: string; test_date: DayKey | null; oral_exam_id: Uuid | null; topics: number;
     new_today: number; // items first answered today in this subject
   }>;
-  items: PlanItemRow[]; // keyed, not doubted, current rev
+  items: PlanItemRow[]; // every item with a key, at its current rev; the ones this user doubts too (see doubted)
   states: PlanStateRow[];
-  doubted: number[]; // item indices set aside in this user's plan
+  doubted: number[]; // indices into items: set aside in this user's plan (an open «Сомневаюсь в ключе»)
   /** Own pace per subject index and class, from the last ≤ 200 answers: trimmed median ms and the share wrong. */
   pace: Array<{ subject: number; cls: PlanCls; n: number; median_ms: number; p_wrong: number }>;
   ai: { left: number; resets_at: number } | null; // today's AI units left (epoch s of the reset)
@@ -442,40 +442,58 @@ export interface DayPlan {
 
 export type BankItemKind = 'single' | 'multiple' | 'truefalse' | 'open' | 'order' | 'match' | 'unknown';
 export interface BankItem {
-  position: number;
-  label: string | null; // the number in the file
-  subject: number;
-  topic: number | null;
+  position: number; // 1.. across the whole file
+  label: string; // the number in the file ('' when it has none)
+  subject: number; // index into subjects (1..)
+  topic: number | null; // index into topics (1..), numbered across the whole file; the container keeps topics per subject
   kind: BankItemKind;
   text: string;
   options: string[];
   correct: number[];
-  order: number[] | null;
-  pairs: Array<[string, string]> | null;
+  order: number[]; // kind order: the key as option indices; [] otherwise
+  pairs: Array<[string, string]>; // kind match: the pairs; [] otherwise
   answer: string | null; // an «Ответ: …» line or a GIFT short answer
-  evidence: string | null;
+  /**
+   * Where the key came from: a formatting signal ('bold' | 'underline' | 'highlight' | 'color' | 'shade' | 'italic'),
+   * 'marker', 'checkbox', 'key_column', 'answer_line', 'key_list', 'key_text', 'gift', 'first_option',
+   * 'order_numbers', or '' (no key). All but 'checkbox', 'order_numbers' and '' are KeySource values too.
+   */
+  evidence: string;
   flags: string[];
   code: boolean;
   where: string;
-  marks: Record<string, number[]>;
+  marks: Record<string, number[]>; // per formatting signal: the marked share of each option, 0..1
+}
+/** stats of a parse: counts over items; gaps are missing file numbers [from, to] inside a subject. */
+export interface BankParseStats {
+  items: number;
+  with_key: number;
+  no_key: number;
+  ambiguous: number;
+  to_check: number;
+  duplicates: number;
+  kinds: Partial<Record<BankItemKind, number>>;
+  options: Record<string, number>; // number of options → items
+  gaps: Array<[number, number]>;
+  key_lists: number;
 }
 export interface BankParseResult {
   method: string;
   layout: string;
-  layouts_seen: string[];
+  layouts_seen: Record<string, number>; // layout → times it was seen (rows or questions); layout is the most seen
   confidence: number;
-  key_source: string | null;
+  key_source: Record<string, number>; // evidence → items whose key came from it ({} when no item has a key)
   format_signal: string | null;
-  format_signals: Record<string, number>;
+  format_signals: Record<string, { one: number; many: number; all: number }>; // items with one, several, all options marked
   mark_share: number;
   marker: string | null;
   markers: string[];
   subjects: Array<{ index: number; title: string | null; evidence: 'heading' | 'heading_level' | 'restart' | 'none'; items: number }>;
   topics: Array<{ index: number; title: string; subject: number; items: number }>;
-  skipped: unknown[];
+  skipped: string[]; // lines that were not read (≤ 50, each cut to 200 characters)
   warnings: Array<{ code: string; message: string }>;
   items: BankItem[];
-  stats: Record<string, unknown>;
+  stats: BankParseStats;
 }
 export interface BankParseError {
   detail: string;
