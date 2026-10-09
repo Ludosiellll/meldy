@@ -1,0 +1,152 @@
+{
+  "v": 1,
+  "day": "2026-12-21",
+  "id": "f4881273-7331-4c39-96d7-f2ce4a31a1c0",
+  "title": "Зимняя сессия",
+  "exam_date": "2027-01-12",
+  "role": "owner",
+  "created_at": "2026-12-14T16:02:11.541320+00:00",
+  "first_plan_day": "2026-12-14",
+  "settings": {
+    "minutes_per_day": 45,
+    "study_weekdays": 127
+  },
+  "subjects": [
+    {
+      "id": "69ead689-38d6-4350-bc5d-13d273f8b9b2",
+      "position": 1,
+      "title": "Основы программирования",
+      "exam_date": "2027-01-12",
+      "topic_titles": ["Тема 1. Директивы и пространства имён", "Тема 2. Делегаты и события", "Тема 3. Строки"],
+      "oral": null,
+      "keyed": 12,
+      "no_key": 0,
+      "seen": 11,
+      "two_days": 7,
+      "open_errors": 2,
+      "seen_today": 0,
+      "doubted": 0,
+      "stale": 0,
+      "topics": [
+        {
+          "topic": 1,
+          "keyed": 4,
+          "seen": 4,
+          "two_days": 3,
+          "open_errors": 0
+        },
+        {
+          "topic": 2,
+          "keyed": 4,
+          "seen": 4,
+          "two_days": 2,
+          "open_errors": 1
+        },
+        {
+          "topic": 3,
+          "keyed": 4,
+          "seen": 3,
+          "two_days": 2,
+          "open_errors": 1
+        }
+      ],
+      "kinds": {
+        "single": 12,
+        "multiple": 0,
+        "short": 0
+      }
+    },
+    {
+      "id": "590a774c-7a67-4b13-a944-cf9a2f0e9d9b",
+      "position": 2,
+      "title": "История Беларуси",
+      "exam_date": "2027-01-16",
+      "topic_titles": ["Раздел 1. Древняя Русь", "Раздел 2. ВКЛ"],
+      "oral": null,
+      "keyed": 6,
+      "no_key": 0,
+      "seen": 6,
+      "two_days": 4,
+      "open_errors": 1,
+      "seen_today": 1,
+      "doubted": 0,
+      "stale": 0,
+      "topics": [
+        {
+          "topic": 1,
+          "keyed": 3,
+          "seen": 3,
+          "two_days": 3,
+          "open_errors": 0
+        },
+        {
+          "topic": 2,
+          "keyed": 3,
+          "seen": 3,
+          "two_days": 1,
+          "open_errors": 1
+        }
+      ],
+      "kinds": {
+        "single": 5,
+        "multiple": 1,
+        "short": 0
+      }
+    },
+    {
+      "id": "93c5b45c-df3d-4c94-b305-960744c757be",
+      "position": 3,
+      "title": "Основы программирования · билеты",
+      "exam_date": "2027-01-20",
+      "topic_titles": [],
+      "oral": {
+        "exam_id": "c0390f9c-787d-4d0e-a82d-9efa069bfe11",
+        "questions": 7
+      },
+      "keyed": 0,
+      "no_key": 0,
+      "seen": 0,
+      "two_days": 0,
+      "open_errors": 0,
+      "seen_today": 0,
+      "doubted": 0,
+      "stale": 0,
+      "topics": [],
+      "kinds": {
+        "single": 0,
+        "multiple": 0,
+        "short": 0
+      }
+    }
+  ],
+  "items_version": {
+    "count": 18,
+    "updated_at": "2026-12-14T16:03:05.069454+00:00"
+  },
+  "answers_today": 9,
+  "key_changes_unseen": 0,
+  "mock_runs": [
+    {
+      "id": "3fff4bf5-f669-461a-aaff-974a81658809",
+      "local_date": "2026-12-19",
+      "subject_ids": ["69ead689-38d6-4350-bc5d-13d273f8b9b2"],
+      "items": 8,
+      "correct": 5
+    }
+  ],
+  "owner": {
+    "members": 6,
+    "doubts_open": 2,
+    "links": [
+      {
+        "id": "56d3d502-b2a8-4709-b363-b675b3c92afc",
+        "created_at": "2026-12-14T16:41:27.692479+00:00",
+        "expires_at": "2027-01-22T00:00:00+00:00",
+        "revoked_at": null,
+        "members": 7,
+        "max_members": 60,
+        "oral": 1
+      }
+    ]
+  }
+}
