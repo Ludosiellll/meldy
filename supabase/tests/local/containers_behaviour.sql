@@ -566,6 +566,12 @@ begin
   if (r ->> 'duplicate')::boolean is not true then raise exception 'FAILED: mock resend %', r; end if;
   perform pg_temp.expect_error(format($$select public.container_mock_finish('{"client_run_id":"mock-run-0002","container_id":"%s","answers":[]}')$$, pg_temp.c('c')),
                                '22023', 'empty mock run');
+  -- a run holds answers of its own container only (B's own scratch container, deleted again)
+  r := public.container_create('Своё', null, '[{"title":"x"}]');
+  o := public.container_items_add((r -> 'subjects' -> 0 ->> 'id')::uuid, '[{"ref":"own:1","stem":"Своё","options":["a","b"],"correct":[0]}]');
+  perform pg_temp.expect_error(format($$select public.container_mock_finish('{"client_run_id":"mock-run-0003","container_id":"%s","answers":[{"client_event_id":"mock-x-0001","item_id":"%s","chosen":0}]}')$$,
+                                      pg_temp.c('c'), o -> 'items' -> 0 ->> 'id'), '22023', 'a mock run with an answer of another container');
+  delete from public.containers where id = (r ->> 'container_id')::uuid;
 end
 $t$;
 

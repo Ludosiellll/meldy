@@ -1322,6 +1322,14 @@ begin
     raise exception 'container not found' using errcode = 'P0002';
   end if;
   select r.* into v_run from public.test_mock_runs r where r.user_id = v_user and r.client_run_id = p_run ->> 'client_run_id';
+  if not found and exists (
+       select 1 from public.test_items i
+        where i.id = any (array(select (a ->> 'item_id')::uuid from pg_catalog.jsonb_array_elements(p_run -> 'answers') a
+                                 where pg_catalog.jsonb_typeof(a) = 'object'
+                                   and coalesce(a ->> 'item_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
+          and i.container_id <> v_container) then
+    raise exception 'an answer of another container in the run' using errcode = '22023';
+  end if;
   if found then
     return pg_catalog.jsonb_build_object('run_id', v_run.id, 'items', v_run.items, 'correct', v_run.correct,
                                          'unanswered', v_run.unanswered, 'duplicate', true);
