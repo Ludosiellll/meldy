@@ -665,7 +665,9 @@ def clean_extracted_text(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("\x00", "")
     text = re.sub(r"[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f]", "", text)
-    text = re.sub(r"[ \t]+\n", "\n", text)
+    # Trailing spaces and tabs go line by line: the regex r"[ \t]+\n" did the same in quadratic time on a long run
+    # of spaces with no line break after it (80,000 spaces took 7.5 s). The last line's tail goes with strip() below.
+    text = "\n".join(line.rstrip(" \t") for line in text.split("\n"))
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
