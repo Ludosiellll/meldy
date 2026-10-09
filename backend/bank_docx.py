@@ -40,6 +40,7 @@ __all__ = [
     "Run",
     "Table",
     "check_archive",
+    "is_code",
     "read_docx",
 ]
 
@@ -101,15 +102,23 @@ class Para:
     formulas: int = 0
     checkbox: Optional[bool] = None  # флажок в абзаце: символ ☑/☐ или элемент управления
     outline: Optional[int] = None  # уровень заголовка Word (1 — «Заголовок 1»), None — обычный текст
+    code_blank: bool = False  # пустая строка внутри кода (пустой абзац ячейки между моноширинными)
 
     @property
     def text(self) -> str:
         return "".join(run.text for run in self.runs)
 
 
+def is_code(para: Para) -> bool:
+    """Весь видимый текст абзаца — моноширинным шрифтом (строка кода)."""
+    visible = [run for run in para.runs if run.text.strip()]
+    return bool(visible) and all(run.mono for run in visible)
+
+
 @dataclass
 class Cell:
-    """Ячейка таблицы: абзацы с текстом (пустые отброшены), продолжение объединения, ширина в столбцах."""
+    """Ячейка таблицы: абзацы с текстом (пустые отброшены, кроме пустых строк внутри кода), продолжение
+    объединения, ширина в столбцах."""
 
     paras: list[Para]
     continuation: bool = False
@@ -118,7 +127,7 @@ class Cell:
 
     @property
     def text(self) -> str:
-        return "\n".join(p.text for p in self.paras if p.text.strip()).strip()
+        return "\n".join(p.text for p in self.paras if p.text.strip() or p.code_blank).strip()
 
 
 @dataclass
@@ -349,11 +358,17 @@ class RichDocxReader(docx_text._DocxReader):
                         span = 1
                     shade = _fill(tc_pr.find(_w("shd")))
                 paras: list[Para] = []
+                blanks = 0  # пустые абзацы после строки кода: остаются, если за ними снова код
                 for p in tc.iter(docx_text._W_P):
                     # абзацы вложенной таблицы читаются строками этой ячейки
                     para = self._rich_paragraph(p, cell_shade=shade)
                     if para.text.strip() or para.images or para.formulas:
+                        if blanks and is_code(para) and paras and is_code(paras[-1]):
+                            paras.extend(Para(code_blank=True) for _ in range(blanks))
+                        blanks = 0
                         paras.append(para)
+                    elif blanks or (paras and is_code(paras[-1])):
+                        blanks += 1
                 cells.append(Cell(paras=paras, continuation=docx_text._is_merge_continuation(tc), span=span, shade=shade))
             rows.append(cells)
         return Table(rows=rows)

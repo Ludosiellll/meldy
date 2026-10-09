@@ -3,8 +3,9 @@
 Корпус: синтетические файлы fixtures/banks с эталоном expected.json (их пересобирает make_corpus.py) — каждый
 файл разбирается в эталон: вопросы, варианты, ключи, виды, флаги, тексты дословно, темы, предметы,
 предупреждения, пропуски номеров. Дальше — код без изменений, источники ключа, флаги, доли отметок (marks),
-предметы и темы, открытые вопросы, format и key_mode, пределы, безопасность разбора файлов и скорость
-(банк на 240 вопросов — меньше 0,5 с, сессия 4 × 240 — меньше 1,5 с). Файлы колледжа сюда не кладутся.
+предметы и темы, открытые вопросы, format и key_mode, пределы, безопасность разбора файлов, ошибки, найденные на
+синтетических банках, и скорость (банк на 240 вопросов — меньше 0,5 с, сессия 4 × 240 — меньше 1,5 с). Файлы
+колледжа сюда не кладутся.
 """
 import io
 import json
@@ -766,3 +767,345 @@ def test_xlsx_cells_keep_numbers_line_breaks_and_formula_strings():
     assert items[2]["text"] == "Вопрос из формулы?" and items[0]["where"] == "лист 1, строка 2"
     assert result["format_signal"] == "color" and [item["correct"] for item in items] == [[1], [1], []]
     assert items[2]["flags"] == ["no_key"] and items[2]["marks"]["bold"] == [1, 1]  # жирное всё — не ключ
+
+
+# ── Ошибки, найденные на синтетических банках ───────────────────────────────────
+
+
+def owner_like_table(questions: list[tuple[str, list[str], set[int]]], code: dict[int, list[str]] | None = None) -> str:
+    """Таблица «№ | Содержание вопроса | Варианты ответов», вариант на строку без букв, ключ жирным; code[k] —
+    строки кода под вопросом k отдельными абзацами Consolas ('' — пустой абзац)."""
+    def cell(paragraphs: str, props: str = "") -> str:
+        return xml_cell(paragraphs, props)
+
+    def mono(text: str) -> str:
+        if not text:
+            return "<w:p/>"
+        return (f'<w:p><w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/></w:rPr>'
+                f'<w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>')
+
+    rows = ["<w:tr>" + "".join(cell(xml_paragraph(t)) for t in ("№", "Содержание вопроса", "Варианты ответов")) + "</w:tr>"]
+    for k, (stem, options, keys) in enumerate(questions, start=1):
+        for i, option in enumerate(options):
+            merge = '<w:vMerge w:val="restart"/>' if i == 0 else "<w:vMerge/>"
+            stem_cell = xml_paragraph(stem) + "".join(mono(line) for line in (code or {}).get(k, [])) if i == 0 else ""
+            rows.append("<w:tr>" + cell(xml_paragraph(str(k)) if i == 0 else "", merge) + cell(stem_cell, merge)
+                        + cell(xml_paragraph(option, bold=i in keys)) + "</w:tr>")
+    return "<w:tbl><w:tblPr/><w:tblGrid><w:gridCol/><w:gridCol/><w:gridCol/></w:tblGrid>" + "".join(rows) + "</w:tbl>"
+
+
+# (1) Слова «по порядку», «последовательности», «соответствия» вида вопроса не меняют: вид — по устройству.
+
+KIND_WORDS = """1. Какой метод LINQ проецирует каждый элемент последовательности в новую форму?
+а) OrderBy
+б) **Select**
+в) Where
+2. Что вернёт вызов делегата, в который по порядку добавлены методы, возвращающие 1, 2 и 3?
+а) 1
+б) **3**
+в) 6
+3. Какое соединение вернёт строки, для которых нет соответствия в другой таблице?
+а) INNER JOIN
+б) **FULL OUTER JOIN**
+в) CROSS JOIN
+"""
+
+
+@pytest.mark.parametrize("variant", ["bold", "key_list", "marker", "no_key"])
+def test_order_and_match_words_in_a_question_with_options_do_not_change_its_kind(variant):
+    text = {
+        "bold": KIND_WORDS,
+        "key_list": KIND_WORDS.replace("**", "") + "Ключ: 1 – б, 2 – б, 3 – б",
+        "marker": "\n".join(("+ " if "**" in line else "- ") + line[3:].strip("*") if line[:2] in ("а)", "б)", "в)") else line
+                            for line in KIND_WORDS.splitlines()),
+        "no_key": KIND_WORDS.replace("**", ""),
+    }[variant]
+    result = parse_bank_text(text)
+    assert [item["kind"] for item in result["items"]] == ["single"] * 3
+    assert [item["options"] for item in result["items"]][2] == ["INNER JOIN", "FULL OUTER JOIN", "CROSS JOIN"]
+    if variant == "no_key":
+        assert all(item["correct"] == [] and item["flags"] == ["no_key"] for item in result["items"])
+    else:
+        assert [item["correct"] for item in result["items"]] == [[1], [1], [1]]
+        assert all(item["flags"] == [] for item in result["items"])
+
+
+def test_order_and_match_come_from_the_task_and_the_key_not_from_single_words():
+    stages = "а) компоновка\nб) лексический анализ\nв) синтаксический анализ\n"
+    sizes = "а) 1 байт\nб) 4 байта\nв) 8 байт\n"
+    text = (f"1. Расположите этапы компиляции в правильном порядке:\n{stages}"
+            f"2. Установите соответствие между типом и размером: А. int Б. long В. byte\n{sizes}"
+            f"3. Расположите этапы компиляции в правильном порядке:\n{stages}Ответ: б, в, а\n"
+            f"4. Установите соответствие между типом и размером: А. int Б. long В. byte\n{sizes}Ответ: А-2, Б-3, В-1\n"
+            f"5. В каком порядке выполняются этапы компиляции?\n{stages}Ответ: б\n")
+    items = parse_bank_text(text)["items"]
+    assert [item["kind"] for item in items] == ["order", "match", "order", "match", "single"]
+    assert items[0]["flags"] == ["no_key"] and items[1]["flags"] == []  # задание без ключа: вид по заданию
+    assert items[2]["order"] == [1, 2, 0] and items[2]["evidence"] == "answer_line"  # ключ-перестановка
+    assert items[3]["answer"] == "А-2, Б-3, В-1" and items[3]["correct"] == []  # ключ-пары
+    assert items[4]["correct"] == [1]  # вопрос с «?» и ключ-буква — выбор
+    bold = stages.replace("б) лексический анализ", "б) **лексический анализ**")
+    marked = parse_bank_text(f"1. Расположите этапы компиляции в правильном порядке:\n{bold}2. Какой этап первый?\n{bold}")
+    assert [(item["kind"], item["correct"]) for item in marked["items"]] == [("single", [1])] * 2  # отмеченный вариант — выбор
+
+
+def test_whole_words_only_for_kind_hints():
+    assert bank_parse.OPEN_HINT_RE.search("Дополните предложение: цикл с ___ выполняется хотя бы раз.")
+    assert not bank_parse.OPEN_HINT_RE.search("Какая дополнительная память нужна сортировке слиянием?")
+    tested = parse_bank_text("1. Сколько дополнительной памяти нужно сортировке слиянием?\n2. Вопрос?\nа) да\nб) нет\n",
+                             format_mode="test")
+    assert tested["items"][0]["kind"] == "unknown" and tested["items"][0]["flags"] == ["no_options"]
+    assert not bank_parse.order_task("Что проверяет контрольная последовательность FCS?")
+    assert not bank_parse.match_task("Какой командой посмотреть таблицу соответствия IP- и MAC-адресов?")
+    assert bank_parse.order_task("Установите правильную последовательность этапов компиляции:")
+    assert bank_parse.match_task("Соотнесите слово с переводом:")
+
+
+# (2) «3.5», адрес, «c.Count» — текст варианта, а не подпись; подпись срезается, только если подписи идут по порядку.
+
+
+def test_an_option_that_starts_like_a_number_or_a_letter_label_keeps_its_text():
+    questions = [
+        ("Что будет выведено при делении двух переменных типа int?", ["3,5", "4", "3", "3,0", "3.5"], {2}),
+        ("Какой адрес можно назначить узлу сети 10.1.1.192/28?", ["10.1.1.200", "10.1.1.0", "0.0.0.0"], {0}),
+        ("Какое свойство вернёт число элементов списка?", ["c.Count", "a.Length", "d.Size()"], {0}),
+        ("Сколько будет 2 + 3?", ["5) пять", "4", "3"], {0}),
+        ("Пронумерованные варианты?", ["1) один", "2) два", "3) три"], {1}),
+    ]
+    items = parse_bank_file(docx_with_body(owner_like_table(questions)), "bank.docx")["items"]
+    assert [item["options"] for item in items] == [
+        ["3,5", "4", "3", "3,0", "3.5"], ["10.1.1.200", "10.1.1.0", "0.0.0.0"], ["c.Count", "a.Length", "d.Size()"],
+        ["5) пять", "4", "3"],  # «5)» не первым — не подпись
+        ["один", "два", "три"],  # 1), 2), 3) по порядку — подписи
+    ]
+    assert [item["correct"] for item in items] == [[2], [0], [0], [0], [1]]
+    assert bank_parse.labels_in_sequence(["А", "Б", "C"]) and bank_parse.labels_in_sequence(["3", "1", "2"])
+    assert not bank_parse.labels_in_sequence(["3"]) and not bank_parse.labels_in_sequence(["а", "", "в"])
+
+
+# (3) «;» в конце каждого варианта — часть оператора: SQL и C# остаются как написаны.
+
+
+def test_a_semicolon_at_the_end_of_every_option_is_kept():
+    text = ("1. Какой запрос выберет товары с ценой от 100 до 500?\n"
+            "а) SELECT * FROM Goods WHERE price IN (100, 500);\nб) **SELECT * FROM Goods WHERE price BETWEEN 100 AND 500;**\n"
+            "2. Какое объявление создаёт массив из 10 целых чисел?\n"
+            "а) int arr[10];\nб) int[10] arr;\nв) **int[] arr = new int[10];**\n"
+            "3. Перечислите виды инфляции:\nа) ползучая;\nб) **галопирующая;**\nв) гиперинфляция.\n")
+    items = parse_bank_text(text)["items"]
+    assert items[0]["options"][1] == "SELECT * FROM Goods WHERE price BETWEEN 100 AND 500;"
+    assert items[1]["options"] == ["int arr[10];", "int[10] arr;", "int[] arr = new int[10];"]
+    assert items[2]["options"] == ["ползучая", "галопирующая", "гиперинфляция"]  # «x; y; z.» — знаки списка
+    assert [item["correct"] for item in items] == [[1], [2], [1]]
+
+
+# (4) Список ключей одной строкой, в несколько строк и таблицей.
+
+THREE_QUESTIONS = ("1. Первый вопрос?\nа) один\nб) два\nв) три\n2. Второй вопрос?\nа) один\nб) два\nв) три\n"
+                   "3. Третий вопрос — выберите все верные ответы?\nа) один\nб) два\nв) три\n")
+
+
+@pytest.mark.parametrize("key", [
+    "Ключ: 1 – б, 2 – а, 3 – а, в",
+    "Ответы: 1-б; 2-а; 3-а, в",
+    "Ключ к тесту — 1б 2а 3ав",
+    "1б 2а 3ав",
+    "Ключ: 1 – б, 2 – а,\n3 – а, в",
+    "Правильные ответы:\n1 – б, 2 – а, 3 – а, в",
+])
+def test_a_key_list_on_one_line_or_several_lines_is_read(key):
+    result = parse_bank_text(THREE_QUESTIONS + "\n" + key)
+    assert [item["correct"] for item in result["items"]] == [[1], [0], [0, 2]]
+    assert result["key_source"] == {"key_list": 3} and result["stats"]["key_lists"] == 1
+    assert [item["kind"] for item in result["items"]] == ["single", "single", "multiple"]
+    assert all(item["flags"] == [] for item in result["items"])
+
+
+def test_a_key_list_in_a_docx_paragraph_or_table_is_read():
+    def build(paragraph_key=None, rows=None):
+        def doc_builder(doc):
+            for line in THREE_QUESTIONS.splitlines():
+                doc.add_paragraph(line)
+            if paragraph_key:
+                doc.add_paragraph(paragraph_key)
+            if rows:
+                table = doc.add_table(rows=len(rows), cols=len(rows[0]))
+                for r, row in enumerate(rows):
+                    for c, value in enumerate(row):
+                        table.cell(r, c).text = value
+        return docx_bytes(doc_builder)
+
+    variants = {
+        "paragraph": build(paragraph_key="Ключ: 1 – б, 2 – а, 3 – а, в"),
+        "across": build(rows=[["№ вопроса", "1", "2", "3"], ["Ответ", "б", "а", "а, в"]]),
+        "pairs": build(rows=[["№", "Ответ", "№", "Ответ"], ["1", "б", "2", "а"], ["3", "а, в", "", ""]]),
+        "cell": build(rows=[["Ключ: 1 – б, 2 – а, 3 – а, в"]]),
+    }
+    for name, contents in variants.items():
+        result = parse_bank_file(contents, "bank.docx")
+        assert [item["correct"] for item in result["items"]] == [[1], [0], [0, 2]], name
+        assert result["stats"]["items"] == 3 and result["key_source"] == {"key_list": 3}, name
+
+
+def test_an_answer_line_is_still_the_answer_of_its_own_question():
+    result = parse_bank_text("1. Вопрос?\nа) да\nб) нет\nОтвет: б\n2. Соотнесите слово с переводом:\nа) окно\nб) стена\n"
+                             "Ответ: 1-б, 2-а\n")
+    first, second = result["items"]
+    assert first["correct"] == [1] and first["evidence"] == "answer_line"
+    assert second["kind"] == "match" and second["answer"] == "1-б, 2-а" and result["stats"]["key_lists"] == 0
+
+
+# (5) Код в TXT с «+»/«-»: варианты — только отмеченные строки, строки до них — текст вопроса как написан.
+
+PLUS_CODE = (
+    "25. Сколько раз будет выведено слово hello?\r\n#include <stdio.h>\r\n#include <unistd.h>\r\nint main(void) {\r\n"
+    "    fork();\r\n\r\n    fork();\r\n    printf(\"hello\\n\");\r\n}\r\n- 2\r\n+ 4\r\n- 8\r\n\r\n"
+    "26. Может ли группа staff изменить файл?\r\n$ ls -l report.txt\r\n-rw-r----- 1 anna staff 2048 report.txt\r\n"
+    "- Да\r\n+ Нет, только чтение\r\n\r\n"
+    "27. Что выведет сценарий без аргументов?\r\ncase \"$1\" in\r\n    start) echo \"Запуск\" ;;\r\n"
+    "    *)     echo \"Использование: $0 start\" ;;\r\nesac\r\n+ Использование: ./service.sh start\r\n- Запуск\r\n"
+)
+
+
+def test_code_lines_between_the_question_and_its_marked_options_belong_to_the_question():
+    result = parse_bank_text(PLUS_CODE)
+    assert result["marker"] == "plus_minus" and [item["label"] for item in result["items"]] == ["25", "26", "27"]
+    first, second, third = result["items"]
+    assert first["text"] == ("Сколько раз будет выведено слово hello?\n#include <stdio.h>\n#include <unistd.h>\n"
+                             "int main(void) {\n    fork();\n\n    fork();\n    printf(\"hello\\n\");\n}")
+    assert first["options"] == ["2", "4", "8"] and first["correct"] == [1]
+    assert second["text"].endswith("\n$ ls -l report.txt\n-rw-r----- 1 anna staff 2048 report.txt")
+    assert second["options"] == ["Да", "Нет, только чтение"] and second["correct"] == [1]
+    assert third["text"].splitlines()[2:4] == ["    start) echo \"Запуск\" ;;", "    *)     echo \"Использование: $0 start\" ;;"]
+    assert third["options"] == ["Использование: ./service.sh start", "Запуск"] and third["correct"] == [0]
+    assert all(item["flags"] == [] for item in result["items"])
+    # вопросы без номеров через пустую строку (MyTestX): пустая строка внутри кода не делит вопрос надвое
+    blocks = parse_bank_text("Что выведет код?\nint x = 1;\n\nConsole.WriteLine(x);\n+ 1\n- 0\n\n"
+                             "Какой оператор прибавляет и присваивает?\n+ +=\n- -=\n\nТретий вопрос?\n+ да\n- нет\n")
+    assert blocks["layout"] == "blocks" and blocks["stats"]["items"] == 3
+    assert blocks["items"][0]["text"] == "Что выведет код?\nint x = 1;\n\nConsole.WriteLine(x);"
+    assert [item["options"] for item in blocks["items"]] == [["1", "0"], ["+=", "-="], ["да", "нет"]]
+
+
+# (6) Пустая строка внутри кода (код абзацами, пустой абзац между ними) остаётся.
+
+
+def test_blank_lines_inside_code_written_one_paragraph_per_line_are_kept():
+    code = {1: ["static void Change(int x)", "{", "    x = 100;", "}", "", "int value = 5;", "Change(value);", ""]}
+    table = owner_like_table([("Что выведет фрагмент?", ["5", "100"], {0})], code)
+    item = parse_bank_file(docx_with_body(table), "bank.docx")["items"][0]
+    assert item["text"] == ("Что выведет фрагмент?\nstatic void Change(int x)\n{\n    x = 100;\n}\n\n"
+                            "int value = 5;\nChange(value);")  # пустой абзац после кода — не строка кода
+    assert item["options"] == ["5", "100"] and item["correct"] == [0]
+
+    def build(doc):
+        doc.add_paragraph("1. Что выведет фрагмент?")
+        for line in ("int a = 1;", "", "Console.WriteLine(a);"):
+            run = doc.add_paragraph().add_run(line)
+            run.font.name = "Courier New"
+        doc.add_paragraph("а) 1")
+        doc.add_paragraph("б) 0")
+        doc.add_paragraph("Ключ: 1 – а, 2 – б, 3 – в")
+    typed = parse_bank_file(docx_bytes(build), "bank.docx")["items"][0]
+    assert typed["text"] == "Что выведет фрагмент?\nint a = 1;\n\nConsole.WriteLine(a);" and typed["correct"] == [0]
+
+
+# (7) Повторы вариантов — с учётом регистра (и кода).
+
+
+def test_same_options_are_case_sensitive():
+    result = parse_bank_text("1. Что выведет фрагмент?\nа) **Hello**\nб) hello\nв) HELLO\n"
+                             "2. Одинаковые варианты?\nа) **да**\nб) да\nв) нет\n")
+    assert [item["flags"] for item in result["items"]] == [[], ["same_options"]]
+
+
+# (8) «#include», «#!/bin/bash» — строки кода, а не маркер «#».
+
+
+def test_hash_lines_of_code_are_not_answer_markers():
+    def build(doc):
+        doc.add_paragraph("25. Сколько раз будет выведено слово hello?")
+        for line in ("#include <stdio.h>", "#define N 2", "int main(void) {", "    fork();", "}"):
+            doc.add_paragraph().add_run(line).font.name = "Courier New"
+        for letter, option in zip("абв", ("2", "4", "8")):
+            run = doc.add_paragraph().add_run(f"{letter}) {option}")
+            run.font.highlight_color = WD_COLOR_INDEX.YELLOW if option == "4" else None
+        doc.add_paragraph("26. Что выведет сценарий?")
+        for line in ("#!/bin/bash", "echo \"Привет, $1\""):
+            doc.add_paragraph().add_run(line).font.name = "Courier New"
+        for letter, option in zip("абв", ("Привет, Анна", "Привет, $1", "Ошибка")):
+            run = doc.add_paragraph().add_run(f"{letter}) {option}")
+            run.font.highlight_color = WD_COLOR_INDEX.YELLOW if letter == "а" else None
+    result = parse_bank_file(docx_bytes(build), "bank.docx")
+    first, second = result["items"]
+    assert first["text"].splitlines()[1:3] == ["#include <stdio.h>", "#define N 2"] and first["options"] == ["2", "4", "8"]
+    assert second["text"].splitlines()[1] == "#!/bin/bash" and len(second["options"]) == 3
+    assert [item["correct"] for item in result["items"]] == [[1], [0]] and result["marker"] is None
+    assert not bank_parse.GLUED_MARK_RE.match("#include <stdio.h>") and bank_parse.GLUED_MARK_RE.match("#Полоцк")
+
+
+# (9) Строка таблицы маршрутизации или вывода с числом в начале — текст, а не вопрос.
+
+
+def test_numbers_that_do_not_continue_the_numbering_are_text():
+    text = ("124. Вопрос перед таблицей?\nа) **да**\nб) нет\n"
+            "125. Через какой шлюз будет отправлен пакет для адреса 10.20.5.7?\n"
+            "Сеть           Маска            Шлюз\n0.0.0.0        0.0.0.0          192.168.1.1\n"
+            "10.20.0.0      255.255.0.0      192.168.1.3\n192) строка вывода\n"
+            "а) 192.168.1.1\nб) **192.168.1.3**\n126. Вопрос после таблицы?\nа) да\nб) **нет**\n")
+    result = parse_bank_text(text)
+    assert [item["label"] for item in result["items"]] == ["124", "125", "126"]
+    table = result["items"][1]
+    assert table["text"].splitlines()[1:] == ["Сеть           Маска            Шлюз", "0.0.0.0        0.0.0.0          192.168.1.1",
+                                              "10.20.0.0      255.255.0.0      192.168.1.3", "192) строка вывода"]
+    assert table["options"] == ["192.168.1.1", "192.168.1.3"] and table["correct"] == [1]
+    assert result["stats"]["gaps"] == [] and all(item["flags"] == [] for item in result["items"])
+
+
+def test_topic_question_numbers_and_numbered_options_under_code():
+    topic = parse_bank_text("Тема 1\n1.1. Что такое алгоритм?\nа) **набор шагов**\nб) число\n1.2. Что такое программа?\nx = 1\n"
+                            "а) **текст**\nб) число\n2.1. Что такое цикл?\nа) **повтор**\nб) число\n")
+    assert [(item["label"], item["text"], item["correct"]) for item in topic["items"]] == [
+        ("1.1", "Что такое алгоритм?", [0]), ("1.2", "Что такое программа?\nx = 1", [0]), ("2.1", "Что такое цикл?", [0])]
+    assert topic["stats"]["gaps"] == [] and [s["evidence"] for s in topic["subjects"]] == ["none"]
+    numbered = parse_bank_text("1. Что выведет код?\nx = 1\n1) 1\n2) 0\nОтвет: 1\n2. Второй вопрос?\n1) да\n2) нет\nОтвет: 2\n")
+    assert [(item["label"], item["text"], item["options"], item["correct"]) for item in numbered["items"]] == [
+        ("1", "Что выведет код?\nx = 1", ["1", "0"], [0]), ("2", "Второй вопрос?", ["да", "нет"], [1])]
+
+
+# (10) Открытые вопросы в TXT: код под вопросом — его текст, строки и отступы как написаны.
+
+OPEN_CODE = """Вопросы к экзамену по дисциплине «Основы алгоритмизации»
+Раздел 1. Циклы
+1. Выполните трассировку приведённого фрагмента для n = 4.
+s := 0
+нц для i от 1 до n
+    s := s + i * i
+кц
+2. Найдите ошибку в приведённом фрагменте:
+i = 0
+while i < 10:
+    print(i)
+i += 1
+3. Какую последовательность вызовов создаст f(4)?
+def f(n):
+    if n <= 1:
+        return 1
+    return n * f(n - 1)
+4. Объясните разницу между += и -= при подписке
+на событие и при отписке от него.
+"""
+
+
+def test_open_questions_in_text_keep_their_code_line_by_line():
+    result = parse_bank_text(OPEN_CODE)
+    assert result["stats"]["kinds"] == {"open": 4} and all(item["options"] == [] for item in result["items"])
+    texts = [item["text"] for item in result["items"]]
+    assert texts[0] == "Выполните трассировку приведённого фрагмента для n = 4.\ns := 0\nнц для i от 1 до n\n    s := s + i * i\nкц"
+    assert texts[1] == "Найдите ошибку в приведённом фрагменте:\ni = 0\nwhile i < 10:\n    print(i)\ni += 1"
+    assert texts[2].splitlines()[1:] == ["def f(n):", "    if n <= 1:", "        return 1", "    return n * f(n - 1)"]
+    assert texts[3] == "Объясните разницу между += и -= при подписке на событие и при отписке от него."  # перенос строки
+    assert [(s["title"], s["evidence"]) for s in result["subjects"]] == [("Основы алгоритмизации", "heading")]
+    # format «test»: строки под вопросом с «?» — варианты; код после «.» и «:» — всё равно строками
+    tested = parse_bank_text(OPEN_CODE, format_mode="test")["items"]
+    assert tested[0]["text"] == texts[0] and tested[2]["options"][:2] == ["def f(n):", "if n <= 1:"]
