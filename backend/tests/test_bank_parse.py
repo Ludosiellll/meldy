@@ -2,10 +2,11 @@
 
 Корпус: синтетические файлы fixtures/banks с эталоном expected.json (их пересобирает make_corpus.py) — каждый
 файл разбирается в эталон: вопросы, варианты, ключи, виды, флаги, тексты дословно, темы, предметы,
-предупреждения, пропуски номеров. Дальше — код без изменений, источники ключа, флаги, доли отметок (marks),
-предметы и темы, открытые вопросы, format и key_mode, пределы, безопасность разбора файлов, ошибки, найденные на
-синтетических банках, и скорость (банк на 240 вопросов — меньше 0,5 с, сессия 4 × 240 — меньше 1,5 с). Файлы
-колледжа сюда не кладутся.
+предупреждения, пропуски номеров. Синтетические банки fixtures/banks/synthetic (C#, базы данных, сети, ОС,
+алгоритмизация, архитектура ЭВМ; эталон truth.json) — каждый вопрос, вариант и ключ дословно. Дальше — код
+без изменений, источники ключа, флаги, доли отметок (marks), предметы и темы, открытые вопросы, format и
+key_mode, пределы, безопасность разбора файлов, ошибки, найденные на синтетических банках, и скорость (банк на
+240 вопросов — меньше 0,5 с, сессия 4 × 240 — меньше 1,5 с). Файлы колледжа сюда не кладутся.
 """
 import io
 import json
@@ -120,6 +121,70 @@ def test_generator_is_committed_next_to_its_output():
         assert (FIXTURES / spec["file"]).is_file()
 
 
+# ── Синтетические банки: эталон subject_*.json (truth.json) ─────────────────────
+
+SYNTHETIC = FIXTURES / "synthetic"
+TRUTH = json.loads((SYNTHETIC / "truth.json").read_text(encoding="utf-8"))
+
+
+def synthetic_expected(entry: dict) -> list[tuple[dict, str, str]]:
+    """Вопросы файла по эталону — (вопрос с номером в файле, предмет, тема): выбранные номера идут подряд с 1."""
+    rows = []
+    for part in entry["parts"]:
+        subject = TRUTH["subjects"][part["subject"]]
+        topics = {topic["index"]: topic["title"] for topic in subject["topics"]}
+        by_number = {item["n"]: item for item in subject["items"]}
+        for k, number in enumerate(part["pick"] or sorted(by_number), start=1):
+            item = dict(by_number[number], n=k)
+            rows.append((item, subject["subject"], topics[item["topic"]]))
+    return rows
+
+
+def synthetic_problems(entry: dict, result: dict) -> list[str]:
+    """Расхождения с эталоном: номер, текст с кодом (дословно), варианты, ключ, вид, тема, предмет, флаги проверки."""
+    want, got = synthetic_expected(entry), result["items"]
+    problems = [] if len(got) == len(want) else [f"items {len(got)} != {len(want)}"]
+    topics = {topic["index"]: topic["title"] for topic in result["topics"]}
+    subjects = {subject["index"]: subject["title"] for subject in result["subjects"]}
+    several = len(entry["parts"]) > 1
+    for (w, subject, topic), g in zip(want, got):
+        tag = f"{subject} №{w['n']}"
+        text = w["text"] + ("\n" + w["code"] if w["code"] else "")
+        checks = {
+            "label": (g["label"], str(w["n"])), "text": (g["text"], text), "options": (g["options"], w["options"]),
+            "correct": (sorted(g["correct"]), w["correct"]), "kind": (g["kind"], w["kind"]),
+            "topic": (topics.get(g["topic"]), topic), "flags": (sorted(set(g["flags"]) & bank_parse.PROBLEM_FLAGS), []),
+        }
+        if several:
+            checks["subject"] = (subjects.get(g["subject"]), subject)
+        problems += [f"{tag} {name}: {got_value!r} != {want_value!r}"
+                     for name, (got_value, want_value) in checks.items() if got_value != want_value]
+    return problems
+
+
+@pytest.mark.parametrize("entry", TRUTH["files"], ids=[entry["file"] for entry in TRUTH["files"]])
+def test_synthetic_banks_parse_to_their_ground_truth_item_for_item(entry):
+    result = parse_bank_file((SYNTHETIC / entry["file"]).read_bytes(), entry["file"])
+    assert synthetic_problems(entry, result) == []
+    if len(entry["parts"]) > 1:  # предметы файла — по заголовкам «Дисциплина: …»
+        assert [(s["title"], s["evidence"]) for s in result["subjects"]] == [
+            (TRUTH["subjects"][part["subject"]]["subject"], "heading") for part in entry["parts"]]
+
+
+def test_synthetic_set_covers_every_layout_and_key_source():
+    files = {entry["file"] for entry in TRUTH["files"]}
+    assert files == {path.name for path in SYNTHETIC.iterdir() if path.name != "truth.json"}
+    sources, layouts, kinds, items = set(), set(), set(), 0
+    for entry in TRUTH["files"]:
+        result = parse_bank_file((SYNTHETIC / entry["file"]).read_bytes(), entry["file"])
+        sources |= set(result["key_source"])
+        layouts.add(result["layout"])
+        kinds |= set(result["stats"]["kinds"])
+        items += result["stats"]["items"]
+    assert sources == {"bold", "highlight", "key_list", "marker"} and kinds == {"single", "multiple", "open"}
+    assert {"table_option_rows", "numbered_paragraphs"} <= layouts and items == 682
+
+
 # ── Помощники: DOCX из шаблона корпуса и маленькие документы python-docx ─────────
 
 
@@ -200,6 +265,14 @@ def test_a_240_question_bank_parses_in_under_half_a_second():
     assert all(item["flags"] == [] and len(item["options"]) == 5 for item in result["items"])
     assert len(result["topics"]) == 8 and result["subjects"] == [{"index": 1, "title": None, "evidence": "none", "items": 240}]
     assert best_seconds(lambda: parse_bank_file(contents, "C# и .NET.docx")) < 0.5
+
+
+def test_the_synthetic_240_question_csharp_table_parses_in_under_half_a_second():
+    """Таблица колледжа на 240 вопросов C#: 87 с кодом по абзацу на строку, 36 — с пустыми строками внутри кода."""
+    contents = (SYNTHETIC / "csharp_table.docx").read_bytes()
+    result = parse_bank_file(contents, "csharp_table.docx")
+    assert result["stats"]["items"] == 240 and result["key_source"] == {"bold": 240} and result["stats"]["to_check"] == 0
+    assert best_seconds(lambda: parse_bank_file(contents, "csharp_table.docx")) < 0.5
 
 
 SESSION_SUBJECTS = ("Основы программирования", "Базы данных", "Компьютерные сети", "Операционные системы")

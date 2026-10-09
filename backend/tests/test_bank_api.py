@@ -197,6 +197,30 @@ def test_key_mode_key_text_and_format_are_passed_to_the_parser(api):
     assert_error(as_test, 422, "no_items", bank_parse.NO_TEST_ITEMS_DETAIL)
 
 
+RESPONSE_KEYS = {"method", "layout", "layouts_seen", "confidence", "key_source", "format_signal", "format_signals",
+                 "mark_share", "marker", "markers", "subjects", "topics", "skipped", "warnings", "items", "stats"}
+ITEM_KEYS = {"position", "label", "subject", "topic", "kind", "text", "options", "correct", "order", "pairs", "answer",
+             "evidence", "flags", "code", "where", "marks"}
+
+
+def test_synthetic_banks_come_back_whole_and_in_the_same_shape(api):
+    """Синтетические банки: ключ одной строкой в конце DOCX и код между вопросом и «+»/«-» в TXT — через маршрут
+    приходят все вопросы с ключами, код остаётся в тексте вопроса; форма ответа прежняя."""
+    keylist = api.post(PATH, files=fixture_file("synthetic/networks_keylist_slice.docx", DOCX))
+    assert keylist.status_code == 200, keylist.text
+    body = keylist.json()
+    assert set(body) == RESPONSE_KEYS and all(set(item) == ITEM_KEYS for item in body["items"])
+    assert body["stats"]["items"] == 50 and body["key_source"] == {"key_list": 50} and body["stats"]["to_check"] == 0
+    route = next(item for item in body["items"] if item["text"].startswith("Дан фрагмент таблицы маршрутизации"))
+    assert "\n0.0.0.0        0.0.0.0          192.168.1.1    192.168.1.10\n" in route["text"] and len(route["options"]) == 5
+    plus = api.post(PATH, files=fixture_file("synthetic/os_plus_slice.txt", "text/plain")).json()
+    assert set(plus) == RESPONSE_KEYS and plus["marker"] == "plus_minus"
+    assert plus["stats"]["items"] == 55 and plus["key_source"] == {"marker": 55} and plus["stats"]["options"] == {"5": 55}
+    fork = next(item for item in plus["items"] if "fork();" in item["text"])
+    assert fork["text"].splitlines()[1:3] == ["#include <stdio.h>", "#include <unistd.h>"] and len(fork["options"]) == 5
+    assert api.sent == []
+
+
 # ── Ошибки ──────────────────────────────────────────────────────────────────────
 
 
