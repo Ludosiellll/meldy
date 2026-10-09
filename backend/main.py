@@ -52,6 +52,7 @@ from utils import scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from bank_api import router as bank_router
+from container_shares import router as container_shares_router
 from oral_api import router as oral_router
 from oral_sheet import router as oral_sheet_router
 from exam_shares import router as exam_shares_router
@@ -295,6 +296,7 @@ app.include_router(push_router, prefix="/api/push", tags=["push"])
 # «Билеты», «Ответ вслух» and the exam cheat sheet declare their own full /api/... paths.
 app.include_router(exams_router)
 app.include_router(bank_router)  # «Тест с вариантами»: разбор банка вопросов (bank_api.py)
+app.include_router(container_shares_router)  # Экзамен на всю сессию: устные копии участника группы (container_shares.py)
 app.include_router(oral_router)
 app.include_router(oral_sheet_router)
 # «Группа по ссылке»: a classmate's own copy of a ready exam (exam_shares.py).

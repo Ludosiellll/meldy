@@ -1,0 +1,475 @@
+{
+  "method": "rules",
+  "layout": "table_option_rows",
+  "layouts_seen": {
+    "table_option_rows": 73
+  },
+  "confidence": 1.0,
+  "key_source": {
+    "bold": 18
+  },
+  "format_signal": "bold",
+  "format_signals": {
+    "bold": {
+      "one": 17,
+      "many": 1,
+      "all": 0
+    },
+    "underline": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "highlight": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "color": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "shade": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "italic": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    }
+  },
+  "mark_share": 0.6,
+  "marker": null,
+  "markers": [],
+  "subjects": [
+    {
+      "index": 1,
+      "title": "Основы программирования",
+      "evidence": "heading",
+      "items": 12
+    },
+    {
+      "index": 2,
+      "title": "История Беларуси",
+      "evidence": "heading",
+      "items": 6
+    }
+  ],
+  "topics": [
+    {
+      "index": 1,
+      "title": "Тема 1. Директивы и пространства имён",
+      "subject": 1,
+      "items": 4
+    },
+    {
+      "index": 2,
+      "title": "Тема 2. Делегаты и события",
+      "subject": 1,
+      "items": 4
+    },
+    {
+      "index": 3,
+      "title": "Тема 3. Строки",
+      "subject": 1,
+      "items": 4
+    },
+    {
+      "index": 4,
+      "title": "Раздел 1. Древняя Русь",
+      "subject": 2,
+      "items": 3
+    },
+    {
+      "index": 5,
+      "title": "Раздел 2. ВКЛ",
+      "subject": 2,
+      "items": 3
+    }
+  ],
+  "skipped": [],
+  "warnings": [],
+  "items": [
+    {
+      "position": 1,
+      "label": "1",
+      "subject": 1,
+      "topic": 1,
+      "kind": "single",
+      "text": "Какие символы открывают однострочный комментарий в C#?",
+      "options": ["//", "#", "--", "%"],
+      "correct": [0],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 3",
+      "marks": {
+        "bold": [1, 0, 0, 0]
+      }
+    },
+    {
+      "position": 2,
+      "label": "2",
+      "subject": 1,
+      "topic": 1,
+      "kind": "single",
+      "text": "Какая директива сворачивает блок кода в именованную область?",
+      "options": ["#define", "#region", "#pragma", "#line"],
+      "correct": [1],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": true,
+      "where": "таблица 1, строка 7",
+      "marks": {
+        "bold": [0, 1, 0, 0]
+      }
+    },
+    {
+      "position": 3,
+      "label": "3",
+      "subject": 1,
+      "topic": 1,
+      "kind": "single",
+      "text": "Какое ключевое слово подключает пространство имён?",
+      "options": ["import", "include", "using", "require"],
+      "correct": [2],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 11",
+      "marks": {
+        "bold": [0, 0, 1, 0]
+      }
+    },
+    {
+      "position": 4,
+      "label": "4",
+      "subject": 1,
+      "topic": 1,
+      "kind": "single",
+      "text": "Какой оператор подписывает обработчик на событие?",
+      "options": ["=", "->", "<<", "+="],
+      "correct": [3],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": true,
+      "where": "таблица 1, строка 15",
+      "marks": {
+        "bold": [0, 0, 0, 1]
+      }
+    },
+    {
+      "position": 5,
+      "label": "5",
+      "subject": 1,
+      "topic": 2,
+      "kind": "single",
+      "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+      "options": ["=>", "->", "::", "*"],
+      "correct": [0],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": true,
+      "where": "таблица 1, строка 20",
+      "marks": {
+        "bold": [1, 0, 0, 0]
+      }
+    },
+    {
+      "position": 6,
+      "label": "6",
+      "subject": 1,
+      "topic": 2,
+      "kind": "single",
+      "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+      "options": ["0", "null", "исключение NullReferenceException", "пустой список"],
+      "correct": [0],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": true,
+      "where": "таблица 1, строка 24",
+      "marks": {
+        "bold": [1, 0, 0, 0]
+      }
+    },
+    {
+      "position": 7,
+      "label": "7",
+      "subject": 1,
+      "topic": 2,
+      "kind": "single",
+      "text": "Какой делегат подходит для метода без возвращаемого значения?",
+      "options": ["Func<int>", "Action", "Predicate<int>", "Converter<int, int>"],
+      "correct": [1],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 28",
+      "marks": {
+        "bold": [0, 1, 0, 0]
+      }
+    },
+    {
+      "position": 8,
+      "label": "8",
+      "subject": 1,
+      "topic": 2,
+      "kind": "single",
+      "text": "Что содержит переменная делегата без присвоенного метода?",
+      "options": ["0", "false", "null", "\"empty\""],
+      "correct": [2],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 32",
+      "marks": {
+        "bold": [0, 0, 1, 0]
+      }
+    },
+    {
+      "position": 9,
+      "label": "9",
+      "subject": 1,
+      "topic": 3,
+      "kind": "single",
+      "text": "Какой класс используется для частых изменений строки?",
+      "options": ["StringWriter", "StringBuilder", "CharBuffer", "TextArray"],
+      "correct": [1],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 37",
+      "marks": {
+        "bold": [0, 1, 0, 0]
+      }
+    },
+    {
+      "position": 10,
+      "label": "10",
+      "subject": 1,
+      "topic": 3,
+      "kind": "single",
+      "text": "Каким символом помечают интерполированную строку?",
+      "options": ["@", "#", "$", "%"],
+      "correct": [2],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 41",
+      "marks": {
+        "bold": [0, 0, 1, 0]
+      }
+    },
+    {
+      "position": 11,
+      "label": "11",
+      "subject": 1,
+      "topic": 3,
+      "kind": "single",
+      "text": "Какой метод объединяет массив строк с разделителем?",
+      "options": ["String.Split", "String.Join", "String.Merge", "String.Concat"],
+      "correct": [1],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 45",
+      "marks": {
+        "bold": [0, 1, 0, 0]
+      }
+    },
+    {
+      "position": 12,
+      "label": "12",
+      "subject": 1,
+      "topic": 3,
+      "kind": "single",
+      "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+      "options": ["экранирование отключено", "строка шифруется", "строка в верхнем регистре", "строка неизменяема"],
+      "correct": [0],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 1, строка 49",
+      "marks": {
+        "bold": [1, 0, 0, 0]
+      }
+    },
+    {
+      "position": 13,
+      "label": "1",
+      "subject": 2,
+      "topic": 4,
+      "kind": "single",
+      "text": "В каком году произошло Крещение Руси?",
+      "options": ["862 г.", "988 г.", "1054 г.", "1147 г."],
+      "correct": [1],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 2, строка 3",
+      "marks": {
+        "bold": [0, 1, 0, 0]
+      }
+    },
+    {
+      "position": 14,
+      "label": "2",
+      "subject": 2,
+      "topic": 4,
+      "kind": "single",
+      "text": "Кто из князей принял Русскую Правду?",
+      "options": ["Олег", "Игорь", "Ярослав Мудрый", "Святослав"],
+      "correct": [2],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 2, строка 7",
+      "marks": {
+        "bold": [0, 0, 1, 0]
+      }
+    },
+    {
+      "position": 15,
+      "label": "3",
+      "subject": 2,
+      "topic": 4,
+      "kind": "multiple",
+      "text": "Выберите все города Полоцкой земли:",
+      "options": ["Полоцк", "Новгород", "Витебск", "Киев", "Минск"],
+      "correct": [0, 2, 4],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 2, строка 11",
+      "marks": {
+        "bold": [1, 0, 1, 0, 1]
+      }
+    },
+    {
+      "position": 16,
+      "label": "4",
+      "subject": 2,
+      "topic": 5,
+      "kind": "single",
+      "text": "В каком году состоялась Грюнвальдская битва?",
+      "options": ["1385 г.", "1410 г.", "1569 г.", "1648 г."],
+      "correct": [1],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 2, строка 17",
+      "marks": {
+        "bold": [0, 1, 0, 0]
+      }
+    },
+    {
+      "position": 17,
+      "label": "5",
+      "subject": 2,
+      "topic": 5,
+      "kind": "single",
+      "text": "Как назывался свод законов ВКЛ 1588 года?",
+      "options": ["Судебник", "Статут", "Уложение", "Правда"],
+      "correct": [1],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 2, строка 21",
+      "marks": {
+        "bold": [0, 1, 0, 0]
+      }
+    },
+    {
+      "position": 18,
+      "label": "6",
+      "subject": 2,
+      "topic": 5,
+      "kind": "single",
+      "text": "Какое государство образовалось по Люблинской унии?",
+      "options": ["Речь Посполитая", "Московское царство", "Орда", "Ливонский орден"],
+      "correct": [0],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "bold",
+      "flags": [],
+      "code": false,
+      "where": "таблица 2, строка 25",
+      "marks": {
+        "bold": [1, 0, 0, 0]
+      }
+    }
+  ],
+  "stats": {
+    "items": 18,
+    "with_key": 18,
+    "no_key": 0,
+    "ambiguous": 0,
+    "to_check": 0,
+    "duplicates": 0,
+    "kinds": {
+      "single": 17,
+      "multiple": 1
+    },
+    "options": {
+      "4": 17,
+      "5": 1
+    },
+    "gaps": [],
+    "key_lists": 0
+  }
+}

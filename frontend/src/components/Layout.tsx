@@ -16,6 +16,7 @@ import { GuideProvider, GUIDE_PROFILE_KEY, useGuide } from './guide/GuideContext
 import GuidePanel from './guide/GuidePanel';
 import { GUIDE_CHAPTERS } from './guide/chapters';
 import { usePhone } from '../lib/usePhone';
+import { containerOfExam, containerTitle, onContainerTitles } from '../lib/containers/titleCache';
 import '../styles/paper.css';
 import './layout.css';
 
@@ -64,23 +65,82 @@ export function sectionOf(pathname: string): NavItem | null {
 }
 
 /**
+ * The exam container's pages (App.tsx): /exams/c/:id, and under it /s/:subjectId, /study, /mock, /keys, /settings.
+ * [1] is the container id, [2] the page under it (undefined on the exam's own page).
+ */
+const CONTAINER_PAGE = /^\/exams\/c\/([^/]+)(?:\/(s\/[^/]+|study|mock|keys|settings))?\/?$/;
+/** An oral exam's pages, /exams/:id and /edit, /draw, /ticket, /report; [1] is the exam id. Never c, new or import. */
+const ORAL_EXAM_PAGE = /^\/exams\/(?!(?:c|new|import)(?:\/|$))([^/]+)(?:\/(?:edit|draw|ticket|report))?\/?$/;
+/** A container id as ?from=c:<id> may carry it: no slash, dot or other path character. */
+const CONTAINER_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
  * «Тянуть билет», the answer screen, «Поговорить о лекции» and the report for the teacher are rooms: the
- * page draws its own top line, no menu and no tab bar (spec 4.3); the report prints without any of it.
+ * page draws its own top line, no menu and no tab bar (spec 4.3); the report prints without any of it. So are a
+ * container's «занятие» (/exams/c/:id/study) and «Как на экзамене» (/exams/c/:id/mock).
  */
 export function isRoomPath(pathname: string): boolean {
+  const container = CONTAINER_PAGE.exec(pathname);
+  if (container) return container[2] === 'study' || container[2] === 'mock';
   return /^\/exams\/[^/]+\/(draw|ticket|report)\/?$/.test(pathname) || /^\/library\/[^/]+\/talk\/?$/.test(pathname);
 }
 
-/** Detail pages keep their one action at the bottom of the screen on phones, so the tab bar steps aside (spec 4.2). */
+/**
+ * Detail pages keep their one action at the bottom of the screen on phones, so the tab bar steps aside (spec 4.2):
+ * also the import page, a container's subject page, «Ключи», its settings and the group link /g/:code. The
+ * container's own page keeps the tabs.
+ */
 export function hidesBottomNav(pathname: string): boolean {
+  const container = CONTAINER_PAGE.exec(pathname);
+  // The exam page pins its «Начать» bar at the bottom, like an oral exam's page, so no page of a container shows tabs.
+  if (container) return true;
+  if (/^\/exams\/import\/?$/.test(pathname) || /^\/g\/[^/]+\/?$/.test(pathname)) return true;
   return /^\/exams\/(new|[^/]+(\/edit)?)\/?$/.test(pathname) || /^\/library\/[^/]+\/?$/.test(pathname);
+}
+
+/** «‹ Зимняя сессия» to /exams/c/<id>: the title this tab knows (lib/containers/titleCache), else «‹ Назад». */
+function backToContainer(containerId: string): { to: string; label: string } {
+  return { to: `/exams/c/${containerId}`, label: containerTitle(containerId) ?? 'Назад' };
+}
+
+/** The container named by ?from=c:<id> (spec decision 23), when the address carries one. */
+function fromContainer(search: string): { to: string; label: string } | null {
+  let from: string | null = null;
+  try {
+    from = new URLSearchParams(search).get('from');
+  } catch {
+    return null;
+  }
+  const id = from?.startsWith('c:') ? from.slice(2) : '';
+  return CONTAINER_ID.test(id) ? backToContainer(id) : null;
+}
+
+/** The container an oral exam lives in (containers_overview, remembered by package D1), when this device knows it. */
+function attachedContainer(examId: string): { to: string; label: string } | null {
+  const attached = containerOfExam(examId);
+  if (!attached || !CONTAINER_ID.test(attached.containerId)) return null;
+  return { to: `/exams/c/${attached.containerId}`, label: containerTitle(attached.containerId) ?? attached.title };
 }
 
 /**
  * On a phone a page inside a section shows «‹ Родитель» in place of the wordmark (spec 4.2): a lecture,
  * an exam sheet and its editor, the knowledge map (in «Прогресс») and the mistakes diary (in «Повторение»).
+ *
+ * The exam container (spec decision 23): the pages under /exams/c/:id lead to it, «‹ <its title>»; the exam's own page
+ * and the import page lead to «Экзамены». An oral exam's page (/exams/:id, /edit, /draw, /ticket, /report) leads to
+ * its container when the address says ?from=c:<id>, or else when the exam lives inside a container (titleCache);
+ * ?from=c:<id> also brings the import page back to the container it adds a subject to. `search` is the address's
+ * query.
  */
-export function backLinkFor(pathname: string): { to: string; label: string } | null {
+export function backLinkFor(pathname: string, search = ''): { to: string; label: string } | null {
+  const container = CONTAINER_PAGE.exec(pathname);
+  if (container) return container[2] ? backToContainer(container[1]) : { to: '/exams', label: 'Экзамены' };
+  if (/^\/exams\/import\/?$/.test(pathname)) return fromContainer(search) ?? { to: '/exams', label: 'Экзамены' };
+  const oral = ORAL_EXAM_PAGE.exec(pathname);
+  if (oral) {
+    const back = fromContainer(search) ?? attachedContainer(oral[1]);
+    if (back) return back;
+  }
   if (/^\/library\/[^/]+\/?$/.test(pathname)) return { to: '/library', label: 'Лекции' };
   const edit = /^\/exams\/([^/]+)\/edit\/?$/.exec(pathname);
   if (edit) return { to: `/exams/${edit[1]}`, label: 'Лист экзамена' };
@@ -273,6 +333,9 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const { handleInstallClick, showInstall } = useInstallPWA();
   const due = useDueCount(user?.id, location.pathname);
   const phone = usePhone();
+  // A container's title can arrive after the line was drawn (its page or containers_overview remembers it): draw again.
+  const [, setTitlesSeen] = useState(0);
+  useEffect(() => onContainerTitles(() => setTitlesSeen((count) => count + 1)), []);
 
   useWindowScrollMemory(location.key);
 
@@ -345,7 +408,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const tabSpotOn = (to: string) => spotOn(to) ?? (phone && spot?.spot === 'cta' && to === '/library' ? '' : undefined);
 
   const avatarUrl = profile?.avatar_url;
-  const back = backLinkFor(location.pathname);
+  const back = backLinkFor(location.pathname, location.search);
   const onAnalyze = location.pathname.startsWith('/analyze');
   const current = sectionOf(location.pathname);
 

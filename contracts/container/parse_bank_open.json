@@ -1,0 +1,213 @@
+{
+  "method": "rules",
+  "layout": "numbered_paragraphs",
+  "layouts_seen": {
+    "numbered_paragraphs": 7
+  },
+  "confidence": 1.0,
+  "key_source": {},
+  "format_signal": null,
+  "format_signals": {
+    "bold": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "underline": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "highlight": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "color": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "shade": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    },
+    "italic": {
+      "one": 0,
+      "many": 0,
+      "all": 0
+    }
+  },
+  "mark_share": 0.6,
+  "marker": null,
+  "markers": [],
+  "subjects": [
+    {
+      "index": 1,
+      "title": "Основы программирования",
+      "evidence": "heading",
+      "items": 7
+    }
+  ],
+  "topics": [
+    {
+      "index": 1,
+      "title": "Раздел 1. Язык C#",
+      "subject": 1,
+      "items": 4
+    },
+    {
+      "index": 2,
+      "title": "Раздел 2. События и делегаты",
+      "subject": 1,
+      "items": 3
+    }
+  ],
+  "skipped": [],
+  "warnings": [],
+  "items": [
+    {
+      "position": 1,
+      "label": "1",
+      "subject": 1,
+      "topic": 1,
+      "kind": "open",
+      "text": "Что выведет Console.WriteLine(5 / 2); и почему?",
+      "options": [],
+      "correct": [],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "",
+      "flags": [],
+      "code": true,
+      "where": "абзац 3",
+      "marks": {}
+    },
+    {
+      "position": 2,
+      "label": "2",
+      "subject": 1,
+      "topic": 1,
+      "kind": "open",
+      "text": "Объясните разницу между += и -= при подписке на событие.",
+      "options": [],
+      "correct": [],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "",
+      "flags": [],
+      "code": true,
+      "where": "абзац 4",
+      "marks": {}
+    },
+    {
+      "position": 3,
+      "label": "3",
+      "subject": 1,
+      "topic": 1,
+      "kind": "open",
+      "text": "Зачем нужен #region Helpers и когда без него лучше обойтись?",
+      "options": [],
+      "correct": [],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "",
+      "flags": [],
+      "code": true,
+      "where": "абзац 5",
+      "marks": {}
+    },
+    {
+      "position": 4,
+      "label": "4",
+      "subject": 1,
+      "topic": 1,
+      "kind": "open",
+      "text": "Что такое __init__ в Python и есть ли похожий метод в C#?",
+      "options": [],
+      "correct": [],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "",
+      "flags": [],
+      "code": false,
+      "where": "абзац 6",
+      "marks": {}
+    },
+    {
+      "position": 5,
+      "label": "5",
+      "subject": 1,
+      "topic": 2,
+      "kind": "open",
+      "text": "Что делает строка count -= step; в цикле while (count > 0)?",
+      "options": [],
+      "correct": [],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "",
+      "flags": [],
+      "code": true,
+      "where": "абзац 8",
+      "marks": {}
+    },
+    {
+      "position": 6,
+      "label": "6",
+      "subject": 1,
+      "topic": 2,
+      "kind": "open",
+      "text": "Чем делегат отличается от события.",
+      "options": [],
+      "correct": [],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "",
+      "flags": [],
+      "code": false,
+      "where": "абзац 9",
+      "marks": {}
+    },
+    {
+      "position": 7,
+      "label": "7",
+      "subject": 1,
+      "topic": 2,
+      "kind": "open",
+      "text": "Опишите шаблон «издатель — подписчик».",
+      "options": [],
+      "correct": [],
+      "order": [],
+      "pairs": [],
+      "answer": null,
+      "evidence": "",
+      "flags": [],
+      "code": false,
+      "where": "абзац 10",
+      "marks": {}
+    }
+  ],
+  "stats": {
+    "items": 7,
+    "with_key": 0,
+    "no_key": 0,
+    "ambiguous": 0,
+    "to_check": 0,
+    "duplicates": 0,
+    "kinds": {
+      "open": 7
+    },
+    "options": {
+      "0": 7
+    },
+    "gaps": [],
+    "key_lists": 0
+  }
+}

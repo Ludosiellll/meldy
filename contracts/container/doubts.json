@@ -1,0 +1,41 @@
+[
+  {
+    "item_id": "3cadced3-cb13-43d0-ab40-36eab6e51c20",
+    "subject_id": "69ead689-38d6-4350-bc5d-13d273f8b9b2",
+    "position": 6,
+    "file_no": "6",
+    "correct": [0],
+    "doubts": 2,
+    "proposed": [[2], [2]],
+    "notes": ["Думаю, при null будет исключение NullReferenceException."],
+    "first_answers": 6,
+    "top_wrong": [2],
+    "top_wrong_n": 4
+  },
+  {
+    "item_id": "acddd718-39fa-4cc3-873f-f0c326505fa2",
+    "subject_id": "590a774c-7a67-4b13-a944-cf9a2f0e9d9b",
+    "position": 3,
+    "file_no": "3",
+    "correct": [0, 2, 4],
+    "doubts": 1,
+    "proposed": [[0, 2]],
+    "notes": null,
+    "first_answers": 5,
+    "top_wrong": [0, 2],
+    "top_wrong_n": 3
+  },
+  {
+    "item_id": "ed967f80-780c-4e02-8308-240f46227ff9",
+    "subject_id": "69ead689-38d6-4350-bc5d-13d273f8b9b2",
+    "position": 4,
+    "file_no": "4",
+    "correct": [3],
+    "doubts": 0,
+    "proposed": null,
+    "notes": null,
+    "first_answers": 5,
+    "top_wrong": [0],
+    "top_wrong_n": 3
+  }
+]

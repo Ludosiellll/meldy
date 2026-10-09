@@ -1,0 +1,24 @@
+{
+  "status": "active",
+  "container_id": null,
+  "title": "Зимняя сессия",
+  "exam_date": "2027-01-12",
+  "subjects": [
+    {
+      "title": "Основы программирования",
+      "items": 12,
+      "oral": false
+    },
+    {
+      "title": "История Беларуси",
+      "items": 6,
+      "oral": false
+    },
+    {
+      "title": "Основы программирования · билеты",
+      "items": 0,
+      "oral": true
+    }
+  ],
+  "needs_consent_text": true
+}
