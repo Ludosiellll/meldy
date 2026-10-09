@@ -92,7 +92,8 @@ export function isRoomPath(pathname: string): boolean {
  */
 export function hidesBottomNav(pathname: string): boolean {
   const container = CONTAINER_PAGE.exec(pathname);
-  if (container) return container[2] !== undefined;
+  // The exam page pins its «Начать» bar at the bottom, like an oral exam's page, so no page of a container shows tabs.
+  if (container) return true;
   if (/^\/exams\/import\/?$/.test(pathname) || /^\/g\/[^/]+\/?$/.test(pathname)) return true;
   return /^\/exams\/(new|[^/]+(\/edit)?)\/?$/.test(pathname) || /^\/library\/[^/]+\/?$/.test(pathname);
 }

@@ -95,7 +95,7 @@ export interface ContainerSummary {
   exam_date: DayKey | null;
   role: ContainerRole;
   created_at: string;
-  first_plan_day: DayKey; // owner: the container's first day; member: the day they joined
+  first_plan_day: DayKey; // owner: the container's first day; member: the day they joined (the Europe/Minsk day: the server does not know the device's zone)
   settings: ContainerSettings;
   subjects: SummarySubject[];
   items_version: { count: number; updated_at: string | null };
@@ -141,9 +141,9 @@ export interface PlanInputsWire {
     id: Uuid; container: number; title: string; test_date: DayKey | null; oral_exam_id: Uuid | null; topics: number;
     new_today: number; // items first answered today in this subject
   }>;
-  items: PlanItemRow[]; // every item with a key, at its current rev; the ones this user doubts too (see doubted)
+  items: PlanItemRow[]; // every item with a key at its current rev, except the ones this user doubts (never offered)
   states: PlanStateRow[];
-  doubted: number[]; // indices into items: set aside in this user's plan (an open «Сомневаюсь в ключе»)
+  doubted: number[]; // reserved, always [] (doubted items are left out of `items`); counts come from SubjectFacts.doubted
   /** Own pace per subject index and class, from the last ≤ 200 answers: trimmed median ms and the share wrong. */
   pace: Array<{ subject: number; cls: PlanCls; n: number; median_ms: number; p_wrong: number }>;
   ai: { left: number; resets_at: number } | null; // today's AI units left (epoch s of the reset)
@@ -195,7 +195,7 @@ export type AnswerStatus = 'saved' | 'late' | 'duplicate' | 'conflict' | 'gone' 
 export type AnswerStep = 'miss' | 'misclick' | 'training' | 'start' | 'too_early' | 'two_days' | 'check' | 'early' | 'late';
 export interface AnswerState {
   item_rev: number;
-  seen: number;
+  seen: number; // counted answers: retries and misclicks are not counted, so seen can differ from right + wrong
   right: number;
   wrong: number;
   last_result: 'right' | 'wrong' | 'dont_know' | null;

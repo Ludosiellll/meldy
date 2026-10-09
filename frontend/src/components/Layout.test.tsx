@@ -310,11 +310,11 @@ describe('the exam container (spec decision 23)', () => {
     for (const path of [`/exams/${ORAL}/draw`, `/exams/${ORAL}/ticket`, `/exams/${ORAL}/report`]) expect(isRoomPath(path), path).toBe(true);
   });
 
-  it('steps the tab bar aside on the import page, a subject, «Ключи», the settings and the group link, not on the exam page', () => {
-    for (const path of ['/exams/import', `/exams/c/${C}/s/${S}`, `/exams/c/${C}/keys`, `/exams/c/${C}/settings`, '/g/abcd2fghjkmn']) {
+  it('steps the tab bar aside on every page of an exam container, the import page and the group link', () => {
+    for (const path of ['/exams/import', `/exams/c/${C}`, `/exams/c/${C}/`, '/exams/c/draw', `/exams/c/${C}/s/${S}`, `/exams/c/${C}/keys`, `/exams/c/${C}/settings`, '/g/abcd2fghjkmn']) {
       expect(hidesBottomNav(path), path).toBe(true);
     }
-    for (const path of [`/exams/c/${C}`, `/exams/c/${C}/`, '/exams/c/draw', '/exams']) expect(hidesBottomNav(path), path).toBe(false);
+    expect(hidesBottomNav('/exams'), '/exams').toBe(false);
   });
 
   it('leads from the pages under an exam back to it, with its title when this tab knows it', () => {
@@ -390,9 +390,9 @@ describe('the exam container (spec decision 23)', () => {
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
-  it('keeps the tabs and «‹ Экзамены» on the exam page; renders the «занятие» as a room', async () => {
+  it('shows «‹ Экзамены» without the tabs on the exam page; renders the «занятие» as a room', async () => {
     renderAt(`/exams/c/${C}`);
-    expect(tabBar()).not.toBeNull();
+    expect(tabBar()).toBeNull();
     expect(document.querySelector('.sf-back')).toHaveAttribute('href', '/exams');
     expect(within(deskNav()).getByRole('link', { name: 'Экзамены' })).toHaveAttribute('aria-current', 'page');
     cleanup();
