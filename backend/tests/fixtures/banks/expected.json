@@ -1,0 +1,3668 @@
+[
+ {
+  "file": "01_table_rows_bold.docx",
+  "layout": "table_option_rows",
+  "key": "bold",
+  "topics": [
+   "Тема 1. Директивы и пространства имён",
+   "Тема 2. Делегаты и события",
+   "Тема 3. Строки"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "9",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": 3,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "11",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "12",
+    "topic": 3,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "The owner's layout. Header row and topic rows are bold too: they must not count as keys. Code options exact."
+ },
+ {
+  "file": "02_paragraphs_bold_stems.docx",
+  "layout": "paragraph_list",
+  "key": "bold",
+  "topics": [
+   "Тема 1. Директивы и пространства имён",
+   "Тема 2. Делегаты и события",
+   "Тема 3. Строки"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "9",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": 3,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "11",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "12",
+    "topic": 3,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {
+   "7": [
+    "no_key"
+   ]
+  },
+  "notes": "Every question is bold too; the key is the bold option. Item 7 has no bold option. The header «Тестовые задания по учебной дисциплине «…»» names the one subject.",
+  "subjects": [
+   {
+    "title": "Основы программирования",
+    "evidence": "heading"
+   }
+  ]
+ },
+ {
+  "file": "03_autonumber_underline.docx",
+  "layout": "paragraph_list",
+  "key": "underline",
+  "topics": [
+   "Раздел 1. Древняя Русь",
+   "Раздел 2. ВКЛ"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {
+   "2": [
+    "several_marked"
+   ]
+  },
+  "notes": "Word list: level 0 decimal, level 1 russianLower; labels exist only in numbering.xml. Item 2 has two underlined options."
+ },
+ {
+  "file": "04_options_in_cell_red.docx",
+  "layout": "table_options_in_cell",
+  "key": "color",
+  "topics": [
+   "1. Директивы и пространства имён. I категория:",
+   "2. Делегаты и события. I категория:",
+   "3. Строки. I категория:"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "9",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": 3,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "11",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "12",
+    "topic": 3,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {
+   "2": [
+    "has_formula"
+   ],
+   "6": [
+    "has_image"
+   ]
+  },
+  "notes": "Options «1. …;» as paragraphs of one cell, key in red. Trailing «;» and «.» are cut from options. Topic headings above each table."
+ },
+ {
+  "file": "05_key_column_inline.docx",
+  "layout": "table_options_in_cell",
+  "key": "key_column",
+  "topics": [
+   "Раздел 1. Древняя Русь",
+   "Раздел 2. ВКЛ"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {
+   "5": [
+    "no_key",
+    "key_invalid"
+   ]
+  },
+  "notes": "Options inline in one paragraph; key column «б» / «а, в, д» (multiple). Item 5 key letter is past the last option."
+ },
+ {
+  "file": "06_key_list_end.docx",
+  "layout": "paragraph_list",
+  "key": "key_list",
+  "topics": [
+   "Раздел 1. Древняя Русь",
+   "Раздел 2. ВКЛ"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {
+   "2": [
+    "key_letter_ambiguous"
+   ]
+  },
+  "notes": "No formatting; «Ключи к тесту» then «1 – б; 2 – в; …». Item 2 key typed as Latin «B» (looks like «В», but B is also the 2nd Latin letter): take «в» and flag it."
+ },
+ {
+  "file": "07_mytest_plusminus.txt",
+  "layout": "marker_text",
+  "key": "marker:+/-",
+  "topics": [],
+  "items": [
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "",
+    "topic": null,
+    "kind": "order",
+    "text": "Расставьте месяцы по порядку:",
+    "options": [
+     "март",
+     "январь",
+     "февраль"
+    ],
+    "correct": [],
+    "order": [
+     3,
+     1,
+     2
+    ]
+   },
+   {
+    "label": "",
+    "topic": null,
+    "kind": "open",
+    "text": "Каким по счёту идёт месяц май?",
+    "options": [],
+    "correct": [],
+    "answer": "5"
+   }
+  ],
+  "flags": {},
+  "notes": "MyTestXPro text: blank line between items, «+»/«-» before options. Ordering by numbers, open by «=». No numbers on questions."
+ },
+ {
+  "file": "08_indigo.txt",
+  "layout": "marker_text",
+  "key": "marker:*/#",
+  "topics": [],
+  "items": [
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "",
+    "topic": null,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "",
+    "topic": null,
+    "kind": "open",
+    "text": "Сколько дней в високосном году?",
+    "options": [],
+    "correct": [],
+    "answer": "366"
+   },
+   {
+    "label": "",
+    "topic": null,
+    "kind": "match",
+    "text": "Соотнесите слово с переводом:",
+    "options": [],
+    "correct": [],
+    "pairs": [
+     [
+      "wall",
+      "стена"
+     ],
+     [
+      "window",
+      "окно"
+     ],
+     [
+      "door",
+      "дверь"
+     ]
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Indigo: «*» single, «#» multiple, «[ответ]» open, «a = b» matching. The «*» option of item 1 (an operator) is content: no text follows it."
+ },
+ {
+  "file": "09_aiken.txt",
+  "layout": "aiken",
+  "key": "ANSWER:",
+  "topics": [],
+  "items": [
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Moodle Aiken: Latin capitals «A.», «ANSWER: B». Options like «#», «+=», «<<» are content."
+ },
+ {
+  "file": "10_gift.txt",
+  "layout": "gift",
+  "key": "gift",
+  "topics": [
+   "Раздел 1. Древняя Русь",
+   "Раздел 2. ВКЛ",
+   "Тема 2. Делегаты и события"
+  ],
+  "items": [
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "",
+    "topic": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "",
+    "topic": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "",
+    "topic": 3,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "",
+    "topic": 3,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Moodle GIFT: $CATEGORY topics, ::title::, {=right ~wrong}, %33% weights for multiple, escaped \\= \\{ \\} \\# \\: \\~ in code."
+ },
+ {
+  "file": "11_columns_key.xlsx",
+  "layout": "table_option_columns",
+  "key": "key_column",
+  "topics": [
+   "Тема 1. Директивы и пространства имён",
+   "Тема 2. Делегаты и события",
+   "Тема 3. Строки"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "9",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": 3,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "11",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "12",
+    "topic": 3,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "XLSX: № | Вопрос | А…Д | Ответ; topic rows in column A; numeric option cells («0») stay «0»."
+ },
+ {
+  "file": "12_numbered_both_key_table.docx",
+  "layout": "paragraph_list",
+  "key": "key_list",
+  "topics": [],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 1,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 1,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "9",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": 1,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "11",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "12",
+    "topic": 1,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "13",
+    "topic": null,
+    "kind": "multiple",
+    "text": "К объектно-ориентированным языкам относятся:",
+    "options": [
+     "c#",
+     "html",
+     "java",
+     "css"
+    ],
+    "correct": [
+     0,
+     2
+    ]
+   },
+   {
+    "label": "14",
+    "topic": null,
+    "kind": "order",
+    "text": "Установите правильную последовательность этапов компиляции:",
+    "options": [
+     "компоновка",
+     "лексический анализ",
+     "генерация кода",
+     "синтаксический анализ"
+    ],
+    "correct": [],
+    "key_text": "2, 4, 3, 1"
+   },
+   {
+    "label": "15",
+    "topic": null,
+    "kind": "match",
+    "text": "Установите соответствие между типом и размером: А. int Б. long В. byte",
+    "options": [
+     "1 байт",
+     "4 байта",
+     "8 байт"
+    ],
+    "correct": [],
+    "key_text": "А-2, Б-3, В-1"
+   }
+  ],
+  "flags": {},
+  "notes": "Questions «N.» and options «1.»…«4.» both numbers; the next question number must not be taken for an option and back. Key table «№ ТЗ | Ответ» at the end with «1, 3», «2, 4, 3, 1», «А-2, Б-3, В-1»."
+ },
+ {
+  "file": "13_inline_bold.docx",
+  "layout": "inline_options",
+  "key": "bold",
+  "topics": [
+   "Раздел 1. Древняя Русь",
+   "Раздел 2. ВКЛ"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Options in the question paragraph «… а) x; б) y; в) z.»; the bold run inside the paragraph is the key. No topics in the file.",
+  "topics_in_file": false
+ },
+ {
+  "file": "14_messy.docx",
+  "layout": "paragraph_list",
+  "key": "bold",
+  "topics": [],
+  "items": [
+   {
+    "label": "1",
+    "topic": null,
+    "kind": "single",
+    "text": "Что выведет Console.WriteLine(5 / 2);?",
+    "options": [
+     "2",
+     "2.5",
+     "3",
+     "ошибку компиляции"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": null,
+    "kind": "single",
+    "text": "Какой тип хранит один символ Юникода?",
+    "options": [
+     "byte",
+     "char",
+     "string",
+     "short"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": null,
+    "kind": "single",
+    "text": "Какой модификатор делает поле доступным только внутри класса?",
+    "options": [
+     "public",
+     "internal",
+     "private",
+     "protected"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": null,
+    "kind": "single",
+    "text": "Как называется сайт вопросов и ответов для программистов?",
+    "options": [
+     "StackOverflow",
+     "GitHub",
+     "Habr",
+     "MSDN"
+    ],
+    "correct": []
+   },
+   {
+    "label": "5",
+    "topic": null,
+    "kind": "single",
+    "text": "Что показано на рисунке?",
+    "options": [
+     "блок-схема цикла",
+     "диаграмма классов",
+     "таблица истинности"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": null,
+    "kind": "single",
+    "text": "Какой цикл выполнится хотя бы один раз?",
+    "options": [
+     "for",
+     "while",
+     "do … while",
+     "foreach"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "7",
+    "topic": null,
+    "kind": "single",
+    "text": "Какое значение по умолчанию у поля типа int?",
+    "options": [
+     "null",
+     "0",
+     "-1",
+     "не определено"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "9",
+    "topic": null,
+    "kind": "single",
+    "text": "Какой оператор проверяет равенство значений?",
+    "options": [
+     "=",
+     "==",
+     "===",
+     ":="
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": null,
+    "kind": "single",
+    "text": "Какой тип хранит один символ Юникода?",
+    "options": [
+     "byte",
+     "char",
+     "string",
+     "short"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "11",
+    "topic": null,
+    "kind": "single",
+    "text": "Какое исключение возникает при делении целого числа на ноль?",
+    "options": [
+     "DivideByZeroException",
+     "ArithmeticOverflowException в режиме checked при переполнении",
+     "NullReferenceException",
+     "FormatException"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {
+   "4": [
+    "partial_mark",
+    "no_key"
+   ],
+   "5": [
+    "has_image"
+   ],
+   "7": [
+    "key_conflict"
+   ],
+   "10": [
+    "duplicate"
+   ]
+  },
+  "notes": "Header lines skipped; «1.», «2)», «Вопрос 3.» all questions; gap: 8 missing; item 10 repeats item 2; item 11 option б continues on the next paragraph (joined); item 4 bold covers 5 of 13 letters (partial, no key); item 7 «Ответ: а» contradicts bold б (conflict, explicit wins); bold spaces ignored.",
+  "gaps": [
+   [
+    8,
+    8
+   ]
+  ]
+ },
+ {
+  "file": "15_pasted_no_key.txt",
+  "layout": "paragraph_list",
+  "key": "none",
+  "topics": [],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": []
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": []
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": []
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": []
+   }
+  ],
+  "flags": {
+   "1": [
+    "no_key"
+   ],
+   "2": [
+    "no_key"
+   ],
+   "3": [
+    "no_key"
+   ],
+   "4": [
+    "no_key"
+   ]
+  },
+  "notes": "What a textarea paste from Word gives: tabs after numbers and letters, formatting lost. Expect the «no key» screen; with «first option is right» every item gets [0]; with a key file see 16."
+ },
+ {
+  "file": "16_questions_only.docx",
+  "layout": "paragraph_list",
+  "key": "key_file:16_key.txt",
+  "topics": [
+   "Тема 1. Директивы и пространства имён",
+   "Тема 2. Делегаты и события",
+   "Тема 3. Строки"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "9",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": 3,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "11",
+    "topic": 3,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "12",
+    "topic": 3,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Questions without any key + a separate key file «1. а». Topics are lines «Тема N» — here absent from the file (topics list empty when parsed without them).",
+  "topics_in_file": false
+ },
+ {
+  "file": "19_plus_suffix.docx",
+  "layout": "blocks",
+  "key": "marker:suffix+",
+  "topics": [
+   "1) Общая психология"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Выделяют три стороны общения:",
+    "options": [
+     "интерактивную",
+     "субъективную",
+     "коммуникативную",
+     "перцептивную"
+    ],
+    "correct": [
+     0,
+     2,
+     3
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "kind": "multiple",
+    "text": "Основатели гештальтпсихологии:",
+    "options": [
+     "К.Коффка",
+     "В. Вундт",
+     "М. Вертхеймер",
+     "Дж.Уотсон"
+    ],
+    "correct": [
+     0,
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "kind": "single",
+    "text": "Если собеседник отводит взгляд в сторону, это означает, что он:",
+    "options": [
+     "не понимает",
+     "не хочет общаться",
+     "формулирует мысль",
+     "хочет закончить разговор"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "kind": "single",
+    "text": "Верно ли утверждение: эмоции длятся дольше чувств?",
+    "options": [
+     "верно",
+     "неверно",
+     "затрудняюсь ответить"
+    ],
+    "correct": []
+   }
+  ],
+  "flags": {
+   "4": [
+    "no_key"
+   ]
+  },
+  "notes": "«+» glued after the right options (seen in a real FOS PDF). Several «+» mean several right answers. Item 4 has no «+» at all; its labels are «А) Б) С)» with a Latin C. Initials «К.Коффка», «В. Вундт» are option text. Item 3 question wraps onto a second line.",
+  "topics_in_file": false
+ },
+ {
+  "file": "20_two_subjects.docx",
+  "layout": "table_option_rows",
+  "key": "bold",
+  "topics": [
+   "Тема 1. Директивы и пространства имён",
+   "Тема 2. Делегаты и события",
+   "Тема 3. Строки",
+   "Раздел 1. Древняя Русь",
+   "Раздел 2. ВКЛ"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "9",
+    "topic": 3,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой класс используется для частых изменений строки?",
+    "options": [
+     "StringWriter",
+     "StringBuilder",
+     "CharBuffer",
+     "TextArray"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "10",
+    "topic": 3,
+    "subject": 1,
+    "kind": "single",
+    "text": "Каким символом помечают интерполированную строку?",
+    "options": [
+     "@",
+     "#",
+     "$",
+     "%"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "11",
+    "topic": 3,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой метод объединяет массив строк с разделителем?",
+    "options": [
+     "String.Split",
+     "String.Join",
+     "String.Merge",
+     "String.Concat"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "12",
+    "topic": 3,
+    "subject": 1,
+    "kind": "single",
+    "text": "Что означает префикс @ перед строкой \"C:\\temp\\new\"?",
+    "options": [
+     "экранирование отключено",
+     "строка шифруется",
+     "строка в верхнем регистре",
+     "строка неизменяема"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "1",
+    "topic": 4,
+    "subject": 2,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 4,
+    "subject": 2,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 4,
+    "subject": 2,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 5,
+    "subject": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 5,
+    "subject": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 5,
+    "subject": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Two subjects, each «Дисциплина: …» above its own table of the owner layout; numbering restarts at 1. Topics are numbered across the file and belong to their subject.",
+  "subjects": [
+   {
+    "title": "Основы программирования",
+    "evidence": "heading"
+   },
+   {
+    "title": "История Беларуси",
+    "evidence": "heading"
+   }
+  ],
+  "topic_subjects": [
+   1,
+   1,
+   1,
+   2,
+   2
+  ]
+ },
+ {
+  "file": "21_two_tables_restart.docx",
+  "layout": "table_option_rows",
+  "key": "bold",
+  "topics": [],
+  "items": [
+   {
+    "label": "1",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "1",
+    "topic": null,
+    "subject": 2,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "2",
+    "topic": null,
+    "subject": 2,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": null,
+    "subject": 2,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "4",
+    "topic": null,
+    "subject": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "5",
+    "topic": null,
+    "subject": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "6",
+    "topic": null,
+    "subject": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Two tables, no headings and no topic rows; the second restarts at 1: two subjects without titles, evidence «restart», and a warning so the client can ask whether to split.",
+  "subjects": [
+   {
+    "title": null,
+    "evidence": "restart"
+   },
+   {
+    "title": null,
+    "evidence": "restart"
+   }
+  ],
+  "warnings": [
+   "subjects_restart"
+  ]
+ },
+ {
+  "file": "22_subjects.txt",
+  "layout": "paragraph_list",
+  "key": "answer_line",
+  "topics": [
+   "Тема 1. Директивы и пространства имён",
+   "Тема 2. Делегаты и события",
+   "Раздел 1. Древняя Русь",
+   "Раздел 2. ВКЛ"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какие символы открывают однострочный комментарий в C#?",
+    "options": [
+     "//",
+     "#",
+     "--",
+     "%"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какая директива сворачивает блок кода в именованную область?",
+    "options": [
+     "#define",
+     "#region",
+     "#pragma",
+     "#line"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой оператор подписывает обработчик на событие?",
+    "options": [
+     "=",
+     "->",
+     "<<",
+     "+="
+    ],
+    "correct": [
+     3
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой оператор отделяет параметры лямбда-выражения от его тела?",
+    "options": [
+     "=>",
+     "->",
+     "::",
+     "*"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Что вернёт выражение items?.Count ?? 0, если items равно null?",
+    "options": [
+     "0",
+     "null",
+     "исключение NullReferenceException",
+     "пустой список"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой делегат подходит для метода без возвращаемого значения?",
+    "options": [
+     "Func<int>",
+     "Action",
+     "Predicate<int>",
+     "Converter<int, int>"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "subject": 1,
+    "kind": "single",
+    "text": "Что содержит переменная делегата без присвоенного метода?",
+    "options": [
+     "0",
+     "false",
+     "null",
+     "\"empty\""
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "1",
+    "topic": 3,
+    "subject": 2,
+    "kind": "single",
+    "text": "В каком году произошло Крещение Руси?",
+    "options": [
+     "862 г.",
+     "988 г.",
+     "1054 г.",
+     "1147 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "2",
+    "topic": 3,
+    "subject": 2,
+    "kind": "single",
+    "text": "Кто из князей принял Русскую Правду?",
+    "options": [
+     "Олег",
+     "Игорь",
+     "Ярослав Мудрый",
+     "Святослав"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "3",
+    "topic": 3,
+    "subject": 2,
+    "kind": "multiple",
+    "text": "Выберите все города Полоцкой земли:",
+    "options": [
+     "Полоцк",
+     "Новгород",
+     "Витебск",
+     "Киев",
+     "Минск"
+    ],
+    "correct": [
+     0,
+     2,
+     4
+    ]
+   },
+   {
+    "label": "4",
+    "topic": 4,
+    "subject": 2,
+    "kind": "single",
+    "text": "В каком году состоялась Грюнвальдская битва?",
+    "options": [
+     "1385 г.",
+     "1410 г.",
+     "1569 г.",
+     "1648 г."
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "5",
+    "topic": 4,
+    "subject": 2,
+    "kind": "single",
+    "text": "Как назывался свод законов ВКЛ 1588 года?",
+    "options": [
+     "Судебник",
+     "Статут",
+     "Уложение",
+     "Правда"
+    ],
+    "correct": [
+     1
+    ]
+   },
+   {
+    "label": "6",
+    "topic": 4,
+    "subject": 2,
+    "kind": "single",
+    "text": "Какое государство образовалось по Люблинской унии?",
+    "options": [
+     "Речь Посполитая",
+     "Московское царство",
+     "Орда",
+     "Ливонский орден"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "TXT with «Предмет: …» and «Предмет «…»» lines; topics, «а)» options and «Ответ: …» lines; numbering restarts per subject.",
+  "subjects": [
+   {
+    "title": "Основы программирования",
+    "evidence": "heading"
+   },
+   {
+    "title": "История Беларуси",
+    "evidence": "heading"
+   }
+  ],
+  "topic_subjects": [
+   1,
+   1,
+   2,
+   2
+  ]
+ },
+ {
+  "file": "23_open_autonumber.docx",
+  "layout": "paragraph_list",
+  "key": "none",
+  "topics": [
+   "Раздел 1. Язык C#",
+   "Раздел 2. События и делегаты"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Что выведет Console.WriteLine(5 / 2); и почему?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Объясните разницу между += и -= при подписке на событие.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Зачем нужен #region Helpers и когда без него лучше обойтись?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Что такое __init__ в Python и есть ли похожий метод в C#?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "subject": 1,
+    "kind": "open",
+    "text": "Что делает строка count -= step; в цикле while (count > 0)?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "subject": 1,
+    "kind": "open",
+    "text": "Чем делегат отличается от события.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "subject": 1,
+    "kind": "open",
+    "text": "Опишите шаблон «издатель — подписчик».",
+    "options": [],
+    "correct": []
+   }
+  ],
+  "flags": {},
+  "notes": "Exam questions without options in one Word list (numbering runs through both sections): open items, text verbatim («+=», «-=», «#region Helpers», «__init__», «count -= step;»). The header names the subject.",
+  "subjects": [
+   {
+    "title": "Основы программирования",
+    "evidence": "heading"
+   }
+  ]
+ },
+ {
+  "file": "24_open_list.txt",
+  "layout": "paragraph_list",
+  "key": "none",
+  "topics": [
+   "Раздел 1. Язык C#",
+   "Раздел 2. События и делегаты"
+  ],
+  "items": [
+   {
+    "label": "1",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Что выведет Console.WriteLine(5 / 2); и почему?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "2",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Объясните разницу между += и -= при подписке на событие и при отписке от него.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "3",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Зачем нужен #region Helpers и когда без него лучше обойтись?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "4",
+    "topic": 1,
+    "subject": 1,
+    "kind": "open",
+    "text": "Что такое __init__ в Python и есть ли похожий метод в C#?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "5",
+    "topic": 2,
+    "subject": 1,
+    "kind": "open",
+    "text": "Что делает строка count -= step; в цикле while (count > 0)?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "6",
+    "topic": 2,
+    "subject": 1,
+    "kind": "open",
+    "text": "Чем делегат отличается от события.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "7",
+    "topic": 2,
+    "subject": 1,
+    "kind": "open",
+    "text": "Опишите шаблон «издатель — подписчик».",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "8",
+    "topic": 2,
+    "subject": 1,
+    "kind": "open",
+    "text": "Сколько байт занимает int?",
+    "options": [],
+    "correct": [],
+    "answer": "4"
+   }
+  ],
+  "flags": {},
+  "notes": "Open questions in TXT: a header line that is not a question, sections, a wrapped question, «3)» numbering, and an «Ответ: 4» line that becomes the answer of an open item."
+ },
+ {
+  "file": "25_mixed.docx",
+  "layout": "paragraph_list",
+  "key": "bold",
+  "topics": [],
+  "items": [
+   {
+    "label": "1",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово запрещает менять поле после конструктора?",
+    "options": [
+     "readonly",
+     "const",
+     "sealed",
+     "static"
+    ],
+    "correct": [
+     0
+    ]
+   },
+   {
+    "label": "2",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Объясните, зачем нужен #region Helpers.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "3",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какое ключевое слово подключает пространство имён?",
+    "options": [
+     "import",
+     "include",
+     "using",
+     "require"
+    ],
+    "correct": [
+     2
+    ]
+   },
+   {
+    "label": "4",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Что вернёт выражение items?.Count ?? 0, если список не создан?",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "5",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Какой тип лучше подходит для денежных сумм?",
+    "options": [
+     "decimal",
+     "float",
+     "double",
+     "int"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  ],
+  "flags": {},
+  "notes": "Test items (bold key) and open items in one numbered list: every item keeps its own kind."
+ },
+ {
+  "file": "26_open_subpoints.txt",
+  "layout": "paragraph_list",
+  "key": "none",
+  "topics": [],
+  "items": [
+   {
+    "label": "1",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Экономические системы:",
+    "options": [
+     "традиционная",
+     "рыночная",
+     "смешанная"
+    ],
+    "correct": []
+   },
+   {
+    "label": "2",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Функции денег.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "3",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Виды инфляции по темпам роста:",
+    "options": [
+     "ползучая",
+     "галопирующая",
+     "гиперинфляция"
+    ],
+    "correct": []
+   },
+   {
+    "label": "4",
+    "topic": null,
+    "subject": 1,
+    "kind": "single",
+    "text": "Кривая Филлипса:",
+    "options": [
+     "краткосрочная",
+     "долгосрочная"
+    ],
+    "correct": []
+   },
+   {
+    "label": "5",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Функции Центрального банка.",
+    "options": [],
+    "correct": []
+   }
+  ],
+  "flags": {
+   "1": [
+    "no_key"
+   ],
+   "3": [
+    "no_key"
+   ],
+   "4": [
+    "no_key"
+   ]
+  },
+  "notes": "format «auto»: sub-points «а)» and «1)» of open questions look like options: test items without a key."
+ },
+ {
+  "file": "26_open_subpoints.txt",
+  "layout": "paragraph_list",
+  "key": "none",
+  "topics": [],
+  "items": [
+   {
+    "label": "1",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Экономические системы:\nа) традиционная;\nб) рыночная;\nв) смешанная.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "2",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Функции денег.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "3",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Виды инфляции по темпам роста:\nа) ползучая;\nб) галопирующая;\nв) гиперинфляция.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "4",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Кривая Филлипса:\n1) краткосрочная;\n2) долгосрочная.",
+    "options": [],
+    "correct": []
+   },
+   {
+    "label": "5",
+    "topic": null,
+    "subject": 1,
+    "kind": "open",
+    "text": "Функции Центрального банка.",
+    "options": [],
+    "correct": []
+   }
+  ],
+  "flags": {},
+  "notes": "format «open»: the same file, every item open, sub-points kept in the question text as written.",
+  "format": "open"
+ }
+]
