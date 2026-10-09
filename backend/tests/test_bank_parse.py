@@ -1060,6 +1060,20 @@ def test_code_lines_between_the_question_and_its_marked_options_belong_to_the_qu
     assert [item["options"] for item in blocks["items"]] == [["1", "0"], ["+=", "-="], ["да", "нет"]]
 
 
+def test_code_with_braces_and_double_colons_does_not_make_a_text_gift():
+    csharp = ("1. Какое значение value выведет фрагмент?\nstatic void Change(int x)\n{\n    x = 100;\n}\n\n"
+              "int value = 5;\nChange(value);\nConsole.WriteLine(global::System.Math.Abs(value));\n+ 5\n- 100\n\n"
+              "2. Что выведет сценарий?\necho ${#names[@]} ${HOME}\n+ 3 /home/anna\n- 0\n")
+    result = parse_bank_text(csharp)
+    assert result["layout"] == "numbered_paragraphs" and result["marker"] == "plus_minus"
+    assert result["items"][0]["text"].endswith("{\n    x = 100;\n}\n\nint value = 5;\nChange(value);"
+                                               "\nConsole.WriteLine(global::System.Math.Abs(value));")
+    assert [item["correct"] for item in result["items"]] == [[0], [0]]
+    assert bank_parse.looks_like_gift("::Q1:: Сколько? {=4 ~5}") and bank_parse.looks_like_gift("Да? {T}\nНет? {F}")
+    assert bank_parse.looks_like_gift("Год? {#1410}\nГород? {=Минск ~Брест}")
+    assert not bank_parse.looks_like_gift("int[] a = { 1, 2 };\nif (x) { y = 1; }\nstd::cout << List{T};")
+
+
 # (6) Пустая строка внутри кода (код абзацами, пустой абзац между ними) остаётся.
 
 

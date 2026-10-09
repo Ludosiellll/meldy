@@ -250,7 +250,10 @@ QUESTION_NUMBER_RE = re.compile(r"^(?:вопрос|задание)\s*(?:№\s*)?
 # «1.2. Что такое алгоритм?» — номер внутри темы: метка «1.2», место в нумерации 2. Только строка-вопрос (знак в конце):
 # «3.5 кг», «10.0.0.1  255.0.0.0» — не вопрос.
 SUBNUMBER_RE = re.compile(r"^(\d{1,2})\.(\d{1,3})\.?\s+(?=[^\W\d_])(.*[?:.…])\s*$", re.S)
-GIFT_BRACES_RE = re.compile(r"\{[^{}]*\}")
+# Ответы GIFT: «{=верно ~неверно}», «{#5}», «{T}» — скобка не впритык к слову или «$», внутри первым «=», «~», «#число»
+# или T/F. Код в скобках — не GIFT: «{ x = 100; }», «${#arr[@]}», «List{T}», «std::cout».
+GIFT_ANSWERS_RE = re.compile(r"(?<![\w$])\{\s*(?:[=~][^{}]*|#\s*[-=\d][^{}]*|(?:T|F|TRUE|FALSE)\s*)\}", re.I)
+GIFT_TITLE_RE = re.compile(r"^[ \t]*::[^:\n]{1,200}::", re.M)
 
 # Заголовок предмета. «Дисциплина: Основы программирования», «Предмет «История»», «Курс: Сети»:
 SUBJECT_WORD_RE = re.compile(r"^(?:учебн\w*\s+)?(?:дисциплин[аы]|предмет|курс)(?![а-яё])\s*(?::|(?=[«\"„“]))\s*(.+)$", re.I)
@@ -1010,8 +1013,8 @@ class Reader:
         return signs["+"] >= 2 and signs["-"] >= 2 and signs["+"] + signs["-"] >= 0.3 * filled
 
     def no_key_anywhere(self, body: list[Line]) -> bool:
-        """Ни списка ключей, ни строки «Ответ: …», ни маркеров («+»/«-», «*», «(верно)», флажки), ни отметки оформлением
-        в строках после первого вопроса (кроме заголовков и кода): файл без ключа — список вопросов."""
+        """Ни списка ключей, ни строки «Ответ: …», ни маркеров («+ …», «*верно», «(верно)», флажки), ни отметки
+        оформлением в строках после первого вопроса (кроме заголовков и кода): файл без ключа — список вопросов."""
         if self.keys or self.plus_minus:
             return False
         started = False
@@ -1022,7 +1025,8 @@ class Reader:
             if para.level in (None, 0) and question_number(text):
                 started = True
                 continue
-            if ANSWER_RE.match(text) or para.checkbox is not None or mark_suffix(text) is not None:
+            if ANSWER_RE.match(text) or para.checkbox is not None or mark_suffix(text) is not None \
+                    or (text[:1] == "+" and PLUSMINUS_RE.match(text)):
                 return False
             glued = GLUED_MARK_RE.match(text) and text[1:2].isalnum() and not CODE_RE.search(text)  # «*верно», не «*)»
             styled = any(run.bold or run.underline or run.italic or run.highlight or run.color or run.shade for run in para.runs)
@@ -1403,10 +1407,14 @@ GIFT_BACK = {"\x01": "~", "\x02": "=", "\x03": "#", "\x04": "{", "\x05": "}", "\
 
 
 def looks_like_gift(text: str) -> bool:
-    """Скобки {…} с «=» или «~» внутри и признак GIFT («::название::», $CATEGORY или несколько скобок)."""
-    if not (text.count("{") >= 2 or "::" in text or "$CATEGORY" in text):
-        return False
-    return any("=" in match.group(0) or "~" in match.group(0) for match in GIFT_BRACES_RE.finditer(text))
+    """Ответы в скобках GIFT («{=верно ~неверно}», «{T}», «{#5}») — два и больше, или один при «::название::» в начале
+    строки или $CATEGORY. Код со скобками («{ x = 100; }») и «::» («std::cout») файл GIFT не делает."""
+    answers = 0
+    for _ in GIFT_ANSWERS_RE.finditer(text):
+        answers += 1
+        if answers >= 2:
+            return True
+    return answers == 1 and ("$CATEGORY" in text or GIFT_TITLE_RE.search(text) is not None)
 
 
 def read_gift(text: str) -> Reader:
