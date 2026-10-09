@@ -28,6 +28,7 @@ vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: v
 
 import Layout, { DESK_LINKS, NAV_ITEMS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining, sectionOf } from './Layout';
 import { LOW_SHARE, quotaLevel, quotaSentence } from './QuotaMeter';
+import { rememberAttachedExams, rememberContainerTitle } from '../lib/containers/titleCache';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
 import { OPEN_PRO_EVENT } from '../lib/plans';
 
@@ -280,6 +281,129 @@ describe('room mode', () => {
       expect(screen.queryByRole('link', { name: 'Повторение' })).toBeNull();
       cleanup();
     }
+  });
+});
+
+describe('the exam container (spec decision 23)', () => {
+  const C = 'f4881273-7331-4c39-96d7-f2ce4a31a1c0';
+  const C2 = '0b6f3c2e-9a1d-4e7b-8c5a-2d4e6f8a0b1c';
+  const S = '69ead689-38d6-4350-bc5d-13d273f8b9b2';
+  const ORAL = 'c0390f9c-787d-4d0e-a82d-9efa069bfe11';
+  const toContainer = (label: string, id = C) => ({ to: `/exams/c/${id}`, label });
+  const EXAMS = { to: '/exams', label: 'Экзамены' };
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it('makes the «занятие» and «Как на экзамене» rooms, and nothing else of the container', () => {
+    for (const path of [`/exams/c/${C}/study`, `/exams/c/${C}/mock`, `/exams/c/${C}/study/`, `/exams/c/${C}/mock/`]) {
+      expect(isRoomPath(path), path).toBe(true);
+    }
+    for (const path of [
+      `/exams/c/${C}`, `/exams/c/${C}/`, `/exams/c/${C}/s/${S}`, `/exams/c/${C}/keys`, `/exams/c/${C}/settings`, '/exams/import',
+      '/g/abcd2fghjkmn', '/exams/c/draw', '/exams/c/ticket',
+    ]) {
+      expect(isRoomPath(path), path).toBe(false);
+    }
+    // The oral rooms stay rooms.
+    for (const path of [`/exams/${ORAL}/draw`, `/exams/${ORAL}/ticket`, `/exams/${ORAL}/report`]) expect(isRoomPath(path), path).toBe(true);
+  });
+
+  it('steps the tab bar aside on the import page, a subject, «Ключи», the settings and the group link, not on the exam page', () => {
+    for (const path of ['/exams/import', `/exams/c/${C}/s/${S}`, `/exams/c/${C}/keys`, `/exams/c/${C}/settings`, '/g/abcd2fghjkmn']) {
+      expect(hidesBottomNav(path), path).toBe(true);
+    }
+    for (const path of [`/exams/c/${C}`, `/exams/c/${C}/`, '/exams/c/draw', '/exams']) expect(hidesBottomNav(path), path).toBe(false);
+  });
+
+  it('leads from the pages under an exam back to it, with its title when this tab knows it', () => {
+    for (const page of [`s/${S}`, 'keys', 'settings', 'study', 'mock']) {
+      expect(backLinkFor(`/exams/c/${C}/${page}`), page).toEqual(toContainer('Назад'));
+    }
+    rememberContainerTitle(C, 'Зимняя сессия');
+    for (const page of [`s/${S}`, 'keys', 'settings', 'study', 'mock']) {
+      expect(backLinkFor(`/exams/c/${C}/${page}/`), page).toEqual(toContainer('Зимняя сессия'));
+    }
+    expect(backLinkFor(`/exams/c/${C}`)).toEqual(EXAMS);
+    expect(backLinkFor('/exams/c/draw')).toEqual(EXAMS);
+    expect(backLinkFor('/exams/import')).toEqual(EXAMS);
+    expect(backLinkFor('/exams/import', `?from=c:${C}`)).toEqual(toContainer('Зимняя сессия'));
+  });
+
+  it('leads an oral page opened with ?from=c:<id> back to that exam, «‹ Назад» while its title is unknown', () => {
+    for (const [path, search] of [
+      [`/exams/${ORAL}`, `?from=c:${C}`],
+      [`/exams/${ORAL}/`, `?view=sheet&from=c:${C}`],
+      [`/exams/${ORAL}/edit`, `?from=c%3A${C}`],
+      [`/exams/${ORAL}/draw`, `?mode=awaiting&from=c:${C}`],
+      [`/exams/${ORAL}/ticket`, `?q=q-17&from=c:${C}`],
+      [`/exams/${ORAL}/report`, `?from=c:${C}`],
+    ] as const) {
+      expect(backLinkFor(path, search), path).toEqual(toContainer('Назад'));
+    }
+    rememberContainerTitle(C, 'Зимняя сессия');
+    expect(backLinkFor(`/exams/${ORAL}`, `?from=c:${C}`)).toEqual(toContainer('Зимняя сессия'));
+  });
+
+  it('knows an oral exam that lives in a container without ?from (it is lost on the first move), and ?from wins', () => {
+    rememberAttachedExams({ [ORAL]: { containerId: C, title: 'Зимняя сессия' } });
+    for (const path of [`/exams/${ORAL}`, `/exams/${ORAL}/edit`, `/exams/${ORAL}/draw`, `/exams/${ORAL}/ticket`, `/exams/${ORAL}/report`]) {
+      expect(backLinkFor(path), path).toEqual(toContainer('Зимняя сессия'));
+    }
+    rememberContainerTitle(C2, 'Летняя сессия');
+    expect(backLinkFor(`/exams/${ORAL}`, `?from=c:${C2}`)).toEqual(toContainer('Летняя сессия', C2));
+    // A new tab: only the device's copy of the map.
+    window.sessionStorage.clear();
+    expect(backLinkFor(`/exams/${ORAL}/ticket`, '?q=q-1')).toEqual(toContainer('Зимняя сессия'));
+  });
+
+  it('keeps every plain exam as it was, and ignores a ?from that is not a container id', () => {
+    rememberAttachedExams({ [ORAL]: { containerId: C, title: 'Зимняя сессия' } });
+    expect(backLinkFor('/exams/exam-1')).toEqual(EXAMS);
+    expect(backLinkFor('/exams/exam-1/edit')).toEqual({ to: '/exams/exam-1', label: 'Лист экзамена' });
+    expect(backLinkFor('/exams/exam-1/draw')).toBeNull();
+    expect(backLinkFor('/exams/new', `?from=c:${C}`)).toEqual(EXAMS);
+    for (const search of ['?from=c:', '?from=c:../../dashboard', '?from=c:a/b', `?from=x:${C}`, `?from=${C}`, '?from=c:%2Fevil']) {
+      expect(backLinkFor('/exams/exam-1', search), search).toEqual(EXAMS);
+    }
+  });
+
+  it('puts «‹ Зимняя сессия» in the phone line of an oral page reached from the exam', async () => {
+    rememberContainerTitle(C, 'Зимняя сессия');
+    renderAt(`/exams/${ORAL}?from=c:${C}`);
+    const back = document.querySelector('.sf-back') as HTMLAnchorElement;
+    expect(back.textContent).toBe('Зимняя сессия');
+    expect(back).toHaveAttribute('href', `/exams/c/${C}`);
+    expect(tabBar()).toBeNull();
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('draws the title once the page has read it', async () => {
+    renderAt(`/exams/c/${C}/keys`);
+    const back = () => document.querySelector('.sf-back') as HTMLAnchorElement;
+    expect(back().textContent).toBe('Назад');
+    expect(back()).toHaveAttribute('href', `/exams/c/${C}`);
+    expect(tabBar()).toBeNull();
+    act(() => rememberContainerTitle(C, 'Зимняя сессия'));
+    expect(back().textContent).toBe('Зимняя сессия');
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('keeps the tabs and «‹ Экзамены» on the exam page; renders the «занятие» as a room', async () => {
+    renderAt(`/exams/c/${C}`);
+    expect(tabBar()).not.toBeNull();
+    expect(document.querySelector('.sf-back')).toHaveAttribute('href', '/exams');
+    expect(within(deskNav()).getByRole('link', { name: 'Экзамены' })).toHaveAttribute('aria-current', 'page');
+    cleanup();
+    for (const path of [`/exams/c/${C}/study?s=${S}`, `/exams/c/${C}/mock`]) {
+      renderAt(path, <h1>Комната</h1>);
+      expect(screen.getByRole('heading', { name: 'Комната' })).toBeInTheDocument();
+      expect(document.querySelector('header.sf-bar')).toBeNull();
+      expect(tabBar()).toBeNull();
+      cleanup();
+    }
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 });
 
