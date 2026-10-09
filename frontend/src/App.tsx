@@ -45,6 +45,15 @@ const ExamReport = lazy(() => import('./pages/ExamReport'));
 const TryExample = lazy(() => import('./pages/TryExample'));
 const Check = lazy(() => import('./pages/Check'));
 const JoinGroup = lazy(() => import('./pages/JoinGroup'));
+// The exam container (meldy-notes 10_Project/Exam_Container_Spec_2026-10-09.md §7): an exam for a whole session.
+const ImportPage = lazy(() => import('./pages/container/ImportPage'));
+const ContainerPage = lazy(() => import('./pages/container/ContainerPage'));
+const SubjectPage = lazy(() => import('./pages/container/SubjectPage'));
+const StudyPage = lazy(() => import('./pages/container/StudyPage'));
+const MockPage = lazy(() => import('./pages/container/MockPage'));
+const KeysPage = lazy(() => import('./pages/container/KeysPage'));
+const SettingsPage = lazy(() => import('./pages/container/SettingsPage'));
+const JoinContainerPage = lazy(() => import('./pages/container/JoinContainerPage'));
 
 /**
  * The answer screen («Ответ вслух», /exams/:id/ticket) is built by its own package. The glob keeps
@@ -110,6 +119,16 @@ export function PendingJoin() {
   return null;
 }
 
+/**
+ * «Новый экзамен» has one door, /exams/import (spec decision 21). The editor's old first step, /exams/new, is still
+ * linked from /try, «Первые шаги», the empty states, «Прогресс» and ?next= after signing up: it goes on to the import
+ * page with its query, hash and state. The editor itself stays at /exams/:id/edit.
+ */
+export function ExamsNewRedirect() {
+  const { search, hash, state } = useLocation();
+  return <Navigate to={{ pathname: '/exams/import', search, hash }} state={state} replace />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -143,6 +162,7 @@ export default function App() {
         <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/try/*" element={<TryExample />} />
         <Route path="/check" element={<Check />} />
+        <Route path="/exams/new" element={<ExamsNewRedirect />} />
         <Route path="/" element={
           <PrivateRoute><SignedInShell /></PrivateRoute>
         }>
@@ -154,7 +174,15 @@ export default function App() {
           <Route path="library/:id/talk" element={<LectureTalk />} />
           <Route path="review" element={<Review />} />
           <Route path="exams" element={<Exams />} />
-          <Route path="exams/new" element={<ExamEditor />} />
+          {/* The exam container. Static segments outrank :id, so /exams/c/… and /exams/import never reach the oral
+              pages below; listed first, these also win the ties of equal rank (/exams/c/draw opens a container). */}
+          <Route path="exams/import" element={<ImportPage />} />
+          <Route path="exams/c/:id" element={<ContainerPage />} />
+          <Route path="exams/c/:id/s/:subjectId" element={<SubjectPage />} />
+          <Route path="exams/c/:id/study" element={<StudyPage />} />
+          <Route path="exams/c/:id/mock" element={<MockPage />} />
+          <Route path="exams/c/:id/keys" element={<KeysPage />} />
+          <Route path="exams/c/:id/settings" element={<SettingsPage />} />
           <Route path="exams/:id" element={<ExamDetail />} />
           <Route path="exams/:id/edit" element={<ExamEditor />} />
           <Route path="exams/:id/draw" element={<ExamDraw />} />
@@ -168,6 +196,8 @@ export default function App() {
         <Route path="/shared/:id" element={<SharedMaterial />} />
         {/* A group link: open without an account (pages/JoinGroup.tsx). */}
         <Route path="/join/:code" element={<JoinGroup />} />
+        {/* The exam's group link: the preview opens without an account, sign-in comes back with ?next= (lib/returnTo). */}
+        <Route path="/g/:code" element={<JoinContainerPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
