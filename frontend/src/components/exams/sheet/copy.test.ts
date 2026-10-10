@@ -10,6 +10,7 @@ import {
   counterLabel,
   erasableLine,
   erasableSentence,
+  gluedArrows,
   historyLine,
   nextErasableLine,
   lineLabel,
@@ -268,5 +269,12 @@ describe('cheat sheet words', () => {
   it('states the price in units', () => {
     expect(plain(priceLine(31, 31, 87))).toBe('31 вопрос — 31 единица ИИ · сегодня осталось 87');
     expect(priceLine(2, 2, null)).toBe(`2${NBSP}вопроса — 2${NBSP}единицы ИИ`);
+  });
+});
+
+describe('gluedArrows', () => {
+  it('glues ↑ ↓ to the word before them and → to the word after it', () => {
+    const NBSP = '\u00a0';
+    expect(gluedArrows('цена ↑ → спрос ↓')).toBe(`цена${NBSP}↑ →${NBSP}спрос${NBSP}↓`);
   });
 });
