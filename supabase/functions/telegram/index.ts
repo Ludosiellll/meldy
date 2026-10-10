@@ -5,6 +5,7 @@
 // Deno glue only: the routes, the dispatch, the tick and every message are in ../_shared/bot/ (plain TS, tested with
 // `node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts`).
 import { createDb } from '../_shared/bot/db.ts';
+import { files } from '../_shared/bot/files.ts';
 import { readEnv } from '../_shared/bot/env.ts';
 import { log } from '../_shared/bot/log.ts';
 import { createApp, STUBS, type Ports } from '../_shared/bot/router.ts';
@@ -16,7 +17,7 @@ declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void } | undefin
 const ports: Ports = {
   session: STUBS.session, // T6: `import { session } from '../_shared/bot/session.ts';` and `session,`
   group: STUBS.group, // T8: `import { group } from '../_shared/bot/group.ts';` and `group,`
-  files: STUBS.files, // T9: `import { files } from '../_shared/bot/files.ts';` and `files,` (GET /telegram/file)
+  files, // T9: a forwarded file (F1) and GET /telegram/file
   voice: STUBS.voice, // T10: `import { voice } from '../_shared/bot/voice.ts';` and `voice,`
 };
 

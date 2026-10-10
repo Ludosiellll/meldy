@@ -40,6 +40,7 @@ const RPC_ALLOWED = new Set([
   'bot_setup', 'bot_update_begin', 'bot_update_done', 'bot_update_failed', 'bot_tick_beat', 'bot_status', 'bot_link_claim', 'bot_chat_event',
   'bot_whoami', 'bot_settings', 'bot_today', 'bot_card_sent', 'bot_claim_reminders', 'bot_reminder_context', 'bot_delivery_sending',
   'bot_delivery_done', 'bot_delivery_retry', 'bot_claim_day_close', 'bot_claim_after_date', 'bot_flush_pending',
+  'bot_file_offer', 'bot_file_redeem',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {

@@ -277,7 +277,8 @@ async function onPrivateMessage(ctx: Ctx, ports: Ports, msg: TgMessage): Promise
   const command = parseCommand(msg.text, ctx.botUsername);
   if (command) return onCommand(ctx, ports, msg, command);
   const who = await ctx.db.whoami(from.id);
-  if (msg.document && (await ports.files.document(ctx, msg, who))) return;
+  // Anything sent that is neither text nor voice: a document gets F1, other media the «Не документ» line (§4.7).
+  if (typeof msg.text !== 'string' && !msg.voice && (await ports.files.document(ctx, msg, who))) return;
   if (msg.voice && (await ports.voice.voice(ctx, msg, who))) return;
   if (!who.linked) {
     if (ctx.hourly(msg.chat.id)) await sendOut(ctx, msg.chat.id, m1(ctx.site));
