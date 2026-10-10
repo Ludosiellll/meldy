@@ -581,6 +581,7 @@ function firstCount(sc: Scan, fill: Fill): { day: LocalDay; time: string | null 
   let earliest = Infinity;
   for (const t of fill.list) {
     if (t.cand.cls === 'confirm' && t.cand.from !== null) earliest = Math.min(earliest, Math.max(t.cand.from, now));
+    if (t.cand.cls === 'confirm_ai') earliest = Math.min(earliest, now); // an oral confirmation planned for today
   }
   if (earliest === Infinity) {
     const tomorrowStart = startOfDay(addDays(today, 1), tz);
@@ -728,7 +729,7 @@ export function planDay(input: PlanInput): DayPlan {
     if (last !== null) lines.push({ key: 'after', day: last });
   }
   if (active.length > 0) {
-    if (!studied && sc.lastStudyDay !== null) {
+    if (state === 'study' && !studied && sc.lastStudyDay !== null) {
       const gap = daysBetween(sc.lastStudyDay, today) - 1;
       if (gap >= 1) lines.push({ key: 'skip', n: [gap, Math.round(Number(input.budgetMin) || 0)] });
     }
@@ -751,7 +752,7 @@ export function planDay(input: PlanInput): DayPlan {
     if (fill.aiBlocked && input.ai) lines.push({ key: 'ai_limit', time: clockText(input.ai.resetsAt, tz) });
     if (fc) lines.push(fc.time === null ? { key: 'first_count', n: [offsetDay(today, fc.day)], day: fc.day }
       : { key: 'first_count', n: [offsetDay(today, fc.day)], day: fc.day, time: fc.time });
-    if (figure.seen < 20 && sc.figure.inPlan > 0) lines.push({ key: 'first_day' });
+    if (state === 'study' && figure.seen < 20) lines.push({ key: 'first_day' });
   }
   if (state === 'done') lines.push({ key: 'done', n: [sc.answeredToday, Math.max(doneSec > 0 ? 1 : 0, minutesOf(doneSec))] });
   if (state === 'nothing') {

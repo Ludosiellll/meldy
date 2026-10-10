@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { DayPlan } from '../../types/container';
 import { SESSION_SIZE, planDay } from './plan.ts';
 import {
-  MAX_RETRIES, RETRY_GAP_MAX, RETRY_GAP_MIN, afterAnswer, buildSession, counter, freeSession, hashSeed, optionOrder, pinnedLast, prng,
-  shuffled, type QueueEntry,
+  MAX_RETRIES, RETRY_GAP_MAX, RETRY_GAP_MIN, afterAnswer, buildSession, counter, figureChange, freeSession, hashSeed, optionOrder,
+  pinnedLast, prng, shuffled, type QueueEntry,
 } from './session.ts';
+import type { AnswerResult, UnitState } from '../../types/container';
 import { at, makeInput, oralItems, stateAfter, testItems } from './__fixtures__/scenarios.ts';
 
 function planWith(sessions: DayPlan['sessions']): DayPlan {
@@ -164,6 +165,19 @@ describe('optionOrder', () => {
     expect(pinnedLast(['Ни один из перечисленных', 'Да', 'Нет'])).toEqual([0]);
     expect(pinnedLast(['Все ответы верны', 'Оба варианта верны', 'Нет правильного ответа', 'None of the above'])).toEqual([0, 1, 2, 3]);
     expect(pinnedLast(['Все переменные', 'Всегда', 'Все объекты класса'])).toEqual([]);
+  });
+});
+
+describe('figureChange (the end-of-session headline, spec #49)', () => {
+  it('counts questions that reached «верно в два разных дня», left it, or came too early — each once', () => {
+    const inFig = stateAfter([{ at: at('2026-10-01', '10:00'), correct: true }, { at: at('2026-10-02', '10:00'), correct: true }]);
+    const started = stateAfter([{ at: at('2026-10-09', '21:00'), correct: true }]);
+    const before = new Map<string, UnitState | undefined>([['a', started], ['b', inFig], ['c', started], ['d', undefined], ['e', started]]);
+    const r = (item_id: string, step: AnswerResult['step'], status: AnswerResult['status'] = 'saved'): AnswerResult => ({ client_event_id: `x-${item_id}-${step}`, item_id, status, step });
+    expect(figureChange(before, [
+      r('a', 'two_days'), r('b', 'miss'), r('b', 'miss'), r('c', 'too_early'), r('d', 'miss'), r('e', 'two_days', 'duplicate'), r('e', 'too_early', 'late'),
+    ])).toEqual({ gained: 1, dropped: 1, tooEarly: 1 });
+    expect(figureChange(before, [])).toEqual({ gained: 0, dropped: 0, tooEarly: 0 });
   });
 });
 

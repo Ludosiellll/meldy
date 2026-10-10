@@ -6,7 +6,7 @@
  * (sent together as one ticket, `q=a,b,c`). A wrong answer or «Не знаю» brings the question back 3–5 questions
  * later, at most twice, with the options shuffled again; «Нажали не туда?» changes nothing in the queue.
  */
-import type { DayPlan, PlanInput, PlanItem, UnitState } from '../../types/container.ts';
+import type { AnswerResult, DayPlan, PlanInput, PlanItem, UnitState } from '../../types/container.ts';
 import { SESSION_SIZE, type SessionKind } from './plan.ts';
 import { emptyState, inFigure, isOpenError, isSeen } from './rule.ts';
 
@@ -83,6 +83,29 @@ export function afterAnswer(queue: QueueEntry[], pos: number, answer: { id: stri
   return out;
 }
 
+/**
+ * What a finished session did to the figure, for the end-of-session headline (spec #49: «Теперь 147 из 960 — верно в
+ * два разных дня», or the plain count when nothing moved): from the server's results and the states the plan had
+ * before the session. `gained` questions reached «верно в два разных дня»; `dropped` left it after a mistake;
+ * `tooEarly` were right again but before their moment (another day and 20 hours). Each question counts once.
+ */
+export function figureChange(before: ReadonlyMap<string, UnitState | undefined>, results: readonly AnswerResult[]): { gained: number; dropped: number; tooEarly: number } {
+  const gained = new Set<string>();
+  const dropped = new Set<string>();
+  const tooEarly = new Set<string>();
+  for (const r of results) {
+    if (!r.item_id || r.status !== 'saved') continue;
+    if (r.step === 'two_days') gained.add(r.item_id);
+    else if (r.step === 'too_early') tooEarly.add(r.item_id);
+    else if (r.step === 'miss') {
+      const prev = before.get(r.item_id);
+      if (prev && inFigure(prev)) dropped.add(r.item_id);
+    }
+  }
+  for (const id of gained) tooEarly.delete(id);
+  return { gained: gained.size, dropped: dropped.size, tooEarly: tooEarly.size };
+}
+
 /** «7 из 20»: the planned question being shown (retries do not advance it) and how many the session plans. */
 export function counter(queue: readonly QueueEntry[], pos: number): { n: number; of: number } {
   let of = 0;
@@ -143,6 +166,7 @@ export function freeSession(input: PlanInput, options: { subjectId: string; topi
   const done = new Set(answeredToday);
   const size = Math.max(0, Math.floor(options.size ?? SESSION_SIZE.answer));
   const rank = (u: UnitState): number => (isOpenError(u) ? 0 : !isSeen(u) ? 2 : inFigure(u) ? 3 : 1);
+  const cmpDay = (a: string | null, b: string | null): number => ((a ?? '') < (b ?? '') ? -1 : (a ?? '') > (b ?? '') ? 1 : 0);
   const pool = (input.items ?? []).filter((item: PlanItem) => item.f === 't' && item.s === options.subjectId && !done.has(item.id)
     && (options.topic === undefined || (item.tp ?? null) === options.topic)
     && (!options.onlyErrors || isOpenError(item.u ?? EMPTY)));
@@ -150,7 +174,7 @@ export function freeSession(input: PlanInput, options: { subjectId: string; topi
     const ua = a.u ?? EMPTY;
     const ub = b.u ?? EMPTY;
     return rank(ua) - rank(ub)
-      || (rank(ua) === 0 ? (ua.lastDay ?? '').localeCompare(ub.lastDay ?? '') : 0)
+      || (rank(ua) === 0 ? cmpDay(ua.lastDay, ub.lastDay) : 0)
       || (rank(ua) === 3 ? ua.checks - ub.checks || (ua.namedAt ?? 0) - (ub.namedAt ?? 0) : 0)
       || a.o - b.o || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   });
