@@ -807,6 +807,14 @@ describe('who leads «Сегодня», as a rule', () => {
     expect(containerRowMeta(entry(container('c-1', 'А', '2026-10-03'), ready('exam_today')), today, now)).toBe('3 октября · сегодня экзамен');
     expect(containerRowMeta(entry(ACCR(), { status: 'failed' }), today, now)).toBe('10 октября · 960 вопросов');
     expect(containerRowMeta(entry(container('c-9', 'Б', null), { status: 'failed' }), today, now)).toBe('960 вопросов');
+    // A day off (Saturday 3 October, Пн–Пт): nothing answered — «сегодня выходной», not the size; answered anyway — the
+    // day is done. A day with nothing left that is not a day off keeps the size.
+    const dayOff = (state: DayPlan['state']): TodayContainer['plan'] =>
+      ({ status: 'ready', plan: dayPlan(state, { lines: [{ key: 'day_off', n: [2], day: '2026-10-05' }] }), offline: false });
+    expect(containerRowMeta(entry(ACCR(), dayOff('nothing')), today, now)).toBe('10 октября · сегодня выходной');
+    expect(containerRowMeta(entry(ACCR(), dayOff('done')), today, now)).toBe('10 октября · на сегодня всё');
+    expect(containerRowMeta(entry(container('c-9', 'Б', null), dayOff('nothing')), today, now)).toBe('сегодня выходной');
+    expect(containerRowMeta(entry(ACCR(), ready('nothing')), today, now)).toBe('10 октября · 960 вопросов');
     expect(plainText(aboutMinutes(60))).toBe('около 1 минуты');
     expect(plainText(aboutMinutes(150))).toBe('около 3 минут');
     expect(plainText(aboutMinutes(1180))).toBe('около 20 минут');

@@ -34,6 +34,7 @@ import { useContainerData } from '../lib/containers/hooks';
 import { planDay } from '../lib/containers/plan';
 import { glue as glueCount, shownMinutes } from '../lib/containers/words';
 import TodayExamCard from '../components/containers/TodayExamCard';
+import { isDayOff } from '../components/containers/planLines';
 import type { DayPlan, OverviewContainer } from '../types/container';
 import { containerDays, layerKey, QuietBoundary, useContainerLayer, type ContainerLayer } from './containerLayer';
 import './containerScreens.css';
@@ -1723,13 +1724,17 @@ export function aboutMinutes(seconds: number): string {
   return `около ${glueCount(Math.max(1, shownMinutes(seconds)), 'минуты', 'минут', 'минут')}`;
 }
 
-/** «12 января · сегодня около 20 минут», «… · на сегодня всё», «… · сегодня экзамен», or the size before a plan. */
+/**
+ * «12 января · сегодня около 20 минут», «… · на сегодня всё», «… · сегодня выходной» (a day off with nothing answered;
+ * answered anyway, the day is done), «… · сегодня экзамен», or the size before a plan.
+ */
 export function containerRowMeta(item: TodayContainer, today: string, now: Date = new Date()): string {
   const { day } = containerDays(item.container, today);
   const parts = [formatDay(day, now)];
   const plan = item.plan.status === 'ready' ? item.plan.plan : null;
   if (plan?.state === 'study') parts.push(`сегодня ${aboutMinutes(plan.counts.leftSec > 0 ? plan.counts.leftSec : plan.counts.estSec)}`);
   else if (plan?.state === 'done') parts.push('на сегодня всё');
+  else if (plan?.state === 'nothing' && isDayOff(plan)) parts.push('сегодня выходной');
   else if (plan?.state === 'exam_today') parts.push('сегодня экзамен');
   else if (item.container.items > 0) parts.push(`${item.container.items} ${pluralRu(item.container.items, QUESTION_FORMS)}`);
   return parts.filter(Boolean).join(' · ');
