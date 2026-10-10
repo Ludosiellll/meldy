@@ -147,9 +147,9 @@ const WEEKDAY_ACC = ['В понедельник', 'Во вторник', 'В с�
 export function pauseUntil(until: LocalDay, tomorrow: LocalDay): string {
   return until === tomorrow ? 'Пауза до завтра.' : `Пауза до ${WEEKDAY_GEN[weekday(until)]}, ${dayText(until)}.`;
 }
-/** «Завтра план снова придёт в 20:00…» / «В понедельник…» within a week, else «26 октября…». */
+/** «Завтра план снова придёт в 20:00…» / «В понедельник…» within a week, else «В воскресенье, 25 октября, …». */
 export function pauseBack(until: LocalDay, tomorrow: LocalDay, daysAhead: number, time: string): string {
-  const when = until === tomorrow ? 'Завтра' : daysAhead <= 6 ? WEEKDAY_ACC[weekday(until)] : dayText(until);
+  const when = until === tomorrow ? 'Завтра' : daysAhead <= 6 ? WEEKDAY_ACC[weekday(until)] : `${WEEKDAY_ACC[weekday(until)]}, ${dayText(until)},`;
   return `${when} план снова придёт в ${time}. Заниматься можно и раньше — /today.`;
 }
 export const unpaused = (todayOrTomorrow: 'сегодня' | 'завтра', time: string) => `Пауза снята: план придёт ${todayOrTomorrow} в ${time}.`;
