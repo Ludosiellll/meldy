@@ -31,6 +31,12 @@ export const SOURCES = [
   ['frontend/src/lib/containers/words.ts', 'words.ts'],
   ['frontend/src/lib/containers/group.ts', 'group.ts'],
   ['frontend/src/types/container.ts', 'container.ts'],
+  // T11: the oral plan's pure core (the bot reads the same sheet and journal as the site, through bot_oral_inputs).
+  ['frontend/src/lib/containers/oralParts.ts', 'oralParts.ts'],
+  ['frontend/src/lib/exams/cheatSheet.ts', 'cheatSheet.ts'],
+  ['frontend/src/lib/exams/sheetResponse.ts', 'sheetResponse.ts'],
+  ['frontend/src/lib/learning/readiness.ts', 'readiness.ts'],
+  ['frontend/src/types/learning.ts', 'learning.ts'],
 ];
 
 const IMPORT_RE = /(\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\2/g;

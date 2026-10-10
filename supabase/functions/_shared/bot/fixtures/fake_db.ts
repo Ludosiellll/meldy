@@ -120,6 +120,7 @@ export function fakeDb(options: { now: () => number }) {
       now: link.now,
       wire: data.wire ?? null,
       oral: [],
+      oralParts: [],
       exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0, hasOral: e.hasOral ?? false })),
       session: withSession ? data.session ?? null : null,
       day: withSession && row ? { cardMessageId: row.cardMessageId, cardUsed: row.cardUsed, lastMessageId: row.lastMessageId } : null,
@@ -456,6 +457,8 @@ export function fakeDb(options: { now: () => number }) {
       const due = Boolean(l) && l!.unlinkedAt === null && l!.blockedAt === null && d.attempts < 3
         && (d.kind === 'day_close'
           ? d.localDay >= addDays(today, -2)
+          : d.kind === 'notice'
+          ? true // T1: a one-off notice (G4) goes back while its link is on and tries remain
           : l!.remindOn && (l!.pausedUntil === null || l!.pausedUntil <= today) && d.localDay === today && inWindow(l!, t));
       d.error = error.slice(0, 200) || '429';
       if (due) {

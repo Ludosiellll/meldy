@@ -1,0 +1,121 @@
+/*
+ * «Вопрос дня в Telegram» (GroupBotInvite.tsx) at the bottom of «Пригласить группу»: a section of the white window
+ * (a sheet from the bottom on a phone) under a hairline, opened like «Кто вошёл». Onest (--ph-sans), the tokens of
+ * index.css only, so both themes follow; the one blue pill is .sf-primary («Подключить беседу», then «Открыть
+ * Telegram»), the hours are the site's PaperSelect. Blue text is --sf-accent-fg; --sf-accent only fills.
+ */
+.gb {
+  margin-top: 20px;
+  padding-top: 4px;
+  border-top: 1px solid var(--sf-line);
+  font-family: var(--ph-sans);
+  color: var(--sf-ink);
+}
+.gb-h { margin: 0; font: inherit; }
+.gb-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sf-ink);
+  font: 600 17px/1.3 var(--ph-sans);
+  letter-spacing: -.01em;
+  text-align: left;
+  cursor: pointer;
+}
+.gb-toggle svg { flex: none; width: 20px; height: 20px; color: var(--sf-muted); transition: transform 200ms var(--m-ease, ease); }
+.gb-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
+.gb-toggle:hover svg { color: var(--sf-ink); }
+.gb-toggle:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; border-radius: 10px; }
+
+.gb-body { padding-bottom: 4px; }
+.gb-body[aria-busy='true'] { min-height: 48px; }
+.gb-lede { max-width: 34em; margin: 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.gb-line { margin: 14px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.gb-line[data-muted] { color: var(--sf-muted); }
+.gb-line .sf-link { min-height: 0; font-size: 15px; vertical-align: baseline; }
+
+/* The chats already connected: the name, «Каждый день в [12:00]» or why it is off, and «Выключить» / «Включить». */
+.gb-list { margin: 12px 0 0; padding: 0; list-style: none; }
+.gb-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--sf-line);
+}
+.gb-item:first-child { border-top: 0; }
+.gb-item-text { flex: 1 1 220px; min-width: 0; }
+.gb-item-title { display: block; font-size: 16px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.gb-item-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  margin-top: 2px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--sf-muted);
+}
+.gb-item-state .ps-trigger { min-height: 40px; font-size: 15px; color: var(--sf-ink); }
+/* The hour's menu opens under its pill, right edges together: on a phone the pill ends a line, and a menu running
+   right would leave the screen. */
+.gb .ps-list { left: auto; right: 0; }
+.gb-item-act.sf-link { flex: none; }
+
+/* A new chat: «Вопрос дня — каждый день в [12:00]» and the blue pill. */
+.gb-connect { margin-top: 16px; }
+.gb-when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; font-size: 16px; line-height: 1.45; }
+.gb-go.sf-primary { margin-top: 14px; }
+
+/* The code waits: «Открыть Telegram» (Telegram asks for the group) and «Отмена». */
+.gb-panel {
+  margin-top: 16px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  animation: gb-in .45s var(--m-ease, ease) both;
+}
+.gb-step { max-width: 30em; margin: 0; font-size: 16px; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
+.gb-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: 14px; }
+.gb-open.sf-primary { text-decoration: none; }
+.gb-fine { margin: 12px 0 0; font-size: 14px; line-height: 1.45; color: var(--sf-muted); }
+
+.gb-note { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--m-yellow-soft); color: var(--m-yellow-ink); font-size: 15px; line-height: 1.45; }
+.gb-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes gb-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A phone (360–390 px): the sheet is 16 px from its edges; the pills go full width, the hour stays on its line. */
+@media (max-width: 639px) {
+  .gb-go.sf-primary,
+  .gb-open.sf-primary { width: 100%; justify-content: space-between; }
+  .gb-panel { padding: 16px; border-radius: 20px; }
+  .gb-acts { gap: 6px 16px; }
+  .gb-item { padding: 12px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gb-panel { animation: none; }
+  .gb-toggle svg { transition: none; }
+}
