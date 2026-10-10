@@ -2,11 +2,13 @@
 # LOCAL ONLY; NEVER AGAINST THE LIVE PROJECT. The whole rehearsal of package T11 (the oral part of the day plan on the
 # server: supabase/migrations/20261010120007_oral_plan_inputs.sql, supabase/rollback/20261010120007_oral_plan_inputs_down.sql)
 # on a scratch PostgreSQL 16 cluster, and its proof that the Telegram bot plans the same oral questions as the site:
-#   1. the base (the repo's local baselines, the live migrations they rehearse, the exam container's migrations, T1's bot
-#      migrations with cron / net stubbed when pg_cron / pg_net are not installed) → catalog fingerprint;
+#   1. the base (the repo's local baselines, the live migrations they rehearse, the exam container's migrations, the
+#      bot's migrations applied live before this one — T1 with cron / net stubbed when pg_cron / pg_net are not
+#      installed, T5, T7, T9, and T10 when it is in this tree) → catalog fingerprint;
 #   2. the migration twice (the second changes nothing; no line of the base changes) → the behaviour test
 #      (oral_plan_inputs.sql) → T1's behaviour and claims tests still pass → telegram_bot.sql with the T11 block spliced in
-#      reports contract_ok (and as it is, too) → the container's contract still ok;
+#      reports contract_ok and packages.T11 ok (on the base: only T11's own checks fail), and as it is, too → the
+#      container's contract still ok;
 #   3. the equivalence (fails loudly on any difference):
 #      a. meldy_private.oral_sheet_for = the Space's own _load_state + _sheet_response (backend venv, python -I, the
 #         backend's SupabaseRest over a PostgREST stand-in: psql as role authenticated with the user's JWT sub) for every
@@ -138,8 +140,14 @@ SQL
     CRON_RUN=$SB/migrations/20261010120001_telegram_bot_cron.sql
   fi
   run t11_base "$SB/migrations/20261010120000_telegram_bot.sql" && run t11_base "$CRON_RUN" \
-    && run t11_base "$SB/migrations/20261010120002_telegram_bot_revokes.sql"
+    && run t11_base "$SB/migrations/20261010120002_telegram_bot_revokes.sql" || return 1
+  # The bot's later packages, in the live order (T10's slot only when its file is here).
+  for v in 20261010120003 20261010120004 20261010120005 20261010120006; do
+    f=$(compgen -G "$SB/migrations/${v}_*.sql" | head -1)
+    if [ -n "$f" ]; then run t11_base "$f" || return 1; BOT_PACKAGES="$BOT_PACKAGES, ${v: -1}"; fi
+  done
 }
+BOT_PACKAGES=""
 contract_t11() {  # the contract with T11's block spliced in (a scratch copy of T1's file)
   python3 - "$CONTRACT" "$BLOCK" "$OUT/telegram_bot_t11.sql" <<'PY'
 import sys
@@ -148,7 +156,11 @@ block = open(sys.argv[2], encoding="utf-8").read()
 out = sys.argv[3]
 def part(name):
     return block.split(f"-- >>> {name}\n", 1)[1].split(f"-- <<< {name}\n", 1)[0]
-marks = {"bot_fns": "  -- T9: , ('T9', 'bot_file_offer(…)'), ('T9', 'bot_file_redeem(…)')\n", "checks": "  -- ── T9: 70–89 ──\n"}
+marks = {
+    "packages": "  -- T11 slot (20261010120007_oral_plan_inputs.sql, bot_oral_inputs): , ('T11', '20261010120007', 80, 89)\n",
+    "bot_fns": "  -- T11 slot (20261010120007): , ('T11', 'bot_oral_inputs(bigint)')\n",
+    "checks": "  --    UNION ALL SELECT 80, '<name>', <boolean> …\n",
+}
 for name, mark in marks.items():
     if contract.count(mark) != 1:
         raise SystemExit(f"the marker of [{name}] is not in telegram_bot.sql once")
@@ -160,7 +172,7 @@ PY
 
 T0=$(date +%s)
 echo "1. base"
-if load_base; then ok "base loaded (t11_base)" "$([ $STUBS = 1 ] && echo 'cron and net stubbed' || echo 'pg_cron and pg_net installed')"
+if load_base; then ok "base loaded (t11_base)" "$([ $STUBS = 1 ] && echo 'cron and net stubbed' || echo 'pg_cron and pg_net installed'); the bot's 12000x files: 0, 1, 2$BOT_PACKAGES"
 else bad "base loaded"; echo "cannot continue"; exit 1; fi
 fingerprint t11_base "$OUT/fp_base.txt"
 BASE_LINES=$(wc -l < "$OUT/fp_base.txt")
@@ -187,14 +199,16 @@ for t in telegram_bot_behaviour telegram_bot_claims; do
 done
 C=$(contract_t11 t11_main)
 if echo "$C" | grep -q '"contract_ok" : true' \
-   && [ "$(echo "$C" | field "['checks']['oral_cores_private']")" = true ] \
-   && [ "$(echo "$C" | field "['checks']['oral_inputs_read_only_through_the_link']")" = true ]; then
-  ok "telegram_bot.sql + the T11 block" "contract_ok: true, $(echo "$C" | field "['checks']" | grep -o 'true' | wc -l) checks"
-else bad "telegram_bot.sql + the T11 block" "$(echo "$C" | field "['failed']" 2>/dev/null || echo "$C" | head -3)"; fi
+   && [ "$(echo "$C" | field "['packages']['T11']")" = '{"migration": "20261010120007", "applied": true, "ok": true, "failed": []}' ]; then
+  ok "telegram_bot.sql + the T11 block" "contract_ok: true, $(echo "$C" | field "['checks']" | grep -o 'true' | wc -l) checks, packages.T11 ok"
+else bad "telegram_bot.sql + the T11 block" "$(echo "$C" | field "['failed']" 2>/dev/null || echo "$C" | head -3) $(echo "$C" | field "['packages']['T11']" 2>/dev/null)"; fi
 if "${PSQL[@]}" -d t11_main -f "$CONTRACT" 2>&1 | grep -q '"contract_ok" : true'; then ok "telegram_bot.sql as it is" "contract_ok: true"
 else bad "telegram_bot.sql as it is"; fi
-if contract_t11 t11_base | grep -q '"contract_ok" : false'; then ok "telegram_bot.sql + the T11 block before the migration" "reads, never raises: contract_ok false"
-else bad "telegram_bot.sql + the T11 block before the migration"; fi
+C=$(contract_t11 t11_base)
+if [ "$(echo "$C" | field "['failed']" 2>/dev/null)" = '["oral_cores_private", "oral_inputs_read_only_through_the_link"]' ] \
+   && [ "$(echo "$C" | field "['packages']['T11']['applied']" 2>/dev/null)" = false ]; then
+  ok "telegram_bot.sql + the T11 block before the migration" "reads, never raises: only T11's two checks fail"
+else bad "telegram_bot.sql + the T11 block before the migration" "$(echo "$C" | head -c 300)"; fi
 if "${PSQL[@]}" -d t11_main -f "$SB/tests/containers.sql" 2>&1 | grep -q '"contract_ok" : true'; then
   ok "the container's contract (supabase/tests/containers.sql)" "contract_ok: true"
 else bad "the container's contract (supabase/tests/containers.sql)"; fi
