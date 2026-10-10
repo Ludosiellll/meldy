@@ -4,6 +4,16 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-10 — Release 36: the site's side of the Telegram bot @Meldyteach_bot — connect it in «Профиль», reminders after a session, «Вопрос дня» for a group, a file sent to the bot (from the commit of this entry)
+
+- **The bot itself is already live** in Supabase, not in this Space: the Edge Function `telegram` (region `eu-central-1`), the schema `bot` (migrations `20261010120000…120005`, contract checks green), the minute tick (pg_cron → pg_net), `/setup` done (webhook, name, commands, avatar). This release adds the site's parts.
+- **«Профиль» → «Уведомления» → «Подключить Telegram»** (`components/telegram/TelegramCard.tsx`): a one-time link to the bot (a QR on a computer, a button on a phone), the state read every 3 s until the bot confirms, then the reminder time, the pause and «Отключить».
+- **«Напоминать в Telegram»** at the end of a session of the exam container; without a linked Telegram it stays the daily reminder as before.
+- **«Вопрос дня в Telegram»** in «Пригласить группу» (`GroupBotInvite.tsx`): the author connects a group chat and picks the hour (9, 12, 15 or 18).
+- **A file sent to the bot** opens on the import page (`/exams/import?tg=<ticket>`, single use); the `/sb` route passes `GET functions/v1/telegram/file` for students who reach Supabase only through the site.
+- **The Space:** `POST /api/bot/voice` (`backend/bot_bridge.py`) for the bot's voice stage. The stage is OFF (`bot.config.flags.voice` false, its migration is not applied yet): without a valid single-use ticket every request is refused.
+- Verified before release: Vitest 240 files, 3935 tests; pytest 1763 passed; `tsc -b` and `vite build` in the Docker layout (`frontend` + `contracts` from `git archive`); the bot's function tests 280/280 and strict `tsc`; the bot's SQL rehearsal on PostgreSQL 16 (57 ok).
+
 ## 2026-10-10 — Release 35, second push: the Space build failed on the first one; also «Обновить из файла» and the minutes line (from the commit of this entry)
 
 - **Why the first push failed:** the Space stopped at `BUILD_ERROR` after 40 s and answered 503.
