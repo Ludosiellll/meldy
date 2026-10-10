@@ -77,6 +77,31 @@ def test_only_auth_rest_and_storage_paths_are_passed(proxy, path):
     assert proxy.seen == []
 
 
+def test_the_bots_file_link_is_the_one_function_passed_and_only_for_reading(proxy):
+    proxy.replies["headers"] = {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": "attachment; filename*=UTF-8''bank.docx",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "sandbox",
+        "Set-Cookie": "x=1",
+    }
+    response = proxy.get("/sb/functions/v1/telegram/file?t=" + "a" * 64 + "&forceFunctionRegion=eu-central-1")
+    assert response.status_code == 200
+    (sent,) = proxy.seen
+    assert str(sent.url) == f"{UPSTREAM}/functions/v1/telegram/file?t={'a' * 64}&forceFunctionRegion=eu-central-1"
+    assert sent.method == "GET"
+    assert response.headers["content-disposition"].startswith("attachment")
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert "set-cookie" not in response.headers
+    for method, path in (("post", "/sb/functions/v1/telegram/file?t=x"), ("get", "/sb/functions/v1/telegram"),
+                         ("post", "/sb/functions/v1/telegram/tick"), ("get", "/sb/functions/v1/telegram/status"),
+                         ("get", "/sb/functions/v1/telegram/file/../setup")):
+        assert getattr(proxy, method)(path).status_code == 404, (method, path)
+    assert len(proxy.seen) == 1
+
+
 def test_an_unreachable_supabase_is_a_plain_russian_502(proxy, capsys):
     proxy.replies["fail"] = True
     response = proxy.get("/sb/rest/v1/materials?select=id", headers={"apikey": "anon"})

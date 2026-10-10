@@ -2,12 +2,13 @@
 -- scratch database of telegram_bot_run.sh: spec §8.2 «Напоминания» entirely — starvation (120 links at 20:00, limit 50
 -- → all in 3 ticks), at most once (sending → unknown, never again), the 3-hour window and 23:00, Minsk and
 -- Vladivostok, the pause, 30 minutes after the last answer, K2 and its silence, K3 after the date and the
--- night's close (each once); plus the context's reasons, the day card handed back, the retakes and their limits. Two
--- claims at once (two sessions) are in telegram_bot_run.sh.
+-- night's close (each once); plus the context's reasons, the day card handed back, the retakes and their limits, and
+-- the way back after a 429 (bot_delivery_retry). Two claims at once (two sessions) are in telegram_bot_run.sh.
 -- One transaction, rolled back. The timeline is a few days ahead of the real clock (every claim takes p_now), so real
 -- stamps (now()) are always older than the test's moments. Fixtures and assertions run as postgres (no JWT: the pg_cron
--- path of require_service_role); block 0 runs every claim as service_role. A failure raises (FAILED: …); success prints
--- TELEGRAM BOT CLAIMS PASSED.
+-- path of require_service_role); block 0 runs every claim as service_role. Runs with T1 alone and with the later
+-- packages applied: block 10 uses T5's bot.sessions when it exists, else a stand-in with its columns. A failure raises
+-- (FAILED: …); success prints TELEGRAM BOT CLAIMS PASSED.
 \set ON_ERROR_STOP 1
 begin;
 
@@ -70,7 +71,7 @@ do $t$
 declare n integer;
 begin
   select count(*) into n from public.bot_claim_reminders(50, pg_temp.at(pg_temp.d(), '20:01'));
-  if n <> 1 then raise exception 'FAILED: service role claim % rows', n; end if;
+  if n is distinct from 1 then raise exception 'FAILED: service role claim % rows', n; end if;
   perform * from public.bot_claim_day_close(50, pg_temp.at(pg_temp.d(), '00:05'));
   perform * from public.bot_claim_after_date(50, pg_temp.at(pg_temp.d(), '20:01'));
 end
@@ -86,11 +87,11 @@ begin
   for i in 1..120 loop perform pg_temp.link(10000 + i); end loop;
   for t in 1..4 loop
     select count(*) into n from pg_temp.remind(pg_temp.at(pg_temp.d(), '20:00') + make_interval(mins => t), 50);
-    if n <> (case t when 1 then 50 when 2 then 50 when 3 then 20 else 0 end) then
+    if n is distinct from (case t when 1 then 50 when 2 then 50 when 3 then 20 else 0 end) then
       raise exception 'FAILED: starvation, tick % claimed %', t, n; end if;
   end loop;
-  if (select count(distinct chat_id) from bot.deliveries where chat_id between 10001 and 10120 and status = 'sent') <> 120
-     or (select count(*) from bot.deliveries where chat_id between 10001 and 10120) <> 120 then
+  if (select count(distinct chat_id) from bot.deliveries where chat_id between 10001 and 10120 and status = 'sent') is distinct from 120
+     or (select count(*) from bot.deliveries where chat_id between 10001 and 10120) is distinct from 120 then
     raise exception 'FAILED: starvation: not every link once'; end if;
   delete from bot.links where tg_user_id between 10001 and 10120;
 end
@@ -108,20 +109,20 @@ begin
   if not public.bot_delivery_sending(a, pg_temp.at(d, '20:01:30')) then raise exception 'FAILED: could not start sending'; end if;
   -- both workers die here: 501 was being sent (maybe delivered), 502 was never tried
   select count(*) into n from public.bot_claim_reminders(10, pg_temp.at(d, '20:05')) where chat_id in (501, 502);
-  if n <> 0 then raise exception 'FAILED: taken again before 10 minutes'; end if;
+  if n is distinct from 0 then raise exception 'FAILED: taken again before 10 minutes'; end if;
   select count(*) into n from public.bot_claim_reminders(10, pg_temp.at(d, '20:12')) where chat_id = 501;
-  if n <> 0 then raise exception 'FAILED: DUPLICATE: a row in sending was taken again'; end if;
-  if (select status from bot.deliveries where id = a) <> 'unknown' then raise exception 'FAILED: sending → unknown'; end if;
+  if n is distinct from 0 then raise exception 'FAILED: DUPLICATE: a row in sending was taken again'; end if;
+  if (select status from bot.deliveries where id = a) is distinct from 'unknown' then raise exception 'FAILED: sending → unknown'; end if;
   if (select row(status, attempts, claimed_at) from bot.deliveries where id = b)
      is distinct from row('claimed'::text, 2::smallint, pg_temp.at(d, '20:12')) then
     raise exception 'FAILED: the never-tried row was not taken again'; end if;
   if public.bot_delivery_sending(a, pg_temp.at(d, '20:13')) then raise exception 'FAILED: an unknown row could be sent again'; end if;
-  if public.bot_reminder_context(a) ->> 'reason' <> 'not_claimed' then raise exception 'FAILED: context of an unknown row'; end if;
+  if public.bot_reminder_context(a) ->> 'reason' is distinct from 'not_claimed' then raise exception 'FAILED: context of an unknown row'; end if;
   -- the third try, then no more; after 3 hours the row is failed
   select count(*) into n from public.bot_claim_reminders(10, pg_temp.at(d, '20:23')) where chat_id = 502;
-  if n <> 1 or (select attempts from bot.deliveries where id = b) <> 3 then raise exception 'FAILED: the third try'; end if;
+  if n is distinct from 1 or (select attempts from bot.deliveries where id = b) is distinct from 3 then raise exception 'FAILED: the third try'; end if;
   select count(*) into n from public.bot_claim_reminders(10, pg_temp.at(d, '20:40')) where chat_id = 502;
-  if n <> 0 then raise exception 'FAILED: a fourth try'; end if;
+  if n is distinct from 0 then raise exception 'FAILED: a fourth try'; end if;
   perform * from public.bot_claim_reminders(10, pg_temp.at(d, '23:30'));
   if (select row(status, error) from bot.deliveries where id = b) is distinct from row('failed'::text, 'abandoned'::text) then
     raise exception 'FAILED: abandoned after 3 hours'; end if;
@@ -148,17 +149,17 @@ begin
   perform pg_temp.link(601, '19:00'); perform pg_temp.link(602, '20:00'); perform pg_temp.link(603, '21:30');
   perform pg_temp.link(604, '07:30');
   v := pg_temp.cards(pg_temp.at(d, '18:59'));
-  if v <> '' then raise exception 'FAILED: 18:59 %', v; end if;
+  if v is distinct from '' then raise exception 'FAILED: 18:59 %', v; end if;
   v := pg_temp.cards(pg_temp.at(d, '22:00'));   -- 19:00 is 3 hours late; 20:00 and 21:30 are in
-  if v <> '602=K1,603=K1' then raise exception 'FAILED: 22:00 %', v; end if;
+  if v is distinct from '602=K1,603=K1' then raise exception 'FAILED: 22:00 %', v; end if;
   v := pg_temp.cards(pg_temp.at(d + 1, '23:00'));
-  if v <> '' then raise exception 'FAILED: 23:00 %', v; end if;
+  if v is distinct from '' then raise exception 'FAILED: 23:00 %', v; end if;
   v := pg_temp.cards(pg_temp.at(d + 2, '02:00'));
-  if v <> '' then raise exception 'FAILED: 02:00 %', v; end if;
+  if v is distinct from '' then raise exception 'FAILED: 02:00 %', v; end if;
   v := pg_temp.cards(pg_temp.at(d + 2, '07:30'));
-  if v <> '604=K1' then raise exception 'FAILED: 07:30 %', v; end if;
+  if v is distinct from '604=K1' then raise exception 'FAILED: 07:30 %', v; end if;
   v := pg_temp.cards(pg_temp.at(d + 2, '21:59'));
-  if v <> '601=K1,602=K1,603=K1' then raise exception 'FAILED: 21:59 %', v; end if;
+  if v is distinct from '601=K1,602=K1,603=K1' then raise exception 'FAILED: 21:59 %', v; end if;
   delete from bot.links where tg_user_id between 601 and 604;
 end
 $t$;
@@ -169,18 +170,18 @@ declare d date := pg_temp.d(20); r record;
 begin
   perform pg_temp.link(701, '20:00', 'Europe/Minsk'); perform pg_temp.link(702, '20:00', 'Asia/Vladivostok');
   select * into r from public.bot_claim_reminders(10, (d + time '10:05') at time zone 'utc');   -- 20:05 Vladivostok, 13:05 Minsk
-  if r.chat_id is distinct from 702::bigint or r.local_day <> d or r.tz <> 'Asia/Vladivostok'
-     or (select count(*) from bot.deliveries where chat_id in (701, 702)) <> 1 then
+  if r.chat_id is distinct from 702::bigint or r.local_day is distinct from d or r.tz is distinct from 'Asia/Vladivostok'
+     or (select count(*) from bot.deliveries where chat_id in (701, 702)) is distinct from 1 then
     raise exception 'FAILED: Vladivostok at 10:05 UTC %', r; end if;
-  if (select count(*) from public.bot_claim_reminders(10, (d + time '13:00') at time zone 'utc')) <> 0 then   -- 23:00 there
+  if (select count(*) from public.bot_claim_reminders(10, (d + time '13:00') at time zone 'utc')) is distinct from 0 then   -- 23:00 there
     raise exception 'FAILED: Vladivostok at 23:00'; end if;
   select * into r from public.bot_claim_reminders(10, (d + time '17:05') at time zone 'utc');   -- 20:05 Minsk, 03:05 Vladivostok
-  if r.chat_id is distinct from 701::bigint or r.local_day <> d or r.tz <> 'Europe/Minsk' then raise exception 'FAILED: Minsk at 17:05 UTC %', r; end if;
+  if r.chat_id is distinct from 701::bigint or r.local_day is distinct from d or r.tz is distinct from 'Europe/Minsk' then raise exception 'FAILED: Minsk at 17:05 UTC %', r; end if;
   -- 15:00 UTC is already the next day in Vladivostok (01:00): no card at 01:00, and its 20:00 comes on that day
-  if (select count(*) from public.bot_claim_reminders(10, (d + time '15:00') at time zone 'utc')) <> 0 then
+  if (select count(*) from public.bot_claim_reminders(10, (d + time '15:00') at time zone 'utc')) is distinct from 0 then
     raise exception 'FAILED: 01:00 in Vladivostok'; end if;
   select * into r from public.bot_claim_reminders(10, (d + 1 + time '10:05') at time zone 'utc');
-  if r.chat_id is distinct from 702::bigint or r.local_day <> d + 1 then raise exception 'FAILED: Vladivostok the next day %', r; end if;
+  if r.chat_id is distinct from 702::bigint or r.local_day is distinct from d + 1 then raise exception 'FAILED: Vladivostok the next day %', r; end if;
   delete from bot.links where tg_user_id in (701, 702);
 end
 $t$;
@@ -192,13 +193,13 @@ begin
   perform pg_temp.link(801);
   update bot.links set paused_until = d + 1 where tg_user_id = 801;
   v := pg_temp.cards(pg_temp.at(d, '20:05'));
-  if v <> '' then raise exception 'FAILED: a card in the pause %', v; end if;
+  if v is distinct from '' then raise exception 'FAILED: a card in the pause %', v; end if;
   v := pg_temp.cards(pg_temp.at(d + 1, '20:05'));
-  if v <> '801=K1' then raise exception 'FAILED: the first day back %', v; end if;
+  if v is distinct from '801=K1' then raise exception 'FAILED: the first day back %', v; end if;
   select delivery_id into x from public.bot_claim_reminders(10, pg_temp.at(d + 2, '20:05'));
   update bot.links set paused_until = d + 5 where tg_user_id = 801;
   c := public.bot_reminder_context(x);
-  if c ->> 'card' <> 'skip' or c ->> 'reason' <> 'paused' or (select status from bot.deliveries where id = x) <> 'skipped' then
+  if c ->> 'card' is distinct from 'skip' or c ->> 'reason' is distinct from 'paused' or (select status from bot.deliveries where id = x) is distinct from 'skipped' then
     raise exception 'FAILED: paused after the claim %', c; end if;
   delete from bot.links where tg_user_id = 801;
 end
@@ -214,11 +215,11 @@ begin
   perform pg_temp.link(902);
   update bot.links set last_seen_at = pg_temp.at(d, '19:58') where tg_user_id = 902;
   v := pg_temp.cards(pg_temp.at(d, '20:01'));
-  if v <> '902=K1' then raise exception 'FAILED: 16 minutes after an answer; an action does not wait %', v; end if;
+  if v is distinct from '902=K1' then raise exception 'FAILED: 16 minutes after an answer; an action does not wait %', v; end if;
   v := pg_temp.cards(pg_temp.at(d, '20:14'));
-  if v <> '' then raise exception 'FAILED: 29 minutes after the answer %', v; end if;
+  if v is distinct from '' then raise exception 'FAILED: 29 minutes after the answer %', v; end if;
   v := pg_temp.cards(pg_temp.at(d, '20:16'));
-  if v <> '901=K1' then raise exception 'FAILED: 31 minutes after the answer %', v; end if;
+  if v is distinct from '901=K1' then raise exception 'FAILED: 31 minutes after the answer %', v; end if;
   delete from bot.links where tg_user_id in (901, 902);
 end
 $t$;
@@ -232,42 +233,44 @@ begin
   u := pg_temp.link(1101);
   for i in 0..2 loop
     v := pg_temp.cards(pg_temp.at(d + i, '20:01'));
-    if v <> '1101=K1' then raise exception 'FAILED: day % %', i, v; end if;
+    if v is distinct from '1101=K1' then raise exception 'FAILED: day % %', i, v; end if;
   end loop;
   select delivery_id into x from public.bot_claim_reminders(10, pg_temp.at(d + 3, '20:01'));
   c := public.bot_reminder_context(x);
-  if c ->> 'card' <> 'K2' or c ->> 'kind' <> 'ask' or (select kind from bot.deliveries where id = x) <> 'ask'
-     or not (c ? 'plan') or not (c ? 'overview') or c -> 'link' ->> 'tz' <> 'Europe/Minsk' then
+  if c ->> 'card' is distinct from 'K2' or c ->> 'kind' is distinct from 'ask' or (select kind from bot.deliveries where id = x) is distinct from 'ask'
+     or not (c ? 'plan') or not (c ? 'overview') or c -> 'link' ->> 'tz' is distinct from 'Europe/Minsk' then
     raise exception 'FAILED: K2 instead of the fourth %', c - 'plan' - 'overview'; end if;
   perform public.bot_delivery_sending(x, pg_temp.at(d + 3, '20:01:05'));
-  if (public.bot_delivery_done(x, 'sent', 7001, null, pg_temp.at(d + 3, '20:01:06')) ->> 'kind') <> 'ask'
-     or (select asked_at from bot.links where tg_user_id = 1101) <> pg_temp.at(d + 3, '20:01:06') then
-    raise exception 'FAILED: K2 sent → asked_at'; end if;
+  -- (a call and the read of what it changed go in separate statements: a subquery in the same expression reads the
+  -- table as it was when that expression began)
+  c := public.bot_delivery_done(x, 'sent', 7001, null, pg_temp.at(d + 3, '20:01:06'));
+  if c ->> 'kind' is distinct from 'ask' or (select asked_at from bot.links where tg_user_id = 1101) is distinct from pg_temp.at(d + 3, '20:01:06') then
+    raise exception 'FAILED: K2 sent → asked_at %', c; end if;
   -- K2 took the day card slot: no K1 later that day
-  if pg_temp.cards(pg_temp.at(d + 3, '20:40')) <> '' then raise exception 'FAILED: a K1 on the K2 day'; end if;
+  if pg_temp.cards(pg_temp.at(d + 3, '20:40')) is distinct from '' then raise exception 'FAILED: a K1 on the K2 day'; end if;
   -- silence: two days, each claimed once and skipped
-  if pg_temp.cards(pg_temp.at(d + 4, '20:01')) <> '1101=skip:silent' or pg_temp.cards(pg_temp.at(d + 5, '20:01')) <> '1101=skip:silent' then
+  if pg_temp.cards(pg_temp.at(d + 4, '20:01')) is distinct from '1101=skip:silent' or pg_temp.cards(pg_temp.at(d + 5, '20:01')) is distinct from '1101=skip:silent' then
     raise exception 'FAILED: silence after K2'; end if;
-  if (select count(*) from bot.deliveries where chat_id = 1101 and local_day in (d + 4, d + 5) and status = 'skipped' and error = 'silent') <> 2 then
+  if (select count(*) from bot.deliveries where chat_id = 1101 and local_day in (d + 4, d + 5) and status = 'skipped' and error = 'silent') is distinct from 2 then
     raise exception 'FAILED: silent days recorded'; end if;
   -- the student answers on the site: the next day a K1 again, and the count starts over
   perform pg_temp.answer(u, pg_temp.at(d + 5, '22:00'));
-  if pg_temp.cards(pg_temp.at(d + 6, '20:01')) <> '1101=K1' then raise exception 'FAILED: K1 after an answer'; end if;
+  if pg_temp.cards(pg_temp.at(d + 6, '20:01')) is distinct from '1101=K1' then raise exception 'FAILED: K1 after an answer'; end if;
   -- a day with nothing to do (the function skips it) does not count toward K2
   select delivery_id into x from public.bot_claim_reminders(10, pg_temp.at(d + 7, '20:01'));
   perform public.bot_reminder_context(x);
   perform public.bot_delivery_done(x, 'skipped', null, 'nothing', pg_temp.at(d + 7, '20:01:01'));
-  if pg_temp.cards(pg_temp.at(d + 8, '20:01')) <> '1101=K1' or pg_temp.cards(pg_temp.at(d + 9, '20:01')) <> '1101=K1' then
+  if pg_temp.cards(pg_temp.at(d + 8, '20:01')) is distinct from '1101=K1' or pg_temp.cards(pg_temp.at(d + 9, '20:01')) is distinct from '1101=K1' then
     raise exception 'FAILED: K1 on days 8 and 9'; end if;
-  if pg_temp.cards(pg_temp.at(d + 10, '20:01')) <> '1101=K2' then raise exception 'FAILED: the second K2 (6, 8, 9 sent)'; end if;
+  if pg_temp.cards(pg_temp.at(d + 10, '20:01')) is distinct from '1101=K2' then raise exception 'FAILED: the second K2 (6, 8, 9 sent)'; end if;
   -- the answer «Да» (a bot action, stamped here on the timeline) ends the silence; the answer is kept on the K2 row
   update bot.links set last_seen_at = pg_temp.at(d + 10, '21:00') where tg_user_id = 1101;
-  if public.bot_settings(1101, '{"ask": "yes"}') ->> 'status' <> 'ok'
-     or (select answer from bot.deliveries where chat_id = 1101 and local_day = d + 10) <> 'yes' then
-    raise exception 'FAILED: the K2 answer'; end if;
-  if public.bot_settings(1101, '{"ask": "maybe"}') ->> 'reason' <> 'format' then raise exception 'FAILED: a bad K2 answer'; end if;
+  c := public.bot_settings(1101, '{"ask": "yes"}');
+  if c ->> 'status' is distinct from 'ok' or (select answer from bot.deliveries where chat_id = 1101 and local_day = d + 10) is distinct from 'yes' then
+    raise exception 'FAILED: the K2 answer %', c; end if;
+  if public.bot_settings(1101, '{"ask": "maybe"}') ->> 'reason' is distinct from 'format' then raise exception 'FAILED: a bad K2 answer'; end if;
   update bot.links set last_seen_at = pg_temp.at(d + 10, '21:00') where tg_user_id = 1101;
-  if pg_temp.cards(pg_temp.at(d + 11, '20:01')) <> '1101=K1' then raise exception 'FAILED: K1 after «Да»'; end if;
+  if pg_temp.cards(pg_temp.at(d + 11, '20:01')) is distinct from '1101=K1' then raise exception 'FAILED: K1 after «Да»'; end if;
   delete from bot.links where tg_user_id = 1101;
 end
 $t$;
@@ -282,23 +285,23 @@ begin
   update bot.links set blocked_at = now() where tg_user_id = 1202;
   update bot.links set remind_on = false where tg_user_id = 1203;
   for x, c in select dl.id, public.bot_reminder_context(dl.id) from bot.deliveries dl where dl.chat_id between 1201 and 1203 order by dl.chat_id loop
-    if c ->> 'card' <> 'skip' or c ->> 'status' <> 'ok' then raise exception 'FAILED: context % %', x, c; end if;
+    if c ->> 'card' is distinct from 'skip' or c ->> 'status' is distinct from 'ok' then raise exception 'FAILED: context % %', x, c; end if;
   end loop;
-  if (select string_agg(error, ',' order by chat_id) from bot.deliveries where chat_id between 1201 and 1203) <> 'unlinked,blocked,off'
-     or (select count(*) from bot.deliveries where chat_id between 1201 and 1203 and status = 'skipped') <> 3 then
+  if (select string_agg(error, ',' order by chat_id) from bot.deliveries where chat_id between 1201 and 1203) is distinct from 'unlinked,blocked,off'
+     or (select count(*) from bot.deliveries where chat_id between 1201 and 1203 and status = 'skipped') is distinct from 3 then
     raise exception 'FAILED: the context''s reasons'; end if;
-  if public.bot_reminder_context(-1) ->> 'status' <> 'gone' then raise exception 'FAILED: an unknown delivery'; end if;
+  if public.bot_reminder_context(-1) ->> 'status' is distinct from 'gone' then raise exception 'FAILED: an unknown delivery'; end if;
   -- /today sent a card at 09:00 that nobody used; the reminder's card replaces it
   insert into bot.days (link_id, local_day, card_message_id) select id, d, 555 from bot.links where tg_user_id = 1204;
   select id into x from bot.deliveries where chat_id = 1204 and local_day = d;
   c := public.bot_reminder_context(x);
   perform public.bot_delivery_sending(x, pg_temp.at(d, '20:01:02'));
   r := public.bot_delivery_done(x, 'sent', 556, null, pg_temp.at(d, '20:01:03'));
-  if r <> '{"status": "ok", "kind": "reminder", "prev_card_message_id": 555}'::jsonb
+  if r is distinct from '{"status": "ok", "kind": "reminder", "prev_card_message_id": 555}'::jsonb
      or (select row(card_message_id, card_used) from bot.days dy join bot.links l on l.id = dy.link_id where l.tg_user_id = 1204 and dy.local_day = d)
         is distinct from row(556::bigint, false) then
     raise exception 'FAILED: the reminder''s card %', r; end if;
-  if public.bot_delivery_done(x, 'sent', 556, null, pg_temp.at(d, '20:02')) <> '{"status": "ignored"}'::jsonb then
+  if public.bot_delivery_done(x, 'sent', 556, null, pg_temp.at(d, '20:02')) is distinct from '{"status": "ignored"}'::jsonb then
     raise exception 'FAILED: done twice'; end if;
   begin
     perform public.bot_delivery_done(x, 'delivered', null, null, null);
@@ -310,7 +313,7 @@ begin
   select delivery_id into x from public.bot_claim_reminders(10, pg_temp.at(d + 1, '20:01')) where chat_id = 1204;
   perform public.bot_reminder_context(x);
   perform public.bot_delivery_sending(x, pg_temp.at(d + 1, '20:01:02'));
-  if public.bot_delivery_done(x, 'sent', 558, null, pg_temp.at(d + 1, '20:01:03')) -> 'prev_card_message_id' <> 'null'::jsonb then
+  if public.bot_delivery_done(x, 'sent', 558, null, pg_temp.at(d + 1, '20:01:03')) -> 'prev_card_message_id' is distinct from 'null'::jsonb then
     raise exception 'FAILED: a used card handed back'; end if;
   delete from bot.links where tg_user_id between 1201 and 1204;
 end
@@ -336,25 +339,25 @@ begin
          (ux, 'web-k3-0003', pg_temp.at(d - 1, '18:00'), d - 1, cx, s, 1, true, 'start'),
          (ux, 'web-k3-0004', pg_temp.at(d + 1, '09:00'), d + 1, cx, s, 1, true, 'training');
   update bot.links set paused_until = d + 4 where tg_user_id = 1302;   -- Y's K3 waits for the pause (below)
-  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d, '20:05'))) <> 0 then raise exception 'FAILED: K3 on the exam day'; end if;
-  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 1, '19:59'))) <> 0 then raise exception 'FAILED: K3 before the time'; end if;
+  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d, '20:05'))) is distinct from 0 then raise exception 'FAILED: K3 on the exam day'; end if;
+  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 1, '19:59'))) is distinct from 0 then raise exception 'FAILED: K3 before the time'; end if;
   select * into r from public.bot_claim_after_date(10, pg_temp.at(d + 1, '20:05'));
-  if r.chat_id is distinct from 1301::bigint or r.container_id <> cx or r.local_day <> d + 1 or r.tz <> 'Europe/Minsk'
-     or r.exam ->> 'title' <> 'Осенняя сессия' or (r.exam ->> 'last_date')::date <> d or (r.exam ->> 'answers')::int <> 3
-     or (r.exam ->> 'active_days')::int <> 2 or (r.exam ->> 'keyed')::int <> 0 or (r.exam ->> 'two_days')::int <> 0
+  if r.chat_id is distinct from 1301::bigint or r.container_id is distinct from cx or r.local_day is distinct from d + 1 or r.tz is distinct from 'Europe/Minsk'
+     or r.exam ->> 'title' is distinct from 'Осенняя сессия' or (r.exam ->> 'last_date')::date is distinct from d or (r.exam ->> 'answers')::int is distinct from 3
+     or (r.exam ->> 'active_days')::int is distinct from 2 or (r.exam ->> 'keyed')::int is distinct from 0 or (r.exam ->> 'two_days')::int is distinct from 0
      or (r.exam ->> 'first_plan_day')::date > d then
     raise exception 'FAILED: K3 for X %', row_to_json(r); end if;
-  if (select count(*) from bot.deliveries where kind = 'after_date') <> 1 then raise exception 'FAILED: one K3 row'; end if;
+  if (select count(*) from bot.deliveries where kind = 'after_date') is distinct from 1 then raise exception 'FAILED: one K3 row'; end if;
   perform public.bot_delivery_sending(r.delivery_id, pg_temp.at(d + 1, '20:05:01'));
   perform public.bot_delivery_done(r.delivery_id, 'sent', 9001, null, pg_temp.at(d + 1, '20:05:02'));
-  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 1, '20:30'))) <> 0
-     or (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 2, '20:05'))) <> 0
-     or (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 3, '20:05'))) <> 0 then
+  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 1, '20:30'))) is distinct from 0
+     or (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 2, '20:05'))) is distinct from 0
+     or (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 3, '20:05'))) is distinct from 0 then
     raise exception 'FAILED: K3 more than once'; end if;
   -- Y: the exam's own date is d but a subject's is d + 2 → K3 from d + 3; Y is paused until d + 4 → caught up on d + 4
-  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 3, '20:05'))) <> 0 then raise exception 'FAILED: K3 in a pause'; end if;
+  if (select count(*) from public.bot_claim_after_date(10, pg_temp.at(d + 3, '20:05'))) is distinct from 0 then raise exception 'FAILED: K3 in a pause'; end if;
   select * into r from public.bot_claim_after_date(10, pg_temp.at(d + 4, '20:05'));
-  if r.chat_id is distinct from 1302::bigint or r.container_id <> cy or (r.exam ->> 'last_date')::date <> d + 2 then
+  if r.chat_id is distinct from 1302::bigint or r.container_id is distinct from cy or (r.exam ->> 'last_date')::date is distinct from d + 2 then
     raise exception 'FAILED: K3 by the subject''s own date, after the pause %', row_to_json(r); end if;
   -- «Зимняя сессия» (9 days ago) never: K3 only within 3 days
   if exists (select 1 from bot.deliveries where ref = cz::text) then raise exception 'FAILED: an old exam got K3'; end if;
@@ -363,7 +366,7 @@ begin
   update bot.links set blocked_at = now() where tg_user_id = 1301;
   update bot.links set remind_on = false where tg_user_id = 1302;
   select count(*) into n from public.bot_claim_after_date(10, pg_temp.at(d + 1, '20:05'));
-  if n <> 0 then raise exception 'FAILED: K3 for blocked or off'; end if;
+  if n is distinct from 0 then raise exception 'FAILED: K3 for blocked or off'; end if;
   delete from bot.links where tg_user_id in (1301, 1302);
   delete from public.containers where id in (cx, cy, cz);
 end
@@ -372,7 +375,7 @@ $t$;
 -- 10. The night's close (spec §6.6 step 5): after local midnight, a day of the last two with an unused card or a
 --     summary with a keyboard, once; a card that became a session is never deleted; blocked chats are left alone.
 do $t$
-declare d date := pg_temp.d(90); l bigint; r record; n integer;
+declare d date := pg_temp.d(90); l bigint; r record; n integer; v_stand_in boolean := false;
 begin
   perform pg_temp.link(1401);
   select id into l from bot.links where tg_user_id = 1401;
@@ -381,30 +384,128 @@ begin
     (l, d + 1, 302, true, null),    -- the card became a session, no summary: nothing to do
     (l, d + 2, 303, false, null),   -- an unused card
     (l, d - 5, 299, false, null);   -- too old: deleteMessage works only 48 hours
-  if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d, '23:59'))) <> 0 then raise exception 'FAILED: a close before midnight'; end if;
+  if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d, '23:59'))) is distinct from 0 then raise exception 'FAILED: a close before midnight'; end if;
   select * into r from public.bot_claim_day_close(10, pg_temp.at(d + 1, '00:05'));
-  if r.chat_id is distinct from 1401::bigint or r.local_day <> d or r.card_message_id <> 301 or r.last_message_id <> 401 then
+  if r.chat_id is distinct from 1401::bigint or r.local_day is distinct from d or r.card_message_id is distinct from 301 or r.last_message_id is distinct from 401 then
     raise exception 'FAILED: the close of day 0 %', row_to_json(r); end if;
-  if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d + 1, '00:06'))) <> 0 then raise exception 'FAILED: claimed twice'; end if;
+  if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d + 1, '00:06'))) is distinct from 0 then raise exception 'FAILED: claimed twice'; end if;
   perform public.bot_delivery_done(r.delivery_id, 'sent', null, null, pg_temp.at(d + 1, '00:05:10'));
-  if (select closed_at from bot.days where link_id = l and local_day = d) <> pg_temp.at(d + 1, '00:05:10') then
+  if (select closed_at from bot.days where link_id = l and local_day = d) is distinct from pg_temp.at(d + 1, '00:05:10') then
     raise exception 'FAILED: closed_at'; end if;
-  if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d + 2, '00:05'))) <> 0 then
+  if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d + 2, '00:05'))) is distinct from 0 then
     raise exception 'FAILED: a day with nothing to do'; end if;
-  -- the unused card of day 2 is, in fact, package T5's session message: kept
-  create table bot.sessions (sid text primary key, user_id uuid, chat_id bigint, message_id bigint, status text);
-  insert into bot.sessions values ('s0000303', (select user_id from bot.links where id = l), 1401, 303, 'finished');
+  -- the unused card of day 2 is, in fact, package T5's session message: kept (T5's own table when it is applied, else a
+  -- stand-in with its columns, gone again)
+  if to_regclass('bot.sessions') is null then
+    create table bot.sessions (sid text primary key, user_id uuid not null, chat_id bigint not null, message_id bigint,
+      container_id uuid, subject_id uuid, local_day date, items uuid[], retry smallint[], cls text[], shown jsonb,
+      shown_at timestamptz[], status text not null, finished_at timestamptz);
+    v_stand_in := true;
+  end if;
+  insert into bot.sessions (sid, user_id, chat_id, message_id, container_id, subject_id, local_day, items, retry, cls, shown,
+                            shown_at, status, finished_at)
+  values ('s0000303', (select user_id from bot.links where id = l), 1401, 303, gen_random_uuid(), gen_random_uuid(), d + 2,
+          array[gen_random_uuid()], '{0}', '{check}', '[null]', '{null}', 'finished', pg_temp.at(d + 2, '21:00'));
   select * into r from public.bot_claim_day_close(10, pg_temp.at(d + 3, '00:05'));
-  if r.local_day <> d + 2 or r.card_message_id is not null or r.last_message_id is not null then
+  if r.local_day is distinct from d + 2 or r.card_message_id is not null or r.last_message_id is not null then
     raise exception 'FAILED: a session''s message would be deleted %', row_to_json(r); end if;
-  drop table bot.sessions;
+  delete from bot.sessions where sid = 's0000303';
+  if v_stand_in then drop table bot.sessions; end if;
   -- blocked: left alone
   insert into bot.days (link_id, local_day, card_message_id) values (l, d + 9, 309);
   update bot.links set blocked_at = now() where id = l;
   select count(*) into n from public.bot_claim_day_close(10, pg_temp.at(d + 10, '00:05'));
-  if n <> 0 then raise exception 'FAILED: a close in a blocked chat'; end if;
-  if (select count(*) from bot.deliveries where kind = 'day_close' and chat_id = 1401) <> 2 then raise exception 'FAILED: two closes'; end if;
+  if n is distinct from 0 then raise exception 'FAILED: a close in a blocked chat'; end if;
+  if (select count(*) from bot.deliveries where kind = 'day_close' and chat_id = 1401) is distinct from 2 then raise exception 'FAILED: two closes'; end if;
   delete from bot.links where id = l;
+end
+$t$;
+
+-- 11. A 429 (spec §6.7): Telegram sent nothing, so bot_delivery_retry puts the row back to claimed with its attempts
+--     kept; a later claim takes it again after 10 minutes, at most 3 tries in all; a row no longer due (the window
+--     closed, the chat blocked, no try left) is closed as failed. Never unknown, never twice. The night's close and K3
+--     take the same way back.
+do $t$
+declare d date := pg_temp.d(100); x bigint; y bigint; z bigint; n integer; ok boolean;
+begin
+  perform pg_temp.link(1501);
+  select delivery_id into x from public.bot_claim_reminders(10, pg_temp.at(d, '20:01')) where chat_id = 1501;
+  perform public.bot_reminder_context(x);
+  if not public.bot_delivery_sending(x, pg_temp.at(d, '20:01:01')) then raise exception 'FAILED: 429: sending'; end if;
+  if not public.bot_delivery_retry(x, '429', pg_temp.at(d, '20:01:02')) then raise exception 'FAILED: 429: retry 1'; end if;
+  if (select row(status, attempts, error, claimed_at) from bot.deliveries where id = x)
+     is distinct from row('claimed'::text, 1::smallint, '429'::text, pg_temp.at(d, '20:01:02')) then
+    raise exception 'FAILED: 429: back to claimed with its attempts'; end if;
+  -- (as above: the call first, then the read)
+  ok := public.bot_delivery_retry(x, '429', pg_temp.at(d, '20:01:03'));
+  if ok or (select status from bot.deliveries where id = x) is distinct from 'claimed' then
+    raise exception 'FAILED: 429: a retry of a row not in sending'; end if;
+  -- the saving mode sees it once a claim would take it
+  if bot.tick_due(pg_temp.at(d, '20:05')) or not bot.tick_due(pg_temp.at(d, '20:12')) then raise exception 'FAILED: 429: tick_due'; end if;
+  select count(*) into n from public.bot_claim_reminders(10, pg_temp.at(d, '20:05')) where chat_id = 1501;
+  if n is distinct from 0 then raise exception 'FAILED: 429: taken again before 10 minutes'; end if;
+  select count(*) into n from public.bot_claim_reminders(10, pg_temp.at(d, '20:12')) where chat_id = 1501;
+  if n is distinct from 1 or (select attempts from bot.deliveries where id = x) is distinct from 2 then raise exception 'FAILED: 429: try 2'; end if;
+  perform public.bot_reminder_context(x);
+  perform public.bot_delivery_sending(x, pg_temp.at(d, '20:12:01'));
+  if not public.bot_delivery_retry(x, '429', pg_temp.at(d, '20:12:02')) then raise exception 'FAILED: 429: retry 2'; end if;
+  select count(*) into n from public.bot_claim_reminders(10, pg_temp.at(d, '20:23')) where chat_id = 1501;
+  if n is distinct from 1 or (select attempts from bot.deliveries where id = x) is distinct from 3 then raise exception 'FAILED: 429: try 3'; end if;
+  perform public.bot_reminder_context(x);
+  perform public.bot_delivery_sending(x, pg_temp.at(d, '20:23:01'));
+  if public.bot_delivery_retry(x, '429', pg_temp.at(d, '20:23:02')) then raise exception 'FAILED: 429: a fourth try'; end if;
+  if (select row(status, error) from bot.deliveries where id = x) is distinct from row('failed'::text, '429'::text) then
+    raise exception 'FAILED: 429: no try left → failed'; end if;
+  perform * from public.bot_claim_reminders(10, pg_temp.at(d, '20:40'));
+  perform * from public.bot_claim_reminders(10, pg_temp.at(d, '22:30'));
+  if (select count(*) from bot.deliveries where chat_id = 1501) is distinct from 1 or (select status from bot.deliveries where id = x) is distinct from 'failed' then
+    raise exception 'FAILED: 429: one row for the day, failed'; end if;
+  -- a 429 that comes after the window closed, and one for a chat blocked meanwhile: failed at once
+  perform pg_temp.link(1502); perform pg_temp.link(1503);
+  perform * from public.bot_claim_reminders(10, pg_temp.at(d + 1, '22:58'));
+  select id into y from bot.deliveries where chat_id = 1502 and local_day = d + 1;
+  select id into z from bot.deliveries where chat_id = 1503 and local_day = d + 1;
+  perform public.bot_reminder_context(y); perform public.bot_reminder_context(z);
+  perform public.bot_delivery_sending(y, pg_temp.at(d + 1, '22:58:30'));
+  perform public.bot_delivery_sending(z, pg_temp.at(d + 1, '22:58:30'));
+  ok := public.bot_delivery_retry(y, '429', pg_temp.at(d + 1, '23:00:30'));
+  if ok or (select status from bot.deliveries where id = y) is distinct from 'failed' then
+    raise exception 'FAILED: 429: after the window'; end if;
+  update bot.links set blocked_at = now() where tg_user_id = 1503;
+  ok := public.bot_delivery_retry(z, null, pg_temp.at(d + 1, '22:59'));
+  if ok or (select row(status, error) from bot.deliveries where id = z) is distinct from row('failed'::text, '429'::text) then
+    raise exception 'FAILED: 429: a blocked chat'; end if;
+  delete from bot.links where tg_user_id between 1501 and 1503;
+end
+$t$;
+do $t$
+declare d date := pg_temp.d(110); l bigint; r record; u uuid; c uuid;
+begin
+  -- the night's close
+  perform pg_temp.link(1601);
+  select id into l from bot.links where tg_user_id = 1601;
+  insert into bot.days (link_id, local_day, card_message_id) values (l, d, 611);
+  select * into r from public.bot_claim_day_close(10, pg_temp.at(d + 1, '00:05'));
+  perform public.bot_delivery_sending(r.delivery_id, pg_temp.at(d + 1, '00:05:01'));
+  if not public.bot_delivery_retry(r.delivery_id, '429', pg_temp.at(d + 1, '00:05:02')) then raise exception 'FAILED: 429: the close'; end if;
+  if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d + 1, '00:10'))) is distinct from 0 then
+    raise exception 'FAILED: 429: the close taken again too early'; end if;
+  select * into r from public.bot_claim_day_close(10, pg_temp.at(d + 1, '00:16'));
+  if r.card_message_id is distinct from 611::bigint or (select attempts from bot.deliveries where id = r.delivery_id) is distinct from 2 then
+    raise exception 'FAILED: 429: the close taken again %', row_to_json(r); end if;
+  -- K3
+  u := pg_temp.link(1602);
+  insert into public.containers (id, owner_id, title, exam_date) values (gen_random_uuid(), u, 'Осенняя сессия', d) returning id into c;
+  select * into r from public.bot_claim_after_date(10, pg_temp.at(d + 1, '20:05'));
+  if r.chat_id is distinct from 1602::bigint then raise exception 'FAILED: 429: K3 claim %', row_to_json(r); end if;
+  perform public.bot_delivery_sending(r.delivery_id, pg_temp.at(d + 1, '20:05:01'));
+  if not public.bot_delivery_retry(r.delivery_id, '429', pg_temp.at(d + 1, '20:05:02')) then raise exception 'FAILED: 429: K3'; end if;
+  select * into r from public.bot_claim_after_date(10, pg_temp.at(d + 1, '20:16'));
+  if r.chat_id is distinct from 1602::bigint or r.exam ->> 'title' is distinct from 'Осенняя сессия'
+     or (select attempts from bot.deliveries where id = r.delivery_id) is distinct from 2 then
+    raise exception 'FAILED: 429: K3 taken again %', row_to_json(r); end if;
+  delete from bot.links where tg_user_id in (1601, 1602);
+  delete from public.containers where id = c;
 end
 $t$;
 

@@ -45,6 +45,7 @@ vi.mock('../api/social', () => ({
 vi.mock('../utils/push', () => ({ subscribeUserToPush: vi.fn(), checkPushSubscription: async () => false, requestNotificationPermission: vi.fn() }));
 vi.mock('../components/oral/AnswerTextsSetting', () => ({ default: () => null }));
 vi.mock('../components/reminders/DailyReminder', () => ({ default: () => null }));
+vi.mock('../components/telegram/TelegramCard', () => ({ default: () => null }));
 vi.mock('../components/UniversitySelect', () => ({ default: () => null }));
 vi.mock('../components/ImageCropper', () => ({ default: () => null }));
 vi.mock('../lib/telemetry', () => ({ TELEMETRY_NOTE: 'Meldy считает только посещения страниц.' }));

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { ContainerSummary, DayPlan, LocalDay, PlanInput } from '../../types/container';
 import DailyReminder from '../reminders/DailyReminder';
+import { TelegramRemindLink } from '../telegram/TelegramCard';
 import { Mark } from './ui';
 import { RoomBar } from './RoomParts';
 import { planText, safeStart, text as lineWords } from './planLines';
@@ -145,7 +146,7 @@ export default function SessionEnd({
         </div>
         {firstEver ? (
           <div className="ct-end-links">
-            <DailyReminder variant="today" examId={containerId} />
+            <TelegramRemindLink fallback={<DailyReminder variant="today" examId={containerId} />} />
           </div>
         ) : null}
         <div className="ct-bar">

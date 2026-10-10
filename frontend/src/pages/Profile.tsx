@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
 import AnswerTextsSetting from '../components/oral/AnswerTextsSetting';
 import DailyReminder from '../components/reminders/DailyReminder';
+import TelegramCard from '../components/telegram/TelegramCard';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -409,6 +410,7 @@ export default function Profile() {
 
       <section className="ac-card ac-rise" aria-labelledby="profile-push-title">
         <h2 id="profile-push-title" className="ac-card-h">Уведомления</h2>
+        <TelegramCard />
         {/* First: a calendar event on the student's own device (push subscriptions do not survive a release). */}
         <DailyReminder variant="profile" />
         <div className="ac-row">
