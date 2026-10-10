@@ -332,6 +332,10 @@ test('a counter edit of a deleted post → gone (no more edits); a failed edit i
   const failed = await h.tick();
   assert.equal(failed.count_failed, 1);
   h.advance(MIN);
+  h.tg.fail('editMessageText', { kind: '429', retryAfter: 9 });
+  const limited = await h.tick();
+  assert.equal(limited.count_rate_limited, 1);
+  h.advance(MIN);
   h.tg.fail('editMessageText', { kind: '400', description: 'Bad Request: message to edit not found' });
   const gone = await h.tick();
   assert.equal(gone.count_gone, 1);
@@ -339,7 +343,7 @@ test('a counter edit of a deleted post → gone (no more edits); a failed edit i
   await tap(h, 1, OUTSIDER.tg);
   h.advance(MIN);
   await h.tick();
-  assert.equal(h.tg.of('editMessageText').length, 3, 'nothing after gone');
+  assert.equal(h.tg.of('editMessageText').length, 4, 'nothing after gone');
 });
 
 // ─────────────────────────────────────────── step 1: the 21:00 close ───────────────────────────────────────────
@@ -525,6 +529,48 @@ test('5 posts in a row without answers → no more posts and one G4 to the autho
   assert.equal(sends(h).length, 1, 'G4 once, and nothing more');
 });
 
+test('G4 hit by a 429: back through bot_delivery_retry, the step stops; a later tick sends it, once', async () => {
+  const h = groupHarness();
+  // T1's bot_delivery_retry for a notice: back to claimed while the link is on and tries remain (T2's fake applies the
+  // reminder window to every kind but the night's close; the SQL does not).
+  h.fdb.db.deliveryRetry = async (id: number, error = '429') => {
+    h.fdb.calls.push({ fn: 'bot_delivery_retry', args: { id, error } });
+    const d = h.fdb.deliveries.find((x) => x.id === id);
+    if (!d || d.status !== 'sending') return false;
+    d.status = d.attempts < 3 ? 'claimed' : 'failed';
+    d.claimedAt = h.now;
+    return d.status === 'claimed';
+  };
+  h.exam.counts = only(DHCP);
+  h.fg.bind(GROUP, h.exam);
+  for (let ago = 5; ago >= 1; ago -= 1) h.fg.pastPost(GROUP, h.fg.daysBefore(DAY, ago), ACID.id, 0);
+  h.tg.fail('sendMessage', { kind: '429', retryAfter: 30 });
+  const first = await h.tick();
+  assert.deepEqual([first.posts_rate_limited, first.posts_g4_requeued], [1, 1]);
+  assert.deepEqual(h.fdb.of('bot_delivery_retry').map((x) => (x.args as Params).error), ['429']);
+  assert.deepEqual(h.fdb.of('bot_delivery_done'), [], 'not closed as failed');
+  assert.equal(delivered(h, AUTHOR.tg).length, 0);
+  h.advance(11 * MIN);
+  const second = await h.tick();
+  assert.equal(second.posts_g4, 1);
+  assert.equal(delivered(h, AUTHOR.tg).length, 1);
+  h.advance(11 * MIN);
+  await h.tick();
+  assert.equal(delivered(h, AUTHOR.tg).length, 1, 'once');
+});
+
+test('the group steps share the tick\'s pacer: posts to several chats at most 25 a second', async () => {
+  const h = groupHarness();
+  h.exam.counts = only(DHCP);
+  const chats = [GROUP, -1002, -1003, -1004];
+  for (const chat of chats) h.fg.bind(chat, h.exam);
+  const stats = await h.tick();
+  assert.equal(stats.posts_posted, 4);
+  const times = h.tg.of('sendMessage').map((c) => c.at);
+  for (let i = 1; i < times.length; i += 1) assert.ok(times[i] - times[i - 1] >= 40, `${times[i] - times[i - 1]} ms`);
+  assert.deepEqual(sends(h).map((p) => p.chat_id).sort(), [...chats].sort());
+});
+
 test('4 empty posts and one answered: the post goes out as usual', async () => {
   const h = groupHarness();
   h.exam.counts = only(DHCP);
@@ -707,6 +753,40 @@ test('snapshots of G1–G4 and every G3 reply, each through T2\'s linter (in a g
   }
   assert.equal(plain(G.g3(replies.member_refused_by_core).text), 'Неверно. В файле — DHCP.', 'not recorded: no promise of a return');
   matchSnapshots('../group/snapshots', shots);
+});
+
+test('the texts T7 returns are raw: < > & are escaped in every message and stay as they are in buttons and windows', async () => {
+  const RAW: FakeItem = { ...DHCP, id: 'f1f2c3d4-0000-4000-8000-000000000099', subject: 'Базы <данных> & SQL', stem: 'Что вернёт запрос <select> & <b>?', options: ['<b>x</b>', 'a & b', 'x > y', '1 < 2'], correct: 1 };
+  const h = groupHarness();
+  h.exam.title = 'Осенняя & <сессия>';
+  h.exam.items = [...h.exam.items, RAW];
+  h.fg.addCode(CODE, h.exam);
+  const cmd = groupCommand(`/start@Meldyteach_bot ${CODE}`, AUTHOR.tg);
+  cmd.message!.chat.title = '3-ПО <script>';
+  await h.post(cmd);
+  h.exam.counts = [counts(RAW, { confirmable: 3 })];
+  await h.tick();
+  const params = sends(h).at(-1)!;
+  await tap(h, shownOf(RAW).indexOf(3), STRANGER.tg);
+  const toast = lastAnswer(h);
+  assert.equal(toast.text, 'Неверно. В файле — a & b. Чтобы такие ответы шли в план Meldy, подключите Telegram в профиле.', 'a window is plain text');
+  await h.tick();
+  h.set(AT_2101);
+  await h.tick();
+  const texts = [...sends(h).map((p) => p.text as string), ...edits(h).map((p) => p.text as string)];
+  assert.equal(texts.length, 5, 'G1, the owner\'s line, the post, the counter, the close');
+  for (const text of texts) {
+    assert.deepEqual(lintMessage({ text, user: ['3-ПО <script>', 'Осенняя & <сессия>', RAW.subject, RAW.stem, ...RAW.options] }).filter((p) => /unescaped|tag|entity|closes|unclosed/.test(p)), [], text);
+  }
+  assert.match(words(texts[0]), /^Вопрос дня из экзамена «Осенняя & <сессия>»/);
+  assert.match(words(texts[1]), /^Беседа «3-ПО <script>» подключена/);
+  assert.match(texts[2], /&lt;данных&gt; &amp; SQL/);
+  assert.equal(words(params.text).split('\n')[2], 'Что вернёт запрос <select> & <b>?');
+  assert.deepEqual(keyboardOf(params.reply_markup).slice(0, -1).map((row) => row[0].text).sort(), [...RAW.options].sort(), 'button labels are plain text');
+  const letters = G.postText({ postId: POST, chatId: GROUP, subject: RAW.subject, stem: RAW.stem, options: ['<b>Длинный вариант & не меньше 24 знаков</b>', 'b'], code: false, keepOrder: false });
+  assert.match(letters, /<b>А<\/b>\u2002&lt;b&gt;Длинный вариант &amp; не/);
+  assert.match(plain(G.g4('3-ПО <script>', CID, W.SITE).text), /«3-ПО &lt;script&gt;»/);
+  assert.match(G.notMemberCard('Осенняя & <сессия>').text, /^<b>Экзамен «Осенняя &amp; &lt;сессия&gt;»<\/b>/);
 });
 
 test('every Russian string of group.ts follows the copy rules (forbidden words, «!», emoji, capitals)', async () => {

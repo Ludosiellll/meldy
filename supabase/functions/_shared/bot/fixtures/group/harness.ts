@@ -29,7 +29,7 @@ export function groupHarness(options: { now?: number; exam?: Partial<FakeExam>; 
   const sleep = async (ms: number) => {
     t += ms;
   };
-  const port = createGroup({ sleep });
+  const port = createGroup();
   const app = createApp({
     token: TEST_TOKEN,
     fetch: tg.fetch,

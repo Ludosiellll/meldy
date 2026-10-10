@@ -9,12 +9,13 @@
  *   tells a linked sender why, in private. Added without a code, it says nothing.
  * - `my_chat_member` of a group: left / kicked → the group is unbound; added, made admin → nothing (the bot keeps
  *   nothing of the chat: the router drops every non-command). `migrate_to_chat_id` → the group moves to the new id.
- * - The tick: (1) at 21:00 local time the post loses its keyboard and its last line becomes «Вопрос закрыт. Ответили N.»;
- *   (2) the day's post: the candidates' summary → the copied `pickGroupQuestion` → `bot_group_pick` → the option order
- *   (the copied `optionOrder`) → `bot_group_sending` → one silent message with `protect_content`, no blue button,
- *   «Заниматься в Meldy» → `start=g<chat>` → `bot_group_posted`; G4 to the author once (T1's deliveries) when the
- *   database stops a group after five posts in a row without answers; (4) «Ответили N.» by an edit, at most once a
- *   minute (the database leases the rows).
+ * - The tick (its deadline and its pacer: ≤ 25 calls a second for the whole tick): (1) at 21:00 local time the post
+ *   loses its keyboard and its last line becomes «Вопрос закрыт. Ответили N.»; (2) the day's post: the candidates'
+ *   summary → the copied `pickGroupQuestion` → `bot_group_pick` → the option order (the copied `optionOrder`) →
+ *   `bot_group_sending` → one silent message with `protect_content`, no blue button, «Заниматься в Meldy» →
+ *   `start=g<chat>` → `bot_group_posted`; G4 to the author once (T1's deliveries) when the database stops a group after
+ *   five posts in a row without answers; (4) «Ответили N.» by an edit, at most once a minute (the database leases the
+ *   rows). A 429 stops the step: the post goes back (`retry`), G4 too (`bot_delivery_retry`), an edit is retried.
  * - A press `g|<post>|<i>`: one database call (`bot_group_answer`) → `answerCallbackQuery`. Whatever shows the key is a
  *   window (`show_alert`) of at most 200 characters, a long option cut with «…». The chat never shows the key: posts,
  *   counters and closes are rendered from a view that has none.
@@ -32,8 +33,7 @@ import { encode } from './codec.ts';
 import type { BotDb, Who } from './db.ts';
 import { b, EN_SPACE, esc, lines, pre, t, typo, visibleLength } from './html.ts';
 import { m1 } from './link.ts';
-import type { Ctx, GroupCallback, GroupPort, StepStats, Tap, TgChatMemberUpdated } from './router.ts';
-import { pacer, SENDS_PER_SECOND } from './tick.ts';
+import type { Ctx, GroupCallback, GroupPort, StepStats, Tap, TgChatMemberUpdated, TickTools } from './router.ts';
 import {
   edit, editKeyboard, isBlocked, isRateLimited, remove, send, TelegramError, type Button, type Keyboard, type Out, type TgMessage,
 } from './tg.ts';
@@ -571,11 +571,6 @@ export function g3(answer: AnswerResult): { text: string; alert: boolean } {
 export const POSTS_LIMIT = 10;
 export const EDITS_LIMIT = 50;
 
-export interface GroupOptions {
-  /** The tick's pause between sends (tests pass a fake that moves their clock). */
-  sleep?: (ms: number) => Promise<void>;
-}
-
 const add = (stats: StepStats, key: string, n = 1) => {
   stats[key] = (stats[key] ?? 0) + n;
 };
@@ -587,15 +582,11 @@ export function postIdOf(base36: string): number | null {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 /** A 400 or 403 from Telegram (it refused; nothing happened); a 429 and anything transient are not. */
 const refused = (error: unknown) => error instanceof TelegramError && error.failure === 'api' && (error.code === 400 || error.code === 403);
 const errorWord = (error: unknown) => (error instanceof TelegramError ? String(error.code) : 'error');
 
-export function createGroup(options: GroupOptions = {}): GroupPort {
-  const sleep = options.sleep ?? defaultSleep;
-
+export function createGroup(): GroupPort {
   /** K1 of the group's exam, as /today: the earlier unused card and the typed command go away. */
   async function examCard(ctx: Ctx, msg: TgMessage, tgUserId: number, containerId: string): Promise<void> {
     const chatId = msg.chat.id;
@@ -634,12 +625,18 @@ export function createGroup(options: GroupOptions = {}): GroupPort {
       add(stats, 'g4');
       return 'ok';
     } catch (error) {
-      if (isBlocked(error)) await ctx.db.chatEvent(row.chatId, 'blocked').catch(() => undefined);
-      if (isRateLimited(error) || refused(error)) {
-        // Nothing went out: the row is closed as failed (at most once: G4 is not tried again).
+      if (isRateLimited(error)) {
+        // Telegram did nothing: back to `claimed` for a later tick (or closed by the database when out of tries).
+        const back = await ctx.db.deliveryRetry(row.deliveryId).catch(() => false);
+        add(stats, 'rate_limited');
+        add(stats, back ? 'g4_requeued' : 'g4_not_requeued');
+        return 'stop';
+      }
+      if (refused(error)) {
+        if (isBlocked(error)) await ctx.db.chatEvent(row.chatId, 'blocked').catch(() => undefined);
         await ctx.db.deliveryDone(row.deliveryId, 'failed', null, errorWord(error)).catch(() => undefined);
         add(stats, 'g4_failed');
-        return isRateLimited(error) ? 'stop' : 'ok';
+        return 'ok';
       }
       add(stats, 'g4_unknown'); // a timeout or a 5xx: left in sending, it becomes unknown
       return 'ok';
@@ -761,19 +758,18 @@ export function createGroup(options: GroupOptions = {}): GroupPort {
       await groupDb(ctx.db).event(fromChatId, 'migrated', toChatId);
     },
 
-    async closePosts(ctx, deadline) {
+    async closePosts(ctx, tools: TickTools) {
       const stats: StepStats = {};
       const gdb = groupDb(ctx.db);
-      const pace = pacer(ctx.now, sleep, SENDS_PER_SECOND);
       const due = await gdb.claimCloses(EDITS_LIMIT);
       add(stats, 'claimed', due.length);
       for (const row of due) {
-        if (ctx.now() > deadline) {
+        if (ctx.now() > tools.deadline) {
           add(stats, 'left');
           continue; // leased: it comes back when the lease ends
         }
         try {
-          await pace();
+          await tools.pace();
           // No keyboard: the edit takes the buttons off. A deleted question: only the keyboard comes off.
           const result = row.view
             ? await edit(ctx.tg, { chatId: row.chatId, messageId: row.messageId, text: postOut(row.view, ctx.botUsername, { answered: row.answered, closed: true }).text, keyboard: null })
@@ -797,30 +793,28 @@ export function createGroup(options: GroupOptions = {}): GroupPort {
       return stats;
     },
 
-    async sendPosts(ctx, deadline) {
+    async sendPosts(ctx, tools: TickTools) {
       const stats: StepStats = {};
-      const pace = pacer(ctx.now, sleep, SENDS_PER_SECOND);
       const claimed = await groupDb(ctx.db).claimPosts(POSTS_LIMIT);
       add(stats, 'claimed', claimed.length);
       for (const row of claimed) {
-        if (ctx.now() > deadline) {
+        if (ctx.now() > tools.deadline) {
           add(stats, 'left');
           continue; // claimed: offered again after 10 minutes
         }
-        const outcome = row.kind === 'g4' ? await sendG4(ctx, stats, row, pace) : await sendPost(ctx, stats, row, pace);
+        const outcome = row.kind === 'g4' ? await sendG4(ctx, stats, row, tools.pace) : await sendPost(ctx, stats, row, tools.pace);
         if (outcome === 'stop') break;
       }
       return stats;
     },
 
-    async counters(ctx, deadline) {
+    async counters(ctx, tools: TickTools) {
       const stats: StepStats = {};
       const gdb = groupDb(ctx.db);
-      const pace = pacer(ctx.now, sleep, SENDS_PER_SECOND);
       const due = await gdb.counters(EDITS_LIMIT);
       add(stats, 'claimed', due.length);
       for (const row of due) {
-        if (ctx.now() > deadline) {
+        if (ctx.now() > tools.deadline) {
           add(stats, 'left');
           continue;
         }
@@ -831,7 +825,7 @@ export function createGroup(options: GroupOptions = {}): GroupPort {
         }
         const out = postOut(row.view, ctx.botUsername, { answered: row.answered });
         try {
-          await pace();
+          await tools.pace();
           // The same keyboard again: an edit without it would take the buttons off.
           const result = await edit(ctx.tg, { chatId: row.chatId, messageId: row.messageId, text: out.text, keyboard: out.keyboard });
           await gdb.counterDone(row.postId, row.answered, result === 'gone' ? 'gone' : 'shown');
