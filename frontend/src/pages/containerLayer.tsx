@@ -18,6 +18,19 @@ export type ContainerLayer =
   | { mode: 'off' }
   | { mode: 'on'; overview: ContainersOverview; offline: boolean };
 
+/**
+ * A container's days: the nearest date still ahead (`several` when its subjects have more than one date ahead), else
+ * the last one passed (`past`), else none. A subject's date is its test part's (its own, else the container's).
+ */
+export function containerDays(container: Pick<OverviewContainer, 'exam_date' | 'subjects'>, today: string): { day: string | null; several: boolean; past: boolean } {
+  const dates = container.subjects.map((subject) => subject.exam_date).filter((date): date is string => Boolean(date));
+  if (dates.length === 0 && container.exam_date) dates.push(container.exam_date);
+  const ahead = Array.from(new Set(dates.filter((date) => date >= today))).sort();
+  if (ahead.length > 0) return { day: ahead[0], several: ahead.length > 1, past: false };
+  if (dates.length > 0) return { day: [...dates].sort()[dates.length - 1], several: false, past: true };
+  return { day: null, several: false, past: false };
+}
+
 /** How long a screen waits for the containers before it draws today's page (tests shorten it). */
 export const LAYER_WAIT = { ms: 2500 };
 

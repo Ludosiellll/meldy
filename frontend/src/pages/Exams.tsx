@@ -14,7 +14,9 @@ import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { detectInAppBrowser } from '../lib/inAppBrowser';
 import { localDateKey } from '../utils/streak';
 import type { OverviewContainer } from '../types/container';
-import { useContainerLayer } from './containerLayer';
+import { containerDays, useContainerLayer } from './containerLayer';
+
+export { containerDays };
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -158,19 +160,6 @@ const SUBJECT_FORMS = ['предмет', 'предмета', 'предметов
 
 /** The «видели» part of a container's bar: the green of «в счёте», lighter (design critique I13). */
 const SEEN_BAR = 'color-mix(in srgb, var(--ex-ok-fg) 40%, transparent)';
-
-/**
- * A container's days: the nearest date still ahead (`several` when its subjects have more than one date ahead), else
- * the last one passed (`past`), else none. A subject's date is its test part's (its own, else the container's).
- */
-export function containerDays(container: Pick<OverviewContainer, 'exam_date' | 'subjects'>, today: string = localDateKey()): { day: string | null; several: boolean; past: boolean } {
-  const dates = container.subjects.map((subject) => subject.exam_date).filter((date): date is string => Boolean(date));
-  if (dates.length === 0 && container.exam_date) dates.push(container.exam_date);
-  const ahead = Array.from(new Set(dates.filter((date) => date >= today))).sort();
-  if (ahead.length > 0) return { day: ahead[0], several: ahead.length > 1, past: false };
-  if (dates.length > 0) return { day: [...dates].sort()[dates.length - 1], several: false, past: true };
-  return { day: null, several: false, past: false };
-}
 
 /** «28 октября, через 19 дней», «с 12 января, через 95 дней», «Экзамен прошёл 28 октября», «Дата не указана». */
 export function containerDateLine(container: Pick<OverviewContainer, 'exam_date' | 'subjects'>, now: Date = new Date()): string {
