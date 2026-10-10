@@ -225,6 +225,21 @@ const isTimeout = (error: unknown) => {
   return name === 'TimeoutError' || name === 'AbortError';
 };
 
+/** AbortSignal.any where the runtime has it (Deno ≥ 1.39, Node ≥ 20.3), else the same by hand. */
+export function anySignal(signals: AbortSignal[]): AbortSignal {
+  const native = (AbortSignal as unknown as { any?: (list: AbortSignal[]) => AbortSignal }).any;
+  if (typeof native === 'function') return native.call(AbortSignal, signals);
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}
+
 /** What a broken file stream shows the runtime: the upstream error can name the file server's URL, and so the token. */
 export class FileStreamError extends Error {
   constructor() {
@@ -404,7 +419,7 @@ export function createFiles(deps: FilesDeps = {}): FilesPort {
       try {
         upstream = await fetchFn(`${API_BASE}/file/bot${botToken}/${path}`, {
           method: 'GET',
-          signal: AbortSignal.any([headersLimit.signal, AbortSignal.timeout(totalTimeoutMs)]),
+          signal: anySignal([headersLimit.signal, AbortSignal.timeout(totalTimeoutMs)]),
         });
       } catch (error) {
         if (isTimeout(error)) return fail(504, 'timeout', 'timeout', { error_name: 'TimeoutError' });

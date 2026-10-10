@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import { DbError } from './db.ts';
 import {
-  arrivalOf, cleanMime, cleanName, contentType, createFiles, disposition, f1, fallbackName, FileStreamError, filePathUrl, files as defaultFiles,
+  anySignal, arrivalOf, cleanMime, cleanName, contentType, createFiles, disposition, f1, fallbackName, FileStreamError, filePathUrl, files as defaultFiles,
   MAX_BYTES, notADocument, notLinked, shownName, sizeText, toOffer, toRedeemed, tooBig,
 } from './files.ts';
 import { NBSP } from './html.ts';
@@ -473,6 +473,31 @@ test('the stream breaks halfway or stalls: the client gets a FileStreamError, ne
     assert.ok(error instanceof FileStreamError || (error as { cause?: unknown }).cause instanceof FileStreamError || /the file stream from Telegram broke/.test(text), text);
     assert.equal(logLines.length, linesBefore + 1, 'the request\'s one line, when the stream ended');
     assert.deepEqual([lastLog().outcome, lastLog().error_name], [outcome, name]);
+  }
+});
+
+test('anySignal: the native AbortSignal.any, or the same by hand on an older runtime', () => {
+  const a = new AbortController();
+  const b = new AbortController();
+  const both = anySignal([a.signal, b.signal]);
+  b.abort(new DOMException('late', 'TimeoutError'));
+  assert.ok(both.aborted);
+  assert.equal((both.reason as DOMException).name, 'TimeoutError');
+  const saved = (AbortSignal as unknown as { any?: unknown }).any;
+  try {
+    (AbortSignal as unknown as { any?: unknown }).any = undefined;
+    const c = new AbortController();
+    const d = new AbortController();
+    const byHand = anySignal([c.signal, d.signal]);
+    assert.ok(!byHand.aborted);
+    c.abort(new DOMException('first', 'AbortError'));
+    assert.ok(byHand.aborted);
+    assert.equal((byHand.reason as DOMException).name, 'AbortError');
+    const done = new AbortController();
+    done.abort();
+    assert.ok(anySignal([done.signal, new AbortController().signal]).aborted);
+  } finally {
+    (AbortSignal as unknown as { any?: unknown }).any = saved;
   }
 });
 
