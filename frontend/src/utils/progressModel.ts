@@ -336,13 +336,16 @@ function listRu(parts: string[]): string {
 
 /**
  * The line under «Прогресс»: what happened in the last 7 days, or when it last happened.
- * `lastDay` is a ready phrase such as «30 сентября».
+ * `lastDay` is a ready phrase such as «30 сентября». Each number names what it counts: `questions`
+ * are the answers to the questions of an exam's file (exam containers), never folded into another.
  */
-export function weekLede(input: { cardAnswers: number; tests: number; tickets: number; lastDay: string | null }): string {
+export function weekLede(input: { cardAnswers: number; tests: number; tickets: number; questions?: number; lastDay: string | null }): string {
   const parts: string[] = [];
+  const questions = input.questions ?? 0;
   if (input.cardAnswers > 0) parts.push(`${count(input.cardAnswers, ['ответ', 'ответа', 'ответов'])} на карточки`);
   if (input.tests > 0) parts.push(count(input.tests, ['тест', 'теста', 'тестов']));
   if (input.tickets > 0) parts.push(`${count(input.tickets, ['ответ', 'ответа', 'ответов'])} на билеты`);
+  if (questions > 0) parts.push(`${count(questions, ['ответ', 'ответа', 'ответов'])} на вопросы экзаменов`);
   if (parts.length > 0) return `За 7 дней: ${listRu(parts)}.`;
   if (input.lastDay) return `За 7 дней занятий не было. Последние — ${input.lastDay}.`;
   return 'Здесь будет видно, как вы запоминаете лекции. Начните с повторения карточек.';
