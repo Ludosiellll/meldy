@@ -146,6 +146,18 @@ export interface PlanInputsWire {
   doubted: number[]; // reserved, always [] (doubted items are left out of `items`); counts come from SubjectFacts.doubted
   /** Own pace per subject index and class, from the last ≤ 200 answers: trimmed median ms and the share wrong. */
   pace: Array<{ subject: number; cls: PlanCls; n: number; median_ms: number; p_wrong: number }>;
+  /**
+   * The same rows as `pace`, from the answers made before the container's first answer today (equal to `pace` while
+   * there is none): the pace as of the day's start, which the frozen day is planned with (20261010130000; absent from
+   * an older server).
+   */
+  pace_day?: Array<{ subject: number; cls: PlanCls; n: number; median_ms: number; p_wrong: number }>;
+  /**
+   * The state each item answered today had when the day began (before its first answer today), as `states` tuples:
+   * items answered today whose state came from an earlier day under the current rev. An item first answered today
+   * began the day unseen. (20261010130000; absent from an older server.)
+   */
+  day_start?: PlanStateRow[];
   ai: { left: number; resets_at: number } | null; // today's AI units left (epoch s of the reset)
 }
 
@@ -420,6 +432,13 @@ export interface PlanInput {
   items: PlanItem[]; // in plan only, ≤ 2000 test + ≤ 20 × 150 oral
   today: { firstAt: number | null; doneSec: number; newDone: Record<string, number> };
   pace: Record<string, Pace> | null; // per subject id; null → defaults
+  /** The pace as of the day's start (plan_inputs.pace_day; null → defaults); absent from an older server. */
+  paceDay?: Record<string, Pace> | null;
+  /**
+   * Items answered today → their state when the day began (plan_inputs.day_start, or the server's state of an answer
+   * still in the offline queue); an item first answered today began unseen. Absent from an older server.
+   */
+  dayStart?: Record<string, UnitState>;
   ai: { left: number; resetsAt: number } | null;
 }
 export type Cls = 'relearn' | 'confirm' | 'new_floor' | 'confirm_ai' | 'start_ai' | 'check' | 'final' | 'new_fill';

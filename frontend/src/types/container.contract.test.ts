@@ -245,6 +245,39 @@ describe('literal values and tuples', () => {
     for (const index of plan.doubted) expect(isInt(index) && index < plan.items.length).toBe(true);
   });
 
+  it('says how the day began: the day’s start of every item answered today that was seen before, and the pace before', () => {
+    // 20261010130000: the frozen day is the fill of the day's first answer (lib/containers/plan.ts)
+    const dayStart = plan.day_start ?? [];
+    const states = new Map(plan.states.map((row) => [row[0], row]));
+    const answeredBefore = plan.states.filter((row) => row[4] === 0 && row[3] !== null && row[3] < 0).map((row) => row[0]);
+    expect(dayStart.map((row) => row[0])).toEqual(answeredBefore);
+    for (const row of dayStart) {
+      expect(row).toHaveLength(14);
+      const now = states.get(row[0])!;
+      const [, seen, wrong, firstSeen, lastAnswer, , , streakAt, twoDaysAt] = row;
+      expect(firstSeen).toBe(now[3]);
+      expect(isInt(lastAnswer) && lastAnswer < 0).toBe(true);
+      expect(seen <= now[1] && wrong <= now[2]).toBe(true);
+      if (twoDaysAt !== null) expect(streakAt !== null && streakAt < twoDaysAt).toBe(true);
+    }
+    // The first answer today came after every moment of the day's start.
+    const firstAt = plan.containers[0].today.first_at!;
+    for (const row of dayStart) for (const at of [row[7], row[8], row[9], row[13]]) expect(at === null || at < firstAt).toBe(true);
+    // pace_day: the same rows from the answers before today's first one — as many or fewer of each.
+    const pace = new Map(plan.pace.map((row) => [`${row.subject}|${row.cls}`, row]));
+    for (const row of plan.pace_day ?? []) {
+      const all = pace.get(`${row.subject}|${row.cls}`);
+      expect(all).toBeDefined();
+      expect(row.n).toBeLessThanOrEqual(all!.n);
+      expect(PLAN_CLASSES).toContain(row.cls);
+      expect(row.p_wrong >= 0 && row.p_wrong <= 1).toBe(true);
+    }
+    const counted = (rows: PlanInputsWire['pace']) => rows.reduce((sum, row) => sum + row.n, 0);
+    // today: three checks, two relearns, one confirmation and one new counted; a misclick and a retry are not
+    expect(counted(plan.pace) - counted(plan.pace_day ?? [])).toBe(7);
+    expect(plan.containers[0].answers_today).toBe(9);
+  });
+
   it('keeps ids, days and moments in their formats', () => {
     for (const id of [container.id, summary.id, oralSync.container_id, mock.run_id, ...overview.attached_exam_ids]) expect(id).toMatch(UUID);
     for (const item of itemsPage) expect(item.updated_at).toMatch(MOMENT);
