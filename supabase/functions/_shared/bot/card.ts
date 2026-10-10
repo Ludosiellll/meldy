@@ -212,8 +212,11 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
   } else {
     text.push(b(planSentence(main)), t(examLineOf(main)));
     // «Накануне окна» (the day before the final days) and «В окне» (spec §4.2): the plan keeps window_ahead every day.
+    // The site's card says the short line and keeps the rest under «Подробнее»; a chat has no «Подробнее», so on the
+    // eve the bot says the whole sentence (`window_detail`: what the final days hold).
     for (const line of plan.lines) {
-      if ((line.key === 'window_ahead' && line.day === addDays(plan.day, 1)) || line.key === 'window_in') text.push(t(lineText(line)));
+      if (line.key === 'window_ahead' && line.day === addDays(plan.day, 1)) text.push(t(lineText({ ...line, key: 'window_detail' })));
+      else if (line.key === 'window_in') text.push(t(lineText(line)));
     }
     text.push(t(figure.line));
     if (mode === 'today' && figure.under) text.push(t(figure.under));

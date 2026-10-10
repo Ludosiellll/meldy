@@ -14,6 +14,10 @@
  * - Answers in the offline queue count as answered today (spec decision 10): the item is not offered again today
  *   (its last day is today), a question seen for the first time takes one of the day's new questions, and the
  *   seconds of a learning answer count as done. Nothing else of the state moves: the rule runs only in SQL.
+ * - The frozen day (plan.ts) needs the day as it began: `pace_day` (the pace before today's first answer) becomes
+ *   `paceDay`, and `day_start` (the state each item answered today had before its first answer today) becomes
+ *   `dayStart`. An item answered only in the offline queue began the day in its server state. A wire without them
+ *   (an older server) leaves both out.
  */
 import type { AnswerInput, Pace, PlanInput, PlanInputsWire, PlanItem, PlanStateRow, UnitState, Uuid } from './container.ts';
 import { paceFrom } from './pace.ts';
@@ -103,6 +107,20 @@ export function decodePlanInputs(wire: PlanInputsWire, options: DecodeOptions): 
   let doneSec = sameDay ? container.today.done_s ?? 0 : 0;
   const firstAt = sameDay ? moment(container.today.first_at) : null;
 
+  // The day as it began: the state of each item answered today before its first answer today (an older server sends
+  // none: then the frozen day is planned as before).
+  let dayStart: Record<string, UnitState> | undefined;
+  if (Array.isArray(wire.day_start)) {
+    dayStart = {};
+    if (sameDay) {
+      for (const row of wire.day_start) {
+        if (!Array.isArray(row)) continue;
+        const entry = wire.items[row[0]];
+        if (entry && ownSubjects.has(entry[1])) dayStart[entry[0]] = unitFromRow(row, wire.day);
+      }
+    }
+  }
+
   // The offline queue: answered today, whatever the server will make of them.
   let pendingMs = 0;
   const merged = new Set<string>();
@@ -114,6 +132,10 @@ export function decodePlanInputs(wire: PlanInputsWire, options: DecodeOptions): 
     }
     if (merged.has(item.id)) continue;
     merged.add(item.id);
+    // Not answered on the server today: the day began in the server's state.
+    if (dayStart && !dayStart[item.id] && item.u.firstDay !== null && (item.u.lastDay === null || item.u.lastDay < today)) {
+      dayStart[item.id] = { ...item.u };
+    }
     const unit = { ...item.u };
     if (unit.firstDay === null) {
       unit.firstDay = today;
@@ -124,15 +146,17 @@ export function decodePlanInputs(wire: PlanInputsWire, options: DecodeOptions): 
   }
   doneSec += Math.round(pendingMs / 1000);
 
-  let pace: Record<string, Pace> | null = null;
-  if (wire.pace.some((row) => ownSubjects.has(row.subject))) {
-    const paces = paceFrom(wire.pace, wire.subjects.length);
-    pace = {};
-    for (const index of subjectIndexes) if (paces[index]) pace[wire.subjects[index].id] = paces[index];
-  }
+  const paceOf = (wireRows: PlanInputsWire['pace']): Record<string, Pace> | null => {
+    const rows = wireRows.filter((row) => row !== null && typeof row === 'object');
+    if (!rows.some((row) => ownSubjects.has(row.subject))) return null;
+    const paces = paceFrom(rows, wire.subjects.length);
+    const out: Record<string, Pace> = {};
+    for (const index of subjectIndexes) if (paces[index]) out[wire.subjects[index].id] = paces[index];
+    return out;
+  };
 
   const ownIds = new Set(subjects.map((subject) => subject.id));
-  return {
+  const input: PlanInput = {
     v: 1,
     now: options.now,
     tz: options.tz,
@@ -142,7 +166,11 @@ export function decodePlanInputs(wire: PlanInputsWire, options: DecodeOptions): 
     subjects,
     items: [...items, ...options.oral.filter((item) => item && ownIds.has(item.s))],
     today: { firstAt, doneSec, newDone },
-    pace,
+    pace: paceOf(wire.pace ?? []),
     ai: wire.ai ? { left: wire.ai.left, resetsAt: wire.ai.resets_at * 1000 } : null,
   };
+  // A wire of an earlier day: its pace before «today's» first answer is the whole pace of this day.
+  if (Array.isArray(wire.pace_day)) input.paceDay = sameDay ? paceOf(wire.pace_day) : input.pace;
+  if (dayStart) input.dayStart = dayStart;
+  return input;
 }
