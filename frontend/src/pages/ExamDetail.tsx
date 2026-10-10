@@ -90,6 +90,7 @@ import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import InviteGroup, { InviteGroupDialog } from '../components/exams/share/InviteGroup';
 import MoreMenu, { type MoreMenuItem } from '../components/ui/MoreMenu';
+import { containerOfExam, containerTitle, onContainerTitles, type AttachedExam } from '../lib/containers/titleCache';
 import { usePhone } from '../lib/usePhone';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
@@ -227,6 +228,23 @@ export interface MappingLimit {
   resetAt: number;
 }
 
+/**
+ * The exam container this oral exam lives in, as this device knows it (lib/containers/titleCache: the attached exams of
+ * the last containers_overview), kept up to date when it arrives later; null for every other exam (spec decision 29).
+ */
+function useAttachedContainer(examId: string): AttachedExam | null {
+  const [attached, setAttached] = useState<AttachedExam | null>(() => containerOfExam(examId));
+  useEffect(() => {
+    const read = () => {
+      const next = containerOfExam(examId);
+      setAttached((current) => (current?.containerId === next?.containerId && current?.title === next?.title ? current : next));
+    };
+    read();
+    return onContainerTitles(read);
+  }, [examId]);
+  return attached;
+}
+
 /** One page state per exam: opening another exam's sheet starts from scratch. */
 export default function ExamDetail() {
   const { id: examId = '' } = useParams();
@@ -248,6 +266,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const userId = user?.id ?? null;
   const { confirm } = useConfirm();
   const reduced = usePrefersReducedMotion();
+  // Inside an exam container (decision 29б, 38): the crumb leads to it, and its own group link covers this exam.
+  const attached = useAttachedContainer(examId);
   const frame = useFrame<HTMLDivElement>();
   // A phone (max-width 639px): the page keeps one line of each thing and moves the rest behind «Как считается» and
   // «Ещё» (10_Project/Phone_Declutter_2026-10-08). Tablets and computers are as they were.
@@ -1332,7 +1352,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     ...(copy || editLocked ? [] : [{ key: 'edit', label: 'Изменить список', to: `/exams/${exam.id}/edit` }]),
     { key: 'lectures', label: 'Лекции', to: `/exams/${exam.id}/edit#lectures` },
     { key: 'rate', label: rateMode && !onSheet ? 'Закончить самооценку' : 'Самооценка', onSelect: startRate },
-    ...(copy ? [] : [{ key: 'invite', label: 'Пригласить группу', onSelect: () => setInviteOpen(true) }]),
+    ...(copy || attached ? [] : [{ key: 'invite', label: 'Пригласить группу', onSelect: () => setInviteOpen(true) }]),
     { key: 'report', label: 'Отчёт для преподавателя', to: `/exams/${exam.id}/report` },
   ];
   const moreMenu = (
@@ -1359,8 +1379,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
         Самооценка
       </button>
       {/* «Группа по ссылке»: the author's link for the group (components/exams/share/InviteGroup); a copy is not
-          shared on (the server refuses it: is_copy). */}
-      {copy ? null : <InviteGroup examId={exam.id} examTitle={exam.title} />}
+          shared on (the server refuses it: is_copy), and an exam inside a container is shared by the container's link
+          (decision 38: never two links). */}
+      {copy || attached ? null : <InviteGroup examId={exam.id} examTitle={exam.title} />}
       {/* The mapping as a page to print for the department, and a CSV (pages/ExamReport.tsx). */}
       <Link className="sf-link" to={`/exams/${exam.id}/report`}>
         Отчёт для преподавателя
@@ -1414,7 +1435,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
       <header className="ex-head">
         <div style={{ minWidth: 0 }}>
           <p className="ex-crumb">
-            <Link to="/exams">Экзамены</Link>
+            {/* An exam inside a container: the way back is to that exam (decision 29б); every other exam, «Экзамены». */}
+            {attached ? (
+              <Link to={`/exams/c/${encodeURIComponent(attached.containerId)}`}>{containerTitle(attached.containerId) ?? attached.title}</Link>
+            ) : (
+              <Link to="/exams">Экзамены</Link>
+            )}
           </p>
           {/* A phone: the heading and the round «⋯» of the page's other links on one row, as on a lecture. */}
           {phone && !phoneEmpty ? (
