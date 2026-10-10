@@ -224,7 +224,7 @@ curl -sS -X POST 'https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram
 | слова профиля, команды, аватарка, параметры вебхука | выложить функцию и запустить `/setup` |
 | регион (константа `FUNCTION_REGION`) | выложить функцию и запустить `/setup`; миграция не нужна |
 | SQL | новый файл миграции и новая строка в `deploy/supabase-migrate.md` |
-| `frontend/src/lib/containers/*` (выпуск сайта) | `node scripts/sync_bot_plan.mjs`, тесты, выложить функцию в тот же день. Иначе бот и «Сегодня» посчитают план по-разному, а тест `SOURCE_HASH` покажет расхождение |
+| `frontend/src/lib/containers/*` (выпуск сайта) | `node scripts/sync_bot_plan.mjs`, тесты, выложить функцию в тот же день. Иначе бот и «Сегодня» посчитают план по-разному, бот покажет код в вопросе не так, как сайт (`stemCode.ts`, `codeLines.ts`), а тест `SOURCE_HASH` покажет расхождение |
 | карточка Telegram на сайте | выпуск сайта (`deploy/hf-release.md`) |
 
 ### Аварийная остановка

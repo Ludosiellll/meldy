@@ -111,7 +111,7 @@
   ]
  },
  "z3_code_question": {
-  "text": "Основы программирования · 6 из 20\n\n<b>Что выведет программа?</b>\n<pre><code class=\"language-csharp\">int x = 7;\nint y = x++ + ++x;\nConsole.WriteLine(y);</code></pre>",
+  "text": "Основы программирования · 6 из 20\n\n<b>Что выведет программа?</b>\n<pre>int x = 7;\nint y = x++ + ++x;\nConsole.WriteLine(y);</pre>",
   "keyboard": [
    [
     {

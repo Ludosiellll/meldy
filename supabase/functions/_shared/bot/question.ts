@@ -10,13 +10,20 @@
  *   shown indices (`t<mask>`, «Ответить» `a<mask>`); nothing reaches the database before «Ответить».
  * - The order of the options is the copied `optionOrder` (seeded, «все перечисленные» last, `keep_order` kept); the
  *   queue is the copied `session.ts` (`counter`, `afterAnswer`). Nothing here re-implements the container's modules.
+ * - The question's words apart from its code are the copied `stemParts` (the site's lib/containers/stemCode.ts, as
+ *   QuestionCard and «Ключи» show it): with the import's flag, SQL, a command with its output, tables and HTTP join
+ *   the block; without it, later lines that clearly read as code (SQL, a shell, signs of C, two rows of a table)
+ *   still do, and the first line stays words. An option is code by the copied `codeLike` (lib/containers/codeLines.ts).
  *
- * `codeLike`, `splitStem` and `shortNorm` mirror the site's components/containers/model.ts (not one of the copied
- * pure modules): the same rules and the same test vectors. `shortNorm` is `public.meldy_short_norm`.
+ * `shortNorm` mirrors the site's components/containers/model.ts (not one of the copied pure modules): the same rule
+ * and the same test vectors. It is `public.meldy_short_norm`.
  */
+import { codeLike } from '../plan/codeLines.ts';
 import { afterAnswer, counter, optionOrder, pinnedLast, type QueueEntry } from '../plan/session.ts';
+import { stemParts } from '../plan/stemCode.ts';
 
 export type { QueueEntry };
+export { codeLike, stemParts };
 
 /** The option letters as the site shows them (copy.ts OPTION_LETTERS). */
 export const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З'] as const;
@@ -52,45 +59,6 @@ export interface QuestionItem {
 }
 
 // ─────────────────────────────────────────── code in a question ───────────────────────────────────────────
-
-/**
- * A code-like line: braces, semicolons, operators or a keyword, and few Cyrillic letters once its comments and string
- * literals are left out («Console.WriteLine(c); // целочисленное деление» is code). The site's model.ts `codeLike`.
- */
-export function codeLike(line: string): boolean {
-  const text = line.trim();
-  if (!text) return false;
-  if (/^(\/\/|\/\*|#|--\s)/.test(text)) return true;
-  const bare = text
-    .replace(/\/\*.*?\*\//g, ' ')
-    .replace(/\/\/.*$/, ' ')
-    .replace(/\s--\s.*$/, ' ')
-    .replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`[^`]*`/g, '""')
-    .trim();
-  const letters = bare.match(/[a-zа-яё]/gi) ?? [];
-  const cyrillic = bare.match(/[а-яё]/gi) ?? [];
-  if (letters.length > 0 && cyrillic.length / letters.length > 0.5) return false;
-  if (/^\s{2,}|\t/.test(line)) return true;
-  if (/[;{}]|=>|==|!=|\+\+|::|<\/?\w+>|\w\(.*\)|\[\d*\]/.test(bare)) return true;
-  return /^(int|var|let|const|string|bool|double|float|char|long|class|struct|public|private|protected|static|void|for|while|if|else|return|using|namespace|import|from|def|print|console|select|insert|update|delete|create|alter|drop|begin|end|function|new)\b/i.test(bare);
-}
-
-/** A stem with code: the words before, the code block (its lines verbatim), the words after. The site's `splitStem`. */
-export function splitStem(stem: string, code: boolean): { before: string; code: string | null; after: string } {
-  const text = stem.replace(/\r\n?/g, '\n');
-  if (!code || !text.includes('\n')) return { before: text.trim(), code: null, after: '' };
-  const lines = text.split('\n');
-  let first = lines.findIndex((line) => codeLike(line));
-  if (first < 0) return { before: text.trim(), code: null, after: '' };
-  let last = lines.length - 1;
-  while (last > first && !codeLike(lines[last])) last -= 1;
-  // A question line ending with «?» or «:» right before the code stays words even if it has brackets.
-  if (first === 0 && lines.length > 1 && /[?:]\s*$/.test(lines[0]) && !/[;{}]/.test(lines[0])) first = 1;
-  const block = lines.slice(first, last + 1).join('\n').replace(/\s+$/, '');
-  const before = lines.slice(0, first).join('\n').trim();
-  const after = lines.slice(last + 1).join('\n').trim();
-  return { before, code: block || null, after };
-}
 
 /** An option is code when the question carries code and one of the option's lines looks like code. */
 export function optionIsCode(item: Pick<QuestionItem, 'code'>, option: string): boolean {

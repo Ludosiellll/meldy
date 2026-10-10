@@ -23,8 +23,9 @@ test('typo glues numbers, «N из M», short words, « ·», « —» and «№
 test('builders: bold, code, pre, lines', () => {
   assert.equal(b('Сегодня 5 вопросов'), `<b>Сегодня 5${NBSP}вопросов</b>`);
   assert.equal(code('if (a < b) {}'), '<code>if (a &lt; b) {}</code>');
-  assert.equal(pre('int x = 7;'), '<pre><code class="language-csharp">int x = 7;</code></pre>');
-  assert.equal(pre('x', 'bad lang"'), '<pre><code class="language-csharp">x</code></pre>');
+  assert.equal(pre('int x = 7;'), '<pre>int x = 7;</pre>');
+  assert.equal(pre('SELECT 1;', 'sql'), '<pre><code class="language-sql">SELECT 1;</code></pre>');
+  assert.equal(pre('x', 'bad lang"'), '<pre>x</pre>');
   assert.equal(lines('a', null, '', false, 'b', undefined), 'a\n\nb');
   assert.equal(t('a & b'), 'a &amp; b');
 });

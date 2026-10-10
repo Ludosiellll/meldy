@@ -10,7 +10,7 @@ import { pickGroupQuestion } from '../plan/group.ts';
 import { optionOrder, pinnedLast } from '../plan/session.ts';
 import { DbError } from './db.ts';
 import * as G from './group.ts';
-import { visibleText } from './html.ts';
+import { esc, t, visibleLength, visibleText } from './html.ts';
 import { lintMessage } from './lint.ts';
 import { derivedSecret } from './secrets.ts';
 import type { Keyboard } from './tg.ts';
@@ -22,6 +22,10 @@ import {
 } from './fixtures/group/exam.ts';
 import type { FakeItem } from './fixtures/group/fake_group.ts';
 import { groupHarness, LOGS, type GroupHarness } from './fixtures/group/harness.ts';
+import {
+  ASKED_AFTER, CREATE, CSHARP, HTTP, LOOP_C, LOOP_SH, LS, MONGO, PING, PIPE, ROUTES, SCRIPT, SHEBANG, SQL, TABLE, TRY_CATCH,
+  WORDS, WORDS_AFTER,
+} from './fixtures/stems.ts';
 import * as W from './words.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -161,7 +165,7 @@ test('G2 letters (Z2, Z3): long options, code options, 6 options in rows of 4, k
       assert.deepEqual(keyboard, [['А', 'Б', 'В', 'Г'], ['Заниматься в Meldy']]);
     }],
     [OUTPUT, (text, keyboard) => {
-      assert.match(text, /Что выведет программа\?\n<pre><code class="language-csharp">int x = 7;\nint y = x\+\+ \+ \+\+x;\nConsole\.WriteLine\(y\);<\/code><\/pre>$/);
+      assert.match(text, /Что выведет программа\?\n<pre>int x = 7;\nint y = x\+\+ \+ \+\+x;\nConsole\.WriteLine\(y\);<\/pre>$/);
       assert.deepEqual(keyboard.slice(0, -1).map((r) => r.length), [1, 1, 1, 1], 'short options stay buttons under a code question');
     }],
     [CONTEXT, (_text, keyboard) => assert.deepEqual(keyboard, [['А', 'Б', 'В', 'Г'], ['Д', 'Е'], ['Заниматься в Meldy']])],
@@ -193,6 +197,49 @@ test('the chat never shows the key: posts, counters and closes are the same what
   const b = await run(3);
   assert.equal(a.edited.length, 2, 'a counter and a close');
   assert.deepEqual(a, b);
+});
+
+test('G2 split as on the site (stemParts): SQL without the flag, a command and its output, a table, C — the question, then its code in <pre>', async () => {
+  const cases: FakeItem[] = [
+    { ...ACID, id: 'f1f2c3d4-0000-4000-8000-000000000091', stem: SQL, code: false },
+    { ...DHCP, id: 'f1f2c3d4-0000-4000-8000-000000000092', stem: PING, code: true },
+    { ...CONTEXT, id: 'f1f2c3d4-0000-4000-8000-000000000093', stem: SHEBANG, code: false },
+    { ...ACID, id: 'f1f2c3d4-0000-4000-8000-000000000094', stem: TABLE, code: false },
+    { ...OUTPUT, id: 'f1f2c3d4-0000-4000-8000-000000000095', stem: CSHARP, code: false },
+  ];
+  for (const it of cases) {
+    const h = groupHarness();
+    h.exam.items = [...h.exam.items, it];
+    h.exam.counts = [counts(it, { confirmable: 3 })];
+    h.fg.bind(GROUP, h.exam);
+    assert.equal((await h.tick()).posts_posted, 1, it.stem);
+    const params = sends(h).at(-1)!;
+    const [first, ...rest] = it.stem.split('\n');
+    assert.ok(params.text.includes(`</b>\n\n${t(first)}\n<pre>${esc(rest.join('\n'))}</pre>`), params.text);
+    lintGroup(params.text, keyboardOf(params.reply_markup), it);
+  }
+});
+
+test('T7\'s 1500 characters still fit one post: the split changes the markup, never the characters the post shows', () => {
+  const view = (stem: string, code: boolean, options = ACID.options) => ({ postId: POST, chatId: GROUP, subject: ACID.subject, stem, options, code, keepOrder: false });
+  const letters = (options: string[]) => options.map((o, k) => `${G.LETTERS[k]} ${o}`);
+  const stems = [SQL, CREATE, PIPE, SCRIPT, SHEBANG, LOOP_SH, LS, PING, TABLE, ROUTES, HTTP, CSHARP, LOOP_C, TRY_CATCH, MONGO, ASKED_AFTER, WORDS_AFTER, ...WORDS];
+  for (const stem of stems) {
+    for (const code of [true, false]) {
+      const text = G.postText(view(stem, code), G.GW.closedAnswered(3));
+      assert.equal(words(text), [`Вопрос дня · ${ACID.subject}`, '', stem, '', ...letters(ACID.options), '', 'Вопрос закрыт. Ответили 3.'].join('\n'), `${stem} (flag ${code})`);
+    }
+  }
+  // The longest question the database offers (bot.group_item_ok): stem and options 1500 characters together, the
+  // question in code, 8 options by letter, and the longest last line.
+  const options = Array.from({ length: 8 }, (_, k) => `Строки, где course <> ${k + 1}, по возрастанию name`);
+  const head = `${SQL}\n-- `;
+  const long = `${head}${'x'.repeat(1500 - [...head].length - options.join('').length)}`;
+  assert.equal([...long].length + options.join('').length, 1500);
+  const post = view(long, false, options);
+  assert.ok(G.postable(post));
+  assert.ok(G.postText(post).includes('<pre>SELECT *\nFROM Students\nWHERE course = 2;\n-- xxx'));
+  assert.ok(visibleLength(G.postText(post, G.GW.closedAnswered(99999))) < 1700, 'far below Telegram\'s 4096');
 });
 
 // ─────────────────────────────────────────── G3: presses ───────────────────────────────────────────

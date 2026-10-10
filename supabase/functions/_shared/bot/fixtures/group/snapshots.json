@@ -113,7 +113,7 @@
   ]
  },
  "G2_code_question": {
-  "text": "<b>Вопрос дня · Основы программирования</b>\n\nЧто выведет программа?\n<pre><code class=\"language-csharp\">int x = 7;\nint y = x++ + ++x;\nConsole.WriteLine(y);</code></pre>",
+  "text": "<b>Вопрос дня · Основы программирования</b>\n\nЧто выведет программа?\n<pre>int x = 7;\nint y = x++ + ++x;\nConsole.WriteLine(y);</pre>",
   "keyboard": [
    [
     {
