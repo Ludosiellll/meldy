@@ -1,0 +1,251 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ContainerSummary, DayPlan, LocalDay, PlanInput } from '../../types/container';
+import { fetchSheet, type SheetResponse } from '../../api/cheatSheet';
+import { recordSelfRating, recordSheetPeek, type SelfRating } from '../../api/learning';
+import { track } from '../../lib/telemetry';
+import { RoomBar } from './RoomParts';
+import SessionEnd, { type OralTally } from './SessionEnd';
+import * as copy from './copy';
+import { subjectTitle, type Figure } from './model';
+import { clearSession, firstSessionDone, markFirstSessionDone, markSelfCheckNoteSeen, selfCheckNoteSeen } from './sessionStore';
+import type { SessionSetup } from './studySetup';
+import './room.css';
+
+/**
+ * An oral subject's free self-check, 10 questions (Concept 1 §3.8; spec §6, decisions 19, 51 and the critique's I7):
+ * «Вспомните ответ — вслух или про себя.» → «Показать пункты» (the cheat sheet's lines of the question, read with the
+ * existing api/cheatSheet.ts; opening them is a peek of each line, as on the sheet) → «Знаю · Плаваю · Не знаю», the
+ * existing `self_rating`. A self-check never counts; no «Ответить с проверкой Meldy» here — the AI check is a session
+ * of its own (one ticket, decision 29в).
+ */
+interface Props {
+  containerId: string;
+  userId: string | null;
+  summary: ContainerSummary;
+  plan: DayPlan | null;
+  input: PlanInput | null;
+  offline: boolean;
+  setup: SessionSetup;
+  examId: string | null;
+  tz: string;
+  today: LocalDay;
+  base: Figure;
+  wide: boolean;
+  onEnded: () => void;
+  onDone: (guide: boolean) => void;
+}
+
+const RATINGS: Array<{ value: SelfRating; label: string }> = [
+  { value: 'know', label: copy.RATE_KNOW },
+  { value: 'unsure', label: copy.RATE_UNSURE },
+  { value: 'dont_know', label: copy.RATE_DONT_KNOW },
+];
+
+export default function OralRun({ containerId, userId, summary, plan, input, offline, setup, examId, tz, today, base, wide, onEnded, onDone }: Props) {
+  const [sheet, setSheet] = useState<SheetResponse | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [pos, setPos] = useState(0);
+  const [shown, setShown] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tally, setTally] = useState<OralTally>({ know: 0, unsure: 0, dontKnow: 0, questions: 0 });
+  const [ended, setEnded] = useState<number | null>(null);
+  const firstEver = useRef(!firstSessionDone());
+  const showNote = useRef(!selfCheckNoteSeen());
+  const headRef = useRef<HTMLHeadingElement | null>(null);
+  const ids = useMemo(() => setup.queue.map((entry) => entry.id), [setup.queue]);
+  const subject = subjectTitle(summary, setup.subjectId);
+
+  useEffect(() => {
+    if (!examId) return undefined;
+    const controller = new AbortController();
+    setFailed(null);
+    fetchSheet(examId, { signal: controller.signal }).then(
+      (response) => setSheet(response),
+      (failure: unknown) => {
+        if (!controller.signal.aborted) setFailed(failure instanceof Error ? failure.message : copy.ORAL_OFFLINE);
+      },
+    );
+    return () => controller.abort();
+  }, [examId, attempt]);
+
+  useEffect(() => {
+    track('container.session_started', { planned: ids.length, kind: 'self_check' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    headRef.current?.focus({ preventScroll: true });
+  }, [pos, sheet]);
+
+  const byId = useMemo(() => new Map((sheet?.questions ?? []).map((question) => [question.question_id, question])), [sheet]);
+  const question = byId.get(ids[pos] ?? '') ?? null;
+
+  const end = () => {
+    const at = Date.now();
+    setEnded(at);
+    if (userId) clearSession(userId, containerId);
+    markFirstSessionDone();
+    track('container.session_finished', { answered: tally.questions, retries: 0, minutes: Math.max(1, Math.round((at - setup.startedAt) / 60_000)) });
+    onEnded();
+  };
+
+  // A question that left the oral list (the author edited it): step over it.
+  const missing = Boolean(sheet) && pos < ids.length && !question;
+  useEffect(() => {
+    if (!missing || ended !== null) return;
+    if (pos + 1 >= ids.length) end();
+    else setPos(pos + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missing, pos]);
+
+  if (ended !== null) {
+    return (
+      <SessionEnd
+        containerId={containerId}
+        summary={summary}
+        subjectId={setup.subjectId}
+        stats={null}
+        oral={tally}
+        minutes={Math.max(1, Math.round((ended - setup.startedAt) / 60_000))}
+        base={base}
+        plan={plan}
+        input={input}
+        answered={new Set(ids.slice(0, pos))}
+        tz={tz}
+        today={today}
+        firstEver={firstEver.current}
+        wide={wide}
+        onDone={() => onDone(firstEver.current)}
+      />
+    );
+  }
+
+  const bar = (
+    <RoomBar long={copy.glue(`${subject} · ${copy.counter(Math.min(pos + 1, ids.length), ids.length)}`)} short={copy.counter(Math.min(pos + 1, ids.length), ids.length)} exitLabel={copy.FINISH} onExit={() => (tally.questions > 0 ? end() : onDone(false))} />
+  );
+
+  if (!sheet) {
+    return (
+      <>
+        {bar}
+        <main className="sf-page ct-study">
+          {failed || offline || !examId ? (
+            <>
+              <p className="ct-recall" role="alert">
+                {offline || !examId ? copy.ORAL_OFFLINE : failed}
+              </p>
+              {failed && !offline ? (
+                <button type="button" className="sf-link" onClick={() => setAttempt((n) => n + 1)}>
+                  {copy.RETRY}
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <p className="ct-recall" role="status">
+              {copy.ORAL_LOADING}
+            </p>
+          )}
+        </main>
+      </>
+    );
+  }
+
+  const advance = () => {
+    setShown(false);
+    setError(null);
+    if (pos + 1 >= ids.length) end();
+    else setPos(pos + 1);
+  };
+
+  if (!question) return <>{bar}</>;
+
+  const points = question.rubric?.points ?? [];
+  const showPoints = () => {
+    setShown(true);
+    if (!question.rubric || !question.question_hash || !examId) return;
+    for (const point of points) {
+      void recordSheetPeek({ questionHash: question.question_hash, rubricId: question.rubric.rubric_id, pointId: point.id, title: point.title, examId }).catch(() => undefined);
+    }
+  };
+
+  const rate = async (rating: SelfRating) => {
+    if (busy || !examId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (question.question_hash) {
+        await recordSelfRating({ questionHash: question.question_hash, rating, examId, examQuestionId: question.question_id, materialId: question.rubric?.materials[0]?.material_id || null });
+      }
+      setTally((current) => ({
+        know: current.know + (rating === 'know' ? 1 : 0),
+        unsure: current.unsure + (rating === 'unsure' ? 1 : 0),
+        dontKnow: current.dontKnow + (rating === 'dont_know' ? 1 : 0),
+        questions: current.questions + 1,
+      }));
+      markSelfCheckNoteSeen();
+      advance();
+    } catch {
+      setError(copy.RATING_FAILED);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      {bar}
+      <main className="sf-page ct-study">
+        <p className="ct-ctx">{copy.glue(`${subject} · ${copy.ORAL_TAG}`)}</p>
+        <p className="ct-oral-no">{copy.oralNumber(question.label || String(question.position))}</p>
+        <h1 className="ct-stem" ref={headRef} tabIndex={-1}>
+          {question.text}
+        </h1>
+        {!shown ? (
+          <>
+            <p className="ct-recall">{copy.RECALL}</p>
+            <div className="ct-bar">
+              <div className="ct-bar-row" style={wide ? undefined : { width: '100%' }}>
+                <button type="button" className="sf-primary" onClick={showPoints}>
+                  {copy.SHOW_POINTS}
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <section className="ct-points" aria-labelledby="ct-points-t">
+              <h2 id="ct-points-t">{copy.POINTS_TITLE}</h2>
+              {points.length > 0 ? (
+                <ul>
+                  {points.map((point) => (
+                    <li key={point.id} data-essential={point.essential ? '' : undefined}>
+                      {point.short || point.title}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="ct-recall">{copy.NO_POINTS}</p>
+              )}
+            </section>
+            <p className="ct-rate-t">{copy.HOW_ANSWERED}</p>
+            <div className="ct-rate" role="group" aria-label={copy.HOW_ANSWERED}>
+              {RATINGS.map((rating) => (
+                <button key={rating.value} type="button" aria-busy={busy || undefined} onClick={() => void rate(rating.value)}>
+                  {rating.label}
+                </button>
+              ))}
+            </div>
+            {error ? (
+              <p className="ct-sheet-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {showNote.current ? <p className="ct-rate-note">{copy.SELF_CHECK_NOTE}</p> : null}
+          </>
+        )}
+      </main>
+    </>
+  );
+}

@@ -1,0 +1,346 @@
+/* The «занятие» and «Как на экзамене»: rooms with their own top line, no menu and no tab bar (Layout isRoomPath).
+   One question at a time in a 720 px column; on a phone the top line is only «7 из 20» (or «12 из 40 · 31:20») and
+   «Закончить» (decision 41); the subject sits on a muted line above the question; the verdict lives in the pinned
+   bar above «Дальше» (decision 42); code wraps line by line with a hanging indent and never scrolls sideways on a
+   phone (decision 43). Only the existing tokens; the wrong option is the pink edge on a pink tint with words, the
+   right one green with words, so no state rests on colour alone (decision 54). */
+
+.ct-roomshell {
+  --ct-wrong-bg: color-mix(in srgb, var(--m-pink) 26%, var(--sf-surface));
+  --ct-right-bg: var(--m-green-soft);
+  --ct-card: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+}
+.dark .ct-roomshell {
+  --ct-wrong-bg: color-mix(in srgb, var(--m-pink) 18%, var(--sf-surface));
+  --ct-card: var(--m-card-shadow);
+}
+
+/* ---------------------------------------------------------------- the top line */
+.ct-roombar.sf-room-bar {
+  padding-inline: max(var(--sf-g), calc((100% - var(--sf-page)) / 2));
+  height: 60px;
+}
+.ct-rb-left { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.ct-rb-mark {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.045em;
+  color: var(--sf-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ct-rb-mark::after {
+  content: '';
+  display: inline-block;
+  width: .3em;
+  height: .3em;
+  margin-left: .08em;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.ct-rb-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.ct-rb-where b { font-weight: 500; color: var(--sf-ink); }
+.ct-rb-exit.sf-link { flex: none; min-height: 44px; color: var(--sf-muted); font-size: 15px; }
+.ct-rb-exit.sf-link:hover { color: var(--sf-ink); }
+.ct-rb-short { display: none; }
+@media (max-width: 1023px) {
+  .ct-rb-mark,
+  .ct-rb-long { display: none; }
+  .ct-rb-short { display: inline; }
+  .ct-rb-where { font-size: 17px; font-weight: 600; color: var(--sf-ink); }
+}
+
+/* ---------------------------------------------------------------- the column */
+.ct-study.sf-page {
+  max-width: calc(720px + 2 * var(--sf-g));
+  padding-top: 28px;
+  padding-bottom: 40px;
+}
+.ct-ctx { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.ct-offline { margin: 0 0 10px; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
+.ct-stem {
+  margin: 6px 0 0;
+  font-size: 23px;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: -.016em;
+  color: var(--sf-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.ct-stem:focus { outline: none; }
+.ct-stem-after { margin: 12px 0 0; font-size: 18px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); white-space: pre-line; overflow-wrap: anywhere; }
+
+/* Code: monospace on the soft surface with a hairline; a computer keeps the file's lines (a long one scrolls inside
+   the block, never the page), a phone wraps each line under its own start (hanging indent, decision 43). */
+.ct-code {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--sf-ink);
+  overflow-x: auto;
+  tab-size: 4;
+}
+.ct-code-line { display: block; min-height: 1.55em; white-space: pre; }
+@media (max-width: 639px) {
+  .ct-code { padding: 10px 12px; font-size: 13px; line-height: 1.5; overflow-x: visible; }
+  .ct-code-line { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 2ch; text-indent: -2ch; min-height: 1.5em; }
+}
+
+.ct-hint { margin: 14px 0 0; font-size: 16px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); }
+.ct-hint[data-tone='warn'] { color: var(--ph-wrong); }
+
+/* ---------------------------------------------------------------- options: rows of one card */
+.ct-opts {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 26px;
+  background: var(--sf-surface);
+  box-shadow: var(--ct-card);
+  overflow: hidden;
+}
+.ct-opt {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 14px 18px 14px 18px;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 17px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: background-color .2s ease;
+}
+.ct-opts > .ct-opt + .ct-opt,
+.ct-opts > li + li { border-top: 1px solid var(--sf-line); }
+.ct-opt:hover:not([aria-disabled='true']) { background: var(--sf-surface-soft); }
+.ct-opt:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -3px; border-radius: 22px; }
+.ct-opt[aria-disabled='true'] { cursor: default; }
+.ct-opt-l { font-weight: 600; color: var(--sf-muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.ct-opt-t { display: block; min-width: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.ct-opt-tag { display: block; margin-top: 4px; font-size: 14px; line-height: 1.3; font-weight: 600; color: var(--sf-ink); }
+.ct-opt[data-state='wrong'] { background: var(--ct-wrong-bg); box-shadow: inset 4px 0 0 var(--m-pink); }
+.ct-opt[data-state='file'] { background: var(--ct-right-bg); box-shadow: inset 4px 0 0 var(--m-green); }
+.ct-opt[data-state='file'] .ct-opt-tag { color: var(--m-green-ink); }
+.ct-opt[data-state='wrong'] .ct-opt-l,
+.ct-opt[data-state='file'] .ct-opt-l { color: var(--sf-ink); }
+/* A choice in «Как на экзамене»: an outline, nothing revealed. */
+.ct-opt[data-state='picked'] { box-shadow: inset 0 0 0 2px var(--sf-ink); border-radius: 0; }
+.ct-opts > .ct-opt:first-child[data-state='picked'] { border-radius: 26px 26px 0 0; }
+.ct-opts > .ct-opt:last-child[data-state='picked'] { border-radius: 0 0 26px 26px; }
+/* Several correct: checkboxes in the letter's column. */
+.ct-box {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px var(--sf-control-edge);
+  background: var(--sf-surface);
+}
+.ct-box svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.ct-opt[aria-pressed='true'] .ct-box,
+.ct-opt[data-ticked] .ct-box { background: var(--sf-accent); box-shadow: none; }
+.ct-opt[aria-pressed='true'] .ct-box svg,
+.ct-opt[data-ticked] .ct-box svg { opacity: 1; }
+
+/* A short answer. */
+.ct-short { margin-top: 16px; }
+.ct-short label { display: block; font-size: 15px; font-weight: 500; color: var(--sf-muted); }
+.ct-short input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 6px;
+  padding: 12px 16px;
+  border: 1px solid var(--sf-line);
+  border-radius: 18px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  font: 400 17px/1.4 var(--ph-sans);
+}
+.ct-short input:focus-visible { outline: none; border-color: var(--sf-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent) 22%, transparent); }
+.ct-short input[aria-invalid='true'] { border-color: var(--ph-wrong); }
+.ct-short[data-state='wrong'] input { background: var(--ct-wrong-bg); }
+.ct-short[data-state='right'] input { background: var(--ct-right-bg); }
+
+/* Under the options: «Не знаю», then after an answer «Нажали не туда?» · «Сомневаюсь в ключе» (decision 42). */
+.ct-under { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; margin-top: 14px; }
+.ct-under .sf-link { font-size: 16px; }
+.ct-under .sf-link[data-muted] { font-size: 15px; }
+.ct-dontknow { margin-top: 20px; }
+.ct-notes-q { display: grid; gap: 4px; margin-top: 12px; }
+.ct-notes-q p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.ct-keyshint { margin: 22px 0 0; font-size: 14px; line-height: 1.45; color: var(--sf-muted); }
+@media (max-width: 1023px), (pointer: coarse) {
+  .ct-keyshint { display: none; }
+}
+
+/* ---------------------------------------------------------------- the pinned bar: the verdict above «Дальше» */
+.ct-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin: 28px calc(-1 * var(--sf-g)) -40px;
+  padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--sf-canvas) 88%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+  box-shadow: 0 -1px 0 var(--sf-line);
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .ct-bar { background: var(--sf-canvas); }
+}
+.ct-verdict { margin: 0 0 10px; font-size: 16px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); text-wrap: pretty; }
+.ct-verdict[data-tone='right'] { color: var(--m-green-ink); }
+.ct-bar-row { display: flex; align-items: center; gap: 10px; }
+.ct-bar .sf-primary { flex: 1 1 auto; justify-content: space-between; }
+.ct-bar .sf-secondary,
+.ct-bar .ct-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 56px;
+  padding: 0 24px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 17px/1 var(--ph-sans);
+  cursor: pointer;
+}
+.ct-bar .ct-back:disabled { opacity: .45; cursor: default; }
+@media (min-width: 1024px) {
+  /* A computer: the verdict beside the pill on the right, as the editor's bar (.ex-cta-why). */
+  .ct-bar { display: flex; align-items: center; justify-content: flex-end; gap: 24px; margin: 28px 0 -40px; padding-inline: 0; }
+  .ct-verdict { flex: 1 1 auto; margin: 0; }
+  .ct-bar .sf-primary { flex: none; min-width: 240px; }
+  .ct-bar-row { flex: none; }
+}
+
+/* ---------------------------------------------------------------- panels in place: «Ключ неверный?» */
+.ct-panel { margin-top: 18px; padding: 18px 20px 20px; border-radius: 24px; background: var(--sf-surface); box-shadow: var(--ct-card); }
+.ct-panel > p { margin: 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.ct-panel .ct-opts { margin-top: 12px; box-shadow: inset 0 0 0 1px var(--sf-line); }
+.ct-panel-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 14px; }
+.ct-panel-acts .sf-primary { height: 48px; padding-left: 20px; padding-right: 5px; font-size: 16px; }
+.ct-panel-acts .sf-primary::after { width: 38px; height: 38px; }
+.ct-panel-done { margin: 14px 0 0; font-size: 16px; line-height: 1.5; font-weight: 500; color: var(--sf-ink); }
+.ct-answers-list { margin: 10px 0 0; padding-left: 20px; font-size: 16px; line-height: 1.5; }
+
+/* ---------------------------------------------------------------- the oral turn */
+.ct-oral-no { margin: 0; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }
+.ct-recall { margin: 14px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); }
+.ct-points { margin-top: 18px; padding: 18px 20px 20px; border-radius: 24px; background: var(--sf-surface); box-shadow: var(--ct-card); }
+.ct-points h2 { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; color: var(--sf-ink); }
+.ct-points ul { margin: 8px 0 0; padding-left: 20px; }
+.ct-points li { margin: 6px 0 0; font-size: 17px; line-height: 1.45; color: var(--sf-ink); }
+.ct-points li[data-essential] { font-weight: 500; }
+.ct-rate-t { margin: 20px 0 0; font-size: 17px; line-height: 1.4; font-weight: 500; }
+.ct-rate { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.ct-rate button {
+  min-height: 52px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+  font: 500 17px/1.2 var(--ph-sans);
+  cursor: pointer;
+}
+.ct-rate button:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+.ct-rate button[aria-busy='true'] { opacity: .6; }
+.ct-rate-note { margin: 12px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- the end of a session, the mock's result */
+.ct-end { padding-top: 8px; }
+.ct-end-h {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.18;
+  font-weight: 500;
+  letter-spacing: -.026em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+}
+.ct-end-h:focus { outline: none; }
+.ct-end-p { margin: 14px 0 0; font-size: 17px; line-height: 1.55; color: var(--sf-muted); text-wrap: pretty; }
+.ct-end-next { margin: 18px 0 0; font-size: 18px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); text-wrap: pretty; }
+.ct-end-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; margin-top: 10px; }
+.ct-end-links .rm-row,
+.ct-end-links > * { min-width: 0; }
+.ct-score { margin: 10px 0 0; font-size: 64px; line-height: 1; font-weight: 500; letter-spacing: -.045em; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.ct-end-small { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
+
+/* «Все вопросы» of the mock: cells in rows of 8. */
+.ct-cells { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; }
+.ct-cells button {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 15px/1 var(--ph-sans);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ct-cells button[data-answered] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
+.ct-cells button[aria-current='true'] { box-shadow: 0 0 0 2px var(--sf-accent); }
+.ct-mock-all { margin-top: 18px; }
+.ct-finish-line { margin: 0; font-size: 17px; line-height: 1.5; color: var(--sf-ink); }
+
+/* ---------------------------------------------------------------- phones */
+@media (max-width: 639px) {
+  .ct-roombar.sf-room-bar { height: 56px; }
+  .ct-study.sf-page { padding-top: 18px; padding-bottom: 24px; }
+  .ct-stem { font-size: 20px; line-height: 1.32; }
+  .ct-stem-after { font-size: 17px; }
+  .ct-opts { border-radius: 24px; }
+  .ct-opt { grid-template-columns: 26px minmax(0, 1fr); column-gap: 8px; min-height: 52px; padding: 13px 14px 13px 16px; font-size: 16.5px; }
+  .ct-opts > .ct-opt:first-child[data-state='picked'] { border-radius: 24px 24px 0 0; }
+  .ct-opts > .ct-opt:last-child[data-state='picked'] { border-radius: 0 0 24px 24px; }
+  .ct-bar { margin-top: 22px; margin-bottom: -24px; }
+  .ct-verdict { font-size: 15.5px; }
+  .ct-end-h { font-size: 26px; }
+  .ct-end-p { font-size: 16px; }
+  .ct-end-next { font-size: 17px; }
+  .ct-score { font-size: 56px; }
+  .ct-rate button { font-size: 16px; }
+  .ct-cells { gap: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-opt,
+  .ct-rate button { transition: none; }
+}
