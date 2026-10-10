@@ -7,3 +7,4 @@ checks the caller's JWT comes from `supabase/config.toml`; a function without it
 newest line is read.
 - 2026-10-10 — deploy: telegram
 - 2026-10-10 — deploy: telegram
+- 2026-10-10 — deploy: telegram
