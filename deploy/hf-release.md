@@ -4,6 +4,12 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-10 — Release 40: the theme in one press — a sun right of the avatar (from the commit of this entry)
+
+- **The owner's request:** the «Тема: Светлая / Тёмная / Системная» row in the account menu was not found there. The top line now has a button right of the account button, on every width (phone, tablet, computer): the sun on the light page, the moon on the dark one, turning into each other; its name and tooltip say what a press does («Включить тёмную тему» / «Включить светлую тему»). The page fades into the new colours where the browser can (not with reduced motion). The choice is kept on the device as before (`studyforge-theme`); until the first press the page follows the device, now also when the device switches with the page open.
+- **Around it:** the account menu opens under the avatar (on a 320 px phone it moves just enough to stay on the screen) and no longer has the theme row; the «Сегодня» tab on a phone is a calendar, so the sun on the screen means only the theme.
+- Verified before release: a local build with the test account's real data at 320, 360, 390, 768, 1024 and 1532 — the line fits with no sideways scroll, the sun's press area is 2 px clear of the avatar's and its glyph sits on the page's right edge, both directions switch and survive a reload, the menu sits under the avatar (`scratchpad/theme/`); Vitest 253 files, 4179 tests; `tsc -b` and `vite build` in the Docker layout. No backend or database change.
+
 ## 2026-10-10 — Release 39.1: long choices in a select stay inside the screen (from the commit of this entry)
 
 - **Found by the live check of release 39:** «Куда добавить» tells two oral exams of one name apart after the name («К «Базы данных» · 21 октября · 20 вопросов · создан 7 октября в 19:33»), but the list cut that part off, and once one was chosen the import page grew to 608 px on a 390 px phone and the fixed «Сохранить» left the screen.
