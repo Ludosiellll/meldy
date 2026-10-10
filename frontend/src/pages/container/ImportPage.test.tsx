@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import twoSubjects from '../../../../contracts/container/parse_bank_two_subjects.json';
@@ -27,6 +27,7 @@ const api = vi.hoisted(() => {
     feasibility: vi.fn(),
     windowDays: vi.fn(),
     fetchOldExams: vi.fn(),
+    loadOralPlanItems: vi.fn(),
     overview: { data: null as ContainersOverview | null },
     // «Обновить из файла»: the exam's data and the direct writes of a subject's topics.
     container: { summary: null as ContainerSummary | null, items: [] as TestItem[], error: null as string | null },
@@ -82,6 +83,7 @@ vi.mock('../../components/containers/import/targets', async () => {
   const actual = await vi.importActual<typeof import('../../components/containers/import/targets')>('../../components/containers/import/targets');
   return { ...actual, fetchOldExams: api.fetchOldExams };
 });
+vi.mock('../../lib/containers/oralPlan', () => ({ loadOralPlanItems: api.loadOralPlanItems }));
 
 import ImportPage from './ImportPage';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
@@ -153,6 +155,9 @@ function bank(items: BankItem[], title: string | null = 'Гражданское 
 }
 
 const saveButton = () => screen.getByRole('button', { name: /^(Сохранить|Сохраняем…|Добавить \d)/ });
+/** Text with its no-break spaces read as spaces; a name or label matcher of that text. */
+const plain = (text: string | null | undefined) => (text ?? '').replace(/ /g, ' ');
+const nm = (text: string) => (content: string) => plain(content) === text;
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -176,6 +181,7 @@ beforeEach(() => {
   api.feasibility.mockReset().mockReturnValue({ neededMin: 45, option: 45, seenByDateEst: 10_000 });
   api.windowDays.mockReset().mockReturnValue(4);
   api.fetchOldExams.mockReset().mockResolvedValue([]);
+  api.loadOralPlanItems.mockReset().mockResolvedValue([]);
   api.container.summary = null;
   api.container.items = [];
   api.container.error = null;
@@ -397,14 +403,15 @@ describe('ImportPage: one door for every file', () => {
   });
 
   it('«Куда добавить: к «Микроэкономика»» makes the old exam subject 1 of a new exam (decision 22)', async () => {
-    api.fetchOldExams.mockResolvedValue([{ id: 'old-9', title: 'Микроэкономика', exam_date: '2026-10-21' }]);
+    api.fetchOldExams.mockResolvedValue([{ id: 'old-9', title: 'Микроэкономика', exam_date: '2026-10-21', questions: 30, created_at: '2026-10-01T12:00:00Z' }]);
     api.parseBank.mockResolvedValue(bank([item(1), item(2)], 'Статистика'));
     renderAt();
     upload(['Статистика.docx']);
     await screen.findByRole('heading', { name: /Нашли 2\sвопроса/ });
     fireEvent.click(await screen.findByRole('combobox', { name: 'Куда добавить' }));
     fireEvent.click(await screen.findByRole('option', { name: 'К «Микроэкономика»' }));
-    expect(screen.getByLabelText('Теперь в экзамене 2 предмета. Название')).toHaveValue('Микроэкономика и Статистика');
+    // The label names the oral exam and counts the rows shown (one subject from the file).
+    expect(screen.getByLabelText(nm('В экзамене будут «Микроэкономика» и ещё 1 предмет. Название'))).toHaveValue('Микроэкономика и Статистика');
     fireEvent.click(saveButton());
     await waitFor(() => expect(api.createContainer).toHaveBeenCalled());
     expect(api.createContainer).toHaveBeenCalledWith('Микроэкономика и Статистика', '2026-10-21', [
@@ -580,5 +587,116 @@ describe('ImportPage: «Обновить из файла» of one subject (?from
     renderAt(`/exams/import?from=c:${CID}&subject=no-such-subject`);
     expect(screen.getByText(IMPORT.updateNotFound)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: IMPORT.updateToExam })).toHaveAttribute('href', `/exams/c/${CID}`);
+  });
+});
+
+describe('ImportPage: an oral exam the student has joins an exam (usability check 2026-10-10, m4)', () => {
+  // Two copies of one oral list, made on different days, and another oral exam without a date.
+  const twins = [
+    { id: 'db-new', title: 'Базы данных', exam_date: '2026-10-21', questions: 20, created_at: '2026-10-09T12:00:00Z' },
+    { id: 'db-old', title: 'Базы данных', exam_date: '2026-10-21', questions: 20, created_at: '2026-10-07T12:00:00Z' },
+    { id: 'law', title: 'Гражданское право', exam_date: null, questions: 60, created_at: '2026-10-05T12:00:00Z' },
+  ];
+  const oralPart = (n: number) => ({
+    examId: 'db-old',
+    subjectId: 'old:db-old',
+    items: Array.from({ length: n }, (_, i) => ({ id: `o${i}`, s: 'old:db-old', f: 'o' as const, tp: null, o: i + 1, l: [], m: { sc: null, rating: 0 as const, ac: null, prepared: false } })),
+    withoutPoints: 20 - n,
+    examDate: '2026-10-21',
+  });
+  const minutesLine = () =>
+    Array.from(document.querySelectorAll('.im-hint')).map((node) => plain(node.textContent)).find((text) => text.startsWith('Чтобы') || text.startsWith('При')) ?? null;
+  const box = (id: string, title: string, role: 'owner' | 'member') => ({
+    id, title, exam_date: '2027-01-12', created_at: '', role, items: 100, items_updated_at: null, subjects: [], answers_today: 0, settings: null,
+  });
+
+  it('two oral exams of one name are told apart in «Куда добавить»: the date and the size, then the day made', async () => {
+    api.fetchOldExams.mockResolvedValue(twins);
+    api.parseBank.mockResolvedValue(TWO);
+    renderAt();
+    upload(['Две.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
+    expect(api.fetchOldExams).toHaveBeenCalledWith('user-1');
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Куда добавить' }));
+    const options = (await screen.findAllByRole('option')).map((option) => plain(option.textContent));
+    expect(options).toEqual([
+      'Новый экзамен',
+      'К «Базы данных» · 21 октября · 20 вопросов · создан 9 октября',
+      'К «Базы данных» · 21 октября · 20 вопросов · создан 7 октября',
+      'К «Гражданское право»',
+    ]);
+  });
+
+  it('chosen: it names the new exam, the label counts the rows shown, the minutes count its questions in the plan', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-10T09:00:00Z'));
+    try {
+      let read: (parts: unknown) => void = () => undefined;
+      api.loadOralPlanItems.mockImplementation(() => new Promise((resolve) => (read = resolve)));
+      api.fetchOldExams.mockResolvedValue(twins);
+      api.feasibility.mockImplementation((input: { items: unknown[] }) => ({ neededMin: 20, option: 30, seenByDateEst: input.items.length }));
+      api.parseBank.mockResolvedValue(TWO);
+      renderAt();
+      upload(['Две.docx']);
+      await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 18\sвопросов/ });
+      fireEvent.click(await screen.findByRole('combobox', { name: 'Куда добавить' }));
+      fireEvent.click(await screen.findByRole('option', { name: nm('К «Базы данных» · 21 октября · 20 вопросов · создан 7 октября') }));
+      // The QA's form said «Теперь в экзамене 3 предмета» over 2 rows, with an empty name.
+      expect(screen.getByLabelText(nm('В экзамене будут «Базы данных» и ещё 2 предмета. Название'))).toHaveValue('Базы данных');
+      expect(document.querySelectorAll('.im-found-sec .im-row')).toHaveLength(2);
+      expect(screen.getByLabelText('Дата экзамена')).toHaveValue('2026-10-21');
+      expect(api.loadOralPlanItems).toHaveBeenCalledWith([{ examId: 'db-old', subjectId: 'old:db-old' }], expect.any(Number), expect.any(String));
+      // While its questions are read the line waits: it would count only the file's.
+      expect(minutesLine()).toBeNull();
+      act(() => read([oralPart(16)]));
+      // 18 from the file and 16 of its 20 in the plan; the exam will hold 38.
+      await waitFor(() => expect(minutesLine()).toMatch(/^Чтобы увидеть все 34 вопроса в плане к 21 октября, нужно около 20 минут в день\./));
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(api.createContainer).toHaveBeenCalled());
+      expect(api.createContainer).toHaveBeenCalledWith('Базы данных', '2026-10-21', [
+        { title: 'Базы данных', exam_id: 'db-old' },
+        expect.objectContaining({ title: 'Основы программирования', exam_id: null }),
+        expect.objectContaining({ title: 'История Беларуси', exam_id: null }),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('«Добавить предмет» of an exam offers the oral exams outside any exam; a tap adds one as it is', async () => {
+    api.overview.data = { v: 1, day: '2026-10-10', attached_exam_ids: ['db-new'], containers: [box('box-7', 'Зимняя сессия', 'owner')] };
+    api.fetchOldExams.mockResolvedValue(twins);
+    renderAt('/exams/import?from=c:box-7');
+    const offer = await screen.findByRole('region', { name: 'Или устный экзамен, который уже есть' });
+    // the one inside an exam already (db-new) is not offered
+    expect(within(offer).getAllByRole('button').map((button) => plain(button.textContent))).toEqual([
+      'Базы данныхустный · 21 октября · 20 вопросов',
+      'Гражданское правоустный · дата не указана · 60 вопросов',
+    ]);
+    // the files keep the page's one blue button
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    fireEvent.click(within(offer).getByRole('button', { name: /^Базы данных/ }));
+    await waitFor(() => expect(where).toBe('/exams/c/box-7'));
+    expect(api.addSubject).toHaveBeenCalledWith('box-7', { title: 'Базы данных', exam_id: 'db-old' });
+    expect(api.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('a refusal says why and keeps the offer; another student’s exam and a new exam have none', async () => {
+    api.overview.data = { v: 1, day: '2026-10-10', attached_exam_ids: [], containers: [box('box-7', 'Зимняя сессия', 'owner'), box('box-8', 'Чужой', 'member')] };
+    api.fetchOldExams.mockResolvedValue(twins);
+    api.addSubject.mockRejectedValueOnce(new api.ContainerApiError('MC007', 'at most 20 subjects'));
+    renderAt('/exams/import?from=c:box-7');
+    const offer = await screen.findByRole('region', { name: 'Или устный экзамен, который уже есть' });
+    fireEvent.click(within(offer).getByRole('button', { name: /^Гражданское право/ }));
+    expect(await within(offer).findByRole('alert')).toHaveTextContent('В экзамене помещается 20 предметов');
+    expect(where).toBe('/exams/import?from=c:box-7');
+    expect(within(offer).getByRole('button', { name: /^Гражданское право/ })).not.toBeDisabled();
+    cleanup();
+    renderAt('/exams/import?from=c:box-8');
+    await waitFor(() => expect(api.fetchOldExams).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('region', { name: 'Или устный экзамен, который уже есть' })).toBeNull();
+    cleanup();
+    renderAt();
+    expect(screen.queryByRole('region', { name: 'Или устный экзамен, который уже есть' })).toBeNull();
   });
 });

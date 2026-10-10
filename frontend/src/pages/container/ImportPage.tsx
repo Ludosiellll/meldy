@@ -3,13 +3,15 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { useAuth } from '../../hooks/useAuth';
 import { deferGuideOnce } from '../../components/guide/guideLater';
 import { useContainerData, useContainersOverview } from '../../lib/containers/hooks';
+import { loadOralPlanItems } from '../../lib/containers/oralPlan';
+import { addSubject } from '../../api/containers';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
-import type { BankParseResult, TestItem, Uuid } from '../../types/container';
-import { errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
+import type { BankParseResult, PlanItem, TestItem, Uuid } from '../../types/container';
+import { dayText, errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
 import KeySource from '../../components/containers/import/KeySource';
@@ -17,7 +19,7 @@ import ReadingList, { type ReadingRow } from '../../components/containers/import
 import SubjectDetail from '../../components/containers/import/SubjectDetail';
 import SubjectRows from '../../components/containers/import/SubjectRows';
 import UpdatePreview from '../../components/containers/import/UpdatePreview';
-import { fetchOldExams, ownContainers, type OldExam } from '../../components/containers/import/targets';
+import { fetchOldExams, ownContainers, plainExams, targetOptions as targetOptionsOf, type OldExam } from '../../components/containers/import/targets';
 import {
   activeSubjects,
   deriveSubjects,
@@ -184,7 +186,11 @@ export default function ImportPage() {
     progress: null,
   });
   const saveState = useRef<SaveState>(freshSaveState());
-  const [oldExams, setOldExams] = useState<OldExam[]>([]);
+  // Every oral exam of the student with its number of questions (targets.ts fetchOldExams).
+  const [exams, setExams] = useState<OldExam[]>([]);
+  // «Добавить предмет»: the oral exam being added as it is, and why it was not.
+  const [adding, setAdding] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
   const platform = useMemo(
     () => platformOf(typeof navigator === 'undefined' ? '' : navigator.userAgent, typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints ?? 0),
     [],
@@ -361,35 +367,37 @@ export default function ImportPage() {
 
   // ───────────────────────────── where it goes, its name, date and minutes ─────────────────────────────
 
+  // The oral exams: «Куда добавить» of a new exam (its preview), the offer of «Добавить предмет» (its first step).
+  const wantsExams = Boolean(user?.id) && !updateId && (fromId ? stage === 'pick' : stage === 'preview');
   useEffect(() => {
-    if (!user?.id || fromId || stage !== 'preview') return;
+    if (!user?.id || !wantsExams) return;
     let live = true;
-    fetchOldExams(user.id, overview.data?.attached_exam_ids ?? []).then((list) => {
-      if (live) setOldExams(list);
+    fetchOldExams(user.id).then((list) => {
+      if (live) setExams(list);
     });
     return () => {
       live = false;
     };
-  }, [user?.id, fromId, stage, overview.data?.attached_exam_ids]);
+  }, [user?.id, wantsExams]);
+  const attached = overview.data?.attached_exam_ids;
+  const oldExams = useMemo(() => plainExams(exams, attached ?? []), [exams, attached]);
 
-  const targetOptions = useMemo(
-    () => [
-      { value: 'new', label: IMPORT.targetNew },
-      ...containers.map((item) => ({ value: `c:${item.id}`, label: IMPORT.targetTo(item.title) })),
-      ...oldExams.map((exam) => ({ value: `old:${exam.id}`, label: IMPORT.targetTo(exam.title) })),
-    ],
-    [containers, oldExams],
-  );
+  const today = localDay();
+  // Two of one name are told apart by their date and size, as the exam lists show them (usability check 2026-10-10, m4).
+  const targetOptions = useMemo(() => targetOptionsOf(containers, exams, attached ?? [], today), [containers, exams, attached, today]);
   // A target that left the list (the exam was deleted elsewhere) shows and saves as a new exam, never silently.
   const targetValue = fromId ? `c:${fromId}` : targetOptions.some((option) => option.value === form.target) ? form.target : 'new';
   const targetKind: SaveTarget['kind'] = targetValue === 'new' ? 'new' : targetValue.startsWith('c:') ? 'container' : 'old';
   const oldExam = targetKind === 'old' ? oldExams.find((exam) => `old:${exam.id}` === targetValue) ?? null : null;
   const container = targetKind === 'container' ? containers.find((item) => `c:${item.id}` === targetValue) ?? null : null;
 
+  // An oral exam joining as subject 1 names the new exam (with the file's one subject: both names).
   const suggestion =
     targetKind === 'old'
-      ? oldExam && active.length === 1
-        ? IMPORT.nameTwo(oldExam.title, active[0].title)
+      ? oldExam
+        ? active.length === 1
+          ? IMPORT.nameTwo(oldExam.title, active[0].title)
+          : oldExam.title
         : ''
       : active.length === 1
         ? active[0].title
@@ -407,21 +415,52 @@ export default function ImportPage() {
   const showMinutes = targetKind !== 'container' && !asOralExam;
   const showDate = targetKind !== 'container';
 
-  const today = localDay();
-  // The questions about to be saved, nothing answered yet: what the minutes reach by the date (the plan's own line).
+  // The oral exam joining as subject 1, as the exam's page will plan it: its questions in the plan, from its sheet
+  // (lib/containers/oralPlan.ts, read once it is chosen). Undefined while read, null when it could not be.
+  const [oldPlan, setOldPlan] = useState<{ examId: string; items: PlanItem[] | null } | null>(null);
+  const oldId = oldExam?.id ?? null;
+  useEffect(() => {
+    if (!oldId) return undefined;
+    let live = true;
+    loadOralPlanItems([{ examId: oldId, subjectId: `old:${oldId}` }], Date.now(), timeZone()).then(
+      (parts) => {
+        if (live) setOldPlan({ examId: oldId, items: parts[0]?.items ?? [] });
+      },
+      () => {
+        if (live) setOldPlan({ examId: oldId, items: null });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [oldId]);
+  const oldItems = oldId && oldPlan?.examId === oldId ? oldPlan.items : undefined;
+
+  // The questions about to be saved, nothing answered yet: what the minutes reach by the date (the plan's own line),
+  // with the joining oral exam's. The exam's size after saving tells the line whether it counts all of it («в плане»
+  // when not: questions without a key, oral ones waiting for lectures — usability check 2026-10-10, m6).
+  const examSize = active.reduce((sum, subject) => sum + subject.test.length + subject.oral.length, 0) + (oldExam?.questions ?? 0);
   const draftInput = useMemo(() => {
-    if (!showMinutes || totals.test === 0 || !anyDate) return null;
+    if (!showMinutes || (totals.test === 0 && !oldItems?.length) || !anyDate) return null;
     try {
-      return draftPlanInput(subjects, { now: Date.now(), tz: timeZone(), today, minutes: 60, date: date || null, perSubject });
+      const extra =
+        oldExam && oldItems && oldItems.length > 0
+          ? { id: `old:${oldExam.id}`, title: oldExam.title, date: oldExam.exam_date ?? (perSubject ? null : date || null), items: oldItems }
+          : null;
+      return draftPlanInput(subjects, { now: Date.now(), tz: timeZone(), today, minutes: 60, date: date || null, perSubject, extra, examQuestions: examSize });
     } catch {
       return null;
     }
-  }, [showMinutes, totals.test, anyDate, subjects, today, date, perSubject]);
+  }, [showMinutes, totals.test, anyDate, subjects, today, date, perSubject, oldExam, oldItems, examSize]);
   const base = useMemo(() => minutesLines(draftInput, 60), [draftInput]);
   // Without a date 60 minutes; with one, the smallest option that is enough (90 when none is).
   const defaultMinutes = !base ? 60 : base.option ?? 90;
   const minutes = form.minutes ?? defaultMinutes;
-  const lines = useMemo(() => minutesLines(draftInput, minutes), [draftInput, minutes]);
+  // The line waits for the joining oral exam's questions: without them it would count too few.
+  const lines = useMemo(
+    () => (targetKind === 'old' && !Array.isArray(oldItems) ? null : minutesLines(draftInput, minutes)),
+    [targetKind, oldItems, draftInput, minutes],
+  );
 
   // ───────────────────────────── views (the address's #… so «назад» closes them) ─────────────────────────────
 
@@ -633,6 +672,48 @@ export default function ImportPage() {
     </section>
   ) : null;
 
+  // «Добавить предмет» of an exam: an oral exam the student already has joins it as it is, no file needed
+  // (container_subject_add takes its exam_id, as container_create does for «Куда добавить»; usability check 2026-10-10, m4).
+  const addOral = async (exam: OldExam) => {
+    if (!fromId || adding !== null) return;
+    setAdding(exam.id);
+    setAddError(null);
+    try {
+      await addSubject(fromId, { title: exam.title.slice(0, 200), exam_id: exam.id });
+      track('container.oral_added', { questions: exam.questions });
+      navigate(`/exams/c/${fromId}`, { replace: true });
+    } catch (error) {
+      setAddError(errorText(error, {}, IMPORT.saveFailed));
+      setAdding(null);
+    }
+  };
+  const oralOffer =
+    fromContainer && !updateId && oldExams.length > 0 ? (
+      <section className="im-offer" aria-labelledby={`${formId}-offer`}>
+        <h2 className="im-offer-h" id={`${formId}-offer`}>
+          {IMPORT.oralOffer}
+        </h2>
+        <ul className="im-rows">
+          {oldExams.map((exam) => (
+            <li key={exam.id}>
+              <button type="button" className="im-row" disabled={adding !== null} aria-busy={adding === exam.id || undefined} onClick={() => void addOral(exam)}>
+                <span className="im-row-title">{exam.title}</span>
+                <span className="im-row-meta">{nb(IMPORT.oralOfferMeta(exam.exam_date ? dayText(exam.exam_date) : '', exam.questions))}</span>
+                <svg className="im-row-go" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {addError ? (
+          <p className="im-line" role="alert">
+            {addError}
+          </p>
+        ) : null}
+      </section>
+    ) : null;
+
   if (stage === 'pick') {
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
@@ -651,6 +732,7 @@ export default function ImportPage() {
             lede={updateId && updateSubject ? IMPORT.updateLede(updateSubject.title) : undefined}
           />
         )}
+        {oralOffer}
       </div>
     );
   }
@@ -946,7 +1028,7 @@ export default function ImportPage() {
   const nameField = showName ? (
     <div className="im-field">
       <label className="im-label" htmlFor={`${formId}-name`}>
-        {targetKind === 'old' ? IMPORT.nameNow(active.length + 1) : IMPORT.name}
+        {targetKind === 'old' && oldExam ? nb(IMPORT.nameWith(oldExam.title, active.length)) : IMPORT.name}
       </label>
       <input
         id={`${formId}-name`}

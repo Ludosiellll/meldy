@@ -140,6 +140,12 @@
 .sf-page .im-row-meta { grid-area: meta; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }
 .sf-page .im-row-go { grid-area: go; width: 20px; height: 20px; color: var(--sf-muted); }
 .sf-page[data-frame='s'] .im-row { padding: 13px 14px 13px 18px; }
+/* «Добавить предмет»: the oral exams that can join as they are, a row each, under the files' card. */
+.sf-page .im-offer { margin-top: 32px; }
+.sf-page[data-frame='s'] .im-offer { margin-top: 24px; }
+.sf-page .im-offer-h { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; letter-spacing: -.012em; text-wrap: balance; }
+.sf-page .im-offer .im-rows { margin-top: 12px; }
+.sf-page .im-row[aria-busy='true'] { opacity: .6; }
 
 /* A file without a key: one choice, not a queue of a hundred questions (spec decision 34). */
 .sf-page .im-nokey {
