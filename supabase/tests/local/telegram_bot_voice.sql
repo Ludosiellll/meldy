@@ -402,6 +402,10 @@ begin
                      and r -> 'attempt' -> 'messages' ->> 'voice' = '7001', 'V2: the first voice');
   r := pg_temp.svc(format($$select public.bot_voice_part(810001, %L, %L, 30, 7002)$$, pg_temp.c('aid'), 'Ещё круговое ожидание.'));
   perform pg_temp.is(jsonb_array_length(r -> 'attempt' -> 'parts') = 2 and (r -> 'attempt' ->> 'seconds')::int = 132, 'V2: the second voice is appended');
+  r := pg_temp.svc(format($$select public.bot_voice_part(810001, %L, %L, 30, 7002)$$, pg_temp.c('aid'), 'Ещё круговое ожидание.'));
+  perform pg_temp.is((r ->> 'duplicate')::boolean and jsonb_array_length(r -> 'attempt' -> 'parts') = 2, 'the same voice twice is added once');
+  r := pg_temp.svc(format($$select public.bot_voice_ticket(810001, %L, 'transcribe', 30, 7002)$$, pg_temp.c('aid')));
+  perform pg_temp.is(r ->> 'status' = 'duplicate', 'and gets no second ticket');
   perform pg_temp.is(pg_temp.svc(format($$select public.bot_voice_part(810001, %L, %L, 30)$$, pg_temp.c('aid'), repeat('слово ', 700))) ->> 'status' = 'too_long',
                      'over 4000 characters: too_long');
   perform pg_temp.is(pg_temp.svc(format($$select public.bot_voice_part(810001, %L, '   ', 30)$$, pg_temp.c('aid'))) ->> 'status' = 'invalid', 'an empty text');

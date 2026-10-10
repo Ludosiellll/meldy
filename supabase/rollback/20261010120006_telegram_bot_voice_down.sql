@@ -18,7 +18,7 @@ drop function if exists public.bot_voice_followup(bigint, text, text, text, text
 drop function if exists public.bot_voice_checked(bigint, text, jsonb);
 drop function if exists public.bot_voice_restart(bigint, text);
 drop function if exists public.bot_voice_part(bigint, text, text, integer, bigint);
-drop function if exists public.bot_voice_ticket(bigint, text, text, integer);
+drop function if exists public.bot_voice_ticket(bigint, text, text, integer, bigint);
 drop function if exists public.bot_voice_sent(bigint, text, text, bigint);
 drop function if exists public.bot_voice_next(bigint, text);
 drop function if exists public.bot_voice_start(bigint, uuid, uuid, uuid, text, uuid[], integer);

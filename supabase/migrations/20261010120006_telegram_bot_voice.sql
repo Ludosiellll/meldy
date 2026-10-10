@@ -1001,9 +1001,11 @@ $fn$;
 -- 4e. A ticket for one job of the Space (the voice's length p_seconds from Telegram, for transcribe and followup):
 --     transcribe — a voice of the answer (phase asked | answering), check — «Проверить» (phase answering, some text),
 --     followup — the voice to the examiner's question (phase followup). The limits are checked here first, so a refused
---     voice is never downloaded; bridge_voice_take decides again. status: ok (+ ticket, expires_at) | limit (+ units) |
---     ceiling | stop (+ audio) | busy | gone | invalid | unlinked | off.
-create or replace function public.bot_voice_ticket(p_tg_user_id bigint, p_aid text, p_job text, p_seconds integer default 0)
+--     voice is never downloaded; bridge_voice_take decides again. p_message_id = the voice's message (transcribe): one
+--     already added answers duplicate (+ attempt) — Telegram may deliver an update twice. status: ok (+ ticket,
+--     expires_at) | duplicate | limit (+ units) | ceiling | stop (+ audio) | busy | gone | invalid | unlinked | off.
+create or replace function public.bot_voice_ticket(p_tg_user_id bigint, p_aid text, p_job text, p_seconds integer default 0,
+                                                  p_message_id bigint default null)
 returns jsonb
 language plpgsql
 volatile
@@ -1040,6 +1042,10 @@ begin
      or (p_job = 'check' and (v_a.phase <> 'answering' or pg_catalog.jsonb_array_length(v_a.parts) = 0))
      or (p_job = 'followup' and v_a.phase <> 'followup') then
     return pg_catalog.jsonb_build_object('status', 'gone', 'phase', v_a.phase);
+  end if;
+  if p_job = 'transcribe' and p_message_id is not null
+     and exists (select 1 from pg_catalog.jsonb_array_elements(v_a.parts) as x(p) where (x.p ->> 'message_id')::bigint = p_message_id) then
+    return pg_catalog.jsonb_build_object('status', 'duplicate', 'attempt', bot.voice_attempt_json(v_a, v_now));
   end if;
   if v_a.busy_until > v_now then
     return pg_catalog.jsonb_build_object('status', 'busy');
@@ -1105,6 +1111,11 @@ begin
   if v_a.id is null or v_a.phase not in ('asked', 'answering') then
     return pg_catalog.jsonb_build_object('status', 'gone', 'phase', v_a.phase);
   end if;
+  -- The same voice again (Telegram delivered the update twice): nothing changes.
+  if p_voice_message_id is not null and exists (select 1 from pg_catalog.jsonb_array_elements(v_a.parts) as x(p)
+                                                  where (x.p ->> 'message_id')::bigint = p_voice_message_id) then
+    return pg_catalog.jsonb_build_object('status', 'ok', 'duplicate', true, 'attempt', bot.voice_attempt_json(v_a, v_now));
+  end if;
   -- A voice and a button press reach the bot through different queues: no part while a check is in flight.
   if v_a.busy_until > v_now then
     return pg_catalog.jsonb_build_object('status', 'busy');
@@ -1115,7 +1126,8 @@ begin
     return pg_catalog.jsonb_build_object('status', 'too_long');
   end if;
   update bot.voice_attempts a
-     set parts = a.parts || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('text', v_text, 'seconds', p_seconds)),
+     set parts = a.parts || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('text', v_text, 'seconds', p_seconds,
+                                                                                       'message_id', p_voice_message_id)),
          seconds = least(a.seconds + p_seconds, 86400), phase = 'answering', updated_at = v_now,
          messages = case when p_voice_message_id is null then a.messages
                          else a.messages || pg_catalog.jsonb_build_object('voice', p_voice_message_id) end
@@ -1666,14 +1678,14 @@ revoke all on function meldy_private.ai_quota_status_for(uuid), meldy_private.co
   from public, anon, authenticated;
 revoke all on function public.bot_voice_state(bigint), public.bot_voice_start(bigint, uuid, uuid, uuid, text, uuid[], integer),
   public.bot_voice_next(bigint, text), public.bot_voice_sent(bigint, text, text, bigint),
-  public.bot_voice_ticket(bigint, text, text, integer), public.bot_voice_part(bigint, text, text, integer, bigint),
+  public.bot_voice_ticket(bigint, text, text, integer, bigint), public.bot_voice_part(bigint, text, text, integer, bigint),
   public.bot_voice_restart(bigint, text), public.bot_voice_checked(bigint, text, jsonb),
   public.bot_voice_followup(bigint, text, text, text, text), public.bot_voice_release(bigint, text),
   public.bot_voice_record(bigint, text, jsonb, text), public.bot_voice_self(bigint, text), public.bot_voice_rate(bigint, text, text)
   from public, anon, authenticated;
 grant execute on function public.bot_voice_state(bigint), public.bot_voice_start(bigint, uuid, uuid, uuid, text, uuid[], integer),
   public.bot_voice_next(bigint, text), public.bot_voice_sent(bigint, text, text, bigint),
-  public.bot_voice_ticket(bigint, text, text, integer), public.bot_voice_part(bigint, text, text, integer, bigint),
+  public.bot_voice_ticket(bigint, text, text, integer, bigint), public.bot_voice_part(bigint, text, text, integer, bigint),
   public.bot_voice_restart(bigint, text), public.bot_voice_checked(bigint, text, jsonb),
   public.bot_voice_followup(bigint, text, text, text, text), public.bot_voice_release(bigint, text),
   public.bot_voice_record(bigint, text, jsonb, text), public.bot_voice_self(bigint, text), public.bot_voice_rate(bigint, text, text)

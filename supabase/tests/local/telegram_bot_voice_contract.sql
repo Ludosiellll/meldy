@@ -10,7 +10,7 @@
   -- T10: the voice stage (after «  -- T9: , ('T9', 'bot_file_offer(…)'), ('T9', 'bot_file_redeem(…)')»)
   , ('T10', 'bot_voice_state(bigint)'), ('T10', 'bot_voice_start(bigint,uuid,uuid,uuid,text,uuid[],integer)'),
   ('T10', 'bot_voice_next(bigint,text)'), ('T10', 'bot_voice_sent(bigint,text,text,bigint)'),
-  ('T10', 'bot_voice_ticket(bigint,text,text,integer)'), ('T10', 'bot_voice_part(bigint,text,text,integer,bigint)'),
+  ('T10', 'bot_voice_ticket(bigint,text,text,integer,bigint)'), ('T10', 'bot_voice_part(bigint,text,text,integer,bigint)'),
   ('T10', 'bot_voice_restart(bigint,text)'), ('T10', 'bot_voice_checked(bigint,text,jsonb)'),
   ('T10', 'bot_voice_followup(bigint,text,text,text,text)'), ('T10', 'bot_voice_release(bigint,text)'),
   ('T10', 'bot_voice_record(bigint,text,jsonb,text)'), ('T10', 'bot_voice_self(bigint,text)'),
