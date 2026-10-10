@@ -43,8 +43,8 @@ interface SheetProps {
 
 /**
  * A modal sheet: on a phone it rises from the bottom over a dimmed page (the page's own bar stays under it, the
- * critique's N4); on a computer it is a card in the middle. Escape and the scrim close it, the focus moves in and
- * comes back to what opened it, Tab stays inside.
+ * critique's N4); on a computer it is a card in the middle. Escape and the scrim close it, the focus moves to the sheet
+ * (or the control it names with data-autofocus) and comes back to what opened it, Tab stays inside.
  */
 export function Sheet({ title, onClose, children, actions, bare = false, className = '' }: SheetProps) {
   const titleId = useId();
@@ -55,7 +55,8 @@ export function Sheet({ title, onClose, children, actions, bare = false, classNa
 
   useEffect(() => {
     const node = ref.current;
-    const first = node?.querySelector<HTMLElement>('[data-autofocus]') ?? node?.querySelector<HTMLElement>(FOCUSABLE);
+    // The sheet itself takes the focus (its title is read; Tab goes to its first control), unless it names one.
+    const first = node?.querySelector<HTMLElement>('[data-autofocus]');
     (first ?? node)?.focus({ preventScroll: true });
     const back = opener.current;
     const onKey = (event: KeyboardEvent) => {

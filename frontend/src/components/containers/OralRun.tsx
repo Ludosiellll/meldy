@@ -51,6 +51,8 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tally, setTally] = useState<OralTally>({ know: 0, unsure: 0, dontKnow: 0, questions: 0 });
+  /** The questions rated in this session (what is left today leaves them out). */
+  const [rated, setRated] = useState<ReadonlySet<string>>(() => new Set());
   const [ended, setEnded] = useState<number | null>(null);
   const firstEver = useRef(!firstSessionDone());
   const showNote = useRef(!selfCheckNoteSeen());
@@ -113,7 +115,7 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
         base={base}
         plan={plan}
         input={input}
-        answered={new Set(ids.slice(0, pos))}
+        answered={rated}
         tz={tz}
         today={today}
         firstEver={firstEver.current}
@@ -185,6 +187,7 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
       if (question.question_hash) {
         await recordSelfRating({ questionHash: question.question_hash, rating, examId, examQuestionId: question.question_id, materialId: question.rubric?.materials[0]?.material_id || null });
       }
+      setRated((current) => new Set(current).add(question.question_id));
       setTally((current) => ({
         know: current.know + (rating === 'know' ? 1 : 0),
         unsure: current.unsure + (rating === 'unsure' ? 1 : 0),

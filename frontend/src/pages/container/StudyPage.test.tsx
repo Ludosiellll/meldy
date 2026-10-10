@@ -250,8 +250,10 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-multi', chosen: [0, 2, 3] }));
   });
 
-  it('several correct, not all ticked: «Неверно. В файле верны: А, В и Г.»', () => {
+  it('several correct, not all ticked: «Неверно. В файле верны: А, В и Г.», the letters shown beside the boxes', () => {
     renderStudy(dataWith(['q-multi']));
+    // «☐ А CREATE» (Concept 1 §3.7): the verdict's letters point somewhere.
+    expect(Array.from(document.querySelectorAll('.ct-opt[data-multi] .ct-opt-l')).map((node) => node.textContent)).toEqual(['А', 'Б', 'В', 'Г', 'Д']);
     fireEvent.click(option('CREATE'));
     fireEvent.click(screen.getByRole('button', { name: 'Ответить' }));
     expect(verdict()).toBe('Неверно. В файле верны: А, В и Г. Вернётся через пару вопросов и завтра.');
@@ -311,7 +313,10 @@ describe('keys in doubt (decisions 14, 37)', () => {
     fireEvent.click(within(panel).getByRole('button', { name: /REPEATABLE READ/ }));
     await waitFor(() => expect(mocks.updateItem).toHaveBeenCalledWith('q-iso', { correct: [2] }));
     expect(within(panel).getByRole('status').textContent).toBe('Ключ изменён. Счёт по этому вопросу начнётся заново.');
-    expect(verdict()).toBe('Верно.');
+    // The panel says the key changed; the answer is not sent, so neither «Нажали не туда?» nor a doubt is offered for it.
+    expect(verdict()).toBe('Этот ответ в счёт не идёт.');
+    expect(screen.queryByRole('button', { name: 'Нажали не туда?' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Сомневаюсь в ключе' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Какая нормальная форма требует отсутствия транзитивных зависимостей?');
     expect(mocks.enqueue).not.toHaveBeenCalled();
@@ -497,7 +502,8 @@ describe('an oral self-check (decisions 19, 51)', () => {
       summary: base,
       plan: dayPlan({ sessions: [{ subjectId: SUBJECT_ORAL, kind: 'self_check', ids: sheet.questions.map((q) => q.question_id), estSec: 120 }] }),
     });
-    renderStudy(data, `?s=${SUBJECT_ORAL}&kind=self_check`);
+    // An oral subject's session is a self-check even when the link does not say so.
+    renderStudy(data, `?s=${SUBJECT_ORAL}`);
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Понятие и виды сделок.'));
     expect(plain(screen.getByRole('banner').textContent)).toContain('1 из 2');
     expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Гражданское право · устно');
@@ -517,5 +523,8 @@ describe('an oral self-check (decisions 19, 51)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Плаваю' }));
     await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 вопроса за 1 минуту'));
     expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('«Знаю» — 1 · «плаваю» — 1 · «не знаю» — 0.');
+    // Both questions were rated: nothing of this session is offered again today, the pill is «Готово».
+    expect(screen.queryByRole('link', { name: (name) => plain(name).startsWith('Ещё 1 вопрос') })).toBeNull();
+    expect(document.querySelector('.ct-bar .sf-primary')?.textContent).toBe('Готово');
   });
 });

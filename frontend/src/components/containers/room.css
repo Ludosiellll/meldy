@@ -63,7 +63,14 @@
   max-width: calc(720px + 2 * var(--sf-g));
   padding-top: 28px;
   padding-bottom: 40px;
+  /* The bar keeps its place at the bottom of the screen under a short question too (decision 42: the pinned bar). */
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 60px);
+  min-height: calc(100dvh - 60px);
 }
+.ct-study.sf-page > .ct-bar { margin-top: auto; }
+.ct-study.sf-page > :has(+ .ct-bar) { margin-bottom: 28px; }
 .ct-ctx { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .ct-offline { margin: 0 0 10px; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
 .ct-stem {
@@ -152,7 +159,8 @@
 .ct-opt[data-state='picked'] { box-shadow: inset 0 0 0 2px var(--sf-ink); border-radius: 0; }
 .ct-opts > .ct-opt:first-child[data-state='picked'] { border-radius: 26px 26px 0 0; }
 .ct-opts > .ct-opt:last-child[data-state='picked'] { border-radius: 0 0 26px 26px; }
-/* Several correct: checkboxes in the letter's column. */
+/* Several correct: a checkbox before the letter («☐ А …», Concept 1 §3.7), so «В файле верны: А и В» points somewhere. */
+.ct-opt[data-multi] { grid-template-columns: 22px 16px minmax(0, 1fr); column-gap: 12px; }
 .ct-box {
   display: inline-grid;
   place-items: center;
@@ -208,18 +216,18 @@
   z-index: 20;
   margin: 28px calc(-1 * var(--sf-g)) -40px;
   padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--sf-canvas) 88%, transparent);
-  -webkit-backdrop-filter: saturate(1.4) blur(14px);
-  backdrop-filter: saturate(1.4) blur(14px);
+  /* Opaque, as the oral pages' bars (LIB-27): through a translucent bar the lines under it read as a second text. */
+  background: var(--sf-canvas);
   box-shadow: 0 -1px 0 var(--sf-line);
-}
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .ct-bar { background: var(--sf-canvas); }
 }
 .ct-verdict { margin: 0 0 10px; font-size: 16px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); text-wrap: pretty; }
 .ct-verdict[data-tone='right'] { color: var(--m-green-ink); }
 .ct-bar-row { display: flex; align-items: center; gap: 10px; }
 .ct-bar .sf-primary { flex: 1 1 auto; justify-content: space-between; }
+/* A long label («Дальше: Теория вероятностей и математическая статистика — 20 вопросов») wraps inside the pill on a
+   narrow screen instead of pushing past it. */
+.ct-bar .sf-primary,
+.ct-end .sf-primary { min-width: 0; max-width: 100%; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; line-height: 1.25; white-space: normal; text-align: left; text-wrap: balance; }
 .ct-bar .sf-secondary,
 .ct-bar .ct-back {
   display: inline-flex;
@@ -246,6 +254,7 @@
 }
 
 /* ---------------------------------------------------------------- panels in place: «Ключ неверный?» */
+.ct-key-at { scroll-margin-top: 76px; }
 .ct-panel { margin-top: 18px; padding: 18px 20px 20px; border-radius: 24px; background: var(--sf-surface); box-shadow: var(--ct-card); }
 .ct-panel > p { margin: 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
 .ct-panel .ct-opts { margin-top: 12px; box-shadow: inset 0 0 0 1px var(--sf-line); }
@@ -260,7 +269,8 @@
 .ct-recall { margin: 14px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); }
 .ct-points { margin-top: 18px; padding: 18px 20px 20px; border-radius: 24px; background: var(--sf-surface); box-shadow: var(--ct-card); }
 .ct-points h2 { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; color: var(--sf-ink); }
-.ct-points ul { margin: 8px 0 0; padding-left: 20px; }
+.ct-points ul { margin: 8px 0 0; padding-left: 20px; list-style: disc; }
+.ct-points li::marker { color: var(--sf-muted); }
 .ct-points li { margin: 6px 0 0; font-size: 17px; line-height: 1.45; color: var(--sf-ink); }
 .ct-points li[data-essential] { font-weight: 500; }
 .ct-rate-t { margin: 20px 0 0; font-size: 17px; line-height: 1.4; font-weight: 500; }

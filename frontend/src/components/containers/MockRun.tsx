@@ -13,6 +13,7 @@ import * as copy from './copy';
 import { dayIn, studyHref, subjectTitle } from './model';
 import { clock, drawMock, isAnswered, mockAnswers, scoreMock, type MockAnswer } from './mockModel';
 import { newId } from './sessionStore';
+import { useWide } from './useWide';
 import './room.css';
 
 /**
@@ -84,6 +85,7 @@ export default function MockRun({
 }) {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const wide = useWide();
   const subjectParam = params.get('s');
   const count = Number(params.get('n'));
   const minutesParam = Number(params.get('t'));
@@ -269,7 +271,7 @@ export default function MockRun({
             </div>
           ) : null}
           <div className="ct-bar">
-            <div className="ct-bar-row" style={{ width: '100%' }}>
+            <div className="ct-bar-row" style={wide ? undefined : { width: '100%' }}>
               {errors > 0 ? (
                 <Link className="sf-primary" to={reviewHref}>
                   {copy.MOCK_REVIEW}
@@ -349,7 +351,7 @@ export default function MockRun({
           </button>
         </div>
         <div className="ct-bar">
-          <div className="ct-bar-row" style={{ width: '100%' }}>
+          <div className="ct-bar-row" style={wide ? undefined : { width: '100%' }}>
             <button type="button" className="ct-back" disabled={pos === 0} onClick={() => setPos(Math.max(0, pos - 1))}>
               {copy.MOCK_BACK}
             </button>

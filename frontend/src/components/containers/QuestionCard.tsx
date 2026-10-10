@@ -127,6 +127,7 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
               ref={isFileRef ? fileRef : undefined}
               type="button"
               className="ct-opt"
+              data-multi={multiple ? '' : undefined}
               data-state={state}
               data-ticked={learn && answered && multiple && (answered.chosen?.includes(fileIndex) ?? false) ? '' : undefined}
               aria-pressed={!learn ? Boolean(picked?.includes(fileIndex)) : pressed}
@@ -136,9 +137,9 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
                 onPick(place);
               }}
             >
-              {multiple ? <Check /> : <span className="ct-opt-l">{letter}</span>}
+              {multiple ? <Check /> : null}
+              <span className="ct-opt-l">{letter}</span>
               <span className="ct-opt-t">
-                {multiple ? <span className="sr-only">{`${letter}. `}</span> : null}
                 {item.options[fileIndex]}
                 {tag ? <span className="ct-opt-tag">{tag}</span> : null}
               </span>

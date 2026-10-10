@@ -40,7 +40,8 @@ export default function FigureBlock({ figure, plan, today }: { figure: Figure; p
       </section>
     );
   }
-  const under = words.under ?? '';
+  // «Видели 410 · ошибок сейчас 37»: a number stays with its word, the dot with the part before it.
+  const under = (words.under ?? '').replace(/ · /g, copy.SEP).replace(/ (?=\d)/g, copy.NBSP);
   if (!words.big) {
     return (
       <section className="ct-figure" aria-label={copy.TWO_DAYS}>

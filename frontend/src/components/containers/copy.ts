@@ -41,7 +41,8 @@ const minAcc = (n: number) => `${n} ${pl(n, 'минуту', 'минуты', 'м�
 export const minNom = (n: number) => `${n} ${pl(n, 'минута', 'минуты', 'минут')}`;
 
 export const TWO_DAYS = 'верно в два разных дня';
-export const SEP = ' · ';
+/** « · » between parts of a line: the dot stays with the word before it when the line wraps. */
+export const SEP = `${NBSP}· `;
 
 // ─────────────────────────────────────────────── the exam page and the subject page
 
@@ -179,7 +180,7 @@ export function topicSheetMeta(p: { keyed: number; twoDays: number; errors: numb
   return glue([q(p.keyed), `${TWO_DAYS} ${p.twoDays}`, ...(p.errors > 0 ? [`ошибок ${p.errors}`] : [])].join(SEP));
 }
 export const topicStart = (n: number) => glue(`Начать ${q(n)} по теме`);
-export const TOPIC_EMPTY = 'В этой теме сейчас нечего повторять.';
+export const TOPIC_EMPTY = 'Вопросы этой темы сегодня уже были — они вернутся завтра.';
 
 // ─────────────────────────────────────────────── the «занятие»
 
@@ -215,6 +216,8 @@ export function verdictShortWrong(answer: string, again: boolean): string {
   return glue(`Неверно. В файле: ${answer}. ${comesBack(again)}`);
 }
 export const shortDontKnow = (answer: string, again: boolean) => glue(`В файле: ${answer}. ${comesBack(again)}`);
+/** After the author changed the key in place (decision 14): the panel says what changed; this answer is not sent. */
+export const VERDICT_KEY_FIXED = 'Этот ответ в счёт не идёт.';
 export const MISCLICK_LINE = 'Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся завтра.';
 function listLetters(letters: string[]): string {
   return letters.length > 1 ? `${letters.slice(0, -1).join(', ')} и ${letters[letters.length - 1]}` : letters.join('');
@@ -228,7 +231,7 @@ export const noteKeyFixed = (dayText: string) => glue(`Ключ исправле
 export const OFFLINE_STUDY = 'Нет сети. Ответы сохранятся на этом устройстве и уйдут, когда сеть появится.';
 export const KEYS_HINT = glue('1–8 — ответ · 0 — не знаю · Enter — дальше · Backspace — нажали не туда');
 export const SESSION_LOADING = 'Собираем занятие…';
-export const SESSION_EMPTY = 'Сейчас здесь нечего повторять.';
+export const SESSION_EMPTY = 'На сегодня здесь всё.';
 export const ERRORS_EMPTY = 'Ошибок сейчас нет.';
 export const BACK_TO_EXAM = 'Вернуться к экзамену';
 export const OPTION_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З'] as const;

@@ -233,21 +233,23 @@
 .ct-plan .ct-note .sf-link { color: var(--sf-ink); }
 
 /* ---------------------------------------------------------------- the phone and tablet bar */
+/* A phone and a tablet: the page's one pill in a bar pinned to the bottom of the window, as the oral pages pin theirs
+   (a short page keeps it at the bottom too); the page ends above it. */
 .ct-cta {
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
   z-index: 20;
-  margin: 24px calc(-1 * var(--sf-g)) -96px;
-  padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--sf-canvas) 86%, transparent);
-  -webkit-backdrop-filter: saturate(1.4) blur(14px);
-  backdrop-filter: saturate(1.4) blur(14px);
+  margin: 0;
+  padding: 12px max(var(--sf-g), calc((100% - var(--sf-page, 1180px)) / 2)) calc(12px + env(safe-area-inset-bottom));
+  background: var(--sf-canvas);
   box-shadow: 0 -1px 0 var(--sf-line);
 }
 .ct-cta .sf-primary { width: 100%; justify-content: space-between; }
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .ct-cta { background: var(--sf-canvas); }
-}
+.ct-page:has(> .ct-cta) { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+.ct-cta .sf-primary,
+.ct-sheet-acts .sf-primary { min-width: 0; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; line-height: 1.25; white-space: normal; text-align: left; text-wrap: balance; }
 
 /* ---------------------------------------------------------------- sheets */
 .ct-sheet-root { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; }
@@ -388,6 +390,8 @@ html[data-stage] .ct-links { display: none; }
 /* ---------------------------------------------------------------- the «Сегодня» card (TodayExamCard, decision 47) */
 /* The card wears today's oral card (pages/Dashboard.css .td-exam); these rules only add what it lacks. */
 .td-exam .tc-today { margin: 0; }
+/* A long label («Продолжить: ещё 8 вопросов») wraps inside the pill on a narrow phone instead of leaving the card. */
+.td-exam[data-container] .td-actions .sf-primary { min-width: 0; max-width: 100%; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; line-height: 1.25; white-space: normal; text-align: left; }
 .td-exam .tc-note { margin: 10px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .td-exam .tc-fig-link {
   display: inline-flex;

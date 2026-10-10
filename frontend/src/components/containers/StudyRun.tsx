@@ -114,6 +114,7 @@ export default function StudyRun(props: StudyRunProps) {
   const fixedNow = useRef(false);
   const stemRef = useRef<HTMLHeadingElement | null>(null);
   const fileRef = useRef<HTMLButtonElement | null>(null);
+  const keyRef = useRef<HTMLDivElement | null>(null);
 
   const entry = queue[pos] ?? null;
   const base_ = entry ? items.get(entry.id) ?? null : null;
@@ -161,6 +162,21 @@ export default function StudyRun(props: StudyRunProps) {
     }
     stemRef.current?.focus({ preventScroll: true });
   }, [pos, ended]);
+
+  // «Ключ неверный?» opens below the question: bring it into view above the pinned bar.
+  useEffect(() => {
+    if (!keyOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      let still = false;
+      try {
+        still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      } catch {
+        still = false;
+      }
+      keyRef.current?.scrollIntoView?.({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [keyOpen]);
 
   const merge = useCallback((list: AnswerResult[]) => {
     if (list.length === 0) return;
@@ -494,7 +510,8 @@ export default function StudyRun(props: StudyRunProps) {
 
   let verdict: string | null = null;
   if (pending && answered) {
-    if (pending.misclick) verdict = copy.MISCLICK_LINE;
+    if (fixedNow.current) verdict = copy.VERDICT_KEY_FIXED;
+    else if (pending.misclick) verdict = copy.MISCLICK_LINE;
     else if (answered.correct) verdict = item.kind === 'multiple' ? copy.verdictRightAll(item.correct.length) : copy.VERDICT_RIGHT;
     else if (item.kind === 'short') {
       const form = item.answers[0] ?? '';
@@ -513,14 +530,16 @@ export default function StudyRun(props: StudyRunProps) {
 
   const under: ReactNode[] = [];
   if (pending) {
-    if (!answered!.correct && !pending.misclick && !committed.current) {
+    // After a key fix in place the answer is not sent: neither «Нажали не туда?» nor a doubt means anything then.
+    const fixed = fixedNow.current;
+    if (!answered!.correct && !pending.misclick && !committed.current && !fixed) {
       under.push(
         <button key="misclick" type="button" className="sf-link" onClick={misclick}>
           {copy.MISCLICK}
         </button>,
       );
     }
-    if (!aside.has(item.id)) {
+    if (!aside.has(item.id) && !fixed) {
       under.push(
         <button key="doubt" type="button" className="sf-link" data-muted="" aria-haspopup="dialog" onClick={() => setDoubtOpen(true)}>
           {copy.DOUBT}
@@ -570,16 +589,18 @@ export default function StudyRun(props: StudyRunProps) {
           </div>
         ) : null}
         {keyOpen && pending && author ? (
-          <KeyFix
-            item={item}
-            typed={pending.text}
-            group={hasGroup(summary)}
-            onFixed={(patch) => {
-              fixedNow.current = true;
-              setPatches((current) => ({ ...current, [item.id]: patch }));
-            }}
-            onCancel={() => setKeyOpen(false)}
-          />
+          <div ref={keyRef} className="ct-key-at">
+            <KeyFix
+              item={item}
+              typed={pending.text}
+              group={hasGroup(summary)}
+              onFixed={(patch) => {
+                fixedNow.current = true;
+                setPatches((current) => ({ ...current, [item.id]: patch }));
+              }}
+              onCancel={() => setKeyOpen(false)}
+            />
+          </div>
         ) : null}
         {!pending ? (
           <div className="ct-under ct-dontknow">

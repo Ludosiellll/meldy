@@ -1,6 +1,6 @@
 import type { ContainerSummary, DayPlan, LocalDay, PlanCls, PlanInput } from '../../types/container';
 import { buildSession, freeSession, shuffled, type QueueEntry } from '../../lib/containers/session';
-import { answeredToday, clsOf, firstSession, moreNew, type StudyRecord } from './model';
+import { answeredToday, clsOf, firstSession, moreNew, subjectKind, type StudyRecord } from './model';
 import { newId, resumable, type SavedSession } from './sessionStore';
 
 /**
@@ -60,8 +60,10 @@ export function setupSession(p: {
     };
   }
 
-  const kind = params.get('kind') === 'self_check' ? 'self_check' : 'answer';
   const subjectId = params.get('s') || firstSession(plan)?.subjectId || summary.subjects[0]?.id || '';
+  // An oral subject has only self-checks here (its AI checks are a ticket of the oral exam).
+  const oralOnly = summary.subjects.some((subject) => subject.id === subjectId && subjectKind(subject) === 'oral');
+  const kind = params.get('kind') === 'self_check' || oralOnly ? 'self_check' : 'answer';
   const topicRaw = Number(params.get('topic'));
   const topic = Number.isInteger(topicRaw) && topicRaw > 0 ? topicRaw : null;
   const onlyRaw = params.get('only');
