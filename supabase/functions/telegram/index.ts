@@ -6,6 +6,7 @@
 // `node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts`).
 import { createDb } from '../_shared/bot/db.ts';
 import { files } from '../_shared/bot/files.ts';
+import { group } from '../_shared/bot/group.ts';
 import { session } from '../_shared/bot/session.ts';
 import { readEnv } from '../_shared/bot/env.ts';
 import { log } from '../_shared/bot/log.ts';
@@ -17,7 +18,7 @@ declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void } | undefin
 // The packages after T2 plug in here, one line each, when they merge:
 const ports: Ports = {
   session, // T6: the session in chat (Z1–Z12, I1–I3)
-  group: STUBS.group, // T8: `import { group } from '../_shared/bot/group.ts';` and `group,`
+  group, // T8: the group chat «Вопрос дня» (G1–G4, presses, tick steps 1, 2, 4)
   files, // T9: a forwarded file (F1) and GET /telegram/file
   voice: STUBS.voice, // T10: `import { voice } from '../_shared/bot/voice.ts';` and `voice,`
 };
