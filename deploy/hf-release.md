@@ -4,6 +4,18 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-10 — Release 37: the exam container after the live usability check — the day's plan only shrinks, study days of the week, selects that open in sheets, code that reads as code (from the commit of this entry)
+
+- **The day is frozen** (finding M1; migration `20261010130000_containers_frozen_pace.sql`, live since 13:39 UTC): the plan of a day is the plan of its first answer, rebuilt from `plan_inputs.day_start` and `pace_day`; «осталось N, около M минут» only goes down, spare minutes go to «Ещё 20 новых». Items answered before the migration keep the old fill for today; the frozen day starts tomorrow for them.
+- **Study days of the week** (m6): «Настройки» has a Пн–Вс row; the plan counts only study days to the date (daily share, final window, minutes needed, missed days, «План по дням»). A day off has no plan: «Сегодня выходной. Следующие вопросы — в понедельник.», «Ещё 20 новых» stays. Every day (127) plans exactly as before (10 670 comparisons, 0 differences).
+- **Selects in sheets** (M2): the list opens in a portal fixed to the window and flips up when there is no room; «Как на экзамене» can now pick 60/80 questions and 45/60 minutes and «без времени» on a phone (8/8 and 11/11 reachable).
+- **Code** (m1, m8): the import also flags code from the question's own monospace and from SQL/shell lines; the screen shows later lines that clearly read as code as code even without the flag; wrapped code lines hang under their own indent.
+- **Words of a session** (m2, m3, n2, n4): a wrong answer names the key by its text in the file; the blue button names the subject when two or more subjects have work (exam page and «Сегодня»); one rounding of times («после 9:55» everywhere); the key links by role; the end screen keeps what it said when it opened; one plan note on a phone.
+- **Targets and offline** (m4, m5): every quiet link of the container screens is 44 px tall without growing its block; offline «Сегодня» and «Экзамены» draw the exam from the device's copy at once (0.3–0.45 s instead of 7.5 s), and an expired session offline no longer waits 52 s.
+- **«Прогресс»** (m7): each exam with its figure and a way to its page; the week, the days, the streak and the bars count the exam's answers too (a day counts once); no layout shift (CLS 0.01 on a phone).
+- **The Telegram bot**, deployed with this release: the same plan (frozen day, study days; no reminder on a day when every exam is off), a question's code split by the site's own module, code blocks as plain `<pre>`.
+- Verified before release: Vitest 247 files, 4098 tests; pytest 1815 passed; `tsc -b` and `vite build` in the Docker layout; the container's SQL rehearsal ALL CONTAINER CHECKS GREEN (with the frozen day); the bot's SQL runner 77 ok and its function tests 290/290 with strict `tsc`.
+
 ## 2026-10-10 — Release 36: the site's side of the Telegram bot @Meldyteach_bot — connect it in «Профиль», reminders after a session, «Вопрос дня» for a group, a file sent to the bot (from the commit of this entry)
 
 - **The bot itself is already live** in Supabase, not in this Space: the Edge Function `telegram` (region `eu-central-1`), the schema `bot` (migrations `20261010120000…120005`, contract checks green), the minute tick (pg_cron → pg_net), `/setup` done (webhook, name, commands, avatar). This release adds the site's parts.
