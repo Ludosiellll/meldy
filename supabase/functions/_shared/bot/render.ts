@@ -3,7 +3,7 @@
  * sends and edits them. Every message passes lint.ts in the tests (fixtures/snapshots/session.json).
  *
  * - The question (Z1–Z5): a muted line (subject · «7 из 20», a retry «· повтор — не в счёт»), the question in bold,
- *   code in `<pre><code class="language-csharp">` (never inside `<b>`), options on buttons or by letter (question.ts).
+ *   code in `<pre>` (never inside `<b>`; no language label: the code may be C#, SQL or a shell), options on buttons or by letter (question.ts).
  *   No blue button: the answer is the action — except «Ответить» of several correct answers.
  * - After a wrong answer or «Не знаю» (Z7, Z8): the question loses its bold, the answer from the file takes it; only
  *   «В файле» and «Ваш ответ» stay, then the verdict, the notes about the key and «№ 57 · Тема 3. …». «Нажали не
@@ -132,7 +132,7 @@ export function headerText(v: Pick<QuestionView, 'subject' | 'n' | 'of' | 'retry
 function stemBlock(item: QuestionItem, bold: boolean): string {
   const stem = stemParts(item.stem, item.code);
   const words = (text: string) => (bold ? `<b>${own(text)}</b>` : own(text));
-  return lines(stem.before ? words(stem.before) : null, stem.code ? pre(stem.code, 'csharp') : null, stem.after ? words(stem.after) : null);
+  return lines(stem.before ? words(stem.before) : null, stem.code ? pre(stem.code) : null, stem.after ? words(stem.after) : null);
 }
 
 /** «<b>А</b> Изменения…» — one line per option, U+2002 after the letter, code in `<code>`, no empty lines. */

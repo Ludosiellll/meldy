@@ -165,7 +165,7 @@ test('G2 letters (Z2, Z3): long options, code options, 6 options in rows of 4, k
       assert.deepEqual(keyboard, [['А', 'Б', 'В', 'Г'], ['Заниматься в Meldy']]);
     }],
     [OUTPUT, (text, keyboard) => {
-      assert.match(text, /Что выведет программа\?\n<pre><code class="language-csharp">int x = 7;\nint y = x\+\+ \+ \+\+x;\nConsole\.WriteLine\(y\);<\/code><\/pre>$/);
+      assert.match(text, /Что выведет программа\?\n<pre>int x = 7;\nint y = x\+\+ \+ \+\+x;\nConsole\.WriteLine\(y\);<\/pre>$/);
       assert.deepEqual(keyboard.slice(0, -1).map((r) => r.length), [1, 1, 1, 1], 'short options stay buttons under a code question');
     }],
     [CONTEXT, (_text, keyboard) => assert.deepEqual(keyboard, [['А', 'Б', 'В', 'Г'], ['Д', 'Е'], ['Заниматься в Meldy']])],
@@ -215,7 +215,7 @@ test('G2 split as on the site (stemParts): SQL without the flag, a command and i
     assert.equal((await h.tick()).posts_posted, 1, it.stem);
     const params = sends(h).at(-1)!;
     const [first, ...rest] = it.stem.split('\n');
-    assert.ok(params.text.includes(`</b>\n\n${t(first)}\n<pre><code class="language-csharp">${esc(rest.join('\n'))}</code></pre>`), params.text);
+    assert.ok(params.text.includes(`</b>\n\n${t(first)}\n<pre>${esc(rest.join('\n'))}</pre>`), params.text);
     lintGroup(params.text, keyboardOf(params.reply_markup), it);
   }
 });
@@ -238,7 +238,7 @@ test('T7\'s 1500 characters still fit one post: the split changes the markup, ne
   assert.equal([...long].length + options.join('').length, 1500);
   const post = view(long, false, options);
   assert.ok(G.postable(post));
-  assert.ok(G.postText(post).includes('<pre><code class="language-csharp">SELECT *\nFROM Students\nWHERE course = 2;\n-- xxx'));
+  assert.ok(G.postText(post).includes('<pre>SELECT *\nFROM Students\nWHERE course = 2;\n-- xxx'));
   assert.ok(visibleLength(G.postText(post, G.GW.closedAnswered(99999))) < 1700, 'far below Telegram\'s 4096');
 });
 

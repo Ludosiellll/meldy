@@ -45,10 +45,14 @@ export function code(text: string): string {
   return `<code>${esc(text)}</code>`;
 }
 
-/** A code block in the question: `<pre><code class="language-csharp">`. */
-export function pre(text: string, lang = 'csharp'): string {
-  const safeLang = /^[a-z0-9+#-]{1,20}$/.test(lang) ? lang : 'csharp';
-  return `<pre><code class="language-${safeLang}">${esc(text)}</code></pre>`;
+/**
+ * A code block: `<pre>` as the site shows it (monospace, no language). A question's code may be C#, SQL, a shell
+ * command and its output or a table (stemCode.ts finds them all), so no single language label is true for every block;
+ * a caller that knows the language passes it (`<pre><code class="language-…">`).
+ */
+export function pre(text: string, lang: string | null = null): string {
+  if (lang && /^[a-z0-9+#-]{1,20}$/.test(lang)) return `<pre><code class="language-${lang}">${esc(text)}</code></pre>`;
+  return `<pre>${esc(text)}</pre>`;
 }
 
 /** «ёлочки» around a name. */

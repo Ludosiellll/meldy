@@ -126,11 +126,11 @@ test('Z1/Z2: the question in bold; letters in the text with U+2002, no empty lin
   assert.deepEqual(z2.keyboard![0].map((b) => b.text), ['А', 'Б', 'В', 'Г']);
 });
 
-test('Z3: code options in <code> (never inside <b>), the question\'s code in <pre><code class="language-csharp">', () => {
+test('Z3: code options in <code> (never inside <b>), the question\'s code in <pre> (no language label)', () => {
   const z3 = questionOut(view(DRAW, CS, 5));
   assert.ok(z3.text.includes('<b>Б</b> <code>public virtual void Draw()</code>'));
   const stem = questionOut(view(POSTFIX, CS, 6));
-  assert.ok(stem.text.includes('<b>Что выведет программа?</b>\n<pre><code class="language-csharp">int x = 7;\nint y = x++ + ++x;\nConsole.WriteLine(y);</code></pre>'));
+  assert.ok(stem.text.includes('<b>Что выведет программа?</b>\n<pre>int x = 7;\nint y = x++ + ++x;\nConsole.WriteLine(y);</pre>'));
   assert.deepEqual(stem.keyboard!.slice(0, 4).map((r) => r.map((b) => b.text)), [['14'], ['15'], ['16'], ['17']]);
   const review = reviewOut(view(DRAW, CS, 5), shown({ key: [1], chosen: [0] }), 'review', { site: SITE });
   assert.ok(review.text.includes('<b>В\u00a0файле\u00a0— Б</b>\n<code>public virtual void Draw()</code>'), 'bold may not hold code: the heading is bold');
@@ -138,7 +138,7 @@ test('Z3: code options in <code> (never inside <b>), the question\'s code in <pr
 });
 
 /** The question's code block (Z3): verbatim, escaped, never glued. */
-const preBlock = (code: string) => `<pre><code class="language-csharp">${esc(code)}</code></pre>`;
+const preBlock = (code: string) => `<pre>${esc(code)}</pre>`;
 
 test('Z3 split as on the site (stemParts): SQL, a shell and C in <pre> under the question in bold, with the import\'s flag and without it', () => {
   // SQL imported without the flag (usability check m1): the question in bold, the query in <pre>, then the letters.
