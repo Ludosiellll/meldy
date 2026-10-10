@@ -17,8 +17,8 @@ revoke all on function public.bot_setup(text, bigint, text, text, text), public.
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),
   public.bot_card_sent(bigint, bigint, text), public.bot_claim_reminders(integer, timestamptz),
   public.bot_reminder_context(bigint), public.bot_delivery_sending(bigint, timestamptz),
-  public.bot_delivery_done(bigint, text, bigint, text, timestamptz), public.bot_claim_day_close(integer, timestamptz),
-  public.bot_claim_after_date(integer, timestamptz)
+  public.bot_delivery_retry(bigint, text, timestamptz), public.bot_delivery_done(bigint, text, bigint, text, timestamptz),
+  public.bot_claim_day_close(integer, timestamptz), public.bot_claim_after_date(integer, timestamptz)
   from public, anon, authenticated;
 grant execute on function public.bot_setup(text, bigint, text, text, text), public.bot_update_begin(bigint, timestamptz),
   public.bot_update_done(bigint), public.bot_update_failed(bigint, text), public.bot_tick_beat(jsonb), public.bot_status(),
@@ -26,8 +26,8 @@ grant execute on function public.bot_setup(text, bigint, text, text, text), publ
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),
   public.bot_card_sent(bigint, bigint, text), public.bot_claim_reminders(integer, timestamptz),
   public.bot_reminder_context(bigint), public.bot_delivery_sending(bigint, timestamptz),
-  public.bot_delivery_done(bigint, text, bigint, text, timestamptz), public.bot_claim_day_close(integer, timestamptz),
-  public.bot_claim_after_date(integer, timestamptz)
+  public.bot_delivery_retry(bigint, text, timestamptz), public.bot_delivery_done(bigint, text, bigint, text, timestamptz),
+  public.bot_claim_day_close(integer, timestamptz), public.bot_claim_after_date(integer, timestamptz)
   to service_role;
 
 revoke all on function public.telegram_link_start(text), public.telegram_link_state(),

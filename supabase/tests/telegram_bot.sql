@@ -42,7 +42,8 @@ bot_fns(pkg, sig) AS (VALUES
   ('T1', 'bot_chat_event(bigint,text)'), ('T1', 'bot_whoami(bigint)'), ('T1', 'bot_settings(bigint,jsonb)'),
   ('T1', 'bot_today(bigint)'), ('T1', 'bot_card_sent(bigint,bigint,text)'),
   ('T1', 'bot_claim_reminders(integer,timestamptz)'), ('T1', 'bot_reminder_context(bigint)'),
-  ('T1', 'bot_delivery_sending(bigint,timestamptz)'), ('T1', 'bot_delivery_done(bigint,text,bigint,text,timestamptz)'),
+  ('T1', 'bot_delivery_sending(bigint,timestamptz)'), ('T1', 'bot_delivery_retry(bigint,text,timestamptz)'),
+  ('T1', 'bot_delivery_done(bigint,text,bigint,text,timestamptz)'),
   ('T1', 'bot_claim_day_close(integer,timestamptz)'), ('T1', 'bot_claim_after_date(integer,timestamptz)')
   -- T5: , ('T5', 'bot_session_start(…)'), ('T5', 'bot_session_view(…)'), ('T5', 'bot_session_answer(…)'), …
   -- T7: , ('T7', 'bot_group_claim(…)'), …
