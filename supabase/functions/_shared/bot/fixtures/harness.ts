@@ -1,10 +1,17 @@
 // The whole function in a test: createApp with the fake Telegram, the fake database, recording ports and a clock that
 // the fake sleep moves forward. `post(update)` sends a webhook request with the right (or a given) secret header.
+import { setLogSink } from '../log.ts';
 import { createApp, type Ports, type TgUpdate } from '../router.ts';
 import { derivedSecret } from '../secrets.ts';
 import { fakeDb } from './fake_db.ts';
 import { fakeTelegram, TEST_FUNCTION_URL, TEST_TOKEN } from './fake_telegram.ts';
 import { AUTUMN, NOW, TG, USER, wireOf, type ExamSpec } from './scenario.ts';
+
+/** Every log line written while a test file that uses the harness runs (the console stays quiet). */
+export const LOGS: string[] = [];
+setLogSink((line) => {
+  LOGS.push(line);
+});
 
 export interface PortCall { port: string; fn: string; args: unknown[] }
 
