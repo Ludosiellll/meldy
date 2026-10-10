@@ -329,11 +329,15 @@ async function sendAnswers(userId: string, batch: AnswerEntry[]): Promise<Outcom
   }
   const done = new Set<string>();
   const dropped = new Map<string, number>();
+  // Results come back in the order of the answers; each is still matched by its id, the position only for one without.
+  const byId = new Map<string, AnswerResult>();
+  for (const result of results) if (result && typeof result.client_event_id === 'string') byId.set(result.client_event_id, result);
   batch.forEach((entry, index) => {
-    const result = results[index];
-    const status = result?.status as AnswerStatus | undefined;
-    if (!status) return;
     const id = entry.a.client_event_id;
+    const atIndex = results[index];
+    const result = byId.get(id) ?? (atIndex && typeof atIndex.client_event_id !== 'string' ? atIndex : undefined);
+    const status = result?.status as AnswerStatus | undefined;
+    if (!result || !status) return;
     if (QUEUE_DONE.includes(status)) {
       done.add(id);
     } else if (QUEUE_DROP_AND_REPORT.includes(status)) {

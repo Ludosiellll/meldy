@@ -126,6 +126,24 @@ describe('statuses', () => {
     expect(last.pending).toHaveLength(2);
   });
 
+  it('matches each result to its answer by id, whatever their order', async () => {
+    mocks.recordAnswers.mockImplementation(async (answers: AnswerInput[]) => ({
+      v: 1,
+      server_day: '2026-12-21',
+      results: answers
+        .map((item) => ({ client_event_id: item.client_event_id, status: item.item_id === 'item-2' ? 'stale' : 'saved' }))
+        .reverse(),
+    }));
+    const results = await enqueueAnswers(A, [answer(1), answer(2), answer(3)]);
+    expect(results.map((result) => [result.client_event_id, result.status])).toEqual([
+      ['sess-0001:1', 'saved'],
+      ['sess-0001:2', 'stale'],
+      ['sess-0001:3', 'saved'],
+    ]);
+    expect(mocks.track.mock.calls).toEqual([[DROP_EVENT, { status: 'stale', count: 1 }]]);
+    expect(pendingAnswers(A)).toEqual([]);
+  });
+
   it('never drops silently: an answer that got no result stays, and the flush stops instead of looping', async () => {
     mocks.recordAnswers.mockResolvedValue({ v: 1, server_day: '2026-12-21', results: [] });
     await enqueueAnswers(A, [answer(1)]);
