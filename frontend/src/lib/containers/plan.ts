@@ -35,6 +35,18 @@ export const CLASS_ORDER: readonly Cls[] = ['relearn', 'confirm', 'new_floor', '
 /** Times promised on screen are rounded up to 5 minutes («после 17:05» stays true). */
 export const TIME_STEP_MIN = 5;
 
+/**
+ * A moment as every screen promises it (the plan's lines, the end of a session, the bot): rounded up to
+ * TIME_STEP_MIN, its local day, and its time — none when it is the very start of that day («завтра», not «завтра после
+ * 0:00»). The one rounding of promised times: two screens never name two times for one moment.
+ */
+export function promiseTime(ms: number, tz: string): { day: LocalDay; time: string | null } {
+  const step = TIME_STEP_MIN * 60_000;
+  const up = Math.ceil(ms / step) * step;
+  const day = localDay(up, tz);
+  return { day, time: up <= startOfDay(day, tz) ? null : clockText(up, tz) };
+}
+
 export type SessionKind = 'answer' | 'self_check' | 'ai_check';
 export type PlanLine = DayPlan['lines'][number];
 
@@ -711,9 +723,8 @@ function firstCount(sc: Scan, fill: Fill): { day: LocalDay; time: string | null 
     }
   }
   if (earliest === Infinity) return null;
-  const day = localDay(earliest, tz);
-  const time = earliest <= now || earliest === startOfDay(day, tz) ? null : clockText(earliest, tz, TIME_STEP_MIN);
-  return { day, time };
+  if (earliest <= now) return { day: localDay(now, tz), time: null };
+  return promiseTime(earliest, tz);
 }
 
 /** The plan of the day. Same input → the same plan, on every device and in the bot. */
@@ -845,7 +856,7 @@ export function planDay(input: PlanInput): DayPlan {
       if (gap >= 1) lines.push({ key: 'skip', n: [gap, Math.round(Number(input.budgetMin) || 0)] });
     }
     if (later.length > 0) {
-      lines.push({ key: 'later', n: [later.length], time: clockText(next as number, tz, TIME_STEP_MIN) });
+      lines.push({ key: 'later', n: [later.length], time: promiseTime(next as number, tz).time ?? '0:00' });
     }
     const dates = new Set(active.map((s) => s.date));
     if (lead && dates.size === 1 && lead.w > 0) {

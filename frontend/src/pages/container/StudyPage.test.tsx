@@ -146,12 +146,14 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
   it('a wrong tap: the words on the options, the verdict in the bar above «Дальше», the row under the options; the answer leaves on «Дальше»', async () => {
     renderStudy(dataWith(dbItems().map((entry) => entry.id)));
     fireEvent.click(option('REPEATABLE READ'));
-    expect(verdict()).toBe('Неверно: в файле Г. Вернётся через пару вопросов и завтра.');
+    // The key in the file's words (m2): the screen's letters are shuffled, the key panel and «Ключи» use the file's.
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
     expect(screen.getByRole('status').closest('.ct-bar')).not.toBeNull();
     expect(plain(option('REPEATABLE READ').textContent)).toContain('Ваш ответ');
     expect(plain(option('SERIALIZABLE').textContent)).toContain('В файле');
     const under = document.querySelector('.ct-under')!;
-    expect(within(under as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['Нажали не туда?', 'Сомневаюсь в ключе', 'Ключ неверный?']);
+    // The author — here a solo student, the author of their own exam — fixes the key; doubting it is a member's (n4).
+    expect(within(under as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['Нажали не туда?', 'Ключ неверный?']);
     expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Базы данных · № 37 · тема 3.2');
     expect(mocks.enqueue).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
@@ -208,7 +210,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
   it('«Не знаю» shows the key and sends no choice', async () => {
     renderStudy(dataWith(['q-iso']));
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
-    expect(verdict()).toBe('В файле — Г. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-iso', chosen: null }));
   });
@@ -255,13 +257,13 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-multi', chosen: [0, 2, 3] }));
   });
 
-  it('several correct, not all ticked: «Неверно. В файле верны: А, В и Г.», the letters shown beside the boxes', () => {
+  it('several correct, not all ticked: «Неверно. В файле верны: CREATE, ALTER и DROP.», the letters shown beside the boxes', () => {
     renderStudy(dataWith(['q-multi']));
-    // «☐ А CREATE» (Concept 1 §3.7): the verdict's letters point somewhere.
+    // «☐ А CREATE» (Concept 1 §3.7): the letters stay beside the boxes; the verdict names the options by their words.
     expect(Array.from(document.querySelectorAll('.ct-opt[data-multi] .ct-opt-l')).map((node) => node.textContent)).toEqual(['А', 'Б', 'В', 'Г', 'Д']);
     fireEvent.click(option('CREATE'));
     fireEvent.click(screen.getByRole('button', { name: 'Ответить' }));
-    expect(verdict()).toBe('Неверно. В файле верны: А, В и Г. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле верны: CREATE, ALTER и DROP. Вернётся через пару вопросов и завтра.');
   });
 
   it('a short answer: the field, «Ответить», the file’s form compared without case', async () => {
@@ -270,7 +272,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(screen.getByRole('alert').textContent).toBe('Впишите ответ.');
     fireEvent.change(screen.getByLabelText('Ваш ответ'), { target: { value: 'commit' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ответить' }));
-    expect(verdict()).toBe('Неверно. В файле: ROLLBACK. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле — ROLLBACK. Вернётся через пару вопросов и завтра.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-short', text: 'commit' }));
     expect(sent()[0].shown_order).toBeUndefined();
@@ -291,7 +293,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     renderStudy(dataWith(['q-iso', 'q-multi', 'q-plain']));
     expect(page()).toContain('1–8 — ответ · 0 — не знаю · Enter — дальше · Backspace — нажали не туда');
     fireEvent.keyDown(window, { key: '3' });
-    expect(verdict()).toBe('Неверно: в файле Г. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
     fireEvent.keyDown(window, { key: 'Backspace' });
     expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся завтра.');
     fireEvent.keyDown(window, { key: 'Enter' });
@@ -304,7 +306,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(verdict()).toBe('Верно: все 3.');
     fireEvent.keyDown(window, { key: 'Enter' });
     fireEvent.keyDown(window, { key: '0' });
-    expect(verdict()).toBe('В файле — В. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('В файле — Третья. Вернётся через пару вопросов и завтра.');
   });
 });
 

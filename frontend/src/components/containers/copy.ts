@@ -204,23 +204,35 @@ export const VERDICT_RIGHT = 'Верно.';
 export const verdictRightAll = (n: number) => glue(`Верно: ${n === 2 ? 'оба' : `все ${n}`}.`);
 /** The return, after a wrong answer or «Не знаю»: in this session and tomorrow, or tomorrow only. */
 export const comesBack = (again: boolean) => (again ? 'Вернётся через пару вопросов и завтра.' : 'Вернётся завтра.');
-export function verdictWrong(keyLetters: string[], again: boolean): string {
-  const key = keyLetters.length > 1 ? `Неверно. В файле верны: ${listLetters(keyLetters)}.` : `Неверно: в файле ${keyLetters[0] ?? '—'}.`;
-  return glue(`${key} ${comesBack(again)}`);
+/** Several keys are named while their words fit this; past it the verdict points to the options marked above. */
+const KEY_NAMES_MAX = 90;
+/** A name that ends a sentence itself («…», «?», «;») takes no period after it. */
+const sentence = (text: string) => (/[.!?…;]$/u.test(text) ? text : `${text}.`);
+/**
+ * «В файле — 7 12.» / «В файле верны: CREATE, ALTER и DROP.»: the key in the file's own words (model.ts keyNames), as
+ * the bot says it («В файле — DHCP»), so the verdict, the key panel and «Ключи» never name one option two ways.
+ */
+function inFile(names: string[]): string {
+  if (names.length <= 1) return sentence(`В файле — ${names[0] ?? '—'}`);
+  const list = listLetters(names);
+  if (list.length > KEY_NAMES_MAX) return `В файле верны ${names.length} ${pl(names.length, 'вариант', 'варианта', 'вариантов')} — они отмечены выше.`;
+  return sentence(`В файле верны: ${list}`);
 }
-export function verdictDontKnow(keyLetters: string[], again: boolean): string {
-  const key = keyLetters.length > 1 ? `В файле верны: ${listLetters(keyLetters)}.` : `В файле — ${keyLetters[0] ?? '—'}.`;
-  return glue(`${key} ${comesBack(again)}`);
+export function verdictWrong(keyNames: string[], again: boolean): string {
+  return glue(`Неверно. ${inFile(keyNames)} ${comesBack(again)}`);
+}
+export function verdictDontKnow(keyNames: string[], again: boolean): string {
+  return glue(`${inFile(keyNames)} ${comesBack(again)}`);
 }
 export function verdictShortWrong(answer: string, again: boolean): string {
-  return glue(`Неверно. В файле: ${answer}. ${comesBack(again)}`);
+  return glue(`Неверно. ${inFile([answer])} ${comesBack(again)}`);
 }
-export const shortDontKnow = (answer: string, again: boolean) => glue(`В файле: ${answer}. ${comesBack(again)}`);
+export const shortDontKnow = (answer: string, again: boolean) => glue(`${inFile([answer])} ${comesBack(again)}`);
 /** After the author changed the key in place (decision 14): the panel says what changed; this answer is not sent. */
 export const VERDICT_KEY_FIXED = 'Этот ответ в счёт не идёт.';
 export const MISCLICK_LINE = 'Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся завтра.';
-function listLetters(letters: string[]): string {
-  return letters.length > 1 ? `${letters.slice(0, -1).join(', ')} и ${letters[letters.length - 1]}` : letters.join('');
+function listLetters(names: string[]): string {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}` : names.join('');
 }
 export const MISCLICK = 'Нажали не туда?';
 export const DOUBT = 'Сомневаюсь в ключе';
@@ -236,7 +248,9 @@ export const ERRORS_EMPTY = 'Ошибок сейчас нет.';
 export const BACK_TO_EXAM = 'Вернуться к экзамену';
 export const OPTION_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З'] as const;
 
-// «Ключ неверный?» in place (the author; decision 14) and «Сомневаюсь в ключе» (everyone; decisions 14, 37).
+// «Ключ неверный?» in place (the author, a solo student too; decision 14) and «Сомневаюсь в ключе» (a member; the bot
+// spec's decision 17 — after an answer the author has only «Ключ неверный?»). The *_OWN lines stay for the sheet's
+// author branch (RoomParts DoubtSheet), which the session no longer opens.
 export const keyFixPrompt = (no: string) => glue(`Сверьте № ${no} в файле. Там другой ответ? Нажмите его.`);
 export const keyFixPromptMultiple = (no: string) => glue(`Сверьте № ${no} в файле. Отметьте все верные варианты и сохраните.`);
 export const keyFixPromptShort = (no: string) => glue(`Сверьте № ${no} в файле. Ответы, которые сейчас принимаются:`);
@@ -302,6 +316,9 @@ export function leftToday(questions: number, minutes: number): string {
 }
 export const moreQuestions = (n: number) => glue(`Ещё ${q(n)}`);
 export const nextSubject = (subject: string, n: number) => glue(`Дальше: ${subject} — ${q(n)}`);
+/** The exam page's pill when more than one subject has work today: the subject named, as the end screen names it. */
+export const startSubject = (subject: string, n: number) => glue(`Начать: ${subject} — ${q(n)}`);
+export const aloudSubject = (subject: string, n: number) => glue(`Ответить вслух: ${subject} — ${q(n)}`);
 export const DONE = 'Готово';
 
 // ─────────────────────────────────────────────── «Как на экзамене» (decisions 20, 36, 53)

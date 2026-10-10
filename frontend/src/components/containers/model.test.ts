@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AnswerResult, UnitState } from '../../types/container';
 import { planDetail, planTitle } from '../../lib/containers/words';
+import { promiseTime } from '../../lib/containers/plan';
 import {
   addDay,
   clsOf,
@@ -9,7 +10,8 @@ import {
   errorCount,
   examFigure,
   gradeLocal,
-  keyLetters,
+  keyNames,
+  laterToday,
   metaDay,
   moreNew,
   sessionHref,
@@ -149,9 +151,12 @@ describe('a question on the screen', () => {
     expect(shortNorm('Ёлка  Зелёная.')).toBe('елка зеленая');
   });
 
-  it('names the key by the letters as shown', () => {
-    expect(keyLetters(dbItems()[0], [3, 0, 1, 2])).toEqual(['А']);
-    expect(keyLetters(dbItems()[1], [0, 1, 2, 3, 4])).toEqual(['А', 'В', 'Г']);
+  it('names the key by the file’s own words, whatever order the screen shows (m2)', () => {
+    expect(keyNames(dbItems()[0])).toEqual(['SERIALIZABLE']);
+    expect(keyNames(dbItems()[1])).toEqual(['CREATE', 'ALTER', 'DROP']);
+    // one line; a long option cut at a word; an empty one by the file's letter
+    const long = item({ id: 'long', options: ['Параллельные транзакции не видят промежуточных изменений друг друга', '  два\nслова  ', ''], correct: [0, 1, 2] });
+    expect(keyNames(long)).toEqual(['Параллельные транзакции не видят…', 'два слова', 'В']);
   });
 
   it('reads a topic’s number from its title', () => {
@@ -201,8 +206,22 @@ describe('the end of a session', () => {
     expect(s.gained).toBe(0);
   });
 
-  it('says «завтра после 17:00» for a start the day before, and only «завтра» when it falls early in the morning', () => {
+  it('says «завтра после 17:00» for a start the day before, at the plan’s time: rounded up to 5 minutes, as on the exam page', () => {
     expect(tomorrowTime(Date.parse('2026-10-11T14:00:00Z'), '2026-10-10', 'Europe/Minsk')).toBe('17:00');
-    expect(tomorrowTime(Date.parse('2026-10-11T01:00:00Z'), '2026-10-10', 'Europe/Minsk')).toBeNull();
+    // the usability check: the exam page said «после 9:55», the end screen «после 10:00» for the same moment (n2)
+    const moment = Date.parse('2026-10-11T06:52:10Z'); // 9:52:10 in Minsk
+    expect(tomorrowTime(moment, '2026-10-10', 'Europe/Minsk')).toBe('9:55');
+    expect(tomorrowTime(moment, '2026-10-10', 'Europe/Minsk')).toBe(promiseTime(moment, 'Europe/Minsk').time);
+    expect(tomorrowTime(Date.parse('2026-10-11T01:00:00Z'), '2026-10-10', 'Europe/Minsk')).toBe('4:00');
+    // from midnight: «завтра» alone; another day: «завтра» is not said at all
+    expect(tomorrowTime(Date.parse('2026-10-10T20:58:00Z'), '2026-10-10', 'Europe/Minsk')).toBeNull();
+    expect(tomorrowTime(Date.parse('2026-10-12T14:00:00Z'), '2026-10-10', 'Europe/Minsk')).toBeNull();
+  });
+
+  it('says «после 18:05» for later today in the same rounding, and nothing for another day', () => {
+    expect(laterToday(Date.parse('2026-10-10T15:01:00Z'), '2026-10-10', 'Europe/Minsk')).toBe('18:05');
+    expect(laterToday(Date.parse('2026-10-10T15:00:00Z'), '2026-10-10', 'Europe/Minsk')).toBe('18:00');
+    expect(laterToday(Date.parse('2026-10-10T20:58:00Z'), '2026-10-10', 'Europe/Minsk')).toBeNull(); // 23:58 → midnight
+    expect(laterToday(null, '2026-10-10', 'Europe/Minsk')).toBeNull();
   });
 });
