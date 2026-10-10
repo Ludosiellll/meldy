@@ -1,0 +1,274 @@
+/*
+ * The import page's parts (components/containers/import/*): the card to pick files, the reading list, the subject
+ * rows, one subject's preview, «Как в файле отмечен ответ?», the problem queue. The Meldy language of 2026-10-04:
+ * white cards with large radii, rows of one card, quiet links, one blue pill (in the page's bar). Tokens of index.css
+ * only (both themes); every rule under .sf-page.
+ */
+
+/* ── step 1: pick files ── */
+.sf-page .im-pick {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 0 44px;
+  align-items: start;
+  margin-top: 32px;
+  padding: 34px 40px 36px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.sf-page[data-frame='l'] .im-pick { grid-template-columns: minmax(0, 1fr) 280px; gap: 0 32px; padding: 30px 32px 32px; }
+.sf-page[data-frame='m'] .im-pick,
+.sf-page[data-frame='s'] .im-pick { grid-template-columns: minmax(0, 1fr); margin-top: 20px; padding: 24px 20px; border-radius: 32px; }
+.sf-page .im-pick[data-drag] { box-shadow: 0 0 0 2px var(--sf-accent), 0 0 0 6px color-mix(in srgb, var(--sf-accent) 18%, transparent), var(--m-card-shadow); }
+.sf-page .im-pick-h { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 500; letter-spacing: -.024em; }
+.sf-page .im-pick-sub { margin: 8px 0 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page[data-frame='s'] .im-pick-sub { margin-top: 0; font-size: 17px; line-height: 25px; color: var(--sf-ink); }
+.sf-page .im-pick-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 22px; }
+.sf-page .im-pick-fmt,
+.sf-page .im-pick-tg,
+.sf-page .im-tg { margin: 16px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .im-pick-tg { margin-top: 8px; }
+.sf-page .im-pick-side { padding: 4px 0 0 40px; border-left: 1px solid var(--sf-line); }
+.sf-page[data-frame='l'] .im-pick-side { padding-left: 30px; }
+.sf-page .im-pick-side-h { margin: 0; font-size: 17px; line-height: 1.3; font-weight: 600; }
+.sf-page .im-pick-side-p { margin: 12px 0 0; font-size: 16px; line-height: 24px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .im-drop {
+  position: absolute;
+  inset: 12px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border: 2px dashed color-mix(in srgb, var(--sf-accent) 70%, transparent);
+  border-radius: 30px;
+  background: color-mix(in srgb, var(--sf-surface) 90%, transparent);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--sf-ink);
+  pointer-events: none;
+}
+.sf-page .im-paste { display: grid; gap: 8px; margin-top: 18px; }
+.sf-page .im-paste-field,
+.sf-page .im-keytext-field {
+  display: block;
+  width: 100%;
+  min-height: 200px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--sf-canvas);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 400 16px/1.55 var(--ph-sans);
+  resize: vertical;
+}
+.sf-page .im-keytext-field { min-height: 120px; }
+.sf-page .im-paste-field::placeholder,
+.sf-page .im-keytext-field::placeholder { color: var(--sf-muted); opacity: .7; }
+.sf-page .im-paste-field:focus-visible,
+.sf-page .im-keytext-field:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--sf-accent), 0 0 0 4px color-mix(in srgb, var(--sf-accent) 16%, transparent); }
+.sf-page .im-paste .im-pick-acts { margin-top: 8px; }
+
+/* ── what was found ── */
+.sf-page .im-found { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 500; letter-spacing: -.026em; text-wrap: balance; }
+.sf-page[data-frame='s'] .im-found { font-size: 24px; }
+.sf-page .im-line { margin: 12px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .im-line[data-muted] { font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
+.sf-page .im-line .sf-link { min-height: 0; font-size: inherit; vertical-align: baseline; }
+.sf-page .im-hint { margin: 8px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .im-hint[data-muted] { color: var(--sf-muted); }
+.sf-page .im-hint .sf-link { min-height: 0; font-size: inherit; }
+.sf-page .im-more { margin: 16px 0 0; }
+
+/* The reading list: rows of one card, the status on the right; a long name is cut in the middle. */
+.sf-page .im-reading { margin-top: 24px; }
+.sf-page .im-found-sec .im-reading { margin-top: 16px; }
+.sf-page .im-files {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 24px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.sf-page .im-file { padding: 14px 18px; }
+.sf-page .im-file + .im-file { border-top: 1px solid var(--sf-line); }
+.sf-page .im-file-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.sf-page .im-fname { display: flex; min-width: 0; font-size: 16px; line-height: 1.4; font-weight: 500; white-space: nowrap; }
+.sf-page .im-fname-head { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sf-page .im-fname-tail { flex: none; }
+.sf-page .im-file-status { flex: none; font-size: 15px; color: var(--sf-muted); white-space: nowrap; }
+.sf-page .im-file[data-status='failed'] .im-file-status { color: var(--sf-ink); font-weight: 500; }
+.sf-page .im-file-why { margin-top: 6px; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .im-file-why p { margin: 0; }
+.sf-page .im-file-acts { display: flex; flex-wrap: wrap; gap: 0 20px; }
+
+/* The subjects: rows of one card; the whole row opens the subject. */
+.sf-page .im-rows {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 28px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  overflow: hidden;
+}
+.sf-page .im-rows li + li { border-top: 1px solid var(--sf-line); }
+.sf-page .im-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  grid-template-areas: 'title go' 'meta go';
+  align-items: center;
+  gap: 2px 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 18px 14px 22px;
+  border: 0;
+  background: transparent;
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .3s var(--m-ease);
+}
+.sf-page .im-row:hover:not(:disabled) { background: var(--ex-hover, var(--sf-surface-soft)); }
+.sf-page .im-row:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: -2px; }
+.sf-page .im-row:disabled { cursor: default; }
+.sf-page .im-row-title { grid-area: title; font-size: 17px; line-height: 1.35; font-weight: 500; overflow-wrap: anywhere; }
+.sf-page .im-row-meta { grid-area: meta; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }
+.sf-page .im-row-go { grid-area: go; width: 20px; height: 20px; color: var(--sf-muted); }
+.sf-page[data-frame='s'] .im-row { padding: 13px 14px 13px 18px; }
+
+/* A file without a key: one choice, not a queue of a hundred questions (spec decision 34). */
+.sf-page .im-nokey {
+  position: relative;
+  margin-top: 14px;
+  padding: 13px 18px 12px 37px;
+  border-radius: 20px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+}
+.sf-page .im-nokey::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 13px;
+  width: 9px;
+  height: 9px;
+  margin-top: calc((1.45em - 9px) / 2);
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.sf-page .im-nokey-t { margin: 0; font-size: 16px; line-height: 1.45; font-weight: 500; }
+.sf-page .im-nokey-acts { display: flex; flex-wrap: wrap; gap: 0 20px; margin: 2px 0 0; }
+
+/* «Сверить ключ на трёх вопросах». */
+.sf-page .im-details { display: grid; justify-items: start; gap: 0; margin-top: 18px; }
+.sf-page .im-spot { margin: 4px 0 8px; padding: 16px 18px; border-radius: 22px; background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line); }
+.sf-page .im-spot-lede { margin: 0; font-size: 15px; font-weight: 500; }
+.sf-page .im-spot ul { display: grid; gap: 12px; margin: 10px 0 0; padding: 0; list-style: none; }
+.sf-page .im-spot li + li { padding-top: 12px; border-top: 1px solid var(--sf-line); }
+.sf-page .im-spot-ctx { margin: 0; font-size: 14px; color: var(--sf-muted); }
+.sf-page .im-spot-q { margin: 2px 0 0; font-size: 16px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.sf-page .im-spot-a { margin: 4px 0 0; font-size: 15px; line-height: 1.45; font-weight: 500; color: var(--m-green-ink); overflow-wrap: anywhere; }
+.sf-page .im-spot-wrong { margin: 12px 0 0; font-size: 15px; color: var(--sf-muted); }
+.sf-page .im-spot-wrong .sf-link { min-height: 0; font-size: 15px; }
+
+/* ── the form: where, name, date, minutes ── */
+.sf-page .im-form { display: grid; gap: 18px; margin-top: 26px; }
+.sf-page .im-field { display: grid; justify-items: start; gap: 6px; min-width: 0; }
+.sf-page .im-label { font-size: 15px; line-height: 20px; font-weight: 500; color: var(--sf-ink); }
+.sf-page .im-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 17px/1.3 var(--ph-sans);
+  transition: box-shadow .25s ease;
+}
+.sf-page .im-input::placeholder { color: var(--sf-muted); font-weight: 400; opacity: .8; }
+.sf-page .im-input:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--sf-accent), 0 0 0 4px color-mix(in srgb, var(--sf-accent) 16%, transparent); }
+.sf-page .im-input[aria-invalid='true'] { box-shadow: inset 0 0 0 2px var(--m-yellow); }
+.sf-page .im-input:disabled { color: var(--sf-muted); }
+.sf-page .im-date { max-width: 240px; color-scheme: light; }
+.dark .sf-page .im-date { color-scheme: dark; }
+.sf-page .im-dates { display: grid; gap: 8px; min-width: 0; width: 100%; margin: 0; padding: 0; border: 0; }
+.sf-page .im-dates legend { margin-bottom: 4px; padding: 0; }
+.sf-page .im-date-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; }
+.sf-page .im-date-name { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.sf-page .im-date-row .im-date { width: 180px; }
+.sf-page .im-dates-switch { min-height: 36px; }
+.sf-page .im-small {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font: 500 15px/1 var(--ph-sans);
+  cursor: pointer;
+}
+.sf-page .im-small:disabled { opacity: .45; cursor: not-allowed; }
+.sf-page .im-small:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+
+/* ── one subject ── */
+.sf-page .im-back { gap: 6px; margin-top: 20px; min-height: 40px; color: var(--sf-muted); text-decoration: none; }
+.sf-page .im-back svg { width: 18px; height: 18px; }
+.sf-page .im-back:hover { color: var(--sf-ink); }
+.sf-page .im-subject,
+.sf-page .im-keysrc,
+.sf-page .im-queue { max-width: 760px; }
+.sf-page .im-subject-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.sf-page .im-subject-h { margin: 6px 0 0; font-size: 34px; line-height: 1.1; font-weight: 500; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.sf-page .im-subject-head .im-subject-h { margin: 0; }
+.sf-page[data-frame='s'] .im-subject-h { font-size: 28px; }
+.sf-page .im-subject-from { margin: 6px 0 0; font-size: 15px; line-height: 1.4; color: var(--sf-muted); overflow-wrap: anywhere; }
+.sf-page .im-subject-meta { margin: 12px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .im-subject-acts { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 22px 0 0; }
+.sf-page .im-rename { display: grid; gap: 6px; margin-top: 10px; }
+.sf-page .im-rename-row { display: flex; gap: 8px; }
+.sf-page .im-h3 { margin: 26px 0 0; font-size: 17px; line-height: 1.3; font-weight: 600; }
+.sf-page .im-topics {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 22px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+}
+.sf-page .im-topics li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 18px; font-size: 16px; line-height: 1.4; }
+.sf-page .im-topics li + li { border-top: 1px solid var(--sf-line); }
+.sf-page .im-topic-t { min-width: 0; overflow-wrap: anywhere; }
+.sf-page .im-topic-n { flex: none; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+
+/* «Как в файле отмечен ответ?»: radio rows of one card, then the key as a list. */
+.sf-page .im-radios {
+  margin: 18px 0 0;
+  border-radius: 22px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  overflow: hidden;
+}
+.sf-page .im-radio { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 18px; font-size: 16px; line-height: 1.4; cursor: pointer; }
+.sf-page .im-radio + .im-radio { border-top: 1px solid var(--sf-line); }
+.sf-page .im-radio input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--sf-accent); }
+.sf-page .im-radio:has(input:checked) { background: var(--sf-accent-soft); }
+.sf-page .im-keytext { display: grid; gap: 8px; margin-top: 26px; }
+.sf-page .im-keytext-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 4px; }
+
+/* ── the queue ── */
+.sf-page .im-queue { margin-top: 24px; scroll-margin-top: 80px; }
+.sf-page .im-queue-end { margin: 8px 0 20px; font-size: 17px; line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-page .im-row,
+  .sf-page .im-input { transition: none; }
+}

@@ -1,0 +1,57 @@
+/*
+ * «Настройки» of an exam (SettingsPage.tsx): the form (name, date, minutes) with the fields of the import page
+ * (components/containers/import/import.css .im-*), the subjects as rows of one card with their «⋯», the group, and
+ * «Удалить экзамен» as a quiet link at the end. «Сохранить» rides in the bar at the bottom. From 1024 px the form is on
+ * the left and the subjects, the group and deleting on the right.
+ */
+.sf-page.st-page .st-body { margin-top: 26px; }
+.sf-page.st-page[data-frame='s'] .st-body { margin-top: 18px; }
+.sf-page.st-page .st-body[data-side] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 56px; align-items: start; }
+.sf-page.st-page .st-form { display: grid; gap: 20px; margin-top: 0; }
+.sf-page.st-page > .st-form { margin-top: 26px; }
+.sf-page.st-page .st-body[data-side] .st-form {
+  padding: 26px 26px 28px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.sf-page.st-page .st-body[data-side] .st-form .im-input { background: var(--sf-surface-soft); }
+.sf-page.st-page .st-side { min-width: 0; }
+.sf-page.st-page .st-body:not([data-side]) .st-side { margin-top: 32px; }
+.sf-page.st-page .st-h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; }
+.sf-page.st-page .st-line { margin: 12px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page.st-page .st-line .sf-link { min-height: 0; vertical-align: baseline; }
+.sf-page.st-page .st-ask { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.sf-page.st-page .st-ask > span { flex: 1 1 100%; }
+.sf-page.st-page .st-oral-date { font-size: 14px; color: var(--sf-muted); text-align: right; }
+
+.sf-page.st-page .st-rows {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 24px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.sf-page.st-page .st-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 60px;
+  padding: 8px 8px 8px 20px;
+}
+.sf-page.st-page .st-row + .st-row { border-top: 1px solid var(--sf-line); }
+.sf-page.st-page .st-row > .st-ask { grid-column: 1 / -1; margin: 0 12px 8px 0; font-size: 15px; }
+.sf-page.st-page .st-row-t { display: grid; min-width: 0; }
+.sf-page.st-page .st-row-title { font-size: 17px; line-height: 1.35; font-weight: 500; overflow-wrap: anywhere; }
+.sf-page.st-page .st-row-meta { font-size: 14px; color: var(--sf-muted); }
+.sf-page.st-page .st-rename { grid-column: 1 / -1; display: grid; gap: 8px; padding: 6px 12px 6px 0; }
+.sf-page.st-page .st-rename-acts { display: flex; align-items: center; gap: 16px; }
+.sf-page.st-page .st-group { margin-top: 30px; }
+.sf-page.st-page .st-group .gr-members { margin-top: 6px; }
+.sf-page.st-page .st-danger { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--sf-line); }
+/* A phone with little on the page: the bar still stands at the bottom of the screen, where the thumb is. */
+.sf-page.st-page[data-frame='s'] { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
+.sf-page.st-page[data-frame='s'] > .ex-cta { margin-top: auto; }
+.sf-page.st-page[data-frame='s'] > :nth-last-child(2) { margin-bottom: 24px; }
