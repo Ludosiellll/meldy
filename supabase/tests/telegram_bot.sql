@@ -32,15 +32,18 @@
 --     message_id).
 -- Later packages add a row to packages, their names to the lists below and their own checks in their range: T5 30–49
 -- (20261010120003), T7 50–59 (20261010120004), T10 60–69 (20261010120006), T9 70–79 (20261010120005), T11 80–89
--- (20261010120007, bot_oral_inputs). Local rehearsal of all of it: supabase/tests/local/telegram_bot_run.sh.
+-- (20261010120007, bot_oral_inputs; a slot until it lands). The only functions a client without a session may run are
+-- T10's two entry points for the Space (public.bridge_voice_take(text), bridge_voice_refund(text): anon and the service
+-- role with a single-use 64-hex ticket, checks 60 and 65); every bot_* stays the service role's. Local rehearsal of all
+-- of it: supabase/tests/local/telegram_bot_run.sh.
 WITH
 -- ── the packages: each one's migration and its range of checks (a later package adds its row) ───────────────────────────
 packages(pkg, migration, first_check, last_check) AS (VALUES
   ('T1', '20261010120000', 1, 29),
   ('T5', '20261010120003', 30, 49),
   ('T7', '20261010120004', 50, 59),
-  ('T9', '20261010120005', 70, 79)
-  -- T10 slot (20261010120006_telegram_bot_voice.sql): , ('T10', '20261010120006', 60, 69)
+  ('T9', '20261010120005', 70, 79),
+  ('T10', '20261010120006', 60, 69)
   -- T11 slot (20261010120007_oral_plan_inputs.sql, bot_oral_inputs): , ('T11', '20261010120007', 80, 89)
 ),
 -- ── the lists (one line per object; later packages append theirs) ──────────────────────────────────────────────────────
@@ -53,7 +56,8 @@ bot_tables(pkg, name) AS (VALUES
   , ('T7', 'groups'), ('T7', 'group_posts'), ('T7', 'group_answers')
   -- T9 (20261010120005_telegram_bot_files.sql):
   , ('T9', 'files')
-  -- T10 slot (20261010120006): its tables of schema bot
+  -- T10 (20261010120006_telegram_bot_voice.sql):
+  , ('T10', 'voice_attempts'), ('T10', 'voice_tickets'), ('T10', 'voice_audio'), ('T10', 'voice_days')
   -- T11 slot (20261010120007): its tables of schema bot, if any
 ),
 bot_fns(pkg, sig) AS (VALUES
@@ -82,7 +86,15 @@ bot_fns(pkg, sig) AS (VALUES
   ('T7', 'bot_claim_group_closes(integer,timestamptz)'), ('T7', 'bot_group_closed(bigint,text,timestamptz)')
   -- T9 (20261010120005_telegram_bot_files.sql):
   , ('T9', 'bot_file_offer(bigint,text,text,bigint,text)'), ('T9', 'bot_file_redeem(text)')
-  -- T10 slot (20261010120006): , ('T10', 'bot_voice_…(…)'), …
+  -- T10 (20261010120006_telegram_bot_voice.sql); its two entry points for the Space (bridge_voice_*, run by anon with a
+  -- ticket) are no bot_* function: check 60 holds them
+  , ('T10', 'bot_voice_state(bigint)'), ('T10', 'bot_voice_start(bigint,uuid,uuid,uuid,text,uuid[],integer)'),
+  ('T10', 'bot_voice_next(bigint,text)'), ('T10', 'bot_voice_sent(bigint,text,text,bigint)'),
+  ('T10', 'bot_voice_ticket(bigint,text,text,integer,bigint)'), ('T10', 'bot_voice_part(bigint,text,text,integer,bigint)'),
+  ('T10', 'bot_voice_restart(bigint,text)'), ('T10', 'bot_voice_checked(bigint,text,jsonb)'),
+  ('T10', 'bot_voice_followup(bigint,text,text,text,text)'), ('T10', 'bot_voice_release(bigint,text)'),
+  ('T10', 'bot_voice_record(bigint,text,jsonb,text)'), ('T10', 'bot_voice_self(bigint,text)'),
+  ('T10', 'bot_voice_rate(bigint,text,text)')
   -- T11 slot (20261010120007): , ('T11', 'bot_oral_inputs(bigint)')
 ),
 site_fns(pkg, sig) AS (VALUES
@@ -93,7 +105,7 @@ site_fns(pkg, sig) AS (VALUES
   ('T7', 'telegram_group_set(bigint,integer,boolean)')
   -- T9 (20261010120005_telegram_bot_files.sql):
   , ('T9', 'telegram_file_take(text)')
-  -- T10 / T11 slots: their telegram_* functions, if any
+  -- T10: none; T11 slot: its telegram_* functions, if any
 ),
 helpers(pkg, sig) AS (VALUES
   ('T1', 'tick(timestamptz)'), ('T1', 'tick_mode(timestamptz)'), ('T1', 'tick_due(timestamptz)'),
@@ -122,7 +134,12 @@ helpers(pkg, sig) AS (VALUES
   ('T7', 'group_figure(uuid,uuid)'), ('T7', 'group_five_empty(bigint,timestamptz,date)'),
   ('T7', 'group_json(bot.groups,timestamptz)'), ('T7', 'group_sweep(timestamptz)'), ('T7', 'group_cleanup(timestamptz)')
   -- T9: no helper of schema bot
-  -- T10 / T11 slots: their helpers of schema bot, if any
+  -- T10 (20261010120006_telegram_bot_voice.sql):
+  , ('T10', 'voice_on()'), ('T10', 'voice_limits()'), ('T10', 'voice_aid()'), ('T10', 'voice_units(uuid)'),
+  ('T10', 'voice_audio_state(uuid,timestamptz)'), ('T10', 'voice_attempt_json(bot.voice_attempts,timestamptz)'),
+  ('T10', 'voice_expire(uuid,date)'), ('T10', 'voice_cleanup(timestamptz)'),
+  ('T10', 'voice_open(bot.links,uuid,uuid,uuid,text,uuid[],integer,timestamptz)')
+  -- T11 slot: its helpers of schema bot, if any
 ),
 -- ── the catalog ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 schema_bot AS (SELECT n.oid FROM pg_catalog.pg_namespace n WHERE n.nspname = 'bot'),
@@ -411,8 +428,74 @@ checks (ord, name, ok) AS (
   UNION ALL
   SELECT 55, 'group_codes_in_link_codes',
          EXISTS (SELECT 1 FROM cons WHERE tbl = 'link_codes' AND contype = 'c' AND def LIKE '%purpose%' AND def LIKE '%''group''%')
-  -- ── T10 slot: 60–69 (20261010120006_telegram_bot_voice.sql: voice behind a flag) ──
-  --    UNION ALL SELECT 60, '<name>', <boolean> …
+  -- ── T10: 60–69 (20261010120006_telegram_bot_voice.sql: voice behind bot.config.flags.voice, spec §4.9, §6.2, §10) ──
+  UNION ALL
+  -- The Space's two entry points: SECURITY DEFINER, search_path empty, run by anon (the Space's public key) and the
+  -- service role, never by a signed-in user (the ticket is their whole authority). Nothing wider: no other signature
+  -- of them, and no bot_voice_* function a client can run.
+  SELECT 60, 'voice_bridge_entry_points',
+         coalesce((SELECT pg_catalog.bool_and(p.oid IS NOT NULL AND p.prosecdef
+                     AND pg_catalog.array_to_string(p.proconfig, ',') IN ('search_path=""', 'search_path=')
+                     AND pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
+                     AND pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
+                     AND NOT pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+                     FROM (VALUES ('bridge_voice_take(text)'), ('bridge_voice_refund(text)')) v(sig)
+                     LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure('public.' || v.sig)), false)
+         AND (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p
+               WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'bridge\_voice\_%') = 2
+         AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+                          WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'bot\_voice\_%'
+                            AND (pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
+                                 OR pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')))
+  UNION ALL
+  -- The cores the bot charges and records with are the site's functions word for word, but the line that reads the user
+  -- (auth.uid() → p_user): a later change of a site function without its core shows here. Closed to clients.
+  SELECT 61, 'voice_cores_match_the_site',
+         coalesce((SELECT pg_catalog.bool_and(c.oid IS NOT NULL AND s.oid IS NOT NULL
+                     AND pg_catalog.replace(c.prosrc, v.core_line, v.site_line) = s.prosrc
+                     AND NOT pg_catalog.has_function_privilege('anon', c.oid, 'EXECUTE')
+                     AND NOT pg_catalog.has_function_privilege('authenticated', c.oid, 'EXECUTE'))
+                     FROM (VALUES ('meldy_private.ai_quota_status_for(uuid)', 'public.ai_quota_status()',
+                                   'v_uid uuid := p_user;', 'v_uid uuid := auth.uid();'),
+                                  ('meldy_private.consume_ai_units_for(uuid,integer,text)', 'public.consume_ai_units(integer,text)',
+                                   'v_uid uuid := p_user;', 'v_uid uuid := auth.uid();'),
+                                  ('meldy_private.refund_ai_units_for(uuid,integer,text,uuid)', 'public.refund_ai_units(integer,text,uuid)',
+                                   'v_uid uuid := p_user;', 'v_uid uuid := auth.uid();'),
+                                  ('meldy_private.record_oral_attempt_for(uuid,jsonb)', 'public.record_oral_attempt(jsonb)',
+                                   'v_user uuid := p_user;', 'v_user uuid := auth.uid();')) v(core, site, core_line, site_line)
+                     LEFT JOIN pg_catalog.pg_proc c ON c.oid = pg_catalog.to_regprocedure(v.core)
+                     LEFT JOIN pg_catalog.pg_proc s ON s.oid = pg_catalog.to_regprocedure(v.site)), false)
+  UNION ALL
+  -- Single-use tickets are kept only as sha256 hex.
+  SELECT 62, 'voice_tickets_hash_only',
+         EXISTS (SELECT 1 FROM cons WHERE tbl = 'voice_tickets' AND contype = 'p' AND def = 'PRIMARY KEY (ticket_hash)')
+         AND EXISTS (SELECT 1 FROM cons WHERE tbl = 'voice_tickets' AND contype = 'c' AND def LIKE '%ticket_hash ~ ''^[0-9a-f]{64}$''%')
+  UNION ALL
+  -- One open oral question per student.
+  SELECT 63, 'voice_one_open_attempt_per_user',
+         EXISTS (SELECT 1 FROM idx WHERE tbl = 'voice_attempts' AND indisunique
+                    AND def ~ ' ON bot\.voice_attempts USING btree \(user_id\) WHERE ')
+  UNION ALL
+  -- The switch is a JSON boolean in bot.config.flags (false after the migration; the owner sets true). The query
+  -- aggregates, so it returns one row even without the config row and xpath always gets a document.
+  SELECT 64, 'voice_switch_is_a_boolean',
+         CASE WHEN (SELECT oid FROM rels WHERE name = 'config') IS NOT NULL THEN
+           coalesce(((pg_catalog.xpath('/row/n/text()', pg_catalog.query_to_xml(
+             'select coalesce(pg_catalog.bool_or(pg_catalog.jsonb_typeof(c.flags -> ''voice'') = ''boolean''), false) as n
+                from bot.config c where c.id = 1', false, true, '')))[1])::text = 'true', false)
+         ELSE false END
+  UNION ALL
+  -- The ticket is the entry points' whole authority: the first thing each does is refuse anything but 64 hex characters,
+  -- and the ticket is looked up by its sha256 only.
+  SELECT 65, 'voice_bridge_ticket_first',
+         coalesce((SELECT pg_catalog.bool_and(p.oid IS NOT NULL
+                     AND pg_catalog.regexp_instr(p.prosrc, '\mbegin\M', 1, 1, 0, 'i') > 0
+                     AND pg_catalog.substr(p.prosrc, pg_catalog.regexp_instr(p.prosrc, '\mbegin\M', 1, 1, 0, 'i'))
+                         ~* '^begin\s+if\s+p_ticket\s+is\s+null\s+or\s+p_ticket\s+!~\s+''\^\[0-9a-f\]\{64\}\$''\s+then\s+return\M'
+                     AND p.prosrc ~* 'v_hash\s*:=\s*pg_catalog\.encode\(pg_catalog\.sha256\('
+                     AND p.prosrc ~* 'from\s+bot\.voice_tickets\s+t\s+where\s+t\.ticket_hash\s*=\s*v_hash\M')
+                     FROM (VALUES ('bridge_voice_take(text)'), ('bridge_voice_refund(text)')) v(sig)
+                     LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure('public.' || v.sig)), false)
   -- ── T9: 70–79 (20261010120005_telegram_bot_files.sql: the file hand-off, spec §8.2 «Файлы») ──
   UNION ALL
   SELECT 70, 'files_ticket_and_token_keys',
@@ -459,7 +542,7 @@ SELECT pg_catalog.json_build_object(
                  'applied', a.yes,
                  'ok', a.yes AND NOT EXISTS (SELECT 1 FROM pkg_failed f WHERE f.pkg = p.pkg),
                  'failed', coalesce((SELECT pg_catalog.json_agg(f.name ORDER BY f.ord) FROM pkg_failed f WHERE f.pkg = p.pkg),
-                                    '[]'::json)) ORDER BY p.first_check)
+                                    '[]'::json)) ORDER BY p.migration)
                  FROM packages p JOIN applied a ON a.pkg = p.pkg),
   'configured', (SELECT configured = 1 FROM counts),
   'active_links', (SELECT active_links FROM counts),

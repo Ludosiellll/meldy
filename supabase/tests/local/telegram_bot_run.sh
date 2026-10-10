@@ -3,7 +3,8 @@
 # 16 cluster: package T1 (supabase/migrations/20261010120000_telegram_bot.sql, _cron.sql, _revokes.sql and
 # supabase/rollback/20261010120000_telegram_bot_down.sql), then the later packages in the live order, each on top of
 # the ones before: T5 (20261010120003, the session in chat), T7 (20261010120004, the group chat), T9 (20261010120005,
-# the files), and the slots of T10 (20261010120006) and T11 (20261010120007), applied only when their files are here.
+# the files), T10 (20261010120006, voice behind a flag), and the slot of T11 (20261010120007), applied only when its
+# file is here.
 #   1. the base (the repo's local baselines, the live migrations they rehearse, the exam container's migrations, stubs
 #      of the schemas cron and net when pg_cron / pg_net are not installed here, dblink when available) → catalog
 #      fingerprint → the contract on the base never raises;
@@ -12,12 +13,14 @@
 #   3. the revokes twice → behaviour and claims again → T1's checks all hold → the main and cron files once more
 #      (catalog unchanged) → no line of the base changed → the container's contract still ok;
 #   4. concurrency on T1 (two claims at once, two ledger begins at once, one code claimed from two Telegrams at once);
-#      then T7 and T9 without T5 on that database: the contract reads such a partial apply too;
-#   5–9. per package (T5, T7, T9, slot T10, slot T11) on the database of steps 2–3: its migration twice, no line of
-#      what was there before changed or gone, the contract (T1 and every applied package ok, only the packages not
-#      applied yet fail), its own local tests (T5: telegram_bot_sessions.sql, part 2 through dblink; T7:
+#      then T7, T9 and T10 without T5 on that database: the contract reads such a partial apply too;
+#   5–9. per package (T5, T7, T9, T10, slot T11) on the database of steps 2–3: its migration twice, no line of what
+#      was there before changed or gone, the contract (T1 and every applied package ok, only the packages not applied
+#      yet fail), its own local tests (T5: telegram_bot_sessions.sql, part 2 through dblink; T7:
 #      telegram_bot_groups.sql and telegram_bot_groups_race.sql; T9: telegram_bot_files.sql and two redeems of one
-#      token at once), T1's behaviour and claims with it;
+#      token at once; T10: the switch off, telegram_bot_voice.sql and two takes of one ticket at once, on T11's
+#      meldy_private.oral_sheet_for after T11's step when T11's migration is here, else on a local stub of it that
+#      exists only while they run), T1's behaviour and claims with it;
 #   10. everything applied: contract_ok with every check, the container's contract, T1's rollback refuses (and leaves
 #      everything) while a later package's objects remain;
 #   11. the rollbacks in reverse (T11 → T10 → T9 → T7 → T5 → T1), each twice: after each the catalog equals the one
@@ -253,6 +256,97 @@ stage() {
   return 0
 }
 
+# ── T10's tests (telegram_bot_voice.sql and its runner's ticket race) ─────────────────────────────────────────────────
+# LOCAL STUB of package T11's meldy_private.oral_sheet_for (20261010120007_oral_plan_inputs.sql), the same as
+# telegram_bot_voice_run.sh's: the shape of GET /api/oral/sheet for the fields T10 reads; a question's NEWEST usable
+# rubric of the user instead of the one under the rubric key (T11 ports the key byte-exactly). P0002 for another's exam.
+cat > "$OUT/oral_sheet_stub.sql" <<'SQL'
+create or replace function meldy_private.oral_sheet_for(p_user uuid, p_exam_id uuid)
+returns jsonb language plpgsql stable set search_path = '' as $$
+begin
+  if not exists (select 1 from public.exams e where e.id = p_exam_id and e.user_id = p_user) then
+    raise exception 'exam not found' using errcode = 'P0002';
+  end if;
+  return jsonb_build_object('exam_id', p_exam_id, 'mapping_state', 'done', 'to_write', 0, 'units', 0, 'unwritable', 0, 'job', null,
+    'questions', coalesce((select jsonb_agg(jsonb_build_object(
+        'question_id', q.id, 'position', q.position, 'label', q.label, 'section', q.section, 'text', q.text,
+        'question_hash', q.question_hash, 'coverage', q.coverage, 'coverage_method', q.coverage_method,
+        'coverage_reason', q.coverage_reason, 'missing_note', q.missing_note, 'rebuilt', false, 'unwritable', false,
+        'rubric', (select jsonb_build_object('rubric_id', r.id, 'built_at', r.created_at, 'coverage', r.rubric ->> 'coverage',
+                            'coverage_note', coalesce(r.rubric ->> 'coverage_note', ''),
+                            'materials', coalesce(r.rubric -> 'materials', '[]'::jsonb),
+                            'points', coalesce((select jsonb_agg(jsonb_build_object('id', p ->> 'id', 'title', p ->> 'title', 'short', '',
+                                                  'essential', coalesce((p ->> 'essential')::boolean, false),
+                                                  'source_quote', coalesce(p ->> 'source_quote', ''), 'source_ids', coalesce(p -> 'source_ids', '[]'::jsonb)) order by o)
+                                                 from jsonb_array_elements(r.rubric -> 'points') with ordinality x(p, o)), '[]'::jsonb))
+                     from public.oral_rubrics r
+                    where r.user_id = p_user and r.question_hash = q.question_hash and r.rubric_version = 1
+                      and jsonb_typeof(r.rubric -> 'points') = 'array' and jsonb_array_length(r.rubric -> 'points') > 0
+                    order by r.created_at desc limit 1))
+        order by q.position, q.created_at, q.id)
+        from public.exam_questions q where q.exam_id = p_exam_id), '[]'::jsonb));
+end $$;
+revoke all on function meldy_private.oral_sheet_for(uuid, uuid) from public, anon, authenticated;
+SQL
+# voice_tests <label>: T10's behaviour on t_main, then its ticket race on a throwaway copy (the race commits fixtures),
+# with T11's oral_sheet_for when it is there, else with the stub above for exactly that long.
+voice_tests() {
+  local own=0 mode="T11's oral_sheet_for"
+  if [ "$("${PSQL[@]}" -d t_main -c "select pg_catalog.to_regprocedure('meldy_private.oral_sheet_for(uuid,uuid)') is null")" = t ]; then
+    if run t_main "$OUT/oral_sheet_stub.sql"; then own=1; mode="the local stub of T11's oral_sheet_for"
+    else bad "$1: the local stub of oral_sheet_for"; fi
+  fi
+  sql_test "$1: telegram_bot_voice.sql ($mode)" t_main "$HERE/telegram_bot_voice.sql" 'TELEGRAM BOT VOICE CHECKS PASSED'
+  voice_race "$1"
+  if [ $own = 1 ]; then
+    "${PSQL[@]}" -d t_main -c "drop function meldy_private.oral_sheet_for(uuid, uuid)" >/dev/null || bad "$1: the local stub dropped"
+  fi
+}
+# Two takes of one ticket at once (telegram_bot_voice_run.sh's race, two anon sessions): one ok, the other used.
+voice_race() {
+  local ticket a b ra rb pa
+  "${PSQL[@]}" -d postgres -c "drop database if exists t_voice" -c "create database t_voice template t_main" >/dev/null 2>&1 \
+    || { bad "$1: two takes of one ticket at once" "no copy of t_main"; return; }
+  ticket=$("${PSQL[@]}" -d t_voice 2>"$OUT/voice_race_fixture.log" <<'SQL' | grep -E '^[0-9a-f]{64}$'
+update bot.config set flags = flags || '{"voice": true}'::jsonb;
+insert into bot.links (user_id, tg_user_id, chat_id) values ('dddddddd-0000-0000-0000-000000000004', 830004, 830004);
+insert into public.materials (id, user_id, title) values ('44444444-4444-4444-4444-444444444444', 'dddddddd-0000-0000-0000-000000000004', 'Лекция');
+insert into public.exams (id, user_id, title) values ('e0e00000-0000-4000-8000-000000000004', 'dddddddd-0000-0000-0000-000000000004', 'Устный');
+insert into public.exam_questions (id, exam_id, user_id, position, text, coverage)
+values ('e0e00000-0000-4000-8000-000000000401', 'e0e00000-0000-4000-8000-000000000004', 'dddddddd-0000-0000-0000-000000000004', 1,
+        'Взаимоблокировка: условия возникновения и способы предотвращения.', 'full');
+insert into public.oral_rubrics (user_id, question_hash, source_key, material_id, question, rubric)
+values ('dddddddd-0000-0000-0000-000000000004', public.meldy_question_hash('Взаимоблокировка: условия возникновения и способы предотвращения.'),
+        'race-key-0000', '44444444-4444-4444-4444-444444444444', 'Взаимоблокировка: условия возникновения и способы предотвращения.',
+        '{"coverage": "full", "materials": [], "points": [{"id": "p1", "title": "Пункт", "essential": true, "source_quote": "", "source_ids": [],
+          "followup": {"question": "Вопрос?", "expected": ""}}]}');
+select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004', false);
+set role authenticated;
+create temp table race_c as select public.container_create('Осенняя сессия', null,
+  '[{"title": "Операционные системы", "exam_id": "e0e00000-0000-4000-8000-000000000004"}]') as r;
+grant select on race_c to service_role;
+reset role;
+select set_config('request.jwt.claims', '{"role": "service_role"}', false);
+set role service_role;
+create temp table race_s as select public.bot_voice_start(830004, (r ->> 'container_id')::uuid, (r -> 'subjects' -> 0 ->> 'id')::uuid,
+  'e0e00000-0000-4000-8000-000000000004', 'Операционные системы', array['e0e00000-0000-4000-8000-000000000401']::uuid[], 0) as s from race_c;
+select public.bot_voice_ticket(830004, s -> 'attempt' ->> 'aid', 'transcribe', 30) ->> 'ticket' from race_s;
+SQL
+)
+  if [ -n "$ticket" ]; then
+    { echo "set role anon;"; echo "begin;"; echo "select public.bridge_voice_take('$ticket') ->> 'status';"; echo "select pg_sleep(1.5); commit;"; } > "$OUT/take_a.sql"
+    { echo "set role anon;"; echo "select public.bridge_voice_take('$ticket') ->> 'status';"; } > "$OUT/take_b.sql"
+    "${PSQL[@]}" -d t_voice -f "$OUT/take_a.sql" > "$OUT/take_a.out" 2>&1 & pa=$!
+    sleep 0.5
+    "${PSQL[@]}" -d t_voice -f "$OUT/take_b.sql" > "$OUT/take_b.out" 2>&1; rb=$?
+    wait $pa; ra=$?
+    a=$(grep -E '^[a-z_]+$' "$OUT/take_a.out" | head -1); b=$(grep -E '^[a-z_]+$' "$OUT/take_b.out" | head -1)
+    if [ $ra = 0 ] && [ $rb = 0 ] && [ "$a" = ok ] && [ "$b" = used ]; then ok "$1: one ticket taken twice at once (anon)" "A $a, B $b"
+    else bad "$1: one ticket taken twice at once (anon)" "A=$a B=$b $(cat "$OUT/take_a.out" "$OUT/take_b.out" | grep -m1 ERROR)"; fi
+  else bad "$1: one ticket taken twice at once (anon)" "no ticket: $(grep -m2 -v NOTICE "$OUT/voice_race_fixture.log" | tr '\n' ' ')"; fi
+  "${PSQL[@]}" -d postgres -c "drop database if exists t_voice" >/dev/null 2>&1
+}
+
 T0=$(date +%s)
 echo "1. base"
 if load_base; then
@@ -339,12 +433,12 @@ KA=$(grep -E '^(linked|used|expired|invalid|slow_down|private_only)$' "$OUT/code
 LINKS=$("${PSQL[@]}" -d t_conc -c "select count(*) from bot.links where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and unlinked_at is null")
 if [ $RA = 0 ] && [ $RB = 0 ] && [ "$KA" = linked ] && [ "$KB" = used ] && [ "$LINKS" = 1 ]; then ok "one code from two Telegrams at once" "A $KA, B $KB, one active link"
 else bad "one code from two Telegrams at once" "A=$KA B=$KB links=$LINKS"; fi
-# d) a partial apply: T7 and T9 on T1 without T5. The contract reads it: T5's checks fail, the rest hold.
-for v in 20261010120004 20261010120005; do
+# d) a partial apply: T7, T9 and T10 on T1 without T5. The contract reads it: T5's checks fail, the rest hold.
+for v in 20261010120004 20261010120005 20261010120006; do
   f=$(compgen -G "$SB/migrations/${v}_*.sql" | head -1)
   [ -z "$f" ] || run t_conc "$f" || bad "partial apply: $(basename "$f")"
 done
-contract_check "contract with T7 and T9 but not T5 (t_conc)" t_conc '[]'
+contract_check "contract with T7, T9 and T10 but not T5 (t_conc)" t_conc '[]'
 
 echo "5. T5: the session in chat"
 if stage T5 20261010120003; then
@@ -399,12 +493,19 @@ SQL
   t1_tests "with T5, T7 and T9" t_main
 fi
 
-# ── slot: package T10 (20261010120006_telegram_bot_voice.sql, voice behind a flag). Applied only when its migration is
-#    in this tree; its local test supabase/tests/local/telegram_bot_voice.sql when that is too (green on exit 0: put
-#    its PASSED line here when it lands).
-echo "8. slot T10: voice"
+# ── package T10 (20261010120006_telegram_bot_voice.sql, voice behind bot.config.flags.voice). Its behaviour test and its
+#    ticket race read the oral questions through package T11's meldy_private.oral_sheet_for. With T11's migration in
+#    this tree they run after T11's step, on the real function; without it, on the same LOCAL STUB as
+#    telegram_bot_voice_run.sh, created only while they run and dropped right after (no fingerprint sees it).
+echo "8. T10: voice"
+VOICE_AFTER_T11=0
 if stage T10 20261010120006; then
-  [ -f "$HERE/telegram_bot_voice.sql" ] && sql_test "T10: telegram_bot_voice.sql" t_main "$HERE/telegram_bot_voice.sql"
+  FLAG=$("${PSQL[@]}" -d t_main -c "select flags -> 'voice' from bot.config where id = 1")
+  if [ "$FLAG" = false ]; then ok "T10: the switch is off after the migration" "flags.voice = false"
+  else bad "T10: the switch is off after the migration" "flags.voice = $FLAG"; fi
+  if compgen -G "$SB/migrations/20261010120007_*.sql" >/dev/null; then
+    VOICE_AFTER_T11=1; skip "T10: telegram_bot_voice.sql and the ticket race" "after T11's step, on its oral_sheet_for"
+  else voice_tests T10; fi
   t1_tests "with T10" t_main
 fi
 # ── slot: package T11 (20261010120007_oral_plan_inputs.sql, bot_oral_inputs: the oral plan on the server). Applied only
@@ -415,6 +516,7 @@ if stage T11 20261010120007; then
   [ -f "$HERE/oral_plan_inputs.sql" ] && sql_test "T11: oral_plan_inputs.sql" t_main "$HERE/oral_plan_inputs.sql"
   t1_tests "with T11" t_main
 fi
+[ $VOICE_AFTER_T11 = 0 ] || voice_tests "T10 after T11"
 
 echo "10. everything applied (T1 ${DONE[*]})"
 contract_full "supabase/tests/telegram_bot.sql" t_main
