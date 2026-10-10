@@ -1530,7 +1530,8 @@ begin
     insert into bot.deliveries (kind, chat_id, link_id, local_day, ref, claimed_at)
     select 'after_date', d.chat_id, d.link_id, d.day, d.cid::text, v_now from due d
     on conflict do nothing
-    returning bot.deliveries.id, bot.deliveries.link_id, bot.deliveries.ref
+    returning bot.deliveries.id, bot.deliveries.chat_id, bot.deliveries.local_day, bot.deliveries.link_id,
+              bot.deliveries.ref
   ),
   stale as (
     update bot.deliveries d
@@ -1538,17 +1539,19 @@ begin
       from ready r
      where r.link_id = d.link_id and d.kind = 'after_date' and d.status = 'claimed' and d.attempts < 3
        and d.claimed_at < v_now - interval '10 minutes' and d.local_day = r.day
-    returning d.id, d.link_id, d.ref
+    returning d.id, d.chat_id, d.local_day, d.link_id, d.ref
   )
-  select dl.id, dl.chat_id, dl.local_day, l.tz, dl.ref::uuid,
-         bot.after_date_json(l.user_id, dl.ref::uuid,
+  -- the rows come from RETURNING: a data-modifying CTE's rows are not visible to a join on bot.deliveries here
+  select x.id, x.chat_id, x.local_day, l.tz, x.ref::uuid,
+         bot.after_date_json(l.user_id, x.ref::uuid,
                              coalesce((select pg_catalog.max(coalesce(s.exam_date, c.exam_date))
                                          from public.container_subjects s where s.container_id = c.id), c.exam_date))
-    from (select f.id from fresh f union all select s.id from stale s) x
-    join bot.deliveries dl on dl.id = x.id
-    join bot.links l on l.id = dl.link_id
-    left join public.containers c on c.id = dl.ref::uuid
-   order by dl.id;
+    from (select f.id, f.chat_id, f.local_day, f.link_id, f.ref from fresh f
+          union all
+          select s.id, s.chat_id, s.local_day, s.link_id, s.ref from stale s) x
+    join bot.links l on l.id = x.link_id
+    left join public.containers c on c.id = x.ref::uuid
+   order by x.id;
 end;
 $fn$;
 
