@@ -6,3 +6,4 @@ Supabase CLI, which bundles `supabase/functions/<name>/` and the shared `supabas
 checks the caller's JWT comes from `supabase/config.toml`; a function without its section there is refused. Only the
 newest line is read.
 - 2026-10-10 — deploy: telegram
+- 2026-10-10 — deploy: telegram
