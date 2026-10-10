@@ -205,7 +205,8 @@
 .sf-page .im-date-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; }
 .sf-page .im-date-name { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
 .sf-page .im-date-row .im-date { width: 180px; }
-.sf-page .im-dates-switch { min-height: 36px; }
+/* 44 px to tap, the line as tall as before (36 px): the extra 8 px go into negative margins. */
+.sf-page .im-dates-switch { min-height: 44px; margin: -4px 0; }
 .sf-page .im-small {
   display: inline-flex;
   align-items: center;

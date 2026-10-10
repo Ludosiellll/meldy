@@ -52,7 +52,10 @@
   cursor: pointer;
   transition: background-color .2s ease, color .2s ease;
 }
-.sf-page.st-page .st-day:hover { color: var(--sf-ink); }
+/* Hover only where there is a pointer: on a phone a tapped day would keep the hover's dark ink after it was turned off. */
+@media (hover: hover) {
+  .sf-page.st-page .st-day:hover { color: var(--sf-ink); }
+}
 .sf-page.st-page .st-day[aria-pressed='true'] { background: var(--sf-accent-soft); color: var(--sf-ink); font-weight: 600; }
 .sf-page.st-page .st-day[aria-disabled='true'] { cursor: default; }
 .sf-page.st-page .st-day:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 1px; }
