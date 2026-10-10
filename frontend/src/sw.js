@@ -76,15 +76,36 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(Promise.all([self.clients.claim(), caches.delete('navigations')]));
 });
 
-// Pages always come from the network; without it, the offline page. A cached copy of a page would
-// name the hashed files of its own release, which the precache drops when a new release arrives, so
-// it could open blank.
+/**
+ * Pages that open without network (spec decision 31): «Сегодня» (/ and /dashboard), «Экзамены» and an exam
+ * container with its subject, «занятие» and «Как на экзамене». They draw from the device: the exam's questions and the
+ * last overview and plan in IndexedDB, the answer queue in localStorage (lib/containers).
+ */
+const OFFLINE_APP_PAGES = [/^\/$/, /^\/dashboard\/?$/, /^\/exams\/?$/, /^\/exams\/c\/[^/]+(?:\/.*)?$/];
+
+function opensOffline(url) {
+  try {
+    const { pathname } = new URL(url);
+    return OFFLINE_APP_PAGES.some((page) => page.test(pathname));
+  } catch {
+    return false;
+  }
+}
+
+// Pages always come from the network. Without it, the pages above get the app itself — the precached index.html of
+// this worker's release, whose hashed files are in the same precache, so it never opens blank — and every other page
+// the offline page. A copy of a page cached as it was served would name the hashed files of its own release, which
+// the precache drops when a new release arrives, so it could open blank: no page is cached that way.
 const navigationRoute = new NavigationRoute(
   new NetworkOnly({
     plugins: [
       {
-        handlerDidError: async () => {
+        handlerDidError: async ({ request }) => {
           // Precache keys carry ?__WB_REVISION__=…, so caches.match('/offline.html') never finds the page.
+          if (request && opensOffline(request.url)) {
+            const app = await matchPrecache('/index.html');
+            if (app) return app;
+          }
           return (await matchPrecache('/offline.html')) || Response.error();
         }
       }

@@ -178,13 +178,26 @@ describe('holdsUpdate', () => {
       '/analyze',
       '/exams/new',
       '/exams/abc/edit',
+      // An exam container's «занятие» and «Как на экзамене» (an unfinished session or run), the import page (the
+      // parsed preview of the files).
+      '/exams/c/abc/study',
+      '/exams/c/abc/study/',
+      '/exams/c/abc/mock',
+      '/exams/c/abc/mock/',
+      '/exams/import',
+      '/exams/import/',
     ]) {
       expect(holdsUpdate(path), path).toBe(true);
     }
   });
 
   it('lets it through everywhere else', () => {
-    for (const path of ['/', '/dashboard', '/exams', '/exams/abc', '/library', '/library/abc', '/review', '/mistakes', '/analytics', '/knowledge-map', '/profile', '/try', '/login']) {
+    for (const path of [
+      '/', '/dashboard', '/exams', '/exams/abc', '/library', '/library/abc', '/review', '/mistakes', '/analytics',
+      '/knowledge-map', '/profile', '/try', '/login',
+      '/exams/c/abc', '/exams/c/abc/s/sub-1', '/exams/c/abc/keys', '/exams/c/abc/settings', '/g/abcdefghjkmn',
+      '/exams/c/abc/study/extra', '/exams/importer',
+    ]) {
       expect(holdsUpdate(path), path).toBe(false);
     }
   });
@@ -195,9 +208,11 @@ describe('holdsUpdate', () => {
       '/dashboard', '/profile', '/analyze', '/library', '/library/x', '/library/x/talk', '/review', '/exams', '/exams/new',
       '/exams/x', '/exams/x/edit', '/exams/x/draw', '/exams/x/ticket', '/exams/x/report', '/mistakes', '/analytics',
       '/knowledge-map', '/shared/x', '/join/x', '/auth/callback',
+      '/exams/import', '/exams/c/x', '/exams/c/x/s/y', '/exams/c/x/study', '/exams/c/x/mock', '/exams/c/x/keys',
+      '/exams/c/x/settings', '/g/x',
     ];
     const rooms = routes.filter((path) => isRoomPath(path) || isRoomPath(`${path}/`));
-    expect(rooms).toEqual(['/library/x/talk', '/exams/x/draw', '/exams/x/ticket', '/exams/x/report']);
+    expect(rooms).toEqual(['/library/x/talk', '/exams/x/draw', '/exams/x/ticket', '/exams/x/report', '/exams/c/x/study', '/exams/c/x/mock']);
     for (const path of rooms) {
       expect(holdsUpdate(path), path).toBe(true);
       expect(holdsUpdate(`${path}/`), path).toBe(true);

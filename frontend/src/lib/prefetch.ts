@@ -38,23 +38,66 @@ const SECTIONS: Loader[] = [
   () => import('../pages/Analytics'),
 ];
 
-/** Signed-in addresses that are often the first screen, and their page; the first match wins. */
-const SIGNED_IN_PAGES: ReadonlyArray<readonly [RegExp, Loader]> = [
-  [/^\/dashboard\/?$/, SECTIONS[0]],
-  [/^\/exams\/?$/, SECTIONS[1]],
-  [/^\/library\/?$/, SECTIONS[2]],
-  [/^\/review\/?$/, SECTIONS[3]],
-  [/^\/analytics\/?$/, SECTIONS[4]],
-  [/^\/exams\/new\/?$|^\/exams\/[^/]+\/edit\/?$/, () => import('../pages/ExamEditor')],
-  [/^\/exams\/[^/]+\/draw\/?$/, () => import('../pages/ExamDraw')],
-  [/^\/exams\/[^/]+\/report\/?$/, () => import('../pages/ExamReport')],
-  [/^\/exams\/[^/]+\/?$/, () => import('../pages/ExamDetail')],
-  [/^\/library\/[^/]+\/?$/, () => import('../pages/MaterialDetail')],
-  [/^\/library\/[^/]+\/talk\/?$/, () => import('../pages/LectureTalk')],
-  [/^\/analyze\/?$/, () => import('../pages/Analyze')],
-  [/^\/mistakes\/?$/, () => import('../pages/MistakeDiary')],
-  [/^\/knowledge-map\/?$/, () => import('../pages/KnowledgeMap')],
+/** The screens a signed-in address may open first, by name (the names are what the tests check). */
+const PAGES = {
+  Dashboard: SECTIONS[0],
+  Exams: SECTIONS[1],
+  Library: SECTIONS[2],
+  Review: SECTIONS[3],
+  Analytics: SECTIONS[4],
+  ImportPage: () => import('../pages/container/ImportPage'),
+  ContainerPage: () => import('../pages/container/ContainerPage'),
+  SubjectPage: () => import('../pages/container/SubjectPage'),
+  StudyPage: () => import('../pages/container/StudyPage'),
+  MockPage: () => import('../pages/container/MockPage'),
+  KeysPage: () => import('../pages/container/KeysPage'),
+  SettingsPage: () => import('../pages/container/SettingsPage'),
+  ExamEditor: () => import('../pages/ExamEditor'),
+  ExamDraw: () => import('../pages/ExamDraw'),
+  ExamReport: () => import('../pages/ExamReport'),
+  ExamDetail: () => import('../pages/ExamDetail'),
+  MaterialDetail: () => import('../pages/MaterialDetail'),
+  LectureTalk: () => import('../pages/LectureTalk'),
+  Analyze: () => import('../pages/Analyze'),
+  MistakeDiary: () => import('../pages/MistakeDiary'),
+  KnowledgeMap: () => import('../pages/KnowledgeMap'),
+} satisfies Record<string, Loader>;
+
+export type SignedInPage = keyof typeof PAGES;
+
+/**
+ * Signed-in addresses that are often the first screen, and their page; the first match wins. The exam container's
+ * pages (/exams/import, /exams/c/:id/…) come before the oral exam's /exams/:id, which would match /exams/import too.
+ * /exams/new only redirects to /exams/import (App.tsx ExamsNewRedirect): it loads the import page, not the editor.
+ */
+const SIGNED_IN_PAGES: ReadonlyArray<readonly [RegExp, SignedInPage]> = [
+  [/^\/dashboard\/?$/, 'Dashboard'],
+  [/^\/exams\/?$/, 'Exams'],
+  [/^\/library\/?$/, 'Library'],
+  [/^\/review\/?$/, 'Review'],
+  [/^\/analytics\/?$/, 'Analytics'],
+  [/^\/exams\/(?:import|new)\/?$/, 'ImportPage'],
+  [/^\/exams\/c\/[^/]+\/?$/, 'ContainerPage'],
+  [/^\/exams\/c\/[^/]+\/s\/[^/]+\/?$/, 'SubjectPage'],
+  [/^\/exams\/c\/[^/]+\/study\/?$/, 'StudyPage'],
+  [/^\/exams\/c\/[^/]+\/mock\/?$/, 'MockPage'],
+  [/^\/exams\/c\/[^/]+\/keys\/?$/, 'KeysPage'],
+  [/^\/exams\/c\/[^/]+\/settings\/?$/, 'SettingsPage'],
+  [/^\/exams\/[^/]+\/edit\/?$/, 'ExamEditor'],
+  [/^\/exams\/[^/]+\/draw\/?$/, 'ExamDraw'],
+  [/^\/exams\/[^/]+\/report\/?$/, 'ExamReport'],
+  [/^\/exams\/[^/]+\/?$/, 'ExamDetail'],
+  [/^\/library\/[^/]+\/?$/, 'MaterialDetail'],
+  [/^\/library\/[^/]+\/talk\/?$/, 'LectureTalk'],
+  [/^\/analyze\/?$/, 'Analyze'],
+  [/^\/mistakes\/?$/, 'MistakeDiary'],
+  [/^\/knowledge-map\/?$/, 'KnowledgeMap'],
 ];
+
+/** The page a signed-in address fetches together with the shell, or null (it then loads after the shell). */
+export function signedInPageOf(pathname: string): SignedInPage | null {
+  return SIGNED_IN_PAGES.find(([match]) => match.test(pathname))?.[1] ?? null;
+}
 
 const quiet = (load: Loader) => {
   void load().catch(() => undefined);
@@ -98,17 +141,18 @@ function firstRunLikely(): boolean {
  * right after.
  */
 export function preloadSignedInScreen(pathname: string): void {
-  const page = SIGNED_IN_PAGES.find(([match]) => match.test(pathname));
+  const name = signedInPageOf(pathname);
+  const page = name ? PAGES[name] : null;
   if (firstRunLikely()) {
     const guide = Promise.all([loadSupabase(), layoutPart.load(), guideClipPart.load()]);
-    if (page) void guide.then(() => quiet(page[1]), () => quiet(page[1]));
+    if (page) void guide.then(() => quiet(page), () => quiet(page));
     else void guide.catch(() => undefined);
     return;
   }
   if (!page) return;
   const both = () => {
     quiet(loadLayout);
-    quiet(page[1]);
+    quiet(page);
   };
   if (!sharedConnection()) {
     both();

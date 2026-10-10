@@ -1,0 +1,37 @@
+name: Supabase migrations
+
+# Applies the migration files named on the newest line of deploy/supabase-migrate.md to the live project, records their
+# versions in supabase_migrations.schema_migrations, then runs the named read-only contract checks
+# (supabase/migrate.py). The access token is the owner's, kept only in the repository secret SUPABASE_ACCESS_TOKEN;
+# the job prints file names, statuses, contract_ok and failed — never row data.
+on:
+  push:
+    branches: [claude/relaxed-hypatia-1tpmq5]
+    paths: [deploy/supabase-migrate.md]
+
+concurrency:
+  group: supabase-migrate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: daunnytubqbzafjnpfnw
+    steps:
+      - name: Check the token secret
+        run: test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Repository secret SUPABASE_ACCESS_TOKEN is not set"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply the migrations and run the checks
+        run: python supabase/migrate.py

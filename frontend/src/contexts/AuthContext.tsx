@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import type { User, Session } from '@supabase/supabase-js';
+import type { AuthChangeEvent, User, Session } from '@supabase/supabase-js';
 import { whenIdleAfterLoad } from '../lib/idle';
-import { hasStoredSession, loadSupabase, signInInAddress } from '../lib/supabaseClient';
+import { hasStoredSession, keptSession, loadSupabase, signInInAddress } from '../lib/supabaseClient';
 
 /**
  * A guest on a screen that needs no account (the landing, /try): the session is read once the page
@@ -45,6 +45,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return whenIdleAfterLoad(() => setWanted(true));
   }, [wanted]);
 
+  /**
+   * No session from the client while it still keeps one here means its refresh failed for lack of network (auth-js
+   * removes the stored session on every other failure): the student stays signed in with the kept session, so the
+   * pages that draw from the device open offline (spec decision 31), and the client refreshes it once the network is
+   * back. A sign-out never falls back.
+   */
+  const settle = useCallback((next: Session | null, event?: AuthChangeEvent) => {
+    const current = next ?? (event === 'SIGNED_OUT' ? null : keptSession());
+    setSession(current);
+    setUser(current?.user ?? null);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     if (!wanted) return undefined;
     let live = true;
@@ -52,17 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadSupabase().then(
       (supabase) => {
         if (!live) return;
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setLoading(false);
-        });
+        supabase.auth.getSession().then(({ data: { session } }) => settle(session));
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setLoading(false);
-        });
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => settle(session, event));
         unsubscribe = () => subscription.unsubscribe();
       },
       (error: unknown) => console.error('Не удалось загрузить клиент Supabase:', error),
@@ -72,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       live = false;
       unsubscribe?.();
     };
-  }, [wanted]);
+  }, [wanted, settle]);
 
   const signOut = async () => {
     const supabase = await loadSupabase();
