@@ -149,7 +149,7 @@ describe('error mapping', () => {
   };
 
   it.each([
-    ['MC001', 'Ссылка не найдена — проверьте, что скопировали её целиком.'],
+    ['MC001', 'Ссылка не найдена — проверьте, что вставили её целиком.'],
     ['MC002', 'Автор закрыл эту ссылку.'],
     ['MC003', 'Срок ссылки истёк — попросите у автора новую.'],
     ['MC004', 'Места по этой ссылке закончились — попросите у автора новую.'],
@@ -612,5 +612,14 @@ describe('backend calls', () => {
     const taken = await caught(oralSync(C1));
     expect(taken.code).toBe('server_unavailable');
     expect(isContainersUnavailable(taken)).toBe(false);
+  });
+});
+
+describe('words (spec §3, §16 decisions 45 and 55)', () => {
+  it('no error text says what the product never says', () => {
+    const banned = /контейнер|тест|повторени|на проверку|спорн|пробн|засчитан|сгорел|готов на|выучен|сдашь|отстаёте|преподавател|колледж|аккредитац|копи/i;
+    for (const text of [...Object.values(CONTAINER_ERROR_TEXT), LINKS_LIMIT_TEXT, NOTHING_TO_SHARE_TEXT]) {
+      expect(text, text).not.toMatch(banned);
+    }
   });
 });
