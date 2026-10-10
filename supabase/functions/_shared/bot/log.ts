@@ -71,11 +71,12 @@ const consoleSink: Sink = (line, failed) => {
 
 let sink: Sink = consoleSink;
 
-/** Tests: capture the lines; returns the function that puts the console back. */
+/** Tests: capture the lines; returns the function that puts the previous sink back. */
 export function setLogSink(next: Sink): () => void {
+  const previous = sink;
   sink = next;
   return () => {
-    sink = consoleSink;
+    sink = previous;
   };
 }
 

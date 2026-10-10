@@ -25,6 +25,9 @@ import { editKeyboard, isBlocked, isRateLimited, remove, send, TelegramError } f
 
 export type StepStats = Record<string, number>;
 
+/** What every step gets: when to stop starting work (epoch ms) and the shared pacer (≤ 25 sends a second). */
+export interface TickTools { deadline: number; pace: () => Promise<void> }
+
 export const TICK_BUDGET_MS = 30_000;
 /** Work starts only while this much of the budget is left (a send takes up to 10 s with its timeout). */
 export const STOP_MARGIN_MS = 5_000;
@@ -168,7 +171,19 @@ export async function afterDate(ctx: Ctx, deadline: number, pace: () => Promise<
       add(stats, 'left');
       continue;
     }
-    const outcome = await deliver(ctx, stats, row.deliveryId, row.chatId, afterDateCard(row, ctx.site), false, pace);
+    if (!row.exam) {
+      // The exam was deleted meanwhile: nothing to say about it.
+      await ctx.db.deliveryDone(row.deliveryId, 'skipped', null, 'gone');
+      add(stats, 'skip_gone');
+      continue;
+    }
+    if (row.exam.keyed === 0) {
+      // No question with a key: the bot never planned this exam, and «0 из 0» says nothing.
+      await ctx.db.deliveryDone(row.deliveryId, 'skipped', null, 'empty');
+      add(stats, 'skip_empty');
+      continue;
+    }
+    const outcome = await deliver(ctx, stats, row.deliveryId, row.chatId, afterDateCard({ ...row, exam: row.exam }, ctx.site), false, pace);
     if (outcome === 'stop') break;
   }
   return stats;
@@ -193,11 +208,12 @@ export async function runTick(ctx: Ctx, ports: Ports, options: TickOptions = {})
   const pace = pacer(ctx.now, options.sleep ?? defaultSleep);
   const limit = options.limit ?? CLAIM_LIMIT;
   const totals: StepStats = {};
+  const tools: TickTools = { deadline, pace };
   const steps: Array<[string, () => Promise<StepStats>]> = [
-    ['close', () => ports.group.closePosts(ctx, deadline)],
-    ['posts', () => ports.group.sendPosts(ctx, deadline)],
+    ['close', () => ports.group.closePosts(ctx, tools)],
+    ['posts', () => ports.group.sendPosts(ctx, tools)],
     ['rem', () => reminders(ctx, deadline, pace, limit)],
-    ['count', () => ports.group.counters(ctx, deadline)],
+    ['count', () => ports.group.counters(ctx, tools)],
     ['night', () => dayClose(ctx, deadline, pace, limit)],
     ['k3', () => afterDate(ctx, deadline, pace, limit)],
     ['flush', () => flushPending(ctx)],
