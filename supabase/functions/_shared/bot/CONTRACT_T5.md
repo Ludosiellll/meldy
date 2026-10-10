@@ -21,7 +21,8 @@ function side). This file changes when a signature or a shape changes.
 - Idempotency (spec §6.5): an answer is `client_event_id = tg:<sid>:<pos>`; `test_answers.session_id =
   md5('tg:' || sid)::uuid` (= `bot.sessions.session_uuid`); `source = 'bot'`; `local_date` = the link's local day;
   `ms` = server time from the question's first show to the tap, ≤ 180 000; `cls`, `retry` from the queue.
-- Every call that finds the session marks the user as seen (`bot.links.last_seen_at`, as `bot_whoami` does).
+- Every call that finds the session marks the user as seen (`bot.links.last_seen_at`, as `bot_whoami` does: it ends
+  K2's silence; the day card waits only after answers, which the recorded ones are).
 
 ## Statuses
 

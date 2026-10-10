@@ -542,7 +542,7 @@ $fn$;
 --     the first tap's state). status: ok | unlinked | not_found (no such sid for this user: unknown, cleaned up or
 --     someone else's) | ended (finished or abandoned; a session whose day has passed is closed here, its waiting answer
 --     recorded as given) | unavailable (the user lost the exam: closed, nothing recorded). Marks the user as seen in
---     bot.links (an action in the bot: the day card waits 30 minutes after it, as after bot_whoami).
+--     bot.links.last_seen_at, as bot_whoami does (an action in the bot ends K2's silence).
 create or replace function bot.session_take(p_tg_user_id bigint, p_sid text, p_now timestamptz, p_today_only boolean,
                                             out o_status text, out o_s bot.sessions, out o_l bot.links,
                                             out o_role text)

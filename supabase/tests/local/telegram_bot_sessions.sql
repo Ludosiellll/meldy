@@ -305,7 +305,7 @@ begin
   perform pg_temp.sx('update bot.links set last_seen_at = null where tg_user_id = 3002');
   r := public.bot_session_answer(3002, 'b1000000', 0, '{"i": 0}');   -- shown 0 = file 2 = HTTPS
   perform pg_temp.check(pg_temp.sq('select last_seen_at = now() from bot.links where tg_user_id = 3002') = 'true',
-                        'a press marks the user as seen (the day card waits 30 minutes, K2''s silence ends)');
+                        'a press marks the user as seen (it ends K2''s silence)');
   perform pg_temp.check(r ->> 'status' = 'ok' and r -> 'answer' ->> 'status' = 'saved'
                         and (r -> 'answer' ->> 'correct')::boolean and r -> 'answer' ->> 'step' = 'start', 'right: saved', r -> 'answer');
   perform pg_temp.check((r -> 'view' ->> 'pos')::integer = 1 and r -> 'view' -> 'review' = 'null'::jsonb
@@ -691,6 +691,22 @@ begin
   perform pg_temp.check((st ->> 'seen')::integer = 2 and (st ->> 'right_count')::integer = 2
                         and pg_temp.rows_of('web:t5:0001') = 1 and pg_temp.rows_of('tg:b6000000:0') = 1,
                         'one state, two rows (site and bot)', st);
+  -- «Нажали не туда?» under a wrong OPTION (section 6 had «Не знаю»): wrong does not grow, peek_day = today
+  st := pg_temp.sj(format($q$select to_jsonb(s) from public.test_item_states s
+                              where s.user_id = 'bbbbbbbb-0000-0000-0000-000000000002' and s.item_id = %L$q$, pg_temp.c('net1')));
+  r := public.bot_session_answer(3002, 'b6000000', 1, '{"i": 1}');   -- shown 1 = file 0 = HTTP: wrong
+  perform pg_temp.check(r -> 'answer' ->> 'status' = 'pending', 'S6 wrong option', r);
+  r := public.bot_session_resolve(3002, 'b6000000', 1, 'misclick');
+  perform pg_temp.check(r ->> 'status' = 'ok' and r -> 'answer' ->> 'step' = 'misclick'
+                        and pg_temp.row_of('tg:b6000000:1') -> 'chosen' = '[0]'::jsonb
+                        and (pg_temp.row_of('tg:b6000000:1') ->> 'misclick')::boolean, 'misclick on an option: recorded', r);
+  perform pg_temp.check(pg_temp.sj(format($q$select to_jsonb(s) from public.test_item_states s
+                                              where s.user_id = 'bbbbbbbb-0000-0000-0000-000000000002' and s.item_id = %L$q$,
+                                          pg_temp.c('net1'))) ->> 'wrong_count' = st ->> 'wrong_count'
+                        and pg_temp.sj(format($q$select to_jsonb(s) from public.test_item_states s
+                                                  where s.user_id = 'bbbbbbbb-0000-0000-0000-000000000002' and s.item_id = %L$q$,
+                                              pg_temp.c('net1'))) ->> 'peek_day' = pg_temp.c('minsk'),
+                        'misclick on an option: wrong does not grow, peek_day = today', st);
 end
 $t$;
 
