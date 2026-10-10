@@ -27,15 +27,15 @@ drop function if exists public.bot_setup(text, bigint, text, text, text), public
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),
   public.bot_card_sent(bigint, bigint, text), public.bot_claim_reminders(integer, timestamptz),
   public.bot_reminder_context(bigint), public.bot_delivery_sending(bigint, timestamptz),
-  public.bot_delivery_done(bigint, text, bigint, text, timestamptz), public.bot_claim_day_close(integer, timestamptz),
-  public.bot_claim_after_date(integer, timestamptz);
+  public.bot_delivery_retry(bigint, text, timestamptz), public.bot_delivery_done(bigint, text, bigint, text, timestamptz),
+  public.bot_claim_day_close(integer, timestamptz), public.bot_claim_after_date(integer, timestamptz);
 drop function if exists public.telegram_link_start(text), public.telegram_link_state(),
   public.telegram_settings(boolean, time, text), public.telegram_unlink();
 drop function if exists bot.tick(timestamptz), bot.tick_due(timestamptz), bot.tick_mode(timestamptz),
   bot.cleanup(timestamptz), bot.session_message(bigint, bigint),
   bot.after_date_json(uuid, uuid, date), bot.sweep(text[], timestamptz), bot.calls_json(timestamptz),
   bot.site_state(uuid), bot.exams_json(uuid), bot.answered_since(uuid, timestamptz),
-  bot.recently_active(uuid, timestamptz, timestamptz, date), bot.in_window(timestamp, time), bot.tz_ok(text),
+  bot.recently_active(uuid, timestamptz, date), bot.in_window(timestamp, time), bot.tz_ok(text),
   bot.local_day(text, timestamptz);
 -- These two take the row type of bot.links: they go before the table.
 do $do$
