@@ -137,6 +137,9 @@ export function fakeGroup(fdb: FakeDb, options: { now: () => number; firstPostId
     return dayStop(exam, day);
   };
 
+  /** The post's question; null once deleted (T7: `item_id` is set null on delete, the claims close it silently). */
+  const questionOf = (post: PostRow) => itemOf(examOf(post.chatId), post.itemId);
+
   /** VIEW: options in file order and `shown`; never the key. Null when the question is gone. */
   function view(post: PostRow) {
     const exam = examOf(post.chatId);
@@ -442,7 +445,7 @@ export function fakeGroup(fdb: FakeDb, options: { now: () => number; firstPostId
     const due = posts
       .filter((p) => {
         const g = groups.get(p.chatId);
-        return p.status === 'open' && p.messageId !== null && p.itemId !== null && g && g.leftAt === null && p.answered > p.counterShown
+        return p.status === 'open' && p.messageId !== null && questionOf(p) !== null && g && g.leftAt === null && p.answered > p.counterShown
           && (p.counterAt === null || p.counterAt <= t - MIN) && !pastClose(t, p);
       })
       .sort((x, y) => x.id - y.id)
@@ -467,8 +470,8 @@ export function fakeGroup(fdb: FakeDb, options: { now: () => number; firstPostId
     for (const p of posts) {
       const g = groups.get(p.chatId);
       if (!(p.status === 'open' || p.status === 'unknown') || !pastClose(t, p)) continue;
-      if (p.status === 'unknown' || p.messageId === null || p.itemId === null || !g || g.leftAt !== null || p.closeTries >= 3) {
-        p.error = p.error ?? (p.status === 'unknown' ? 'unknown' : !g || g.leftAt !== null ? 'left' : p.messageId === null ? 'no message' : p.itemId === null ? 'no question' : 'close failed');
+      if (p.status === 'unknown' || p.messageId === null || questionOf(p) === null || !g || g.leftAt !== null || p.closeTries >= 3) {
+        p.error = p.error ?? (p.status === 'unknown' ? 'unknown' : !g || g.leftAt !== null ? 'left' : p.messageId === null ? 'no message' : questionOf(p) === null ? 'no question' : 'close failed');
         p.status = 'closed';
         p.closedAt = t;
       }
@@ -476,7 +479,7 @@ export function fakeGroup(fdb: FakeDb, options: { now: () => number; firstPostId
     const due = posts
       .filter((p) => {
         const g = groups.get(p.chatId);
-        return p.status === 'open' && p.messageId !== null && p.itemId !== null && g && g.leftAt === null && pastClose(t, p)
+        return p.status === 'open' && p.messageId !== null && questionOf(p) !== null && g && g.leftAt === null && pastClose(t, p)
           && (p.closeAt === null || p.closeAt <= t - 10 * MIN);
       })
       .sort((x, y) => x.id - y.id)

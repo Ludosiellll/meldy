@@ -388,15 +388,24 @@ test('nobody answered: «Вопрос закрыт.»; a deleted question: only 
   await k.tick();
   assert.equal(k.tg.calls.filter((c) => c.method.startsWith('edit')).length, 0);
   assert.equal(k.fg.post(POST)!.status, 'closed', 'closed by the claim, silently');
-  // Deleted after the claim took the row (its VIEW is null): only the keyboard comes off.
+  const d = groupHarness();
+  await posted(d);
+  d.set(AT_2101);
+  d.exam.items = d.exam.items.filter((it) => it.id !== DHCP.id);
+  await d.tick();
+  assert.equal(d.tg.calls.filter((c) => c.method.startsWith('edit')).length, 0);
+  assert.equal(d.fg.post(POST)!.status, 'closed');
+  // Defensive: a claim row without a VIEW (CONTRACT_T7 says it never comes) only takes the keyboard off.
   const v = groupHarness();
   await posted(v);
   v.set(AT_2101);
-  v.exam.items = v.exam.items.filter((it) => it.id !== DHCP.id);
+  v.fdb.on('bot_claim_group_closes', () => [{ post_id: POST, chat_id: GROUP, tg_message_id: 1000, answered: 0, view: null }]);
+  v.fdb.on('bot_group_counters', () => [{ post_id: POST, chat_id: GROUP, tg_message_id: 1000, answered: 2, view: null }]);
   await v.tick();
   assert.equal(v.tg.of('editMessageText').length, 0);
   assert.deepEqual(v.tg.of('editMessageReplyMarkup').map((c) => c.params), [{ chat_id: GROUP, message_id: 1000, reply_markup: { inline_keyboard: [] } }]);
-  assert.equal(v.fg.post(POST)!.status, 'closed');
+  assert.deepEqual(v.fdb.of('bot_group_closed').map((x) => x.args), [{ p_post_id: POST, p_status: 'closed' }]);
+  assert.deepEqual(v.fdb.of('bot_group_counter_done').map((x) => x.args), [{ p_post_id: POST, p_answered: 2, p_status: 'failed' }]);
 });
 
 // ─────────────────────────────────────────── step 2: at most once, failures ───────────────────────────────────────────
