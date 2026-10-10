@@ -153,7 +153,8 @@ export interface CardResult {
 /** The open session of today in this exam: «Продолжить: 8 из 20» (session.ts `counter`). */
 function resumeButton(today: Today, exam: ExamDay): Button | null {
   const s = today.session;
-  if (!s || s.containerId !== exam.id || s.localDay !== exam.plan.day || s.queue.length === 0) return null;
+  // Only a session of today with a question left: T5's bot_session_move refuses any other day.
+  if (!s || s.containerId !== exam.id || s.localDay !== exam.plan.day || s.queue.length === 0 || s.position >= s.queue.length) return null;
   const pos = Math.max(0, Math.min(s.position, s.queue.length - 1));
   const { n, of } = counter(s.queue, pos);
   try {

@@ -127,6 +127,9 @@ test('an open session of today turns the blue into «Продолжить: 8 и�
   const yesterday = sessionToday();
   yesterday.session!.localDay = '2026-10-15';
   assert.notEqual(dayCard(yesterday, 'today', SITE).out.keyboard!.flat().find((b) => b.style === 'primary')!.text, 'Продолжить: 8 из 20');
+  const answered = sessionToday();
+  answered.session!.position = answered.session!.queue.length; // every question of it answered: nothing to continue
+  assert.ok(!dayCard(answered, 'today', SITE).out.keyboard!.flat().some((b) => b.text.startsWith('Продолжить')));
 });
 
 test('the lead exam: nearest date with work today; exam day first; a done day only when nothing has work; ties → newer', () => {
