@@ -464,5 +464,5 @@ function botTokenFromEnv(): string {
   return envToken ?? '';
 }
 
-/** The port for supabase/functions/telegram/index.ts: `import { files } from '../_shared/bot/files.ts';` and `files,`. */
+/** The port for supabase/functions/telegram/index.ts, which puts it in `ports` as `files`. */
 export const files: FilesPort = createFiles({ token: botTokenFromEnv });

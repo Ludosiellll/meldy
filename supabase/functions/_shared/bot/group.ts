@@ -1,7 +1,7 @@
 /**
  * The group chat «Вопрос дня» (spec §4.6 G1–G4, §6.4 «Беседа», §6.5 `g|<post base36>|<i>`, §6.6 steps 1, 2 and 4;
  * decisions 19, 24–26, 29): the `GroupPort` of router.ts, on T7's database (CONTRACT_T7.md,
- * migration 20261010120004_telegram_bot_groups.sql). Index wiring: `import { group } from '../_shared/bot/group.ts';`.
+ * migration 20261010120004_telegram_bot_groups.sql). supabase/functions/telegram/index.ts puts it in `ports` as `group`.
  *
  * - `/start@Meldyteach_bot G<code>` in a group (the author's «Подключить беседу» on the site): `bot_group_claim` takes
  *   the code only from the author's linked Telegram, fresh and unused. Bound → G1 in the group (silent, no buttons) and
