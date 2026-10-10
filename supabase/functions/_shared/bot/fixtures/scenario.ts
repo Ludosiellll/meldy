@@ -34,6 +34,8 @@ export interface ExamSpec {
   subjects?: number;
   perSubject?: number;
   minutes?: number;
+  /** The student's days of the week (settings.study_weekdays: Monday = 1 … Sunday = 64); every day when left out. */
+  weekdays?: number;
   /** Items in «верно в два разных дня» (spread across subjects). */
   twoDays?: number;
   /** Open mistakes (last answer wrong, yesterday). */
@@ -104,7 +106,7 @@ export function wireOf(specs: ExamSpec[], nowMs = NOW): PlanInputsWire {
       role: spec.role ?? 'member',
       first_plan_day: spec.firstPlanDay ?? '2026-10-05',
       answers_today: spec.answeredToday ?? 0,
-      settings: { minutes_per_day: spec.minutes ?? 45, study_weekdays: 127 },
+      settings: { minutes_per_day: spec.minutes ?? 45, study_weekdays: spec.weekdays ?? 127 },
       today: { first_at: spec.today?.firstAt ?? null, done_s: spec.today?.doneSec ?? 0 },
     });
     subjects.push(...parts.wireSubjects);

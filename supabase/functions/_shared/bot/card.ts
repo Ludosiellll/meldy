@@ -12,7 +12,7 @@ import { withOralDates } from '../plan/oralParts.ts';
 import { planDay } from '../plan/plan.ts';
 import { figureLines, lineText, planLine, RULE_LINE, shownMinutes, startLabel } from '../plan/words.ts';
 import { counter } from '../plan/session.ts';
-import { addDays, daysBetween } from '../plan/time.ts';
+import { addDays, daysBetween, isStudyDay, studyDayFrom, studyMask } from '../plan/time.ts';
 import { encode } from './codec.ts';
 import type { AfterDateRow, Link, Today } from './db.ts';
 import { b, lines, t, thousands } from './html.ts';
@@ -114,6 +114,15 @@ export function dayView(today: Today, focus?: string | null): DayView {
   return { day, exams, main, others, listed };
 }
 
+/**
+ * A day off: today is not one of the student's days of the week for this exam (settings.study_weekdays), so its plan
+ * has nothing to do and says so (`day_off`: «Сегодня выходной. Следующие вопросы — в понедельник.»).
+ */
+export const isDayOff = (plan: DayPlan) => plan.lines.some((line) => line.key === 'day_off');
+
+/** Tomorrow is one of the exam's study days (the «завтра их будет меньше» of «Ещё 20 новых» is true only then). */
+const studiesTomorrow = (exam: ExamDay) => isStudyDay(addDays(exam.plan.day, 1), studyMask(exam.input.studyWeekdays));
+
 /** «Сегодня около 45 минут: 30 новых и 60 знакомых.» with the skip and eve forms of the table. */
 export function planSentence(exam: ExamDay): string {
   const plan = exam.plan;
@@ -144,9 +153,12 @@ export type CardMode = 'reminder' | 'today';
 
 export interface CardResult {
   out: Out;
-  /** reminder: false when there is nothing to send today (done, nothing, exam day, after the date, no exam). */
+  /** reminder: false when there is nothing to send today (done, nothing, a day off, exam day, after the date, no exam). */
   send: boolean;
-  /** The lead exam's plan state (study, done, nothing, exam_today, after, empty) or none: the reason of a skipped reminder. */
+  /**
+   * The lead exam's plan state (study, done, nothing, exam_today, after, empty), `day_off` when its day is not one of the
+   * student's days of the week, or none: the reason of a skipped reminder.
+   */
   state: string;
   examId: string | null;
   /** The user's names inside the message (exam titles), for the linter. */
@@ -213,9 +225,11 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     text.push(b(planSentence(main)), t(examLineOf(main)));
     // «Накануне окна» (the day before the final days) and «В окне» (spec §4.2): the plan keeps window_ahead every day.
     // The site's card says the short line and keeps the rest under «Подробнее»; a chat has no «Подробнее», so on the
-    // eve the bot says the whole sentence (`window_detail`: what the final days hold).
+    // eve the bot says the whole sentence (`window_detail`: what the final days hold). The eve is the last study day
+    // before them: with days off between (settings.study_weekdays), the next study day is their first.
+    const eve = studyDayFrom(addDays(plan.day, 1), studyMask(main.input.studyWeekdays));
     for (const line of plan.lines) {
-      if (line.key === 'window_ahead' && line.day === addDays(plan.day, 1)) text.push(t(lineText({ ...line, key: 'window_detail' })));
+      if (line.key === 'window_ahead' && line.day === eve) text.push(t(lineText({ ...line, key: 'window_detail' })));
       else if (line.key === 'window_in') text.push(t(lineText(line)));
     }
     text.push(t(figure.line));
@@ -224,7 +238,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     if (noDate) text.push(t(lineText(noDate)));
     if (main.role === 'member' && main.keyChanges > 0) text.push(t(W.keysFixed(main.keyChanges)));
     const more = plan.lines.find((l) => l.key === 'more_new');
-    if (plan.state !== 'study' && more) text.push(t(W.moreNewNote(lineText(more))));
+    // «…сейчас — завтра их будет меньше» only when tomorrow is a study day; otherwise the button alone.
+    if (plan.state !== 'study' && more && studiesTomorrow(main)) text.push(t(W.moreNewNote(lineText(more))));
 
     if (plan.state === 'study') {
       const resume = resumeButton(today, main);
@@ -248,7 +263,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
   }
   if (view.listed.length > 1) keyboard.push(row({ text: W.OTHER_EXAM, data: encode({ kind: 'exam', cid: null }) }));
 
-  return { out: { text: lines(...text), keyboard }, send: plan.state === 'study', state: plan.state, examId: cid, user };
+  // A reminder goes out only on a day with work: never on a day off (its reason says so, like «done» or «nothing»).
+  return { out: { text: lines(...text), keyboard }, send: plan.state === 'study', state: plan.state !== 'study' && isDayOff(plan) ? 'day_off' : plan.state, examId: cid, user };
 }
 
 const ellipsize = (text: string, max: number) => ([...text].length <= max ? text : `${[...text].slice(0, max - 1).join('').trimEnd()}…`);

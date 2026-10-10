@@ -89,6 +89,19 @@ test('the rest of the day when it is done: «На сегодня всё…» wit
   assert.match(r.line.replace(/\u00a0/g, ' '), /^На сегодня всё.* Ещё 20 новых сейчас — завтра их будет меньше\.$/);
 });
 
+test('the rest of a day off after «Ещё 20 новых»: «На сегодня всё…», «Ещё 20 новых» again, no «завтра» when tomorrow is off too', () => {
+  // Пн–Чт: Friday 16 October and the weekend are days off; 20 new answered today anyway.
+  const off = todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', perSubject: 60, answeredToday: 20, weekdays: 15,
+    today: { firstAt: Math.floor((NOW - 3 * H) / 1000), doneSec: 600 } }]);
+  const exam = examOf(off, CID)!;
+  assert.equal(exam.plan.state, 'done');
+  assert.ok(exam.plan.lines.some((l) => l.key === 'day_off'));
+  const r = restOfDay(exam, { subjectId: SUBJECT_IDS[0], kind: 'extra' }, SITE);
+  assert.equal(r.next, null);
+  assert.equal(r.moreNew!.label.replace(/\u00a0/g, ' '), 'Ещё 20 новых');
+  assert.match(r.line.replace(/\u00a0/g, ' '), /^На сегодня всё: 20 вопросов за 10 минут\.$/);
+});
+
 test('after errors, more errors of that subject first («Ещё N вопросов» → go|<cid>|e)', () => {
   const exam = examOf(todayOf([AUTUMN]), CID)!;
   const subject = errorsSubject(exam, new Set())!;

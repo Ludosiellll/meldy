@@ -20,6 +20,7 @@ import type { LocalDay, PlanCls, PlanInput, UnitState } from '../plan/container.
 import { extraNew, SESSION_SIZE } from '../plan/plan.ts';
 import { emptyState, isOpenError, isSeen } from '../plan/rule.ts';
 import { buildSession, freeSession, shuffled, type QueueEntry } from '../plan/session.ts';
+import { addDays, isStudyDay, studyMask } from '../plan/time.ts';
 import { lineText } from '../plan/words.ts';
 import { nextLabels, type RestOfDay } from './summary.ts';
 
@@ -154,7 +155,8 @@ export function restOfDay(exam: ExamDay | null, finished: { subjectId: string; k
       const more = plan.lines.find((l) => l.key === 'more_new');
       if (more) {
         rest.moreNew = { label: lineText(more), data: go('x') };
-        rest.line = `${rest.line} ${W.moreNewNote(lineText(more))}`.trim();
+        // «…сейчас — завтра их будет меньше» only when tomorrow is a study day (settings.study_weekdays).
+        if (isStudyDay(addDays(plan.day, 1), studyMask(input.studyWeekdays))) rest.line = `${rest.line} ${W.moreNewNote(lineText(more))}`.trim();
       }
     }
     if (exam.hasOral && plan.sessions.some((s) => s.kind !== 'answer' && s.ids.length > 0)) {
