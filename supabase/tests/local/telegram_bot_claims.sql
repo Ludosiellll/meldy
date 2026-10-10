@@ -1,7 +1,7 @@
 -- LOCAL ONLY; NEVER RUN AGAINST THE LIVE PROJECT. The tick's claims of the bot's database core (package T1) on the
 -- scratch database of telegram_bot_run.sh: spec §8.2 «Напоминания» entirely — starvation (120 links at 20:00, limit 50
 -- → all in 3 ticks), at most once (sending → unknown, never again), the 3-hour window and 23:00, Minsk and
--- Vladivostok, the pause, 30 minutes after the last answer or action, K2 and its silence, K3 after the date and the
+-- Vladivostok, the pause, 30 minutes after the last answer, K2 and its silence, K3 after the date and the
 -- night's close (each once); plus the context's reasons, the day card handed back, the retakes and their limits. Two
 -- claims at once (two sessions) are in telegram_bot_run.sh.
 -- One transaction, rolled back. The timeline is a few days ahead of the real clock (every claim takes p_now), so real
@@ -204,24 +204,21 @@ begin
 end
 $t$;
 
--- 6. 30 minutes after the last answer (site or bot) or the last action in the bot.
+-- 6. 30 minutes after the last answer, on the site or in the bot (decision 20: the card waits); an action in the bot
+--    (a new time in /settings) does not delay it.
 do $t$
 declare d date := pg_temp.d(40); v text; u uuid;
 begin
   u := pg_temp.link(901);
   perform pg_temp.answer(u, pg_temp.at(d, '19:45'));
   perform pg_temp.link(902);
-  update bot.links set last_seen_at = pg_temp.at(d, '19:50') where tg_user_id = 902;
+  update bot.links set last_seen_at = pg_temp.at(d, '19:58') where tg_user_id = 902;
   v := pg_temp.cards(pg_temp.at(d, '20:01'));
-  if v <> '' then raise exception 'FAILED: 16 and 11 minutes %', v; end if;
+  if v <> '902=K1' then raise exception 'FAILED: 16 minutes after an answer; an action does not wait %', v; end if;
   v := pg_temp.cards(pg_temp.at(d, '20:14'));
-  if v <> '' then raise exception 'FAILED: 29 and 24 minutes %', v; end if;
+  if v <> '' then raise exception 'FAILED: 29 minutes after the answer %', v; end if;
   v := pg_temp.cards(pg_temp.at(d, '20:16'));
   if v <> '901=K1' then raise exception 'FAILED: 31 minutes after the answer %', v; end if;
-  v := pg_temp.cards(pg_temp.at(d, '20:19'));
-  if v <> '' then raise exception 'FAILED: 29 minutes after the action %', v; end if;
-  v := pg_temp.cards(pg_temp.at(d, '20:21'));
-  if v <> '902=K1' then raise exception 'FAILED: 31 minutes after the action %', v; end if;
   delete from bot.links where tg_user_id in (901, 902);
 end
 $t$;
