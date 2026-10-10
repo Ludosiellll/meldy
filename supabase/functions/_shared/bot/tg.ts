@@ -198,6 +198,7 @@ export interface TgMessage {
   from?: TgUser;
   text?: string;
   reply_to_message?: TgMessage;
+  reply_markup?: InlineKeyboardMarkup;
   document?: { file_id: string; file_name?: string; file_size?: number; mime_type?: string };
   voice?: { file_id: string; duration?: number; file_size?: number };
   migrate_to_chat_id?: number;

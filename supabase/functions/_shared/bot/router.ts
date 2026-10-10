@@ -23,6 +23,7 @@ import { processUpdate } from './ledger.ts';
 import { runTick, type StepStats, type TickTools } from './tick.ts';
 import { readStatus, runSetup } from './setup.ts';
 import {
+  type InlineKeyboardMarkup,
   answer as answerQuery, createTelegram, editKeyboard, editOrSend, remove, send, type FetchLike, type Keyboard, type Telegram, type TgChat,
   type TgMessage, type TgUser,
 } from './tg.ts';
@@ -51,6 +52,8 @@ export interface Tap {
   messageId: number | null;
   chatType: string;
   data: string;
+  /** The pressed message's keyboard, when Telegram sends it: T6 re-marks a multiple-answer question without a read. */
+  markup?: InlineKeyboardMarkup | null;
   answered: boolean;
   answer(text?: string, alert?: boolean): Promise<void>;
 }
@@ -63,6 +66,7 @@ export function makeTap(tg: Telegram, q: TgCallbackQuery): Tap {
     messageId: q.message && q.message.date !== 0 ? q.message.message_id : null,
     chatType: q.message?.chat?.type ?? 'private',
     data: q.data ?? '',
+    markup: q.message?.reply_markup ?? null,
     answered: false,
     async answer(text?: string, alert?: boolean) {
       if (tap.answered) return;
