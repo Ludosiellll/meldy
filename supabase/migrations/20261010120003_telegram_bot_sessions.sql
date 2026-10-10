@@ -689,6 +689,7 @@ end;
 $fn$;
 
 -- 2t. Leaves out the entries after p_after of one question (p_retry null: all of them; else that one repeat).
+--     Positions up to p_after keep their meaning (tg:<sid>:<pos> of answers already given).
 create or replace function bot.session_drop(p_s bot.sessions, p_after integer, p_id uuid, p_retry smallint)
 returns bot.sessions
 language plpgsql
@@ -1119,8 +1120,8 @@ $fn$;
 -- 3e. After an answer (spec §6.3). p_action:
 --       next («Дальше»): the waiting answer recorded as given, then the next question. p_queue = afterAnswer's queue
 --         ([{id, retry, shown?}], shown = the repeat's new option order): required when the answer was a counted miss
---         of a question not repeated twice yet (it must hold that repeat), optional otherwise; a question set aside by
---         the doubt loses its later entries; a repeat the answer does not call for is left out;
+--         of a question not repeated twice yet (it must hold that repeat), optional otherwise; a repeat the answer
+--         does not call for (right, misclick, set aside by the doubt, not recorded) is left out;
 --       misclick («Нажали не туда?»): recorded with misclick; the question stays with its review; not for a typed
 --         answer, not once the answer is recorded (the flush, the doubt);
 --       skip: the function cannot show this question (over 4096 characters): the next one comes; counted.
@@ -1236,10 +1237,8 @@ begin
     end if;
   end if;
   if not v_expect and v_has_new then
+    -- no repeat after a right answer, a misclick, the doubt (set aside) or an answer the core did not record
     v_s := bot.session_drop(v_s, v_pos, v_cur, (v_cur_retry + 1)::smallint);
-  end if;
-  if coalesce((v_p ->> 'doubt')::boolean, false) then
-    v_s := bot.session_drop(v_s, v_pos, v_cur, null);
   end if;
   v_s.pending := null;
   v_s.pending_at := null;
@@ -1340,8 +1339,8 @@ $fn$;
 
 -- 3h. «Сомневаюсь в ключе» → «Отметить» (spec §4.3 Z11, decision 17): the answer is recorded as given (once) and
 --     meldy_private.test_key_doubt_for sets the question aside for this user (proposed = the chosen options in file
---     order; a comment only on the site); the question stays with its review until «Дальше», which leaves out its
---     later entries. Again → ok, nothing new. status: ok | old | invalid (no_answer) | unlinked | not_found | ended |
+--     order; a comment only on the site); the question stays with its review until «Дальше», which gives it no
+--     repeat. Again → ok, nothing new. status: ok | old | invalid (no_answer) | unlinked | not_found | ended |
 --     unavailable.
 create or replace function public.bot_key_doubt(p_tg_user_id bigint, p_sid text, p_pos integer)
 returns jsonb
