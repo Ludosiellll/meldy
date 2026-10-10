@@ -3,8 +3,8 @@
 # 16 cluster: package T1 (supabase/migrations/20261010120000_telegram_bot.sql, _cron.sql, _revokes.sql and
 # supabase/rollback/20261010120000_telegram_bot_down.sql), then the later packages in the live order, each on top of
 # the ones before: T5 (20261010120003, the session in chat), T7 (20261010120004, the group chat), T9 (20261010120005,
-# the files), T10 (20261010120006, voice behind a flag), and the slot of T11 (20261010120007), applied only when its
-# file is here.
+# the files), T10 (20261010120006, voice behind a flag), the slot of T11 (20261010120007), applied only when its
+# file is here, and WA (20261010150000, the Mini App's sign-in, step 9b).
 #   1. the base (the repo's local baselines, the live migrations they rehearse, the exam container's migrations, stubs
 #      of the schemas cron and net when pg_cron / pg_net are not installed here, dblink when available) → catalog
 #      fingerprint → the contract on the base never raises;
@@ -525,6 +525,13 @@ if stage T11 20261010120007; then
   t1_tests "with T11" t_main
 fi
 [ $VOICE_AFTER_T11 = 0 ] || voice_tests "T10 after T11"
+
+# ── package WA (20261010150000_telegram_webapp.sql, the Mini App's sign-in: bot_webapp_session, bot_webapp_link) ──────
+echo "9b. WA: the Mini App's sign-in"
+if stage WA 20261010150000; then
+  sql_test "WA: telegram_webapp.sql" t_main "$HERE/telegram_webapp.sql" 'TELEGRAM WEBAPP CHECKS PASSED'
+  t1_tests "with WA" t_main
+fi
 
 echo "10. everything applied (T1 ${DONE[*]})"
 contract_full "supabase/tests/telegram_bot.sql" t_main

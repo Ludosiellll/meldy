@@ -159,12 +159,15 @@ function buttonProblems(button: Button, rowSize: number, options: ReadonlySet<st
   if (size === 0) problems.push('button without text');
   const hasData = typeof button.data === 'string';
   const hasUrl = typeof button.url === 'string';
-  if (hasData === hasUrl) problems.push(`«${label}»: exactly one of callback data and url`);
+  const hasWebApp = typeof button.webApp === 'string';
+  if (Number(hasData) + Number(hasUrl) + Number(hasWebApp) !== 1) problems.push(`«${label}»: exactly one of callback data, url and web_app`);
   if (hasData) {
     const bytes = new TextEncoder().encode(button.data as string).length;
     if (bytes < 1 || bytes > LIMITS.callbackBytes) problems.push(`«${label}»: callback_data ${bytes} bytes`);
   }
   if (hasUrl && !/^(https:\/\/|tg:\/\/)\S+$/.test(button.url as string)) problems.push(`«${label}»: url ${button.url}`);
+  // A Mini App opens only from an https address (Bot API WebAppInfo).
+  if (hasWebApp && !/^https:\/\/\S+$/.test(button.webApp as string)) problems.push(`«${label}»: web_app ${button.webApp}`);
   if (button.style === 'danger' && label !== 'Отключить') problems.push(`«${label}»: red is only for «Отключить»`);
   let limit: number;
   if (rowSize === 1) limit = options.has(label) ? WIDTH.option : WIDTH.full;
@@ -201,6 +204,8 @@ export function lintMessage(input: LintInput): string[] {
   }
   if (blue > 1) problems.push(`${blue} blue buttons`);
   if (input.chat === 'group' && blue > 0) problems.push('a blue button in a group');
+  // Bot API: a web_app button is «available only in private chats between a user and the bot».
+  if (input.chat === 'group' && keyboard.some((row) => row.some((button) => typeof button.webApp === 'string'))) problems.push('a web_app button in a group');
 
   for (const toast of input.toasts ?? []) {
     if ([...toast].length > LIMITS.toast) problems.push(`toast of ${[...toast].length} characters`);

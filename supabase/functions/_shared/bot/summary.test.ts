@@ -96,6 +96,18 @@ test('before a day off the record names the next study day (`back`), through the
   assert.deepEqual(summaryOut({ ...I1, back: 'завтра' }), summaryOut(I1));
 });
 
+test('I1 with more today: «Открыть занятие» (the Mini App) between the blue and «Готово»; never on I2 or a finished day', () => {
+  const app = { label: 'Открыть занятие', webApp: `https://ludosiel-studyforge.hf.space/tg?c=${CID}` };
+  const out = summaryOut({ ...I1, rest: { ...I1.rest, app } });
+  assert.deepEqual(out.keyboard!.map((row) => row.map((b) => b.text)), [['Дальше: Компьютерные сети'], ['Открыть занятие'], ['Готово']]);
+  assert.deepEqual(out.keyboard![1][0], { text: 'Открыть занятие', webApp: app.webApp });
+  assert.deepEqual(lintMessage({ text: out.text, keyboard: out.keyboard, chat: 'private', user: [I1.subject] }), []);
+  const stopped = summaryOut({ ...I1, end: 'stopped', resume: { n: 8, of: 20 }, rest: { ...I1.rest, app } });
+  assert.ok(stopped.keyboard!.flat().every((b) => b.webApp === undefined));
+  const finished = summaryOut({ ...I1, rest: rest({ line: 'На сегодня всё.', moreNew: { label: 'Ещё 20 новых', data: go('x') }, app }) });
+  assert.ok(finished.keyboard!.flat().every((b) => b.webApp === undefined));
+});
+
 test('the day done: [[Готово]] and «Ещё 20 новых» (go|<cid>|x); nothing next: [[Готово]] alone', () => {
   const done = summaryOut({ ...I1, rest: rest({ line: 'На сегодня всё.', moreNew: { label: 'Ещё 20 новых', data: go('x') } }) });
   assert.deepEqual(done.keyboard!.map((r) => r.map((b) => [b.text, b.style ?? ''])), [[['Готово', 'primary']], [['Ещё 20 новых', '']]]);

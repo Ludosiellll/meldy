@@ -8,6 +8,12 @@
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
     }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
+    }
    ]
   ]
  },
@@ -23,14 +29,14 @@
    ],
    [
     {
-     "text": "Только ошибки: 37",
-     "data": "go|a1b2c3d4-0000-4000-8000-000000000001|e"
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
     }
    ],
    [
     {
-     "text": "Открыть в Meldy",
-     "url": "https://ludosiel-studyforge.hf.space/exams/c/a1b2c3d4-0000-4000-8000-000000000001"
+     "text": "Только ошибки: 37",
+     "data": "go|a1b2c3d4-0000-4000-8000-000000000001|e"
     }
    ]
   ]
@@ -44,6 +50,12 @@
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
     }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
+    }
    ]
   ]
  },
@@ -55,6 +67,12 @@
      "text": "Начать: 20 вопросов",
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
+    }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
     }
    ]
   ]
@@ -71,14 +89,14 @@
    ],
    [
     {
-     "text": "Только ошибки: 37",
-     "data": "go|a1b2c3d4-0000-4000-8000-000000000001|e"
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
     }
    ],
    [
     {
-     "text": "Открыть в Meldy",
-     "url": "https://ludosiel-studyforge.hf.space/exams/c/a1b2c3d4-0000-4000-8000-000000000001"
+     "text": "Только ошибки: 37",
+     "data": "go|a1b2c3d4-0000-4000-8000-000000000001|e"
     }
    ]
   ]
@@ -92,6 +110,12 @@
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
     }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
+    }
    ]
   ]
  },
@@ -103,6 +127,12 @@
      "text": "Начать: 20 вопросов",
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
+    }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
     }
    ]
   ]
@@ -116,6 +146,12 @@
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
     }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
+    }
    ]
   ]
  },
@@ -127,6 +163,12 @@
      "text": "Начать: 20 вопросов",
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
+    }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
     }
    ]
   ]
@@ -178,6 +220,12 @@
    ],
    [
     {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
+    }
+   ],
+   [
+    {
      "text": "Указать дату",
      "url": "https://ludosiel-studyforge.hf.space/exams/c/a1b2c3d4-0000-4000-8000-000000000001/settings"
     }
@@ -192,6 +240,12 @@
      "text": "Начать: 20 вопросов",
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
+    }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
     }
    ],
    [
@@ -211,6 +265,12 @@
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
     }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
+    }
    ]
   ]
  },
@@ -222,6 +282,12 @@
      "text": "Начать: 20 вопросов",
      "data": "go|a1b2c3d4-0000-4000-8000-000000000001|p",
      "style": "primary"
+    }
+   ],
+   [
+    {
+     "text": "Открыть занятие",
+     "webApp": "https://ludosiel-studyforge.hf.space/tg?c=a1b2c3d4-0000-4000-8000-000000000001"
     }
    ],
    [

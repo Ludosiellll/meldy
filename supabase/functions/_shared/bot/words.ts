@@ -18,6 +18,8 @@ export const PATH = {
   upload: '/exams/import',
   exam: (id: string) => `/exams/c/${id}`,
   examSettings: (id: string) => `/exams/c/${id}/settings`,
+  /** The Mini App (Telegram_Mini_App_Spec_2026-10-10): «Сегодня», or with an exam its session of today. */
+  miniApp: (id?: string | null) => (id ? `/tg?c=${id}` : '/tg'),
 };
 
 // ─────────────────────────────────────────── §4.1 linking ───────────────────────────────────────────
@@ -57,6 +59,8 @@ export const LINK_MOVED = 'Meldy подключили к другому Telegram
 
 export const START = 'Начать';
 export const OPEN_IN_MELDY = 'Открыть в Meldy';
+/** The Mini App button of the day card and of a session's record: today's session on the site, inside Telegram. */
+export const OPEN_SESSION = 'Открыть занятие';
 export const SET_DATE = 'Указать дату';
 export const OTHER_EXAM = 'Другой экзамен';
 export const BACK = '‹ Назад';
@@ -216,4 +220,6 @@ export const PROFILE = {
     { command: 'settings', description: 'Время и пауза' },
     { command: 'help', description: 'Как это работает' },
   ],
+  /** The menu button (setChatMenuButton, type web_app): Meldy inside Telegram. The commands stay a «/» away. */
+  menuButton: 'Открыть Meldy',
 };
