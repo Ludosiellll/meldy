@@ -140,6 +140,10 @@ export interface FilesPort {
 /** T10 — a voice answer (§4.9, flag `voice`). */
 export interface VoicePort {
   voice(ctx: Ctx, msg: TgMessage, who: Who): Promise<boolean>;
+  /** A `v|<aid>|<act>` press (V1–V4, the self-check). */
+  press(ctx: Ctx, tap: Tap): Promise<void>;
+  /** A typed text while an oral question waits for a voice: true when the stage answered it. */
+  text(ctx: Ctx, msg: TgMessage, who: Who): Promise<boolean>;
 }
 
 export interface Ports {
@@ -193,6 +197,12 @@ export const filesStub: FilesPort = {
 /** Until T10 is merged. */
 export const voiceStub: VoicePort = {
   async voice() {
+    return false;
+  },
+  async press(_ctx, tap) {
+    await tap.answer();
+  },
+  async text() {
     return false;
   },
 };
@@ -299,6 +309,8 @@ async function onPrivateMessage(ctx: Ctx, ports: Ports, msg: TgMessage): Promise
   if (text !== null && (await ports.session.text(ctx, msg, who))) return;
   const pending = text !== null ? openPrompt(who, ctx.now()) : null;
   if (pending) return pending.kind === 'time' ? timeReply(ctx, msg, who, pending, showS1) : dateReply(ctx, msg, who, pending);
+  // After the time and date prompts: a typed «19:45» answers the prompt, not the oral question waiting for a voice.
+  if (text !== null && (await ports.voice.text(ctx, msg, who))) return;
   return buttonsOnly(ctx, msg, who);
 }
 
@@ -310,6 +322,8 @@ async function onGroupMessage(ctx: Ctx, ports: Ports, msg: TgMessage): Promise<v
 }
 
 async function onTap(ctx: Ctx, ports: Ports, tap: Tap): Promise<void> {
+  // The voice stage's own data (`v|<aid>|<act>`, voice.ts) is not in codec.ts.
+  if (tap.data.startsWith('v|')) return ports.voice.press(ctx, tap);
   const cb = decode(tap.data);
   if (!cb) return tap.answer();
   if (cb.kind === 'group') return ports.group.press(ctx, tap, cb);

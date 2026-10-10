@@ -367,6 +367,23 @@ test('a document and a voice note go to their ports; unclaimed, a linked user ge
   assert.deepEqual(h.portCalls.at(-1), { port: 'files', fn: 'http', args: [] });
 });
 
+test('a v|… press goes to the voice port; typed text reaches it only after the time and date prompts', async () => {
+  const h = harness();
+  h.linked();
+  await h.post(press('v|a1b2c3d4|chk'));
+  assert.deepEqual(h.portCalls.at(-1), { port: 'voice', fn: 'press', args: ['v|a1b2c3d4|chk'] });
+  await h.post(privateText('мой ответ'));
+  assert.deepEqual(h.portCalls.at(-1), { port: 'voice', fn: 'text', args: [] });
+  assert.equal(words(lastSent(h).text), W.BUTTONS_ONLY, 'the voice port said no: S6');
+  await h.post(press('st|time', { messageId: 778 }));
+  h.tg.seed(TG, 778, 'S2');
+  await h.post(press('t|other|s', { messageId: 778 }));
+  const asked = h.portCalls.filter((c) => c.port === 'voice').length;
+  await h.post(privateText('8:15'));
+  assert.equal(h.fdb.link(TG)!.remindAt, 8 * 60 + 15, 'a typed «8:15» answers the open time prompt');
+  assert.equal(h.portCalls.filter((c) => c.port === 'voice').length, asked, 'the voice port is not asked');
+});
+
 test('the same update_id twice: handled once (the ledger says done)', async () => {
   const h = harness();
   h.linked();

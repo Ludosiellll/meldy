@@ -64,6 +64,14 @@ export function recordingPorts(calls: PortCall[], options: { sessionTakesText?: 
         rec('voice', 'voice', []);
         return false;
       },
+      async press(_ctx, tap) {
+        rec('voice', 'press', [tap.data]);
+        await tap.answer();
+      },
+      async text() {
+        rec('voice', 'text', []);
+        return false;
+      },
     },
   };
 }

@@ -45,6 +45,8 @@ const RPC_ALLOWED = new Set([
   'bot_session_finish', 'bot_session_move', 'bot_key_doubt',
   'bot_group_claim', 'bot_group_event', 'bot_group_entry', 'bot_claim_group_posts', 'bot_group_pick', 'bot_group_sending',
   'bot_group_posted', 'bot_group_answer', 'bot_group_counters', 'bot_group_counter_done', 'bot_claim_group_closes', 'bot_group_closed',
+  'bot_voice_state', 'bot_voice_start', 'bot_voice_next', 'bot_voice_sent', 'bot_voice_ticket', 'bot_voice_part', 'bot_voice_restart',
+  'bot_voice_checked', 'bot_voice_followup', 'bot_voice_release', 'bot_voice_record', 'bot_voice_self', 'bot_voice_rate',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {
