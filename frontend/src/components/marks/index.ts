@@ -25,4 +25,3 @@ export {
 } from './geometry';
 export { MARK_DRAW_MS, MARK_STAGGER_MS, MarginStroke, Mark, PencilBrace, PencilSvg, type MarkProps, type PencilHand, type PencilSvgProps } from './PencilSvg';
 export { PencilOval, PencilUnder, TextMark, type PencilUnderProps, type TextMarkKind, type TextMarkProps } from './TextMarks';
-export { HandPhraseMark, handPhraseFor } from './HandPhrase';

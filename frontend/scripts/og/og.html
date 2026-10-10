@@ -1,19 +1,20 @@
 <!doctype html>
 <!--
   The link preview of https://ludosiel-studyforge.hf.space/ (og:image, 1200 × 630). Rendered to
-  public/og-image.png by render.mjs; open this file in a browser to see it. Fonts come from the
-  app's own packages (Onest, and Caveat for the handwriting of the cheat sheet).
-  The sheet is the example exam of /try («Микроэкономика», questions 6 and 7, their short lines word
-  for word): question 6 learned (its main lines erased, a pencil tick), question 7 with one line
-  erased, one rubbed half away and one back after a missed answer — the states of the in-app sheet
-  (components/exams/sheet/sheet.css), drawn the same way.
+  public/og-image.jpg by render.mjs; open this file in a browser to see it. The font comes from the
+  app's own package (Onest).
+  The card is the landing's cheat sheet in Meldy's own look (decision 2026-10-10, «Шпаргалка без
+  бумаги»; components/home/HeroSheet.tsx after its answer): the example exam of /try
+  («Микроэкономика»), 38 of its 47 lines left, the map of the whole sheet — one rounded square per
+  line: ink while it stands, yellow once named, an empty outline once erased — and questions 6 and 7
+  with their short lines word for word. Question 6 is learned (its main lines struck through);
+  question 7 has one line struck off, two named once and one back after it was erased.
 -->
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
     <title>Meldy — превью ссылки</title>
     <link rel="stylesheet" href="../../node_modules/@fontsource-variable/onest/wght.css" />
-    <link rel="stylesheet" href="../../node_modules/@fontsource-variable/caveat/wght.css" />
     <style>
       :root {
         --canvas: #f3f3f0;
@@ -22,17 +23,10 @@
         --blue: #2869dd;
         --blue-deep: #1c4db1;
         --yellow: #f4c45b;
-        --paper: #fffefa;
-        --grid: rgba(31, 61, 148, 0.13);
-        --hand: #1f3d94;
-        --graphite: #50565f;
-        --margin: #e3a2b8;
-        /* One grid row and the handwriting on it: the app's 24/22 px sheet at 1.2. */
-        --row: 26px;
-        --base: 20px;
-        /* Two eraser passes of one period (sheet.css): islands of ink where both left some. */
-        --pass-a: repeating-linear-gradient(97deg, #000 0 10px, rgba(0, 0, 0, 0.04) 10px 24px);
-        --pass-b: repeating-linear-gradient(83deg, #000 0 11px, rgba(0, 0, 0, 0.06) 11px 24px);
+        /* The sheet's own (components/home/home.css): named once, and the words of an erased line. */
+        --once: #e9b13c;
+        --faint: #8a8f97;
+        --line: #e4e4de;
       }
       * {
         box-sizing: border-box;
@@ -176,55 +170,67 @@
         font-size: 16px;
         color: var(--muted);
       }
-      .paper {
-        position: relative;
-        margin-top: 16px;
-        height: 446px;
-        padding: var(--row) 38px 0 28px;
-        border-radius: 4px 4px 0 0;
-        background-color: var(--paper);
-        background-image:
-          linear-gradient(to bottom, transparent var(--base), var(--grid) var(--base), var(--grid) calc(var(--base) + 1px), transparent calc(var(--base) + 1px)),
-          linear-gradient(to right, var(--grid) 1px, transparent 1px);
-        background-size: 100% var(--row), var(--row) 100%;
-        box-shadow: 0 0 0 1px rgba(16, 41, 90, 0.1);
+      /* How many lines are left: the big number of the sheet's card. */
+      .count {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        margin: 14px 0 0;
       }
-      .paper::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        right: 24px;
-        width: 2px;
-        background: var(--margin);
+      .count b {
+        font-size: 50px;
+        line-height: 0.95;
+        font-weight: 600;
+        letter-spacing: -0.04em;
+      }
+      .count span {
+        font-size: 18px;
+      }
+      /* The map: one rounded square per line of the sheet, in its order. */
+      .map {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 18px;
+        background: var(--canvas);
+      }
+      .map i {
+        display: block;
+        width: 13px;
+        height: 13px;
+        border-radius: 3.5px;
+        background: var(--ink);
+      }
+      .map i.once {
+        background: var(--once);
+      }
+      .map i.gone {
+        background: none;
+        box-shadow: inset 0 0 0 1.5px rgba(138, 143, 151, 0.55);
+      }
+      /* The questions: a dot for a main point, a dash for a detail; named once — a yellow dot, muted words; erased —
+         faint words struck through, no marker. */
+      .list {
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
       }
       .q {
-        position: relative;
-        top: 2px;
-        margin: 0;
         display: grid;
-        grid-template-columns: auto 1fr;
-        column-gap: 0.4em;
-        font-size: 17px;
-        line-height: var(--row);
+        grid-template-columns: 26px 1fr;
+        margin: 0 0 2px;
+        font-size: 16px;
+        line-height: 22px;
         font-weight: 600;
-        color: var(--ink);
       }
-      .q + ul {
-        margin-bottom: var(--row);
+      .q span:first-child {
+        font-weight: 500;
+        color: var(--faint);
       }
-      /* A learned question: every main line erased, a graphite tick in the margin by its number. */
-      .q .tick {
-        position: absolute;
-        left: -25px;
-        top: 4px;
-        width: 20px;
-        height: 16px;
-        fill: none;
-        stroke: var(--graphite);
-        stroke-width: 2.2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+      ul + .q {
+        margin-top: 10px;
       }
       ul {
         margin: 0;
@@ -234,94 +240,58 @@
       li {
         position: relative;
         display: grid;
-        grid-template-columns: var(--row) 1fr;
-        font-family: 'Caveat Variable', cursive;
-        font-size: 23px;
-        line-height: var(--row);
-        font-weight: 500;
-        color: var(--hand);
-      }
-      li > i {
-        font-style: normal;
-        text-align: center;
-      }
-      .ink {
-        position: relative;
-        justify-self: start;
-        isolation: isolate;
-      }
-      .ink svg {
-        display: inline;
-        height: auto;
-        overflow: visible;
-        vertical-align: baseline;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 1.9;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-      .ink .to {
-        width: 0.85em;
-        margin: 0 0.06em;
-      }
-      .ink .up {
-        width: 0.5em;
-        margin: 0 0.04em;
-      }
-      /* The eraser's track: dull paper under a rubbed or erased line, the grid half seen through it. */
-      .patch {
-        position: absolute;
-        inset: 1px -10px;
-        z-index: -1;
-        background: color-mix(in srgb, var(--paper) 50%, transparent);
-        -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-        mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-      }
-      .rubbed .words {
-        -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)), var(--pass-a), var(--pass-b);
-        mask-image: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)), var(--pass-a), var(--pass-b);
-        -webkit-mask-composite: source-in, source-in;
-        mask-composite: intersect, intersect;
-      }
-      .erased .words {
-        -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0.09)), var(--pass-a), var(--pass-b);
-        mask-image: linear-gradient(rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0.09)), var(--pass-a), var(--pass-b);
-        -webkit-mask-composite: source-in, source-in;
-        mask-composite: intersect, intersect;
-      }
-      .rubbed > i {
-        opacity: 0.3;
-      }
-      .erased > i {
-        opacity: 0.12;
-      }
-      /* A line back after a missed answer: a graphite wave under the words. */
-      .wave {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: calc(var(--base) + 3px);
-        height: 7px;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='7' viewBox='0 0 14 7'%3E%3Cpath d='M0 3.5 Q 3.5 0.6 7 3.5 T 14 3.5' fill='none' stroke='%2350565f' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x 0 0 / 14px 7px;
-        opacity: 0.85;
-      }
-      li.note {
-        position: relative;
-        top: 2px;
-        font-family: 'Onest Variable', system-ui, sans-serif;
+        grid-template-columns: 26px 1fr;
+        padding: 2px 0;
         font-size: 15px;
-        line-height: var(--row);
-        font-weight: 500;
-        color: var(--graphite);
+        line-height: 20px;
+        color: var(--ink);
       }
-      .paper .fade {
+      li::before {
+        content: '';
         position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 70px;
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff 92%);
+        left: 4px;
+        top: 9px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ink);
+      }
+      li.detail::before {
+        left: 3px;
+        top: 12px;
+        width: 8px;
+        height: 1.5px;
+        border-radius: 1px;
+        background: var(--muted);
+      }
+      li.once {
+        color: var(--muted);
+      }
+      li.once::before {
+        left: 4px;
+        top: 9px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--once);
+      }
+      li.gone {
+        color: var(--faint);
+      }
+      li.gone::before {
+        display: none;
+      }
+      li > span {
+        grid-column: 2;
+      }
+      li.gone .words {
+        text-decoration: line-through 1.5px;
+      }
+      .note {
+        display: block;
+        font-size: 13px;
+        line-height: 17px;
+        color: var(--muted);
       }
     </style>
   </head>
@@ -345,46 +315,23 @@
           <span class="flag">Шпаргалка</span>
           <span class="meta">Микроэкономика · пример</span>
         </div>
-        <div class="paper">
-          <p class="q">
-            <svg class="tick" viewBox="0 0 22 18"><path d="M2.5 9.8 C 4.6 11.4, 6.2 13.2, 7.6 15.4 C 10.6 9.6, 14.4 5.2, 19.8 2.4" /></svg>
-            <span>6.</span><span>Факторы ценовой эластичности спроса.</span>
-          </p>
+        <p class="count"><b>38</b><span>строк осталось из&nbsp;47</span></p>
+        <div class="map"><i class="gone"></i><i class="gone"></i><i class="once"></i><i></i><i class="gone"></i><i class="once"></i><i></i><i class="once"></i><i></i><i></i><i></i><i class="gone"></i><i class="gone"></i><i class="once"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i></i><i class="gone"></i><i class="once"></i><i></i><i class="once"></i><i></i><i></i><i></i><i></i><i class="once"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="list">
+          <p class="q"><span>6.</span><span>Факторы ценовой эластичности спроса.</span></p>
           <ul>
-            <li class="erased">
-              <i>•</i>
-              <span class="ink"><span class="patch"></span><span class="words">заменителей<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg> <svg class="to" viewBox="0 0 20 14"><path d="M2 7.7 C 7 7.4, 12.4 7.5, 18 7.2" /><path d="M13.3 3.1 L 18 7.2 L 13.5 11.4" /></svg>спрос эластичнее</span></span>
-            </li>
-            <li class="erased">
-              <i>•</i>
-              <span class="ink"><span class="patch"></span><span class="words">доля в бюджете<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg> <svg class="to" viewBox="0 0 20 14"><path d="M2 7.7 C 7 7.4, 12.4 7.5, 18 7.2" /><path d="M13.3 3.1 L 18 7.2 L 13.5 11.4" /></svg>эластичность<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg></span></span>
-            </li>
-            <li class="erased">
-              <i>•</i>
-              <span class="ink"><span class="patch"></span><span class="words">необходимость — неэластичный, роскошь — эластичный</span></span>
-            </li>
-            <li>
-              <i>–</i>
-              <span class="ink"><span class="words">со временем спрос эластичнее</span></span>
-            </li>
+            <li class="gone"><span class="words">заменителей ↑ → спрос эластичнее</span></li>
+            <li class="gone"><span class="words">доля в бюджете ↑ → эластичность ↑</span></li>
+            <li class="gone"><span class="words">необходимость — неэластичный, роскошь — эластичный</span></li>
+            <li class="detail"><span class="words">со временем спрос эластичнее</span></li>
           </ul>
           <p class="q"><span>7.</span><span>Эластичность спроса и выручка продавца.</span></p>
           <ul>
-            <li class="erased">
-              <i>•</i>
-              <span class="ink"><span class="patch"></span><span class="words">выручка = цена × количество</span></span>
-            </li>
-            <li class="rubbed">
-              <i>•</i>
-              <span class="ink"><span class="patch"></span><span class="words">эластичный: снижение цены <svg class="to" viewBox="0 0 20 14"><path d="M2 7.7 C 7 7.4, 12.4 7.5, 18 7.2" /><path d="M13.3 3.1 L 18 7.2 L 13.5 11.4" /></svg>выручка<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg></span></span>
-            </li>
-            <li class="returned">
-              <i>•</i>
-              <span class="ink"><span class="patch"></span><span class="words">неэластичный: выручка<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg> при повышении цены</span><span class="wave"></span></span>
-            </li>
-            <li class="note"><span></span><span>была стёрта · пункт не назван</span></li>
+            <li class="gone"><span class="words">выручка = цена × количество</span></li>
+            <li class="once"><span class="words">эластичный: снижение цены → выручка ↑</span></li>
+            <li><span><span class="words">неэластичный: выручка ↑ при повышении цены</span><span class="note">была стёрта&nbsp;· пункт не назван</span></span></li>
+            <li class="once"><span class="words">единичная эластичность: выручка не меняется</span></li>
           </ul>
-          <div class="fade"></div>
         </div>
       </div>
     </main>

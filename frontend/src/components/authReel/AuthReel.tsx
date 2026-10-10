@@ -3,7 +3,6 @@ import { ReelClock } from '../reel/clock';
 import { ClockProvider, SceneProvider, opacity, put, useFrame } from '../reel/engine';
 import { STAGE_H, STAGE_W } from '../reel/timeline';
 import { Wordmark } from '../film/kit';
-import { isSheetFontSettled, loadSheetFont } from '../exams/sheet/sheetFont';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import { LOGIN_SCENES } from './LoginScenes';
@@ -134,25 +133,11 @@ export default function AuthReel({ variant }: { variant: AuthReelVariant }) {
   const [paused, setPaused] = useState(false);
   const [asked, setAsked] = useState(false);
   const exporting = useMemo(exportRequested, []);
-  const [handReady, setHandReady] = useState(isSheetFontSettled);
 
   const allowed = !reduce || asked;
   const playing = desktop && allowed && tabVisible && !paused && width > 0 && !exporting;
 
   useEffect(() => () => clock.dispose(), [clock]);
-
-  // The cheat sheet's handwriting is fetched with the reel (only where the reel is shown); the clock
-  // waits for it (at most 1.5 s, sheetFont), so the sheet never shows its lines in a stand-in font.
-  useEffect(() => {
-    if (!desktop) return undefined;
-    let alive = true;
-    void loadSheetFont().then(() => {
-      if (alive) setHandReady(true);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [desktop]);
 
   // The frame takes the room the panel has left under its heading (the box fills it and holds the
   // frame out of the flow, so the frame never makes the panel taller): as wide as the panel, as tall
@@ -186,9 +171,9 @@ export default function AuthReel({ variant }: { variant: AuthReelVariant }) {
   }, [reduce, asked, clock, script.poster]);
 
   useEffect(() => {
-    if (playing && handReady) clock.play();
+    if (playing) clock.play();
     else clock.pause();
-  }, [playing, handReady, clock]);
+  }, [playing, clock]);
 
   // The frame exporter steps the clock itself.
   useEffect(() => {

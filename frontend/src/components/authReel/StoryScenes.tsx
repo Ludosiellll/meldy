@@ -1,187 +1,154 @@
 /**
- * The beats both sign-in reels share, in the film style (components/film): the department's questions
- * checked against the lectures with a quote, the ticket aloud with the examiner's follow-up, and the
- * cheat sheet that only answers erase. The example is /try's «Микроэкономика», question 7, word for
- * word (data/example/questions.ts; StoryScenes.test holds the words to it and to the exam page's).
+ * The beats both sign-in reels share, in the film style (components/film): a question of the day's session answered
+ * wrong — the key from the file and «Вернётся … завтра» — and an oral answer that the cheat sheet takes in Meldy's own
+ * look (decision 2026-10-10): a line named on another day is struck off, two lines named for the first time turn
+ * yellow, the map of the sheet empties by one square. The session is the example exam's (data/containerExample.ts);
+ * the oral question is /try's «Микроэкономика», question 7, word for word (data/sheetExample.ts;
+ * StoryScenes.test holds the words to the example and to the exam page's).
  */
 import { useRef, type ComponentType } from 'react';
-import { opacity, put, text as setText, useEls, useFrame } from '../reel/engine';
-import { clamp, ease, seg } from '../reel/timeline';
-import { MicIcon, Statement, focusIn, pressDepth, slideIn } from '../film/kit';
-import { SheetCaption, StageSheet, type StageDate, type StageQuestion } from '../film/StageSheet';
-import type { InkLine } from '../film/ink';
+import { blur, flag, opacity, put, useEls, useFrame } from '../reel/engine';
+import { clamp, ease, mix, seg } from '../reel/timeline';
+import { Arrow, MicIcon, Statement, pressDepth, slideIn } from '../film/kit';
+import { ListCaption, StageCount, StageList, StageMap } from '../film/StageList';
+import type { ListLine, SheetState } from '../film/listLine';
+import { SESSION } from '../../data/containerExample';
+import { AFTER_QUESTION, Q7, SHEET_BEFORE, SHEET_SUBJECT } from '../../data/sheetExample';
 import { shot } from './camera';
 
+/** The reels' «today» (a film: its dates do not move with the calendar). */
+export const REEL_TODAY = '2026-10-10';
+
 // ---------------------------------------------------------------------------------------------
-// The example
+// The oral example: /try's question 7 and the sheet around it
 
-/** Question 6: every main line erased (named on two different days), the last one never named. */
-export const Q6: StageQuestion = {
-  number: 6,
-  text: 'Факторы ценовой эластичности спроса.',
-  learned: true,
-  lines: [
-    { text: 'заменителей ↑ → спрос эластичнее', essential: true, from: 'erased' },
-    { text: 'доля в бюджете ↑ → эластичность ↑', essential: true, from: 'erased' },
-    { text: 'необходимость — неэластичный, роскошь — эластичный', essential: true, from: 'erased' },
-    { text: 'со временем спрос эластичнее', essential: false, from: 'fresh' },
-  ],
-};
-
-export const Q7_TEXT = 'Эластичность спроса и выручка продавца.';
+export const Q7_TEXT = Q7.text;
 /** The short lines of question 7's answer points, in their order. */
-export const Q7_LINES = [
-  'выручка = цена × количество',
-  'эластичный: снижение цены → выручка ↑',
-  'неэластичный: выручка ↑ при повышении цены',
-  'единичная эластичность: выручка не меняется',
-] as const;
-/** The examiner's follow-up on point 3, the one the answer missed. */
-export const FOLLOWUP = 'А если спрос неэластичный, как продавцу увеличить выручку?';
-/** The quote question 7 is checked by (lecture «Эластичность спроса», fragment 5). */
-export const QUOTE = 'Если спрос эластичный, снижение цены увеличивает выручку';
-/** The pencil note of a point named only after the examiner's question (the exam page's words). */
-export const AFTER_QUESTION = 'назван только после вопроса экзаменатора';
-/** What today's answer did to question 7, in the exam page's words (copy.ts changeSentence). */
-export const ANSWER_CHANGE = 'После ответа: 1\u00a0строка стёрлась, 2\u00a0—\u00a0наполовину, 1\u00a0не стёрлась.';
+export const Q7_LINES = Q7.lines.map((line) => line.text);
+export { AFTER_QUESTION };
+/** What the answer did to question 7, in the exam page's words (copy.ts changeSentence). */
+export const ANSWER_CHANGE = 'После ответа: 1 строка стёрлась, 2 — наполовину, 1 не стёрлась.';
 
 /**
- * Question 7: its first line was named the day before (rubbed). With `answer` (scene time), today's
- * answer plays: the first line is named again on another day and goes (←), lines 2 and 4 are named
- * for the first time (→ half-way), line 3 is named only after the examiner asked about it — it stays,
- * with the pencil wave.
+ * Question 7: its first line was named the day before (named once). With `answer` (scene time), today's answer reaches
+ * the sheet: the first line is named again on another day and is struck off, lines 2 and 4 are named for the first
+ * time (yellow), line 3 is named only after the examiner asked about it — it stays, with its note.
  */
-export function q7(answer: number | null): StageQuestion {
-  const lines: InkLine[] = [
-    { text: Q7_LINES[0], essential: true, from: 'rubbed', steps: answer === null ? [] : [{ at: answer, to: 'erased' }] },
-    { text: Q7_LINES[1], essential: true, from: 'fresh', steps: answer === null ? [] : [{ at: answer + 280, to: 'rubbed' }] },
-    { text: Q7_LINES[2], essential: true, from: 'fresh', steps: answer === null ? [] : [{ at: answer + 980, to: 'missed', note: AFTER_QUESTION }] },
-    { text: Q7_LINES[3], essential: false, from: 'fresh', steps: answer === null ? [] : [{ at: answer + 560, to: 'rubbed' }] },
+export function q7(answer: number | null): ListLine[] {
+  const step = (offset: number, to: SheetState, note?: string) => (answer === null ? [] : [{ at: answer + offset, to, note }]);
+  const [first, second, third, fourth] = Q7.lines;
+  return [
+    { ...first, from: 'rubbed', steps: step(0, 'erased') },
+    { ...second, from: 'fresh', steps: step(260, 'rubbed') },
+    { ...third, from: 'fresh', steps: step(700, 'missed', AFTER_QUESTION) },
+    { ...fourth, from: 'fresh', steps: step(520, 'rubbed') },
   ];
-  return { number: 7, text: Q7_TEXT, lines };
 }
 
-/** The paper's width at its own size: question 7's longest line fits on one row. */
-export const SHEET_W = 474;
-
-/** The sheet in a white card, as the landing's first screen shows it: the pink flag, the exam, the paper. */
-export function SheetCard({
-  name,
-  className,
-  questions,
-  dates,
-  caption,
-  width,
-  zoom,
-}: {
-  name: string;
-  className: string;
-  questions: readonly StageQuestion[];
-  dates?: readonly StageDate[];
-  caption?: ReadonlyArray<{ at: number; text: string }>;
-  width: number;
-  zoom: number;
-}) {
-  return (
-    <div data-a={name} className={`fm-card ar-card ${className}`} style={{ opacity: 0 }}>
-      <div className="ar-card-top">
-        <span className="ar-flag">Шпаргалка</span>
-        <span className="ar-card-meta">Микроэкономика</span>
-      </div>
-      <StageSheet questions={questions} dates={dates} width={width} zoom={zoom} seed="auth-reel" className="ar-paper" />
-      {caption ? <SheetCaption items={caption} className="ar-cap" /> : null}
-    </div>
+/** The map's lines: every question's as they stand (data/sheetExample.ts), question 7's moved by the answer. */
+export function mapLines(question7: readonly ListLine[]): ListLine[][] {
+  return SHEET_BEFORE.map((question) =>
+    question.number === 7 ? [...question7] : question.states.map((state) => ({ text: '', essential: true, from: state })),
   );
 }
 
 // ---------------------------------------------------------------------------------------------
-// «Ответы — из лекций.» — the department's questions get their marks against the lectures, then the
-// quote that answers question 7.
+// «Ошибка — вернётся завтра.» — a question of today's session, answered wrong: the options say it in words, the
+// verdict names the key from the file and when the question comes back.
 
-/** Questions 6–8 of the list as «Вопросы» shows them: the mark and where in the lectures the answer is. */
-export const QUESTION_ROWS: Array<{ n: number; text: string; kind: 'ok' | 'half'; word: string; source: string }> = [
-  { n: 6, text: 'Факторы ценовой эластичности спроса.', kind: 'ok', word: 'есть в лекциях', source: 'Эластичность спроса, фрагмент 4' },
-  { n: 7, text: Q7_TEXT, kind: 'ok', word: 'есть в лекциях', source: 'там же, фрагмент 5' },
-  { n: 8, text: 'Перекрёстная эластичность и эластичность спроса по доходу. Товары Гиффена.', kind: 'half', word: 'частично', source: 'там же, фрагмент 6' },
-];
+/** The wrong option is pressed, then the options say what happened (scene time). */
+export const PICK = 1000;
+export const MARKED = 1180;
+const LETTERS = ['А', 'Б', 'В', 'Г'];
 
-export function Answers({ leave }: { leave: number }) {
+export function Session({ leave }: { leave: number }) {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
   useFrame((l) => {
-    shot(one('list'), l, leave);
-    all('st').forEach((chip, index) => slideIn(chip, l, 760 + index * 200, { dx: 50, dur: 560, smear: 10 }));
-    all('src').forEach((source, index) => opacity(source, seg(l, 900 + index * 200, 320)));
-    opacity(one('focus'), seg(l, 1500, 360));
-    slideIn(one('slip'), l, 1650, { dx: 260, dy: 30, dur: 760, smear: 16 });
+    shot(one('run'), l, leave);
+    put(all('opt')[SESSION.chosen], 'transform', `scale(${(1 - 0.03 * pressDepth(l, PICK)).toFixed(4)})`);
+    all('opt').forEach((option, index) => {
+      flag(option, 'is-wrong', index === SESSION.chosen && l >= MARKED);
+      flag(option, 'is-file', index === SESSION.key && l >= MARKED + 90);
+    });
+    all('tag').forEach((tag, index) => opacity(tag, seg(l, MARKED + 60 + index * 90, 260)));
+    slideIn(one('bar'), l, MARKED + 260, { dy: 50, dur: 620, smear: 10 });
   });
   return (
     <div ref={root} className="mr-scene">
-      <div data-a="list" className="ar-q" style={{ opacity: 0 }}>
-        <div className="fm-card ar-q-card">
-          <p className="ar-q-h">Вопросы к экзамену по микроэкономике</p>
-          {QUESTION_ROWS.map((row) => (
-            <div key={row.n} className="ar-q-row">
-              {row.n === 7 ? <i data-a="focus" className="ar-q-focus" style={{ opacity: 0 }} /> : null}
-              <span className="ar-q-n">{row.n}</span>
-              <span className="ar-q-t">
-                {row.text}
-                <small data-a="src" style={{ opacity: 0 }}>
-                  {row.source}
-                </small>
-              </span>
-              <span data-a="st" className={`fm-st fm-st--${row.kind}`} style={{ opacity: 0 }}>
-                <b />
-                {row.word}
+      <div data-a="run" className="fm-card ar-run" style={{ opacity: 0 }}>
+        <p className="ar-run-top">
+          <b>{SESSION.counter}</b>
+          <span>{SESSION.finish}</span>
+        </p>
+        <p className="ar-run-ctx">{SESSION.context}</p>
+        <p className="ar-run-stem">{SESSION.stem}</p>
+        <div className="ar-opts">
+          {SESSION.options.map((option, index) => (
+            <div key={option} data-a="opt" className="ar-opt">
+              <span className="ar-opt-l">{LETTERS[index]}</span>
+              <span className="ar-opt-t">
+                {option}
+                {index === SESSION.chosen || index === SESSION.key ? (
+                  <span data-a="tag" className="ar-opt-tag" style={{ opacity: 0 }}>
+                    {index === SESSION.chosen ? SESSION.yours : SESSION.inFile}
+                  </span>
+                ) : null}
               </span>
             </div>
           ))}
         </div>
-        <div data-a="slip" className="fm-card ar-slip" style={{ opacity: 0 }}>
-          <p className="ar-slip-c fm-muted">Лекция «Эластичность спроса» · фрагмент 5</p>
-          <p className="ar-slip-q">«{QUOTE}»</p>
+        <div data-a="bar" className="ar-run-bar" style={{ opacity: 0 }}>
+          <p className="ar-verdict">{SESSION.verdict}</p>
+          <span className="fm-btn fm-btn--blue ar-next">
+            {SESSION.next}
+            <i>
+              <Arrow />
+            </i>
+          </span>
         </div>
       </div>
-      <Statement lines={['Ответы —', 'из лекций.']} at={350} out={leave} className="ar-say" />
+      <Statement lines={['Ошибка —', 'вернётся завтра.']} at={350} out={leave} className="ar-say" />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------------------------
-// «Билет — вслух.» — question 7 answered by voice; three points of four are named, and the examiner
-// asks about the one that was not.
+// «Ответ вслух — по вашим лекциям.» — question 7 answered by voice; the sheet comes forward and the answer reaches it.
 
-const BARS = Array.from({ length: 26 }, (_, index) => index);
-/** When each named point is counted (3 of 4: the answer misses point 3). */
-const NAMED = [1120, 1360, 1580];
+const BARS = Array.from({ length: 24 }, (_, index) => index);
+/** When the sheet comes forward, and when the answer reaches it (scene time). */
+export const SHEET_IN = 1250;
+export const ORAL_AT = 1950;
+export const ORAL_LINES = q7(ORAL_AT);
+const ORAL_MAP = mapLines(ORAL_LINES);
+const ORAL_ALL = ORAL_MAP.flat();
+/** What the answer did, once the strike and the namings have run. */
+export const ORAL_CAPTION = [{ at: ORAL_AT + 1100, text: ANSWER_CHANGE }];
 
-export function Ticket({ leave }: { leave: number }) {
+export function Oral({ leave }: { leave: number }) {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
   useFrame((l) => {
     shot(one('room'), l, leave);
-    put(one('voice'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, 820)).toFixed(3)})`);
-    const talk = seg(l, 960, 160) * (1 - seg(l, 1760, 220));
+    // The ticket steps back out of focus as the sheet comes forward.
+    const back = ease.inOut(seg(l, SHEET_IN, 700));
+    put(one('ticket'), 'transform', `translate3d(${(-60 * back).toFixed(1)}px,${(-30 * back).toFixed(1)}px,0) scale(${mix(1, 0.94, back).toFixed(4)})`);
+    blur(one('ticket'), 7 * back);
+    opacity(one('ticket'), 1 - 0.35 * back);
+    put(one('voice'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, 620)).toFixed(3)})`);
+    const talk = seg(l, 740, 160) * (1 - seg(l, 1700, 220));
     all('bar').forEach((bar, index) => {
       const wave = 0.5 + 0.5 * Math.sin(l / 85 + index * 0.8) * Math.sin(l / 260 + index * 0.31);
       put(bar, 'transform', `scaleY(${(0.1 + 0.9 * wave * talk).toFixed(3)})`);
     });
-    opacity(one('wave'), clamp(seg(l, 900, 200) * 3));
-    const named = NAMED.filter((at) => l >= at).length;
-    setText(one('count'), String(named));
-    all('mark').forEach((mark, index) => {
-      const at = index < 2 ? NAMED[index] : index === 3 ? NAMED[2] : Number.POSITIVE_INFINITY;
-      put(mark, 'transform', `scale(${(l >= at ? ease.back(seg(l, at, 300)) : 1).toFixed(3)})`);
-      opacity(one(`fill${index}`), l >= at ? 1 : 0);
-    });
-    opacity(one('countline'), seg(l, 1000, 300));
-    slideIn(one('ask'), l, 1820, { dy: 60, dur: 680, smear: 10 });
-    focusIn(one('askq'), l, 1980, 520, 10);
+    opacity(one('wave'), clamp(seg(l, 680, 200) * 3));
+    slideIn(one('sheet'), l, SHEET_IN, { dx: 220, dy: 60, dur: 760, smear: 14 });
   });
   return (
     <div ref={root} className="mr-scene">
       <div data-a="room" className="ar-room" style={{ opacity: 0 }}>
-        <div className="fm-card ar-ticket">
+        <div data-a="ticket" className="fm-card ar-ticket">
           <span className="ar-pill">Вопрос 7</span>
           <p className="fm-h1 ar-ticket-q">{Q7_TEXT}</p>
           <div className="ar-voice">
@@ -196,49 +163,18 @@ export function Ticket({ leave }: { leave: number }) {
             </span>
           </div>
         </div>
-        <p data-a="countline" className="ar-count" style={{ opacity: 0 }}>
-          По ключевым словам: <b data-a="count">0</b> <b>из 4</b>
-          <span className="ar-marks">
-            {[0, 1, 2, 3].map((index) => (
-              <i key={index} data-a="mark" className="ar-mark-slot">
-                <i data-a={`fill${index}`} className="ar-mark-fill" style={{ opacity: 0 }} />
-              </i>
-            ))}
-          </span>
-        </p>
-        <div data-a="ask" className="ar-ask" style={{ opacity: 0 }}>
-          <p className="ar-ask-who">
-            <span className="ar-ask-ava">Э</span>
-            Экзаменатор
-          </p>
-          <p data-a="askq" className="ar-ask-q" style={{ opacity: 0 }}>
-            «{FOLLOWUP}»
-          </p>
+        <div data-a="sheet" className="fm-card ar-sheet" style={{ opacity: 0 }}>
+          <div className="ar-sheet-top">
+            <span className="ar-flag">Шпаргалка</span>
+            <span className="ar-sheet-meta">{SHEET_SUBJECT}</span>
+          </div>
+          <StageCount lines={ORAL_ALL} className="ar-sheet-count" />
+          <StageMap groups={ORAL_MAP} className="ar-sheet-map" />
+          <StageList questions={[{ number: 7, text: Q7_TEXT, lines: ORAL_LINES }]} className="ar-sheet-list" />
+          <ListCaption items={ORAL_CAPTION} className="ar-cap" />
         </div>
       </div>
-      <Statement lines={['Билет —', 'вслух.']} at={350} out={leave} className="ar-say" />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// «Стирают только ответы.» — the sheet the next day: today's answer erases the line named yesterday,
-// rubs two named for the first time, and leaves the one named only after the examiner's question.
-
-/** Today's answer on the sheet (scene time) and the day in the paper's corner. */
-export const ERASE_AT = 1000;
-const ERASE_DATES: readonly StageDate[] = [{ at: 450, text: '8 окт.' }];
-const ERASE_CAPTION = [{ at: ERASE_AT + 1750, text: ANSWER_CHANGE }];
-const ERASE_QUESTIONS = [q7(ERASE_AT)];
-
-export function Erase({ leave }: { leave: number }) {
-  const root = useRef<HTMLDivElement>(null);
-  const { one } = useEls(root);
-  useFrame((l) => shot(one('sheet'), l, leave));
-  return (
-    <div ref={root} className="mr-scene">
-      <SheetCard name="sheet" className="ar-erase" questions={ERASE_QUESTIONS} dates={ERASE_DATES} caption={ERASE_CAPTION} width={SHEET_W} zoom={1.74} />
-      <Statement lines={['Стирают', 'только ответы.']} at={350} out={leave} className="ar-say ar-say--erase" />
+      <Statement lines={['Ответ вслух —', 'по вашим лекциям.']} at={350} out={leave} className="ar-say ar-say--oral" />
     </div>
   );
 }

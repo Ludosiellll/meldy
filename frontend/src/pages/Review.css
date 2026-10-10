@@ -153,7 +153,6 @@
 }
 .rv-a[data-long] { font-size: 18px; line-height: 1.55; }
 .rv-source { margin: auto 0 0; padding-top: 18px; }
-.rv-hand { position: absolute; right: 30px; top: 22px; transform: rotate(-4deg); transform-origin: top right; }
 .rv-when { position: absolute; right: 40px; top: 34px; }
 
 /* A new card rises in (the language's motion), quickly: the next card comes 600 ms after an answer. */
@@ -442,7 +441,6 @@
   .rv-q[data-long] { font-size: 21px; line-height: 1.28; }
   .rv-a { font-size: 19px; }
   .rv-a[data-long] { font-size: 17px; }
-  .rv-hand { right: 18px; top: 14px; }
   .rv-when { right: 22px; top: 24px; }
   /* «Вопрос экзаменатора» is plain muted words over the question, as «Вопрос» of the other cards (no yellow pill). */
   .rv-chip { display: block; padding: 0; border-radius: 0; background: none; color: var(--ph-paper-muted); line-height: 22px; }

@@ -1,6 +1,5 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { Mark, seedFrom, type MarkKind } from '../marks';
-import { ZAVTRA } from '../landing/zavtraPath';
 import { UnderlinedText, quoteText } from './RubricSlots';
 import { STATUS_WORDS, countsSentence, type FollowupStatus, type PointStatus } from '../../lib/oral/oralGrade';
 import { answerSummary, summaryLine } from '../../lib/oral/answerSummary';
@@ -569,32 +568,17 @@ export function ProtocolResult({ points, followup, previous, fine, children }: P
   );
 }
 
-/** «завтра» in the landing's hand (zavtraPath.ts), 26 px high, on the index card of the follow-up. */
-function Zavtra() {
-  const px = 26;
-  const scale = px / 100;
-  const pad = 3;
-  const width = (ZAVTRA.bbox.x2 - ZAVTRA.bbox.x) * scale + pad * 2;
-  const height = (ZAVTRA.bbox.y2 - ZAVTRA.bbox.y) * scale + pad * 2;
-  return (
-    <svg className="or-rcard-zav" width={width.toFixed(1)} height={height.toFixed(1)} aria-hidden="true" focusable="false">
-      <g transform={`translate(${(pad - ZAVTRA.bbox.x * scale).toFixed(2)} ${(pad - ZAVTRA.bbox.y * scale).toFixed(2)}) scale(${scale})`}>
-        {ZAVTRA.paths.map((d, index) => (
-          <path key={index} d={d} strokeWidth={(1.6 / scale).toFixed(2)} />
-        ))}
-      </g>
-    </svg>
-  );
-}
-
 /**
- * The follow-up turned into a review card (redesign spec 5.12): the question on a landing index card
- * with a pencil «завтра» — the card is due in one day. Shown only when the save added the card.
+ * The follow-up turned into a review card (redesign spec 5.12): the question on an index card with «завтра» in its
+ * corner — the card is due in one day. Typed, not handwritten (decision 2026-10-10: no pencil handwriting in the app).
+ * Shown only when the save added the card.
  */
 export function ReviewCard({ question }: { question: string }) {
   return (
     <div className="sf-index-card or-rcard">
-      <Zavtra />
+      <span className="sf-pnote or-rcard-when" aria-hidden="true">
+        завтра
+      </span>
       <p className="or-rcard-q" data-long={question.length > 80 ? '' : undefined}>
         {question}
       </p>

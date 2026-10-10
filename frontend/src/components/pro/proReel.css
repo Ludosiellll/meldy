@@ -194,22 +194,29 @@
 .pr-panel--2 { left: 1620px; }
 .pr-panel--3 { left: 3240px; }
 
-.pr-deck { position: absolute; left: 370px; top: 70px; width: 900px; height: 540px; }
-.pr-pcard { left: 0; top: 0; width: 900px; height: 540px; padding: 52px 56px; transform-origin: 50% 0; }
-.pr-stamp {
-  position: absolute;
-  right: 56px;
-  bottom: 48px;
+.pr-deck { position: absolute; left: 370px; top: 54px; width: 900px; height: 600px; }
+.pr-pcard { left: 0; top: 0; width: 900px; height: 600px; padding: 46px 56px; transform-origin: 50% 0; }
+.pr-pcard .pr-tq { margin-top: 18px; font-size: 56px; }
+/* The checked answer as the protocol writes it: its points, each lighting up with its status, and its line. */
+.pr-points { margin-top: 18px; border-top: 2px solid #ecece6; }
+.pr-point {
   display: grid;
-  place-items: center;
-  width: 330px;
-  height: 132px;
-  font-size: 44px;
-  font-weight: 600;
-  color: var(--ink);
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  height: 64px;
+  margin: 0;
+  padding: 0 14px;
+  border-bottom: 2px solid #ecece6;
+  border-radius: 14px;
 }
-.pr-stamp svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.pr-stamp path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.pr-point > b { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: #efefea; font-size: 24px; font-weight: 600; color: var(--ink); }
+.pr-point > i { display: block; width: 78%; height: 16px; border-radius: 8px; background: #e4e4de; }
+.pr-point:nth-child(2) > i { width: 64%; }
+.pr-point:nth-child(3) > i { width: 86%; }
+.pr-point:nth-child(4) > i { width: 58%; }
+.pr-point .fm-st { height: 48px; font-size: 26px; }
+.pr-sum { margin: 18px 0 0; font-size: 34px; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; color: var(--ink); }
 
 .pr-sheet { left: 170px; top: 40px; width: 1280px; height: 920px; overflow: hidden; }
 .pr-sheet-head { display: flex; align-items: baseline; gap: 28px; padding: 44px 56px 30px; border-bottom: 1px solid #ecece6; }
