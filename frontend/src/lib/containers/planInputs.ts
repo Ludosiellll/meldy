@@ -146,7 +146,8 @@ export function decodePlanInputs(wire: PlanInputsWire, options: DecodeOptions): 
   }
   doneSec += Math.round(pendingMs / 1000);
 
-  const paceOf = (rows: PlanInputsWire['pace']): Record<string, Pace> | null => {
+  const paceOf = (wireRows: PlanInputsWire['pace']): Record<string, Pace> | null => {
+    const rows = wireRows.filter((row) => row !== null && typeof row === 'object');
     if (!rows.some((row) => ownSubjects.has(row.subject))) return null;
     const paces = paceFrom(rows, wire.subjects.length);
     const out: Record<string, Pace> = {};

@@ -128,6 +128,12 @@ describe('decodePlanInputs against contracts/container/plan_inputs.json', () => 
     expect(input.dayStart?.[wire.items[17][0]]).toBeUndefined();
   });
 
+  it('skips a broken row of the day’s start or pace', () => {
+    const input = decodePlanInputs({ ...wire, pace_day: [null as never, ...(wire.pace_day ?? [])], day_start: [null as never, [999] as never, ...(wire.day_start ?? [])] }, options());
+    expect(input.paceDay).toEqual({ [S1]: pace(100), [S2]: pace(101), [S3]: pace(102) });
+    expect(Object.keys(input.dayStart ?? {})).toHaveLength(7);
+  });
+
   it('an older server sends neither: the plan then freezes the day as before', () => {
     const { pace_day: _paceDay, day_start: _dayStart, ...older } = wire;
     const input = decodePlanInputs(older, options());
