@@ -6,8 +6,7 @@
 -- package that depends on these functions stops the rollback whole instead of being dropped with them.
 begin;
 drop function if exists public.bot_oral_inputs(bigint);
-drop function if exists meldy_private.oral_event_json(uuid, timestamptz, date, uuid, text, text, boolean, real, smallint, text[],
-  uuid, jsonb);
+drop function if exists meldy_private.oral_events_json(uuid, text[], text[]);
 drop function if exists meldy_private.oral_events_for(uuid, text[]);
 drop function if exists meldy_private.oral_sheet_for(uuid, uuid);
 drop function if exists meldy_private.oral_sheet_short(jsonb, timestamptz, text);

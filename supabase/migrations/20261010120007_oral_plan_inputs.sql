@@ -328,7 +328,7 @@ begin
       from public.exam_questions x
      where x.exam_id = p_exam_id and x.user_id = p_user
   ),
-  r as (
+  r0 as (
     select y.id, y.question_hash, y.source_key, y.created_at, y.sheet, y.rubric,
            (pg_catalog.jsonb_typeof(y.rubric -> 'points') = 'array'
             and pg_catalog.jsonb_typeof(y.rubric -> 'coverage') = 'string'
@@ -337,15 +337,21 @@ begin
      where y.user_id = p_user and y.rubric_version = 1
        and y.question_hash in (select q.hash from q where q.hash ~ '^[0-9a-f]{32}$')
   ),
+  -- The cleaned points and lectures of the usable rows, once each.
+  r as (
+    select r0.*,
+           case when r0.usable then meldy_private.oral_clean_points(r0.rubric -> 'points') end as points,
+           case when r0.usable then meldy_private.oral_clean_materials(r0.rubric -> 'materials') end as materials
+      from r0
+  ),
   -- Usable rows with points (any key) all of whose lectures are this exam's (_built_from).
   built as (
     select distinct r.question_hash
       from r
      where r.usable
-       and pg_catalog.jsonb_array_length(meldy_private.oral_clean_points(r.rubric -> 'points')) > 0
-       and exists (select 1 from pg_catalog.jsonb_array_elements(meldy_private.oral_clean_materials(r.rubric -> 'materials')) m
-                    where m ->> 'material_id' <> '')
-       and not exists (select 1 from pg_catalog.jsonb_array_elements(meldy_private.oral_clean_materials(r.rubric -> 'materials')) m
+       and pg_catalog.jsonb_array_length(r.points) > 0
+       and exists (select 1 from pg_catalog.jsonb_array_elements(r.materials) m where m ->> 'material_id' <> '')
+       and not exists (select 1 from pg_catalog.jsonb_array_elements(r.materials) m
                         where m ->> 'material_id' <> ''
                           and pg_catalog.lower(m ->> 'material_id') <> all (select pg_catalog.lower(l) from pg_catalog.unnest(v_lectures) l))
   ),
@@ -357,7 +363,7 @@ begin
   ),
   s as (
     select q.*, cur.id as rubric_id, cur.created_at as rubric_at, cur.sheet as rubric_sheet, cur.rubric as rubric,
-           coalesce(cur.usable, false) as usable,
+           cur.points as rubric_points, cur.materials as rubric_materials, coalesce(cur.usable, false) as usable,
            (q.coverage in ('full', 'partial') and not coalesce(cur.usable, false)
             and exists (select 1 from f where f.question_hash = q.hash and f.source_key = q.key)) as failed
       from q
@@ -383,14 +389,13 @@ begin
                   'coverage', s.rubric ->> 'coverage',
                   'coverage_note', case when pg_catalog.jsonb_typeof(s.rubric -> 'coverage_note') = 'string'
                                         then s.rubric -> 'coverage_note' else '""'::jsonb end,
-                  'materials', meldy_private.oral_clean_materials(s.rubric -> 'materials'),
+                  'materials', s.rubric_materials,
                   'points', (select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
                                      'id', p.value -> 'id', 'title', p.value -> 'title',
                                      'short', meldy_private.oral_sheet_short(s.rubric_sheet, s.rubric_at, p.value ->> 'id'),
                                      'essential', p.value -> 'essential', 'source_quote', p.value -> 'source_quote',
                                      'source_ids', p.value -> 'source_ids') order by p.ord), '[]'::jsonb)
-                               from pg_catalog.jsonb_array_elements(meldy_private.oral_clean_points(s.rubric -> 'points'))
-                                    with ordinality as p(value, ord))) end,
+                               from pg_catalog.jsonb_array_elements(s.rubric_points) with ordinality as p(value, ord))) end,
               'rebuilt', not s.usable and not s.failed and s.hash in (select built.question_hash from built),
               'unwritable', s.failed)
               order by s.ord), '[]'::jsonb),
@@ -434,25 +439,35 @@ as $fn$
    order by e.created_at, e.id
 $fn$;
 
--- 7a. One journal row as the site's reads give it (api/learning.ts normalizeEvent over PostgREST's JSON): the twelve
+-- 7a. The two lists as the site's reads return them (api/learning.ts normalizeEvent over PostgREST's JSON, oldest first):
+--     line_events = the oral_point and sheet_peek rows of oral_events_for(p_line_hashes) (fetchSheetEvents), meta_events =
+--     the exam_answer and self_rating rows of oral_events_for(p_meta_hashes) (fetchQuestionEvents); each row the twelve
 --     fields, numbers as PostgREST writes them (score through real's own output), null elements of source_ids dropped.
-create or replace function meldy_private.oral_event_json(p_id uuid, p_created_at timestamptz, p_local_date date, p_material_id uuid,
-  p_kind text, p_item_key text, p_correct boolean, p_score real, p_confidence smallint, p_source_ids text[], p_session_id uuid,
-  p_payload jsonb)
+--     One call per list pair (no call per row: a heavy journal has tens of thousands of rows).
+create or replace function meldy_private.oral_events_json(p_user uuid, p_line_hashes text[], p_meta_hashes text[])
 returns jsonb
 language sql
 stable
 set search_path = ''
 as $fn$
   select pg_catalog.jsonb_build_object(
-    'id', p_id, 'created_at', p_created_at, 'local_date', coalesce(pg_catalog.to_jsonb(p_local_date), '""'::jsonb),
-    'material_id', p_material_id, 'kind', p_kind, 'item_key', p_item_key, 'correct', p_correct,
-    'score', case when p_score is null or p_score = 'NaN'::real or p_score in ('Infinity'::real, '-Infinity'::real) then null
-                  else pg_catalog.to_json(p_score)::jsonb end,
-    'confidence', case when p_confidence in (1, 2, 3) then p_confidence end,
-    'source_ids', coalesce(pg_catalog.to_jsonb(pg_catalog.array_remove(p_source_ids, null)), '[]'::jsonb),
-    'session_id', p_session_id,
-    'payload', case when pg_catalog.jsonb_typeof(p_payload) = 'object' then p_payload else '{}'::jsonb end)
+           'line_events', coalesce(pg_catalog.jsonb_agg(e.j order by e.created_at, e.id) filter (where e.line), '[]'::jsonb),
+           'meta_events', coalesce(pg_catalog.jsonb_agg(e.j order by e.created_at, e.id) filter (where not e.line), '[]'::jsonb))
+    from (select o.created_at, o.id, o.line,
+                 pg_catalog.jsonb_build_object(
+                   'id', o.id, 'created_at', o.created_at, 'local_date', coalesce(pg_catalog.to_jsonb(o.local_date), '""'::jsonb),
+                   'material_id', o.material_id, 'kind', o.kind, 'item_key', o.item_key, 'correct', o.correct,
+                   'score', case when o.score is null or o.score = 'NaN'::real or o.score in ('Infinity'::real, '-Infinity'::real)
+                                 then null else pg_catalog.to_json(o.score)::jsonb end,
+                   'confidence', case when o.confidence in (1, 2, 3) then o.confidence end,
+                   'source_ids', coalesce(pg_catalog.to_jsonb(pg_catalog.array_remove(o.source_ids, null)), '[]'::jsonb),
+                   'session_id', o.session_id,
+                   'payload', case when pg_catalog.jsonb_typeof(o.payload) = 'object' then o.payload else '{}'::jsonb end) as j
+            from (select x.*, true as line from meldy_private.oral_events_for(p_user, p_line_hashes) x
+                   where x.kind in ('oral_point', 'sheet_peek')
+                  union all
+                  select x.*, false as line from meldy_private.oral_events_for(p_user, p_meta_hashes) x
+                   where x.kind in ('exam_answer', 'self_rating')) o) e
 $fn$;
 
 -- 8. The bot's read (service role): the oral parts of the Telegram user's exams with their sheets and events.
@@ -471,8 +486,7 @@ declare
   v_sheet jsonb;
   v_line text[];
   v_meta text[];
-  v_line_events jsonb;
-  v_meta_events jsonb;
+  v_events jsonb;
   v_parts jsonb := '[]'::jsonb;
 begin
   perform meldy_private.require_service_role();
@@ -520,19 +534,11 @@ begin
                         else true end as planned
               from pg_catalog.jsonb_array_elements(v_sheet -> 'questions') as q) w
      where w.hash ~ '^[0-9a-f]{32}$';
-    select coalesce(pg_catalog.jsonb_agg(ev.j order by ev.created_at, ev.id) filter (where ev.line), '[]'::jsonb),
-           coalesce(pg_catalog.jsonb_agg(ev.j order by ev.created_at, ev.id) filter (where not ev.line), '[]'::jsonb)
-      into v_line_events, v_meta_events
-      from (select o.created_at, o.id, o.kind in ('oral_point', 'sheet_peek') as line,
-                   meldy_private.oral_event_json(o.id, o.created_at, o.local_date, o.material_id, o.kind, o.item_key, o.correct,
-                                                 o.score, o.confidence, o.source_ids, o.session_id, o.payload) as j
-              from meldy_private.oral_events_for(v_l.user_id, v_line || v_meta) o
-             where (o.kind in ('oral_point', 'sheet_peek') and (o.payload ->> 'question_hash') = any (v_line))
-                or (o.kind in ('exam_answer', 'self_rating') and pg_catalog.substr(o.item_key, 3) = any (v_meta))) ev;
+    v_events := meldy_private.oral_events_json(v_l.user_id, v_line, v_meta);
     v_parts := v_parts || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
       'container_id', v_part.container_id, 'subject_id', v_part.subject_id, 'exam_id', v_part.exam_id,
       'exam_date', v_part.exam_date, 'questions', v_count, 'capped', false, 'sheet', v_sheet,
-      'line_events', v_line_events, 'meta_events', v_meta_events));
+      'line_events', v_events -> 'line_events', 'meta_events', v_events -> 'meta_events'));
   end loop;
   return pg_catalog.jsonb_build_object('linked', true, 'cap', v_cap, 'parts', v_parts);
 end;
@@ -546,7 +552,7 @@ revoke all on function meldy_private.py_repr_text(text), meldy_private.py_float_
   meldy_private.py_str(jsonb), meldy_private.oral_rubric_key(text, text[], jsonb, text), meldy_private.oral_clean_points(jsonb),
   meldy_private.oral_clean_materials(jsonb), meldy_private.oral_sheet_short(jsonb, timestamptz, text),
   meldy_private.oral_sheet_for(uuid, uuid), meldy_private.oral_events_for(uuid, text[]),
-  meldy_private.oral_event_json(uuid, timestamptz, date, uuid, text, text, boolean, real, smallint, text[], uuid, jsonb)
+  meldy_private.oral_events_json(uuid, text[], text[])
   from public, anon, authenticated;
 revoke all on function public.bot_oral_inputs(bigint) from public, anon, authenticated;
 grant execute on function public.bot_oral_inputs(bigint) to service_role;
