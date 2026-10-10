@@ -30,8 +30,8 @@
  * - missed — the last event is a miss and the line was never erased (readable, a pencil wave);
  * - returned — the last event is a miss and the line had been erased (readable, wave, the trace).
  */
-import type { LearningEvent } from '../../api/learning';
-import { CONFIRM_MIN_HOURS, compareEventTime, meetsRule, midnightAfter, serverTime } from '../learning/readiness';
+import type { LearningEvent } from '../../types/learning.ts';
+import { CONFIRM_MIN_HOURS, compareEventTime, meetsRule, midnightAfter, serverTime } from '../learning/readiness.ts';
 
 export type LineState = 'fresh' | 'rubbed' | 'erased' | 'due' | 'missed' | 'returned';
 

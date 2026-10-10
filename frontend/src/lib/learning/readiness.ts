@@ -23,9 +23,11 @@
  * Fourteen days after the last засчитанный answer a подтверждённый question is «пора проверить»
  * (`stale`): it still counts as подтверждён, the sheet says how old the confirmation is.
  */
-import type { LearningEvent, SelfRating } from '../../api/learning';
+import type { LearningEvent, SelfRating } from '../../types/learning.ts';
 
-export type { SelfRating } from '../../api/learning';
+// Re-exported for the modules that import it from here; without a module path, so the bot's copy of this file
+// (scripts/sync_bot_plan.mjs) differs from it only in its import line.
+export type { SelfRating };
 
 export type Readiness = 'untested' | 'once' | 'confirmed' | 'not_passed';
 
