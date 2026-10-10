@@ -6,8 +6,9 @@
 -- the way back after a 429 (bot_delivery_retry). Two claims at once (two sessions) are in telegram_bot_run.sh.
 -- One transaction, rolled back. The timeline is a few days ahead of the real clock (every claim takes p_now), so real
 -- stamps (now()) are always older than the test's moments. Fixtures and assertions run as postgres (no JWT: the pg_cron
--- path of require_service_role); block 0 runs every claim as service_role. A failure raises (FAILED: …); success prints
--- TELEGRAM BOT CLAIMS PASSED.
+-- path of require_service_role); block 0 runs every claim as service_role. Runs with T1 alone and with the later
+-- packages applied: block 10 uses T5's bot.sessions when it exists, else a stand-in with its columns. A failure raises
+-- (FAILED: …); success prints TELEGRAM BOT CLAIMS PASSED.
 \set ON_ERROR_STOP 1
 begin;
 
@@ -374,7 +375,7 @@ $t$;
 -- 10. The night's close (spec §6.6 step 5): after local midnight, a day of the last two with an unused card or a
 --     summary with a keyboard, once; a card that became a session is never deleted; blocked chats are left alone.
 do $t$
-declare d date := pg_temp.d(90); l bigint; r record; n integer;
+declare d date := pg_temp.d(90); l bigint; r record; n integer; v_stand_in boolean := false;
 begin
   perform pg_temp.link(1401);
   select id into l from bot.links where tg_user_id = 1401;
@@ -393,13 +394,23 @@ begin
     raise exception 'FAILED: closed_at'; end if;
   if (select count(*) from public.bot_claim_day_close(10, pg_temp.at(d + 2, '00:05'))) is distinct from 0 then
     raise exception 'FAILED: a day with nothing to do'; end if;
-  -- the unused card of day 2 is, in fact, package T5's session message: kept
-  create table bot.sessions (sid text primary key, user_id uuid, chat_id bigint, message_id bigint, status text);
-  insert into bot.sessions values ('s0000303', (select user_id from bot.links where id = l), 1401, 303, 'finished');
+  -- the unused card of day 2 is, in fact, package T5's session message: kept (T5's own table when it is applied, else a
+  -- stand-in with its columns, gone again)
+  if to_regclass('bot.sessions') is null then
+    create table bot.sessions (sid text primary key, user_id uuid not null, chat_id bigint not null, message_id bigint,
+      container_id uuid, subject_id uuid, local_day date, items uuid[], retry smallint[], cls text[], shown jsonb,
+      shown_at timestamptz[], status text not null, finished_at timestamptz);
+    v_stand_in := true;
+  end if;
+  insert into bot.sessions (sid, user_id, chat_id, message_id, container_id, subject_id, local_day, items, retry, cls, shown,
+                            shown_at, status, finished_at)
+  values ('s0000303', (select user_id from bot.links where id = l), 1401, 303, gen_random_uuid(), gen_random_uuid(), d + 2,
+          array[gen_random_uuid()], '{0}', '{check}', '[null]', '{null}', 'finished', pg_temp.at(d + 2, '21:00'));
   select * into r from public.bot_claim_day_close(10, pg_temp.at(d + 3, '00:05'));
   if r.local_day is distinct from d + 2 or r.card_message_id is not null or r.last_message_id is not null then
     raise exception 'FAILED: a session''s message would be deleted %', row_to_json(r); end if;
-  drop table bot.sessions;
+  delete from bot.sessions where sid = 's0000303';
+  if v_stand_in then drop table bot.sessions; end if;
   -- blocked: left alone
   insert into bot.days (link_id, local_day, card_message_id) values (l, d + 9, 309);
   update bot.links set blocked_at = now() where id = l;

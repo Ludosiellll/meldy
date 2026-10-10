@@ -5,7 +5,9 @@
 -- section 1 confirms spec §6.8 (what the bot takes from the container) for a service-role caller.
 -- One transaction, rolled back. A failure raises (FAILED: …); success prints TELEGRAM BOT CHECKS PASSED. Roles: anon,
 -- authenticated (request.jwt.claim.sub) and service_role as PostgREST sets them (request.jwt.claims); postgres for
--- fixtures and for pg_cron's bot.tick(). Runs under both grant modes (before and after *_telegram_bot_revokes.sql).
+-- fixtures and for pg_cron's bot.tick(). Runs under both grant modes (before and after *_telegram_bot_revokes.sql), with
+-- T1 alone and with the later packages applied: sections 6b and 7 use T5's bot.sessions and T5's / T7's tick hooks
+-- when they exist, else stand-ins (to_regclass / to_regprocedure is null) that go again before the next section.
 -- Reminders, K2, K3 and the night's close: telegram_bot_claims.sql.
 \set ON_ERROR_STOP 1
 begin;
@@ -718,6 +720,8 @@ declare
   ev timestamptz := (date_trunc('day', now() at time zone 'utc') + interval '17 hours 31 minutes') at time zone 'utc';  -- 20:31 Minsk
   v_calls bigint;
   posted int;
+  v_t5 boolean := to_regprocedure('bot.tick_due_sessions(timestamptz)') is not null;   -- package T5 applied
+  v_stand_in boolean := false;
 begin
   if (select count(*) from bot.links l where l.unlinked_at is null and l.tz is distinct from 'Europe/Minsk') is distinct from 0 then
     raise exception 'FAILED: the fixture expects Minsk links only'; end if;
@@ -746,21 +750,49 @@ begin
    where l.tg_user_id = 3002 and l.unlinked_at is null;
   if not bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: a claimed row is due'; end if;
   delete from bot.deliveries where chat_id = 3002;
-  -- package T5's pending answers: the fallback reads bot.sessions.pending, a hook decides when T5 defines it
-  create table bot.sessions (sid text primary key, user_id uuid, chat_id bigint, message_id bigint, status text, pending jsonb);
-  insert into bot.sessions values ('p0000001', 'aaaaaaaa-0000-0000-0000-000000000001', 3001, 5, 'open', '{"pos": 3}');
-  if not bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: a pending answer is due (fallback)'; end if;
-  create function bot.tick_due_sessions(p_now timestamptz) returns boolean language sql stable set search_path = '' as 'select false';
-  if bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: T5''s hook decides'; end if;
-  drop function bot.tick_due_sessions(timestamptz);
-  drop table bot.sessions;
-  -- package T7: its tables without its hook → every minute; its hook decides when present
-  create table bot.group_posts (id bigint primary key);
-  if not bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: T7 tables without a hook'; end if;
-  create function bot.tick_due_groups(p_now timestamptz) returns boolean language sql stable set search_path = '' as 'select false';
-  if bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: T7''s hook decides'; end if;
-  drop function bot.tick_due_groups(timestamptz);
-  drop table bot.group_posts;
+  -- package T5's pending answers: until T5 defines its hook, any pending answer in bot.sessions counts; with T5
+  -- applied its hook decides (a pending answer older than 30 minutes). Without T5: a stand-in table with T5's columns
+  -- and a stand-in hook, both gone again below.
+  if to_regclass('bot.sessions') is null then
+    create table bot.sessions (sid text primary key, user_id uuid not null, link_id bigint, chat_id bigint not null,
+      message_id bigint, container_id uuid, subject_id uuid, kind text, local_day date, items uuid[], retry smallint[],
+      cls text[], shown jsonb, shown_at timestamptz[], position integer, pending jsonb, pending_at timestamptz,
+      status text not null, finished_at timestamptz);
+    v_stand_in := true;
+  end if;
+  insert into bot.sessions (sid, user_id, chat_id, message_id, container_id, subject_id, local_day, items, retry, cls, shown,
+                            shown_at, position, pending, pending_at, status)
+  values ('p0000001', 'aaaaaaaa-0000-0000-0000-000000000001', 3001, 5, pg_temp.c('c')::uuid, pg_temp.c('s1')::uuid,
+          (d0 at time zone 'Europe/Minsk')::date, array[pg_temp.c('net1')::uuid], '{0}', '{check}', '[null]', '{null}', 0,
+          '{"pos": 0}', d0 + interval '2 minutes', 'open');
+  if v_t5 then
+    if bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: a pending answer of 5 minutes (T5''s hook)'; end if;
+    update bot.sessions set pending_at = d0 - interval '1 hour' where sid = 'p0000001';
+    if not bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: a pending answer of an hour (T5''s hook)'; end if;
+  else
+    if not bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: a pending answer is due (fallback)'; end if;
+    create function bot.tick_due_sessions(p_now timestamptz) returns boolean language sql stable set search_path = '' as 'select false';
+    if bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: T5''s hook decides'; end if;
+    drop function bot.tick_due_sessions(timestamptz);
+  end if;
+  delete from bot.sessions where sid = 'p0000001';
+  if v_stand_in then drop table bot.sessions; end if;
+  if bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: the quiet morning again'; end if;
+  -- package T7: its tables without its hook → every minute; its hook decides when present (with T7 applied: nothing
+  -- of a group is due at this hour). Without T7: a stand-in table and hook, gone again.
+  if to_regprocedure('bot.tick_due_groups(timestamptz)') is not null then
+    if bot.tick_due_groups(d0 + interval '7 minutes') or bot.tick_due(d0 + interval '7 minutes') then
+      raise exception 'FAILED: T7''s hook at a quiet hour'; end if;
+  elsif to_regclass('bot.group_posts') is null then
+    create table bot.group_posts (id bigint primary key);
+    if not bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: T7 tables without a hook'; end if;
+    create function bot.tick_due_groups(p_now timestamptz) returns boolean language sql stable set search_path = '' as 'select false';
+    if bot.tick_due(d0 + interval '7 minutes') then raise exception 'FAILED: T7''s hook decides'; end if;
+    drop function bot.tick_due_groups(timestamptz);
+    drop table bot.group_posts;
+  else
+    raise exception 'FAILED: bot.group_posts without T7''s hook';
+  end if;
   -- the owner's switch, under the threshold
   update bot.usage set updates = updates - 300000 where day = (now() at time zone 'utc')::date;
   if bot.tick_mode(d0) is distinct from 'every_minute' then raise exception 'FAILED: back under the threshold'; end if;
@@ -774,8 +806,8 @@ do $t$ begin
   if public.bot_status() ->> 'tick_mode' is distinct from 'every_minute' then raise exception 'FAILED: status tick_mode'; end if;
 end $t$;
 
--- 7. /today and the day's messages. bot.sessions belongs to package T5: a stand-in with the spec's columns shows what
---    bot_today hands over.
+-- 7. /today and the day's messages. bot.sessions belongs to package T5: its own table when T5 is applied, else a
+--    stand-in with its columns, shows what bot_today hands over.
 select pg_temp.as_role('service_role');
 do $t$
 declare r jsonb; v_day date := (now() at time zone 'Europe/Minsk')::date;
@@ -798,12 +830,25 @@ begin
 end
 $t$;
 select pg_temp.as_role('postgres');
-create table bot.sessions (sid text primary key, user_id uuid not null, chat_id bigint not null, message_id bigint,
-  container_id uuid, kind text, local_day date, items uuid[], position integer, status text not null);
-insert into bot.sessions values ('k7m2p9qa', 'aaaaaaaa-0000-0000-0000-000000000001', 3001, 77, pg_temp.c('c')::uuid, 'plan',
-  (now() at time zone 'Europe/Minsk')::date, array[pg_temp.c('net1')::uuid, pg_temp.c('net2')::uuid], 1, 'open'),
-  ('a0000000', 'aaaaaaaa-0000-0000-0000-000000000001', 3001, 70, pg_temp.c('c')::uuid, 'plan',
-  (now() at time zone 'Europe/Minsk')::date - 1, '{}', 20, 'finished');
+do $t$
+begin
+  if to_regclass('bot.sessions') is null then
+    create table bot.sessions (sid text primary key, user_id uuid not null, link_id bigint, chat_id bigint not null,
+      message_id bigint, container_id uuid, subject_id uuid, kind text, local_day date, items uuid[], retry smallint[],
+      cls text[], shown jsonb, shown_at timestamptz[], position integer, pending jsonb, pending_at timestamptz,
+      status text not null, finished_at timestamptz);
+    perform pg_temp.put('sessions_stand_in', 'yes');
+  end if;
+  insert into bot.sessions (sid, user_id, chat_id, message_id, container_id, subject_id, kind, local_day, items, retry, cls,
+                            shown, shown_at, position, status, finished_at)
+  values ('k7m2p9qa', 'aaaaaaaa-0000-0000-0000-000000000001', 3001, 77, pg_temp.c('c')::uuid, pg_temp.c('s1')::uuid, 'plan',
+          (now() at time zone 'Europe/Minsk')::date, array[pg_temp.c('net1')::uuid, pg_temp.c('net2')::uuid], '{0,0}',
+          '{check,check}', '[null, null]', '{null,null}', 1, 'open', null),
+         ('a0000000', 'aaaaaaaa-0000-0000-0000-000000000001', 3001, 70, pg_temp.c('c')::uuid, pg_temp.c('s1')::uuid, 'plan',
+          (now() at time zone 'Europe/Minsk')::date - 1, array[pg_temp.c('net1')::uuid], '{0}', '{check}', '[null]', '{null}',
+          1, 'finished', now() - interval '1 day');
+end
+$t$;
 select pg_temp.as_role('service_role');
 do $t$
 declare r jsonb;
@@ -816,7 +861,12 @@ begin
 end
 $t$;
 select pg_temp.as_role('postgres');
-drop table bot.sessions;
+do $t$
+begin
+  delete from bot.sessions where sid in ('k7m2p9qa', 'a0000000');
+  if pg_temp.c('sessions_stand_in') = 'yes' then drop table bot.sessions; end if;
+end
+$t$;
 select pg_temp.as_role('service_role');
 do $t$
 declare r jsonb; v_day date := (now() at time zone 'Europe/Minsk')::date;
