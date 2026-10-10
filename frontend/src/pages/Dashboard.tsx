@@ -32,6 +32,7 @@ import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
 import { useContainerData } from '../lib/containers/hooks';
 import { planDay } from '../lib/containers/plan';
+import { glue as glueCount, shownMinutes } from '../lib/containers/words';
 import TodayExamCard from '../components/containers/TodayExamCard';
 import type { DayPlan, OverviewContainer } from '../types/container';
 import { containerDays, layerKey, QuietBoundary, useContainerLayer, type ContainerLayer } from './containerLayer';
@@ -1711,13 +1712,9 @@ interface ContainerSlots {
   rows: ReactNode;
 }
 
-const MINUTE_FORMS = ['минуты', 'минут', 'минут'] as const;
-
-/** «около 20 минут»: whole minutes up to 10, then to the nearest 5. */
+/** «около 20 минут», rounded as every plan line rounds its minutes (lib/containers/words.shownMinutes). */
 export function aboutMinutes(seconds: number): string {
-  const raw = Math.max(1, Math.ceil(seconds / 60));
-  const minutes = raw > 10 ? Math.round(raw / 5) * 5 : raw;
-  return `около ${minutes} ${pluralRu(minutes, MINUTE_FORMS)}`;
+  return `около ${glueCount(Math.max(1, shownMinutes(seconds)), 'минуты', 'минут', 'минут')}`;
 }
 
 /** «12 января · сегодня около 20 минут», «… · на сегодня всё», «… · сегодня экзамен», or the size before a plan. */

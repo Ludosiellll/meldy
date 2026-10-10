@@ -765,15 +765,16 @@ describe('who leads «Сегодня», as a rule', () => {
 
   it('words a row and the minutes', () => {
     const now = new Date(2026, 9, 3, 12);
-    expect(containerRowMeta(entry(ACCR(), ready('study')), today, now)).toBe('10 октября · сегодня около 45 минут');
+    expect(plainText(containerRowMeta(entry(ACCR(), ready('study')), today, now))).toBe('10 октября · сегодня около 45 минут');
     expect(containerRowMeta(entry(ACCR(), ready('done')), today, now)).toBe('10 октября · на сегодня всё');
     expect(containerRowMeta(entry(container('c-1', 'А', '2026-10-03'), ready('exam_today')), today, now)).toBe('3 октября · сегодня экзамен');
     expect(containerRowMeta(entry(ACCR(), { status: 'failed' }), today, now)).toBe('10 октября · 960 вопросов');
     expect(containerRowMeta(entry(container('c-9', 'Б', null), { status: 'failed' }), today, now)).toBe('960 вопросов');
-    expect(aboutMinutes(60)).toBe('около 1 минуты');
-    expect(aboutMinutes(150)).toBe('около 3 минут');
-    expect(aboutMinutes(1180)).toBe('около 20 минут');
-    expect(aboutMinutes(1240)).toBe('около 20 минут');
-    expect(aboutMinutes(2700)).toBe('около 45 минут');
+    expect(plainText(aboutMinutes(60))).toBe('около 1 минуты');
+    expect(plainText(aboutMinutes(150))).toBe('около 3 минут');
+    expect(plainText(aboutMinutes(1180))).toBe('около 20 минут');
+    expect(plainText(aboutMinutes(1240))).toBe('около 20 минут');
+    expect(plainText(aboutMinutes(2700))).toBe('около 45 минут');
+    expect(plainText(aboutMinutes(20))).toBe('около 1 минуты');
   });
 });
