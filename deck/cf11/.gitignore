@@ -1,0 +1,6 @@
+out/
+media/gen/
+tools/.venv/
+node_modules/
+*.pyc
+__pycache__/

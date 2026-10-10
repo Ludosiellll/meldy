@@ -62,7 +62,7 @@ jobs:
             || git -c protocol.version=1 -c fetch.negotiationAlgorithm=noop fetch --no-tags hf main \
             || git -c protocol.version=1 fetch --no-tags hf main
           LIVE=$(git rev-parse FETCH_HEAD)
-          git rm -r -q --cached --ignore-unmatch qa-screens
+          git rm -r -q --cached --ignore-unmatch qa-screens deck
           TREE=$(git write-tree)
           REL=$(git commit-tree "$TREE" -p "$LIVE" -m "Release ${GITHUB_SHA::7} from ${GITHUB_REPOSITORY}@${GITHUB_REF_NAME}")
           echo "LIVE=$LIVE" >> "$GITHUB_ENV"
