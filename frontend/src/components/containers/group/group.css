@@ -130,7 +130,9 @@
 .gr-person-since { grid-area: since; font-size: 14px; color: var(--sf-muted); }
 .gr-person-act { grid-area: act; }
 .gr-person .gr-ask { grid-area: ask; margin-top: 6px; font-size: 15px; }
-.gr-person .gr-ask .sf-link { min-height: 0; font-size: 15px; }
+/* «Убрать» / «Отмена» under a member: a 44 px target that gives its room back (as .gr-line). In this flex row no line
+   box absorbs it, so the margin is exactly half of 1.3em − 44px (−12.25 px at 15 px): the row keeps its height. */
+.gr-person .gr-ask .sf-link { min-height: 44px; margin: calc(.65em - 22px) 0; font-size: 15px; vertical-align: baseline; }
 .gr-sub { margin: 14px 0 0; font-size: 15px; font-weight: 600; }
 
 @media (max-width: 639px) {

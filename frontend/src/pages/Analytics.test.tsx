@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import Analytics, { ledgerFoot, ledgerFootParts, mappingDateText, SETTLE_WAIT } from './Analytics';
 import { danglingControls } from '../test/a11y';
 import { PHONE_QUERY } from '../lib/usePhone';
+import { ContainerApiError } from '../api/containers';
 
 const db = vi.hoisted(() => {
   const state = {
@@ -42,6 +43,12 @@ vi.mock('../api/learning', () => ({
   fetchQuestionEvents: (...args: unknown[]) => db.fetchQuestionEvents(...args),
 }));
 vi.mock('../api/flashcards', () => ({ syncFlashcards: (...args: unknown[]) => db.syncFlashcards(...args) }));
+// Answers to the questions of an exam's file per day (test_answer_days, as «Профиль» reads them): none unless a test gives some.
+const answerDays = vi.hoisted(() => ({ fetch: vi.fn() }));
+vi.mock('../api/containers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/containers')>()),
+  fetchAnswerDays: (...args: unknown[]) => answerDays.fetch(...args),
+}));
 // The exam containers of the account (package D1's hook): none unless a test gives some.
 const layer = vi.hoisted(() => ({ containers: [] as Array<{ id: string; title: string } & Record<string, unknown>> }));
 vi.mock('../lib/containers/hooks', () => ({
@@ -133,6 +140,7 @@ beforeEach(() => {
   setTable('exams', () => ({ data: [] }));
   setTable('exam_questions', () => ({ data: [] }));
   setJournal(demoJournal);
+  answerDays.fetch.mockReset().mockResolvedValue([]);
   db.fetchQuestionEvents.mockReset().mockResolvedValue([]);
   db.syncFlashcards.mockReset().mockResolvedValue({ inserted: 2, skipped: 0 });
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -498,7 +506,7 @@ describe('Progress sources', () => {
     expect(await screen.findByText('За 7 дней: 3 ответа на билеты.')).toBeInTheDocument();
     expect(screen.getByText('За 30 дней: 3 ответа на билеты, занятия в 2 из 30 дней, сейчас 2 дня подряд.')).toBeInTheDocument();
     expect(screen.getByText(/^Ответы на билеты по дням; больше всего 2 — /)).toBeInTheDocument();
-    expect(document.querySelectorAll('.pg-bar-part[data-kind="tickets"]')).toHaveLength(2);
+    expect(document.querySelectorAll('.pg-bar-part[data-kind="exams"]')).toHaveLength(2);
     expect(screen.queryByText(/ответов на карточки и тестов не было/)).toBeNull();
   });
 
@@ -510,7 +518,10 @@ describe('Progress sources', () => {
     expect(screen.getByText(/^Ответы на карточки и билеты по дням; больше всего 6 — /)).toBeInTheDocument();
     const today = document.querySelectorAll('.sf-bars-day')[29];
     expect(today.querySelector('.sf-bars-val')?.textContent).toBe('6');
-    expect(Array.from(today.querySelectorAll('.pg-bar-part')).map((part) => part.getAttribute('data-kind'))).toEqual(['tickets', 'cards']);
+    expect(Array.from(today.querySelectorAll('.pg-bar-part')).map((part) => part.getAttribute('data-kind'))).toEqual(['exams', 'cards']);
+    // Without answers to an exam's questions the key and the screen readers' table are as before.
+    expect(Array.from(document.querySelectorAll('.pg-bar-keys li')).map((li) => plain(li.textContent))).toEqual(['на карточки', 'на билеты']);
+    expect(Array.from(document.querySelectorAll('.pg-bars th')).map((th) => th.textContent)).toEqual(['День', 'На карточки', 'На билеты']);
   });
 
   it('says when a newcomer has nothing at all, with one way to start (LIB-14)', async () => {
@@ -884,7 +895,23 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     renderProgress();
     expect(await screen.findByText(/^За 30 дней: 5 ответов на билеты, занятия в 5 из 30 дней/)).toBeInTheDocument();
     expect(document.querySelector('.pg-bars')).not.toBeNull();
-    expect(document.querySelectorAll('.pg-bar-part[data-kind="tickets"]')).toHaveLength(5);
+    expect(document.querySelectorAll('.pg-bar-part[data-kind="exams"]')).toHaveLength(5);
+  });
+
+  it('counts the days with answers to an exam’s questions among the five that bring the columns', async () => {
+    // Two days of tickets and three of the exam's questions: five days with answers, so the columns are drawn.
+    setJournal([examAnswer('a'.repeat(32), '2026-10-02', true, 't1'), examAnswer('b'.repeat(32), '2026-10-03', false, 't2')], []);
+    answerDays.fetch.mockResolvedValue([
+      { local_date: '2026-09-26', answers: 20 },
+      { local_date: '2026-09-28', answers: 18 },
+      { local_date: '2026-09-30', answers: 25 },
+    ]);
+    renderProgress();
+    expect(
+      await screen.findByText('За 30 дней: 2 ответа на билеты, 63 ответа на вопросы экзаменов, занятия в 5 из 30 дней, сейчас 2 дня подряд.'),
+    ).toBeInTheDocument();
+    expect(document.querySelectorAll('.pg-bar-part[data-kind="exams"]')).toHaveLength(5);
+    expect(screen.getByText(/^Ответы на билеты и вопросы экзаменов по дням; больше всего 25 — /)).toBeInTheDocument();
   });
 
   it('makes the gradebook a quiet link and the map one row', async () => {
@@ -969,5 +996,158 @@ describe('the days of study', () => {
     expect(table).not.toHaveClass('sr-only');
     expect(table.parentElement).toHaveClass('sr-only');
     expect(table.parentElement?.tagName).toBe('DIV');
+  });
+});
+
+describe('the exam container’s answers in the week and in the days of study (usability m7, package PG)', () => {
+  // Today is 3 October 2026; the week is 27 September – 3 October, the 30 days 4 September – 3 October.
+  const examDays = [
+    { local_date: '2026-10-03', answers: 24 },
+    { local_date: '2026-10-01', answers: 31 },
+    { local_date: '2026-09-25', answers: 40 },
+  ];
+
+  it('reads the days once, 60 days back, with the read «Профиль» uses (api/containers.fetchAnswerDays)', async () => {
+    answerDays.fetch.mockResolvedValue(examDays);
+    renderProgress();
+    await screen.findByRole('heading', { name: 'Занятия по дням' });
+    expect(answerDays.fetch).toHaveBeenCalledTimes(1);
+    expect(answerDays.fetch).toHaveBeenCalledWith('2026-08-04');
+  });
+
+  it('counts them in the week under the title, named apart from the cards, tickets and tests', async () => {
+    setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 6 }] }));
+    answerDays.fetch.mockResolvedValue(examDays);
+    renderProgress();
+    // 24 today and 31 on 1 October are in the week; the 40 of 25 September are not.
+    expect(await screen.findByText('За 7 дней: 6 ответов на карточки, 2 теста и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
+  });
+
+  it('a student of the exam container only: the week of answers, not «Начните с разбора первой лекции»', async () => {
+    setTable('materials', () => ({ data: [] }));
+    setTable('flashcard_progress', () => ({ data: [] }));
+    setJournal([], []);
+    answerDays.fetch.mockResolvedValue(examDays);
+    renderProgress();
+    expect(await screen.findByText('За 7 дней: 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
+    expect(screen.queryByText(/Начните с разбора первой лекции/)).toBeNull();
+    expect(screen.getByText('За 30 дней: 95 ответов на вопросы экзаменов, занятия в 3 из 30 дней, сейчас 1 день подряд.')).toBeInTheDocument();
+    expect(screen.queryByText('За 30 дней занятий не было.')).toBeNull();
+  });
+
+  it('a quiet week names the last day of study across every kind', async () => {
+    setTable('study_sessions', () => ({ data: [{ date: '2026-09-20', cards_reviewed: 4 }] }));
+    setJournal([], []);
+    answerDays.fetch.mockResolvedValue([{ local_date: '2026-09-25', answers: 40 }]);
+    renderProgress();
+    expect(await screen.findByText('За 7 дней занятий не было. Последние — 25 сентября.')).toBeInTheDocument();
+  });
+
+  it('counts them in «Занятия по дням»: the sentence, the days, the days in a row and the columns', async () => {
+    setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 5 }] }));
+    answerDays.fetch.mockResolvedValue(examDays);
+    renderProgress();
+    // 3 October has cards, a test and the exam's questions: one day. 2 October a test, 1 October the exam's questions:
+    // three days in a row (two without them). 25 September is the fourth day of study.
+    expect(
+      await screen.findByText('За 30 дней: 5 ответов на карточки, 95 ответов на вопросы экзаменов, 2 теста, занятия в 4 из 30 дней, сейчас 3 дня подряд.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Ответы на карточки и вопросы экзаменов по дням; больше всего 40 — 25 сент.')).toBeInTheDocument();
+    const days = document.querySelectorAll('.sf-bars-day');
+    expect(days).toHaveLength(30);
+    const today = days[29];
+    expect(today.querySelector('.sf-bars-val')?.textContent).toBe('29');
+    expect(Array.from(today.querySelectorAll('.pg-bar-part')).map((part) => part.getAttribute('data-kind'))).toEqual(['exams', 'cards']);
+    expect(days[27].querySelector('.sf-bars-val')?.textContent).toBe('31');
+    // The ink says what it counts; the screen readers' table has every kind apart.
+    expect(Array.from(document.querySelectorAll('.pg-bar-keys li')).map((li) => plain(li.textContent))).toEqual(['на карточки', 'на вопросы экзаменов']);
+    const table = screen.getByRole('table', { name: 'Ответов по дням' });
+    expect(within(table).getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['День', 'На карточки', 'На билеты', 'На вопросы экзаменов']);
+    const rows = within(table).getAllByRole('row');
+    expect(rows[rows.length - 1].textContent).toBe('3 окт.5024');
+  });
+
+  it('names the ink «на билеты и вопросы экзаменов» when it holds both', async () => {
+    setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 5 }] }));
+    setJournal([...demoJournal, examAnswer('a'.repeat(32), '2026-10-03', true, 't1')], []);
+    answerDays.fetch.mockResolvedValue(examDays);
+    renderProgress();
+    expect(
+      await screen.findByText('За 30 дней: 5 ответов на карточки, 1 ответ на билеты, 95 ответов на вопросы экзаменов, занятия в 3 из 30 дней, сейчас 1 день подряд.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Ответы на карточки, билеты и вопросы экзаменов по дням;/)).toBeInTheDocument();
+    expect(Array.from(document.querySelectorAll('.pg-bar-keys li')).map((li) => plain(li.textContent))).toEqual(['на карточки', 'на билеты и вопросы экзаменов']);
+    expect(document.querySelectorAll('.sf-bars-day')[29].querySelector('.sf-bars-val')?.textContent).toBe('30');
+  });
+
+  it('says in «Как считается» that they count and that a day counts once; without them, what it said before', async () => {
+    const user = userEvent.setup();
+    answerDays.fetch.mockResolvedValue(examDays);
+    const view = renderProgress();
+    await user.click(await screen.findByRole('button', { name: 'Как считается' }));
+    expect(
+      screen.getByText(/^«Занятия по дням» — ответы на карточки, на билеты и на вопросы экзаменов \(в занятиях и в «Как на экзамене»\) за\s+каждый день;/),
+    ).toHaveTextContent(/День с ответами разных видов считается\s+один раз\.$/);
+    view.unmount();
+
+    answerDays.fetch.mockResolvedValue([]);
+    renderProgress();
+    await user.click(await screen.findByRole('button', { name: 'Как считается' }));
+    expect(screen.getByText(/^«Занятия по дням» — ответы на карточки и на билеты за каждый день;/)).toBeInTheDocument();
+    expect(screen.queryByText(/вопросы экзаменов/)).toBeNull();
+  });
+
+  it('a database without exam containers: the page as before, no error', async () => {
+    setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 6 }] }));
+    answerDays.fetch.mockRejectedValue(new ContainerApiError('unavailable', 'Не получилось.'));
+    renderProgress();
+    expect(await screen.findByText('За 7 дней: 6 ответов на карточки и 2 теста.')).toBeInTheDocument();
+    expect(screen.getByText('За 30 дней: 6 ответов на карточки, 2 теста, занятия в 2 из 30 дней, сейчас 2 дня подряд.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a failed read: with exam containers the days say so and read again; without any, the page stays quiet', async () => {
+    layer.containers = [{ id: 'c-1', title: 'Аккредитация' }];
+    answerDays.fetch.mockRejectedValueOnce(new ContainerApiError('network', 'Нет сети.')).mockResolvedValue(examDays);
+    const view = renderProgress();
+    const section = (await screen.findByRole('heading', { name: 'Занятия по дням' })).closest('section') as HTMLElement;
+    expect(await within(section).findByRole('alert')).toHaveTextContent(/^Ответы на вопросы экзаменов не загрузились, их дни здесь не учтены\./);
+    expect(within(section).queryByText(/вопросы экзаменов,/)).toBeNull();
+    await userEvent.setup().click(within(section).getByRole('button', { name: 'Повторить' }));
+    expect(await within(section).findByText(/95 ответов на вопросы экзаменов/)).toBeInTheDocument();
+    expect(within(section).queryByRole('alert')).toBeNull();
+    // The week under the title counts them once they came.
+    expect(screen.getByText('За 7 дней: 2 теста и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
+    view.unmount();
+
+    layer.containers = [];
+    answerDays.fetch.mockReset().mockRejectedValue(new ContainerApiError('network', 'Нет сети.'));
+    renderProgress();
+    const quiet = (await screen.findByRole('heading', { name: 'Занятия по дням' })).closest('section') as HTMLElement;
+    expect(within(quiet).queryByRole('alert')).toBeNull();
+  });
+
+  it('the page waits for them before it draws, as for every other source (no layout shift)', async () => {
+    let release: () => void = () => undefined;
+    answerDays.fetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve(examDays);
+        }),
+    );
+    renderProgress();
+    expect(await screen.findByText('Загружаем страницу…')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Занятия по дням' })).toBeNull();
+    release();
+    expect(await screen.findByText('За 7 дней: 2 теста и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Занятия по дням' })).toBeInTheDocument();
+  });
+
+  it('a run made only of the exam’s questions is a run of days in a row', async () => {
+    // A run made only of the exam's questions: 30 September – 3 October.
+    setJournal([], []);
+    answerDays.fetch.mockResolvedValue(['2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03'].map((local_date) => ({ local_date, answers: 10 })));
+    renderProgress();
+    expect(await screen.findByText(/^За 30 дней: 40 ответов на вопросы экзаменов, занятия в 4 из 30 дней, сейчас 4 дня подряд\.$/)).toBeInTheDocument();
   });
 });

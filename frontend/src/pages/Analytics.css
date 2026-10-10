@@ -283,8 +283,9 @@
 .pg .sf-bars-val { margin-bottom: 4px; font-size: 13px; font-weight: 500; }
 .pg .sf-bars-axis { margin-top: 8px; }
 .pg-figcap { margin: 12px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
-/* A day's column: answers to tickets in the ink on top of the card answers in the blue, a hairline of
-   the card's surface between them (each part keeps its contrast with the card, not with the other). */
+/* A day's column: the exams' answers (tickets and the questions of an exam's file) in the ink on top of the
+   card answers in the blue, a hairline of the card's surface between them (each part keeps its contrast with
+   the card, not with the other). */
 .pg-bar-stack {
   display: flex;
   flex-direction: column;
@@ -298,12 +299,12 @@
 .pg-bar-part + .pg-bar-part { border-top: 2px solid var(--sf-surface); }
 .pg-bar-part[data-kind='cards'],
 .pg-bar-keys i[data-kind='cards'] { background: var(--sf-accent); }
-.pg-bar-part[data-kind='tickets'],
-.pg-bar-keys i[data-kind='tickets'] { background: #10295a; }
+.pg-bar-part[data-kind='exams'],
+.pg-bar-keys i[data-kind='exams'] { background: #10295a; }
 .dark .pg-bar-part[data-kind='cards'],
 .dark .pg-bar-keys i[data-kind='cards'] { background: var(--sf-accent-fg); }
-.dark .pg-bar-part[data-kind='tickets'],
-.dark .pg-bar-keys i[data-kind='tickets'] { background: #e8effc; }
+.dark .pg-bar-part[data-kind='exams'],
+.dark .pg-bar-keys i[data-kind='exams'] { background: #e8effc; }
 .pg-bar-keys { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
 .pg-bar-keys li { display: inline-flex; align-items: center; gap: 8px; }
 .pg-bar-keys i { width: 10px; height: 10px; border-radius: 3px; }

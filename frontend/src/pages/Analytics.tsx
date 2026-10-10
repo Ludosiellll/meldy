@@ -41,7 +41,8 @@ import { READINESS_LABELS } from '../lib/learning/readiness';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { dueToday, laterTodayWords, originPhrase, originSplit, waitingNowWords, FOLLOW_UP_ORIGIN } from '../lib/learning/cardCounts';
-import { answersByDay, studyStreak, type DayAnswers } from '../lib/learning/studyDays';
+import { answersByDay, studyDayKeys, studyStreak, type DayAnswers, type ExamQuestionDay } from '../lib/learning/studyDays';
+import { fetchAnswerDays, isContainersUnavailable } from '../api/containers';
 import SectionCrumb from '../components/SectionCrumb';
 import { ty } from '../components/landing/typo';
 import { usePhone } from '../lib/usePhone';
@@ -71,6 +72,8 @@ import './Analytics.css';
 
 const PAGE_SIZE = 1000;
 const ACTIVITY_DAYS = 30;
+/** The days of study are read 60 days back: a run of days in a row can be longer than the 30 days drawn. */
+const studySince = (): string => shiftDateKey(localDateKey(), -(2 * ACTIVITY_DAYS));
 /** A phone draws «Занятия по дням» as columns from this many days with answers; fewer, the sentence says it all. */
 export const PHONE_BAR_DAYS = 5;
 /** Card answers of the journal: the 30 days of the share, with a margin for the time zone. */
@@ -183,10 +186,21 @@ const loaders = {
       .from('study_sessions')
       .select('date, cards_reviewed')
       .eq('user_id', userId)
-      .gte('date', shiftDateKey(localDateKey(), -(2 * ACTIVITY_DAYS)))
+      .gte('date', studySince())
       .order('date', { ascending: false });
     if (error) throw error;
     return (data || []) as SessionRow[];
+  },
+  // Answers to the questions of an exam's file per day (exam containers), as «Профиль» reads them for its days in a
+  // row: the week under the title and «Занятия по дням» count them. A database without exam containers has none, and
+  // the page is as before; any other failure is this source's own «Повторить».
+  examDays: async (): Promise<ExamQuestionDay[]> => {
+    try {
+      return await fetchAnswerDays(studySince());
+    } catch (error) {
+      if (isContainersUnavailable(error)) return [];
+      throw error;
+    }
   },
   legacyExams: async (userId: string): Promise<LegacyExamRow[]> => {
     const { data, error } = await supabase
@@ -620,10 +634,14 @@ export default function Analytics() {
   );
 }
 
-/** «За 7 дней: …» from the sources that loaded, or the day of the last study. */
+/**
+ * «За 7 дней: …» from the sources that loaded, or the day of the last study. Each kind of answer is named with its own
+ * number: the answers to the questions of an exam's file are «ответов на вопросы экзаменов», counted per day as
+ * «Занятия по дням» counts them.
+ */
 function ledeOf(sources: Sources): string {
-  const { activity, quiz, journal } = sources;
-  if (activity.status !== 'ok' && quiz.status !== 'ok' && journal.status !== 'ok') return 'Считаем по вашим ответам…';
+  const { activity, quiz, journal, examDays } = sources;
+  if (activity.status !== 'ok' && quiz.status !== 'ok' && journal.status !== 'ok' && examDays.status !== 'ok') return 'Считаем по вашим ответам…';
   const today = localDateKey();
   const weekFrom = shiftDateKey(today, -6);
   let lastDay: string | null = null;
@@ -655,15 +673,20 @@ function ledeOf(sources: Sources): string {
       if (event.kind === 'exam_answer' && event.local_date >= weekFrom && event.local_date <= today) tickets += 1;
     }
   }
+  let questions = 0;
+  if (examDays.status === 'ok') {
+    for (const key of studyDayKeys({ sessions: [], events: [], examQuestionDays: examDays.data })) consider(key);
+    for (const day of answersByDay({ sessions: [], events: [], examQuestionDays: examDays.data, from: weekFrom, to: today })) questions += day.questions;
+  }
   // A student without a single card or answer starts with a lecture: «повторение карточек» needs cards.
   if (lastDay === null && sources.cards.status === 'ok' && sources.cards.data.length === 0) {
     return 'Здесь будет видно, как вы запоминаете лекции. Начните с разбора первой лекции.';
   }
-  return weekLede({ cardAnswers, tests: tests.size, tickets, lastDay: lastDay ? formatDay(lastDay) : null });
+  return weekLede({ cardAnswers, tests: tests.size, tickets, questions, lastDay: lastDay ? formatDay(lastDay) : null });
 }
 
 function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; reload: (key: SourceKey) => void; userId: string | null; layer: ContainerLayer }) {
-  const { materials, cards, quiz, journal, activity, legacyExams, mistakes, exams } = sources;
+  const { materials, cards, quiz, journal, activity, legacyExams, mistakes, exams, examDays } = sources;
   const phone = usePhone();
   // Each exam container's figure, as «Экзамены» says it, with the way to its page (usability check m7). Whenever the
   // containers cannot be read the section is today's.
@@ -723,7 +746,11 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
       }),
     [rows, cards.status, quiz.status, mistakes, exams],
   );
-  const everythingRead = SOURCE_KEYS.every((key) => key === 'legacyExams' || key === 'activity' || sources[key].status === 'ok');
+  // «Что подтянуть» reads neither the days of study nor the old exams.
+  const everythingRead = SOURCE_KEYS.every((key) => key === 'legacyExams' || key === 'activity' || key === 'examDays' || sources[key].status === 'ok');
+  // The answers to the questions of an exam's file are named in «Как считается» once the account has them (or exams
+  // that take them): without, the page says what it said before.
+  const examQuestions = hasContainers || (examDays.status === 'ok' && studyDayKeys({ sessions: [], events: [], examQuestionDays: examDays.data }).size > 0);
 
   const materialById = useMemo(() => new Map((materials.status === 'ok' ? materials.data : []).map((m) => [m.id, m])), [materials]);
   const addToReview = async (lecture: LectureRow) => {
@@ -953,7 +980,16 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
         )}
       </Section>
 
-      <ActivitySection activity={activity} quiz={quiz} journal={journal} onRetry={() => reload('activity')} onRetryJournal={() => reload('journal')} />
+      <ActivitySection
+        activity={activity}
+        quiz={quiz}
+        journal={journal}
+        examDays={examDays}
+        examsOn={hasContainers}
+        onRetry={() => reload('activity')}
+        onRetryJournal={() => reload('journal')}
+        onRetryExamDays={() => reload('examDays')}
+      />
 
       {(legacyExams.status === 'error' || (legacyExams.status === 'ok' && legacyExams.data.length > 0)) && (
         <Section title="Устные экзамены (прежний формат)" id="pg-legacy">
@@ -996,10 +1032,18 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
             не ответили; они считаются вместе с карточками лекций. «Тест» — первая попытка теста лекции, повторные показаны отдельно.
             Вопрос экзамена «подтверждён», когда дважды, в разные дни, в ответе на него названо достаточно пунктов.
           </p>
-          <p>
-            «Занятия по дням» — ответы на карточки и на билеты за каждый день; день, когда вы проходили тест, тоже считается днём
-            занятий.
-          </p>
+          {examQuestions ? (
+            <p>
+              «Занятия по дням» — ответы на карточки, на билеты и на вопросы экзаменов (в занятиях и в «Как на экзамене») за
+              каждый день; день, когда вы проходили тест, тоже считается днём занятий. День с ответами разных видов считается
+              один раз.
+            </p>
+          ) : (
+            <p>
+              «Занятия по дням» — ответы на карточки и на билеты за каждый день; день, когда вы проходили тест, тоже считается днём
+              занятий.
+            </p>
+          )}
         </div>
       ) : null}
     </>
@@ -1575,23 +1619,34 @@ function LectureLine({
   );
 }
 
+const NO_EXAM_DAYS: ExamQuestionDay[] = [];
+
 /**
- * «Занятия по дням» (LIB-12): the answers of the last 30 days — to cards (the daily counters) and to
- * exam tickets (the journal) — as columns, and one sentence. A day with a test counts as a day of
- * study too. The header of the page counts ticket answers, so this section does as well.
+ * «Занятия по дням» (LIB-12): the answers of the last 30 days — to cards (the daily counters), to
+ * exam tickets (the journal) and to the questions of an exam's file (exam containers: the same read
+ * as «Профиль») — as columns, and one sentence. A day with a test counts as a day of study too; a
+ * day with answers of several kinds is one day, in «занятия в N из 30 дней» and in the days in a row.
+ * The header of the page counts all these answers, so this section does as well.
  */
 function ActivitySection({
   activity,
   quiz,
   journal,
+  examDays,
+  examsOn,
   onRetry,
   onRetryJournal,
+  onRetryExamDays,
 }: {
   activity: Source<SessionRow[]>;
   quiz: Source<LearningEvent[]>;
   journal: Source<LearningEvent[]>;
+  examDays: Source<ExamQuestionDay[]>;
+  /** The account has exam containers: when their answers cannot be read, the section says so. */
+  examsOn: boolean;
   onRetry: () => void;
   onRetryJournal: () => void;
+  onRetryExamDays: () => void;
 }) {
   const phone = usePhone();
   const today = localDateKey();
@@ -1602,25 +1657,32 @@ function ActivitySection({
     [journal, quiz],
   );
   const sessions = useMemo(() => (activity.status === 'ok' ? activity.data : []), [activity]);
-  const days = useMemo(() => answersByDay({ sessions, events, from: firstDay, to: today }), [sessions, events, firstDay, today]);
+  const examQuestionDays = useMemo(() => (examDays.status === 'ok' ? examDays.data : NO_EXAM_DAYS), [examDays]);
+  const days = useMemo(
+    () => answersByDay({ sessions, events, examQuestionDays, from: firstDay, to: today }),
+    [sessions, events, examQuestionDays, firstDay, today],
+  );
 
   // One sentence about the last 30 days. Only what happened is named: no «0 ответов», no «0 дней подряд».
   const cardAnswers = days.reduce((sum, day) => sum + day.cards, 0);
   const ticketAnswers = days.reduce((sum, day) => sum + day.tickets, 0);
+  const questionAnswers = days.reduce((sum, day) => sum + day.questions, 0);
   // The days that have a column. A phone draws the columns from PHONE_BAR_DAYS of them: one or two columns at the
   // right edge of an empty month say no more than the sentence above them.
-  const barDays = days.filter((day) => day.cards + day.tickets > 0).length;
-  const drawBars = cardAnswers + ticketAnswers > 0 && (!phone || barDays >= PHONE_BAR_DAYS);
+  const barDays = days.filter((day) => day.cards + day.tickets + day.questions > 0).length;
+  const drawBars = cardAnswers + ticketAnswers + questionAnswers > 0 && (!phone || barDays >= PHONE_BAR_DAYS);
   const summaryParts: string[] = [];
   if (activity.status === 'ok') {
     const recentQuiz = quiz.status === 'ok' ? quiz.data.filter((e) => e.local_date >= firstDay && e.local_date <= today) : [];
-    const studyDays = days.filter((day) => day.cards + day.tickets + day.tests > 0).length;
+    // One entry per day: a day with cards and questions of an exam is one day of study.
+    const studyDays = days.filter((day) => day.cards + day.tickets + day.tests + day.questions > 0).length;
     const tests = new Set(recentQuiz.filter((e) => e.session_id).map((e) => e.session_id)).size;
     if (cardAnswers > 0) summaryParts.push(`${count(cardAnswers, ANSWER_FORMS)} на карточки`);
     if (ticketAnswers > 0) summaryParts.push(`${count(ticketAnswers, ANSWER_FORMS)} на билеты`);
+    if (questionAnswers > 0) summaryParts.push(`${count(questionAnswers, ANSWER_FORMS)} на вопросы экзаменов`);
     if (tests > 0) summaryParts.push(count(tests, ['тест', 'теста', 'тестов']));
     if (studyDays > 0) summaryParts.push(`занятия в ${studyDays} из ${ACTIVITY_DAYS} дней`);
-    const streak = studyStreak({ sessions: activity.data, events });
+    const streak = studyStreak({ sessions: activity.data, events, examQuestionDays });
     if (streak > 0) summaryParts.push(`сейчас ${count(streak, ['день', 'дня', 'дней'])} подряд`);
   }
 
@@ -1635,6 +1697,9 @@ function ActivitySection({
           <Quiet>{typeset(summaryParts.length > 0 ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.` : `За ${ACTIVITY_DAYS} дней занятий не было.`)}</Quiet>
           {journal.status === 'error' ? (
             <ErrorLine text="Ответы на билеты не загрузились, их дни здесь не учтены." onRetry={onRetryJournal} />
+          ) : null}
+          {examDays.status === 'error' && examsOn ? (
+            <ErrorLine text="Ответы на вопросы экзаменов не загрузились, их дни здесь не учтены." onRetry={onRetryExamDays} />
           ) : null}
           {/* Bars only when there is something to draw: no empty axis. */}
           {drawBars ? <DayBars data={days} /> : null}
@@ -1666,18 +1731,28 @@ function LegacyExams({ rows }: { rows: LegacyExamRow[] }) {
   );
 }
 
+/** «карточки», «карточки и билеты», «карточки, билеты и вопросы экзаменов». */
+function andList(parts: readonly string[]): string {
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} и ${parts[parts.length - 1]}` : (parts[0] ?? '');
+}
+
 /**
- * Answers per day as plain columns: card answers in the blue, answers to tickets in the ink on top of
- * them (a hairline between), the total over a non-zero day, a stub on a zero day, an axis from the
- * first day to «сегодня». No hover; a key when both kinds are there; a table for screen readers.
+ * Answers per day as plain columns: card answers in the blue, the exams' answers — to tickets and to
+ * the questions of an exam's file — in the ink on top of them (a hairline between), the total over a
+ * non-zero day, a stub on a zero day, an axis from the first day to «сегодня». No hover; a key when
+ * both parts are there, the ink's naming what it counts; a table for screen readers, every kind apart.
  */
 function DayBars({ data }: { data: DayAnswers[] }) {
-  const totalOf = (day: DayAnswers) => day.cards + day.tickets;
+  const examsOf = (day: DayAnswers) => day.tickets + day.questions;
+  const totalOf = (day: DayAnswers) => day.cards + examsOf(day);
   const max = Math.max(1, ...data.map(totalOf));
   const peak = data.reduce((best, day) => (totalOf(day) > totalOf(best) ? day : best), data[0]);
   const hasCards = data.some((day) => day.cards > 0);
   const hasTickets = data.some((day) => day.tickets > 0);
-  const what = hasCards && hasTickets ? 'Ответы на карточки и билеты' : hasTickets ? 'Ответы на билеты' : 'Ответы на карточки';
+  const hasQuestions = data.some((day) => day.questions > 0);
+  // What the ink counts: «билеты», «вопросы экзаменов» or both, named as they are.
+  const examWords = [...(hasTickets ? ['билеты'] : []), ...(hasQuestions ? ['вопросы экзаменов'] : [])];
+  const what = `Ответы на ${andList([...(hasCards ? ['карточки'] : []), ...examWords])}`;
   return (
     <figure className="sf-bars pg-bars">
       <div className="sf-bars-plot" aria-hidden="true">
@@ -1689,7 +1764,7 @@ function DayBars({ data }: { data: DayAnswers[] }) {
                 <>
                   <span className="sf-bars-val">{total}</span>
                   <span className="pg-bar-stack" style={{ height: `${Math.max(3, (total / max) * 100)}px` }}>
-                    {day.tickets > 0 ? <span className="pg-bar-part" data-kind="tickets" style={{ flexGrow: day.tickets }} /> : null}
+                    {examsOf(day) > 0 ? <span className="pg-bar-part" data-kind="exams" style={{ flexGrow: examsOf(day) }} /> : null}
                     {day.cards > 0 ? <span className="pg-bar-part" data-kind="cards" style={{ flexGrow: day.cards }} /> : null}
                   </span>
                 </>
@@ -1704,15 +1779,15 @@ function DayBars({ data }: { data: DayAnswers[] }) {
         <span>{shortDay(data[0].key)}</span>
         <span>сегодня</span>
       </div>
-      {hasCards && hasTickets ? (
+      {hasCards && examWords.length > 0 ? (
         <ul className="pg-bar-keys" aria-hidden="true">
           <li>
             <i data-kind="cards" />
             на карточки
           </li>
           <li>
-            <i data-kind="tickets" />
-            на билеты
+            <i data-kind="exams" />
+            {`на ${andList(examWords)}`}
           </li>
         </ul>
       ) : null}
@@ -1727,6 +1802,7 @@ function DayBars({ data }: { data: DayAnswers[] }) {
               <th scope="col">День</th>
               <th scope="col">На карточки</th>
               <th scope="col">На билеты</th>
+              {hasQuestions ? <th scope="col">На вопросы экзаменов</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -1735,6 +1811,7 @@ function DayBars({ data }: { data: DayAnswers[] }) {
                 <td>{shortDay(day.key)}</td>
                 <td>{day.cards}</td>
                 <td>{day.tickets}</td>
+                {hasQuestions ? <td>{day.questions}</td> : null}
               </tr>
             ))}
           </tbody>

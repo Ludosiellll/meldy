@@ -23,12 +23,38 @@ describe('days of study', () => {
   it('counts card, ticket and test answers per day, one entry for every day of the window', () => {
     const days = answersByDay({ sessions, events, from: '2026-10-04', to: '2026-10-08' });
     expect(days).toEqual([
-      { key: '2026-10-04', cards: 0, tickets: 0, tests: 0 },
-      { key: '2026-10-05', cards: 15, tickets: 0, tests: 0 },
-      { key: '2026-10-06', cards: 0, tickets: 0, tests: 2 },
-      { key: '2026-10-07', cards: 0, tickets: 2, tests: 0 },
-      { key: '2026-10-08', cards: 0, tickets: 1, tests: 0 },
+      { key: '2026-10-04', cards: 0, tickets: 0, tests: 0, questions: 0 },
+      { key: '2026-10-05', cards: 15, tickets: 0, tests: 0, questions: 0 },
+      { key: '2026-10-06', cards: 0, tickets: 0, tests: 2, questions: 0 },
+      { key: '2026-10-07', cards: 0, tickets: 2, tests: 0, questions: 0 },
+      { key: '2026-10-08', cards: 0, tickets: 1, tests: 0, questions: 0 },
     ]);
+  });
+
+  it('counts the answers to the questions of an exam’s file in the day they were given, the way the days in a row read them', () => {
+    // 4 October: only such answers; 5 October: cards and such answers, one day; broken rows and other days add nothing.
+    const examQuestionDays = [
+      { local_date: '2026-10-04', answers: 20 },
+      { local_date: '2026-10-05', answers: 7 },
+      { local_date: '2026-10-05', answers: 3 },
+      { local_date: '2026-10-03', answers: 9 },
+      { local_date: '2026-10-06', answers: 0 },
+      { local_date: '2026-10-07', answers: Number.NaN },
+      { local_date: 'вчера', answers: 5 },
+    ];
+    const days = answersByDay({ sessions, events, examQuestionDays, from: '2026-10-04', to: '2026-10-08' });
+    expect(days.map((day) => [day.key, day.questions])).toEqual([
+      ['2026-10-04', 20],
+      ['2026-10-05', 10],
+      ['2026-10-06', 0],
+      ['2026-10-07', 0],
+      ['2026-10-08', 0],
+    ]);
+    expect(days[1]).toEqual({ key: '2026-10-05', cards: 15, tickets: 0, tests: 0, questions: 10 });
+    // The same days as studyDayKeys: a day with answers in the columns is a day of study, and the other way round.
+    const withAnswers = days.filter((day) => day.cards + day.tickets + day.tests + day.questions > 0).map((day) => day.key);
+    const keys = [...studyDayKeys({ sessions, events, examQuestionDays })].filter((key) => key >= '2026-10-04' && key <= '2026-10-08').sort();
+    expect(withAnswers).toEqual(keys);
   });
 
   it('counts a day with a ticket answer or a test as a day of study, a self-rating or an empty counter not', () => {
