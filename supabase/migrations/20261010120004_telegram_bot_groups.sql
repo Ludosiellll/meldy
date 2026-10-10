@@ -300,12 +300,16 @@ as $fn$
              as confirmable,
            pg_catalog.count(*) filter (where st.last_result in ('wrong', 'dont_know'))::integer as relearn,
            pg_catalog.count(*) filter (where st.two_days_at is not null
-                                         and p_now >= meldy_private.due_at(st.named_at, st.checks, p_day, pl.sd))::integer
+                                         and p_now >= meldy_private.due_at(st.named_at, st.checks, p_day,
+                                                                           coalesce(s.exam_date, c.exam_date)))::integer
              as due,
            pg_catalog.count(*) filter (where st.first_seen_day is not null)::integer as seen
-      from pool pl
-      join public.test_item_states st on st.item_id = pl.id and st.item_rev = pl.rev
-      join users u on u.user_id = st.user_id
+      from public.test_items i
+      join public.test_item_states st on st.item_id = i.id and st.item_rev = i.rev
+      join public.container_subjects s on s.id = i.subject_id
+      join public.containers c on c.id = i.container_id
+     where i.container_id = p_container
+       and st.user_id in (select u.user_id from users u)
      group by st.item_id
   )
   select pg_catalog.jsonb_build_object(
