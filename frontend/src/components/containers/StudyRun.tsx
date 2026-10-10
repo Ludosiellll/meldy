@@ -4,6 +4,7 @@ import { enqueueAnswers } from '../../lib/containers/answerQueue';
 import { afterAnswer, counter, optionOrder, pinnedLast, type QueueEntry } from '../../lib/containers/session';
 import { dayText } from '../../lib/containers/words';
 import { track } from '../../lib/telemetry';
+import { miniAppHaptic } from '../../lib/telegram/miniApp';
 import QuestionCard, { type Answered } from './QuestionCard';
 import { DoubtSheet, KeyFix, RoomBar } from './RoomParts';
 import SessionEnd from './SessionEnd';
@@ -325,6 +326,8 @@ export default function StudyRun(props: StudyRunProps) {
     const again = !correct && comesAgain(queue, pos, item.id, seed);
     setHint(null);
     setPending({ ...choice, dontKnow, correct, misclick: false, again, at: Date.now() });
+    // Inside Telegram the phone answers too (lib/telegram/miniApp; nothing elsewhere).
+    miniAppHaptic(correct ? 'success' : dontKnow ? 'warning' : 'error');
     if (correct) {
       timer.current = window.setTimeout(() => {
         timer.current = null;

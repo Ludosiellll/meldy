@@ -17,6 +17,7 @@ import GuidePanel from './guide/GuidePanel';
 import { GUIDE_CHAPTERS } from './guide/chapters';
 import { usePhone } from '../lib/usePhone';
 import { containerOfExam, containerTitle, onContainerTitles } from '../lib/containers/titleCache';
+import { useMiniApp } from '../lib/telegram/miniApp';
 import '../styles/paper.css';
 import './layout.css';
 
@@ -31,6 +32,11 @@ import './layout.css';
  * The menu is the core of Meldy: «Сегодня», «Экзамены», «Лекции», «Повторение» (with the mistakes
  * diary) and «Прогресс» (with the knowledge map). The window scrolls (not <main>), so a page opens at
  * its top and «назад» returns to where it was.
+ *
+ * Inside Telegram (lib/telegram/miniApp, meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5) the shell
+ * keeps its sections and drops what makes no sense there: «‹ Родитель» (Telegram's own «Назад» stands in:
+ * components/telegram/TelegramChrome), the theme button (Telegram's scheme leads), «Показ на проекторе», the ways to
+ * PRO (not sold inside Telegram), «Установить приложение» and «Выйти» (the next launch signs in again).
  */
 
 interface NavItem {
@@ -286,6 +292,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const { user, signOut } = useAuth();
   const guide = useGuide();
   const location = useLocation();
+  const inTelegram = useMiniApp().status === 'on';
   const email = user?.email ?? '';
   const name = user?.user_metadata?.full_name || email.split('@')[0] || '';
   const initial = name ? name[0].toUpperCase() : '?';
@@ -314,7 +321,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       return;
     }
     setMenuOpen(false);
-    if (remainingUnits <= 0 && !isPro) {
+    if (remainingUnits <= 0 && !isPro && !inTelegram) {
       openProWindow('limit');
       return;
     }
@@ -403,7 +410,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const tabSpotOn = (to: string) => spotOn(to) ?? (phone && spot?.spot === 'cta' && to === '/library' ? '' : undefined);
 
   const avatarUrl = profile?.avatar_url;
-  const back = backLinkFor(location.pathname, location.search);
+  const back = inTelegram ? null : backLinkFor(location.pathname, location.search);
   const onAnalyze = location.pathname.startsWith('/analyze');
   const current = sectionOf(location.pathname);
 
@@ -432,32 +439,36 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       >
         Как пользоваться Meldy
       </button>
-      <div className="sf-acct-sep" />
-      <button type="button" role="switch" aria-checked={stageMode} onClick={toggleStageMode} className="sf-acct-item">
-        <span>Показ на проекторе</span>
-        <span className="sf-acct-state">{stageMode ? 'вкл' : 'выкл'}</span>
-      </button>
-      {/* The daily limit itself is the meter in the line; here only the way to the plan. */}
-      {planKnown && !isPro ? (
-        <button type="button" className="sf-acct-item sf-acct-pro" onClick={openPro}>
-          Что даёт PRO
-        </button>
-      ) : null}
-      {planKnown && isPro ? (
-        <button type="button" className="sf-acct-item" onClick={openPro}>
-          <span>Тариф PRO</span>
-          <span className="sf-acct-state">включён</span>
-        </button>
-      ) : null}
-      {showInstall ? (
-        <button type="button" className="sf-acct-item" onClick={() => void handleInstallClick()}>
-          Установить приложение
-        </button>
-      ) : null}
-      <div className="sf-acct-sep" />
-      <button type="button" className="sf-acct-item" onClick={() => void signOut()}>
-        Выйти
-      </button>
+      {inTelegram ? null : (
+        <>
+          <div className="sf-acct-sep" />
+          <button type="button" role="switch" aria-checked={stageMode} onClick={toggleStageMode} className="sf-acct-item">
+            <span>Показ на проекторе</span>
+            <span className="sf-acct-state">{stageMode ? 'вкл' : 'выкл'}</span>
+          </button>
+          {/* The daily limit itself is the meter in the line; here only the way to the plan. */}
+          {planKnown && !isPro ? (
+            <button type="button" className="sf-acct-item sf-acct-pro" onClick={openPro}>
+              Что даёт PRO
+            </button>
+          ) : null}
+          {planKnown && isPro ? (
+            <button type="button" className="sf-acct-item" onClick={openPro}>
+              <span>Тариф PRO</span>
+              <span className="sf-acct-state">включён</span>
+            </button>
+          ) : null}
+          {showInstall ? (
+            <button type="button" className="sf-acct-item" onClick={() => void handleInstallClick()}>
+              Установить приложение
+            </button>
+          ) : null}
+          <div className="sf-acct-sep" />
+          <button type="button" className="sf-acct-item" onClick={() => void signOut()}>
+            Выйти
+          </button>
+        </>
+      )}
     </div>
   );
 
@@ -469,10 +480,14 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         usedTokens={quota.used ?? 0}
         isPro={isPro}
         limit={quotaLimit}
-        onOpenPro={() => {
-          setIsTokenModalOpen(false);
-          openProWindow('meter');
-        }}
+        onOpenPro={
+          inTelegram
+            ? undefined
+            : () => {
+                setIsTokenModalOpen(false);
+                openProWindow('meter');
+              }
+        }
       />
 
       <header ref={barRef} className="sf-bar">
@@ -534,7 +549,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
               ref={menuButtonRef}
               type="button"
               className="sf-me-hit"
-              aria-label={name ? `${name}: профиль, справка, выход` : 'Меню аккаунта'}
+              aria-label={name ? `${name}: ${inTelegram ? 'профиль, справка' : 'профиль, справка, выход'}` : 'Меню аккаунта'}
               aria-expanded={menuOpen}
               aria-controls={menuOpen ? menuId : undefined}
               onClick={() => setMenuOpen((value) => !value)}
@@ -543,8 +558,9 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
                 {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
               </span>
             </button>
-            {/* The theme in one press, right of the account (the owner asked for it there: the menu hid it). */}
-            <ThemeToggle />
+            {/* The theme in one press, right of the account (the owner asked for it there: the menu hid it). Inside
+                Telegram the theme is Telegram's. */}
+            {inTelegram ? null : <ThemeToggle />}
           </div>
           {accountMenu}
         </div>

@@ -55,9 +55,11 @@ function addThemeColorMetas() {
 const metaColors = () => Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(meta => meta.getAttribute('content'));
 
 let setThemeRef: ((theme: 'dark' | 'light' | 'system') => void) | null = null;
+let setForcedRef: ((theme: 'dark' | 'light' | null) => void) | null = null;
 function Probe() {
-  const { theme, resolved, setTheme } = useTheme();
+  const { theme, resolved, setTheme, setForcedTheme } = useTheme();
   setThemeRef = setTheme;
+  setForcedRef = setForcedTheme;
   return (
     <>
       <p>Тема: {theme}</p>
@@ -85,6 +87,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   setThemeRef = null;
+  setForcedRef = null;
+  document.documentElement.removeAttribute('data-tg-theme');
 });
 
 describe('ThemeProvider', () => {
@@ -191,5 +195,41 @@ describe('ThemeProvider', () => {
     expect(document.documentElement.className).toBe('dark');
     unmount();
     expect(listeners).toHaveLength(0);
+  });
+});
+
+describe('a theme forced from outside (Telegram\'s scheme in the Mini App)', () => {
+  it('wins over the stored choice and the device without touching the choice; null gives it back', () => {
+    window.localStorage.setItem(KEY, 'light');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    renderProvider();
+    expect(document.documentElement.className).toBe('light');
+    act(() => setForcedRef!('dark'));
+    expect(document.documentElement.className).toBe('dark');
+    expect(screen.getByText('Тема: light')).toBeInTheDocument();
+    expect(screen.getByText('На экране: dark')).toBeInTheDocument();
+    expect(metaColors()).toEqual([THEME_CANVAS.dark, THEME_CANVAS.dark]);
+    osDark = false;
+    deviceSwitches(false);
+    expect(document.documentElement.className).toBe('dark');
+    act(() => setForcedRef!(null));
+    expect(document.documentElement.className).toBe('light');
+    expect(setItem).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(KEY)).toBe('light');
+  });
+
+  it('starts with the one public/theme-init.js read from Telegram (html[data-tg-theme]): no frame in the stored theme', () => {
+    window.localStorage.setItem(KEY, 'light');
+    document.documentElement.setAttribute('data-tg-theme', 'dark');
+    renderProvider();
+    expect(document.documentElement.className).toBe('dark');
+    expect(screen.getByText('На экране: dark')).toBeInTheDocument();
+  });
+
+  it('ignores a data-tg-theme that is not a theme', () => {
+    window.localStorage.setItem(KEY, 'light');
+    document.documentElement.setAttribute('data-tg-theme', 'sepia');
+    renderProvider();
+    expect(document.documentElement.className).toBe('light');
   });
 });

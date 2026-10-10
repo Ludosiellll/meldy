@@ -1,0 +1,37 @@
+/* Telegram mode (lib/telegram/miniApp.ts; meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5). Every rule
+   hangs on html.tg-mode, which only a Telegram Mini App session sets: outside Telegram nothing here applies.
+
+   Telegram's script gives the safe areas as CSS variables (Bot API 8.0): --tg-safe-area-inset-* for the device (the
+   home indicator, the notch), --tg-content-safe-area-inset-* for Telegram's own controls. The site's bottom bars add
+   env(safe-area-inset-bottom), which a Telegram WebView may report as 0; here they take the larger of the two. */
+html.tg-mode {
+  --tg-bottom: max(env(safe-area-inset-bottom), var(--tg-safe-area-inset-bottom, 0px));
+  min-height: var(--tg-viewport-stable-height, 100vh);
+  overscroll-behavior-y: none;
+}
+html.tg-mode body {
+  min-height: var(--tg-viewport-stable-height, 100vh);
+  overscroll-behavior-y: none;
+  padding-top: var(--tg-content-safe-area-inset-top, 0px);
+  padding-right: var(--tg-safe-area-inset-right, 0px);
+  padding-left: var(--tg-safe-area-inset-left, 0px);
+}
+
+/* The bottom bars of the way «Сегодня» → «занятие»: the tab bar, the exam page's «Начать», the session's bar. */
+@media (max-width: 1023px) {
+  html.tg-mode .sf-shell .sf-tabbar {
+    height: calc(var(--sf-tabs-h) + var(--tg-bottom));
+    padding-bottom: var(--tg-bottom);
+  }
+  html.tg-mode .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + var(--tg-bottom)); }
+}
+html.tg-mode .ct-cta { padding-bottom: calc(12px + var(--tg-bottom)); }
+html.tg-mode .ct-page:has(> .ct-cta) { padding-bottom: calc(112px + var(--tg-bottom)); }
+html.tg-mode .ct-bar { padding-bottom: calc(12px + var(--tg-bottom)); }
+
+/* Telegram's «Назад» stands in for the page's own way back. */
+html.tg-mode .ct-crumb,
+html.tg-mode .sc-crumb { display: none; }
+
+/* PRO is not sold inside Telegram (digital goods there go through Telegram Stars): its line in the limit's window. */
+html.tg-mode .ac-limit-pro { display: none; }

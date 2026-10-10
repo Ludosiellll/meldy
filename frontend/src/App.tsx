@@ -9,6 +9,8 @@ import { ProWindowProvider } from './components/pro/ProWindow';
 import { layoutPart, preloadSignedInScreen } from './lib/prefetch';
 import { useLazyPart } from './lib/lazyPart';
 import { joinPath, loginFor, pendingJoin } from './lib/returnTo';
+import { MINI_APP_PATH, useMiniApp } from './lib/telegram/miniApp';
+import TelegramChrome from './components/telegram/TelegramChrome';
 // The reel's and the guide's styles stay in the first stylesheet, in their order ahead of the kit, as
 // before the shell became a file of its own. Rules of equal weight decide by order: the guide's stage
 // size wins over the reel's (.gd-stage after .mr-stage), and the kit's hover and current-page look of
@@ -54,6 +56,9 @@ const MockPage = lazy(() => import('./pages/container/MockPage'));
 const KeysPage = lazy(() => import('./pages/container/KeysPage'));
 const SettingsPage = lazy(() => import('./pages/container/SettingsPage'));
 const JoinContainerPage = lazy(() => import('./pages/container/JoinContainerPage'));
+// Meldy as a Telegram Mini App (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md): the bot opens /tg.
+const TelegramMiniApp = lazy(() => import('./pages/TelegramMiniApp'));
+const MiniAppImportNote = lazy(() => import('./components/telegram/MiniAppImportNote'));
 
 /**
  * The answer screen («Ответ вслух», /exams/:id/ticket) is built by its own package. The glob keeps
@@ -90,6 +95,7 @@ function SignedInShell() {
 export function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, requestSession } = useAuth();
   const { pathname, search } = useLocation();
+  const mini = useMiniApp();
   // While the session is checked, the shell and the page start loading together (lib/prefetch.ts).
   useEffect(() => {
     requestSession?.();
@@ -98,8 +104,13 @@ export function PrivateRoute({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (loading) return <RouteLoading />;
+  if (user) return <>{children}</>;
+  // Inside Telegram the way in is Telegram's own (/tg): the sign-in page's Google refuses Telegram's WebView. While
+  // Telegram's script is loading it is not known yet whether this is Telegram.
+  if (mini.status === 'loading') return <RouteLoading />;
+  if (mini.status === 'on') return <Navigate to={MINI_APP_PATH} replace />;
   // Signed out: the sign-in page, which brings the visitor back to this page afterwards (lib/returnTo).
-  return user ? <>{children}</> : <Navigate to={loginFor(pathname, search)} replace />;
+  return <Navigate to={loginFor(pathname, search)} replace />;
 }
 
 /**
@@ -129,9 +140,19 @@ export function ExamsNewRedirect() {
   return <Navigate to={{ pathname: '/exams/import', search, hash }} state={state} replace />;
 }
 
+/**
+ * Files are added on the site: inside Telegram (lib/telegram/miniApp) the import page says so and opens the site in
+ * the browser (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5). Elsewhere it is the import page.
+ */
+export function ImportRoute() {
+  return useMiniApp().status === 'on' ? <MiniAppImportNote /> : <ImportPage />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Inside Telegram only: Telegram's theme and «Назад» (outside Telegram it renders and does nothing). */}
+      <TelegramChrome />
       <PWAUpdater />
       <ProWindowProvider />
       <IdlePrefetch />
@@ -163,6 +184,8 @@ export default function App() {
         <Route path="/try/*" element={<TryExample />} />
         <Route path="/check" element={<Check />} />
         <Route path="/exams/new" element={<ExamsNewRedirect />} />
+        {/* The Mini App's door: Telegram's sign-in, then «Сегодня» and the session (pages/TelegramMiniApp.tsx). */}
+        <Route path={MINI_APP_PATH} element={<TelegramMiniApp />} />
         <Route path="/" element={
           <PrivateRoute><SignedInShell /></PrivateRoute>
         }>
@@ -176,7 +199,7 @@ export default function App() {
           <Route path="exams" element={<Exams />} />
           {/* The exam container. Static segments outrank :id, so /exams/c/… and /exams/import never reach the oral
               pages below; listed first, these also win the ties of equal rank (/exams/c/draw opens a container). */}
-          <Route path="exams/import" element={<ImportPage />} />
+          <Route path="exams/import" element={<ImportRoute />} />
           <Route path="exams/c/:id" element={<ContainerPage />} />
           <Route path="exams/c/:id/s/:subjectId" element={<SubjectPage />} />
           <Route path="exams/c/:id/study" element={<StudyPage />} />

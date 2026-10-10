@@ -1,0 +1,35 @@
+/* /tg (pages/TelegramMiniApp.tsx): one card on the canvas with the sign-in page's form (.au-* in styles/legacy.css).
+   The height follows Telegram's stable viewport (--tg-viewport-stable-height, set by telegram-web-app.js). */
+.au.tg-app {
+  grid-template-rows: minmax(0, 1fr);
+  min-height: var(--tg-viewport-stable-height, 100dvh);
+}
+.tg-app-main {
+  display: grid;
+  align-content: start;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px var(--au-g) calc(24px + var(--tg-safe-area-inset-bottom, 0px));
+}
+.au-card.tg-app-card { justify-content: flex-start; }
+.tg-app-wait { margin: 0; font-size: 17px; line-height: 1.45; color: var(--sf-muted); }
+.au-foot.tg-app-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px 16px;
+  text-align: left;
+}
+.tg-app-google { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
+.tg-app-note { margin: 0 0 12px; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.tg-app-out { width: 100%; justify-content: center; }
+.tg-app-acts { display: grid; justify-items: start; gap: 12px; margin-top: 24px; }
+.tg-app-acts .au-submit { width: 100%; }
+
+/* /exams/import inside Telegram (components/telegram/MiniAppImportNote.tsx): files are added on the site. */
+.sf-page.tg-note { max-width: calc(560px + 2 * var(--sf-g)); padding-top: 56px; }
+.tg-note-h { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.028em; text-wrap: balance; }
+.tg-note-p { margin: 12px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.tg-note-go { margin-top: 28px; }
