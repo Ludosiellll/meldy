@@ -269,7 +269,9 @@
   color: var(--sf-ink);
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
   font-family: var(--ph-sans);
-  animation: ct-rise .28s var(--m-ease) both;
+  /* «backwards», not «both»: a transform that stays filled after the rise makes the sheet the containing block of
+     fixed children, and its scroll would cut an open list again (PaperSelect, usability check M2). */
+  animation: ct-rise .28s var(--m-ease) backwards;
 }
 .ct-sheet:focus { outline: none; }
 .ct-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
