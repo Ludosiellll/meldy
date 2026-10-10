@@ -117,20 +117,131 @@
 .gs-when { position: absolute; left: 0; right: 0; top: 870px; margin: 0; text-align: center; font-size: 38px; font-weight: 500; color: var(--ink); }
 
 /* ------------------------------------------------------------------ «Экзамены» */
-.gs-sheet { left: 80px; top: 330px; width: 1280px; padding: 20px 44px; }
-.gs-q { display: flex; align-items: center; gap: 28px; height: 104px; border-bottom: 1px solid #ecece6; }
-.gs-q:last-child { border-bottom: 0; }
-.gs-q-n { width: 40px; font-size: 32px; }
-.gs-q-t { flex: 1; font-size: 40px; color: var(--ink); }
-.gs-sheet-draw { position: absolute; left: 80px; top: 820px; }
-.gs-ticket { left: 140px; top: 300px; width: 1160px; height: 560px; padding: 56px 60px; box-shadow: 0 0 0 1px #e4e4de, 0 60px 120px -50px rgba(16, 41, 90, .45); }
-.gs-ticket-q { margin-top: 30px; font-size: 76px; }
-.gs-voice-row { position: absolute; left: 60px; right: 60px; bottom: 56px; display: flex; align-items: center; gap: 30px; }
-.gs-wave { display: flex; align-items: center; gap: 9px; height: 96px; }
-.gs-wave i { width: 8px; height: 96px; border-radius: 4px; background: var(--ink); transform-origin: 50% 50%; }
-.gs-stamp { position: absolute; right: 56px; top: 50px; display: grid; place-items: center; width: 320px; height: 128px; font-size: 42px; font-weight: 600; color: var(--ink); }
-.gs-stamp svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.gs-stamp path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+/* Three screens on one stage: «Новый экзамен», the exam's page, the «занятие». The top line stays while the page
+   under it changes; the «занятие» has its own line (a room: no menu). */
+.gs-ex-screen { position: absolute; inset: 0; }
+.gs-ex-link { text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(11, 18, 28, .3); text-underline-offset: 9px; }
+.gs-ex-chev { width: 40px; height: 40px; flex: none; }
+.gs-ex-chev path { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* Rows of one card inside a card (the reading list, the subjects): a white plate with a hairline. */
+.gs-ex-rows {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+  margin-top: 34px;
+  padding: 0 36px 0 40px;
+  border-radius: 30px;
+  background: #fff;
+  box-shadow: 0 0 0 2px #e4e4de;
+}
+
+/* 1 · «Новый экзамен»: the card to drop a file on, what was found in it; the date and the minutes beside it. */
+.gs-ex-pick { left: 80px; top: 296px; width: 860px; height: 440px; }
+.gs-ex-pickin { position: absolute; left: 60px; right: 60px; top: 56px; }
+.gs-ex-pick-h { margin: 0; font-size: 52px; font-weight: 500; line-height: 1.08; letter-spacing: -.032em; color: var(--ink); }
+.gs-ex-pick-sub { max-width: 700px; margin: 22px 0 0; font-size: 32px; line-height: 1.38; }
+.gs-ex-pick-go { margin-top: 46px; }
+/* While a file is over the card (the import's own drag state): a dashed frame in the app's blue and what a drop does. */
+.gs-ex-dropping {
+  position: absolute;
+  inset: 20px;
+  display: grid;
+  place-items: start center;
+  margin: 0;
+  padding: 92px 60px 0;
+  border: 4px dashed rgba(40, 105, 221, .7);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, .92);
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--ink);
+}
+.gs-ex-file { height: 116px; }
+.gs-ex-file-name { font-size: 36px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.gs-ex-file-status { display: grid; font-size: 32px; white-space: nowrap; }
+.gs-ex-file-status > span { grid-area: 1 / 1; justify-self: end; }
+.gs-ex-subject { height: 156px; }
+.gs-ex-subject-t { font-size: 42px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+.gs-ex-subject-t small { display: block; margin-top: 8px; font-size: 30px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.gs-ex-dropfile { left: 230px; top: 564px; width: 520px; }
+.gs-ex-form { position: absolute; left: 990px; top: 296px; width: 370px; }
+.gs-ex-field { display: grid; gap: 14px; margin-bottom: 36px; }
+.gs-ex-label { font-size: 28px; font-weight: 500; }
+.gs-ex-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 90px;
+  padding: 0 24px 0 30px;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 0 0 2px #e4e4de;
+  font-size: 36px;
+  color: var(--ink);
+}
+.gs-ex-hint { margin-top: 2px; font-size: 27px; line-height: 1.38; color: var(--ink); text-wrap: pretty; }
+.gs-ex-save { position: absolute; left: 80px; top: 796px; }
+
+/* 2 · The exam's page: today's plan in the white card with the screen's one yellow line, the pill on its right. */
+.gs-ex-plan { left: 80px; top: 332px; width: 1280px; padding: 50px 50px 46px 60px; }
+.gs-ex-plan-t { margin: 0; font-size: 52px; font-weight: 500; line-height: 1.16; letter-spacing: -.03em; color: var(--ink); white-space: nowrap; }
+.gs-ex-plan-row { display: flex; align-items: center; justify-content: space-between; gap: 40px; margin-top: 30px; }
+.gs-ex-mark { position: relative; z-index: 0; white-space: nowrap; }
+.gs-ex-mark svg { position: absolute; z-index: -1; left: -1%; bottom: -.1em; width: 102%; height: .34em; overflow: visible; }
+.gs-ex-mark path { fill: none; stroke: var(--yellow); stroke-width: 13px; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; vector-effect: non-scaling-stroke; }
+.gs-ex-plan-links { display: flex; gap: 44px; margin: 0; font-size: 32px; color: var(--ink); white-space: nowrap; }
+.gs-ex-plan-links span { display: inline-block; text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(11, 18, 28, .3); text-underline-offset: 9px; }
+.gs-ex-start { flex: none; font-size: 31px; }
+/* «План по дням»: the sheet over the page, a card in the middle (as on a computer). */
+.gs-ex-dim { position: absolute; inset: 0; background: var(--ink); }
+.gs-ex-sheet { left: 120px; top: 236px; width: 1200px; padding: 46px 56px 42px; box-shadow: 0 0 0 1px #e4e4de, 0 60px 120px -50px rgba(16, 41, 90, .45); }
+.gs-ex-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 30px; }
+.gs-ex-sheet-t { margin: 0; font-size: 46px; font-weight: 500; letter-spacing: -.03em; color: var(--ink); }
+.gs-ex-sheet-x { font-size: 30px; text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(75, 81, 91, .35); text-underline-offset: 9px; }
+.gs-ex-days { margin: 20px 0 0; padding: 0; list-style: none; }
+.gs-ex-days li { padding: 20px 0; border-top: 2px solid #ecece6; font-size: 35px; line-height: 1.32; color: var(--ink); }
+.gs-ex-days li:first-child { padding-top: 6px; border-top: 0; }
+.gs-ex-skip { margin: 16px 0 0; font-size: 29px; line-height: 1.35; }
+
+/* 3 · The «занятие»: its own top line, the question in a column, the options as rows of one card, the verdict above
+   «Дальше» in the bar at the bottom. */
+.gs-ex-roombar { position: absolute; left: 64px; right: 64px; top: 44px; display: flex; align-items: center; gap: 34px; height: 84px; }
+.gs-ex-roombar-mark { font-size: 44px; }
+.gs-ex-roombar-where { font-size: 32px; color: var(--muted); white-space: nowrap; }
+.gs-ex-roombar-exit { margin-left: auto; font-size: 30px; color: var(--muted); text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(75, 81, 91, .35); text-underline-offset: 9px; }
+.gs-ex-ctx { position: absolute; left: 200px; top: 176px; display: grid; margin: 0; font-size: 30px; }
+.gs-ex-ctx > span { grid-area: 1 / 1; white-space: nowrap; }
+.gs-ex-stem { position: absolute; left: 200px; top: 226px; width: 1040px; margin: 0; font-size: 50px; font-weight: 500; line-height: 1.2; letter-spacing: -.024em; color: var(--ink); }
+.gs-ex-opts { left: 200px; top: 392px; width: 1040px; overflow: hidden; }
+.gs-ex-opt { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; height: 104px; padding: 0 44px; font-size: 40px; color: var(--ink); }
+.gs-ex-opt + .gs-ex-opt { border-top: 2px solid #ecece6; }
+.gs-ex-opt-l { font-weight: 600; color: var(--muted); }
+.gs-ex-opt-t { position: relative; }
+.gs-ex-opt-t b { position: absolute; left: 0; top: 100%; margin-top: 2px; font-size: 26px; font-weight: 600; color: #2c6b3a; white-space: nowrap; }
+.gs-ex-opt.is-right { background: #e2f2e5; box-shadow: inset 8px 0 0 #8acb97; }
+.gs-ex-opt.is-right .gs-ex-opt-l { color: var(--ink); }
+.gs-ex-opt.is-right .gs-ex-opt-t { transform: translateY(-15px); }
+.gs-ex-dontknow { position: absolute; left: 200px; top: 848px; margin: 0; font-size: 32px; color: var(--ink); }
+.gs-ex-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 892px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  /* Clear of the clip's own play button in the corner. */
+  padding: 0 260px 0 200px;
+  border-top: 2px solid #e4e4de;
+  background: #fbfbf9;
+}
+.gs-ex-verdict { flex: 1 1 auto; margin: 0; font-size: 42px; font-weight: 500; color: #2c6b3a; }
+.gs-ex-next { flex: none; min-width: 360px; justify-content: space-between; }
 
 /* ------------------------------------------------------------------ «Прогресс» */
 .gs-tile { top: 280px; width: 400px; height: 430px; padding: 44px 44px; }

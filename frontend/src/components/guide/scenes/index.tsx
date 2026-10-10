@@ -1,14 +1,18 @@
 /**
  * The guide's clips in the film style (components/film): a statement over the section's screen out
  * of focus, then the screen comes sharp and does the one thing the section is for. 4:3 stage,
- * 1440 × 1080, 6.4 s loops that start and end on empty paper. Example data, the screens' own words.
+ * 1440 × 1080, 6.4 s loops that start and end on empty paper (the exams' clip is longer: it goes
+ * from a file to the first answer). Example data, the screens' own words.
  */
 import { useRef, type ComponentType, type ReactNode } from 'react';
-import { blur, opacity, place, put, text as setText, useEls, useFrame } from '../../reel/engine';
+import { blur, flag, opacity, put, text as setText, useEls, useFrame } from '../../reel/engine';
 import { Counter } from '../../reel/parts';
 import { clamp, ease, mix, pulse, seg } from '../../reel/timeline';
-import { Arrow, MicIcon, Statement, UploadIcon, Wordmark, focusIn, keyed, pressDepth, slideIn, slideOut } from '../../film/kit';
+import { Arrow, Statement, UploadIcon, Wordmark, focusIn, keyed, pressDepth, slideIn, slideOut } from '../../film/kit';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../../lib/plans';
+import { SKIP_NOTE, dayRowText, dayText, lineText, startLabel } from '../../../lib/containers/words';
+import * as copy from '../../containers/copy';
+import { IMPORT, KEY_WORDS, nb } from '../../containers/copyImport';
 import { plural } from '../../pro/planCopy';
 import type { GuideChapterId } from '../chapters';
 import './scenes.css';
@@ -18,12 +22,12 @@ export const CLIP = 6400;
 const FOCUS = 1900;
 
 /** The common choreography: the screen out of focus behind the words, then sharp, then gone. */
-function Beat({ lines, children }: { lines: readonly string[]; children: ReactNode }) {
+function Beat({ lines, total = CLIP, children }: { lines: readonly string[]; total?: number; children: ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
   const { one } = useEls(root);
   useFrame((l) => {
     const pull = ease.inOut(seg(l, FOCUS, 650));
-    const out = ease.in(seg(l, CLIP - 760, 600));
+    const out = ease.in(seg(l, total - 760, 600));
     const ui = one('ui');
     put(ui, 'filter', `blur(${(mix(18, 0, pull) + 20 * out).toFixed(2)}px)`);
     put(ui, 'transform', `scale(${(mix(1.06, 1, pull) * mix(1, 0.97, out)).toFixed(4)})`);
@@ -323,80 +327,336 @@ function Review() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// «Экзамены»
+// «Экзамены»: the exam as a new student meets it, on three screens. «Новый экзамен»: a file of
+// questions goes in, Meldy finds them and the key (the file's bold), the date and the minutes; the
+// exam's page: today's plan and «План по дням» up to the date; «Начать», and the first question
+// answered. Every word is the screens' own (copyImport.ts, containers/copy.ts, the plan's words.ts);
+// the plan's numbers are the study engine's for the example file (Guide.test plans it and compares).
 
-const QUESTIONS: Array<[string, 'ok' | 'half' | 'no', string]> = [
-  ['Спрос и предложение', 'ok', 'есть в лекциях'],
-  ['Эластичность спроса', 'ok', 'есть в лекциях'],
-  ['Монополия', 'half', 'частично'],
-  ['Инфляция', 'no', 'нет ни в одной'],
-];
-const BARS = Array.from({ length: 22 }, (_, index) => index);
+/** The exam's clip goes from a file to the first answer: longer than the others. */
+export const EXAMS_CLIP = 10800;
+
+/** The example: a file of 400 questions with the answers in bold, the exam on 1 November, 30 minutes a day. */
+export const EXAMS_EXAMPLE = {
+  subject: 'Микроэкономика',
+  file: 'Микроэкономика.docx',
+  questions: 400,
+  /** Planned on this day (the dates of the rows below). */
+  today: '2026-10-10',
+  date: '2026-11-01',
+  /** As the date field shows it. */
+  dateField: '01.11.2026',
+  minutes: 30,
+} as const;
+
+const NB = '\u00a0';
+/** The plan the engine makes for the example (lib/containers/plan.ts planDay and daysAhead on 10 October). */
+export const EXAMS_PLAN = {
+  /** planTitle: the yellow line is under «38 вопросов». */
+  title: [`Сегодня `, `38${NB}вопросов`, `, около 30${NB}минут`] as const,
+  start: startLabel(20, 15, null),
+  days: [
+    dayRowText({ from: '2026-10-10', to: '2026-10-27', kind: 'study', minutes: 30 }),
+    dayRowText({ from: '2026-10-28', to: '2026-10-31', kind: 'window', minutes: null }),
+    dayRowText({ from: '2026-11-01', to: '2026-11-01', kind: 'exam', minutes: null }),
+  ],
+  /** The import's line under «Время в день» (minutesLines `need`). */
+  need: lineText({ key: 'need', n: [400, 30, 400], day: '2026-11-01' }),
+  /** The exam's meta line: the date, the days to it and the size. */
+  meta: copy.metaLine(copy.examDay(dayText('2026-11-01'), 22), 400, null),
+};
+
+/** The first question of the first «занятие»: its options in the order shown, the right one, its number and topic. */
+export const EXAMS_QUESTION = {
+  stem: 'Как называется ситуация, когда спрос превышает предложение?',
+  options: ['Излишек', 'Дефицит', 'Равновесие', 'Инфляция'],
+  right: 1,
+  no: '57',
+  topic: '2',
+} as const;
+
+/** Scene times (ms) of the exams' clip. */
+export const EX = {
+  /** The file comes in from the right and is over the card here: «Отпустите файлы — Meldy разберёт их». */
+  fileIn: 2150,
+  drag: 2620,
+  /** Dropped: «Читаем 1 файл». */
+  drop: 3050,
+  /** «Нашли 400 вопросов», the date and the minutes. */
+  found: 3500,
+  save: 4350,
+  /** The exam's page comes in. */
+  page: 4550,
+  days: 5450,
+  daysOut: 7450,
+  start: 7850,
+  /** The first question comes in. */
+  room: 8050,
+  answer: 8850,
+} as const;
+
+/** A row of the reading list or of the preview: in focus from `at`. */
+function focusRow(el: HTMLElement | undefined, l: number, at: number) {
+  const p = ease.out(seg(l, at, 380));
+  opacity(el, clamp(seg(l, at, 380) * 2.5));
+  put(el, 'filter', p >= 1 ? 'none' : `blur(${(8 * (1 - p)).toFixed(2)}px)`);
+}
+
+/** Shown from `from` to `to`, faded in and out over `fade` ms at its edges. */
+const between = (l: number, from: number, to: number, fade = 160) => seg(l, from, fade) * (1 - seg(l, to, fade));
+
+/**
+ * A screen that gives way to the next one: it slides aside, out of focus, and is gone within a third of a second, so
+ * the next screen never lands on its words. It owns the element's transform, opacity and filter (as slideOut).
+ */
+function leave(el: HTMLElement | undefined, l: number, at: number) {
+  const p = seg(l, at, 420);
+  if (p <= 0) {
+    put(el, 'transform', 'none');
+    opacity(el, 1);
+    blur(el, 0);
+    return;
+  }
+  put(el, 'transform', `translate3d(${(-240 * ease.in(p)).toFixed(1)}px,0,0)`);
+  opacity(el, 1 - ease.out(seg(l, at, 300)));
+  blur(el, 18 * ease.out(p));
+}
+
+/** The next screen comes in from the right as the previous one leaves. */
+const arrive = (el: HTMLElement | undefined, l: number, at: number) => slideIn(el, l, at + 160, { dx: 220, dur: 640, smear: 14 });
 
 function Exams() {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
   useFrame((l) => {
-    all('st').forEach((chip, index) => slideIn(chip, l, 2500 + index * 220, { dx: 50, dur: 460, smear: 8 }));
-    put(one('draw'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, 3600)).toFixed(3)})`);
-    opacity(one('draw'), 1 - seg(l, 3800, 240));
-    slideIn(one('ticket'), l, 3750, { dy: 420, dur: 680, smear: 16 });
-    put(one('voice'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, 4450)).toFixed(3)})`);
-    const talk = seg(l, 4550, 150) * (1 - seg(l, 5250, 200));
-    all('bar').forEach((bar, index) => {
-      const wave = 0.5 + 0.5 * Math.sin(l / 85 + index * 0.8) * Math.sin(l / 240 + index * 0.33);
-      put(bar, 'transform', `scaleY(${(0.1 + 0.9 * wave * talk).toFixed(3)})`);
+    // 1 · «Новый экзамен»: the file comes in from the right, over the card, and drops.
+    const file = one('file');
+    if (l < EX.drop) slideIn(file, l, EX.fileIn, { dx: 760, dy: 40, dur: 640, smear: 22 });
+    else {
+      const drop = ease.in(seg(l, EX.drop, 260));
+      put(file, 'transform', `translate3d(0,${(26 * drop).toFixed(1)}px,0) scale(${mix(1, 0.86, drop).toFixed(4)})`);
+      put(file, 'filter', 'none');
+      opacity(file, 1 - drop);
+    }
+    // Over the card the page says what a drop does (the import's own drag state).
+    opacity(one('dropping'), between(l, EX.drag, EX.drop, 120));
+    opacity(one('pick'), 1 - seg(l, EX.drag, 120));
+    // «Читаем 1 файл», its row «читаем…», then what was found in it.
+    opacity(one('reading'), between(l, EX.drop + 120, EX.found - 40));
+    focusRow(one('readrow'), l, EX.drop + 160);
+    opacity(one('readwait'), 1 - seg(l, EX.found - 180, 100));
+    opacity(one('readdone'), seg(l, EX.found - 160, 100));
+    opacity(one('found'), seg(l, EX.found, 200));
+    focusRow(one('subject'), l, EX.found + 120);
+    all('field').forEach((field, index) => slideIn(field, l, EX.found + 200 + index * 140, { dx: 60, dur: 520, smear: 8 }));
+    put(one('save'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, EX.save)).toFixed(3)})`);
+    opacity(one('savea'), 1 - seg(l, EX.save + 40, 120));
+    opacity(one('saveb'), seg(l, EX.save + 40, 120));
+    leave(one('import'), l, EX.page);
+
+    // 2 · The exam's page: today's plan, the yellow line, «План по дням» up to the date, «Начать».
+    arrive(one('pagein'), l, EX.page);
+    const mark = seg(l, EX.page + 500, 700);
+    put(one('mark'), 'stroke-dashoffset', (1 - ease.inOut(mark)).toFixed(4));
+    opacity(one('mark'), mark > 0 ? 1 : 0);
+    put(one('dayslink'), 'transform', `scale(${(1 - 0.08 * pressDepth(l, EX.days)).toFixed(3)})`);
+    opacity(one('dim'), 0.22 * ease.inOut(seg(l, EX.days + 100, 380)) * (1 - ease.inOut(seg(l, EX.daysOut, 380))));
+    if (l < EX.daysOut) slideIn(one('sheet'), l, EX.days + 100, { dy: 420, dur: 640, smear: 14 });
+    else slideOut(one('sheet'), l, EX.daysOut, { dy: 520, dur: 440, smear: 14 });
+    all('dayrow').forEach((row, index) => focusRow(row, l, EX.days + 330 + index * 100));
+    put(one('start'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, EX.start)).toFixed(3)})`);
+    leave(one('page'), l, EX.room);
+
+    // 3 · The «занятие»: its own top line, the question, «Дефицит» — and the verdict.
+    opacity(one('strip'), 1 - seg(l, EX.room, 240));
+    opacity(one('roombar'), seg(l, EX.room + 260, 300));
+    arrive(one('room'), l, EX.room);
+    const answered = l >= EX.answer;
+    all('opt').forEach((opt, index) => {
+      const right = index === EXAMS_QUESTION.right;
+      put(opt, 'transform', `scale(${(1 - (right ? 0.025 * pressDepth(l, EX.answer) : 0)).toFixed(3)})`);
+      flag(opt, 'is-right', right && answered);
     });
-    opacity(one('wave'), seg(l, 4500, 200));
-    const stamp = seg(l, 5250, 420);
-    place(one('stamp'), 0, 0, mix(1.5, 1, ease.back(stamp)), -7);
-    opacity(one('stamp'), clamp(stamp * 3));
-    put(one('oval'), 'stroke-dashoffset', (1 - ease.out(seg(l, 5300, 520))).toFixed(4));
+    opacity(one('tag'), seg(l, EX.answer + 40, 160));
+    opacity(one('ctxa'), 1 - seg(l, EX.answer, 120));
+    opacity(one('ctxb'), seg(l, EX.answer, 160));
+    opacity(one('dontknow'), 1 - seg(l, EX.answer, 120));
+    slideIn(one('bar'), l, EX.answer + 120, { dy: 60, dur: 520, smear: 8 });
   });
+  const pill = (label: string) => (
+    <>
+      {label}
+      <i>
+        <Arrow />
+      </i>
+    </>
+  );
   return (
     <div ref={root} className="mr-scene">
-      <Beat lines={['Билет —', 'как на экзамене.']}>
-        <Strip items={['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']} on="Экзамены" />
-        <p className="fm-h1 gs-h1">Микроэкономика</p>
-        <p className="gs-lede fm-muted">Экзамен 15 октября, через 12 дней · 40 вопросов</p>
-        <div className="fm-card gs-sheet">
-          {QUESTIONS.map(([text, kind, word], index) => (
-            <div key={text} className="gs-q">
-              <span className="gs-q-n fm-muted">{index + 1}</span>
-              <span className="gs-q-t">{text}</span>
-              <span data-a="st" className={`fm-st fm-st--${kind}`} style={{ opacity: 0 }}>
-                <b />
-                {word}
-              </span>
-            </div>
-          ))}
+      <Beat lines={['Загрузите', 'вопросы.']} total={EXAMS_CLIP}>
+        <div data-a="strip">
+          <Strip items={['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']} on="Экзамены" />
         </div>
-        <span data-a="draw" className="fm-btn fm-btn--blue gs-sheet-draw">
-          Тянуть билет
-          <i>
-            <Arrow />
-          </i>
-        </span>
-        <div data-a="ticket" className="fm-card gs-ticket" style={{ opacity: 0 }}>
-          <span className="fm-st fm-st--ink">Билет 12 · вопрос 1 из 2</span>
-          <p className="fm-h1 gs-ticket-q">Эластичность спроса</p>
-          <div className="gs-voice-row">
-            <span data-a="voice" className="fm-btn fm-btn--blue">
-              <MicIcon />
-              Отвечать голосом
+        <div data-a="roombar" className="gs-ex-roombar" style={{ opacity: 0 }}>
+          <Wordmark className="gs-ex-roombar-mark" />
+          <span className="gs-ex-roombar-where">{copy.glue(`${EXAMS_EXAMPLE.subject} · ${copy.counter(1, 20)}`)}</span>
+          <span className="gs-ex-roombar-exit">{copy.FINISH}</span>
+        </div>
+
+        {/* 1 · «Новый экзамен» */}
+        <div data-a="import" className="gs-ex-screen">
+          <p className="fm-h1 gs-h1">{IMPORT.title}</p>
+          <div className="fm-card gs-ex-pick">
+            <div data-a="pick" className="gs-ex-pickin">
+              <p className="gs-ex-pick-h">{IMPORT.dropTitle}</p>
+              <p className="gs-ex-pick-sub fm-muted">{nb(IMPORT.dropLede)}</p>
+              <span className="fm-btn fm-btn--blue gs-ex-pick-go">{pill(IMPORT.pick)}</span>
+            </div>
+            <p data-a="dropping" className="gs-ex-dropping" style={{ opacity: 0 }}>
+              {IMPORT.dropping}
+            </p>
+            <div data-a="reading" className="gs-ex-pickin" style={{ opacity: 0 }}>
+              <p className="gs-ex-pick-h">{nb(IMPORT.reading(1))}</p>
+              <div data-a="readrow" className="gs-ex-rows gs-ex-file" style={{ opacity: 0 }}>
+                <span className="gs-ex-file-name">{EXAMS_EXAMPLE.file}</span>
+                <span className="gs-ex-file-status fm-muted">
+                  <span data-a="readwait">{IMPORT.readingWait}</span>
+                  <span data-a="readdone" style={{ opacity: 0 }}>
+                    {nb(IMPORT.fileFound(EXAMS_EXAMPLE.questions))}
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div data-a="found" className="gs-ex-pickin" style={{ opacity: 0 }}>
+              <p className="gs-ex-pick-h">{nb(IMPORT.found(1, EXAMS_EXAMPLE.questions))}</p>
+              <div data-a="subject" className="gs-ex-rows gs-ex-subject" style={{ opacity: 0 }}>
+                <span className="gs-ex-subject-t">
+                  {EXAMS_EXAMPLE.subject}
+                  <small>{nb(`${IMPORT.rowTest(EXAMS_EXAMPLE.questions)} · ${KEY_WORDS.bold}`)}</small>
+                </span>
+                <svg className="gs-ex-chev" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M8 5l5 5-5 5" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="gs-ex-form">
+            <div data-a="field" className="gs-ex-field" style={{ opacity: 0 }}>
+              <span className="gs-ex-label fm-muted">{IMPORT.date}</span>
+              <span className="gs-ex-input">{EXAMS_EXAMPLE.dateField}</span>
+            </div>
+            <div data-a="field" className="gs-ex-field" style={{ opacity: 0 }}>
+              <span className="gs-ex-label fm-muted">{IMPORT.minutes}</span>
+              <span className="gs-ex-input gs-ex-select">
+                {IMPORT.minuteOption(EXAMS_EXAMPLE.minutes)}
+                <svg className="gs-ex-chev" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M5 8l5 5 5-5" />
+                </svg>
+              </span>
+              <span className="gs-ex-hint">{EXAMS_PLAN.need}</span>
+            </div>
+          </div>
+          <span data-a="save" className="fm-btn fm-btn--blue gs-ex-save">
+            <span className="gs-run-t">
+              <span data-a="savea">{IMPORT.save}</span>
+              <span data-a="saveb" style={{ opacity: 0 }}>
+                {IMPORT.saving}
+              </span>
             </span>
-            <span data-a="wave" className="gs-wave" style={{ opacity: 0 }}>
-              {BARS.map((index) => (
-                <i key={index} data-a="bar" />
-              ))}
+            <i>
+              <Arrow />
+            </i>
+          </span>
+          <div data-a="file" className="fm-file gs-ex-dropfile" style={{ opacity: 0 }}>
+            <span className="fm-sheet-ico" />
+            <span>
+              {EXAMS_EXAMPLE.file}
+              <small>DOCX</small>
             </span>
           </div>
-          <span data-a="stamp" className="gs-stamp" style={{ opacity: 0 }}>
-            <svg viewBox="0 0 400 160" aria-hidden="true">
-              <path data-a="oval" pathLength={1} d="M200 12 C 320 10, 392 46, 386 84 C 380 128, 300 152, 196 148 C 84 146, 10 120, 14 78 C 18 36, 92 14, 214 16" />
-            </svg>
-            Проверено
-          </span>
+        </div>
+
+        {/* 2 · The exam's page */}
+        <div data-a="page" className="gs-ex-screen">
+          <div data-a="pagein" className="gs-ex-screen" style={{ opacity: 0 }}>
+            <p className="fm-h1 gs-h1">{EXAMS_EXAMPLE.subject}</p>
+            <p className="gs-lede fm-muted">{EXAMS_PLAN.meta}</p>
+            <div className="fm-card gs-ex-plan">
+              <p className="gs-ex-plan-t">
+                {EXAMS_PLAN.title[0]}
+                <span className="gs-ex-mark">
+                  {EXAMS_PLAN.title[1]}
+                  <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true">
+                    <path data-a="mark" pathLength={1} d="M4 15 C 80 7, 170 6, 262 10 S 362 15, 396 8" style={{ opacity: 0 }} />
+                  </svg>
+                </span>
+                {EXAMS_PLAN.title[2]}
+              </p>
+              <div className="gs-ex-plan-row">
+                <p className="gs-ex-plan-links">
+                  <span data-a="dayslink">{copy.PLAN_BY_DAYS}</span>
+                </p>
+                <span data-a="start" className="fm-btn fm-btn--blue gs-ex-start">
+                  {pill(EXAMS_PLAN.start)}
+                </span>
+              </div>
+            </div>
+            <i data-a="dim" className="gs-ex-dim" style={{ opacity: 0 }} />
+            <div data-a="sheet" className="fm-card gs-ex-sheet" style={{ opacity: 0 }}>
+              <div className="gs-ex-sheet-head">
+                <p className="gs-ex-sheet-t">{copy.PLAN_BY_DAYS}</p>
+                <span className="gs-ex-sheet-x fm-muted">{copy.CLOSE}</span>
+              </div>
+              <ul className="gs-ex-days">
+                <li data-a="dayrow" style={{ opacity: 0 }}>
+                  {copy.daysMinutesRow(EXAMS_EXAMPLE.minutes)}
+                  {copy.SEP}
+                  <span className="gs-ex-link">{copy.CHANGE}</span>
+                </li>
+                {EXAMS_PLAN.days.map((row) => (
+                  <li key={row} data-a="dayrow" style={{ opacity: 0 }}>
+                    {row}
+                  </li>
+                ))}
+              </ul>
+              <p data-a="dayrow" className="gs-ex-skip fm-muted" style={{ opacity: 0 }}>
+                {SKIP_NOTE}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 3 · The first question */}
+        <div data-a="room" className="gs-ex-screen" style={{ opacity: 0 }}>
+          <p className="gs-ex-ctx fm-muted">
+            <span data-a="ctxa">{EXAMS_EXAMPLE.subject}</span>
+            <span data-a="ctxb" style={{ opacity: 0 }}>
+              {[EXAMS_EXAMPLE.subject, copy.fileNo(EXAMS_QUESTION.no), copy.topicNo(EXAMS_QUESTION.topic)].join(' · ')}
+            </span>
+          </p>
+          <p className="gs-ex-stem">{EXAMS_QUESTION.stem}</p>
+          <div className="fm-card gs-ex-opts">
+            {EXAMS_QUESTION.options.map((option, index) => (
+              <div key={option} data-a="opt" className="gs-ex-opt">
+                <span className="gs-ex-opt-l">{copy.OPTION_LETTERS[index]}</span>
+                <span className="gs-ex-opt-t">
+                  {option}
+                  {index === EXAMS_QUESTION.right ? (
+                    <b data-a="tag" style={{ opacity: 0 }}>
+                      {copy.TAG_RIGHT}
+                    </b>
+                  ) : null}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p data-a="dontknow" className="gs-ex-dontknow">
+            <span className="gs-ex-link">{copy.DONT_KNOW}</span>
+          </p>
+          <div data-a="bar" className="gs-ex-bar" style={{ opacity: 0 }}>
+            <p className="gs-ex-verdict">{copy.VERDICT_RIGHT}</p>
+            <span className="fm-btn fm-btn--blue gs-ex-next">{pill(copy.NEXT)}</span>
+          </div>
         </div>
       </Beat>
     </div>
@@ -596,14 +856,15 @@ function Limit() {
   );
 }
 
-const clip = (Scene: ComponentType, poster = 5200) => ({ total: CLIP, poster, Scene });
+const clip = (Scene: ComponentType, poster = 5200, total = CLIP) => ({ total, poster, Scene });
 
 export const GUIDE_SCENES: Record<GuideChapterId, { total: number; poster: number; Scene: ComponentType }> = {
   today: clip(Today),
   add: clip(Add),
   library: clip(Library),
   review: clip(Review),
-  exams: clip(Exams),
+  // The still frame: «План по дням» open, every row in — the exam's days up to its date.
+  exams: clip(Exams, 6700, EXAMS_CLIP),
   progress: clip(Progress),
   // The still frame: both prices spent, both lines in, nothing in flight.
   limit: clip(Limit, 5450),
