@@ -4,6 +4,18 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-10 — Release 35, second push: the Space build failed on the first one; also «Обновить из файла» and the minutes line (from the commit of this entry)
+
+- **Why the first push failed:** the Space stopped at `BUILD_ERROR` after 40 s and answered 503.
+  - `npm run build` type-checks every file under `src`, tests included (`tsc -b`). The container's tests read the shared samples in `contracts/container/*.json`.
+  - The Dockerfile copied only `frontend/`, so 41 imports were missing and `tsc` failed.
+  - Reproduced locally in the Docker layout: 52 errors without `contracts/`, none with it.
+  - **Fix:** the Dockerfile copies `contracts/` beside `frontend/`, as in the repository. The tree of this push builds in that layout: `tsc -b` exit 0 and `vite build`.
+- **Also in this push (D3a's follow-up, merged after the first push):**
+  - «Обновить из файла» on a subject (`/exams/import?from=c:<id>&subject=<sid>`): only new questions are added. A different key is listed by number and changes only in «Ключи». Saved questions stay.
+  - The minutes line in «Настройки».
+  - 21 new tests; the package's full run passed: 232 files, 3807 tests.
+
 ## 2026-10-10 — Release 35: one exam for the whole session — several subjects and hundreds of questions, a plan for each day, «верно в два разных дня» (from the commit of this entry)
 
 - **The exam holds a whole session** (spec `meldy-notes/10_Project/Exam_Container_Spec_2026-10-09.md`, decisions 1–65). The owner's words: one container for 4+ subjects and hundreds of questions instead of four separate exams. Students do not need confirmations or teacher checks.

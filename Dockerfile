@@ -4,6 +4,10 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# The exam container's tests read the shared samples in contracts/ (../../../../contracts/container/*.json from
+# frontend/src/…), and `npm run build` type-checks the tests too (tsc -b over src): the folder sits beside frontend/ as
+# in the repository.
+COPY contracts/ ../contracts/
 
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
