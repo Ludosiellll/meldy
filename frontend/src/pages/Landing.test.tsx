@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import Landing, { EYEBROW, HEADLINE, LEAD, RESULT_NOTE, RESULT_SAMPLE, RESULT_TITLE, SHEET_LEGEND, SIGN_UP_SHORT, START_LABEL, STEPS, TRY_LABEL } from './Landing';
+import Landing, { EXAM_TITLE_H, EYEBROW, FINAL_LEAD, HEADLINE, LEAD, METHOD, RESULT_NOTE, RESULT_SAMPLE, RESULT_TITLE, SIGN_UP_SHORT, START_LABEL, STEPS, TRY_LABEL } from './Landing';
 import { REEL_EVENT } from '../components/home/reelJump';
 import { SHEET_EXAMPLE, SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
 import { freePlanLine } from '../components/landing/freePlan';
 import { OUTRO_CTA_LABEL } from '../components/reel/scenes/Outro';
 import { TOTAL } from '../components/reel/timeline';
+import { EXAM_TITLE, IMPORT_WORDS, INVITE_WORDS, ORAL_SHEET_ROW, SUBJECTS, exampleWords, localToday, subjectRow } from '../data/containerExample';
+import { RULE_LINE } from '../lib/containers/words';
+import { howCounted } from '../components/containers/copy';
+import { DUE_DAYS } from '../lib/containers/rule';
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: null }),
@@ -66,6 +70,13 @@ function sectionNames(container: HTMLElement) {
   });
 }
 
+/** The page's own sections: everything but the reel (another file tells its story). */
+function ownText(container: HTMLElement) {
+  const clone = container.cloneNode(true) as HTMLElement;
+  clone.querySelector('#reel')?.remove();
+  return plain(clone.textContent);
+}
+
 describe('Landing page', () => {
   beforeEach(() => {
     vi.stubGlobal('IntersectionObserver', SilentObserver);
@@ -79,7 +90,7 @@ describe('Landing page', () => {
     vi.restoreAllMocks();
   });
 
-  it('opens on the promise: what Meldy is, the headline with its hand-drawn line, the lead', () => {
+  it('opens on the promise: what Meldy is, the headline with its hand-drawn line, and the exam as it is now', () => {
     renderLanding();
     expect(plain(document.querySelector('.hm-eyebrow')?.textContent)).toBe(EYEBROW);
     expect(EYEBROW).toBe('Тренажёр устного экзамена по билетам кафедры');
@@ -89,42 +100,46 @@ describe('Landing page', () => {
     expect(plain(h1.querySelector('.hm-mark')?.textContent)).toBe('спрашивает');
     expect(h1.querySelector('.hm-mark svg path')).not.toBeNull();
     expect(plain(document.querySelector('.hm-hero .hm-lead')?.textContent)).toBe(LEAD);
-    expect(LEAD).toContain('список вопросов кафедры');
-    expect(LEAD).toContain('спросит билет вслух и переспросит');
+    // The import's own words (one file or one per subject), the plan by days, the oral questions against the lectures.
+    expect(LEAD).toContain('один файл или по файлу на предмет');
+    expect(LEAD).toContain('по дням до экзамена');
+    expect(LEAD).toContain('устные спросит вслух и сверит с вашими лекциями');
+    expect(LEAD).not.toMatch(/шпаргалк/i);
   });
 
-  it('shows the vanishing cheat sheet below how it works, with its rule in words', () => {
-    renderLanding();
-    // Below «Как это работает» (the owner, 2026-10-08): the video is on the first screen, the sheet is not.
-    const section = document.getElementById('sheet') as HTMLElement;
+  it('shows one exam for the whole preparation below how it works: the example\'s page and its oral subject\'s sheet', () => {
+    const { container } = renderLanding();
+    const section = document.getElementById('exam') as HTMLElement;
     expect(document.querySelector('.hm-hero')?.contains(section)).toBe(false);
-    const sheet = within(section).getByRole('figure', { name: `${SHEET_TITLE} ${SHEET_EXAMPLE}` });
-    expect(SHEET_TITLE).toBe('Шпаргалка, которая исчезает');
-    expect(sheet.querySelector('.hs-paper')).toHaveAttribute('aria-hidden', 'true');
+    expect(section).toHaveAttribute('aria-labelledby', 'exam-h');
+    expect(plain(within(section).getByRole('heading', { level: 2 }).textContent)).toBe(EXAM_TITLE_H);
+    // Under the heading, the plan's own lines for the example: what the minutes reach by the date, and the rule.
+    const words = exampleWords(localToday());
+    expect(plain(section.querySelector('.hm-sub')?.textContent)).toBe(plain(`${words.need} ${RULE_LINE}`));
+    // The exam's page: its name, meta, today's step, the figure and every subject's row, the oral one with its sheet.
+    const page = section.querySelector('.hx') as HTMLElement;
+    expect(plain(page.querySelector('.hx-h')?.textContent)).toBe(EXAM_TITLE);
+    expect(plain(page.querySelector('.hx-meta')?.textContent)).toBe(plain(words.meta));
+    expect(plain(page.querySelector('.hx-plan-t')?.textContent)).toBe(plain(words.planTitle));
+    expect(Array.from(page.querySelectorAll('.hx-rows li')).map((row) => plain(row.textContent))).toEqual(
+      SUBJECTS.map((subject) => plain(`${subject.title}${subjectRow(subject)}${subject.oral ? ORAL_SHEET_ROW : ''}`)),
+    );
+    expect(page.querySelector('.hx-pic')).toHaveAttribute('aria-hidden', 'true');
+    expect(plain(page.querySelector('figcaption')?.textContent)).toContain(EXAM_TITLE);
+    // The sheet, in Meldy's own look.
+    const sheet = within(section).getByRole('figure', { name: SHEET_TITLE });
+    expect(plain(sheet.textContent)).toContain(SHEET_EXAMPLE);
     expect(sheet.querySelectorAll('.hs-line').length).toBeGreaterThanOrEqual(4);
-    expect(plain(sheet.textContent)).toContain('Микроэкономика · пример');
-    expect(plain(section.textContent)).toContain('Строки стирают только ответы');
-  });
-
-  it('names the sheet in a heading beside it and explains its three kinds of line, drawn as the paper draws them (audit PUB-12)', () => {
-    renderLanding();
-    const section = document.getElementById('sheet') as HTMLElement;
-    expect(section).toHaveAttribute('aria-labelledby', 'sheet-h');
-    expect(plain(within(section).getByRole('heading', { level: 2 }).textContent)).toBe(SHEET_TITLE);
-    // The flag no longer repeats the heading: it says which example this is.
-    expect(plain(section.querySelector('.hs-flag')?.textContent)).toBe(SHEET_EXAMPLE);
-    const items = Array.from(section.querySelectorAll('.hm-legend li'));
-    expect(items.map((item) => item.getAttribute('data-state'))).toEqual(['fresh', 'rubbed', 'erased']);
-    expect(items.map((item) => plain(item.querySelector('.hm-legend-t')?.textContent))).toEqual(SHEET_LEGEND.map((entry) => `${entry.name}: ${entry.text}`));
-    expect(SHEET_LEGEND.map((entry) => entry.name)).toEqual(['Написано', 'Стёрто наполовину', 'Стёрто совсем']);
-    // Each state on a strip of the same paper, the line in the sheet's hand; the strips are pictures.
-    for (const strip of section.querySelectorAll('.hm-legend-paper')) {
-      expect(strip).toHaveAttribute('aria-hidden', 'true');
-      expect(plain(strip.textContent)).toBe('выручка = цена × количество');
-    }
-    expect(plain(section.textContent)).toContain('Не назвали потом — строка вернётся.');
+    expect(sheet.querySelectorAll('.hs-map > i').length).toBeGreaterThan(40);
     fireEvent.click(within(section).getByRole('button', { name: TRY_LABEL }));
     expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
+    expect(container).toBeTruthy();
+  });
+
+  it('draws no paper: no squared sheet, handwriting, pencil or eraser anywhere on the page', () => {
+    const { container } = renderLanding();
+    expect(container.querySelector('.hs-paper, .hm-legend-paper, .hm-eraser, .hs-patch, .hs-tick, .cs-arrow-ink, .sf-under-ink')).toBeNull();
+    expect(ownText(container)).not.toMatch(/в клетку|ластик|карандаш|пустая шпаргалка|пустой шпаргалки/i);
   });
 
   it('offers the example first, then the own list, and says the example needs no account', () => {
@@ -163,18 +178,18 @@ describe('Landing page', () => {
     expect(plain(document.querySelector('.hm-hero .hm-free-m')?.textContent)).toBe(plain(freePlanLine()));
   });
 
-  it('orders the sections: first screen with the video, how it works, the cheat sheet, the result and the group, the questions, the method, the final call', () => {
+  it('orders the sections: first screen with the video, how it works, the exam, the result and the group, the questions, the method, the final call', () => {
     const { container } = renderLanding();
     expect(sectionNames(container)).toEqual([
       HEADLINE,
       'Как это работает',
-      'Шпаргалка, которая исчезает',
+      EXAM_TITLE_H,
       'Итог и группа',
       'Примеры вопросов',
       'Вспоминать полезнее, чем перечитывать',
       'Начните со списка вопросов',
     ]);
-    expect(Array.from(container.querySelectorAll('main > section')).map((s) => s.id)).toEqual(['', 'how', 'sheet', '', '', 'method', 'start']);
+    expect(Array.from(container.querySelectorAll('main > section')).map((s) => s.id)).toEqual(['', 'how', 'exam', '', '', 'method', 'start']);
     // The video is on the first screen, inside the hero, right after the text (the owner, 2026-10-08).
     expect(container.querySelector('.hm-hero .hm-hero-reel #reel')).not.toBeNull();
   });
@@ -185,28 +200,33 @@ describe('Landing page', () => {
     expect(OUTRO_CTA_LABEL).toBe(TRY_LABEL);
   });
 
-  it('tells how it works in the four steps of the promise, in their order and numbered', () => {
+  it('tells how it works in four numbered steps, in the order of the work: the file, the plan, the answer aloud, the sheet', () => {
     renderLanding();
     const how = document.getElementById('how')!;
     const steps = within(how).getAllByRole('listitem').filter((item) => item.classList.contains('hm-step'));
     expect(steps).toHaveLength(4);
     expect(Array.from(how.querySelectorAll('.hm-flag')).map((flag) => plain(flag.textContent))).toEqual([
-      '1Список кафедры',
-      '2Ваши лекции',
+      '1Вопросы',
+      '2План по дням',
       '3Ответ вслух',
       '4Шпаргалка',
     ]);
-    expect(within(how).getAllByRole('heading', { level: 3 }).map((h) => plain(h.textContent))).toEqual(STEPS.map((step) => step.title));
+    expect(within(how).getAllByRole('heading', { level: 3 }).map((h) => plain(h.textContent))).toEqual(STEPS.map((step) => plain(step.title)));
     expect(STEPS.map((step) => step.title)).toEqual([
-      'Вопросы — из списка вашей кафедры',
-      'Ответы — цитатами из ваших лекций',
-      'Билет — вслух, с переспросом',
+      'Вопросы — из файла кафедры',
+      'Каждый день — занятие по плану',
+      'Устные — вслух, по вашим лекциям',
       'Строки стирают только ответы в разные дни',
     ]);
-    expect(plain(how.textContent)).toContain('Кнопки «знаю» нет.');
+    expect(plain(how.textContent)).toContain('Кнопки «знаю» нет');
+    // The pictures: what the import found, «План по дням», the ticket, the sheet without paper.
+    expect(plain(how.querySelector('.hm-doc-h')?.textContent)).toBe(plain(IMPORT_WORDS.found));
+    expect(Array.from(how.querySelectorAll('.hm-days-r')).map((row) => plain(row.textContent))).toEqual(exampleWords(localToday()).days.map(plain));
+    expect(how.querySelectorAll('.hm-mini-l')).toHaveLength(3);
+    expect(Array.from(how.querySelectorAll('.hm-mini-l')).map((line) => line.getAttribute('data-look'))).toEqual(['gone', 'once', 'left']);
   });
 
-  it('opens the reel at the list and at the answer, the example from the lectures step, and replays the sheet from its step', () => {
+  it('opens the reel at the list and at the answer, and replays the sheet from its step', () => {
     renderLanding();
     const how = document.getElementById('how')!;
     const asked: string[] = [];
@@ -225,13 +245,9 @@ describe('Landing page', () => {
     window.removeEventListener(SHEET_REPLAY_EVENT, onReplay);
     expect(replays).toHaveLength(1);
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
-
-    // Step 2 is about the quotes: they are in the example's «Вопросы» view (audit PUB-13).
-    fireEvent.click(within(how).getByRole('button', { name: /Открыть пример/ }));
-    expect(screen.getByText('Пример экзамена ?view=questions')).toBeInTheDocument();
   });
 
-  it('says that the teacher gives the mark and that a group shares one exam by link', () => {
+  it('says that the teacher gives the mark and that a group shares one exam by link, with the plan in Telegram', () => {
     renderLanding();
     expect(screen.getByRole('heading', { level: 2, name: RESULT_TITLE })).toBeInTheDocument();
     expect(RESULT_TITLE).toBe('Отметку ставит преподаватель');
@@ -241,16 +257,21 @@ describe('Landing page', () => {
     expect(plain(RESULT_SAMPLE)).toBe('Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
     expect(plain(document.querySelector('.hm-proto-l')?.textContent)).toBe(plain(RESULT_SAMPLE));
     const group = screen.getByRole('heading', { level: 2, name: 'Одна ссылка на всю группу' }).closest('article')!;
-    expect(plain(group.textContent)).toContain('У каждого будет своя копия');
-    expect(plain(group.textContent)).toContain('Ответы каждого видит только он сам.');
+    // The text for the group's chat is «Пригласить группу»'s own; no «копия» of an exam (spec §16 #52).
+    expect(plain(group.querySelector('.hm-chat p')?.textContent)).toBe(plain(INVITE_WORDS.lead));
+    expect(plain(group.textContent)).toContain('каждый получит весь экзамен');
+    expect(plain(group.textContent)).toContain('Ответы и прогресс у каждого свои');
+    expect(plain(group.textContent)).toContain('Telegram');
+    expect(plain(group.textContent)).not.toMatch(/копи/i);
   });
 
   it('keeps no promise the product dropped: no grades, no «засчитано», no podcast hosts, no old tagline', () => {
-    renderLanding();
-    const text = plain(document.body.textContent);
+    const { container } = renderLanding();
+    const text = ownText(container);
     expect(text).toMatch(/шпаргалк/i);
     expect(text).not.toMatch(/засчит/i);
-    expect(text).not.toMatch(/отлично|удовлетвор|оценка [2-5]|[2-5] · /i);
+    // A grade «5 · отлично», not a count «3 из 12 · сегодня 4».
+    expect(text).not.toMatch(/отлично|удовлетвор|оценка [2-5]|(^|[^\d])[2-5] · /i);
     expect(text).not.toMatch(/двух ведущих|Макс и Софья|подкаст/i);
     expect(text).not.toMatch(/Конспекты, карточки и тесты|помощник для учёбы/i);
   });
@@ -276,9 +297,11 @@ describe('Landing page', () => {
     expect(screen.getByText('Страница регистрации')).toBeInTheDocument();
   });
 
-  it('offers the example again in the final call', () => {
+  it('offers the example again in the final call, and says what to start with in the import\'s words', () => {
     renderLanding();
     const final = document.getElementById('start')!;
+    expect(plain(final.querySelector('.hm-lead')?.textContent)).toBe(plain(FINAL_LEAD));
+    expect(FINAL_LEAD).toContain('Один общий файл или по файлу на предмет');
     const buttons = within(final).getAllByRole('button');
     expect(buttons.map((button) => plain(button.textContent))).toEqual([START_LABEL, TRY_LABEL]);
     fireEvent.click(buttons[1]);
@@ -291,11 +314,15 @@ describe('Landing page', () => {
     expect(screen.getByText('Страница входа')).toBeInTheDocument();
   });
 
-  it('tells the method in three cards, without percentages it cannot back', () => {
+  it('tells the method in three cards by the exam\'s own rule, without percentages it cannot back', () => {
     renderLanding();
     const method = document.getElementById('method')!;
     expect(Array.from(method.querySelectorAll('.hm-tint-k')).map((k) => k.textContent)).toEqual(['Сначала вопрос', 'Потом — реже', 'Разные дни']);
     expect(method.textContent).not.toMatch(/\d+\s?%/);
-    expect(plain(method.textContent)).toContain('Через 5 дней');
+    // «Как считается» of the exam: the intervals of the rule and its two different days, 20 hours apart.
+    const rule = howCounted(DUE_DAYS).map(plain);
+    expect(plain(METHOD[1].p)).toBe(rule[2]);
+    expect(rule[0]).toContain(plain(METHOD[2].p.replace('Поэтому в счёт', 'В счёт').replace(/\.$/, '')));
+    expect(plain(method.textContent)).not.toMatch(/строк/i);
   });
 });

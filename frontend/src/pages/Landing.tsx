@@ -1,14 +1,17 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '@fontsource-variable/onest/wght.css';
 import { useAuth } from '../hooks/useAuth';
-import HeroSheet, { HERO_SHEET, SHEET_BACK, SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
-import { SheetText } from '../components/exams/sheet/SheetText';
+import HeroSheet, { SHEET_REPLAY_EVENT } from '../components/home/HeroSheet';
+import HomeExam from '../components/home/HomeExam';
 import { jumpToReel, type ReelChapter } from '../components/home/reelJump';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { ty } from '../components/landing/typo';
 import { freePlanLine } from '../components/landing/freePlan';
 import { lazyPart, useLazyPart } from '../lib/lazyPart';
+import { IMPORT_WORDS, INVITE_WORDS, PLAN_LABEL, SUBJECTS, exampleWords, importRow, localToday } from '../data/containerExample';
+import { Q4, SHEET_BEFORE } from '../data/sheetExample';
+import { RULE_LINE } from '../lib/containers/words';
 import '../components/home/home.css';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 
@@ -26,8 +29,12 @@ const meldyReelPart = lazyPart(() => import('../components/reel/MeldyReel').then
  */
 export const EYEBROW = 'Тренажёр устного экзамена по билетам кафедры';
 export const HEADLINE = 'ИИ не отвечает за вас — он вас спрашивает';
+/**
+ * The exam as it is now (decision 2026-10-09, the universal exam): one file or one per subject, a plan by days to the
+ * exam, the oral questions asked aloud against the student's own lectures.
+ */
 export const LEAD =
-  'Вставьте список вопросов кафедры и загрузите свои лекции. Meldy сверит с ними каждый вопрос, спросит билет вслух и переспросит о том, что вы пропустили.';
+  'Загрузите вопросы к экзамену — один файл или по файлу на предмет. Meldy разложит их по дням до экзамена, а устные спросит вслух и сверит с вашими лекциями.';
 /** The first action of the page: the example exam (/try), no account needed. */
 export const TRY_LABEL = 'Попробовать на примере';
 /** Sign-up, to start with one's own list of questions; the final call repeats it. */
@@ -42,44 +49,35 @@ export const RESULT_NOTE = 'Meldy проверяет только, назвал�
  * unasked, one more after the examiner's question. On the sheet the three named lines changed (one erased, two
  * rubbed); the one named only after the question did not.
  */
-export const RESULT_SAMPLE = 'Сами назвали 3\u00a0из\u00a04 главных пунктов, ещё\u00a01\u00a0— после вопроса экзаменатора';
+export const RESULT_SAMPLE = 'Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора';
 
-/** The three states of a line on the sheet, as the legend beside it draws them (audit 2026-10-08, PUB-12). */
-export const SHEET_LEGEND: ReadonlyArray<{ state: 'fresh' | 'rubbed' | 'erased'; name: string; text: string }> = [
-  { state: 'fresh', name: 'Написано', text: 'пункт пока не назван' },
-  { state: 'rubbed', name: 'Стёрто наполовину', text: 'назвали один раз' },
-  { state: 'erased', name: 'Стёрто совсем', text: 'назвали снова, в другой день' },
-];
-/** The line the legend draws: one of the sheet's own (question 7, «выручка = цена × количество»). */
-const LEGEND_LINE = HERO_SHEET[1].lines[0].text;
-
-/** «Как это работает», in the order of the promise: the list, the lectures, the ticket aloud, the sheet. */
+/** «Как это работает», in the order of the work: the file, the plan by days, the answer aloud, the sheet. */
 export const STEPS: ReadonlyArray<{ flag: string; title: string; text: string; panel: 'blue' | 'warm' | 'sky' | 'rose'; color: 'sky' | 'yellow' | 'green' | 'pink' }> = [
   {
-    flag: 'Список кафедры',
-    title: 'Вопросы — из списка вашей кафедры',
-    text: 'Вставьте список как есть — текстом или файлом: DOCX, PDF, TXT, MD, сканы тоже. Meldy найдёт вопросы, разделы и билеты.',
+    flag: 'Вопросы',
+    title: 'Вопросы — из файла кафедры',
+    text: 'Один общий файл или по файлу на предмет: Word, Excel или TXT, а PDF и сканы — для списков без вариантов. Ключ к вопросам с вариантами Meldy возьмёт из оформления файла.',
     panel: 'blue',
     color: 'sky',
   },
   {
-    flag: 'Ваши лекции',
-    title: 'Ответы — цитатами из ваших лекций',
-    text: 'Каждый вопрос Meldy сверяет с лекциями и показывает цитату с ответом. Чего в лекциях нет, так и помечено.',
+    flag: 'План по дням',
+    title: 'Каждый день — занятие по плану',
+    text: 'Новые вопросы и знакомые — на столько минут в день, сколько вы выбрали. Ошибка вернётся на следующий день занятий, а в последние дни перед экзаменом новых нет — только знакомые.',
     panel: 'warm',
     color: 'yellow',
   },
   {
     flag: 'Ответ вслух',
-    title: 'Билет — вслух, с переспросом',
-    text: 'Тяните билет и отвечайте голосом или текстом — готовый текст не вставить. Экзаменатор переспросит о пункте, который вы пропустили.',
+    title: 'Устные — вслух, по вашим лекциям',
+    text: 'Тяните билет и отвечайте голосом или текстом — готовый текст не вставить. Meldy сверит ответ с пунктами из ваших лекций, а экзаменатор переспросит о том, что вы пропустили.',
     panel: 'sky',
     color: 'green',
   },
   {
     flag: 'Шпаргалка',
     title: 'Строки стирают только ответы в разные дни',
-    text: 'Кнопки «знаю» нет. Назвали пункт — строка стёрлась наполовину, назвали снова в другой день — совсем, не назвали потом — вернулась.',
+    text: 'Под каждым устным вопросом — пункты ответа из ваших лекций. Кнопки «знаю» нет: назвали пункт — строка стёрлась наполовину, назвали снова в другой день — совсем, не назвали потом — вернулась.',
     panel: 'rose',
     color: 'pink',
   },
@@ -97,7 +95,8 @@ const QUESTIONS: Array<{ n: number; text: string; tone?: 'y' | 'g' | 'p' }> = [
   { n: 9, text: 'Переобучение и способы борьбы с ним', tone: 'p' },
 ];
 
-const METHOD = [
+/** The method in three cards: the counting rule of the exam's «Как считается» (copy.ts howCounted). */
+export const METHOD = [
   {
     k: 'Сначала вопрос',
     big: 'Каждая попытка вспомнить закрепляет ответ',
@@ -105,15 +104,18 @@ const METHOD = [
   },
   {
     k: 'Потом — реже',
-    big: 'Стёртая строка проступает всё реже',
-    p: 'Через 5\u00a0дней она проступает: пора проверить. Назвали — следующая проверка через 12\u00a0дней, потом через 25 и\u00a050.',
+    big: 'Вопрос в счёте возвращается всё реже',
+    p: 'Вопросы в счёте возвращаются через 5, 12, 25 и 50 дней, а в последние дни перед экзаменом — все.',
   },
   {
     k: 'Разные дни',
     big: 'Одного удачного ответа мало',
-    p: 'Поэтому строка стирается, только когда вы назвали пункт в два разных дня, не раньше чем через 20\u00a0часов.',
+    p: 'Поэтому в счёт идёт вопрос, на который вы ответили верно в два разных дня — между ответами не меньше 20 часов.',
   },
 ];
+
+/** The heading of the exam's section, and the words under it: the plan's own lines for the example. */
+export const EXAM_TITLE_H = 'Сотни вопросов — один план';
 
 function Arrow() {
   return (
@@ -162,7 +164,7 @@ export default function Landing() {
       <main>
         <Hero />
         <HowSection />
-        <SheetSection />
+        <ExamSection />
         <ResultAndGroup />
         <Ticker />
         <MethodSection />
@@ -223,7 +225,7 @@ function Hero() {
           </Pill>
         </div>
         <p className="hm-also hm-rise hm-d3">
-          {'Пример открывается без\u00a0регистрации. '}
+          {'Пример открывается без регистрации. '}
           <span className="hm-free">{freePlanLine()}</span>
         </p>
       </div>
@@ -247,37 +249,33 @@ function More({ chapter, children }: { chapter: ReelChapter; children?: ReactNod
   );
 }
 
+const LOOKS = { fresh: 'left', returned: 'left', missed: 'left', rubbed: 'once', erased: 'gone' } as const;
+
 /** The pictures of the four steps: things of the app, always light (they are pictures of it). */
 function StepArt({ index }: { index: number }) {
+  const days = useMemo(() => exampleWords(localToday()).days, []);
   switch (index) {
     case 0:
       return (
         <div className="hm-doc">
-          <p className="hm-doc-h">Вопросы к экзамену по микроэкономике</p>
-          {[
-            'Спрос. Закон спроса и кривая спроса.',
-            'Неценовые факторы спроса. Движение вдоль кривой спроса и её сдвиг.',
-            'Предложение. Закон предложения и факторы предложения.',
-            'Рыночное равновесие. Дефицит и излишек.',
-          ].map((text, n) => (
-            <p key={text} className="hm-doc-r">
-              <b>{n + 1}.</b> {text}
+          <p className="hm-doc-h">{IMPORT_WORDS.found}</p>
+          {SUBJECTS.map((subject) => (
+            <p key={subject.title} className="hm-doc-r">
+              <b>{subject.title}</b>
+              <span>{importRow(subject)}</span>
             </p>
           ))}
         </div>
       );
     case 1:
       return (
-        <div className="hm-quote">
-          <p className="hm-quote-q">
-            <span>7. Эластичность спроса и выручка продавца</span>
-            <span className="hm-st hm-st--ok">
-              <i />
-              есть в лекциях
-            </span>
-          </p>
-          <blockquote>«Если спрос эластичный, снижение цены увеличивает выручку»</blockquote>
-          <p className="hm-quote-src">Лекция «Эластичность спроса» · фрагмент 5</p>
+        <div className="hm-days">
+          <p className="hm-days-h">{PLAN_LABEL}</p>
+          {days.map((row) => (
+            <p key={row} className="hm-days-r">
+              {row}
+            </p>
+          ))}
         </div>
       );
     case 2:
@@ -298,30 +296,30 @@ function StepArt({ index }: { index: number }) {
           </div>
         </>
       );
-    default:
+    default: {
+      // Question 4 of the example as the sheet has it: one line erased, one named once, one still there; under it
+      // the map of the whole sheet.
+      const states = SHEET_BEFORE.find((question) => question.number === 4)!.states;
       return (
         <div className="hm-mini">
-          {(
-            [
-              ['цена ниже равновесной → дефицит', 'erased', '•'],
-              ['цена выше равновесной → излишек', 'rubbed', '•'],
-              ['цена сама → равновесие', 'fresh', '–'],
-            ] as const
-          ).map(([text, state, bullet]) => (
-            <p key={text} className="hm-mini-l" data-state={state}>
-              <span className="hm-mini-b">{bullet}</span>
-              <span className="hm-mini-t">
-                <SheetText text={text} seedBase={`landing:step:${text}`} />
-              </span>
+          {[1, 2, 3].map((at) => (
+            <p key={at} className="hm-mini-l" data-look={LOOKS[states[at]]}>
+              <i />
+              <span>{Q4.lines[at].text}</span>
             </p>
           ))}
-          <span className="hm-eraser" />
+          <span className="hm-mini-map">
+            {SHEET_BEFORE.flatMap((question) => question.states).map((state, at) => (
+              <i key={at} data-look={LOOKS[state]} />
+            ))}
+          </span>
         </div>
       );
+    }
   }
 }
 
-/** Back to the first screen's sheet, and the answer plays on it again. */
+/** To the exam's section, and the answer plays on its sheet again. */
 function ShowOnSheet() {
   const reduce = usePrefersReducedMotion();
   const show = () => {
@@ -336,63 +334,13 @@ function ShowOnSheet() {
   );
 }
 
-/**
- * The cheat sheet itself, after «Как это работает» (the owner, 2026-10-08: the video first, the sheet below the
- * steps). Beside it (above it on narrow screens) its name, what is on it and a legend of its three kinds of line,
- * drawn with the paper's own eraser masks (audit 2026-10-08, PUB-12: a lone 640 px card, its half-erased lines
- * unexplained, half the screen empty).
- */
-function SheetSection() {
-  const navigate = useNavigate();
-  return (
-    <section id="sheet" className="hm-wrap hm-sec" aria-labelledby="sheet-h">
-      <div className="hm-sheet-sec">
-        <div className="hm-sheet-text">
-          <h2 id="sheet-h" className="hm-h2 hm-reveal">
-            {ty(SHEET_TITLE)}
-          </h2>
-          <p className="hm-sheet-lead hm-reveal">{ty('Под каждым вопросом кафедры — пункты ответа из ваших лекций. Строки стирают только ответы.')}</p>
-          <ul className="hm-legend hm-reveal">
-            {SHEET_LEGEND.map((item) => (
-              <li key={item.state} data-state={item.state}>
-                <span className="hm-legend-paper" aria-hidden="true">
-                  <span className="hm-legend-ink">
-                    <SheetText text={LEGEND_LINE} seedBase={`landing:legend:${item.state}`} />
-                  </span>
-                </span>
-                <span className="hm-legend-t">
-                  <b>
-                    {item.name}
-                    <span className="sr-only">:</span>
-                  </b>{' '}
-                  <span>{ty(item.text)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="hm-sheet-back hm-reveal">{ty(SHEET_BACK)}</p>
-          <div className="hm-sheet-acts hm-reveal">
-            <Pill tone="white" onClick={() => navigate('/try')}>
-              {TRY_LABEL}
-            </Pill>
-          </div>
-        </div>
-        <div className="hm-sheet-box">
-          <HeroSheet labelledBy="sheet-h" />
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function HowSection() {
-  const navigate = useNavigate();
   return (
     <section id="how" className="hm-wrap hm-sec" aria-labelledby="how-h">
       <h2 id="how-h" className="hm-h2 hm-reveal">
         Как это работает
       </h2>
-      <p className="hm-sub hm-reveal">{ty('Цель — пустая шпаргалка: на листе остаются только вопросы кафедры.')}</p>
+      <p className="hm-sub hm-reveal">{ty('Тестовые и устные вопросы — в одном экзамене, с одним планом на каждый день.')}</p>
       <ol className="hm-steps">
         {STEPS.map((step, index) => (
           <li key={step.flag} className="hm-step hm-reveal">
@@ -408,19 +356,43 @@ function HowSection() {
               <h3 className="hm-h3">{ty(step.title)}</h3>
               <p className="hm-p">{ty(step.text)}</p>
               {index === 0 && <More chapter="tickets" />}
-              {/* The quotes are in the example's «Вопросы» view, not on its sheet (audit PUB-13). */}
-              {index === 1 && (
-                <button type="button" className="hm-more" onClick={() => navigate('/try?view=questions')}>
-                  Открыть пример
-                  <Arrow />
-                </button>
-              )}
               {index === 2 && <More chapter="oral" />}
               {index === 3 && <ShowOnSheet />}
             </div>
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+/**
+ * The exam as it is now, after «Как это работает» (decision 2026-10-09): one exam for the whole preparation — the
+ * example's page with today's step, the figure and its subjects — and, as one part of it, the oral subject's cheat
+ * sheet in Meldy's own look (decision 2026-10-10), where one answer plays. It replaces the section of the paper sheet.
+ */
+function ExamSection() {
+  const navigate = useNavigate();
+  const need = useMemo(() => exampleWords(localToday()).need, []);
+  return (
+    <section id="exam" className="hm-wrap hm-sec" aria-labelledby="exam-h">
+      <h2 id="exam-h" className="hm-h2 hm-reveal">
+        {ty(EXAM_TITLE_H)}
+      </h2>
+      <p className="hm-sub hm-reveal">{ty(`${need} ${RULE_LINE}`)}</p>
+      <div className="hm-exam">
+        <div className="hm-exam-page hm-reveal">
+          <HomeExam />
+        </div>
+        <div className="hm-exam-sheet">
+          <HeroSheet />
+        </div>
+      </div>
+      <div className="hm-exam-acts hm-reveal">
+        <Pill tone="white" onClick={() => navigate('/try')}>
+          {TRY_LABEL}
+        </Pill>
+      </div>
     </section>
   );
 }
@@ -450,11 +422,8 @@ function ResultAndGroup() {
         <div className="hm-panel hm-panel--blue" aria-hidden="true">
           <div className="hm-dots" />
           <div className="hm-chat">
-            <p>
-              Готовимся к экзамену «Микроэкономика» в Meldy. По ссылке у каждого будет своя копия: вопросы, лекции и шпаргалка с пунктами
-              ответа.
-            </p>
-            <span className="hm-chat-link">…/join/…</span>
+            <p>{INVITE_WORDS.lead}</p>
+            <span className="hm-chat-link">…/g/…</span>
           </div>
         </div>
         <div className="hm-card-body">
@@ -463,7 +432,9 @@ function ResultAndGroup() {
             Одна ссылка на всю группу
           </h2>
           <p className="hm-p">
-            {ty('Соберите экзамен один раз и отправьте ссылку в беседу группы. У каждого будет своя копия: вопросы, лекции и шпаргалка. Ответы каждого видит только он сам.')}
+            {ty(
+              'Соберите экзамен один раз и отправьте ссылку в беседу группы: каждый получит весь экзамен. Ответы и прогресс у каждого свои — их не видит никто. А план на день может приходить в Telegram.',
+            )}
           </p>
         </div>
       </article>
@@ -536,6 +507,9 @@ function MethodSection() {
   );
 }
 
+/** The final call's words: what to start with, and the example first for those who want to look. */
+export const FINAL_LEAD = 'Один общий файл или по файлу на предмет — Word, Excel или TXT. Лекции нужны для устных вопросов. Хотите сначала посмотреть — откройте готовый пример, без регистрации.';
+
 function FinalCall() {
   const navigate = useNavigate();
   return (
@@ -564,9 +538,7 @@ function FinalCall() {
         <h2 id="final-heading" className="hm-h2">
           {ty('Начните со списка вопросов')}
         </h2>
-        <p className="hm-lead">
-          {ty('Список кафедры — текстом или файлом, лекции — файлами или текстом. Хотите сначала посмотреть — откройте готовый пример, без регистрации.')}
-        </p>
+        <p className="hm-lead">{ty(FINAL_LEAD)}</p>
         <div className="hm-acts">
           <Pill tone="white" onClick={() => navigate('/register')}>
             {START_LABEL}

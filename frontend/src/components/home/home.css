@@ -2,7 +2,8 @@
  * The landing in the new Meldy language (prototype «Лендинг», approved 2026-10-04; notes:
  * 10_Project/Design_Language_2026-10-04). Colours come from the global tokens, so the page follows
  * the theme; the coloured panels and the pictures of the app keep their colours in both themes.
- * The first screen shows the vanishing cheat sheet (HeroSheet.tsx) the way the exam page draws it.
+ * After «Как это работает» the example exam's page (HomeExam.tsx) and its oral subject's cheat sheet (HeroSheet.tsx)
+ * in Meldy's own look (decision 2026-10-10: no paper, no handwriting).
  */
 
 .hm {
@@ -299,7 +300,8 @@
 
 .hm-hero-text,
 .hm-hero-reel,
-.hm-sheet-box {
+.hm-exam-page,
+.hm-exam-sheet {
   min-width: 0;
 }
 
@@ -348,166 +350,220 @@
 }
 
 /*
- * «Шпаргалка, которая исчезает» below «Как это работает» (audit 2026-10-08, PUB-12): its name, what is on it and a
- * legend of its three kinds of line beside the sheet from 1100 px; above it, centred, on narrower screens.
+ * «Сотни вопросов — один план» after «Как это работает» (decision 2026-10-09, one exam for the whole preparation): the
+ * example exam's page (HomeExam.tsx) and, beside it from 1100 px (under it on narrower screens), its oral subject's
+ * cheat sheet in Meldy's own look (HeroSheet.tsx; decision 2026-10-10). Both are cards of the page and follow the theme.
  */
-.hm-sheet-sec {
+.hm-exam {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
-  gap: 44px;
+  gap: 24px;
+  margin-top: 56px;
 }
 
-.hm-sheet-text {
+.hm-exam-page,
+.hm-exam-sheet {
   width: 100%;
   max-width: 640px;
 }
 
-.hm-sheet-box {
-  width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
-}
-
-.hm-sheet-lead {
-  margin: 20px 0 0;
-  font-size: clamp(18px, 1.5vw, 21px);
-  line-height: 1.5;
-  color: var(--sf-muted);
-  text-align: center;
-  text-wrap: pretty;
-}
-
-/* The legend: a strip of the same paper with one of the sheet's lines, in each of its states. */
-.hm-legend {
-  --hs-rub: 0.8;
-  --hs-erased: 0.07;
-  --hs-pass-a: repeating-linear-gradient(97deg, #000 0 0.41em, rgba(0, 0, 0, 0.04) 0.41em 1em);
-  --hs-pass-b: repeating-linear-gradient(83deg, #000 0 0.45em, rgba(0, 0, 0, 0.06) 0.45em 1em);
-  display: grid;
-  gap: 12px;
-  margin: 28px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.hm-legend li {
-  display: grid;
-  grid-template-columns: 244px minmax(0, 1fr);
-  align-items: center;
-  gap: 18px;
-}
-
-.hm-legend-paper {
-  --hm-lp: #fffefa;
-  display: block;
-  overflow: hidden;
-  padding: 6px 12px 4px;
-  border-radius: 3px;
-  background-color: var(--hm-lp);
-  background-image:
-    linear-gradient(to bottom, transparent 30px, rgba(31, 61, 148, 0.13) 30px, rgba(31, 61, 148, 0.13) 31px, transparent 31px),
-    linear-gradient(to right, rgba(31, 61, 148, 0.13) 1px, transparent 1px);
-  background-size: 100% 100%, 22px 100%;
-  box-shadow: 0 0 0 1px rgba(16, 41, 90, 0.1), 0 10px 24px -16px rgba(16, 41, 90, 0.3);
-  color: #1f3d94;
-  font: 500 21px/28px 'Meldy Hand', var(--ph-sans);
-  white-space: nowrap;
-}
-
-.dark .hm-legend-paper {
-  --hm-lp: #dedbd1;
-}
-
-.hm-legend-ink {
-  display: inline-block;
-}
-
-.hm-legend .cs-arrow,
-.hm-legend .cs-glue {
-  white-space: nowrap;
-}
-
-.hm-legend .cs-arrow-ink {
-  display: inline;
-  height: auto;
-  margin: 0 0.05em;
-  overflow: visible;
-  fill: currentColor;
-  vertical-align: baseline;
-}
-
-.hm-legend li[data-state='rubbed'] .hm-legend-ink {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-}
-
-.hm-legend li[data-state='erased'] .hm-legend-ink {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-}
-
-.hm-legend-t {
-  display: grid;
-  font-size: 17px;
-  line-height: 1.4;
-  color: var(--sf-muted);
-}
-
-.hm-legend-t b {
-  font-weight: 600;
-  color: var(--sf-ink);
-}
-
-.hm-sheet-back {
-  margin: 18px 0 0;
-  font-size: 17px;
-  line-height: 1.45;
-  color: var(--sf-muted);
-}
-
-.hm-sheet-acts {
+.hm-exam-acts {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 28px;
+  justify-content: center;
+  margin-top: 40px;
 }
 
 @media (min-width: 1100px) {
-  .hm-sheet-sec {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 640px);
-    align-items: center;
+  .hm-exam {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: start;
     justify-items: stretch;
-    gap: 56px;
+    gap: 28px;
   }
 
-  .hm-sheet-text .hm-h2,
-  .hm-sheet-lead {
-    text-align: left;
-  }
-
-  .hm-sheet-text .hm-h2 {
-    font-size: clamp(38px, 3.6vw, 56px);
+  .hm-exam-page,
+  .hm-exam-sheet {
+    max-width: none;
   }
 }
 
-/* ---------------------------------------------------------------- the vanishing sheet (HeroSheet) */
-
+/* The two cards: white on the page, dark at night, as the exam page's own cards. */
+.hx,
 .hs {
+  --hs-yellow: #e9b13c;
+  --hs-faint: #8a8f97;
   position: relative;
   margin: 0;
-  padding: 18px 18px 20px;
-  border-radius: 40px;
+  border-radius: 32px;
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line), 0 40px 80px -50px rgba(16, 41, 90, 0.4);
 }
 
+.dark .hx,
 .dark .hs {
+  --hs-yellow: #f4c45b;
+  --hs-faint: #6b7383;
   box-shadow: 0 0 0 1px var(--sf-line), 0 30px 60px -40px rgba(0, 0, 0, 0.7);
+}
+
+/* ---------------------------------------------------------------- the exam's page (HomeExam) */
+
+.hx {
+  padding: 30px 32px 32px;
+}
+
+.hx-h {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.hx-meta {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--sf-muted);
+}
+
+/* Today's step: the plan's title and detail, the one blue pill. */
+.hx-plan {
+  margin-top: 22px;
+  padding: 20px 22px 22px;
+  border-radius: 24px;
+  background: var(--sf-canvas);
+}
+
+.hx-plan-t {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+
+.hx-plan-d {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--sf-muted);
+}
+
+.hx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  min-height: 46px;
+  margin-top: 16px;
+  padding: 6px 6px 6px 20px;
+  border-radius: 999px;
+  background: var(--sf-accent);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 500;
+}
+
+.hx-pill-dot {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--sf-accent-hover);
+}
+
+.hx-pill-dot svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* The figure: answers right on two different days, as the exam page counts them. */
+.hx-fig {
+  margin-top: 22px;
+}
+
+.hx-fig-n {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin: 0;
+}
+
+.hx-fig-n b {
+  font-size: 48px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.hx-fig-n span {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.hx-fig-u {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--sf-muted);
+}
+
+/* The subjects as rows of one card; the oral one names its cheat sheet. */
+.hx-rows {
+  margin: 20px 0 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 22px;
+  box-shadow: 0 0 0 1px var(--sf-line);
+  list-style: none;
+}
+
+.hx-rows li {
+  display: grid;
+  gap: 2px;
+  padding: 11px 16px 12px;
+}
+
+.hx-rows li + li {
+  border-top: 1px solid var(--sf-line);
+}
+
+.hx-rows b {
+  font-size: 15.5px;
+  line-height: 1.3;
+  font-weight: 500;
+}
+
+.hx-rows span {
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--sf-muted);
+}
+
+.hx-rows li[data-oral] {
+  background: var(--sf-tint, rgba(11, 18, 28, 0.05));
+}
+
+.hx-rows .hx-sheet {
+  margin-top: 4px;
+  color: var(--sf-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--sf-line-strong, #cfd0c8);
+  text-underline-offset: 4px;
+}
+
+/* ---------------------------------------------------------------- the cheat sheet (HeroSheet) */
+
+.hs {
+  padding: 26px 28px 22px;
 }
 
 .hs-top {
@@ -516,7 +572,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-  margin-bottom: 14px;
 }
 
 .hs-flag {
@@ -532,101 +587,163 @@
 }
 
 .hs-meta {
-  padding-right: 6px;
+  padding-right: 4px;
   font-size: 14px;
   color: var(--sf-muted);
 }
 
-/* The paper: the exam page's sheet (components/exams/sheet/sheet.css) in small. Squared school paper,
-   the department's questions printed in Onest, the answer points by hand («Meldy Hand», Caveat with the
-   fixed metrics of sheetFont.ts) on the grid's lines, a pink margin line. Light paper in both themes;
-   at night it is a dimmed light paper, as on the exam page. */
-.hs-paper {
-  --hs-paper: #fffefa;
-  --hs-grid: rgba(31, 61, 148, 0.13);
-  --hs-margin: #e3a2b8;
-  --hs-ink: #1f3d94;
-  --hs-graphite: #50565f;
-  --hs-print: #0b121c;
-  /* One grid row and the handwriting's baseline in it: Caveat 23 px on 26 px rows. */
-  --hs-row: 26px;
-  --hs-base: 20px;
-  --hs-hand: 23px;
-  --hs-print-size: 15px;
-  --hs-pad-l: 26px;
-  --hs-pad-r: 46px;
-  /* A rubbed line keeps islands of ink where both passes of the eraser left some; an erased one, a
-     ghost of 7 %. The passes are in em: they keep the exam page's proportions at any hand size. */
-  --hs-rub: 0.8;
-  --hs-erased: 0.07;
-  --hs-pass-a: repeating-linear-gradient(97deg, #000 0 0.41em, rgba(0, 0, 0, 0.04) 0.41em 1em);
-  --hs-pass-b: repeating-linear-gradient(83deg, #000 0 0.45em, rgba(0, 0, 0, 0.06) 0.45em 1em);
-  --ph-pencil-desk: #1f5bc6;
-  --ph-graphite-desk: var(--hs-graphite);
-  color-scheme: light;
+/* The number of lines left: it goes down by one as the strike ends. */
+.hs-count {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 12px;
+  margin: 16px 0 0;
+}
+
+.hs-count b {
+  display: grid;
+  font-size: 52px;
+  line-height: 0.95;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hs-n {
+  grid-area: 1 / 1;
+}
+
+.hs-count-t {
+  grid-area: 1 / 2;
+  font-size: 17px;
+}
+
+.hs-n,
+.hs-count-t {
+  transition: opacity 0.25s ease;
+}
+
+.hs[data-phase='before'] [data-when='after'],
+.hs:not([data-phase='before']) [data-when='before'] {
+  opacity: 0;
+}
+
+.hs[data-phase='playing'] [data-when] {
+  transition-delay: 520ms;
+}
+
+/* The map: one rounded square per line of the sheet, in its order. */
+.hs-map {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--sf-canvas);
+}
+
+/* A square is an outline (what an erased line leaves) under two fills, ink and yellow: they never blend — one shrinks
+   away as the other springs up. */
+.hs-map i,
+.hs-legend i {
   position: relative;
-  padding: var(--hs-row) var(--hs-pad-r) var(--hs-row) var(--hs-pad-l);
+  display: block;
+  flex: none;
+  width: 12px;
+  height: 12px;
   border-radius: 3px;
-  background-color: var(--hs-paper);
-  background-image:
-    linear-gradient(to bottom, transparent var(--hs-base), var(--hs-grid) var(--hs-base), var(--hs-grid) calc(var(--hs-base) + 1px), transparent calc(var(--hs-base) + 1px)),
-    linear-gradient(to right, var(--hs-grid) 1px, transparent 1px);
-  background-size: 100% var(--hs-row), var(--hs-row) 100%;
-  box-shadow: 0 0 0 1px rgba(16, 41, 90, 0.1), 0 1px 1px rgba(11, 18, 28, 0.05), 0 14px 32px -16px rgba(16, 41, 90, 0.22);
-  color: var(--hs-ink);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--hs-faint) 55%, transparent);
 }
 
-.hs-paper::after {
-  content: '';
+.hs-map b,
+.hs-legend b {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  right: calc(var(--hs-pad-r) - 22px);
-  width: 1.5px;
-  background: var(--hs-margin);
-  pointer-events: none;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--sf-ink);
 }
 
-.dark .hs-paper {
-  --hs-paper: #dedbd1;
-  --hs-margin: #c98a9f;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+.hs-map .hs-sq-once,
+.hs-legend .hs-sq-once {
+  background: var(--hs-yellow);
+  transform: scale(0);
 }
 
-.hs-q {
-  position: relative;
+[data-look='once'] > .hs-sq-ink,
+[data-look='gone'] > .hs-sq-ink,
+[data-look='gone'] > .hs-sq-once {
+  transform: scale(0);
+}
+
+[data-look='once'] > .hs-sq-once {
+  transform: scale(1);
+}
+
+.hs-map i[data-moving] > b {
+  transition: transform 0.22s ease-in var(--hs-delay, 0ms);
+}
+
+.hs-map i[data-moving][data-look='once'] > .hs-sq-once {
+  transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--hs-delay, 0ms) + 220ms);
+}
+
+/* An erased line's square empties as its strike ends. */
+.hs-map i[data-moving][data-look='gone'] > b {
+  transition-delay: calc(var(--hs-delay, 0ms) + 420ms);
+}
+
+.hs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 12px 2px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--sf-muted);
+}
+
+.hs-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hs-legend i {
+  width: 11px;
+  height: 11px;
+}
+
+/* The questions: a dot for a main point, a dash for a detail; named once — a yellow dot, muted words; erased — faint
+   words struck through, no marker. */
+.hs-list {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sf-line);
 }
 
 .hs-q + .hs-q {
-  margin-top: var(--hs-row);
+  margin-top: 14px;
 }
 
 .hs-qh {
-  position: relative;
-  top: 2px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 0.35em;
-  margin: 0;
-  font-size: var(--hs-print-size);
-  line-height: var(--hs-row);
+  grid-template-columns: 28px minmax(0, 1fr);
+  margin: 0 0 4px;
+  font-size: 16.5px;
+  line-height: 24px;
   font-weight: 600;
-  color: var(--hs-print);
+  letter-spacing: -0.005em;
   text-wrap: pretty;
 }
 
 .hs-qn {
+  font-weight: 500;
+  color: var(--hs-faint);
   font-variant-numeric: tabular-nums;
-}
-
-/* A learned question: every main line erased, a graphite tick in the margin by its number. */
-.hs-tick {
-  position: absolute;
-  left: calc(-1 * var(--hs-pad-l) + 3px);
-  top: 6px;
-  width: 20px;
-  height: 16px;
-  pointer-events: none;
 }
 
 .hs-lines {
@@ -638,179 +755,116 @@
 .hs-line {
   position: relative;
   display: grid;
-  grid-template-columns: var(--hs-row) minmax(0, 1fr);
-  font-family: 'Meldy Hand', var(--ph-sans);
-  font-size: var(--hs-hand);
-  line-height: var(--hs-row);
-  font-weight: 500;
-  color: var(--hs-ink);
+  grid-template-columns: 28px minmax(0, 1fr);
+  padding: 3px 0;
+  font-size: 15.5px;
+  line-height: 23px;
+  color: var(--sf-ink);
 }
 
-.hs-bullet {
-  text-align: center;
-  transition: opacity 180ms linear var(--hs-delay, 0ms);
+/* The marker: the ink one (a dot, or a dash for a detail) and the yellow dot of a named line in the same place. */
+.hs-mark {
+  position: relative;
+  height: 23px;
+}
+
+.hs-mark i {
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sf-ink);
+}
+
+.hs-line[data-kind='detail'] .hs-mark-ink {
+  left: 3px;
+  top: 11px;
+  width: 8px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--sf-muted);
+}
+
+.hs-mark .hs-mark-once {
+  background: var(--hs-yellow);
+  transform: scale(0);
+}
+
+.hs-line[data-look='once'] .hs-mark-ink,
+.hs-line[data-look='gone'] .hs-mark-ink,
+.hs-line[data-look='gone'] .hs-mark-once {
+  transform: scale(0);
+}
+
+.hs-line[data-look='once'] .hs-mark-once {
+  transform: scale(1);
+}
+
+.hs-line[data-look='once'] {
+  color: var(--sf-muted);
+}
+
+.hs-line[data-look='gone'] {
+  color: var(--hs-faint);
 }
 
 .hs-body {
-  position: relative;
-  isolation: isolate;
-  justify-self: start;
-  max-width: 100%;
+  grid-column: 2;
   min-width: 0;
 }
 
-.hs-ink {
-  display: inline-block;
-  max-width: 100%;
-  overflow-wrap: anywhere;
+.hs-words {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 58%;
+  background-size: 0% 1.5px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
-/* An arrow drawn in ink (SheetText) holds on to its word. */
-.hs-paper .cs-arrow,
-.hs-paper .cs-glue {
-  white-space: nowrap;
-}
-
-.hs-paper .cs-arrow-ink {
-  display: inline;
-  height: auto;
-  margin: 0 0.05em;
-  overflow: visible;
-  fill: currentColor;
-  vertical-align: baseline;
-}
-
-/* The eraser's track: dull paper under a line an answer has touched. */
-.hs-patch {
-  position: absolute;
-  inset: 1px -8px;
-  z-index: -1;
-  background: linear-gradient(rgba(90, 96, 105, 0.03), rgba(90, 96, 105, 0.03)), color-mix(in srgb, var(--hs-paper) 45%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-  pointer-events: none;
-}
-
-.hs-line[data-state='rubbed']:not([data-anim]) .hs-ink {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-}
-
-.hs-line[data-state='erased']:not([data-anim]) .hs-ink {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-}
-
-.hs-line[data-state='rubbed'] .hs-bullet {
-  opacity: 0.3;
-}
-
-.hs-line[data-state='erased'] .hs-bullet {
-  opacity: 0.12;
-}
-
-/* The wave under a line that came back: graphite, a little lighter than the ink. */
-.hs-line .sf-under-ink {
-  opacity: 0.8;
+.hs-line[data-look='gone'] .hs-words {
+  background-size: 100% 1.5px;
 }
 
 .hs-note {
-  position: relative;
-  top: 2px;
-  grid-column: 2;
-  font-family: var(--ph-sans);
-  font-size: 13.5px;
-  line-height: var(--hs-row);
-  font-weight: 500;
-  color: var(--hs-graphite);
+  display: block;
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sf-muted);
 }
 
-/* The handwriting waits for its font (at most 1.5 s), so no line jumps under the reader. */
-.hs-paper[data-font='waiting'] .hs-lines {
-  visibility: hidden;
+/* One answer: a strike runs over the line named again, left to right; the lines named for the first time turn yellow,
+   one after the other. */
+.hs-line[data-moving] {
+  transition: color 0.4s ease var(--hs-delay, 0ms);
 }
 
-.hs-paper[data-font='ready'] .hs-lines {
-  animation: hs-fade 200ms ease-out both;
+.hs-line[data-moving] .hs-mark i {
+  transition: transform 0.22s ease-in var(--hs-delay, 0ms);
 }
 
-/* One answer: the eraser passes → over a line named for the first time (rubbed) and ← over the line
-   named again on another day (erased). The same masks as the exam page: they end as the line stands. */
-.hs-line[data-anim='rub'] .hs-ink {
-  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, #000 54%), linear-gradient(90deg, transparent 46%, #000 54%), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, #000 54%), linear-gradient(90deg, transparent 46%, #000 54%), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-size: 225% 100%, 225% 100%, auto, auto;
-  mask-size: 225% 100%, 225% 100%, auto, auto;
-  -webkit-mask-repeat: no-repeat, no-repeat, repeat, repeat;
-  mask-repeat: no-repeat, no-repeat, repeat, repeat;
-  -webkit-mask-composite: source-in, source-over, source-in;
-  mask-composite: intersect, add, intersect;
-  animation: hs-sweep-right var(--hs-ms) cubic-bezier(0.4, 0, 0.2, 1) var(--hs-delay) both;
+.hs-line[data-moving][data-look='once'] .hs-mark-once {
+  transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--hs-delay, 0ms) + 220ms);
 }
 
-.hs-line[data-anim='rub'] .hs-patch {
-  animation: hs-fade var(--hs-ms) ease-out var(--hs-delay) both;
+.hs-line[data-moving][data-look='gone'] {
+  transition-delay: calc(var(--hs-delay, 0ms) + 300ms);
 }
 
-.hs-line[data-anim='erase'] .hs-ink {
-  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, rgba(0, 0, 0, var(--hs-erased)) 54%), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, rgba(0, 0, 0, var(--hs-erased)) 54%), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-size: 225% 100%, auto, auto;
-  mask-size: 225% 100%, auto, auto;
-  -webkit-mask-repeat: no-repeat, repeat, repeat;
-  mask-repeat: no-repeat, repeat, repeat;
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-  animation: hs-erase-left var(--hs-ms) cubic-bezier(0.4, 0, 0.2, 1) var(--hs-delay) both;
-}
-
-@keyframes hs-sweep-right {
-  from {
-    -webkit-mask-position: 100% 0, 100% 0, 0 0, 0 0;
-    mask-position: 100% 0, 100% 0, 0 0, 0 0;
-  }
-
-  to {
-    -webkit-mask-position: 0 0, 0 0, 0 0, 0 0;
-    mask-position: 0 0, 0 0, 0 0, 0 0;
-  }
-}
-
-@keyframes hs-erase-left {
-  from {
-    -webkit-mask-position: 0 0, 0 0, 0 0;
-    mask-position: 0 0, 0 0, 0 0;
-  }
-
-  to {
-    -webkit-mask-position: 100% 0, 0 0, 0 0;
-    mask-position: 100% 0, 0 0, 0 0;
-  }
-}
-
-@keyframes hs-fade {
-  from {
-    opacity: 0;
-  }
+.hs-line[data-moving][data-look='gone'] .hs-words {
+  transition: background-size 0.6s cubic-bezier(0.4, 0, 0.2, 1) var(--hs-delay, 0ms);
 }
 
 .hs-cap {
-  display: grid;
-  gap: 6px;
-  margin-top: 14px;
-  padding: 0 6px;
-}
-
-.hs-cap-row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: 4px 16px;
+  margin-top: 14px;
 }
 
 .hs-change {
@@ -851,12 +905,6 @@
 
 .hs-replay:disabled {
   cursor: default;
-}
-
-.hs-rule {
-  font-size: 15px;
-  line-height: 1.45;
-  color: var(--sf-muted);
 }
 
 /* ---------------------------------------------------------------- sections */
@@ -1172,7 +1220,6 @@
 
 /* Pictures inside the panels: things of the app, always light. */
 .hm-doc,
-.hm-quote,
 .hm-proto,
 .hm-chat {
   position: absolute;
@@ -1190,89 +1237,41 @@
   border-radius: 20px;
 }
 
+/* Step 1: what the import found in the department's file — the subjects, their questions and how the key is marked. */
 .hm-doc-h {
   margin: 0 0 6px;
-  font-size: 12.5px;
-  color: #4b515b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 13.5px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .hm-doc-r {
+  display: grid;
   margin: 0;
-  padding: 7px 0;
+  padding: 6px 0;
   border-top: 1px solid #efefea;
-  font-size: 13.5px;
   line-height: 1.3;
+}
+
+.hm-doc-r b,
+.hm-doc-r span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .hm-doc-r b {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.hm-quote {
-  left: 16px;
-  right: 16px;
-  top: 18px;
-  padding: 13px 15px 14px;
-  border-radius: 20px;
-}
-
-.hm-quote-q {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.3;
-  font-weight: 600;
-}
-
-.hm-quote blockquote {
-  margin: 10px 0 0;
-  padding-left: 11px;
-  border-left: 3px solid #f4c45b;
-  font-size: 14px;
-  line-height: 1.38;
+  font-size: 13px;
   font-weight: 500;
 }
 
-.hm-quote-src {
-  margin: 7px 0 0;
+.hm-doc-r span {
   font-size: 11.5px;
-  line-height: 1.3;
   color: #4b515b;
 }
 
-.hm-st {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.hm-st i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.hm-st--ok {
-  background: #e2f2e5;
-  color: #2c6b3a;
-}
-
+/* The ticket: a white card of the app, upright (no paper tone, no tilt — decision 2026-10-10). */
 .hm-ticket {
   position: absolute;
   left: 18px;
@@ -1280,10 +1279,9 @@
   right: 92px;
   padding: 12px 15px;
   border-radius: 18px;
-  background: #fff8ee;
-  color: #3b3f46;
+  background: #fff;
+  color: #4b515b;
   box-shadow: 0 22px 50px -24px rgba(0, 0, 0, 0.5);
-  transform: rotate(-3deg);
 }
 
 .hm-ticket b {
@@ -1291,7 +1289,7 @@
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: #10295a;
+  color: #0b121c;
 }
 
 .hm-ticket p {
@@ -1342,93 +1340,130 @@
   color: #2869dd;
 }
 
-/* Step 4: a strip of the sheet and a school eraser. Erased, rubbed and written lines as on the paper. */
+/* Step 2: «План по дням» of the example exam, its rows as the exam page writes them. */
+.hm-days {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 22px;
+  bottom: -24px;
+  padding: 15px 17px;
+  border-radius: 20px;
+  background: #fff;
+  color: #0b121c;
+  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.45);
+}
+
+.hm-days-h {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.hm-days-r {
+  margin: 0;
+  padding: 7px 0;
+  border-top: 1px solid #efefea;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+/* Step 4: question 4 of the example's sheet in Meldy's own look — one line erased, one named once, one still there —
+   and the map of the whole sheet under it. */
+/* The lines and the map sit in the middle of the card's visible part (its last 24 px are under the panel's edge), so a
+   wide phone card is not left half empty. */
 .hm-mini {
-  --hs-paper: #fffefa;
-  --hs-rub: 0.8;
-  --hs-erased: 0.07;
-  --hs-pass-a: repeating-linear-gradient(97deg, #000 0 0.41em, rgba(0, 0, 0, 0.04) 0.41em 1em);
-  --hs-pass-b: repeating-linear-gradient(83deg, #000 0 0.45em, rgba(0, 0, 0, 0.06) 0.45em 1em);
   position: absolute;
   left: 16px;
   right: 16px;
   top: 22px;
-  bottom: -14px;
-  padding: 44px 10px 0 4px;
-  border-radius: 4px;
-  background-color: var(--hs-paper);
-  background-image:
-    linear-gradient(to bottom, transparent 16px, rgba(31, 61, 148, 0.13) 16px, rgba(31, 61, 148, 0.13) 17px, transparent 17px),
-    linear-gradient(to right, rgba(31, 61, 148, 0.13) 1px, transparent 1px);
-  background-size: 100% 22px, 22px 100%;
+  bottom: -24px;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px 38px;
+  border-radius: 20px;
+  background: #fff;
+  color: #0b121c;
   box-shadow: 0 20px 44px -22px rgba(0, 0, 0, 0.45);
-  color: #1f3d94;
+}
+
+/* Auto margins centre it only when there is room: a narrow card starts at its top as before. */
+.hm-mini > :first-child {
+  margin-top: auto;
+}
+
+.hm-mini > :last-child {
+  margin-bottom: auto;
 }
 
 .hm-mini-l {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   margin: 0;
-  font: 500 17px/22px 'Meldy Hand', var(--ph-sans);
-  white-space: nowrap;
+  padding: 2px 0;
+  font-size: 12.5px;
+  line-height: 17px;
 }
 
-.hm-mini-b {
-  text-align: center;
+.hm-mini-l i {
+  width: 6px;
+  height: 6px;
+  margin: 6px 0 0 1px;
+  border-radius: 50%;
+  background: #0b121c;
 }
 
-.hm-mini-t {
-  justify-self: start;
+.hm-mini-l span {
   min-width: 0;
 }
 
-.hm-mini .cs-arrow,
-.hm-mini .cs-glue {
-  white-space: nowrap;
+.hm-mini-l[data-look='once'] {
+  color: #4b515b;
 }
 
-.hm-mini .cs-arrow-ink {
-  display: inline;
-  height: auto;
-  margin: 0 0.05em;
-  overflow: visible;
-  fill: currentColor;
-  vertical-align: baseline;
+.hm-mini-l[data-look='once'] i {
+  background: #e9b13c;
 }
 
-.hm-mini-l[data-state='rubbed'] .hm-mini-t {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
+.hm-mini-l[data-look='gone'] {
+  color: #8a8f97;
 }
 
-.hm-mini-l[data-state='erased'] .hm-mini-t {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
+.hm-mini-l[data-look='gone'] i {
+  visibility: hidden;
 }
 
-.hm-mini-l[data-state='rubbed'] .hm-mini-b {
-  opacity: 0.3;
+.hm-mini-l[data-look='gone'] span {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
 }
 
-.hm-mini-l[data-state='erased'] .hm-mini-b {
-  opacity: 0.12;
+.hm-mini-map {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 9px;
+  border-radius: 12px;
+  background: #f3f3f0;
 }
 
-/* A two-colour school eraser, resting by the line it has just rubbed. */
-.hm-eraser {
-  position: absolute;
-  right: 22px;
-  bottom: 38px;
-  width: 66px;
-  height: 28px;
-  border-radius: 7px;
-  background: linear-gradient(90deg, #f08aa8 0 58%, #6f9be8 58% 100%);
-  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.12), 0 12px 18px -8px rgba(16, 41, 90, 0.45);
-  transform: rotate(-14deg);
+.hm-mini-map i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #0b121c;
+}
+
+.hm-mini-map i[data-look='once'] {
+  background: #e9b13c;
+}
+
+.hm-mini-map i[data-look='gone'] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.2px rgba(138, 143, 151, 0.55);
 }
 
 /* ---------------------------------------------------------------- the result and the group */
@@ -1705,19 +1740,6 @@
   .hm-hero {
     gap: 44px;
   }
-
-  .hs-paper {
-    --hs-row: 24px;
-    --hs-base: 18px;
-    --hs-hand: 21px;
-    --hs-print-size: 14px;
-    --hs-pad-l: 24px;
-    --hs-pad-r: 40px;
-  }
-
-  .hs-note {
-    font-size: 13px;
-  }
 }
 
 @media (max-width: 980px) {
@@ -1807,16 +1829,6 @@
     margin-bottom: 106px;
   }
 
-  /* The legend's strip over its words: the line is as long as on the sheet. */
-  .hm-legend li {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-
-  .hm-legend-paper {
-    justify-self: start;
-  }
-
   /* The video is on the first phone screen, under the text (the owner, 2026-10-08): the text takes less room. */
   .hm-hero {
     gap: 28px;
@@ -1857,41 +1869,54 @@
     font-size: 17px;
   }
 
+  .hm-exam {
+    margin-top: 36px;
+  }
+
+  .hx {
+    padding: 22px 18px 20px;
+    border-radius: 28px;
+  }
+
+  .hx-h {
+    font-size: 26px;
+  }
+
+  .hx-plan {
+    padding: 16px 16px 18px;
+    border-radius: 20px;
+  }
+
+  .hx-fig-n b {
+    font-size: 42px;
+  }
+
   .hs {
-    padding: 14px 12px 16px;
-    border-radius: 32px;
+    padding: 20px 18px 14px;
+    border-radius: 28px;
   }
 
-  .hs-paper {
-    --hs-row: 24px;
-    --hs-base: 18px;
-    --hs-hand: 20px;
-    --hs-print-size: 14px;
-    --hs-pad-l: 22px;
-    --hs-pad-r: 30px;
+  .hs-count b {
+    font-size: 44px;
   }
 
-  .hs-paper::after {
-    right: calc(var(--hs-pad-r) - 16px);
+  .hs-map {
+    gap: 5px;
+    padding: 14px;
   }
 
-  .hs-tick {
-    left: -20px;
-    transform: scale(0.65);
-    transform-origin: 0 50%;
+  .hs-map i {
+    width: 11px;
+    height: 11px;
   }
 
-  /* A phone shows question 7 alone: it has every state of a line. */
+  /* A phone shows question 7 alone: it has every kind of line, and the map shows the rest. */
   .hs-q[data-learned] {
     display: none;
   }
 
   .hs-q[data-learned] + .hs-q {
     margin-top: 0;
-  }
-
-  .hs-rule {
-    font-size: 14.5px;
   }
 
   .hm-proto,

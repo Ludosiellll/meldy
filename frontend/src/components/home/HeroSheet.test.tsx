@@ -1,8 +1,22 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import HeroSheet, { HERO_SHEET, REPLAY_LABEL, SHEET_CHANGE, SHEET_EXAMPLE, SHEET_REPLAY_EVENT, SHEET_RULE, SHEET_TITLE, SWEEP_MS } from './HeroSheet';
+import HeroSheet, {
+  HERO_SHEET,
+  LEFT_AFTER,
+  LEFT_BEFORE,
+  MAP_LEGEND,
+  REPLAY_LABEL,
+  SHEET_CHANGE,
+  SHEET_EXAMPLE,
+  SHEET_REPLAY_EVENT,
+  SHEET_RULE,
+  SHEET_TITLE,
+  SHEET_TOTAL,
+  STRIKE_MS,
+  leftWords,
+} from './HeroSheet';
 import { EXAMPLE_QUESTIONS } from '../../data/example';
-import { SHEET_RULE as EXAM_PAGE_RULE, changeSentence } from '../exams/sheet/copy';
+import { SHEET_RULE as EXAM_PAGE_RULE, changeSentence, counterLabel } from '../exams/sheet/copy';
 import { changeSummary, type LineChange } from '../../lib/exams/cheatSheet';
 
 let reduce = false;
@@ -43,9 +57,21 @@ afterEach(() => {
 });
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
-const states = (container: HTMLElement) => Array.from(container.querySelectorAll('.hs-line')).map((line) => line.getAttribute('data-state'));
-const anims = (container: HTMLElement) => Array.from(container.querySelectorAll('.hs-line')).map((line) => line.getAttribute('data-anim'));
+const LOOK = { fresh: 'left', returned: 'left', rubbed: 'once', erased: 'gone' } as const;
+const looks = (container: HTMLElement) => Array.from(container.querySelectorAll('.hs-line')).map((line) => line.getAttribute('data-look'));
+const moving = (container: HTMLElement) => Array.from(container.querySelectorAll('.hs-line')).map((line) => line.hasAttribute('data-moving'));
 const lines = HERO_SHEET.flatMap((question) => question.lines);
+const squares = (container: HTMLElement) => Array.from(container.querySelectorAll('.hs-map > i')).map((square) => square.getAttribute('data-look'));
+
+/** Each step of the play is scheduled once the previous one has rendered. */
+const playThrough = () => {
+  act(() => {
+    vi.advanceTimersByTime(1600);
+  });
+  act(() => {
+    vi.advanceTimersByTime(STRIKE_MS + 1000);
+  });
+};
 
 describe('HeroSheet', () => {
   it('draws questions 6 and 7 of the example exam (/try), their lines word for word', () => {
@@ -60,6 +86,18 @@ describe('HeroSheet', () => {
     }
   });
 
+  it('maps every line of the example\'s sheet: one square per point of questions 1–12', () => {
+    const { container } = render(<HeroSheet />);
+    expect(SHEET_TOTAL).toBe(EXAMPLE_QUESTIONS.reduce((sum, question) => sum + question.points.length, 0));
+    expect(container.querySelectorAll('.hs-map > i')).toHaveLength(SHEET_TOTAL);
+    // The number of lines left in the exam page's words, one fewer once the answer has erased a line.
+    expect(LEFT_AFTER).toBe(LEFT_BEFORE - 1);
+    expect(leftWords(LEFT_BEFORE, SHEET_TOTAL)).toBe(counterLabel({ left: LEFT_BEFORE, total: SHEET_TOTAL }));
+    expect(leftWords(41, 47)).toBe(counterLabel({ left: 41, total: 47 }));
+    expect(leftWords(23, 47)).toBe(counterLabel({ left: 23, total: 47 }));
+    expect(MAP_LEGEND.map((item) => item.text)).toEqual(['осталось', 'названо один раз', 'стёрто']);
+  });
+
   it('says what the answer did in the words of the exam page, and keeps its rule', () => {
     const changes: LineChange[] = lines
       .filter((line) => line.before !== line.after)
@@ -69,71 +107,77 @@ describe('HeroSheet', () => {
     expect(SHEET_RULE).toBe(EXAM_PAGE_RULE);
   });
 
-  it('is a figure named by its flag; the paper is a picture, the words under it are text', () => {
+  it('is a figure named by its flag; the picture is hidden from screen readers, a description says the same', () => {
     const { container } = render(<HeroSheet />);
     expect(screen.getByRole('figure', { name: SHEET_TITLE })).toBeInTheDocument();
-    expect(container.querySelector('.hs-paper')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelector('.hs-pic')).toHaveAttribute('aria-hidden', 'true');
     expect(container.querySelector('.sr-only')?.textContent).toContain('Микроэкономика');
     expect(plain(container.querySelector('figcaption')?.textContent)).toContain(plain(SHEET_CHANGE));
     expect(container.querySelectorAll('.hs-line')).toHaveLength(lines.length);
-    // The arrows are drawn in ink, the characters stay for copying and screen readers.
-    expect(container.querySelectorAll('.cs-arrow-ink').length).toBeGreaterThan(0);
   });
 
-  it('named by a heading of the page, it says only which example it is and leaves the rule to that section', () => {
+  it('has no paper: no handwriting, squared grid, pencil marks or eraser, the words are plain text', () => {
+    const { container } = render(<HeroSheet />);
+    expect(container.querySelector('.hs-paper, .hs-patch, .hs-tick, .cs-arrow-ink, svg')).toBeNull();
+    expect(plain(container.querySelector('.hs-list')?.textContent)).toContain('выручка = цена × количество');
+  });
+
+  it('named by a heading of the page, it says only which example it is', () => {
     const { container } = render(
       <>
-        <h2 id="sheet-h">{SHEET_TITLE}</h2>
+        <h2 id="sheet-h">Сотни вопросов — один план</h2>
         <HeroSheet labelledBy="sheet-h" />
       </>,
     );
-    expect(screen.getByRole('figure', { name: `${SHEET_TITLE} ${SHEET_EXAMPLE}` })).toBeInTheDocument();
+    expect(screen.getByRole('figure', { name: `Сотни вопросов — один план ${SHEET_EXAMPLE}` })).toBeInTheDocument();
     expect(container.querySelector('.hs-flag')?.textContent).toBe(SHEET_EXAMPLE);
     expect(container.querySelector('.hs-meta')).toBeNull();
-    expect(container.querySelector('.hs-rule')).toBeNull();
-    // What the answer did and the replay stay under the paper.
-    expect(plain(container.querySelector('figcaption')?.textContent)).toContain(plain(SHEET_CHANGE));
-    expect(screen.getByRole('button', { name: REPLAY_LABEL })).toBeInTheDocument();
   });
 
-  it('plays one answer once in view: the line named before is erased, two rub half away, then it says so', () => {
+  it('plays one answer once in view: the line named before is struck off, two turn yellow, the map follows, then it says so', () => {
     const { container } = render(<HeroSheet />);
-    expect(states(container)).toEqual(lines.map((line) => line.before));
+    expect(looks(container)).toEqual(lines.map((line) => LOOK[line.before]));
     expect(container.querySelector('.hs-change')).not.toHaveAttribute('data-shown');
     expect(screen.getByRole('button', { name: REPLAY_LABEL })).toBeDisabled();
+    const before = squares(container);
 
     act(() => {
       vi.advanceTimersByTime(1600);
     });
-    expect(states(container)).toEqual(lines.map((line) => line.after));
-    expect(anims(container)).toEqual(lines.map((line) => (line.before === line.after ? null : line.after === 'erased' ? 'erase' : 'rub')));
+    expect(container.querySelector('.hs')).toHaveAttribute('data-phase', 'playing');
+    expect(looks(container)).toEqual(lines.map((line) => LOOK[line.after]));
+    expect(moving(container)).toEqual(lines.map((line) => line.before !== line.after));
+    // The map changes with the same lines, and only them: one square empties, two turn yellow.
+    const after = squares(container);
+    const changed = after.map((look, index) => [before[index], look]).filter(([was, now]) => was !== now);
+    expect(changed).toEqual([
+      ['once', 'gone'],
+      ['left', 'once'],
+      ['left', 'once'],
+    ]);
+    // The strike first, then the namings one after the other.
+    const delays = Array.from(container.querySelectorAll<HTMLElement>('.hs-line[data-moving]')).map((line) => parseInt(line.style.getPropertyValue('--hs-delay'), 10));
+    expect(delays[0]).toBe(0);
+    expect(delays[1]).toBeGreaterThan(0);
+    expect(delays[2]).toBeGreaterThan(delays[1]);
 
     act(() => {
-      vi.advanceTimersByTime(2 * 320 + SWEEP_MS + 100);
+      vi.advanceTimersByTime(STRIKE_MS + 1000);
     });
-    expect(anims(container).every((anim) => anim === null)).toBe(true);
+    expect(container.querySelector('.hs')).toHaveAttribute('data-phase', 'after');
     expect(container.querySelector('.hs-change')).toHaveAttribute('data-shown');
-    // The line that came back keeps its wave and its pencil note.
-    expect(container.querySelector('.hs-line[data-state="returned"] .hs-note')?.textContent).toBe('была стёрта · пункт не назван');
+    // The line that came back keeps its note.
+    expect(plain(container.querySelector('.hs-line .hs-note')?.textContent)).toBe('была стёрта · пункт не назван');
 
     fireEvent.click(screen.getByRole('button', { name: REPLAY_LABEL }));
-    expect(states(container)).toEqual(lines.map((line) => line.before));
+    expect(looks(container)).toEqual(lines.map((line) => LOOK[line.before]));
+    expect(moving(container).every((value) => !value)).toBe(true);
     expect(container.querySelector('.hs-change')).not.toHaveAttribute('data-shown');
     act(() => {
       vi.advanceTimersByTime(700);
     });
-    expect(anims(container).filter(Boolean)).toHaveLength(3);
+    expect(moving(container).filter(Boolean)).toHaveLength(3);
   });
-
-  /** Each step of the play is scheduled once the previous one has rendered. */
-  const playThrough = () => {
-    act(() => {
-      vi.advanceTimersByTime(1600);
-    });
-    act(() => {
-      vi.advanceTimersByTime(2 * 320 + SWEEP_MS + 100);
-    });
-  };
 
   it('plays again when another part of the page asks', () => {
     const { container } = render(<HeroSheet />);
@@ -142,24 +186,24 @@ describe('HeroSheet', () => {
     act(() => {
       window.dispatchEvent(new CustomEvent(SHEET_REPLAY_EVENT));
     });
-    expect(states(container)).toEqual(lines.map((line) => line.before));
+    expect(looks(container)).toEqual(lines.map((line) => LOOK[line.before]));
     expect(container.querySelector('.hs-change')).not.toHaveAttribute('data-shown');
     playThrough();
-    expect(states(container)).toEqual(lines.map((line) => line.after));
+    expect(looks(container)).toEqual(lines.map((line) => LOOK[line.after]));
     expect(container.querySelector('.hs-change')).toHaveAttribute('data-shown');
   });
 
-  it('under reduced motion stands as after the answer, with no animation and no replay', () => {
+  it('under reduced motion stands as after the answer, with nothing moving and no replay', () => {
     reduce = true;
     const { container } = render(<HeroSheet />);
-    expect(states(container)).toEqual(lines.map((line) => line.after));
-    expect(anims(container).every((anim) => anim === null)).toBe(true);
+    expect(looks(container)).toEqual(lines.map((line) => LOOK[line.after]));
+    expect(container.querySelector('.hs')).toHaveAttribute('data-phase', 'after');
     expect(container.querySelector('.hs-change')).toHaveAttribute('data-shown');
     expect(screen.queryByRole('button', { name: REPLAY_LABEL })).toBeNull();
     act(() => {
       window.dispatchEvent(new CustomEvent(SHEET_REPLAY_EVENT));
       vi.advanceTimersByTime(5000);
     });
-    expect(anims(container).every((anim) => anim === null)).toBe(true);
+    expect(container.querySelector('.hs')).toHaveAttribute('data-phase', 'after');
   });
 });
