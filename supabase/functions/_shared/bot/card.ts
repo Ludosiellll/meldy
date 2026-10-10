@@ -8,6 +8,7 @@
  */
 import type { DayPlan, LocalDay, PlanInput } from '../plan/container.ts';
 import { decodePlanInputs } from '../plan/planInputs.ts';
+import { withOralDates } from '../plan/oralParts.ts';
 import { planDay } from '../plan/plan.ts';
 import { figureLines, lineText, planLine, RULE_LINE, shownMinutes, startLabel } from '../plan/words.ts';
 import { counter } from '../plan/session.ts';
@@ -60,11 +61,13 @@ function byDate(a: ExamDay, b: ExamDay): number {
 /**
  * THE one place a plan input is built (the card, M3, S1, the reminder's context, and T6's session start): the copied
  * decoder over `plan_inputs` for one exam, in the link's zone, at the server's clock, with `today.oral` — the oral
- * questions, empty until package T11 supplies them. Throws when the wire has no such exam.
+ * questions (T11) — and the oral exams' dates for subjects with only an oral part (`withOralDates`, the site's rule).
+ * Throws when the wire has no such exam.
  */
 export function planInputOf(today: Today, containerId: string): PlanInput {
   if (!today.wire) throw new Error('planInputOf: no plan input');
-  return decodePlanInputs(today.wire, { containerId, tz: today.link.tz, now: today.now, pending: [], oral: today.oral ?? [] });
+  const input = decodePlanInputs(today.wire, { containerId, tz: today.link.tz, now: today.now, pending: [], oral: today.oral ?? [] });
+  return withOralDates(input, today.oralParts ?? []);
 }
 
 /** Every exam of the user planned for today, and the one the card leads with (`focus`: «Другой экзамен»). */

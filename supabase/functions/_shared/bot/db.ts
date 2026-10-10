@@ -15,6 +15,9 @@
  * (Deno's fetch asks for it and decompresses).
  */
 import type { ContainersOverview, LocalDay, PlanInputsWire, PlanItem } from '../plan/container.ts';
+import { oralPartsFromInputs, type OralPlanPart } from '../plan/oralParts.ts';
+import { localDay } from '../plan/time.ts';
+import { errorName, log, type LogRoute } from './log.ts';
 import type { FetchLike } from './tg.ts';
 
 export type BotRpcName = `bot_${string}`;
@@ -136,10 +139,16 @@ export interface Today {
   /** plan_inputs_for the user: every exam in one wire (decoded per exam with the copied planInputs.ts). */
   wire: PlanInputsWire | null;
   /**
-   * The oral questions of every exam as the plan's items. Empty until package T11 (`bot_oral_inputs` + the container's
-   * `oralParts.ts`) fills it: card.ts `planInputOf` is the one place a plan input is built, and it passes these on.
+   * The oral questions of every exam as the plan's items: the items of `oralParts`. card.ts `planInputOf` is the one
+   * place a plan input is built, and it passes these on.
    */
   oral: PlanItem[];
+  /**
+   * The oral parts of the user's exams (package T11: `bot_oral_inputs` through the container's `oralParts.ts`, the same
+   * sheet and journal as the site). Read only when an exam has an oral part; empty when none or when the read failed
+   * (the card then shows the test part and «Устные — в Meldy», as before T11).
+   */
+  oralParts: OralPlanPart[];
   exams: ExamMeta[];
   session: OpenSession | null;
   /** Today's bot.days row: the card and the last summary. */
@@ -349,6 +358,7 @@ export function toToday(raw: unknown, tgUserId: number): Today | null {
     now: link.now,
     wire: toWire(r.plan),
     oral: [],
+    oralParts: [],
     exams: examMeta(r.overview),
     session: r.session ? toSession(r.session) : null,
     day: d ? { cardMessageId: num(d.card_message_id), cardUsed: d.card_used === true, lastMessageId: num(d.last_message_id) } : null,
@@ -385,7 +395,7 @@ export function toReminderContext(raw: unknown, deliveryId: number): ReminderCon
         deliveryId,
         chatId,
         localDay: day(r.local_day) ?? link.today,
-        today: { link, now: link.now, wire: toWire(r.plan), oral: [], exams: examMeta(r.overview), session: null, day: null },
+        today: { link, now: link.now, wire: toWire(r.plan), oral: [], oralParts: [], exams: examMeta(r.overview), session: null, day: null },
       };
     }
   }
@@ -407,6 +417,24 @@ export function createDb(options: DbOptions): BotDb {
   const base = options.url.replace(/\/+$/, '');
   const legacy = !options.key.startsWith('sb_');
   const timeoutMs = options.timeoutMs ?? 10_000;
+
+  /**
+   * T11: the oral parts, read only when an exam has an oral part (bot_oral_inputs: the same sheet and journal as the
+   * site), on the plan's local day in the link's zone (the Edge runtime runs in UTC; the site reads the lines in its
+   * device's zone, which is the plan's). A failed read keeps the card as before T11 and is logged by name.
+   */
+  async function withOral(today: Today | null, route: LogRoute): Promise<Today | null> {
+    if (!today || !today.exams.some((exam) => exam.hasOral)) return today;
+    const started = Date.now();
+    try {
+      const raw = await rpc('bot_oral_inputs', { p_tg_user_id: today.link.tgUserId });
+      const oralParts = oralPartsFromInputs(raw, today.now, { today: localDay(today.now, today.link.tz) });
+      return { ...today, oralParts, oral: oralParts.flatMap((part) => part.items) };
+    } catch (error) {
+      log({ route, kind: 'oral_inputs', outcome: 'failed', error_name: errorName(error), ms: Date.now() - started });
+      return today;
+    }
+  }
 
   async function rpc<T>(fn: BotRpcName, args: Record<string, unknown> = {}): Promise<T> {
     if (!/^bot_[a-z0-9_]{1,60}$/.test(fn)) throw new DbError(fn, 0, 'bad_name');
@@ -497,7 +525,7 @@ export function createDb(options: DbOptions): BotDb {
       return toSettings(await rpc('bot_settings', { p_tg_user_id: tgUserId, p_patch: patch }), tgUserId);
     },
     async today(tgUserId) {
-      return toToday(await rpc('bot_today', { p_tg_user_id: tgUserId }), tgUserId);
+      return withOral(toToday(await rpc('bot_today', { p_tg_user_id: tgUserId }), tgUserId), 'webhook');
     },
     async cardSent(tgUserId, messageId, event) {
       const r = obj(await rpc('bot_card_sent', { p_tg_user_id: tgUserId, p_message_id: messageId, p_event: event }));
@@ -509,7 +537,9 @@ export function createDb(options: DbOptions): BotDb {
         .filter((r) => r.deliveryId > 0 && r.chatId > 0);
     },
     async reminderContext(deliveryId) {
-      return toReminderContext(await rpc('bot_reminder_context', { p_delivery_id: deliveryId }), deliveryId);
+      const context = toReminderContext(await rpc('bot_reminder_context', { p_delivery_id: deliveryId }), deliveryId);
+      if (context.card === 'skip') return context;
+      return { ...context, today: (await withOral(context.today, 'tick')) as Today };
     },
     async deliverySending(deliveryId) {
       return (await rpc<unknown>('bot_delivery_sending', { p_delivery_id: deliveryId })) === true;

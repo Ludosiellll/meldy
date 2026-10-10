@@ -1,0 +1,13 @@
+# Supabase CLI settings for this repository. Used only to deploy Edge Functions (supabase/deploy_functions.py through
+# .github/workflows/supabase-functions.yml); migrations go through supabase/migrate.py, and the site is on Hugging Face.
+project_id = "meldy"
+
+# The Telegram bot (docs/telegram-bot.md): Telegram and pg_net call it without a Supabase JWT; the webhook and the tick
+# check their own HMAC headers (X-Telegram-Bot-Api-Secret-Token, x-meldy-tick). A deploy with verify_jwt = true would
+# answer Telegram 401 and silence the bot.
+[functions.telegram]
+verify_jwt = false
+
+# The token check of the owner's first bot step: called with the app's public key.
+[functions.tg-health]
+verify_jwt = true

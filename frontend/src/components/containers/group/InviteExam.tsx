@@ -6,6 +6,7 @@ import { track } from '../../../lib/telemetry';
 import type { ContainerSummary, LinkCreated, Uuid } from '../../../types/container';
 import { errorText, INVITE, nb } from '../copyImport';
 import MembersList from './MembersList';
+import GroupBotInvite from '../../telegram/GroupBotInvite';
 import { forgetLink, keepLink, keptCode } from './linkStore';
 import './group.css';
 
@@ -309,6 +310,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
             ) : null}
           </div>
         ) : null}
+        <GroupBotInvite containerId={containerId} linkOpen={Boolean(linkId) && !showMake} />
       </div>
     </div>
   );

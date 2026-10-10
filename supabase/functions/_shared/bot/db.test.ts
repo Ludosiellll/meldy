@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createDb, DbError, hhmm, minutesOf } from './db.ts';
+import { setLogSink } from './log.ts';
 import { AUTUMN, CID, wireOf } from './fixtures/scenario.ts';
 
 const URL_ = 'https://abcdefghijklmnopqrst.supabase.co';
@@ -162,6 +163,72 @@ test('the day: bot_today (plan, overview, the open session, the day row), card e
   assert.deepEqual(rest.calls[1].body, { p_tg_user_id: 700100, p_message_id: 42, p_event: 'card' });
   const off = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_today: { linked: false } }).fetch });
   assert.equal(await off.today(1), null);
+});
+
+// T11: the oral parts (bot_oral_inputs) — read only when an exam has an oral part, on the plan's day in the link's zone.
+const ORAL_EXAM = '0fe86dc1-dc3c-482a-9b76-c06c11bc3cc5';
+const oralQuestion = (n: number) => ({
+  question_id: `${n}0000000-0000-4000-8000-00000000000${n}`, position: n, label: String(n), section: 1, text: `Вопрос ${n}`,
+  question_hash: String(n).repeat(32), coverage: 'full', coverage_method: 'llm', coverage_reason: '', missing_note: '',
+  rubric: { rubric_id: `${n}1111111-1111-4111-8111-111111111111`, built_at: '2026-10-10T10:00:00Z', coverage: 'full', coverage_note: '', materials: [],
+    points: [{ id: 'p1', title: 'Определение', short: '', essential: true, source_quote: 'цитата', source_ids: [], anchors: [] }] },
+});
+const ORAL_INPUTS = {
+  linked: true, cap: 300,
+  parts: [{ container_id: CID, subject_id: 's1', exam_id: ORAL_EXAM, exam_date: '2026-11-05', questions: 2, capped: false,
+    sheet: { exam_id: ORAL_EXAM, mapping_state: 'done', to_write: 0, units: 0, unwritable: 0, job: null, questions: [oralQuestion(1), oralQuestion(2)] },
+    line_events: [], meta_events: [] }],
+};
+const ORAL_OVERVIEW = { ...OVERVIEW, containers: OVERVIEW.containers.map((c) => ({ ...c,
+  subjects: c.subjects.map((s) => (s.id === 's1' ? { ...s, oral_exam_id: ORAL_EXAM, has_oral: true } : s)) })) };
+
+test('T11: an exam with an oral part reads bot_oral_inputs once; the parts become the plan\'s oral items; none → no read', async () => {
+  const wire = wireOf([AUTUMN]);
+  const rest = fakeRest({ bot_today: { linked: true, link: LINK, local_day: '2026-10-16', plan: wire, overview: ORAL_OVERVIEW, session: null, day: null },
+    bot_oral_inputs: ORAL_INPUTS });
+  const today = (await createDb({ url: URL_, key: SECRET, fetch: rest.fetch }).today(700100))!;
+  assert.deepEqual(rest.calls.map((c) => [c.fn, c.body]), [['bot_today', { p_tg_user_id: 700100 }], ['bot_oral_inputs', { p_tg_user_id: 700100 }]]);
+  assert.equal(today.oralParts.length, 1);
+  assert.equal(today.oralParts[0].examId, ORAL_EXAM);
+  assert.equal(today.oralParts[0].examDate, '2026-11-05');
+  assert.ok(today.oral.length > 0, 'the oral questions are in the plan');
+  assert.deepEqual(today.oral, today.oralParts.flatMap((part) => part.items));
+  assert.ok(today.oral.every((item) => item.s === 's1' && item.f !== 't'));
+
+  const plain = fakeRest({ bot_today: { linked: true, link: LINK, local_day: '2026-10-16', plan: wire, overview: OVERVIEW, session: null, day: null } });
+  const without = (await createDb({ url: URL_, key: SECRET, fetch: plain.fetch }).today(700100))!;
+  assert.deepEqual(plain.calls.map((c) => c.fn), ['bot_today'], 'no oral part: no read');
+  assert.deepEqual([without.oral, without.oralParts], [[], []]);
+});
+
+test('T11: a failed oral read keeps the card as before T11 and logs the error by name; the reminder context reads it too', async () => {
+  const wire = wireOf([AUTUMN]);
+  const lines: string[] = [];
+  const restore = setLogSink((line) => lines.push(line));
+  try {
+    const failing = fakeRest({ bot_today: { linked: true, link: LINK, local_day: '2026-10-16', plan: wire, overview: ORAL_OVERVIEW, session: null, day: null } },
+      { bot_oral_inputs: 500 });
+    const today = (await createDb({ url: URL_, key: SECRET, fetch: failing.fetch }).today(700100))!;
+    assert.deepEqual([today.oral, today.oralParts], [[], []]);
+    assert.equal(today.wire!.containers[0].id, CID, 'the test part is still there');
+    assert.equal(lines.length, 1);
+    const entry = JSON.parse(lines[0]);
+    assert.deepEqual([entry.route, entry.kind, entry.outcome, entry.error_name], ['webhook', 'oral_inputs', 'failed', 'DbError']);
+  } finally {
+    restore();
+  }
+  const rest = fakeRest({
+    bot_reminder_context: { status: 'ok', delivery_id: 5, card: 'K1', kind: 'reminder', reason: null, chat_id: 700100, local_day: '2026-10-16',
+      tz: 'Europe/Minsk', link: LINK, plan: wire, overview: ORAL_OVERVIEW },
+    bot_oral_inputs: ORAL_INPUTS,
+  });
+  const ctx = await createDb({ url: URL_, key: SECRET, fetch: rest.fetch }).reminderContext(5);
+  assert.ok(ctx.card === 'K1');
+  assert.equal(ctx.today.oralParts.length, 1);
+  assert.deepEqual(rest.calls.map((c) => [c.fn, c.body]), [['bot_reminder_context', { p_delivery_id: 5 }], ['bot_oral_inputs', { p_tg_user_id: 700100 }]]);
+  const skip = fakeRest({ bot_reminder_context: { status: 'ok', delivery_id: 6, card: 'skip', reason: 'paused' } });
+  assert.equal((await createDb({ url: URL_, key: SECRET, fetch: skip.fetch }).reminderContext(6)).card, 'skip');
+  assert.deepEqual(skip.calls.map((c) => c.fn), ['bot_reminder_context']);
 });
 
 test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, done, the way back after a 429, the night, K3', async () => {

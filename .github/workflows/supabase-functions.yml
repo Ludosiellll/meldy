@@ -1,0 +1,40 @@
+name: Supabase functions
+
+# Deploys the Edge Functions named on the newest line of deploy/supabase-functions.md to the live project with the
+# Supabase CLI (supabase/deploy_functions.py): verify_jwt per function comes from supabase/config.toml, bundling goes
+# through the Management API. The access token is the owner's, kept only in the repository secret SUPABASE_ACCESS_TOKEN.
+on:
+  push:
+    branches: [claude/relaxed-hypatia-1tpmq5]
+    paths: [deploy/supabase-functions.md]
+
+concurrency:
+  group: supabase-functions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: daunnytubqbzafjnpfnw
+    steps:
+      - name: Check the token secret
+        run: test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Repository secret SUPABASE_ACCESS_TOKEN is not set"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Deploy the functions on the newest line
+        run: python supabase/deploy_functions.py

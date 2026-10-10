@@ -10,24 +10,11 @@
  */
 import { supabase } from '../lib/supabase';
 import { SELF_RATING_CONFIDENCE, compareEventTime } from '../lib/learning/readiness';
+import type { LearningEvent, LearningKind, SelfRating } from '../types/learning';
 import { localDateKey } from '../utils/streak';
 
-export type LearningKind = 'quiz_answer' | 'card_review' | 'exam_answer' | 'oral_point' | 'self_rating' | 'sheet_peek';
-
-export interface LearningEvent {
-  id: string;
-  created_at: string;
-  local_date: string;
-  material_id: string | null;
-  kind: LearningKind;
-  item_key: string;
-  correct: boolean | null;
-  score: number | null;
-  confidence: 1 | 2 | 3 | null;
-  source_ids: string[];
-  session_id: string | null;
-  payload: Record<string, unknown>;
-}
+// The journal's shapes live in types/learning.ts (the pure modules read them from there); every import from here works.
+export type { LearningEvent, LearningKind, SelfRating } from '../types/learning';
 
 export const SAVE_FAILED_MESSAGE = 'Результат не сохранён. Проверьте связь и повторите.';
 export const SAVE_SIGNED_OUT_MESSAGE = 'Результат не сохранён: войдите в аккаунт и повторите.';
@@ -282,8 +269,6 @@ export async function recordQuizAttempt(input: {
     mistakesExisting: count(row.mistakes_existing),
   };
 }
-
-export type SelfRating = 'know' | 'unsure' | 'dont_know';
 
 /**
  * Stores a self-rating of a question («знаю» 3 · «плаваю» 2 · «не знаю» 1 in `confidence`). Each tap

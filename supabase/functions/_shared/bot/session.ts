@@ -1,8 +1,8 @@
 /**
  * The «занятие» in chat (spec §4.3–§4.4, §4.8; decisions 10–18): the router's `SessionPort` — `start` («Начать»,
  * «Только ошибки», «Ещё 20 новых», a record's «Ещё 20 вопросов» / «Дальше: …»: `go|<cid>|<mode>`), `press` (every
- * `s|<sid>|<pos>|<act>`), `text` (a typed short answer). Wire it in supabase/functions/telegram/index.ts:
- * `import { session } from '../_shared/bot/session.ts';` and `session,` in `ports`.
+ * `s|<sid>|<pos>|<act>`), `text` (a typed short answer). supabase/functions/telegram/index.ts puts it in `ports`
+ * as `session`.
  *
  * Order of work for a press (spec §6.1): the database call → `answerCallbackQuery` → one edit. Telegram sends one
  * press of a user at a time and T5's SQL locks the session row, so edits do not race; a press that comes again (a

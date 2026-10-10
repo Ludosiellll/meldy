@@ -6,23 +6,27 @@
 // `node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts`).
 import { createDb } from '../_shared/bot/db.ts';
 import { files } from '../_shared/bot/files.ts';
+import { group } from '../_shared/bot/group.ts';
+import { session } from '../_shared/bot/session.ts';
+import { createVoice } from '../_shared/bot/voice.ts';
 import { readEnv } from '../_shared/bot/env.ts';
 import { log } from '../_shared/bot/log.ts';
-import { createApp, STUBS, type Ports } from '../_shared/bot/router.ts';
+import { createApp, type Ports } from '../_shared/bot/router.ts';
 
 declare const Deno: { serve(handler: (req: Request) => Response | Promise<Response>): unknown };
 declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void } | undefined;
 
-// The packages after T2 plug in here, one line each, when they merge:
-const ports: Ports = {
-  session: STUBS.session, // T6: `import { session } from '../_shared/bot/session.ts';` and `session,`
-  group: STUBS.group, // T8: `import { group } from '../_shared/bot/group.ts';` and `group,`
-  files, // T9: a forwarded file (F1) and GET /telegram/file
-  voice: STUBS.voice, // T10: `import { voice } from '../_shared/bot/voice.ts';` and `voice,`
-};
-
 const env = readEnv();
 const http = (input: string, init?: RequestInit) => fetch(input, init);
+
+// The packages after T2, one line each:
+const ports: Ports = {
+  session, // T6: the session in chat (Z1–Z12, I1–I3)
+  group, // T8: the group chat «Вопрос дня» (G1–G4, presses, tick steps 1, 2, 4)
+  files, // T9: a forwarded file (F1) and GET /telegram/file
+  // T10: a voice answer (V1–V4); off until bot.config.flags.voice is true. A factory: the file download needs the token.
+  voice: createVoice({ token: env.token, fetch: http }),
+};
 const app = env.token && env.supabaseUrl && env.serviceKey
   ? createApp({
       token: env.token,
