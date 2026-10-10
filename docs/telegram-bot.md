@@ -27,7 +27,7 @@
 
 | Часть | Где | Кто меняет |
 |---|---|---|
-| Функция `telegram` | `supabase/functions/telegram/index.ts` и `supabase/functions/_shared/{bot,plan}/*` | агент, `deploy_edge_function` |
+| Функция `telegram` | `supabase/functions/telegram/index.ts` и `supabase/functions/_shared/{bot,plan}/*` | агент, строка в `deploy/supabase-functions.md` |
 | Токен бота `TELEGRAM_BOT_TOKEN` | Supabase → Edge Functions → Secrets | только владелец |
 | Ключи базы для функции | `SUPABASE_URL`, `SUPABASE_SECRET_KEYS` (запасной ключ — `SUPABASE_SERVICE_ROLE_KEY`) | Supabase ставит сам |
 | Секрет вебхука и токен тика | вычисляются из токена бота (HMAC-SHA256 с метками `meldy:webhook:v1` и `meldy:tick:v1`); токен тика хранится в `bot.config` | `/setup` |
@@ -119,21 +119,26 @@ select function_url is null as waits_for_setup from bot.config;                 
 
 ### 2. Функция
 
-Выкладка — инструмент `deploy_edge_function` (Supabase MCP) с такими параметрами:
-- `name`: `telegram`; `verify_jwt`: **`false`**; `entrypoint_path`: `telegram/index.ts`; `import_map_path` не нужен
-  (npm-зависимостей нет);
-- `files`: все `.ts` из `supabase/functions/telegram/` и `supabase/functions/_shared/{bot,plan}/`, без тестов и
-  фикстур. `name` каждого файла — путь от `supabase/functions/`, как в репозитории. Тогда импорты `../_shared/…`
-  находят файлы так же, как в тестах. Список файлов:
+Выкладка идёт тем же путём, что и миграции. Новая строка в конце `deploy/supabase-functions.md`:
 
-  ```bash
-  cd supabase/functions && find telegram _shared/bot _shared/plan -name '*.ts' ! -name '*.test.ts' ! -path '*/fixtures/*' | sort
-  ```
+```
+- 2026-10-10 — deploy: telegram
+```
 
-Почему `verify_jwt: false`: Telegram и pg_cron не присылают JWT, а функция сама проверяет HMAC-заголовки (§6.1, §6.4).
-**У инструмента по умолчанию `verify_jwt: true`.** Каждую повторную выкладку тоже делайте с `false`. Иначе шлюз
-Supabase ответит 401 на каждое обновление и каждый тик, и бот замолчит. Проверить настройку можно запросом
-`GET /telegram/status`: при `false` он отвечает 200, при `true` — 401.
+Push этого файла в ветку `claude/relaxed-hypatia-1tpmq5` запускает workflow `.github/workflows/supabase-functions.yml`.
+Тот запускает `supabase/deploy_functions.py` с токеном владельца (секрет репозитория `SUPABASE_ACCESS_TOKEN`), а скрипт —
+Supabase CLI: `supabase functions deploy telegram --use-api --no-verify-jwt`. CLI сам собирает функцию из
+`supabase/functions/telegram/` и всего, что она импортирует из `supabase/functions/_shared/`, сборка идёт через
+Management API, Docker не нужен. Скрипт читает только последнюю строку файла.
+
+Проверка JWT задаётся в `supabase/config.toml` (`[functions.telegram] verify_jwt = false`). Функцию без своей секции там
+скрипт не выкладывает. Почему `false`: Telegram и pg_cron не присылают JWT, а функция сама проверяет HMAC-заголовки
+(§6.1, §6.4). С `true` шлюз Supabase ответит 401 на каждое обновление и каждый тик, и бот замолчит. Проверить
+настройку можно запросом `GET /telegram/status`: при `false` он отвечает 200, при `true` — 401.
+
+Запасной путь — инструмент `deploy_edge_function` (Supabase MCP). Он подходит только для маленьких функций: все файлы
+идут одним вызовом, а у бота их больше 30. **У инструмента по умолчанию `verify_jwt: true`**, поэтому `false` надо
+передавать при каждой выкладке.
 
 Каждая выкладка создаёт новую версию функции. Если какого-то импортируемого файла не хватает, сборка не проходит, и
 остаётся прежняя версия. Отката одной кнопкой нет: чтобы откатиться, выложите файлы прежнего коммита. Функция и сайт
@@ -229,9 +234,10 @@ curl -sS -X POST 'https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram
   `select cron.alter_job((select jobid from cron.job where jobname = 'meldy-telegram-tick'), active := false);`.
   Тик перестаёт ходить, данные не удаляются. Включается так же, с `active := true`. Напоминания, чьё время прошло не
   больше 3 часов назад, придут в ближайшую минуту (окно из §6.6).
-- **Остановить бота целиком:** выложить функцию с `verify_jwt: true`. Шлюз будет отвечать 401 раньше кода бота, и на
-  обновления, и на тик. Telegram сохранит сообщения и будет повторять их до 24 часов. Чтобы вернуть бота, выложите
-  функцию с `verify_jwt: false`. `/setup` не нужен, если токен не меняли.
+- **Остановить бота целиком:** выложить функцию с `verify_jwt: true` (в `supabase/config.toml` и новой строкой в
+  `deploy/supabase-functions.md`). Шлюз будет отвечать 401 раньше кода бота, и на обновления, и на тик. Telegram
+  сохранит сообщения и будет повторять их до 24 часов. Чтобы вернуть бота, верните `false` и выложите функцию снова.
+  `/setup` не нужен, если токен не меняли.
 
 ## Смена токена
 
