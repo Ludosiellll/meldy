@@ -52,6 +52,8 @@ function variants(): Record<string, CardResult> {
     k1_oral_on_site: dayCard(todayOf([AUTUMN], { exams: [{ id: CID, createdAt: null, keyChanges: 0, hasOral: true }] }), 'reminder', SITE),
     k1_no_exam: dayCard(todayOf(null), 'today', SITE),
     k1_after_date: dayCard(todayOf([AUTUMN], {}, at(2026, 11, 5)), 'today', SITE),
+    // Пн–Чт (study_weekdays 15): Friday is a day off; /today says so, with «Ещё 20 новых» for who studies anyway.
+    k1_day_off: dayCard(todayOf([{ ...AUTUMN, weekdays: 15 }]), 'today', SITE),
   };
 }
 
@@ -96,6 +98,43 @@ test('K1: the first line is the plan\'s own line (words.ts), the figure line is 
   assert.deepEqual(decode(blue[0].data), { kind: 'go', cid: CID, mode: 'p' });
   assert.match(blue[0].text, /^Начать: \d+ вопрос/);
   for (const state of ['k1_done_today', 'k1_exam_today', 'k1_no_exam', 'k1_after_date'] as const) assert.equal(variants()[state].send, false, state);
+});
+
+test('a day off (settings.study_weekdays): no reminder while every exam is off; an exam with a study day leads and rings', () => {
+  const words = (card: CardResult) => visibleText(card.out.text).replace(/\u00a0/g, ' ');
+  const OFF = 15; // Пн–Чт: today, Friday 16 October, is a day off
+  const off = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF }]), 'reminder', SITE);
+  assert.equal(off.send, false);
+  assert.equal(off.state, 'day_off');
+  assert.equal(words(off).split('\n')[0], 'Сегодня выходной. Следующие вопросы — в понедельник.');
+  // the card: «Ещё 20 новых» for who studies anyway, no blue, and no «завтра их будет меньше» (Saturday is off too)
+  const today = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF }]), 'today', SITE);
+  assert.ok(today.out.keyboard!.flat().some((b) => b.text.replace(/\u00a0/g, ' ') === 'Ещё 20 новых'));
+  assert.equal(today.out.keyboard!.flat().filter((b) => b.style === 'primary').length, 0);
+  assert.ok(!words(today).includes('завтра их будет меньше'));
+  // Saturday on: «завтра» is true again
+  const saturday = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF + 32 }]), 'today', SITE);
+  assert.equal(words(saturday).split('\n')[0], 'Сегодня выходной. Следующие вопросы — завтра.');
+  assert.ok(words(saturday).includes('Ещё 20 новых сейчас — завтра их будет меньше.'));
+  // two exams, both off: still no reminder
+  const both = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF }, { id: CID2, title: TITLE2, date: '2027-01-12', started: 30, weekdays: OFF }]), 'reminder', SITE);
+  assert.equal(both.send, false);
+  assert.equal(both.state, 'day_off');
+  // one off, one with a study day: that one leads, and the reminder goes out
+  const one = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF }, { id: CID2, title: TITLE2, date: '2027-01-12', started: 30 }]), 'reminder', SITE);
+  assert.equal(one.send, true);
+  assert.equal(one.state, 'study');
+  assert.equal(one.examId, CID2);
+});
+
+test('the eve of the final days is the last study day before them: with Пн–Пт, Friday when they begin on Monday', () => {
+  const words = (card: CardResult) => visibleText(card.out.text).replace(/\u00a0/g, ' ');
+  const friday = at(2026, 10, 30);
+  const spec = { ...AUTUMN, date: '2026-11-06' }; // the final days: Monday 2 – Thursday 5 November
+  const eve = 'С 2 ноября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.';
+  assert.ok(words(dayCard(todayOf([{ ...spec, weekdays: 31 }], {}, friday), 'reminder', SITE)).includes(eve));
+  assert.ok(!words(dayCard(todayOf([spec], {}, friday), 'reminder', SITE)).includes(eve)); // every day: the eve is Sunday
+  assert.ok(words(dayCard(todayOf([spec], {}, at(2026, 11, 1)), 'reminder', SITE)).includes(eve));
 });
 
 test('/today adds «Видели · ошибок сейчас», «Только ошибки» and «Открыть в Meldy»; the reminder does not', () => {

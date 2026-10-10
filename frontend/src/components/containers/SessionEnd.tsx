@@ -8,13 +8,14 @@ import { RoomBar } from './RoomParts';
 import { planText, safeStart, text as lineWords } from './planLines';
 import * as copy from './copy';
 import {
+  comesBackWhen,
+  firstCountWhen,
   laterToday,
   minutesOf,
   moreNew,
   sessionHref,
   studyHref,
   subjectTitle,
-  tomorrowTime,
   type Figure,
   type SessionSummary,
 } from './model';
@@ -133,10 +134,15 @@ export default function SessionEnd({
   if (stats) {
     if (moved) parts.push(`${time}.`);
     if (stats.questions > 0) parts.push(copy.firstRight(stats.firstRight, stats.questions));
-    if (stats.errors > 0) parts.push(copy.errorsBack(stats.errors));
+    // What comes back after today comes back on a study day (input.studyWeekdays): «завтра», or the next one by date.
+    const back = comesBackWhen(today, input?.studyWeekdays);
+    if (stats.errors > 0) parts.push(copy.errorsBack(stats.errors, back));
     if (stats.dropped > 0) parts.push(copy.droppedLine(stats.dropped));
-    if (stats.tooEarly > 0) parts.push(copy.tooEarlyLine(stats.tooEarly, laterToday(stats.tooEarlyAt, today, tz)));
-    if (base.twoDays === 0 && !moved && stats.started > 0) parts.push(copy.firstCountLine(tomorrowTime(stats.firstCountAt, today, tz)));
+    if (stats.tooEarly > 0) parts.push(copy.tooEarlyLine(stats.tooEarly, laterToday(stats.tooEarlyAt, today, tz), back));
+    if (base.twoDays === 0 && !moved && stats.started > 0) {
+      const first = firstCountWhen(stats.firstCountAt, today, tz, input?.studyWeekdays);
+      parts.push(copy.firstCountLine(first.time, first.when));
+    }
   } else if (oral) {
     parts.push(copy.selfCheckLine(oral.know, oral.unsure, oral.dontKnow));
   }

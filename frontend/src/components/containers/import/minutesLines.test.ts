@@ -64,7 +64,10 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
   it('one date for the exam: the final days without new questions; several dates: none', () => {
     plan.feasibility.mockReturnValue({ neededMin: 35, option: 45, seenByDateEst: 476 });
     expect(minutesLines(ONE_DATE, 45)?.window).toBe('С 24 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
-    expect(plan.windowDays).toHaveBeenCalledWith('2026-10-08', '2026-10-28');
+    expect(plan.windowDays).toHaveBeenCalledWith('2026-10-08', '2026-10-28', 127);
+    // Пн–Пт: the 4 final days are study days, 22–27 October (the weekend between them is not one of them)
+    expect(minutesLines({ ...ONE_DATE, studyWeekdays: 31 }, 45)?.window).toBe('С 22 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
+    expect(plan.windowDays).toHaveBeenLastCalledWith('2026-10-08', '2026-10-28', 31);
     const two = input(
       [
         { id: 'a', title: 'Сети', date: '2026-10-28' },

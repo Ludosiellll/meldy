@@ -373,6 +373,45 @@ describe('the states of the exam page (§3.3 table)', () => {
   });
 });
 
+describe('the days of the week (settings.study_weekdays)', () => {
+  // A bank of 960 questions; Пн–Пт; today is Saturday 10 October: a day off.
+  const bank = () => Array.from({ length: 960 }, (_, i) => item({ id: `b${i}`, subject_id: [SUBJECT_CS, SUBJECT_DB, SUBJECT_NET, SUBJECT_OS][i % 4], position: i + 1 }));
+  const dayOff = () => dayPlan({ state: 'nothing', sessions: [], lines: [{ key: 'day_off', n: [2], day: '2026-10-12' }, { key: 'more_new', n: [20] }] });
+
+  it('a day off: the plan’s line with the next study day, «Ещё 20 новых», no blue pill', () => {
+    renderPage(loaded(containerData({ items: bank(), plan: dayOff(), input: { studyWeekdays: 31 } })), { phone: true });
+    expect(page()).toContain('Сегодня выходной. Следующие вопросы — в понедельник.');
+    expect(screen.getByRole('link', { name: nm('Ещё 20 новых') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_CS}&only=new`);
+    expect(document.querySelector('.sf-primary')).toBeNull();
+    // the day off is the card's title, never one of its notes
+    expect(Array.from(document.querySelectorAll('.ct-plan-notes .ct-note')).map((node) => plain(node.textContent))).not.toContain('Сегодня выходной. Следующие вопросы — в понедельник.');
+  });
+
+  it('«План по дням» on a day off: the study days, no row for a day off, «Изменить» to the days in «Настройки»', () => {
+    renderPage(loaded(containerData({ items: bank(), plan: dayOff(), input: { studyWeekdays: 31 } })));
+    fireEvent.click(screen.getByRole('button', { name: 'План по дням' }));
+    const dialog = screen.getByRole('dialog', { name: 'План по дням' });
+    const rows = Array.from(dialog.querySelectorAll('li')).map((node) => plain(node.textContent));
+    expect(rows).toEqual([
+      'Время в день: 45 минут · Изменить',
+      'Дни занятий: Пн–Пт · Изменить',
+      '12–21 октября — около 45 минут в день',
+      '22–27 октября — новых нет, только знакомые, сначала ошибки',
+      '28 октября — экзамен',
+    ]);
+    expect(within(dialog).getAllByRole('link', { name: 'Изменить' }).map((link) => link.getAttribute('href'))).toEqual([
+      `/exams/c/${CONTAINER}/settings#minutes`,
+      `/exams/c/${CONTAINER}/settings#days`,
+    ]);
+  });
+
+  it('every day: no row of days in «План по дням»', () => {
+    renderPage(loaded(containerData({ items: bank() })));
+    fireEvent.click(screen.getByRole('button', { name: 'План по дням' }));
+    expect(plain(screen.getByRole('dialog', { name: 'План по дням' }).textContent)).not.toContain('Дни занятий');
+  });
+});
+
 describe('a one-subject exam is its subject page (decision 44)', () => {
   it('has the exam’s name, the topics as rows and the exam’s «⋯» with «Удалить»', () => {
     renderPage(loaded(containerData({ summary: summary({ subjects: [subject({ id: SUBJECT_DB, title: 'Базы данных' })] }) })), { phone: true });

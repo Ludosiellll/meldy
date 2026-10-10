@@ -427,6 +427,11 @@ export interface PlanInput {
   tz: string; // IANA, e.g. 'Europe/Minsk'
   containerId: string;
   budgetMin: number;
+  /**
+   * The days of the week the student studies (settings.study_weekdays): a bit mask, Monday = 1 … Sunday = 64; 127 =
+   * every day. Absent or out of 1..127 → every day. Days to a date count only these; another day has no plan.
+   */
+  studyWeekdays?: number;
   firstPlanDay: LocalDay;
   subjects: Array<{ id: string; title: string; date: LocalDay | null }>;
   items: PlanItem[]; // in plan only, ≤ 2000 test + ≤ 20 × 150 oral

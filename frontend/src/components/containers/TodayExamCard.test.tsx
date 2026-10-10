@@ -100,6 +100,12 @@ describe('the «Сегодня» card of an exam (decision 47)', () => {
     expect(document.querySelector('.sf-primary')).toBeNull();
   });
 
+  it('a day off (not one of the student’s days of the week): the plan’s line with the next study day, no pill', () => {
+    renderCard({ plan: dayPlan({ state: 'nothing', sessions: [], lines: [{ key: 'day_off', n: [2], day: '2026-10-12' }, { key: 'more_new', n: [20] }] }) });
+    expect(text()).toContain('Сегодня выходной. Следующие вопросы — в понедельник.');
+    expect(card().querySelector('.sf-primary, .sf-secondary')).toBeNull();
+  });
+
   it('the first day before any answer: the rule as the link, no zeros', () => {
     renderCard({ plan: dayPlan({ figure: { inPlan: 960, twoDays: 0, seen: 0, errors: 0, selfKnow: 0 } }) });
     const rule = screen.getByRole('link', { name: (name) => plain(name).startsWith('В счёт идёт вопрос') });

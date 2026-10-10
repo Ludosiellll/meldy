@@ -7,8 +7,8 @@
  *
  * - Day fields are offsets from the wire's `day`; moments are epoch seconds (the server rounds state moments up, so a
  *   moment never comes early): `addDays(day, offset)` and `seconds × 1000`.
- * - Per container: the budget (`minutes_per_day`), the first plan day, today's first answer and seconds done, and the
- *   new questions already taken today per subject.
+ * - Per container: the budget (`minutes_per_day`), the days of the week (`study_weekdays`, every day when missing),
+ *   the first plan day, today's first answer and seconds done, and the new questions already taken today per subject.
  * - A wire of an earlier day (read before midnight, or kept on the device) still gives every item's state; its
  *   «today» (first answer, seconds, new questions) belonged to that day, so it starts from zero.
  * - Answers in the offline queue count as answered today (spec decision 10): the item is not offered again today
@@ -29,6 +29,11 @@ export interface DecodeOptions {
   now: number; // epoch ms on the device
   pending: AnswerInput[]; // the offline queue's answers for this account
   oral: PlanItem[]; // oral questions of the container's oral parts
+}
+
+/** The days of the week as the database keeps them (an integer 1..127, Monday = 1 … Sunday = 64); else every day. */
+function weekdaysOf(mask: unknown): number {
+  return typeof mask === 'number' && Number.isInteger(mask) && mask >= 1 && mask <= 127 ? mask : 127;
 }
 
 /** The seconds of one answer the server counts for today's work (test_answers.ms, capped at 180 s like plan_inputs). */
@@ -162,6 +167,7 @@ export function decodePlanInputs(wire: PlanInputsWire, options: DecodeOptions): 
     tz: options.tz,
     containerId: container.id,
     budgetMin: container.settings?.minutes_per_day ?? 60,
+    studyWeekdays: weekdaysOf(container.settings?.study_weekdays),
     firstPlanDay: container.first_plan_day,
     subjects,
     items: [...items, ...options.oral.filter((item) => item && ownIds.has(item.s))],

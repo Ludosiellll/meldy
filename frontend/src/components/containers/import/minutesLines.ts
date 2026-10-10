@@ -7,14 +7,14 @@
  *   (`short`), or at 90 minutes, when even they are not enough, `short_max`. Like planDay: short_max only when the
  *   chosen minutes are 90, so the line never names minutes the student did not choose.
  * - One date for the whole exam: the final days without new questions in full (`window_detail`; the plan card's
- *   `window_ahead` says it in one line), under «Подробнее».
+ *   `window_ahead` says it in one line), under «Подробнее». Days and minutes are the study days' (settings.study_weekdays).
  *
  * The date is the last one ahead among the subjects with questions in the plan; the count is the questions of the
  * subjects whose date is still ahead (or have none), as the plan counts them. No date, nothing to see, or an estimate
  * that fails: no line.
  */
 import { feasibility, windowDays } from '../../../lib/containers/plan';
-import { addDays, localDay } from '../../../lib/containers/time';
+import { localDay, studyDayBefore, studyMask } from '../../../lib/containers/time';
 import { lineText } from '../../../lib/containers/words';
 import type { PlanInput } from '../../../types/container';
 
@@ -60,10 +60,15 @@ export function minutesLines(input: PlanInput | null, minutes: number): MinutesL
         ? lineText({ key: 'short_max', n: [minutes, seen, total], day: last })
         : lineText({ key: 'short', n: [minutes, seen, total, needed], day: last });
 
+    // The final days are the student's last study days before the date, as the plan counts them (plan.ts windowDays,
+    // windowStart): the first of them is the W-th study day back.
     let window: string | null = null;
     if (ahead.every((subject) => subject.date === last)) {
-      const days = windowDays(input.firstPlanDay, last);
-      if (days > 0) window = lineText({ key: 'window_detail', n: [days], day: addDays(last, -days) });
+      const mask = studyMask(input.studyWeekdays);
+      const days = windowDays(input.firstPlanDay, last, mask);
+      let from = last;
+      for (let k = 0; k < days; k += 1) from = studyDayBefore(from, mask);
+      if (days > 0) window = lineText({ key: 'window_detail', n: [days], day: from });
     }
     return { line, window, option: at.option, short };
   } catch {

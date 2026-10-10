@@ -20,7 +20,7 @@ export const SKIP_NOTE = 'Если пропустите день, его воп�
 export const LINE_KEYS = [
   'later', 'first_count', 'skip', 'short', 'short_max', 'need', 'window_ahead', 'window_detail', 'window_in', 'exam_today',
   'exam_errors', 'after', 'no_date', 'first_day', 'more_new', 'ai_limit', 'oral', 'oral_no_lectures', 'done', 'nothing',
-  'pace_faster', 'pace_slower',
+  'day_off', 'pace_faster', 'pace_slower',
 ] as const;
 export type LineKey = typeof LINE_KEYS[number];
 type Line = DayPlan['lines'][number];
@@ -49,6 +49,8 @@ const days = (n: number) => glue(n, 'день', 'дня', 'дней');
 
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+/** «в понедельник» … «в воскресенье» (a day within the coming week). */
+const WEEKDAYS_ON = ['в понедельник', 'во вторник', 'в среду', 'в четверг', 'в пятницу', 'в субботу', 'в воскресенье'];
 
 /** '11 октября' */
 export function dayText(day: LocalDay): string {
@@ -78,6 +80,12 @@ function relDay(offset: number | undefined, day: LocalDay | undefined): string {
   return day ? dayText(day) : '';
 }
 
+/** 'завтра', 'в понедельник' (within the coming week) or '14 октября' for a day `offset` days from today. */
+function weekDay(offset: number | undefined, day: LocalDay | undefined): string {
+  if (day && typeof offset === 'number' && offset >= 2 && offset <= 6) return WEEKDAYS_ON[weekday(day)];
+  return relDay(offset, day);
+}
+
 /** Minutes shown for an estimate: 1 at least, to the minute below 10, else to 5. */
 export function shownMinutes(sec: number): number {
   const min = Math.max(0, sec) / 60;
@@ -105,8 +113,9 @@ export function lineText(line: Line): string {
     case 'first_count':
       return firstCountText(relDay(line.n ? line.n[0] : undefined, line.day), line.time);
     case 'skip': {
+      // The study days missed; `day` (the last of them) when it was not yesterday: a day off came after it.
       const gap = nth(line, 0);
-      const head = gap <= 1 ? 'Вчера без занятий.' : `${days(gap)} без занятий.`;
+      const head = gap <= 1 && !line.day ? 'Вчера без занятий.' : `${days(Math.max(1, gap))} без занятий.`;
       return `${head} Сегодня те же ${minutesNom(nth(line, 1))} — больше знакомых вопросов.`;
     }
     case 'short':
@@ -158,6 +167,12 @@ export function lineText(line: Line): string {
     }
     case 'nothing':
       return line.day ? `На сегодня всё. Следующие вопросы — ${relDay(line.n ? line.n[0] : undefined, line.day)}.` : 'На сегодня всё.';
+    case 'day_off': {
+      // Not one of the student's days of the week: no plan today (it can still study: «Ещё 20 новых»).
+      const when = line.day ? weekDay(line.n ? line.n[0] : undefined, line.day) : '';
+      // The dash stays with the word before it: a line never starts with «—».
+      return when ? `Сегодня выходной. Следующие вопросы${NBSP}— ${when}.` : 'Сегодня выходной.';
+    }
     case 'pace_faster':
       return `Вы отвечаете быстрее, чем мы считали: хватит ${minutesGen(nth(line, 0))} в день.`;
     case 'pace_slower':
@@ -201,7 +216,7 @@ export function planTitle(plan: DayPlan): string {
       return done ? lineText(done).replace(/\.$/, '') : 'На сегодня всё';
     }
     case 'nothing':
-      return 'На сегодня всё';
+      return findLine(plan, 'day_off') ? 'Сегодня выходной' : 'На сегодня всё';
     case 'exam_today':
       return 'Сегодня экзамен';
     case 'after': {
@@ -228,7 +243,7 @@ export function planLine(plan: DayPlan): string {
       return done ? lineText(done) : 'На сегодня всё.';
     }
     case 'nothing': {
-      const nothing = findLine(plan, 'nothing');
+      const nothing = findLine(plan, 'day_off') ?? findLine(plan, 'nothing');
       return nothing ? lineText(nothing) : 'На сегодня всё.';
     }
     case 'exam_today':

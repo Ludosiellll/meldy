@@ -103,7 +103,9 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   } else if (share && shareCount > 0) {
     title = <PlanTitle text={titleText(share)} />;
   } else {
-    title = (solo && plan ? planText(plan) : '') || copy.SUBJECT_DONE;
+    // A subject of several on a day off says the exam's day off («Сегодня выходной. Следующие вопросы — …»).
+    const dayOff = plan?.lines.find((line) => line.key === 'day_off');
+    title = (solo && plan ? planText(plan) : dayOff ? lineWords(dayOff) : '') || copy.SUBJECT_DONE;
   }
   const linkItems: ReactNode[] = [];
   const examErrors = lines.find((line) => line.kind === 'exam_errors');

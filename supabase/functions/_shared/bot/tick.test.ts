@@ -59,10 +59,12 @@ test('K1 at the chosen time: with sound, protect_content, the card of the copied
   assert.equal(h.tg.of('sendMessage').length, 1);
 });
 
-test('no card when the plan is done, has nothing, or it is the exam day: the row is closed as skipped with that word', async () => {
+test('no card when the plan is done, has nothing, it is a day off or the exam day: the row is closed as skipped with that word', async () => {
   for (const [name, spec, now, word] of [
     ['done', { id: CID, title: 'Осенняя сессия', date: '2026-11-03', perSubject: 10, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3_600_000) / 1000), doneSec: 2700 } }, AT_2001, 'done'],
     ['exam day', AUTUMN, Date.UTC(2026, 10, 3, 17, 1), 'exam_today'],
+    // Пн–Чт (study_weekdays 15): Friday is a day off — the reminder waits for a study day
+    ['day off', { ...AUTUMN, weekdays: 15 }, AT_2001, 'day_off'],
   ] as const) {
     const h = harness({ now });
     const userId = 'c1c2c3d4-0000-4000-8000-000000000555';

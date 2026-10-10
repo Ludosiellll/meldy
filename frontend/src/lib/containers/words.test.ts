@@ -40,7 +40,7 @@ const SAMPLES: Record<LineKey, Array<DayPlan['lines'][number]>> = {
   later: [{ key: 'later', n: [12], time: '17:00' }, { key: 'later', n: [1], time: '8:05' }, { key: 'later', n: [22], time: '19:30' }],
   first_count: [{ key: 'first_count', n: [1], day: '2026-10-11', time: '17:00' }, { key: 'first_count', n: [0], day: '2026-10-10', time: '19:00' },
     { key: 'first_count', n: [0], day: '2026-10-10' }, { key: 'first_count', n: [1], day: '2026-10-11' }, { key: 'first_count', n: [4], day: '2026-10-14', time: '9:15' }],
-  skip: [{ key: 'skip', n: [1, 60] }, { key: 'skip', n: [2, 45] }, { key: 'skip', n: [5, 90] }],
+  skip: [{ key: 'skip', n: [1, 60] }, { key: 'skip', n: [2, 45] }, { key: 'skip', n: [5, 90] }, { key: 'skip', n: [1, 45], day: '2026-10-16' }],
   short: [{ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }, { key: 'short', n: [30, 410, 960, 120], day: '2026-10-28' }],
   short_max: [{ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' }],
   need: [{ key: 'need', n: [960, 70], day: '2026-10-28' }],
@@ -58,6 +58,8 @@ const SAMPLES: Record<LineKey, Array<DayPlan['lines'][number]>> = {
   oral_no_lectures: [{ key: 'oral_no_lectures', n: [60] }, { key: 'oral_no_lectures', n: [1] }, { key: 'oral_no_lectures', n: [21] }],
   done: [{ key: 'done', n: [128, 61] }, { key: 'done', n: [3, 0] }],
   nothing: [{ key: 'nothing', n: [4], day: '2026-10-14' }, { key: 'nothing', n: [1], day: '2026-10-11' }, { key: 'nothing' }],
+  day_off: [{ key: 'day_off', n: [2], day: '2026-10-19' }, { key: 'day_off', n: [1], day: '2026-10-18' }, { key: 'day_off', n: [9], day: '2026-10-26' },
+    { key: 'day_off' }],
   pace_faster: [{ key: 'pace_faster', n: [45] }],
   pace_slower: [{ key: 'pace_slower', n: [80] }],
 };
@@ -110,6 +112,13 @@ describe('lineText', () => {
     expect(t({ key: 'first_count', n: [4], day: '2026-10-14' })).toBe('Первые войдут в счёт 14 октября — если снова ответите верно');
     expect(t({ key: 'skip', n: [1, 60] })).toBe('Вчера без занятий. Сегодня те же 60 минут — больше знакомых вопросов.'); // #39, #55
     expect(t({ key: 'skip', n: [2, 45] })).toBe('2 дня без занятий. Сегодня те же 45 минут — больше знакомых вопросов.');
+    // a study day missed before days off: not «Вчера» (yesterday was a day off)
+    expect(t({ key: 'skip', n: [1, 45], day: '2026-10-16' })).toBe('1 день без занятий. Сегодня те же 45 минут — больше знакомых вопросов.');
+    // a day off (not one of the student's days of the week): the next study day, by name within the week
+    expect(t({ key: 'day_off', n: [2], day: '2026-10-19' })).toBe('Сегодня выходной. Следующие вопросы — в понедельник.');
+    expect(t({ key: 'day_off', n: [1], day: '2026-10-18' })).toBe('Сегодня выходной. Следующие вопросы — завтра.');
+    expect(t({ key: 'day_off', n: [9], day: '2026-10-26' })).toBe('Сегодня выходной. Следующие вопросы — 26 октября.');
+    expect(t({ key: 'day_off' })).toBe('Сегодня выходной.');
     expect(t({ key: 'oral_no_lectures', n: [60] })).toBe('Ещё 60 устных войдут в план, когда к предмету будут лекции.'); // #35
     expect(t({ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }))
       .toBe('При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут.');
