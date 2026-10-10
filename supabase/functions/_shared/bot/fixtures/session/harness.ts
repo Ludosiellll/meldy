@@ -5,6 +5,7 @@ import { LOGS } from '../harness.ts';
 import { createApp, type TgUpdate } from '../../router.ts';
 import { derivedSecret } from '../../secrets.ts';
 import { createSession, type SessionOptions } from '../../session.ts';
+import { FUNCTION_REGION, webhookUrl } from '../../setup.ts';
 import { fakeDb } from '../fake_db.ts';
 import { fakeTelegram, TEST_FUNCTION_URL, TEST_TOKEN } from '../fake_telegram.ts';
 import { AUTUMN, NOW, TG, USER, wireOf, type ExamSpec } from '../scenario.ts';
@@ -38,7 +39,7 @@ export function sessionHarness(options: { now?: number; seed?: number; session?:
     fetch: tg.fetch,
     db: fdb.db,
     functionUrl: TEST_FUNCTION_URL,
-    region: 'eu-central-1',
+    region: FUNCTION_REGION,
     waitUntil: (work) => waits.push(work),
     now,
     ports: { session: port },
@@ -50,7 +51,7 @@ export function sessionHarness(options: { now?: number; seed?: number; session?:
 
   async function post(update: TgUpdate): Promise<Response> {
     const secret = await derivedSecret(TEST_TOKEN, 'webhook');
-    return app(new Request(`${TEST_FUNCTION_URL}?forceFunctionRegion=eu-central-1`, {
+    return app(new Request(webhookUrl(TEST_FUNCTION_URL), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': secret },
       body: JSON.stringify(update),
@@ -60,7 +61,7 @@ export function sessionHarness(options: { now?: number; seed?: number; session?:
   /** The minute tick (POST /telegram/tick with its header); resolves when its work is done. */
   async function tick(): Promise<void> {
     const secret = await derivedSecret(TEST_TOKEN, 'tick');
-    await app(new Request(`${TEST_FUNCTION_URL}/tick?forceFunctionRegion=eu-central-1`, { method: 'POST', headers: { 'x-meldy-tick': secret } }));
+    await app(new Request(`${TEST_FUNCTION_URL}/tick?forceFunctionRegion=${FUNCTION_REGION}`, { method: 'POST', headers: { 'x-meldy-tick': secret } }));
     await Promise.all(waits.splice(0));
   }
 
