@@ -59,7 +59,7 @@
 .gr-lede { margin: 10px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
 .gr-line { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
 .gr-line[data-muted] { color: var(--sf-muted); }
-.gr-line .sf-link { min-height: 0; font-size: 15px; vertical-align: baseline; }
+.gr-line .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; vertical-align: baseline; }
 .gr-note { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--m-yellow-soft); color: var(--m-yellow-ink); font-size: 15px; line-height: 1.45; }
 .gr-make { display: grid; gap: 14px; margin-top: 20px; }
 .gr-consent {

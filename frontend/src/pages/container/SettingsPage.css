@@ -20,7 +20,8 @@
 .sf-page.st-page .st-body:not([data-side]) .st-side { margin-top: 32px; }
 .sf-page.st-page .st-h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; }
 .sf-page.st-page .st-line { margin: 12px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
-.sf-page.st-page .st-line .sf-link { min-height: 0; vertical-align: baseline; }
+/* A quiet link in a line: a 44 px target, the room taken from the line (as .ct-fig-sub), so the line does not grow. */
+.sf-page.st-page .st-line .sf-link { min-height: 44px; margin: -12px 0; vertical-align: baseline; }
 .sf-page.st-page .st-ask { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 .sf-page.st-page .st-ask > span { flex: 1 1 100%; }
 .sf-page.st-page .st-oral-date { font-size: 14px; color: var(--sf-muted); text-align: right; }
