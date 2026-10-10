@@ -10,7 +10,7 @@
  */
 import { listExams } from '../../../api/exams';
 import type { ContainersOverview, LocalDay } from '../../../types/container';
-import { IMPORT, dayText } from '../copyImport';
+import { IMPORT, dayText, nb } from '../copyImport';
 
 export interface OldExam {
   id: string;
@@ -147,5 +147,5 @@ export function targetOptions(containers: readonly ContainerTarget[], exams: rea
     })),
   ];
   const labels = apart(candidates);
-  return [{ value: 'new', label: IMPORT.targetNew }, ...candidates.map((candidate, index) => ({ value: candidate.value, label: labels[index] }))];
+  return [{ value: 'new', label: IMPORT.targetNew }, ...candidates.map((candidate, index) => ({ value: candidate.value, label: nb(labels[index]) }))];
 }
