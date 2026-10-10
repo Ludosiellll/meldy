@@ -313,7 +313,9 @@ begin
                      and (a -> 'points' -> 0 ->> 'essential')::boolean and not (a -> 'points' -> 2 ->> 'essential')::boolean, 'the points');
   perform pg_temp.is(a ->> 'evidence_material_id' = '11111111-1111-1111-1111-111111111111', 'evidence[0].material_id kept for the record');
   perform pg_temp.is((r -> 'units' ->> 'left')::int = 88 and (r -> 'units' ->> 'price')::int = 4, 'units: 100 − 12 = 88, price 4: ' || (r -> 'units')::text);
-  perform pg_temp.is((r -> 'audio' ->> 'left_s')::int = 1800 and not (r -> 'audio' ->> 'stop')::boolean, 'audio: 30 minutes left, no stop');
+  perform pg_temp.is((r -> 'audio' ->> 'left_s')::int = 1800 and (r -> 'audio' ->> 'day_s')::int = 1800 and not (r -> 'audio' ->> 'stop')::boolean,
+                     'audio: 30 minutes left of 30, no stop');
+  perform pg_temp.is(r ->> 'tz' = 'Europe/Minsk', 'the link''s zone (the limit line''s clock): ' || coalesce(r ->> 'tz', 'null'));
   perform pg_temp.is(not (a ? 'charge_id') and not (a ? 'user_id'), 'no user id or charge id goes out');
   perform pg_temp.is(pg_temp.sq(format($$select (rubric -> 'points' -> 1 -> 'followup' ->> 'question') from bot.voice_attempts where aid = %L$$, a ->> 'aid'))
                      = 'Какие условия должны выполняться одновременно, чтобы возникла взаимоблокировка?', 'the follow-ups come from oral_rubrics');
@@ -621,9 +623,12 @@ begin
   r := pg_temp.svc(format($$select public.bot_voice_next(810001, %L)$$, pg_temp.c('aid')));
   perform pg_temp.is(r ->> 'status' = 'ok' and r -> 'attempt' ->> 'question_id' = pg_temp.c('q2') and (r -> 'attempt' ->> 'n')::int = 3,
                      '«Следующий» skips the question without points: ' || (r -> 'attempt' ->> 'n'));
+  perform pg_temp.is(r -> 'prev' ->> 'aid' = pg_temp.c('aid') and r -> 'prev' ->> 'phase' = 'done' and r -> 'prev' ->> 'session_id' is not null
+                     and r ->> 'tz' = 'Europe/Minsk', 'prev: the answered question (its «Протокол» stays)');
   aid2 := r -> 'attempt' ->> 'aid';
   r := pg_temp.svc(format($$select public.bot_voice_next(810001, %L)$$, pg_temp.c('aid')));
-  perform pg_temp.is(r ->> 'status' = 'ok' and (r ->> 'again')::boolean and r -> 'attempt' ->> 'aid' = aid2, '«Следующий» twice: the same open question');
+  perform pg_temp.is(r ->> 'status' = 'ok' and (r ->> 'again')::boolean and r -> 'attempt' ->> 'aid' = aid2 and r -> 'prev' ->> 'aid' = pg_temp.c('aid'),
+                     '«Следующий» twice: the same open question');
   -- The self-check: a sheet_peek of every point, then the rating; nothing charged.
   perform pg_temp.is(pg_temp.svc(format($$select public.bot_voice_rate(810001, %L, 'know')$$, aid2)) ->> 'status' = 'gone', 'no rating before the points');
   r := pg_temp.svc(format($$select public.bot_voice_self(810001, %L)$$, aid2));
@@ -632,7 +637,8 @@ begin
                         and item_key like 'peek:e0e00000-0000-4000-8000-000000000202:p_' and payload ->> 'question_hash' = public.meldy_question_hash(
                           'Планирование процессов: вытесняющие и невытесняющие алгоритмы.') and payload ->> 'exam_id' = pg_temp.c('exam')
                         and local_date = (now() at time zone 'Europe/Minsk')::date) = 3, 'three peeks, as «Показать пункты»');
-  perform pg_temp.svc(format($$select public.bot_voice_self(810001, %L)$$, aid2));
+  r := pg_temp.svc(format($$select public.bot_voice_self(810001, %L)$$, aid2));
+  perform pg_temp.is(r ->> 'status' = 'ok' and r -> 'attempt' ->> 'phase' = 'self', 'pressed twice: ok, the same points');
   perform pg_temp.is((select count(*) from public.learning_events where user_id = a and kind = 'sheet_peek') = 3, 'peeks once');
   perform pg_temp.is(pg_temp.svc(format($$select public.bot_voice_rate(810001, %L, 'excellent')$$, aid2)) ->> 'status' = 'invalid', 'an unknown rating');
   r := pg_temp.svc(format($$select public.bot_voice_rate(810001, %L, 'unsure')$$, aid2));
@@ -641,7 +647,8 @@ begin
                         and item_key = 'q:' || public.meldy_question_hash('Планирование процессов: вытесняющие и невытесняющие алгоритмы.')
                         and material_id = '11111111-1111-1111-1111-111111111111' and payload ->> 'exam_question_id' = pg_temp.c('q2')) = 1, 'the self_rating');
   perform pg_temp.is(pg_temp.used_today(a) = 16, 'the self-check charges nothing');
-  perform pg_temp.is(pg_temp.svc(format($$select public.bot_voice_next(810001, %L)$$, aid2)) ->> 'status' = 'end', 'the last question: end');
+  r := pg_temp.svc(format($$select public.bot_voice_next(810001, %L)$$, aid2));
+  perform pg_temp.is(r ->> 'status' = 'end' and r -> 'prev' ->> 'aid' = aid2 and r -> 'prev' ->> 'session_id' is null, 'the last question: end');
   -- «Не знаю» under V1: the site's «не знаю» answer, no units.
   r := pg_temp.start(810001);
   r := pg_temp.svc(format($$select public.bot_voice_record(810001, %L, %L::jsonb, 'dont_know')$$, r -> 'attempt' ->> 'aid',

@@ -668,7 +668,8 @@ begin
 end;
 $fn$;
 
--- 3e. The student's audio left today and whether the shared stop is on (read only; bridge_voice_take decides).
+-- 3e. The student's audio left today, their day's ceiling and whether the shared stop is on (read only; bridge_voice_take
+--     decides).
 create or replace function bot.voice_audio_state(p_user uuid, p_now timestamptz)
 returns jsonb
 language sql
@@ -678,6 +679,7 @@ as $fn$
   select pg_catalog.jsonb_build_object(
     'left_s', greatest(l.user_day_s - coalesce((select a.seconds from bot.voice_audio a
                                                   where a.day = (p_now at time zone 'utc')::date and a.user_id = p_user), 0), 0),
+    'day_s', l.user_day_s,
     'stop', coalesce((select d.seconds from bot.voice_days d where d.day = (p_now at time zone 'utc')::date), 0) >= l.stop_s)
     from bot.voice_limits() l
 $fn$;
@@ -740,7 +742,7 @@ $fn$;
 -- 3i. Open the question at p_pos of the queue (or the next one with written points): read the exam's sheet through
 --     T11's meldy_private.oral_sheet_for (the current rubric by the rubric key, as GET /api/oral/sheet), take each
 --     point's follow-up from its public.oral_rubrics row, close the user's earlier open attempt, insert the new one.
---     status: ok (+ attempt, units, audio) | empty (no question of the queue has written points from p_pos on) |
+--     status: ok (+ attempt, units, audio, tz) | empty (no question of the queue has written points from p_pos on) |
 --     gone (not this user's exam) | not_ready (T11's reads are not installed yet).
 create or replace function bot.voice_open(p_l bot.links, p_container uuid, p_subject uuid, p_exam uuid, p_title text,
                                           p_queue uuid[], p_pos integer, p_now timestamptz)
@@ -832,7 +834,7 @@ begin
     end;
   end loop;
   return pg_catalog.jsonb_build_object('status', 'ok', 'attempt', bot.voice_attempt_json(v_a, p_now),
-    'units', bot.voice_units(v_user), 'audio', bot.voice_audio_state(v_user, p_now));
+    'units', bot.voice_units(v_user), 'audio', bot.voice_audio_state(v_user, p_now), 'tz', p_l.tz);
 end;
 $fn$;
 
@@ -918,7 +920,8 @@ end;
 $fn$;
 
 -- 4c. «Следующий: 2 из 3»: the next question of the session after an answer (done) or a self-check (rated).
---     status: ok (+ attempt, units, audio; again = it was open already) | end | empty | gone | not_ready | off | unlinked.
+--     status: ok (+ attempt, units, audio, tz; again = it was open already) | end | empty | gone | not_ready | off | unlinked;
+--     ok, end and empty carry prev = the answered attempt (its message keeps «Протокол» when «Следующий» goes).
 create or replace function public.bot_voice_next(p_tg_user_id bigint, p_aid text)
 returns jsonb
 language plpgsql
@@ -950,7 +953,7 @@ begin
     return pg_catalog.jsonb_build_object('status', 'gone');
   end if;
   if v_a.pos + 1 >= pg_catalog.cardinality(v_a.queue) then
-    return pg_catalog.jsonb_build_object('status', 'end');
+    return pg_catalog.jsonb_build_object('status', 'end', 'prev', bot.voice_attempt_json(v_a, v_now));
   end if;
   -- Pressed twice: the next question is open already.
   select o.* into v_open from bot.voice_attempts o
@@ -958,9 +961,11 @@ begin
      and o.queue = v_a.queue and o.pos > v_a.pos;
   if v_open.id is not null then
     return pg_catalog.jsonb_build_object('status', 'ok', 'again', true, 'attempt', bot.voice_attempt_json(v_open, v_now),
-      'units', bot.voice_units(v_l.user_id), 'audio', bot.voice_audio_state(v_l.user_id, v_now));
+      'units', bot.voice_units(v_l.user_id), 'audio', bot.voice_audio_state(v_l.user_id, v_now), 'tz', v_l.tz,
+      'prev', bot.voice_attempt_json(v_a, v_now));
   end if;
-  return bot.voice_open(v_l, v_a.container_id, v_a.subject_id, v_a.exam_id, v_a.subject_title, v_a.queue, v_a.pos + 1, v_now);
+  return bot.voice_open(v_l, v_a.container_id, v_a.subject_id, v_a.exam_id, v_a.subject_title, v_a.queue, v_a.pos + 1, v_now)
+         || pg_catalog.jsonb_build_object('prev', bot.voice_attempt_json(v_a, v_now));
 end;
 $fn$;
 
@@ -1409,8 +1414,8 @@ $fn$;
 
 -- 4l. «Проверить себя без Meldy» (phase asked | answering): the points are shown — a sheet_peek of every point, as
 --     «Показать пункты» on the site (api/learning.ts recordSheetPeek: item_key peek:<rubric>:<point>, the question hash
---     and the point's words in the payload); the recognised text goes. status: ok (+ attempt) | gone | busy | invalid |
---     unlinked | off.
+--     and the point's words in the payload); the recognised text goes. Again in phase self: ok, nothing written.
+--     status: ok (+ attempt) | gone | busy | invalid | unlinked | off.
 create or replace function public.bot_voice_self(p_tg_user_id bigint, p_aid text)
 returns jsonb
 language plpgsql
@@ -1436,8 +1441,12 @@ begin
   end if;
   update bot.links l set last_seen_at = v_now where l.id = v_l.id;
   select a.* into v_a from bot.voice_attempts a where a.aid = p_aid and a.user_id = v_l.user_id for update;
-  if v_a.id is null or v_a.phase not in ('asked', 'answering') then
+  if v_a.id is null or v_a.phase not in ('asked', 'answering', 'self') then
     return pg_catalog.jsonb_build_object('status', 'gone', 'phase', v_a.phase);
+  end if;
+  -- Pressed twice (or the press delivered twice): the points are open already, nothing is written again.
+  if v_a.phase = 'self' then
+    return pg_catalog.jsonb_build_object('status', 'ok', 'attempt', bot.voice_attempt_json(v_a, v_now));
   end if;
   if v_a.busy_until > v_now then
     return pg_catalog.jsonb_build_object('status', 'busy');
