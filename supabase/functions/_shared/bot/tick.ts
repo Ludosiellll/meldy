@@ -177,6 +177,12 @@ export async function afterDate(ctx: Ctx, deadline: number, pace: () => Promise<
       add(stats, 'skip_gone');
       continue;
     }
+    if (row.exam.keyed === 0) {
+      // No question with a key: the bot never planned this exam, and «0 из 0» says nothing.
+      await ctx.db.deliveryDone(row.deliveryId, 'skipped', null, 'empty');
+      add(stats, 'skip_empty');
+      continue;
+    }
     const outcome = await deliver(ctx, stats, row.deliveryId, row.chatId, afterDateCard({ ...row, exam: row.exam }, ctx.site), false, pace);
     if (outcome === 'stop') break;
   }

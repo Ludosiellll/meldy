@@ -228,6 +228,18 @@ test('K3 of an exam deleted meanwhile (exam null): closed as skipped «gone», n
   assert.deepEqual([k3.status, k3.error], ['skipped', 'gone']);
 });
 
+test('K3 of an exam with no keyed question: closed as skipped «empty» — the bot never planned it, «0 из 0» says nothing', async () => {
+  const h = harness({ now: Date.UTC(2026, 10, 4, 17, 1) });
+  const [row] = students(h, 1);
+  row.remindAt = 21 * 60;
+  h.fdb.addAfterDate(row.id, CID, { title: 'Летняя сессия', examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-11-03', activeDays: 0, answers: 0, twoDays: 0, keyed: 0 });
+  const stats = await tickNow(h);
+  assert.equal(stats.k3_skip_empty, 1);
+  assert.equal(h.tg.of('sendMessage').length, 0);
+  const k3 = h.fdb.deliveries.find((d) => d.kind === 'after_date')!;
+  assert.deepEqual([k3.status, k3.error], ['skipped', 'empty']);
+});
+
 test('the flush of pending answers (T5) runs when the function exists; a failing step never stops the others', async () => {
   const h = harness({ now: AT_2001 });
   students(h, 1);

@@ -39,6 +39,11 @@ export interface DayView {
   main: ExamDay | null;
   /** Other exams with something to do today, nearest first. */
   others: ExamDay[];
+  /**
+   * What «Другой экзамен» offers, nearest first: the shown exam and those the site's «Сегодня» lists (work today, the
+   * exam day, or today's work done). Not an exam without questions: its card would say there is no exam with a plan.
+   */
+  listed: ExamDay[];
 }
 
 const sentence = (text: string) => (/[.?…]$/.test(text) ? text : `${text}.`);
@@ -98,10 +103,12 @@ export function dayView(today: Today, focus?: string | null): DayView {
   const shown = exams.filter((e) => e.plan.state !== 'after');
   const active = shown.filter((e) => e.plan.state === 'study' || e.plan.state === 'exam_today').sort(byDate);
   const quiet = shown.filter((e) => e.plan.state === 'done' || e.plan.state === 'nothing' || e.plan.state === 'empty').sort(byDate);
-  const focused = focus ? shown.find((e) => e.id === focus) ?? null : null;
+  const listable = (e: ExamDay) => e.plan.state === 'study' || e.plan.state === 'exam_today' || e.plan.state === 'done';
+  const focused = focus ? shown.find((e) => e.id === focus && listable(e)) ?? null : null;
   const main = focused ?? active[0] ?? quiet[0] ?? null;
   const others = shown.filter((e) => e !== main && e.plan.state === 'study').sort(byDate);
-  return { day, exams, main, others };
+  const listed = shown.filter((e) => e === main || listable(e)).sort(byDate);
+  return { day, exams, main, others, listed };
 }
 
 /** «Сегодня около 45 минут: 30 новых и 60 знакомых.» with the skip and eve forms of the table. */
@@ -232,7 +239,7 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     if (errors > 0 && plan.state !== 'exam_today') keyboard.push(row({ text: W.onlyErrors(errors), data: encode({ kind: 'go', cid, mode: 'e' }) }));
     keyboard.push(row({ text: W.OPEN_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
   }
-  if (view.exams.filter((e) => e.plan.state !== 'after').length > 1) keyboard.push(row({ text: W.OTHER_EXAM, data: encode({ kind: 'exam', cid: null }) }));
+  if (view.listed.length > 1) keyboard.push(row({ text: W.OTHER_EXAM, data: encode({ kind: 'exam', cid: null }) }));
 
   return { out: { text: lines(...text), keyboard }, send: plan.state === 'study', state: plan.state, examId: cid, user };
 }
@@ -242,10 +249,7 @@ const ellipsize = (text: string, max: number) => ([...text].length <= max ? text
 /** «Другой экзамен»: the exams one per row and «‹ Назад» (a keyboard edit). */
 export function examList(today: Today): Keyboard {
   const view = dayView(today);
-  const keyboard: Keyboard = view.exams
-    .filter((e) => e.plan.state !== 'after')
-    .sort(byDate)
-    .map((e) => row({ text: ellipsize(e.title, 26), data: encode({ kind: 'exam', cid: e.id }) }));
+  const keyboard: Keyboard = view.listed.map((e) => row({ text: ellipsize(e.title, 26), data: encode({ kind: 'exam', cid: e.id }) }));
   if (view.main) keyboard.push(row({ text: W.BACK, data: encode({ kind: 'exam', cid: view.main.id }) }));
   return keyboard;
 }

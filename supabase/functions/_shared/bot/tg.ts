@@ -146,7 +146,7 @@ export function createTelegram(options: TelegramOptions): Telegram {
       const run = () => {
         const form = new FormData();
         for (const [key, value] of Object.entries(fields)) form.append(key, typeof value === 'string' ? value : JSON.stringify(value));
-        for (const [key, file] of Object.entries(files)) form.append(key, new Blob([file.bytes], { type: file.type }), file.name);
+        for (const [key, file] of Object.entries(files)) form.append(key, new Blob([new Uint8Array(file.bytes)], { type: file.type }), file.name);
         return attempt<T>(method, form);
       };
       return withRetry<T>(method, run, false);

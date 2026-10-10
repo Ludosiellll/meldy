@@ -143,6 +143,20 @@ test('the lead exam: nearest date with work today; exam day first; a done day on
   assert.equal(dayView(todayOf([AUTUMN, winterSoon]), CID).main!.id, CID, '«Другой экзамен» focuses');
 });
 
+test('«Другой экзамен» offers what the site\'s «Сегодня» lists: not an exam without questions (its card would say there is no plan)', () => {
+  const empty = { id: CID2, title: TITLE2, date: '2026-10-25', perSubject: 0 };
+  const today = todayOf([AUTUMN, empty]);
+  const view = dayView(today);
+  assert.equal(view.exams.find((e) => e.id === CID2)!.plan.state, 'empty');
+  assert.deepEqual([view.main!.id, view.listed.map((e) => e.id)], [CID, [CID]]);
+  assert.ok(!dayCard(today, 'today', SITE).out.keyboard!.flat().some((b) => b.text === 'Другой экзамен'));
+  assert.equal(dayView(today, CID2).main!.id, CID, 'a stale focus on it falls back to the lead');
+  const done = { id: CID2, title: TITLE2, date: '2026-10-20', perSubject: 10, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3_600_000) / 1000), doneSec: 2700 } };
+  assert.deepEqual(dayView(todayOf([AUTUMN, done])).listed.map((e) => e.id), [CID2, CID], 'a done day is still offered');
+  assert.ok(dayCard(todayOf([AUTUMN, done]), 'today', SITE).out.keyboard!.flat().some((b) => b.text === 'Другой экзамен'));
+  assert.deepEqual(dayView(todayOf([empty])).main!.plan.state, 'empty', 'alone, it is the «no plan» card');
+});
+
 test('M3\'s plan line and K2 use the same plan; K2 is silent and has one blue', () => {
   const now = planNow(todayOf([AUTUMN]));
   assert.equal(now.exam!.id, CID);
