@@ -16,10 +16,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
-vi.mock('../../lib/containers/words', () => import('../../components/containers/testkit/fakeWords'));
-vi.mock('../../lib/containers/plan', () => import('../../components/containers/testkit/fakePlan'));
-vi.mock('../../lib/containers/session', () => import('../../components/containers/testkit/fakeSession'));
-vi.mock('../../lib/containers/time', () => import('../../components/containers/testkit/fakeTime'));
+vi.mock('../../lib/containers/plan', async (original) => (await import('../../components/containers/testkit/engine')).planModule(original));
+vi.mock('../../lib/containers/session', async (original) => (await import('../../components/containers/testkit/engine')).sessionModule(original));
 vi.mock('../../lib/containers/answerQueue', () => ({ enqueueAnswers: mocks.enqueue }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
 vi.mock('../../lib/telemetry', () => ({ track: mocks.track }));

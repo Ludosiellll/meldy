@@ -129,10 +129,8 @@ describe('copy.ts: the words of the exam screens', () => {
     expect(copy.q(11)).toBe('11 вопросов');
     expect(copy.q(21)).toBe('21 вопрос');
     expect(copy.glue('Сегодня 90 вопросов')).toBe(`Сегодня 90${copy.NBSP}вопросов`);
-    expect(copy.planTitleText(90, 45, false).split(copy.NBSP).join(' ')).toBe('Сегодня 90 вопросов, около 45 минут');
-    expect(copy.planTitleText(1, 1, true).split(copy.NBSP).join(' ')).toBe('Сегодня остался 1 вопрос, около 1 минуты');
-    expect(copy.planParts({ newItems: 30, reviews: 60, oral: 0 }).split(copy.NBSP).join(' ')).toBe('30 новых и 60 знакомых.');
-    expect(copy.planParts({ newItems: 1, reviews: 2, oral: 5 }).split(copy.NBSP).join(' ')).toBe('1 новый, 2 знакомых и 5 устных.');
+    expect(copy.paceSet(45)).toBe('Поставить 45');
+    expect(copy.paceKeep(60)).toBe('Оставить 60');
     expect(copy.sessionTime(20, 0, 11).split(copy.NBSP).join(' ')).toBe('20 вопросов за 11 минут');
     expect(copy.sessionTime(20, 7, 21).split(copy.NBSP).join(' ')).toBe('20 вопросов и 7 повторов за 21 минуту');
     expect(copy.noKeyLine(4).split(copy.NBSP).join(' ')).toBe('4 вопроса без ключа не идут в занятия.');

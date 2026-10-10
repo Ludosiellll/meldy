@@ -1,16 +1,19 @@
 import { useId, useState } from 'react';
+import type { DayPlan, LocalDay } from '../../types/container';
 import { DUE_DAYS } from '../../lib/containers/rule';
+import { RULE_LINE } from '../../lib/containers/words';
+import { figureWords } from './planLines';
 import * as copy from './copy';
 import type { Figure } from './model';
 
 /**
- * The one figure (decision 8, 46): «143» large with «из 960 верно / в два разных дня» in two lines beside it, and
- * «Видели 410 · ошибок сейчас 37 · Как считается» under it.
+ * The one figure (decision 8, 46) in the plan's words (lib/containers/words.ts figureLines): «143» large with «из 960
+ * верно / в два разных дня» in two lines beside it, and «Видели 410 · ошибок сейчас 37 · Как считается» under it.
  * - Before any answer: no zeros — the rule in one line (phone rule 9).
- * - Answered, nothing counts yet: no big zero — the dated line of the plan («Первые войдут в счёт завтра после 17:00 —
- *   если снова ответите верно», decision 40) in ink, and the seen line.
+ * - Answered, nothing counts yet: no big zero — the dated line («Первые войдут в счёт завтра после 17:00 — если снова
+ *   ответите верно», decision 40, its time from the plan's `first_count` line) in ink, and the seen line.
  */
-export default function FigureBlock({ figure, firstLine }: { figure: Figure; firstLine: string | null }) {
+export default function FigureBlock({ figure, plan, today }: { figure: Figure; plan: DayPlan | null; today: LocalDay }) {
   const [open, setOpen] = useState(false);
   const howId = useId();
   const how = (
@@ -25,24 +28,25 @@ export default function FigureBlock({ figure, firstLine }: { figure: Figure; fir
       ))}
     </div>
   ) : null;
+  const words = figureWords(figure, plan, today);
 
-  if (figure.seen === 0) {
+  if (figure.seen === 0 || !words || (!words.big && !words.under)) {
     return (
       <section className="ct-figure" aria-label={copy.TWO_DAYS}>
         <p className="ct-fig-rule">
-          {copy.RULE_LINE} {how}
+          {words?.label || RULE_LINE} {how}
         </p>
         {panel}
       </section>
     );
   }
-  const seen = copy.seenLine(figure.seen, figure.errors);
-  if (figure.twoDays === 0) {
+  const under = words.under ?? '';
+  if (!words.big) {
     return (
       <section className="ct-figure" aria-label={copy.TWO_DAYS}>
-        <p className="ct-fig-first">{copy.glue(firstLine ?? copy.FIRST_COUNT_FALLBACK)}</p>
+        <p className="ct-fig-first">{copy.glue(words.label)}</p>
         <p className="ct-fig-sub">
-          {seen}
+          {under}
           {copy.SEP}
           {how}
         </p>
@@ -50,20 +54,24 @@ export default function FigureBlock({ figure, firstLine }: { figure: Figure; fir
       </section>
     );
   }
+  // «из 960» + «верно в два разных дня» → «из 960 верно» / «в два разных дня».
+  const cut = words.label.indexOf(' ');
+  const first = cut > 0 ? `${words.of} ${words.label.slice(0, cut)}` : words.of;
+  const second = cut > 0 ? words.label.slice(cut + 1) : words.label;
   return (
     <section className="ct-figure" aria-label={copy.TWO_DAYS}>
       <p className="ct-fig">
         <span className="ct-fig-n" aria-hidden="true">
-          {figure.twoDays}
+          {words.big}
         </span>
         <span className="ct-fig-l" aria-hidden="true">
-          <span>{copy.figureOf(figure.total)}</span>
-          <span>{copy.FIGURE_TAIL}</span>
+          <span>{copy.glue(first)}</span>
+          <span>{second}</span>
         </span>
-        <span className="sr-only">{copy.glue(`${figure.twoDays} из ${figure.total} — ${copy.TWO_DAYS}`)}</span>
+        <span className="sr-only">{copy.glue(`${words.big} ${words.of} — ${words.label}`)}</span>
       </p>
       <p className="ct-fig-sub">
-        {seen}
+        {under}
         {copy.SEP}
         {how}
       </p>

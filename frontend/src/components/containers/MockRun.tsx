@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { ContainerSummary, LocalDay, PlanInput, TestItem } from '../../types/container';
 import { clearMock, loadMock, saveMock, submitMock, type MockProgress } from '../../lib/containers/mockStore';
-import { optionOrder } from '../../lib/containers/session';
+import { optionOrder, pinnedLast } from '../../lib/containers/session';
 import { dayText } from '../../lib/containers/words';
 import { track } from '../../lib/telemetry';
 import QuestionCard from './QuestionCard';
@@ -10,7 +10,7 @@ import { RoomBar } from './RoomParts';
 import MockSetup from './MockSetup';
 import { Mark, Sheet } from './ui';
 import * as copy from './copy';
-import { dayIn, lastOptionIndices, studyHref, subjectTitle } from './model';
+import { dayIn, studyHref, subjectTitle } from './model';
 import { clock, drawMock, isAnswered, mockAnswers, scoreMock, type MockAnswer } from './mockModel';
 import { newId } from './sessionStore';
 import './room.css';
@@ -38,7 +38,7 @@ interface Result {
 function orderFor(item: TestItem, runId: string): number[] {
   if (item.kind === 'short') return [];
   try {
-    const order = optionOrder(item.options.length, item.keep_order, lastOptionIndices(item.options), `${runId}:${item.id}`);
+    const order = optionOrder(item.options.length, item.keep_order, pinnedLast(item.options), `${runId}:${item.id}`);
     if (order.length === item.options.length && new Set(order).size === order.length) return order;
   } catch {
     // The file's order.
@@ -281,6 +281,20 @@ export default function MockRun({
               )}
             </div>
           </div>
+        </main>
+      </>
+    );
+  }
+
+  // ── the result on its way (the queue sends it; without network it is counted on the device)
+  if (sending) {
+    return (
+      <>
+        <RoomBar long={subject} short={subject} exitLabel={copy.END_EXIT} onExit={() => navigate(back)} />
+        <main className="sf-page ct-study ct-end">
+          <p className="ct-recall" role="status">
+            {copy.MOCK_SENDING}
+          </p>
         </main>
       </>
     );

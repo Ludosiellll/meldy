@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { DayPlan } from '../../types/container';
+import type { ContainerSettings, DayPlan } from '../../types/container';
 import type { ContainerData } from '../../lib/containers/hooks';
-import { withdrawDoubt } from '../../api/containers';
+import { containerErrorText, saveSettings, withdrawDoubt } from '../../api/containers';
 import { dayText } from '../../lib/containers/words';
 import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
@@ -10,30 +10,28 @@ import PageHead from './PageHead';
 import PlanCard, { PlanTitle } from './PlanCard';
 import FigureBlock from './FigureBlock';
 import Rows, { type RowView } from './Rows';
-import { PlanByDaysSheet, type DateGroup } from './Sheets';
+import { PlanByDaysSheet } from './Sheets';
 import { NoteLine } from './ui';
-import { startTarget, useExamActions } from './actions';
+import { examActions, examLinks, startTarget } from './actions';
 import { useWide } from './useWide';
-import { firstCountText, planLineViews, planText, type LineView } from './planLines';
+import { detailText, noDateText, paceNote, planLineViews, planText, text as lineWords, titleText, type LineView, type PaceNote } from './planLines';
 import * as copy from './copy';
 import {
+  errorCount,
   examDates,
   examFigure,
-  examPlanNumbers,
   examQuestions,
-  errorIds,
   isAuthor,
   metaDay,
-  newIds,
+  moreNew,
   oralCount,
   setAsideIds,
   studyHref,
   subjectFigure,
   subjectKind,
-  subjectWithNew,
   dayDiff,
 } from './model';
-import { loadSession, resumable } from './sessionStore';
+import { loadSession, paceToldAt, markPaceTold, resumable } from './sessionStore';
 
 /**
  * The exam page, two subjects or more (Concept 1 §3.3 with spec decisions 8, 16–18, 35, 44, 46 and the design
@@ -50,7 +48,7 @@ export interface ViewProps {
 }
 
 export interface LinkTargets {
-  onMinutes: () => void;
+  minutesHref: string;
   settingsHref: string;
   lecturesHref: string | null;
   moreNewHref: string | null;
@@ -62,9 +60,9 @@ export function linkFor(action: LineView['action'], p: LinkTargets): ReactNode {
   switch (action) {
     case 'minutes':
       return (
-        <button type="button" className="sf-link" onClick={p.onMinutes}>
+        <Link className="sf-link" to={p.minutesHref}>
           {copy.CHANGE_MINUTES}
-        </button>
+        </Link>
       );
     case 'date':
       return (
@@ -98,6 +96,54 @@ export function noteLines(lines: LineView[], p: LinkTargets): ReactNode[] {
   return lines.filter((line) => !line.linkOnly).map((line) => <NoteLine key={line.key} text={line.text} action={linkFor(line.action, p)} />);
 }
 
+/**
+ * «Вы отвечаете быстрее, чем мы считали: хватит 45 минут в день.» with «Поставить 45» / «Оставить 60» (Concept 2
+ * §3.6): told once per stage; «Поставить» saves the minutes and reads the plan again.
+ */
+function PaceLine({ note, containerId, settings, onTold, reload }: { note: PaceNote; containerId: string; settings: ContainerSettings; onTold: () => void; reload: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const words = lineWords(note.line);
+  if (!words) return null;
+  const set = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await saveSettings(containerId, { minutes_per_day: note.option, study_weekdays: settings.study_weekdays });
+      onTold();
+      reload();
+    } catch (failure) {
+      setError(containerErrorText(failure) || copy.SAVE_FAILED);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <NoteLine
+        text={words}
+        action={
+          <>
+            <button type="button" className="sf-link" aria-busy={busy || undefined} onClick={() => void set()}>
+              {copy.paceSet(note.option)}
+            </button>
+            {copy.SEP}
+            <button type="button" className="sf-link" data-muted="" onClick={onTold}>
+              {copy.paceKeep(note.budget)}
+            </button>
+          </>
+        }
+      />
+      {error ? (
+        <p className="ct-sheet-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export default function ExamView({ containerId, data, plan, offline, reload }: ViewProps) {
   const { summary, planInput, items, oralWithoutPoints } = data;
   const phone = usePhone();
@@ -105,36 +151,45 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   const { user } = useAuth();
   const [daysOpen, setDaysOpen] = useState(false);
   const [returning, setReturning] = useState(false);
+  const [paceTold, setPaceTold] = useState(() => paceToldAt(containerId));
   const today = plan?.day ?? summary.day;
   const author = isAuthor(summary.role);
   const dates = examDates(summary);
   const day = metaDay(dates, today);
   const figure = examFigure(summary, plan);
-  const nextDateText = day.next ? dayText(day.next) : null;
-  const settingsHref = `/exams/c/${containerId}/settings`;
-  const { actions, openMinutes, remove, dialogs } = useExamActions({ containerId, summary, input: planInput, figure, nextDateText, reload });
+  const hrefs = examLinks(containerId);
+  const actions = examActions(summary);
   const saved = useMemo(() => (user?.id ? resumable(loadSession(user.id, containerId), today) : null), [user?.id, containerId, today]);
-  const planned = useMemo(() => new Set(plan?.sessions.flatMap((session) => session.ids) ?? []), [plan]);
 
   // The oral part that waits for lectures (decision 35): its editor's lectures, back to this exam by ?from=c:.
   const lecturesSubject = summary.subjects.find((subject) => oralCount(subject) > 0 && subject.oral?.exam_id && !(planInput?.items ?? []).some((item) => item.f === 'o' && item.s === subject.id));
   const lecturesHref = lecturesSubject?.oral?.exam_id ? `/exams/${lecturesSubject.oral.exam_id}/edit?from=c:${containerId}#lectures` : null;
-  const moreNewSubject = subjectWithNew(summary, planInput, planned);
-  const moreNewHref = moreNewSubject && newIds(planInput, moreNewSubject, planned, 1).length > 0 ? studyHref(containerId, { s: moreNewSubject, only: 'new' }) : null;
+  const more = useMemo(() => moreNew(planInput, plan), [planInput, plan]);
+  const moreNewHref = more ? studyHref(containerId, { s: more.subjectId, only: 'new' }) : null;
 
   // ── the plan card
   const errorsSubject = (() => {
     const todays = summary.subjects.filter((subject) => subject.exam_date === today);
-    return (todays.length > 0 ? todays : summary.subjects).find((subject) => errorIds(planInput, subject.id, 1).length > 0) ?? null;
+    return (todays.length > 0 ? todays : summary.subjects).find((subject) => errorCount(planInput, subject.id) > 0) ?? null;
   })();
   const errorsHref = errorsSubject ? studyHref(containerId, { s: errorsSubject.id, only: 'errors' }) : null;
-  const targets: LinkTargets = { onMinutes: openMinutes, settingsHref, lecturesHref, moreNewHref, errorsHref };
-  const lines = planLineViews(plan);
+  const targets: LinkTargets = { minutesHref: hrefs.minutes, settingsHref: hrefs.settings, lecturesHref, moreNewHref, errorsHref };
+  const pace = paceNote({ input: planInput, plan, budget: summary.settings.minutes_per_day, firstPlanDay: summary.first_plan_day });
+  const paceShown = pace && paceTold < pace.stage ? pace : null;
+  // While the pace line says it, the plan's «При 45 минутах…» waits.
+  const lines = planLineViews(plan).filter((line) => !(paceShown?.line.key === 'pace_slower' && (line.kind === 'short' || line.kind === 'short_max')));
   const hasLine = (action: LineView['action']) => lines.some((line) => line.action === action);
   const cardNotes: ReactNode[] = [];
   if (offline) cardNotes.push(<NoteLine key="offline" text={copy.OFFLINE_PAGE} />);
   cardNotes.push(...noteLines(lines, targets));
-  if (day.noDate && !hasLine('date')) cardNotes.push(<NoteLine key="nodate" text={copy.NO_DATE_LINE} action={linkFor('date', targets)} />);
+  if (paceShown) {
+    const told = () => {
+      markPaceTold(containerId, paceShown.stage);
+      setPaceTold(paceShown.stage);
+    };
+    cardNotes.push(<PaceLine key="pace" note={paceShown} containerId={containerId} settings={summary.settings} onTold={told} reload={reload} />);
+  }
+  if (day.noDate && !hasLine('date')) cardNotes.push(<NoteLine key="nodate" text={noDateText()} action={linkFor('date', targets)} />);
 
   const start = startTarget({ containerId, summary, plan, saved, wide });
   const state = plan?.state ?? 'study';
@@ -144,36 +199,35 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   let links: ReactNode = null;
   let pill: { href: string; label: string } | null = null;
   if (day.passed || state === 'after') {
-    title = copy.AFTER_EXAM;
+    title = (plan && state === 'after' ? titleText(plan) : '') || copy.AFTER_EXAM;
     links = (
       <>
-        <Link className="sf-link" to={settingsHref}>
+        <Link className="sf-link" to={hrefs.settings}>
           {copy.SET_NEW_DATE}
         </Link>
         {author ? (
-          <button type="button" className="sf-link" data-muted="" onClick={remove}>
+          <Link className="sf-link" data-muted="" to={hrefs.remove}>
             {copy.DELETE_EXAM_LINK}
-          </button>
+          </Link>
         ) : null}
       </>
     );
   } else if (state === 'exam_today') {
-    title = copy.EXAM_TODAY;
+    title = (plan ? titleText(plan) : '') || copy.EXAM_TODAY;
     if (lineLinks.length > 0) links = lineLinks;
     else if (errorsHref && errorsSubject) {
       links = (
         <Link className="sf-link" to={errorsHref}>
-          {copy.errorsBeforeExam(Math.min(20, errorIds(planInput, errorsSubject.id).length))}
+          {lineWords({ key: 'exam_errors', n: [Math.min(20, errorCount(planInput, errorsSubject.id))] })}
         </Link>
       );
     }
   } else if (plan && state === 'study') {
-    const numbers = examPlanNumbers(plan);
-    title = <PlanTitle questions={numbers.questions} minutes={numbers.minutes} left={numbers.left} />;
-    const parts = copy.planParts(numbers);
+    title = <PlanTitle text={titleText(plan)} />;
+    const detail = detailText(plan);
     sub = (
       <>
-        {parts ? `${parts} ` : null}
+        {detail ? `${copy.glue(detail)}. ` : null}
         <button type="button" className="sf-link" aria-haspopup="dialog" onClick={() => setDaysOpen(true)}>
           {copy.PLAN_BY_DAYS}
         </button>
@@ -183,7 +237,7 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   } else if (plan) {
     title = planText(plan) || copy.SUBJECT_DONE;
     if (lineLinks.length > 0) links = lineLinks;
-    else if (moreNewHref) links = <Link className="sf-link" to={moreNewHref}>{copy.MORE_NEW}</Link>;
+    else if (moreNewHref && more) links = <Link className="sf-link" to={moreNewHref}>{lineWords({ key: 'more_new', n: [more.ids.length] })}</Link>;
   } else {
     // No plan (the engine could not run): the page still shows the exam and its subjects.
     title = copy.SUBJECT_DONE;
@@ -272,13 +326,10 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   }
   if (!author && summary.key_changes_unseen > 0) notes.push(<NoteLine key="fixed" text={copy.keyFixedLine(summary.key_changes_unseen)} />);
   if (oralWithoutPoints > 0 && !hasLine('lectures')) {
-    notes.push(<NoteLine key="lectures" text={copy.oralNoLecturesLine(oralWithoutPoints)} action={linkFor('lectures', targets)} />);
+    // The plan does not make this line (package D2): the count is the oral questions without points (D1's oralPlan).
+    const words = lineWords({ key: 'oral_no_lectures', n: [oralWithoutPoints] });
+    if (words) notes.push(<NoteLine key="lectures" text={words} action={linkFor('lectures', targets)} />);
   }
-
-  const groups: DateGroup[] = dates.map((date) => ({
-    date,
-    subjects: summary.subjects.filter((subject) => (subject.exam_date ?? summary.exam_date) === date).map((subject) => subject.title),
-  }));
   const pillNode = pill ? (
     <Link className="sf-primary" to={pill.href}>
       {pill.label}
@@ -291,7 +342,7 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
       <PageHead title={summary.title} meta={meta} crumb={{ to: '/exams', label: copy.TO_EXAMS }} actions={actions} menuLabel={copy.MENU_LABEL_EXAM} phone={phone} />
       <PlanCard id={`ct-plan-${containerId}`} title={title} sub={sub} links={links} notes={cardNotes} action={wide ? pillNode : null} />
       <div className="ct-body">
-        <FigureBlock figure={figure} firstLine={firstCountText(plan)} />
+        <FigureBlock figure={figure} plan={plan} today={today} />
         <div className="ct-main">
           <Rows rows={rows} label={copy.SUBJECTS_LABEL} />
           {notes.length > 0 ? <div className="ct-notes">{notes}</div> : null}
@@ -300,20 +351,15 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
       {!wide && pillNode ? <div className="ct-cta">{pillNode}</div> : null}
       {daysOpen ? (
         <PlanByDaysSheet
-          today={today}
+          input={planInput}
+          subjects={summary.subjects}
           minutes={summary.settings.minutes_per_day}
-          firstPlanDay={summary.first_plan_day}
-          groups={groups}
           noDate={day.noDate}
-          settingsHref={settingsHref}
+          settingsHref={hrefs.settings}
+          minutesHref={hrefs.minutes}
           onClose={() => setDaysOpen(false)}
-          onMinutes={() => {
-            setDaysOpen(false);
-            openMinutes();
-          }}
         />
       ) : null}
-      {dialogs}
     </div>
   );
 }

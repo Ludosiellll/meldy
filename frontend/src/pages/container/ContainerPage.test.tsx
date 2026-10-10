@@ -15,10 +15,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
-vi.mock('../../lib/containers/words', () => import('../../components/containers/testkit/fakeWords'));
-vi.mock('../../lib/containers/plan', () => import('../../components/containers/testkit/fakePlan'));
-vi.mock('../../lib/containers/session', () => import('../../components/containers/testkit/fakeSession'));
-vi.mock('../../lib/containers/time', () => import('../../components/containers/testkit/fakeTime'));
+vi.mock('../../lib/containers/plan', async (original) => (await import('../../components/containers/testkit/engine')).planModule(original));
+vi.mock('../../lib/containers/session', async (original) => (await import('../../components/containers/testkit/engine')).sessionModule(original));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: mocks.confirm, alert: mocks.alert }) }));
 vi.mock('../../components/guide/GuideContext', () => ({ useGuide: () => ({ start: mocks.start }) }));
@@ -31,6 +29,7 @@ vi.mock('../../api/containers', async (importOriginal) => ({
 }));
 
 import ContainerPage from './ContainerPage';
+import { DEFAULT_PACE } from '../../lib/containers/pace';
 import { PHONE_QUERY } from '../../lib/usePhone';
 import { saveSession } from '../../components/containers/sessionStore';
 import {
@@ -38,7 +37,9 @@ import {
   ORAL_EXAM,
   SUBJECT_CS,
   SUBJECT_DB,
+  SUBJECT_NET,
   SUBJECT_ORAL,
+  SUBJECT_OS,
   containerData,
   dayPlan,
   item,
@@ -222,8 +223,8 @@ describe('the states of the exam page (§3.3 table)', () => {
   it('the plan done: the plan’s line, «Ещё 20 новых» as a link, no blue pill', () => {
     const plan = dayPlan({ state: 'done', sessions: [], lines: [{ key: 'done', n: [128, 61] }, { key: 'more_new', n: [20] }] });
     renderPage(loaded(containerData({ plan })));
-    expect(page()).toContain('На сегодня всё: 128 вопросов.');
-    expect(screen.getByRole('link', { name: 'Ещё 20 новых' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=new`);
+    expect(page()).toContain('На сегодня всё: 128 вопросов за 61 минуту.');
+    expect(screen.getByRole('link', { name: nm('Ещё 20 новых') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=new`);
     expect(document.querySelector('.sf-primary')).toBeNull();
   });
 
@@ -234,16 +235,32 @@ describe('the states of the exam page (§3.3 table)', () => {
     expect(page()).not.toMatch(/сгор/);
   });
 
-  it('minutes too low: the honest line and «Изменить время», which opens the minutes', async () => {
+  it('minutes too low: the honest line and «Изменить время» to the settings’ minutes', () => {
     const plan = dayPlan({ lines: [{ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }] });
     renderPage(loaded(containerData({ plan })));
     expect(page()).toContain('При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут.');
-    fireEvent.click(screen.getByRole('button', { name: 'Изменить время' }));
-    const dialog = screen.getByRole('dialog', { name: 'Время в день' });
-    fireEvent.click(within(dialog).getByRole('radio', { name: nm('60 минут') }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
-    await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith(CONTAINER, { minutes_per_day: 60, study_weekdays: 127 }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByRole('link', { name: 'Изменить время' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#minutes`);
+  });
+
+  it('the pace re-estimated: told once, «Поставить 30» saves the minutes, «Оставить 45» keeps them', async () => {
+    const data = () => containerData({ input: { pace: { [SUBJECT_DB]: DEFAULT_PACE } } });
+    const state = loaded(data());
+    renderPage(state);
+    expect(page()).toContain('Вы отвечаете быстрее, чем мы считали: хватит 30 минут в день.');
+    fireEvent.click(screen.getByRole('button', { name: 'Поставить 30' }));
+    await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith(CONTAINER, { minutes_per_day: 30, study_weekdays: 127 }));
+    await waitFor(() => expect(state.reload).toHaveBeenCalled());
+    expect(page()).not.toContain('Вы отвечаете быстрее');
+    cleanup();
+    // Told once: the same stage says nothing again.
+    renderPage(loaded(data()));
+    expect(page()).not.toContain('Вы отвечаете быстрее');
+    cleanup();
+    window.localStorage.clear();
+    renderPage(loaded(data()));
+    fireEvent.click(screen.getByRole('button', { name: 'Оставить 45' }));
+    expect(page()).not.toContain('Вы отвечаете быстрее');
+    expect(mocks.saveSettings).toHaveBeenCalledTimes(1);
   });
 
   it('no date: «Дата не указана» in the meta and «Указать дату»', () => {
@@ -261,12 +278,12 @@ describe('the states of the exam page (§3.3 table)', () => {
     const data = containerData({ summary: base, plan, items: [item({ id: 'e1', subject_id: SUBJECT_DB })] });
     data.planInput.items = [{ id: 'e1', s: SUBJECT_DB, f: 't', tp: 1, o: 1, u: { seen: 1, wrong: 1, firstDay: '2026-10-08', lastDay: '2026-10-08', seriesAt: null, seriesDay: null, twoDaysAt: null, namedAt: null, checks: 0, peekDay: '2026-10-08', wasTwoDays: false, cleanOkAt: null } }];
     renderPage(loaded(data));
-    expect(screen.getByRole('heading', { level: 2, name: 'Сегодня экзамен.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Сегодня экзамен' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: nm('20 вопросов, где были ошибки') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors`);
     expect(document.querySelector('.sf-primary')).toBeNull();
   });
 
-  it('exam passed: the meta says so, the figure stays, «Поставить новую дату» and a quiet «Удалить экзамен»', async () => {
+  it('exam passed: the meta says so, the figure stays, «Поставить новую дату» and a quiet «Удалить экзамен»', () => {
     const base = summary({ exam_date: '2026-10-05', subjects: summary().subjects.map((s) => ({ ...s, exam_date: '2026-10-05' })) });
     const plan = dayPlan({ state: 'after', sessions: [], lines: [{ key: 'after', day: '2026-10-05' }] });
     renderPage(loaded(containerData({ summary: base, plan })));
@@ -274,9 +291,7 @@ describe('the states of the exam page (§3.3 table)', () => {
     expect(screen.getByRole('region', { name: 'верно в два разных дня' }).textContent).toContain('143');
     expect(screen.getByRole('link', { name: 'Поставить новую дату' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings`);
     expect(document.querySelector('.sf-primary')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить экзамен' }));
-    await waitFor(() => expect(mocks.deleteContainer).toHaveBeenCalledWith(CONTAINER));
-    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/exams'));
+    expect(screen.getByRole('link', { name: 'Удалить экзамен' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#delete`);
   });
 
   it('offline: the page draws from the device and says so in one line', () => {
@@ -287,7 +302,7 @@ describe('the states of the exam page (§3.3 table)', () => {
   it('oral questions without lectures: one line with «Добавить лекции» into the oral editor, back by from=c:', () => {
     const base = summary({ subjects: [...summary().subjects, subject({ id: SUBJECT_ORAL, position: 5, title: 'Гражданское право', keyed: 0, seen: 0, two_days: 0, open_errors: 0, topics: [], topic_titles: [], oral: { exam_id: ORAL_EXAM, questions: 60 } })] });
     renderPage(loaded(containerData({ summary: base, oralWithoutPoints: 60 })));
-    expect(page()).toContain('60 устных вопросов пока не считаются: к ним нужны лекции.');
+    expect(page()).toContain('Ещё 60 устных войдут в план, когда к предмету будут лекции.');
     expect(screen.getByRole('link', { name: 'Добавить лекции' }).getAttribute('href')).toBe(`/exams/${ORAL_EXAM}/edit?from=c:${CONTAINER}#lectures`);
     const row = screen.getByRole('link', { name: /Гражданское право/ });
     expect(plain(row.textContent)).toContain('60 устных · нужны лекции');
@@ -307,13 +322,16 @@ describe('the states of the exam page (§3.3 table)', () => {
   });
 
   it('«План по дням»: the days at the day’s minutes, the final days, the exam, and what a skipped day does', () => {
-    renderPage(loaded(containerData()));
+    // A bank of 960 questions, so the study days take the day's whole 45 minutes (plan.ts daysAhead).
+    const bank = Array.from({ length: 960 }, (_, i) => item({ id: `b${i}`, subject_id: [SUBJECT_CS, SUBJECT_DB, SUBJECT_NET, SUBJECT_OS][i % 4], position: i + 1 }));
+    renderPage(loaded(containerData({ items: bank })));
     fireEvent.click(screen.getByRole('button', { name: 'План по дням' }));
     const dialog = screen.getByRole('dialog', { name: 'План по дням' });
     const text = plain(dialog.textContent);
     expect(text).toContain('Время в день: 45 минут');
-    expect(text).toContain('10 октября – 23 октября — 45 минут в день');
-    expect(text).toContain('24 октября – 27 октября — новых нет, только знакомые, сначала ошибки');
+    expect(within(dialog).getByRole('link', { name: 'Изменить' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#minutes`);
+    expect(text).toContain('10–23 октября — около 45 минут в день');
+    expect(text).toContain('24–27 октября — новых нет, только знакомые, сначала ошибки');
     expect(text).toContain('28 октября — экзамен');
     expect(text).toContain('Если пропустите день, его вопросы перейдут на следующие.');
     fireEvent.keyDown(document, { key: 'Escape' });

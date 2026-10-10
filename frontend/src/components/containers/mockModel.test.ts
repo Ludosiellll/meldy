@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../lib/containers/session', () => import('./testkit/fakeSession'));
-vi.mock('../../lib/containers/words', () => import('./testkit/fakeWords'));
-vi.mock('../../lib/containers/time', () => import('./testkit/fakeTime'));
+vi.mock('../../lib/containers/session', async (original) => (await import('./testkit/engine')).sessionModule(original));
 
 import { clock, drawMock, isAnswered, mockAnswers, scoreMock } from './mockModel';
 import { SUBJECT_DB, dbItems, item, planInput, planItemsFor, unit } from './testkit/fixtures';

@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('../../lib/containers/words', () => import('./testkit/fakeWords'));
-vi.mock('../../lib/containers/time', () => import('./testkit/fakeTime'));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
 
 import TodayExamCard, { type TodayExamCardProps } from './TodayExamCard';
@@ -88,7 +86,7 @@ describe('the «Сегодня» card of an exam (decision 47)', () => {
 
   it('the day done: the plan’s line and no pill, so «Начать повторение» can take the blue', () => {
     renderCard({ plan: dayPlan({ state: 'done', sessions: [], lines: [{ key: 'done', n: [90, 47] }] }) });
-    expect(text()).toContain('На сегодня всё: 90 вопросов.');
+    expect(text()).toContain('На сегодня всё: 90 вопросов за 47 минут.');
     expect(document.querySelector('.sf-primary')).toBeNull();
   });
 

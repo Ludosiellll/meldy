@@ -4,16 +4,15 @@ import type { ContainerSummary, DayPlan, LocalDay, PlanInput } from '../../types
 import DailyReminder from '../reminders/DailyReminder';
 import { Mark } from './ui';
 import { RoomBar } from './RoomParts';
-import { planText } from './planLines';
+import { planText, safeStart, text as lineWords } from './planLines';
 import * as copy from './copy';
 import {
   laterToday,
   minutesOf,
-  newIds,
+  moreNew,
   sessionHref,
   studyHref,
   subjectTitle,
-  subjectWithNew,
   tomorrowTime,
   type Figure,
   type SessionSummary,
@@ -115,13 +114,12 @@ export default function SessionEnd({
   const nextHref = next ? sessionHref(containerId, summary, next) : null;
   let nextLabel: string | null = null;
   if (next && nextHref) {
-    if (next.kind === 'ai_check') nextLabel = copy.ANSWER_ALOUD(Math.min(3, next.ids.length));
+    if (next.kind === 'ai_check') nextLabel = safeStart(Math.min(3, next.ids.length), null, null, 'ai_check');
     else if (next.subjectId === subjectId) nextLabel = copy.moreQuestions(next.ids.length);
     else nextLabel = copy.nextSubject(subjectTitle(summary, next.subjectId), next.ids.length);
   }
-  const planned = new Set(plan?.sessions.flatMap((session) => session.ids) ?? []);
-  const newSubject = !next ? subjectWithNew(summary, input, new Set([...planned, ...answered]), subjectId) : null;
-  const moreNewHref = newSubject && newIds(input, newSubject, new Set([...planned, ...answered]), 1).length > 0 ? studyHref(containerId, { s: newSubject, only: 'new' }) : null;
+  const more = !next ? moreNew(input, plan, answered) : null;
+  const moreNewHref = more ? studyHref(containerId, { s: more.subjectId, only: 'new' }) : null;
   const nextLine = next ? copy.leftToday(leftQuestions, leftMinutes) : plan ? planText(plan) : '';
 
   return (
@@ -139,9 +137,9 @@ export default function SessionEnd({
               {copy.DONE}
             </button>
           ) : null}
-          {!next && moreNewHref ? (
+          {!next && moreNewHref && more ? (
             <Link className="sf-link" data-muted="" to={moreNewHref}>
-              {copy.MORE_NEW}
+              {lineWords({ key: 'more_new', n: [more.ids.length] })}
             </Link>
           ) : null}
         </div>

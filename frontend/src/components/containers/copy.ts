@@ -80,53 +80,18 @@ export function metaLine(day: string, questions: number, subjects: number | null
   return glue(`${day}${SEP}${size}`);
 }
 
-// The plan card (decision 46): today's step with the screen's one yellow line, then the parts.
-/** «Сегодня 90 вопросов, около 45 минут»: [before the mark, the marked words, after]. */
-export function planTitle(questions: number, minutes: number, left: boolean): [string, string, string] {
-  const lead = left ? `Сегодня ${pl(questions, 'остался', 'осталось', 'осталось')} ` : 'Сегодня ';
-  return [lead, glue(q(questions)), glue(`, около ${minGen(Math.max(1, minutes))}`)];
-}
-export function planTitleText(questions: number, minutes: number, left: boolean): string {
-  return planTitle(questions, minutes, left).join('');
-}
-
-/** «30 новых и 60 знакомых», «30 новых, 60 знакомых и 10 устных». */
-export function planParts(parts: { newItems: number; reviews: number; oral: number }): string {
-  const list: string[] = [];
-  if (parts.newItems > 0) list.push(`${parts.newItems} ${pl(parts.newItems, 'новый', 'новых', 'новых')}`);
-  if (parts.reviews > 0) list.push(`${parts.reviews} ${pl(parts.reviews, 'знакомый', 'знакомых', 'знакомых')}`);
-  if (parts.oral > 0) list.push(`${parts.oral} ${pl(parts.oral, 'устный', 'устных', 'устных')}`);
-  if (list.length === 0) return '';
-  const text = list.length > 1 ? `${list.slice(0, -1).join(', ')} и ${list[list.length - 1]}` : list[0];
-  return glue(`${text}.`);
-}
-
+// The plan card (decision 46): the title and the lines are the plan's words (lib/containers/words.ts).
 export const PLAN_BY_DAYS = 'План по дням';
 export const ONLY_ERRORS = (n: number) => glue(`Только ошибки: ${n}`);
 export const MOCK_LINK = 'Как на экзамене';
 export const SUBJECT_DONE = 'На сегодня здесь всё.';
-export const MORE_NEW = 'Ещё 20 новых';
 export const EXAM_TODAY = 'Сегодня экзамен.';
-export const errorsBeforeExam = (n: number) => glue(`${q(n)}, где были ошибки`);
 export const SET_NEW_DATE = 'Поставить новую дату';
 export const DELETE_EXAM_LINK = 'Удалить экзамен';
 export const AFTER_EXAM = 'Экзамен прошёл.';
-export const NO_DATE_LINE = glue('Без даты — по 15 новых в день на предмет.');
 export const SET_DATE = 'Указать дату';
 export const CHANGE_MINUTES = 'Изменить время';
-/** «При 45 минутах к 28 октября вы увидите около 700 из 960.» */
-export function shortfallLine(minutes: number, dateText: string, seen: number, total: number): string {
-  return glue(`При ${minutes} ${pl(minutes, 'минуте', 'минутах', 'минутах')} к ${dateText} вы увидите около ${seen} из ${total}.`);
-}
-export const neededLine = (minutes: number) => glue(`Чтобы увидеть все, нужно около ${minGen(minutes)}.`);
-export const ANSWER_ALOUD = (n: number) => glue(`Ответить вслух: ${q(n)}`);
-
-// The figure (decision 8, 46): a large number with a two-line label, «Видели · ошибок сейчас» under it.
-export const figureOf = (total: number) => glue(`из ${total} верно`);
-export const FIGURE_TAIL = 'в два разных дня';
-export const seenLine = (seen: number, errors: number) => glue(`Видели ${seen}${SEP}ошибок сейчас ${errors}`);
-export const RULE_LINE = 'В счёт идёт вопрос, на который вы ответили верно в два разных дня.';
-export const FIRST_COUNT_FALLBACK = glue('Первые войдут в счёт завтра — если снова ответите верно.');
+// The figure (decision 8, 46): its words are the plan's (words.ts figureLines); «Как считается» is the screen's.
 export const HOW_COUNTED = 'Как считается';
 /** «Как считается», with the intervals of the rule (lib/containers/rule.ts DUE_DAYS). */
 export function howCounted(dueDays: readonly number[]): string[] {
@@ -179,12 +144,10 @@ export function keyFixedLine(n: number): string {
   return glue(`Автор исправил ключ в ${n} ${pl(n, 'вопросе', 'вопросах', 'вопросах')} — счёт по ${pl(n, 'нему', 'ним', 'ним')} начнётся заново.`);
 }
 export const OFFLINE_PAGE = 'Нет сети. Вопросы на сегодня сохранены, заниматься можно.';
-export function oralNoLecturesLine(n: number): string {
-  return glue(
-    `${n} ${pl(n, 'устный вопрос пока не считается: к нему нужны', 'устных вопроса пока не считаются: к ним нужны', 'устных вопросов пока не считаются: к ним нужны')} лекции.`,
-  );
-}
 export const ADD_LECTURES = 'Добавить лекции';
+/** The re-estimate of the pace (Concept 2 §3.6): «Поставить 45» / «Оставить 60». */
+export const paceSet = (minutes: number) => `Поставить ${minutes}`;
+export const paceKeep = (minutes: number) => `Оставить ${minutes}`;
 export const SAVE_FAILED = 'Не сохранилось. Проверьте связь и повторите.';
 
 // «⋯» of the exam and of a subject (decision 44, the critique's I9: one «Настройки»).
@@ -199,34 +162,17 @@ export const MENU_SETTINGS = 'Настройки';
 export const MENU_DELETE = 'Удалить';
 export const MENU_REFRESH = 'Обновить из файла';
 export const MENU_REMOVE_SUBJECT = 'Убрать предмет';
-export const DELETE_TITLE = 'Удалить экзамен?';
-export function deleteMessage(oralSubjects: number): string {
-  return oralSubjects > 0
-    ? 'Вопросы с вариантами и ответы на них удалятся. Устные предметы останутся отдельными экзаменами.'
-    : 'Вопросы и ответы на них удалятся. Вернуть их будет нельзя.';
-}
-export const DELETE_CONFIRM = 'Удалить';
 export const CANCEL = 'Отмена';
 export const removeSubjectTitle = (title: string) => `Убрать предмет «${title}»?`;
 export const REMOVE_SUBJECT_TEXT = 'Его вопросы и ответы на них удалятся.';
 export const REMOVE_SUBJECT_CONFIRM = 'Убрать';
 
-// «Время в день».
-export const MINUTES_TITLE = 'Время в день';
-export const minutesOption = (n: number) => minNom(n);
-export const MINUTES_NOTE = 'Это потолок: больше Meldy в день не попросит.';
-export const SAVE = 'Сохранить';
 export const CLOSE = 'Закрыть';
 export const END_EXIT = 'Закрыть';
 
 // «План по дням».
 export const daysMinutesRow = (minutes: number) => glue(`Время в день: ${minNom(minutes)}`);
 export const CHANGE = 'Изменить';
-export const rangeText = (from: string, to: string) => (from === to ? from : `${from} – ${to}`);
-export const studyDaysRow = (range: string, minutes: number) => glue(`${range} — ${minNom(minutes)} в день`);
-export const windowRow = (range: string) => glue(`${range} — новых нет, только знакомые, сначала ошибки`);
-export const examDayRow = (day: string, subject: string | null) => glue(subject ? `${day} — экзамен: ${subject}` : `${day} — экзамен`);
-export const SKIP_DAY_NOTE = 'Если пропустите день, его вопросы перейдут на следующие.';
 
 // The topic sheet (Concept 1 §3.4).
 export function topicSheetMeta(p: { keyed: number; twoDays: number; errors: number }): string {
@@ -354,7 +300,6 @@ export function leftToday(questions: number, minutes: number): string {
 export const moreQuestions = (n: number) => glue(`Ещё ${q(n)}`);
 export const nextSubject = (subject: string, n: number) => glue(`Дальше: ${subject} — ${q(n)}`);
 export const DONE = 'Готово';
-export const SAVING_WAIT = 'Отправляем ответы…';
 
 // ─────────────────────────────────────────────── «Как на экзамене» (decisions 20, 36, 53)
 
@@ -404,6 +349,4 @@ export function todayFlag(days: number): string {
   return `Экзамен через ${days} ${pl(days, 'день', 'дня', 'дней')}`;
 }
 export const todayMeta = (dayText: string | null, questions: number) => glue(dayText ? `${dayText}${SEP}${q(questions)}` : q(questions));
-export const todayFigure = (total: number) => glue(`из ${total} ${TWO_DAYS}`);
 export const TODAY_LOADING = 'Считаем план на сегодня…';
-export const TODAY_RULE = 'В счёт идёт вопрос, на который вы ответили верно в два разных дня';

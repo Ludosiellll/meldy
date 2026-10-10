@@ -12,10 +12,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
-vi.mock('../../lib/containers/words', () => import('../../components/containers/testkit/fakeWords'));
-vi.mock('../../lib/containers/plan', () => import('../../components/containers/testkit/fakePlan'));
-vi.mock('../../lib/containers/session', () => import('../../components/containers/testkit/fakeSession'));
-vi.mock('../../lib/containers/time', () => import('../../components/containers/testkit/fakeTime'));
+vi.mock('../../lib/containers/plan', async (original) => (await import('../../components/containers/testkit/engine')).planModule(original));
+vi.mock('../../lib/containers/session', async (original) => (await import('../../components/containers/testkit/engine')).sessionModule(original));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: mocks.confirm, alert: mocks.alert }) }));
 vi.mock('../../api/containers', async (importOriginal) => ({
@@ -113,9 +111,9 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     // The laptop crumb leads back to the exam by its name.
     expect(screen.getByRole('link', { name: 'Аккредитация' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}`);
     expect(page()).toContain('28 октября, через 18 дней · 240 вопросов');
-    const card = screen.getByRole('region', { name: /Сегодня 25/ });
-    // 12 minutes read as «около 10» (the plan's words round to 5 above 10 minutes).
-    expect(plain(card.textContent)).toContain('Сегодня 25 вопросов, около 10 минут');
+    const card = screen.getByRole('region', { name: /Сегодня 5/ });
+    // The subject's share of the day in the plan's words: its session, 180 seconds read as «около 3 минут».
+    expect(plain(card.textContent)).toContain('Сегодня 5 вопросов, около 3 минут');
     expect(within(card).getByRole('link', { name: nm('Только ошибки: 2') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors&back=s`);
     expect(within(card).getByRole('button', { name: 'Как на экзамене' })).toBeInTheDocument();
     expect(within(card).getByRole('link', { name: nm('Начать: 5 вопросов, около 3 минут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&back=s`);

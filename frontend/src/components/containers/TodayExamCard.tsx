@@ -14,12 +14,12 @@
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { DayPlan, LocalDay, OverviewContainer } from '../../types/container';
-import { dayText, startLabel } from '../../lib/containers/words';
+import { RULE_LINE, dayText } from '../../lib/containers/words';
 import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
-import { firstCountText, planText } from './planLines';
+import { figureWords, planText, safeStart, titleText } from './planLines';
 import * as copy from './copy';
-import { dayDiff, dayIn, examPlanNumbers, firstSession, minutesOf, studyHref } from './model';
+import { dayDiff, dayIn, firstSession, minutesOf, studyHref } from './model';
 import { loadSession, resumable, resumeCounts } from './sessionStore';
 import { useWide } from './useWide';
 import './containers.css';
@@ -64,14 +64,6 @@ export function nearestDate(container: OverviewContainer, today: LocalDay): Loca
   return dates.find((date) => (dayDiff(today, date) ?? -1) >= 0) ?? dates[dates.length - 1] ?? null;
 }
 
-function safeStart(count: number, minutes: number | null, resume: { done: number; of: number } | null): string {
-  try {
-    return startLabel(count, minutes, resume);
-  } catch {
-    return copy.glue(resume ? `Продолжить: ещё ${copy.q(Math.max(1, resume.of - resume.done))}` : `Начать: ${copy.q(count)}`);
-  }
-}
-
 export default function TodayExamCard({ container, plan, offline = false, lead }: TodayExamCardProps) {
   const titleId = useId();
   const phone = usePhone();
@@ -92,17 +84,17 @@ export default function TodayExamCard({ container, plan, offline = false, lead }
     line = copy.TODAY_LOADING;
   } else if (saved) {
     const counts = resumeCounts(saved);
-    const numbers = examPlanNumbers(plan);
-    line = `${copy.planTitleText(Math.max(numbers.questions, counts.of - counts.done), numbers.minutes, true)}.`;
+    const title = plan.state === 'study' ? titleText(plan) : '';
+    line = title ? `${title}.` : planText(plan) || copy.SUBJECT_DONE;
     target = { href: studyHref(container.id, { resume: 1 }), label: safeStart(counts.of - counts.done, null, counts) };
   } else if (plan.state === 'study' && plan.sessions.length > 0) {
-    const numbers = examPlanNumbers(plan);
-    line = `${copy.planTitleText(numbers.questions, numbers.minutes, numbers.left)}.`;
+    const title = titleText(plan);
+    line = title ? `${title}.` : planText(plan);
     const session = firstSession(plan);
     if (session) {
       if (session.kind === 'ai_check') {
         const examId = container.subjects.find((subject) => subject.id === session.subjectId)?.oral_exam_id ?? null;
-        if (examId) target = { href: `/exams/${examId}/ticket?q=${session.ids.slice(0, 3).join(',')}&from=c:${container.id}`, label: copy.ANSWER_ALOUD(Math.min(3, session.ids.length)) };
+        if (examId) target = { href: `/exams/${examId}/ticket?q=${session.ids.slice(0, 3).join(',')}&from=c:${container.id}`, label: safeStart(Math.min(3, session.ids.length), null, null, 'ai_check') };
       } else {
         target = {
           href: studyHref(container.id, { s: session.subjectId, kind: session.kind === 'self_check' ? 'self_check' : null }),
@@ -131,23 +123,28 @@ export default function TodayExamCard({ container, plan, offline = false, lead }
 
   // ── the figure
   const figure = plan
-    ? { twoDays: plan.figure.twoDays, total: plan.figure.inPlan, seen: plan.figure.seen }
-    : container.subjects.reduce((sum, subject) => ({ twoDays: sum.twoDays + subject.two_days, total: sum.total + subject.keyed, seen: sum.seen + subject.seen }), { twoDays: 0, total: 0, seen: 0 });
+    ? { twoDays: plan.figure.twoDays, total: plan.figure.inPlan, seen: plan.figure.seen, errors: plan.figure.errors }
+    : container.subjects.reduce(
+        (sum, subject) => ({ twoDays: sum.twoDays + subject.two_days, total: sum.total + subject.keyed, seen: sum.seen + subject.seen, errors: sum.errors + subject.open_errors }),
+        { twoDays: 0, total: 0, seen: 0, errors: 0 },
+      );
+  // The figure in the plan's words (words.ts figureLines): the number, or the dated first-count line, or the rule.
+  const words = figureWords(figure, plan, today);
   let figureRow: ReactNode;
-  if (figure.twoDays > 0) {
+  if (figure.twoDays > 0 && words?.big) {
     figureRow = (
       <p className="td-share">
         <Link className="tc-fig-link" to={page}>
-          <span className="td-share-fig">{figure.twoDays}</span>
+          <span className="td-share-fig">{words.big}</span>
           <span className="td-share-cap">
-            {copy.todayFigure(figure.total)}
+            {copy.glue(`${words.of} ${words.label}`)}
             <ArrowIcon />
           </span>
         </Link>
       </p>
     );
   } else {
-    const text = figure.seen > 0 ? firstCountText(plan) ?? copy.FIRST_COUNT_FALLBACK : copy.TODAY_RULE;
+    const text = (figure.seen > 0 ? words?.label : null) || RULE_LINE;
     figureRow = (
       <p className="td-sheet">
         <Link className="tc-rule-link" to={page}>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ContainerSummary, DayPlan, LocalDay, PlanInput } from '../../types/container';
 import { fetchSheet, type SheetResponse } from '../../api/cheatSheet';
+import { counter } from '../../lib/containers/session';
 import { recordSelfRating, recordSheetPeek, type SelfRating } from '../../api/learning';
 import { track } from '../../lib/telemetry';
 import { RoomBar } from './RoomParts';
@@ -122,8 +123,14 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
     );
   }
 
+  let count = { n: Math.min(pos + 1, ids.length), of: ids.length };
+  try {
+    count = counter(setup.queue, Math.min(pos, Math.max(0, setup.queue.length - 1)));
+  } catch {
+    // The plain count above.
+  }
   const bar = (
-    <RoomBar long={copy.glue(`${subject} · ${copy.counter(Math.min(pos + 1, ids.length), ids.length)}`)} short={copy.counter(Math.min(pos + 1, ids.length), ids.length)} exitLabel={copy.FINISH} onExit={() => (tally.questions > 0 ? end() : onDone(false))} />
+    <RoomBar long={copy.glue(`${subject} · ${copy.counter(count.n, count.of)}`)} short={copy.counter(count.n, count.of)} exitLabel={copy.FINISH} onExit={() => (tally.questions > 0 ? end() : onDone(false))} />
   );
 
   if (!sheet) {

@@ -1,13 +1,15 @@
 import type { ContainerSummary, DayPlan, LocalDay, PlanCls, PlanInput } from '../../types/container';
-import { buildSession, prng, type QueueEntry } from '../../lib/containers/session';
-import { answeredToday, clsOf, errorIds, firstSession, newIds, topicIds, type StudyRecord } from './model';
+import { buildSession, freeSession, shuffled, type QueueEntry } from '../../lib/containers/session';
+import { answeredToday, clsOf, firstSession, moreNew, type StudyRecord } from './model';
 import { newId, resumable, type SavedSession } from './sessionStore';
 
 /**
- * Which questions a «занятие» takes (Concept 2 §3.10; spec decisions 12, 18, 51):
- * - the plan's session of a subject (20 with variants, 10 oral self-checks): lib/containers/session.ts buildSession;
- * - a topic («Начать 20 вопросов по теме»), the current errors («Только ошибки: N»), more new ones («Ещё 20 новых»): up
- *   to 20, in a seeded shuffle so a block is not the file's order;
+ * Which questions a «занятие» takes (Concept 2 §3.10; spec decisions 12, 18, 51), all from the study engine
+ * (lib/containers/session.ts, plan.ts):
+ * - the plan's session of a subject (20 with variants, 10 oral self-checks): buildSession;
+ * - a topic («Начать 20 вопросов по теме») and the current errors («Только ошибки: N», the exam day's «20 вопросов, где
+ *   были ошибки»): freeSession, up to 20 in a seeded order;
+ * - more new ones («Ещё 20 новых»): plan.ts extraNew, in a seeded order;
  * - a session left today (`?resume=1`): where it stopped.
  */
 export interface SessionSetup {
@@ -23,16 +25,6 @@ export interface SessionSetup {
   resumed: boolean;
   /** The plan class of each planned question, for the answer's `cls`. */
   cls: Record<string, PlanCls>;
-}
-
-function shuffled(ids: string[], seed: string): string[] {
-  const random = prng(seed);
-  const out = [...ids];
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
 }
 
 export function setupSession(p: {
@@ -75,18 +67,32 @@ export function setupSession(p: {
   const onlyRaw = params.get('only');
   const only = onlyRaw === 'errors' || onlyRaw === 'new' ? onlyRaw : null;
   const id = newId();
-  const planned = new Set(plan?.sessions.flatMap((session) => session.ids) ?? []);
+  const done = Array.from(answeredToday(input, today));
 
   let queue: QueueEntry[] = [];
   let cls: Record<string, PlanCls> = {};
-  if (kind === 'answer' && (only || topic)) {
-    const ids =
-      only === 'errors' ? errorIds(input, subjectId) : only === 'new' ? newIds(input, subjectId, planned) : topicIds(input, subjectId, topic!, today);
-    queue = shuffled(ids, id).map((entry) => ({ id: entry, retry: 0 as const }));
-    cls = classOf(ids, only === 'new' ? 'new_fill' : 'free');
+  if (kind === 'answer' && only === 'new') {
+    const more = moreNew(input, plan);
+    const ids = more && more.subjectId === subjectId ? more.ids : [];
+    try {
+      queue = shuffled(ids, id).map((entry) => ({ id: entry, retry: 0 as const }));
+    } catch {
+      queue = ids.map((entry) => ({ id: entry, retry: 0 as const }));
+    }
+    cls = classOf(ids, 'new_fill');
+  } else if (kind === 'answer' && (only || topic) && input) {
+    try {
+      queue = freeSession(input, { subjectId, topic: only ? undefined : topic, onlyErrors: only === 'errors' }, done, id);
+    } catch {
+      queue = [];
+    }
+    cls = classOf(
+      queue.map((entry) => entry.id),
+      'free',
+    );
   } else if (plan) {
     try {
-      queue = buildSession(plan, subjectId, kind, Array.from(answeredToday(input, today)), id);
+      queue = buildSession(plan, subjectId, kind, done, id);
     } catch {
       queue = [];
     }

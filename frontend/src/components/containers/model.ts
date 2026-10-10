@@ -19,8 +19,10 @@ import type {
   TestItem,
   UnitState,
 } from '../../types/container';
-import { dayText } from '../../lib/containers/words';
-import { midnightAfter } from '../../lib/containers/time';
+import { extraNew } from '../../lib/containers/plan';
+import { countableFrom, emptyState, isOpenError, isSeen } from '../../lib/containers/rule';
+import { figureChange } from '../../lib/containers/session';
+import { dayText, shownMinutes } from '../../lib/containers/words';
 import * as copy from './copy';
 
 // ─────────────────────────────────────────────── days
@@ -182,62 +184,43 @@ export function answeredToday(input: PlanInput | null, day: LocalDay): Set<strin
   return out;
 }
 
-export interface PlanCardNumbers {
-  questions: number;
-  minutes: number;
-  newItems: number;
-  reviews: number;
-  oral: number;
-  left: boolean;
-}
-
-/** Minutes as the plan's words show them: at least 1, to the minute below 10, else to 5 (lib/containers/words.ts). */
-export function shownMinutes(sec: number): number {
-  const min = Math.max(0, sec) / 60;
-  if (min <= 0) return 1;
-  if (min < 10) return Math.max(1, Math.round(min));
-  return Math.round(min / 5) * 5;
-}
-
 /**
- * The plan card of the exam page: what is left today and its minutes. `oral` counts every oral question of the day
- * (self-checks and AI checks); `leftSec` is what is left, `estSec` the whole day (more than `leftSec` once some is done).
+ * One subject's share of today's plan as a plan of its own, for the plan's words (lib/containers/words.ts planTitle,
+ * planDetail): its sessions, its questions by kind (new, familiar, oral) and its minutes; «осталось» once some of the
+ * subject was answered today.
  */
-export function examPlanNumbers(plan: DayPlan): PlanCardNumbers {
-  const c = plan.counts;
-  return {
-    questions: c.newItems + c.reviews + c.oral,
-    minutes: shownMinutes(c.leftSec > 0 ? c.leftSec : c.estSec),
-    newItems: c.newItems,
-    reviews: c.reviews,
-    oral: c.oral,
-    left: c.doneSec > 0 || c.estSec > c.leftSec,
-  };
-}
-
-/** The same for one subject (its share of the day). */
-export function subjectPlanNumbers(plan: DayPlan, subjectId: string, input: PlanInput | null): PlanCardNumbers {
-  const row = plan.perSubject.find((entry) => entry.subjectId === subjectId);
-  const ids = new Set(plan.sessions.filter((session) => session.subjectId === subjectId).flatMap((session) => session.ids));
+export function subjectPlan(plan: DayPlan, subjectId: string, input: PlanInput | null): DayPlan {
+  const sessions = plan.sessions.filter((session) => session.subjectId === subjectId);
   const items = new Map((input?.items ?? []).map((item) => [item.id, item]));
   let newItems = 0;
   let reviews = 0;
   let oral = 0;
-  for (const id of ids) {
-    const item = items.get(id);
-    if (item?.f === 'o') oral += 1;
-    else if (!item?.u || item.u.seen === 0) newItems += 1;
-    else reviews += 1;
+  let aiChecks = 0;
+  for (const session of sessions) {
+    for (const id of session.ids) {
+      const item = items.get(id);
+      if (session.kind !== 'answer' || item?.f === 'o') {
+        oral += 1;
+        if (session.kind === 'ai_check') aiChecks += 1;
+      } else if (!item?.u || !isSeen(item.u)) newItems += 1;
+      else reviews += 1;
+    }
   }
+  const row = plan.perSubject.find((entry) => entry.subjectId === subjectId);
+  // The engine's perSubject.estSec is the sum of the subject's sessions; the sessions themselves are what the pill starts.
+  const leftSec = sessions.length > 0 ? sessions.reduce((sum, session) => sum + session.estSec, 0) : row?.estSec ?? 0;
   const done = Array.from(answeredToday(input, plan.day)).some((id) => items.get(id)?.s === subjectId);
   return {
-    questions: row?.items ?? ids.size,
-    minutes: shownMinutes(row?.estSec ?? 0),
-    newItems,
-    reviews,
-    oral,
-    left: done,
+    ...plan,
+    sessions,
+    counts: { newItems, reviews, oral, aiChecks, estSec: leftSec + (done ? 1 : 0), leftSec, doneSec: 0 },
+    perSubject: row ? [row] : [],
   };
+}
+
+/** Today's questions of a plan (with options, oral self-checks and AI checks). */
+export function planCount(plan: DayPlan): number {
+  return plan.counts.newItems + plan.counts.reviews + plan.counts.oral;
 }
 
 export type DaySession = DayPlan['sessions'][number];
@@ -272,89 +255,54 @@ export function sessionHref(containerId: string, summary: ContainerSummary, sess
   return studyHref(containerId, { s: session.subjectId, kind: session.kind === 'self_check' ? 'self_check' : null, back });
 }
 
+/** The minutes of a session as the plan's words show them (lib/containers/words.ts shownMinutes). */
 export function minutesOf(estSec: number): number {
   return shownMinutes(estSec);
 }
 
 // ─────────────────────────────────────────────── blocks outside the plan: a topic, the errors, more new ones
+// The questions themselves come from the study engine (lib/containers/session.ts freeSession, plan.ts extraNew); these
+// are the counts the links show.
 
-function isError(u: UnitState | undefined): boolean {
-  return Boolean(u && u.seen > 0 && u.wrong > 0 && u.seriesAt === null && u.twoDaysAt === null);
-}
-function isUnseen(u: UnitState | undefined): boolean {
-  return !u || u.seen === 0;
-}
+const EMPTY = emptyState();
 
 export function testItemsOf(input: PlanInput | null, subjectId: string): PlanItem[] {
   return (input?.items ?? []).filter((item) => item.f === 't' && item.s === subjectId).sort((a, b) => a.o - b.o || (a.id < b.id ? -1 : 1));
 }
 
-/** The current errors of a subject (last answer wrong or «Не знаю»), up to `limit`, in the file's order. */
-export function errorIds(input: PlanInput | null, subjectId: string, limit = 20): string[] {
-  return testItemsOf(input, subjectId)
-    .filter((item) => isError(item.u))
-    .slice(0, limit)
-    .map((item) => item.id);
-}
-
+/** «Только ошибки: N»: the subject's current errors (rule.ts isOpenError, as «ошибок сейчас»). */
 export function errorCount(input: PlanInput | null, subjectId: string): number {
-  return testItemsOf(input, subjectId).filter((item) => isError(item.u)).length;
-}
-
-/**
- * Up to `limit` questions of a topic: errors first, then the ones with a first right answer, then new ones, then
- * the rest; what was answered today goes last.
- */
-export function topicIds(input: PlanInput | null, subjectId: string, topic: number, today: LocalDay, limit = 20): string[] {
-  const rank = (item: PlanItem) => {
-    const u = item.u;
-    if (u?.lastDay === today) return 4;
-    if (isError(u)) return 0;
-    if (u && u.seriesAt !== null && u.twoDaysAt === null) return 1;
-    if (isUnseen(u)) return 2;
-    return 3;
-  };
-  return testItemsOf(input, subjectId)
-    .filter((item) => item.tp === topic)
-    .map((item, index) => ({ item, index, rank: rank(item) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .slice(0, limit)
-    .map(({ item }) => item.id);
+  return testItemsOf(input, subjectId).filter((item) => isOpenError(item.u ?? EMPTY)).length;
 }
 
 export function topicCount(input: PlanInput | null, subjectId: string, topic: number): number {
   return testItemsOf(input, subjectId).filter((item) => item.tp === topic).length;
 }
 
-/** «Ещё 20 новых»: the next new questions of a subject in the file's order, past today's plan. */
-export function newIds(input: PlanInput | null, subjectId: string, planned: ReadonlySet<string>, limit = 20): string[] {
-  return testItemsOf(input, subjectId)
-    .filter((item) => isUnseen(item.u) && !planned.has(item.id))
-    .slice(0, limit)
-    .map((item) => item.id);
-}
-
-/** The subject whose new questions «Ещё 20 новых» takes: the first one (by position) that still has any. */
-export function subjectWithNew(summary: ContainerSummary, input: PlanInput | null, planned: ReadonlySet<string>, prefer?: string | null): string | null {
-  const order = prefer ? [prefer, ...summary.subjects.map((subject) => subject.id).filter((id) => id !== prefer)] : summary.subjects.map((subject) => subject.id);
-  return order.find((id) => newIds(input, id, planned, 1).length > 0) ?? null;
+/**
+ * «Ещё 20 новых» (lib/containers/plan.ts extraNew): the next new questions of the subject the plan takes them from,
+ * past today's plan and past what this session already answered.
+ */
+export function moreNew(input: PlanInput | null, plan: DayPlan | null, answered?: ReadonlySet<string>): { subjectId: string; ids: string[] } | null {
+  if (!input) return null;
+  const extra = answered && answered.size > 0 ? [{ subjectId: '', kind: 'answer' as const, ids: Array.from(answered), estSec: 0 }] : [];
+  const sessions = [...(plan?.sessions ?? []), ...extra];
+  try {
+    return extraNew(input, undefined, plan ? { ...plan, sessions } : sessions.length > 0 ? ({ sessions } as unknown as DayPlan) : undefined);
+  } catch {
+    return null;
+  }
 }
 
 /** The plan class of an answer, from the question's state (for the student's own pace and miss rates). */
 export function clsOf(u: UnitState | undefined, inWindow: boolean): PlanCls {
-  if (isUnseen(u)) return 'new_floor';
+  if (!u || !isSeen(u)) return 'new_floor';
   if (u!.twoDaysAt !== null) return inWindow ? 'final' : 'check';
   if (u!.seriesAt !== null) return 'confirm';
   return 'relearn';
 }
 
 // ─────────────────────────────────────────────── a question on the screen
-
-/** «Все перечисленные», «Ни один из…»: such options stay last whatever the shuffle. */
-export function lastOptionIndices(options: readonly string[]): number[] {
-  const tail = /^\s*(вс[её] (выше)?перечисленн|вс[её] вариант|вс[её] ответы верн|все верн|ни од(ин|на|но|ни) из|ни одного|нет (верного|правильного)|оба (варианта|ответа|верн)|другое\b)/i;
-  return options.map((option, index) => (tail.test(option) ? index : -1)).filter((index) => index >= 0);
-}
 
 /**
  * A code-like line: braces, semicolons, operators or a keyword, and few Cyrillic letters once its comments and string
@@ -466,62 +414,59 @@ export interface SessionSummary {
   firstCountAt: number | null;
 }
 
-const HOURS_20 = 20 * 3_600_000;
-
-function countableFrom(at: string | null, day: LocalDay | null, tz: string): number | null {
-  if (!at || !day) return null;
-  const started = Date.parse(at);
-  if (!Number.isFinite(started)) return null;
-  // The rule needs another local day and 20 hours: the later of the two moments.
-  return Math.max(started + HOURS_20, midnightAfter(day, tz));
+/** When a started series can count, from the server's state of the answer (lib/containers/rule.ts countableFrom). */
+function countableAt(result: AnswerResult, today: LocalDay, tz: string): number | null {
+  const state = result.state;
+  if (!state || !state.streak_at || !state.streak_day) return null;
+  const at = Date.parse(state.streak_at);
+  if (!Number.isFinite(at)) return null;
+  try {
+    return countableFrom(at, state.streak_day, state.peek_day ?? null, today, tz);
+  } catch {
+    return null;
+  }
 }
 
 /**
  * The numbers of the end screen from the session's answers and the server's results (decision 49): what moved in the
- * figure, the first-try score, the errors, the answers that came too early and when they can count.
+ * figure (lib/containers/session.ts figureChange against the states before the session), the first-try score, the
+ * errors, the answers that came too early and when they can count.
  */
-export function summarize(records: StudyRecord[], results: ReadonlyMap<string, AnswerResult>, inFigureBefore: ReadonlySet<string>, tz: string): SessionSummary {
+export function summarize(
+  records: StudyRecord[],
+  results: ReadonlyMap<string, AnswerResult>,
+  before: ReadonlyMap<string, UnitState | undefined>,
+  today: LocalDay,
+  tz: string,
+): SessionSummary {
   const firsts = records.filter((record) => !record.retry);
   const seen = new Set(firsts.map((record) => record.id));
   const errors = new Set<string>();
   for (const record of firsts) if (!record.correct && !record.misclick) errors.add(record.id);
-  let known = false;
-  let gained = 0;
-  let dropped = 0;
-  let tooEarly = 0;
-  let tooEarlyAt: number | null = null;
-  let started = 0;
-  let firstCountAt: number | null = null;
-  const inFigure = new Set(inFigureBefore);
+  const list: AnswerResult[] = [];
   for (const record of records) {
     const result = results.get(record.clientEventId);
-    if (!result || (result.status !== 'saved' && result.status !== 'late')) continue;
-    known = true;
-    switch (result.step) {
-      case 'two_days':
-        gained += 1;
-        inFigure.add(record.id);
-        break;
-      case 'miss':
-        if (inFigure.has(record.id)) {
-          dropped += 1;
-          inFigure.delete(record.id);
-        }
-        break;
-      case 'too_early': {
-        tooEarly += 1;
-        const at = countableFrom(result.state?.streak_at ?? null, result.state?.streak_day ?? null, tz);
-        if (at !== null) tooEarlyAt = tooEarlyAt === null ? at : Math.max(tooEarlyAt, at);
-        break;
-      }
-      case 'start': {
-        started += 1;
-        const at = countableFrom(result.state?.streak_at ?? null, result.state?.streak_day ?? null, tz);
-        if (at !== null) firstCountAt = firstCountAt === null ? at : Math.min(firstCountAt, at);
-        break;
-      }
-      default:
-        break;
+    if (result) list.push(result.item_id ? result : { ...result, item_id: record.id });
+  }
+  const known = list.some((result) => result.status === 'saved' || result.status === 'late');
+  let change = { gained: 0, dropped: 0, tooEarly: 0 };
+  try {
+    change = figureChange(before, list);
+  } catch {
+    // The figure's change stays unknown: the end screen says the time instead.
+  }
+  let tooEarlyAt: number | null = null;
+  let firstCountAt: number | null = null;
+  const started = new Set<string>();
+  for (const result of list) {
+    if (result.status !== 'saved') continue;
+    if (result.step === 'too_early') {
+      const at = countableAt(result, today, tz);
+      if (at !== null) tooEarlyAt = tooEarlyAt === null ? at : Math.max(tooEarlyAt, at);
+    } else if (result.step === 'start') {
+      if (result.item_id) started.add(result.item_id);
+      const at = countableAt(result, today, tz);
+      if (at !== null) firstCountAt = firstCountAt === null ? at : Math.min(firstCountAt, at);
     }
   }
   return {
@@ -530,11 +475,11 @@ export function summarize(records: StudyRecord[], results: ReadonlyMap<string, A
     firstRight: firsts.filter((record) => record.correct && !record.misclick).length,
     errors: errors.size,
     known,
-    gained,
-    dropped,
-    tooEarly,
+    gained: change.gained,
+    dropped: change.dropped,
+    tooEarly: change.tooEarly,
     tooEarlyAt,
-    started,
+    started: started.size,
     firstCountAt,
   };
 }

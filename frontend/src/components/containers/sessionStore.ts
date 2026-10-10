@@ -122,6 +122,24 @@ export const markSelfCheckNoteSeen = () => setFlag(SELF_CHECK_KEY);
 export const firstSessionDone = () => flag(FIRST_SESSION_KEY);
 export const markFirstSessionDone = () => setFlag(FIRST_SESSION_KEY);
 
+/** The re-estimate of the pace (Concept 2 §3.6) is told once per stage and exam: the last stage told, 0 for none. */
+const PACE_PREFIX = 'meldy_container_pace:';
+export function paceToldAt(containerId: string): number {
+  try {
+    const value = Number(storage()?.getItem(PACE_PREFIX + containerId));
+    return Number.isInteger(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+export function markPaceTold(containerId: string, stage: number): void {
+  try {
+    storage()?.setItem(PACE_PREFIX + containerId, String(stage));
+  } catch {
+    // Told again next time: harmless.
+  }
+}
+
 /** A fresh uuid (session ids, mock runs): crypto.randomUUID, else getRandomValues, else time and Math.random. */
 export function newId(): string {
   const cryptoApi = (globalThis as { crypto?: Crypto }).crypto;

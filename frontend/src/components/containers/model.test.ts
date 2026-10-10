@@ -1,31 +1,25 @@
-import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('../../lib/containers/words', () => import('./testkit/fakeWords'));
-vi.mock('../../lib/containers/time', () => import('./testkit/fakeTime'));
-
-import type { AnswerResult } from '../../types/container';
+import { describe, expect, it } from 'vitest';
+import type { AnswerResult, UnitState } from '../../types/container';
+import { planDetail, planTitle } from '../../lib/containers/words';
 import {
   addDay,
   clsOf,
   codeLike,
   dayDiff,
-  errorIds,
+  errorCount,
   examFigure,
-  examPlanNumbers,
   gradeLocal,
   keyLetters,
-  lastOptionIndices,
   metaDay,
-  newIds,
+  moreNew,
   sessionHref,
   setAsideIds,
   shortNorm,
   soloSubject,
   splitStem,
-  subjectPlanNumbers,
+  subjectPlan,
   summarize,
   tomorrowTime,
-  topicIds,
   topicNumber,
   type StudyRecord,
 } from './model';
@@ -61,19 +55,16 @@ describe('the figure and the plan card', () => {
     expect(examFigure(summary(), null)).toEqual({ twoDays: 61 + 40 + 22 + 20, total: 240 * 3 + 236, seen: 180 + 150 + 50 + 30, errors: 21 + 9 + 4 + 3 });
   });
 
-  it('counts today’s questions with the oral ones once and minutes from what is left', () => {
-    const plan = dayPlan({ counts: { newItems: 30, reviews: 60, oral: 12, aiChecks: 3, estSec: 2700, leftSec: 2700, doneSec: 0 } });
-    expect(examPlanNumbers(plan)).toMatchObject({ questions: 102, minutes: 45, oral: 12, left: false });
-    const later = dayPlan({ counts: { newItems: 20, reviews: 50, oral: 0, aiChecks: 0, estSec: 2700, leftSec: 2100, doneSec: 600 } });
-    expect(examPlanNumbers(later)).toMatchObject({ questions: 70, minutes: 35, left: true });
-  });
-
-  it('tells a subject’s share of the day', () => {
+  it('tells a subject’s share of the day as a plan of its own, in the plan’s words', () => {
     const input = planInput({ items: planItemsFor(dbItems(), { 'q-iso': unit({ seen: 2, wrong: 1, lastDay: '2026-10-09' }) }) });
-    const numbers = subjectPlanNumbers(dayPlan(), SUBJECT_DB, input);
-    expect(numbers.questions).toBe(25);
-    expect(numbers.newItems).toBe(4);
-    expect(numbers.reviews).toBe(1);
+    const share = subjectPlan(dayPlan(), SUBJECT_DB, input);
+    expect(share.sessions.map((session) => session.subjectId)).toEqual([SUBJECT_DB]);
+    expect(share.counts).toMatchObject({ newItems: 4, reviews: 1, oral: 0, leftSec: 180 });
+    expect(plain(planTitle(share))).toBe('Сегодня 5 вопросов, около 3 минут');
+    expect(plain(planDetail(share))).toBe('4 новых и 1 знакомый');
+    // Answered today: what is left of it.
+    const later = planInput({ items: planItemsFor(dbItems(), { 'q-iso': unit({ seen: 3, lastDay: '2026-10-10' }) }) });
+    expect(plain(planTitle(subjectPlan(dayPlan(), SUBJECT_DB, later)))).toBe('Сегодня осталось 5 вопросов, около 3 минут');
   });
 
   it('opens a one-subject exam with variants as its subject page', () => {
@@ -108,13 +99,17 @@ describe('blocks outside the plan', () => {
   };
   const input = planInput({ items: planItemsFor(items, states) });
 
-  it('takes a topic’s errors first, then the started, then new; today’s last', () => {
-    expect(topicIds(input, SUBJECT_DB, 1, '2026-10-10')).toEqual(['t1', 't2', 't3', 't0']);
+  it('counts the current errors as «ошибок сейчас» does', () => {
+    expect(errorCount(input, SUBJECT_DB)).toBe(2);
+    expect(errorCount(input, SUBJECT_ORAL)).toBe(0);
   });
 
-  it('takes the current errors and the next new ones', () => {
-    expect(errorIds(input, SUBJECT_DB)).toEqual(['t1', 't4']);
-    expect(newIds(input, SUBJECT_DB, new Set(['t3']))).toEqual(['t5']);
+  it('takes «Ещё 20 новых» from the study engine, past the plan and past this session’s answers', () => {
+    const more = moreNew(input, null);
+    expect(more).toEqual({ subjectId: SUBJECT_DB, ids: ['t3', 't5'] });
+    expect(moreNew(input, dayPlan({ sessions: [{ subjectId: SUBJECT_DB, kind: 'answer', ids: ['t3'], estSec: 30 }] }))?.ids).toEqual(['t5']);
+    expect(moreNew(input, null, new Set(['t3', 't5']))).toBeNull();
+    expect(moreNew(null, null)).toBeNull();
   });
 
   it('names the plan class of an answer from the state', () => {
@@ -133,11 +128,6 @@ describe('blocks outside the plan', () => {
 });
 
 describe('a question on the screen', () => {
-  it('keeps «Все перечисленные» and the like last', () => {
-    expect(lastOptionIndices(['Первая', 'Все перечисленные', 'Вторая', 'Ни один из вариантов'])).toEqual([1, 3]);
-    expect(lastOptionIndices(['Все', 'Оба'])).toEqual([]);
-  });
-
   it('splits a stem into its words and its code, line by line', () => {
     const stem = 'Что выведет программа?\nint a = 7;\nint b = 2;\nConsole.WriteLine(a / b);';
     expect(splitStem(stem, true)).toEqual({ before: 'Что выведет программа?', code: 'int a = 7;\nint b = 2;\nConsole.WriteLine(a / b);', after: '' });
@@ -198,14 +188,15 @@ describe('the end of a session', () => {
       ['s:3', saved('miss')],
       ['s:6', saved('miss')],
     ]);
-    const s = summarize(records, results, new Set(['c']), 'Europe/Minsk');
+    const before = new Map<string, UnitState | undefined>([['c', unit({ seen: 3, twoDaysAt: 1, namedAt: 1 })]]);
+    const s = summarize(records, results, before, '2026-10-10', 'Europe/Minsk');
     expect(s).toMatchObject({ questions: 5, retries: 1, firstRight: 2, errors: 2, known: true, gained: 1, dropped: 1, tooEarly: 1 });
     // 18:00 UTC + 20 h = 14:00 UTC the next day = 17:00 in Minsk.
     expect(s.tooEarlyAt).toBe(Date.parse('2026-10-10T14:00:00Z'));
   });
 
   it('knows nothing of the figure without the server (offline)', () => {
-    const s = summarize([record('a', 1)], new Map(), new Set(), 'Europe/Minsk');
+    const s = summarize([record('a', 1)], new Map(), new Map(), '2026-10-10', 'Europe/Minsk');
     expect(s.known).toBe(false);
     expect(s.gained).toBe(0);
   });

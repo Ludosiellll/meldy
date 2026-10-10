@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Mark } from './ui';
-import * as copy from './copy';
 
 /**
  * Today's step first (decision 46): a white status card, as on today's oral exam page — the title with the screen's one
@@ -34,14 +33,18 @@ export default function PlanCard({ id, title, sub, links, notes = [], action }: 
   );
 }
 
-/** «Сегодня 90 вопросов, около 45 минут» with the yellow line under «90 вопросов». */
-export function PlanTitle({ questions, minutes, left }: { questions: number; minutes: number; left: boolean }) {
-  const [lead, marked, tail] = copy.planTitle(questions, minutes, left);
+/** The words that carry the yellow line: today's number of questions («90 вопросов»). */
+const MARKED = /\d+[\u00a0 ]вопрос(?:а|ов)?/;
+
+/** «Сегодня 90 вопросов, около 45 минут» (the plan's words, lib/containers/words.ts planTitle) with the yellow line under «90 вопросов». */
+export function PlanTitle({ text }: { text: string }) {
+  const match = MARKED.exec(text);
+  if (!match) return <>{text}</>;
   return (
     <>
-      {lead}
-      <Mark>{marked}</Mark>
-      {tail}
+      {text.slice(0, match.index)}
+      <Mark>{match[0]}</Mark>
+      {text.slice(match.index + match[0].length)}
     </>
   );
 }

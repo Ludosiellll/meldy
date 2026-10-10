@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { AnswerInput, AnswerResult, ContainerSummary, DayPlan, LocalDay, PlanInput, TestItem } from '../../types/container';
+import type { AnswerInput, AnswerResult, ContainerSummary, DayPlan, LocalDay, PlanInput, TestItem, UnitState } from '../../types/container';
 import { enqueueAnswers } from '../../lib/containers/answerQueue';
-import { afterAnswer, optionOrder, type QueueEntry } from '../../lib/containers/session';
+import { afterAnswer, counter, optionOrder, pinnedLast, type QueueEntry } from '../../lib/containers/session';
 import { dayText } from '../../lib/containers/words';
 import { track } from '../../lib/telemetry';
 import QuestionCard, { type Answered } from './QuestionCard';
@@ -14,7 +14,6 @@ import {
   hasGroup,
   isAuthor,
   keyLetters,
-  lastOptionIndices,
   subjectTitle,
   summarize,
   topicNumber,
@@ -82,7 +81,7 @@ function comesAgain(queue: QueueEntry[], pos: number, id: string, seed: string):
 function shownOrder(item: TestItem, seed: string): number[] {
   if (item.kind === 'short') return [];
   try {
-    const order = optionOrder(item.options.length, item.keep_order, lastOptionIndices(item.options), seed);
+    const order = optionOrder(item.options.length, item.keep_order, pinnedLast(item.options), seed);
     if (order.length === item.options.length && new Set(order).size === order.length) return order;
   } catch {
     // The file's order is always a fair fallback.
@@ -122,11 +121,18 @@ export default function StudyRun(props: StudyRunProps) {
   const seed = `${setup.id}:${pos}`;
   const order = useMemo(() => (item ? shownOrder(item, seed) : []), [item?.id, item?.options.length, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Counter: distinct planned questions (a retry repeats the place it came back to).
-  const planned = useMemo(() => Array.from(new Set(queue.filter((e) => e.retry === 0).map((e) => e.id))), [queue]);
-  const doneBefore = useMemo(() => new Set(queue.slice(0, pos).filter((e) => e.retry === 0).map((e) => e.id)), [queue, pos]);
-  const place = Math.min(planned.length, doneBefore.size + (entry && entry.retry === 0 ? 1 : 0));
+  // «7 из 20» (lib/containers/session.ts counter): a retry repeats the place it came back to.
+  const count = useMemo(() => {
+    try {
+      return counter(queue, Math.min(pos, Math.max(0, queue.length - 1)));
+    } catch {
+      return { n: Math.min(pos + 1, queue.length), of: queue.length };
+    }
+  }, [queue, pos]);
   const subject = subjectTitle(summary, setup.subjectId);
+  // The states before this session, for the figure's change at the end (session.ts figureChange).
+  const before = useRef<ReadonlyMap<string, UnitState | undefined> | null>(null);
+  if (before.current === null) before.current = new Map(input.items.map((entry) => [entry.id, entry.u]));
 
   // A question the bank does not have (deleted, not loaded): step over it.
   useEffect(() => {
@@ -138,7 +144,7 @@ export default function StudyRun(props: StudyRunProps) {
 
   // The session starts: telemetry once (a resumed one was counted when it started).
   useEffect(() => {
-    if (!setup.resumed) track('container.session_started', { planned: planned.length, kind: setup.only ?? (setup.topic ? 'topic' : 'plan') });
+    if (!setup.resumed) track('container.session_started', { planned: count.of, kind: setup.only ?? (setup.topic ? 'topic' : 'plan') });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -434,13 +440,12 @@ export default function StudyRun(props: StudyRunProps) {
   }, []);
 
   // ── the end
-  const inFigureBefore = useMemo(() => new Set(input.items.filter((i) => i.u?.twoDaysAt != null).map((i) => i.id)), [input]);
   if (ended) {
     const effective = records.map((record) => {
       const result = results.get(record.clientEventId);
       return result && typeof result.correct === 'boolean' && (result.status === 'saved' || result.status === 'late') ? { ...record, correct: result.correct } : record;
     });
-    const stats = summarize(effective, results, inFigureBefore, tz);
+    const stats = summarize(effective, results, before.current ?? new Map(), today, tz);
     return (
       <SessionEnd
         containerId={containerId}
@@ -464,8 +469,8 @@ export default function StudyRun(props: StudyRunProps) {
 
   const bar = (
     <RoomBar
-      long={copy.glue(`${subject} · ${copy.counter(place, planned.length)}`)}
-      short={copy.counter(place, planned.length)}
+      long={copy.glue(`${subject} · ${copy.counter(count.n, count.of)}`)}
+      short={copy.counter(count.n, count.of)}
       exitLabel={copy.FINISH}
       onExit={exit}
     />
