@@ -220,6 +220,12 @@ export interface BotDb {
   deliverySending(deliveryId: number): Promise<boolean>;
   /** sent (+ message id) | failed | skipped (+ a short reason). A sent K1 returns an unused /today card of that day to delete. */
   deliveryDone(deliveryId: number, status: 'sent' | 'failed' | 'skipped', messageId?: number | null, error?: string | null): Promise<{ prevCardMessageId: number | null }>;
+  /**
+   * A 429 after `deliverySending` (the card, K2, K3, the night's close): Telegram did nothing. true → back to `claimed`,
+   * a later tick takes it again after 10 minutes (at most 3 tries); false → not in `sending`, or no longer due and closed
+   * as failed by the database. Nothing else to call either way; the step stops.
+   */
+  deliveryRetry(deliveryId: number, error?: string): Promise<boolean>;
   claimDayClose(limit: number): Promise<DayCloseRow[]>;
   claimAfterDate(limit: number): Promise<AfterDateRow[]>;
 }
@@ -513,6 +519,9 @@ export function createDb(options: DbOptions): BotDb {
         p_delivery_id: deliveryId, p_status: status, p_tg_message_id: messageId ?? null, p_error: error ? error.slice(0, 200) : null,
       }));
       return { prevCardMessageId: num(r.prev_card_message_id) };
+    },
+    async deliveryRetry(deliveryId, error = '429') {
+      return (await rpc<unknown>('bot_delivery_retry', { p_delivery_id: deliveryId, p_error: error.slice(0, 200) })) === true;
     },
     async claimDayClose(limit) {
       return rows(await rpc('bot_claim_day_close', { p_limit: limit })).map((r) => ({

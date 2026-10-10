@@ -3,8 +3,9 @@
 // (private_only, slow_down after 10 failures an hour, invalid, used, expired by the message date, the same code from
 // the same Telegram → linked again, the newest link wins on both sides); settings answered with statuses, the pending
 // prompt and the once-an-hour hint; «seen» marks; the day's cards; the deliveries' at-most-once states (claimed →
-// sending → sent | failed | skipped; sending for 10 minutes → unknown, never sent again; claimed and never tried →
-// taken again after 10 minutes, at most 3 tries) and K2 (three cards in a row with nothing since).
+// sending → sent | failed | skipped; sending for 10 minutes → unknown, never sent again; claimed and never tried, or
+// sent back by bot_delivery_retry after a 429 → taken again after 10 minutes, at most 3 tries) and K2 (three cards in a
+// row with nothing since).
 import type {
   AfterDateRow, BotDb, BotRpcName, BotStatus, ChatEvent, ClaimResult, DayCloseRow, Link, OpenSession, Prompt, ReminderContext,
   ReminderRow, SettingsPatch, SettingsResult, Today, UpdateBegin, Who,
@@ -445,18 +446,54 @@ export function fakeDb(options: { now: () => number }) {
       }
       return { prevCardMessageId: null };
     },
+    async deliveryRetry(deliveryId: number, error = '429') {
+      record('bot_delivery_retry', { deliveryId, error });
+      const d = deliveries.find((x) => x.id === deliveryId);
+      if (!d || d.status !== 'sending') return false;
+      const l = links.find((x) => x.id === d.linkId);
+      const t = now();
+      const today = l ? localDay(t, l.tz) : '';
+      const due = Boolean(l) && l!.unlinkedAt === null && l!.blockedAt === null && d.attempts < 3
+        && (d.kind === 'day_close'
+          ? d.localDay >= addDays(today, -2)
+          : l!.remindOn && (l!.pausedUntil === null || l!.pausedUntil <= today) && d.localDay === today && inWindow(l!, t));
+      d.error = error.slice(0, 200) || '429';
+      if (due) {
+        d.status = 'claimed';
+        d.claimedAt = t;
+        return true;
+      }
+      d.status = 'failed';
+      return false;
+    },
     async claimDayClose(limit: number): Promise<DayCloseRow[]> {
       record('bot_claim_day_close', { limit });
-      sweep(['day_close'], now());
+      const t = now();
+      sweep(['day_close'], t);
       const out: DayCloseRow[] = [];
+      const rowOf = (l: LinkRow, day: string) => {
+        const row = days.get(dayKey(l, day));
+        return row && row.closedAt === null ? row : null;
+      };
       for (const q of dayCloseQueue) {
         if (out.length >= limit) break;
         const l = links.find((x) => x.id === q.linkId);
         if (!l || l.unlinkedAt !== null || l.blockedAt !== null) continue;
-        const row = days.get(dayKey(l, q.localDay));
-        if (!row || row.closedAt !== null) continue;
+        const row = rowOf(l, q.localDay);
+        if (!row) continue;
         const d = newDelivery('day_close', l, q.localDay, null);
         if (d) out.push({ deliveryId: d.id, chatId: l.chatId, localDay: q.localDay, cardMessageId: row.cardUsed ? null : row.cardMessageId, lastMessageId: row.lastMessageId });
+      }
+      for (const d of deliveries) {
+        if (out.length >= limit) break;
+        if (d.kind !== 'day_close' || d.status !== 'claimed' || d.attempts >= 3 || d.claimedAt >= t - 10 * MIN) continue;
+        const l = links.find((x) => x.id === d.linkId);
+        if (!l || l.unlinkedAt !== null || l.blockedAt !== null || d.localDay < addDays(localDay(t, l.tz), -2)) continue;
+        const row = rowOf(l, d.localDay);
+        if (!row) continue;
+        d.claimedAt = t;
+        d.attempts += 1;
+        out.push({ deliveryId: d.id, chatId: l.chatId, localDay: d.localDay, cardMessageId: row.cardUsed ? null : row.cardMessageId, lastMessageId: row.lastMessageId });
       }
       return out;
     },
@@ -470,6 +507,18 @@ export function fakeDb(options: { now: () => number }) {
         if (!l || l.unlinkedAt !== null || l.blockedAt !== null || !l.remindOn) continue;
         const d = newDelivery('after_date', l, localDay(now(), l.tz), q.containerId);
         if (d) out.push({ deliveryId: d.id, chatId: l.chatId, localDay: d.localDay, containerId: q.containerId, exam: q.exam });
+      }
+      const t = now();
+      for (const d of deliveries) {
+        if (out.length >= limit) break;
+        if (d.kind !== 'after_date' || d.status !== 'claimed' || d.attempts >= 3 || d.claimedAt >= t - 10 * MIN) continue;
+        const l = links.find((x) => x.id === d.linkId);
+        if (!l || l.unlinkedAt !== null || l.blockedAt !== null || !l.remindOn || d.localDay !== localDay(t, l.tz) || !inWindow(l, t)) continue;
+        const q = afterDateQueue.find((x) => x.linkId === l.id && x.containerId === d.ref);
+        if (!q) continue;
+        d.claimedAt = t;
+        d.attempts += 1;
+        out.push({ deliveryId: d.id, chatId: l.chatId, localDay: d.localDay, containerId: q.containerId, exam: q.exam });
       }
       return out;
     },
