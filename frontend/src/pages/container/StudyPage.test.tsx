@@ -388,6 +388,19 @@ describe('the end of a session (decision 49)', () => {
     expect(screen.getByTestId('where').textContent).toBe(`/exams/c/${CONTAINER}`);
   });
 
+  it('what comes back after today comes back on a study day: with Sunday off, «вернётся 12 октября»', async () => {
+    serverSays(() => 'miss');
+    renderStudy(dataWith(['q-iso'], { input: { studyWeekdays: 63 } })); // Пн–Сб: today is Saturday 10 October
+    fireEvent.click(option('READ COMMITTED'));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    fireEvent.click(option('SERIALIZABLE'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+    await waitFor(() => expect(document.querySelector('.ct-end-p')).not.toBeNull());
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибка вернётся 12 октября.');
+  });
+
   it('the plan read again after the session does not change the screen being read (M1)', async () => {
     const view = renderStudy(dataWith(['q-plain']));
     fireEvent.click(option('Третья'));

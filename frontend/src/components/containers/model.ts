@@ -19,7 +19,8 @@ import type {
   TestItem,
   UnitState,
 } from '../../types/container';
-import { extraNew, promiseTime } from '../../lib/containers/plan';
+import { extraNew, onStudyDay, promiseTime } from '../../lib/containers/plan';
+import { EVERY_DAY, studyDayFrom, studyMask } from '../../lib/containers/time';
 import { countableFrom, emptyState, isOpenError, isSeen } from '../../lib/containers/rule';
 import { figureChange } from '../../lib/containers/session';
 import { dayText, shownMinutes } from '../../lib/containers/words';
@@ -495,6 +496,28 @@ export function tomorrowTime(ms: number | null, today: LocalDay, tz: string): st
   if (ms === null) return null;
   const at = promiseTime(ms, tz);
   return at.day === addDay(today, 1) ? at.time : null;
+}
+
+/**
+ * When what was answered today comes back, as the plan brings it back: «завтра», or the next study day («12 октября»)
+ * when tomorrow is not one of the student's days of the week (`mask`, settings.study_weekdays; every day: «завтра»).
+ */
+export function comesBackWhen(today: LocalDay, mask?: number): string {
+  const tomorrow = addDay(today, 1);
+  const next = studyDayFrom(tomorrow, studyMask(mask));
+  return next === tomorrow ? 'завтра' : dayText(next);
+}
+
+/**
+ * When the first questions can count, as the plan's line on the exam page says it: «завтра после 17:05», or from the
+ * start of the next study day («12 октября») when tomorrow is a day off. Every day: exactly `tomorrowTime`.
+ */
+export function firstCountWhen(ms: number | null, today: LocalDay, tz: string, mask?: number): { when: string; time: string | null } {
+  const m = studyMask(mask);
+  if (m === EVERY_DAY) return { when: 'завтра', time: tomorrowTime(ms, today, tz) };
+  if (ms === null) return { when: comesBackWhen(today, m), time: null };
+  const at = promiseTime(onStudyDay(ms, m, tz), tz);
+  return at.day === addDay(today, 1) ? { when: 'завтра', time: at.time } : { when: dayText(at.day), time: at.time };
 }
 
 // ─────────────────────────────────────────────── roles and names

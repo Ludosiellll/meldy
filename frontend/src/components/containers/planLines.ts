@@ -7,8 +7,9 @@ import { glue, q } from './copy';
 /**
  * The plan's own lines (lib/containers/words.ts renders them) on the exam's pages; the lines the plan does not make
  * (`oral_no_lectures`, `need`, `pace_faster`, `pace_slower`) are built by the screens and rendered the same way:
- * - the lines of the day's state («На сегодня всё…», «Сегодня экзамен.», «Экзамен прошёл…») are the card's title, not
- *   a note; «Первые войдут в счёт завтра после 17:00 — если снова ответите верно» is the figure's line (decision 40);
+ * - the lines of the day's state («На сегодня всё…», «Сегодня выходной…», «Сегодня экзамен.», «Экзамен прошёл…») are
+ *   the card's title, not a note; «Первые войдут в счёт завтра после 17:00 — если снова ответите верно» is the
+ *   figure's line (decision 40);
  * - a line may carry one link: the minutes that fall short → «Изменить время»; no date → «Указать дату»; oral questions
  *   without lectures → «Добавить лекции»; «Ещё 20 новых» and «20 вопросов, где были ошибки» are links themselves.
  * The keys are lib/containers/words.ts LINE_KEYS (package D2); a line of an unknown key is shown as it is, without a
@@ -29,7 +30,7 @@ export interface LineView {
 type Line = DayPlan['lines'][number];
 
 /** Lines that are not notes: the state's own line (the title) and the figure's first-count line. */
-const NOT_NOTES = new Set(['first_count', 'done', 'nothing', 'after', 'exam_today']);
+const NOT_NOTES = new Set(['first_count', 'done', 'nothing', 'day_off', 'after', 'exam_today']);
 /** Lines that are links on their own. */
 const LINK_ONLY = new Set(['more_new', 'exam_errors']);
 
@@ -66,6 +67,11 @@ export function lineViews(lines: readonly Line[]): LineView[] {
     if (words) out.push({ key: `${line.key}-${index}`, kind: line.key, text: words, action: lineAction(line.key), linkOnly: LINK_ONLY.has(line.key) });
   }
   return out;
+}
+
+/** A day off: not one of the student's days of the week (the plan's `day_off` line), so no plan today. */
+export function isDayOff(plan: DayPlan | null): boolean {
+  return Boolean(plan && plan.lines.some((line) => line.key === 'day_off'));
 }
 
 /** «На сегодня всё. Завтра около 40 минут.» and the other one-line states of the plan. */

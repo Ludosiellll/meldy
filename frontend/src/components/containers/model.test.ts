@@ -5,10 +5,12 @@ import { promiseTime } from '../../lib/containers/plan';
 import {
   addDay,
   clsOf,
+  comesBackWhen,
   codeLike,
   dayDiff,
   errorCount,
   examFigure,
+  firstCountWhen,
   gradeLocal,
   keyNames,
   laterToday,
@@ -216,6 +218,24 @@ describe('the end of a session', () => {
     // from midnight: «завтра» alone; another day: «завтра» is not said at all
     expect(tomorrowTime(Date.parse('2026-10-10T20:58:00Z'), '2026-10-10', 'Europe/Minsk')).toBeNull();
     expect(tomorrowTime(Date.parse('2026-10-12T14:00:00Z'), '2026-10-10', 'Europe/Minsk')).toBeNull();
+  });
+
+  it('names the next study day for what comes back, as the plan brings it back (settings.study_weekdays)', () => {
+    // Saturday 10 October; every day, or Sunday on: «завтра»
+    expect(comesBackWhen('2026-10-10')).toBe('завтра');
+    expect(comesBackWhen('2026-10-10', 127)).toBe('завтра');
+    expect(comesBackWhen('2026-10-10', 64)).toBe('завтра');
+    // Пн–Пт on Friday or Saturday: Monday 12 October
+    expect(plain(comesBackWhen('2026-10-09', 31))).toBe('12 октября');
+    expect(plain(comesBackWhen('2026-10-10', 31))).toBe('12 октября');
+    const sunday = Date.parse('2026-10-11T14:00:00Z'); // 17:00 on Sunday in Minsk
+    // every day: exactly tomorrowTime
+    expect(firstCountWhen(sunday, '2026-10-10', 'Europe/Minsk')).toEqual({ when: 'завтра', time: '17:00' });
+    expect(firstCountWhen(null, '2026-10-10', 'Europe/Minsk', 127)).toEqual({ when: 'завтра', time: null });
+    // Sunday off: from the start of Monday, with no time (the exam page's «Первые войдут в счёт 12 октября»)
+    const off = firstCountWhen(sunday, '2026-10-10', 'Europe/Minsk', 31);
+    expect({ ...off, when: plain(off.when) }).toEqual({ when: '12 октября', time: null });
+    expect(firstCountWhen(sunday, '2026-10-10', 'Europe/Minsk', 64 + 31)).toEqual({ when: 'завтра', time: '17:00' });
   });
 
   it('says «после 18:05» for later today in the same rounding, and nothing for another day', () => {

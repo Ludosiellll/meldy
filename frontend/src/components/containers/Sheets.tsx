@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { PlanInput, SummarySubject } from '../../types/container';
 import { daysAhead, type DayRow } from '../../lib/containers/plan';
+import { EVERY_DAY, studyMask } from '../../lib/containers/time';
 import { SKIP_NOTE, dayRowText } from '../../lib/containers/words';
 import { Sheet } from './ui';
 import { noDateText } from './planLines';
@@ -11,7 +12,7 @@ import * as copy from './copy';
 /**
  * The rows of «План по дням» from the study engine (lib/containers/plan.ts daysAhead, words.ts dayRowText): study days
  * at about the minutes a day, the final days without a promised number of minutes, each exam day — with whose exam it
- * is when the subjects have different dates.
+ * is when the subjects have different dates. Days off have no row (the sheet says the days of the week above them).
  */
 export function dayRows(input: PlanInput | null, subjects: readonly SummarySubject[]): Array<{ key: string; text: string }> {
   if (!input) return [];
@@ -56,6 +57,7 @@ export function PlanByDaysSheet({
   onClose: () => void;
 }) {
   const rows = dayRows(input, subjects);
+  const weekdays = studyMask(input?.studyWeekdays);
   return (
     <Sheet title={copy.PLAN_BY_DAYS} onClose={onClose}>
       <ul className="ct-days">
@@ -66,6 +68,15 @@ export function PlanByDaysSheet({
             {copy.CHANGE}
           </Link>
         </li>
+        {weekdays !== EVERY_DAY ? (
+          <li>
+            {copy.studyDaysRow(weekdays)}
+            {copy.SEP}
+            <Link className="sf-link" to={`${settingsHref}#days`}>
+              {copy.CHANGE}
+            </Link>
+          </li>
+        ) : null}
         {noDate ? (
           <li>
             {noDateText()}{' '}

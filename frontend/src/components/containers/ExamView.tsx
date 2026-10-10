@@ -14,7 +14,7 @@ import { PlanByDaysSheet } from './Sheets';
 import { NoteLine } from './ui';
 import { examActions, examLinks, startTarget } from './actions';
 import { useWide } from './useWide';
-import { detailText, noDateText, paceNote, planLineViews, planText, text as lineWords, titleText, type LineView, type PaceNote } from './planLines';
+import { detailText, isDayOff, noDateText, paceNote, planLineViews, planText, text as lineWords, titleText, type LineView, type PaceNote } from './planLines';
 import * as copy from './copy';
 import {
   errorCount,
@@ -271,6 +271,14 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
     title = planText(plan) || copy.SUBJECT_DONE;
     if (lineLinks.length > 0) links = lineLinks;
     else if (moreNewHref && more) links = <Link className="sf-link" to={moreNewHref}>{lineWords({ key: 'more_new', n: [more.ids.length] })}</Link>;
+    // A day off: the week ahead is one tap away («План по дням» says the study days and what each holds).
+    if (isDayOff(plan)) {
+      sub = (
+        <button type="button" className="sf-link" aria-haspopup="dialog" onClick={() => setDaysOpen(true)}>
+          {copy.PLAN_BY_DAYS}
+        </button>
+      );
+    }
   } else {
     // No plan (the engine could not run): the page still shows the exam and its subjects.
     title = copy.SUBJECT_DONE;

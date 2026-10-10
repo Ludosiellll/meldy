@@ -173,6 +173,27 @@ export const END_EXIT = 'Закрыть';
 
 // «План по дням».
 export const daysMinutesRow = (minutes: number) => glue(`Время в день: ${minNom(minutes)}`);
+const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+/**
+ * «Дни занятий: Пн–Пт», «Дни занятий: Пн, Ср, Пт, Сб» — the student's days of the week (`study_weekdays`, Monday = 1 …
+ * Sunday = 64), three or more in a row as a range. «План по дням» shows it when not every day.
+ */
+export function studyDaysRow(mask: number): string {
+  const on = DAY_SHORT.map((_, day) => (mask & (1 << day)) !== 0);
+  const parts: string[] = [];
+  for (let day = 0; day < 7; ) {
+    if (!on[day]) {
+      day += 1;
+      continue;
+    }
+    let end = day;
+    while (end + 1 < 7 && on[end + 1]) end += 1;
+    if (end - day >= 2) parts.push(`${DAY_SHORT[day]}–${DAY_SHORT[end]}`);
+    else for (let k = day; k <= end; k += 1) parts.push(DAY_SHORT[k]);
+    day = end + 1;
+  }
+  return `Дни занятий: ${parts.join(', ')}`;
+}
 export const CHANGE = 'Изменить';
 
 // The topic sheet (Concept 1 §3.4).
@@ -294,20 +315,24 @@ export const nowFigure = (n: number, total: number) => glue(`Теперь ${n} �
 /** The headline in three parts, the figure marked: [«Теперь », «147 из 960», « — верно в два разных дня»]. */
 export const nowFigureParts = (n: number, total: number): [string, string, string] => ['Теперь ', glue(`${n} из ${total}`), glue(` — ${TWO_DAYS}`)];
 export const firstRight = (n: number, of: number) => glue(`Верно с первого раза — ${n} из ${of}.`);
-export const errorsBack = (n: number) => glue(`${n} ${pl(n, 'ошибка вернётся', 'ошибки вернутся', 'ошибок вернутся')} завтра.`);
+/**
+ * `when` on the lines below: «завтра», or the next study day («12 октября», model.ts comesBackWhen) when tomorrow is
+ * not one of the student's days of the week — the plan brings nothing back on a day off.
+ */
+export const errorsBack = (n: number, when = 'завтра') => glue(`${n} ${pl(n, 'ошибка вернётся', 'ошибки вернутся', 'ошибок вернутся')} ${when}.`);
 export function droppedLine(n: number): string {
   return glue(
     `В ${n} ${pl(n, 'вопросе, который был', 'вопросах, которые были', 'вопросах, которые были')} в счёте, сегодня ошибка: счёт по ${pl(n, 'нему', 'ним', 'ним')} начнётся заново.`,
   );
 }
-export function tooEarlyLine(n: number, time: string | null): string {
-  const when = time ? `после ${time}` : 'завтра';
+export function tooEarlyLine(n: number, time: string | null, day = 'завтра'): string {
+  const when = time ? `после ${time}` : day;
   return glue(
     `На ${q(n)} вы снова ответили верно, но раньше чем через 20 часов: ${pl(n, 'он войдёт', 'они войдут', 'они войдут')} в счёт, если ответите ${when}.`,
   );
 }
-export const firstCountLine = (time: string | null) =>
-  glue(time ? `Первые войдут в счёт завтра после ${time} — если снова ответите верно.` : 'Первые войдут в счёт завтра — если снова ответите верно.');
+export const firstCountLine = (time: string | null, when = 'завтра') =>
+  glue(time ? `Первые войдут в счёт ${when} после ${time} — если снова ответите верно.` : `Первые войдут в счёт ${when} — если снова ответите верно.`);
 export function selfCheckLine(know: number, unsure: number, dontKnow: number): string {
   return glue(`«Знаю» — ${know}${SEP}«плаваю» — ${unsure}${SEP}«не знаю» — ${dontKnow}. ${SELF_CHECK_NOTE}`);
 }

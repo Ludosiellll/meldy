@@ -138,6 +138,18 @@ describe('copy.ts: the words of the exam screens', () => {
     expect(copy.keyFixedLine(1).split(copy.NBSP).join(' ')).toBe('Автор исправил ключ в 1 вопросе — счёт по нему начнётся заново.');
     expect(copy.keyFixedLine(2).split(copy.NBSP).join(' ')).toBe('Автор исправил ключ в 2 вопросах — счёт по ним начнётся заново.');
     expect(copy.mockFinishLine(38, 40, [7, 22]).split(copy.NBSP).join(' ')).toBe('Ответили на 38 из 40. Без ответа: 7, 22 — они считаются ошибками.');
+    // the end of a session: what comes back, «завтра» or the next study day (settings.study_weekdays)
+    const ends = (text: string) => text.split(copy.NBSP).join(' ');
+    expect(ends(copy.errorsBack(1))).toBe('1 ошибка вернётся завтра.');
+    expect(ends(copy.errorsBack(3, '12 октября'))).toBe('3 ошибки вернутся 12 октября.');
+    expect(ends(copy.firstCountLine('17:00'))).toBe('Первые войдут в счёт завтра после 17:00 — если снова ответите верно.');
+    expect(ends(copy.firstCountLine(null, '12 октября'))).toBe('Первые войдут в счёт 12 октября — если снова ответите верно.');
+    expect(ends(copy.tooEarlyLine(2, null, '12 октября'))).toBe('На 2 вопроса вы снова ответили верно, но раньше чем через 20 часов: они войдут в счёт, если ответите 12 октября.');
+    expect(ends(copy.tooEarlyLine(1, '18:05'))).toBe('На 1 вопрос вы снова ответили верно, но раньше чем через 20 часов: он войдёт в счёт, если ответите после 18:05.');
+    expect(ends(copy.studyDaysRow(31))).toBe('Дни занятий: Пн–Пт');
+    expect(ends(copy.studyDaysRow(1 + 4 + 16 + 32))).toBe('Дни занятий: Пн, Ср, Пт, Сб');
+    expect(ends(copy.studyDaysRow(96))).toBe('Дни занятий: Сб, Вс');
+    expect(ends(copy.studyDaysRow(63 + 64 - 2))).toBe('Дни занятий: Пн, Ср–Вс');
     // the key in the file's own words, as the bot says it («В файле — DHCP»), never a letter of the shuffled screen (m2)
     const plain = (text: string) => text.split(copy.NBSP).join(' ');
     expect(plain(copy.verdictWrong(['7 12'], true))).toBe('Неверно. В файле — 7 12. Вернётся через пару вопросов и завтра.');
