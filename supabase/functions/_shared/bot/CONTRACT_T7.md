@@ -146,7 +146,8 @@ post. `editMessageText` with the G2 text, the last line «Ответили <answ
 `{post_id, chat_id, local_day, subject, stem, options: [text…] (FILE order), kind: "single", code: bool, keep_order:
 bool, shown: [file index…] | null}`. Buttons/letters in `shown` order: `shown.map(i => options[i])`. G2 header:
 «<b>Вопрос дня · <subject></b>». The counter and close claims never hand out a post whose question was deleted (it is
-closed without an edit), so their VIEW is never null; `shown` is null only in the pick's VIEW.
+closed without an edit), so their VIEW is never null; `shown` is null only in the pick's VIEW. All texts here (`subject`,
+`stem`, `options`, a chat's `title`, `exam_title`, `choice.text`, `key.text`) are raw: escape `< > &` when rendering.
 
 ### `candidates` (= `GroupInput` of `frontend/src/lib/containers/group.ts`)
 
