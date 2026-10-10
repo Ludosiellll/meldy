@@ -7,8 +7,9 @@
 -- type cleaned; the day-old rows deleted by the next offer; the rows go with the account.
 -- One transaction, rolled back. A failure raises (FAILED: …); success prints TELEGRAM BOT FILES CHECKS PASSED. Roles as
 -- PostgREST sets them (T1's telegram_bot_behaviour.sql): anon, authenticated (request.jwt.claim.sub), service_role
--- (request.jwt.claims); postgres for fixtures. Two redeems at the same moment: telegram_bot_files_run.sh in the
--- scratchpad runner (two sessions), not here.
+-- (request.jwt.claims); postgres for fixtures. Two redeems of one token at the same moment need two sessions (one
+-- transaction here): run them as T1's runner does its races, e.g. session A `begin; select bot_file_redeem(t);
+-- select pg_sleep(1.5); commit;` and session B `select bot_file_redeem(t);` meanwhile → A ok, B used.
 \set ON_ERROR_STOP 1
 begin;
 
