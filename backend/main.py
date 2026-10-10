@@ -59,6 +59,7 @@ from exam_shares import router as exam_shares_router
 from tutor_api import router as tutor_router
 import telemetry_api
 import try_api
+import bot_bridge
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pywebpush import webpush, WebPushException
@@ -262,8 +263,9 @@ async def require_authenticated_user(request: Request) -> dict:
 
 # Open without a session: the health check, the statistics that signed-out visitors send too (telemetry_api.py),
 # the push key, which is public by design (push_router.py; checked by .github/workflows/rotate-vapid.yml), what a
-# group link is before its classmate signs in (exam_shares.py: the status and the exam's title only), and the AI
-# check of the no-sign-up example (try_api.py: its own questions only, its own key and caps, no units, no writes).
+# group link is before its classmate signs in (exam_shares.py: the status and the exam's title only), the AI
+# check of the no-sign-up example (try_api.py: its own questions only, its own key and caps, no units, no writes), and
+# the Telegram bot's voice bridge (bot_bridge.py: a single-use ticket from the database is its whole authority).
 PUBLIC_API_PATHS = frozenset(
     {
         "/api/health",
@@ -272,6 +274,7 @@ PUBLIC_API_PATHS = frozenset(
         "/api/push/key",
         "/api/exam-shares/preview",
         try_api.TRY_EVALUATE_PATH,
+        bot_bridge.BOT_VOICE_PATH,
     }
 )
 
@@ -307,6 +310,8 @@ app.include_router(supabase_proxy_router)
 app.include_router(telemetry_api.router)
 # /try: the AI check of the example without an account (try_api.py).
 app.include_router(try_api.router)
+# /api/bot/voice: the Telegram bot's voice answers by single-use ticket (bot_bridge.py, stage 5, off until the owner says).
+app.include_router(bot_bridge.router)
 
 scheduler = AsyncIOScheduler()
 
