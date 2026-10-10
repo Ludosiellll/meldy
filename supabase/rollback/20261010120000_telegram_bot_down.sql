@@ -21,7 +21,7 @@ begin
   end if;
 end
 $do$;
-drop function if exists public.bot_setup(text, bigint, text, text), public.bot_update_begin(bigint, timestamptz),
+drop function if exists public.bot_setup(text, bigint, text, text, text), public.bot_update_begin(bigint, timestamptz),
   public.bot_update_done(bigint), public.bot_update_failed(bigint, text), public.bot_tick_beat(jsonb), public.bot_status(),
   public.bot_link_claim(text, bigint, bigint, text, timestamptz), public.bot_chat_event(bigint, text),
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),
@@ -31,7 +31,8 @@ drop function if exists public.bot_setup(text, bigint, text, text), public.bot_u
   public.bot_claim_after_date(integer, timestamptz);
 drop function if exists public.telegram_link_start(text), public.telegram_link_state(),
   public.telegram_settings(boolean, time, text), public.telegram_unlink();
-drop function if exists bot.tick(), bot.cleanup(timestamptz), bot.session_message(bigint, bigint),
+drop function if exists bot.tick(timestamptz), bot.tick_due(timestamptz), bot.tick_mode(timestamptz),
+  bot.cleanup(timestamptz), bot.session_message(bigint, bigint),
   bot.after_date_json(uuid, uuid, date), bot.sweep(text[], timestamptz), bot.calls_json(timestamptz),
   bot.site_state(uuid), bot.exams_json(uuid), bot.answered_since(uuid, timestamptz),
   bot.recently_active(uuid, timestamptz, timestamptz, date), bot.in_window(timestamp, time), bot.tz_ok(text),

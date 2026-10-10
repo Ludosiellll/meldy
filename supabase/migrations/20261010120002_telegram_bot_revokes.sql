@@ -11,7 +11,7 @@ revoke all on all tables in schema bot from public, anon, authenticated;
 revoke all on all sequences in schema bot from public, anon, authenticated;
 revoke all on all functions in schema bot from public, anon, authenticated;
 
-revoke all on function public.bot_setup(text, bigint, text, text), public.bot_update_begin(bigint, timestamptz),
+revoke all on function public.bot_setup(text, bigint, text, text, text), public.bot_update_begin(bigint, timestamptz),
   public.bot_update_done(bigint), public.bot_update_failed(bigint, text), public.bot_tick_beat(jsonb), public.bot_status(),
   public.bot_link_claim(text, bigint, bigint, text, timestamptz), public.bot_chat_event(bigint, text),
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),
@@ -20,7 +20,7 @@ revoke all on function public.bot_setup(text, bigint, text, text), public.bot_up
   public.bot_delivery_done(bigint, text, bigint, text, timestamptz), public.bot_claim_day_close(integer, timestamptz),
   public.bot_claim_after_date(integer, timestamptz)
   from public, anon, authenticated;
-grant execute on function public.bot_setup(text, bigint, text, text), public.bot_update_begin(bigint, timestamptz),
+grant execute on function public.bot_setup(text, bigint, text, text, text), public.bot_update_begin(bigint, timestamptz),
   public.bot_update_done(bigint), public.bot_update_failed(bigint, text), public.bot_tick_beat(jsonb), public.bot_status(),
   public.bot_link_claim(text, bigint, bigint, text, timestamptz), public.bot_chat_event(bigint, text),
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),

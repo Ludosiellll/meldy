@@ -30,13 +30,16 @@ comment on schema bot is 'Telegram bot state (@Meldyteach_bot). Not exposed thro
 -- 1. Tables.
 -- 1a. One row: what the bot registers about itself (bot_setup, after getMe) and the tick's heartbeat. tick_token =
 --     HMAC(TELEGRAM_BOT_TOKEN, 'meldy:tick:v1'), sent back by bot.tick() in x-meldy-tick; never shown by bot_status.
---     flags: switches the owner sets by hand ({"voice": true}).
+--     function_region = the region the function is pinned to (forceFunctionRegion; the function passes the same
+--     constant it gives setWebhook, so the value lives in one place). flags: switches the owner sets by hand
+--     ({"voice": true}; {"tick": "when_due"} forces the tick's saving mode).
 create table if not exists bot.config (
   id smallint primary key default 1,
   bot_username text,
   bot_id bigint,
   tick_token text,
   function_url text,
+  function_region text,
   last_setup_at timestamptz,
   last_tick_at timestamptz,
   last_tick jsonb,
@@ -49,10 +52,11 @@ create table if not exists bot.config (
   constraint config_tick_token_check check (tick_token is null or tick_token ~ '^[A-Za-z0-9_-]{32,128}$'),
   constraint config_function_url_check check (function_url is null
     or function_url ~ '^https://[a-z0-9-]{1,63}\.supabase\.co/functions/v1/telegram$'),
+  constraint config_region_check check (function_region is null or function_region ~ '^[a-z]{2}-[a-z]+-[0-9]$'),
   constraint config_flags_check check (jsonb_typeof(flags) = 'object')
 );
 insert into bot.config (id) values (1) on conflict (id) do nothing;
-comment on table bot.config is 'One row: the bot''s username and id, the tick token and the function URL (bot_setup), the last tick (bot_tick_beat), owner flags.';
+comment on table bot.config is 'One row: the bot''s username and id, the tick token, the function URL and region (bot_setup), the last tick (bot_tick_beat), owner flags.';
 
 -- 1b. One-time codes, stored only as sha256 hex (meldy_private.code_hash). purpose 'link': «Подключить Telegram» in the
 --     profile, L + 32 hex, 15 minutes, tz = the browser's zone (spec decision 32). purpose 'group': the author's
@@ -147,7 +151,8 @@ comment on table bot.claim_failures is 'Failed link-code claims per Telegram use
 --     after_date = K3, ref = the exam (container id); day_close = the night after a day: delete the unused card, take
 --     the keyboard off the last summary; notice = a one-off message. status: claimed → sending (right before the call
 --     to Telegram) → sent | failed | skipped; a row left in sending for 10 minutes becomes unknown and is never sent
---     again (at most once, spec decision 7).
+--     again (at most once, spec decision 7). answer = the student's answer to a K2 (yes | pause | stop), for the
+--     pilot's numbers.
 create table if not exists bot.deliveries (
   id bigint generated always as identity primary key,
   kind text not null,
@@ -161,10 +166,12 @@ create table if not exists bot.deliveries (
   sent_at timestamptz,
   tg_message_id bigint,
   error text,
+  answer text,
   constraint deliveries_kind_check check (kind in ('reminder', 'ask', 'after_date', 'day_close', 'notice')),
   constraint deliveries_status_check check (status in ('claimed', 'sending', 'sent', 'failed', 'skipped', 'unknown')),
   constraint deliveries_ref_check check (ref is null or char_length(ref) between 1 and 64),
   constraint deliveries_error_check check (error is null or char_length(error) <= 200),
+  constraint deliveries_answer_check check (answer is null or (kind = 'ask' and answer in ('yes', 'pause', 'stop'))),
   constraint deliveries_once unique nulls not distinct (kind, chat_id, local_day, ref)
 );
 create unique index if not exists deliveries_day_card_key on bot.deliveries (chat_id, local_day)
@@ -420,8 +427,103 @@ begin
 end;
 $fn$;
 
+-- 2o. The tick's mode (spec §10: the free plan has 500 000 function calls a month; a minute tick is 43 200 of them).
+--     every_minute while this month's calls (bot.usage, UTC) are under 300 000 (60 %) and the owner has not set
+--     flags.tick = 'when_due'; when_due otherwise: bot.tick() then posts only when bot.tick_due() says something may be
+--     due, and every 15th minute regardless (housekeeping, /status).
+create or replace function bot.tick_mode(p_now timestamptz)
+returns text
+language sql
+stable
+set search_path = ''
+as $fn$
+  select case when coalesce((select c.flags ->> 'tick' from bot.config c where c.id = 1), '') = 'when_due'
+                or (bot.calls_json(p_now) ->> 'total')::bigint >= 300000
+              then 'when_due' else 'every_minute' end
+$fn$;
+
+-- 2p. May anything be due this minute? Cheap and conservative (true when unsure): a day card window open for a link
+--     with no card claimed today (the 30-minute rule is left to the claim), a K3 window, a night's close, a claimed
+--     row waiting to be taken again; package T5's pending answers and package T7's group posts through their hooks
+--     (see the two marked blocks).
+create or replace function bot.tick_due(p_now timestamptz default pg_catalog.now())
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $fn$
+declare
+  v_due boolean := false;
+begin
+  -- the day card (K1/K2)
+  if exists (select 1 from bot.links l
+              where l.unlinked_at is null and l.blocked_at is null and l.remind_on
+                and bot.in_window(p_now at time zone l.tz, l.remind_at)
+                and (l.paused_until is null or l.paused_until <= (p_now at time zone l.tz)::date)
+                and not exists (select 1 from bot.deliveries d
+                                 where d.chat_id = l.chat_id and d.local_day = (p_now at time zone l.tz)::date
+                                   and d.kind in ('reminder', 'ask'))) then
+    return true;
+  end if;
+  -- K3: an exam whose last test date was 1–3 days ago, no K3 for this user yet
+  if exists (select 1 from bot.links l
+              cross join lateral meldy_private.container_ids_of(l.user_id) as x(id)
+              join public.containers c on c.id = x.id
+             where l.unlinked_at is null and l.blocked_at is null and l.remind_on
+               and bot.in_window(p_now at time zone l.tz, l.remind_at)
+               and (l.paused_until is null or l.paused_until <= (p_now at time zone l.tz)::date)
+               and (p_now at time zone l.tz)::date
+                   - coalesce((select pg_catalog.max(coalesce(s.exam_date, c.exam_date)) from public.container_subjects s
+                                where s.container_id = c.id), c.exam_date) between 1 and 3
+               and not exists (select 1 from bot.deliveries d join bot.links l2 on l2.id = d.link_id
+                                where d.kind = 'after_date' and d.ref = c.id::text and l2.user_id = l.user_id)) then
+    return true;
+  end if;
+  -- the night's close
+  if exists (select 1 from bot.days dy join bot.links l on l.id = dy.link_id
+              where l.unlinked_at is null and l.blocked_at is null and dy.closed_at is null
+                and dy.local_day < (p_now at time zone l.tz)::date and dy.local_day >= (p_now at time zone l.tz)::date - 2
+                and ((dy.card_message_id is not null and not dy.card_used) or dy.last_message_id is not null)
+                and not exists (select 1 from bot.deliveries d
+                                 where d.kind = 'day_close' and d.chat_id = l.chat_id and d.local_day = dy.local_day)) then
+    return true;
+  end if;
+  -- a worker died after a claim: the row waits to be taken again
+  if exists (select 1 from bot.deliveries d
+              where d.status = 'claimed' and d.kind in ('reminder', 'ask', 'after_date', 'day_close')) then
+    return true;
+  end if;
+  -- ── package T5 hook: bot.tick_due_sessions(p_now timestamptz) returns boolean (a pending answer older than 30
+  --    minutes, spec §6.6 step 7). Until T5 defines it: any pending answer in bot.sessions counts.
+  if pg_catalog.to_regprocedure('bot.tick_due_sessions(timestamptz)') is not null then
+    execute 'select bot.tick_due_sessions($1)' into v_due using p_now;
+    if v_due then
+      return true;
+    end if;
+  elsif exists (select 1 from pg_catalog.pg_attribute a
+                 where a.attrelid = pg_catalog.to_regclass('bot.sessions') and a.attname = 'pending' and not a.attisdropped) then
+    execute 'select exists (select 1 from bot.sessions s where s.pending is not null)' into v_due;
+    if v_due then
+      return true;
+    end if;
+  end if;
+  -- ── package T7 hook: bot.tick_due_groups(p_now timestamptz) returns boolean (a group post, its counter or its close
+  --    due, spec §6.6 steps 1, 2, 4). Until T7 defines it while its tables exist: every minute.
+  if pg_catalog.to_regprocedure('bot.tick_due_groups(timestamptz)') is not null then
+    execute 'select bot.tick_due_groups($1)' into v_due using p_now;
+    if v_due then
+      return true;
+    end if;
+  elsif pg_catalog.to_regclass('bot.group_posts') is not null then
+    return true;
+  end if;
+  return false;
+end;
+$fn$;
+
 -- 2n. Housekeeping, at most once an hour from bot_tick_beat. Bounded deletes; the tick job's own run history too
---     (Supabase never cleans cron.job_run_details).
+--     (Supabase never cleans cron.job_run_details). Codes stay 30 days after they expire (the pilot counts the link
+--     funnel over 14–30 days).
 create or replace function bot.cleanup(p_now timestamptz)
 returns jsonb
 language plpgsql
@@ -440,7 +542,7 @@ begin
   delete from bot.claim_failures f where f.failed_at < p_now - interval '1 day';
   get diagnostics v_n = row_count;
   v_out := v_out || pg_catalog.jsonb_build_object('claim_failures', v_n);
-  delete from bot.link_codes c where c.expires_at < p_now - interval '7 days';
+  delete from bot.link_codes c where c.expires_at < p_now - interval '30 days';
   get diagnostics v_n = row_count;
   v_out := v_out || pg_catalog.jsonb_build_object('link_codes', v_n);
   delete from bot.deliveries d
@@ -584,9 +686,11 @@ end;
 $fn$;
 
 -- 4. The bot: service role only (spec §6.3 «Бот»).
--- 4a. POST /telegram/setup registers what the bot derives (getMe; the tick token; its own URL). At most once a minute:
---     a call within 60 s of the last one changes nothing and answers slow_down.
-create or replace function public.bot_setup(p_bot_username text, p_bot_id bigint, p_tick_token text, p_function_url text)
+-- 4a. POST /telegram/setup registers what the bot derives (getMe; the tick token; its own URL and the region it pins
+--     with forceFunctionRegion — the same constant it gives setWebhook). At most once a minute: a call within 60 s of
+--     the last one changes nothing and answers slow_down.
+create or replace function public.bot_setup(p_bot_username text, p_bot_id bigint, p_tick_token text, p_function_url text,
+                                            p_function_region text default 'eu-central-1')
 returns jsonb
 language plpgsql
 volatile
@@ -600,7 +704,8 @@ begin
   perform meldy_private.require_service_role();
   if p_bot_username is null or p_bot_username !~ '^[A-Za-z0-9_]{5,32}$' or p_bot_id is null or p_bot_id <= 0
      or p_tick_token is null or p_tick_token !~ '^[A-Za-z0-9_-]{32,128}$' or p_function_url is null
-     or p_function_url !~ '^https://[a-z0-9-]{1,63}\.supabase\.co/functions/v1/telegram$' then
+     or p_function_url !~ '^https://[a-z0-9-]{1,63}\.supabase\.co/functions/v1/telegram$'
+     or p_function_region is null or p_function_region !~ '^[a-z]{2}-[a-z]+-[0-9]$' then
     raise exception 'invalid setup values' using errcode = '22023';
   end if;
   insert into bot.config (id) values (1) on conflict (id) do nothing;
@@ -611,10 +716,10 @@ begin
   end if;
   update bot.config c
      set bot_username = p_bot_username, bot_id = p_bot_id, tick_token = p_tick_token, function_url = p_function_url,
-         last_setup_at = v_now, updated_at = v_now
+         function_region = p_function_region, last_setup_at = v_now, updated_at = v_now
    where c.id = 1;
-  return pg_catalog.jsonb_build_object('status', 'ok', 'bot_username', p_bot_username, 'last_tick_at', v_c.last_tick_at,
-                                       'flags', v_c.flags);
+  return pg_catalog.jsonb_build_object('status', 'ok', 'bot_username', p_bot_username, 'function_region', p_function_region,
+                                       'last_tick_at', v_c.last_tick_at, 'flags', v_c.flags);
 end;
 $fn$;
 
@@ -721,7 +826,8 @@ begin
 end;
 $fn$;
 
--- 4d. GET /telegram/status (anyone may call the route): no secret, no URL, no user count.
+-- 4d. GET /telegram/status (anyone may call the route): no secret, no URL, no user count. tick_mode = every_minute |
+--     when_due (bot.tick_mode), tick_threshold = the month's calls where when_due starts.
 create or replace function public.bot_status()
 returns jsonb
 language plpgsql
@@ -736,8 +842,9 @@ begin
   perform meldy_private.require_service_role();
   select c.* into v_c from bot.config c where c.id = 1;
   return pg_catalog.jsonb_build_object(
-    'configured', v_c.function_url is not null and v_c.tick_token is not null,
-    'bot_username', v_c.bot_username, 'last_setup_at', v_c.last_setup_at,
+    'configured', v_c.function_url is not null and v_c.tick_token is not null and v_c.function_region is not null,
+    'bot_username', v_c.bot_username, 'function_region', v_c.function_region, 'last_setup_at', v_c.last_setup_at,
+    'tick_mode', bot.tick_mode(v_now), 'tick_threshold', 300000,
     'last_tick_at', v_c.last_tick_at, 'last_tick', v_c.last_tick, 'flags', coalesce(v_c.flags, '{}'::jsonb),
     'calls', bot.calls_json(v_now),
     'ledger', (select pg_catalog.jsonb_build_object(
@@ -908,7 +1015,8 @@ $fn$;
 --       remind_at "H:MM" | "HH:MM" 07:00–22:59 (choosing a time turns the plan on unless remind_on is given);
 --       remind_on boolean; tz an IANA zone; paused_until "YYYY-MM-DD" after today and within a year, or null to end the
 --       pause; prompt {…} (≤ 1 KB) or null — the function's pending ForceReply; hint true — «may S6 be sent now?»
---       (true at most once an hour, stamped).
+--       (true at most once an hour, stamped); ask "yes" | "pause" | "stop" — the answer to the last K2, kept on its
+--       delivery row (send it with the K2 button's own patch: {} / the pause / {"remind_on": false}).
 --     status: ok (+ link, + hint when asked) | invalid (+ field, reason) | unlinked. All or nothing. An empty patch only
 --     marks the user as seen (K2 «Да»).
 create or replace function public.bot_settings(p_tg_user_id bigint, p_patch jsonb)
@@ -931,6 +1039,7 @@ declare
   v_prompt jsonb;
   v_prompt_set boolean := false;
   v_hint boolean;
+  v_ask text;
 begin
   perform meldy_private.require_service_role();
   select l.* into v_l from bot.links l where l.tg_user_id = p_tg_user_id and l.unlinked_at is null for update;
@@ -941,7 +1050,7 @@ begin
     return pg_catalog.jsonb_build_object('status', 'invalid', 'field', null, 'reason', 'format');
   end if;
   for v_key in select pg_catalog.jsonb_object_keys(p_patch) loop
-    if v_key not in ('remind_at', 'remind_on', 'tz', 'paused_until', 'prompt', 'hint') then
+    if v_key not in ('remind_at', 'remind_on', 'tz', 'paused_until', 'prompt', 'hint', 'ask') then
       return pg_catalog.jsonb_build_object('status', 'invalid', 'field', v_key, 'reason', 'unknown');
     end if;
   end loop;
@@ -1004,6 +1113,12 @@ begin
     end if;
     v_hint := v_l.hint_at is null or v_l.hint_at <= v_now - interval '1 hour';
   end if;
+  if p_patch ? 'ask' then
+    if pg_catalog.jsonb_typeof(p_patch -> 'ask') <> 'string' or (p_patch ->> 'ask') not in ('yes', 'pause', 'stop') then
+      return pg_catalog.jsonb_build_object('status', 'invalid', 'field', 'ask', 'reason', 'format');
+    end if;
+    v_ask := p_patch ->> 'ask';
+  end if;
   update bot.links l
      set remind_on = coalesce(v_on, l.remind_on), remind_at = coalesce(v_at, l.remind_at), tz = coalesce(v_tz, l.tz),
          paused_until = case when v_pause_set then v_pause else l.paused_until end,
@@ -1012,6 +1127,12 @@ begin
          last_seen_at = v_now, updated_at = v_now
    where l.id = v_l.id
   returning l.* into v_l;
+  if v_ask is not null then
+    update bot.deliveries d set answer = v_ask
+     where d.id = (select x.id from bot.deliveries x
+                    where x.link_id = v_l.id and x.kind = 'ask' and x.status in ('sent', 'unknown')
+                    order by coalesce(x.sent_at, x.claimed_at) desc limit 1);
+  end if;
   return pg_catalog.jsonb_build_object('status', 'ok', 'link', bot.link_json(v_l, v_now))
       || case when v_hint is not null then pg_catalog.jsonb_build_object('hint', v_hint) else '{}'::jsonb end;
 end;
@@ -1435,7 +1556,7 @@ $fn$;
 --    privileges give anon and authenticated on new functions (the functions check their callers themselves).
 grant execute on function public.telegram_link_start(text), public.telegram_link_state(),
   public.telegram_settings(boolean, time, text), public.telegram_unlink() to authenticated;
-grant execute on function public.bot_setup(text, bigint, text, text), public.bot_update_begin(bigint, timestamptz),
+grant execute on function public.bot_setup(text, bigint, text, text, text), public.bot_update_begin(bigint, timestamptz),
   public.bot_update_done(bigint), public.bot_update_failed(bigint, text), public.bot_tick_beat(jsonb), public.bot_status(),
   public.bot_link_claim(text, bigint, bigint, text, timestamptz), public.bot_chat_event(bigint, text),
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),
