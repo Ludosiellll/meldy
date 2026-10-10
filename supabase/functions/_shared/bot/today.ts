@@ -21,7 +21,7 @@ import { extraNew, SESSION_SIZE } from '../plan/plan.ts';
 import { emptyState, isOpenError, isSeen } from '../plan/rule.ts';
 import { buildSession, freeSession, shuffled, type QueueEntry } from '../plan/session.ts';
 import { addDays, isStudyDay, studyMask } from '../plan/time.ts';
-import { lineText } from '../plan/words.ts';
+import { lineText, nextStudyDayWord } from '../plan/words.ts';
 import { nextLabels, type RestOfDay } from './summary.ts';
 
 export type SessionKind = 'plan' | 'errors' | 'extra';
@@ -173,4 +173,18 @@ export function firstCountText(exam: ExamDay | null): string | null {
   if (!exam || exam.plan.figure.twoDays > 0) return null;
   const line = exam.plan.lines.find((l) => l.key === 'first_count');
   return line ? lineText(line) : null;
+}
+
+/**
+ * When the plan brings back what was answered today (the record's mistakes and too-early ones): «завтра», or the
+ * exam's next study day when tomorrow is a day off (settings.study_weekdays) — «в понедельник», as the site's end of
+ * a session says it. Without the exam: «завтра».
+ */
+export function comesBackText(exam: ExamDay | null): string {
+  if (!exam) return 'завтра';
+  try {
+    return nextStudyDayWord(exam.plan.day, studyMask(exam.input.studyWeekdays));
+  } catch {
+    return 'завтра';
+  }
 }

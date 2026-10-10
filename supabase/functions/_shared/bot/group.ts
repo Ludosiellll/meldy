@@ -61,6 +61,7 @@ export const GW = {
   // G3: lines and windows to the one who pressed
   right: 'Верно.',
   rightTwoDays: (n: number, of: number) => `Верно. Теперь ${n} из ${of} — ${TWO_DAYS}.`,
+  // «завтра» even before the member's day off: bot_group_answer gives no member's days of the week.
   wrongMember: (key: string) => `Неверно. В файле — ${key}. Вопрос вернётся в ваших занятиях завтра.`,
   wrongUnlinked: (key: string) => `Неверно. В файле — ${key}. Чтобы такие ответы шли в план Meldy, подключите Telegram в профиле.`,
   wrongOther: (key: string) => `Неверно. В файле — ${key}.`,

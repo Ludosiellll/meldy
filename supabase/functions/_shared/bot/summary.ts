@@ -89,8 +89,13 @@ export interface SummaryInput {
   figure: { twoDays: number; inPlan: number } | null;
   /** While the figure is 0: the plan's line «Первые войдут в счёт завтра после 17:00 — если снова ответите верно». */
   firstCount: string | null;
-  /** When the too-early ones can count today («19:00»), or null for «завтра». */
+  /** When the too-early ones can count today («19:00»), or null for `back`. */
   tooEarlyAt: string | null;
+  /**
+   * When the plan brings the session's questions back: «завтра» (the default), or the next study day when tomorrow is
+   * a day off («в понедельник»: the copied words.ts nextStudyDayWord with the exam's settings.study_weekdays).
+   */
+  back?: string;
   rest: RestOfDay;
   /** I2: «Продолжить: 8 из 20» (today only). */
   resume: { n: number; of: number } | null;
@@ -114,10 +119,10 @@ export function scoreLine(c: SessionCounts): string | null {
   return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
-/** The mistakes of the session: repeated in it (I1) or not yet (I2). */
-export function errorsLine(c: SessionCounts, end: SummaryInput['end']): string | null {
+/** The mistakes of the session: repeated in it (I1) or not yet (I2); they come back `when` (SummaryInput `back`). */
+export function errorsLine(c: SessionCounts, end: SummaryInput['end'], when = 'завтра'): string | null {
   if (c.wrong + c.dontKnow === 0) return null;
-  return end === 'done' && c.retries > 0 ? 'Ошибки повторили — завтра они вернутся.' : 'Ошибки вернутся завтра.';
+  return end === 'done' && c.retries > 0 ? `Ошибки повторили — ${when} они вернутся.` : `Ошибки вернутся ${when}.`;
 }
 
 /** «В счёт вошли 4 вопроса: теперь 147 из 960.» — the figure in the plan's words (words.ts figureLines). */
@@ -132,8 +137,9 @@ export function droppedLine(n: number): string {
   return `${glue(n, 'вопрос', 'вопроса', 'вопросов')} ${plural(n, 'выпал', 'выпали', 'выпали')} из счёта: в ${plural(n, 'нём', 'них', 'них')} сегодня ошибка.`;
 }
 
-export function tooEarlyLine(n: number, at: string | null): string {
-  const when = at ? `после ${at}` : 'завтра';
+/** «…войдут в счёт, если ответите после 19:00» today, else on the day they come back (`day`, as the site's end screen). */
+export function tooEarlyLine(n: number, at: string | null, day = 'завтра'): string {
+  const when = at ? `после ${at}` : day;
   return `${glue(n, 'вопрос', 'вопроса', 'вопросов')} — снова верно, но меньше чем через 20 часов: ${plural(n, 'войдёт', 'войдут', 'войдут')} в счёт, если ответите ${when}.`;
 }
 
@@ -149,7 +155,7 @@ function figureLinesOf(input: SummaryInput): string[] {
   else if (c.gained === 0 && input.firstCount) out.push(sentence(input.firstCount));
   else if (c.gained === 0 && c.started > 0) out.push(NEW_LATER);
   if (c.dropped > 0) out.push(droppedLine(c.dropped));
-  if (c.tooEarly > 0) out.push(tooEarlyLine(c.tooEarly, input.tooEarlyAt));
+  if (c.tooEarly > 0) out.push(tooEarlyLine(c.tooEarly, input.tooEarlyAt, input.back));
   if (c.skipped > 0) out.push(skippedLine(c.skipped));
   return out;
 }
@@ -164,7 +170,7 @@ export function summaryOut(input: SummaryInput): Out {
   const restLines = [rest.line, ...rest.extra].filter((line) => line.trim() !== '');
   const text = lines(
     b(title),
-    ...[scoreLine(c), errorsLine(c, input.end), ...figureLinesOf(input)].filter((line): line is string => Boolean(line)).map(t),
+    ...[scoreLine(c), errorsLine(c, input.end, input.back), ...figureLinesOf(input)].filter((line): line is string => Boolean(line)).map(t),
     restLines.length > 0 ? '' : null,
     ...restLines.map(t),
   );

@@ -54,7 +54,11 @@ export const S = {
   moved: 'Занятие продолжено ниже.',
 } as const;
 
-/** «Вернётся через пару вопросов и завтра.» while the session still brings it back, else «Вернётся завтра.» */
+/**
+ * «Вернётся через пару вопросов и завтра.» while the session still brings it back, else «Вернётся завтра.» A press
+ * reads no exam settings (T5's SESSION has no study_weekdays), so this and `misclickDone` keep «завтра» before a day
+ * off too; the record names the next study day (summary.ts `back`).
+ */
 export const comesBack = (again: boolean) => (again ? 'Вернётся через пару вопросов и завтра.' : 'Вернётся завтра.');
 export const doubtAsk = (no: string) =>
   `Сомневаетесь в ключе к № ${no}? Автор экзамена увидит, сколько участников сомневаются, — без имён. Вопрос отложим у вас, пока автор не ответит.`;

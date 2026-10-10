@@ -16,7 +16,7 @@ import { shownOrder } from './question.ts';
 import { EDIT_NOT_FOUND, DELETE_NOT_FOUND, TEST_TOKEN } from './fixtures/fake_telegram.ts';
 import { ALL_LISTED, IPV4_BITS, KEEP_ORDER, PRIVATE_IP, tooLong } from './fixtures/session/bank.ts';
 import { LOGS, seeded, sessionHarness, type SessionHarness } from './fixtures/session/harness.ts';
-import { CID, DAY, NOW, TG, USER } from './fixtures/scenario.ts';
+import { AUTUMN, CID, DAY, NOW, TG, USER } from './fixtures/scenario.ts';
 import * as W from './words.ts';
 
 /** The visible words; no-break spaces and the letter's U+2002 read as spaces. */
@@ -218,6 +218,23 @@ test('«Закончить» (I2): a waiting answer is recorded as given; «Пр
   assert.match(words(s.h.message(s.card)!.text), /^Компьютерные сети · 3 из 20/);
   assert.ok(!s.h.tg.methods().includes('deleteMessage'));
   lintAll(s.h);
+});
+
+test('«Закончить» before a day off (I2): the mistakes come back on the exam\'s next study day (settings.study_weekdays)', async () => {
+  // Friday 16 October; the exam is studied every day but Saturday: «в воскресенье», not «завтра».
+  const h = sessionHarness();
+  h.linked([{ ...AUTUMN, weekdays: 127 - 32 }]);
+  const card = h.card(900);
+  await h.press(`go|${CID}|p`, card);
+  const sid = h.fs.open(USER)!.sid;
+  const row = () => h.fs.sessions.get(sid)!;
+  const key = (pos: number) => row().shown[pos].o.findIndex((f) => h.fs.bank.get(row().items[pos])!.correct.includes(f));
+  await h.press(`s|${sid}|0|${key(0)}`, card);
+  await h.press(`s|${sid}|1|${(key(1) + 1) % row().shown[1].o.length}`, card);
+  h.advance(3 * MIN);
+  await h.press(`s|${sid}|1|f`, card);
+  assert.match(words(h.message(card)!.text), /^Компьютерные сети: 2 вопроса за 3 минуты\nВерно 1 · неверно 1\nОшибки вернутся в воскресенье\./);
+  lintAll(h);
 });
 
 test('«Закончить» before any answer: the session is abandoned and the card comes back', async () => {
