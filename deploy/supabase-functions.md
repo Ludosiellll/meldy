@@ -5,3 +5,4 @@ Each new line here runs `.github/workflows/supabase-functions.yml` (`supabase/de
 Supabase CLI, which bundles `supabase/functions/<name>/` and the shared `supabase/functions/_shared/`. Whether a function
 checks the caller's JWT comes from `supabase/config.toml`; a function without its section there is refused. Only the
 newest line is read.
+- 2026-10-10 — deploy: telegram
