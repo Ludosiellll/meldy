@@ -44,7 +44,8 @@ export const WITHOUT_UNITS = 'Без единиц работают повтор�
 
 /** What PRO changes: «До 1000 единиц ИИ в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.» */
 export function proGainLine(): string {
-  return `До ${unitsPerDay(PRO_DAILY_UNITS)} вместо ${FREE_DAILY_UNITS} — это примерно ${checks(PRO_DAILY_UNITS)} или ${lectures(PRO_DAILY_UNITS)}.`;
+  // The dash keeps to the number before it (no line on a phone starts with «—»).
+  return `До ${unitsPerDay(PRO_DAILY_UNITS)} вместо ${FREE_DAILY_UNITS}\u00a0— это примерно ${checks(PRO_DAILY_UNITS)} или ${lectures(PRO_DAILY_UNITS)}.`;
 }
 
 /** How many times the PRO day is the free one, when it is a whole number («в 10 раз»), else null. */
