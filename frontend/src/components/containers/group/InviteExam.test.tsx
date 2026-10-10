@@ -216,6 +216,26 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     expect(screen.queryByRole('button', { name: 'Кто вошёл' })).not.toBeInTheDocument();
   });
 
+  it('a full link: says that no seat is left under the group line and offers a new link, which closes it first', async () => {
+    keepLink(SUMMARY.id, 'link-1', 'qrst2vwxyz01');
+    const full = { ...LINK, members: 60 };
+    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 58, doubts_open: 0, links: [full] } }} onClose={() => undefined} />);
+    expect(screen.getByText(/В экзамене 58\sучастников/)).toBeInTheDocument();
+    expect(screen.getByText(/Мест по этой ссылке больше нет: заняты все\s60\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать новую ссылку' }));
+    expect(screen.getByText(/Новая ссылка заменит открытую: по старой больше никто не войдёт\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать ссылку' }));
+    await waitFor(() => expect(api.revokeLink).toHaveBeenCalledWith('link-1'));
+    await waitFor(() => expect(api.createLink).toHaveBeenCalled());
+    expect(api.revokeLink.mock.invocationCallOrder[0]).toBeLessThan(api.createLink.mock.invocationCallOrder[0]);
+  });
+
+  it('a link with seats left says nothing about seats', () => {
+    keepLink(SUMMARY.id, 'link-1', 'qrst2vwxyz01');
+    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 12, doubts_open: 0, links: [LINK] } }} onClose={() => undefined} />);
+    expect(screen.queryByText(/Мест по этой ссылке больше нет/)).not.toBeInTheDocument();
+  });
+
   it('shows the refusal of the database in Russian (too many open links)', async () => {
     api.createLink.mockRejectedValue(Object.assign(new Error('at most 10 open links'), { code: 'MC007' }));
     render(<InviteExam summary={TEST_ONLY} onClose={() => undefined} />);

@@ -492,8 +492,11 @@ export const INVITE = {
   onceLost: 'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.',
   openElsewhere: 'Ссылка открыта, но сама она осталась на устройстве, где её создали.',
   // Said before «Создать новую ссылку» is pressed: the new link closes every open one (usability check M2).
-  newLinkNote: 'Новая ссылка заменит её: по старой больше никто не войдёт.',
+  newLinkNote: 'Новая ссылка заменит открытую: по старой больше никто не войдёт.',
   newLink: 'Создать новую ссылку',
+  // A link whose seats are all taken (decision 52 counted them under the link; the one group line now counts who is in):
+  // nobody else can come in by it, so the way on is a new link.
+  full: (seats: number) => `Мест по этой ссылке больше нет: заняты все ${seats}.`,
   who: 'Кто вошёл',
   revoke: 'Закрыть ссылку',
   revokeAsk: 'По ней больше никто не войдёт. Кто уже вошёл, останется в экзамене.',

@@ -246,6 +246,9 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const linkShown = Boolean(linkId) && !showMake;
   // The group's one line: who is in the exam now; «Пока никто не вошёл» only beside a link nobody has used yet.
   const seatsLine = everJoined || linkShown ? MEMBERS.inExam(members, everJoined) : null;
+  // Every seat of the open link taken: said under the group's line, with the way to a new link when this device can
+  // make one beside the old (without the code here, the line above already offers it).
+  const full = linkShown && openLink !== null && openLink.members >= openLink.max_members ? openLink : null;
 
   return (
     <div className="gr-layer">
@@ -315,6 +318,8 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
 
         {showMake ? (
           <div className="gr-make" ref={makeRef}>
+            {/* Beside the button that does it: the new link closes the open one (M2), said again after «Создать новую ссылку». */}
+            {wantNew && openLink ? <p className="gr-line">{nb(INVITE.newLinkNote)}</p> : null}
             {counts.oral ? (
               <label className="gr-consent" htmlFor={consentId}>
                 <input id={consentId} type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
@@ -353,6 +358,19 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
                 </>
               ) : null}
             </p>
+            {full ? (
+              <p className="gr-line">
+                {nb(INVITE.full(full.max_members))}
+                {code ? (
+                  <>
+                    {' '}
+                    <button type="button" className="sf-link" onClick={wantNewLink}>
+                      {INVITE.newLink}
+                    </button>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
             {who ? <MembersList containerId={containerId} onChanged={() => onChanged?.()} /> : null}
             {linkShown ? (
               closing ? (
