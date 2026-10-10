@@ -288,13 +288,16 @@ test('S1–S4 and K2 presses (§6.5): time, pause, a date by prompt, unpause, un
   assert.equal(edits().at(-1), 'Пауза до воскресенья, 25 октября.\nВ воскресенье, 25 октября, план снова придёт в 7:30. Заниматься можно и раньше — /today.');
   assert.equal(h.fdb.link(TG)!.pausedUntil, '2026-10-25');
 
+  const patch = () => (h.fdb.of('bot_settings').at(-1)!.args as { patch: unknown }).patch;
   await h.post(press('ask|y'));
   assert.equal(edits().at(-1), 'Хорошо: план — каждый день в 7:30.');
-  assert.deepEqual((h.fdb.of('bot_settings').at(-1)!.args as { patch: unknown }).patch, {});
+  assert.deepEqual(patch(), { ask: 'yes' });
   await h.post(press('ask|p'));
   assert.equal(edits().at(-1), `${W.S3_TITLE}\n${W.S3_BODY}`);
+  assert.deepEqual(patch(), { ask: 'pause' });
   await h.post(press('ask|n'));
   assert.equal(edits().at(-1), W.K2_NO_DONE);
+  assert.deepEqual(patch(), { ask: 'stop', remind_on: false });
   assert.equal(h.fdb.link(TG)!.remindOn, false);
 
   await h.post(press('st|off'));

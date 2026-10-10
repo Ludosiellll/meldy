@@ -46,6 +46,7 @@ interface Delivery {
   sentAt: number | null;
   messageId: number | null;
   error: string | null;
+  answer?: 'yes' | 'pause' | 'stop';
 }
 
 interface DayRow { cardMessageId: number | null; cardUsed: boolean; lastMessageId: number | null; closedAt: number | null }
@@ -75,7 +76,7 @@ export function fakeDb(options: { now: () => number }) {
   const deliveries: Delivery[] = [];
   const days = new Map<string, DayRow>();
   const dayCloseQueue: Array<{ linkId: number; localDay: string }> = [];
-  const afterDateQueue: Array<{ linkId: number; containerId: string; exam: AfterDateRow['exam'] }> = [];
+  const afterDateQueue: Array<{ linkId: number; containerId: string; exam: AfterDateRow['exam'] }> = [];  // exam null: deleted
   const beats: Array<Record<string, number>> = [];
   const setups: Array<Record<string, unknown>> = [];
   const extraRpc = new Map<string, (args: Record<string, unknown>) => unknown>();
@@ -94,8 +95,8 @@ export function fakeDb(options: { now: () => number }) {
   const byTg = (tg: number) => active().find((l) => l.tgUserId === tg) ?? null;
   const dayKey = (l: LinkRow, d: string) => `${l.id}|${d}`;
   const answersOf = (l: LinkRow) => users.get(l.userId)?.answers ?? [];
-  const recentlyActive = (l: LinkRow, t: number) =>
-    (l.lastSeenAt !== null && l.lastSeenAt > t - 30 * MIN) || answersOf(l).some((a) => a > t - 30 * MIN && a <= t);
+  /** An answer (site or bot) in the last 30 minutes delays the card; an action in the bot does not (T1 90e15a5). */
+  const recentlyActive = (l: LinkRow, t: number) => answersOf(l).some((a) => a > t - 30 * MIN && a <= t);
   const answeredSince = (l: LinkRow, at: number) => answersOf(l).some((a) => a > at);
 
   function linkShape(l: LinkRow): Link {
@@ -117,6 +118,7 @@ export function fakeDb(options: { now: () => number }) {
       link,
       now: link.now,
       wire: data.wire ?? null,
+      oral: [],
       exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0, hasOral: e.hasOral ?? false })),
       session: withSession ? data.session ?? null : null,
       day: withSession && row ? { cardMessageId: row.cardMessageId, cardUsed: row.cardUsed, lastMessageId: row.lastMessageId } : null,
@@ -205,6 +207,8 @@ export function fakeDb(options: { now: () => number }) {
       return {
         configured: setups.length > 0,
         botUsername: setups.length > 0 ? String(setups[setups.length - 1].username) : null,
+        functionRegion: setups.length > 0 ? String(setups[setups.length - 1].functionRegion) : null,
+        tickMode: 'every_minute',
         lastSetupAt: lastSetupAt === null ? null : new Date(lastSetupAt).toISOString(),
         lastTickAt: lastTickAt === null ? null : new Date(lastTickAt).toISOString(),
         lastTick: beats.at(-1) ?? null,
@@ -288,7 +292,7 @@ export function fakeDb(options: { now: () => number }) {
       const l = byTg(tgUserId);
       if (!l) return { status: 'unlinked' };
       for (const key of Object.keys(patch)) {
-        if (!['remind_at', 'remind_on', 'tz', 'paused_until', 'prompt', 'hint'].includes(key)) return { status: 'invalid', field: key, reason: 'unknown' };
+        if (!['remind_at', 'remind_on', 'tz', 'paused_until', 'prompt', 'hint', 'ask'].includes(key)) return { status: 'invalid', field: key, reason: 'unknown' };
       }
       let remindAt = l.remindAt;
       let remindOn: boolean | undefined = patch.remind_on;
@@ -315,8 +319,13 @@ export function fakeDb(options: { now: () => number }) {
         l.prompt = patch.prompt === null ? null
           : { kind: patch.prompt.kind, promptId: patch.prompt.prompt_id, targetId: patch.prompt.target_id, from: patch.prompt.from, at: patch.prompt.at };
       }
+      if (patch.ask !== undefined && !['yes', 'pause', 'stop'].includes(patch.ask)) return { status: 'invalid', field: 'ask', reason: 'format' };
       if (hint) l.hintAt = now();
       l.lastSeenAt = now();
+      if (patch.ask) {
+        const lastAsk = deliveries.filter((d) => d.linkId === l.id && d.kind === 'ask' && (d.status === 'sent' || d.status === 'unknown')).at(-1);
+        if (lastAsk) lastAsk.answer = patch.ask;
+      }
       return { status: 'ok', link: linkShape(l), hint };
     },
 

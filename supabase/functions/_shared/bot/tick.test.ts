@@ -216,6 +216,18 @@ test('K3 after the date: silent, the last word about that exam, once', async () 
   assert.equal(h.tg.of('sendMessage').filter((c) => words(c.params.text).startsWith('Экзамен прошёл')).length, 1);
 });
 
+test('K3 of an exam deleted meanwhile (exam null): closed as skipped «gone», nothing sent', async () => {
+  const h = harness({ now: Date.UTC(2026, 10, 4, 17, 1) });
+  const [row] = students(h, 1);
+  row.remindAt = 21 * 60;
+  h.fdb.addAfterDate(row.id, CID, null);
+  const stats = await tickNow(h);
+  assert.equal(stats.k3_skip_gone, 1);
+  assert.equal(h.tg.of('sendMessage').length, 0);
+  const k3 = h.fdb.deliveries.find((d) => d.kind === 'after_date')!;
+  assert.deepEqual([k3.status, k3.error], ['skipped', 'gone']);
+});
+
 test('the flush of pending answers (T5) runs when the function exists; a failing step never stops the others', async () => {
   const h = harness({ now: AT_2001 });
   students(h, 1);

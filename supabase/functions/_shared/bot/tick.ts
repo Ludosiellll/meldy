@@ -171,7 +171,13 @@ export async function afterDate(ctx: Ctx, deadline: number, pace: () => Promise<
       add(stats, 'left');
       continue;
     }
-    const outcome = await deliver(ctx, stats, row.deliveryId, row.chatId, afterDateCard(row, ctx.site), false, pace);
+    if (!row.exam) {
+      // The exam was deleted meanwhile: nothing to say about it.
+      await ctx.db.deliveryDone(row.deliveryId, 'skipped', null, 'gone');
+      add(stats, 'skip_gone');
+      continue;
+    }
+    const outcome = await deliver(ctx, stats, row.deliveryId, row.chatId, afterDateCard({ ...row, exam: row.exam }, ctx.site), false, pace);
     if (outcome === 'stop') break;
   }
   return stats;

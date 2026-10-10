@@ -76,8 +76,9 @@ test('the ledger, setup, status and the beat', async () => {
   const rest = fakeRest({
     bot_update_begin: 'busy',
     bot_setup: { status: 'slow_down', retry_after: 42 },
-    bot_status: { configured: true, bot_username: 'Meldyteach_bot', last_setup_at: '2026-10-16T10:00:00+00:00', last_tick_at: '2026-10-16T17:00:00+00:00',
-      last_tick: { rem_sent: 3 }, flags: {}, calls: { month: '2026-10', updates: 120, ticks: 900, total: 1020 }, ledger: { started: 0, failed: 1, done: 119 } },
+    bot_status: { configured: true, bot_username: 'Meldyteach_bot', function_region: 'eu-central-1', last_setup_at: '2026-10-16T10:00:00+00:00',
+      last_tick_at: '2026-10-16T17:00:00+00:00', last_tick: { rem_sent: 3 }, tick_mode: 'when_due', tick_threshold: 300000, flags: {},
+      calls: { month: '2026-10', updates: 120, ticks: 900, total: 1020 }, ledger: { started: 0, failed: 1, done: 119 } },
   });
   const db = createDb({ url: URL_, key: SECRET, fetch: rest.fetch });
   assert.equal(await db.updateBegin(1), 'busy');
@@ -86,6 +87,8 @@ test('the ledger, setup, status and the beat', async () => {
   assert.deepEqual(await db.setup({ username: 'Meldyteach_bot', botId: 7, tickToken: 'x'.repeat(43), functionUrl: `${URL_}/functions/v1/telegram`, functionRegion: 'eu-central-1' }),
     { status: 'slow_down', retryAfter: 42 });
   const status = await db.status();
+  assert.equal(status.functionRegion, 'eu-central-1');
+  assert.equal(status.tickMode, 'when_due');
   assert.deepEqual(status.calls, { month: '2026-10', updates: 120, ticks: 900, total: 1020 });
   assert.deepEqual(status.ledger, { started: 0, failed: 1, done: 119 });
   await db.tickBeat({ rem_sent: 2 });
@@ -193,6 +196,8 @@ test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, d
     ['bot_claim_day_close', { p_limit: 50 }],
     ['bot_claim_after_date', { p_limit: 50 }],
   ]);
+  const gone = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_claim_after_date: [{ delivery_id: 8, chat_id: 700100, local_day: '2026-11-04', tz: 'Europe/Minsk', container_id: CID, exam: null }] }).fetch });
+  assert.deepEqual(await gone.claimAfterDate(50), [{ deliveryId: 8, chatId: 700100, localDay: '2026-11-04', containerId: CID, exam: null }]);
   for (const answer of [{ status: 'ok', delivery_id: 5, card: 'skip', reason: 'paused' }, { status: 'gone', delivery_id: 5, card: 'skip', reason: 'not_claimed' }]) {
     const s = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_reminder_context: answer }).fetch });
     assert.deepEqual(await s.reminderContext(5), { card: 'skip', deliveryId: 5, reason: answer.reason });

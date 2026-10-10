@@ -245,16 +245,13 @@ export async function settingsTap(ctx: Ctx, tap: Tap, cb: SettingsCallback, link
       return;
     }
     case 'ask': {
-      if (cb.answer === 'p') {
-        await tap.answer();
-        await editTo(ctx, tap, s3());
-        return;
-      }
-      // «Да»: an empty patch marks the user as seen, which ends K2's silence; «Не присылать» turns the plan off.
-      const result = await ctx.db.settings(link.tgUserId, cb.answer === 'y' ? {} : { remind_on: false });
+      // The answer is kept on the K2 row (the pilot's numbers); «Не присылать» also turns the plan off, «Пауза» opens S3.
+      const patch = cb.answer === 'y' ? { ask: 'yes' as const } : cb.answer === 'p' ? { ask: 'pause' as const } : { ask: 'stop' as const, remind_on: false };
+      const result = await ctx.db.settings(link.tgUserId, patch);
       if (result.status === 'unlinked') return tap.answer(W.NOT_LINKED);
       await tap.answer();
-      await editTo(ctx, tap, cb.answer === 'y' ? k2Yes(result.status === 'ok' ? result.link : link) : k2No());
+      if (cb.answer === 'p') await editTo(ctx, tap, s3());
+      else await editTo(ctx, tap, cb.answer === 'y' ? k2Yes(result.status === 'ok' ? result.link : link) : k2No());
       return;
     }
   }

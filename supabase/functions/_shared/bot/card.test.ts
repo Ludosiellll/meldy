@@ -2,12 +2,12 @@
 // behind them (the lead exam as «Сегодня» picks it, the plan's own words, the window line only on its eve).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, planNow, planSentence, timeText } from './card.ts';
+import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, planInputOf, planNow, planSentence, timeText } from './card.ts';
 import { decode } from './codec.ts';
 import { lintMessage } from './lint.ts';
 import { visibleText } from './html.ts';
 import { planLine } from '../plan/words.ts';
-import { AUTUMN, CID, CID2, DAY, itemId, linkOf, NOW, TG, TITLE, TITLE2, todayOf } from './fixtures/scenario.ts';
+import { AUTUMN, CID, CID2, DAY, itemId, linkOf, NOW, SUBJECT_IDS, TG, TITLE, TITLE2, todayOf } from './fixtures/scenario.ts';
 import { matchSnapshots, type Shot } from './fixtures/snapshot.ts';
 import type { CardResult } from './card.ts';
 import type { Today } from './db.ts';
@@ -165,4 +165,20 @@ test('K3: «За N дней» counts from the first plan day to the last date, a
   assert.equal(lines[1].replace(/ /g, ' '), 'За 26 дней — 21 с занятиями, 6 480 ответов.');
   assert.equal(lines[2].replace(/ /g, ' '), '902 из 960 — верно в два разных дня.');
   assert.equal(k3.out.keyboard![0][0].url, `${SITE}/exams/c/${CID}/settings`);
+});
+
+test('the oral seam: planInputOf passes today.oral (empty until T11) into the copied decoder, for every card', () => {
+  const today = todayOf([AUTUMN]);
+  assert.deepEqual(today.oral, []);
+  assert.ok(planInputOf(today, CID).items.every((item) => item.f === 't'));
+  const oral = Array.from({ length: 8 }, (_, i) => ({
+    id: `oral-${i}`, s: SUBJECT_IDS[0], f: 'o' as const, tp: null, o: i + 1, l: [], m: { sc: null, rating: 0 as const, ac: null, prepared: true },
+  }));
+  const withOral = { ...today, oral };
+  assert.equal(planInputOf(withOral, CID).items.filter((item) => item.f === 'o').length, 8);
+  assert.equal(dayView(withOral).main!.plan.figure.inPlan, 968, 'the oral questions count in «из N»');
+  const fresh = { ...todayOf([{ id: CID, title: TITLE, date: '2026-11-03' }]), oral };
+  assert.ok(dayView(fresh).main!.plan.counts.oral > 0, 'a fresh exam plans new oral questions too');
+  assert.match(visibleText(dayCard(fresh, 'reminder', SITE).out.text).replace(/\u00a0/g, ' '), /устн/);
+  assert.throws(() => planInputOf({ ...today, wire: null }, CID));
 });

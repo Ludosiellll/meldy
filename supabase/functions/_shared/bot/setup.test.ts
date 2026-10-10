@@ -102,6 +102,7 @@ test('/status: public, no secret; the webhook as Telegram sees it, the last tick
   assert.equal(body.ok, true);
   assert.equal(body.region, 'eu-central-1');
   assert.equal(body.function_region, 'eu-central-1');
+  assert.equal(body.tick_mode, 'every_minute');
   assert.deepEqual(body.webhook, {
     url_ok: true, pending_update_count: 2, last_error_date: new Date(1_791_900_000_000).toISOString(),
     last_error_message: 'Wrong response from the webhook: 503 Service Unavailable', max_connections: 10, allowed_updates: ['message', 'callback_query', 'my_chat_member'],

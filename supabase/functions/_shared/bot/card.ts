@@ -52,16 +52,25 @@ function byDate(a: ExamDay, b: ExamDay): number {
   return ca > cb ? -1 : ca < cb ? 1 : 0;
 }
 
+/**
+ * THE one place a plan input is built (the card, M3, S1, the reminder's context, and T6's session start): the copied
+ * decoder over `plan_inputs` for one exam, in the link's zone, at the server's clock, with `today.oral` — the oral
+ * questions, empty until package T11 supplies them. Throws when the wire has no such exam.
+ */
+export function planInputOf(today: Today, containerId: string): PlanInput {
+  if (!today.wire) throw new Error('planInputOf: no plan input');
+  return decodePlanInputs(today.wire, { containerId, tz: today.link.tz, now: today.now, pending: [], oral: today.oral ?? [] });
+}
+
 /** Every exam of the user planned for today, and the one the card leads with (`focus`: «Другой экзамен»). */
 export function dayView(today: Today, focus?: string | null): DayView {
   const wire = today.wire;
-  const tz = today.link.tz;
   const exams: ExamDay[] = [];
   let day = today.link.today;
   if (wire && Array.isArray(wire.containers)) {
     wire.containers.forEach((container, index) => {
       try {
-        const input = decodePlanInputs(wire, { containerId: container.id, tz, now: today.now, pending: [], oral: [] });
+        const input = planInputOf(today, container.id);
         const plan = planDay(input);
         day = plan.day;
         const dates = wire.subjects.filter((s) => s.container === index).map((s) => s.test_date).filter((d): d is string => Boolean(d));
@@ -270,7 +279,7 @@ export function askCard(today: Today, link: Link): CardResult {
 }
 
 /** K3 after the exam's (last test) date: the last thing the bot writes about it (silent). «За N дней» = last − first + 1. */
-export function afterDateCard(row0: AfterDateRow, site: string): CardResult {
+export function afterDateCard(row0: AfterDateRow & { exam: NonNullable<AfterDateRow['exam']> }, site: string): CardResult {
   const e = row0.exam;
   const days = e.firstPlanDay ? daysBetween(e.firstPlanDay, e.lastDate) + 1 : null;
   return {
