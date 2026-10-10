@@ -4,6 +4,11 @@
  * а также менее иишно … делай все видосы в вот таком стиле»). They run on the reel engine
  * (components/reel: one clock, scenes as pure functions of time on a 1920 × 1080 stage) in the film
  * style (components/film), and loop: the last beat ends on the yellow dot the first one starts from.
+ *
+ * Since 2026-10-10 they tell the exam as it is now (decision 2026-10-09, the universal exam): one exam for the whole
+ * preparation — the department's file, a plan by days, a mistake back the next day, oral questions aloud against the
+ * student's own lectures with the cheat sheet in Meldy's own look (decision 2026-10-10), one link for the group. The
+ * example is «Осенняя сессия» (data/containerExample.ts) with /try's «Микроэкономика» as its oral part.
  */
 
 export type AuthReelVariant = 'login' | 'register';
@@ -27,51 +32,55 @@ export interface AuthScript {
   transcript: readonly string[];
 }
 
+/** The beats both reels share, as screen readers hear them. */
+const SESSION_LINE =
+  'Ошибка вернётся завтра: в занятии по базам данных выбран неверный вариант, Meldy показывает ответ из файла — «Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра».';
+const ORAL_LINE =
+  'Ответ вслух — по вашим лекциям: вопрос 7 по микроэкономике, ответ голосом. На шпаргалке строка, названная в другой день, зачёркивается, две строки названы впервые и отмечены жёлтым, а строка, названная только после вопроса экзаменатора, остаётся. На карте шпаргалки становится на один пустой квадрат больше.';
+
 /**
- * Sign-in: the student comes back to the sheet as they left it, then the four steps of the landing
- * (Release 29): the department's questions with quotes from their lectures, the ticket aloud with the
- * examiner's follow-up, and lines that only answers erase — the line named again on another day goes
- * at the end. Example: «Микроэкономика» of /try, question 7 (data/example/questions.ts).
+ * Sign-in: the student comes back to today's plan of the exam, then a question of the day's session, an oral answer
+ * that strikes a line off the sheet, the group's one link — and «Продолжите с того же места».
  */
 export const LOGIN_SCRIPT: AuthScript = {
-  total: 18000,
+  total: 19200,
   scenes: [
-    { id: 'back', from: 0, to: 3800 },
-    { id: 'answers', from: 3400, to: 7000 },
-    { id: 'ticket', from: 6600, to: 10200 },
-    { id: 'erase', from: 9800, to: 14000 },
-    { id: 'ready', from: 13600, to: 18000 },
+    { id: 'today', from: 0, to: 3800 },
+    { id: 'session', from: 3400, to: 7200 },
+    { id: 'oral', from: 6800, to: 11800 },
+    { id: 'group', from: 11400, to: 15200 },
+    { id: 'ready', from: 14800, to: 19200 },
   ],
-  poster: 13000,
-  corner: [700, 15200],
-  caption: 'Ролик: как работает Meldy, 18 секунд, без звука.',
+  poster: 10800,
+  corner: [700, 16400],
+  caption: 'Ролик: как работает Meldy, 19 секунд, без звука.',
   transcript: [
-    'Шпаргалка на месте: экзамен «Микроэкономика», у вопроса 6 главные строки стёрты, у вопроса 7 одна строка стёрта наполовину.',
-    'Ответы — из лекций: вопросы кафедры сверены с вашими лекциями, у вопроса 7 — цитата из лекции «Эластичность спроса».',
-    'Билет — вслух: вопрос 7, ответ голосом, по ключевым словам названо 3 пункта из 4. Экзаменатор переспрашивает: «А если спрос неэластичный, как продавцу увеличить выручку?»',
-    'Стирают только ответы: после ответа в другой день 1 строка стёрлась, 2 — наполовину, а строка, названная только после вопроса экзаменатора, не стёрлась.',
-    'Цель — пустая шпаргалка. Meldy — тренажёр устного экзамена по билетам кафедры.',
+    '960 вопросов, один план: экзамен «Осенняя сессия» через 18 дней, пять предметов и 960 вопросов. Сегодня 90 вопросов, около 45 минут; верно в два разных дня — 143 из 960.',
+    SESSION_LINE,
+    ORAL_LINE,
+    'Вся группа — по одной ссылке: по ссылке каждый получит весь экзамен, а план на день может приходить в Telegram.',
+    'Продолжите с того же места. Meldy — тренажёр устного экзамена по билетам кафедры.',
   ],
 };
 
-/** Sign-up: the same four steps from the start — the department's list goes in first. */
+/** Sign-up: from the start — the department's file goes in, the plan by days, a session, an oral answer. */
 export const REGISTER_SCRIPT: AuthScript = {
-  total: 19000,
+  total: 19200,
   scenes: [
-    { id: 'list', from: 0, to: 4000 },
-    { id: 'answers', from: 3600, to: 7400 },
-    { id: 'ticket', from: 7000, to: 10800 },
-    { id: 'erase', from: 10400, to: 15000 },
-    { id: 'ready', from: 14600, to: 19000 },
+    { id: 'file', from: 0, to: 3800 },
+    { id: 'plan', from: 3400, to: 7200 },
+    { id: 'session', from: 6800, to: 10600 },
+    { id: 'oral', from: 10200, to: 15200 },
+    { id: 'ready', from: 14800, to: 19200 },
   ],
-  poster: 13700,
-  corner: [700, 16200],
-  caption: 'Ролик: от списка вопросов до шпаргалки, 19 секунд, без звука.',
+  poster: 14200,
+  corner: [700, 16400],
+  caption: 'Ролик: от файла с вопросами до плана на каждый день, 19 секунд, без звука.',
   transcript: [
-    'Список кафедры: в новый экзамен добавлен файл со списком вопросов, распознано 12 вопросов.',
-    'Ответы — из лекций: вопросы кафедры сверены с вашими лекциями, у вопроса 7 — цитата из лекции «Эластичность спроса».',
-    'Билет — вслух: вопрос 7, ответ голосом, по ключевым словам названо 3 пункта из 4. Экзаменатор переспрашивает: «А если спрос неэластичный, как продавцу увеличить выручку?»',
-    'Стирают только ответы: после ответа в другой день 1 строка стёрлась, 2 — наполовину, а строка, названная только после вопроса экзаменатора, не стёрлась.',
+    'Один файл — 960 вопросов: в новый экзамен добавлен файл кафедры, Meldy нашёл 5 предметов и 960 вопросов, ключ — из оформления файла.',
+    'Каждый день — понемногу: план по дням до экзамена — около 45 минут в день, в последние три дня новых нет, только знакомые.',
+    SESSION_LINE,
+    ORAL_LINE,
     'Начните со списка. Meldy — тренажёр устного экзамена по билетам кафедры.',
   ],
 };

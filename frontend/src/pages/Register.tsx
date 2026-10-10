@@ -20,10 +20,14 @@ export const GOOGLE_SIGN_UP = 'Продолжить с Google';
 export const MISMATCH = 'Пароли не совпадают';
 export const REPEAT_EMPTY = 'Повторите пароль';
 export const TYPO_NOTE = 'Возможно, опечатка в адресе.';
+/** Under the heading: what the account keeps. */
+export const SIGN_UP_LEDE = 'Сохраните экзамены и продолжайте подготовку с\u00a0любого устройства.';
+/** The panel above the reel: the way from the department's file to the plan of each day (the reel's story). */
+export const SIGN_UP_PANEL_TITLE = 'От файла с\u00a0вопросами\u00a0— до плана на\u00a0каждый день';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
- * с коротким роликом под заголовком «Вопросы кафедры, ответы из ваших лекций» (AuthReel). Пароль и его повтор стоят
+ * с коротким роликом под заголовком «От файла с вопросами — до плана на каждый день» (AuthReel). Пароль и его повтор стоят
  * рядом, чтобы форма помещалась на экране ноутбука. Во встроенном WebView — как на входе: просьба открыть
  * ссылку в Chrome или Safari вместо кнопки Google, регистрация по почте остаётся (lib/inAppBrowser: Custom Tabs и
  * SFSafariViewController — настоящие браузеры, там кнопка Google есть).
@@ -176,7 +180,7 @@ export default function Register() {
         <section className="au-card au-rise" aria-labelledby="register-title">
           <div className="au-in">
             <h1 id="register-title" className="au-h1">{SIGN_UP_TITLE}</h1>
-            <p className="au-lede">Сохраните материалы и продолжайте подготовку с любого устройства.</p>
+            <p className="au-lede">{SIGN_UP_LEDE}</p>
             <p className="au-free">{freePlanLine()}</p>
 
             {browser.app && !success && (
@@ -380,7 +384,7 @@ export default function Register() {
             <BookOpen />
           </span>
           <h2 id="register-panel-title" className="au-panel-h">
-            Вопросы кафедры,{' '}<br />ответы из ваших лекций
+            {SIGN_UP_PANEL_TITLE}
           </h2>
           <div className="au-panel-more">
             <AuthReel variant="register" />
