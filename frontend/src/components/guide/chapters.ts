@@ -91,7 +91,8 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     match: /^\/exams(\/|$)/,
     title: 'Экзамены',
     // Concept 1 §3.10 with the words of the design critique: one door («Новый экзамен»), questions with variants and oral ones.
-    text: 'Нажмите «Новый экзамен» и загрузите вопросы: один общий файл или по файлу на предмет. Если у вопросов есть варианты, ключ Meldy возьмёт из файла. Устные вопросы Meldy сверит с вашими лекциями: в «Тянуть билет» отвечайте голосом или текстом, а строки шпаргалки стирают только ваши ответы.',
+    // Five lines at most: on the owner's 1532×734 laptop a seventh line pushed «Назад / Дальше» under the card's edge.
+    text: 'Нажмите «Новый экзамен» и загрузите вопросы: один общий файл или по файлу на предмет. Ключ к вариантам Meldy возьмёт из файла. Устные вопросы отвечайте голосом или текстом в «Тянуть билет»: Meldy сверит ответ с вашими лекциями.',
     spot: 'link',
   },
   {
