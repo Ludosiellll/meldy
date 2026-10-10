@@ -75,10 +75,11 @@
 .sf-page[data-frame='s'] .im-found { font-size: 24px; }
 .sf-page .im-line { margin: 12px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .im-line[data-muted] { font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
-.sf-page .im-line .sf-link { min-height: 0; font-size: inherit; vertical-align: baseline; }
+/* Quiet links in a line: a 44 px target, the room taken from the line (as .ct-fig-sub), so the line does not grow. */
+.sf-page .im-line .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; vertical-align: baseline; }
 .sf-page .im-hint { margin: 8px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .im-hint[data-muted] { color: var(--sf-muted); }
-.sf-page .im-hint .sf-link { min-height: 0; font-size: inherit; }
+.sf-page .im-hint .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; vertical-align: baseline; }
 .sf-page .im-more { margin: 16px 0 0; }
 
 /* The reading list: rows of one card, the status on the right; a long name is cut in the middle. */

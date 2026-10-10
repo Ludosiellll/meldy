@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Analytics, { ledgerFoot, ledgerFootParts, mappingDateText } from './Analytics';
+import Analytics, { ledgerFoot, ledgerFootParts, mappingDateText, SETTLE_WAIT } from './Analytics';
 import { danglingControls } from '../test/a11y';
 import { PHONE_QUERY } from '../lib/usePhone';
 
@@ -43,10 +43,10 @@ vi.mock('../api/learning', () => ({
 }));
 vi.mock('../api/flashcards', () => ({ syncFlashcards: (...args: unknown[]) => db.syncFlashcards(...args) }));
 // The exam containers of the account (package D1's hook): none unless a test gives some.
-const layer = vi.hoisted(() => ({ containers: [] as Array<{ id: string; title: string }> }));
+const layer = vi.hoisted(() => ({ containers: [] as Array<{ id: string; title: string } & Record<string, unknown>> }));
 vi.mock('../lib/containers/hooks', () => ({
   useContainersOverview: () => ({
-    data: { v: 1, day: '2026-10-03', containers: layer.containers.map((c) => ({ ...c, exam_date: null, created_at: '', role: 'owner', items: 240, items_updated_at: null, subjects: [], answers_today: 0, settings: null })), attached_exam_ids: [] },
+    data: { v: 1, day: '2026-10-03', containers: layer.containers.map((c) => ({ exam_date: null, created_at: '', role: 'owner', items: 240, items_updated_at: null, subjects: [], answers_today: 0, settings: null, ...c })), attached_exam_ids: [] },
     loading: false,
     offline: false,
     unavailable: false,
@@ -551,24 +551,79 @@ describe('Progress sources', () => {
     expect(within(exams).getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/new');
   });
 
-  it('says where the answers to the questions of an exam container are counted, under the oral exams (Concept 1 §5)', async () => {
-    layer.containers = [{ id: 'c-1', title: 'Аккредитация' }];
+  it('shows each exam container’s figure with the way to its page, in «Экзамены»’s order (usability m7)', async () => {
+    const subject = (n: number, seen: number, twoDays: number) => ({
+      id: `s-${n}`, position: n, title: `Предмет ${n}`, exam_date: '2026-10-22', oral_exam_id: null, has_oral: false, keyed: 240, no_key: 0,
+      seen, two_days: twoDays, open_errors: 0, seen_today: 0, doubted: 0, stale: 0,
+    });
+    layer.containers = [
+      { id: 'c-1', title: 'Аккредитация', exam_date: '2026-10-22', items: 960, subjects: [subject(1, 180, 61), subject(2, 120, 40), subject(3, 60, 22), subject(4, 50, 20)] },
+      { id: 'c-2', title: 'Зимняя сессия', exam_date: '2027-01-12', items: 240, subjects: [{ ...subject(1, 0, 0), exam_date: '2027-01-12' }] },
+    ];
     setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', exam_date: '2026-10-15', mapped_at: null }] }));
     renderProgress();
     const exams = (await screen.findByRole('heading', { name: 'Экзамены' })).closest('section') as HTMLElement;
-    await within(exams).findByRole('link', { name: 'Макроэкономика' });
-    const line = within(exams).getByRole('link', { name: 'Ответы по вопросам экзаменов — на странице экзамена' });
-    expect(line).toHaveAttribute('href', '/exams');
-    // Under the oral exams' rows.
-    const ledger = exams.querySelector('.sf-ledger')!;
-    expect(ledger.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const rows = within(exams).getAllByRole('listitem').filter((row) => row.parentElement?.classList.contains('sf-ledger'));
+    // The nearest date first: the oral exam of 15 October, the container of 22 October, then January.
+    expect(rows.map((row) => within(row).getAllByRole('link')[0].textContent)).toEqual(['Макроэкономика', 'Аккредитация', 'Зимняя сессия']);
+    const accr = rows[1];
+    expect(within(accr).getByRole('link', { name: 'Аккредитация' })).toHaveAttribute('href', '/exams/c/c-1');
+    expect(plain(accr.querySelector('.sf-ledger-meta')?.textContent)).toBe('22 октября, через 19 дней · 4 предмета, 960 вопросов');
+    expect(plain(accr.querySelector('.sf-ledger-fig')?.textContent)).toBe('143 из 960');
+    expect(plain(accr.querySelector('.sf-ledger-cap')?.textContent)).toBe('верно в два разных дня');
+    expect(plain(accr.querySelector('.sf-ledger-foot')?.textContent)).toBe('Видели 410');
+    // Before any answer: its date and size, no 0 to start with; no link to the list in place of the figures.
+    expect(within(rows[2]).getByRole('link', { name: 'Зимняя сессия' })).toHaveAttribute('href', '/exams/c/c-2');
+    expect(rows[2].querySelector('.sf-ledger-fig')).toBeNull();
+    expect(within(exams).queryByRole('link', { name: /Ответы по вопросам экзаменов/ })).toBeNull();
   });
 
-  it('with exam containers only: the line instead of «Добавьте список вопросов…»; without any container, no line', async () => {
+  it('draws the page once, when every source has answered: no block pushes the others down (usability m7, CLS)', async () => {
+    let release: () => void = () => undefined;
+    const late = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    db.fetchMaterialEvents.mockReset().mockImplementation(async ({ kinds }: { kinds: string[] }) => {
+      if (!kinds.includes('quiz_answer')) await late;
+      return kinds.includes('quiz_answer') ? demoQuiz : demoJournal;
+    });
+    renderProgress();
+    expect(await screen.findByText('Загружаем страницу…')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Что подтянуть' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Экзамены' })).toBeNull();
+    release();
+    expect(await screen.findByRole('heading', { name: 'Что подтянуть' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Экзамены' })).toBeInTheDocument();
+    expect(screen.queryByText('Загружаем страницу…')).toBeNull();
+  });
+
+  it('a source slower than the wait fills its own block later; a «Повторить» never hides the page again', async () => {
+    SETTLE_WAIT.ms = 60;
+    try {
+      // The journal hangs: after the wait the page is drawn, the journal's parts wait in their own blocks.
+      db.fetchMaterialEvents.mockReset().mockImplementation(async ({ kinds }: { kinds: string[] }) => {
+        if (!kinds.includes('quiz_answer')) await new Promise(() => undefined);
+        return demoQuiz;
+      });
+      setTable('exams', () => ({ data: null, error: { message: 'down' } }), () => ({ data: [] }));
+      renderProgress();
+      const exams = (await screen.findByRole('heading', { name: 'Экзамены' })).closest('section') as HTMLElement;
+      expect(screen.getByRole('heading', { name: 'Что подтянуть' })).toBeInTheDocument();
+      within(exams).getByRole('button', { name: 'Повторить' }).click();
+      // Read again: the page stays, the block fills in.
+      expect(await within(exams).findByText(/Добавьте список вопросов к экзамену/)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Что подтянуть' })).toBeInTheDocument();
+      expect(screen.queryByText('Загружаем страницу…')).toBeNull();
+    } finally {
+      SETTLE_WAIT.ms = 2500;
+    }
+  });
+
+  it('with exam containers only: their rows instead of «Добавьте список вопросов…»; without any container, the card', async () => {
     layer.containers = [{ id: 'c-1', title: 'Аккредитация' }];
     const view = renderProgress();
     let exams = (await screen.findByRole('heading', { name: 'Экзамены' })).closest('section') as HTMLElement;
-    expect(await within(exams).findByRole('link', { name: 'Ответы по вопросам экзаменов — на странице экзамена' })).toHaveAttribute('href', '/exams');
+    expect(await within(exams).findByRole('link', { name: 'Аккредитация' })).toHaveAttribute('href', '/exams/c/c-1');
     expect(within(exams).queryByText(/Добавьте список вопросов к экзамену/)).toBeNull();
     view.unmount();
 
@@ -576,7 +631,16 @@ describe('Progress sources', () => {
     renderProgress();
     exams = (await screen.findByRole('heading', { name: 'Экзамены' })).closest('section') as HTMLElement;
     expect(await within(exams).findByText(/Добавьте список вопросов к экзамену/)).toBeInTheDocument();
-    expect(within(exams).queryByRole('link', { name: /Ответы по вопросам экзаменов/ })).toBeNull();
+    expect(within(exams).queryByRole('link', { name: 'Аккредитация' })).toBeNull();
+  });
+
+  it('the oral exams failing with containers on the page: «Остальные экзамены не загрузились.»', async () => {
+    layer.containers = [{ id: 'c-1', title: 'Аккредитация' }];
+    setTable('exams', () => ({ data: null, error: { message: 'down' } }));
+    renderProgress();
+    const exams = (await screen.findByRole('heading', { name: 'Экзамены' })).closest('section') as HTMLElement;
+    expect(within(exams).getByRole('link', { name: 'Аккредитация' })).toBeInTheDocument();
+    expect(within(exams).getByRole('alert')).toHaveTextContent(/^Остальные экзамены не загрузились\./);
   });
 
   it('says that an exam list was not mapped yet instead of «0 из N»', async () => {

@@ -45,3 +45,8 @@
 
 /* «Первые шаги» of one step (an account without oral questions): the step takes the card's width. */
 .td .td-fs-list[data-steps='1'] { grid-template-columns: minmax(0, 1fr); }
+
+/* «Экзамены» with the containers' rows when the other exams did not load: one quiet line under the rows, its
+   «Повторить» a 44 px target taken from the line's height (usability check m5). */
+.sf-page .exc-rest { margin: 16px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .exc-rest .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; vertical-align: baseline; }

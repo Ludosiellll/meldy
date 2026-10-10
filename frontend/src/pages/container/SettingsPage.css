@@ -20,10 +20,46 @@
 .sf-page.st-page .st-body:not([data-side]) .st-side { margin-top: 32px; }
 .sf-page.st-page .st-h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; }
 .sf-page.st-page .st-line { margin: 12px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
-.sf-page.st-page .st-line .sf-link { min-height: 0; vertical-align: baseline; }
+/* A quiet link in a line: a 44 px target, the room taken from the line (as .ct-fig-sub), so the line does not grow. */
+.sf-page.st-page .st-line .sf-link { min-height: 44px; margin: -12px 0; vertical-align: baseline; }
 .sf-page.st-page .st-ask { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 .sf-page.st-page .st-ask > span { flex: 1 1 100%; }
 .sf-page.st-page .st-oral-date { font-size: 14px; color: var(--sf-muted); text-align: right; }
+
+/* «Дни занятий»: Пн–Вс as one soft track of seven toggles, the days on in the accent's tint (as a chosen option of a
+   PaperSelect), each 44 px tall; the whole row fits a 360 px phone. */
+.sf-page.st-page .st-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  width: 100%;
+  max-width: 420px;
+  padding: 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+}
+.sf-page.st-page .st-day {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sf-muted);
+  font: 500 15px/1 var(--ph-sans);
+  cursor: pointer;
+  transition: background-color .2s ease, color .2s ease;
+}
+.sf-page.st-page .st-day:hover { color: var(--sf-ink); }
+.sf-page.st-page .st-day[aria-pressed='true'] { background: var(--sf-accent-soft); color: var(--sf-ink); font-weight: 600; }
+.sf-page.st-page .st-day[aria-disabled='true'] { cursor: default; }
+.sf-page.st-page .st-day:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 1px; }
+.sf-page.st-page .st-day:disabled { cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .sf-page.st-page .st-day { transition: none; }
+}
 
 .sf-page.st-page .st-rows {
   margin: 12px 0 0;

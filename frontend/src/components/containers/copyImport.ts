@@ -424,7 +424,12 @@ export const SETTINGS = {
   oralDate: 'дата — на странице предмета',
   noDate: 'Без даты — по 15 новых вопросов в день на предмет.',
   minutes: 'Время в день',
-  minutesMember: 'Время в день — только для вас. Даты ставит автор экзамена.',
+  minutesMember: 'Время в день и дни занятий — только для вас. Даты ставит автор экзамена.',
+  // Spec §3: the student sets «минуты и дни недели» (usability check m6).
+  days: 'Дни занятий',
+  dayShort: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+  dayFull: ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'],
+  daysLeast: 'Нужен хотя бы один день занятий.',
   // The lines under «Время в день» are the plan's own (lib/containers/words.ts: need, short, short_max, window_ahead).
   more: 'Подробнее',
   subjects: 'Предметы',

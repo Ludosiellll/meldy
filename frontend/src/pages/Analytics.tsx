@@ -46,7 +46,9 @@ import SectionCrumb from '../components/SectionCrumb';
 import { ty } from '../components/landing/typo';
 import { usePhone } from '../lib/usePhone';
 import '../styles/paper.css';
-import { useContainerLayer } from './containerLayer';
+import type { OverviewContainer } from '../types/container';
+import { containerDays, useContainerLayer, type ContainerLayer } from './containerLayer';
+import { containerDateLine, containerFigure, containerQuestions, containerSizeLine } from './containerFigure';
 import './Analytics.css';
 
 /**
@@ -74,6 +76,12 @@ export const PHONE_BAR_DAYS = 5;
 /** Card answers of the journal: the 30 days of the share, with a margin for the time zone. */
 const JOURNAL_DAYS = 32;
 const LOADING_LINE_MS = 300;
+/**
+ * The page is drawn once, when its sources and the exam containers have answered, or after this long at most: blocks
+ * that came one by one pushed the ones under them down (usability check m7: CLS 0.16–0.32). A source slower than this
+ * fills its own block later.
+ */
+export const SETTLE_WAIT = { ms: 2500 };
 
 type Source<T> = { status: 'loading' } | { status: 'ok'; data: T } | { status: 'error' };
 
@@ -387,6 +395,63 @@ function Quiet({ children }: { children: ReactNode }) {
   return <p className="pg-quiet">{children}</p>;
 }
 
+const NO_CONTAINERS: OverviewContainer[] = [];
+const NO_EXAMS: ExamBlock[] = [];
+
+type ExamEntry = { kind: 'oral'; exam: ExamBlock } | { kind: 'container'; container: OverviewContainer };
+
+/**
+ * The exams of the section in «Экзамены»'s order (pages/Exams.tsx listRows): dates ahead nearest first, then those
+ * without a date, then the past, latest first. Without containers the oral exams keep their own order.
+ */
+function examOrder(oral: ExamBlock[], containers: OverviewContainer[], today: string): ExamEntry[] {
+  const rows: ExamEntry[] = oral.map((exam) => ({ kind: 'oral', exam }));
+  if (containers.length === 0) return rows;
+  const keyed = [...rows, ...containers.map((container): ExamEntry => ({ kind: 'container', container }))].map((row, index) => {
+    const date = row.kind === 'oral' ? row.exam.examDate : containerDays(row.container, today).day;
+    return { row, date: date ?? '', group: !date ? 1 : date >= today ? 0 : 2, index };
+  });
+  keyed.sort((a, b) => {
+    if (a.group !== b.group) return a.group - b.group;
+    if (a.group === 0 && a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if (a.group === 2 && a.date !== b.date) return a.date > b.date ? -1 : 1;
+    return a.index - b.index;
+  });
+  return keyed.map((entry) => entry.row);
+}
+
+/**
+ * An exam container in «Экзамены» of «Прогресс» (usability check m7): its name leads to its page, its figure as
+ * «Экзамены» says it — «N из M», «верно в два разных дня», «видели K» — in the big number of the oral rows. Before any
+ * answer, its date and size only (design critique I4: no 0 to start with).
+ */
+function ContainerLedgerRow({ container, questions, phone }: { container: OverviewContainer; questions: number; phone: boolean }) {
+  const figure = containerFigure(container);
+  return (
+    <li data-container="">
+      <div className="sf-ledger-row">
+        <span className="min-w-0">
+          <Link className="sf-ledger-name sf-stretch" to={`/exams/c/${encodeURIComponent(container.id)}`}>
+            {container.title}
+          </Link>
+          <span className="sf-ledger-meta">{typeset(`${containerDateLine(container)} · ${containerSizeLine(container, questions, !phone)}`)}</span>
+        </span>
+        {figure ? (
+          <span className="sf-ledger-figs">
+            <span>
+              <span className="sf-ledger-fig">
+                {figure.twoDays} <span className="sf-of">из {figure.keyed}</span>
+              </span>
+              <span className="sf-ledger-cap">верно в два разных дня</span>
+            </span>
+          </span>
+        ) : null}
+        {figure ? <span className="sf-ledger-foot">{typeset(`Видели ${figure.seen}`)}</span> : null}
+      </div>
+    </li>
+  );
+}
+
 /**
  * The way into the knowledge map, which lives in «Прогресс» (the exam sheet links to it too): what
  * the map shows, in words, and one button. The picture is decoration: two concepts over three lectures.
@@ -472,6 +537,8 @@ export default function Analytics() {
   useDocumentTitle(gradebook ? 'Оценки из зачётки' : 'Прогресс');
   const [sources, setSources] = useState<Sources>(LOADING);
   const [loadingLine, setLoadingLine] = useState(false);
+  // The exam containers of the account (their figures in «Экзамены»), read once for the page.
+  const { layer, probe } = useContainerLayer();
 
   const loadSource = useCallback(
     async (key: SourceKey) => {
@@ -494,7 +561,18 @@ export default function Analytics() {
     void Promise.all(SOURCE_KEYS.map((key) => loadSource(key)));
   }, [user?.id, loadSource]);
 
-  const initialLoading = SOURCE_KEYS.every((key) => sources[key].status === 'loading');
+  // Drawn once everything answered (or SETTLE_WAIT passed): a «Повторить» later never hides the page again.
+  const [settled, setSettled] = useState(false);
+  const [waitOver, setWaitOver] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaitOver(true), SETTLE_WAIT.ms);
+    return () => clearTimeout(timer);
+  }, [user?.id]);
+  const answered = SOURCE_KEYS.every((key) => sources[key].status !== 'loading') && layer.mode !== 'loading';
+  useEffect(() => {
+    if (!settled && (answered || waitOver) && user?.id) setSettled(true);
+  }, [settled, answered, waitOver, user?.id]);
+  const initialLoading = !settled;
   useEffect(() => {
     if (!initialLoading) {
       setLoadingLine(false);
@@ -525,6 +603,8 @@ export default function Analytics() {
 
   return (
     <div className="sf-page pg">
+      {/* The exam containers' read: it draws nothing (containerLayer.tsx). */}
+      {probe}
       <header className="sf-head pg-head">
         <div>
           <h1 className="sf-h1">Прогресс</h1>
@@ -535,7 +615,7 @@ export default function Analytics() {
           Оценки из зачётки
         </Link>
       </header>
-      {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} userId={user?.id ?? null} />}
+      {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} userId={user?.id ?? null} layer={layer} />}
     </div>
   );
 }
@@ -582,13 +662,13 @@ function ledeOf(sources: Sources): string {
   return weekLede({ cardAnswers, tests: tests.size, tickets, lastDay: lastDay ? formatDay(lastDay) : null });
 }
 
-function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (key: SourceKey) => void; userId: string | null }) {
+function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; reload: (key: SourceKey) => void; userId: string | null; layer: ContainerLayer }) {
   const { materials, cards, quiz, journal, activity, legacyExams, mistakes, exams } = sources;
   const phone = usePhone();
-  // The answers to the questions of an exam container are counted on that exam's page, not here (Concept 1 §5): one
-  // line says where. Whenever the containers cannot be read the section is today's.
-  const { layer, probe } = useContainerLayer();
-  const hasContainers = layer.mode === 'on' && layer.overview.containers.length > 0;
+  // Each exam container's figure, as «Экзамены» says it, with the way to its page (usability check m7). Whenever the
+  // containers cannot be read the section is today's.
+  const containers = layer.mode === 'on' ? layer.overview.containers : NO_CONTAINERS;
+  const hasContainers = containers.length > 0;
   const [howOpen, setHowOpen] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncFailed, setSyncFailed] = useState<string | null>(null);
@@ -669,9 +749,61 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
   // «Что подтянуть» then offers «Разобрать лекцию» itself: a phone shows one way there, not two.
   const analyzeInTodo = todo.items.length === 0 && everythingRead && nothingYet;
 
+  // The exams in «Экзамены»'s order: dates ahead nearest first, then without a date, then the past (latest first);
+  // without containers the oral exams keep their own order.
+  const oralExams = exams.status === 'ok' ? exams.data : NO_EXAMS;
+  const examRows = useMemo(() => examOrder(oralExams, containers, today), [oralExams, containers, today]);
+  const oralTotals = useMemo(() => new Map(oralExams.map((exam) => [exam.id, exam.total])), [oralExams]);
+  const examRow = (exam: ExamBlock) => {
+    const line = examLineParts(exam);
+    // A phone keeps the date and the figure: the counts of a finished mapping are on the exam sheet, one tap away.
+    const mapped = exam.total > 0 && exam.coverage.unmapped === 0;
+    return (
+      <li key={exam.id}>
+        <div className="sf-ledger-row">
+          <span className="min-w-0">
+            {/* The name is the link; the whole row answers to it (::after covers the row). */}
+            <Link className="sf-ledger-name sf-stretch" to={`/exams/${exam.id}`}>
+              {subjectOf(exam.title)}
+            </Link>
+            <span className="sf-ledger-meta">
+              {/* A phone: «21 октября, через 13 дней», the kind named only when it is not an exam. */}
+              {phone ? typeset(phoneExamDay(exam.kind, exam.examDate)) : line.when}
+              <span className="pg-exam-since">{` · ${line.answers}`}</span>
+            </span>
+            <span className="sf-ledger-meta" data-mapped={mapped ? '' : undefined}>
+              {coverageLine(exam)}
+            </span>
+          </span>
+          {exam.total > 0 ? (
+            <span className="sf-ledger-figs">
+              <span>
+                <span className="sf-ledger-fig">
+                  {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
+                </span>
+                <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
+              </span>
+            </span>
+          ) : null}
+          {exam.total > 0 ? <ReadinessDots exam={exam} /> : null}
+          {/* The share of tickets is a small line of the foot, never a big «0 %» (Jury_Check 4). */}
+          {exam.total > 0 ? (
+            <span className="sf-ledger-foot">
+              {ledgerFootParts(exam).map((part, index) => (
+                <span key={part.key} data-empty={part.empty ? '' : undefined}>
+                  {index > 0 ? ' ' : ''}
+                  {part.text}
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </div>
+      </li>
+    );
+  };
+
   return (
     <>
-      {probe}
       {phone ? (
         <PhoneSummary
           cards={cards}
@@ -733,76 +865,28 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
 
       {/* The heads' links lead somewhere: ink on a phone, as every such link there (the muted link explains). */}
       <Section title="Экзамены" id="pg-exams" aside={<Link to="/exams" className="sf-link" data-muted={phone ? undefined : ''}>Все экзамены</Link>}>
-        {exams.status === 'error' ? (
-          <ErrorLine text="Экзамены не загрузились." onRetry={() => reload('exams')} />
-        ) : exams.status === 'loading' ? (
-          <Quiet>Загружаем…</Quiet>
-        ) : exams.data.length === 0 ? (
-          hasContainers ? null : (
-            <div className="pg-card pg-exam-empty">
-              <p>Добавьте список вопросов к экзамену — здесь будет видно, какие из них уже подтверждены ответами.</p>
-              <Link className="sf-secondary" to="/exams/new">
-                Новый экзамен
-              </Link>
-            </div>
-          )
-        ) : (
+        {examRows.length > 0 ? (
           <ul className="sf-ledger">
-            {exams.data.map((exam) => {
-              const line = examLineParts(exam);
-              // A phone keeps the date and the figure: the counts of a finished mapping are on the exam sheet, one tap away.
-              const mapped = exam.total > 0 && exam.coverage.unmapped === 0;
-              return (
-                <li key={exam.id}>
-                  <div className="sf-ledger-row">
-                    <span className="min-w-0">
-                      {/* The name is the link; the whole row answers to it (::after covers the row). */}
-                      <Link className="sf-ledger-name sf-stretch" to={`/exams/${exam.id}`}>
-                        {subjectOf(exam.title)}
-                      </Link>
-                      <span className="sf-ledger-meta">
-                        {/* A phone: «21 октября, через 13 дней», the kind named only when it is not an exam. */}
-                        {phone ? typeset(phoneExamDay(exam.kind, exam.examDate)) : line.when}
-                        <span className="pg-exam-since">{` · ${line.answers}`}</span>
-                      </span>
-                      <span className="sf-ledger-meta" data-mapped={mapped ? '' : undefined}>
-                        {coverageLine(exam)}
-                      </span>
-                    </span>
-                    {exam.total > 0 ? (
-                      <span className="sf-ledger-figs">
-                        <span>
-                          <span className="sf-ledger-fig">
-                            {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
-                          </span>
-                          <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
-                        </span>
-                      </span>
-                    ) : null}
-                    {exam.total > 0 ? <ReadinessDots exam={exam} /> : null}
-                    {/* The share of tickets is a small line of the foot, never a big «0 %» (Jury_Check 4). */}
-                    {exam.total > 0 ? (
-                      <span className="sf-ledger-foot">
-                        {ledgerFootParts(exam).map((part, index) => (
-                          <span key={part.key} data-empty={part.empty ? '' : undefined}>
-                            {index > 0 ? ' ' : ''}
-                            {part.text}
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
+            {examRows.map((row) =>
+              row.kind === 'container' ? (
+                <ContainerLedgerRow key={`c:${row.container.id}`} container={row.container} questions={containerQuestions(row.container, oralTotals)} phone={phone} />
+              ) : (
+                examRow(row.exam)
+              ),
+            )}
           </ul>
-        )}
-        {hasContainers ? (
-          <p className="pg-quiet pg-exam-tests" style={{ marginTop: exams.status === 'ok' && exams.data.length === 0 ? 0 : 16 }}>
-            <Link className="sf-link" to="/exams">
-              Ответы по вопросам экзаменов — на странице экзамена
+        ) : null}
+        {exams.status === 'error' ? (
+          <ErrorLine text={hasContainers ? 'Остальные экзамены не загрузились.' : 'Экзамены не загрузились.'} onRetry={() => reload('exams')} />
+        ) : exams.status === 'loading' ? (
+          hasContainers ? null : <Quiet>Загружаем…</Quiet>
+        ) : examRows.length === 0 ? (
+          <div className="pg-card pg-exam-empty">
+            <p>Добавьте список вопросов к экзамену — здесь будет видно, какие из них уже подтверждены ответами.</p>
+            <Link className="sf-secondary" to="/exams/new">
+              Новый экзамен
             </Link>
-          </p>
+          </div>
         ) : null}
       </Section>
 

@@ -121,13 +121,14 @@
 }
 .ct-plan-t:focus { outline: none; }
 .ct-plan-sub { margin: 8px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+/* Quiet links keep a 44 px target (usability check m4) and take the room from their line's own height, as
+   .ct-fig-sub does: the line does not grow. In a row of links each stays as tall as its line and 4 px each side. */
 .ct-plan-sub .sf-link,
-.ct-plan-links .sf-link,
-.ct-note .sf-link { min-height: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
+.ct-note .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
+.ct-plan-links .sf-link { min-height: 44px; margin: calc(.75em - 18px) 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
 .ct-plan-sub .sf-link { color: var(--sf-muted); }
 .ct-plan-sub .sf-link:hover { color: var(--sf-ink); }
 .ct-plan-links { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 10px 0 0; font-size: 17px; line-height: 1.5; }
-.ct-plan-links .sf-link { padding: 4px 0; }
 .ct-plan-act { display: grid; justify-items: end; gap: 8px; }
 .ct-plan-notes { display: grid; gap: 4px; margin-top: 10px; }
 .ct-plan-notes .ct-note { margin: 0; }
@@ -268,7 +269,9 @@
   color: var(--sf-ink);
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
   font-family: var(--ph-sans);
-  animation: ct-rise .28s var(--m-ease) both;
+  /* «backwards», not «both»: a transform that stays filled after the rise makes the sheet the containing block of
+     fixed children, and its scroll would cut an open list again (PaperSelect, usability check M2). */
+  animation: ct-rise .28s var(--m-ease) backwards;
 }
 .ct-sheet:focus { outline: none; }
 .ct-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
@@ -296,7 +299,7 @@
 .ct-days { display: grid; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; }
 .ct-days li { padding: 11px 0; border-top: 1px solid var(--sf-line); font-size: 16px; line-height: 1.45; text-wrap: pretty; }
 .ct-days li:first-child { border-top: 0; padding-top: 4px; }
-.ct-days .sf-link { min-height: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
+.ct-days .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
 .ct-choices { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; border: 0; }
 .ct-choice {
   display: flex;

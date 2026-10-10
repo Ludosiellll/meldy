@@ -1,7 +1,7 @@
-import { forwardRef, type ReactNode, type Ref } from 'react';
+import { forwardRef, type CSSProperties, type ReactNode, type Ref } from 'react';
 import type { TestItem } from '../../types/container';
 import * as copy from './copy';
-import { splitStem } from './model';
+import { leadingSpaces, stemParts } from './stemCode';
 import './room.css';
 
 /**
@@ -11,14 +11,18 @@ import './room.css';
  * «Ваш ответ», «В файле», «Верно».
  */
 
-/** Code: one block per source line, so a phone wraps each under its own start (hanging indent) and never scrolls sideways. */
+/**
+ * Code: one block per source line, so a phone wraps each under its own start and never scrolls sideways. The hanging
+ * indent of a line is its own leading spaces (room.css --ct-ind): a wrapped part continues under its line, two
+ * characters in, never left of the line's own indentation (usability check m8).
+ */
 export function CodeBlock({ code }: { code: string }) {
   const lines = code.replace(/\t/g, '    ').split('\n');
   return (
     <pre className="ct-code" translate="no">
       <code>
         {lines.map((line, index) => (
-          <span key={index} className="ct-code-line">
+          <span key={index} className="ct-code-line" style={{ '--ct-ind': leadingSpaces(line) } as CSSProperties}>
             {line === '' ? ' ' : line}
           </span>
         ))}
@@ -67,7 +71,8 @@ function Check() {
 
 const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function QuestionCard(props, ref) {
   const { item, order, context, mode, answered, ticked, picked, text, textInvalid, hint, onPick, onText, onSubmitText, stemRef, fileRef } = props;
-  const stem = splitStem(item.stem, item.code);
+  // The flag of the import, and lines that clearly read as code even without it (stemCode.ts, usability check m1).
+  const stem = stemParts(item.stem, item.code);
   const multiple = item.kind === 'multiple';
   const learn = mode === 'learn';
 

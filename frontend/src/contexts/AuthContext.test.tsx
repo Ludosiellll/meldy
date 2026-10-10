@@ -101,3 +101,73 @@ describe('AuthProvider: a session kept for lack of network', () => {
     expect(screen.getByText('user:user-1')).toBeTruthy();
   });
 });
+
+/**
+ * Offline at the start (usability check of 2026-10-10, m5): with an expired access token the client's refresh waits
+ * for the network for about a minute, and «Сегодня» waited with it. The kept session signs the student in at once.
+ */
+describe('AuthProvider: offline at the start', () => {
+  const pending = () => new Promise<never>(() => undefined);
+
+  async function whileOffline(run: () => Promise<void>) {
+    const onLine = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    try {
+      await run();
+    } finally {
+      onLine.mockRestore();
+    }
+  }
+
+  it('signs in with the kept session on the first frame, without the client’s answer', async () => {
+    await whileOffline(async () => {
+      window.localStorage.setItem(KEY, JSON.stringify(stored));
+      client.getSession.mockReturnValue(pending());
+      render(
+        <AuthProvider>
+          <Who />
+        </AuthProvider>,
+      );
+      expect(screen.getByText('user:user-1')).toBeTruthy();
+    });
+  });
+
+  it('still takes the client’s answer when it comes: a refreshed session, a sign-out', async () => {
+    await whileOffline(async () => {
+      window.localStorage.setItem(KEY, JSON.stringify(stored));
+      client.getSession.mockReturnValue(pending());
+      await mount();
+      expect(screen.getByText('user:user-1')).toBeTruthy();
+      const fresh = { ...stored, access_token: 'fresh' };
+      await act(async () => client.listeners.forEach((listen) => listen('TOKEN_REFRESHED', fresh as unknown as Session)));
+      expect(screen.getByText('user:user-1')).toBeTruthy();
+      await act(async () => client.listeners.forEach((listen) => listen('SIGNED_OUT', null)));
+      expect(screen.getByText('signed out')).toBeTruthy();
+    });
+  });
+
+  it('waits for the client without a complete kept session, or with a sign-in in the address', async () => {
+    await whileOffline(async () => {
+      client.getSession.mockReturnValue(pending());
+      await mount();
+      expect(screen.getByText('loading')).toBeTruthy();
+      cleanup();
+
+      window.localStorage.setItem(KEY, JSON.stringify({ ...stored, refresh_token: undefined }));
+      await mount();
+      expect(screen.getByText('loading')).toBeTruthy();
+      cleanup();
+
+      window.localStorage.setItem(KEY, JSON.stringify(stored));
+      window.history.replaceState(null, '', '/auth/callback?code=abc');
+      await mount();
+      expect(screen.getByText('loading')).toBeTruthy();
+    });
+  });
+
+  it('online, waits for the client as before', async () => {
+    window.localStorage.setItem(KEY, JSON.stringify(stored));
+    client.getSession.mockReturnValue(pending());
+    await mount();
+    expect(screen.getByText('loading')).toBeTruthy();
+  });
+});

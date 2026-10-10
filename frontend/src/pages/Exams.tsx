@@ -15,10 +15,12 @@ import { detectInAppBrowser } from '../lib/inAppBrowser';
 import { localDateKey } from '../utils/streak';
 import type { OverviewContainer } from '../types/container';
 import { containerDays, useContainerLayer } from './containerLayer';
+import { containerDateLine, containerFigure, containerFigureLine, containerQuestions, containerSizeLine } from './containerFigure';
 
 export { containerDays };
 import '../styles/paper.css';
 import '../components/exams/exams.css';
+import './containerScreens.css';
 
 /** «экзамен · 15 октября, через 12 дней», «зачёт · прошёл 15 октября», «экзамен, дата не указана». */
 export function examDateLine(item: Pick<ExamListItem, 'kind' | 'exam_date'>, now: Date = new Date()): string {
@@ -155,60 +157,10 @@ function ExamRow({ item, states, phone }: { item: ExamListItem; states: Map<stri
 // ---------------------------------------------------------------------------------------------
 // Exam containers in the list (spec decisions 2, 46, 48; Concept 1 §3.1 with the design critique's words)
 
-const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
-const SUBJECT_FORMS = ['предмет', 'предмета', 'предметов'] as const;
-
 /** The «видели» part of a container's bar: the green of «в счёте», lighter (design critique I13). */
 const SEEN_BAR = 'color-mix(in srgb, var(--ex-ok-fg) 40%, transparent)';
 
-/** «28 октября, через 19 дней», «с 12 января, через 95 дней», «Экзамен прошёл 28 октября», «Дата не указана». */
-export function containerDateLine(container: Pick<OverviewContainer, 'exam_date' | 'subjects'>, now: Date = new Date()): string {
-  const { day, several, past } = containerDays(container, localDateKey(now));
-  const text = formatDay(day, now);
-  if (!day || !text) return 'Дата не указана';
-  if (past) return `Экзамен прошёл ${text}`;
-  const days = daysUntil(day, now);
-  return `${several ? 'с ' : ''}${text}${days === null ? '' : `, ${relativeDays(days)}`}`;
-}
-
-/** The questions of a container: its own (with variants) and those of its oral parts, as «Экзамены» lists them. */
-export function containerQuestions(container: Pick<OverviewContainer, 'items' | 'subjects'>, oralTotals: ReadonlyMap<string, number>): number {
-  const oral = container.subjects.reduce((sum, subject) => sum + (subject.oral_exam_id ? oralTotals.get(subject.oral_exam_id) ?? 0 : 0), 0);
-  return container.items + oral;
-}
-
-/** «960 вопросов»; with `subjects` and more than one subject, «4 предмета, 960 вопросов»; «вопросов пока нет». */
-export function containerSizeLine(container: Pick<OverviewContainer, 'subjects'>, questions: number, subjects: boolean): string {
-  if (questions === 0) return 'вопросов пока нет';
-  const size = `${questions} ${pluralRu(questions, QUESTION_FORMS)}`;
-  const count = container.subjects.length;
-  return subjects && count > 1 ? `${count} ${pluralRu(count, SUBJECT_FORMS)}, ${size}` : size;
-}
-
-/** The figure of a container's test part (spec decision 8): «N из M · верно в два разных дня», over the questions with a key. */
-export function containerFigure(container: Pick<OverviewContainer, 'subjects'>): { twoDays: number; seen: number; keyed: number } | null {
-  let twoDays = 0;
-  let seen = 0;
-  let keyed = 0;
-  for (const subject of container.subjects) {
-    twoDays += subject.two_days;
-    seen += subject.seen;
-    keyed += subject.keyed;
-  }
-  seen = Math.min(seen, keyed);
-  twoDays = Math.min(twoDays, seen);
-  // Before any answer: no bar and no line (design critique I4).
-  return keyed > 0 && seen > 0 ? { twoDays, seen, keyed } : null;
-}
-
-/**
- * «Верно в два разных дня: 143 из 960» (spec decision 48); while it is 0 the line adds what moved: «… 0 из 960 · видели
- * 60». No forecast and no other verb: the figure is named only «верно в два разных дня» (spec decision 55).
- */
-export function containerFigureLine(figure: { twoDays: number; seen: number; keyed: number }): string {
-  const line = `Верно в два разных дня: ${figure.twoDays} из ${figure.keyed}`;
-  return figure.twoDays === 0 ? `${line} · видели ${figure.seen}` : line;
-}
+export { containerDateLine, containerFigure, containerFigureLine, containerQuestions, containerSizeLine };
 
 /** A week or less to the nearest date ahead: the date line in ink, as for an oral exam. */
 export function containerIsNear(container: Pick<OverviewContainer, 'exam_date' | 'subjects'>, now: Date = new Date()): boolean {
@@ -414,6 +366,9 @@ export default function Exams() {
   }, [plain]);
 
   const containerRows = containers.length > 0 ? listRows([], containers) : [];
+  // Without network the containers come from the device's copy at once (spec decision 31, usability check m5): the
+  // other exams' read waits for its retries (about 7 s), the page does not.
+  const fromDevice = Boolean(on?.offline) && containerRows.length > 0;
   const list = (shown: ListRow[]) => (
     <ul className="ex-list" aria-label="Ваши экзамены">
       {shown.map((row) =>
@@ -425,7 +380,7 @@ export default function Exams() {
       )}
     </ul>
   );
-  const anyRow = (rows !== null && rows.length > 0) || (error !== null && containerRows.length > 0);
+  const anyRow = (rows !== null && rows.length > 0) || ((error !== null || fromDevice) && containerRows.length > 0);
 
   return (
     <div className="sf-page ex-list-page" ref={frame.ref} data-frame={frame.size}>
@@ -450,20 +405,29 @@ export default function Exams() {
         )}
       </header>
 
-      {error ? (
+      {error && containerRows.length > 0 ? (
         <>
-          {/* Without network the containers come from the device's copy: their rows stay, the error is about the rest. */}
-          {containerRows.length > 0 ? list(containerRows) : null}
-          <div className="ex-error" role="alert">
-            <h2>Не удалось загрузить экзамены</h2>
-            <p>{error} Ваши экзамены сохранены.</p>
+          {/* The containers' rows stay (from the device's copy without network); the rest is one quiet line. */}
+          {list(containerRows)}
+          <p className="exc-rest" role="status">
+            Остальные экзамены не загрузились.{' '}
             <button type="button" className="sf-link" onClick={() => void load()}>
               Повторить
             </button>
-          </div>
+          </p>
         </>
+      ) : error ? (
+        <div className="ex-error" role="alert">
+          <h2>Не удалось загрузить экзамены</h2>
+          <p>{error} Ваши экзамены сохранены.</p>
+          <button type="button" className="sf-link" onClick={() => void load()}>
+            Повторить
+          </button>
+        </div>
       ) : rows === null ? (
-        showLoading ? (
+        fromDevice ? (
+          list(containerRows)
+        ) : showLoading ? (
           <p className="ex-loading" role="status">
             Загружаем экзамены…
           </p>

@@ -634,6 +634,43 @@ describe('«Сегодня» with exam containers: failures fall back', () => {
     expect(screen.getByRole('button', { name: 'Повторить' })).toHaveClass('sf-link');
   });
 
+  it('without network the card from the device’s copy is drawn at once, while the page’s own reads still try (m5)', async () => {
+    seededExam();
+    // The page's reads retry for about 7 s without network: here they hang until the test lets them fail.
+    let fail: (error: unknown) => void = () => undefined;
+    db.countDueCards.mockReturnValue(new Promise((_, reject) => {
+      fail = reject;
+    }));
+    withContainers([ACCR()], { 'c-1': dayPlan('study') }, [], true);
+    await renderPage();
+    const cardEl = await screen.findByTestId('today-card');
+    expect(cardEl).toHaveAttribute('data-offline', '');
+    expect(screen.queryByText('Загружаем страницу…')).toBeNull();
+    expect(screen.queryByText('Не удалось загрузить данные')).toBeNull();
+    expect(blues()).toEqual([within(cardEl).getByRole('link', { name: 'Начать' })]);
+    // The reads give up: the rest of the page says so under the card, with a quiet «Повторить».
+    await act(async () => {
+      fail(new TypeError('Failed to fetch'));
+    });
+    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.getByTestId('today-card')).toBe(cardEl);
+    expect(screen.getByRole('button', { name: 'Повторить' })).toHaveClass('sf-link');
+  });
+
+  it('with the network the page still waits for its reads, as before (m5 changes only the offline page)', async () => {
+    seededExam();
+    db.countDueCards.mockReturnValue(new Promise(() => undefined));
+    withContainers([ACCR()], { 'c-1': dayPlan('study') });
+    remember('done');
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Загружаем страницу…')).toBeInTheDocument();
+    expect(screen.queryByTestId('today-card')).toBeNull();
+  });
+
   it('the overview answering late: today’s page first, then read again with the containers', async () => {
     db.tables.exams = () => ({ data: [examRow(), examRow({ id: 'e-2', title: 'Экзамен: статистика', exam_date: '2026-10-20' })] });
     let late = false;
