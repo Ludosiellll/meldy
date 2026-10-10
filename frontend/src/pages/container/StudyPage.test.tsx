@@ -85,17 +85,21 @@ function Where() {
   );
 }
 
-function renderStudy(data: ContainerData, search = `?s=${SUBJECT_DB}`) {
-  mocks.state = loaded(data);
-  Object.defineProperty(window, 'matchMedia', { configurable: true, value: undefined });
-  return render(
+function studyTree(search = `?s=${SUBJECT_DB}`) {
+  return (
     <MemoryRouter initialEntries={[`/exams/c/${CONTAINER}/study${search}`]}>
       <Routes>
         <Route path="/exams/c/:id/study" element={<StudyPage />} />
         <Route path="*" element={<Where />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+}
+
+function renderStudy(data: ContainerData, search = `?s=${SUBJECT_DB}`) {
+  mocks.state = loaded(data);
+  Object.defineProperty(window, 'matchMedia', { configurable: true, value: undefined });
+  return render(studyTree(search));
 }
 
 const option = (text: string) => screen.getByRole('button', { name: new RegExp(text) });
@@ -380,6 +384,37 @@ describe('the end of a session (decision 49)', () => {
     // «Готово» goes back to the exam.
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(screen.getByTestId('where').textContent).toBe(`/exams/c/${CONTAINER}`);
+  });
+
+  it('the plan read again after the session does not change the screen being read (M1)', async () => {
+    const view = renderStudy(dataWith(['q-plain']));
+    fireEvent.click(option('Третья'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+    const screenNow = () => ({
+      left: plain(document.querySelector('.ct-end-next')?.textContent),
+      pill: plain(document.querySelector('.ct-bar .sf-primary')?.textContent),
+      links: Array.from(document.querySelectorAll('.ct-end-links a, .ct-end-links button')).map((node) => plain(node.textContent)),
+    });
+    const first = screenNow();
+    expect(first.left).toBe('Сегодня осталось 20 вопросов, около 9 минут.');
+    expect(first.pill).toBe('Дальше: Программирование на C# — 20 вопросов');
+    // StudyPage's reload (onEnded) brings the plan read again: here one refitted the old way — more questions left,
+    // «Базы данных» first. The end screen keeps what it said when it opened.
+    mocks.state = loaded(
+      containerData({
+        plan: dayPlan({
+          sessions: [
+            { subjectId: SUBJECT_DB, kind: 'answer', ids: ['q-iso', 'q-code', 'q-multi', 'q-short', 'x1', 'x2', 'x3'], estSec: 420 },
+            { subjectId: SUBJECT_CS, kind: 'answer', ids: Array.from({ length: 20 }, (_, i) => `cs-${i}`), estSec: 540 },
+          ],
+        }),
+      }),
+    );
+    view.rerender(studyTree());
+    await act(async () => undefined);
+    expect(screenNow()).toEqual(first);
   });
 
   it('when the figure did not move, the headline is the session’s count and time', async () => {
