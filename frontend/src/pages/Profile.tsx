@@ -12,12 +12,55 @@ import { TELEMETRY_NOTE } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { pluralRu } from '../components/conversation/visuals';
-import { studyStreak, windowStart, type JournalDay, type SessionDay } from '../lib/learning/studyDays';
+import { studyStreak, windowStart, type ExamQuestionDay, type JournalDay, type SessionDay } from '../lib/learning/studyDays';
+import { fetchAnswerDays } from '../api/containers';
 import { usePhone } from '../lib/usePhone';
 import './Profile.css';
 
 /** How far back the streak looks: a longer streak still counts these days. */
 const STREAK_DAYS = 60;
+/** Rows a request returns at most (Supabase's max rows); the journal is read in pages of this size. */
+const JOURNAL_PAGE = 1000;
+/** A ceiling for the pages of the journal (10 000 answers in 60 days is far beyond any student). */
+const JOURNAL_MAX_PAGES = 10;
+
+/**
+ * The ticket and test answers of the journal since `since`, newest first, page by page until a short page: one request
+ * returns at most 1000 rows, so «.limit(5000)» stopped at 1000 (Concept 3 §5.4). Null when a page cannot be read.
+ */
+async function journalDays(userId: string, since: string): Promise<JournalDay[] | null> {
+  const rows: JournalDay[] = [];
+  for (let page = 0; page < JOURNAL_MAX_PAGES; page += 1) {
+    const from = page * JOURNAL_PAGE;
+    const { data, error } = await supabase
+      .from('learning_events')
+      .select('kind, local_date')
+      .eq('user_id', userId)
+      .in('kind', ['exam_answer', 'quiz_answer'])
+      .gte('local_date', since)
+      .order('local_date', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + JOURNAL_PAGE - 1);
+    if (error) return null;
+    const list = (Array.isArray(data) ? data : []) as JournalDay[];
+    rows.push(...list);
+    if (list.length < JOURNAL_PAGE) break;
+  }
+  return rows;
+}
+
+/**
+ * Days with answers to the questions of an exam's file (exam containers: test_answer_days). A database without this
+ * function, or any failure of this one read, leaves the streak as it was counted before: cards, tickets and tests.
+ */
+async function examQuestionDays(since: string): Promise<ExamQuestionDay[]> {
+  try {
+    const days = await fetchAnswerDays(since);
+    return Array.isArray(days) ? days : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * The three figures of the profile, counted live from the student's own rows (LIB-13). The old
@@ -26,7 +69,7 @@ const STREAK_DAYS = 60;
  * account. Each figure is null when it could not be counted: the page then shows «—», never a 0.
  */
 export interface ProfileStats {
-  /** Days of study in a row: cards, ticket answers or tests (lib/learning/studyDays). */
+  /** Days of study in a row: cards, ticket answers, tests or questions of an exam's file (lib/learning/studyDays). */
   streak: number | null;
   /** The student's lectures (materials), as «Лекции» lists them. */
   lectures: number | null;
@@ -47,19 +90,13 @@ export async function loadProfileStats(userId: string, now: Date = new Date()): 
   const streak = async (): Promise<number | null> => {
     try {
       const since = windowStart(STREAK_DAYS, now);
-      const [sessions, events] = await Promise.all([
+      const [sessions, events, examDays] = await Promise.all([
         supabase.from('study_sessions').select('date, cards_reviewed').eq('user_id', userId).gte('date', since),
-        supabase
-          .from('learning_events')
-          .select('kind, local_date')
-          .eq('user_id', userId)
-          .in('kind', ['exam_answer', 'quiz_answer'])
-          .gte('local_date', since)
-          .order('local_date', { ascending: false })
-          .limit(5000),
+        journalDays(userId, since),
+        examQuestionDays(since),
       ]);
-      if (sessions.error || events.error) return null;
-      return studyStreak({ sessions: (sessions.data ?? []) as SessionDay[], events: (events.data ?? []) as JournalDay[] }, now);
+      if (sessions.error || events === null) return null;
+      return studyStreak({ sessions: (sessions.data ?? []) as SessionDay[], events, examQuestionDays: examDays }, now);
     } catch {
       return null;
     }
