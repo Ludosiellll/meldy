@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import source from './copy.ts?raw';
 import * as copy from './copy';
+import { SETTINGS } from './copyImport';
 import { comesBackWhen } from './model';
 
 /**
@@ -56,6 +57,8 @@ function rendered(): string[] {
     [{ newItems: 30, reviews: 60, oral: 10 }],
     [{ twoDays: 61, keyed: 240, seen: 180, today: 25, dateText: '12 января', passed: false }],
     [{ twoDays: 0, inPlan: 0, questions: 120, today: 0, dateText: null }],
+    [{ twoDays: 0, inPlan: 16, questions: 20, today: 16, dateText: '21 октября' }],
+    ['21 октября', null],
     [{ twoDays: 12, keyed: 18, seen: 18, errors: 2 }],
     [{ keyed: 20, twoDays: 8, errors: 3 }],
     [['А', 'В'], true],
@@ -164,6 +167,26 @@ describe('copy.ts: the words of the exam screens', () => {
     expect(plain(copy.verdictWrong(long, false))).toBe('Неверно. В файле верны 3 варианта — они отмечены выше. Вернётся завтра.');
     expect(plain(copy.startSubject('Базы данных', 17))).toBe('Начать: Базы данных — 17 вопросов');
     expect(plain(copy.aloudSubject('Гражданское право', 3))).toBe('Ответить вслух: Гражданское право — 3 вопроса');
+  });
+
+  it('an oral subject’s row says it is oral, in the word «Настройки» uses (usability check 2026-10-10, m7)', () => {
+    const plain = (text: string) => text.split(copy.NBSP).join(' ');
+    // The QA's row read «0 из 16 · сегодня 16», like a subject with variants.
+    expect(plain(copy.subjectRowOral({ twoDays: 0, inPlan: 16, questions: 20, today: 16, dateText: null }))).toBe('устный · 0 из 16 · сегодня 16');
+    expect(plain(copy.subjectRowOral({ twoDays: 3, inPlan: 16, questions: 20, today: 0, dateText: '25 октября' }))).toBe('устный · 25 октября · 3 из 16');
+    // none in the plan yet: «устных» says it
+    expect(plain(copy.subjectRowOral({ twoDays: 0, inPlan: 0, questions: 60, today: 0, dateText: null }))).toBe('60 устных · нужны лекции');
+    expect(copy.ORAL_ROW).toBe(SETTINGS.oralRow);
+    // a subject with variants stays as it was
+    expect(plain(copy.subjectRowTest({ twoDays: 0, keyed: 14, seen: 0, today: 7, dateText: null, passed: false }))).toBe('14 вопросов · сегодня 7');
+  });
+
+  it('«Сегодня»: the date and the exam’s one size, or the date alone while the size is not known (m6)', () => {
+    const plain = (text: string) => text.split(copy.NBSP).join(' ');
+    expect(plain(copy.todayMeta('21 октября', 54))).toBe('21 октября · 54 вопроса');
+    expect(plain(copy.todayMeta('21 октября', null))).toBe('21 октября');
+    expect(plain(copy.todayMeta(null, 54))).toBe('54 вопроса');
+    expect(copy.todayMeta(null, null)).toBe('');
   });
 
   it('a mistake comes back on the next study day: every day the same bytes as «завтра» always said, else its day', () => {

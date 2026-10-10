@@ -157,6 +157,25 @@ describe('the «Сегодня» card of an exam (decision 47)', () => {
     expect(screen.getByRole('link', { name: nm('Продолжить: ещё 8 вопросов') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?resume=1`);
   });
 
+  it('says the exam’s one size, oral questions included, as its page does (usability check 2026-10-10, m6)', () => {
+    // The QA's exam: 34 questions with variants and an oral exam of 20 — its page said 54, this card 34.
+    const container = overviewContainer({
+      items: 34,
+      exam_date: '2026-10-21',
+      subjects: [{ ...overviewContainer().subjects[0], id: SUBJECT_ORAL, title: 'Базы данных', exam_date: '2026-10-21', keyed: 0, oral_exam_id: ORAL_EXAM, has_oral: true }],
+    });
+    renderCard({ container, questions: 54 });
+    expect(plain(card().querySelector('.td-meta')?.textContent)).toBe('21 октября · 54 вопроса');
+    cleanup();
+    // before its page's numbers are read: the date alone, never the smaller number of the overview
+    renderCard({ container, plan: null });
+    expect(plain(card().querySelector('.td-meta')?.textContent)).toBe('21 октября');
+    cleanup();
+    // without an oral part the overview's number is the size, as before
+    renderCard({ plan: null });
+    expect(plain(card().querySelector('.td-meta')?.textContent)).toBe('28 октября · 960 вопросов');
+  });
+
   it('an AI check first: one ticket of the oral exam with the way back', () => {
     const container = overviewContainer({
       subjects: [...overviewContainer().subjects, { ...overviewContainer().subjects[0], id: SUBJECT_ORAL, title: 'Право', oral_exam_id: ORAL_EXAM, has_oral: true }],

@@ -90,10 +90,17 @@ vi.mock('../lib/containers/plan', () => ({
 // Package D3b's card (spec decision 47): a stand-in that shows what «Сегодня» hands it.
 const card = vi.hoisted(() => ({ crash: false }));
 vi.mock('../components/containers/TodayExamCard', () => ({
-  default: (props: { container: { id: string; title: string }; plan: { state: string } | null; offline?: boolean; lead: boolean }) => {
+  default: (props: { container: { id: string; title: string }; plan: { state: string } | null; questions?: number | null; offline?: boolean; lead: boolean }) => {
     if (card.crash) throw new Error('the card broke');
     return (
-      <article className="td-card td-exam" data-testid="today-card" data-id={props.container.id} data-plan={props.plan?.state ?? 'none'} data-offline={props.offline ? '' : undefined}>
+      <article
+        className="td-card td-exam"
+        data-testid="today-card"
+        data-id={props.container.id}
+        data-plan={props.plan?.state ?? 'none'}
+        data-questions={props.questions ?? 'none'}
+        data-offline={props.offline ? '' : undefined}
+      >
         <h2>{props.container.title}</h2>
         <a className={props.lead ? 'sf-primary' : 'sf-link'} href={`/exams/c/${props.container.id}/study`}>
           Начать
@@ -493,6 +500,19 @@ describe('«Сегодня» with exam containers: who leads', () => {
     expect(main.contains(rows)).toBe(true);
   });
 
+  it('the card gets the exam’s size from its own page’s data, oral questions included (usability check 2026-10-10, m6)', async () => {
+    // 34 questions with variants and an oral part of 20: the overview knows only the 34.
+    const exam = container('c-1', 'Проверка удаления', '2026-10-10', {
+      items: 34,
+      subjects: [subjectOf(1, { oral_exam_id: 'e-9', has_oral: true, keyed: 0 }), subjectOf(2, { keyed: 14 }), subjectOf(3, { keyed: 20 })],
+    });
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [exam], attached_exam_ids: ['e-9'] } });
+    const summary = { items_version: { count: 34 }, subjects: [{ oral: { exam_id: 'e-9', questions: 20 } }, { oral: null }, { oral: null }] };
+    layer.data['c-1'] = loadable({ data: { summary, planInput: { plan: dayPlan('study') }, items: new Map(), oralWithoutPoints: 0 } });
+    await renderPage();
+    expect(await screen.findByTestId('today-card')).toHaveAttribute('data-questions', '54');
+  });
+
   it('an oral exam with a nearer date leads as today; the container is a quiet row with today’s minutes', async () => {
     seededExam();
     withContainers([container('c-1', 'Аккредитация', '2026-10-22')], { 'c-1': dayPlan('study') });
@@ -815,6 +835,14 @@ describe('who leads «Сегодня», as a rule', () => {
     expect(containerRowMeta(entry(ACCR(), dayOff('done')), today, now)).toBe('10 октября · на сегодня всё');
     expect(containerRowMeta(entry(container('c-9', 'Б', null), dayOff('nothing')), today, now)).toBe('сегодня выходной');
     expect(containerRowMeta(entry(ACCR(), ready('nothing')), today, now)).toBe('10 октября · 960 вопросов');
+    // An exam with an oral part (m6): the size its page says, never the overview's smaller number of questions with variants.
+    const oral = container('c-5', 'Проверка удаления', '2026-10-21', {
+      items: 34,
+      subjects: [subjectOf(1, { oral_exam_id: 'e-9', has_oral: true, keyed: 0, exam_date: '2026-10-21' }), subjectOf(2, { exam_date: '2026-10-21' })],
+    });
+    expect(containerRowMeta(entry(oral, { status: 'ready', plan: dayPlan('nothing'), offline: false, questions: 54 }), today, now)).toBe('21 октября · 54 вопроса');
+    expect(containerRowMeta(entry(oral, { status: 'failed' }), today, now)).toBe('21 октября');
+    expect(containerRowMeta(entry(oral, { status: 'loading' }), today, now)).toBe('21 октября');
     expect(plainText(aboutMinutes(60))).toBe('около 1 минуты');
     expect(plainText(aboutMinutes(150))).toBe('около 3 минут');
     expect(plainText(aboutMinutes(1180))).toBe('около 20 минут');

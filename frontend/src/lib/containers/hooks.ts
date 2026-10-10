@@ -145,6 +145,9 @@ function buildData(summary: ContainerSummary, wire: PlanInputsWire, items: TestI
     const oralDate = oralDates.get(subject.id);
     return !withTests.has(subject.id) && oralDate ? { ...subject, date: oralDate } : subject;
   });
+  // The exam's size as its page says it (components/containers/model.ts examQuestions): every question, oral included.
+  // The line under «Время в день» names its count «в плане» when the plan holds fewer (usability check 2026-10-10, m6).
+  planInput.examQuestions = summary.items_version.count + summary.subjects.reduce((sum, subject) => sum + (subject.oral?.questions ?? 0), 0);
   return {
     summary,
     planInput,

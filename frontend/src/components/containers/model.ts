@@ -12,6 +12,7 @@ import type {
   ContainerSummary,
   DayPlan,
   LocalDay,
+  OverviewContainer,
   PlanCls,
   PlanInput,
   PlanItem,
@@ -90,8 +91,20 @@ export function soloSubject(summary: ContainerSummary): SummarySubject | null {
   return kind === 'test' || kind === 'mixed' ? only : null;
 }
 
+/** The exam's size: all its questions, with variants (with a key or not) and oral — the one size every screen says. */
 export function examQuestions(summary: ContainerSummary): number {
   return summary.items_version.count + summary.subjects.reduce((sum, subject) => sum + oralCount(subject), 0);
+}
+
+/**
+ * The exam's size on «Сегодня» (the card, the quiet rows): its page's number (`known`: examQuestions of its summary)
+ * once read; before that the overview's questions with variants, only when no subject has an oral part — the overview
+ * has no oral counts, and a smaller number would be a second size of one exam (usability check 2026-10-10, m6: «Сегодня»
+ * said 34 where the exam's page said 54). Null: say no number yet.
+ */
+export function overviewQuestions(container: Pick<OverviewContainer, 'items' | 'subjects'>, known?: number | null): number | null {
+  if (typeof known === 'number' && Number.isFinite(known)) return Math.max(0, known);
+  return container.subjects.some((subject) => subject.has_oral || subject.oral_exam_id) ? null : container.items;
 }
 export function subjectQuestions(subject: SummarySubject): number {
   return testCount(subject) + oralCount(subject);

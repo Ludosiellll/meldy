@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DayPlan, PlanInput } from '../../types/container';
 import { daysAhead, extraNew, feasibility, oralToPrepare, planDay, subjectInfo, windowDays, windowStart } from './plan.ts';
 import { EVERY_DAY, addDays, daysBetween, isStudyDay, studyDayBefore, studyDayFrom, studyDaysBetween, studyMask, weekday } from './time.ts';
-import { dayRowText, lineText, planLine, planTitle } from './words.ts';
+import { dayRowText, lineText, planLine, planTitle, shownMinutes } from './words.ts';
 import { planVectorCases } from './__fixtures__/planVectors.ts';
 import { at, makeInput, newSim, simInput, simSeen, sit, stateAfter, testItems } from './__fixtures__/scenarios.ts';
 import { inputAt, newServer, record } from './__fixtures__/server.ts';
@@ -109,8 +109,10 @@ describe('five study days a week (Пн–Пт) to a date', () => {
 
   it('«План по дням»: no row for a day off; study days on either side of a weekend stay one row', () => {
     const rows = (mask?: number) => daysAhead(input(mask)).map((row) => ru(dayRowText(row)));
-    expect(rows()).toEqual(['5–28 октября — около 20 минут в день', '29 октября – 1 ноября — новых нет, только знакомые, сначала ошибки', '2 ноября — экзамен']);
-    expect(rows(MON_FRI)).toEqual(['5–26 октября — около 25 минут в день', '27–30 октября — новых нет, только знакомые, сначала ошибки', '2 ноября — экзамен']);
+    // Today is the card's day: 300 new questions fill its 45 minutes; the days after take what the date needs.
+    const today = (mask?: number) => `5 октября — около ${shownMinutes(planDay(input(mask)).counts.estSec)} минут`;
+    expect(rows()).toEqual([today(), '6–28 октября — около 20 минут в день', '29 октября – 1 ноября — новых нет, только знакомые, сначала ошибки', '2 ноября — экзамен']);
+    expect(rows(MON_FRI)).toEqual([today(MON_FRI), '6–26 октября — около 25 минут в день', '27–30 октября — новых нет, только знакомые, сначала ошибки', '2 ноября — экзамен']);
     // the exam's day has its row even when it is not a study day
     const sunday = daysAhead(makeInput({ now: at(MON, '19:00'), subjects: [{ id: 'a', date: '2026-11-01' }], items: testItems('a', 50), firstPlanDay: MON, studyWeekdays: MON_FRI }));
     expect(sunday[sunday.length - 1]).toEqual({ from: '2026-11-01', to: '2026-11-01', kind: 'exam', minutes: null, subjectIds: ['a'] });

@@ -109,6 +109,14 @@ function nth(line: Line, i: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
+/**
+ * « в плане» when the line's count (`n[count]`) is smaller than the exam's size the screen added at `n[size]` (all its
+ * questions, as the exam's meta says them): a line about what the plan brings by the date names what it counts.
+ */
+function inPlan(line: Line, count: number, size: number): string {
+  return nth(line, size) > nth(line, count) ? ' в плане' : '';
+}
+
 /** «Первые войдут в счёт завтра после 17:00 — если снова ответите верно» (decision 40). */
 export function firstCountText(when: string, time: string | null | undefined): string {
   const at = time ? ` после ${time}` : '';
@@ -128,13 +136,15 @@ export function lineText(line: Line): string {
       const head = gap <= 1 && !line.day ? 'Вчера без занятий.' : `${days(Math.max(1, gap))} без занятий.`;
       return `${head} Сегодня те же ${minutesNom(nth(line, 1))} — больше знакомых вопросов.`;
     }
+    // What the minutes reach by the date counts the questions in the plan; when the screen says the exam holds more
+    // (its size after the count: oral ones waiting for lectures, ones without a key), the line says «в плане».
     case 'short':
-      return `При ${minutesPrep(nth(line, 0))} к ${dayText(line.day ?? '')} вы увидите около ${nth(line, 1)} из ${nth(line, 2)}. `
+      return `При ${minutesPrep(nth(line, 0))} к ${dayText(line.day ?? '')} вы увидите около ${nth(line, 1)} из ${nth(line, 2)}${inPlan(line, 2, 4)}. `
         + `Чтобы увидеть все, нужно около ${minutesGen(nth(line, 3))}.`;
     case 'short_max':
-      return `Даже при ${minutesPrep(nth(line, 0))} в день к ${dayText(line.day ?? '')} вы увидите около ${nth(line, 1)} из ${nth(line, 2)}.`;
+      return `Даже при ${minutesPrep(nth(line, 0))} в день к ${dayText(line.day ?? '')} вы увидите около ${nth(line, 1)} из ${nth(line, 2)}${inPlan(line, 2, 3)}.`;
     case 'need':
-      return `Чтобы увидеть все ${questions(nth(line, 0))} к ${dayText(line.day ?? '')}, нужно около ${minutesGen(nth(line, 1))} в день.`;
+      return `Чтобы увидеть все ${questions(nth(line, 0))}${inPlan(line, 0, 2)} к ${dayText(line.day ?? '')}, нужно около ${minutesGen(nth(line, 1))} в день.`;
     case 'window_ahead':
       // The plan card's note: one line on a phone from day 1 (usability check, m9). What those days hold is the row
       // of «План по дням» and, under «Время в день», `window_detail`.
@@ -296,11 +306,12 @@ export function startLabel(count: number, minutes: number | null, resume: { done
   return `Начать: ${questions(count)}${time}`;
 }
 
-/** One row of «План по дням» (plan.ts `daysAhead`). */
-export function dayRowText(row: { from: LocalDay; to: LocalDay; kind: 'study' | 'window' | 'exam'; minutes: number | null }): string {
+/** One row of «План по дням» (plan.ts `daysAhead`); days that hold oral questions say so («с устными»). */
+export function dayRowText(row: { from: LocalDay; to: LocalDay; kind: 'study' | 'window' | 'exam'; minutes: number | null; oral?: boolean }): string {
   const when = rangeText(row.from, row.to);
+  const oral = row.oral ? ', с устными' : '';
   if (row.kind === 'exam') return `${when} — экзамен`;
-  if (row.kind === 'window') return `${when} — новых нет, только знакомые, сначала ошибки`;
-  if (row.minutes === null) return `${when} — только знакомые`;
-  return row.from === row.to ? `${when} — около ${minutesGen(row.minutes)}` : `${when} — около ${minutesGen(row.minutes)} в день`;
+  if (row.kind === 'window') return `${when} — новых нет, только знакомые${oral}, сначала ошибки`;
+  if (row.minutes === null) return `${when} — только знакомые${oral}`;
+  return row.from === row.to ? `${when} — около ${minutesGen(row.minutes)}${oral}` : `${when} — около ${minutesGen(row.minutes)} в день${oral}`;
 }

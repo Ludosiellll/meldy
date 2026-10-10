@@ -79,7 +79,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
       return null;
     }
   }, [solo, planInput, subject.id]);
-  const lines = solo ? planLineViews(plan) : lineViews(info?.lines ?? []);
+  const lines = solo ? planLineViews(plan, examQuestions(summary)) : lineViews(info?.lines ?? []);
   const cardNotes: ReactNode[] = [];
   if (offline) cardNotes.push(<NoteLine key="offline" text={copy.OFFLINE_PAGE} />);
   cardNotes.push(...noteLines(lines, targets));
@@ -286,6 +286,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
       {daysOpen ? (
         <PlanByDaysSheet
           input={planInput}
+          plan={plan}
           subjects={summary.subjects}
           minutes={summary.settings.minutes_per_day}
           noDate={day.noDate}

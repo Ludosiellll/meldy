@@ -41,9 +41,10 @@ const SAMPLES: Record<LineKey, Array<DayPlan['lines'][number]>> = {
   first_count: [{ key: 'first_count', n: [1], day: '2026-10-11', time: '17:00' }, { key: 'first_count', n: [0], day: '2026-10-10', time: '19:00' },
     { key: 'first_count', n: [0], day: '2026-10-10' }, { key: 'first_count', n: [1], day: '2026-10-11' }, { key: 'first_count', n: [4], day: '2026-10-14', time: '9:15' }],
   skip: [{ key: 'skip', n: [1, 60] }, { key: 'skip', n: [2, 45] }, { key: 'skip', n: [5, 90] }, { key: 'skip', n: [1, 45], day: '2026-10-16' }],
-  short: [{ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }, { key: 'short', n: [30, 410, 960, 120], day: '2026-10-28' }],
-  short_max: [{ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' }],
-  need: [{ key: 'need', n: [960, 70], day: '2026-10-28' }],
+  short: [{ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }, { key: 'short', n: [30, 410, 960, 120], day: '2026-10-28' },
+    { key: 'short', n: [30, 40, 50, 35, 54], day: '2026-10-21' }],
+  short_max: [{ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' }, { key: 'short_max', n: [90, 700, 900, 960], day: '2026-10-28' }],
+  need: [{ key: 'need', n: [960, 70], day: '2026-10-28' }, { key: 'need', n: [50, 20, 54], day: '2026-10-21' }],
   window_ahead: [{ key: 'window_ahead', n: [4], day: '2026-10-24' }, { key: 'window_ahead', n: [1], day: '2026-09-30' }],
   window_detail: [{ key: 'window_detail', n: [4], day: '2026-10-24' }, { key: 'window_detail', n: [1], day: '2026-10-26' }],
   window_in: [{ key: 'window_in', n: [3] }, { key: 'window_in', n: [1] }],
@@ -173,6 +174,19 @@ describe('lineText', () => {
     expect(ru(lineText({ key: 'short', n: [21, 410, 960, 121], day: '2026-10-28' }))).toBe('При 21 минуте к 28 октября вы увидите около 410 из 960. Чтобы увидеть все, нужно около 121 минуты.');
     expect(ru(lineText({ key: 'oral', n: [4, 0, 1] }))).toBe('Устные: 4 сверить с пунктами — 1 единица ИИ.');
   });
+
+  it('what the minutes reach names its count «в плане» when the exam holds more (usability check 2026-10-10, m6)', () => {
+    const t = (line: DayPlan['lines'][number]) => ru(lineText(line));
+    // The QA's exam: 54 questions, 50 of them in the plan (4 oral wait for lectures).
+    expect(t({ key: 'need', n: [50, 20, 54], day: '2026-10-21' })).toBe('Чтобы увидеть все 50 вопросов в плане к 21 октября, нужно около 20 минут в день.');
+    expect(t({ key: 'short', n: [30, 40, 50, 35, 54], day: '2026-10-21' }))
+      .toBe('При 30 минутах к 21 октября вы увидите около 40 из 50 в плане. Чтобы увидеть все, нужно около 35 минут.');
+    expect(t({ key: 'short_max', n: [90, 700, 900, 960], day: '2026-10-28' })).toBe('Даже при 90 минутах в день к 28 октября вы увидите около 700 из 900 в плане.');
+    // every question in the plan, or no size given (the plan's own lines, the bot): the words as before
+    expect(t({ key: 'need', n: [960, 70, 960], day: '2026-10-28' })).toBe(t({ key: 'need', n: [960, 70], day: '2026-10-28' }));
+    expect(t({ key: 'short', n: [45, 700, 960, 75, 960], day: '2026-10-28' })).toBe(t({ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }));
+    expect(t({ key: 'short_max', n: [90, 820, 960, 960], day: '2026-10-28' })).toBe(t({ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' }));
+  });
 });
 
 describe('banned words', () => {
@@ -276,5 +290,15 @@ describe('«План по дням» rows', () => {
     expect(ru(dayRowText({ from: '2026-10-28', to: '2026-10-28', kind: 'exam', minutes: null }))).toBe('28 октября — экзамен');
     expect(ru(dayRowText({ from: '2026-10-10', to: '2026-10-12', kind: 'study', minutes: null }))).toBe('10–12 октября — только знакомые');
     expect(SKIP_NOTE).toBe('Если пропустите день, его вопросы перейдут на следующие.');
+  });
+
+  it('says the days that hold oral questions (usability check 2026-10-10, m7)', () => {
+    expect(ru(dayRowText({ from: '2026-10-10', to: '2026-10-10', kind: 'study', minutes: 30, oral: true }))).toBe('10 октября — около 30 минут, с устными');
+    expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-17', kind: 'study', minutes: 20, oral: true }))).toBe('11–17 октября — около 20 минут в день, с устными');
+    expect(ru(dayRowText({ from: '2026-10-18', to: '2026-10-20', kind: 'window', minutes: null, oral: true })))
+      .toBe('18–20 октября — новых нет, только знакомые, с устными, сначала ошибки');
+    expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-12', kind: 'study', minutes: null, oral: true }))).toBe('11–12 октября — только знакомые, с устными');
+    expect(ru(dayRowText({ from: '2026-10-21', to: '2026-10-21', kind: 'exam', minutes: null, oral: true }))).toBe('21 октября — экзамен');
+    expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-17', kind: 'study', minutes: 20, oral: false }))).toBe('11–17 октября — около 20 минут в день');
   });
 });

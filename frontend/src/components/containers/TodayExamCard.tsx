@@ -2,7 +2,8 @@
  * The «Сегодня» card of an exam container (package D3b builds it; spec §16 #47): the same anatomy as today's oral
  * exam card — flag, one meta line, the one blue button, then the blue number. Package E places it on «Сегодня».
  *
- * - The flag «Экзамен через 19 дней» (yellow at three days or less), the name, «28 октября · 960 вопросов».
+ * - The flag «Экзамен через 19 дней» (yellow at three days or less), the name, «28 октября · 960 вопросов» — the size
+ *   the exam's page says, oral questions included (`questions`; model.ts overviewQuestions).
  * - One line of today's step: «Сегодня 90 вопросов, около 45 минут.», then the pill «Начать: 20 вопросов» (a session
  *   left today: «Продолжить…»); when the day is done the plan's line («На сегодня всё. Завтра около 40 минут.») and no
  *   pill, so «Начать повторение» can take the blue.
@@ -19,7 +20,7 @@ import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
 import { figureWords, planText, safeStart, titleText } from './planLines';
 import * as copy from './copy';
-import { dayDiff, dayIn, firstSession, minutesOf, studyHref } from './model';
+import { dayDiff, dayIn, firstSession, minutesOf, overviewQuestions, studyHref } from './model';
 import { loadSession, resumable, resumeCounts } from './sessionStore';
 import { useWide } from './useWide';
 import './containers.css';
@@ -27,6 +28,8 @@ import './containers.css';
 export interface TodayExamCardProps {
   container: OverviewContainer;
   plan: DayPlan | null; // null while loading
+  /** The exam's size as its page says it (model.ts examQuestions of its summary), once read: oral questions included. */
+  questions?: number | null;
   offline?: boolean;
   /** This card leads «Сегодня» and holds the page's one blue button. */
   lead: boolean;
@@ -64,7 +67,7 @@ export function nearestDate(container: OverviewContainer, today: LocalDay): Loca
   return dates.find((date) => (dayDiff(today, date) ?? -1) >= 0) ?? dates[dates.length - 1] ?? null;
 }
 
-export default function TodayExamCard({ container, plan, offline = false, lead }: TodayExamCardProps) {
+export default function TodayExamCard({ container, plan, questions = null, offline = false, lead }: TodayExamCardProps) {
   const titleId = useId();
   const phone = usePhone();
   const wide = useWide();
@@ -74,7 +77,8 @@ export default function TodayExamCard({ container, plan, offline = false, lead }
   const date = nearestDate(container, today);
   const days = date ? dayDiff(today, date) : null;
   const flag = date && days !== null && days >= 0 ? copy.todayFlag(days) : null;
-  const meta = copy.todayMeta(date ? dayText(date) : null, container.items);
+  // The exam's one size, as its page and «Экзамены» say it (usability check 2026-10-10, m6).
+  const meta = copy.todayMeta(date ? dayText(date) : null, overviewQuestions(container, questions));
 
   // ── today's step and the pill
   const saved = user?.id ? resumable(loadSession(user.id, container.id), today) : null;
@@ -175,7 +179,7 @@ export default function TodayExamCard({ container, plan, offline = false, lead }
         {container.title}
         {flag ? <span className="sr-only">{` — ${flag.toLocaleLowerCase('ru-RU')}`}</span> : null}
       </h2>
-      <p className="td-meta">{meta}</p>
+      {meta ? <p className="td-meta">{meta}</p> : null}
       <div className="td-next">
         <p className="td-erase-t tc-today">{line}</p>
         {pill ? <div className="td-actions">{pill}</div> : null}

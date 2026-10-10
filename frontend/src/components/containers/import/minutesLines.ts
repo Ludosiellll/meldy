@@ -10,8 +10,10 @@
  *   `window_ahead` says it in one line), under «Подробнее». Days and minutes are the study days' (settings.study_weekdays).
  *
  * The date is the last one ahead among the subjects with questions in the plan; the count is the questions of the
- * subjects whose date is still ahead (or have none), as the plan counts them. No date, nothing to see, or an estimate
- * that fails: no line.
+ * subjects whose date is still ahead (or have none), as the plan counts them. When the exam holds more questions than
+ * that (`input.examQuestions`: oral ones waiting for lectures, ones without a key, a subject after its date), the line
+ * says what it counts: «Чтобы увидеть все 50 вопросов в плане к 21 октября…» (usability check 2026-10-10, m6: «все 50»
+ * under an exam of 54). No date, nothing to see, or an estimate that fails: no line.
  */
 import { feasibility, windowDays } from '../../../lib/containers/plan';
 import { localDay, studyDayBefore, studyMask } from '../../../lib/containers/time';
@@ -54,11 +56,13 @@ export function minutesLines(input: PlanInput | null, minutes: number): MinutesL
     const reach = Math.min(total, Math.max(0, at.seenByDateEst));
     const short = needed > minutes && reach < total;
     const seen = about(reach);
+    // The exam's size (words.ts: «в плане» when it is more than the count).
+    const size = typeof input.examQuestions === 'number' && Number.isFinite(input.examQuestions) ? Math.max(0, input.examQuestions) : total;
     const line = !short
-      ? lineText({ key: 'need', n: [total, needed], day: last })
+      ? lineText({ key: 'need', n: [total, needed, size], day: last })
       : needed > 90 && minutes >= 90
-        ? lineText({ key: 'short_max', n: [minutes, seen, total], day: last })
-        : lineText({ key: 'short', n: [minutes, seen, total, needed], day: last });
+        ? lineText({ key: 'short_max', n: [minutes, seen, total, size], day: last })
+        : lineText({ key: 'short', n: [minutes, seen, total, needed, size], day: last });
 
     // The final days are the student's last study days before the date, as the plan counts them (plan.ts windowDays,
     // windowStart): the first of them is the W-th study day back.

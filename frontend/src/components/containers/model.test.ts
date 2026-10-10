@@ -10,12 +10,14 @@ import {
   dayDiff,
   errorCount,
   examFigure,
+  examQuestions,
   firstCountWhen,
   gradeLocal,
   keyNames,
   laterToday,
   metaDay,
   moreNew,
+  overviewQuestions,
   sessionHref,
   setAsideIds,
   shortNorm,
@@ -27,7 +29,7 @@ import {
   topicNumber,
   type StudyRecord,
 } from './model';
-import { CONTAINER, ORAL_EXAM, SUBJECT_DB, SUBJECT_ORAL, dayPlan, dbItems, item, planInput, planItemsFor, subject, summary, unit } from './testkit/fixtures';
+import { CONTAINER, ORAL_EXAM, SUBJECT_DB, SUBJECT_ORAL, dayPlan, dbItems, item, overviewContainer, planInput, planItemsFor, subject, summary, unit } from './testkit/fixtures';
 
 const plain = (text: string) => text.split(String.fromCharCode(0xa0)).join(' ');
 
@@ -50,6 +52,24 @@ describe('days and the meta line', () => {
     const none = metaDay([], '2026-10-10');
     expect(none.noDate).toBe(true);
     expect(none.text).toBe('Дата не указана');
+  });
+});
+
+describe('the exam’s one size (usability check 2026-10-10, m6: 54 on its page, 34 on «Сегодня»)', () => {
+  it('is every question of the exam, oral included; «Сегодня» says it once read and no smaller number before', () => {
+    const oral = subject({ id: SUBJECT_ORAL, position: 5, title: 'Базы данных', exam_date: '2026-10-21', keyed: 0, no_key: 0, seen: 0, two_days: 0, open_errors: 0, topics: [], topic_titles: [], oral: { exam_id: ORAL_EXAM, questions: 20 } });
+    const withOral = summary({ items_version: { count: 34, updated_at: null }, subjects: [oral, subject({ keyed: 14 }), subject({ id: SUBJECT_DB, keyed: 20 })] });
+    expect(examQuestions(withOral)).toBe(54);
+    const card = overviewContainer({ items: 34, subjects: overviewContainer().subjects.slice(0, 3).map((s, i) => (i === 0 ? { ...s, oral_exam_id: ORAL_EXAM, has_oral: true } : s)) });
+    expect(overviewQuestions(card, examQuestions(withOral))).toBe(54);
+    // before the exam's own data is read: no number rather than 34
+    expect(overviewQuestions(card, null)).toBeNull();
+    expect(overviewQuestions(card)).toBeNull();
+    // a member before the oral copy arrives: the author's subject has an oral part, the member's id is still null
+    expect(overviewQuestions({ ...card, subjects: card.subjects.map((s) => ({ ...s, oral_exam_id: null })) })).toBeNull();
+    // no oral part: the overview's number is the whole size
+    expect(overviewQuestions(overviewContainer({ items: 960 }))).toBe(960);
+    expect(overviewQuestions(overviewContainer({ items: 960 }), 960)).toBe(960);
   });
 });
 

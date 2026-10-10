@@ -24,9 +24,10 @@ import type { Cls, DayPlan, LocalDay, OralMeta, Pace, PlanInput, PlanItem, UnitS
 import { DEFAULT_PACE, SLOW_NEW_FACTOR, SLOW_REV_FACTOR } from './pace.ts';
 import { derive, emptyState, inFigure, isOpenError, isSeen } from './rule.ts';
 import {
-  EVERY_DAY, addDays, atLocalTime, clockText, dayIndex, daysBetween, isStudyDay, localDay, startOfDay, studyDayBefore, studyDayFrom,
-  studyDaysBetween, studyMask,
+  EVERY_DAY, addDays, atLocalTime, clockText, dayIndex, daysBetween, isLocalDay, isStudyDay, localDay, startOfDay, studyDayBefore,
+  studyDayFrom, studyDaysBetween, studyMask,
 } from './time.ts';
+import { shownMinutes } from './words.ts';
 
 export const BUDGET_OPTIONS: readonly number[] = [30, 45, 60, 90];
 export const NEW_PER_DAY_MAX = 100;
@@ -903,8 +904,10 @@ export function planDay(input: PlanInput): DayPlan {
   if (active.length > 0) {
     if (state === 'study' && !studied && sc.lastStudyDay !== null) {
       // The study days missed since the last answers (days off are not missed); `day` when the last of them was not
-      // yesterday (a day off came after it).
-      const gap = studyDaysBetween(addDays(sc.lastStudyDay, 1), today, sc.mask);
+      // yesterday (a day off came after it). No day before the exam's first plan day is missed: an oral part brings its
+      // own answers from before the exam was made (usability check 2026-10-10, m5: a new exam said «2 дня без занятий»).
+      const firstDay = isLocalDay(input.firstPlanDay) ? input.firstPlanDay : null;
+      const gap = studyDaysBetween(laterDay(addDays(sc.lastStudyDay, 1), firstDay) as LocalDay, today, sc.mask);
       if (gap >= 1) {
         const missed = studyDayBefore(today, sc.mask);
         const skip: PlanLine = { key: 'skip', n: [gap, Math.round(Number(input.budgetMin) || 0)] };
@@ -1084,20 +1087,39 @@ export function subjectInfo(input: PlanInput, subjectId: string): SubjectInfo | 
   };
 }
 
-export interface DayRow { from: LocalDay; to: LocalDay; kind: 'study' | 'window' | 'exam'; minutes: number | null; subjectIds: string[] }
+export interface DayRow {
+  from: LocalDay;
+  to: LocalDay;
+  kind: 'study' | 'window' | 'exam';
+  minutes: number | null;
+  subjectIds: string[];
+  /** The days hold oral questions: a subject still ahead has some in the plan (words.ts: «с устными»). Absent: none. */
+  oral?: true;
+}
 
 /**
  * «План по дням»: today to the last date, equal days grouped — study days with about the minutes a day, the final
  * window without a promised number of minutes (decision 39), and each exam day. Days off (not the student's days of
  * the week) have no row; equal study days on either side of them stay one row («13 октября – 14 ноября»).
+ *
+ * Today is the day's plan (`plan`: planDay of this input, the card's): while new questions are left the plan fills the
+ * minutes with more of them (decision 16), so the day can take more than the minutes a day the date needs — then today
+ * is its own row at the card's minutes (usability check 2026-10-10, m6: the card said «около 30 минут», the row of
+ * 10–17 October «около 20 минут в день»); a today with nothing to do has no row. The days that hold oral questions say
+ * so (m7).
  */
-export function daysAhead(input: PlanInput): DayRow[] {
+export function daysAhead(input: PlanInput, plan: DayPlan = planDay(input)): DayRow[] {
   const sc = scan(input);
   const dated = sc.subjects.filter((s) => s.date !== null && (s.daysLeft as number) >= 0);
   if (dated.length === 0) return [];
   const feas = feasibilityOf(sc);
   const budget = Math.round(Number(input.budgetMin) || 0);
   const perDay = feas.neededMin > 0 ? Math.min(budget, feas.neededMin) : null; // null: familiar questions only
+  // Today as the card has it: the day's minutes while it holds work (or held it), no row when it holds nothing.
+  const ownDay = plan && plan.day === sc.today;
+  const todayMin = ownDay && (plan.state === 'study' || plan.state === 'done') ? Math.max(1, shownMinutes(plan.counts.estSec)) : null;
+  const todayEmpty = ownDay && plan.state === 'nothing';
+  const withOral = new Set((input.items ?? []).filter((item) => item.f === 'o').map((item) => item.s));
   const lastDate = dated.reduce<LocalDay>((acc, s) => ((s.date as LocalDay) > acc ? (s.date as LocalDay) : acc), sc.today);
   const rows: DayRow[] = [];
   for (let day = sc.today; day <= lastDate; day = addDays(day, 1)) {
@@ -1106,14 +1128,15 @@ export function daysAhead(input: PlanInput): DayRow[] {
     if (!isStudyDay(day, sc.mask)) continue;
     const open = sc.subjects.filter((s) => s.date === null || (s.date as LocalDay) > day);
     if (open.length === 0) continue;
+    if (day === sc.today && todayEmpty) continue;
     const takesNew = open.some((s) => s.date === null || (s.lastNewDay !== null && day <= s.lastNewDay));
     const kind: DayRow['kind'] = takesNew ? 'study' : 'window';
-    const minutes = kind === 'study' ? perDay : null;
+    const minutes = kind !== 'study' ? null : day === sc.today && todayMin !== null ? todayMin : perDay;
     const ids = open.map((s) => s.id);
     const prev = rows[rows.length - 1];
     const next = prev ? studyDaysBetween(addDays(prev.to, 1), day, sc.mask) === 0 : false; // only days off between
     if (prev && prev.kind === kind && prev.minutes === minutes && next && prev.subjectIds.join() === ids.join()) prev.to = day;
-    else rows.push({ from: day, to: day, kind, minutes, subjectIds: ids });
+    else rows.push({ from: day, to: day, kind, minutes, subjectIds: ids, ...(open.some((s) => withOral.has(s.id)) ? { oral: true as const } : {}) });
   }
   return rows;
 }
