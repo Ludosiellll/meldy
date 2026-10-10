@@ -1,0 +1,41 @@
+/*
+ * /g/<код> (JoinContainerPage.tsx): the sign-in page's frame (.au, .au-bar, .au-card from styles/legacy.css) with one
+ * column in the middle — the invitation, the note about built-in browsers (components/InAppNote), the ways to sign in,
+ * as /join does. Google stays the white button of the sign-in pages: the page's blue pill appears only as the way on
+ * when the link did not open.
+ */
+.gj-main {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  width: 100%;
+  max-width: calc(640px + 2 * var(--au-g));
+  margin: 0 auto;
+  padding: 0 var(--au-g) clamp(16px, 4dvh, 48px);
+}
+.gj-card { width: 100%; }
+.gj-h1 { font-size: clamp(28px, min(3vw, 5dvh), 40px); line-height: 1.1; overflow-wrap: break-word; }
+.gj-meta { margin: 12px 0 0; font-size: 16px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); }
+.gj-oral { margin: 10px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.gj-alert { margin-top: 18px; }
+.gj-signin { margin-top: clamp(18px, 3dvh, 32px); }
+.gj-mail { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 4px; margin: 0; color: var(--sf-muted); }
+.gj-wait { margin: 24px 0 0; font-size: 16px; color: var(--sf-muted); }
+.gj-failed { display: grid; gap: 14px; justify-items: start; margin-top: 4px; }
+.gj-actions { margin: 24px 0 0; }
+.gj-next { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin: 24px 0 0; }
+
+@media (max-width: 380px) {
+  .gj-next .sf-primary,
+  .gj-retry.sf-primary,
+  .gj-actions .sf-primary { gap: 10px; padding-left: 20px; font-size: 16px; }
+}
+@media (max-width: 639px) {
+  .gj { --au-g: 16px; }
+  .gj-main { align-content: start; }
+  .gj-card { padding: 24px 20px; border-radius: 28px; }
+  .gj-retry.sf-primary,
+  .gj-next .sf-primary,
+  .gj-actions .sf-primary { width: 100%; justify-content: space-between; }
+  .gj-next { justify-content: center; }
+}
