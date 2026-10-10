@@ -374,8 +374,9 @@ export function fakeSessions(fdb: FakeDb, options: { now: () => number }) {
     return next;
   }
 
-  function drop(s: Row, after: number, id: string, retry: number | null) {
-    const keep = s.items.map((_, i) => i).filter((i) => !(i > after && s.items[i] === id && (retry === null || s.retry[i] === retry)));
+  /** bot.session_drop: leaves out one question's repeat after `after` (positions up to it keep their meaning). */
+  function drop(s: Row, after: number, id: string, retry: number) {
+    const keep = s.items.map((_, i) => i).filter((i) => !(i > after && s.items[i] === id && s.retry[i] === retry));
     if (keep.length === s.items.length) return;
     s.items = keep.map((i) => s.items[i]);
     s.retry = keep.map((i) => s.retry[i]);
@@ -450,7 +451,8 @@ export function fakeSessions(fdb: FakeDb, options: { now: () => number }) {
       let replaced: Json | null = null;
       for (const old of sessions.values()) {
         if (old.user !== l.userId || old.status !== 'open') continue;
-        close(old, 'abandoned', true, t);
+        // Its waiting answer is recorded as given while the link that started it is still active (as in the flush).
+        close(old, 'abandoned', fdb.links.some((x) => x.id === old.linkId && x.unlinkedAt === null), t);
         save(old);
         replaced = { sid: old.sid, chat_id: old.chatId, message_id: old.messageId };
       }
@@ -622,8 +624,8 @@ export function fakeSessions(fdb: FakeDb, options: { now: () => number }) {
         answer = { status: s.pending?.status, correct: s.pending?.correct, dont_know: s.pending?.dont_know, misclick: false, step: s.pending?.step };
         if (!['saved', 'late', 'duplicate'].includes(String(s.pending?.status))) expect = false;
       }
+      // No repeat after a right answer, a misclick, the doubt (set aside) or an answer the core did not record.
       if (!expect && hasNew) drop(s, pos, cur, curRetry + 1);
-      if (p.doubt) drop(s, pos, cur, null);
       s.pending = null;
       s.pendingAt = null;
       s.position = pos + 1;

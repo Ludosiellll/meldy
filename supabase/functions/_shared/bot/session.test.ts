@@ -228,6 +228,18 @@ test('«Закончить» before any answer: the session is abandoned and the
   assert.match(s.h.labels(s.card)[0][0], /^Начать: 20 вопросов/);
 });
 
+test('«Закончить» twice before any answer (a double tap, «Повторить»): the session ended so — the card again, its keyboard kept', async () => {
+  const s = await started();
+  await s.at('f', 0);
+  const card = s.h.message(s.card)!.text;
+  s.h.tg.reset();
+  await s.at('f', 0);
+  assert.deepEqual(s.h.toasts(), ['']);
+  assert.ok(!s.h.tg.methods().includes('editMessageReplyMarkup'), 'the card keeps «Начать»');
+  assert.equal(s.h.message(s.card)!.text, card);
+  assert.match(s.h.labels(s.card)[0][0], /^Начать: 20 вопросов/);
+});
+
 test('the tick\'s flush (30 minutes): the waiting answer is recorded as given; «Нажали не туда?» is gone, «Дальше» still repeats it', async () => {
   const s = await started();
   await s.at(String(s.wrong(0)), 0);
@@ -269,6 +281,19 @@ test('«Повторить» after a lost reply: the same data again finds the a
   assert.deepEqual(s.h.toasts(), ['Верно.'], 'the first attempt was recorded: «Верно.»');
   assert.match(words(s.h.message(s.card)!.text), /^Компьютерные сети · 2 из 20/);
   assert.equal(s.h.fs.answers.length, 1);
+});
+
+test('the last answer again (a double tap, «Повторить» after a lost reply): ended with that answer — the record (I1), «Верно.»', async () => {
+  const s = await started();
+  for (let pos = 0; pos < 20; pos += 1) await s.at(String(s.key(pos)), pos);
+  const record = s.h.message(s.card)!.text;
+  s.h.tg.reset();
+  await s.at(String(s.key(19)), 19);
+  assert.deepEqual(s.h.toasts(), ['Верно.'], 'the first attempt was recorded');
+  assert.equal(s.h.message(s.card)!.text, record);
+  assert.equal(s.h.labels(s.card).at(-1)![0], 'Готово', 'the record keeps its keyboard');
+  assert.ok(!s.h.tg.methods().includes('editMessageReplyMarkup'));
+  assert.equal(s.h.fs.answers.length, 20);
 });
 
 test('keep_order and «все перечисленные»: letters in the file\'s order; a shuffle keeps «Все перечисленные» last', async () => {
@@ -468,6 +493,22 @@ test('«Продолжить» after midnight: «Это занятие уже з
   assert.deepEqual(s.h.toasts(), [W.SESSION_OVER]);
   assert.deepEqual(s.h.tg.of('editMessageReplyMarkup').map((c) => c.params.reply_markup), [{ inline_keyboard: [] }]);
   assert.equal(s.h.fs.sessions.get(s.sid)!.status, 'abandoned');
+});
+
+test('«Продолжить» of a /today card after the session ended in its own message: the line; the card keeps its keyboard', async () => {
+  const s = await started();
+  await s.at(String(s.key(0)), 0);
+  await s.h.post({ update_id: 777003, message: { message_id: 952, date: Math.floor(s.h.now / 1000), chat: { id: TG, type: 'private' }, from: { id: TG, is_bot: false }, text: '/today' } });
+  const cardMessage = s.h.tg.of('sendMessage').at(-1)!;
+  const todayCard = [...s.h.tg.messages.values()].find((m) => m.text === cardMessage.params.text)!.messageId;
+  const resume = cardMessage.params.reply_markup.inline_keyboard.flat().find((b: { text: string }) => b.text.startsWith('Продолжить'));
+  for (let pos = 1; pos < 20; pos += 1) await s.at(String(s.key(pos)), pos);
+  assert.equal(s.row().status, 'finished');
+  s.h.tg.reset();
+  await s.h.press(resume.callback_data, todayCard);
+  assert.deepEqual(s.h.toasts(), [W.SESSION_OVER]);
+  assert.deepEqual(s.h.tg.methods(), ['answerCallbackQuery'], 'another message: nothing edited');
+  assert.ok(s.h.message(todayCard)!.markup);
 });
 
 test('one open session: «Начать» on a new card closes the one in another message, which keeps its record without keys or buttons', async () => {

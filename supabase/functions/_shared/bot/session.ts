@@ -605,8 +605,15 @@ export function createSession(options: SessionOptions = {}): SessionPort {
         if (tap.messageId) await put(ctx, api, tap.tgUserId, tap.chatId, tap.messageId, examGoneOut(r.examTitle ?? row?.examTitle ?? ''), null);
         return;
       case 'ended':
+        if (here && row?.status === 'finished') {
+          // The press was the session's last step (a double tap, «Повторить» after a lost reply): its record (I1).
+          await tap.answer(r.answer && r.answer.correct && !r.answer.misclick ? S.right : undefined);
+          await showRecord(ctx, api, tap.tgUserId, tap.chatId, tap.messageId, row, 'done');
+          return;
+        }
         await tap.answer(W.SESSION_OVER);
-        if (tap.messageId) await editKeyboard(ctx.tg, { chatId: tap.chatId, messageId: tap.messageId, keyboard: null }).catch(() => undefined);
+        // The session's own message keeps no dead buttons; another one (the /today card of several exams) keeps its own.
+        if (here && tap.messageId) await editKeyboard(ctx.tg, { chatId: tap.chatId, messageId: tap.messageId, keyboard: null }).catch(() => undefined);
         return;
       case 'repeat':
         // The question is answered already (a double tap): the first answer stands; the screen shows it.
@@ -832,7 +839,10 @@ export function createSession(options: SessionOptions = {}): SessionPort {
         }
         case 'finish': {
           const r = await api.finish(tg, sid);
-          if (r.status !== 'ok' || !r.session) return refused(ctx, api, tap, r);
+          // Closed with nothing answered, in this message (a double tap, «Повторить» after a lost reply): as the first time.
+          const unanswered = r.status === 'ended' && r.session?.status === 'abandoned' && messageId !== null && r.session.messageId === messageId
+            && r.session.counts.questions + r.session.counts.retries === 0;
+          if ((r.status !== 'ok' && !unanswered) || !r.session) return refused(ctx, api, tap, r);
           await tap.answer();
           const row = r.session;
           if (row.status === 'abandoned') {
