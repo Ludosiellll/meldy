@@ -7,7 +7,7 @@ import { failureName, transient } from './ledger.ts';
 import { DbError } from './db.ts';
 import { setLogSink } from './log.ts';
 import { TelegramError } from './tg.ts';
-import { visibleText } from './html.ts';
+import { typo, visibleText } from './html.ts';
 import { harness } from './fixtures/harness.ts';
 import { TG, USER } from './fixtures/scenario.ts';
 import { press, privateText } from './fixtures/updates.ts';
@@ -84,10 +84,10 @@ test('a press whose work fails, or whose ledger fails: the line «Meldy сейч
   h.linked();
   h.fdb.fail('bot_whoami', new DbError('bot_whoami', 0, 'timeout'));
   assert.equal((await h.post(press('st|time'))).status, 200);
-  assert.equal(h.tg.of('answerCallbackQuery').at(-1)!.params.text, W.DB_DOWN_TAP);
+  assert.equal(h.tg.of('answerCallbackQuery').at(-1)!.params.text, typo(W.DB_DOWN_TAP));
   h.fdb.fail('bot_update_begin', new DbError('bot_update_begin', 0, 'timeout'));
   assert.equal((await h.post(press('st|time'))).status, 200);
-  assert.equal(h.tg.of('answerCallbackQuery').at(-1)!.params.text, W.DB_DOWN_TAP);
+  assert.equal(h.tg.of('answerCallbackQuery').at(-1)!.params.text, typo(W.DB_DOWN_TAP));
   // Answered first, failed later (the edit): the press is not answered twice.
   h.tg.fail('editMessageText', { kind: '403' });
   const before = h.tg.of('answerCallbackQuery').length;

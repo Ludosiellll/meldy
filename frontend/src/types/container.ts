@@ -360,7 +360,8 @@ export interface ContainerRpc {
   container_link_revoke: { args: { p_link_id: Uuid }; returns: { id: Uuid; revoked_at: string } };
   container_link_preview: { args: { p_code: string }; returns: LinkPreview };
   container_join: { args: { p_code: string }; returns: { container_id: Uuid; joined: boolean; oral_subjects?: number } };
-  container_oral_codes: { args: { p_container_id: Uuid }; returns: { status: 'open' | 'closed'; subjects: Array<{ subject_id: Uuid; title: string; code: string; existing_exam_id: Uuid | null }> } };
+  /** closed: no new copies; a copy the member already has is still listed, without a code (20261010110000). */
+  container_oral_codes: { args: { p_container_id: Uuid }; returns: { status: 'open' | 'closed'; subjects: Array<{ subject_id: Uuid; title: string; code: string | null; existing_exam_id: Uuid | null }> } };
   container_bind_copy: { args: { p_subject_id: Uuid; p_exam_id: Uuid }; returns: { subject_id: Uuid; exam_id: Uuid } };
   container_leave: { args: { p_container_id: Uuid }; returns: { container_id: Uuid; left: true } };
   container_members_list: { args: { p_container_id: Uuid }; returns: MemberRow[] };

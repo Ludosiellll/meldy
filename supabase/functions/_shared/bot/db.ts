@@ -14,7 +14,7 @@
  * `Authorization: Bearer` (Supabase docs, «Migrating to publishable and secret API keys»). The responses come gzipped
  * (Deno's fetch asks for it and decompresses).
  */
-import type { ContainersOverview, LocalDay, PlanInputsWire } from '../plan/container.ts';
+import type { ContainersOverview, LocalDay, PlanInputsWire, PlanItem } from '../plan/container.ts';
 import type { FetchLike } from './tg.ts';
 
 export type BotRpcName = `bot_${string}`;
@@ -87,7 +87,8 @@ export type ChatEvent = 'stop' | 'blocked' | 'unblocked';
 /**
  * What `bot_settings` may change. `remind_at` 'H:MM' (07:00–22:59; turns the plan on unless `remind_on` is given);
  * `paused_until` after today and within 366 days, or null; `prompt` or null; `hint: true` asks whether S6 may go now
- * (true at most once an hour). `{}` only marks the user as seen (K2 «Да»).
+ * (true at most once an hour); `ask` = the answer to the last K2 (kept for the pilot's numbers). `{}` only marks the
+ * user as seen.
  */
 export interface SettingsPatch {
   remind_at?: string;
@@ -96,6 +97,7 @@ export interface SettingsPatch {
   paused_until?: LocalDay | null;
   prompt?: { kind: Prompt['kind']; prompt_id: number; target_id: number | null; from: Prompt['from']; at: number } | null;
   hint?: true;
+  ask?: 'yes' | 'pause' | 'stop';
 }
 
 export type SettingsResult =
@@ -122,6 +124,8 @@ export interface ExamMeta {
   createdAt: string | null;
   /** Answered items whose key the author changed since («Автор исправил ключ…», members only): the subjects' `stale`. */
   keyChanges: number;
+  /** A subject has an oral part: its questions are planned on the site («Устные — в Meldy»). */
+  hasOral: boolean;
 }
 
 /** Everything a card needs, read once: bot_today, or bot_reminder_context in the tick. */
@@ -131,6 +135,11 @@ export interface Today {
   now: number;
   /** plan_inputs_for the user: every exam in one wire (decoded per exam with the copied planInputs.ts). */
   wire: PlanInputsWire | null;
+  /**
+   * The oral questions of every exam as the plan's items. Empty until package T11 (`bot_oral_inputs` + the container's
+   * `oralParts.ts`) fills it: card.ts `planInputOf` is the one place a plan input is built, and it passes these on.
+   */
+  oral: PlanItem[];
   exams: ExamMeta[];
   session: OpenSession | null;
   /** Today's bot.days row: the card and the last summary. */
@@ -158,6 +167,7 @@ export interface AfterDateRow {
   chatId: number;
   localDay: LocalDay;
   containerId: string;
+  /** null: the exam was deleted meanwhile (close the row as skipped, `gone`). */
   exam: {
     title: string;
     examDate: LocalDay | null;
@@ -167,12 +177,15 @@ export interface AfterDateRow {
     answers: number;
     twoDays: number;
     keyed: number;
-  };
+  } | null;
 }
 
 export interface BotStatus {
   configured: boolean;
   botUsername: string | null;
+  functionRegion: string | null;
+  /** every_minute, or when_due once this month's calls pass 60 % of the free plan (spec §10). */
+  tickMode: string | null;
   lastSetupAt: string | null;
   lastTickAt: string | null;
   lastTick: unknown;
@@ -207,6 +220,12 @@ export interface BotDb {
   deliverySending(deliveryId: number): Promise<boolean>;
   /** sent (+ message id) | failed | skipped (+ a short reason). A sent K1 returns an unused /today card of that day to delete. */
   deliveryDone(deliveryId: number, status: 'sent' | 'failed' | 'skipped', messageId?: number | null, error?: string | null): Promise<{ prevCardMessageId: number | null }>;
+  /**
+   * A 429 after `deliverySending` (the card, K2, K3, the night's close): Telegram did nothing. true → back to `claimed`,
+   * a later tick takes it again after 10 minutes (at most 3 tries); false → not in `sending`, or no longer due and closed
+   * as failed by the database. Nothing else to call either way; the step stops.
+   */
+  deliveryRetry(deliveryId: number, error?: string): Promise<boolean>;
   claimDayClose(limit: number): Promise<DayCloseRow[]>;
   claimAfterDate(limit: number): Promise<AfterDateRow[]>;
 }
@@ -309,6 +328,7 @@ export function examMeta(overview: unknown): ExamMeta[] {
     id: String(c.id ?? ''),
     createdAt: typeof c.created_at === 'string' ? c.created_at : null,
     keyChanges: c.role === 'member' ? (Array.isArray(c.subjects) ? c.subjects : []).reduce((sum, s) => sum + (num(s.stale) ?? 0), 0) : 0,
+    hasOral: (Array.isArray(c.subjects) ? c.subjects : []).some((s) => s.has_oral === true),
   })).filter((e) => e.id !== '');
 }
 
@@ -328,6 +348,7 @@ export function toToday(raw: unknown, tgUserId: number): Today | null {
     link,
     now: link.now,
     wire: toWire(r.plan),
+    oral: [],
     exams: examMeta(r.overview),
     session: r.session ? toSession(r.session) : null,
     day: d ? { cardMessageId: num(d.card_message_id), cardUsed: d.card_used === true, lastMessageId: num(d.last_message_id) } : null,
@@ -364,7 +385,7 @@ export function toReminderContext(raw: unknown, deliveryId: number): ReminderCon
         deliveryId,
         chatId,
         localDay: day(r.local_day) ?? link.today,
-        today: { link, now: link.now, wire: toWire(r.plan), exams: examMeta(r.overview), session: null, day: null },
+        today: { link, now: link.now, wire: toWire(r.plan), oral: [], exams: examMeta(r.overview), session: null, day: null },
       };
     }
   }
@@ -448,6 +469,8 @@ export function createDb(options: DbOptions): BotDb {
       return {
         configured: r.configured === true,
         botUsername: str(r.bot_username),
+        functionRegion: str(r.function_region),
+        tickMode: str(r.tick_mode),
         lastSetupAt: str(r.last_setup_at),
         lastTickAt: str(r.last_tick_at),
         lastTick: r.last_tick ?? null,
@@ -497,6 +520,9 @@ export function createDb(options: DbOptions): BotDb {
       }));
       return { prevCardMessageId: num(r.prev_card_message_id) };
     },
+    async deliveryRetry(deliveryId, error = '429') {
+      return (await rpc<unknown>('bot_delivery_retry', { p_delivery_id: deliveryId, p_error: error.slice(0, 200) })) === true;
+    },
     async claimDayClose(limit) {
       return rows(await rpc('bot_claim_day_close', { p_limit: limit })).map((r) => ({
         deliveryId: num(r.delivery_id) ?? 0,
@@ -508,24 +534,27 @@ export function createDb(options: DbOptions): BotDb {
     },
     async claimAfterDate(limit) {
       return rows(await rpc('bot_claim_after_date', { p_limit: limit })).map((r) => {
-        const e = obj(r.exam);
+        const e = r.exam && typeof r.exam === 'object' ? obj(r.exam) : null;
+        const lastDate = e ? day(e.last_date) ?? day(e.exam_date) : null;
         return {
           deliveryId: num(r.delivery_id) ?? 0,
           chatId: num(r.chat_id) ?? 0,
           localDay: day(r.local_day) ?? '',
-          containerId: str(r.container_id) ?? str(e.container_id) ?? '',
-          exam: {
-            title: str(e.title) ?? '',
-            examDate: day(e.exam_date),
-            lastDate: day(e.last_date) ?? day(e.exam_date) ?? '',
-            firstPlanDay: day(e.first_plan_day),
-            activeDays: num(e.active_days) ?? 0,
-            answers: num(e.answers) ?? 0,
-            twoDays: num(e.two_days) ?? 0,
-            keyed: num(e.keyed) ?? 0,
-          },
+          containerId: str(r.container_id) ?? (e ? str(e.container_id) : null) ?? '',
+          exam: e && lastDate
+            ? {
+                title: str(e.title) ?? '',
+                examDate: day(e.exam_date),
+                lastDate,
+                firstPlanDay: day(e.first_plan_day),
+                activeDays: num(e.active_days) ?? 0,
+                answers: num(e.answers) ?? 0,
+                twoDays: num(e.two_days) ?? 0,
+                keyed: num(e.keyed) ?? 0,
+              }
+            : null,
         };
-      }).filter((r) => r.deliveryId > 0 && r.chatId > 0 && r.containerId !== '' && r.exam.lastDate !== '');
+      }).filter((r) => r.deliveryId > 0 && r.chatId > 0);
     },
   };
 }

@@ -2,12 +2,12 @@
 // behind them (the lead exam as «Сегодня» picks it, the plan's own words, the window line only on its eve).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, planNow, planSentence, timeText } from './card.ts';
+import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, planInputOf, planNow, planSentence, timeText } from './card.ts';
 import { decode } from './codec.ts';
 import { lintMessage } from './lint.ts';
 import { visibleText } from './html.ts';
 import { planLine } from '../plan/words.ts';
-import { AUTUMN, CID, CID2, DAY, itemId, linkOf, NOW, TG, TITLE, TITLE2, todayOf } from './fixtures/scenario.ts';
+import { AUTUMN, CID, CID2, DAY, itemId, linkOf, NOW, SUBJECT_IDS, TG, TITLE, TITLE2, todayOf } from './fixtures/scenario.ts';
 import { matchSnapshots, type Shot } from './fixtures/snapshot.ts';
 import type { CardResult } from './card.ts';
 import type { Today } from './db.ts';
@@ -48,7 +48,8 @@ function variants(): Record<string, CardResult> {
       today: { firstAt: Math.floor((NOW - 3 * 3_600_000) / 1000), doneSec: 2700 } }]), 'today', SITE),
     k1_no_date: dayCard(todayOf([{ ...AUTUMN, date: null }]), 'reminder', SITE),
     k1_two_exams: dayCard(todayOf([AUTUMN, { id: CID2, title: TITLE2, date: '2027-01-12', started: 30 }]), 'reminder', SITE),
-    k1_keys_fixed: dayCard(todayOf([AUTUMN], { exams: [{ id: CID, createdAt: null, keyChanges: 2 }] }), 'reminder', SITE),
+    k1_keys_fixed: dayCard(todayOf([AUTUMN], { exams: [{ id: CID, createdAt: null, keyChanges: 2, hasOral: false }] }), 'reminder', SITE),
+    k1_oral_on_site: dayCard(todayOf([AUTUMN], { exams: [{ id: CID, createdAt: null, keyChanges: 0, hasOral: true }] }), 'reminder', SITE),
     k1_no_exam: dayCard(todayOf(null), 'today', SITE),
     k1_after_date: dayCard(todayOf([AUTUMN], {}, at(2026, 11, 5)), 'today', SITE),
   };
@@ -137,9 +138,23 @@ test('the lead exam: nearest date with work today; exam day first; a done day on
   const done = { id: CID2, title: TITLE2, date: '2026-10-20', perSubject: 10, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3_600_000) / 1000), doneSec: 2700 } };
   assert.equal(dayView(todayOf([AUTUMN, done])).main!.id, CID, 'the done exam leads only when nothing else has work');
   const sameDay = todayOf([AUTUMN, { ...AUTUMN, id: CID2, title: TITLE2 }]);
-  sameDay.exams = [{ id: CID, createdAt: '2026-10-01T00:00:00Z', keyChanges: 0 }, { id: CID2, createdAt: '2026-10-02T00:00:00Z', keyChanges: 0 }];
+  sameDay.exams = [{ id: CID, createdAt: '2026-10-01T00:00:00Z', keyChanges: 0, hasOral: false }, { id: CID2, createdAt: '2026-10-02T00:00:00Z', keyChanges: 0, hasOral: false }];
   assert.equal(dayView(sameDay).main!.id, CID2, 'ties: the newer exam');
   assert.equal(dayView(todayOf([AUTUMN, winterSoon]), CID).main!.id, CID, '«Другой экзамен» focuses');
+});
+
+test('«Другой экзамен» offers what the site\'s «Сегодня» lists: not an exam without questions (its card would say there is no plan)', () => {
+  const empty = { id: CID2, title: TITLE2, date: '2026-10-25', perSubject: 0 };
+  const today = todayOf([AUTUMN, empty]);
+  const view = dayView(today);
+  assert.equal(view.exams.find((e) => e.id === CID2)!.plan.state, 'empty');
+  assert.deepEqual([view.main!.id, view.listed.map((e) => e.id)], [CID, [CID]]);
+  assert.ok(!dayCard(today, 'today', SITE).out.keyboard!.flat().some((b) => b.text === 'Другой экзамен'));
+  assert.equal(dayView(today, CID2).main!.id, CID, 'a stale focus on it falls back to the lead');
+  const done = { id: CID2, title: TITLE2, date: '2026-10-20', perSubject: 10, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3_600_000) / 1000), doneSec: 2700 } };
+  assert.deepEqual(dayView(todayOf([AUTUMN, done])).listed.map((e) => e.id), [CID2, CID], 'a done day is still offered');
+  assert.ok(dayCard(todayOf([AUTUMN, done]), 'today', SITE).out.keyboard!.flat().some((b) => b.text === 'Другой экзамен'));
+  assert.deepEqual(dayView(todayOf([empty])).main!.plan.state, 'empty', 'alone, it is the «no plan» card');
 });
 
 test('M3\'s plan line and K2 use the same plan; K2 is silent and has one blue', () => {
@@ -164,4 +179,20 @@ test('K3: «За N дней» counts from the first plan day to the last date, a
   assert.equal(lines[1].replace(/ /g, ' '), 'За 26 дней — 21 с занятиями, 6 480 ответов.');
   assert.equal(lines[2].replace(/ /g, ' '), '902 из 960 — верно в два разных дня.');
   assert.equal(k3.out.keyboard![0][0].url, `${SITE}/exams/c/${CID}/settings`);
+});
+
+test('the oral seam: planInputOf passes today.oral (empty until T11) into the copied decoder, for every card', () => {
+  const today = todayOf([AUTUMN]);
+  assert.deepEqual(today.oral, []);
+  assert.ok(planInputOf(today, CID).items.every((item) => item.f === 't'));
+  const oral = Array.from({ length: 8 }, (_, i) => ({
+    id: `oral-${i}`, s: SUBJECT_IDS[0], f: 'o' as const, tp: null, o: i + 1, l: [], m: { sc: null, rating: 0 as const, ac: null, prepared: true },
+  }));
+  const withOral = { ...today, oral };
+  assert.equal(planInputOf(withOral, CID).items.filter((item) => item.f === 'o').length, 8);
+  assert.equal(dayView(withOral).main!.plan.figure.inPlan, 968, 'the oral questions count in «из N»');
+  const fresh = { ...todayOf([{ id: CID, title: TITLE, date: '2026-11-03' }]), oral };
+  assert.ok(dayView(fresh).main!.plan.counts.oral > 0, 'a fresh exam plans new oral questions too');
+  assert.match(visibleText(dayCard(fresh, 'reminder', SITE).out.text).replace(/\u00a0/g, ' '), /устн/);
+  assert.throws(() => planInputOf({ ...today, wire: null }, CID));
 });

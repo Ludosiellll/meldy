@@ -27,6 +27,7 @@ export interface ExamDay {
   daysLeft: number | null;
   createdAt: string | null;
   keyChanges: number;
+  hasOral: boolean;
   plan: DayPlan;
   input: PlanInput;
 }
@@ -38,6 +39,11 @@ export interface DayView {
   main: ExamDay | null;
   /** Other exams with something to do today, nearest first. */
   others: ExamDay[];
+  /**
+   * What «Другой экзамен» offers, nearest first: the shown exam and those the site's «Сегодня» lists (work today, the
+   * exam day, or today's work done). Not an exam without questions: its card would say there is no exam with a plan.
+   */
+  listed: ExamDay[];
 }
 
 const sentence = (text: string) => (/[.?…]$/.test(text) ? text : `${text}.`);
@@ -51,16 +57,25 @@ function byDate(a: ExamDay, b: ExamDay): number {
   return ca > cb ? -1 : ca < cb ? 1 : 0;
 }
 
+/**
+ * THE one place a plan input is built (the card, M3, S1, the reminder's context, and T6's session start): the copied
+ * decoder over `plan_inputs` for one exam, in the link's zone, at the server's clock, with `today.oral` — the oral
+ * questions, empty until package T11 supplies them. Throws when the wire has no such exam.
+ */
+export function planInputOf(today: Today, containerId: string): PlanInput {
+  if (!today.wire) throw new Error('planInputOf: no plan input');
+  return decodePlanInputs(today.wire, { containerId, tz: today.link.tz, now: today.now, pending: [], oral: today.oral ?? [] });
+}
+
 /** Every exam of the user planned for today, and the one the card leads with (`focus`: «Другой экзамен»). */
 export function dayView(today: Today, focus?: string | null): DayView {
   const wire = today.wire;
-  const tz = today.link.tz;
   const exams: ExamDay[] = [];
   let day = today.link.today;
   if (wire && Array.isArray(wire.containers)) {
     wire.containers.forEach((container, index) => {
       try {
-        const input = decodePlanInputs(wire, { containerId: container.id, tz, now: today.now, pending: [], oral: [] });
+        const input = planInputOf(today, container.id);
         const plan = planDay(input);
         day = plan.day;
         const dates = wire.subjects.filter((s) => s.container === index).map((s) => s.test_date).filter((d): d is string => Boolean(d));
@@ -76,6 +91,7 @@ export function dayView(today: Today, focus?: string | null): DayView {
           daysLeft: date === null ? null : daysBetween(plan.day, date),
           createdAt: meta?.createdAt ?? null,
           keyChanges: meta?.keyChanges ?? 0,
+          hasOral: meta?.hasOral ?? false,
           plan,
           input,
         });
@@ -87,10 +103,12 @@ export function dayView(today: Today, focus?: string | null): DayView {
   const shown = exams.filter((e) => e.plan.state !== 'after');
   const active = shown.filter((e) => e.plan.state === 'study' || e.plan.state === 'exam_today').sort(byDate);
   const quiet = shown.filter((e) => e.plan.state === 'done' || e.plan.state === 'nothing' || e.plan.state === 'empty').sort(byDate);
-  const focused = focus ? shown.find((e) => e.id === focus) ?? null : null;
+  const listable = (e: ExamDay) => e.plan.state === 'study' || e.plan.state === 'exam_today' || e.plan.state === 'done';
+  const focused = focus ? shown.find((e) => e.id === focus && listable(e)) ?? null : null;
   const main = focused ?? active[0] ?? quiet[0] ?? null;
   const others = shown.filter((e) => e !== main && e.plan.state === 'study').sort(byDate);
-  return { day, exams, main, others };
+  const listed = shown.filter((e) => e === main || listable(e)).sort(byDate);
+  return { day, exams, main, others, listed };
 }
 
 /** «Сегодня около 45 минут: 30 новых и 60 знакомых.» with the skip and eve forms of the table. */
@@ -210,6 +228,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
       keyboard.push(row({ text: lineText(more), data: encode({ kind: 'go', cid, mode: 'x' }) }));
     }
     if (noDate) keyboard.push(row({ text: W.SET_DATE, url: url(site, W.PATH.examSettings(cid)) }));
+    // Oral questions are planned on the site (the bot's plan input has the test part only): a quiet way there.
+    if (main.hasOral) keyboard.push(row({ text: W.ORAL_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
   }
   for (const other of view.others) {
     const sec = other.plan.counts.leftSec > 0 ? other.plan.counts.leftSec : other.plan.counts.estSec;
@@ -219,7 +239,7 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     if (errors > 0 && plan.state !== 'exam_today') keyboard.push(row({ text: W.onlyErrors(errors), data: encode({ kind: 'go', cid, mode: 'e' }) }));
     keyboard.push(row({ text: W.OPEN_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
   }
-  if (view.exams.filter((e) => e.plan.state !== 'after').length > 1) keyboard.push(row({ text: W.OTHER_EXAM, data: encode({ kind: 'exam', cid: null }) }));
+  if (view.listed.length > 1) keyboard.push(row({ text: W.OTHER_EXAM, data: encode({ kind: 'exam', cid: null }) }));
 
   return { out: { text: lines(...text), keyboard }, send: plan.state === 'study', state: plan.state, examId: cid, user };
 }
@@ -229,10 +249,7 @@ const ellipsize = (text: string, max: number) => ([...text].length <= max ? text
 /** «Другой экзамен»: the exams one per row and «‹ Назад» (a keyboard edit). */
 export function examList(today: Today): Keyboard {
   const view = dayView(today);
-  const keyboard: Keyboard = view.exams
-    .filter((e) => e.plan.state !== 'after')
-    .sort(byDate)
-    .map((e) => row({ text: ellipsize(e.title, 26), data: encode({ kind: 'exam', cid: e.id }) }));
+  const keyboard: Keyboard = view.listed.map((e) => row({ text: ellipsize(e.title, 26), data: encode({ kind: 'exam', cid: e.id }) }));
   if (view.main) keyboard.push(row({ text: W.BACK, data: encode({ kind: 'exam', cid: view.main.id }) }));
   return keyboard;
 }
@@ -266,7 +283,7 @@ export function askCard(today: Today, link: Link): CardResult {
 }
 
 /** K3 after the exam's (last test) date: the last thing the bot writes about it (silent). «За N дней» = last − first + 1. */
-export function afterDateCard(row0: AfterDateRow, site: string): CardResult {
+export function afterDateCard(row0: AfterDateRow & { exam: NonNullable<AfterDateRow['exam']> }, site: string): CardResult {
   const e = row0.exam;
   const days = e.firstPlanDay ? daysBetween(e.firstPlanDay, e.lastDate) + 1 : null;
   return {

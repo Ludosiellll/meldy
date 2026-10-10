@@ -116,6 +116,8 @@ export interface StatusBody {
   } | null;
   configured: boolean | null;
   bot_username: string | null;
+  /** every_minute, or when_due past 60 % of the free plan's calls this month. */
+  tick_mode: string | null;
   last_setup_at: string | null;
   last_tick_at: string | null;
   calls: { month: string | null; updates: number; ticks: number; total: number } | null;
@@ -152,6 +154,7 @@ export async function readStatus(ctx: Ctx, deps: { functionUrl: string; region: 
       : null,
     configured: status ? status.configured : null,
     bot_username: status ? status.botUsername : null,
+    tick_mode: status ? status.tickMode : null,
     last_setup_at: status ? status.lastSetupAt : null,
     last_tick_at: status ? status.lastTickAt : null,
     calls: status ? status.calls : null,

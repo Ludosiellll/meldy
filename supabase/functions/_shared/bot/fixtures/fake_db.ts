@@ -3,8 +3,9 @@
 // (private_only, slow_down after 10 failures an hour, invalid, used, expired by the message date, the same code from
 // the same Telegram → linked again, the newest link wins on both sides); settings answered with statuses, the pending
 // prompt and the once-an-hour hint; «seen» marks; the day's cards; the deliveries' at-most-once states (claimed →
-// sending → sent | failed | skipped; sending for 10 minutes → unknown, never sent again; claimed and never tried →
-// taken again after 10 minutes, at most 3 tries) and K2 (three cards in a row with nothing since).
+// sending → sent | failed | skipped; sending for 10 minutes → unknown, never sent again; claimed and never tried, or
+// sent back by bot_delivery_retry after a 429 → taken again after 10 minutes, at most 3 tries) and K2 (three cards in a
+// row with nothing since).
 import type {
   AfterDateRow, BotDb, BotRpcName, BotStatus, ChatEvent, ClaimResult, DayCloseRow, Link, OpenSession, Prompt, ReminderContext,
   ReminderRow, SettingsPatch, SettingsResult, Today, UpdateBegin, Who,
@@ -46,6 +47,7 @@ interface Delivery {
   sentAt: number | null;
   messageId: number | null;
   error: string | null;
+  answer?: 'yes' | 'pause' | 'stop';
 }
 
 interface DayRow { cardMessageId: number | null; cardUsed: boolean; lastMessageId: number | null; closedAt: number | null }
@@ -53,7 +55,7 @@ interface DayRow { cardMessageId: number | null; cardUsed: boolean; lastMessageI
 /** What bot_today / bot_reminder_context read for a user: the plan wire, the exams' meta, the open session. */
 export interface UserData {
   wire?: PlanInputsWire | null;
-  exams?: Array<{ id: string; createdAt?: string | null; keyChanges?: number }>;
+  exams?: Array<{ id: string; createdAt?: string | null; keyChanges?: number; hasOral?: boolean }>;
   session?: OpenSession | null;
   /** Moments of answers on the site or in the bot (ms), for «recently active» and K2. */
   answers?: number[];
@@ -75,7 +77,7 @@ export function fakeDb(options: { now: () => number }) {
   const deliveries: Delivery[] = [];
   const days = new Map<string, DayRow>();
   const dayCloseQueue: Array<{ linkId: number; localDay: string }> = [];
-  const afterDateQueue: Array<{ linkId: number; containerId: string; exam: AfterDateRow['exam'] }> = [];
+  const afterDateQueue: Array<{ linkId: number; containerId: string; exam: AfterDateRow['exam'] }> = [];  // exam null: deleted
   const beats: Array<Record<string, number>> = [];
   const setups: Array<Record<string, unknown>> = [];
   const extraRpc = new Map<string, (args: Record<string, unknown>) => unknown>();
@@ -94,8 +96,8 @@ export function fakeDb(options: { now: () => number }) {
   const byTg = (tg: number) => active().find((l) => l.tgUserId === tg) ?? null;
   const dayKey = (l: LinkRow, d: string) => `${l.id}|${d}`;
   const answersOf = (l: LinkRow) => users.get(l.userId)?.answers ?? [];
-  const recentlyActive = (l: LinkRow, t: number) =>
-    (l.lastSeenAt !== null && l.lastSeenAt > t - 30 * MIN) || answersOf(l).some((a) => a > t - 30 * MIN && a <= t);
+  /** An answer (site or bot) in the last 30 minutes delays the card; an action in the bot does not (T1 90e15a5). */
+  const recentlyActive = (l: LinkRow, t: number) => answersOf(l).some((a) => a > t - 30 * MIN && a <= t);
   const answeredSince = (l: LinkRow, at: number) => answersOf(l).some((a) => a > at);
 
   function linkShape(l: LinkRow): Link {
@@ -117,7 +119,8 @@ export function fakeDb(options: { now: () => number }) {
       link,
       now: link.now,
       wire: data.wire ?? null,
-      exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0 })),
+      oral: [],
+      exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0, hasOral: e.hasOral ?? false })),
       session: withSession ? data.session ?? null : null,
       day: withSession && row ? { cardMessageId: row.cardMessageId, cardUsed: row.cardUsed, lastMessageId: row.lastMessageId } : null,
     };
@@ -205,6 +208,8 @@ export function fakeDb(options: { now: () => number }) {
       return {
         configured: setups.length > 0,
         botUsername: setups.length > 0 ? String(setups[setups.length - 1].username) : null,
+        functionRegion: setups.length > 0 ? String(setups[setups.length - 1].functionRegion) : null,
+        tickMode: 'every_minute',
         lastSetupAt: lastSetupAt === null ? null : new Date(lastSetupAt).toISOString(),
         lastTickAt: lastTickAt === null ? null : new Date(lastTickAt).toISOString(),
         lastTick: beats.at(-1) ?? null,
@@ -288,7 +293,7 @@ export function fakeDb(options: { now: () => number }) {
       const l = byTg(tgUserId);
       if (!l) return { status: 'unlinked' };
       for (const key of Object.keys(patch)) {
-        if (!['remind_at', 'remind_on', 'tz', 'paused_until', 'prompt', 'hint'].includes(key)) return { status: 'invalid', field: key, reason: 'unknown' };
+        if (!['remind_at', 'remind_on', 'tz', 'paused_until', 'prompt', 'hint', 'ask'].includes(key)) return { status: 'invalid', field: key, reason: 'unknown' };
       }
       let remindAt = l.remindAt;
       let remindOn: boolean | undefined = patch.remind_on;
@@ -315,8 +320,13 @@ export function fakeDb(options: { now: () => number }) {
         l.prompt = patch.prompt === null ? null
           : { kind: patch.prompt.kind, promptId: patch.prompt.prompt_id, targetId: patch.prompt.target_id, from: patch.prompt.from, at: patch.prompt.at };
       }
+      if (patch.ask !== undefined && !['yes', 'pause', 'stop'].includes(patch.ask)) return { status: 'invalid', field: 'ask', reason: 'format' };
       if (hint) l.hintAt = now();
       l.lastSeenAt = now();
+      if (patch.ask) {
+        const lastAsk = deliveries.filter((d) => d.linkId === l.id && d.kind === 'ask' && (d.status === 'sent' || d.status === 'unknown')).at(-1);
+        if (lastAsk) lastAsk.answer = patch.ask;
+      }
       return { status: 'ok', link: linkShape(l), hint };
     },
 
@@ -436,18 +446,54 @@ export function fakeDb(options: { now: () => number }) {
       }
       return { prevCardMessageId: null };
     },
+    async deliveryRetry(deliveryId: number, error = '429') {
+      record('bot_delivery_retry', { deliveryId, error });
+      const d = deliveries.find((x) => x.id === deliveryId);
+      if (!d || d.status !== 'sending') return false;
+      const l = links.find((x) => x.id === d.linkId);
+      const t = now();
+      const today = l ? localDay(t, l.tz) : '';
+      const due = Boolean(l) && l!.unlinkedAt === null && l!.blockedAt === null && d.attempts < 3
+        && (d.kind === 'day_close'
+          ? d.localDay >= addDays(today, -2)
+          : l!.remindOn && (l!.pausedUntil === null || l!.pausedUntil <= today) && d.localDay === today && inWindow(l!, t));
+      d.error = error.slice(0, 200) || '429';
+      if (due) {
+        d.status = 'claimed';
+        d.claimedAt = t;
+        return true;
+      }
+      d.status = 'failed';
+      return false;
+    },
     async claimDayClose(limit: number): Promise<DayCloseRow[]> {
       record('bot_claim_day_close', { limit });
-      sweep(['day_close'], now());
+      const t = now();
+      sweep(['day_close'], t);
       const out: DayCloseRow[] = [];
+      const rowOf = (l: LinkRow, day: string) => {
+        const row = days.get(dayKey(l, day));
+        return row && row.closedAt === null ? row : null;
+      };
       for (const q of dayCloseQueue) {
         if (out.length >= limit) break;
         const l = links.find((x) => x.id === q.linkId);
         if (!l || l.unlinkedAt !== null || l.blockedAt !== null) continue;
-        const row = days.get(dayKey(l, q.localDay));
-        if (!row || row.closedAt !== null) continue;
+        const row = rowOf(l, q.localDay);
+        if (!row) continue;
         const d = newDelivery('day_close', l, q.localDay, null);
         if (d) out.push({ deliveryId: d.id, chatId: l.chatId, localDay: q.localDay, cardMessageId: row.cardUsed ? null : row.cardMessageId, lastMessageId: row.lastMessageId });
+      }
+      for (const d of deliveries) {
+        if (out.length >= limit) break;
+        if (d.kind !== 'day_close' || d.status !== 'claimed' || d.attempts >= 3 || d.claimedAt >= t - 10 * MIN) continue;
+        const l = links.find((x) => x.id === d.linkId);
+        if (!l || l.unlinkedAt !== null || l.blockedAt !== null || d.localDay < addDays(localDay(t, l.tz), -2)) continue;
+        const row = rowOf(l, d.localDay);
+        if (!row) continue;
+        d.claimedAt = t;
+        d.attempts += 1;
+        out.push({ deliveryId: d.id, chatId: l.chatId, localDay: d.localDay, cardMessageId: row.cardUsed ? null : row.cardMessageId, lastMessageId: row.lastMessageId });
       }
       return out;
     },
@@ -461,6 +507,18 @@ export function fakeDb(options: { now: () => number }) {
         if (!l || l.unlinkedAt !== null || l.blockedAt !== null || !l.remindOn) continue;
         const d = newDelivery('after_date', l, localDay(now(), l.tz), q.containerId);
         if (d) out.push({ deliveryId: d.id, chatId: l.chatId, localDay: d.localDay, containerId: q.containerId, exam: q.exam });
+      }
+      const t = now();
+      for (const d of deliveries) {
+        if (out.length >= limit) break;
+        if (d.kind !== 'after_date' || d.status !== 'claimed' || d.attempts >= 3 || d.claimedAt >= t - 10 * MIN) continue;
+        const l = links.find((x) => x.id === d.linkId);
+        if (!l || l.unlinkedAt !== null || l.blockedAt !== null || !l.remindOn || d.localDay !== localDay(t, l.tz) || !inWindow(l, t)) continue;
+        const q = afterDateQueue.find((x) => x.linkId === l.id && x.containerId === d.ref);
+        if (!q) continue;
+        d.claimedAt = t;
+        d.attempts += 1;
+        out.push({ deliveryId: d.id, chatId: l.chatId, localDay: d.localDay, containerId: q.containerId, exam: q.exam });
       }
       return out;
     },

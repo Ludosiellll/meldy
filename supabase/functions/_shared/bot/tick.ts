@@ -12,9 +12,11 @@
  *   8. `bot_tick_beat` with the tick's numbers.
  *
  * At most once (decision 7): `bot_delivery_sending` right before the call to Telegram; false → not sent. A timeout or a
- * network error after it leaves the row in `sending` (it becomes `unknown`, never sent again). 429 stops the step (the
- * rows not reached stay `claimed` for a later tick); 403 → `bot_chat_event(blocked)`. A failing step never stops the
- * others. The tick never calls `bot_whoami` / `bot_settings` / `bot_today`: they would mark the user as seen.
+ * network error after it leaves the row in `sending` (it becomes `unknown`, never sent again). A 429 means Telegram did
+ * nothing: `bot_delivery_retry` puts the row back to `claimed` (or the database closes it when it is no longer due), and
+ * the step stops (the rows not reached stay `claimed` for a later tick); 403 → `bot_chat_event(blocked)`. A failing step
+ * never stops the others. The tick never calls `bot_whoami` / `bot_settings` / `bot_today`: they would mark the user as
+ * seen.
  */
 import { afterDateCard, askCard, dayCard, type CardResult } from './card.ts';
 import type { ReminderRow } from './db.ts';
@@ -24,6 +26,9 @@ import type { Ctx, Ports } from './router.ts';
 import { editKeyboard, isBlocked, isRateLimited, remove, send, TelegramError } from './tg.ts';
 
 export type StepStats = Record<string, number>;
+
+/** What every step gets: when to stop starting work (epoch ms) and the shared pacer (≤ 25 sends a second). */
+export interface TickTools { deadline: number; pace: () => Promise<void> }
 
 export const TICK_BUDGET_MS = 30_000;
 /** Work starts only while this much of the budget is left (a send takes up to 10 s with its timeout). */
@@ -55,6 +60,16 @@ const add = (stats: StepStats, key: string, n = 1) => {
 
 type Outcome = 'sent' | 'stop' | 'next';
 
+/**
+ * After a 429 that followed `deliverySending`: back to `claimed` for a later tick (`requeued`), or closed by the database
+ * when no longer due or out of tries (`not_requeued`). Nothing else to call; the caller stops its step.
+ */
+async function requeue(ctx: Ctx, stats: StepStats, deliveryId: number): Promise<void> {
+  const back = await ctx.db.deliveryRetry(deliveryId).catch(() => false);
+  add(stats, 'rate_limited');
+  add(stats, back ? 'requeued' : 'not_requeued');
+}
+
 /** Sends one claimed card; the delivery's outcome is recorded whatever happens. */
 async function deliver(ctx: Ctx, stats: StepStats, deliveryId: number, chatId: number, card: CardResult, sound: boolean,
   pace: () => Promise<void>): Promise<Outcome> {
@@ -71,9 +86,8 @@ async function deliver(ctx: Ctx, stats: StepStats, deliveryId: number, chatId: n
     return 'sent';
   } catch (error) {
     if (isRateLimited(error)) {
-      // Telegram refused it: nothing went out. The row is closed as failed (the contract has no way back to «claimed»).
-      await ctx.db.deliveryDone(deliveryId, 'failed', null, '429').catch(() => undefined);
-      add(stats, 'rate_limited');
+      // Telegram refused it: nothing went out.
+      await requeue(ctx, stats, deliveryId);
       return 'stop';
     }
     if (isBlocked(error)) {
@@ -122,6 +136,17 @@ export async function reminders(ctx: Ctx, deadline: number, pace: () => Promise<
   return stats;
 }
 
+/** The close's deleteMessage: true deleted; false when Telegram cannot (gone, too old). A 429 throws: nothing was done. */
+async function deleteForClose(ctx: Ctx, chatId: number, messageId: number): Promise<boolean> {
+  try {
+    await ctx.tg.call('deleteMessage', { chat_id: chatId, message_id: messageId });
+    return true;
+  } catch (error) {
+    if (isRateLimited(error)) throw error;
+    return false;
+  }
+}
+
 /** Step 5: the night after a day — the unused card goes, the last summary loses its keyboard. */
 export async function dayClose(ctx: Ctx, deadline: number, pace: () => Promise<void>, limit = CLAIM_LIMIT): Promise<StepStats> {
   const stats: StepStats = {};
@@ -139,7 +164,7 @@ export async function dayClose(ctx: Ctx, deadline: number, pace: () => Promise<v
     try {
       if (row.cardMessageId !== null) {
         await pace();
-        if (await remove(ctx.tg, row.chatId, row.cardMessageId)) add(stats, 'deleted');
+        if (await deleteForClose(ctx, row.chatId, row.cardMessageId)) add(stats, 'deleted');
       }
       if (row.lastMessageId !== null) {
         await pace();
@@ -149,10 +174,14 @@ export async function dayClose(ctx: Ctx, deadline: number, pace: () => Promise<v
       await ctx.db.deliveryDone(row.deliveryId, 'sent');
       add(stats, 'closed');
     } catch (error) {
+      if (isRateLimited(error)) {
+        // Deleting or editing again later is harmless: the row goes back for a later tick.
+        await requeue(ctx, stats, row.deliveryId);
+        break;
+      }
       if (isBlocked(error)) await ctx.db.chatEvent(row.chatId, 'blocked').catch(() => undefined);
       await ctx.db.deliveryDone(row.deliveryId, 'failed', null, error instanceof TelegramError ? String(error.code) : errorName(error)).catch(() => undefined);
       add(stats, 'failed');
-      if (isRateLimited(error)) break;
     }
   }
   return stats;
@@ -168,7 +197,19 @@ export async function afterDate(ctx: Ctx, deadline: number, pace: () => Promise<
       add(stats, 'left');
       continue;
     }
-    const outcome = await deliver(ctx, stats, row.deliveryId, row.chatId, afterDateCard(row, ctx.site), false, pace);
+    if (!row.exam) {
+      // The exam was deleted meanwhile: nothing to say about it.
+      await ctx.db.deliveryDone(row.deliveryId, 'skipped', null, 'gone');
+      add(stats, 'skip_gone');
+      continue;
+    }
+    if (row.exam.keyed === 0) {
+      // No question with a key: the bot never planned this exam, and «0 из 0» says nothing.
+      await ctx.db.deliveryDone(row.deliveryId, 'skipped', null, 'empty');
+      add(stats, 'skip_empty');
+      continue;
+    }
+    const outcome = await deliver(ctx, stats, row.deliveryId, row.chatId, afterDateCard({ ...row, exam: row.exam }, ctx.site), false, pace);
     if (outcome === 'stop') break;
   }
   return stats;
@@ -193,11 +234,12 @@ export async function runTick(ctx: Ctx, ports: Ports, options: TickOptions = {})
   const pace = pacer(ctx.now, options.sleep ?? defaultSleep);
   const limit = options.limit ?? CLAIM_LIMIT;
   const totals: StepStats = {};
+  const tools: TickTools = { deadline, pace };
   const steps: Array<[string, () => Promise<StepStats>]> = [
-    ['close', () => ports.group.closePosts(ctx, deadline)],
-    ['posts', () => ports.group.sendPosts(ctx, deadline)],
+    ['close', () => ports.group.closePosts(ctx, tools)],
+    ['posts', () => ports.group.sendPosts(ctx, tools)],
     ['rem', () => reminders(ctx, deadline, pace, limit)],
-    ['count', () => ports.group.counters(ctx, deadline)],
+    ['count', () => ports.group.counters(ctx, tools)],
     ['night', () => dayClose(ctx, deadline, pace, limit)],
     ['k3', () => afterDate(ctx, deadline, pace, limit)],
     ['flush', () => flushPending(ctx)],

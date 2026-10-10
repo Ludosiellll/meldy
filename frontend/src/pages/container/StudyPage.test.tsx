@@ -22,6 +22,7 @@ vi.mock('../../lib/containers/answerQueue', () => ({ enqueueAnswers: mocks.enque
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
 vi.mock('../../lib/telemetry', () => ({ track: mocks.track }));
 vi.mock('../../components/reminders/DailyReminder', () => ({ default: () => <button type="button">Напоминать каждый день</button> }));
+vi.mock('../../components/telegram/TelegramCard', () => ({ TelegramRemindLink: ({ fallback }: { fallback?: React.ReactNode }) => <>{fallback}</> }));
 vi.mock('../../api/containers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/containers')>()),
   doubtKey: mocks.doubtKey,
