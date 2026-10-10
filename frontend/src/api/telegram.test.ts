@@ -33,7 +33,11 @@ vi.mock('../lib/supabase', () => ({
 }));
 
 const HEX = '0123456789abcdef0123456789abcdef';
-const LINKED = { linked: true, bot_username: 'Meldyteach_bot', remind_on: true, remind_at: '20:00', tz: 'Europe/Minsk', paused_until: null, blocked: false };
+/** T1's contract, «Site»: the linked state, field for field. */
+const LINKED = {
+  linked: true, linked_at: '2026-10-16T12:01:30Z', blocked: false, remind_on: true, remind_at: '20:00', tz: 'Europe/Minsk',
+  paused_until: null, bot_username: 'Meldyteach_bot',
+};
 
 beforeEach(() => {
   db.calls.length = 0;
@@ -46,6 +50,7 @@ describe('telegram_link_state', () => {
     db.answers.push({ data: LINKED });
     expect(await fetchTelegramState()).toEqual({
       linked: true, bot: 'Meldyteach_bot', remindOn: true, remindAt: '20:00', zone: 'Europe/Minsk', pausedUntil: null, blocked: false,
+      linkedAt: '2026-10-16T12:01:30Z',
     });
     expect(db.calls).toEqual([{ name: 'telegram_link_state', args: {}, signal: null }]);
   });
@@ -72,7 +77,7 @@ describe('telegram_link_state', () => {
   it('reads a student without Telegram', async () => {
     db.answers.push({ data: { linked: false, bot_username: null } });
     expect(await fetchTelegramState()).toEqual({
-      linked: false, bot: 'Meldyteach_bot', remindOn: true, remindAt: '20:00', zone: null, pausedUntil: null, blocked: false,
+      linked: false, bot: 'Meldyteach_bot', remindOn: true, remindAt: '20:00', zone: null, pausedUntil: null, blocked: false, linkedAt: null,
     });
   });
 
@@ -121,8 +126,8 @@ describe('telegram_link_start', () => {
     expect((await startTelegramLink('Europe/Minsk')).url).toBe(`https://t.me/Meldyteach_bot?start=L${HEX}`);
   });
 
-  it('says «Слишком много попыток» after five codes in an hour', async () => {
-    db.answers.push({ error: { code: 'MB429', message: 'too many codes' }, status: 400 });
+  it('says «Слишком много попыток» after five codes in an hour (MT001)', async () => {
+    db.answers.push({ error: { code: 'MT001', message: 'more than 5 link codes in an hour' }, status: 400 });
     const error = await startTelegramLink().catch((e: unknown) => e);
     expect(error).toMatchObject({ code: 'too_many' });
     expect(telegramErrorText(error)).toBe('Слишком много попыток. Попробуйте через час.');
@@ -165,9 +170,11 @@ describe('telegram_settings and telegram_unlink', () => {
     expect(db.calls).toHaveLength(0);
   });
 
-  it('maps «not linked»', async () => {
-    db.answers.push({ error: { code: 'MB404', message: 'telegram is not linked' }, status: 400 });
+  it('maps «not linked» (P0002) and a bad zone or time (22023)', async () => {
+    db.answers.push({ error: { code: 'P0002', message: 'telegram is not linked' }, status: 400 });
     await expect(updateTelegramSettings({ remindOn: false })).rejects.toMatchObject({ code: 'not_linked' });
+    db.answers.push({ error: { code: '22023', message: 'time outside 07:00–22:59' }, status: 400 });
+    await expect(updateTelegramSettings({ remindAt: '23:30' })).rejects.toMatchObject({ code: 'invalid' });
   });
 
   it('unlinks and returns the state, also when the function returns nothing', async () => {
@@ -185,6 +192,7 @@ describe('errors', () => {
     expect(telegramErrorText(new Error('English'))).toBe(TELEGRAM_ERROR_TEXT.unknown);
     expect(telegramError({ code: '', message: '' }, 0).code).toBe('network');
     expect(telegramError({ code: '', message: 'rate' }, 429).code).toBe('too_many');
+    expect(telegramError({ code: '28000', message: 'not signed in' }, 400).code).toBe('signed_out');
   });
 
   it('normalizes the state of a bot that is not a bot name to @Meldyteach_bot', () => {

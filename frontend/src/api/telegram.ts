@@ -1,10 +1,16 @@
 /**
  * The site's side of the Telegram bot (package T3; Telegram bot spec §6.3 «Сайт», decisions 9, 31, 32): four RPCs with
- * the student's own session (`auth.uid()` in SQL, executable by authenticated only).
- * - `telegram_link_start(p_tz)` → `{code, expires_at, bot_username}`: a one-time code for 15 minutes (`L` + 32 hex),
- *   at most 5 an hour; a newer code ends the older ones. `p_tz` is the browser's zone (decision 32).
- * - `telegram_link_state()` → the link: linked or not, the reminder time and zone, the pause, a block.
- * - `telegram_settings(p_remind_on, p_remind_at, p_tz)` and `telegram_unlink()` → the link as the state returns it.
+ * the student's own session (`auth.uid()` in SQL, executable by authenticated only), as T1's contract has them
+ * (supabase/functions/_shared/bot/CONTRACT_T1.md, «Site»).
+ * - `telegram_link_start(p_tz)` → `{code: "L<32 hex>", expires_at, bot_username}`: a one-time code for 15 minutes, at
+ *   most 5 an hour. A new code ends the earlier unused ones, so one is asked only when the student presses the button.
+ *   `p_tz` is the browser's zone (decision 32); `bot_username` is null until the bot's /setup ran.
+ * - `telegram_link_state()` → `{linked: false, bot_username}` or `{linked: true, linked_at, blocked, remind_on,
+ *   remind_at "HH:MM", tz, paused_until, bot_username}`; cheap enough to ask every 3 s.
+ * - `telegram_settings(p_remind_on, p_remind_at, p_tz)` (null keeps a value) and `telegram_unlink()` (idempotent) →
+ *   the same state.
+ * Errors: 28000 not signed in, 22023 bad input (an unknown zone, a time outside 07:00–22:59), P0002 not linked
+ * (`telegram_settings`), MT001 more than 5 codes in an hour.
  *
  * A database without these functions (PGRST202 / 42883: an old migration; PGRST205 / 42P01 too, as the containers'
  * old-client rule in api/containers.ts): `fetchTelegramState` resolves null and the card hides itself; the other
@@ -69,6 +75,8 @@ export interface TelegramState {
   pausedUntil: string | null;
   /** The student blocked the bot in Telegram: nothing can be sent. */
   blocked: boolean;
+  /** When this link was made (ISO, the server's clock); null when not linked. */
+  linkedAt: string | null;
   /** Undefined when the server does not say (the card then reads the exams itself). */
   exam?: TelegramExam | null;
 }
@@ -91,7 +99,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function text(error: unknown, name: 'code' | 'message'): string {
+function text(error: unknown, name: 'code'): string {
   const value = isRecord(error) ? error[name] : undefined;
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -100,12 +108,11 @@ function text(error: unknown, name: 'code' | 'message'): string {
 export function telegramError(error: unknown, status = 0): TelegramApiError {
   if (error instanceof TelegramApiError) return error;
   const code = text(error, 'code');
-  const message = text(error, 'message');
   if (MISSING_CODES.has(code)) return new TelegramApiError('missing', status);
   if (status === 401 || code === '28000' || /^PGRST30\d$/.test(code)) return new TelegramApiError('signed_out', status);
-  if (code === 'MB429' || status === 429 || /too many/i.test(message)) return new TelegramApiError('too_many', status);
-  if (code === 'MB404' || /not linked/i.test(message)) return new TelegramApiError('not_linked', status);
-  if (code === '22023' || /^22/.test(code)) return new TelegramApiError('invalid', status);
+  if (code === 'MT001' || status === 429) return new TelegramApiError('too_many', status);
+  if (code === 'P0002') return new TelegramApiError('not_linked', status);
+  if (/^22/.test(code)) return new TelegramApiError('invalid', status);
   if (!code && status === 0) return new TelegramApiError('network', 0);
   return new TelegramApiError('unknown', status);
 }
@@ -171,6 +178,7 @@ export function normalizeState(raw: unknown): TelegramState {
     zone: typeof raw.tz === 'string' && raw.tz.trim() ? raw.tz.trim() : null,
     pausedUntil: day(raw.paused_until),
     blocked: raw.blocked === true || (typeof raw.blocked_at === 'string' && raw.blocked_at !== ''),
+    linkedAt: raw.linked === true && typeof raw.linked_at === 'string' && raw.linked_at ? raw.linked_at : null,
   };
   const named = exam(raw);
   if (named !== undefined) state.exam = named;
@@ -225,7 +233,7 @@ export async function unlinkTelegram(signal?: AbortSignal): Promise<TelegramStat
   const raw = await call('telegram_unlink', {}, signal);
   // A function that returns nothing still unlinked.
   if (raw === null || raw === undefined || raw === '') {
-    return { linked: false, bot: botName(null), remindOn: true, remindAt: '20:00', zone: null, pausedUntil: null, blocked: false };
+    return { linked: false, bot: botName(null), remindOn: true, remindAt: '20:00', zone: null, pausedUntil: null, blocked: false, linkedAt: null };
   }
   return normalizeState(raw);
 }
