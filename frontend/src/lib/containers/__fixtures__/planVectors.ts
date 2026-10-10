@@ -118,6 +118,22 @@ export function planVectorCases(): PlanVector[] {
       input: makeInput({ now: at('2026-10-20', '10:00'), subjects: [{ id: 'a', date: '2026-12-01' }], items: states(testItems('a', 12), (_, i) => twoDays(i)), firstPlanDay: '2026-10-01' }),
     },
     {
+      name: 'frozen_day_start',
+      about: 'frozen at 09:00 with the day as it began (dayStart, paceDay): eight mistakes of yesterday answered right today and two new ones, slowly (1450 s of 30 min): the morning\'s target without them, as many as the cheapest fit the real minutes left, planned with the pace of the day\'s start (today\'s faster pace ignored)',
+      input: {
+        ...makeInput({ now: at(day2, '09:40'), firstAt: at(day2, '09:00'), doneSec: 1450, newDone: { a: 2 }, subjects: [{ id: 'a', date: addDays(D, 21) }],
+          items: states(testItems('a', 80, 10), (_, i) => {
+            if (i < 15) return stateAfter([{ at: at(D, '08:00') + i * 30_000, correct: true }]);
+            if (i < 25) return stateAfter([{ at: at(D, '08:10') + i * 30_000, correct: false }, ...(i < 23 ? [{ at: at(day2, '09:00') + i * 20_000, correct: true }] : [])]);
+            if (i < 27) return stateAfter([{ at: at(day2, '09:05') + i * 20_000, correct: i === 25 }]);
+            return undefined;
+          }), budgetMin: 30, firstPlanDay: D }),
+        pace: { a: { tNew: 9, tRev: 6, tWrong: 10, tRetry: 12, tSC: 60, tAC: 150, pWrong: { new: 0.1, relearn: 0.1, confirm: 0.05, check: 0.05, final: 0.05 } } },
+        paceDay: null,
+        dayStart: Object.fromEntries(testItems('a', 80, 10).slice(15, 23).map((item, k) => [item.id, stateAfter([{ at: at(D, '08:10') + (15 + k) * 30_000, correct: false }])])),
+      },
+    },
+    {
       name: 'dst_berlin',
       about: 'Europe/Berlin on its 25-hour day: confirmations from the evening before are «после» a local time',
       input: makeInput({ tz: 'Europe/Berlin', now: at('2026-10-25', '08:10', 'Europe/Berlin'), firstAt: at('2026-10-25', '08:10', 'Europe/Berlin'),
