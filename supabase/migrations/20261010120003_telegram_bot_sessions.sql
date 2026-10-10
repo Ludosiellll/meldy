@@ -875,9 +875,12 @@ begin
   if pg_catalog.cardinality(v_items) = 0 then
     return pg_catalog.jsonb_build_object('status', 'empty');
   end if;
-  -- One open session per user: the previous one ends here, its waiting answer recorded as given.
+  -- One open session per user: the previous one ends here, its waiting answer recorded as given (while the link that
+  -- started it is still active, as in the flush).
   for v_old in select s.* from bot.sessions s where s.user_id = v_l.user_id and s.status = 'open' for update loop
-    v_old := bot.session_close(v_old, 'abandoned', true, v_now);
+    v_old := bot.session_close(v_old, 'abandoned',
+                               exists (select 1 from bot.links l where l.id = v_old.link_id and l.unlinked_at is null),
+                               v_now);
     perform bot.session_save(v_old);
     v_replaced := pg_catalog.jsonb_build_object('sid', v_old.sid, 'chat_id', v_old.chat_id,
                                                 'message_id', v_old.message_id);

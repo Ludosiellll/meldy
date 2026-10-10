@@ -302,7 +302,10 @@ $t$;
 do $t$
 declare r jsonb; a jsonb;
 begin
+  perform pg_temp.sx('update bot.links set last_seen_at = null where tg_user_id = 3002');
   r := public.bot_session_answer(3002, 'b1000000', 0, '{"i": 0}');   -- shown 0 = file 2 = HTTPS
+  perform pg_temp.check(pg_temp.sq('select last_seen_at = now() from bot.links where tg_user_id = 3002') = 'true',
+                        'a press marks the user as seen (the day card waits 30 minutes, K2''s silence ends)');
   perform pg_temp.check(r ->> 'status' = 'ok' and r -> 'answer' ->> 'status' = 'saved'
                         and (r -> 'answer' ->> 'correct')::boolean and r -> 'answer' ->> 'step' = 'start', 'right: saved', r -> 'answer');
   perform pg_temp.check((r -> 'view' ->> 'pos')::integer = 1 and r -> 'view' -> 'review' = 'null'::jsonb
@@ -860,7 +863,28 @@ begin
 end
 $t$;
 
--- ── 19. The tick's hook uses its index ───────────────────────────────────────────────────────────────────────────────
+-- ── 19. A session replaced after its Telegram was swapped: the old link ended, so its waiting answer is not recorded ─
+select pg_temp.as_role('postgres');
+insert into bot.links (user_id, tg_user_id, chat_id, tz) values ('eeeeeeee-0000-0000-0000-000000000005', 3006, 3006, 'Europe/Minsk');
+select pg_temp.as_role('service_role');
+do $t$
+declare r jsonb;
+begin
+  r := public.bot_session_start(3006, 'bf000000', pg_temp.u('c'), pg_temp.u('s1'), 'plan', pg_temp.sq0('[["net6",[0,1,2,3]]]'), 1601);
+  perform pg_temp.check(public.bot_session_answer(3006, 'bf000000', 0, '{"i": 0}') -> 'answer' ->> 'status' = 'pending', 'E waits');
+  -- E links another Telegram (the newest link wins: the old one ends)
+  perform pg_temp.sx($q$update bot.links set unlinked_at = now() where tg_user_id = 3006 and unlinked_at is null$q$);
+  perform pg_temp.sx($q$insert into bot.links (user_id, tg_user_id, chat_id, tz)
+                        values ('eeeeeeee-0000-0000-0000-000000000005', 3007, 3007, 'Europe/Minsk')$q$);
+  perform pg_temp.check(public.bot_session_answer(3006, 'bf000000', 0, '{"i": 1}') ->> 'status' = 'unlinked', 'the old Telegram');
+  r := public.bot_session_start(3007, 'bg000000', pg_temp.u('c'), pg_temp.u('s1'), 'plan', pg_temp.sq0('[["net7",[0,1,2,3]]]'), 1701);
+  perform pg_temp.check(r ->> 'status' = 'ok' and r -> 'replaced' ->> 'sid' = 'bf000000'
+                        and (r -> 'replaced' ->> 'chat_id')::bigint = 3006, 'the new Telegram replaces it', r - 'view');
+  perform pg_temp.check(pg_temp.rows_of('tg:bf000000:0') = 0, 'replaced after the link ended: nothing recorded');
+end
+$t$;
+
+-- ── 20. The tick's hook uses its index ───────────────────────────────────────────────────────────────────────────────
 select pg_temp.as_role('postgres');
 set local enable_seqscan = off;
 create temp table t5_plan (line text);

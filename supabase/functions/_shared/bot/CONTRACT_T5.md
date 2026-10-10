@@ -31,7 +31,7 @@ function side). This file changes when a signature or a shape changes.
 | `repeat` | the question at `pos` is answered already (double tap, a second typed message): the first answer stands, nothing changes | answer the callback silently |
 | `old` | `pos` is not the current question (an older button, the second tap after the first moved on, «Повторить» after a lost reply). Carries `answer` = what was recorded at that `pos` (`{status: "duplicate", correct, dont_know, misclick, step}`) or null, plus the current `session`/`view` | «Этот вопрос уже закрыт — занятие в последнем сообщении.» (or re-render the current view when `answer` is not null) |
 | `not_found` | no session with this sid for this user (unknown, cleaned up after 30 days, someone else's, malformed sid) | «Этот вопрос уже закрыт — занятие в последнем сообщении.» |
-| `ended` | finished or abandoned; a session whose local day has passed and that was idle 30 minutes is closed by this call (its waiting answer recorded as given). Carries `session` | «Это занятие уже закончено.» |
+| `ended` | finished or abandoned; a session whose local day has passed and that was idle 30 minutes is closed by this call (its waiting answer recorded as given). Carries `session` (view null) and, from `bot_session_answer` with a `p_pos`, `answer` = what was recorded there | «Это занятие уже закончено.» (or the summary when `answer` is not null: the press was the last answer) |
 | `unavailable` | the user no longer has the exam (left, removed, deleted): the session is closed, nothing recorded. Carries `exam_title`, `session` | «Экзамен «<exam_title>» больше недоступен — занятие закрыто.» |
 | `unlinked` | no active link for this Telegram user | «Telegram отключён от Meldy. Подключить снова можно в профиле.» |
 | `invalid` | the call does not fit the state; `reason` says why (below). Carries `session`/`view` when the session was found | «Этот вопрос уже закрыт — занятие в последнем сообщении.» |
@@ -76,6 +76,8 @@ VIEW (the current question; null when there is none — finished, ended):
                    recorded, misclick, doubt, status, step, key_source, key_changed_at } }
 ```
 - `review.recorded` false = the answer still waits: «Нажали не туда?» is possible (not for a typed short answer).
+- A view always shows the question's current version: showing an unanswered question again (move, view) takes its
+  current rev, and a press is checked against the rev last shown (`stale` when the author changed the key in between).
 - `review.misclick` → Z9; `review.doubt` → «Отложено. Когда автор ответит, вопрос вернётся в занятия.»;
   `key_changed_at` → «Ключ исправлен автором <date>.»; `key_source` (`manual`, `first_option`, …) for «В файле ответ не
   был выделен — ключ поставил автор.».
@@ -90,7 +92,7 @@ Step `two_days` → «Верно. Теперь <figure.now> из <figure.in_plan
 | Function | Does | Returns |
 |---|---|---|
 | `bot_session_items(p_tg_user_id, p_container_id uuid, p_item_ids uuid[])` | before «Начать»: what `optionOrder` needs, 1..60 ids, never the key; only this exam's items with a key | `{status: "ok", items: [{id, subject_id, kind, keep_order, code, rev, options: [file order]}]}` \| `unlinked` \| `unavailable` \| `invalid` |
-| `bot_session_start(p_tg_user_id, p_sid text, p_container_id, p_subject_id, p_kind, p_queue jsonb, p_message_id bigint = null, p_figure jsonb = null)` | a new session. `p_sid` `^[0-9a-z]{8}$` drawn by you (the seed). `p_queue` = `[{id, cls?, shown}]`, 1..20, `shown` = file indices in display order (`[]` for short). `p_message_id` = the card that turns into the session (null for a new message: then `bot_session_move`). `p_figure` = `{in_plan, two_days}`. Questions gone since the plan are left out. The previous open session is closed and its waiting answer recorded (`replaced`). The same card or the same sid again → that session (`resumed: true`) | `{status: "ok", resumed, replaced: {sid, chat_id, message_id} \| null, session, view}` \| `unlinked` \| `unavailable` (+ `exam_title`) \| `invalid` (`arguments`, `subject`, `queue`, `shown`) \| `conflict` \| `empty` |
+| `bot_session_start(p_tg_user_id, p_sid text, p_container_id, p_subject_id, p_kind, p_queue jsonb, p_message_id bigint = null, p_figure jsonb = null)` | a new session. `p_sid` `^[0-9a-z]{8}$` drawn by you (the seed). `p_queue` = `[{id, cls?, shown}]`, 1..20, `shown` = file indices in display order (`[]` for short). `p_message_id` = the card that turns into the session (null for a new message: then `bot_session_move`). `p_figure` = `{in_plan, two_days}`. Questions gone since the plan are left out. The previous open session is closed and its waiting answer recorded as given while that session's link is still active (`replaced`). The same card or the same sid again → that session (`resumed: true`) | `{status: "ok", resumed, replaced: {sid, chat_id, message_id} \| null, session, view}` \| `unlinked` \| `unavailable` (+ `exam_title`) \| `invalid` (`arguments`, `subject`, `queue`, `shown`) \| `conflict` \| `empty` |
 | `bot_session_view(p_tg_user_id, p_sid, p_pos int = null)` | the current state again (before «Дальше», «Сомневаюсь в ключе» `d`, «Отмена» `b`, a deleted message) | `{status: "ok"\|"old", answer?, session, view}` or a refusal |
 | `bot_session_answer(p_tg_user_id, p_sid, p_pos, p_choice jsonb)` | `p_choice`: `{"i": k}` (single), `{"mask": m}` (multiple, bit k = shown option k, `a<mask>`), `{"text": "…"}` (short, typed: pass `p_sid` and `p_pos` null), `{"dont_know": true}` (`x`). Right → recorded, the reply's `view` is the NEXT question (single/multiple) or the same short question with its review (until «Дальше»). Wrong / «Не знаю» → pending, `view.review` has the key | `{status: "ok", answer, session, view}` \| `repeat` \| `old` \| `invalid` (`choice`) \| `no_question` \| refusals |
 | `bot_session_resolve(p_tg_user_id, p_sid, p_pos, p_action, p_queue jsonb = null)` | `next` («Дальше»): the waiting answer recorded as given, the next question. `misclick` (`m`): recorded with misclick, the question stays (Z9). `skip`: you cannot show the current question (> 4096): the next one, counted | `{status: "ok", answer, session, view}` \| `old` \| `invalid` (`action`, `no_answer`, `answered`, `recorded`, `correct`, `typed`, `queue`) \| refusals |
@@ -116,7 +118,7 @@ Step `two_days` → «Верно. Теперь <figure.now> из <figure.in_plan
 | `f` | `bot_session_finish` → I2 (or I1 when `session.status = "finished"`); the day line from `bot_today` |
 | `c` | `bot_session_move(…, the pressed message's id)`; delete `prev_message_id` (fallback: edit «Занятие продолжено ниже.») |
 | `g` | no database call: remove the keyboard |
-| «Повторить» | the same call with the same data: a reply `old` with `answer` ≠ null means the first attempt was recorded |
+| «Повторить» | the same call with the same data: a reply `old` (or `ended`) with `answer` ≠ null means the first attempt was recorded |
 
 After a reply whose `session.status` is `finished`, render I1 (call `bot_card_sent(…, 'last')` for its keyboard). The
 last summary of the day keeps its keyboard until the night's close.
