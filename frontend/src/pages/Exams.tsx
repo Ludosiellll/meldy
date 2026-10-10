@@ -19,6 +19,7 @@ import { containerDays, useContainerLayer } from './containerLayer';
 export { containerDays };
 import '../styles/paper.css';
 import '../components/exams/exams.css';
+import './containerScreens.css';
 
 /** «экзамен · 15 октября, через 12 дней», «зачёт · прошёл 15 октября», «экзамен, дата не указана». */
 export function examDateLine(item: Pick<ExamListItem, 'kind' | 'exam_date'>, now: Date = new Date()): string {
@@ -414,6 +415,9 @@ export default function Exams() {
   }, [plain]);
 
   const containerRows = containers.length > 0 ? listRows([], containers) : [];
+  // Without network the containers come from the device's copy at once (spec decision 31, usability check m5): the
+  // other exams' read waits for its retries (about 7 s), the page does not.
+  const fromDevice = Boolean(on?.offline) && containerRows.length > 0;
   const list = (shown: ListRow[]) => (
     <ul className="ex-list" aria-label="Ваши экзамены">
       {shown.map((row) =>
@@ -425,7 +429,7 @@ export default function Exams() {
       )}
     </ul>
   );
-  const anyRow = (rows !== null && rows.length > 0) || (error !== null && containerRows.length > 0);
+  const anyRow = (rows !== null && rows.length > 0) || ((error !== null || fromDevice) && containerRows.length > 0);
 
   return (
     <div className="sf-page ex-list-page" ref={frame.ref} data-frame={frame.size}>
@@ -450,20 +454,29 @@ export default function Exams() {
         )}
       </header>
 
-      {error ? (
+      {error && containerRows.length > 0 ? (
         <>
-          {/* Without network the containers come from the device's copy: their rows stay, the error is about the rest. */}
-          {containerRows.length > 0 ? list(containerRows) : null}
-          <div className="ex-error" role="alert">
-            <h2>Не удалось загрузить экзамены</h2>
-            <p>{error} Ваши экзамены сохранены.</p>
+          {/* The containers' rows stay (from the device's copy without network); the rest is one quiet line. */}
+          {list(containerRows)}
+          <p className="exc-rest" role="status">
+            Остальные экзамены не загрузились.{' '}
             <button type="button" className="sf-link" onClick={() => void load()}>
               Повторить
             </button>
-          </div>
+          </p>
         </>
+      ) : error ? (
+        <div className="ex-error" role="alert">
+          <h2>Не удалось загрузить экзамены</h2>
+          <p>{error} Ваши экзамены сохранены.</p>
+          <button type="button" className="sf-link" onClick={() => void load()}>
+            Повторить
+          </button>
+        </div>
       ) : rows === null ? (
-        showLoading ? (
+        fromDevice ? (
+          list(containerRows)
+        ) : showLoading ? (
           <p className="ex-loading" role="status">
             Загружаем экзамены…
           </p>

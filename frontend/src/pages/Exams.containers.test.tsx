@@ -379,13 +379,54 @@ describe('«Экзамены» with exam containers', () => {
     expect(mocks.fetchQuestionEvents).not.toHaveBeenCalled();
   });
 
-  it('without network draws the containers from the device’s copy and says the rest did not load', async () => {
+  it('without network draws the containers from the device’s copy and says in one quiet line the rest did not load', async () => {
     mocks.listExams.mockRejectedValue(new Error('Failed to fetch'));
     layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation()], attached_exam_ids: [] }, offline: true });
     const list = await renderMixed();
     expect(within(list).getByRole('link', { name: /^Аккредитация/ })).toHaveAttribute('href', '/exams/c/c-1');
-    expect(screen.getByRole('heading', { name: 'Не удалось загрузить экзамены' })).toBeInTheDocument();
-    expect(list.compareDocumentPosition(screen.getByRole('alert')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const line = await screen.findByText(/^Остальные экзамены не загрузились\./);
+    expect(line).toHaveClass('exc-rest');
+    expect(screen.queryByRole('heading', { name: 'Не удалось загрузить экзамены' })).toBeNull();
+    expect(list.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // «Повторить» reads the other exams again.
+    mocks.listExams.mockClear();
+    within(line).getByRole('button', { name: 'Повторить' }).click();
+    await waitFor(() => expect(mocks.listExams).toHaveBeenCalledTimes(1));
+  });
+
+  it('without network the containers’ rows come at once, before the other exams’ read gives up (m5)', async () => {
+    mocks.listExams.mockReturnValue(new Promise(() => undefined));
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation()], attached_exam_ids: [] }, offline: true });
+    const list = await renderMixed();
+    expect(within(list).getByRole('link', { name: /^Аккредитация/ })).toHaveAttribute('href', '/exams/c/c-1');
+    expect(screen.queryByText('Загружаем экзамены…')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/import');
+  });
+
+  it('with the network the rows still wait for the other exams, as before', async () => {
+    mocks.listExams.mockReturnValue(new Promise(() => undefined));
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation()], attached_exam_ids: [] } });
+    render(
+      <MemoryRouter initialEntries={['/exams']}>
+        <Routes>
+          <Route path="/exams" element={<Exams />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(screen.queryByRole('list', { name: 'Ваши экзамены' })).toBeNull();
+    expect(screen.getByText('Загружаем экзамены…')).toBeInTheDocument();
+  });
+
+  it('a read error of the other exams with the network: the containers’ rows and the same quiet line', async () => {
+    mocks.listExams.mockRejectedValue(new Error('boom'));
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation()], attached_exam_ids: [] } });
+    await renderMixed();
+    expect(await screen.findByText(/^Остальные экзамены не загрузились\./)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Не удалось загрузить экзамены' })).toBeNull();
   });
 
   it('waits for the layer before any row: an exam inside a container never flashes as a row of its own', async () => {

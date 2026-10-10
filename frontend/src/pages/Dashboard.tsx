@@ -1061,9 +1061,12 @@ export default function Dashboard() {
     if (user?.id) writeFirstStepsMemory(user.id, next ? 'collapsed' : null);
   };
 
+  // Without network the exam containers come from the device's copy (spec decision 31): their card leads at once, the
+  // rest of the page follows when its reads give up (their retries take about 7 s, usability check m5).
+  const fromDevice = Boolean(on?.offline) && planned.length > 0 && !data && plansSettled;
   // Nothing for the first 300 ms, then one quiet line (spec 4.6): no spinner. An account with exam containers also waits
   // (at most PLAN_WAIT) for their plans, so the leading card does not change places once they come.
-  const waiting = (loading && !data) || containerWait;
+  const waiting = ((loading && !data) || containerWait) && !fromDevice;
   useEffect(() => {
     if (!waiting) {
       setLoadingLine(false);
@@ -1154,7 +1157,8 @@ export default function Dashboard() {
     );
   } else if ((loadError || !data) && on && planned.length > 0) {
     // Without network (or any failed read of the page) the exam containers still come from the device's copy: their
-    // card leads, and the rest of the page says it did not load, with a quiet «Повторить» (spec decision 31).
+    // card leads, and the rest of the page says it did not load, with a quiet «Повторить» (spec decision 31) — once
+    // its reads gave up; while they still try, the card stands alone.
     const alone = todayOf(null);
     content = (
       <>
@@ -1173,15 +1177,17 @@ export default function Dashboard() {
             ) : null}
             {alone.rows.length > 0 ? <TodayRows rows={alone.rows} exam={null} today={dayKey} /> : null}
           </div>
-          <section className="td-card td-error td-rise" data-d="3">
-            <h2 className="td-h3">Не удалось загрузить данные</h2>
-            <p className="td-error-text" role="alert">
-              Лекции и карточки на месте. Повторите через минуту.
-            </p>
-            <button type="button" className={alone.mainLeads ? 'sf-link' : 'sf-primary'} onClick={() => void load()}>
-              Повторить
-            </button>
-          </section>
+          {loadError || !loading ? (
+            <section className="td-card td-error td-rise" data-d="3">
+              <h2 className="td-h3">Не удалось загрузить данные</h2>
+              <p className="td-error-text" role="alert">
+                Лекции и карточки на месте. Повторите через минуту.
+              </p>
+              <button type="button" className={alone.mainLeads ? 'sf-link' : 'sf-primary'} onClick={() => void load()}>
+                Повторить
+              </button>
+            </section>
+          ) : null}
         </div>
       </>
     );
