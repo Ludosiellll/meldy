@@ -413,6 +413,9 @@ export const SETTINGS = {
   renameCancel: 'Отмена',
   removeSubject: 'Убрать предмет',
   removeSubjectAsk: (title: string) => `Убрать «${title}»? Его вопросы и ответы по ним пропадут.`,
+  removeOralAsk: (title: string) => `Убрать «${title}» из экзамена? Устный предмет останется в «Экзаменах» отдельно.`,
+  removeMixedAsk: (title: string) =>
+    `Убрать «${title}»? Вопросы с вариантами и ответы по ним пропадут, устная часть останется в «Экзаменах» отдельно.`,
   removeSubjectYes: 'Убрать',
   lastSubject: 'Это единственный предмет. Чтобы убрать его, удалите экзамен.',
   oralRow: 'устный',

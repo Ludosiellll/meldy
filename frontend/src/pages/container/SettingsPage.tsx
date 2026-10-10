@@ -478,7 +478,13 @@ export default function SettingsPage() {
                       </p>
                     ) : (
                       <p className="st-line st-ask">
-                        <span>{SETTINGS.removeSubjectAsk(subject.title)}</span>
+                        <span>
+                          {subject.oral
+                            ? oralOnly(subject)
+                              ? SETTINGS.removeOralAsk(subject.title)
+                              : SETTINGS.removeMixedAsk(subject.title)
+                            : SETTINGS.removeSubjectAsk(subject.title)}
+                        </span>
                         <button type="button" className="sf-link" onClick={() => void removeSubject(subject)}>
                           {SETTINGS.removeSubjectYes}
                         </button>
@@ -531,7 +537,14 @@ export default function SettingsPage() {
               members > 0 ? (
                 <p className="st-line st-ask">
                   <span>{nb(SETTINGS.hasMembers(members))}</span>
-                  <button type="button" className="sf-link" onClick={() => setWho(true)}>
+                  <button
+                    type="button"
+                    className="sf-link"
+                    onClick={() => {
+                      setWho(true);
+                      window.setTimeout(() => document.getElementById('settings-group')?.scrollIntoView?.({ block: 'start' }), 0);
+                    }}
+                  >
                     {SETTINGS.who}
                   </button>
                   <button type="button" className="sf-link" data-muted="" onClick={() => setAsking(false)}>

@@ -185,6 +185,22 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     expect(screen.queryByRole('button', { name: 'Убрать' })).not.toBeInTheDocument();
   });
 
+  it('removing a subject with an oral part says the oral part stays in «Экзамены»', () => {
+    const oral = SUMMARY.subjects[2];
+    api.state.summary = {
+      ...solo(),
+      subjects: [{ ...SUMMARY.subjects[0], exam_date: null, oral: { exam_id: 'e-mixed', questions: 30 } }, { ...oral, exam_date: null }],
+    };
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: `Ещё: ${oral.title}` }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Убрать предмет' }));
+    expect(screen.getByText(SETTINGS.removeOralAsk(oral.title))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: Основы программирования' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Убрать предмет' }));
+    expect(screen.getByText(SETTINGS.removeMixedAsk('Основы программирования'))).toBeInTheDocument();
+  });
+
   it('«Удалить экзамен» is refused while members are in (MC009) and says what to do', async () => {
     api.state.summary = { ...solo(), owner: { members: 3, doubts_open: 0, links: [] } };
     renderAt();

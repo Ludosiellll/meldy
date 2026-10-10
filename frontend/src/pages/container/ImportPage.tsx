@@ -338,10 +338,6 @@ export default function ImportPage() {
     };
   }, [user?.id, fromId, stage, overview.data?.attached_exam_ids]);
 
-  const targetValue = fromId ? `c:${fromId}` : form.target;
-  const targetKind: SaveTarget['kind'] = targetValue === 'new' ? 'new' : targetValue.startsWith('c:') ? 'container' : 'old';
-  const oldExam = targetKind === 'old' ? oldExams.find((exam) => `old:${exam.id}` === targetValue) ?? null : null;
-  const container = targetKind === 'container' ? containers.find((item) => `c:${item.id}` === targetValue) ?? null : null;
   const targetOptions = useMemo(
     () => [
       { value: 'new', label: IMPORT.targetNew },
@@ -350,6 +346,11 @@ export default function ImportPage() {
     ],
     [containers, oldExams],
   );
+  // A target that left the list (the exam was deleted elsewhere) shows and saves as a new exam, never silently.
+  const targetValue = fromId ? `c:${fromId}` : targetOptions.some((option) => option.value === form.target) ? form.target : 'new';
+  const targetKind: SaveTarget['kind'] = targetValue === 'new' ? 'new' : targetValue.startsWith('c:') ? 'container' : 'old';
+  const oldExam = targetKind === 'old' ? oldExams.find((exam) => `old:${exam.id}` === targetValue) ?? null : null;
+  const container = targetKind === 'container' ? containers.find((item) => `c:${item.id}` === targetValue) ?? null : null;
 
   const suggestion =
     targetKind === 'old'
@@ -899,7 +900,7 @@ export default function ImportPage() {
         <span className="im-label">{IMPORT.target}</span>
         <PaperSelect
           ariaLabel={IMPORT.target}
-          value={form.target}
+          value={targetValue}
           options={targetOptions}
           onChange={(value) => setForm((current) => ({ ...current, target: value, titleTouched: false, dateTouched: false }))}
           disabled={locked}
