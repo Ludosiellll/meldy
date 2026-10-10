@@ -26,6 +26,7 @@ import {
   answer as answerQuery, createTelegram, editKeyboard, editOrSend, remove, send, type FetchLike, type Keyboard, type Telegram, type TgChat,
   type TgMessage, type TgUser,
 } from './tg.ts';
+import { typo } from './html.ts';
 import * as W from './words.ts';
 
 // ─────────────────────────────────────────── what handlers get ───────────────────────────────────────────
@@ -66,7 +67,8 @@ export function makeTap(tg: Telegram, q: TgCallbackQuery): Tap {
     async answer(text?: string, alert?: boolean) {
       if (tap.answered) return;
       tap.answered = true;
-      await answerQuery(tg, { id: q.id, text, alert });
+      // A line or a window is plain text: the same no-break spaces as the messages.
+      await answerQuery(tg, { id: q.id, text: text ? typo(text) : undefined, alert });
     },
   };
   return tap;

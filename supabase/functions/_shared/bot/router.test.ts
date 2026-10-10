@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseCommand, routeOf, updateKind } from './router.ts';
 import { derivedSecret } from './secrets.ts';
-import { visibleText } from './html.ts';
+import { typo, visibleText } from './html.ts';
 import { harness } from './fixtures/harness.ts';
 import { TEST_TOKEN } from './fixtures/fake_telegram.ts';
 import { CID, DAY, TG, USER } from './fixtures/scenario.ts';
@@ -305,7 +305,7 @@ test('S1–S4 and K2 presses (§6.5): time, pause, a date by prompt, unpause, un
   await h.post(press('off|y'));
   assert.equal(edits().at(-1), W.UNLINKED_DONE);
   await h.post(press('st|time'));
-  assert.equal(h.tg.of('answerCallbackQuery').at(-1)!.params.text, W.NOT_LINKED);
+  assert.equal(h.tg.of('answerCallbackQuery').at(-1)!.params.text, typo(W.NOT_LINKED));
 });
 
 test('«Другой экзамен»: the keyboard becomes the list; an exam from it becomes the card', async () => {
