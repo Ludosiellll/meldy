@@ -1196,3 +1196,105 @@ def test_open_questions_in_text_keep_their_code_line_by_line():
     # format «test»: строки под вопросом с «?» — варианты; код после «.» и «:» — всё равно строками
     tested = parse_bank_text(OPEN_CODE, format_mode="test")["items"]
     assert tested[0]["text"] == texts[0] and tested[2]["options"][:2] == ["def f(n):", "if n <= 1:"]
+
+
+# (11) Флаг «code» (проверка удобства 2026-10-10, m1): моноширинный шрифт самого вопроса и строки SQL и оболочки.
+# Раньше код узнавали только по знакам C в вопросе и по шрифту вариантов: 90 из 203 вопросов с SQL и командами
+# показывались шрифтом заголовка.
+
+# Код, которого флаг не видит намеренно: таблица в TXT (без шрифта, без знаков кода) и Python в открытых вопросах TXT.
+CODE_FLAG_LIMITS = {
+    ("db_plus.txt", "db", 43),
+    ("four_subjects_slice.txt", "networks", 125),
+    *(("algo_open.txt", "algo", n) for n in (11, 18, 21, 53, 62, 66)),
+}
+
+
+def test_every_code_question_of_the_synthetic_banks_is_flagged_as_code():
+    misses = set()
+    for entry in TRUTH["files"]:
+        result = parse_bank_file((SYNTHETIC / entry["file"]).read_bytes(), entry["file"])
+        rows = []
+        for part in entry["parts"]:
+            by_number = {item["n"]: item for item in TRUTH["subjects"][part["subject"]]["items"]}
+            rows += [(part["subject"], by_number[n]) for n in (part["pick"] or sorted(by_number))]
+        assert len(rows) == len(result["items"])
+        for (subject, want), got in zip(rows, result["items"]):
+            if want["code"] and not got["code"]:
+                misses.add((entry["file"], subject, want["n"]))
+    assert misses == CODE_FLAG_LIMITS
+
+
+def test_no_line_of_a_question_without_code_reads_as_sql_or_shell():
+    for subject in TRUTH["subjects"].values():
+        for item in subject["items"]:
+            if not item["code"]:
+                assert not bank_parse.code_in_lines(item["text"]), (subject["subject"], item["n"], item["text"])
+
+
+@pytest.mark.parametrize("line", [
+    "SELECT *", "FROM Students", "WHERE course = 2;", "ORDER BY name DESC;", "GROUP BY group_id", "LEFT JOIN Groups g ON s.group_id = g.id;",
+    "CREATE TABLE Orders (", "CREATE UNIQUE INDEX ux_users_email", "ALTER TABLE Students", "DROP TABLE Groups;",
+    "INSERT INTO Students (student_id, full_name, group_id)", "VALUES (1, 'Иванов Иван', 99);", "UPDATE Employees",
+    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;", 'SET session:42 "user=ivanov" EX 3600', "BEGIN;", "ROLLBACK;",
+    "select name from students where id = 1", "uname -r", "ps aux | grep nginx", "kill -9 2741", "$ ls -l report.txt",
+    "#!/bin/bash", "@echo off", "C:\\>ping 8.8.8.8", "chmod 755 deploy.sh", "sudo chown -R www-data:www-data /var/www/site",
+    'grep -q "ERROR" app.log && echo "Есть ошибки" || echo "Ошибок нет"', "docker ps -a", "history | tail -5",
+    "Get-Process | Where-Object { $_.CPU -gt 100 }",
+])
+def test_sql_and_shell_lines_are_code(line):
+    assert bank_parse.sql_or_shell_line(line)
+
+
+@pytest.mark.parametrize("line", [
+    "Какой оператор SQL удаляет таблицу?", "Выберите все верные ответы.", "FROM — это часть запроса, верно?",
+    "Where is the station?", "Select the correct answer.", "Find the odd one out", "Type of memory: ROM",
+    "Set-up of the network", "Read-Only Memory (ROM)", "ON/OFF", "Windows XP", "TCP/IP", "x = 5",
+    "ls?", "",
+])
+def test_words_and_questions_are_not_sql_or_shell(line):
+    assert not bank_parse.sql_or_shell_line(line)
+
+
+def test_the_monospace_of_a_question_flags_code_without_signs_of_code():
+    pascal = {1: ["x := 5", "writeln(x + 1)"]}
+    table = owner_like_table([("Что выведет программа на Паскале?", ["6", "5"], {0})], pascal)
+    item = parse_bank_file(docx_with_body(table), "bank.docx")["items"][0]
+    assert item["text"] == "Что выведет программа на Паскале?\nx := 5\nwriteln(x + 1)" and item["code"] is True
+
+    def build(code_font: str | None, inline: bool):
+        def make(doc):
+            question = doc.add_paragraph("1. Что вернёт ")
+            call = question.add_run("len(s)" if inline else "длина строки")
+            if inline:
+                call.font.name = "Consolas"
+            question.add_run(" для пустой строки?")
+            for line in ("s = ''", "print(len(s))"):
+                run = doc.add_paragraph().add_run(line)
+                if code_font:
+                    run.font.name = code_font
+            doc.add_paragraph("а) 0")
+            doc.add_paragraph("б) 1")
+            doc.add_paragraph("Ключ: 1 – а")
+        return make
+    # Код строками под вопросом моноширинным шрифтом; код внутри строки вопроса; без шрифта и без знаков — не код.
+    assert parse_bank_file(docx_bytes(build("Courier New", False)), "bank.docx")["items"][0]["code"] is True
+    assert parse_bank_file(docx_bytes(build(None, True)), "bank.docx")["items"][0]["code"] is True
+    plain = parse_bank_file(docx_bytes(build(None, False)), "bank.docx")["items"][0]
+    assert plain["text"].startswith("Что вернёт длина строки") and plain["code"] is False
+
+
+def test_a_question_line_typed_in_a_monospace_font_is_not_code_by_its_font():
+    def build(doc):
+        doc.add_paragraph().add_run("1. Сколько дней в неделе?").font.name = "Courier New"
+        for text in ("а) 5", "б) 7", "Ключ: 1 – б"):
+            doc.add_paragraph(text)
+    item = parse_bank_file(docx_bytes(build), "bank.docx")["items"][0]
+    assert item["text"] == "Сколько дней в неделе?" and item["options"] == ["5", "7"] and item["code"] is False
+
+
+def test_sql_and_shell_under_a_question_in_text_flag_code():
+    result = parse_bank_text("1. Что вернёт запрос?\nSELECT name\nFROM Students\nа) **имена**\nб) ничего\n"
+                             "2. Что делает команда?\nchmod 755 deploy.sh\nа) **права**\nб) удаляет\n"
+                             "3. Choose the right form:\nWhere is the station?\nа) **is**\nб) are\n")
+    assert [item["code"] for item in result["items"]] == [True, True, False]

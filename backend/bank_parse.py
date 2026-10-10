@@ -243,6 +243,52 @@ HEADER_CELL_RE = re.compile(
     re.I,
 )
 CODE_RE = re.compile(r"[{}]|=>|\?\.|\+=|-=|==|!=|<<|>>|::|#\w|\w\(\)|\w\.\w+\(|;\s*\S")
+# Строка SQL, как её пишут в заданиях: оператор заглавными в начале строки («SELECT *», «FROM Students», «ORDER BY
+# name DESC;», «CREATE TABLE Orders (»); строчными — только узнаваемым строением («select … from», «insert into»).
+SQL_LINE_RE = re.compile(
+    r"^(?:SELECT|INSERT\s+INTO|DELETE\s+FROM|CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|VIEW|TRIGGER|PROCEDURE|FUNCTION"
+    r"|DATABASE|SCHEMA|SEQUENCE|USER|ROLE)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|VIEW|TRIGGER|PROCEDURE|FUNCTION|DATABASE"
+    r"|SCHEMA|SEQUENCE|USER|ROLE)|TRUNCATE|GRANT|REVOKE|BEGIN\s+TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT|SET\s+TRANSACTION"
+    r"|WHERE|(?:(?:INNER|LEFT|RIGHT|FULL|CROSS)\s+)?(?:OUTER\s+)?JOIN|ORDER\s+BY|GROUP\s+BY|HAVING|UNION)\b"
+    r"|^(?:UPDATE\s+\w+|FROM\s+\w|SET\s+\S+\s+\S|BEGIN\s*;|VALUES\s*\(|WITH\s+\w+\s+AS\b)"
+    r"|^(?:select\b.*\bfrom\b|insert\s+into\b|delete\s+from\b|update\s+\w+\s+set\b|(?:create|alter|drop)\s+table\b)"
+)
+# Строка оболочки: приглашение («$ ls -l», «C:\>ping …», «PS C:\>»), «#!/bin/bash», «@echo off», команда PowerShell
+# («Get-Process | …») или команда строчными в начале строки («chmod 755 deploy.sh», «ps aux | grep nginx»).
+SHELL_LINE_RE = re.compile(
+    r"^(?:\$\s+\S|#!/|[A-Za-z]:\\[^\s>]*>|PS\s+[A-Za-z]:\\|@echo\b"
+    r"|(?:Get|Set|New|Remove|Start|Stop|Restart|Invoke|Write|Test|Import|Export|Select|Where|Sort|Format|Out|Measure"
+    r"|Clear|Copy|Move|Rename|Enable|Disable|Install|Update|ConvertTo|ConvertFrom|ForEach)-[A-Z][A-Za-z]+(?=[\s|]|$)"
+    r"|(?:sudo|ls|cd|pwd|cat|echo|grep|egrep|find|chmod|chown|chgrp|mkdir|rmdir|rm|cp|mv|ln|touch|tar|gzip|gunzip|zip"
+    r"|unzip|apt|apt-get|yum|dnf|pacman|systemctl|service|journalctl|ps|top|htop|kill|killall|pkill|nice|renice|df|du"
+    r"|free|mount|umount|uname|whoami|useradd|usermod|userdel|groupadd|passwd|history|which|whereis|head|tail|sort|uniq"
+    r"|wc|cut|awk|sed|tr|xargs|ssh|scp|rsync|curl|wget|ping|traceroute|tracert|ipconfig|ifconfig|ip|netstat|nslookup"
+    r"|dig|docker|git|bash|sh|zsh|python3?|pip3?|export|source|alias|crontab|sleep|jobs|nohup|umask|tasklist|taskkill"
+    r"|netsh|route|arp|hostname|systeminfo|chkdsk|xcopy|robocopy|attrib|dir|copy|del|cls|type|set)(?=\s|$))"
+)
+# Строковые значения и хвосты-комментарии не считаются, когда строку проверяют на русские слова.
+_LITERAL_RE = re.compile(r"\"[^\"]*\"|'[^']*'|`[^`]*`")
+_COMMENT_TAIL_RE = re.compile(r"(?:\s--\s|\s#\s|//).*$")
+
+
+def _words_line(raw: str) -> bool:
+    """Строка — русские слова: больше половины букв кириллица (строковые значения и комментарии не в счёт)."""
+    bare = _COMMENT_TAIL_RE.sub(" ", _LITERAL_RE.sub('""', raw))
+    letters = [char for char in bare if char.isalpha()]
+    return bool(letters) and sum(1 for char in letters if "а" <= char.lower() <= "я" or char in "ёЁ") * 2 > len(letters)
+
+
+def sql_or_shell_line(raw: str) -> bool:
+    """Строка — узнаваемая строка SQL или оболочки (команда, приглашение, оператор), а не вопрос и не русские слова."""
+    text = raw.strip()
+    if not text or text.endswith("?") or _words_line(text):
+        return False
+    return bool(SQL_LINE_RE.match(text) or SHELL_LINE_RE.match(text))
+
+
+def code_in_lines(text: str) -> bool:
+    """В тексте вопроса есть строка SQL или оболочки (у них нет знаков кода C: «SELECT name», «chmod 755 deploy.sh»)."""
+    return any(sql_or_shell_line(line) for line in text.split("\n"))
 OPEN_LINE_RE = re.compile(r"^(?:\[(.+)\]|=\s*(?:\{[^}]*\}\s*)?(.+))$")
 PAIR_LINE_RE = re.compile(r"^(.*?\S)?\s*=\s*(\S.*)$")
 MD_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
@@ -423,6 +469,18 @@ def _mono(runs: list[Run]) -> bool:
     return bool(visible) and all(run.mono for run in visible)
 
 
+def _mono_inside(runs: list[Run]) -> bool:
+    """Часть видимого текста — моноширинным шрифтом, часть — нет: код внутри строки вопроса («Что вернёт Count()?») или
+    код под вопросом в том же абзаце (строки через перенос). Строка, набранная моноширинным целиком, — шрифт файла."""
+    visible = [run for run in runs if run.text.strip()]
+    return any(run.mono for run in visible) and not all(run.mono for run in visible)
+
+
+def _mono_any(runs: list[Run]) -> bool:
+    """Хоть один видимый кусок моноширинным шрифтом (строка под вопросом)."""
+    return any(run.mono for run in runs if run.text.strip())
+
+
 _CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
 
 
@@ -492,6 +550,7 @@ class Item:
     weights: list[float] = field(default_factory=list)  # GIFT
     inline: bool = False  # варианты вырезаны из одного абзаца
     sub_labels: list[str] = field(default_factory=list)  # format «open»: подписи строк-подпунктов в тексте
+    mono: bool = False  # в тексте вопроса есть моноширинный шрифт: код (флаг «code» ответа)
 
     def flag(self, name: str) -> None:
         if name not in self.flags:
@@ -850,6 +909,9 @@ class Reader:
                 if question_cell:
                     current.images += sum(p.images for p in question_cell.paras)
                     current.formulas += sum(p.formulas for p in question_cell.paras)
+                    stem_paras = question_cell.paras[:1] if q_col == opt_col else question_cell.paras
+                    current.mono = bool(stem_paras) and (_mono_inside(stem_paras[0].runs)
+                                                         or any(_mono_any(p.runs) for p in stem_paras[1:]))
                     if q_col == opt_col:  # вопрос и варианты в одной ячейке: первый абзац — вопрос
                         current.text = question_cell.paras[0].text.strip()
             if current is None:
@@ -1107,11 +1169,13 @@ class Reader:
             q = question_number(head.text) if head.para.level in (None, 0) else None
             label, text = (q[0], q[2]) if q else ("", head.text)
             marked_at = next((k for k, line in enumerate(rest) if PLUSMINUS_RE.match(line.text)), 0) if self.plus_minus else 0
+            mono = _mono_inside(head.para.runs)
             if marked_at:
                 # «+»/«-»: варианты — только отмеченные строки; строки до первой из них — текст вопроса (код как написан)
                 for line in rest[:marked_at]:
                     if len(text) < GROW_QUESTION_CHARS:
                         text = f"{text}\n{line.para.text.rstrip()}"
+                        mono = mono or _mono_any(line.para.runs)
                 rest = rest[marked_at:]
             # текст вопроса может идти в несколько строк до первой строки, похожей на вариант
             labelled_later = any(OPTION_LABEL_RE.match(line.text) or PLUSMINUS_RE.match(line.text) for line in rest)
@@ -1122,15 +1186,17 @@ class Reader:
                 if (line.text or not line.para.images) and len(text) < GROW_QUESTION_CHARS:
                     raw = line.para.text.rstrip()  # код (моноширинный или похожий на код) — с отступами
                     text = f"{text}\n{raw if _mono(line.para.runs) or code_like(raw) else line.text}"
+                    mono = mono or _mono_any(line.para.runs)
                 skip += 1
             rest = rest[skip:]
             if not rest:
                 if label or head.text.endswith(("?", ":", "…")):
-                    self.new_item(label, text, self.where(head))  # вопрос без вариантов: открытый
+                    self.new_item(label, text, self.where(head)).mono = mono  # вопрос без вариантов: открытый
                 else:
                     self.skip(head.text)
                 continue
             item = self.new_item(label or (head.para.label.rstrip(".") if head.para.label else ""), text, self.where(head))
+            item.mono = mono
             item.images += head.para.images
             item.formulas += head.para.formulas
             if not self.open_mode:
@@ -1296,6 +1362,7 @@ class Reader:
                         self.items.pop()  # строка без номера над «1.» — заголовок списка, а не вопрос
                         self.heading(current.text, "line")
                     current = self.new_item(label, body_text, self.where(line))
+                    current.mono = _mono_inside(para.runs)
                     expected_next = number + 1
                     self.layouts["numbered_paragraphs"] += 1
                     chain = inline_chain(text) if not self.open_mode else None
@@ -1318,6 +1385,7 @@ class Reader:
                     # код под вопросом — отдельными строками, как написан (отступы и пустые строки внутри кода)
                     if len(current.text) < GROW_QUESTION_CHARS:
                         current.text = current.text + "\n" * (gap if in_code else 0) + "\n" + para.text.rstrip()
+                        current.mono = current.mono or _mono_any(para.runs)
                     code_open, code_kind = True, "mono" if mono else "text"
                     continue
                 if place == "wrap":
@@ -1327,6 +1395,7 @@ class Reader:
             if current is None:
                 if text.endswith(("?", ":", "…")) or (not self.open_mode and self.options_follow(body, position)):
                     current = self.new_item(para.label.rstrip(".") if para.label else "", para.text.strip(), self.where(line))
+                    current.mono = _mono_inside(para.runs)
                     self.layouts["unnumbered_paragraphs"] += 1
                 else:
                     self.skip(text)
@@ -2215,7 +2284,9 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
             "answer": item.answer[:MAX_QUESTION_CHARS] if item.answer else item.answer,
             "evidence": item.evidence,
             "flags": list(item.flags),
-            "code": bool(CODE_RE.search(item.text) or any(CODE_RE.search(o.text) or any(r.mono for r in o.runs) for o in item.options)),
+            # код: знаки кода C, моноширинный шрифт в вопросе или в вариантах, строки SQL и оболочки
+            "code": bool(item.mono or CODE_RE.search(item.text) or code_in_lines(item.text)
+                         or any(CODE_RE.search(o.text) or any(r.mono for r in o.runs) for o in item.options)),
             "where": item.where,
             "marks": {s: [_mark_value(*o.mark_counts(s)) for o in options] for s in signals},
         })
