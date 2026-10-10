@@ -9,6 +9,7 @@ vi.mock('../supabase', () => ({ supabase: { rpc: sb.rpc, supabaseUrl: 'https://a
 import {
   defaultDeps, fileFromTicket, FUNCTION_REGION, TELEGRAM_FILE, TicketError, ticketOf, useTelegramFile, type TicketDeps,
 } from './fileTicket';
+import { ROUTE_STORAGE_KEY } from '../supabaseRoute';
 
 // An invented file of the spec's exam «Осенняя сессия»: a made-up ticket, token and bytes.
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -135,6 +136,16 @@ describe('fileFromTicket: the ticket → telegram_file_take → GET /telegram/fi
     expect(await deps.take(t)).toEqual({ data: { status: 'used' }, error: null });
     expect(sb.rpc).toHaveBeenCalledWith('telegram_file_take', { p_ticket: t });
     expect(deps.functionsUrl()).toMatch(/^https:\/\/[a-z0-9-]+\.supabase\.co\/functions\/v1$/);
+  });
+
+  it('a browser on the site route (lib/supabaseRoute.ts «proxy») takes the file through /sb, the one function it passes', () => {
+    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route: 'proxy', at: Date.now() }));
+    try {
+      expect(defaultDeps().functionsUrl()).toBe(`${window.location.origin}/sb/functions/v1`);
+    } finally {
+      window.localStorage.removeItem(ROUTE_STORAGE_KEY);
+    }
+    expect(defaultDeps().functionsUrl()).toMatch(/^https:\/\/[a-z0-9-]+\.supabase\.co\/functions\/v1$/);
   });
 
   it('ticketOf reads ?tg= of the bot’s shape only', () => {

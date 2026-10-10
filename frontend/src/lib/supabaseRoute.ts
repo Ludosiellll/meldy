@@ -50,6 +50,11 @@ function storedRoute(now: number): SupabaseRoute | null {
   }
 }
 
+/** Путь, который этот браузер уже выбрал (свежий, моложе ROUTE_TTL_MS), или null, пока не выбран. */
+export function preferredRoute(now: number = Date.now()): SupabaseRoute | null {
+  return storedRoute(now);
+}
+
 function rememberRoute(route: SupabaseRoute, now: number): void {
   try {
     window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route, at: now }));

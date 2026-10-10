@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase';
+import { preferredRoute, PROXY_PREFIX } from '../supabaseRoute';
 
 export const TG_PARAM = 'tg';
 export const TICKET = /^F[0-9a-f]{32}$/;
@@ -58,8 +59,13 @@ export interface TicketDeps {
   fetch: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
-/** The project's Edge Functions address: the build's VITE_SUPABASE_URL, else the client's own (as pages/Check.tsx). */
+/**
+ * The project's Edge Functions address: the build's VITE_SUPABASE_URL, else the client's own (as pages/Check.tsx).
+ * A browser that reaches Supabase only through the site (lib/supabaseRoute.ts, route «proxy») takes the file through
+ * /sb as well: backend/supabase_proxy.py passes this one GET.
+ */
 function functionsUrl(): string {
+  if (preferredRoute() === 'proxy' && typeof window !== 'undefined') return `${window.location.origin}${PROXY_PREFIX}/functions/v1`;
   const env = import.meta.env as Record<string, string | undefined>;
   const fromClient = (supabase as unknown as { supabaseUrl?: unknown }).supabaseUrl;
   const url = (env.VITE_SUPABASE_URL || (typeof fromClient === 'string' ? fromClient : '') || '').replace(/\/+$/, '');

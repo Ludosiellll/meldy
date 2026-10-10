@@ -2,7 +2,9 @@
 
 Часть операторов в России не пропускает *.supabase.co. Браузер сначала идёт напрямую, а если
 адрес недоступен, — сюда (frontend/src/lib/supabaseRoute.ts). Проксируются только auth/v1,
-rest/v1 и storage/v1 одного проекта; заголовки запроса и ответа — по списку, тело — как есть.
+rest/v1 и storage/v1 одного проекта и ещё одна функция — GET functions/v1/telegram/file (файл,
+пересланный боту, по одноразовому токену: frontend/src/lib/telegram/fileTicket.ts); заголовки
+запроса и ответа — по списку, тело — как есть.
 Права те же, что при прямом запросе: anon-ключ и токен пользователя из его же заголовков, RLS
 решает в базе. Ключи, токены и тела в журнал не пишутся.
 
@@ -32,6 +34,9 @@ _client: Optional[httpx.AsyncClient] = None
 _client_transport: Optional[httpx.AsyncBaseTransport] = None
 
 ALLOWED_PREFIXES = ("auth/v1/", "rest/v1/", "storage/v1/")
+# The bot's one-time file link (GET only): the bytes of a file forwarded to the bot, by a 60-second token.
+FILE_PATH = "functions/v1/telegram/file"
+FILE_METHODS = ("GET", "HEAD")
 METHODS = ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"]
 REQUEST_HEADERS = (
     "accept",
@@ -55,6 +60,12 @@ RESPONSE_HEADERS = (
     "location",
     "preference-applied",
     "x-supabase-api-version",
+)
+FILE_RESPONSE_HEADERS = RESPONSE_HEADERS + (
+    "cache-control",
+    "content-disposition",
+    "content-security-policy",
+    "x-content-type-options",
 )
 TIMEOUT_SECONDS = 30.0
 UNREACHABLE_DETAIL = "Сервер Meldy не смог связаться с базой данных. Повторите попытку через минуту."
@@ -83,7 +94,8 @@ def _raw_target(request: Request) -> Optional[str]:
         return None
     rest = raw[len("/sb/"):]
     decoded = unquote(rest)
-    if not decoded.startswith(ALLOWED_PREFIXES) or ".." in decoded.split("/") or "\\" in decoded:
+    is_file = decoded == FILE_PATH and request.method in FILE_METHODS
+    if not (decoded.startswith(ALLOWED_PREFIXES) or is_file) or ".." in decoded.split("/") or "\\" in decoded:
         return None
     query = request.url.query
     return f"{rest}?{query}" if query else rest
@@ -117,5 +129,6 @@ async def supabase_passthrough(request: Request, path: str) -> Response:
     except httpx.HTTPError as exc:
         print(f"Supabase passthrough failed: {type(exc).__name__}")
         return JSONResponse({"message": UNREACHABLE_DETAIL}, status_code=502)
-    kept = {name: value for name, value in answer.headers.items() if name.lower() in RESPONSE_HEADERS}
+    allowed = FILE_RESPONSE_HEADERS if target.split("?", 1)[0] == FILE_PATH else RESPONSE_HEADERS
+    kept = {name: value for name, value in answer.headers.items() if name.lower() in allowed}
     return Response(content=answer.content, status_code=answer.status_code, headers=kept)
