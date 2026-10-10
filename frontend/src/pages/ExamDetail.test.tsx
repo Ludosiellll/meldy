@@ -270,6 +270,26 @@ function liveStream() {
   };
 }
 
+/**
+ * The page also reads through Supabase REST over the same fetch (the answer-text consent, lib/oral/answerTexts), in an
+ * order that depends on timing: those reads get an empty list, and the mapping assertions count only the calls to /api/
+ * (one full run once saw the consent read land first and take the place of the mapping call).
+ */
+function urlOf(input: RequestInfo | URL): string {
+  return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+}
+function apiFetch(answer: (url: string) => Response | Promise<Response>) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = urlOf(input);
+    return url.startsWith('/api/') ? answer(url) : new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+}
+function apiCalls(fetchMock: { mock: { calls: unknown[][] } }): Array<[string, RequestInit]> {
+  return (fetchMock.mock.calls as Array<[RequestInfo | URL, RequestInit]>)
+    .map(([input, init]): [string, RequestInit] => [urlOf(input), init])
+    .filter(([url]) => url.startsWith('/api/'));
+}
+
 function item(id: string, coverage: string, extra: Record<string, unknown> = {}) {
   return { question_id: id, coverage, method: 'llm', reason: '', missing: '', evidence: [], nearest: [], mapped_at: new Date().toISOString(), reused: false, ...extra };
 }
@@ -1277,7 +1297,7 @@ describe('ExamDetail: mapping by lectures', () => {
 
   it('marks rows batch by batch, reused ones without animation, then reloads and charges the limit once', async () => {
     const stream = liveStream();
-    const fetchMock = vi.fn(async () => stream.response);
+    const fetchMock = apiFetch(() => stream.response);
     vi.stubGlobal('fetch', fetchMock);
     mocks.loadExamBundle
       .mockResolvedValueOnce(bundle(unmapped(), notMapped))
@@ -1287,10 +1307,10 @@ describe('ExamDetail: mapping by lectures', () => {
     await statusSays('Вопросы ещё не сверены с лекциями');
     expect(statusText()).toBe('Meldy проверит каждый из 3 вопросов по 2 лекциям и отметит, где в них есть ответ. Это стоит 10 единиц ИИ.');
     fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiCalls(fetchMock)).toHaveLength(1));
     expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 10);
     expect(mocks.verifyEnergy).not.toHaveBeenCalled();
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = apiCalls(fetchMock)[0];
     expect(url).toBe('/api/exams/exam-1/map');
     expect(JSON.parse(String(init.body))).toEqual({ question_ids: null, force: false });
 
@@ -1337,7 +1357,7 @@ describe('ExamDetail: mapping by lectures', () => {
 
   it('charges nothing when the run did not use the model', async () => {
     const stream = liveStream();
-    vi.stubGlobal('fetch', vi.fn(async () => stream.response));
+    vi.stubGlobal('fetch', apiFetch(() => stream.response));
     mocks.loadExamBundle.mockResolvedValueOnce(bundle(unmapped(), notMapped)).mockResolvedValue(bundle([question(1, 'full'), question(2, 'full'), question(3, 'full')]));
     renderDetail();
     await opened();
@@ -1352,7 +1372,7 @@ describe('ExamDetail: mapping by lectures', () => {
   });
 
   it('says in the header that the daily limit is used up — no dialog — and keeps the focus on the button (stage QA round 2)', async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = apiFetch(() => new Response('{}', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
     mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
@@ -1375,7 +1395,7 @@ describe('ExamDetail: mapping by lectures', () => {
     fireEvent.click(button);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mocks.checkAILimit).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(apiCalls(fetchMock)).toHaveLength(0);
   });
 
   it('says how much is left when the limit is not enough for a run', async () => {
@@ -1390,7 +1410,7 @@ describe('ExamDetail: mapping by lectures', () => {
 
   it('keeps «Сверить с лекциями» in place while the limit is checked and hands the focus to the status’s headline when the run starts', async () => {
     const stream = liveStream();
-    vi.stubGlobal('fetch', vi.fn(async () => stream.response));
+    vi.stubGlobal('fetch', apiFetch(() => stream.response));
     let allow!: (value: unknown) => void;
     mocks.checkAILimit.mockReturnValue(new Promise((resolve) => (allow = resolve)));
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
@@ -1429,12 +1449,11 @@ describe('ExamDetail: mapping by lectures', () => {
   });
   it('offers «Продолжить» after a dropped stream; a 409 then shows «Сверка ещё идёт» and polls until the exam is free', async () => {
     const first = liveStream();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(first.response)
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ detail: 'Сверка с лекциями уже идёт' }), { status: 409, headers: { 'content-type': 'application/json' } }),
-      );
+    const answers = [
+      first.response,
+      new Response(JSON.stringify({ detail: 'Сверка с лекциями уже идёт' }), { status: 409, headers: { 'content-type': 'application/json' } }),
+    ];
+    const fetchMock = apiFetch(() => answers.shift() ?? new Response('{}', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
     // The server wrote q1 before it sent it, then the stream broke (the lock is released as failed).
     mocks.loadExamBundle
@@ -1444,7 +1463,7 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiCalls(fetchMock)).toHaveLength(1));
     first.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     first.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });
     first.close();
@@ -1458,18 +1477,18 @@ describe('ExamDetail: mapping by lectures', () => {
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
 
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(apiCalls(fetchMock)).toHaveLength(2));
     await statusSays('Сверка уже идёт');
     expect(statusText()).toBe('Её запустили в другой вкладке или на другом устройстве. Список обновится сам, когда она закончится.');
     expect(screen.getByText('Изменить список').tagName).toBe('SPAN');
     await waitFor(() => expect(mocks.fetchExamMappingState).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(statusTitle()).not.toBe('Сверка уже идёт'));
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(3));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(apiCalls(fetchMock)).toHaveLength(2);
   });
 
   it('waits for a run started elsewhere instead of starting another', async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = apiFetch(() => new Response('{}', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
     mocks.loadExamBundle
       .mockResolvedValueOnce(bundle(unmapped(), { mapping_state: 'running', mapping_started_at: new Date().toISOString(), mapped_at: null }))
@@ -1480,12 +1499,12 @@ describe('ExamDetail: mapping by lectures', () => {
     await statusSays('Сверка уже идёт');
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(row('q3')).toHaveAttribute('data-coverage', 'none'));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(apiCalls(fetchMock)).toHaveLength(0);
   });
 
   it('offers «Продолжить» for a run that stopped long ago', async () => {
     const stream = liveStream();
-    const fetchMock = vi.fn(async () => stream.response);
+    const fetchMock = apiFetch(() => stream.response);
     vi.stubGlobal('fetch', fetchMock);
     const old = new Date(Date.now() - 10 * 60_000).toISOString();
     mocks.loadExamBundle.mockResolvedValue(
@@ -1500,7 +1519,7 @@ describe('ExamDetail: mapping by lectures', () => {
     expect(meta).toContain('проверено 1 из 3, сверка прервалась');
     expect(meta).not.toContain('сверки ещё нет');
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiCalls(fetchMock)).toHaveLength(1));
     stream.close();
   });
 
@@ -1508,7 +1527,7 @@ describe('ExamDetail: mapping by lectures', () => {
     // Live run of 2026-10-07: «Сверить» on a copy asked for 10 free units, though the server answered to_check 0
     // and used_ai false. Every question here is checked against the lectures the exam has now.
     const stream = liveStream();
-    const fetchMock = vi.fn(async () => stream.response);
+    const fetchMock = apiFetch(() => stream.response);
     vi.stubGlobal('fetch', fetchMock);
     mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     const old = new Date(Date.now() - 10 * 60_000).toISOString();
@@ -1521,7 +1540,7 @@ describe('ExamDetail: mapping by lectures', () => {
     await statusSays('Сверка прервалась');
     expect(statusText()).toBe('Проверено 3 из 3, но сверка не успела завершиться. Запустите её ещё раз.');
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiCalls(fetchMock)).toHaveLength(1));
     expect(mocks.checkAILimit).not.toHaveBeenCalled();
     expect(plain(statusCard().textContent)).not.toMatch(/лимит/);
     stream.send({ type: 'start', questions: 3, to_check: 0, materials: [], skipped: [] });
@@ -1534,7 +1553,7 @@ describe('ExamDetail: mapping by lectures', () => {
     resetMapJobsForTests({ pollIntervalMs: 5, pollLimitMs: 2000 });
 
     // A question not checked yet goes to the model: the units are checked first, as before.
-    const refused = vi.fn();
+    const refused = apiFetch(() => new Response('{}', { status: 404 }));
     vi.stubGlobal('fetch', refused);
     mocks.loadExamBundle.mockResolvedValue(
       bundle([question(1, 'full'), question(2, null)], { mapping_state: 'running', mapping_started_at: old }),
@@ -1544,12 +1563,12 @@ describe('ExamDetail: mapping by lectures', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить сверку' }));
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 10));
     await waitFor(() => expect(statusBlocked()).toMatch(/^Дневной лимит ИИ на сегодня исчерпан/));
-    expect(refused).not.toHaveBeenCalled();
+    expect(apiCalls(refused)).toHaveLength(0);
   });
 
   it('checks again only the questions found by words', async () => {
     const stream = liveStream();
-    const fetchMock = vi.fn(async () => stream.response);
+    const fetchMock = apiFetch(() => stream.response);
     vi.stubGlobal('fetch', fetchMock);
     const list = forty().map((item, index) => (index >= 20 && index < 24 ? question(index + 1, 'unverified') : item));
     mocks.loadExamBundle.mockResolvedValue(bundle(list));
@@ -1560,8 +1579,8 @@ describe('ExamDetail: mapping by lectures', () => {
     // The action lives in the status; the column keeps its one figure.
     expect(within(column()).queryByRole('button', { name: 'Проверить снова' })).toBeNull();
     fireEvent.click(within(statusCard()).getByRole('button', { name: 'Проверить снова' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    await waitFor(() => expect(apiCalls(fetchMock)).toHaveLength(1));
+    const [, init] = apiCalls(fetchMock)[0];
     expect(JSON.parse(String(init.body))).toEqual({ question_ids: ['q21', 'q22', 'q23', 'q24'], force: false });
     stream.close();
   });
@@ -1569,14 +1588,14 @@ describe('ExamDetail: mapping by lectures', () => {
   /** Runs one mapping of the three unmapped questions to the end: q1 «есть», q2 «нет», q3 «частично». */
   async function mapToTheEnd(afterRun: () => void) {
     const stream = liveStream();
-    const fetchMock = vi.fn(async () => stream.response);
+    const fetchMock = apiFetch(() => stream.response);
     vi.stubGlobal('fetch', fetchMock);
     mocks.loadExamBundle.mockResolvedValueOnce(bundle(unmapped(), notMapped));
     afterRun();
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiCalls(fetchMock)).toHaveLength(1));
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'reused', items: [item('q1', 'full', { reused: true })] });
     stream.send({ type: 'batch', index: 1, total: 1, items: [item('q2', 'none'), item('q3', 'partial')] });
@@ -1627,7 +1646,7 @@ describe('ExamDetail: mapping by lectures', () => {
 
   it('does not repeat «Сверка прервалась» on a later visit when the exam was mapped since', async () => {
     const stream = liveStream();
-    vi.stubGlobal('fetch', vi.fn(async () => stream.response));
+    vi.stubGlobal('fetch', apiFetch(() => stream.response));
     mocks.loadExamBundle
       .mockResolvedValueOnce(bundle(unmapped(), notMapped))
       .mockResolvedValue(bundle([question(1, 'full'), question(2, null), question(3, null)], { mapping_state: 'failed' }));
