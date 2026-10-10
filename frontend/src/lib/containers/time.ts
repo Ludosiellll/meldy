@@ -104,6 +104,49 @@ export function weekday(day: LocalDay): number {
   return (((dayIndex(day) + 3) % 7) + 7) % 7; // 1970-01-01 was a Thursday
 }
 
+// ── The student's days of the week (settings.study_weekdays): a bit mask, Monday = 1 … Sunday = 64.
+
+/** Every day of the week. */
+export const EVERY_DAY = 127;
+
+/** A mask as the database keeps it (an integer 1..127); anything else is every day. */
+export function studyMask(mask: unknown): number {
+  return typeof mask === 'number' && Number.isInteger(mask) && mask >= 1 && mask <= EVERY_DAY ? mask : EVERY_DAY;
+}
+
+/** `day` is one of the study days of `mask`. */
+export function isStudyDay(day: LocalDay, mask: number): boolean {
+  return (studyMask(mask) & (1 << weekday(day))) !== 0;
+}
+
+/** The study days d with from ≤ d < to (0 when `to` is not later); every day: `to − from`. */
+export function studyDaysBetween(from: LocalDay, to: LocalDay, mask: number): number {
+  const n = daysBetween(from, to);
+  const m = studyMask(mask);
+  if (n <= 0) return 0;
+  if (m === EVERY_DAY) return n;
+  let perWeek = 0;
+  for (let d = 0; d < 7; d += 1) if (m & (1 << d)) perWeek += 1;
+  let count = Math.floor(n / 7) * perWeek;
+  const first = weekday(from);
+  for (let i = 0; i < n % 7; i += 1) if (m & (1 << ((first + i) % 7))) count += 1;
+  return count;
+}
+
+/** The first study day on or after `day` (within a week: a mask has at least one day). */
+export function studyDayFrom(day: LocalDay, mask: number): LocalDay {
+  let d = day;
+  for (let i = 0; i < 7 && !isStudyDay(d, mask); i += 1) d = addDays(d, 1);
+  return d;
+}
+
+/** The last study day before `day`. */
+export function studyDayBefore(day: LocalDay, mask: number): LocalDay {
+  let d = addDays(day, -1);
+  for (let i = 0; i < 7 && !isStudyDay(d, mask); i += 1) d = addDays(d, -1);
+  return d;
+}
+
 /** The zone's offset at `ms` (local wall clock minus UTC), in ms. */
 function offsetAt(ms: number, tz: string): number {
   const w = wallClock(ms, tz);

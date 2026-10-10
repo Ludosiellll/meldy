@@ -278,6 +278,18 @@ describe('literal values and tuples', () => {
     expect(plan.containers[0].answers_today).toBe(9);
   });
 
+  it('carries the student’s days of the week as a mask 1..127 (Monday = 1 … Sunday = 64) with the minutes', () => {
+    const all = [summary.settings, plan.containers[0].settings, ...overview.containers.map((entry) => entry.settings)];
+    expect(all.length).toBeGreaterThanOrEqual(3);
+    for (const settings of all) {
+      if (!settings) throw new Error('a sample without settings');
+      expect(Object.keys(settings).sort()).toEqual(['minutes_per_day', 'study_weekdays']);
+      expect(Number.isInteger(settings.study_weekdays)).toBe(true);
+      expect(settings.study_weekdays).toBeGreaterThanOrEqual(1);
+      expect(settings.study_weekdays).toBeLessThanOrEqual(127);
+    }
+  });
+
   it('keeps ids, days and moments in their formats', () => {
     for (const id of [container.id, summary.id, oralSync.container_id, mock.run_id, ...overview.attached_exam_ids]) expect(id).toMatch(UUID);
     for (const item of itemsPage) expect(item.updated_at).toMatch(MOMENT);

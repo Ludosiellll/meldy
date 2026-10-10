@@ -12,11 +12,21 @@
  * Order inside the budget (decision 16): mistakes → confirmations → the coverage floor of new items → oral AI checks
  * (confirmations first) → due checks → the final pass → more new items (≤ 100 a day). Each subject first fills its
  * fair share of the minutes (by remaining work, at least 10 %), then the rest goes through the same order.
+ *
+ * The student's days of the week (`studyWeekdays`, spec §3 «минуты и дни недели»): every count of days to a date
+ * counts only study days — the new-question floor, the final window and its W days before the date, the final pass's
+ * share, the minutes needed, the days missed and «План по дням». A day off has no plan: nothing is due and nothing is
+ * missed; what would come up waits for the next study day, and the line `day_off` says when that is. «Ещё 20 новых»
+ * stays for a student who studies anyway, and what they answer counts as on any day. Every day (127) is the plan as
+ * it always was.
  */
 import type { Cls, DayPlan, LocalDay, OralMeta, Pace, PlanInput, PlanItem, UnitState } from './container.ts';
 import { DEFAULT_PACE, SLOW_NEW_FACTOR, SLOW_REV_FACTOR } from './pace.ts';
 import { derive, emptyState, inFigure, isOpenError, isSeen } from './rule.ts';
-import { addDays, atLocalTime, clockText, dayIndex, daysBetween, localDay, startOfDay } from './time.ts';
+import {
+  EVERY_DAY, addDays, atLocalTime, clockText, dayIndex, daysBetween, isStudyDay, localDay, startOfDay, studyDayBefore, studyDayFrom,
+  studyDaysBetween, studyMask,
+} from './time.ts';
 
 export const BUDGET_OPTIONS: readonly number[] = [30, 45, 60, 90];
 export const NEW_PER_DAY_MAX = 100;
@@ -83,10 +93,21 @@ export function estSeconds(item: PlanItem, cls: Cls, pace: Pace): number {
   return base + pace.pWrong[missKey(cls)] * (pace.tWrong + RETRY_FACTOR * pace.tRetry);
 }
 
-/** The final window's length W = min(4, ⌊D0/3⌋), D0 = days from the first plan day to the date. */
-export function windowDays(firstPlanDay: LocalDay, date: LocalDay): number {
-  const d0 = daysBetween(firstPlanDay, date);
+/**
+ * The final window's length W = min(4, ⌊D0/3⌋), D0 = the study days from the first plan day to the date (`mask`:
+ * the student's days of the week; every day by default).
+ */
+export function windowDays(firstPlanDay: LocalDay, date: LocalDay, mask = EVERY_DAY): number {
+  const d0 = studyDaysBetween(firstPlanDay, date, mask);
   return Math.max(0, Math.min(WINDOW_MAX_DAYS, Math.floor(d0 / 3)));
+}
+
+/** The final window's first day: the W-th study day before the date (every day: date − W); null when W = 0. */
+export function windowStart(date: LocalDay, w: number, mask = EVERY_DAY): LocalDay | null {
+  if (!(w > 0)) return null;
+  let day = date;
+  for (let k = 0; k < w; k += 1) day = studyDayBefore(day, mask);
+  return day;
 }
 
 function ceil5(minutes: number): number { return Math.max(0, Math.ceil(minutes / 5 - EPS) * 5); }
@@ -142,6 +163,8 @@ interface Scan {
   today: LocalDay;
   at: number; // the frozen moment
   frozen: boolean;
+  mask: number; // the study days (Monday = 1 … Sunday = 64)
+  off: boolean; // today is not one of them: no plan today
   lateUntil: number;
   subjects: Subj[];
   byId: Map<string, Subj>;
@@ -254,6 +277,7 @@ function scan(input: PlanInput, paces: PlanInput['pace'] | undefined = input.pac
   const frozen = typeof firstAt === 'number' && Number.isFinite(firstAt) && localDay(firstAt, tz) === today;
   const at = frozen ? (firstAt as number) : now;
   const lateUntil = atLocalTime(today, LATE_UNTIL_MINUTES, tz);
+  const mask = studyMask(input.studyWeekdays);
 
   const subjects: Subj[] = [];
   const byId = new Map<string, Subj>();
@@ -261,8 +285,10 @@ function scan(input: PlanInput, paces: PlanInput['pace'] | undefined = input.pac
     if (byId.has(raw.id)) return;
     const date = raw.date ?? null;
     const daysLeft = date === null ? null : daysBetween(today, date);
-    const w = date === null ? 0 : windowDays(input.firstPlanDay ?? today, date);
-    const windowFrom = date !== null && w > 0 ? addDays(date, -w) : null;
+    // The window counts study days: its first day is the W-th study day before the date; new questions until the
+    // day before it.
+    const w = date === null ? 0 : windowDays(input.firstPlanDay ?? today, date, mask);
+    const windowFrom = date !== null ? windowStart(date, w, mask) : null;
     let phase: Phase = 'study';
     if (daysLeft !== null && daysLeft < 0) phase = 'after';
     else if (daysLeft === 0) phase = 'exam_today';
@@ -270,7 +296,7 @@ function scan(input: PlanInput, paces: PlanInput['pace'] | undefined = input.pac
     const s: Subj = {
       id: raw.id, index, date, phase, daysLeft, w, windowFrom,
       windowFromAt: windowFrom === null ? null : startOfDay(windowFrom, tz),
-      lastNewDay: date === null ? null : addDays(date, -w - 1),
+      lastNewDay: date === null ? null : addDays(windowFrom ?? date, -1),
       pace: paceOf(paces, raw.id),
       newDone: Math.max(0, Math.floor((input.today && input.today.newDone ? input.today.newDone[raw.id] : 0) ?? 0)),
       unseen: [], floor: 0, cap: 0, newTaken: 0, doneEst: 0, work: 0,
@@ -431,17 +457,37 @@ function scan(input: PlanInput, paces: PlanInput['pace'] | undefined = input.pac
   for (const [s, list] of unseenRaw) s.unseen = newOrder(list);
   for (const name of Object.keys(buckets) as Bucket[]) buckets[name].sort(cmpKey);
 
-  return { input, tz, now, today, at, frozen, lateUntil, subjects, byId, buckets, waiting, dueLater, answeredToday, lastStudyDay,
-    figure, subjectFigure, mapped, hasOral };
+  return { input, tz, now, today, at, frozen, mask, off: !isStudyDay(today, mask), lateUntil, subjects, byId, buckets, waiting, dueLater,
+    answeredToday, lastStudyDay, figure, subjectFigure, mapped, hasOral };
+}
+
+/**
+ * A moment the plan can offer a question: the moment itself on a study day, else the start of the next study day
+ * (`mask`: the student's days of the week). The end of a session promises the same moments as the plan.
+ */
+export function onStudyDay(ms: number, mask: number, tz: string): number {
+  const day = localDay(ms, tz);
+  return isStudyDay(day, mask) ? ms : startOfDay(studyDayFrom(day, mask), tz);
+}
+
+function studyMoment(ms: number, sc: Scan): number {
+  return onStudyDay(ms, sc.mask, sc.tz);
 }
 
 function activeSubjects(sc: Scan): Subj[] {
   return sc.subjects.filter((s) => s.phase === 'study' || s.phase === 'window');
 }
 
-/** Today's floor and cap of new items per subject (frozen for the day through `newDone`). */
+/**
+ * Today's floor and cap of new items per subject (frozen for the day through `newDone`), and the final pass's quota:
+ * what is left spread over the study days left (today among them). A day off has none.
+ */
 function setFloors(sc: Scan): void {
   const active = activeSubjects(sc);
+  if (sc.off) {
+    for (const s of active) { s.floor = 0; s.cap = 0; s.finalQuota = 0; }
+    return;
+  }
   let capLeft = NEW_PER_DAY_MAX;
   for (const s of sc.subjects) capLeft -= s.newDone;
   capLeft = Math.max(0, capLeft);
@@ -454,8 +500,8 @@ function setFloors(sc: Scan): void {
       continue;
     }
     const lastNew = s.lastNewDay as LocalDay;
-    const days = sc.today <= lastNew ? daysBetween(sc.today, lastNew) + 1 : Math.max(1, s.daysLeft ?? 1);
-    s.floor = Math.min(n, Math.max(0, Math.ceil((n + s.newDone) / days) - s.newDone));
+    const days = sc.today <= lastNew ? studyDaysBetween(sc.today, addDays(lastNew, 1), sc.mask) : studyDaysBetween(sc.today, s.date, sc.mask);
+    s.floor = Math.min(n, Math.max(0, Math.ceil((n + s.newDone) / Math.max(1, days)) - s.newDone));
     s.cap = s.floor;
     if (sc.today <= lastNew) fillable.push(s);
   }
@@ -465,8 +511,8 @@ function setFloors(sc: Scan): void {
     s.cap = Math.min(s.unseen.length, Math.max(s.floor, share));
   }
   for (const s of active) {
-    if (s.phase !== 'window' || s.daysLeft === null) continue;
-    const days = Math.max(1, s.daysLeft);
+    if (s.phase !== 'window' || s.date === null) continue;
+    const days = Math.max(1, studyDaysBetween(sc.today, s.date, sc.mask));
     s.finalQuota = Math.max(0, Math.ceil((s.finalLeft + s.finalDoneToday) / days) - s.finalDoneToday);
   }
 }
@@ -585,6 +631,8 @@ function fillDay(sc: Scan): Fill {
     }
   };
 
+  // A day off takes nothing: what would come up waits for the next study day (the minutes already spent still count).
+  if (sc.off) return f;
   if (shares) pass(true);
   pass(false);
   return f;
@@ -696,7 +744,8 @@ function offsetDay(today: LocalDay, day: LocalDay): number { return daysBetween(
 
 /**
  * While the figure is 0: when the first questions can count (decision 40), from the plan — a confirmation in today's
- * target counts today (from its moment), any other started question from tomorrow at the earliest.
+ * target counts today (from its moment), any other started question from tomorrow at the earliest, and only on a
+ * study day (a day off has no plan: from the start of the next study day).
  */
 function firstCount(sc: Scan, fill: Fill): { day: LocalDay; time: string | null } | null {
   const { tz, now, today } = sc;
@@ -719,7 +768,7 @@ function firstCount(sc: Scan, fill: Fill): { day: LocalDay; time: string | null 
         if (moment === Infinity) break;
       }
       if (moment === Infinity) continue;
-      earliest = Math.min(earliest, Math.max(moment, tomorrowStart));
+      earliest = Math.min(earliest, studyMoment(Math.max(moment, tomorrowStart), sc));
     }
   }
   if (earliest === Infinity) return null;
@@ -814,12 +863,13 @@ export function planDay(input: PlanInput): DayPlan {
   else if (fill.list.length > 0) state = 'study';
   else state = studied ? 'done' : 'nothing';
 
-  // the next moment something becomes available
+  // the next moment something becomes available (on a study day: a day off has no plan)
   let next: number | null = null;
   if (later.length > 0) next = Math.min(...later.map((t) => t.cand.from as number));
   else {
     for (const w of sc.waiting) if (w.from > now && (next === null || w.from < next)) next = w.from;
     for (const d of sc.dueLater) if (d > now && (next === null || d < next)) next = d;
+    if (next !== null) next = studyMoment(next, sc);
   }
 
   // figure
@@ -852,8 +902,15 @@ export function planDay(input: PlanInput): DayPlan {
   }
   if (active.length > 0) {
     if (state === 'study' && !studied && sc.lastStudyDay !== null) {
-      const gap = daysBetween(sc.lastStudyDay, today) - 1;
-      if (gap >= 1) lines.push({ key: 'skip', n: [gap, Math.round(Number(input.budgetMin) || 0)] });
+      // The study days missed since the last answers (days off are not missed); `day` when the last of them was not
+      // yesterday (a day off came after it).
+      const gap = studyDaysBetween(addDays(sc.lastStudyDay, 1), today, sc.mask);
+      if (gap >= 1) {
+        const missed = studyDayBefore(today, sc.mask);
+        const skip: PlanLine = { key: 'skip', n: [gap, Math.round(Number(input.budgetMin) || 0)] };
+        if (missed !== addDays(today, -1)) skip.day = missed;
+        lines.push(skip);
+      }
     }
     if (later.length > 0) {
       lines.push({ key: 'later', n: [later.length], time: promiseTime(next as number, tz).time ?? '0:00' });
@@ -876,10 +933,20 @@ export function planDay(input: PlanInput): DayPlan {
       : { key: 'first_count', n: [offsetDay(today, fc.day)], day: fc.day, time: fc.time });
     if (state === 'study' && figure.seen < 20) lines.push({ key: 'first_day' });
   }
-  if (state === 'done') lines.push({ key: 'done', n: [sc.answeredToday, Math.max(doneSec > 0 ? 1 : 0, minutesOf(doneSec))] });
-  if (state === 'nothing') {
+  // The next study day with something to do (tomorrow when there is work; else the day of the next moment).
+  const nextDayOf = (): LocalDay | null => {
     const anyWork = unseen > 0 || Object.keys(postponed).length > 0;
-    const nextDay = anyWork ? addDays(today, 1) : next === null ? null : laterDay(localDay(next, tz), addDays(today, 1));
+    const day = anyWork ? addDays(today, 1) : next === null ? null : laterDay(localDay(next, tz), addDays(today, 1));
+    return day === null ? null : studyDayFrom(day, sc.mask);
+  };
+  // A day off (not one of the student's days of the week): no plan, and the line says so with the next study day.
+  if (sc.off && active.length > 0) {
+    const nextDay = nextDayOf();
+    lines.push(nextDay === null ? { key: 'day_off' } : { key: 'day_off', n: [offsetDay(today, nextDay)], day: nextDay });
+  }
+  if (state === 'done') lines.push({ key: 'done', n: [sc.answeredToday, Math.max(doneSec > 0 ? 1 : 0, minutesOf(doneSec))] });
+  if (state === 'nothing' && !sc.off) {
+    const nextDay = nextDayOf();
     lines.push(nextDay === null ? { key: 'nothing' } : { key: 'nothing', n: [offsetDay(today, nextDay)], day: nextDay });
   }
   if (state === 'done' || state === 'nothing') {
@@ -930,7 +997,7 @@ function feasibilityOf(sc: Scan): { neededMin: number; option: 30 | 45 | 60 | 90
       perDay += Math.min(NO_DATE_NEW_PER_DAY, s.unseen.length) * wAvg;
       continue;
     }
-    const days = Math.max(1, s.daysLeft ?? 1);
+    const days = Math.max(1, studyDaysBetween(sc.today, s.date, sc.mask)); // the study days left, today among them
     const need = (newWork + backlog) / days;
     perDay += need;
     rows.push({ s, perDay: need, days, backlog, wAvg });
@@ -953,7 +1020,10 @@ function feasibilityOf(sc: Scan): { neededMin: number; option: 30 | 45 | 60 | 90
   return { neededMin, option, seenByDateEst, total };
 }
 
-/** Minutes a day needed to see everything by the date at the student's pace, the smallest fitting option, and how many they would see at the current budget. */
+/**
+ * Minutes a study day needed to see everything by the date at the student's pace, the smallest fitting option, and how
+ * many they would see at the current budget.
+ */
 export function feasibility(input: PlanInput): { neededMin: number; option: 30 | 45 | 60 | 90 | null; seenByDateEst: number } {
   const f = feasibilityOf(scan(input));
   return { neededMin: f.neededMin, option: f.option, seenByDateEst: f.seenByDateEst };
@@ -1018,7 +1088,8 @@ export interface DayRow { from: LocalDay; to: LocalDay; kind: 'study' | 'window'
 
 /**
  * «План по дням»: today to the last date, equal days grouped — study days with about the minutes a day, the final
- * window without a promised number of minutes (decision 39), and each exam day.
+ * window without a promised number of minutes (decision 39), and each exam day. Days off (not the student's days of
+ * the week) have no row; equal study days on either side of them stay one row («13 октября – 14 ноября»).
  */
 export function daysAhead(input: PlanInput): DayRow[] {
   const sc = scan(input);
@@ -1032,6 +1103,7 @@ export function daysAhead(input: PlanInput): DayRow[] {
   for (let day = sc.today; day <= lastDate; day = addDays(day, 1)) {
     const exams = sc.subjects.filter((s) => s.date === day).map((s) => s.id);
     if (exams.length > 0) { rows.push({ from: day, to: day, kind: 'exam', minutes: null, subjectIds: exams }); continue; }
+    if (!isStudyDay(day, sc.mask)) continue;
     const open = sc.subjects.filter((s) => s.date === null || (s.date as LocalDay) > day);
     if (open.length === 0) continue;
     const takesNew = open.some((s) => s.date === null || (s.lastNewDay !== null && day <= s.lastNewDay));
@@ -1039,7 +1111,8 @@ export function daysAhead(input: PlanInput): DayRow[] {
     const minutes = kind === 'study' ? perDay : null;
     const ids = open.map((s) => s.id);
     const prev = rows[rows.length - 1];
-    if (prev && prev.kind === kind && prev.minutes === minutes && prev.to === addDays(day, -1) && prev.subjectIds.join() === ids.join()) prev.to = day;
+    const next = prev ? studyDaysBetween(addDays(prev.to, 1), day, sc.mask) === 0 : false; // only days off between
+    if (prev && prev.kind === kind && prev.minutes === minutes && next && prev.subjectIds.join() === ids.join()) prev.to = day;
     else rows.push({ from: day, to: day, kind, minutes, subjectIds: ids });
   }
   return rows;

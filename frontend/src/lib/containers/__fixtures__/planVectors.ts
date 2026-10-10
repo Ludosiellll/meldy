@@ -134,6 +134,28 @@ export function planVectorCases(): PlanVector[] {
       },
     },
     {
+      name: 'weekdays_five_days',
+      about: 'Пн–Пт (study_weekdays 31), Monday 5 October, 300 new, the exam on Monday 2 November: the floor spreads over the 16 study days to the window (19 a day, every day 13), the window is the last 4 study days (27–30 October)',
+      input: makeInput({ now: at('2026-10-05', '19:00'), subjects: [{ id: 'a', date: '2026-11-02' }], items: testItems('a', 300, 20), budgetMin: 45,
+        firstPlanDay: '2026-10-05', studyWeekdays: 31 }),
+    },
+    {
+      name: 'weekdays_day_off',
+      about: 'Пн–Пт, Saturday 10 October: no plan — Thursday\'s mistakes and second days wait for Monday; «Сегодня выходной. Следующие вопросы — в понедельник.», the first count on Monday, «Ещё 20 новых»',
+      input: makeInput({ now: at('2026-10-10', '10:00'), subjects: [{ id: 'a', date: '2026-11-09' }], budgetMin: 45, firstPlanDay: '2026-10-05', studyWeekdays: 31,
+        items: states(testItems('a', 120, 20), (_, i) => {
+          if (i < 10) return stateAfter([{ at: at('2026-10-08', '19:00') + i * 30_000, correct: false }]);
+          if (i < 20) return stateAfter([{ at: at('2026-10-08', '19:10') + i * 30_000, correct: true }]);
+          return undefined;
+        }) }),
+    },
+    {
+      name: 'weekdays_last_study_day',
+      about: 'Пн–Пт, Friday 30 October, the exam on Monday 2 November: the last study day takes all of the final pass that is left (30; every day would take ⌈30 / 3⌉ = 10)',
+      input: makeInput({ now: at('2026-10-30', '10:00'), subjects: [{ id: 'a', date: '2026-11-02' }], budgetMin: 60, firstPlanDay: '2026-10-01', studyWeekdays: 31,
+        items: states(testItems('a', 30), (_, i) => stateAfter([{ at: at('2026-10-25', '09:00'), correct: true }, { at: at('2026-10-26', '09:00') + i * 1000, correct: true }])) }),
+    },
+    {
       name: 'dst_berlin',
       about: 'Europe/Berlin on its 25-hour day: confirmations from the evening before are «после» a local time',
       input: makeInput({ tz: 'Europe/Berlin', now: at('2026-10-25', '08:10', 'Europe/Berlin'), firstAt: at('2026-10-25', '08:10', 'Europe/Berlin'),

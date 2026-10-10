@@ -53,6 +53,18 @@ describe('decodePlanInputs against contracts/container/plan_inputs.json', () => 
     ]);
     expect(input.today).toEqual({ firstAt: 1797867065000, doneSec: 119, newDone: { [S1]: 0, [S2]: 1, [S3]: 0 } });
     expect(input.ai).toEqual({ left: 96, resetsAt: 1797897600000 });
+    expect(input.studyWeekdays).toBe(127);
+  });
+
+  it('gives the student’s days of the week (settings.study_weekdays) as they are; a missing or broken mask is every day', () => {
+    const withDays = (study_weekdays: unknown) =>
+      decodePlanInputs({ ...wire, containers: [{ ...wire.containers[0], settings: { minutes_per_day: 45, study_weekdays } as never }] }, options()).studyWeekdays;
+    expect(withDays(31)).toBe(31); // Пн–Пт
+    expect(withDays(64)).toBe(64); // Sundays only
+    for (const bad of [0, 128, 2.5, null, undefined, '31']) expect(withDays(bad)).toBe(127);
+    const noSettings = decodePlanInputs({ ...wire, containers: [{ ...wire.containers[0], settings: undefined as never }] }, options());
+    expect(noSettings.studyWeekdays).toBe(127);
+    expect(noSettings.budgetMin).toBe(60);
   });
 
   it('turns item tuples into test plan items: subject id, topic, order, slow', () => {

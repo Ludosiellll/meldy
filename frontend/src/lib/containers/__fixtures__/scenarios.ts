@@ -53,6 +53,8 @@ export interface InputOptions {
   doneSec?: number;
   newDone?: Record<string, number>;
   ai?: { left: number; resetsAt: number } | null;
+  /** The days of the week (Monday = 1 … Sunday = 64); left out: every day, as before the setting. */
+  studyWeekdays?: number;
 }
 
 export function makeInput(o: InputOptions): PlanInput {
@@ -69,6 +71,7 @@ export function makeInput(o: InputOptions): PlanInput {
     today: { firstAt: o.firstAt ?? null, doneSec: o.doneSec ?? 0, newDone: o.newDone ?? {} },
     pace: null,
     ai: o.ai ?? null,
+    ...(o.studyWeekdays === undefined ? {} : { studyWeekdays: o.studyWeekdays }),
   };
 }
 
@@ -99,15 +102,17 @@ export interface Sim {
   states: Map<string, UnitState>;
   days: Map<LocalDay, DayRecord>;
   dateOf: Map<string, LocalDay | null>;
+  /** The days of the week of the settings (undefined: every day, the input without the field). */
+  studyWeekdays?: number;
 }
 
-export function newSim(o: { subjects: Array<{ id: string; date: LocalDay | null }>; items: PlanItem[]; budgetMin: number; firstPlanDay: LocalDay; seed: string; learner?: Learner; tz?: string }): Sim {
+export function newSim(o: { subjects: Array<{ id: string; date: LocalDay | null }>; items: PlanItem[]; budgetMin: number; firstPlanDay: LocalDay; seed: string; learner?: Learner; tz?: string; studyWeekdays?: number }): Sim {
   const dateOf = new Map<string, LocalDay | null>();
   for (const item of o.items) dateOf.set(item.id, o.subjects.find((s) => s.id === item.s)?.date ?? null);
   return {
     tz: o.tz ?? TZ, subjects: o.subjects.map((s) => ({ id: s.id, title: s.id, date: s.date })), budgetMin: o.budgetMin,
     firstPlanDay: o.firstPlanDay, seed: o.seed, learner: o.learner ?? STEADY, items: o.items,
-    states: new Map(), days: new Map(), dateOf,
+    states: new Map(), days: new Map(), dateOf, ...(o.studyWeekdays === undefined ? {} : { studyWeekdays: o.studyWeekdays }),
   };
 }
 
@@ -134,6 +139,7 @@ export function simInput(sim: Sim, now: number): PlanInput {
     today: { firstAt: rec.firstAt, doneSec: Math.round(rec.doneSec), newDone: { ...rec.newDone } },
     pace: null,
     ai: null,
+    ...(sim.studyWeekdays === undefined ? {} : { studyWeekdays: sim.studyWeekdays }),
   };
 }
 

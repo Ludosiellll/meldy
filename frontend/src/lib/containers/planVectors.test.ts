@@ -32,6 +32,6 @@ describe('plan vectors (__fixtures__/plan_vectors.json)', () => {
     expect([...states].sort()).toEqual(['after', 'done', 'exam_today', 'nothing', 'study']);
     const keys = new Set(file.cases.flatMap((c) => c.expect.lines.map((l) => l.key)));
     for (const key of ['later', 'first_count', 'skip', 'short', 'window_ahead', 'window_in', 'exam_today', 'exam_errors', 'after', 'no_date',
-      'first_day', 'more_new', 'ai_limit', 'oral', 'done', 'nothing']) expect(keys.has(key), key).toBe(true);
+      'first_day', 'more_new', 'ai_limit', 'oral', 'done', 'nothing', 'day_off']) expect(keys.has(key), key).toBe(true);
   });
 });

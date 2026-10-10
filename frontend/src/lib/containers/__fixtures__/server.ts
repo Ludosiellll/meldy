@@ -26,16 +26,18 @@ export interface Server {
   subjects: Array<{ id: string; title: string; date: LocalDay | null }>;
   items: PlanItem[]; // test items only, in plan order
   budgetMin: number;
+  /** The settings' days of the week (Monday = 1 … Sunday = 64; 127 = every day): «Настройки» may switch them. */
+  studyWeekdays: number;
   firstPlanDay: LocalDay;
   states: Map<string, UnitState>;
   starts: Map<string, { day: LocalDay; state: UnitState }>;
   log: Logged[];
 }
 
-export function newServer(o: { subjects: Array<{ id: string; date: LocalDay | null }>; items: PlanItem[]; budgetMin: number; firstPlanDay: LocalDay; tz?: string }): Server {
+export function newServer(o: { subjects: Array<{ id: string; date: LocalDay | null }>; items: PlanItem[]; budgetMin: number; firstPlanDay: LocalDay; tz?: string; studyWeekdays?: number }): Server {
   return {
     tz: o.tz ?? TZ, subjects: o.subjects.map((s) => ({ id: s.id, title: s.id, date: s.date })), items: o.items, budgetMin: o.budgetMin,
-    firstPlanDay: o.firstPlanDay, states: new Map(), starts: new Map(), log: [],
+    studyWeekdays: o.studyWeekdays ?? 127, firstPlanDay: o.firstPlanDay, states: new Map(), starts: new Map(), log: [],
   };
 }
 
@@ -116,7 +118,7 @@ export function wireAt(server: Server, now: number, old = false): PlanInputsWire
   const wire: PlanInputsWire = {
     v: 1, day, now: Math.floor(now / 1000),
     containers: [{ id: CONTAINER, title: 'Сессия', exam_date: null, role: 'owner', first_plan_day: server.firstPlanDay, answers_today: todays.length,
-      settings: { minutes_per_day: server.budgetMin, study_weekdays: 127 },
+      settings: { minutes_per_day: server.budgetMin, study_weekdays: server.studyWeekdays },
       today: { first_at: firstAt === null ? null : Math.floor(firstAt / 1000), done_s: Math.round(doneMs / 1000) } }],
     subjects: server.subjects.map((s) => ({
       id: s.id, container: 0, title: s.title, test_date: s.date, oral_exam_id: null, topics: 9,
