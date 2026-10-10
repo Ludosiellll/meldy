@@ -278,6 +278,26 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     expect(api.updateContainer).not.toHaveBeenCalled();
   });
 
+  it('the lines under «Время в день» count the days as the form has them, before «Сохранить»', () => {
+    // The minutes reach every question on every day (saved), not on Пн–Пт.
+    api.feasibility.mockImplementation((input: PlanInput) => ({ neededMin: 75, option: 90, seenByDateEst: input.studyWeekdays === 31 ? 704 : 960 }));
+    renderAt();
+    expect(screen.getByText(/^Чтобы увидеть все 960\sвопросов к 12\sянваря, нужно около 75\sминут в день\.$/)).toBeInTheDocument();
+    const days = within(screen.getByRole('group', { name: SETTINGS.days }));
+    fireEvent.click(days.getByRole('button', { name: 'суббота' }));
+    fireEvent.click(days.getByRole('button', { name: 'воскресенье' }));
+    expect(api.feasibility).toHaveBeenLastCalledWith(expect.objectContaining({ studyWeekdays: 31 }));
+    expect(screen.getByText(/^При 45\sминутах к 12\sянваря вы увидите около 700 из 960\. Чтобы увидеть все, нужно около 75\sминут\./)).toBeInTheDocument();
+    // The final 4 days are the last study days before Tuesday 12 January: 6, 7, 8 and 11 January.
+    expect(api.windowDays).toHaveBeenLastCalledWith(PLAN.firstPlanDay, '2027-01-12', 31);
+    fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
+    expect(screen.getByText(/С 6\sянваря новых вопросов не будет: последние 4\sдня — только знакомые, сначала ошибки\./)).toBeInTheDocument();
+    expect(api.saveSettings).not.toHaveBeenCalled();
+    // Saturday back on (Пн–Сб): 7, 8, 9 and 11 January.
+    fireEvent.click(days.getByRole('button', { name: 'суббота' }));
+    expect(screen.getByText(/С 7\sянваря новых вопросов не будет/)).toBeInTheDocument();
+  });
+
   it('keeps at least one day: the last one stays on and the page says why', () => {
     api.state.summary = { ...solo(), settings: { minutes_per_day: 45, study_weekdays: 4 } };
     renderAt();
