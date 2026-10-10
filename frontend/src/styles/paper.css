@@ -345,11 +345,48 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 }
 .sf-me img { width: 100%; height: 100%; object-fit: cover; }
 
+/* The theme in one press, right of the account button (ThemeToggle.tsx): the sun on the light page, the moon on the
+   dark one, turning into each other. 44 px to press; the glyph's right edge on the page's right edge (below 1024 px the
+   line's right padding is 6 px short of it, see .sf-bar-in), its press area 2 px clear of the account button's. */
+.sf-theme {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: 0 -11px 0 -8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.sf-theme svg {
+  grid-area: 1 / 1;
+  width: 22px;
+  height: 22px;
+  transition: transform .5s cubic-bezier(.2, .8, .2, 1), opacity .3s ease;
+}
+.sf-theme .sf-theme-moon { opacity: 0; transform: rotate(-90deg) scale(.5); }
+.sf-theme[data-dark] .sf-theme-sun { opacity: 0; transform: rotate(90deg) scale(.5); }
+.sf-theme[data-dark] .sf-theme-moon { opacity: 1; transform: none; }
+.sf-theme:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+@media (hover: hover) {
+  .sf-theme:hover { background: var(--sf-tint); }
+}
+@media (max-width: 1023px) {
+  .sf-theme { margin-right: -5px; }
+}
+
 /* The account menu: 280 wide, radius 8, the pop shadow; it opens under the account button. */
 .sf-acct {
   position: absolute;
   top: calc(100% + 6px);
-  right: calc(var(--sf-g) - 6px);
+  /* Under the account button, whose press area ends 35 px inside the line's padding at every width (the theme button
+     is on its right). Where that would push a 280 px menu off a narrow phone, it moves right just enough to stay on. */
+  right: max(calc(var(--sf-g) - 6px), min(calc(var(--sf-g) + 35px), calc(100vw - 296px)));
   z-index: 40;
   box-sizing: border-box;
   width: 280px;
@@ -391,40 +428,6 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 .sf-acct-item:hover { background: var(--sf-tint); }
 .sf-acct-state { color: var(--sf-muted); font-weight: 500; }
 .sf-acct-sep { height: 1px; margin: 6px 0; background: var(--sf-line); }
-.sf-acct-row { display: grid; gap: 6px; padding: 6px 16px 8px; }
-.sf-acct-label { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
-/* The three themes: one segmented row of equal parts, the chosen one raised. */
-.sf-acct-themes {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--sf-tint);
-}
-.sf-acct-themes button {
-  min-width: 0;
-  min-height: 40px;
-  padding: 0 4px;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  font-family: var(--ph-sans);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--sf-muted);
-  white-space: nowrap;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
-}
-.sf-acct-themes button:hover { color: var(--sf-ink); }
-.sf-acct-themes button[aria-pressed='true'] {
-  background: var(--sf-surface);
-  box-shadow: 0 1px 3px rgba(16, 41, 90, .14), 0 0 0 1px var(--sf-line);
-  color: var(--sf-ink);
-  font-weight: 600;
-}
 @media (min-width: 1024px) {
   .sf-acct-phone { display: none; }
 }
@@ -457,7 +460,6 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
     white-space: nowrap;
   }
   .sf-back svg { width: 20px; height: 20px; flex: none; }
-  .sf-acct { right: calc(var(--sf-g) - 6px); }
 
   /* Four text tabs at the bottom: solid canvas, one line on top, no icons and no transparency. */
   .sf-tabbar {
@@ -915,6 +917,8 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
   .sf-bar-link,
   .sf-shell .sf-nav-cta,
   .sf-me-hit,
+  .sf-theme,
+  .sf-theme svg,
   .sf-acct-item,
   .sf-flip-inner,
   .sf-toc-link,

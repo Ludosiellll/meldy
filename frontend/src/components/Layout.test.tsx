@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getProfile: vi.fn(),
   countDueCards: vi.fn(),
   setTheme: vi.fn(),
+  resolvedTheme: 'light' as 'light' | 'dark',
   signOut: vi.fn(),
   from: vi.fn(),
 }));
@@ -22,7 +23,9 @@ vi.mock('../api/limits', async (importOriginal) => {
 });
 vi.mock('../api/flashcards', () => ({ countDueCards: (...args: unknown[]) => mocks.countDueCards(...args) }));
 vi.mock('../lib/supabase', () => ({ supabase: { from: (...args: unknown[]) => mocks.from(...args) } }));
-vi.mock('../contexts/ThemeProvider', () => ({ useTheme: () => ({ theme: 'light', setTheme: mocks.setTheme }) }));
+vi.mock('../contexts/ThemeProvider', () => ({
+  useTheme: () => ({ theme: mocks.resolvedTheme, resolved: mocks.resolvedTheme, setTheme: mocks.setTheme }),
+}));
 vi.mock('../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: false }) }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }) }));
 
@@ -47,7 +50,7 @@ function renderAt(path: string, page: React.ReactNode = <p>Содержимое 
 const bar = () => document.querySelector('header.sf-bar') as HTMLElement;
 const deskNav = () => within(bar()).getByRole('navigation', { name: 'Разделы' });
 const tabBar = () => screen.queryByTestId('tab-bar');
-const openMenu = () => fireEvent.click(screen.getByRole('button', { name: /Алина: профиль, справка, тема, выход/ }));
+const openMenu = () => fireEvent.click(screen.getByRole('button', { name: /Алина: профиль, справка, выход/ }));
 /** The guide was seen, so a student's first run does not cover the shell in these tests (Guide.test.tsx covers it). */
 const profile = (extra: Record<string, unknown> = {}) => ({ is_pro: false, role: 'student', onboarding_status: { guide: true }, ...extra });
 
@@ -57,6 +60,7 @@ beforeEach(() => {
   mocks.countDueCards.mockReset().mockResolvedValue(11);
   mocks.from.mockReset();
   mocks.setTheme.mockReset();
+  mocks.resolvedTheme = 'light';
   mocks.signOut.mockReset();
   window.localStorage.clear();
   document.documentElement.removeAttribute('data-stage');
@@ -79,11 +83,12 @@ describe('the menu: five sections around the core', () => {
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
-  it('has no capitals, group titles, icons or badges in the top line; the only drawing is the limit ring', async () => {
+  it('has no capitals, group titles, icons or badges in the top line; the only drawings are the limit ring and the theme\'s sun', async () => {
     renderAt('/dashboard');
     const header = bar();
     const meter = within(header).getByTestId('quota-meter');
-    expect(Array.from(header.querySelectorAll('svg')).filter((svg) => !meter.contains(svg))).toEqual([]);
+    const theme = header.querySelector('.sf-theme') as HTMLElement;
+    expect(Array.from(header.querySelectorAll('svg')).filter((svg) => !meter.contains(svg) && !theme.contains(svg))).toEqual([]);
     expect(header.querySelector('h3')).toBeNull();
     expect(header.innerHTML).not.toMatch(/uppercase|tracking-|animate-|bg-rose|bg-cyan|⚡/);
     expect(header.textContent).not.toMatch(/УЧЁБА|ПРАКТИКА|ПРОГРЕСС|Энерги/);
@@ -166,6 +171,9 @@ describe('phones and tablets (spec 4.2)', () => {
       expect(link.querySelector('.sf-tab-ico')).toHaveAttribute('aria-hidden', 'true');
     }
     expect(PHONE_TABS.map((item) => item.to)).toEqual(['/dashboard', '/exams', '/library', '/review', '/analytics']);
+    // «Сегодня» is a calendar: the sun is the theme button in the top line, and one picture means one thing.
+    expect(within(tabs).getByRole('link', { name: 'Сегодня' }).querySelector('svg')).toHaveClass('lucide-calendar-days');
+    expect(tabs.querySelector('.lucide-sun')).toBeNull();
     expect(DESK_LINKS).toBe(NAV_ITEMS);
     expect(PHONE_TABS).toBe(NAV_ITEMS);
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
@@ -259,7 +267,7 @@ describe('the guide from the account menu (the only way to it on a phone, 10_Pro
   it('opens the guide from the account menu and gives the focus back to the account button', async () => {
     renderAt('/dashboard');
     await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
-    const button = screen.getByRole('button', { name: /Алина: профиль, справка, тема, выход/ });
+    const button = screen.getByRole('button', { name: /Алина: профиль, справка, выход/ });
     openMenu();
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('button', { name: 'Как пользоваться Meldy' }));
     expect(screen.queryByRole('dialog', { name: 'Меню аккаунта' })).toBeNull();
@@ -433,25 +441,19 @@ describe('the window scrolls (spec 4.1)', () => {
 });
 
 describe('account menu', () => {
-  it('holds the profile, the theme, projector mode, the way to PRO and «Выйти»; Escape closes it', async () => {
+  it('holds the profile, projector mode, the way to PRO and «Выйти»; Escape closes it', async () => {
     renderAt('/dashboard');
-    const button = screen.getByRole('button', { name: /Алина: профиль, справка, тема, выход/ });
+    const button = screen.getByRole('button', { name: /Алина: профиль, справка, выход/ });
     expect(button).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(button);
     const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
     expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(within(menu).getByText('alina@example.com')).toHaveAttribute('title', 'alina@example.com');
     expect(within(menu).getByRole('link', { name: 'Профиль' })).toHaveAttribute('href', '/profile');
-    expect(within(menu).getByRole('button', { name: 'Светлая' })).toHaveAttribute('aria-pressed', 'true');
-    // Three one-word themes in one row; the third explains itself on hover.
-    expect(within(within(menu).getByRole('group', { name: 'Тема' })).getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'Светлая',
-      'Тёмная',
-      'Системная',
-    ]);
-    expect(within(menu).getByRole('button', { name: 'Системная' })).toHaveAttribute('title', 'Как в настройках устройства');
-    fireEvent.click(within(menu).getByRole('button', { name: 'Тёмная' }));
-    expect(mocks.setTheme).toHaveBeenCalledWith('dark');
+    // The theme is the sun in the top line now (2026-10-10), not a row of the menu.
+    expect(within(menu).queryByRole('group', { name: 'Тема' })).toBeNull();
+    expect(within(menu).queryByRole('button', { name: /^(Светлая|Тёмная|Системная)$/ })).toBeNull();
+    expect(within(menu).queryByText('Тема')).toBeNull();
     expect(within(menu).getByRole('switch', { name: /Показ на проекторе/ })).toBeInTheDocument();
     fireEvent.click(within(menu).getByRole('button', { name: 'Выйти' }));
     expect(mocks.signOut).toHaveBeenCalled();
@@ -482,6 +484,46 @@ describe('account menu', () => {
     expect(within(menu).queryByRole('link', { name: /Мои группы|Диалоги/ })).toBeNull();
     expect(within(menu).queryByRole('button', { name: /Уведомления/ })).toBeNull();
     expect(within(menu).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/profile']);
+  });
+});
+
+describe('the theme button in the top line (the owner, 2026-10-10)', () => {
+  const themeButton = () => within(bar()).getByRole('button', { name: /^Включить (тёмную|светлую) тему$/ });
+
+  it('is the last thing in the line, right of the account button, and switches to the other theme', async () => {
+    renderAt('/dashboard');
+    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+    const right = bar().querySelector('.sf-bar-right') as HTMLElement;
+    const buttons = Array.from(right.children);
+    expect(buttons[buttons.length - 1]).toBe(themeButton());
+    expect(buttons[buttons.length - 2]).toBe(screen.getByRole('button', { name: /Алина: профиль, справка, выход/ }));
+    // On the light page: the sun on screen, the name says what a press does.
+    expect(themeButton()).toHaveAccessibleName('Включить тёмную тему');
+    expect(themeButton()).toHaveAttribute('title', 'Включить тёмную тему');
+    expect(themeButton()).not.toHaveAttribute('data-dark');
+    fireEvent.click(themeButton());
+    expect(mocks.setTheme).toHaveBeenCalledWith('dark');
+    expect(screen.queryByRole('dialog', { name: 'Меню аккаунта' })).toBeNull();
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('on the dark page offers the light one', async () => {
+    mocks.resolvedTheme = 'dark';
+    renderAt('/exams');
+    expect(themeButton()).toHaveAccessibleName('Включить светлую тему');
+    expect(themeButton()).toHaveAttribute('data-dark', '');
+    fireEvent.click(themeButton());
+    expect(mocks.setTheme).toHaveBeenCalledWith('light');
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('is in the line of a phone too (the line keeps only the wordmark, the limit, the avatar and the sun)', async () => {
+    renderAt('/library');
+    const right = bar().querySelector('.sf-bar-right') as HTMLElement;
+    expect(right.querySelector('.sf-theme')).toBe(themeButton());
+    expect(themeButton().querySelector('.lucide-sun')).not.toBeNull();
+    expect(themeButton().querySelector('.lucide-moon')).not.toBeNull();
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 });
 

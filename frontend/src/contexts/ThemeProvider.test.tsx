@@ -4,21 +4,37 @@ import { THEME_CANVAS, ThemeProvider, useTheme } from './ThemeProvider';
 
 const KEY = 'studyforge-theme';
 let osDark = false;
+/** The device's «change» listeners, as a browser keeps them (old Safari's addListener included). */
+let listeners: Array<() => void> = [];
 
-function stubMatchMedia() {
+function stubMatchMedia({ oldSafari = false } = {}) {
+  listeners = [];
+  const add = (_type: string | (() => void), cb?: () => void) => listeners.push((cb ?? _type) as () => void);
+  const remove = (_type: string | (() => void), cb?: () => void) => {
+    listeners = listeners.filter((listener) => listener !== (cb ?? _type));
+  };
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     writable: true,
     value: (query: string) => ({
-      matches: query.includes('dark') ? osDark : false,
+      get matches() {
+        return query.includes('dark') ? osDark : false;
+      },
       media: query,
       onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
+      ...(oldSafari ? {} : { addEventListener: add, removeEventListener: remove }),
+      addListener: (cb: () => void) => add(cb),
+      removeListener: (cb: () => void) => remove(cb),
       dispatchEvent: () => false,
     }),
+  });
+}
+
+/** The device switches its theme while the page is open. */
+function deviceSwitches(dark: boolean) {
+  osDark = dark;
+  act(() => {
+    for (const listener of [...listeners]) listener();
   });
 }
 
@@ -40,9 +56,14 @@ const metaColors = () => Array.from(document.querySelectorAll('meta[name="theme-
 
 let setThemeRef: ((theme: 'dark' | 'light' | 'system') => void) | null = null;
 function Probe() {
-  const { theme, setTheme } = useTheme();
+  const { theme, resolved, setTheme } = useTheme();
   setThemeRef = setTheme;
-  return <p>Тема: {theme}</p>;
+  return (
+    <>
+      <p>Тема: {theme}</p>
+      <p>На экране: {resolved}</p>
+    </>
+  );
 }
 
 function renderProvider() {
@@ -125,5 +146,50 @@ describe('ThemeProvider', () => {
     renderProvider();
     expect(screen.getByText('Тема: system')).toBeInTheDocument();
     expect(document.documentElement.classList.contains('light')).toBe(true);
+  });
+
+  it('names the theme on the screen: the chosen one, or the device\'s while nothing is chosen', () => {
+    osDark = true;
+    renderProvider();
+    expect(screen.getByText('На экране: dark')).toBeInTheDocument();
+    act(() => setThemeRef!('light'));
+    expect(screen.getByText('На экране: light')).toBeInTheDocument();
+    expect(screen.getByText('Тема: light')).toBeInTheDocument();
+  });
+
+  it('follows the device while nothing is chosen, also when it switches with the page open', () => {
+    renderProvider();
+    expect(document.documentElement.className).toBe('light');
+    deviceSwitches(true);
+    expect(document.documentElement.className).toBe('dark');
+    expect(metaColors()).toEqual(['#0b0f16', '#0b0f16']);
+    expect(screen.getByText('На экране: dark')).toBeInTheDocument();
+    deviceSwitches(false);
+    expect(document.documentElement.className).toBe('light');
+    expect(screen.getByText('На экране: light')).toBeInTheDocument();
+  });
+
+  it('stops following the device once a theme is chosen, and lets go of it when it leaves', () => {
+    const { unmount } = renderProvider();
+    expect(listeners).toHaveLength(1);
+    act(() => setThemeRef!('dark'));
+    expect(listeners).toHaveLength(0);
+    deviceSwitches(false);
+    expect(document.documentElement.className).toBe('dark');
+    act(() => setThemeRef!('system'));
+    expect(listeners).toHaveLength(1);
+    expect(document.documentElement.className).toBe('light');
+    unmount();
+    expect(listeners).toHaveLength(0);
+  });
+
+  it('follows the device on an old Safari too (addListener)', () => {
+    stubMatchMedia({ oldSafari: true });
+    const { unmount } = renderProvider();
+    expect(listeners).toHaveLength(1);
+    deviceSwitches(true);
+    expect(document.documentElement.className).toBe('dark');
+    unmount();
+    expect(listeners).toHaveLength(0);
   });
 });

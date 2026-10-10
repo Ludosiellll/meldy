@@ -166,15 +166,18 @@
   .sf-shell .sf-bar-in { gap: 10px; }
   .sf-shell .sf-bar-right { gap: 8px; }
 }
-/* A phone's line holds three things: the wordmark or «‹ Родитель», the limit's ring and the avatar
-   (10_Project/Phone_Declutter_2026-10-08). «+ Лекция» is at the top of «Лекции» and in the lectures of «Сегодня»;
-   «?» is «Как пользоваться Meldy» in the account menu. (0,4,0) and later in the file than the rules that show the «+». */
+/* A phone's line holds four things: the wordmark or «‹ Родитель», the limit's ring, the avatar and the theme's sun
+   (10_Project/Phone_Declutter_2026-10-08; the sun since 2026-10-10). «+ Лекция» is at the top of «Лекции» and in the
+   lectures of «Сегодня»; «?» is «Как пользоваться Meldy» in the account menu. (0,4,0) and later in the file than the
+   rules that show the «+». */
 @media (max-width: 639px) {
   .sf-shell .sf-bar .sf-bar-right .sf-nav-cta,
   .sf-shell .sf-bar .sf-bar-right .sf-help { display: none; }
   .sf-shell .sf-bar-right .sf-help + .sf-me-hit { margin-left: 0; }
   /* The gauge and the avatar apart: two rounds side by side read as two avatars. */
   .sf-shell .sf-bar-right { gap: 12px; }
+  /* The theme button keeps its press area 2 px clear of the avatar's in the tighter line (paper.css, .sf-theme). */
+  .sf-shell .sf-bar-right .sf-theme { margin-left: -4px; }
   /* The wordmark centred on the line with the gauge and the avatar (its 44 px box had the letters at the top). */
   .sf-shell .sf-bar .sf-wordmark { min-height: 0; padding-block: 10px; }
 }

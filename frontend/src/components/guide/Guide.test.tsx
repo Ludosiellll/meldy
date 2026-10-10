@@ -26,7 +26,7 @@ vi.mock('../../lib/supabase', () => {
   chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ count: 0, error: null }).then(resolve);
   return { supabase: { from: () => chain } };
 });
-vi.mock('../../contexts/ThemeProvider', () => ({ useTheme: () => ({ theme: 'light', setTheme: vi.fn() }) }));
+vi.mock('../../contexts/ThemeProvider', () => ({ useTheme: () => ({ theme: 'light', resolved: 'light', setTheme: vi.fn() }) }));
 vi.mock('../../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: false }) }));
 
 import Layout from '../Layout';

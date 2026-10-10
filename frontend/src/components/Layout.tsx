@@ -1,10 +1,10 @@
 import { Link, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, GraduationCap, Repeat, Sun, TrendingUp, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, GraduationCap, Repeat, TrendingUp, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, type UserProfile } from '../api/social';
 import { ErrorBoundary } from './ErrorBoundary';
-import { useTheme } from '../contexts/ThemeProvider';
+import ThemeToggle from './ThemeToggle';
 import { FREE_DAILY_LIMIT } from '../api/limits';
 import { countDueCards } from '../api/flashcards';
 import { dailyUnits, openProWindow } from '../lib/plans';
@@ -44,9 +44,12 @@ interface NavItem {
   counter?: 'due';
 }
 
-/** The five sections, in the top line on a computer and as the tabs on a phone. */
+/**
+ * The five sections, in the top line on a computer and as the tabs on a phone. «Сегодня» is a calendar, not the sun:
+ * the sun is the theme button in the top line (2026-10-10), and one picture on a screen means one thing.
+ */
 export const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', label: 'Сегодня', match: /^\/dashboard(\/|$)/, icon: Sun },
+  { to: '/dashboard', label: 'Сегодня', match: /^\/dashboard(\/|$)/, icon: CalendarDays },
   { to: '/exams', label: 'Экзамены', match: /^\/exams(\/|$)/, icon: GraduationCap },
   { to: '/library', label: 'Лекции', match: /^\/library(\/|$)/, icon: BookOpen },
   { to: '/review', label: 'Повторение', match: /^\/(review|mistakes)(\/|$)/, icon: Repeat, counter: 'due' },
@@ -267,13 +270,6 @@ function TabCount({ value }: { value: number | null }) {
   );
 }
 
-// One word each, so the three fit one row of the menu: «Системная» follows the device's setting.
-const THEME_CHOICES: Array<{ value: 'light' | 'dark' | 'system'; label: string; hint?: string }> = [
-  { value: 'light', label: 'Светлая' },
-  { value: 'dark', label: 'Тёмная' },
-  { value: 'system', label: 'Системная', hint: 'Как в настройках устройства' },
-];
-
 export default function Layout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
@@ -329,7 +325,6 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
     openProWindow('meter');
   };
 
-  const { theme, setTheme } = useTheme();
   const { handleInstallClick, showInstall } = useInstallPWA();
   const due = useDueCount(user?.id, location.pathname);
   const phone = usePhone();
@@ -438,22 +433,6 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         Как пользоваться Meldy
       </button>
       <div className="sf-acct-sep" />
-      <div className="sf-acct-row" role="group" aria-label="Тема">
-        <span className="sf-acct-label">Тема</span>
-        <span className="sf-acct-themes">
-          {THEME_CHOICES.map((choice) => (
-            <button
-              key={choice.value}
-              type="button"
-              aria-pressed={theme === choice.value}
-              title={choice.hint}
-              onClick={() => setTheme(choice.value)}
-            >
-              {choice.label}
-            </button>
-          ))}
-        </span>
-      </div>
       <button type="button" role="switch" aria-checked={stageMode} onClick={toggleStageMode} className="sf-acct-item">
         <span>Показ на проекторе</span>
         <span className="sf-acct-state">{stageMode ? 'вкл' : 'выкл'}</span>
@@ -555,7 +534,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
               ref={menuButtonRef}
               type="button"
               className="sf-me-hit"
-              aria-label={name ? `${name}: профиль, справка, тема, выход` : 'Меню аккаунта'}
+              aria-label={name ? `${name}: профиль, справка, выход` : 'Меню аккаунта'}
               aria-expanded={menuOpen}
               aria-controls={menuOpen ? menuId : undefined}
               onClick={() => setMenuOpen((value) => !value)}
@@ -564,6 +543,8 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
                 {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
               </span>
             </button>
+            {/* The theme in one press, right of the account (the owner asked for it there: the menu hid it). */}
+            <ThemeToggle />
           </div>
           {accountMenu}
         </div>
