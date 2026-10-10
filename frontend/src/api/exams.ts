@@ -637,6 +637,37 @@ async function isGroupCopy(examId: string): Promise<boolean> {
   }
 }
 
+/** Rows per page of a list read: the API returns at most this many rows a request (Supabase's max rows, 1000). */
+export const LIST_PAGE_ROWS = 1000;
+/** A ceiling on pages, so a server that keeps answering full pages cannot loop the list forever (100 000 questions). */
+const LIST_MAX_PAGES = 100;
+
+/**
+ * The questions of these exams (id, exam, hash, coverage), page by page in a fixed order until a short page: one request
+ * returns at most LIST_PAGE_ROWS rows, so «.limit(10 000)» used to stop at 1000 and later exams lost their questions
+ * (Concept 3 §5.4, spec decision 28).
+ */
+async function listQuestionRows(examIds: string[]): Promise<unknown[]> {
+  const rows: unknown[] = [];
+  for (let page = 0; page < LIST_MAX_PAGES; page += 1) {
+    const from = page * LIST_PAGE_ROWS;
+    const data = await run(
+      supabase
+        .from('exam_questions')
+        .select('id, exam_id, question_hash, coverage')
+        .in('exam_id', examIds)
+        .order('exam_id', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + LIST_PAGE_ROWS - 1),
+      EXAM_MESSAGES.list,
+    );
+    const list = Array.isArray(data) ? data : [];
+    rows.push(...list);
+    if (list.length < LIST_PAGE_ROWS) break;
+  }
+  return rows;
+}
+
 /** The user's exams with coverage counts, nearest exam date first, then the newest without a date. */
 export async function listExams(userId: string): Promise<ExamListItem[]> {
   const data = await run(
@@ -650,16 +681,9 @@ export async function listExams(userId: string): Promise<ExamListItem[]> {
   const exams = (Array.isArray(data) ? data : []).map(normalizeExam).filter((row): row is ExamRow => row !== null);
   if (exams.length === 0) return [];
 
-  const rows = await run(
-    supabase
-      .from('exam_questions')
-      .select('id, exam_id, question_hash, coverage')
-      .in('exam_id', exams.map((exam) => exam.id))
-      .limit(10_000),
-    EXAM_MESSAGES.list,
-  );
+  const rows = await listQuestionRows(exams.map((exam) => exam.id));
   const byExam = new Map<string, Array<{ hash: string | null; coverage: CoverageValue | null }>>();
-  for (const row of Array.isArray(rows) ? rows : []) {
+  for (const row of rows) {
     if (!isRecord(row) || typeof row.exam_id !== 'string') continue;
     const list = byExam.get(row.exam_id) ?? [];
     list.push({ hash: strOrNull(row.question_hash), coverage: coverageOf(row.coverage) });

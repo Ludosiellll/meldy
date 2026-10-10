@@ -88,6 +88,12 @@ vi.mock('../api/learning', () => ({
 }));
 // The exam's cheat sheet (GET /api/oral/sheet): empty unless a test writes one.
 vi.mock('../api/cheatSheet', () => ({ fetchSheet: (...args: unknown[]) => db.fetchSheet(...args) }));
+// A database without the exam container's functions: today's «Сегодня» (package D1's hook; the container cases and the
+// same page with no containers are in Dashboard.containers.test.tsx).
+vi.mock('../lib/containers/hooks', () => ({
+  useContainersOverview: () => ({ data: null, loading: false, offline: false, unavailable: true, error: null, reload: () => undefined }),
+  useContainerData: () => ({ data: null, loading: false, offline: false, unavailable: true, error: null, reload: () => undefined }),
+}));
 
 // ------------------------------------------------------------------------------------------------
 // Fixtures: Saturday, 3 October 2026; the seeded list of 40 questions in two sections

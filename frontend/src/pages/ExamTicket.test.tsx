@@ -2276,3 +2276,125 @@ describe('ExamTicket: what «Готово» leads to, its keys, and the tab’s 
     expect(document.title).not.toBe('Ответ на билет — Meldy');
   });
 });
+
+// ── From an exam container's «занятие» (spec decision 29г) ──────────────────────────────
+
+import { containerFrom, keepFrom } from './ExamTicket';
+
+describe('ExamTicket from an exam container’s «занятие» (?from=c:<id>): guarded, nothing changes without it', () => {
+  async function renderFrom(url: string) {
+    vi.resetModules();
+    const { default: ExamTicket } = await import('./ExamTicket');
+    return render(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/exams/:id/ticket" element={<ExamTicket />} />
+          <Route path="/exams/c/:id" element={<Where />} />
+          <Route path="/exams/:id/draw" element={<Where />} />
+          <Route path="/exams/:id/edit" element={<Where />} />
+          <Route path="/exams/:id" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  async function answerAndSave() {
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(DEMO_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+    await screen.findByText(/Сохранено в историю и/);
+  }
+
+  it('after the result the blue button goes back to the «занятие», not to another ticket', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}&from=c:c-1`);
+    await answerAndSave();
+    const back = screen.getByRole('button', { name: 'Вернуться к занятию' });
+    expect(back).toHaveClass('sf-primary');
+    expect(screen.queryByRole('button', { name: 'Следующий билет' })).toBeNull();
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    fireEvent.click(back);
+    await waitFor(() => expect(location).toBe('/exams/c/c-1'));
+    expect(search).toBe('');
+  });
+
+  it('«‹ Лист экзамена» keeps ?from, so the oral page still leads back to the container', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}&from=c:c-1`);
+    await answerAndSave();
+    fireEvent.click(screen.getAllByRole('button', { name: /Лист экзамена/ })[0]);
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
+    expect(search).toBe('?from=c:c-1');
+  });
+
+  it('«К шпаргалке» keeps it too', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}&from=c:c-1`);
+    await answerAndSave();
+    fireEvent.click(screen.getByRole('button', { name: 'К шпаргалке' }));
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
+    expect(search).toBe('?view=sheet&from=c:c-1');
+  });
+
+  it('a ticket of several questions (q=a,b) still goes question by question, and only the last one leads back', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    // The second question's lectures have no text: it is answered without a check and rated by the student.
+    api['/api/oral/rubric'].mockImplementation(async (body) =>
+      body.question_id === Q2 ? json(422, { detail: 'В лекциях этого экзамена нет текста', code: 'no_text' }) : json(200, demoRubricResponse()),
+    );
+    await renderFrom(`/exams/${EXAM}/ticket?q=${Q1},${Q2}&from=c:c-1`);
+    await answerAndSave();
+    expect(screen.queryByRole('button', { name: 'Вернуться к занятию' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Второй вопрос' }));
+    expect(await screen.findByRole('article', { name: /2 из 2/ })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer('Энтропия — мера неопределённости.');
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
+    // The end of the ticket: back to the «занятие», never «Следующий билет».
+    const back = screen.getByRole('button', { name: 'Вернуться к занятию' });
+    expect(back).toHaveClass('sf-primary');
+    expect(screen.queryByRole('button', { name: 'Следующий билет' })).toBeNull();
+    // The way to the lectures keeps ?from as well.
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить лекции' }));
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}/edit`));
+    expect(search).toBe('?from=c:c-1');
+  });
+
+  it.each([
+    ['without ?from', ''],
+    ['with a path in place of an id', '&from=c:../../x'],
+    ['with another kind of origin', '&from=lecture:7'],
+  ])('%s the ticket is today’s: «Следующий билет» into the draw', async (_name, from) => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}${from}`);
+    await answerAndSave();
+    expect(screen.queryByRole('button', { name: 'Вернуться к занятию' })).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: /Лист экзамена/ })[0]);
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
+    expect(search).toBe('');
+  });
+
+  it('without ?from «Следующий билет» still opens the draw', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}`);
+    await answerAndSave();
+    fireEvent.click(screen.getByRole('button', { name: 'Следующий билет' }));
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}/draw`));
+  });
+
+  it('reads ?from and keeps it in a path', () => {
+    expect(containerFrom('c:c-1')).toBe('c-1');
+    expect(containerFrom('c:0b6a2f1e-1c2d-4e5f-8a9b-0c1d2e3f4a5b')).toBe('0b6a2f1e-1c2d-4e5f-8a9b-0c1d2e3f4a5b');
+    expect(containerFrom(null)).toBeNull();
+    expect(containerFrom('c:')).toBeNull();
+    expect(containerFrom('c:a/b')).toBeNull();
+    expect(containerFrom('x:c-1')).toBeNull();
+    expect(keepFrom('/exams/e1', 'c-1')).toBe('/exams/e1?from=c:c-1');
+    expect(keepFrom('/exams/e1?view=sheet', 'c-1')).toBe('/exams/e1?view=sheet&from=c:c-1');
+    expect(keepFrom('/exams/e1/edit#lectures', 'c-1')).toBe('/exams/e1/edit?from=c:c-1#lectures');
+    expect(keepFrom('/exams/e1', null)).toBe('/exams/e1');
+  });
+});

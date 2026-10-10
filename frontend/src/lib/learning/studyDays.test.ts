@@ -43,6 +43,31 @@ describe('days of study', () => {
     expect(studyStreak({ sessions: [], events: [] }, new Date(2026, 9, 8, 12))).toBe(0);
   });
 
+  it('counts a day with answers to the questions of an exam’s file (test_answer_days) as a day of study', () => {
+    // 4 October: only such answers; 9 October: too. An empty or broken row adds nothing.
+    const examQuestionDays = [
+      { local_date: '2026-10-04', answers: 20 },
+      { local_date: '2026-10-09', answers: 3 },
+      { local_date: '2026-10-03', answers: 0 },
+      { local_date: 'вчера', answers: 5 },
+      { local_date: '2026-10-02', answers: Number.NaN },
+    ];
+    expect([...studyDayKeys({ sessions, events, examQuestionDays })].sort()).toEqual([
+      '2026-09-01',
+      '2026-10-04',
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+      '2026-10-08',
+      '2026-10-09',
+    ]);
+    // 4–9 October in a row; without these answers the streak ends at 8 October and starts on the 5th.
+    expect(studyStreak({ sessions, events, examQuestionDays }, new Date(2026, 9, 9, 20))).toBe(6);
+    expect(studyStreak({ sessions, events }, new Date(2026, 9, 9, 20))).toBe(4);
+    // Without the list (a database without these answers) the days are counted as before.
+    expect(studyStreak({ sessions, events, examQuestionDays: [] }, new Date(2026, 9, 8, 12))).toBe(4);
+  });
+
   it('starts a window of 30 days 29 days before today', () => {
     expect(windowStart(30, new Date(2026, 9, 8, 12))).toBe('2026-09-09');
     expect(windowStart(1, new Date(2026, 9, 8, 12))).toBe('2026-10-08');

@@ -6,6 +6,9 @@ import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapter, type Guid
 import { GUIDE_SEEN_KEY, guideClipPart, guideSeenHere, isNewAccount } from './clipPart';
 import { guideDeferred } from './guideLater';
 
+/** Pages where the first run waits: loading a question file and the exam container's group link (/g/<код>). */
+const WAITING_PATHS: readonly RegExp[] = [/^\/exams\/(import|new)\/?$/, /^\/g\//];
+
 export { GUIDE_SEEN_KEY };
 /** The profile's `onboarding_status` key. */
 export const GUIDE_PROFILE_KEY = 'guide';
@@ -159,8 +162,11 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
     }
     if (shellHidden) return;
     autoTried.current = true;
-    // Came in by a group link (guideLater.ts): the copy of the exam first, the first run on a later visit.
-    if (guideDeferred()) return;
+    // Came in by a group link (guideLater.ts): the copy of the exam first, the first run on a later visit. The same for
+    // a student who came to load a question file or by an exam's group link: those pages are loaded lazily, so the
+    // profile can arrive before their own deferGuideOnce() runs — the path decides here too (spec decision 33: the
+    // guide opens after the first session instead).
+    if (guideDeferred() || WAITING_PATHS.some((path) => path.test(pathRef.current))) return;
     showFirstRun();
   }, [seenInProfile, shellHidden, showFirstRun]);
 

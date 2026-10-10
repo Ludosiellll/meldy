@@ -1,10 +1,13 @@
 /**
  * Days of study, for «Занятия по дням» in «Прогресс» and «Дней подряд» in the profile: a day counts
- * when the student answered anything that day — cards, a ticket of an exam (spoken or typed) or a
- * test. Card answers come from the daily counters (study_sessions.cards_reviewed, kept since before
- * the journal); answers to tickets (`exam_answer`) and to tests (`quiz_answer`) come from the
- * learning journal. The journal's card answers (`card_review`) are the same answers as the counters,
- * so they are never added a second time. Days are local 'yyyy-MM-dd' keys. Pure module.
+ * when the student answered anything that day — cards, a ticket of an exam (spoken or typed), a
+ * test, or a question of an exam's file (a question with variants, in an exam container). Card
+ * answers come from the daily counters (study_sessions.cards_reviewed, kept since before the
+ * journal); answers to tickets (`exam_answer`) and to tests (`quiz_answer`) come from the learning
+ * journal; answers to the questions of an exam's file come from the server's own answer log, as
+ * answers per local day (`test_answer_days`, api/containers.fetchAnswerDays). The journal's card
+ * answers (`card_review`) are the same answers as the counters, so they are never added a second
+ * time. Days are local 'yyyy-MM-dd' keys. Pure module.
  */
 import { currentStreak, isDateKey, localDateKey, shiftDateKey } from '../../utils/streak';
 
@@ -16,6 +19,12 @@ export interface SessionDay {
 export interface JournalDay {
   kind: string;
   local_date: string;
+}
+
+/** Answers to the questions of an exam's file on one local day (the server's `test_answer_days`). */
+export interface ExamQuestionDay {
+  local_date: string;
+  answers: number;
 }
 
 export interface DayAnswers {
@@ -58,8 +67,15 @@ export function answersByDay(input: { sessions: readonly SessionDay[]; events: r
   return days;
 }
 
-/** The local days with at least one answer to a card, a ticket or a test. */
-export function studyDayKeys(input: { sessions: readonly SessionDay[]; events: readonly JournalDay[] }): Set<string> {
+interface StudyInput {
+  sessions: readonly SessionDay[];
+  events: readonly JournalDay[];
+  /** Days with answers to the questions of an exam's file; absent where the database has none (then as before). */
+  examQuestionDays?: readonly ExamQuestionDay[];
+}
+
+/** The local days with at least one answer to a card, a ticket, a test or a question of an exam's file. */
+export function studyDayKeys(input: StudyInput): Set<string> {
   const keys = new Set<string>();
   for (const row of input.sessions) {
     const key = dayOf(row.date);
@@ -70,6 +86,11 @@ export function studyDayKeys(input: { sessions: readonly SessionDay[]; events: r
     const key = dayOf(event.local_date);
     if (key) keys.add(key);
   }
+  for (const row of input.examQuestionDays ?? []) {
+    const key = dayOf(row?.local_date);
+    const answers = Number(row?.answers);
+    if (key && Number.isFinite(answers) && answers > 0) keys.add(key);
+  }
   return keys;
 }
 
@@ -77,7 +98,7 @@ export function studyDayKeys(input: { sessions: readonly SessionDay[]; events: r
  * Days of study in a row, ending today or, before the first answer of today, yesterday (the rule of
  * utils/streak.currentStreak).
  */
-export function studyStreak(input: { sessions: readonly SessionDay[]; events: readonly JournalDay[] }, today: Date = new Date()): number {
+export function studyStreak(input: StudyInput, today: Date = new Date()): number {
   return currentStreak(studyDayKeys(input), today);
 }
 

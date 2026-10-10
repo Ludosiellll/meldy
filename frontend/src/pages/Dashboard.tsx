@@ -30,6 +30,13 @@ import DailyReminder from '../components/reminders/DailyReminder';
 import QuestionOfDay from '../components/exams/share/QuestionOfDay';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
+import { useContainerData } from '../lib/containers/hooks';
+import { planDay } from '../lib/containers/plan';
+import { glue as glueCount, shownMinutes } from '../lib/containers/words';
+import TodayExamCard from '../components/containers/TodayExamCard';
+import type { DayPlan, OverviewContainer } from '../types/container';
+import { containerDays, layerKey, QuietBoundary, useContainerLayer, type ContainerLayer } from './containerLayer';
+import './containerScreens.css';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -117,6 +124,8 @@ export interface TodayExam {
   questions: TodayQuestion[];
   /** exam_answer events of the questions; null when the history could not be read. */
   events: LearningEvent[] | null;
+  /** exams.created_at: the newer of two exams on one day leads (as in pickExam). */
+  createdAt?: string;
 }
 
 /** The three first steps of a student (the first run around the core). */
@@ -129,6 +138,14 @@ export interface FirstSteps {
   answer: boolean;
   /** The exam «Тянуть билет» draws from: the leading exam when it has questions, else one that has; null without one. */
   drawExamId: string | null;
+  /**
+   * The exam container is in the database (spec decision 25): step 1 is neutral («Добавьте вопросы к экзамену» into
+   * /exams/import) and the steps for lectures and the ticket are there only with oral questions (`oral`). Absent: today's
+   * three steps.
+   */
+  neutral?: boolean;
+  /** The account has oral questions (an exam with questions): the lecture and ticket steps apply. */
+  oral?: boolean;
 }
 
 interface DashboardData {
@@ -145,6 +162,8 @@ interface DashboardData {
   examFailed: boolean;
   /** «Первые шаги»; null when they are remembered as done or could not be read (then nothing is claimed). */
   steps: FirstSteps | null;
+  /** The container layer the page was read under (containerLayer.layerKey): another answer reads it again. */
+  layerKey: string;
 }
 
 type FirstStepsMemory = 'collapsed' | 'done' | null;
@@ -168,9 +187,9 @@ function writeFirstStepsMemory(userId: string, value: FirstStepsMemory) {
   }
 }
 
-/** How many of the three steps are done. */
+/** How many of the steps shown are done (three, or one or three with the exam container). */
 export function firstStepsDone(steps: FirstSteps): number {
-  return Number(steps.lecture) + Number(steps.list) + Number(steps.answer);
+  return firstStepViews(steps).filter((view) => view.done).length;
 }
 
 const COVERAGES = new Set(['full', 'partial', 'none', 'unverified']);
@@ -286,19 +305,28 @@ interface ExamLoad {
   listExamId?: string | null;
 }
 
-async function loadExam(userId: string, findList: boolean = false): Promise<ExamLoad> {
-  const { data, error } = await supabase
-    .from('exams')
-    .select('id, title, kind, exam_date, mapped_at, ticket_layout, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+type SettledLayer = Exclude<ContainerLayer, { mode: 'loading' }>;
+
+/**
+ * The leading oral exam. The exam containers' answer is awaited only at the pick (it comes while the exams are read):
+ * an exam that lives inside a container is never picked (attached_exam_ids, Concept 3 §2.3); with the layer off, today's
+ * pick over every exam.
+ */
+async function loadExam(userId: string, findList: boolean, layerPromise: Promise<SettledLayer>): Promise<ExamLoad> {
+  const [{ data, error }, layer] = await Promise.all([
+    supabase.from('exams').select('id, title, kind, exam_date, mapped_at, ticket_layout, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+    layerPromise,
+  ]);
   if (error) throw error;
   const exams = (Array.isArray(data) ? data : []).map(normalizeExam).filter((row): row is ExamRow => row !== null);
-  const id = pickExam(exams);
+  const attached = layer.mode === 'on' ? new Set(layer.overview.attached_exam_ids) : null;
+  const id = pickExam(attached ? exams.filter((exam) => !attached.has(exam.id)) : exams);
   const row = exams.find((exam) => exam.id === id);
+  // A container is an exam of the account too («Экзамены» link, no «new account» page).
+  const hasContainers = layer.mode === 'on' && layer.overview.containers.length > 0;
   if (!row) {
     const listExamId = findList ? await examWithQuestions(exams.map((exam) => exam.id)) : undefined;
-    return { exam: null, hasExams: exams.length > 0, listExamId };
+    return { exam: null, hasExams: exams.length > 0 || hasContainers, listExamId };
   }
 
   const { data: rows, error: questionsError } = await supabase
@@ -339,6 +367,7 @@ async function loadExam(userId: string, findList: boolean = false): Promise<Exam
       layout: row.ticket_layout,
       questions,
       events,
+      createdAt: row.created_at,
     },
   };
 }
@@ -355,8 +384,9 @@ async function loadMaterialsWithCards(userId: string, materialIds: string[]): Pr
  * lectures, the leading exam's questions and answers) and, only where that says nothing, one id at
  * most per step: a lecture with text, an exam with questions, an answer in the journal.
  */
-async function loadDashboard(userId: string, withSteps: boolean): Promise<DashboardData> {
-  const examPromise: Promise<ExamLoad & { failed: boolean }> = loadExam(userId, withSteps).then(
+async function loadDashboard(userId: string, withSteps: boolean, settledLayer: () => Promise<SettledLayer>): Promise<DashboardData> {
+  const layerPromise = settledLayer();
+  const examPromise: Promise<ExamLoad & { failed: boolean }> = loadExam(userId, withSteps, layerPromise).then(
     (result) => ({ ...result, failed: false }),
     (error) => {
       console.error('Loading the exam of «Сегодня» failed:', error);
@@ -416,9 +446,22 @@ async function loadDashboard(userId: string, withSteps: boolean): Promise<Dashbo
       : Promise.resolve(false),
     answerPromise,
   ]);
+  const layer = await layerPromise;
+  // With the exam container (decision 25): a container with questions is step 1 done too; lectures and the ticket only
+  // with oral questions, which examWithQuestions finds among the oral exams (every row of «exams» is oral).
+  const containerItems = layer.mode === 'on' ? layer.overview.containers.reduce((sum, container) => sum + container.items, 0) : 0;
   const steps: FirstSteps | null =
     withSteps && !exam.failed && lectureText !== null && answered !== null && exam.listExamId !== undefined
-      ? { lecture: lectureText, list: exam.listExamId !== null, answer: answered, drawExamId: exam.listExamId }
+      ? layer.mode === 'on'
+        ? {
+            lecture: lectureText,
+            list: exam.listExamId !== null || containerItems > 0,
+            answer: answered,
+            drawExamId: exam.listExamId,
+            neutral: true,
+            oral: exam.listExamId !== null,
+          }
+        : { lecture: lectureText, list: exam.listExamId !== null, answer: answered, drawExamId: exam.listExamId }
       : null;
   return {
     lectures,
@@ -431,6 +474,7 @@ async function loadDashboard(userId: string, withSteps: boolean): Promise<Dashbo
     hasExams: exam.hasExams,
     examFailed: exam.failed,
     steps,
+    layerKey: layerKey(layer),
   };
 }
 
@@ -935,6 +979,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const frame = useFrame<HTMLDivElement>();
   const phone = usePhone();
+  const { layer, probe, settled } = useContainerLayer();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -948,22 +993,63 @@ export default function Dashboard() {
     setLoading(true);
     setLoadError(false);
     try {
-      setData(await loadDashboard(user.id, readFirstStepsMemory(user.id) !== 'done'));
+      setData(await loadDashboard(user.id, readFirstStepsMemory(user.id) !== 'done', settled));
     } catch (error) {
       console.error('Loading «Сегодня» failed:', error);
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, settled]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Once all three steps are done they are not read again on this device.
+  // The exam containers came with another answer than the page was read under (a late overview): read it again, so an
+  // exam inside a container never leads as an exam of its own.
+  const liveKey = layer.mode === 'loading' ? null : layerKey(layer);
+  useEffect(() => {
+    if (!data || loading || liveKey === null || data.layerKey === liveKey) return;
+    void load();
+  }, [data, loading, liveKey, load]);
+
+  // The plans of the containers with a date ahead or none (package D1's data, package D2's planDay), read beside the page.
+  const on = layer.mode === 'on' ? layer : null;
+  const dayKey = localDateKey();
+  const planned = useMemo(() => (on ? on.overview.containers.filter((container) => !containerDays(container, dayKey).past) : NO_CONTAINERS), [on, dayKey]);
+  const [plans, setPlans] = useState<Record<string, PlanResult>>({});
+  const onPlan = useCallback((id: string, result: PlanResult) => setPlans((current) => (samePlanResult(current[id], result) ? current : { ...current, [id]: result })), []);
+  // A card that crashed (package D3b's component): its container becomes a quiet row.
+  const [brokenCards, setBrokenCards] = useState<ReadonlySet<string>>(() => new Set());
+  const plannedKey = planned.map((container) => container.id).join(',');
+  const [planWaitOver, setPlanWaitOver] = useState(false);
+  useEffect(() => {
+    setPlanWaitOver(false);
+    if (!plannedKey) return undefined;
+    const timer = window.setTimeout(() => setPlanWaitOver(true), PLAN_WAIT.ms);
+    return () => window.clearTimeout(timer);
+  }, [plannedKey]);
+  const plansSettled = planWaitOver || planned.every((container) => plans[container.id] && plans[container.id].status !== 'loading');
+  const planSources = planned.map((container) => (
+    <QuietBoundary key={container.id} onError={() => onPlan(container.id, PLAN_FAILED)}>
+      <PlanSource id={container.id} onPlan={onPlan} />
+    </QuietBoundary>
+  ));
+  const todayOf = (oral: TodayExam | null) =>
+    todayLayout({
+      oral: oral ? { examDate: oral.examDate, createdAt: oral.createdAt ?? '' } : null,
+      containers: planned.map((container) => ({ container, plan: brokenCards.has(container.id) ? PLAN_FAILED : plans[container.id] ?? PLAN_LOADING })),
+      today: dayKey,
+    });
+  // The page as read under the layer it shows: the containers' part only when the pick knew about them.
+  const containerView = on && data && data.layerKey === liveKey && planned.length > 0 ? on : null;
+  const containerWait = Boolean(containerView && !plansSettled);
+  const layout = containerView && !containerWait ? todayOf(data?.exam ?? null) : null;
+
+  // Once all the steps are done they are not read again on this device.
   const steps = data?.steps ?? null;
-  const stepsFinished = steps !== null && firstStepsDone(steps) === 3;
+  const stepsFinished = steps !== null && firstStepsDone(steps) === firstStepViews(steps).length;
   useEffect(() => {
     if (user?.id && stepsFinished) writeFirstStepsMemory(user.id, 'done');
     if (user?.id && stepsFinished) track('first_steps_done');
@@ -975,18 +1061,20 @@ export default function Dashboard() {
     if (user?.id) writeFirstStepsMemory(user.id, next ? 'collapsed' : null);
   };
 
-  // Nothing for the first 300 ms, then one quiet line (spec 4.6): no spinner.
+  // Nothing for the first 300 ms, then one quiet line (spec 4.6): no spinner. An account with exam containers also waits
+  // (at most PLAN_WAIT) for their plans, so the leading card does not change places once they come.
+  const waiting = (loading && !data) || containerWait;
   useEffect(() => {
-    if (!loading || data) {
+    if (!waiting) {
       setLoadingLine(false);
       return;
     }
     const timer = window.setTimeout(() => setLoadingLine(true), LOADING_LINE_MS);
     return () => window.clearTimeout(timer);
-  }, [loading, data]);
+  }, [waiting]);
 
   const sessions = useMemo(() => data?.sessions ?? [], [data]);
-  const todayKey = localDateKey();
+  const todayKey = dayKey;
   const days = useMemo(() => {
     const reviewed = new Map<string, number>();
     for (const session of sessions) {
@@ -1018,8 +1106,35 @@ export default function Dashboard() {
   /** Nothing in the account yet: no lectures, exams or cards. */
   const newAccount = Boolean(data && data.lectures.length === 0 && !data.hasExams && !data.examFailed && data.dueCount === 0 && !data.exam);
   const stepsShown = steps !== null && !stepsFinished;
-  /** Unfolded, the steps hold the page's one blue button; the desk's actions step back to white pills. */
-  const stepsLead = stepsShown && !stepsFolded;
+  /**
+   * Unfolded, the steps hold the page's one blue button; the desk's actions step back to white pills. With exam
+   * containers the steps never take it from an exam card that holds it (spec decision 33).
+   */
+  const stepsLead = stepsShown && !stepsFolded && !(layout?.main && layout.mainLeads);
+  const containerSlots: ContainerSlots | undefined = layout && data
+    ? {
+        main: layout.main?.kind ?? 'none',
+        mainLeads: layout.mainLeads,
+        card:
+          layout.main?.kind === 'container' ? (
+            <QuietBoundary
+              key={layout.main.item.container.id}
+              onError={() => {
+                const id = layout.main?.kind === 'container' ? layout.main.item.container.id : '';
+                setBrokenCards((current) => new Set([...current, id]));
+              }}
+            >
+              <TodayExamCard
+                container={layout.main.item.container}
+                plan={layout.main.item.plan.status === 'ready' ? layout.main.item.plan.plan : null}
+                offline={(on?.offline ?? false) || (layout.main.item.plan.status === 'ready' && layout.main.item.plan.offline)}
+                lead={layout.mainLeads}
+              />
+            </QuietBoundary>
+          ) : null,
+        rows: layout.rows.length > 0 ? <TodayRows rows={layout.rows} exam={data.exam} today={dayKey} /> : null,
+      }
+    : undefined;
 
   const head = (
     <header className="td-head">
@@ -1031,11 +1146,44 @@ export default function Dashboard() {
   );
 
   let content: ReactNode;
-  if (loading && !data) {
+  if (waiting) {
     content = (
       <div className="td-head" role="status" aria-label="Загружаем «Сегодня»">
         {loadingLine ? <p className="td-loading">Загружаем страницу…</p> : null}
       </div>
+    );
+  } else if ((loadError || !data) && on && planned.length > 0) {
+    // Without network (or any failed read of the page) the exam containers still come from the device's copy: their
+    // card leads, and the rest of the page says it did not load, with a quiet «Повторить» (spec decision 31).
+    const alone = todayOf(null);
+    content = (
+      <>
+        {head}
+        <div className="tdc-alone td-grid">
+          <div className="td-main tdc-main">
+            {alone.main?.kind === 'container' ? (
+              <QuietBoundary key={alone.main.item.container.id}>
+                <TodayExamCard
+                  container={alone.main.item.container}
+                  plan={alone.main.item.plan.status === 'ready' ? alone.main.item.plan.plan : null}
+                  offline={on.offline || (alone.main.item.plan.status === 'ready' && alone.main.item.plan.offline)}
+                  lead={alone.mainLeads}
+                />
+              </QuietBoundary>
+            ) : null}
+            {alone.rows.length > 0 ? <TodayRows rows={alone.rows} exam={null} today={dayKey} /> : null}
+          </div>
+          <section className="td-card td-error td-rise" data-d="3">
+            <h2 className="td-h3">Не удалось загрузить данные</h2>
+            <p className="td-error-text" role="alert">
+              Лекции и карточки на месте. Повторите через минуту.
+            </p>
+            <button type="button" className={alone.mainLeads ? 'sf-link' : 'sf-primary'} onClick={() => void load()}>
+              Повторить
+            </button>
+          </section>
+        </div>
+      </>
     );
   } else if (loadError || !data) {
     content = (
@@ -1067,6 +1215,7 @@ export default function Dashboard() {
             onRetry={() => void load()}
             activity={<Activity days={days} streak={streak} phone={phone} />}
             lectures={<Lectures data={data} phone={phone} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />}
+            containers={containerSlots}
           />
         )}
       </>
@@ -1075,6 +1224,9 @@ export default function Dashboard() {
 
   return (
     <div className="sf-page td" ref={frame.ref} data-frame={frame.size}>
+      {/* The exam containers' reads: they draw nothing (containerLayer.tsx). */}
+      {probe}
+      {planSources}
       <div className="td-in">{content}</div>
     </div>
   );
@@ -1105,6 +1257,21 @@ interface StepView {
  * for the list and has no lectures block).
  */
 export function firstStepViews(steps: FirstSteps): StepView[] {
+  const today = todaysStepViews(steps);
+  if (!steps.neutral) return today;
+  // Spec decision 25 (Concept 1 §3.10, the design critique's words): one door for every file, and the lecture and
+  // ticket steps only for an account with oral questions.
+  const list: StepView = {
+    key: 'list',
+    title: 'Добавьте вопросы к экзамену',
+    text: 'Один общий файл или по файлу на предмет. Если у вопросов есть варианты, ключ Meldy возьмёт из файла.',
+    done: steps.list,
+    action: { to: '/exams/import', label: 'Новый экзамен' },
+  };
+  return steps.oral ? [list, today[1], today[2]] : [list];
+}
+
+function todaysStepViews(steps: FirstSteps): StepView[] {
   return [
     {
       key: 'list',
@@ -1151,20 +1318,23 @@ function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; 
         <h2 className="td-fs-h" id="td-fs-h">
           Первые шаги
         </h2>
-        <p className="td-fs-progress">
-          <span className="td-fs-count">{`Сделано ${done} из ${views.length}`}</span>
-          <span className="td-fs-meter" aria-hidden="true">
-            {views.map((view) => (
-              <i key={view.key} data-done={view.done ? '' : undefined} />
-            ))}
-          </span>
-        </p>
+        {/* One step has no «Сделано 0 из 1» (design critique I15). */}
+        {views.length > 1 ? (
+          <p className="td-fs-progress">
+            <span className="td-fs-count">{`Сделано ${done} из ${views.length}`}</span>
+            <span className="td-fs-meter" aria-hidden="true">
+              {views.map((view) => (
+                <i key={view.key} data-done={view.done ? '' : undefined} />
+              ))}
+            </span>
+          </p>
+        ) : null}
         <button type="button" className="td-fs-toggle" aria-expanded={!folded} aria-controls={folded ? undefined : listId} onClick={onToggle}>
           {folded ? 'Развернуть' : 'Свернуть'}
         </button>
       </div>
       {folded ? null : (
-        <ol className="td-fs-list" id={listId}>
+        <ol className="td-fs-list" id={listId} data-steps={views.length === 3 ? undefined : views.length}>
           {views.map((view, index) => {
             const state = view.done ? 'done' : index === next ? 'next' : 'later';
             const primary = lead && state === 'next';
@@ -1323,6 +1493,7 @@ function Desk({
   onRetry,
   activity,
   lectures,
+  containers,
 }: {
   data: DashboardData;
   /** The page frame is narrower than 640 px: the ribbon goes in rows of 10. */
@@ -1333,6 +1504,8 @@ function Desk({
   onRetry: () => void;
   activity: ReactNode;
   lectures: ReactNode;
+  /** The account has exam containers with something today: what leads the main column, and the quiet rows under it. */
+  containers?: ContainerSlots;
 }) {
   const { exam, dueCount, dueCards } = data;
   const grid = useRef<HTMLDivElement>(null);
@@ -1340,10 +1513,13 @@ function Desk({
   const titles = useMemo(() => new Map(data.lectures.map((lecture) => [lecture.id, displayMaterialTitle(lecture.title)])), [data.lectures]);
   const firstQuestion = dueCards.find((card) => typeof card.question === 'string' && card.question.trim() !== '')?.question ?? '';
   const lecturesText = dueLecturesText(dueCards, titles, dueCount);
-  const examPrimary = Boolean(exam && exam.questions.length > 0);
+  // Without containers: today's page. With them the main column leads with the exam of either kind (or nothing).
+  const mainKind = containers ? containers.main : exam ? 'oral' : 'none';
+  const withMain = mainKind === 'oral' ? Boolean(exam) : mainKind === 'container';
+  const examPrimary = mainKind === 'container' ? Boolean(containers?.mainLeads) : Boolean(exam && exam.questions.length > 0);
 
   let cards: ReactNode = null;
-  if (dueCount > 0 && exam && phone) {
+  if (dueCount > 0 && withMain && phone) {
     // A phone: the count and the time in one line; no picture, no lectures (they are in «Повторение»). The action is a
     // quiet link unless it is the page's one blue pill (an exam without questions): one pill on the first screen.
     cards = (
@@ -1357,14 +1533,14 @@ function Desk({
         </ActionLink>
       </article>
     );
-  } else if (exam && phone) {
+  } else if (withMain && phone) {
     // Nothing due: one line instead of a card with a flag.
     cards = (
       <p className="td-card td-due td-due-none td-rise" data-d="3" data-phone="">
         Карточек к повторению на сегодня нет.
       </p>
     );
-  } else if (dueCount > 0 && exam) {
+  } else if (dueCount > 0 && withMain) {
     const [count, ...words] = dueTitle(dueCount).split(' ');
     cards = (
       <article className="td-card td-due td-rise" data-d="3" data-split={firstQuestion ? '' : undefined} aria-labelledby="td-due-h">
@@ -1383,7 +1559,7 @@ function Desk({
         </div>
       </article>
     );
-  } else if (exam) {
+  } else if (withMain) {
     cards = (
       <article className="td-card td-due td-due-none td-rise" data-d="3" aria-label="Карточки на сегодня">
         <span className="td-flag" data-tone="b">
@@ -1394,19 +1570,209 @@ function Desk({
     );
   }
 
+  const noExam = <NoExam data={data} phone={phone} lead={lead} onRetry={onRetry} firstQuestion={firstQuestion} lecturesText={lecturesText} />;
+  let main: ReactNode = exam ? <ExamBlock exam={exam} narrow={narrow} phone={phone} lead={lead} /> : noExam;
+  if (containers) {
+    const leading = mainKind === 'container' ? containers.card : mainKind === 'oral' && exam ? main : noExam;
+    // The leading card and the quiet rows share the main column (the grid places its first child there).
+    main =
+      (mainKind === 'oral' && exam && !containers.rows) || (mainKind === 'none' && !containers.rows) ? (
+        mainKind === 'none' ? noExam : main
+      ) : (
+        <div className="td-main tdc-main">
+          {leading}
+          {containers.rows}
+        </div>
+      );
+  }
+
   return (
     <div className="td-grid" ref={grid}>
-      {exam ? (
-        <ExamBlock exam={exam} narrow={narrow} phone={phone} lead={lead} />
-      ) : (
-        <NoExam data={data} phone={phone} lead={lead} onRetry={onRetry} firstQuestion={firstQuestion} lecturesText={lecturesText} />
-      )}
+      {main}
       <div className="td-side">
         {cards}
         {activity}
       </div>
       {lectures}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Exam containers on «Сегодня» (spec decisions 2, 31, 33, 47; Concept 1 §3.10, design critique I3)
+
+/** How long the page waits for the containers' plans before it draws them without (the card then shows its own wait). */
+export const PLAN_WAIT = { ms: 3000 };
+
+export type PlanResult = { status: 'loading' } | { status: 'ready'; plan: DayPlan; offline: boolean } | { status: 'failed' };
+const PLAN_LOADING: PlanResult = { status: 'loading' };
+const PLAN_FAILED: PlanResult = { status: 'failed' };
+const NO_CONTAINERS: OverviewContainer[] = [];
+const PLAN_STATES = new Set(['study', 'done', 'nothing', 'exam_today', 'after', 'empty']);
+
+/**
+ * The same plan as before, by content: a hook that hands over a new plan input on every render must not make the page
+ * render again and again (each new input gives an equal plan, and nothing changes).
+ */
+function samePlanResult(a: PlanResult | undefined, b: PlanResult): boolean {
+  if (!a || a.status !== b.status) return false;
+  if (a.status === 'ready' && b.status === 'ready') return a.offline === b.offline && (a.plan === b.plan || JSON.stringify(a.plan) === JSON.stringify(b.plan));
+  return true;
+}
+
+/** One container's plan for today: package D1's data (from the device's copy without network), package D2's planDay. */
+function PlanSource({ id, onPlan }: { id: string; onPlan: (id: string, result: PlanResult) => void }) {
+  const loadable = useContainerData(id);
+  const { data, loading, offline, unavailable } = loadable ?? { data: null, loading: false, offline: false, unavailable: true };
+  const planInput = data?.planInput;
+  useEffect(() => {
+    if (!planInput) {
+      onPlan(id, loading && !unavailable ? PLAN_LOADING : PLAN_FAILED);
+      return;
+    }
+    let plan: DayPlan | null = null;
+    try {
+      plan = planDay(planInput);
+    } catch (error) {
+      console.error('The plan of an exam container failed; «Сегодня» goes on without it:', error);
+    }
+    onPlan(id, plan && typeof plan === 'object' && PLAN_STATES.has(plan.state) ? { status: 'ready', plan, offline: Boolean(offline) } : PLAN_FAILED);
+  }, [id, planInput, loading, offline, unavailable, onPlan]);
+  return null;
+}
+
+export interface TodayContainer {
+  container: OverviewContainer;
+  plan: PlanResult;
+}
+export type TodayEntry = { kind: 'oral' } | { kind: 'container'; item: TodayContainer };
+export interface TodayLayout {
+  /** The card at the top: the oral exam (today's ExamBlock), a container (TodayExamCard), or none (today's NoExam). */
+  main: TodayEntry | null;
+  /** The main card holds the page's one blue button. */
+  mainLeads: boolean;
+  /** The other exams with something today, nearest date first: one quiet row each. */
+  rows: TodayEntry[];
+}
+
+type ContainerState = DayPlan['state'] | 'failed';
+
+/** A container's state today: its plan's; before the plan, the overview's guess (questions with a key: work today). */
+function containerState(item: TodayContainer, today: string): ContainerState {
+  if (item.plan.status === 'ready') return item.plan.plan.state;
+  if (item.plan.status === 'failed') return 'failed';
+  if (containerDays(item.container, today).past) return 'after';
+  return item.container.subjects.some((subject) => subject.keyed > 0) ? 'study' : 'empty';
+}
+
+/**
+ * Who leads «Сегодня» (Concept 1 §3.10, engineer I3): the nearest date among the exams that have something to do
+ * today — the oral exam today's pick leads with (pickExam, exams inside containers left out), and every container
+ * whose plan has work (or whose exam is today). It holds the one blue button, except on an exam's own day (no plan
+ * then). With nothing to do anywhere, the nearest container whose day is done (or has nothing) still leads, without
+ * the blue. The others with something today, a finished day, or an unread plan are quiet rows; a container after its
+ * date is not on «Сегодня». Ties: the newer exam first, as in pickExam.
+ */
+export function todayLayout(input: { oral: { examDate: string | null; createdAt: string } | null; containers: TodayContainer[]; today: string }): TodayLayout {
+  interface Candidate {
+    entry: TodayEntry;
+    date: string | null;
+    created: string;
+    leads: boolean;
+    state: ContainerState | 'oral';
+  }
+  const byDate = (a: Candidate, b: Candidate) => {
+    const left = a.date ?? '9999-12-31';
+    const right = b.date ?? '9999-12-31';
+    if (left !== right) return left < right ? -1 : 1;
+    return a.created > b.created ? -1 : a.created < b.created ? 1 : 0;
+  };
+  const all: Candidate[] = input.containers
+    .map((item): Candidate => {
+      const state = containerState(item, input.today);
+      return { entry: { kind: 'container', item }, date: containerDays(item.container, input.today).day, created: item.container.created_at, leads: state === 'study', state };
+    })
+    .filter((candidate) => candidate.state !== 'after');
+  const oral: Candidate | null = input.oral ? { entry: { kind: 'oral' }, date: input.oral.examDate, created: input.oral.createdAt, leads: true, state: 'oral' } : null;
+
+  const today = [...(oral ? [oral] : []), ...all.filter((candidate) => candidate.state === 'study' || candidate.state === 'exam_today')].sort(byDate);
+  const quietMain = all.filter((candidate) => candidate.state === 'done' || candidate.state === 'nothing' || candidate.state === 'empty').sort(byDate);
+  const main = today[0] ?? quietMain[0] ?? null;
+  const rows = [...today, ...all.filter((candidate) => candidate.state === 'done' || candidate.state === 'failed')]
+    .filter((candidate, index, list) => candidate !== main && list.indexOf(candidate) === index)
+    .sort(byDate);
+  return { main: main?.entry ?? null, mainLeads: Boolean(main && main.leads && today[0] === main), rows: rows.map((row) => row.entry) };
+}
+
+/** What a page with containers puts in its main column (Desk). */
+interface ContainerSlots {
+  main: 'oral' | 'container' | 'none';
+  mainLeads: boolean;
+  card: ReactNode;
+  rows: ReactNode;
+}
+
+/** «около 20 минут», rounded as every plan line rounds its minutes (lib/containers/words.shownMinutes). */
+export function aboutMinutes(seconds: number): string {
+  return `около ${glueCount(Math.max(1, shownMinutes(seconds)), 'минуты', 'минут', 'минут')}`;
+}
+
+/** «12 января · сегодня около 20 минут», «… · на сегодня всё», «… · сегодня экзамен», or the size before a plan. */
+export function containerRowMeta(item: TodayContainer, today: string, now: Date = new Date()): string {
+  const { day } = containerDays(item.container, today);
+  const parts = [formatDay(day, now)];
+  const plan = item.plan.status === 'ready' ? item.plan.plan : null;
+  if (plan?.state === 'study') parts.push(`сегодня ${aboutMinutes(plan.counts.leftSec > 0 ? plan.counts.leftSec : plan.counts.estSec)}`);
+  else if (plan?.state === 'done') parts.push('на сегодня всё');
+  else if (plan?.state === 'exam_today') parts.push('сегодня экзамен');
+  else if (item.container.items > 0) parts.push(`${item.container.items} ${pluralRu(item.container.items, QUESTION_FORMS)}`);
+  return parts.filter(Boolean).join(' · ');
+}
+
+/** The oral exam as a quiet row: its day and today's step («можно стереть строки у 4 вопросов»), else its size. */
+function OralTodayRow({ exam }: { exam: TodayExam }) {
+  const tally = coverageTally(exam.questions);
+  const mapped = tally.total > 0 && tally.unmapped < tally.total;
+  const sheet = useSheetToday(mapped ? exam.id : null, exam.examDate);
+  const erasable = sheet?.erasable.questions.length ?? 0;
+  const step =
+    erasable > 0
+      ? `можно стереть строки у ${erasable} ${pluralRu(erasable, ['вопроса', 'вопросов', 'вопросов'])}`
+      : tally.total > 0
+        ? `${tally.total} ${pluralRu(tally.total, QUESTION_FORMS)}`
+        : '';
+  const meta = [formatDay(exam.examDate), step].filter(Boolean).join(' · ');
+  return (
+    <li className="tdc-row">
+      <Link className="tdc-link" to={`/exams/${exam.id}`}>
+        <span className="tdc-t">{glue(subjectOf(exam.title))}</span>
+        {meta ? <span className="tdc-m">{glue(meta)}</span> : null}
+        <ArrowIcon className="td-arrow tdc-go" />
+      </Link>
+    </li>
+  );
+}
+
+/** The other exams with something today: rows of one card, no pill (the page's blue button is the leading card's). */
+function TodayRows({ rows, exam, today }: { rows: TodayEntry[]; exam: TodayExam | null; today: string }) {
+  return (
+    <section className="td-card tdc-rows td-rise" data-d="3" aria-label="Другие экзамены">
+      <ul className="tdc-list">
+        {rows.map((row) =>
+          row.kind === 'oral' ? (
+            exam ? <OralTodayRow key={`o:${exam.id}`} exam={exam} /> : null
+          ) : (
+            <li key={`c:${row.item.container.id}`} className="tdc-row">
+              <Link className="tdc-link" to={`/exams/c/${encodeURIComponent(row.item.container.id)}`}>
+                <span className="tdc-t">{glue(row.item.container.title)}</span>
+                <span className="tdc-m">{glue(containerRowMeta(row.item, today))}</span>
+                <ArrowIcon className="td-arrow tdc-go" />
+              </Link>
+            </li>
+          ),
+        )}
+      </ul>
+    </section>
   );
 }
 

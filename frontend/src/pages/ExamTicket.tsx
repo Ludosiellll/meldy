@@ -180,6 +180,25 @@ function pointsWord(n: number): string {
   return `${n} ${plural(n, 'пункт', 'пункта', 'пунктов')}`;
 }
 
+/**
+ * The exam container a «занятие» sent this ticket from (?from=c:<id>, spec decision 29г): its AI-checked oral questions
+ * come here as one ticket (q=a,b,c) and go back to it. Null without it, or for anything that is not an id.
+ */
+export function containerFrom(from: string | null): string | null {
+  if (!from || !from.startsWith('c:')) return null;
+  const id = from.slice(2);
+  return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
+}
+
+/** This exam's page with ?from=c:<id> kept, so its top line still leads back to the container (Layout.backLinkFor). */
+export function keepFrom(path: string, container: string | null): string {
+  if (!container) return path;
+  const hashAt = path.indexOf('#');
+  const base = hashAt >= 0 ? path.slice(0, hashAt) : path;
+  const hash = hashAt >= 0 ? path.slice(hashAt) : '';
+  return `${base}${base.includes('?') ? '&' : '?'}from=c:${container}${hash}`;
+}
+
 export default function ExamTicket() {
   useDocumentTitle('Ответ на билет');
   const { id: examId = '' } = useParams();
@@ -191,6 +210,7 @@ export default function ExamTicket() {
   const requestedNumber = params.get('n');
   // Sent only by the draw's «Как на экзамене»: marks off by default, no hint, no counter.
   const mode: TicketMode = params.get('mode') === 'exam' ? 'exam' : 'training';
+  const fromContainer = containerFrom(params.get('from'));
   // The read-only protocol ignores both.
   if (sessionId !== null) return <ReadOnlyProtocol examId={examId} sessionId={sessionId} />;
   return (
@@ -200,6 +220,7 @@ export default function ExamTicket() {
       questionIds={questionIds}
       requestedNumber={requestedNumber}
       mode={mode}
+      fromContainer={fromContainer}
     />
   );
 }
@@ -385,9 +406,15 @@ interface TicketRoomProps {
   /** &n of the address: a department ticket's number, honoured only when the exam's tickets back it. */
   requestedNumber: string | null;
   mode: TicketMode;
+  /** ?from=c:<id>: sent by an exam container's «занятие»; after the result the way is back to it (spec decision 29г). */
+  fromContainer?: string | null;
 }
 
-function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomProps) {
+function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer = null }: TicketRoomProps) {
+  // Only with ?from=c:<id>: every link to this exam's pages keeps it, and the end of the ticket leads back to the
+  // «занятие» instead of another random ticket. Without it, nothing changes.
+  const withFrom = (path: string) => keepFrom(path, fromContainer);
+  const backToSession = fromContainer ? `/exams/c/${fromContainer}` : null;
   const navigate = useNavigate();
   const { user } = useAuth();
   const { confirm } = useConfirm();
@@ -1356,7 +1383,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   const elapsed = answerTime(state, now);
   const timerShown = state.phase === 'answering' || state.phase === 'finalizing' || state.phase === 'examiner' || state.phase === 'followup';
   const exitLink = (
-    <button type="button" className="sf-link" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
+    <button type="button" className="sf-link" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
       <span className="or-exit-long">Выйти из билета</span>
       <span className="or-exit-short">Выйти</span>
     </button>
@@ -1376,7 +1403,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
               <h1 className="or-state-title">{state.loadError?.kind === 'not_found' ? 'Билет не найден' : 'Не удалось загрузить билет'}</h1>
               <p className="or-state-text">{state.loadError?.message}</p>
               <div className="or-acts">
-                <Link className="sf-link" to={`/exams/${examId}`}>
+                <Link className="sf-link" to={withFrom(`/exams/${examId}`)}>
                   Лист экзамена
                 </Link>
               </div>
@@ -1434,7 +1461,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const barRight = (
       <>
         {protocol === 'saved' ? <span className="or-saved">Сохранено</span> : null}
-        <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
+        <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
           <ArrowLeft className="or-back-icon" aria-hidden="true" strokeWidth={1.75} />
           Лист экзамена
         </button>
@@ -1471,7 +1498,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                 <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index)}>
                   Ответить ещё раз
                 </button>
-                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
+                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
                   Лист экзамена
                 </button>
               </div>
@@ -1494,7 +1521,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           <span className="or-narrow">
             {/* « · » stays on the sentence's line (glue's rule): a line never starts with it. */}
             {'\u00a0· '}
-            <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
+            <button type="button" className="sf-link" onClick={() => void leave(withFrom(`/exams/${examId}?view=sheet`))}>
               посмотреть
             </button>
           </span>
@@ -1503,6 +1530,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const primary = hasNext ? (
       <button type="button" className="sf-primary" onClick={() => void goToQuestion(state.index + 1)}>
         {nextQuestionLabel(state.index + 1)}
+      </button>
+    ) : backToSession ? (
+      <button type="button" className="sf-primary" onClick={() => void leave(backToSession)}>
+        Вернуться к занятию
       </button>
     ) : (
       <button type="button" className="sf-primary" onClick={() => void leave(`/exams/${examId}/draw`)}>
@@ -1574,7 +1605,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                 <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index)}>
                   Ответить ещё раз
                 </button>
-                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
+                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}?view=sheet`))}>
                   К шпаргалке
                 </button>
               </div>
@@ -1610,6 +1641,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
       <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index + 1)}>
         {nextQuestionLabel(state.index + 1)}
       </button>
+    ) : backToSession ? (
+      <button type="button" className="sf-link" onClick={() => void leave(backToSession)}>
+        Вернуться к занятию
+      </button>
     ) : (
       <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}/draw`)}>
         Тянуть другой билет
@@ -1617,12 +1652,12 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     );
   // The way to a reference: lectures with text for this exam (the editor opens at them).
   const fixLink = why.fix ? (
-    <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}/edit#lectures`)}>
+    <button type="button" className="sf-link" onClick={() => void leave(withFrom(`/exams/${examId}/edit#lectures`))}>
       {why.fix}
     </button>
   ) : null;
   const sheetLink = (
-    <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
+    <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
       Лист экзамена
     </button>
   );
@@ -1737,6 +1772,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             <button type="button" className="sf-primary" onClick={() => void goToQuestion(state.index + 1)}>
               {nextQuestionLabel(state.index + 1)}
             </button>
+          ) : backToSession ? (
+            <button type="button" className="sf-primary" onClick={() => void leave(backToSession)}>
+              Вернуться к занятию
+            </button>
           ) : (
             <button type="button" className="sf-primary" onClick={() => void leave(`/exams/${examId}/draw`)}>
               Следующий билет
@@ -1764,7 +1803,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   } else if (rubric.status === 'blocked') {
     side = (
       <div className="or-acts" data-wide="">
-        <button type="button" className="sf-primary" onClick={() => void leave(`/exams/${examId}`)} data-anchor="">
+        <button type="button" className="sf-primary" onClick={() => void leave(withFrom(`/exams/${examId}`))} data-anchor="">
           Лист экзамена
         </button>
         {state.index + 1 < total ? nextLink : null}

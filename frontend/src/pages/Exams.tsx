@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { EXAM_MESSAGES, examErrorMessage, listExams, type ExamListItem } from '../api/exams';
 import { fetchQuestionEvents } from '../api/learning';
@@ -11,6 +11,12 @@ import { glue } from '../components/exams/sheetModel';
 import { useFrame } from '../components/exams/useFrame';
 import { usePhone } from '../lib/usePhone';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { detectInAppBrowser } from '../lib/inAppBrowser';
+import { localDateKey } from '../utils/streak';
+import type { OverviewContainer } from '../types/container';
+import { containerDays, useContainerLayer } from './containerLayer';
+
+export { containerDays };
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -146,10 +152,207 @@ function ExamRow({ item, states, phone }: { item: ExamListItem; states: Map<stri
   );
 }
 
+// ---------------------------------------------------------------------------------------------
+// Exam containers in the list (spec decisions 2, 46, 48; Concept 1 §3.1 with the design critique's words)
+
+const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
+const SUBJECT_FORMS = ['предмет', 'предмета', 'предметов'] as const;
+
+/** The «видели» part of a container's bar: the green of «в счёте», lighter (design critique I13). */
+const SEEN_BAR = 'color-mix(in srgb, var(--ex-ok-fg) 40%, transparent)';
+
+/** «28 октября, через 19 дней», «с 12 января, через 95 дней», «Экзамен прошёл 28 октября», «Дата не указана». */
+export function containerDateLine(container: Pick<OverviewContainer, 'exam_date' | 'subjects'>, now: Date = new Date()): string {
+  const { day, several, past } = containerDays(container, localDateKey(now));
+  const text = formatDay(day, now);
+  if (!day || !text) return 'Дата не указана';
+  if (past) return `Экзамен прошёл ${text}`;
+  const days = daysUntil(day, now);
+  return `${several ? 'с ' : ''}${text}${days === null ? '' : `, ${relativeDays(days)}`}`;
+}
+
+/** The questions of a container: its own (with variants) and those of its oral parts, as «Экзамены» lists them. */
+export function containerQuestions(container: Pick<OverviewContainer, 'items' | 'subjects'>, oralTotals: ReadonlyMap<string, number>): number {
+  const oral = container.subjects.reduce((sum, subject) => sum + (subject.oral_exam_id ? oralTotals.get(subject.oral_exam_id) ?? 0 : 0), 0);
+  return container.items + oral;
+}
+
+/** «960 вопросов»; with `subjects` and more than one subject, «4 предмета, 960 вопросов»; «вопросов пока нет». */
+export function containerSizeLine(container: Pick<OverviewContainer, 'subjects'>, questions: number, subjects: boolean): string {
+  if (questions === 0) return 'вопросов пока нет';
+  const size = `${questions} ${pluralRu(questions, QUESTION_FORMS)}`;
+  const count = container.subjects.length;
+  return subjects && count > 1 ? `${count} ${pluralRu(count, SUBJECT_FORMS)}, ${size}` : size;
+}
+
+/** The figure of a container's test part (spec decision 8): «N из M · верно в два разных дня», over the questions with a key. */
+export function containerFigure(container: Pick<OverviewContainer, 'subjects'>): { twoDays: number; seen: number; keyed: number } | null {
+  let twoDays = 0;
+  let seen = 0;
+  let keyed = 0;
+  for (const subject of container.subjects) {
+    twoDays += subject.two_days;
+    seen += subject.seen;
+    keyed += subject.keyed;
+  }
+  seen = Math.min(seen, keyed);
+  twoDays = Math.min(twoDays, seen);
+  // Before any answer: no bar and no line (design critique I4).
+  return keyed > 0 && seen > 0 ? { twoDays, seen, keyed } : null;
+}
+
+/**
+ * «Верно в два разных дня: 143 из 960» (spec decision 48); while it is 0 the line adds what moved: «… 0 из 960 · видели
+ * 60». No forecast and no other verb: the figure is named only «верно в два разных дня» (spec decision 55).
+ */
+export function containerFigureLine(figure: { twoDays: number; seen: number; keyed: number }): string {
+  const line = `Верно в два разных дня: ${figure.twoDays} из ${figure.keyed}`;
+  return figure.twoDays === 0 ? `${line} · видели ${figure.seen}` : line;
+}
+
+/** A week or less to the nearest date ahead: the date line in ink, as for an oral exam. */
+export function containerIsNear(container: Pick<OverviewContainer, 'exam_date' | 'subjects'>, now: Date = new Date()): boolean {
+  const { day, past } = containerDays(container, localDateKey(now));
+  if (!day || past) return false;
+  const days = daysUntil(day, now);
+  return days !== null && days >= 0 && days <= 7;
+}
+
+export type ListRow = { kind: 'exam'; item: ExamListItem } | { kind: 'container'; container: OverviewContainer };
+
+/**
+ * The list in today's order (api/exams.ts listExams): dates ahead nearest first, then the newest without a date, then
+ * the past, latest first — containers and plain exams together. Without containers the plain list keeps its own order.
+ */
+export function listRows(plain: ExamListItem[], containers: OverviewContainer[], today: string = localDateKey()): ListRow[] {
+  const rows: ListRow[] = plain.map((item) => ({ kind: 'exam', item }));
+  if (containers.length === 0) return rows;
+  const keyed = [
+    ...rows,
+    ...containers.map((container): ListRow => ({ kind: 'container', container })),
+  ].map((row, index) => {
+    const date = row.kind === 'exam' ? row.item.exam_date : containerDays(row.container, today).day;
+    const created = row.kind === 'exam' ? row.item.created_at : row.container.created_at;
+    const group = !date ? 1 : date >= today ? 0 : 2;
+    return { row, date: date ?? '', created, group, index };
+  });
+  keyed.sort((a, b) => {
+    if (a.group !== b.group) return a.group - b.group;
+    if (a.group === 0 && a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if (a.group === 2 && a.date !== b.date) return a.date > b.date ? -1 : 1;
+    if (a.created !== b.created) return a.created > b.created ? -1 : 1;
+    return a.index - b.index;
+  });
+  return keyed.map((entry) => entry.row);
+}
+
+/** A container's row: the student's name for the exam, one meta line, the bar and, on a phone, its figure under it. */
+function ContainerRow({ container, questions, phone }: { container: OverviewContainer; questions: number; phone: boolean }) {
+  const figure = containerFigure(container);
+  const date = containerDateLine(container);
+  // A computer: the figure joins the meta and stays whole («верно в два разных дня: 143 из 960»), so a long line breaks
+  // after «·», never inside it.
+  const meta = phone
+    ? `${date} · ${containerSizeLine(container, questions, false)}`
+    : `${date} · ${containerSizeLine(container, questions, true)}${figure ? ` · ${containerFigureLine(figure).replace(/^В/, 'в').replace(/ /g, '\u00a0')}` : ''}`;
+  return (
+    <li data-near={containerIsNear(container) ? '' : undefined} data-container="">
+      {/* The whole card is the link; no pill: the exam's page holds its one action (Concept 1 §3.1). */}
+      <Link className="ex-row" to={`/exams/c/${encodeURIComponent(container.id)}`}>
+        <span className="ex-row-title">{container.title}</span>
+        <span className="ex-row-meta" style={{ display: 'block' }}>
+          {glue(meta)}
+        </span>
+      </Link>
+      {/* «верно в два разных дня» · «видели» · not seen yet; the text carries the numbers. */}
+      {figure ? (
+        <span className="ex-bar" aria-hidden="true">
+          {figure.twoDays > 0 ? <i data-k="full" style={{ flexGrow: figure.twoDays }} /> : null}
+          {figure.seen > figure.twoDays ? <i data-k="seen" style={{ flexGrow: figure.seen - figure.twoDays, background: SEEN_BAR }} /> : null}
+          {figure.keyed > figure.seen ? <i data-k="unmapped" style={{ flexGrow: figure.keyed - figure.seen }} /> : null}
+        </span>
+      ) : null}
+      {phone && figure ? <p className="ex-row-counts">{glue(containerFigureLine(figure))}</p> : null}
+      <span className="ex-row-go" aria-hidden="true">
+        {ARROW}
+      </span>
+    </li>
+  );
+}
+
+/** The questions of every exam the list knows, by exam id: an oral part's count joins its container's row. */
+function oralTotalsOf(items: ExamListItem[] | null): Map<string, number> {
+  return new Map((items ?? []).map((item) => [item.id, item.total]));
+}
+
+/** iPhone: a file from Telegram has to be saved to «Файлы» before a page can pick it (design critique I14). */
+function onIPhone(): boolean {
+  try {
+    return detectInAppBrowser(navigator.userAgent).os === 'ios';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * No exam yet, with the exam container in the database (Concept 1 §3.1, the design critique's words): one door,
+ * /exams/import, for any file or a list typed in; the example one quiet link away. «Новый экзамен» at the top is left
+ * out here: one way in (rule 10).
+ */
+function EmptyExams({ phone }: { phone: boolean }) {
+  return (
+    <div className="ex-empty">
+      <div className="ex-empty-copy">
+        <h2>Загрузите вопросы к экзамену</h2>
+        <p>
+          {phone
+            ? 'Один общий файл или по файлу на предмет.'
+            : 'Один общий файл или по файлу на предмет. С вариантами ответов Meldy возьмёт ключ из файла, а без вариантов напишет шпаргалку по вашим лекциям.'}
+        </p>
+        <Link className="sf-primary" to="/exams/import">
+          Выбрать файлы
+        </Link>
+        <p>
+          <Link className="sf-link" to="/exams/import">
+            Вставить список текстом
+          </Link>
+        </p>
+        {/* The example exam (/try): its lectures and list are checked already, nothing is saved. */}
+        <p>
+          Сначала посмотреть, как это работает?{' '}
+          <Link className="sf-link" to="/try">
+            Попробовать на примере
+          </Link>
+        </p>
+        {onIPhone() ? <p>{glue('Файл из Telegram сначала сохраните в «Файлы».')}</p> : null}
+      </div>
+      {/* A list with its marks, drawn: no words and no numbers, nothing to mistake for data. */}
+      <div className="ex-empty-art" aria-hidden="true">
+        <div className="ex-empty-win">
+          {[0, 1, 2].map((row) => (
+            <span key={row} className="ex-empty-row">
+              <span />
+              <span />
+              <span />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const NO_CONTAINERS: OverviewContainer[] = [];
+
 /**
  * «Экзамены»: the student's exams as cards, nearest date first. Each card says when the exam is, how
  * many of its questions are in the lectures and how many are confirmed by answers, with the status
  * pills of the sheet.
+ *
+ * Exam containers (spec decision 2) are rows of the same list, by date; an oral exam that lives inside a container is
+ * not a row of its own (attached_exam_ids), and its questions' answers are not read here. Whenever the containers
+ * cannot be read the page is exactly today's (containerLayer.tsx); without network their rows come from the device's
+ * copy.
  */
 export default function Exams() {
   useDocumentTitle('Экзамены');
@@ -158,6 +361,7 @@ export default function Exams() {
   const navigate = useNavigate();
   const frame = useFrame<HTMLDivElement>();
   const phone = usePhone();
+  const { layer, probe } = useContainerLayer();
   const [items, setItems] = useState<ExamListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [states, setStates] = useState<Map<string, QuestionState> | null>(null);
@@ -167,14 +371,7 @@ export default function Exams() {
     if (!userId) return;
     setError(null);
     try {
-      const next = await listExams(userId);
-      setItems(next);
-      const hashes = next.flatMap((item) => item.hashes);
-      if (hashes.length > 0) {
-        fetchQuestionEvents(hashes, ['exam_answer'])
-          .then((events) => setStates(statesByHash(events)))
-          .catch(() => setStates(null)); // the «подтверждено» part is left out, the list still works
-      }
+      setItems(await listExams(userId));
     } catch (failure) {
       setError(examErrorMessage(failure, EXAM_MESSAGES.list));
     }
@@ -189,15 +386,59 @@ export default function Exams() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  const settled = layer.mode !== 'loading';
+  const on = layer.mode === 'on' ? layer : null;
+  const containers = on ? on.overview.containers : NO_CONTAINERS;
+  const attached = useMemo(() => new Set(on ? on.overview.attached_exam_ids : []), [on]);
+  // The plain exams: every exam but those inside a container, once the layer has answered (none of them flashes).
+  const plain = useMemo(() => (items && settled ? items.filter((item) => !attached.has(item.id)) : null), [items, settled, attached]);
+  const rows = useMemo(() => (plain ? listRows(plain, containers) : null), [plain, containers]);
+  const oralTotals = useMemo(() => oralTotalsOf(items), [items]);
+
+  // «подтверждено»: the answers to the questions of the plain exams only (never the hashes of an exam in a container).
+  useEffect(() => {
+    if (!plain) return undefined;
+    const hashes = plain.flatMap((item) => item.hashes);
+    if (hashes.length === 0) return undefined;
+    let live = true;
+    fetchQuestionEvents(hashes, ['exam_answer'])
+      .then((events) => {
+        if (live) setStates(statesByHash(events));
+      })
+      .catch(() => {
+        if (live) setStates(null); // the «подтверждено» part is left out, the list still works
+      });
+    return () => {
+      live = false;
+    };
+  }, [plain]);
+
+  const containerRows = containers.length > 0 ? listRows([], containers) : [];
+  const list = (shown: ListRow[]) => (
+    <ul className="ex-list" aria-label="Ваши экзамены">
+      {shown.map((row) =>
+        row.kind === 'exam' ? (
+          <ExamRow key={row.item.id} item={row.item} states={states} phone={phone} />
+        ) : (
+          <ContainerRow key={`c:${row.container.id}`} container={row.container} questions={containerQuestions(row.container, oralTotals)} phone={phone} />
+        ),
+      )}
+    </ul>
+  );
+  const anyRow = (rows !== null && rows.length > 0) || (error !== null && containerRows.length > 0);
+
   return (
     <div className="sf-page ex-list-page" ref={frame.ref} data-frame={frame.size}>
+      {probe}
       <header className="ex-head">
         <div>
           <h1 className="ex-h1">Экзамены</h1>
         </div>
-        {items && items.length > 0 && (
+        {anyRow && (
           <div className="ex-draw">
-            <Link className="ex-secondary ex-new" to="/exams/new">
+            {/* One door (spec decision 21). Without containers the old address stays (App.tsx sends it on to
+                /exams/import), so such an account's page is today's to the byte. */}
+            <Link className="ex-secondary ex-new" to={containers.length > 0 ? '/exams/import' : '/exams/new'}>
               Новый экзамен
               <span className="ex-new-dot" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -210,54 +451,58 @@ export default function Exams() {
       </header>
 
       {error ? (
-        <div className="ex-error" role="alert">
-          <h2>Не удалось загрузить экзамены</h2>
-          <p>{error} Ваши экзамены сохранены.</p>
-          <button type="button" className="sf-link" onClick={() => void load()}>
-            Повторить
-          </button>
-        </div>
-      ) : items === null ? (
+        <>
+          {/* Without network the containers come from the device's copy: their rows stay, the error is about the rest. */}
+          {containerRows.length > 0 ? list(containerRows) : null}
+          <div className="ex-error" role="alert">
+            <h2>Не удалось загрузить экзамены</h2>
+            <p>{error} Ваши экзамены сохранены.</p>
+            <button type="button" className="sf-link" onClick={() => void load()}>
+              Повторить
+            </button>
+          </div>
+        </>
+      ) : rows === null ? (
         showLoading ? (
           <p className="ex-loading" role="status">
             Загружаем экзамены…
           </p>
         ) : null
-      ) : items.length === 0 ? (
-        <div className="ex-empty">
-          <div className="ex-empty-copy">
-            <h2>Вставьте список вопросов, который дала кафедра</h2>
-            <p>Meldy отметит, какие вопросы есть в ваших лекциях, и посчитает, какую долю билетов они закрывают.</p>
-            <button type="button" className="sf-primary" onClick={() => navigate('/exams/new')}>
-              Вставить список вопросов
-            </button>
-            {/* The example exam (/try): its lectures and list are checked already, nothing is saved. */}
-            <p>
-              Сначала посмотреть, как это работает?{' '}
-              <Link className="sf-link" to="/try">
-                Попробовать на примере
-              </Link>
-            </p>
-          </div>
-          {/* A list with its marks, drawn: no words and no numbers, nothing to mistake for data. */}
-          <div className="ex-empty-art" aria-hidden="true">
-            <div className="ex-empty-win">
-              {[0, 1, 2].map((row) => (
-                <span key={row} className="ex-empty-row">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              ))}
+      ) : rows.length === 0 ? (
+        on ? (
+          <EmptyExams phone={phone} />
+        ) : (
+          <div className="ex-empty">
+            <div className="ex-empty-copy">
+              <h2>Вставьте список вопросов, который дала кафедра</h2>
+              <p>Meldy отметит, какие вопросы есть в ваших лекциях, и посчитает, какую долю билетов они закрывают.</p>
+              <button type="button" className="sf-primary" onClick={() => navigate('/exams/new')}>
+                Вставить список вопросов
+              </button>
+              {/* The example exam (/try): its lectures and list are checked already, nothing is saved. */}
+              <p>
+                Сначала посмотреть, как это работает?{' '}
+                <Link className="sf-link" to="/try">
+                  Попробовать на примере
+                </Link>
+              </p>
+            </div>
+            {/* A list with its marks, drawn: no words and no numbers, nothing to mistake for data. */}
+            <div className="ex-empty-art" aria-hidden="true">
+              <div className="ex-empty-win">
+                {[0, 1, 2].map((row) => (
+                  <span key={row} className="ex-empty-row">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )
       ) : (
-        <ul className="ex-list" aria-label="Ваши экзамены">
-          {items.map((item) => (
-            <ExamRow key={item.id} item={item} states={states} phone={phone} />
-          ))}
-        </ul>
+        list(rows)
       )}
     </div>
   );

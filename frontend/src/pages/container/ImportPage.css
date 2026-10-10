@@ -1,0 +1,34 @@
+/*
+ * /exams/import (ImportPage.tsx): the page's frame. A phone keeps one column — what was found, the rows, the form,
+ * then the quiet links — with «Сохранить» in the bar at the bottom (exams.css .ex-cta). From 1024 px the subjects
+ * stand on the left and the form on the right in a white card, the bar runs under both with what is missing beside
+ * the button (Concept 1 §3.2, laptop).
+ */
+.sf-page.im-page { --im-form-w: 380px; }
+.sf-page.im-page .im-head { padding-bottom: 4px; }
+.sf-page.im-page .im-body { margin-top: 28px; }
+.sf-page.im-page[data-frame='s'] .im-body { margin-top: 18px; }
+.sf-page.im-page .im-body[data-side] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--im-form-w);
+  gap: 0 48px;
+  align-items: start;
+}
+.sf-page.im-page[data-frame='l'] .im-body[data-side] { --im-form-w: 340px; gap: 0 36px; }
+.sf-page.im-page .im-body[data-side] .im-form {
+  margin-top: 0;
+  padding: 26px 26px 28px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.sf-page.im-page .im-body[data-side] .im-form .im-input { background: var(--sf-surface-soft); }
+.sf-page.im-page .im-main { min-width: 0; }
+.sf-page.im-page .im-cta .ex-cta-why { overflow-wrap: anywhere; }
+@media (max-width: 380px) {
+  .sf-page.im-page .im-pick-acts .sf-primary { width: 100%; justify-content: space-between; }
+}
+/* A phone with little on the page: the bar still stands at the bottom of the screen, where the thumb is. */
+.sf-page.im-page[data-frame='s'] { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
+.sf-page.im-page[data-frame='s'] > .ex-cta { margin-top: auto; }
+.sf-page.im-page[data-frame='s'] > :nth-last-child(2) { margin-bottom: 24px; }
