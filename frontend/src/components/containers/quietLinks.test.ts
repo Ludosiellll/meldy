@@ -68,14 +68,16 @@ describe('quiet links of the exam’s screens (usability m4)', () => {
   it('the three that CF2 left at 0 take their room from their line, so nothing grows', async () => {
     const files = await containerStyles();
     const rule = (file: string, selector: string) => rules(files.get(file) ?? '').find((r) => r.selector === selector)?.body ?? '';
-    for (const [file, selector] of [
-      ['components/containers/group/group.css', '.gr-person .gr-ask .sf-link'],
-      ['components/containers/import/import.css', '.sf-page .im-spot-wrong .sf-link'],
-      ['pages/container/KeysPage.css', '.sf-page.ky-page .ky-confirm .sf-link'],
+    for (const [file, selector, margin] of [
+      // A flex row has no line box to absorb the target: half of 1.3em − 44px exactly, the row's own height.
+      ['components/containers/group/group.css', '.gr-person .gr-ask .sf-link', 'calc(.65em - 22px) 0'],
+      // Inside a line of text the line box absorbs it.
+      ['components/containers/import/import.css', '.sf-page .im-spot-wrong .sf-link', '-12px 0'],
+      ['pages/container/KeysPage.css', '.sf-page.ky-page .ky-confirm .sf-link', '-12px 0'],
     ] as const) {
       const body = rule(file, selector);
       expect(declaration(body, 'min-height'), `${file} ${selector}`).toBe('44px');
-      expect(declaration(body, 'margin'), `${file} ${selector}`).toBe('-12px 0');
+      expect(declaration(body, 'margin'), `${file} ${selector}`).toBe(margin);
       expect(declaration(body, 'vertical-align'), `${file} ${selector}`).toBe('baseline');
     }
   });
