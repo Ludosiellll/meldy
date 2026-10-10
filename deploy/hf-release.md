@@ -4,6 +4,40 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-10 — Release 35: one exam for the whole session — several subjects and hundreds of questions, a plan for each day, «верно в два разных дня» (from the commit of this entry)
+
+- **The exam holds a whole session** (spec `meldy-notes/10_Project/Exam_Container_Spec_2026-10-09.md`, decisions 1–65). The owner's words: one container for 4+ subjects and hundreds of questions instead of four separate exams. Students do not need confirmations or teacher checks.
+- **Import** `/exams/import` (one door: `/exams/new` leads here).
+  - Files of every subject at once, or one file with all of them, in DOCX/TXT. The key is taken from bold, underline, colour, «+», or a separate key list.
+  - The preview reads «Нашли 4 предмета и 960 вопросов». Problem questions wait in a queue. Oral lists over 150 questions are split into parts.
+  - Saving resumes after a failure. The server reads the file with `POST /api/exams/parse-bank` (about 1 s per 480 questions).
+- **The exam and subject pages** `/exams/c/:id`, `/s/:subjectId`:
+  - the plan of the day with one blue button «Начать: 20 вопросов», then the figure «N из M — верно в два разных дня»;
+  - the subjects as rows;
+  - «План по дням», «Ключи», «Настройки», «Пригласить группу».
+- **«Занятие»** `/study`:
+  - 20 questions of one subject; «7 из 20» on a phone; the verdict in the pinned bar;
+  - «Нажали не туда?», «Сомневаюсь в ключе», and «Ключ неверный?» for the author;
+  - several correct answers, short answers, code wrapped on a phone;
+  - a mistake comes back after a few questions and tomorrow;
+  - the end: «Теперь 147 из 960 — верно в два разных дня» or «20 вопросов за 11 минут».
+- **«Как на экзамене»** `/mock`: the attempt is kept on the device and sent through the answer queue.
+- **The rule and the plan** (`lib/containers/*`, pure TS, also for the bot):
+  - a question counts after correct answers on two different days, at least 20 hours apart, checked at +5/12/25/50 days;
+  - the minute budget per day is hard (30/45/60/90);
+  - the day's plan is frozen at its first answer;
+  - the last days before the date have no new questions.
+- **The group:** one link `/g/<код>` gives the whole exam. Oral subjects arrive as copies through `POST /api/containers/{id}/oral-sync`. The author sees «Кто вошёл» and can remove a member.
+- **«Сегодня» and «Экзамены»:**
+  - the lead is the nearest date with something today;
+  - an account without such an exam sees exactly the old screens (57 DOM snapshots and pixel pairs), also when the database functions are missing, on errors or after a 2.5 s wait.
+- **Offline:** «Сегодня», «Экзамены» and the exam pages open from the device. Answers wait in a queue. A student whose token expired offline stays signed in.
+- **Database:** `20261009093500_containers.sql` + `…093501_containers_revokes.sql` + `20261010074500_containers_fk_indexes.sql` were applied on 10.10 through the new workflow `supabase-migrate.yml`; 7 of 7 contract checks pass. The live API smoke as the test account passed 14 of 14.
+- **Verified before release:**
+  - Vitest: 230 files, 3786 tests; pytest: 1737; `tsc -b`; production build.
+  - Browser with the live database and the test account, 390×844 light and dark and 1532×734, against an exam of 960 synthetic questions in 4 subjects: import → exam page → a full session to the end screen → «Сегодня», «Экзамены», subject, «Как на экзамене», «Ключи», «Настройки».
+  - No sideways scroll and no page errors.
+
 ## 2026-10-08 — Release 34.1: the exam page's bar on a phone no longer shows «Тянуть билет» for a moment before its real action (from the commit of this entry)
 
 - **The bar waits for the first status.** The live check of release 34 (the video and a watch of the bar every 40 ms) showed, on every opening of an exam on a phone, «Тянуть билет» with «Как на экзамене · изменить» for 40–250 ms (0.7 s in the video), then «Тянуть билет из 4 вопросов» without the line. The page drew its status before the sheet and the answers were read (that loading state dates from release 30). Now the bar keeps its room and stays empty while the first status is read (`pages/ExamDetail.tsx: BAR_WAIT_MS`, `.ex-cta[data-wait]`), and shows «Тянуть билет» after 2 s if the read is slow; a later read (after a run, a retry) leaves the bar in place. Phones and tablets only (the bar); the computer's status block is unchanged.
