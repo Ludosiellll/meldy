@@ -7,7 +7,8 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import KeyQuestion, { QueueBar, type KeyAction, type TapMode } from '../../components/containers/keys/KeyQuestion';
-import { errorText, KEYS, lettersText, nb, QUEUE } from '../../components/containers/copyImport';
+import { errorText, GONE, KEYS, lettersText, nb, QUEUE } from '../../components/containers/copyImport';
+import { TO_EXAMS } from '../../components/containers/copy';
 import type { DoubtRow, ItemPatch, TestItem, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import './KeysPage.css';
@@ -303,12 +304,22 @@ export default function KeysPage() {
     return (
       <div className="sf-page ky-page" ref={frame.ref} data-frame={frame.size}>
         {header}
-        <p className="ex-note" role="alert">
-          {data.error && /[а-яё]/i.test(data.error) ? data.error : KEYS.loadFailed}{' '}
-          <button type="button" className="sf-link" onClick={data.reload}>
-            {KEYS.retry}
-          </button>
-        </p>
+        {data.gone ? (
+          // Not the user's any more (deleted, left, removed): another try changes nothing (usability check m2).
+          <p className="ex-note">
+            {GONE.title}. {GONE.text}{' '}
+            <Link className="sf-link" to="/exams">
+              {TO_EXAMS}
+            </Link>
+          </p>
+        ) : (
+          <p className="ex-note" role="alert">
+            {data.error && /[а-яё]/i.test(data.error) ? data.error : KEYS.loadFailed}{' '}
+            <button type="button" className="sf-link" onClick={data.reload}>
+              {KEYS.retry}
+            </button>
+          </p>
+        )}
       </div>
     );
   }

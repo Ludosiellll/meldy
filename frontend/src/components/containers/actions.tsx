@@ -5,6 +5,7 @@ import { safeStart } from './planLines';
 import { useConfirm } from '../../contexts/ConfirmContext';
 import type { HeadAction } from './PageHead';
 import * as copy from './copy';
+import { SETTINGS } from './copyImport';
 import { firstSession, isAuthor, minutesOf, sessionHref, studyHref, subjectTitle } from './model';
 import { resumeCounts, type SavedSession } from './sessionStore';
 
@@ -41,13 +42,22 @@ export function startTarget(p: {
 
 /**
  * The exam's «⋯» (decision 44, the critique's I9): the author's «Пригласить группу», «Ключи» (always, with what waits),
- * «Время в день», «Добавить предмет», «Настройки», «Удалить»; a member's «Время в день» and «Настройки». On a computer
- * the same items are the row of white pills under the meta. «Время в день» and «Удалить» are the settings page's
- * sections (package D3a: /exams/c/<id>/settings#minutes and #delete), «Пригласить группу» its invite (?invite=1).
+ * «Время в день», «Добавить предмет», «Настройки», «Удалить»; a member's «Время в день», «Настройки» and «Выйти из
+ * экзамена» (usability check m1: the way out was only at the bottom of «Настройки»). On a computer the same items are
+ * the row of white pills under the meta, «Удалить» and «Выйти из экзамена» as quiet links. «Время в день», «Удалить»
+ * and «Выйти из экзамена» are the settings page's sections (package D3a: /exams/c/<id>/settings#minutes, #delete and
+ * #leave, which opens its confirm), «Пригласить группу» its invite (?invite=1).
  */
-export function examLinks(containerId: string): { settings: string; minutes: string; remove: string; invite: string; keys: string } {
+export function examLinks(containerId: string): { settings: string; minutes: string; remove: string; leave: string; invite: string; keys: string } {
   const settings = `/exams/c/${containerId}/settings`;
-  return { settings, minutes: `${settings}#minutes`, remove: `${settings}#delete`, invite: `${settings}?invite=1`, keys: `/exams/c/${containerId}/keys` };
+  return {
+    settings,
+    minutes: `${settings}#minutes`,
+    remove: `${settings}#delete`,
+    leave: `${settings}#leave`,
+    invite: `${settings}?invite=1`,
+    keys: `/exams/c/${containerId}/keys`,
+  };
 }
 
 export function examActions(summary: ContainerSummary): HeadAction[] {
@@ -56,6 +66,7 @@ export function examActions(summary: ContainerSummary): HeadAction[] {
     return [
       { key: 'minutes', label: copy.MENU_MINUTES, to: links.minutes },
       { key: 'settings', label: copy.MENU_SETTINGS, to: links.settings },
+      { key: 'leave', label: SETTINGS.leave, to: links.leave, danger: true },
     ];
   }
   const waiting = summary.subjects.reduce((sum, subject) => sum + subject.no_key, 0) + (summary.owner?.doubts_open ?? 0);

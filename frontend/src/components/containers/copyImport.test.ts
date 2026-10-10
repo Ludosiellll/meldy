@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import source from './copyImport.ts?raw';
 import * as copy from './copyImport';
-import { count, dayText, errorText, IMPORT, INVITE, JOIN, KEYS, lettersText, nb, NBSP, plural, QUEUE } from './copyImport';
+import { count, dayText, errorText, IMPORT, INVITE, JOIN, KEYS, lettersText, MEMBERS, nb, NBSP, plural, QUEUE } from './copyImport';
 
 /**
  * Spec §16 #45: one source of words, and a test that fails on the banned ones. The list is the spec's (plus the design
@@ -122,8 +122,11 @@ describe('copyImport: the words of the import, keys, settings and group screens'
     expect(KEYS.changed(true)).toBe('Ключ изменён. Счёт по этому вопросу начнётся заново, у вас и у группы.');
     expect(KEYS.changed(false)).toBe('Ключ изменён. Счёт по этому вопросу начнётся заново.');
     expect(INVITE.lede(4, 960)).toBe(`По ссылке каждый получит весь экзамен: 4${NBSP}предмета, 960${NBSP}вопросов. Прогресс у каждого свой, а исправленный вами ключ придёт всем.`);
-    expect(INVITE.joined(12, 60)).toBe('Вошли 12 из 60');
-    expect(INVITE.joined(21, 60)).toBe('Вошёл 21 из 60');
+    // The group's one line (usability check m3): who is in now, «Пока никто не вошёл» only before anyone came in.
+    expect(MEMBERS.inExam(12, true)).toBe(`В экзамене 12${NBSP}участников`);
+    expect(MEMBERS.inExam(21, true)).toBe(`В экзамене 21${NBSP}участник`);
+    expect(MEMBERS.inExam(0, true)).toBe('Сейчас в экзамене никого');
+    expect(MEMBERS.inExam(0, false)).toBe('Пока никто не вошёл');
     expect(INVITE.message('Аккредитация', 4, 960, 'https://x/g/1')).toBe(
       `Готовимся вместе в Meldy: «Аккредитация», 4${NBSP}предмета, 960${NBSP}вопросов. Ссылка: https://x/g/1`,
     );

@@ -201,10 +201,11 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     expect(screen.getByRole('link', { name: 'Отметить ответы' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
   });
 
-  it('gives a member only «Время в день» and «Настройки», and no key links', () => {
+  it('gives a member «Время в день», «Настройки» and the way out (usability check m1), and no key links', () => {
     renderPage(loaded(containerData({ summary: summary({ role: 'member', owner: null, key_changes_unseen: 2 }) })), { phone: true });
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
-    expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => node.textContent)).toEqual(['Время в день', 'Настройки']);
+    expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => node.textContent)).toEqual(['Время в день', 'Настройки', 'Выйти из экзамена']);
+    expect(screen.getByRole('menuitem', { name: 'Выйти из экзамена' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#leave`);
     expect(page()).toContain('Автор исправил ключ в 2 вопросах — счёт по ним начнётся заново.');
     expect(screen.queryByRole('link', { name: 'Отметить ответы' })).toBeNull();
   });

@@ -18,10 +18,12 @@ import MoreMenu from '../../components/ui/MoreMenu';
 import PaperSelect from '../../components/ui/PaperSelect';
 import InviteExam from '../../components/containers/group/InviteExam';
 import MembersList from '../../components/containers/group/MembersList';
-import { errorText, IMPORT, INVITE, nb, SETTINGS } from '../../components/containers/copyImport';
+import { errorText, GONE, IMPORT, INVITE, MEMBERS, nb, SETTINGS } from '../../components/containers/copyImport';
+import { TO_EXAMS } from '../../components/containers/copy';
 import { minutesLines } from '../../components/containers/import/minutesLines';
+import { useFocusAfter } from '../../components/containers/useFocusAfter';
 import { cleanDays, dayCount, dayOn, toggleDay } from '../../components/containers/weekdays';
-import type { PlanInput, SummarySubject, Uuid } from '../../types/container';
+import type { ContainerSummary, PlanInput, SummarySubject, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './SettingsPage.css';
@@ -34,8 +36,11 @@ import './SettingsPage.css';
  * add), the group, and «Удалить экзамен», refused while members are in (MC009) until the author removes them. A member
  * sets only their own minutes and days; their way out is «Выйти из экзамена».
  *
- * Anchors for the exam page's «⋯»: #minutes («Время в день»), #subjects, #group, #delete; ?invite=1 opens
- * «Пригласить группу».
+ * Anchors for the exam page's «⋯»: #minutes («Время в день»), #subjects, #group, #delete (the author), #leave (a
+ * member: the confirm opens); ?invite=1 opens «Пригласить группу».
+ *
+ * Every inline confirm gives «Отмена» the focus when it opens and gives it back to the button that opened it when it
+ * closes; a refusal is said in an alert (usability check m9).
  */
 
 const MINUTE_OPTIONS = [30, 45, 60, 90] as const;
@@ -121,21 +126,47 @@ export default function SettingsPage() {
   const lines = useMemo(() => minutesLines(liveInput, minutes), [liveInput, minutes]);
   const [moreOpen, setMoreOpen] = useState(false);
 
+  const focusAfter = useFocusAfter();
+
   // ── subjects ──
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
   const [subjectError, setSubjectError] = useState<string | null>(null);
+  const [subjectBusy, setSubjectBusy] = useState(false);
+  const subjectsRef = useRef<HTMLHeadingElement>(null);
+  const rowsRef = useRef<HTMLUListElement>(null);
+  // A new name stays on screen while the summary is read again (usability check n2: the old one came back for a moment):
+  // the names given since this summary arrived; the next summary has them.
+  const [renamed, setRenamed] = useState<{ from: ContainerSummary; titles: Record<string, string> } | null>(null);
+  const titleOf = (subject: SummarySubject) => (renamed && renamed.from === summary ? renamed.titles[subject.id] : undefined) ?? subject.title;
 
   // ── the group and deleting ──
   const [inviting, setInviting] = useState(() => search.get('invite') === '1');
   const [who, setWho] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [acting, setActing] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  const members = summary?.owner?.members ?? 0;
-  const link = (summary?.owner?.links ?? [])
-    .filter((entry) => !entry.revoked_at && (!entry.expires_at || Date.parse(entry.expires_at) > Date.now()))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  // The database refused «Удалить экзамен» (MC009) while this summary had nobody in: someone joined since. Until the
+  // summary is read again at least one member is in (usability check m8).
+  const [refusedAt, setRefusedAt] = useState<ContainerSummary | null>(null);
+  const refused = refusedAt !== null && refusedAt === summary;
+  const members = refused ? Math.max(1, summary?.owner?.members ?? 0) : summary?.owner?.members ?? 0;
+  // Anyone ever in: a seat taken through any link, closed ones too (a rejoin takes none). «Кто вошёл» then stays, so a
+  // removed member can be returned when nobody is left (usability check M1).
+  const everJoined = members > 0 || (summary?.owner?.links ?? []).some((entry) => entry.members > 0);
+  const askRef = useRef<HTMLButtonElement>(null);
+  const askNoRef = useRef<HTMLButtonElement>(null);
+  const whoRef = useRef<HTMLButtonElement>(null);
+
+  const openAsk = () => {
+    setAsking(true);
+    focusAfter(() => askNoRef.current);
+  };
+  const closeAsk = () => {
+    setAsking(false);
+    focusAfter(() => askRef.current);
+  };
 
   // Anchors from the exam page's «⋯».
   const anchor = location.hash.replace(/^#/, '');
@@ -144,7 +175,7 @@ export default function SettingsPage() {
     const target = document.getElementById(`settings-${anchor}`);
     target?.scrollIntoView?.({ block: 'start' });
     if (anchor === 'minutes') minutesRef.current?.querySelector<HTMLElement>('button')?.focus();
-    if (anchor === 'delete' && owner) setAsking(true);
+    if ((anchor === 'delete' && owner) || (anchor === 'leave' && !owner)) openAsk();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(summary), anchor]);
 
@@ -187,33 +218,65 @@ export default function SettingsPage() {
     }
   };
 
+  /** The «⋯» of a subject's row: the focus goes back to it when its rename or its confirm closes. */
+  const rowMenu = (subjectId: string) =>
+    Array.from(rowsRef.current?.querySelectorAll<HTMLElement>('.st-row') ?? [])
+      .find((row) => row.dataset.subject === subjectId)
+      ?.querySelector<HTMLElement>('button[aria-haspopup="menu"]');
+  const closeRename = (subjectId: string) => {
+    setRenaming(null);
+    focusAfter(() => rowMenu(subjectId));
+  };
+  const askRemove = (subjectId: string) => {
+    setRemoving(subjectId);
+    focusAfter(() => document.getElementById(`${formId}-no-${subjectId}`));
+  };
+  const keepSubject = (subjectId: string) => {
+    setRemoving(null);
+    focusAfter(() => rowMenu(subjectId));
+  };
+
   const rename = async (subject: SummarySubject) => {
+    if (subjectBusy) return;
     const next = renameText.trim();
     setSubjectError(null);
-    if (!next || next === subject.title) {
-      setRenaming(null);
+    if (!next || next === titleOf(subject)) {
+      closeRename(subject.id);
       return;
     }
+    setSubjectBusy(true);
     try {
       await updateSubject(subject.id, { title: next });
-      setRenaming(null);
+      const from = summary;
+      if (from) setRenamed((current) => ({ from, titles: { ...(current?.from === from ? current.titles : {}), [subject.id]: next } }));
+      closeRename(subject.id);
       data.reload();
     } catch (error) {
       setSubjectError(errorText(error));
+    } finally {
+      setSubjectBusy(false);
     }
   };
   const removeSubject = async (subject: SummarySubject) => {
+    if (subjectBusy) return;
+    setSubjectBusy(true);
     setSubjectError(null);
     try {
       await deleteSubject(subject.id);
       setRemoving(null);
+      // The row goes with the next summary: the focus waits on the heading of the list.
+      focusAfter(() => subjectsRef.current);
       data.reload();
     } catch (error) {
       setSubjectError(errorText(error));
+    } finally {
+      setSubjectBusy(false);
     }
   };
 
   const removeExam = async () => {
+    if (acting) return;
+    setActing(true);
     setRemoveError(null);
     try {
       await deleteContainer(containerId);
@@ -226,17 +289,33 @@ export default function SettingsPage() {
       navigate('/exams', { replace: true });
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
-      setRemoveError(code === 'MC009' ? SETTINGS.hasMembers(Math.max(1, members)) : errorText(error));
+      if (code === 'MC009') {
+        // The confirm turns into the members' one (its words, «Кто вошёл», «Отмена»), and the group is read again.
+        setRefusedAt(summary);
+        focusAfter(() => askNoRef.current);
+        data.reload();
+      } else setRemoveError(errorText(error));
+    } finally {
+      setActing(false);
     }
   };
   const leave = async () => {
+    if (acting) return;
+    setActing(true);
     setRemoveError(null);
     try {
       await leaveContainer(containerId);
       navigate('/exams', { replace: true });
     } catch (error) {
       setRemoveError(errorText(error));
+    } finally {
+      setActing(false);
     }
+  };
+  const showWho = () => {
+    setWho(true);
+    focusAfter(() => whoRef.current);
+    window.setTimeout(() => document.getElementById('settings-group')?.scrollIntoView?.({ block: 'start' }), 0);
   };
 
   // ───────────────────────────── render ─────────────────────────────
@@ -258,7 +337,15 @@ export default function SettingsPage() {
     return (
       <div className="sf-page st-page" ref={frame.ref} data-frame={frame.size}>
         {header}
-        {data.loading ? null : (
+        {data.loading ? null : data.gone ? (
+          // Not the user's any more (deleted, left, removed): another try changes nothing (usability check m2).
+          <p className="ex-note">
+            {GONE.title}. {GONE.text}{' '}
+            <Link className="sf-link" to="/exams">
+              {TO_EXAMS}
+            </Link>
+          </p>
+        ) : (
           <p className="ex-note" role="alert">
             {data.error && /[а-яё]/i.test(data.error) ? data.error : SETTINGS.loadFailed}{' '}
             <button type="button" className="sf-link" onClick={data.reload}>
@@ -361,19 +448,19 @@ export default function SettingsPage() {
           {minutesField}
           {daysField}
         </section>
-        <section className="st-danger" id="settings-delete">
+        <section className="st-danger" id="settings-leave">
           {asking ? (
-            <p className="st-line st-ask">
-              <span>{SETTINGS.leaveAsk(summary.title)}</span>
+            <p className="st-line st-ask" role="group" aria-labelledby={`${formId}-ask`}>
+              <span id={`${formId}-ask`}>{SETTINGS.leaveAsk(summary.title)}</span>
               <button type="button" className="sf-link" onClick={() => void leave()}>
                 {SETTINGS.leaveYes}
               </button>
-              <button type="button" className="sf-link" data-muted="" onClick={() => setAsking(false)}>
+              <button ref={askNoRef} type="button" className="sf-link" data-muted="" onClick={closeAsk}>
                 {SETTINGS.removeNo}
               </button>
             </p>
           ) : (
-            <button type="button" className="sf-link" data-muted="" onClick={() => setAsking(true)}>
+            <button ref={askRef} type="button" className="sf-link" data-muted="" onClick={openAsk}>
               {SETTINGS.leave}
             </button>
           )}
@@ -412,14 +499,14 @@ export default function SettingsPage() {
                 <legend className="im-label">{SETTINGS.date}</legend>
                 {subjects.map((subject) => (
                   <div key={subject.id} className="im-date-row">
-                    <span className="im-date-name">{subject.title}</span>
+                    <span className="im-date-name">{titleOf(subject)}</span>
                     {oralOnly(subject) ? (
                       <span className="st-oral-date">{SETTINGS.oralDate}</span>
                     ) : (
                       <input
                         type="date"
                         className="im-input im-date"
-                        aria-label={IMPORT.subjectDate(subject.title)}
+                        aria-label={IMPORT.subjectDate(titleOf(subject))}
                         value={subjectDates[subject.id] ?? ''}
                         onChange={(event) => setSubjectDates((current) => ({ ...current, [subject.id]: event.target.value }))}
                       />
@@ -448,12 +535,12 @@ export default function SettingsPage() {
 
         <div className="st-side">
           <section className="st-subjects" id="settings-subjects" aria-labelledby={`${formId}-subjects`}>
-            <h2 id={`${formId}-subjects`} className="st-h2">
+            <h2 id={`${formId}-subjects`} ref={subjectsRef} className="st-h2" tabIndex={-1}>
               {SETTINGS.subjects}
             </h2>
-            <ul className="st-rows">
+            <ul className="st-rows" ref={rowsRef}>
               {subjects.map((subject) => (
-                <li key={subject.id} className="st-row">
+                <li key={subject.id} className="st-row" data-subject={subject.id}>
                   {renaming === subject.id ? (
                     <form
                       className="st-rename"
@@ -474,7 +561,7 @@ export default function SettingsPage() {
                         <button type="submit" className="im-small">
                           {SETTINGS.renameDone}
                         </button>
-                        <button type="button" className="sf-link" data-muted="" onClick={() => setRenaming(null)}>
+                        <button type="button" className="sf-link" data-muted="" onClick={() => closeRename(subject.id)}>
                           {SETTINGS.renameCancel}
                         </button>
                       </span>
@@ -482,47 +569,47 @@ export default function SettingsPage() {
                   ) : (
                     <>
                       <span className="st-row-t">
-                        <span className="st-row-title">{subject.title}</span>
+                        <span className="st-row-title">{titleOf(subject)}</span>
                         {subject.oral ? <span className="st-row-meta">{SETTINGS.oralRow}</span> : null}
                       </span>
                       <MoreMenu
                         variant="round"
-                        label={SETTINGS.subjectMore(subject.title)}
+                        label={SETTINGS.subjectMore(titleOf(subject))}
                         items={[
                           {
                             key: 'rename',
                             label: SETTINGS.rename,
                             onSelect: () => {
-                              setRenameText(subject.title);
+                              setRenameText(titleOf(subject));
                               setRenaming(subject.id);
                             },
                           },
-                          { key: 'remove', label: SETTINGS.removeSubject, danger: true, onSelect: () => setRemoving(subject.id) },
+                          { key: 'remove', label: SETTINGS.removeSubject, danger: true, onSelect: () => askRemove(subject.id) },
                         ]}
                       />
                     </>
                   )}
                   {removing === subject.id ? (
                     subjects.length === 1 ? (
-                      <p className="st-line st-ask">
-                        <span>{SETTINGS.lastSubject}</span>
-                        <button type="button" className="sf-link" data-muted="" onClick={() => setRemoving(null)}>
+                      <p className="st-line st-ask" role="group" aria-labelledby={`${formId}-ask-${subject.id}`}>
+                        <span id={`${formId}-ask-${subject.id}`}>{SETTINGS.lastSubject}</span>
+                        <button id={`${formId}-no-${subject.id}`} type="button" className="sf-link" data-muted="" onClick={() => keepSubject(subject.id)}>
                           {SETTINGS.removeNo}
                         </button>
                       </p>
                     ) : (
-                      <p className="st-line st-ask">
-                        <span>
+                      <p className="st-line st-ask" role="group" aria-labelledby={`${formId}-ask-${subject.id}`}>
+                        <span id={`${formId}-ask-${subject.id}`}>
                           {subject.oral
                             ? oralOnly(subject)
-                              ? SETTINGS.removeOralAsk(subject.title)
-                              : SETTINGS.removeMixedAsk(subject.title)
-                            : SETTINGS.removeSubjectAsk(subject.title)}
+                              ? SETTINGS.removeOralAsk(titleOf(subject))
+                              : SETTINGS.removeMixedAsk(titleOf(subject))
+                            : SETTINGS.removeSubjectAsk(titleOf(subject))}
                         </span>
                         <button type="button" className="sf-link" onClick={() => void removeSubject(subject)}>
                           {SETTINGS.removeSubjectYes}
                         </button>
-                        <button type="button" className="sf-link" data-muted="" onClick={() => setRemoving(null)}>
+                        <button id={`${formId}-no-${subject.id}`} type="button" className="sf-link" data-muted="" onClick={() => keepSubject(subject.id)}>
                           {SETTINGS.removeNo}
                         </button>
                       </p>
@@ -548,11 +635,11 @@ export default function SettingsPage() {
               {SETTINGS.group}
             </h2>
             <p className="st-line">
-              {nb(link ? SETTINGS.joined(link.members, link.max_members) : SETTINGS.joined(members, null))}
-              {members > 0 ? (
+              {nb(MEMBERS.inExam(members, everJoined))}
+              {everJoined ? (
                 <>
                   {' · '}
-                  <button type="button" className="sf-link" aria-expanded={who} onClick={() => setWho((value) => !value)}>
+                  <button ref={whoRef} type="button" className="sf-link" aria-expanded={who} onClick={() => setWho((value) => !value)}>
                     {SETTINGS.who}
                   </button>
                 </>
@@ -569,35 +656,28 @@ export default function SettingsPage() {
           <section className="st-danger" id="settings-delete">
             {asking ? (
               members > 0 ? (
-                <p className="st-line st-ask">
-                  <span>{nb(SETTINGS.hasMembers(members))}</span>
-                  <button
-                    type="button"
-                    className="sf-link"
-                    onClick={() => {
-                      setWho(true);
-                      window.setTimeout(() => document.getElementById('settings-group')?.scrollIntoView?.({ block: 'start' }), 0);
-                    }}
-                  >
+                <p key="members" className="st-line st-ask">
+                  <span role="alert">{nb(SETTINGS.hasMembers(members))}</span>
+                  <button type="button" className="sf-link" onClick={showWho}>
                     {SETTINGS.who}
                   </button>
-                  <button type="button" className="sf-link" data-muted="" onClick={() => setAsking(false)}>
+                  <button ref={askNoRef} type="button" className="sf-link" data-muted="" onClick={closeAsk}>
                     {SETTINGS.removeNo}
                   </button>
                 </p>
               ) : (
-                <p className="st-line st-ask">
-                  <span>{SETTINGS.removeAsk(summary.title, subjects.some((subject) => subject.oral))}</span>
+                <p key="ask" className="st-line st-ask" role="group" aria-labelledby={`${formId}-ask`}>
+                  <span id={`${formId}-ask`}>{SETTINGS.removeAsk(summary.title, subjects.some((subject) => subject.oral))}</span>
                   <button type="button" className="sf-link" onClick={() => void removeExam()}>
                     {SETTINGS.removeYes}
                   </button>
-                  <button type="button" className="sf-link" data-muted="" onClick={() => setAsking(false)}>
+                  <button ref={askNoRef} type="button" className="sf-link" data-muted="" onClick={closeAsk}>
                     {SETTINGS.removeNo}
                   </button>
                 </p>
               )
             ) : (
-              <button type="button" className="sf-link" data-muted="" onClick={() => setAsking(true)}>
+              <button ref={askRef} type="button" className="sf-link" data-muted="" onClick={openAsk}>
                 {SETTINGS.remove}
               </button>
             )}

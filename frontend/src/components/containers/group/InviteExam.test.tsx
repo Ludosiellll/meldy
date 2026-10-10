@@ -77,12 +77,12 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     await waitFor(() => expect(api.createLink).toHaveBeenCalledWith(SUMMARY.id, 60, INVITE.consent));
   });
 
-  it('an open link kept on this device: the link again, «Вошли 12 из 60 · Кто вошёл», remove a member, close the link', async () => {
+  it('an open link kept on this device: the link again, «В экзамене 12 участников · Кто вошёл», remove a member, close the link', async () => {
     keepLink(SUMMARY.id, 'link-1', 'qrst2vwxyz01');
     const onChanged = vi.fn();
     render(<InviteExam summary={{ ...SUMMARY, owner: { members: 12, doubts_open: 0, links: [LINK] } }} onClose={() => undefined} onChanged={onChanged} />);
     expect(screen.getByLabelText(INVITE.linkLabel)).toHaveValue(`${window.location.origin}/g/qrst2vwxyz01`);
-    expect(screen.getByText(/Вошли 12 из 60/)).toBeInTheDocument();
+    expect(screen.getByText(/В экзамене 12\sучастников/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Кто вошёл' }));
     expect(await screen.findByText('Аня Ковалёва')).toBeInTheDocument();
     expect(screen.getByText('Убраны')).toBeInTheDocument();
@@ -97,18 +97,123 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
 
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть ссылку' }));
     expect(screen.getByText(INVITE.revokeAsk)).toBeInTheDocument();
+    // The confirm takes the focus on «Отмена» and gives it back to «Закрыть ссылку» (m9).
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Закрыть ссылку' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть ссылку' }));
     fireEvent.click(screen.getByRole('button', { name: 'Да, закрыть' }));
     await waitFor(() => expect(api.revokeLink).toHaveBeenCalledWith('link-1'));
     expect(keptLinks(SUMMARY.id)).toEqual([]);
     expect(onChanged).toHaveBeenCalled();
+    // The window shows what is so now: the link is closed, said on screen (with the focus on it), and «Создать ссылку».
+    const said = await screen.findByText(INVITE.revoked);
+    await waitFor(() => expect(document.activeElement).toBe(said));
+    expect(screen.queryByLabelText(INVITE.linkLabel)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ссылка открыта/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Закрыть ссылку' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Создать ссылку' })).toBeInTheDocument();
+    expect(screen.getByText(/В экзамене 12\sучастников/)).toBeInTheDocument();
   });
 
-  it('an open link made on another device: says so and offers a new one', async () => {
-    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 3, doubts_open: 0, links: [{ ...LINK, members: 3 }] } }} onClose={() => undefined} />);
-    expect(screen.getByText(INVITE.openElsewhere)).toBeInTheDocument();
+  it('an open link made on another device: says before the tap that a new link replaces it, and closes it first (M2)', async () => {
+    const onChanged = vi.fn();
+    render(
+      <InviteExam summary={{ ...TEST_ONLY, owner: { members: 3, doubts_open: 0, links: [{ ...LINK, members: 3 }] } }} onClose={() => undefined} onChanged={onChanged} />,
+    );
+    expect(screen.getByText(`${INVITE.openElsewhere} ${INVITE.newLinkNote}`)).toBeInTheDocument();
+    expect(INVITE.newLinkNote).toMatch(/по старой больше никто не войдёт/);
     fireEvent.click(screen.getByRole('button', { name: INVITE.newLink }));
+    // The focus goes on to the window's next step.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Создать ссылку' })));
     fireEvent.click(screen.getByRole('button', { name: 'Создать ссылку' }));
     await waitFor(() => expect(api.createLink).toHaveBeenCalled());
+    expect(api.revokeLink).toHaveBeenCalledWith('link-1');
+    expect(api.revokeLink.mock.invocationCallOrder[0]).toBeLessThan(api.createLink.mock.invocationCallOrder[0]);
+    expect(await screen.findByLabelText(INVITE.linkLabel)).toHaveValue(`${window.location.origin}/g/abcd2fghjkmn`);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: INVITE.copy })));
+    // One reload of the page for the whole step.
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('«Закрыть ссылку» closes every open link of the exam, the unseen ones too (M2)', async () => {
+    keepLink(SUMMARY.id, 'link-2', 'qrst2vwxyz01');
+    const older = { ...LINK, id: 'link-1', created_at: '2026-10-07T10:00:00Z' };
+    const newer = { ...LINK, id: 'link-2', created_at: '2026-10-09T10:00:00Z', members: 0 };
+    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 12, doubts_open: 0, links: [older, newer] } }} onClose={() => undefined} />);
+    expect(screen.getByLabelText(INVITE.linkLabel)).toHaveValue(`${window.location.origin}/g/qrst2vwxyz01`);
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть ссылку' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Да, закрыть' }));
+    expect(await screen.findByText(INVITE.revoked)).toBeInTheDocument();
+    expect(api.revokeLink.mock.calls.map(([id]) => id)).toEqual(['link-2', 'link-1']);
+    // The page has not read its summary again yet: the window still knows both are closed.
+    expect(screen.queryByText(/Ссылка открыта/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Создать ссылку' })).toBeInTheDocument();
+  });
+
+  it('a close that fails halfway: the closed one stays closed, the error is said, the rest can be closed again', async () => {
+    const older = { ...LINK, id: 'link-1', created_at: '2026-10-07T10:00:00Z' };
+    const newer = { ...LINK, id: 'link-2', created_at: '2026-10-09T10:00:00Z', members: 0 };
+    keepLink(SUMMARY.id, 'link-2', 'qrst2vwxyz01');
+    keepLink(SUMMARY.id, 'link-1', 'zzzz2vwxyz01');
+    api.revokeLink.mockResolvedValueOnce(undefined).mockRejectedValueOnce(Object.assign(new Error('Failed to fetch'), { code: 'network' }));
+    const onChanged = vi.fn();
+    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 12, doubts_open: 0, links: [older, newer] } }} onClose={() => undefined} onChanged={onChanged} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть ссылку' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Да, закрыть' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(INVITE.errors.network);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(keptLinks(SUMMARY.id)).toEqual([{ link: 'link-1', code: 'zzzz2vwxyz01' }]);
+    // What is still open is on screen (the older link, kept here too), not «Ссылка закрыта».
+    expect(screen.queryByText(INVITE.revoked)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(INVITE.linkLabel)).toHaveValue(`${window.location.origin}/g/zzzz2vwxyz01`);
+    fireEvent.click(screen.getByRole('button', { name: 'Да, закрыть' }));
+    expect(await screen.findByText(INVITE.revoked)).toBeInTheDocument();
+    expect(api.revokeLink.mock.calls.map(([id]) => id)).toEqual(['link-2', 'link-1', 'link-1']);
+  });
+
+  it('a new link does not come while an old one could not be closed', async () => {
+    api.revokeLink.mockRejectedValueOnce(Object.assign(new Error('Failed to fetch'), { code: 'network' }));
+    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 3, doubts_open: 0, links: [{ ...LINK, members: 3 }] } }} onClose={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: INVITE.newLink }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать ссылку' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(INVITE.errors.network);
+    expect(api.createLink).not.toHaveBeenCalled();
+    // «Создать ссылку» gets the focus back, ready for another try.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Создать ссылку' })));
+  });
+
+  it('nobody left and the link closed: «Кто вошёл» stays, so a removed member can be returned (M1, m3)', async () => {
+    api.fetchMembers.mockResolvedValue([MEMBERS[2]]);
+    const onChanged = vi.fn();
+    render(
+      <InviteExam
+        summary={{ ...TEST_ONLY, owner: { members: 0, doubts_open: 0, links: [{ ...LINK, revoked_at: '2026-10-09T10:00:00Z', members: 1 }] } }}
+        onClose={() => undefined}
+        onChanged={onChanged}
+      />,
+    );
+    expect(screen.getByText(/Сейчас в экзамене никого/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Создать ссылку' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Кто вошёл' }));
+    const vika = (await screen.findByText('Вика')).closest('li')!;
+    expect(screen.queryByText(/Пока никто не вошёл/)).not.toBeInTheDocument();
+    fireEvent.click(within(vika).getByRole('button', { name: 'Вернуть' }));
+    await waitFor(() => expect(api.removeMember).toHaveBeenCalledWith(SUMMARY.id, 'u-3', true));
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('one truthful line: a member in through an older link with a fresh link open says «В экзамене 1 участник» (m3)', () => {
+    const fresh = { ...LINK, id: 'link-2', created_at: '2026-10-09T10:00:00Z', members: 0 };
+    const older = { ...LINK, id: 'link-1', revoked_at: '2026-10-08T12:00:00Z', members: 1 };
+    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 1, doubts_open: 0, links: [fresh, older] } }} onClose={() => undefined} />);
+    expect(screen.getByText(/В экзамене 1\sучастник/)).toBeInTheDocument();
+    expect(screen.queryByText(/Пока никто не вошёл/)).not.toBeInTheDocument();
+    cleanup();
+    // Nobody ever: «Пока никто не вошёл» beside the open link, without «Кто вошёл».
+    render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 0, doubts_open: 0, links: [fresh] } }} onClose={() => undefined} />);
+    expect(screen.getByText('Пока никто не вошёл')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Кто вошёл' })).not.toBeInTheDocument();
   });
 
   it('shows the refusal of the database in Russian (too many open links)', async () => {

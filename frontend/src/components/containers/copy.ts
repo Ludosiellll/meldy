@@ -165,7 +165,7 @@ export const MENU_REFRESH = 'Обновить из файла';
 export const MENU_REMOVE_SUBJECT = 'Убрать предмет';
 export const CANCEL = 'Отмена';
 export const removeSubjectTitle = (title: string) => `Убрать предмет «${title}»?`;
-export const REMOVE_SUBJECT_TEXT = 'Его вопросы и ответы на них удалятся.';
+export const REMOVE_SUBJECT_TEXT = 'Его вопросы и ответы по ним пропадут.';
 export const REMOVE_SUBJECT_CONFIRM = 'Убрать';
 
 export const CLOSE = 'Закрыть';
