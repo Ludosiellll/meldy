@@ -121,11 +121,12 @@ claim itself and never returned. The claim also deletes presses two days after a
 
      `{status: "ok" | "ignored"}`.
 - **`kind: "g4"`** — the group just turned off after 5 posts in a row without an answer. `delivery_id` (a
-  `bot.deliveries` row, kind `notice`), `chat_id` = the author's private chat, `group_chat_id`, `title` (the chat's),
-  `exam_title`, `container_id`. Send G4 once through T1: `bot_delivery_sending(delivery_id)` → `sendMessage` (no
-  sound): «В беседе «<title>» пять дней подряд никто не ответил на вопрос дня — бот перестал его присылать. Включить
-  снова можно на сайте, в «Пригласить группу».» `{Открыть в Meldy}` → `bot_delivery_done(delivery_id, 'sent', id)`
-  (or `failed`).
+  `bot.deliveries` row, kind `notice`), `chat_id` = the author's private chat, `group_chat_id`, `title` (the chat's;
+  null when the chat has no title or its row is gone — word G4 without it), `exam_title`, `container_id`. Send G4 once
+  through T1: `bot_delivery_sending(delivery_id)` → `sendMessage` (no sound): «В беседе «<title>» пять дней подряд
+  никто не ответил на вопрос дня — бот перестал его присылать. Включить снова можно на сайте, в «Пригласить группу».»
+  `{Открыть в Meldy}` → `bot_delivery_done(delivery_id, 'sent', id)` (or `failed`). A G4 never tried comes back in a
+  later claim after 10 minutes (at most 3 tries).
 
 No post is made (the claim returns nothing for that chat) on an exam day or after the last date, after the group link is
 revoked or expired (the group turns off, `off_reason: "link"`), when the author turned it off, or after the 5-empty
@@ -144,12 +145,15 @@ post. `editMessageText` with the G2 text, the last line «Ответили <answ
 
 `{post_id, chat_id, local_day, subject, stem, options: [text…] (FILE order), kind: "single", code: bool, keep_order:
 bool, shown: [file index…] | null}`. Buttons/letters in `shown` order: `shown.map(i => options[i])`. G2 header:
-«<b>Вопрос дня · <subject></b>». `null` view = the question was deleted (close: just take the keyboard off).
+«<b>Вопрос дня · <subject></b>». The counter and close claims never hand out a post whose question was deleted (it is
+closed without an edit), so their VIEW is never null; `shown` is null only in the pick's VIEW.
 
 ### `candidates` (= `GroupInput` of `frontend/src/lib/containers/group.ts`)
 
 `{day: "YYYY-MM-DD", items: [{rev, label, topic, members, confirmable, relearn, due, unseen, blocked}], recent: [{rev,
 day}], minGapDays: 14}`. `rev` = the question's id (pass `pick.rev` back as is), `label` = its number in the file.
+Size: about 165 bytes a question — at the container's limit (2000 questions) about 330 KB per post row and ~200 ms of
+database time: call `bot_claim_group_posts` with `Accept-Encoding: gzip` and keep `p_limit` at 10 or less.
 Counts over the exam's author and active members; no user ids, no names. Only questions that may be posted today
 (one correct option, a key, 2–8 options, no lost image, nobody's open doubt, stem + options ≤ 1500 characters, its
 subject's test date not today or past), plus the last post's question (`blocked: true` when it may not be posted).
@@ -162,8 +166,9 @@ due, a close due, a counter waiting, a claimed post or G4 to retake, a post left
 ## Bot: a press (`callback_data` `g|<post base36>|<i>`)
 
 `bot_group_answer(p_post_id bigint, p_tg_user_id bigint, p_shown int, p_chat_id bigint, p_message_id bigint)` — always
-pass `p_chat_id` = `callback_query.message.chat.id` and `p_message_id` = `callback_query.message.message_id`. One DB
-call, then `answerCallbackQuery` (anything with the key: `show_alert`, ≤ 200 characters, a long option cut with «…»).
+pass `p_chat_id` = `callback_query.message.chat.id` and `p_message_id` = `callback_query.message.message_id` (after a
+migration the presses come from the new chat id, which the post follows). One DB call, then `answerCallbackQuery`
+(anything with the key: `show_alert`, ≤ 200 characters, a long option cut with «…»).
 
 | `status` | Fields | G3 |
 |---|---|---|
