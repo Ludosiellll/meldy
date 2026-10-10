@@ -96,6 +96,36 @@ export function noteLines(lines: LineView[], p: LinkTargets): ReactNode[] {
   return lines.filter((line) => !line.linkOnly).map((line) => <NoteLine key={line.key} text={line.text} action={linkFor(line.action, p)} />);
 }
 
+/** A note of the plan card and what it is about (a plan line's key, or offline / pace / no_date). */
+export interface CardNote {
+  kind: string;
+  node: ReactNode;
+}
+
+/**
+ * Which note goes first when the card shows only some: what explains today's numbers before what can wait — no
+ * network, questions later today, a skipped day, the final days, the AI limit, the pace, the minutes that fall short,
+ * no date, the final days announced ahead, then the rest.
+ */
+const NOTE_RANK: Record<string, number> = {
+  offline: 0, later: 1, skip: 2, window_in: 3, ai_limit: 4, pace: 5, short: 6, short_max: 6, need: 6, no_date: 7,
+  window_ahead: 8, first_day: 9, oral: 10,
+};
+
+/**
+ * The card's notes, at most one on a phone and two on a computer (usability check, m9: a phone stacked the final days,
+ * the pace and the network into ten lines; phone rule 5 — one line per explanation). The rest wait for a day without
+ * the ones before them; their links stay in «⋯» and «План по дням».
+ */
+export function cardNotes(notes: CardNote[], phone: boolean): ReactNode[] {
+  const rank = (note: CardNote) => NOTE_RANK[note.kind] ?? 20;
+  return notes
+    .map((note, index) => ({ note, index }))
+    .sort((a, b) => rank(a.note) - rank(b.note) || a.index - b.index)
+    .slice(0, phone ? 1 : 2)
+    .map(({ note }) => note.node);
+}
+
 /**
  * «Вы отвечаете быстрее, чем мы считали: хватит 45 минут в день.» with «Поставить 45» / «Оставить 60» (Concept 2
  * §3.6): told once per stage; «Поставить» saves the minutes and reads the plan again.
@@ -179,17 +209,20 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   // While the pace line says it, the plan's «При 45 минутах…» waits.
   const lines = planLineViews(plan).filter((line) => !(paceShown?.line.key === 'pace_slower' && (line.kind === 'short' || line.kind === 'short_max')));
   const hasLine = (action: LineView['action']) => lines.some((line) => line.action === action);
-  const cardNotes: ReactNode[] = [];
-  if (offline) cardNotes.push(<NoteLine key="offline" text={copy.OFFLINE_PAGE} />);
-  cardNotes.push(...noteLines(lines, targets));
+  const planNotes: CardNote[] = [];
+  if (offline) planNotes.push({ kind: 'offline', node: <NoteLine key="offline" text={copy.OFFLINE_PAGE} /> });
+  for (const line of lines) {
+    if (!line.linkOnly) planNotes.push({ kind: line.kind, node: <NoteLine key={line.key} text={line.text} action={linkFor(line.action, targets)} /> });
+  }
   if (paceShown) {
     const told = () => {
       markPaceTold(containerId, paceShown.stage);
       setPaceTold(paceShown.stage);
     };
-    cardNotes.push(<PaceLine key="pace" note={paceShown} containerId={containerId} settings={summary.settings} onTold={told} reload={reload} />);
+    planNotes.push({ kind: 'pace', node: <PaceLine key="pace" note={paceShown} containerId={containerId} settings={summary.settings} onTold={told} reload={reload} /> });
   }
-  if (day.noDate && !hasLine('date')) cardNotes.push(<NoteLine key="nodate" text={noDateText()} action={linkFor('date', targets)} />);
+  if (day.noDate && !hasLine('date')) planNotes.push({ kind: 'no_date', node: <NoteLine key="nodate" text={noDateText()} action={linkFor('date', targets)} /> });
+  const shownNotes = cardNotes(planNotes, phone);
 
   const start = startTarget({ containerId, summary, plan, saved, wide });
   const state = plan?.state ?? 'study';
@@ -340,7 +373,7 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   return (
     <div className="sf-page ct-page" data-view="exam">
       <PageHead title={summary.title} meta={meta} crumb={{ to: '/exams', label: copy.TO_EXAMS }} actions={actions} menuLabel={copy.MENU_LABEL_EXAM} phone={phone} />
-      <PlanCard id={`ct-plan-${containerId}`} title={title} sub={sub} links={links} notes={cardNotes} action={wide ? pillNode : null} />
+      <PlanCard id={`ct-plan-${containerId}`} title={title} sub={sub} links={links} notes={shownNotes} action={wide ? pillNode : null} />
       <div className="ct-body">
         <FigureBlock figure={figure} plan={plan} today={today} />
         <div className="ct-main">

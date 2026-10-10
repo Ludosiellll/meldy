@@ -5,10 +5,14 @@ import { safeStart } from './planLines';
 import { useConfirm } from '../../contexts/ConfirmContext';
 import type { HeadAction } from './PageHead';
 import * as copy from './copy';
-import { firstSession, isAuthor, minutesOf, sessionHref, studyHref } from './model';
+import { firstSession, isAuthor, minutesOf, sessionHref, studyHref, subjectTitle } from './model';
 import { resumeCounts, type SavedSession } from './sessionStore';
 
-/** Where the page's one blue pill leads and what it says: a session to continue, or the next session of the plan. */
+/**
+ * Where the page's one blue pill leads and what it says: a session to continue, or the next session of the plan. On
+ * the exam's page, when more than one subject has work today, the pill names the subject — «Начать: Базы данных — 17
+ * вопросов», as the end of a session says «Дальше: …» (usability check, m3); a subject's own page never needs to.
+ */
 export function startTarget(p: {
   containerId: string;
   summary: ContainerSummary;
@@ -29,6 +33,9 @@ export function startTarget(p: {
   const href = sessionHref(containerId, summary, session, back);
   if (!href) return null;
   const count = session.kind === 'ai_check' ? Math.min(3, session.ids.length) : session.ids.length;
+  const working = new Set((plan?.sessions ?? []).filter((entry) => entry.ids.length > 0).map((entry) => entry.subjectId));
+  const title = !subjectId && working.size > 1 ? subjectTitle(summary, session.subjectId) : '';
+  if (title) return { href, label: session.kind === 'ai_check' ? copy.aloudSubject(title, count) : copy.startSubject(title, count) };
   return { href, label: safeStart(count, wide ? minutesOf(session.estSec) : null, null, session.kind) };
 }
 

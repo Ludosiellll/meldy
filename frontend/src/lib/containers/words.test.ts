@@ -44,7 +44,8 @@ const SAMPLES: Record<LineKey, Array<DayPlan['lines'][number]>> = {
   short: [{ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }, { key: 'short', n: [30, 410, 960, 120], day: '2026-10-28' }],
   short_max: [{ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' }],
   need: [{ key: 'need', n: [960, 70], day: '2026-10-28' }],
-  window_ahead: [{ key: 'window_ahead', n: [4], day: '2026-10-24' }, { key: 'window_ahead', n: [1], day: '2026-10-26' }],
+  window_ahead: [{ key: 'window_ahead', n: [4], day: '2026-10-24' }, { key: 'window_ahead', n: [1], day: '2026-09-30' }],
+  window_detail: [{ key: 'window_detail', n: [4], day: '2026-10-24' }, { key: 'window_detail', n: [1], day: '2026-10-26' }],
   window_in: [{ key: 'window_in', n: [3] }, { key: 'window_in', n: [1] }],
   exam_today: [{ key: 'exam_today', n: [37] }],
   exam_errors: [{ key: 'exam_errors', n: [20] }, { key: 'exam_errors', n: [1] }, { key: 'exam_errors', n: [3] }],
@@ -113,7 +114,9 @@ describe('lineText', () => {
     expect(t({ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }))
       .toBe('При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут.');
     expect(t({ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' })).toBe('Даже при 90 минутах в день к 28 октября вы увидите около 820 из 960.');
-    expect(t({ key: 'window_ahead', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
+    // the plan card's note is one line from day 1 (m9); «Время в день» says it in full
+    expect(t({ key: 'window_ahead', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет.');
+    expect(t({ key: 'window_detail', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
     expect(t({ key: 'window_in', n: [3] })).toBe('До экзамена 3 дня: новых нет, только знакомые.');
     expect(t({ key: 'exam_today', n: [37] })).toBe('Сегодня экзамен.');
     expect(t({ key: 'exam_errors', n: [20] })).toBe('20 вопросов, где были ошибки');
@@ -134,7 +137,7 @@ describe('lineText', () => {
   it('declines with the number', () => {
     expect(ru(lineText({ key: 'later', n: [1], time: '8:05' }))).toBe('Ещё 1 вопрос — после 8:05');
     expect(ru(lineText({ key: 'later', n: [22], time: '19:30' }))).toBe('Ещё 22 вопроса — после 19:30');
-    expect(ru(lineText({ key: 'window_ahead', n: [1], day: '2026-10-26' }))).toContain('последний день — только знакомые');
+    expect(ru(lineText({ key: 'window_detail', n: [1], day: '2026-10-26' }))).toContain('последний день — только знакомые');
     expect(ru(lineText({ key: 'exam_errors', n: [1] }))).toBe('1 вопрос, где была ошибка');
     expect(ru(lineText({ key: 'oral_no_lectures', n: [21] }))).toBe('Ещё 21 устный войдёт в план, когда к предмету будут лекции.');
     expect(ru(lineText({ key: 'done', n: [3, 0] }))).toBe('На сегодня всё: 3 вопроса.');

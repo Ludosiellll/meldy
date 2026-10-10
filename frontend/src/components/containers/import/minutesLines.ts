@@ -6,7 +6,8 @@
  * - They fall short: «При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут.»
  *   (`short`), or at 90 minutes, when even they are not enough, `short_max`. Like planDay: short_max only when the
  *   chosen minutes are 90, so the line never names minutes the student did not choose.
- * - One date for the whole exam: the final days without new questions (`window_ahead`), under «Подробнее».
+ * - One date for the whole exam: the final days without new questions in full (`window_detail`; the plan card's
+ *   `window_ahead` says it in one line), under «Подробнее».
  *
  * The date is the last one ahead among the subjects with questions in the plan; the count is the questions of the
  * subjects whose date is still ahead (or have none), as the plan counts them. No date, nothing to see, or an estimate
@@ -62,7 +63,7 @@ export function minutesLines(input: PlanInput | null, minutes: number): MinutesL
     let window: string | null = null;
     if (ahead.every((subject) => subject.date === last)) {
       const days = windowDays(input.firstPlanDay, last);
-      if (days > 0) window = lineText({ key: 'window_ahead', n: [days], day: addDays(last, -days) });
+      if (days > 0) window = lineText({ key: 'window_detail', n: [days], day: addDays(last, -days) });
     }
     return { line, window, option: at.option, short };
   } catch {
