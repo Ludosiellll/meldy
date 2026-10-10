@@ -105,7 +105,16 @@
 .ct-code-line { display: block; min-height: 1.55em; white-space: pre; }
 @media (max-width: 639px) {
   .ct-code { padding: 10px 12px; font-size: 13px; line-height: 1.5; overflow-x: visible; }
-  .ct-code-line { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 2ch; text-indent: -2ch; min-height: 1.5em; }
+  /* The hanging indent is the line's own leading spaces (--ct-ind, QuestionCard.tsx CodeBlock) plus two: the line
+     starts where it was typed, its wrapped part two characters further in, under itself. */
+  .ct-code-line {
+    --ct-hang: calc((var(--ct-ind, 0) + 2) * 1ch);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    padding-left: var(--ct-hang);
+    text-indent: calc(-1 * var(--ct-hang));
+    min-height: 1.5em;
+  }
 }
 
 .ct-hint { margin: 14px 0 0; font-size: 16px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); }

@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { splitStem } from './model';
-import QuestionCard from './QuestionCard';
+import QuestionCard, { CodeBlock } from './QuestionCard';
 import KeyQuestion from './keys/KeyQuestion';
-import { laterLinesCodeLike, sqlOrShellLine, stemParts } from './stemCode';
+import { laterLinesCodeLike, leadingSpaces, sqlOrShellLine, stemParts } from './stemCode';
 import { item } from './testkit/fixtures';
 
 afterEach(cleanup);
 
 /**
- * Code on the screen (usability check of 2026-10-10, m1). Stems from the synthetic banks of the container's
+ * Code on the screen (usability check of 2026-10-10, m1 and m8). Stems from the synthetic banks of the container's
  * fixtures (Базы данных, Операционные системы, Компьютерные сети): 90 of 203 such questions were imported without the
  * code flag and showed SQL and commands in the heading font.
  */
@@ -132,6 +132,22 @@ describe('SQL and shell lines (the same rule as the importer, backend/bank_parse
     'Select the correct answer.', 'Find the odd one out', 'Type of memory: ROM', 'Set-up of the network', 'Read-Only Memory (ROM)', 'ON/OFF',
     'Windows XP', 'TCP/IP', 'x = 5', 'ls?', '',
   ])('«%s» is not', (line) => expect(sqlOrShellLine(line)).toBe(false));
+});
+
+describe('the hanging indent of a code line (m8)', () => {
+  it('is the line’s own leading spaces, tabs as four, at most twenty', () => {
+    expect(leadingSpaces('    return x;')).toBe(4);
+    expect(leadingSpaces('\tif (x)')).toBe(4);
+    expect(leadingSpaces('int a = 7;')).toBe(0);
+    expect(leadingSpaces(' '.repeat(40) + 'deep')).toBe(20);
+  });
+
+  it('every line of a code block carries it, the text keeps its spaces (a copy keeps the indentation)', () => {
+    const { container } = render(<CodeBlock code={'static void Main()\n{\n    Console.WriteLine("Привет");\n        // глубже\n}'} />);
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('.ct-code-line'));
+    expect(rows.map((row) => row.style.getPropertyValue('--ct-ind'))).toEqual(['0', '0', '4', '8', '0']);
+    expect(rows[2].textContent).toBe('    Console.WriteLine("Привет");');
+  });
 });
 
 describe('on the screen', () => {

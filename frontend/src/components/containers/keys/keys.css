@@ -65,7 +65,16 @@
   font-weight: 400;
   letter-spacing: 0;
 }
-.kq-code-line { display: block; padding-left: 2ch; text-indent: -2ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The hanging indent is the line's own leading spaces (--kq-ind, KeyQuestion.tsx) plus two: a wrapped part continues
+   under its own line, never left of it. */
+.kq-code-line {
+  --kq-hang: calc((var(--kq-ind, 0) + 2) * 1ch);
+  display: block;
+  padding-left: var(--kq-hang);
+  text-indent: calc(-1 * var(--kq-hang));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .kq-instruction { margin: 16px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
 
 .kq-options {

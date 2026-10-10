@@ -1,6 +1,6 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { letter, nb, QUEUE } from '../copyImport';
-import { stemParts } from '../stemCode';
+import { leadingSpaces, stemParts } from '../stemCode';
 import './keys.css';
 
 /**
@@ -48,7 +48,7 @@ interface Props {
 }
 
 /**
- * The question's own lines: the words, then the code as typed, each line wrapping with a hanging indent (as in a
+ * The question's own lines: the words, then the code as typed, each line wrapping under its own indentation (as in a
  * «занятие», stemCode.ts: lines that clearly read as code are code even without the import's flag).
  */
 function Stem({ text, code }: { text: string; code: boolean }) {
@@ -59,7 +59,7 @@ function Stem({ text, code }: { text: string; code: boolean }) {
       {parts.before ? <p className="kq-stem-lead">{parts.before}</p> : null}
       <div className="kq-code" role="group" aria-label={QUEUE.code}>
         {parts.code.replace(/\t/g, '    ').split('\n').map((line, index) => (
-          <span key={index} className="kq-code-line">
+          <span key={index} className="kq-code-line" style={{ '--kq-ind': leadingSpaces(line) } as CSSProperties}>
             {line || '\u00a0'}
           </span>
         ))}

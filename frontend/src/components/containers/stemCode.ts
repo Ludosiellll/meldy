@@ -154,3 +154,9 @@ export function stemParts(stem: string, code: boolean): StemParts {
   if (!laterLinesCodeLike(text)) return words;
   return split(lines, 1) ?? words;
 }
+
+/** The spaces a code line starts with (tabs as four): its hanging indent on a phone, so a wrapped part continues under it. */
+export function leadingSpaces(line: string, most = 20): number {
+  const lead = /^ */.exec(line.replace(/\t/g, '    '))?.[0].length ?? 0;
+  return Math.min(lead, most);
+}
