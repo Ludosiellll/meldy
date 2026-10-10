@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
-import { blur, flag, opacity, put, text as setText, useEls, useFrame } from './engine';
+import { blur, opacity, put, text as setText, useEls, useFrame } from './engine';
 import { beginFrame } from './particles';
 import { clamp, ease, mix, pulse, seg, STAGE_H, STAGE_W } from './timeline';
 
@@ -194,6 +194,52 @@ export function Counter({
 }
 
 // ---------------------------------------------------------------------------------------------
+// A number of several digits rolling to its value (960, 147): transforms only. The digits above the value's
+// own are hidden and the number slides left by their width, so it stays left-aligned without a width change.
+// Its `data-a` names are its own («rl-…»): a scene's useEls looks through everything under the scene's root.
+
+export function Roller({ value, digits = 3, className }: { value: (lt: number) => number; digits?: number; className?: string }) {
+  const root = useRef<HTMLSpanElement>(null);
+  const { all, one } = useEls(root);
+  useFrame((lt) => {
+    const v = Math.max(0, value(lt));
+    const speed = Math.abs(v - Math.max(0, value(lt - 16)));
+    const cells = all('rl-cell');
+    const strips = all('rl-strip');
+    let hidden = 0;
+    for (let i = 0; i < digits; i += 1) {
+      // Cell 0 is the leftmost: its place is 10^(digits − 1).
+      const power = digits - 1 - i;
+      const place = 10 ** power;
+      const below = v % place;
+      // A digit turns with the fraction of the last unit below it (…9 → …0), the ones all the time.
+      const position = power === 0 ? v % 10 : (Math.floor(v / place) % 10) + Math.max(0, below - (place - 1));
+      put(strips[i], 'transform', `translate3d(0,${(-position).toFixed(3)}em,0)`);
+      blur(strips[i], power === 0 ? Math.min(7, speed * 22) : Math.min(5, (speed / place) * 2.2));
+      const show = power === 0 ? 1 : clamp((v - (place - 1)) / 0.6);
+      opacity(cells[i], show);
+      hidden += 1 - show;
+    }
+    put(one('rl-row'), 'transform', `translate3d(${(-0.6 * hidden).toFixed(3)}em,0,0)`);
+  });
+  return (
+    <span ref={root} className={`mr-count ${className ?? ''}`} aria-hidden="true">
+      <span data-a="rl-row" className="mr-count-row">
+        {Array.from({ length: digits }, (_, cell) => (
+          <span key={cell} data-a="rl-cell" className="mr-count-cell">
+            <span data-a="rl-strip" className="mr-count-strip">
+              {STRIP.map((digit, position) => (
+                <span key={position}>{digit}</span>
+              ))}
+            </span>
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
 // The yellow hand-drawn underline of the brand, drawn under a phrase.
 
 const MARKER_PATHS = [
@@ -225,24 +271,27 @@ export interface CursorKey {
   y: number;
 }
 
+/** Where a pointer moving along `keys` is at `lt`: eased from key to key on a slight arc. */
+export function pathAt(keys: readonly CursorKey[], lt: number): { x: number; y: number } {
+  if (lt <= keys[0].at) return { x: keys[0].x, y: keys[0].y };
+  for (let i = 0; i < keys.length - 1; i += 1) {
+    const a = keys[i];
+    const b = keys[i + 1];
+    if (lt < b.at) {
+      const p = ease.inOut(seg(lt, a.at, b.at - a.at));
+      const bend = Math.sin(Math.PI * p) * Math.min(60, Math.hypot(b.x - a.x, b.y - a.y) * 0.12);
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      return { x: mix(a.x, b.x, p) + ((b.y - a.y) / len) * bend, y: mix(a.y, b.y, p) - ((b.x - a.x) / len) * bend };
+    }
+  }
+  const last = keys[keys.length - 1];
+  return { x: last.x, y: last.y };
+}
+
 export function Cursor({ keys, clicks = [], from, to }: { keys: readonly CursorKey[]; clicks?: readonly number[]; from: number; to: number }) {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
-  const positionAt = (lt: number) => {
-    if (lt <= keys[0].at) return { x: keys[0].x, y: keys[0].y };
-    for (let i = 0; i < keys.length - 1; i += 1) {
-      const a = keys[i];
-      const b = keys[i + 1];
-      if (lt < b.at) {
-        const p = ease.inOut(seg(lt, a.at, b.at - a.at));
-        const bend = Math.sin(Math.PI * p) * Math.min(60, Math.hypot(b.x - a.x, b.y - a.y) * 0.12);
-        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-        return { x: mix(a.x, b.x, p) + ((b.y - a.y) / len) * bend, y: mix(a.y, b.y, p) - ((b.x - a.x) / len) * bend };
-      }
-    }
-    const last = keys[keys.length - 1];
-    return { x: last.x, y: last.y };
-  };
+  const positionAt = (lt: number) => pathAt(keys, lt);
   useFrame((lt) => {
     const visible = lt >= from && lt < to;
     const show = Math.min(seg(lt, from, 200), 1 - seg(lt, to - 250, 250));
@@ -297,7 +346,7 @@ export function ParticleCanvas({ draw, className }: { draw: (ctx: CanvasRenderin
 }
 
 // ---------------------------------------------------------------------------------------------
-// Static pieces of the brand: the pill with the circle arrow, status chips, flags.
+// Static pieces of the brand: the pill with the circle arrow.
 
 export function ArrowIcon() {
   return (
@@ -316,21 +365,4 @@ export function Pill({ children, tone = 'blue', name, className }: { children: R
       </i>
     </span>
   );
-}
-
-export type Coverage = 'ok' | 'half' | 'no';
-export const COVERAGE_WORD: Record<Coverage, string> = { ok: 'есть', half: 'частично', no: 'нет' };
-
-export function Status({ kind, name }: { kind: Coverage; name?: string }) {
-  return (
-    <span className={`mr-st mr-st--${kind}`} data-a={name}>
-      <i />
-      {COVERAGE_WORD[kind]}
-    </span>
-  );
-}
-
-/** Toggles `on` for elements whose moment has come (for CSS transitions-free state changes). */
-export function mark(el: Element | null | undefined, on: boolean) {
-  flag(el, 'is-on', on);
 }

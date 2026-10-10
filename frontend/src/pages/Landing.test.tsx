@@ -226,7 +226,7 @@ describe('Landing page', () => {
     expect(Array.from(how.querySelectorAll('.hm-mini-l')).map((line) => line.getAttribute('data-look'))).toEqual(['gone', 'once', 'left']);
   });
 
-  it('opens the reel at the list and at the answer, and replays the sheet from its step', () => {
+  it('opens the reel at the list, the plan and the answer, and replays the sheet from its step', () => {
     renderLanding();
     const how = document.getElementById('how')!;
     const asked: string[] = [];
@@ -236,7 +236,8 @@ describe('Landing page', () => {
       .getAllByRole('button', { name: /Смотреть в ролике/ })
       .forEach((button) => fireEvent.click(button));
     window.removeEventListener(REEL_EVENT, listener);
-    expect(asked).toEqual(['tickets', 'oral']);
+    // The list is chapter 01, the plan chapter 02; the spoken answer opens chapter 04, before its sheet.
+    expect(asked).toEqual(['questions', 'plan', 'sheet']);
 
     const replays: Event[] = [];
     const onReplay = (event: Event) => replays.push(event);

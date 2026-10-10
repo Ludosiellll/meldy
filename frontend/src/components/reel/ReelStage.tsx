@@ -3,24 +3,24 @@ import type { ReelClock } from './clock';
 import { ClockProvider, SceneProvider, opacity, put, useFrame } from './engine';
 import Brand from './scenes/Brand';
 import Chaos from './scenes/Chaos';
+import Group from './scenes/Group';
+import Hints from './scenes/Hints';
 import Intro from './scenes/Intro';
-import Days from './scenes/Days';
-import Oral from './scenes/Oral';
 import Outro from './scenes/Outro';
-import Sheet from './scenes/Sheet';
-import Tickets from './scenes/Tickets';
-import Tour from './scenes/Tour';
+import Plan from './scenes/Plan';
+import Questions from './scenes/Questions';
+import Session from './scenes/Session';
 import { activeScenes, mix, sceneWindow, seg, type SceneId } from './timeline';
 
 const SCENE_VIEWS: Record<SceneId, ComponentType> = {
   intro: Intro,
   chaos: Chaos,
   brand: Brand,
-  tour: Tour,
-  tickets: Tickets,
-  oral: Oral,
-  sheet: Sheet,
-  days: Days,
+  questions: Questions,
+  plan: Plan,
+  session: Session,
+  sheet: Hints,
+  group: Group,
   outro: Outro,
 };
 
@@ -31,7 +31,8 @@ const SCENE_VIEWS: Record<SceneId, ComponentType> = {
  */
 const HUD_SPANS = [
   { from: sceneWindow('chaos').from + 300, to: sceneWindow('brand').from + 150 },
-  { from: sceneWindow('tickets').from + 150, to: sceneWindow('days').to - 350 },
+  // From chapter 01's own frame (after the app's top bar with its logo) to the end of chapter 05.
+  { from: sceneWindow('questions').from + 2000, to: sceneWindow('group').to - 350 },
 ];
 
 /** 1 = white mark (the dark opening), 0 = ink (the paper of every chapter). */

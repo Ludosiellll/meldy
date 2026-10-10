@@ -15,33 +15,33 @@ const LENGTH = sceneWindow('outro').to - sceneWindow('outro').from;
 
 const FEATURES = [
   {
-    title: 'Билеты',
-    sub: 'по вашим лекциям',
+    title: 'Вопросы',
+    sub: 'из файлов кафедры, без\u00a0ИИ',
     tone: { background: '#E8EFFC', color: '#1C4DB1' },
     icon: <path d="M5 6h10M5 10h10M5 14h6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
   },
   {
-    title: 'Ответ вслух',
-    sub: 'с вопросом экзаменатора',
+    title: 'План',
+    sub: 'занятие на каждый день',
     tone: { background: '#FCEFC9', color: '#7A5A12' },
     icon: (
       <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <rect x="7.5" y="2.5" width="5" height="9.5" rx="2.5" fill="currentColor" stroke="none" />
-        <path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5" />
+        <rect x="3.5" y="4.5" width="13" height="12" rx="3" />
+        <path d="M3.8 8.6h12.4M7.2 2.6v3.2M12.8 2.6v3.2" />
       </g>
     ),
   },
   {
     title: 'Шпаргалка',
-    sub: 'стирают только ответы',
+    sub: 'уходит с\u00a0ответами',
     tone: { background: '#E2F2E5', color: '#2C6B3A' },
-    // Three lines by hand, the middle one rubbed half-way.
-    icon: <path d="M4.5 5.5h11M4.5 10h2.2M9.2 10h1.6M13.3 10h2.2M4.5 14.5h7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
+    // Three lines of the sheet.
+    icon: <path d="M4.5 5.5h11M4.5 10h11M4.5 14.5h7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
   },
   {
-    // The group link (release 28): one link, and every classmate gets their own copy of the exam.
+    // The group link and the bot: one link, and every classmate gets their own copy of the exam.
     title: 'Группа',
-    sub: 'копия экзамена у каждого',
+    sub: 'одна ссылка и\u00a0Telegram',
     tone: { background: '#FBE6EE', color: '#9B2C5B' },
     icon: (
       <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -53,12 +53,15 @@ const FEATURES = [
   },
 ];
 
+/** Ink in three strengths, for the particles: no colour but the yellow dot (the owner, 2026-10-10). */
+const INK = ['#0B121C', 'rgba(11,18,28,0.55)', 'rgba(11,18,28,0.3)'];
+
 /** The closing call: the landing's first action, the example exam that needs no account (pages/Landing.tsx TRY_LABEL). */
 export const OUTRO_CTA_LABEL = 'Попробовать на примере';
 
 /**
- * 9 · The end. Out of the line's bright head the paper opens again: the wordmark gathers, the
- * method in one line, what Meldy does in four cards, and the call to try the example.
+ * 10 · The end. The paper opens again: the wordmark gathers, the method in one line, what Meldy does in four cards
+ * (the chapters: the questions, the plan, the cheat sheet, the group), and the call to try the example.
  */
 export default function Outro() {
   const root = useRef<HTMLDivElement>(null);
@@ -67,7 +70,7 @@ export default function Outro() {
     () =>
       makeBurst(91, {
         count: 110,
-        colors: ['#0B121C', '#2869DD', '#F4C45B', '#A9C8F7'],
+        colors: INK,
         near: 420,
         far: 1000,
         dashes: 0.45,
@@ -79,7 +82,7 @@ export default function Outro() {
     () =>
       makeBurst(92, {
         count: 22,
-        colors: ['#F4C45B', '#2869DD', '#0B121C'],
+        colors: INK,
         near: 60,
         far: 190,
         dashes: 0.6,
@@ -121,10 +124,10 @@ export default function Outro() {
   });
 
   const draw = (ctx: CanvasRenderingContext2D, l: number) => {
-    drawDust(ctx, dust, l + 2000, 1920, 1080, '#2869DD', 0.35 * seg(l, 1200, 800));
+    drawDust(ctx, dust, l + 2000, 1920, 1080, '#0B121C', 0.22 * seg(l, 1200, 800));
     drawGather(ctx, gather, 960, 310, seg(l, 220, 1150), 1.6);
     drawRing(ctx, 960, 310, 40, 700, seg(l, 300, 1300), '#0B121C', 1.6, 0.14);
-    drawRing(ctx, 960, 310, 40, 520, seg(l, 480, 1200), '#F4C45B', 2.4, 0.7);
+    drawRing(ctx, 960, 310, 40, 520, seg(l, 480, 1200), '#0B121C', 2, 0.22);
     drawBurst(ctx, pop, dotAt.x, dotAt.y, l - 1120, 820);
     drawRing(ctx, dotAt.x, dotAt.y, 18, 160, seg(l, 1120, 700), '#F4C45B', 2.5, 0.8);
   };

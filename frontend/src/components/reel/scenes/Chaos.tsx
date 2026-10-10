@@ -1,5 +1,5 @@
 import { useMemo, useRef, type ReactNode } from 'react';
-import { CHAOS_CARDS } from '../content';
+import { CHAOS_CARDS, CHAOS_LINES } from '../content';
 import { blur, opacity, place, put, useEls, useFrame } from '../engine';
 import { drawBurst, drawDust, drawGather, makeBurst, makeDust } from '../particles';
 import { Kinetic, ParticleCanvas } from '../parts';
@@ -26,18 +26,27 @@ const FILE_MARK = (
     <path d="M3 4h8M3 7h8M3 10h5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );
-const ICON: Record<string, ReactNode> = { question: '?', file: FILE_MARK, ticket: '7' };
+/** An exam's date: a calendar page. */
+const DATE_MARK = (
+  <svg viewBox="0 0 14 14" aria-hidden="true">
+    <rect x="2" y="3" width="10" height="9" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M2.6 6.2h8.8M5 1.8v2.4M9 1.8v2.4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+const ICON: Record<string, ReactNode> = { question: '?', file: FILE_MARK, date: DATE_MARK };
+/** The particles are white: no colour but the brand's yellow dot (the owner, 2026-10-10: nothing like confetti). */
+const WHITE = ['#ffffff', 'rgba(255,255,255,0.72)', 'rgba(255,255,255,0.5)'];
 
 /**
- * 2 · The session. The stack bursts into everything a student has before an exam — lecture files,
- * questions, tickets — floating in depth on blue, and the question «С чего начать?».
+ * 2 · The session. The stack bursts into everything a student has before a session — the four subjects' files of
+ * questions, questions, lectures, the exams' dates — floating in depth on blue, and the question «С чего начать?».
  */
 export default function Chaos() {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
   const dust = useMemo(() => makeDust(31, 50, 1920, 1080), []);
-  const burst = useMemo(() => makeBurst(32, { count: 36, colors: ['#ffffff', '#F4C45B', '#A9C8F7'], near: 280, far: 760, dashes: 0.8, size: [2, 4.5] }), []);
-  const gather = useMemo(() => makeBurst(33, { count: 70, colors: ['#ffffff', '#F4C45B', '#A9C8F7'], near: 500, far: 1000, dashes: 0.55, size: [2, 4] }), []);
+  const burst = useMemo(() => makeBurst(32, { count: 36, colors: WHITE, near: 280, far: 760, dashes: 0.8, size: [2, 4.5] }), []);
+  const gather = useMemo(() => makeBurst(33, { count: 70, colors: WHITE, near: 500, far: 1000, dashes: 0.55, size: [2, 4] }), []);
 
   const position = (index: number, l: number) => {
     const card = CHAOS_CARDS[index];
@@ -112,10 +121,10 @@ export default function Chaos() {
         ))}
         <div data-a="head" className="mr-chaos-head">
           <p className="mr-display">
-            <Kinetic text="40 вопросов. 12 дней." at={640} stagger={150} dur={820} />
+            <Kinetic text={CHAOS_LINES[0]} at={640} stagger={150} dur={820} />
           </p>
           <p className="mr-display mr-chaos-line2">
-            <Kinetic text="С чего начать?" at={1430} stagger={120} dur={820} accentFrom={0} />
+            <Kinetic text={CHAOS_LINES[1]} at={1430} stagger={120} dur={820} accentFrom={0} />
           </p>
         </div>
       </div>
