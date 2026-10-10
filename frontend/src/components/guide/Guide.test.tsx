@@ -372,4 +372,18 @@ describe('the first run after a group link (guideLater)', () => {
     expect(panel()).toHaveAttribute('aria-modal', 'true');
     expect(where()).toBe('/exams/copy-1');
   });
+
+  it.each(['/exams/import', '/exams/new', '/g/abcd2fghjkmn'])(
+    'waits on %s even before the lazy page defers it: the file or the group link first',
+    async (path) => {
+      renderAt(path);
+      await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(panel()).toBeNull();
+      expect(where()).toBe(path);
+      expect(window.localStorage.getItem(GUIDE_SEEN_KEY)).toBeNull();
+    },
+  );
 });
