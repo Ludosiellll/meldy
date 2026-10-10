@@ -4,9 +4,10 @@
  *
  * The day is frozen at its first answer (`today.firstAt`): items are classified at that moment, so nothing that
  * becomes countable later joins today's target — except the confirmations that become countable later today, up to
- * 22:00 (decision 32): they are in the target from the start and offered only from their moment. Answered items
- * leave the target; the minutes already spent (the larger of the seconds answered and the estimate of the answered
- * items) come off the budget, so the target only shrinks during the day. The budget is a hard cap.
+ * 22:00 (decision 32): they are in the target from the start and offered only from their moment. The frozen day is
+ * planned with the pace as of its start (`paceDay`) and, when the server says how the day began (`dayStart`), it IS
+ * the fill of that moment: answered items leave it, free study and the real minutes trim its end, so the count and
+ * the minutes only go down while the student answers (see «the frozen day» below). The budget is a hard cap.
  *
  * Order inside the budget (decision 16): mistakes → confirmations → the coverage floor of new items → oral AI checks
  * (confirmations first) → due checks → the final pass → more new items (≤ 100 a day). Each subject first fills its
@@ -152,8 +153,8 @@ function laterDay(a: LocalDay | null, b: LocalDay | null): LocalDay | null {
 }
 
 /** The subject's pace; a missing or broken number falls back to the default (a NaN cost would let the fill take everything). */
-function paceOf(input: PlanInput, subjectId: string): Pace {
-  const own = input.pace ? input.pace[subjectId] : undefined;
+function paceOf(paces: PlanInput['pace'] | undefined, subjectId: string): Pace {
+  const own = paces ? paces[subjectId] : undefined;
   if (!own) return DEFAULT_PACE;
   const sec = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? v : d);
   const share = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1 ? v : d);
@@ -233,7 +234,7 @@ function cmpKey(a: Cand, b: Cand): number {
 
 function dateRank(s: Subj): number { return s.daysLeft === null ? 1e9 : s.daysLeft; }
 
-function scan(input: PlanInput): Scan {
+function scan(input: PlanInput, paces: PlanInput['pace'] | undefined = input.pace): Scan {
   const tz = input.tz;
   const now = input.now;
   const today = localDay(now, tz);
@@ -258,7 +259,7 @@ function scan(input: PlanInput): Scan {
       id: raw.id, index, date, phase, daysLeft, w, windowFrom,
       windowFromAt: windowFrom === null ? null : startOfDay(windowFrom, tz),
       lastNewDay: date === null ? null : addDays(date, -w - 1),
-      pace: paceOf(input, raw.id),
+      pace: paceOf(paces, raw.id),
       newDone: Math.max(0, Math.floor((input.today && input.today.newDone ? input.today.newDone[raw.id] : 0) ?? 0)),
       unseen: [], floor: 0, cap: 0, newTaken: 0, doneEst: 0, work: 0,
       finalLeft: 0, finalDoneToday: 0, finalQuota: 0, finalUsed: 0, backlogTest: [], backlogOral: [], seenNow: 0, inPlan: 0,
@@ -577,6 +578,104 @@ function fillDay(sc: Scan): Fill {
   return f;
 }
 
+// ───────────────────────────────────────────── the frozen day ─────────────────────────────────────────────
+//
+// After the day's first answer the target can only shrink, whatever the student's pace becomes (the usability check
+// of 2026-10-10 saw 57 → «осталось 47» after 20 answers when the pace was re-estimated and the day refitted):
+// - the day is planned with the pace as of its start (plan_inputs.pace_day), never with one re-estimated today;
+// - with the day's start known (plan_inputs.day_start: each item answered today in the state it began the day), the
+//   target is the very fill of that moment: the same input every time, so the same questions. Answered ones leave it;
+//   what free study took by estimate comes off its end (a prefix: nothing skipped comes back); and when the real
+//   minutes run short, at most as many questions stay as the cheapest of them fit. Every bound only tightens as the
+//   student answers, so the count and the minutes only go down. Spare minutes go to «Ещё 20 новых».
+// - Oral questions come from the device's cheat sheet, not from the server, so their day's start is not one of the
+//   server's inputs: a day with oral questions in the plan is filled as before, with the day's pace.
+
+/** The input as the day began (the moment of its first answer), or null when the server did not say how it began. */
+function startView(input: PlanInput, sc: Scan): PlanInput | null {
+  if (!sc.frozen || sc.hasOral || input.paceDay === undefined || !input.dayStart) return null;
+  const start = input.dayStart;
+  const items: PlanItem[] = [];
+  for (const item of input.items ?? []) {
+    const u = item.u;
+    if (!u || u.lastDay === null || u.lastDay < sc.today) {
+      items.push(item);
+    } else if (u.firstDay !== null && u.firstDay >= sc.today) {
+      items.push({ ...item, u: emptyState() }); // first answered today: it began the day unseen
+    } else {
+      const before = start[item.id];
+      if (!before || (before.lastDay !== null && before.lastDay >= sc.today)) return null;
+      items.push({ ...item, u: before });
+    }
+  }
+  return { ...input, now: sc.at, items, today: { firstAt: sc.at, doneSec: 0, newDone: {} }, pace: input.paceDay };
+}
+
+/**
+ * Today's target on a frozen day: the fill of the day's first answer (`startView`) without what was answered since,
+ * trimmed by what free study took and by the real minutes left; null when the day's start is not known.
+ */
+function frozenFill(input: PlanInput, sc: Scan): Fill | null {
+  const view = startView(input, sc);
+  if (!view) return null;
+  const s0 = scan(view);
+  setFloors(s0);
+  const f0 = fillDay(s0);
+  const answered = new Set<string>();
+  for (const item of input.items ?? []) if (item.u && item.u.lastDay !== null && item.u.lastDay >= sc.today) answered.add(item.id);
+  // What the day's answers took by estimate: a question of the target at its cost there, another one at its kind's.
+  let charged = 0;
+  for (const item of view.items) {
+    if (!answered.has(item.id)) continue;
+    const t = f0.taken.get(item.id);
+    const s = s0.byId.get(item.s);
+    if (t) charged += t.cost;
+    else if (s) charged += estSeconds(item, isSeen(item.u ?? EMPTY) ? 'confirm' : 'new_floor', s.pace);
+  }
+  const budget = Math.max(0, Number(input.budgetMin) || 0) * 60;
+  const doneSec = Math.max(0, Number(input.today ? input.today.doneSec : 0) || 0);
+  // The target in the order it was taken; free study comes off its end.
+  const kept: Taken[] = [];
+  let est = 0;
+  for (const t of f0.list) {
+    if (answered.has(t.cand.item.id)) continue;
+    if (est + t.cost > budget - charged + EPS) break;
+    kept.push(t);
+    est += t.cost;
+  }
+  // The real minutes left hold at most as many questions as the cheapest of them fit.
+  const realLeft = Math.max(0, budget - doneSec);
+  let fit = 0;
+  let sum = 0;
+  for (const cost of kept.map((t) => t.cost).sort((a, b) => a - b)) {
+    if (sum + cost > realLeft + EPS) break;
+    sum += cost;
+    fit += 1;
+  }
+  const list = kept.slice(0, fit);
+  return {
+    taken: new Map(list.map((t) => [t.cand.item.id, t])),
+    list,
+    spent: Math.min(est, realLeft),
+    unitsPoints: 0,
+    unitsChecks: 0,
+    aiBlocked: false,
+    remaining: realLeft,
+    charge: Math.max(doneSec, charged),
+  };
+}
+
+/** The day's target: before the first answer the live fill; after it the frozen one (as before, with the day's pace, when the day's start is not known). */
+function dayFill(input: PlanInput, sc: Scan): Fill {
+  if (!sc.frozen) return fillDay(sc);
+  const frozen = frozenFill(input, sc);
+  if (frozen) return frozen;
+  if (input.paceDay === undefined) return fillDay(sc);
+  const s0 = scan(input, input.paceDay);
+  setFloors(s0);
+  return fillDay(s0);
+}
+
 // ───────────────────────────────────────────── the plan ─────────────────────────────────────────────
 
 function minutesOf(sec: number): number { return Math.max(0, Math.round(sec / 60)); }
@@ -623,7 +722,7 @@ export function planDay(input: PlanInput): DayPlan {
   const { tz, now, today } = sc;
   const active = activeSubjects(sc);
   setFloors(sc);
-  const fill = fillDay(sc);
+  const fill = dayFill(input, sc);
 
   // the target: ready now, or later today (confirmations not countable yet)
   const ready = fill.list.filter((t) => t.cand.from === null || t.cand.from <= now);
@@ -666,17 +765,18 @@ export function planDay(input: PlanInput): DayPlan {
   const leftSec = Math.round(fill.spent);
   const doneSec = Math.max(0, Math.round(Number(input.today ? input.today.doneSec : 0) || 0));
 
-  // postponed
+  // postponed (the fill may come from the scan of the day's start: count by subject id)
   const postponed: DayPlan['postponed'] = {};
   const notTaken = (list: Cand[]) => list.filter((c) => !fill.taken.has(c.item.id)).length;
   const put = (cls: Cls, n: number) => { if (n > 0) postponed[cls] = n; };
+  const takenOf = (s: Subj, pick: (cls: Cls) => boolean) => fill.list.filter((t) => t.cand.s.id === s.id && pick(t.cand.cls)).length;
   put('relearn', notTaken(sc.buckets.relearn));
   put('confirm', notTaken(sc.buckets.confirm) + notTaken(sc.buckets.late));
   put('confirm_ai', notTaken(sc.buckets.confirm_ai));
   put('start_ai', notTaken(sc.buckets.start_ai));
   put('check', notTaken(sc.buckets.check));
-  put('final', active.reduce((sum, s) => sum + Math.max(0, s.finalQuota - s.finalUsed), 0));
-  put('new_floor', active.reduce((sum, s) => sum + Math.max(0, Math.min(s.floor, s.unseen.length) - s.newTaken), 0));
+  put('final', active.reduce((sum, s) => sum + Math.max(0, s.finalQuota - takenOf(s, (cls) => cls === 'final')), 0));
+  put('new_floor', active.reduce((sum, s) => sum + Math.max(0, Math.min(s.floor, s.unseen.length) - takenOf(s, isNewCls)), 0));
 
   // feasibility, coverage, window
   const feas = feasibilityOf(sc);
@@ -717,7 +817,7 @@ export function planDay(input: PlanInput): DayPlan {
 
   // per subject
   const perSubject: DayPlan['perSubject'] = sc.subjects.map((s) => {
-    const mine = fill.list.filter((t) => t.cand.s === s);
+    const mine = fill.list.filter((t) => t.cand.s.id === s.id);
     const f = sc.subjectFigure.get(s.id) as Fig;
     return {
       subjectId: s.id,
