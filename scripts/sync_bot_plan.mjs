@@ -37,6 +37,10 @@ export const SOURCES = [
   ['frontend/src/lib/exams/sheetResponse.ts', 'sheetResponse.ts'],
   ['frontend/src/lib/learning/readiness.ts', 'readiness.ts'],
   ['frontend/src/types/learning.ts', 'learning.ts'],
+  // A question's words apart from its code, as the site splits them (QuestionCard, «Ключи»): the bot's «занятие» and
+  // the group's «Вопрос дня» show the same code block.
+  ['frontend/src/lib/containers/codeLines.ts', 'codeLines.ts'],
+  ['frontend/src/lib/containers/stemCode.ts', 'stemCode.ts'],
 ];
 
 const IMPORT_RE = /(\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\2/g;

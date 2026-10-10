@@ -21,7 +21,7 @@ import type { Button, Keyboard, Out } from './tg.ts';
 import * as W from './words.ts';
 import { dayText, figureLines } from '../plan/words.ts';
 import {
-  fileNumber, flip, isMarked, LETTERS, layoutOf, letterRows, optionLabel, splitStem, type Layout, type QuestionItem,
+  fileNumber, flip, isMarked, LETTERS, layoutOf, letterRows, optionLabel, stemParts, type Layout, type QuestionItem,
 } from './question.ts';
 
 // ─────────────────────────────────────────── the words of the «занятие» ───────────────────────────────────────────
@@ -125,9 +125,12 @@ export function headerText(v: Pick<QuestionView, 'subject' | 'n' | 'of' | 'retry
   return `${oneLine(v.subject)} · ${v.n} из ${v.of}${v.retry ? ` · ${S.retryTag}` : ''}`;
 }
 
-/** The question's words and code: bold before the answer, plain after it (the bold moves to the answer from the file). */
+/**
+ * The question's words and code, split as the site splits them (the copied `stemParts`): the words bold before the
+ * answer, plain after it (the bold moves to the answer from the file); the code in `<pre>`, never inside `<b>`.
+ */
 function stemBlock(item: QuestionItem, bold: boolean): string {
-  const stem = splitStem(item.stem, item.code);
+  const stem = stemParts(item.stem, item.code);
   const words = (text: string) => (bold ? `<b>${own(text)}</b>` : own(text));
   return lines(stem.before ? words(stem.before) : null, stem.code ? pre(stem.code, 'csharp') : null, stem.after ? words(stem.after) : null);
 }
@@ -337,7 +340,7 @@ export function movedOut(): Out {
 /** The student's own words inside a question view (for the linter). */
 export function userWords(v: QuestionView, shown?: Shown | null): string[] {
   const item = v.item;
-  const stem = splitStem(item.stem, item.code);
+  const stem = stemParts(item.stem, item.code);
   const words = [v.subject, oneLine(v.subject), item.stem, stem.before, stem.after, ...item.options, ...item.options.map(oneLine), ...item.options.map(optionLabel)];
   if (item.topicTitle) words.push(item.topicTitle, oneLine(item.topicTitle));
   if (shown) {

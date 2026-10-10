@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decode } from './codec.ts';
-import { visibleLength, visibleText } from './html.ts';
+import { esc, visibleLength, visibleText } from './html.ts';
 import { lintMessage } from './lint.ts';
 import type { Out } from './tg.ts';
 import * as W from './words.ts';
@@ -15,6 +15,10 @@ import {
 import { ACID, DRAW, HTTPS, IPV4_BITS, POSTFIX, PRIVATE_IP, tooLong, type BankItem } from './fixtures/session/bank.ts';
 import { matchSnapshots, type Shot } from './fixtures/session/snapshot.ts';
 import { TITLE } from './fixtures/scenario.ts';
+import {
+  ASKED_AFTER, CREATE, CSHARP, HTTP, LOOP_C, LOOP_SH, LS, MONGO, PING, PIPE, ROUTES, SCRIPT, SHEBANG, SQL, TABLE, TRY_CATCH,
+  WORDS, WORDS_AFTER,
+} from './fixtures/stems.ts';
 
 const SITE = 'https://ludosiel-studyforge.hf.space';
 const SID = '7k2pm9qa';
@@ -131,6 +135,47 @@ test('Z3: code options in <code> (never inside <b>), the question\'s code in <pr
   const review = reviewOut(view(DRAW, CS, 5), shown({ key: [1], chosen: [0] }), 'review', { site: SITE });
   assert.ok(review.text.includes('<b>В\u00a0файле\u00a0— Б</b>\n<code>public virtual void Draw()</code>'), 'bold may not hold code: the heading is bold');
   assert.ok(review.text.includes('Ваш ответ\u00a0— А\n<code>public static void Draw()</code>'));
+});
+
+/** The question's code block (Z3): verbatim, escaped, never glued. */
+const preBlock = (code: string) => `<pre><code class="language-csharp">${esc(code)}</code></pre>`;
+
+test('Z3 split as on the site (stemParts): SQL, a shell and C in <pre> under the question in bold, with the import\'s flag and without it', () => {
+  // SQL imported without the flag (usability check m1): the question in bold, the query in <pre>, then the letters.
+  const sql = questionOut(view({ ...ACID, stem: SQL, code: false }, DB, 7));
+  assert.ok(sql.text.includes(`<b>Какой операции реляционной алгебры соответствует запрос?</b>\n${preBlock('SELECT *\nFROM Students\nWHERE course = 2;')}\n\n<b>А</b> `), sql.text);
+  // Short options stay buttons under a command (Z3).
+  const pipe = questionOut(view({ ...HTTPS, stem: PIPE, code: false, options: ['Процессы nginx', 'Ничего', 'Ошибку'] }, 'Операционные системы', 4));
+  assert.ok(pipe.text.endsWith(`<b>Что выведет команда на сервере, где запущен nginx?</b>\n${preBlock('ps aux | grep nginx')}`), pipe.text);
+  assert.deepEqual(pipe.keyboard!.slice(0, 3).map((r) => r.map((b) => b.text)), [['Процессы nginx'], ['Ничего'], ['Ошибку']]);
+
+  const cases: Array<[string, string, boolean]> = [['HTTP', HTTP, true]];
+  for (const [name, stem] of Object.entries({ SQL, CREATE, PIPE, SCRIPT, SHEBANG, LOOP_SH, LS, PING, TABLE, ROUTES, CSHARP, LOOP_C, TRY_CATCH, MONGO })) {
+    cases.push([name, stem, true], [name, stem, false]);
+  }
+  const wrong = shown({ key: [1], chosen: [2] });
+  for (const [name, stem, code] of cases) {
+    const v = view({ ...ACID, stem, code }, DB, 7);
+    const [first, ...rest] = stem.split('\n');
+    const question = check(`${name}, flag ${code}`, questionOut(v), v);
+    assert.ok(question.text.includes(`\n\n<b>${esc(first)}</b>\n${preBlock(rest.join('\n'))}\n\n`), `${name}, flag ${code}: the question in bold, then its code`);
+    assert.ok(visibleText(question.text).includes(stem), `${name}: every line as typed, nothing added`);
+    const review = check(`${name}, flag ${code}, review`, reviewOut(v, wrong, 'review', { site: SITE }), v, wrong);
+    assert.ok(review.text.includes(`\n\n${esc(first)}\n${preBlock(rest.join('\n'))}\n\n`), `${name}: after the answer the question loses its bold, the code stays`);
+    assert.ok(fitsTelegram(v, { site: SITE }), name);
+  }
+
+  // After a prompt the output is code up to a question at the end, which stays words; so do words after the code.
+  const asked = view({ ...ACID, stem: ASKED_AFTER, code: true }, 'Операционные системы', 2);
+  assert.ok(check('asked', questionOut(asked), asked).text.includes(`\n\n${preBlock('$ ls -ld /tmp\ndrwxrwxrwt 18 root root 4096 окт  9 08:00 /tmp')}\n<b>Что означает буква t?</b>\n`));
+  const after = view({ ...ACID, stem: WORDS_AFTER, code: false }, CS, 3);
+  assert.ok(check('after', questionOut(after), after).text.includes(`<b>Дан фрагмент:</b>\n${preBlock('int x = 1;\nx++;')}\n<b>Что выведет программа?</b>\n`));
+  // Words stay words: one bold block, no <pre> (HTTP lines only once the question is code).
+  for (const stem of [...WORDS, HTTP]) {
+    const v = view({ ...ACID, stem, code: false }, DB, 7);
+    const out = check(stem, questionOut(v), v);
+    assert.ok(!out.text.includes('<pre>') && out.text.includes(`\n\n<b>${esc(stem)}</b>\n`), stem);
+  }
 });
 
 test('Z4: a mark changes only the keyboard, the marks ride in callback_data (t<mask>), «Ответить» a<mask> is the one blue', () => {
