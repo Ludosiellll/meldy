@@ -392,7 +392,8 @@ $fn$;
 
 -- 2n. The sweep before every claim (spec decision 7): a post left in sending for 10 minutes becomes unknown and is never
 --     sent again; a post claimed and never sent for 3 hours is failed. The same for this package's G4 notices
---     (bot.deliveries kind notice, ref g4:<chat>), as T1's bot.sweep does for its kinds.
+--     (bot.deliveries kind notice, ref g4:<chat>), as T1's bot.sweep does for its kinds. Rows another session holds are
+--     skipped (SKIP LOCKED): two ticks never wait for each other here; the next sweep takes them.
 create or replace function bot.group_sweep(p_now timestamptz)
 returns void
 language plpgsql
@@ -401,13 +402,23 @@ set search_path = ''
 as $fn$
 begin
   update bot.group_posts p set status = 'unknown', error = 'died while sending'
-   where p.status = 'sending' and p.sending_at < p_now - interval '10 minutes';
+   where p.id in (select x.id from bot.group_posts x
+                   where x.status = 'sending' and x.sending_at < p_now - interval '10 minutes'
+                     for update skip locked);
   update bot.group_posts p set status = 'failed', error = 'abandoned'
-   where p.status = 'claimed' and p.claimed_at < p_now - interval '3 hours';
+   where p.id in (select x.id from bot.group_posts x
+                   where x.status = 'claimed' and x.claimed_at < p_now - interval '3 hours'
+                     for update skip locked);
   update bot.deliveries d set status = 'unknown', error = 'died while sending'
-   where d.kind = 'notice' and d.ref like 'g4:%' and d.status = 'sending' and d.claimed_at < p_now - interval '10 minutes';
+   where d.id in (select x.id from bot.deliveries x
+                   where x.kind = 'notice' and x.ref like 'g4:%' and x.status = 'sending'
+                     and x.claimed_at < p_now - interval '10 minutes'
+                     for update skip locked);
   update bot.deliveries d set status = 'failed', error = 'abandoned'
-   where d.kind = 'notice' and d.ref like 'g4:%' and d.status = 'claimed' and d.claimed_at < p_now - interval '3 hours';
+   where d.id in (select x.id from bot.deliveries x
+                   where x.kind = 'notice' and x.ref like 'g4:%' and x.status = 'claimed'
+                     and x.claimed_at < p_now - interval '3 hours'
+                     for update skip locked);
 end;
 $fn$;
 
@@ -439,11 +450,13 @@ begin
   )
   select (select pg_catalog.count(*) from gone)::integer into v_answers;
   delete from bot.groups g
-   where g.chat_id in (select x.chat_id from bot.groups x where x.left_at < p_now - interval '30 days' limit 100);
+   where g.chat_id in (select x.chat_id from bot.groups x where x.left_at < p_now - interval '30 days'
+                        limit 100 for update skip locked);
   get diagnostics v_groups = row_count;
   delete from bot.group_posts p
    where p.id in (select x.id from bot.group_posts x
-                   where x.local_day < (p_now at time zone 'utc')::date - 90 limit 1000);
+                   where x.local_day < (p_now at time zone 'utc')::date - 90
+                   limit 1000 for update skip locked);
   get diagnostics v_posts = row_count;
   return pg_catalog.jsonb_build_object('answers', v_answers, 'groups', v_groups, 'posts', v_posts);
 end;
@@ -666,7 +679,8 @@ begin
     insert into bot.claim_failures (tg_user_id, failed_at) values (p_from_tg_user_id, v_now);
     return v_refuse || pg_catalog.jsonb_build_object('status', 'invalid');
   end if;
-  -- The code row is locked: two claims of one code (two chats, a redelivery) run one after the other.
+  -- The code row is locked: two claims of one code (two chats, a redelivery) run one after the other. The chat is read
+  -- again after the lock: the claim this one waited for may just have bound it.
   select c.* into v_code from bot.link_codes c
    where c.code_hash = meldy_private.code_hash(p_code) and c.purpose = 'group'
      for update;
@@ -674,6 +688,10 @@ begin
     insert into bot.claim_failures (tg_user_id, failed_at) values (p_from_tg_user_id, v_now);
     return v_refuse || pg_catalog.jsonb_build_object('status', 'invalid');
   end if;
+  v_g := null;
+  select g.* into v_g from bot.groups g where g.chat_id = p_chat_id;
+  v_bound := v_g.chat_id is not null and v_g.left_at is null;
+  v_refuse := pg_catalog.jsonb_build_object('sender_chat_id', v_sender.chat_id, 'chat_bound', v_bound);
   select l.* into v_owner from bot.links l where l.user_id = v_code.user_id and l.unlinked_at is null;
   if v_owner.id is null or v_owner.tg_user_id <> p_from_tg_user_id
      or meldy_private.role_in(v_code.user_id, v_code.container_id) is distinct from 'owner' then
@@ -839,10 +857,11 @@ begin
   -- G4 notices claimed and never tried (the function died after the claim): again after 10 minutes, at most 3 tries.
   for v_r in
     update bot.deliveries d set claimed_at = v_now, attempts = d.attempts + 1
-      from bot.links l
-     where l.id = d.link_id and l.unlinked_at is null and l.blocked_at is null
-       and d.kind = 'notice' and d.ref like 'g4:%' and d.status = 'claimed' and d.attempts < 3
-       and d.claimed_at < v_now - interval '10 minutes'
+     where d.id in (select x.id from bot.deliveries x join bot.links l on l.id = x.link_id
+                     where l.unlinked_at is null and l.blocked_at is null
+                       and x.kind = 'notice' and x.ref like 'g4:%' and x.status = 'claimed' and x.attempts < 3
+                       and x.claimed_at < v_now - interval '10 minutes'
+                       for update of x skip locked)
     returning d.id, d.chat_id, d.local_day, pg_catalog.substr(d.ref, 4)::bigint as gchat
   loop
     kind := 'g4'; post_id := null; delivery_id := v_r.id; chat_id := v_r.chat_id; group_chat_id := v_r.gchat;
@@ -857,11 +876,13 @@ begin
   for v_r in
     update bot.group_posts p set claimed_at = v_now, attempts = p.attempts + 1, error = null
       from bot.groups g
-     where g.chat_id = p.chat_id and p.status = 'claimed' and p.attempts < 3
-       and p.claimed_at < v_now - interval '10 minutes'
-       and g.left_at is null and g.off_at is null
-       and p.local_day = (v_now at time zone g.tz)::date
-       and bot.group_in_window(v_now at time zone g.tz, g.post_hour)
+     where g.chat_id = p.chat_id
+       and p.id in (select x.id from bot.group_posts x join bot.groups y on y.chat_id = x.chat_id
+                     where x.status = 'claimed' and x.attempts < 3 and x.claimed_at < v_now - interval '10 minutes'
+                       and y.left_at is null and y.off_at is null
+                       and x.local_day = (v_now at time zone y.tz)::date
+                       and bot.group_in_window(v_now at time zone y.tz, y.post_hour)
+                       for update of x skip locked)
     returning p.id, p.chat_id, p.local_day, g.container_id as cid, g.title as gtitle, g.tz as gtz
   loop
     kind := 'post'; post_id := v_r.id; delivery_id := null; chat_id := v_r.chat_id; group_chat_id := v_r.chat_id;
@@ -1280,10 +1301,13 @@ begin
                                         when p.item_id is null then 'no question'
                                         else 'close failed' end)
     from bot.groups g
-   where g.chat_id = p.chat_id and p.status in ('open', 'unknown')
-     and v_now >= bot.group_close_at(p.local_day, g.tz)
-     and (p.status = 'unknown' or p.tg_message_id is null or p.item_id is null or g.left_at is not null
-          or p.close_tries >= 3);
+   where g.chat_id = p.chat_id
+     and p.id in (select x.id from bot.group_posts x join bot.groups y on y.chat_id = x.chat_id
+                   where x.status in ('open', 'unknown')
+                     and v_now >= bot.group_close_at(x.local_day, y.tz)
+                     and (x.status = 'unknown' or x.tg_message_id is null or x.item_id is null or y.left_at is not null
+                          or x.close_tries >= 3)
+                     for update of x skip locked);
   return query
   with due as (
     select p.id from bot.group_posts p join bot.groups g on g.chat_id = p.chat_id
