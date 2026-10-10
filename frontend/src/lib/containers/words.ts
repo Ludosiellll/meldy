@@ -170,7 +170,8 @@ export function lineText(line: Line): string {
     case 'day_off': {
       // Not one of the student's days of the week: no plan today (it can still study: «Ещё 20 новых»).
       const when = line.day ? weekDay(line.n ? line.n[0] : undefined, line.day) : '';
-      return when ? `Сегодня выходной. Следующие вопросы — ${when}.` : 'Сегодня выходной.';
+      // The dash stays with the word before it: a line never starts with «—».
+      return when ? `Сегодня выходной. Следующие вопросы${NBSP}— ${when}.` : 'Сегодня выходной.';
     }
     case 'pace_faster':
       return `Вы отвечаете быстрее, чем мы считали: хватит ${minutesGen(nth(line, 0))} в день.`;
