@@ -3,14 +3,17 @@
  * heavy statements, a camera that drifts and tilts, motion blur on every fast move, the wordmark's
  * yellow dot opening and closing the loop. The limit meter of the top line is the hero: chips with
  * the price of each action («Лекция −20», «Ответ −4») fly into it. Example lectures and questions;
- * the prices, the day's units and the meter's numbers come from reelScript.ts (lib/plans.ts).
+ * the prices, the day's units and the meter's numbers come from reelScript.ts (lib/plans.ts). A
+ * checked answer says so as the app does — its points light up with the protocol's statuses and the
+ * protocol's line comes under them — never with a stamp.
  */
 import { useRef, type ComponentType, type ReactNode } from 'react';
 import { blur, flag, opacity, place, put, text as setText, useEls, useFrame } from '../reel/engine';
 import { STAGE_H, STAGE_W, clamp, ease, mix, pulse, seg } from '../reel/timeline';
-import { Arrow, Statement, Wordmark, keyed, pressDepth, slideIn, slideOut } from '../film/kit';
+import { Arrow, Statement, Wordmark, focusIn, keyed, pressDepth, slideIn, slideOut } from '../film/kit';
 import { FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
 import {
+  CHECK_AT,
   FILE_AT,
   FLIGHT,
   FREE_ANSWERS,
@@ -25,7 +28,7 @@ import {
   PRO_TICKETS,
   PRO_TIMES,
   SESSION_QUESTIONS,
-  STAMP_AT,
+  TICKET_POINTS,
   chipText,
   freeMeterAt,
   proFill,
@@ -33,6 +36,8 @@ import {
   type ProSceneId,
   type Spend,
 } from './reelScript';
+import { STATUS_WORDS } from '../../lib/oral/oralGrade';
+import { answerSummary, summaryLine } from '../../lib/oral/answerSummary';
 
 /** The dot of the loop, in stage pixels: every loop starts and ends on it. */
 export const HOME = { x: STAGE_W / 2, y: STAGE_H / 2, size: 34 };
@@ -337,6 +342,23 @@ const TALK_WORD_EVERY = 90;
 const SEGMENTS = 12;
 const BARS = Array.from({ length: 22 }, (_, index) => index);
 
+/** A checked ticket: its points' statuses come in this far apart, then the protocol's line; the card leaves after. */
+const POINTS_PER_TICKET = 4;
+const POINT_EVERY = 30;
+const SUM_AFTER = 80;
+const LEAVE_AFTER = 200;
+/** The status pills of the protocol's points: «раскрыт» green, «упомянут» yellow, «не назван» grey (as «Вопросы»). */
+const STATUS_LOOK = { covered: 'ok', partial: 'half', missing: 'no' } as const;
+
+/** «Сами назвали 3 из 4 главных пунктов» — the protocol's line for a ticket's points (all of them main ones). */
+export function verdictOf(points: ReadonlyArray<'covered' | 'partial' | 'missing'>): string {
+  const summary = answerSummary(
+    points.map((status, index) => ({ id: String(index), essential: true, status })),
+    null,
+  );
+  return summaryLine(summary) ?? '';
+}
+
 const stripAt = (l: number) =>
   keyed(
     l,
@@ -356,9 +378,9 @@ const listScroll = (l: number) => {
 };
 
 const proSource = (spend: Spend): Point => {
-  // From the free corner of the front ticket (the stamp stays in view), the end of the list's head,
-  // the end of the conversation's head (window px; the stamp is at 884–1214 × 554–686, the list's
-  // head at 170–1450 × 164–294, the conversation's head line at 280–1340 × 246–282).
+  // From the free corner of the front ticket (its points stay in view), the end of the list's head,
+  // the end of the conversation's head (window px; the list's head at 170–1450 × 164–294, the
+  // conversation's head line at 280–1340 × 246–282).
   if (spend.kind === 'answer') return { x: 1130, y: 300 };
   if (spend.kind === 'examMapping') return { x: 1250, y: 229 };
   return { x: 1180, y: 264 };
@@ -386,12 +408,13 @@ function Pro() {
     put(one('strip'), 'transform', `translate3d(${x.toFixed(1)}px,0,0)`);
     blur(one('strip'), Math.min(18, Math.abs(x - stripAt(l - 16)) * 0.45));
 
-    // Ticket after ticket: stamped «Проверено», then off to the left; the next one comes forward.
+    // Ticket after ticket: checked — its points light up with their statuses one by one and the protocol's line
+    // comes under them — then off to the left; the next one comes forward.
     let gone = 0;
-    for (let index = 0; index < PRO_TICKETS - 1; index += 1) gone += ease.inOut(seg(l, STAMP_AT(index) + 200, 320));
+    for (let index = 0; index < PRO_TICKETS - 1; index += 1) gone += ease.inOut(seg(l, CHECK_AT(index) + LEAVE_AFTER, 320));
     all('pcard').forEach((card, index) => {
-      if (index < PRO_TICKETS - 1 && l > STAMP_AT(index) + 200) {
-        slideOut(card, l, STAMP_AT(index) + 200, { dx: -1100, dur: 360, smear: 22 });
+      if (index < PRO_TICKETS - 1 && l > CHECK_AT(index) + LEAVE_AFTER) {
+        slideOut(card, l, CHECK_AT(index) + LEAVE_AFTER, { dx: -1100, dur: 360, smear: 22 });
         return;
       }
       const depth = Math.max(0, index - gone);
@@ -399,12 +422,17 @@ function Pro() {
       blur(card, 3 * depth);
       opacity(card, depth > 2.4 ? 0 : 1 - 0.18 * depth);
     });
-    all('stamp').forEach((stamp, index) => {
-      const p = seg(l, STAMP_AT(index), 420);
-      place(stamp, 0, 0, mix(1.5, 1, ease.back(p)), -7);
-      opacity(stamp, clamp(p * 3));
+    all('pt').forEach((row, at) => {
+      const card = Math.floor(at / POINTS_PER_TICKET);
+      const lit = seg(l, CHECK_AT(card) + (at % POINTS_PER_TICKET) * POINT_EVERY, 160);
+      // The row lights up as its status comes in, then settles.
+      put(row, 'background', `rgba(11,18,28,${(0.06 * Math.sin(Math.PI * lit)).toFixed(3)})`);
     });
-    all('oval').forEach((oval, index) => put(oval, 'stroke-dashoffset', (1 - ease.out(seg(l, STAMP_AT(index) + 40, 520))).toFixed(4)));
+    all('ptw').forEach((status, at) => {
+      const card = Math.floor(at / POINTS_PER_TICKET);
+      slideIn(status, l, CHECK_AT(card) + (at % POINTS_PER_TICKET) * POINT_EVERY, { dx: 36, dur: 260, smear: 6 });
+    });
+    all('sum').forEach((line, index) => focusIn(line, l, CHECK_AT(index) + SUM_AFTER, 220, 8));
 
     // The long list: marks run down it, the list scrolls with them.
     const scroll = listScroll(l);
@@ -435,13 +463,21 @@ function Pro() {
                 <div key={index} data-a="pcard" className="fm-card pr-pcard" style={{ zIndex: PRO_TICKETS - index }}>
                   <span className="fm-st fm-st--ink">Билет {12 + index} · вопрос 1 из 2</span>
                   <p className="fm-h1 pr-tq">{TOPICS[(index * 3 + 1) % TOPICS.length]}</p>
-                  <Lines />
-                  <span data-a="stamp" className="pr-stamp" style={{ opacity: 0 }}>
-                    <svg viewBox="0 0 400 160" aria-hidden="true">
-                      <path data-a="oval" pathLength={1} d="M200 12 C 320 10, 392 46, 386 84 C 380 128, 300 152, 196 148 C 84 146, 10 120, 14 78 C 18 36, 92 14, 214 16" />
-                    </svg>
-                    Проверено
-                  </span>
+                  <div className="pr-points">
+                    {TICKET_POINTS[index].map((status, point) => (
+                      <p key={point} data-a="pt" className="pr-point">
+                        <b>{point + 1}</b>
+                        <i />
+                        <span data-a="ptw" className={`fm-st fm-st--${STATUS_LOOK[status]}`} style={{ opacity: 0 }}>
+                          <b />
+                          {STATUS_WORDS[status]}
+                        </span>
+                      </p>
+                    ))}
+                  </div>
+                  <p data-a="sum" className="pr-sum" style={{ opacity: 0 }}>
+                    {verdictOf(TICKET_POINTS[index])}
+                  </p>
                 </div>
               ))}
             </div>

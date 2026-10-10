@@ -6,8 +6,10 @@
  *   1. «Сессия. Сто вопросов к экзамену.» over a long list out of focus;
  *   2. the free day: the limit meter in the top line runs down as lectures and answers are checked,
  *      to zero — «Дневной лимит исчерпан»;
- *   3. «С PRO —»: the meter fills to the PRO day, ticket after ticket is checked, a long list of
- *      questions gets its marks, a conversation plays — and the meter has plenty left;
+ *   3. «С PRO —»: the meter fills to the PRO day, ticket after ticket is checked — its points light up
+ *      with the protocol's statuses and its line «Сами назвали 3 из 4 главных пунктов» (no stamps: the
+ *      verdict as the app writes it) — a long list of questions gets its marks, a conversation plays —
+ *      and the meter has plenty left;
  *   4. «Готовьтесь, сколько нужно.», the wordmark, and its dot — the frame the loop starts from.
  * Every number on the stage comes from lib/plans.ts (the day's units, the price of each action).
  */
@@ -129,20 +131,21 @@ export const PRO_TIMES = {
   fill: 1100,
   fillFor: 650,
   /**
-   * Tickets: one checked every `ticketEvery` from `tickets`; its chip leaves `ticketChip` later. The
-   * 200 ms before the first one hold the full meter still (the reduced-motion frame).
+   * Tickets: one checked every `ticketEvery` from `tickets` — its points light up with their statuses,
+   * then the protocol's line; its chip leaves `ticketChip` later. The 200 ms before the first one hold
+   * the full meter still (the reduced-motion frame).
    */
-  tickets: 1950,
-  ticketEvery: 260,
+  tickets: 1900,
+  ticketEvery: 220,
   ticketChip: 100,
-  /** Whip pan to the question list, its marks, the list's chip. */
-  toList: 3000,
-  listMarks: 3200,
-  listChip: 3850,
+  /** Whip pan to the question list (the last ticket's verdict has stood a moment), its marks, the list's chip. */
+  toList: 3100,
+  listMarks: 3300,
+  listChip: 3900,
   /** Whip pan to the conversation; its chip; its line. */
-  toTalk: 4050,
-  talkChip: 4350,
-  talkLine: 4450,
+  toTalk: 4100,
+  talkChip: 4400,
+  talkLine: 4500,
   /** The screen leaves. */
   leave: 5350,
 } as const;
@@ -152,11 +155,23 @@ export const PAN = 420;
 
 export const PRO_TICKETS = 4;
 
-export const STAMP_AT = (index: number) => PRO_TIMES.tickets + index * PRO_TIMES.ticketEvery;
+/** When ticket `index`'s answer is checked (scene time of the PRO beat). */
+export const CHECK_AT = (index: number) => PRO_TIMES.tickets + index * PRO_TIMES.ticketEvery;
+
+/**
+ * Each ticket's points after the check, in the protocol's statuses (lib/oral/oralGrade), all of them main points: the
+ * line under them is the protocol's (lib/oral/answerSummary summaryLine).
+ */
+export const TICKET_POINTS: ReadonlyArray<ReadonlyArray<'covered' | 'partial' | 'missing'>> = [
+  ['covered', 'missing', 'covered', 'covered'],
+  ['covered', 'partial', 'covered', 'missing'],
+  ['covered', 'covered', 'covered', 'covered'],
+  ['covered', 'covered', 'partial', 'covered'],
+];
 
 export const PRO_SPENDS: readonly Spend[] = [
   ...Array.from({ length: PRO_TICKETS }, (_, index) => {
-    const at = STAMP_AT(index) + PRO_TIMES.ticketChip;
+    const at = CHECK_AT(index) + PRO_TIMES.ticketChip;
     return { kind: 'answer' as const, cost: AI_COSTS.answer, at, lands: at + FLIGHT };
   }),
   { kind: 'examMapping', cost: LIST_CHECK_COST, at: PRO_TIMES.listChip, lands: PRO_TIMES.listChip + FLIGHT },

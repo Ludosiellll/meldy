@@ -1,9 +1,13 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ProReel from './ProReel';
+import { verdictOf } from './ReelScenes';
+import { STATUS_WORDS } from '../../lib/oral/oralGrade';
+import { answerSummary, summaryLine } from '../../lib/oral/answerSummary';
 import { cornerOpacity, sceneVisible, scenesAt } from '../authReel/script';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
 import {
+  CHECK_AT,
   FREE_EMPTY_AT,
   FREE_LEFT,
   FREE_SPENDS,
@@ -12,7 +16,9 @@ import {
   PRO_LEFT,
   PRO_REEL,
   PRO_SPENDS,
+  PRO_TICKETS,
   PRO_TIMES,
+  TICKET_POINTS,
   chipText,
   freeDayKinds,
   freeMeterAt,
@@ -99,6 +105,34 @@ describe('the numbers of the reel come from lib/plans.ts', () => {
     expect(proMeterAt(PRO_TIMES.leave)).toBe(PRO_LEFT);
     for (const spend of PRO_SPENDS) expect(spend.lands).toBeLessThan(PRO_TIMES.leave);
     expect(PRO_REEL.transcript[2]).toContain(`а на счётчике ещё ${PRO_LEFT}`);
+  });
+});
+
+describe('the checked tickets of the PRO day', () => {
+  it('say it as the protocol does: a status for every point, then the line «Сами назвали N из 4 главных пунктов»', () => {
+    expect(TICKET_POINTS).toHaveLength(PRO_TICKETS);
+    expect(TICKET_POINTS.map(verdictOf)).toEqual([
+      'Сами назвали 3 из 4 главных пунктов',
+      'Сами назвали 2 из 4 главных пунктов',
+      'Сами назвали 4 из 4 главных пунктов',
+      'Сами назвали 3 из 4 главных пунктов',
+    ]);
+    // The line is the protocol's own (lib/oral/answerSummary), not words of the reel.
+    for (const points of TICKET_POINTS) {
+      const summary = answerSummary(
+        points.map((status, index) => ({ id: String(index), essential: true, status })),
+        null,
+      );
+      expect(verdictOf(points)).toBe(summaryLine(summary));
+    }
+  });
+
+  it('checks each ticket before its answer\'s chip leaves; the last verdict stands before the pan to the list', () => {
+    for (let index = 0; index < PRO_TICKETS; index += 1) {
+      expect(CHECK_AT(index)).toBeLessThan(PRO_SPENDS[index].at);
+    }
+    // The last ticket is complete (the player test below) by +380 and stays a moment before the pan.
+    expect(CHECK_AT(PRO_TICKETS - 1) + 380 + 150).toBeLessThanOrEqual(PRO_TIMES.toList);
   });
 });
 
@@ -283,6 +317,24 @@ describe('ProReel', () => {
       rerender(<ProReel jump={1} />);
     });
     expect(visible()).toContain('Сессия.');
+  });
+
+  it('checks a ticket in the app\'s own words: its points light up with their statuses and the protocol\'s line comes under them — no stamp', async () => {
+    window.__MELDY_PRO_REEL_EXPORT__ = true;
+    const { container } = render(<ProReel />);
+    const last = PRO_TICKETS - 1;
+    await act(async () => {
+      await window.__meldyProReel!.seek(sceneOf('pro').from + CHECK_AT(last) + 380);
+    });
+    const card = stage(container).querySelectorAll<HTMLElement>('[data-a="pcard"]')[last];
+    const statuses = Array.from(card.querySelectorAll<HTMLElement>('[data-a="ptw"]'));
+    expect(statuses.map((status) => status.textContent)).toEqual(TICKET_POINTS[last].map((status) => STATUS_WORDS[status]));
+    for (const status of statuses) expect(Number(status.style.opacity)).toBe(1);
+    const line = card.querySelector<HTMLElement>('[data-a="sum"]')!;
+    expect(line.textContent).toBe(verdictOf(TICKET_POINTS[last]));
+    expect(Number(line.style.opacity)).toBe(1);
+    expect(stage(container).textContent).not.toMatch(/Проверено/);
+    expect(stage(container).querySelector('[class*="stamp"]')).toBeNull();
   });
 
   it('shows the numbers of the plans on the stage', async () => {
