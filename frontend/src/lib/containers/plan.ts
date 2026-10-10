@@ -151,9 +151,20 @@ function laterDay(a: LocalDay | null, b: LocalDay | null): LocalDay | null {
   return b > a ? b : a;
 }
 
+/** The subject's pace; a missing or broken number falls back to the default (a NaN cost would let the fill take everything). */
 function paceOf(input: PlanInput, subjectId: string): Pace {
   const own = input.pace ? input.pace[subjectId] : undefined;
-  return own ?? DEFAULT_PACE;
+  if (!own) return DEFAULT_PACE;
+  const sec = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? v : d);
+  const share = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1 ? v : d);
+  const p = own.pWrong ?? DEFAULT_PACE.pWrong;
+  const dp = DEFAULT_PACE.pWrong;
+  return {
+    tNew: sec(own.tNew, DEFAULT_PACE.tNew), tRev: sec(own.tRev, DEFAULT_PACE.tRev), tWrong: sec(own.tWrong, DEFAULT_PACE.tWrong),
+    tRetry: sec(own.tRetry, DEFAULT_PACE.tRetry), tSC: sec(own.tSC, DEFAULT_PACE.tSC), tAC: sec(own.tAC, DEFAULT_PACE.tAC),
+    pWrong: { new: share(p.new, dp.new), relearn: share(p.relearn, dp.relearn), confirm: share(p.confirm, dp.confirm),
+      check: share(p.check, dp.check), final: share(p.final, dp.final) },
+  };
 }
 
 function batchKey(subjectId: string, order: number): string {

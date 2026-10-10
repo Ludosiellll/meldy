@@ -386,6 +386,17 @@ describe('the budget is a hard cap', () => {
     }
   });
 
+  it('uses the student\'s own pace; a broken pace falls back to the defaults', () => {
+    const input = makeInput({ now: at(DAY1, '20:00'), subjects: [{ id: 'a', date: addDays(DAY1, 21) }], items: testItems('a', 300), budgetMin: 30, firstPlanDay: DAY1 });
+    const base = planDay(input);
+    expect(base.counts.newItems).toBe(Math.floor(1800 / NEW_COST));
+    const fast = planDay({ ...input, pace: { a: { ...DEFAULT_PACE, tNew: 20 } } });
+    expect(fast.counts.newItems).toBeGreaterThan(base.counts.newItems);
+    expect(fast.counts.estSec).toBeLessThanOrEqual(1800);
+    const broken = planDay({ ...input, pace: { a: { ...DEFAULT_PACE, tNew: Number.NaN, tRev: 0, pWrong: { ...DEFAULT_PACE.pWrong, new: 7 } } } });
+    expect(broken).toEqual(base);
+  });
+
   it('fair share: each subject at least 10 % of the minutes, even when its work is tiny', () => {
     const now = at('2026-10-10', '10:00');
     const big = withStates(testItems('big', 1500), () => stateAfter([{ at: at('2026-10-08', '10:00'), correct: false }]));
