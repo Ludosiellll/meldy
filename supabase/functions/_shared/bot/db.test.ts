@@ -164,7 +164,7 @@ test('the day: bot_today (plan, overview, the open session, the day row), card e
   assert.equal(await off.today(1), null);
 });
 
-test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, done, the night, K3', async () => {
+test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, done, the way back after a 429, the night, K3', async () => {
   const wire = wireOf([AUTUMN]);
   const rest = fakeRest({
     bot_claim_reminders: [{ delivery_id: 5, chat_id: 700100, local_day: '2026-10-16', tz: 'Europe/Minsk' }],
@@ -172,6 +172,7 @@ test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, d
       link: LINK, plan: wire, overview: OVERVIEW },
     bot_delivery_sending: false,
     bot_delivery_done: { status: 'ok', kind: 'reminder', prev_card_message_id: 99 },
+    bot_delivery_retry: true,
     bot_claim_day_close: [{ delivery_id: 6, chat_id: 700100, local_day: '2026-10-15', card_message_id: null, last_message_id: 70 }],
     bot_claim_after_date: [{ delivery_id: 7, chat_id: 700100, local_day: '2026-11-04', tz: 'Europe/Minsk', container_id: CID,
       exam: { container_id: CID, title: 'Осенняя сессия', exam_date: '2026-11-03', last_date: '2026-11-03', first_plan_day: '2026-10-09', active_days: 21,
@@ -185,6 +186,7 @@ test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, d
   assert.equal(ctx.today.wire!.items.length, 960);
   assert.equal(await db.deliverySending(5), false);
   assert.deepEqual(await db.deliveryDone(5, 'sent', 1234), { prevCardMessageId: 99 });
+  assert.equal(await db.deliveryRetry(5), true);
   assert.deepEqual(await db.claimDayClose(50), [{ deliveryId: 6, chatId: 700100, localDay: '2026-10-15', cardMessageId: null, lastMessageId: 70 }]);
   assert.deepEqual(await db.claimAfterDate(50), [{ deliveryId: 7, chatId: 700100, localDay: '2026-11-04', containerId: CID,
     exam: { title: 'Осенняя сессия', examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-10-09', activeDays: 21, answers: 6480, twoDays: 902, keyed: 960 } }]);
@@ -193,11 +195,14 @@ test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, d
     ['bot_reminder_context', { p_delivery_id: 5 }],
     ['bot_delivery_sending', { p_delivery_id: 5 }],
     ['bot_delivery_done', { p_delivery_id: 5, p_status: 'sent', p_tg_message_id: 1234, p_error: null }],
+    ['bot_delivery_retry', { p_delivery_id: 5, p_error: '429' }],
     ['bot_claim_day_close', { p_limit: 50 }],
     ['bot_claim_after_date', { p_limit: 50 }],
   ]);
   const gone = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_claim_after_date: [{ delivery_id: 8, chat_id: 700100, local_day: '2026-11-04', tz: 'Europe/Minsk', container_id: CID, exam: null }] }).fetch });
   assert.deepEqual(await gone.claimAfterDate(50), [{ deliveryId: 8, chatId: 700100, localDay: '2026-11-04', containerId: CID, exam: null }]);
+  const closed = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_delivery_retry: false }).fetch });
+  assert.equal(await closed.deliveryRetry(5), false, 'false: closed by the database (or not in sending)');
   for (const answer of [{ status: 'ok', delivery_id: 5, card: 'skip', reason: 'paused' }, { status: 'gone', delivery_id: 5, card: 'skip', reason: 'not_claimed' }]) {
     const s = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_reminder_context: answer }).fetch });
     assert.deepEqual(await s.reminderContext(5), { card: 'skip', deliveryId: 5, reason: answer.reason });
