@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>title-cover — «Обложка отвечает сама»</title>
+<link rel="stylesheet" href="clip.css">
+<style>
+/* The title's right card (its content area, 624 × 776 at 1×): the cheat sheet of one question answers itself.
+   Monday: an answer aloud names every line once (yellow dots). Tuesday: the second answer erases them — a strike
+   drawn left to right, the counter rolls to 0. Then the lines come back and the loop starts again.
+   Vertical rhythm: tag 32 · question 112 · lines 180 + 58·i · count baseline 652 · voice 688–748. */
+.stage { width: 624px; height: 776px; }
+.date { left: 348px; top: 32px; width: 244px; height: 48px; border-radius: 24px; background: var(--tint); overflow: hidden; }
+.date div { left: 0; right: 0; top: 0; height: 48px; line-height: 48px; text-align: center; font-size: 28px; color: var(--muted); white-space: nowrap; }
+.q { left: 32px; top: 112px; font-size: 44px; line-height: 52px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.row { left: 32px; width: 528px; height: 58px; }
+.row .mk { left: 4px; top: 23px; width: 12px; height: 12px; border-radius: 6px; background: var(--ink); }
+.row .tx { left: 40px; top: 0; font-size: 30px; line-height: 58px; white-space: nowrap; }
+.row .st { left: 34px; top: 30px; height: 3px; border-radius: 2px; background: var(--faint); transform-origin: 0 50%; }
+.count { left: 30px; top: 552px; width: 80px; height: 120px; overflow: hidden; }
+.count div { left: 0; right: 0; top: 0; height: 120px; font-size: 120px; line-height: 120px; font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.cap { left: 112px; top: 622px; font-size: 30px; line-height: 40px; color: var(--muted); white-space: nowrap; }
+.map i { position: absolute; top: 626px; width: 26px; height: 26px; border-radius: 6px; }
+.voice { left: 32px; top: 688px; width: 560px; height: 60px; border-radius: 30px; background: var(--canvas); }
+.mic { left: 8px; top: 8px; width: 44px; height: 44px; border-radius: 22px; background: var(--ink); }
+.mic svg { position: absolute; left: 12px; top: 12px; width: 20px; height: 20px; }
+.vlabel { left: 68px; top: 0; line-height: 60px; font-size: 28px; font-weight: 500; white-space: nowrap; }
+.wave { left: 270px; top: 10px; width: 186px; height: 40px; }
+.wave i { position: absolute; width: 5px; border-radius: 3px; background: var(--ink); }
+.time { left: 480px; top: 0; width: 62px; line-height: 60px; font-size: 28px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="tag" style="left:32px;top:32px">Шпаргалка</div>
+  <div class="date"><div id="d1">Пн, 12 октября</div><div id="d2">Вт, 13 октября</div></div>
+  <div class="q">Рыночное равновесие</div>
+  <div id="rows"></div>
+  <div class="count"><div id="n1">6</div><div id="n2"></div></div>
+  <div class="cap" id="cap">строк осталось</div>
+  <div class="map" id="map"></div>
+  <div class="voice" id="voice">
+    <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+    <div class="vlabel">Ответ вслух</div>
+    <div class="wave" id="wave"></div>
+    <div class="time" id="time">0:00</div>
+  </div>
+</div>
+<script src="clip.js"></script>
+<script>
+(() => {
+  const { seg, mix, el, E, clamp } = window.M;
+  const LINES = [
+    ['спрос равен предложению', 'm'],
+    ['цена выше равновесной → излишек', 'm'],
+    ['цена ниже равновесной → дефицит', 'm'],
+    ['спрос растёт → цена растёт', 'd'],
+    ['предложение растёт → цена падает', 'd'],
+    ['потолок цен → дефицит', 'd'],
+  ];
+  const T = 9600;
+  const RGB = { ink: [11, 18, 28], muted: [75, 81, 91], faint: [138, 143, 151], named: [233, 177, 60] };
+  const lerp = (a, b, p) => a.map((v, i) => v + (b[i] - v) * p);
+  const css = (c) => `rgb(${c.map((v) => Math.round(v)).join(',')})`;
+
+  const rowsBox = document.getElementById('rows');
+  const rows = LINES.map(([text, kind], i) => {
+    const r = el(rowsBox, 'row');
+    r.style.top = `${180 + i * 58}px`;
+    const mk = el(r, 'mk');
+    const tx = el(r, 'tx', text);
+    const st = el(r, 'st');
+    return { mk, tx, st, detail: kind === 'd' };
+  });
+  rows.forEach((x) => { x.st.style.width = `${x.tx.offsetWidth + 12}px`; });
+  const map = document.getElementById('map');
+  const squares = LINES.map((_, i) => { const s = document.createElement('i'); s.style.left = `${592 - (LINES.length - i) * 36 + 10}px`; map.appendChild(s); return s; });
+  const wave = document.getElementById('wave');
+  const bars = Array.from({ length: 21 }, (_, j) => { const b = document.createElement('i'); b.style.left = `${j * 9}px`; wave.appendChild(b); return b; });
+  const n1 = document.getElementById('n1'), n2 = document.getElementById('n2'), cap = document.getElementById('cap');
+  const time = document.getElementById('time');
+  const d1 = document.getElementById('d1'), d2 = document.getElementById('d2');
+
+  // When each line is named (Monday), erased (Tuesday) and comes back (the rewind before the loop).
+  const NAMED = (i) => 1150 + i * 230;
+  const ERASED = (i) => 3850 + i * 250;
+  const BACK = (i) => 7700 + i * 170;
+  const DOWN = (i) => ERASED(i) + 190; // the count drops when the strike is half drawn
+  const UP = (i) => BACK(i) + 180;     // and rises when it is half gone
+  const plural = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'строка осталась' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'строки осталось' : 'строк осталось');
+
+  function seek(t) {
+    rows.forEach((x, i) => {
+      const named = seg(t, NAMED(i), NAMED(i) + 320, E.out3);
+      const erase = seg(t, ERASED(i), ERASED(i) + 380, E.inOut3);
+      const back = seg(t, BACK(i), BACK(i) + 360, E.inOut3);
+      const n = named * (1 - back);
+      const e = erase * (1 - back);
+      // The marker: an ink dot (a main point) or a dash (a detail) becomes the yellow dot of «named once»,
+      // shrinks away as the line is erased, and comes back as it was.
+      const w = x.detail ? mix(18, 12, n) : 12;
+      const h = x.detail ? mix(3, 12, n) : 12;
+      x.mk.style.width = `${w}px`;
+      x.mk.style.height = `${h}px`;
+      x.mk.style.left = `${x.detail ? 1 + (18 - w) / 2 : 4}px`;
+      x.mk.style.top = `${29 - h / 2}px`;
+      x.mk.style.borderRadius = `${h / 2}px`;
+      x.mk.style.background = css(lerp(x.detail ? RGB.muted : RGB.ink, RGB.named, n));
+      x.mk.style.transform = `scale(${1 - seg(e, 0, 0.55)})`;
+      // The words: muted once named, faint once erased; back to ink on the rewind.
+      x.tx.style.color = css(lerp(lerp(RGB.ink, RGB.muted, n), RGB.faint, e));
+      // The strike is drawn left to right as the line is erased, and retracts right to left on the rewind.
+      x.st.style.opacity = erase > 0 ? '1' : '0';
+      x.st.style.transform = `scaleX(${back > 0 ? 1 - back : erase})`;
+      // The map: one square per line — ink, yellow once named, an empty outline once erased.
+      const sq = squares[i];
+      if (e >= 0.5) {
+        sq.style.background = 'transparent';
+        sq.style.boxShadow = `inset 0 0 0 2px rgba(138,143,151,${(0.55 * clamp((e - 0.5) * 2)).toFixed(3)})`;
+        sq.style.opacity = '1';
+      } else {
+        sq.style.background = css(lerp(RGB.ink, RGB.named, n));
+        sq.style.boxShadow = 'none';
+        sq.style.opacity = String(1 - e * 2);
+      }
+    });
+    // The count, with the new value rolling in (down from below when it drops, from above on the rewind).
+    let left = 6, last = null;
+    const changes = rows.flatMap((_, i) => [{ at: DOWN(i), d: -1 }, { at: UP(i), d: +1 }]).sort((a, b) => a.at - b.at);
+    for (const c of changes) { if (t >= c.at) { left += c.d; last = c; } }
+    const roll = last ? seg(t, last.at, last.at + 240, E.out3) : 1;
+    const prev = last ? left - last.d : left;
+    const dir = last && last.d < 0 ? 1 : -1;
+    n1.textContent = String(left);
+    n2.textContent = roll < 1 ? String(prev) : '';
+    n1.style.transform = `translateY(${((1 - roll) * 100 * dir).toFixed(2)}%)`;
+    n2.style.transform = `translateY(${(-roll * 100 * dir).toFixed(2)}%)`;
+    n1.style.opacity = String(roll);
+    n2.style.opacity = String(1 - roll);
+    cap.textContent = plural(left);
+    // The voice: the answer-aloud control is always there; it records on Monday and on Tuesday.
+    const v1 = seg(t, 700, 1000) * (1 - seg(t, 2500, 2780));
+    const v2 = seg(t, 3400, 3700) * (1 - seg(t, 5450, 5730));
+    const v = Math.max(v1, v2);
+    const from = t >= 3400 && t < 5730 ? 3400 : t >= 700 && t < 2780 ? 700 : null;
+    time.textContent = from == null ? '0:00' : `0:${String(clamp(Math.floor((t - from) / 130), 0, 14)).padStart(2, '0')}`;
+    bars.forEach((b, j) => {
+      const k = Math.abs(Math.sin(t / 90 + j * 1.7) * 0.55 + Math.sin(t / 41 + j * 0.9) * 0.45);
+      const hgt = 6 + 30 * k * v;
+      b.style.height = `${hgt.toFixed(1)}px`;
+      b.style.top = `${(20 - hgt / 2).toFixed(1)}px`;
+    });
+    // The date: Monday becomes Tuesday between the answers, and Monday again on the rewind.
+    const fwd = seg(t, 2950, 3320, E.inOut3);
+    const rew = seg(t, 8050, 8420, E.inOut3);
+    if (rew > 0) {
+      d2.style.transform = `translateY(${(rew * 100).toFixed(2)}%)`; d2.style.opacity = String(1 - rew);
+      d1.style.transform = `translateY(${(-(1 - rew) * 100).toFixed(2)}%)`; d1.style.opacity = String(rew);
+    } else {
+      d1.style.transform = `translateY(${(-fwd * 100).toFixed(2)}%)`; d1.style.opacity = String(1 - fwd);
+      d2.style.transform = `translateY(${((1 - fwd) * 100).toFixed(2)}%)`; d2.style.opacity = String(fwd);
+    }
+  }
+  seek(0);
+  window.__clip = { T, seek, width: 624, height: 776, poster: 0, loop: true };
+})();
+</script>
+</body>
+</html>

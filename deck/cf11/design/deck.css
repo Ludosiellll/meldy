@@ -1,0 +1,154 @@
+/*
+ * Meldy · CodingFest-11 deck: the design system every slide loads.
+ *
+ * A slide is 1920 × 1080 CSS px (= 13.333 × 7.5 in; 2 px = 1 pt). Every element on it is absolutely
+ * positioned, one flat layer list, so the compiler can read each box as it is drawn (CONTRACT.md):
+ * marked elements (data-pptx) become native PowerPoint objects; the rest is baked into the background.
+ * Never nest unmarked decoration inside a marked element: it would vanish with it.
+ *
+ * GRID (written once, used everywhere)
+ *   margins      128 left and right, 56 top (the header band), 56 bottom
+ *   columns      12 × 102 px, gutter 40 px: column k starts at x = 128 + 142·k
+ *                (128 270 412 554 696 838 980 1122 1264 1406 1548 1690; the last ends at 1792)
+ *   splits       6/6: 128–940 | 980–1792      7/5: 128–1082 | 1122–1792     4/8: 128–656 | 696–1792
+ *                3×4: 128–656 | 696–1224 | 1264–1792
+ *   rows         header   y 56   (strip, counter, wordmark — 22 px squares, centre line y 67)
+ *                label    y 128  (40/48)
+ *                claim    y 192  (72/80, two lines end at y 352)
+ *                evidence y 424 – 952 (product slides may run to 1000)
+ *                reading  y 984  (28–32 px, ends by y 1024)
+ *   radii        cards 48, inner panels 24–32, windows 40, phone 72, pills 999
+ *
+ * TYPE SCALE (Onest, static 400/500/600/700; nothing below 28 px)
+ *   240 wordmark · 200 big number · 120 number in a card · 72 claim · 64 the title's line
+ *   56 card title · 48 body · 40 label / secondary body · 32 reading layer · 28 sources, counter
+ */
+
+@font-face { font-family: 'Onest'; font-style: normal; font-weight: 400; font-display: block; src: url('fonts/Onest-400.ttf') format('truetype'); }
+@font-face { font-family: 'Onest'; font-style: normal; font-weight: 500; font-display: block; src: url('fonts/Onest-500.ttf') format('truetype'); }
+@font-face { font-family: 'Onest'; font-style: normal; font-weight: 600; font-display: block; src: url('fonts/Onest-600.ttf') format('truetype'); }
+@font-face { font-family: 'Onest'; font-style: normal; font-weight: 700; font-display: block; src: url('fonts/Onest-700.ttf') format('truetype'); }
+
+:root {
+  /* Meldy tokens (CONTRACT.md) — the only colours a slide may use. */
+  --canvas: #f3f3f0;
+  --surface: #ffffff;
+  --ink: #0b121c;
+  --muted: #4b515b;
+  --faint: #8a8f97;
+  --line: #e3e3dd;
+  --blue: #2869dd;      /* the pill */
+  --blue-fg: #1f5bc6;   /* labels, links, the pill's circle */
+  --yellow: #f4c45b;    /* the dot, the current section */
+  --named: #e9b13c;     /* named once */
+  --pink: #f5b6cd;      /* the «Шпаргалка» tag */
+  /* The same tokens with alpha. */
+  --outline: rgba(138, 143, 151, .55);  /* a passed section, an erased line */
+  --tint: rgba(11, 18, 28, .05);
+  --shadow: 0 1px 3px rgba(11, 18, 28, .05), 0 40px 80px -48px rgba(11, 18, 28, .30);
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+html, body { margin: 0; padding: 0; background: var(--canvas); }
+body { width: 1920px; height: 1080px; overflow: hidden; }
+
+.slide {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'Onest', system-ui, sans-serif;
+  font-weight: 400;
+  font-kerning: normal;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+.slide * { box-sizing: border-box; margin: 0; padding: 0; }
+.slide > * { position: absolute; }
+.slide img { display: block; }
+template { display: none; }
+
+/* ------------------------------------------------------------------ header band (y 56) */
+/* The strip: one 22 px square per mandatory section, x = 128 + 34·i. */
+.sq { top: 56px; width: 22px; height: 22px; border-radius: 5px; }
+.sq.next { background: var(--ink); }
+.sq.now { background: var(--yellow); }
+.sq.done { background: transparent; border: 2px solid var(--outline); }
+/* Between two sections (an own slide): a small yellow dot in the gap. */
+.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); }
+.left { top: 52px; left: 488px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; }
+.left.fin { font-size: 40px; line-height: 52px; }
+/* The corner wordmark: «Meldy» live text, its dot a separate shape (!!dot). */
+.mark { top: 46px; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
+.mark-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--yellow); }
+.runner { top: 52px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; text-align: right; }
+
+/* ------------------------------------------------------------------ text */
+.label { left: 128px; top: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-fg); white-space: nowrap; }
+.claim { left: 128px; top: 192px; font-size: 72px; line-height: 80px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
+.claim.t64 { font-size: 64px; line-height: 72px; }
+.lead { font-size: 40px; line-height: 52px; color: var(--muted); white-space: nowrap; }
+.body { font-size: 48px; line-height: 60px; white-space: nowrap; }
+.h { font-size: 48px; line-height: 56px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.h56 { font-size: 56px; line-height: 64px; font-weight: 600; letter-spacing: -.025em; white-space: nowrap; }
+.t40 { font-size: 40px; line-height: 50px; white-space: nowrap; }
+.t40m { font-size: 40px; line-height: 50px; color: var(--muted); white-space: nowrap; }
+.note { font-size: 32px; line-height: 42px; color: var(--muted); white-space: nowrap; }
+.src { font-size: 28px; line-height: 36px; color: var(--faint); white-space: nowrap; }
+.cap { font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.num { font-size: 200px; line-height: 200px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
+.num120 { font-size: 120px; line-height: 120px; font-weight: 600; letter-spacing: -.04em; white-space: nowrap; }
+.blue { color: var(--blue-fg); }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.ink { color: var(--ink); }
+.w500 { font-weight: 500; }
+.w600 { font-weight: 600; }
+.right { text-align: right; }
+.center { text-align: center; }
+
+/* The wordmark on the title and the conclusion. */
+.word { font-size: 240px; line-height: 240px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
+.word.w200 { font-size: 200px; line-height: 200px; }
+.word-dot { border-radius: 50%; background: var(--yellow); }
+
+/* ------------------------------------------------------------------ surfaces */
+/* A card is an empty shape (it morphs between slides); its contents are siblings drawn on top.
+   Its shadow is a separate unmarked element, baked into the background under it. */
+.card { background: var(--surface); border-radius: 48px; }
+.card.r40 { border-radius: 40px; }
+.card.r32 { border-radius: 32px; }
+.shadow { border-radius: 48px; box-shadow: var(--shadow); }
+.shadow.r40 { border-radius: 40px; }
+.shadow.r72 { border-radius: 72px; }
+.panel { background: var(--canvas); border-radius: 28px; }
+.rule { height: 2px; background: var(--line); }
+.vrule { width: 2px; background: var(--line); }
+
+/* The one action: the blue pill with a circle arrow (the app's .sf-primary). */
+.pill { background: var(--blue); border-radius: 999px; }
+.pill-text { font-size: 32px; line-height: 40px; font-weight: 500; color: var(--surface); white-space: nowrap; }
+.pill-circle { border-radius: 50%; background: var(--blue-fg); }
+.pill-arrow { font-size: 30px; line-height: 30px; font-weight: 500; color: var(--surface); text-align: center; }
+/* A white pill (the app's secondary button) and a plain chip. */
+.chip { background: var(--surface); border-radius: 999px; border: 2px solid var(--line); }
+.chip-text { font-size: 36px; line-height: 44px; font-weight: 500; white-space: nowrap; }
+
+/* Markers of the cheat sheet: a dot is a main point, a dash a detail, yellow is named once. */
+.bul { border-radius: 50%; background: var(--ink); }
+.bul.named { background: var(--named); }
+.bul.y { background: var(--yellow); }
+.dash { height: 3px; border-radius: 2px; background: var(--muted); }
+.strike { height: 3px; border-radius: 2px; background: var(--faint); }
+.msq { width: 22px; height: 22px; border-radius: 5px; background: var(--ink); }
+.msq.named { background: var(--named); }
+.msq.gone { background: transparent; border: 2px solid var(--outline); }
+
+/* The pink arrow-cut tag «Шпаргалка» (the app's flag label). Not a native shape: placed as a picture. */
+.tag { display: flex; align-items: center; height: 48px; padding: 0 34px 0 20px; font-size: 28px; font-weight: 500; background: var(--pink); color: var(--ink); white-space: nowrap; clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 50%, 100% 100%, 0 100%); }
+
+/* Placeholders that must be filled before the file is sent: faint text in a dashed frame. */
+.ph { color: var(--faint); }
+.ph-frame { border: 3px dashed var(--outline); border-radius: 16px; }

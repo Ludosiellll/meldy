@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>09 · Представление блоков проекта: шпаргалка — Meldy · CodingFest-11</title>
+<link rel="stylesheet" href="../design/deck.css">
+<style>
+/* The legend uses the map's own squares: ink — the line is still there, yellow — named once, an outline — erased. */
+.lg-t { left: 192px; font-size: 40px; line-height: 50px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.lg-d { left: 192px; font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
+.lg-sq { left: 132px; width: 28px; height: 28px; border-radius: 7px; }
+</style>
+</head>
+<body>
+<main class="slide">
+<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
+<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
+<div class="sq now" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
+<div class="left" data-pptx="text" data-name="!!left">осталось 4 из 10</div>
+<!-- header:end -->
+
+<div class="label" data-pptx="title" data-name="!!t07">Представление блоков проекта</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-delay="100" data-anim-dur="600">Строка исчезает, только когда её&nbsp;назвали<br>в&nbsp;два разных дня</div>
+
+<!-- The window again (Morph from the phone, !!dot). Inside: the cheat sheet over two days of answers. -->
+<div class="shadow r40" style="left:680px;top:424px;width:1112px;height:576px"></div>
+<div class="card r40" data-pptx="shape" data-name="!!dot" style="left:680px;top:424px;width:1112px;height:576px"></div>
+<img data-pptx="video" data-src="../media/gen/sheet.mp4" data-poster="../media/gen/sheet.png" data-loop src="../media/gen/sheet.png" aria-label="Шпаргалка за два дня: в понедельник ответ вслух называет строки один раз, они желтеют; во вторник названные снова стираются, пропущенная возвращается, счётчик уменьшается" alt="" style="left:696px;top:440px;width:1080px;height:544px" data-anim="fade" data-anim-delay="0" data-anim-dur="400">
+
+<div class="lg-sq" data-pptx="shape" style="top:451px;background:#0b121c" data-anim="fade" data-anim-delay="150" data-anim-dur="400"></div>
+<div class="lg-t" data-pptx="text" style="top:440px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Строка осталась</div>
+<div class="lg-d" data-pptx="text" style="top:492px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">пункт ответа ещё не&nbsp;назван</div>
+
+<div class="lg-sq" data-pptx="shape" style="top:583px;background:#e9b13c" data-anim="fade" data-anim-delay="100" data-anim-dur="400"></div>
+<div class="lg-t" data-pptx="text" style="top:572px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Названа один раз</div>
+<div class="lg-d" data-pptx="text" style="top:624px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">бледнеет, точка жёлтая</div>
+
+<div class="lg-sq" data-pptx="shape" style="top:715px;border:3px solid rgba(138,143,151,.55)" data-anim="fade" data-anim-delay="100" data-anim-dur="400"></div>
+<div class="lg-t" data-pptx="text" style="top:704px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Названа снова</div>
+<div class="lg-d" data-pptx="text" style="top:756px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">в&nbsp;другой день&nbsp;— стёрта</div>
+
+<div class="lg-sq" data-pptx="shape" style="top:847px;background:#0b121c" data-anim="fade" data-anim-delay="100" data-anim-dur="400"></div>
+<div class="lg-t" data-pptx="text" style="top:836px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Забыта</div>
+<div class="lg-d" data-pptx="text" style="top:888px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">строка возвращается</div>
+
+<template data-pptx="notes">Шпаргалка показывает, что осталось выучить. У каждого вопроса есть строки — главные пункты ответа.
+
+Назвал пункт — строка бледнеет. Назвал снова в другой день — строка стирается. Забыл — она возвращается. Так видно не сколько прочитано, а сколько осталось. Цель, с которой мы начали, — ноль строк к утру экзамена.</template>
+</main>
+</body>
+</html>
