@@ -57,7 +57,8 @@ describe('the «Сегодня» card of an exam (decision 47)', () => {
     expect(flag.getAttribute('data-tone')).toBe('g');
     expect(plain(card().querySelector('.td-meta')?.textContent)).toBe('28 октября · 960 вопросов');
     expect(text()).toContain('Сегодня 90 вопросов, около 45 минут.');
-    const pill = screen.getByRole('link', { name: nm('Начать: 20 вопросов, около 9 минут') });
+    // Two subjects have work today: the pill names the one it starts (usability m3).
+    const pill = screen.getByRole('link', { name: nm('Начать: Программирование на C# — 20 вопросов') });
     expect(pill.className).toBe('sf-primary');
     expect(pill.getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_CS}`);
     const figure = screen.getByRole('link', { name: /143/ });
@@ -70,11 +71,20 @@ describe('the «Сегодня» card of an exam (decision 47)', () => {
 
   it('steps aside when another card leads: a white pill on a computer, a quiet link on a phone', () => {
     renderCard({ lead: false });
-    expect(screen.getByRole('link', { name: nm('Начать: 20 вопросов, около 9 минут') }).className).toBe('sf-secondary td-pill');
+    expect(screen.getByRole('link', { name: nm('Начать: Программирование на C# — 20 вопросов') }).className).toBe('sf-secondary td-pill');
     cleanup();
     renderCard({ lead: false }, true);
-    expect(screen.getByRole('link', { name: nm('Начать: 20 вопросов') }).className).toBe('sf-link td-alt');
+    expect(screen.getByRole('link', { name: nm('Начать: Программирование на C# — 20 вопросов') }).className).toBe('sf-link td-alt');
     expect(card().getAttribute('data-phone')).toBe('');
+  });
+
+  it('one subject with work today: the pill says the count and, on a computer, the minutes, without the subject', () => {
+    const one = dayPlan();
+    renderCard({ plan: { ...one, sessions: one.sessions.slice(0, 1) } });
+    expect(screen.getByRole('link', { name: nm('Начать: 20 вопросов, около 9 минут') }).className).toBe('sf-primary');
+    cleanup();
+    renderCard({ plan: { ...one, sessions: one.sessions.slice(0, 1) } }, true);
+    expect(screen.getByRole('link', { name: nm('Начать: 20 вопросов') })).toBeTruthy();
   });
 
   it('while the plan loads: the card and its numbers from the overview, no pill yet', () => {

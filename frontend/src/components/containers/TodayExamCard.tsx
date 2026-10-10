@@ -92,13 +92,22 @@ export default function TodayExamCard({ container, plan, offline = false, lead }
     line = title ? `${title}.` : planText(plan);
     const session = firstSession(plan);
     if (session) {
+      // Two or more subjects with work today: the pill names the subject it starts (usability m3, as on the exam page).
+      const working = new Set(plan.sessions.filter((entry) => entry.ids.length > 0).map((entry) => entry.subjectId));
+      const subject = working.size > 1 ? container.subjects.find((entry) => entry.id === session.subjectId)?.title ?? '' : '';
       if (session.kind === 'ai_check') {
-        const examId = container.subjects.find((subject) => subject.id === session.subjectId)?.oral_exam_id ?? null;
-        if (examId) target = { href: `/exams/${examId}/ticket?q=${session.ids.slice(0, 3).join(',')}&from=c:${container.id}`, label: safeStart(Math.min(3, session.ids.length), null, null, 'ai_check') };
+        const examId = container.subjects.find((entry) => entry.id === session.subjectId)?.oral_exam_id ?? null;
+        const count = Math.min(3, session.ids.length);
+        if (examId) {
+          target = {
+            href: `/exams/${examId}/ticket?q=${session.ids.slice(0, 3).join(',')}&from=c:${container.id}`,
+            label: subject ? copy.aloudSubject(subject, count) : safeStart(count, null, null, 'ai_check'),
+          };
+        }
       } else {
         target = {
           href: studyHref(container.id, { s: session.subjectId, kind: session.kind === 'self_check' ? 'self_check' : null }),
-          label: safeStart(session.ids.length, wide ? minutesOf(session.estSec) : null, null),
+          label: subject ? copy.startSubject(subject, session.ids.length) : safeStart(session.ids.length, wide ? minutesOf(session.estSec) : null, null),
         };
       }
     }
