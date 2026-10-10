@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-10 — Release 38: what comes back after a day off, the minutes line follows the days, small touch fixes (from the commit of this entry)
+
+- **The next study day, not «завтра»** (the study days of release 37): a wrong answer, «Не знаю», a misclick, the end of a «занятие» and of «Как на экзамене» say when the question comes back as the plan brings it back — «Вернётся в понедельник.» when tomorrow is a day off. With every day on (127) every text reads exactly as before. The Telegram bot's record of a session says the same; its verdict on a press still says «завтра» (a press reads no exam settings).
+- **«Настройки»:** the line under «Время в день» follows the Пн–Вс row before «Сохранить» (it read the saved days).
+- **Touch:** a day just turned off no longer keeps the hover's dark ink on a phone; «У предметов разные даты» is 44 px to tap at its old height.
+- **«Сегодня»:** a row of an exam on its day off with nothing answered says «сегодня выходной» (today's layout lists no such row yet; it is ready for when it does).
+- **The bot's «Вопрос дня»:** options are judged as code exactly as in a session (a multi-line option line by line); the function goes out with this release.
+- Verified before release: Vitest 247 files, 4103 tests; `tsc -b` and `vite build` in the Docker layout; the bot's function tests 294/294 with strict `tsc`; the bot's plan copy in sync. No backend or database change.
+
 ## 2026-10-10 — Release 37: the exam container after the live usability check — the day's plan only shrinks, study days of the week, selects that open in sheets, code that reads as code (from the commit of this entry)
 
 - **The day is frozen** (finding M1; migration `20261010130000_containers_frozen_pace.sql`, live since 13:39 UTC): the plan of a day is the plan of its first answer, rebuilt from `plan_inputs.day_start` and `pace_day`; «осталось N, около M минут» only goes down, spare minutes go to «Ещё 20 новых». Items answered before the migration keep the old fill for today; the frozen day starts tomorrow for them.
