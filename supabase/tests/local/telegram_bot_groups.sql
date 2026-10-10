@@ -903,6 +903,17 @@ begin
         case when g = -1001000000007 and d = 3 then null else pg_temp.t(- make_interval(days => d) + interval '9 hours') end));
     end loop;
   end loop;
+  -- G12: only four posts so far, all empty: not five in a row yet
+  perform pg_temp.sx(format($q$insert into bot.groups (chat_id, container_id, link_id, owner_id, title, post_hour, tz, bound_at, on_at)
+    values (-1001000000012, %L, %L, 'aaaaaaaa-0000-0000-0000-000000000001', 'Группа 12', 12, %L, %L, %L)$q$,
+    pg_temp.c('c'), pg_temp.c('glink'), pg_temp.c('tz'), pg_temp.t(- interval '5 days'), pg_temp.t(- interval '5 days')));
+  for d in 1..4 loop
+    perform pg_temp.sx(format($q$insert into bot.group_posts (chat_id, local_day, item_id, item_rev, shown, status, claimed_at,
+                                   posted_at, tg_message_id, closed_at)
+      values (-1001000000012, %L, %L, 1, '{0,1,2,3}', 'closed', %L, %L, %s, %L)$q$,
+      v_day - d, pg_temp.c('net1'), pg_temp.t(- make_interval(days => d)), pg_temp.t(- make_interval(days => d)), 100 + d,
+      pg_temp.t(- make_interval(days => d) + interval '9 hours')));
+  end loop;
   perform pg_temp.sx($q$update bot.links set blocked_at = now() where tg_user_id = 70000001$q$);
 end
 $t$;
@@ -911,10 +922,10 @@ do $t$
 declare r record; n_g4 int := 0; v_d bigint;
 begin
   for r in select * from public.bot_claim_group_posts(10, pg_temp.t(interval '15 minutes'))
-            where group_chat_id in (-1001000000005, -1001000000007, -1001000000008) loop
+            where group_chat_id in (-1001000000005, -1001000000007, -1001000000008, -1001000000012) loop
     if r.group_chat_id = -1001000000005 or r.group_chat_id = -1001000000008 then
       raise exception 'FAILED: % posted or told with the author blocked: %', r.group_chat_id, row_to_json(r); end if;
-    if r.kind <> 'post' then raise exception 'FAILED: G7 %', row_to_json(r); end if;
+    if r.kind <> 'post' then raise exception 'FAILED: G7 / G12 %', row_to_json(r); end if;
   end loop;
   -- G8 is off without a G4 (the author's Telegram is blocked); G5 too, here, since the author was blocked at the claim
   if pg_temp.sq('select off_reason from bot.groups where chat_id = -1001000000008') <> 'empty'
@@ -923,6 +934,9 @@ begin
     raise exception 'FAILED: 5 empty with the author blocked'; end if;
   if pg_temp.sq('select off_at is null from bot.groups where chat_id = -1001000000007')::boolean is not true then
     raise exception 'FAILED: G7 off'; end if;
+  if pg_temp.sq('select off_at is null from bot.groups where chat_id = -1001000000012')::boolean is not true
+     or pg_temp.sq($q$select count(*) from bot.group_posts where chat_id = -1001000000012 and status = 'claimed'$q$)::int <> 1 then
+    raise exception 'FAILED: four empty posts stopped G12'; end if;
 end
 $t$;
 -- G5 again with the author reachable: on again by hand would restart the count, so put it back off-less as it was
