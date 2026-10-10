@@ -849,6 +849,30 @@ begin
 end
 $t$;
 
+-- 7b. The link is closed, B's copy is not bound (an old /join copy, or a bind that never ran): container_oral_codes
+-- still lists it without a code (20261010110000_containers_oral_codes_closed.sql), and the bind works without a link.
+reset role;
+insert into ctx select 'b_copy', me.exam_id::text from public.container_member_exams me
+  where me.user_id = 'bbbbbbbb-0000-0000-0000-000000000002' on conflict (k) do update set v = excluded.v;
+delete from public.container_member_exams where user_id = 'bbbbbbbb-0000-0000-0000-000000000002';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000002', true);
+do $t$
+declare r jsonb;
+begin
+  if (select to_regprocedure('public.container_oral_codes(uuid)')) is null then raise exception 'FAILED: no oral codes'; end if;
+  r := public.container_oral_codes(pg_temp.c('c')::uuid);
+  perform pg_temp.keep('oral_codes_closed', 'container_oral_codes', r);
+  if r ->> 'status' <> 'closed' or jsonb_array_length(r -> 'subjects') <> 1
+     or r -> 'subjects' -> 0 ->> 'existing_exam_id' <> pg_temp.c('b_copy') or r -> 'subjects' -> 0 -> 'code' <> 'null'::jsonb then
+    raise exception 'FAILED: closed oral codes with an unbound copy %', r; end if;
+  r := public.container_bind_copy(pg_temp.c('s2')::uuid, pg_temp.c('b_copy')::uuid);
+  if r ->> 'exam_id' <> pg_temp.c('b_copy') then raise exception 'FAILED: bind while closed %', r; end if;
+  r := public.container_oral_codes(pg_temp.c('c')::uuid);
+  if r ->> 'status' <> 'closed' or jsonb_array_length(r -> 'subjects') <> 0 then raise exception 'FAILED: closed after bind %', r; end if;
+end
+$t$;
+
 -- 8. The author deletes an item: everyone's state of it goes, the log keeps the rows (item_id null).
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
 do $t$
