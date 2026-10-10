@@ -133,6 +133,11 @@
 .ct-plan-notes { display: grid; gap: 4px; margin-top: 10px; }
 .ct-plan-notes .ct-note { margin: 0; }
 .ct-plan[data-quiet] { grid-template-columns: minmax(0, 1fr); }
+/* A first-use tip about today's plan (the Telegram tip) points at the whole card and hangs right under it, over the
+   page; the card takes the focus back when the tip goes, without a ring. On a phone the tip is a sheet at the bottom
+   of the screen: above the bar with «Начать» (tips.css). */
+.ct-page .ct-plan[tabindex='-1']:focus { outline: none; }
+.ct-page:has(> .ct-cta) { --tp-sheet-lift: 84px; }
 
 /* The yellow hand-drawn line (one per screen). */
 .ct-mark { position: relative; z-index: 0; white-space: nowrap; }

@@ -6,7 +6,7 @@ import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import '../reel/reel.css';
 import './tips.css';
 
-/** Every tip's clip is played on a 16:10 stage of this size, scaled to the card. */
+/** A tip's clip is played on a 16:10 stage of this size, scaled to the card, unless it has a stage of its own. */
 export const TIP_STAGE_W = 1280;
 export const TIP_STAGE_H = 800;
 
@@ -16,6 +16,10 @@ export interface TipClipDef {
   /** The still frame shown when motion is reduced. */
   poster: number;
   Scene: ComponentType;
+  /** The clip's own stage (the Telegram chat: a phone's width, square); 1280 × 800 by default. Its frame has its shape. */
+  stage?: { width: number; height: number };
+  /** The play and pause button goes to the top corner where the clip's own screen has buttons in the bottom one. */
+  playAt?: 'top';
 }
 
 declare global {
@@ -62,12 +66,13 @@ function useInView(box: RefObject<HTMLElement>): boolean {
 }
 
 /**
- * A tip's clip, as the guide plays its chapters (components/guide/GuideClip): the 16:10 stage scaled to
- * the width it is given, looping silently while the tip is shown, the tab is visible and the clip is in
- * the window. It can be paused; with reduced motion it waits on a still frame until asked to play.
- * The stage is decoration (aria-hidden): the tip's title and text say the same in words.
+ * A tip's clip, as the guide plays its chapters (components/guide/GuideClip): the stage (16:10, or the
+ * clip's own) scaled to the width it is given, looping silently while the tip is shown, the tab is
+ * visible and the clip is in the window. It can be paused; with reduced motion it waits on a still
+ * frame until asked to play. The stage is decoration (aria-hidden): the tip's title and text say the
+ * same in words. A `themed` clip follows the site's dark theme (its frame is dark there too).
  */
-export default function TipClip({ clip, active }: { clip: TipClipDef; active: boolean }) {
+export default function TipClip({ clip, active, themed = false }: { clip: TipClipDef; active: boolean; themed?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const clock = useMemo(() => new ReelClock(clip.total), [clip]);
   const reduce = usePrefersReducedMotion();
@@ -125,6 +130,8 @@ export default function TipClip({ clip, active }: { clip: TipClipDef; active: bo
   }, [exporting, clock, clip.total]);
 
   const Scene = clip.Scene;
+  const stageW = clip.stage?.width ?? TIP_STAGE_W;
+  const stageH = clip.stage?.height ?? TIP_STAGE_H;
   const toggle = () => {
     if (!allowed) {
       setAsked(true);
@@ -135,10 +142,21 @@ export default function TipClip({ clip, active }: { clip: TipClipDef; active: bo
   };
 
   return (
-    <div ref={box} className="tp-box" data-playing={playing ? 'true' : 'false'}>
+    <div
+      ref={box}
+      className="tp-box"
+      data-playing={playing ? 'true' : 'false'}
+      data-themed={themed ? '' : undefined}
+      data-play-at={clip.playAt}
+      style={clip.stage ? { aspectRatio: `${stageW} / ${stageH}` } : undefined}
+    >
       {width > 0 ? (
         <ClockProvider value={clock}>
-          <div className="mr-stage tp-stage" style={{ transform: `scale(${width / TIP_STAGE_W})` }} aria-hidden="true">
+          <div
+            className="mr-stage tp-stage"
+            style={{ transform: `scale(${width / stageW})`, ...(clip.stage ? { width: `${stageW}px`, height: `${stageH}px` } : null) }}
+            aria-hidden="true"
+          >
             <SceneProvider value={{ from: 0, to: clip.total }}>
               <Scene />
             </SceneProvider>

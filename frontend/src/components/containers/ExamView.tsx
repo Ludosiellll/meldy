@@ -7,7 +7,7 @@ import { dayText } from '../../lib/containers/words';
 import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
 import PageHead from './PageHead';
-import PlanCard, { PlanTitle } from './PlanCard';
+import PlanCard, { PlanTitle, type PlanTip } from './PlanCard';
 import FigureBlock from './FigureBlock';
 import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet } from './Sheets';
@@ -45,6 +45,8 @@ export interface ViewProps {
   plan: DayPlan | null;
   offline: boolean;
   reload: () => void;
+  /** The exam page's first-use tip about today's plan (the Telegram tip), pointing at the plan card (pages/container/ContainerPage). */
+  planTip?: PlanTip | null;
 }
 
 export interface LinkTargets {
@@ -174,7 +176,7 @@ function PaceLine({ note, containerId, settings, onTold, reload }: { note: PaceN
   );
 }
 
-export default function ExamView({ containerId, data, plan, offline, reload }: ViewProps) {
+export default function ExamView({ containerId, data, plan, offline, reload, planTip }: ViewProps) {
   const { summary, planInput, items, oralWithoutPoints } = data;
   const phone = usePhone();
   const wide = useWide();
@@ -381,7 +383,7 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   return (
     <div className="sf-page ct-page" data-view="exam">
       <PageHead title={summary.title} meta={meta} crumb={{ to: '/exams', label: copy.TO_EXAMS }} actions={actions} menuLabel={copy.MENU_LABEL_EXAM} phone={phone} />
-      <PlanCard id={`ct-plan-${containerId}`} title={title} sub={sub} links={links} notes={shownNotes} action={wide ? pillNode : null} />
+      <PlanCard id={`ct-plan-${containerId}`} title={title} sub={sub} links={links} notes={shownNotes} action={wide ? pillNode : null} tip={planTip} />
       <div className="ct-body">
         <FigureBlock figure={figure} plan={plan} today={today} />
         <div className="ct-main">

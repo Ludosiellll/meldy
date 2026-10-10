@@ -43,7 +43,7 @@ import { loadSession, resumable } from './sessionStore';
  * oral part's row first for a mixed subject. A one-subject exam is this page with the exam's name and the exam's «⋯»
  * (`solo`).
  */
-export default function SubjectView({ containerId, data, plan, offline, reload, subject, solo }: ViewProps & { subject: SummarySubject; solo: boolean }) {
+export default function SubjectView({ containerId, data, plan, offline, reload, subject, solo, planTip }: ViewProps & { subject: SummarySubject; solo: boolean }) {
   const { summary, planInput, items } = data;
   const phone = usePhone();
   const wide = useWide();
@@ -255,6 +255,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
         links={linkItems.length > 0 ? linkItems : null}
         notes={cardNotes}
         action={wide ? pillNode : null}
+        tip={solo ? planTip : null}
       />
       <div className="ct-body">
         <FigureBlock figure={figure} plan={plan} today={today} />

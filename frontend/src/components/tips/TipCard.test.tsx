@@ -192,6 +192,91 @@ describe('TipCard never covers the page’s controls (finding LIB-4)', () => {
     expect(card().dataset.layout).not.toBe('sheet');
   });
 
+  it('hangs right under an anchor that holds its own controls (controlBand 0), over the page under it', () => {
+    vi.stubGlobal('innerWidth', 1532);
+    layout(170);
+    function Card() {
+      const plan = useRef<HTMLDivElement>(null);
+      return (
+        <div data-box="row">
+          <div ref={plan} data-box="pill">
+            <a href="/exams/c/c1/study">Начать</a>
+          </div>
+          <TipCard tip={TIPS.telegram} anchor={plan} controlBand={0} onAction={vi.fn()} onDismiss={vi.fn()} />
+          <a href="/exams/c/c1/s/1" data-box="tab">
+            Базы данных
+          </a>
+        </div>
+      );
+    }
+    render(
+      <MemoryRouter>
+        <Card />
+      </MemoryRouter>,
+    );
+    // The anchor ends at 152: the card starts 14 px below it, over the row of the page under it, with no line.
+    expect(card().style.top).toBe('166px');
+    expect(card().style.getPropertyValue('--tp-lead')).toBe('');
+  });
+
+  function TelegramTip() {
+    const plan = useRef<HTMLDivElement>(null);
+    return (
+      <div data-box="row">
+        <div ref={plan} data-box="pill">
+          <a href="/exams/c/c1/study">Начать</a>
+        </div>
+        <TipCard tip={TIPS.telegram} anchor={plan} controlBand={0} onAction={vi.fn()} onDismiss={vi.fn()} />
+      </div>
+    );
+  }
+
+  it('in a tall window puts a square clip (the Telegram chat) on top, as wide as the card', () => {
+    vi.stubGlobal('innerWidth', 1532);
+    vi.stubGlobal('innerHeight', 900);
+    layout(400);
+    render(
+      <MemoryRouter>
+        <TelegramTip />
+      </MemoryRouter>,
+    );
+    expect(card().dataset.layout).toBe('column');
+    expect(card()).toHaveAttribute('data-clip', 'tall');
+    expect(card().style.width).toBe('400px');
+    expect(card().style.getPropertyValue('--tp-clip-w')).toBe('400px');
+  });
+
+  it('in a short window stands a square clip beside the title, the words and the buttons, as tall as the room', () => {
+    vi.stubGlobal('innerWidth', 1532);
+    vi.stubGlobal('innerHeight', 300);
+    layout(400);
+    render(
+      <MemoryRouter>
+        <TelegramTip />
+      </MemoryRouter>,
+    );
+    // The card starts at 166: 118 px of room down to the window's edge, less than the column needs — a row, its clip
+    // as tall as the room allows (at least 160 px), the words' column 440 px beside it.
+    expect(card().dataset.layout).toBe('row');
+    expect(card()).toHaveAttribute('data-clip', 'tall');
+    expect(card().style.getPropertyValue('--tp-clip-w')).toBe('160px');
+    expect(card().style.width).toBe('642px');
+  });
+
+  it('a 16:10 clip in a short window keeps the buttons under the clip and the words', () => {
+    vi.stubGlobal('innerWidth', 1532);
+    vi.stubGlobal('innerHeight', 300);
+    layout(400);
+    render(
+      <MemoryRouter>
+        <Header tabTop={400} />
+      </MemoryRouter>,
+    );
+    expect(card().dataset.layout).toBe('row');
+    expect(card()).not.toHaveAttribute('data-clip');
+    expect(card().style.width).toBe('580px');
+  });
+
   it('hangs right under its pill when nothing is there', () => {
     vi.stubGlobal('innerWidth', 1532);
     layout(400);

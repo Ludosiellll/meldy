@@ -18,8 +18,15 @@ const CONTROLS = 'a[href], button, [role="tab"], input, select, textarea, summar
 const ARROW_EDGE = 44;
 const MIN_W = 400;
 const MAX_W = 520;
-/** The clip is 16:10. */
+/** The clip is 16:10 unless the tip's own frame says otherwise (tips.ts `clip`). */
 const CLIP_RATIO = 1.6;
+/** A clip this square or taller (the Telegram chat) stands beside the title, the words and the buttons in a short
+    window, as tall as the card: under them all it would be too small to read. */
+const TALL_CLIP = 1.25;
+/** The words' column beside a tall clip (the title, two lines, both buttons in a row), the card's padding and gap. */
+const TALL_WORDS_W = 440;
+const TALL_EXTRA = 18 + 24;
+const MIN_TALL_CLIP_H = 160;
 /** Below this share of the card's width the clip goes beside the words (a short window). */
 const COLUMN_CLIP_SHARE = 0.86;
 /** The card with the clip beside the words. */
@@ -45,6 +52,12 @@ interface TipCardProps {
   alignTo?: RefObject<HTMLElement>;
   /** «Попробовать» is a link here when given, otherwise a button. */
   to?: string;
+  /**
+   * How far under the anchor a row of controls (a page's tabs) keeps the card below it; CONTROL_BAND by default. 0 for an
+   * anchor that holds its own controls (a whole card, as the exam page's plan): the card hangs right under it, over the
+   * page's content, and no line has to cross the anchor's neighbours to reach it.
+   */
+  controlBand?: number;
   onAction: () => void;
   onDismiss: () => void;
 }
@@ -65,7 +78,9 @@ interface TipCardProps {
  * the tip. The card measures the anchor and places itself, also when the window or the page changes:
  * the clip on top, or beside the words when the window is too short for that.
  */
-export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss }: TipCardProps) {
+export default function TipCard({ tip, anchor, alignTo, to, controlBand = CONTROL_BAND, onAction, onDismiss }: TipCardProps) {
+  const ratio = tip.clip?.ratio ?? CLIP_RATIO;
+  const tall = ratio < TALL_CLIP;
   const card = useRef<HTMLElement>(null);
   const titleId = useId();
   const textId = useId();
@@ -112,7 +127,7 @@ export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss 
         if (el.contains(control) || control === target || target.contains(control)) continue;
         const box = control.getBoundingClientRect();
         if (box.width < 1 || box.height < 1) continue;
-        if (box.top < a.bottom - 1 || box.top > a.bottom + CONTROL_BAND) continue;
+        if (box.top < a.bottom - 1 || box.top > a.bottom + controlBand) continue;
         if (box.right <= left || box.left >= left + width) continue;
         below = Math.max(below, box.bottom + GAP);
       }
@@ -149,9 +164,17 @@ export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss 
     const inner = width - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
     el.style.setProperty('--tp-clip-w', `${inner}px`);
     const words = el.offsetHeight - clip.offsetHeight;
-    const columnClip = Math.floor((room - words) * CLIP_RATIO);
+    const columnClip = Math.floor((room - words) * ratio);
     if (columnClip >= inner * COLUMN_CLIP_SHARE) {
       el.style.setProperty('--tp-clip-w', `${clamp(columnClip, Math.min(MIN_CLIP_W, inner), inner)}px`);
+      return;
+    }
+    if (tall) {
+      // Beside the words and the buttons, the clip as tall as the room lets the card be.
+      const pad = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+      const clipW = Math.floor(clamp(Math.floor(room - pad), MIN_TALL_CLIP_H, ROW_CLIP_W) * ratio);
+      apply(Math.min(fit, clipW + TALL_EXTRA + TALL_WORDS_W), 'row');
+      el.style.setProperty('--tp-clip-w', `${clipW}px`);
       return;
     }
     width = Math.max(width, Math.min(ROW_W, fit));
@@ -159,7 +182,7 @@ export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss 
     el.style.setProperty('--tp-clip-w', `${ROW_CLIP_W}px`);
     const over = el.offsetHeight - room;
     if (over > 0) el.style.setProperty('--tp-clip-w', `${Math.max(MIN_CLIP_W, Math.floor(ROW_CLIP_W - over * CLIP_RATIO))}px`);
-  }, [anchor, alignTo]);
+  }, [anchor, alignTo, controlBand, ratio, tall]);
 
   useLayoutEffect(() => {
     place();
@@ -229,11 +252,22 @@ export default function TipCard({ tip, anchor, alignTo, to, onAction, onDismiss 
       aria-labelledby={titleId}
       aria-describedby={textId}
       data-aside={aside ? '' : undefined}
+      data-clip={tall ? 'tall' : undefined}
       onKeyDown={onKeyDown}
     >
       {sheet ? null : (
         <div className="tp-clip">
-          {Clip ? <Clip id={tip.id} active={!aside} /> : <div className="tp-box" data-playing="false" aria-hidden="true" />}
+          {Clip ? (
+            <Clip id={tip.id} active={!aside} />
+          ) : (
+            <div
+              className="tp-box"
+              data-playing="false"
+              data-themed={tip.clip?.themed ? '' : undefined}
+              style={tip.clip ? { aspectRatio: String(tip.clip.ratio) } : undefined}
+              aria-hidden="true"
+            />
+          )}
         </div>
       )}
       <h2 id={titleId} className="tp-title">

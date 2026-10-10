@@ -79,3 +79,284 @@
   letter-spacing: -.012em;
   color: var(--ink);
 }
+
+
+/* ------------------------------------------------------------------ «План на день в Telegram» */
+
+/* Telegram for Android's chat (12.4 and later) on a square stage of its own, one stage px a dp of a 400 dp phone:
+   the header, the wallpaper, the bot's bubbles and buttons, the input bar, cropped like a screen recording. The
+   colours are Telegram's default themes — «Blue» by day, «Dark Blue» by night — as the site's theme says; the text is
+   the system's font, as on the phone. The wallpaper is Telegram's default gradient with a pattern of our own. */
+.ts-tg-scene { background: #fbfbf9; }
+.dark .ts-tg-scene { --ink: #f3f3f0; background: #0f141c; }
+.ts-tg-say { top: 120px; font-size: 52px; }
+
+.ts-tg {
+  --tg-text: #000;
+  --tg-bubble: #fff;
+  --tg-time: #a1aab3;
+  --tg-shadow: rgba(29, 55, 83, .2);
+  --tg-head: rgba(255, 255, 255, .9);
+  --tg-head-ink: #1a1d21;
+  --tg-head-sub: #838c96;
+  --tg-glass: rgba(255, 255, 255, .72);
+  --tg-glass-edge: rgba(255, 255, 255, .6);
+  --tg-panel: rgba(255, 255, 255, .88);
+  --tg-icon: rgba(27, 34, 39, .6);
+  --tg-hint: rgba(27, 34, 39, .55);
+  /* chat_messagePanelVoiceBackground: the «Меню» pill and the microphone. */
+  --tg-blue: #61b0ea;
+  /* botKeyboard_button_primary (#229af0) at 70 % over the service colour. */
+  --tg-primary: rgba(34, 154, 240, .7);
+  /* The service colour (dates, buttons): the wallpaper under it, more saturated and darker (Theme: saturation 1.6,
+     brightness .92 − .06 by day; + .12 by night). */
+  --tg-service: saturate(1.6) brightness(.84);
+  --tg-service-tint: rgba(0, 0, 0, .02);
+  --tg-alert-name: #3696e0;
+  --tg-alert-text: #767e7c;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  font-family: Roboto, system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--tg-text);
+}
+.dark .ts-tg {
+  --tg-text: #fafafa;
+  --tg-bubble: #232e3b;
+  --tg-time: rgba(128, 145, 160, .85);
+  --tg-shadow: rgba(0, 0, 0, .25);
+  --tg-head: rgba(29, 38, 49, .88);
+  --tg-head-ink: #fff;
+  --tg-head-sub: rgba(219, 242, 255, .49);
+  --tg-glass: rgba(33, 45, 59, .78);
+  --tg-glass-edge: rgba(255, 255, 255, .13);
+  --tg-panel: rgba(33, 45, 59, .9);
+  --tg-icon: rgba(224, 240, 255, .5);
+  --tg-hint: rgba(219, 239, 255, .43);
+  --tg-blue: #229af0;
+  --tg-service: saturate(1.6);
+  --tg-service-tint: rgba(255, 255, 255, .12);
+  --tg-alert-name: #6bb2e6;
+  --tg-alert-text: rgba(220, 244, 255, .43);
+}
+.ts-tg-i { display: block; flex: none; width: 24px; height: 24px; }
+
+/* The wallpaper: Telegram's default four colours (MotionBackgroundDrawable) and a pattern of simple shapes. */
+.ts-tg-wall {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(62% 58% at 84% 6%, #dbddbb 0%, rgba(219, 221, 187, 0) 100%),
+    radial-gradient(58% 56% at 28% 30%, #6ba587 0%, rgba(107, 165, 135, 0) 100%),
+    radial-gradient(64% 54% at 16% 94%, #d5d88d 0%, rgba(213, 216, 141, 0) 100%),
+    radial-gradient(60% 56% at 72% 74%, #88b884 0%, rgba(136, 184, 132, 0) 100%),
+    #a9c49c;
+}
+.dark .ts-tg-wall {
+  background:
+    radial-gradient(62% 58% at 84% 6%, #0e141a 0%, rgba(14, 20, 26, 0) 100%),
+    radial-gradient(58% 56% at 28% 30%, #172431 0%, rgba(23, 36, 49, 0) 100%),
+    radial-gradient(64% 54% at 16% 94%, #0f171e 0%, rgba(15, 23, 30, 0) 100%),
+    radial-gradient(60% 56% at 72% 74%, #141c2b 0%, rgba(20, 28, 43, 0) 100%),
+    #121b25;
+}
+.ts-tg-wall::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(38, 74, 42, .17);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' fill='none' stroke='white' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='14' cy='16' r='5'/%3E%3Ccircle cx='41' cy='9' r='1.6' fill='white'/%3E%3Crect x='60' y='15' width='9' height='9' rx='2.5' transform='rotate(18 64.5 19.5)'/%3E%3Cpath d='M77 46q4-6 8 0t8 0'/%3E%3Cpath d='M20 61l4.5-8 4.5 8z'/%3E%3Ccircle cx='52' cy='48' r='3'/%3E%3Cpath d='M86 76v8M82 80h8'/%3E%3Ccircle cx='9' cy='86' r='2.2'/%3E%3Cpath d='M40 84l9-5'/%3E%3Ccircle cx='70' cy='70' r='1.6' fill='white'/%3E%3Cpath d='M30 33c3-3 6-3 9 0'/%3E%3C/svg%3E") 0 0 / 96px 96px repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' fill='none' stroke='white' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='14' cy='16' r='5'/%3E%3Ccircle cx='41' cy='9' r='1.6' fill='white'/%3E%3Crect x='60' y='15' width='9' height='9' rx='2.5' transform='rotate(18 64.5 19.5)'/%3E%3Cpath d='M77 46q4-6 8 0t8 0'/%3E%3Cpath d='M20 61l4.5-8 4.5 8z'/%3E%3Ccircle cx='52' cy='48' r='3'/%3E%3Cpath d='M86 76v8M82 80h8'/%3E%3Ccircle cx='9' cy='86' r='2.2'/%3E%3Cpath d='M40 84l9-5'/%3E%3Ccircle cx='70' cy='70' r='1.6' fill='white'/%3E%3Cpath d='M30 33c3-3 6-3 9 0'/%3E%3C/svg%3E") 0 0 / 96px 96px repeat;
+}
+.dark .ts-tg-wall::after { background: rgba(150, 180, 215, .08); }
+
+/* The header (ChatAvatarContainer): back, the bot's photo (40 dp), its name and «бот», the menu; frosted over the
+   chat, its lower edge fading into it. */
+.ts-tg-head {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding-left: 16px;
+  color: var(--tg-head-ink);
+}
+.ts-tg-head::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: -1;
+  height: 68px;
+  background: var(--tg-head);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-mask: linear-gradient(#000 calc(100% - 14px), transparent);
+  mask: linear-gradient(#000 calc(100% - 14px), transparent);
+}
+.ts-tg-photo { width: 40px; height: 40px; margin-left: 20px; flex: none; }
+.ts-tg-who { display: grid; margin-left: 12px; }
+.ts-tg-name { font-size: 17.5px; font-weight: 500; line-height: 21px; }
+.ts-tg-sub { font-size: 13.5px; line-height: 17px; color: var(--tg-head-sub); }
+.ts-tg-head .ts-tg-i--more { margin-left: auto; }
+
+/* The chat: what fits above the input bar, the newest at the bottom; it scrolls under the header. */
+.ts-tg-chat { position: absolute; left: 0; right: 0; top: 0; height: 348px; overflow: hidden; }
+.ts-tg-feed {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-bottom: 4px;
+}
+.ts-tg-arrive { display: flex; flex-direction: column; align-items: flex-start; align-self: stretch; }
+
+/* A date between the days, on the service colour. */
+.ts-tg-day {
+  align-self: center;
+  margin: 8px 0 7px;
+  padding: 0 9px;
+  border-radius: 12.5px;
+  background: var(--tg-service-tint);
+  -webkit-backdrop-filter: blur(18px) var(--tg-service);
+  backdrop-filter: blur(18px) var(--tg-service);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 25px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* The bubbles: 17 dp corners, the tail at the lower left; 6 dp at the lower right over a keyboard; the time inside. */
+.ts-tg-msg { position: relative; margin: 0 0 0 3px; }
+.ts-tg-bubble {
+  position: relative;
+  margin-left: 8px;
+  border-radius: 17px 17px 17px 0;
+  background: var(--tg-bubble);
+  filter: drop-shadow(0 1px .5px var(--tg-shadow));
+}
+.ts-tg-live { width: 390px; }
+.ts-tg-bubble--keys { position: absolute; left: 0; bottom: 0; border-radius: 17px 17px 6px 0; }
+.ts-tg-text { width: 341px; padding: 6px 12px 9.5px 9px; font-size: 16px; line-height: 18.75px; }
+.ts-tg-bubble--keys .ts-tg-text { position: absolute; left: 0; top: 0; }
+.ts-tg-text p { margin: 0; }
+.ts-tg-text b { font-weight: 500; }
+.ts-tg-gap { height: 18.75px; }
+.ts-tg-room { display: inline-block; width: 38px; height: 1px; }
+.ts-tg-time { position: absolute; right: 9px; bottom: 5px; font-size: 12px; line-height: 14px; color: var(--tg-time); }
+.ts-tg-tail { position: absolute; left: -8px; bottom: 0; width: 9px; height: 12px; fill: var(--tg-bubble); }
+
+/* The inline keyboard (BotButton): 44 dp rows 4 dp apart, 5 dp between buttons in a row; the service colour, white
+   15 dp text; the one «primary» button blue. */
+.ts-tg-kb { position: absolute; left: 7px; bottom: 0; display: grid; gap: 4px; width: 340px; }
+.ts-tg-kb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.ts-tg-key {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: 6.75px;
+  background: var(--tg-service-tint);
+  -webkit-backdrop-filter: blur(18px) var(--tg-service);
+  backdrop-filter: blur(18px) var(--tg-service);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 18px;
+  color: #fff;
+  white-space: nowrap;
+}
+.ts-tg-key[data-place='bottom'] { border-radius: 6.75px 6.75px 17px 17px; }
+.ts-tg-key[data-place='bottom-left'] { border-bottom-left-radius: 17px; }
+.ts-tg-key[data-place='bottom-right'] { border-bottom-right-radius: 17px; }
+.ts-tg-key--primary::before { content: ''; position: absolute; inset: 0; background: var(--tg-primary); }
+.ts-tg-key-t { position: relative; z-index: 1; overflow: hidden; text-overflow: ellipsis; }
+/* A press: the ripple from the touch; then, until the bot answers, a light running round the button. */
+.ts-tg-ripple {
+  position: absolute;
+  width: 440px;
+  height: 440px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .22);
+  transform: translate(-50%, -50%) scale(.08);
+}
+.ts-tg-load {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1.3px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--tg-run, 0deg), rgba(255, 255, 255, 0) 0deg 220deg, rgba(255, 255, 255, .95) 320deg, rgba(255, 255, 255, 0) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* The bot's answer to a tap (answerCallbackQuery): the panel under the header, the bot's name over its line. */
+.ts-tg-alert {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 60px;
+  z-index: 3;
+  display: grid;
+  align-content: center;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 18px;
+  background: var(--tg-panel);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: inset 0 0 0 .6px var(--tg-glass-edge), 0 1px 4px rgba(0, 0, 0, .08);
+  font-size: 14px;
+  line-height: 17px;
+}
+.ts-tg-alert-name { font-weight: 500; color: var(--tg-alert-name); }
+.ts-tg-alert-text { color: var(--tg-alert-text); }
+
+/* The input bar (ChatActivityEnterView): «Меню» of the bot's commands, the smiley, «Сообщение», the clip in a frosted
+   field; the microphone beside it. */
+.ts-tg-input { position: absolute; left: 8px; right: 8px; bottom: 4px; z-index: 3; display: flex; gap: 6px; height: 44px; }
+.ts-tg-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  height: 44px;
+  padding: 0 10px 0 8px;
+  border-radius: 22px;
+  background: var(--tg-glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: inset 0 0 0 .6px var(--tg-glass-edge), 0 1px 3px rgba(0, 0, 0, .06);
+}
+.ts-tg-menu {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4.5px;
+  height: 32px;
+  padding: 0 10px 0 9.5px;
+  border-radius: 16px;
+  background: var(--tg-blue);
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+}
+.ts-tg-menu .ts-tg-i { width: 20px; height: 20px; }
+.ts-tg-field .ts-tg-i--smile { margin-left: 12px; color: var(--tg-icon); }
+.ts-tg-hint { margin-left: 13px; font-size: 18px; line-height: 22px; color: var(--tg-hint); white-space: nowrap; }
+.ts-tg-field .ts-tg-i--clip { margin-left: auto; color: var(--tg-icon); }
+.ts-tg-mic { display: grid; flex: none; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--tg-blue); color: #fff; }

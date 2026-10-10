@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import TelegramCard, {
-  LINK_MS, POLL_MS, TELEGRAM_COPY, TelegramRemindLink, clockWords, codeMoment, examLine, leadingExam, linkedByCode, pauseLine, timeLine,
+  LINK_MS, POLL_MS, TELEGRAM_COPY, TelegramLinkWindow, TelegramRemindLink, clockWords, codeMoment, examLine, leadingExam, linkedByCode, pauseLine,
+  timeLine,
 } from './TelegramCard';
 import { PHONE_QUERY } from '../../lib/usePhone';
 import { danglingControls } from '../../test/a11y';
@@ -592,6 +593,84 @@ describe('«Напоминать в Telegram» at the end of the first session',
     fireEvent.click(screen.getByRole('button', { name: TELEGRAM_COPY.remind }));
     await tick();
     expect(screen.getByRole('img', { name: TELEGRAM_COPY.qr })).toBeInTheDocument();
+  });
+});
+
+describe('the link window of the exam page’s tip (TelegramLinkWindow)', () => {
+  it('asks for a code once the state is read, and on a phone opens the bot with the blue «Открыть Telegram»', async () => {
+    setAgent(UA.iphone, 5);
+    setPhone(true);
+    server([NOT_LINKED, NOT_LINKED, LINKED]);
+    const onClose = vi.fn();
+    const { container } = show(<TelegramLinkWindow onClose={onClose} />);
+    // The read first: a code asked before it ends would race it.
+    expect(calls('telegram_link_start')).toHaveLength(0);
+    await tick();
+    expect(calls('telegram_link_state').length).toBeGreaterThanOrEqual(1);
+    expect(calls('telegram_link_start')).toHaveLength(1);
+    const open = screen.getByRole('link', { name: 'Открыть Telegram' });
+    expect(open).toHaveAttribute('href', URL_OF_CODE);
+    expect(open).toHaveClass('sf-primary');
+    expect(plain(container.textContent)).toContain('В Telegram откроется чат с Meldy — нажмите в нём «Запустить».');
+    expect(container.querySelector('[data-line="data"]')!.textContent).toBe(DATA_LINE);
+    expect(screen.queryByRole('img', { name: TELEGRAM_COPY.qr })).toBeNull();
+    // The bot links the account: the window says so, with the plan's time; no second code.
+    await tick(POLL_MS * 2);
+    expect(screen.getByRole('status')).toHaveTextContent('Telegram подключён.');
+    expect(plain(container.textContent)).toContain('План на день — в 20:00.');
+    expect(calls('telegram_link_start')).toHaveLength(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('on a computer shows the QR code and «Открыть Telegram на компьютере»; «Отмена» closes the window', async () => {
+    server([NOT_LINKED]);
+    const onClose = vi.fn();
+    show(<TelegramLinkWindow onClose={onClose} />);
+    await tick();
+    expect(screen.getByRole('img', { name: TELEGRAM_COPY.qr })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: TELEGRAM_COPY.openHere })).toHaveAttribute('href', URL_OF_CODE);
+    fireEvent.click(screen.getByRole('button', { name: TELEGRAM_COPY.cancel }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('after the code’s 15 minutes says so and asks for a new one only on «Подключить Telegram»', async () => {
+    server([NOT_LINKED]);
+    show(<TelegramLinkWindow onClose={vi.fn()} />);
+    await tick();
+    expect(calls('telegram_link_start')).toHaveLength(1);
+    await tick(LINK_MS + POLL_MS);
+    expect(screen.getByRole('status')).toHaveTextContent('Ссылка устарела: она действует 15 минут.');
+    expect(screen.queryByRole('link', { name: TELEGRAM_COPY.openHere })).toBeNull();
+    expect(calls('telegram_link_start')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: TELEGRAM_COPY.connect }));
+    await tick();
+    expect(calls('telegram_link_start')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: TELEGRAM_COPY.openHere })).toBeInTheDocument();
+  });
+
+  it('says when no code can be had now, with the button to ask again', async () => {
+    server([NOT_LINKED], { telegram_link_start: () => ({ error: { code: 'MT001' }, status: 400 }) });
+    show(<TelegramLinkWindow onClose={vi.fn()} />);
+    await tick();
+    expect(screen.getByRole('alert')).toHaveTextContent('Слишком много попыток. Попробуйте через час.');
+    expect(screen.getByRole('button', { name: TELEGRAM_COPY.connect })).toBeInTheDocument();
+    expect(calls('telegram_link_start')).toHaveLength(1);
+  });
+
+  it('says it when the account is linked already, without a code', async () => {
+    server([LINKED]);
+    show(<TelegramLinkWindow onClose={vi.fn()} />);
+    await tick();
+    expect(screen.getByRole('status')).toHaveTextContent('Telegram подключён.');
+    expect(calls('telegram_link_start')).toHaveLength(0);
+  });
+
+  it('says the bot is not there when the server has no Telegram functions', async () => {
+    server([{ error: { code: 'PGRST202' }, status: 404 }]);
+    const { container } = show(<TelegramLinkWindow onClose={vi.fn()} />);
+    await tick();
+    expect(plain(container.textContent)).toBe('Telegram пока не подключить: бот ещё не запущен.');
+    expect(calls('telegram_link_start')).toHaveLength(0);
   });
 });
 
