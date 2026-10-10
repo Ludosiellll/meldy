@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Fixture 3 · Актуальность</title>
+<link rel="stylesheet" href="fixture.css">
+<style>
+  .word { position: absolute; left: 1592px; top: 36px; font-size: 64px; line-height: 1; font-weight: 600; letter-spacing: -.05em; white-space: nowrap; }
+  .s3-claim { top: 196px; width: 960px; font-size: 60px; }
+  .big { position: absolute; left: 120px; top: 420px; font-size: 200px; line-height: 1; font-weight: 600; letter-spacing: -.04em; white-space: nowrap; }
+  .dot { position: absolute; left: 852px; top: 540px; width: 56px; height: 56px; border-radius: 50%; background: var(--yellow); }
+  .s3-src { top: 660px; width: 900px; }
+  .s3-note { position: absolute; left: 128px; top: 820px; width: 860px; font-size: 32px; line-height: 1.35; opacity: .6; }
+  .s3-card { left: 1104px; top: 196px; width: 688px; height: 600px; padding: 48px 56px; }
+  .s3-card h3 { position: absolute; left: 56px; top: 120px; width: 576px; margin: 0; font-size: 40px; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; }
+  .s3-card .row { position: absolute; left: 56px; width: 576px; height: 64px; border-radius: 20px; background: var(--canvas); font-size: 28px; line-height: 64px; padding-left: 28px; color: var(--muted); }
+  .pill { position: absolute; left: 1104px; top: 840px; height: 64px; padding: 0 32px; border-radius: 999px; background: var(--blue);
+          color: #fff; font-size: 30px; line-height: 64px; font-weight: 500; white-space: nowrap; }
+  .sticker { position: absolute; left: 1560px; top: 840px; width: 220px; height: 96px; border-radius: 16px; background: var(--pink); transform: rotate(-6deg); }
+</style>
+</head>
+<body>
+<main class="slide" data-transition="morph">
+  <div class="strip">
+    <i class="done" data-pptx="shape" data-name="!!s01"></i><i class="done" data-pptx="shape" data-name="!!s02"></i><i class="now" data-pptx="shape" data-name="!!s03"></i><i data-pptx="shape" data-name="!!s04"></i><i data-pptx="shape" data-name="!!s05"></i><i data-pptx="shape" data-name="!!s06"></i><i data-pptx="shape" data-name="!!s07"></i><i data-pptx="shape" data-name="!!s08"></i><i data-pptx="shape" data-name="!!s09"></i><i data-pptx="shape" data-name="!!s10"></i>
+  </div>
+  <div class="left" data-pptx="text" data-name="!!left">осталось 8&nbsp;из&nbsp;10</div>
+  <h1 class="label" data-pptx="title">Актуальность</h1>
+  <div class="word" data-pptx="text" data-name="!!word">Meldy</div>
+
+  <p class="claim s3-claim" data-pptx="text" data-anim="rise" data-anim-trigger="after">Экзамены по&nbsp;билетам — норма, а&nbsp;к&nbsp;сотням вопросов готовятся без плана</p>
+
+  <div class="big" data-pptx="text" data-anim="zoom" data-anim-trigger="after" data-anim-delay="200" data-anim-dur="700">229&nbsp;тыс.</div>
+  <i class="dot" data-pptx="shape" data-name="!!dot"></i>
+
+  <p class="src s3-src" data-pptx="text" data-anim="fade" data-anim-trigger="with">студентов вузов в&nbsp;Беларуси, 2026 — <a href="https://www.gs.by">gs.by</a>, дата обращения 10.10.2026; экзамены по&nbsp;билетам — постановление № 319 от&nbsp;13.10.2023</p>
+  <p class="s3-note" data-pptx="text">Сессия дважды в&nbsp;год: <u>подчёркнуто</u>, <s>зачёркнуто</s>, полупрозрачный текст.</p>
+
+  <div class="card s3-card" data-pptx="shape" data-name="!!card" data-anim="wipe" data-anim-trigger="click">
+    <span class="tag">Без Meldy</span>
+    <h3 data-pptx="text">Сотни вопросов и&nbsp;стопка лекций — без плана и&nbsp;проверки</h3>
+    <div class="row" style="top: 300px">Вопрос 1 из&nbsp;214</div>
+    <div class="row" style="top: 380px">План: нет</div>
+    <div class="row" style="top: 460px">Проверка: только на&nbsp;экзамене</div>
+  </div>
+
+  <span class="pill" data-pptx="text" data-anim="appear" data-anim-trigger="with">Постановление № 319</span>
+  <i class="sticker" data-pptx="shape" aria-label="Розовая наклейка" data-anim="rise" data-anim-trigger="click"></i>
+
+  <template data-pptx="notes">ЯДРО 0:25–1:00. Экзамен по билетам — обычная форма контроля, так её устанавливает постановление Министерства образования номер триста девятнадцать.
+
+В Беларуси около двухсот тридцати тысяч студентов вузов, и сессия у каждого дважды в год.</template>
+</main>
+</body>
+</html>

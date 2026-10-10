@@ -1,0 +1,8 @@
+# deck/cf11/tools: python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt
+python-pptx==1.0.2
+lxml==6.1.3
+fonttools==4.66.1
+pillow==12.3.0
+numpy==2.4.6
+defusedxml==0.7.1   # the pptx skill's validate.py
+pytest==9.1.1

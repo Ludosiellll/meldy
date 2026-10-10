@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Fixture 4 · Цель, задачи</title>
+<link rel="stylesheet" href="fixture.css">
+<style>
+  .word { position: absolute; left: 1592px; top: 36px; font-size: 64px; line-height: 1; font-weight: 600; letter-spacing: -.05em; white-space: nowrap; }
+  .dot { position: absolute; left: 1795px; top: 76px; width: 18px; height: 18px; border-radius: 50%; background: var(--yellow); }
+  .s4-claim { top: 196px; width: 1000px; font-size: 64px; }
+  .tasks { position: absolute; left: 128px; top: 400px; width: 900px; font-size: 40px; line-height: 1.3; }
+  .tasks div { margin-bottom: 24px; }
+  .tasks b { color: var(--blue); }
+  .tasks .low { text-transform: lowercase; }
+  .tasks .cap { text-transform: capitalize; }
+  .photo { position: absolute; left: 1180px; top: 196px; width: 612px; height: 420px; object-fit: cover; border-radius: 32px; }
+  .tab { position: absolute; left: 1180px; top: 660px; width: 612px; height: 120px; border-radius: 32px 32px 0 0; background: var(--ink); }
+  .oval { position: absolute; left: 1180px; top: 812px; width: 300px; height: 160px; border-radius: 50%; background: var(--named); }
+  .area { position: absolute; left: 1520px; top: 840px; font-size: 48px; line-height: 1.2; font-weight: 500; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main class="slide" data-transition="none">
+  <div class="strip">
+    <i class="done" data-pptx="shape" data-name="!!s01"></i><i class="done" data-pptx="shape" data-name="!!s02"></i><i class="done" data-pptx="shape" data-name="!!s03"></i><i class="now" data-pptx="shape" data-name="!!s04"></i><i data-pptx="shape" data-name="!!s05"></i><i data-pptx="shape" data-name="!!s06"></i><i data-pptx="shape" data-name="!!s07"></i><i data-pptx="shape" data-name="!!s08"></i><i data-pptx="shape" data-name="!!s09"></i><i data-pptx="shape" data-name="!!s10"></i>
+  </div>
+  <div class="left" data-pptx="text" data-name="!!left">осталось 7&nbsp;из&nbsp;10</div>
+  <h1 class="label" data-pptx="title">Цель, задачи</h1>
+  <div class="word" data-pptx="text" data-name="!!word">Meldy</div>
+  <i class="dot" data-pptx="shape" data-name="!!dot"></i>
+
+  <p class="claim s4-claim" data-pptx="text">Цель: к&nbsp;утру экзамена в&nbsp;шпаргалке не&nbsp;остаётся строк</p>
+
+  <div class="tasks" data-pptx="text">
+    <div><b>1</b>&nbsp; экзамен из&nbsp;перечня вопросов кафедры</div>
+    <div><b>2</b>&nbsp; план по&nbsp;дням до&nbsp;даты, <span class="low">БЕЗ АВРАЛА</span></div>
+    <div><b>3</b>&nbsp; проверка ответов — тестом и&nbsp;вслух по&nbsp;лекциям</div>
+    <div><b>4</b>&nbsp; <span class="cap">видно, что осталось</span></div>
+  </div>
+
+  <img class="photo" src="media/photo.png" alt="" data-pptx="image" data-src="media/photo.png" aria-label="Экран плана по дням">
+  <div class="tab" data-pptx="shape"></div>
+  <div class="oval" data-pptx="shape"></div>
+  <div class="area" data-pptx="text">2000 м<sup>2</sup></div>
+
+  <template data-pptx="notes">ЯДРО 1:00–1:25. Наша цель простая и проверяемая: к утру экзамена в шпаргалке студента не остаётся строк.
+
+Для этого Meldy решает четыре задачи.
+
+Слайд без анимаций и без перехода: проверка, что timing не пишется.</template>
+</main>
+</body>
+</html>

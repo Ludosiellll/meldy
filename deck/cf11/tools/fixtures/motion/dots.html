@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Fixture GIF: cheat-sheet dots fade one by one (2 s loop)</title>
+<style>
+  html, body { margin: 0; width: 360px; height: 120px; overflow: hidden; background: #FFFFFF; }
+  .row { position: absolute; left: 38px; top: 36px; display: flex; gap: 20px; }
+  .row i { width: 48px; height: 48px; border-radius: 50%; background: #0B121C; }
+</style>
+</head>
+<body>
+<div class="row"><i></i><i></i><i></i><i></i><i></i></div>
+<script>
+  const dots = [...document.querySelectorAll('.row i')];
+  window.__clip = {
+    T: 2000,
+    seek(ms) {
+      const p = ((ms % this.T) + this.T) % this.T / this.T;
+      dots.forEach((d, i) => {
+        const on = Math.floor(p * 10) % 5 === i;
+        d.style.background = on ? '#F4C45B' : '#0B121C';
+        d.style.opacity = on ? '1' : '0.35';
+      });
+    },
+  };
+  window.__clip.seek(0);
+</script>
+</body>
+</html>

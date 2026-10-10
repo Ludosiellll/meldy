@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Fixture 2 · Автор проекта</title>
+<link rel="stylesheet" href="fixture.css">
+<style>
+  .word { position: absolute; left: 1592px; top: 36px; font-size: 64px; line-height: 1; font-weight: 600; letter-spacing: -.05em; white-space: nowrap; }
+  .win { position: absolute; left: 980px; top: 214px; width: 812px; height: 560px; border-radius: 44px; background: var(--surface); overflow: hidden; }
+  .win video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .cap { position: absolute; left: 980px; top: 798px; width: 812px; font-size: 32px; line-height: 40px; text-align: center; color: var(--muted); }
+  .people { position: absolute; left: 128px; top: 236px; width: 760px; font-size: 36px; line-height: 1.35; color: var(--muted); }
+  .people .name { font-size: 60px; line-height: 1.1; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
+  .people .role { margin-top: 28px; }
+  .people .place { margin-top: 28px; color: var(--ink); }
+  .frame { position: absolute; left: 96px; top: 204px; width: 824px; height: 560px; border: 2px solid var(--line); border-radius: 32px; }
+  .wash { position: absolute; left: 128px; top: 812px; width: 520px; height: 168px; border-radius: 24px; background: rgba(40, 105, 221, .12); }
+  .dash { position: absolute; left: 680px; top: 812px; width: 240px; height: 168px; border: 3px dashed var(--faint); border-radius: 0; }
+  .count { position: absolute; left: 128px; top: 830px; width: 480px; font-size: 104px; line-height: 1; font-weight: 700; text-align: right; letter-spacing: -.04em; color: var(--blue); }
+</style>
+</head>
+<body>
+<main class="slide" data-transition="morph">
+  <div class="strip">
+    <i class="done" data-pptx="shape" data-name="!!s01"></i><i class="now" data-pptx="shape" data-name="!!s02"></i><i data-pptx="shape" data-name="!!s03"></i><i data-pptx="shape" data-name="!!s04"></i><i data-pptx="shape" data-name="!!s05"></i><i data-pptx="shape" data-name="!!s06"></i><i data-pptx="shape" data-name="!!s07"></i><i data-pptx="shape" data-name="!!s08"></i><i data-pptx="shape" data-name="!!s09"></i><i data-pptx="shape" data-name="!!s10"></i>
+  </div>
+  <div class="left" data-pptx="text" data-name="!!left">осталось 9&nbsp;из&nbsp;10</div>
+  <h1 class="label" data-pptx="title">Автор проекта</h1>
+  <div class="word" data-pptx="text" data-name="!!word">Meldy</div>
+
+  <div class="frame" data-pptx="shape"></div>
+  <div class="people" data-pptx="text" data-anim="wipe" data-anim-trigger="after" data-anim-dur="700">
+    <p class="name">Имя Фамилия<br>Имя Фамилия</p>
+    <p class="role">Учащиеся группы [код] филиала учреждения образования «Белорусский государственный технологический университет» «Бобруйский государственный лесотехнический колледж»</p>
+    <div class="place">Могилёвская область, г.&nbsp;Бобруйск</div>
+  </div>
+
+  <div class="win" data-pptx="shape" data-name="!!dot">
+    <video data-pptx="video" data-src="media/clip.mp4" data-poster="media/clip-poster.png" data-loop
+           poster="media/clip-poster.png" muted playsinline aria-label="Ролик: план по дням строится за минуту"></video>
+  </div>
+  <div class="cap" data-pptx="text" data-anim="appear" data-anim-trigger="click">Ролик: план по&nbsp;дням до&nbsp;даты экзамена</div>
+
+  <div class="wash" data-pptx="shape" data-anim="fade" data-anim-trigger="with"></div>
+  <div class="dash" data-pptx="shape"></div>
+  <div class="count" data-pptx="text" data-anim="zoom" data-anim-trigger="with" data-anim-delay="250">2&nbsp;автора</div>
+
+  <template data-pptx="notes">ЯДРО 0:15–0:25. Проект сделали мы вдвоём, учащиеся Бобруйского государственного лесотехнического колледжа.
+
+Имена владелец называет сам.</template>
+</main>
+</body>
+</html>
