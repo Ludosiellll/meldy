@@ -1,0 +1,570 @@
+/**
+ * Every Russian line of the import page, «Ключи», the exam's «Настройки», «Пригласить группу» and the page of the
+ * group link /g/<код> (package D3a). Sources: spec v2.2 (meldy-notes 10_Project/Exam_Container_Spec_2026-10-09.md:
+ * §3 words, decisions 5–7, 21, 22, 24, 34, 44, 52), Concept 1 §3.1–3.2, §3.11–3.12, and the design critique's table of
+ * replacements (Critic_v2_Design.md, except the word §16 #55 rejects), plus the student critique's import points
+ * (В3–В6). One home for the words: copyImport.test.ts fails on the banned ones (spec §16 #45).
+ *
+ * Numbers and their words are glued with a no-break space (`nb`), so «240 / вопросов» never breaks on a phone.
+ */
+
+export const NBSP = ' ';
+
+/** «1 вопрос», «2 вопроса», «5 вопросов». */
+export function plural(count: number, one: string, few: string, many: string): string {
+  const n = Math.abs(Math.trunc(count)) % 100;
+  if (n >= 11 && n <= 14) return many;
+  const last = n % 10;
+  if (last === 1) return one;
+  if (last >= 2 && last <= 4) return few;
+  return many;
+}
+
+/** A number and its word: «240 вопросов». */
+export function count(n: number, one: string, few: string, many: string): string {
+  return `${n}${NBSP}${plural(n, one, few, many)}`;
+}
+
+/** No-break spaces where Russian typesetting asks: after a number before a word, before «·», after «№». */
+export function nb(text: string): string {
+  return text
+    .replace(/(\d) (?=[а-яёА-ЯЁa-zA-Z%])/g, `$1${NBSP}`)
+    .replace(/ ·/g, `${NBSP}·`)
+    .replace(/№ /g, `№${NBSP}`);
+}
+
+const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+/** '2026-10-28' → «28 октября» (no year: the dates are this season's); '' for a malformed day. */
+export function dayText(day: string | null | undefined): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day ?? '');
+  if (!match) return '';
+  const month = Number(match[2]);
+  const date = Number(match[3]);
+  if (month < 1 || month > 12 || date < 1 || date > 31) return '';
+  return `${date}${NBSP}${MONTHS[month - 1]}`;
+}
+
+const questions = (n: number) => count(n, 'вопрос', 'вопроса', 'вопросов');
+const subjects = (n: number) => count(n, 'предмет', 'предмета', 'предметов');
+
+/** «А», «Б», «В» … the option letters of a question, in file order. */
+export const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф'];
+export const letter = (index: number) => LETTERS[index] ?? String(index + 1);
+/** «Б и Г», «А, В и Г». */
+export function lettersText(indices: readonly number[]): string {
+  const list = indices.map(letter);
+  if (list.length <= 1) return list.join('');
+  return `${list.slice(0, -1).join(', ')} и ${list[list.length - 1]}`;
+}
+
+// ─────────────────────────────────────────────── /exams/import ───────────────────────────────────────────────
+
+export const IMPORT = {
+  title: 'Новый экзамен',
+  titleAdd: 'Добавить предмет',
+  crumb: 'Экзамены',
+  docTitle: 'Новый экзамен',
+  lede: 'Один общий файл или по файлу на предмет.',
+  pick: 'Выбрать файлы',
+  pasteLink: 'Вставить список текстом',
+  formats: 'Word, Excel или TXT · PDF и сканы — для списков без вариантов',
+  dropTitle: 'Загрузите вопросы',
+  dropLede: 'Перетащите сюда файлы — по одному на предмет или один на все.',
+  dropping: 'Отпустите файлы — Meldy разберёт их',
+  sideTitle: 'Что сделает Meldy',
+  side: [
+    'Найдёт предметы, темы и вопросы. Номера — как в файле.',
+    'С вариантами возьмёт ключ из оформления: жирный, подчёркивание, цвет, «+» или строка «1 – б». Ключей ИИ не придумывает и лимит не тратит.',
+    'Без вариантов — это устные вопросы: шпаргалку Meldy напишет по вашим лекциям.',
+  ],
+  tgAndroid: 'Файл в Telegram? Нажмите ⋮ у файла → «Сохранить в загрузки» и выберите его здесь.',
+  tgIphone: 'Файл из Telegram сначала сохраните в «Файлы».',
+  pasteLabel: 'Список вопросов',
+  pastePlaceholder: '1. Какой тип хранит целые числа?\nа) int\nб) string\nв) bool\n\n2. …',
+  pasteGo: 'Разобрать',
+  pasteCancel: 'Отмена',
+  pasteEmpty: 'Сначала вставьте сюда список.',
+  pasteName: 'Текст',
+
+  reading: (n: number) => `Читаем ${count(n, 'файл', 'файла', 'файлов')}`,
+  readingWait: 'читаем…',
+  readFailed: 'не открылся',
+  removeFile: 'Убрать файл',
+  retryFile: 'Попробовать ещё раз',
+  addFile: 'Добавить ещё файл',
+  fileFound: (n: number) => questions(n),
+
+  found: (subjectCount: number, questionCount: number) =>
+    subjectCount === 1 ? `Нашли ${questions(questionCount)}` : `Нашли ${subjects(subjectCount)} и ${questions(questionCount)}`,
+  rowTest: (n: number) => questions(n),
+  rowOral: (n: number) => count(n, 'устный вопрос', 'устных вопроса', 'устных вопросов'),
+  rowOralTail: (n: number) => count(n, 'устный', 'устных', 'устных'),
+  rowRange: (from: number, to: number) => `вопросы ${from}–${to}`,
+  rowNoKey: 'ключа нет',
+
+  problems: (n: number) => `Проверьте ${questions(n)} — можно и после сохранения.`,
+  problemsGo: 'Проверить',
+  spotCheck: 'Сверить ключ на трёх вопросах',
+  spotCheckLede: 'Совпадает ли ответ с файлом?',
+  spotCheckWrong: 'Не совпадает?',
+  spotCheckFile: 'В файле',
+  readAsOral: 'Прочитать как устные вопросы ›',
+  readAsTest: 'Прочитать как вопросы с вариантами ›',
+  rereading: 'Читаем заново…',
+  oralCost: (n: number) =>
+    `Шпаргалку к ${count(n, 'устному вопросу', 'устным вопросам', 'устным вопросам')} Meldy напишет по вашим лекциям — по частям, сколько позволит дневной лимит ИИ.`,
+  oralAnswers: 'Ответы к открытым вопросам из файла не переносятся: устные ответы Meldy сверяет с вашими лекциями.',
+  notInPlan: (n: number) =>
+    `${count(n, 'вопрос', 'вопроса', 'вопросов')} на порядок и соответствие пока не ${n % 10 === 1 && n % 100 !== 11 ? 'идёт' : 'идут'} в занятия.`,
+  imageLost: (labels: string[], n: number) =>
+    n === 1
+      ? `Картинка в № ${labels[0] ?? ''} не перенеслась — без неё вопрос не идёт в занятия.`
+      : labels.length === n
+        ? `Картинки в № ${labels.join(', ')} не перенеслись — без них эти вопросы не идут в занятия.`
+        : `Картинки в ${count(n, 'вопросе', 'вопросах', 'вопросах')} не перенеслись — без них эти вопросы не идут в занятия.`,
+  imageLostGo: 'Посмотреть',
+  blocked: (n: number) => `${questions(n)} не ${n % 10 === 1 && n % 100 !== 11 ? 'сохранится' : 'сохранятся'}: у ${n % 10 === 1 && n % 100 !== 11 ? 'него' : 'них'} не хватает вариантов. Проверьте их.`,
+  split: (title: string, n: number, parts: number) =>
+    `В «${title}» ${count(n, 'устный вопрос', 'устных вопроса', 'устных вопросов')}, а в устном предмете помещается 150 — разделили на ${parts} ${plural(parts, 'часть', 'части', 'частей')}.`,
+  partTitle: (title: string, part: number) => `${title}, часть ${part}`,
+  topicsMerged: (title: string, n: number) => `В «${title}» ${count(n, 'тема', 'темы', 'тем')} — больше 99. Вопросы тем после 99-й добавлены в 99-ю.`,
+  removedSubjects: (n: number) => `Убрано: ${subjects(n)}.`,
+  restoreSubjects: 'Вернуть',
+  noKeyTitle: 'Ответы в файле не отмечены.',
+  noKeyIn: (title: string) => `«${title}»: ответы в файле не отмечены.`,
+  noKeyPaste: 'Вставить ключ списком',
+  noKeyLater: 'Отмечать по ходу',
+  noKeyOral: 'Это устные вопросы',
+  pdfNote: 'В PDF не видно выделения, поэтому ключ не найти. Если есть этот файл в Word, загрузите его.',
+
+  target: 'Куда добавить',
+  targetNew: 'Новый экзамен',
+  targetTo: (title: string) => `К «${title}»`,
+  name: 'Название',
+  nameNow: (n: number) => `Теперь в экзамене ${subjects(n)}. Название`,
+  namePlaceholder: 'Например, Зимняя сессия',
+  nameTwo: (a: string, b: string) => `${a} и ${b}`,
+  nameMissing: 'Назовите экзамен.',
+  date: 'Дата экзамена',
+  dates: 'У предметов разные даты',
+  oneDate: 'Одна дата для всех',
+  subjectDate: (title: string) => `Дата: ${title}`,
+  noDate: 'Дату можно не указывать: тогда по 15 новых вопросов в день на предмет.',
+  minutes: 'Время в день',
+  minuteOption: (n: number) => `${n}${NBSP}минут`,
+
+  save: 'Сохранить',
+  saveAdd: (n: number) => `Добавить ${subjects(n)}`,
+  saving: 'Сохраняем…',
+  savingItems: (done: number, total: number) => `Сохраняем вопросы: ${done} из ${total}`,
+  saveRetry: 'Не всё сохранилось. Нажмите ещё раз: сохранённое не повторится.',
+  saveFailed: 'Не сохранилось. Проверьте связь и нажмите ещё раз.',
+  tooManySubjects: (n: number) => `В экзамене помещается 20 предметов, а здесь ${n}. Уберите лишние.`,
+  tooManyItems: (n: number) =>
+    `В экзамене помещается 2000 вопросов с вариантами, а здесь ${n}. Уберите предмет или загрузите часть файлов в другой экзамен.`,
+  nothingLeft: 'Все предметы убраны. Верните предмет или выберите другой файл.',
+  signedOut: 'Войдите в аккаунт, чтобы сохранить экзамен.',
+
+  // one subject's preview
+  back: 'Все предметы',
+  fromHeading: 'из заголовка в файле',
+  fromFile: (name: string) => `из названия файла «${name}»`,
+  fromNumber: 'название не нашлось — назовите предмет',
+  rename: 'Переименовать',
+  more: (title: string) => `Ещё: ${title}`,
+  renameLabel: 'Название предмета',
+  renameDone: 'Готово',
+  removeSubject: 'Убрать предмет',
+  restoreSubject: 'Вернуть предмет',
+  numbers: (first: string, last: string, missing: number[], more: number) =>
+    `№ ${first}–${last}` + (missing.length ? `, не нашли № ${missing.join(', ')}${more > 0 ? ` и ещё ${more}` : ''}` : ''),
+  topicsLine: (n: number) => count(n, 'тема', 'темы', 'тем'),
+  topicsTitle: 'Темы',
+  noTopic: 'Без темы',
+  otherWay: 'Отмечен по-другому?',
+  detailProblems: (parts: string[], n: number) => `Проверьте ${n}: ${parts.join(', ')}.`,
+  restart: 'Похоже, в файле несколько предметов: нумерация вопросов начинается заново.',
+  merge: 'Оставить одним',
+  unmerge: 'Разделить на предметы',
+
+  // the key: «Как в файле отмечен ответ?»
+  keyTitle: 'Как в файле отмечен ответ?',
+  keyAuto: 'Как нашёл Meldy',
+  keyFirst: 'Первый вариант всегда верный',
+  keyNone: 'Ответы в файле не отмечены',
+  keyMarker: 'Знаком «+»',
+  keyListLabel: 'Ключ отдельным списком',
+  keyListPlaceholder: '1 – б, 2 – а, 3 – г…',
+  keyListHint: 'Meldy сверит номера с файлом.',
+  keyListGo: 'Проверить ключ',
+  keyListEmpty: 'Вставьте ключ: номер вопроса и букву ответа.',
+  keyListResult: (keyed: number, total: number) => `Ключ подошёл к ${keyed} из ${total}.`,
+  keyClose: 'Готово',
+} as const;
+
+/** «Проверьте 7: в 4 нет ответа, в 2 выделено два, 1 повторяется.» — one part per kind of problem. */
+export const PROBLEM_PARTS: Record<string, (n: number) => string> = {
+  image: (n) => `в ${n} не перенеслась картинка`,
+  no_options: (n) => `в ${n} нет вариантов`,
+  few_options: (n) => `в ${n} один вариант`,
+  many_options: (n) => `в ${n} больше 8 вариантов`,
+  empty_option: (n) => `в ${n} пустой вариант`,
+  same_options: (n) => `в ${n} одинаковые варианты`,
+  several: (n) => `в ${n} выделено два`,
+  key_conflict: (n) => `в ${n} ключ и выделение расходятся`,
+  key_invalid: (n) => `в ${n} ключ не подходит`,
+  key_letter: (n) => `в ${n} буква ключа читается двояко`,
+  partial: (n) => `в ${n} выделение неполное`,
+  no_key: (n) => `в ${n} нет ответа`,
+  duplicate: (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'повторяется' : 'повторяются'}`,
+  too_long: (n) => `${n} длиннее предела`,
+};
+
+/** Signal words in «Как в файле отмечен ответ?»: «Жирным — 229». */
+export const SIGNAL_WORDS: Record<string, string> = {
+  bold: 'Жирным',
+  underline: 'Подчёркиванием',
+  italic: 'Курсивом',
+  color: 'Цветом',
+  highlight: 'Маркером',
+  shade: 'Заливкой',
+};
+
+/** The second line of a subject row: «ключ жирным» (Concept 1 §3.2). */
+export const KEY_WORDS: Record<string, string> = {
+  bold: 'ключ жирным',
+  underline: 'ключ подчёркиванием',
+  italic: 'ключ курсивом',
+  color: 'ключ цветом',
+  highlight: 'ключ маркером',
+  shade: 'ключ заливкой',
+  marker: 'ключ «+»',
+  key_column: 'ключ в столбце',
+  answer_line: 'ключ строкой «Ответ»',
+  key_list: 'ключ строкой в конце',
+  key_text: 'ключ из вашего списка',
+  gift: 'ключ из разметки',
+  first_option: 'ключ — первый вариант',
+  manual: 'ключ отмечен вами',
+  none: 'ключа нет',
+};
+
+/** «Ответ выделен жирным в 229 из 236.» (one subject's preview). */
+export function keyShareLine(source: string, keyed: number, total: number): string {
+  const tail = ` в ${keyed} из ${total}.`;
+  switch (source) {
+    case 'bold': return `Ответ выделен жирным${tail}`;
+    case 'underline': return `Ответ подчёркнут${tail}`;
+    case 'italic': return `Ответ выделен курсивом${tail}`;
+    case 'color': return `Ответ выделен цветом${tail}`;
+    case 'highlight': return `Ответ выделен маркером${tail}`;
+    case 'shade': return `Ответ выделен заливкой${tail}`;
+    case 'marker': return `Ответ отмечен знаком «+»${tail}`;
+    case 'key_column': return `Ответ взят из столбца ключа${tail}`;
+    case 'answer_line': return `Ответ взят из строки «Ответ»${tail}`;
+    case 'key_list': return `Ответ взят из ключа в конце файла${tail}`;
+    case 'key_text': return `Ответ взят из вашего ключа${tail}`;
+    case 'gift': return `Ответ взят из разметки файла${tail}`;
+    case 'first_option': return `Верным считается первый вариант${tail}`;
+    case 'manual': return `Ответ отмечен вами${tail}`;
+    default: return 'Ответы в файле не отмечены.';
+  }
+}
+
+/** The importer's error codes (backend/bank_api.py, bank_parse.py) and ours, in the words of the spec. */
+export const PARSE_ERRORS: Record<string, string> = {
+  old_doc: 'Это файл Word старого формата (.doc). Откройте его в Word или Google Документах и сохраните как DOCX.',
+  unsupported: 'Этот формат не прочитать. Подойдут Word (.docx), Excel (.xlsx), текст (.txt) и PDF.',
+  too_many: 'В файле больше 2000 вопросов, а в экзамен помещается 2000. Разделите файл и загрузите части в разные экзамены.',
+  too_much_text: 'В файле больше 2 000 000 знаков. Разделите его на части и загрузите по очереди.',
+  file_too_big: 'Файл больше 15 МБ. Сохраните его без картинок или разделите на части.',
+  empty_file: 'Файл пустой. Выберите другой файл.',
+  unreadable: 'Не удалось прочитать файл. Сохраните его заново в Word как DOCX и загрузите снова.',
+  no_items: 'Не нашли вопросов. Проверьте, что в файле есть пронумерованные вопросы.',
+  auth: 'Войдите в аккаунт и загрузите файл снова.',
+  rate_limited: 'Много файлов за минуту. Подождите минуту и загрузите снова.',
+  network: 'Нет связи с сервером. Проверьте интернет и загрузите файл снова.',
+  unknown: 'Файл не прочитался. Попробуйте ещё раз.',
+};
+
+// ─────────────────────────────────────────────── the problem queue ───────────────────────────────────────────────
+
+export const QUEUE = {
+  title: 'Проверить',
+  position: (at: number, of: number) => `${at} из ${of}`,
+  done: 'Готово',
+  context: (subject: string, label: string, topic: string | null) =>
+    [subject, label ? `№ ${label}` : null, topic].filter(Boolean).join(' · '),
+  pickKey: 'Какой вариант верный? Нажмите его.',
+  pickKeys: 'Отметьте все верные варианты.',
+  saveKeys: 'Сохранить ключ',
+  pickDrop: 'Нажмите вариант, который нужно убрать.',
+  noKey: 'Ответ в файле не отмечен. Отметьте верный, если знаете, или пропустите — вопрос подождёт.',
+  several: (marked: number[]) => (marked.length >= 2 ? `В файле выделены ${marked.length === 2 ? 'два ответа' : 'несколько ответов'}: ${lettersText(marked)}.` : 'В файле выделено несколько ответов.'),
+  bothRight: (n: number) => (n === 2 ? 'Верны оба' : 'Верны все'),
+  keyConflict: 'Ключ списком и выделение в файле не совпадают.',
+  keyInvalid: 'Ключ к этому вопросу не подходит к его вариантам.',
+  keyLetter: 'Буква в ключе читается двояко: русская или латинская.',
+  partial: 'Ответ в файле выделен не целиком.',
+  noOptions: 'У вопроса нет вариантов.',
+  fewOptions: 'Вариант всего один.',
+  manyOptions: 'Вариантов больше восьми — столько в занятии не поместится.',
+  emptyOption: (at: number) => `Пустой вариант ${letter(at)}.`,
+  sameOptions: (same: number[]) => `Варианты ${lettersText(same)} одинаковые.`,
+  duplicate: (a: string, b: string) => `№ ${a} и № ${b} одинаковые.`,
+  duplicateSame: 'Такой же вопрос в файле уже есть.',
+  image: 'Картинка из файла не перенеслась — без неё вопрос не пойдёт в занятия.',
+  tooLong: 'Текст длиннее предела: сохранится его начало.',
+  keepOral: 'Оставить устным',
+  keepOne: 'Оставить один',
+  keepBoth: 'Оставить оба',
+  imageOk: 'Вопрос понятен без картинки',
+  keepAsIs: 'Оставить так',
+  remove: 'Удалить вопрос',
+  skip: 'Пропустить',
+  empty: 'Проверять нечего.',
+  finished: (fixed: number, of: number) => `Проверили ${fixed} из ${of}.`,
+  code: 'Код',
+  shortForms: 'Ответы через точку с запятой',
+  saveForms: 'Сохранить ответы',
+  emptyText: '(пусто)',
+  tagKey: 'ключ',
+  tagMarked: 'выделен',
+  tagDropped: 'убран',
+} as const;
+
+// ─────────────────────────────────────────────── «Ключи» (the author) ───────────────────────────────────────────────
+
+export const KEYS = {
+  title: 'Ключи',
+  docTitle: 'Ключи',
+  noKeyRow: 'Без ключа',
+  noKeyMeta: (n: number) => `${questions(n)} не ${n % 10 === 1 && n % 100 !== 11 ? 'идёт' : 'идут'} в занятия`,
+  doubtsRow: 'Сомневаются в ключе',
+  doubtsOwnRow: 'Отложены вами',
+  manualRow: 'Ключ поставили вы',
+  rowCount: (n: number) => questions(n),
+  allGood: 'У всех вопросов есть ключ, сомнений нет.',
+  check: (n: number) => `Проверить ${questions(n)}`,
+  findTitle: 'Найти вопрос по номеру из файла',
+  findSubject: 'Предмет',
+  findNumber: 'Номер в файле',
+  findPlaceholder: '134',
+  notFound: (subject: string, no: string) => `В «${subject}» нет № ${no}.`,
+  twice: (n: number) => `Такой номер в предмете встречается ${n} раза: показан первый.`,
+  current: (letters: string) => `Ключ сейчас: ${letters}.`,
+  currentShort: (forms: string) => `Ключ сейчас: ${forms}.`,
+  noKeyNow: 'Ключа пока нет.',
+  doubters: (n: number) =>
+    `${n % 10 === 1 && n % 100 !== 11 ? 'Сомневается' : 'Сомневаются'} ${count(n, 'участник', 'участника', 'участников')}.`,
+  doubtOwn: 'Вы отложили этот вопрос: в занятия он не придёт, пока вы не решите.',
+  proposed: (letters: string) => `Предлагают: ${letters}.`,
+  majority: (letters: string) => `Больше половины ответивших впервые выбрали один и тот же неверный вариант: ${letters}.`,
+  notes: 'Комментарии',
+  keep: 'Ключ верный',
+  kept: 'Ключ оставлен — вопрос вернулся в занятия.',
+  changed: (group: boolean) =>
+    group ? 'Ключ изменён. Счёт по этому вопросу начнётся заново, у вас и у группы.' : 'Ключ изменён. Счёт по этому вопросу начнётся заново.',
+  removeAsk: (label: string, group: boolean) =>
+    `Удалить № ${label}? Ответы по нему пропадут${group ? ' у всех участников' : ''}.`,
+  removeYes: 'Удалить',
+  removeNo: 'Отмена',
+  removed: 'Вопрос удалён.',
+  authorOnly: 'Ключи правит автор экзамена. Если ключ кажется неверным, нажмите «Сомневаюсь в ключе» после ответа.',
+  toExam: 'К экзамену',
+  loadFailed: 'Ключи не загрузились. Проверьте связь и обновите страницу.',
+  retry: 'Повторить',
+} as const;
+
+// ─────────────────────────────────────────────── «Настройки» ───────────────────────────────────────────────
+
+export const SETTINGS = {
+  title: 'Настройки',
+  docTitle: 'Настройки экзамена',
+  name: 'Название',
+  date: 'Дата экзамена',
+  dates: 'У предметов разные даты',
+  oneDate: 'Одна дата для всех',
+  oralDate: 'дата — на странице предмета',
+  noDate: 'Без даты — по 15 новых вопросов в день на предмет.',
+  minutes: 'Время в день',
+  minutesMember: 'Время в день — только для вас. Даты ставит автор экзамена.',
+  short: (minutes: number, day: string | null, seen: number, total: number, needed: number) =>
+    `При ${minutes}${NBSP}минутах${day ? ` к ${day}` : ''} вы увидите около ${seen} из ${total}. Чтобы увидеть все, нужно около ${needed}${NBSP}минут.`,
+  shortMax: (day: string | null, seen: number, total: number) =>
+    `Даже при 90${NBSP}минутах${day ? ` к ${day}` : ''} вы увидите около ${seen} из ${total}.`,
+  more: 'Подробнее',
+  window: (from: string, days: number) =>
+    `С ${from} новых вопросов не будет: последние ${count(days, 'день', 'дня', 'дней')} — только знакомые, сначала ошибки.`,
+  subjects: 'Предметы',
+  addSubject: 'Добавить предмет',
+  subjectMore: (title: string) => `Ещё: ${title}`,
+  rename: 'Переименовать',
+  renameDone: 'Готово',
+  renameCancel: 'Отмена',
+  removeSubject: 'Убрать предмет',
+  removeSubjectAsk: (title: string) => `Убрать «${title}»? Его вопросы и ответы по ним пропадут.`,
+  removeSubjectYes: 'Убрать',
+  lastSubject: 'Это единственный предмет. Чтобы убрать его, удалите экзамен.',
+  oralRow: 'устный',
+  group: 'Группа',
+  invite: 'Пригласить группу',
+  joined: (members: number, seats: number | null) =>
+    members === 0
+      ? 'Пока никто не вошёл'
+      : `${members % 10 === 1 && members % 100 !== 11 ? 'Вошёл' : 'Вошли'} ${members}${seats ? ` из ${seats}` : ''}`,
+  who: 'Кто вошёл',
+  remove: 'Удалить экзамен',
+  removeAsk: (title: string, oral: boolean) =>
+    `Удалить «${title}»? Вопросы, ответы и прогресс пропадут.${oral ? ' Устные предметы останутся в «Экзаменах» отдельно.' : ''}`,
+  removeYes: 'Удалить экзамен',
+  removeNo: 'Отмена',
+  hasMembers: (n: number) =>
+    `Сначала уберите участников: в экзамене ${count(n, 'участник', 'участника', 'участников')}. Тогда экзамен можно будет удалить.`,
+  leave: 'Выйти из экзамена',
+  leaveAsk: (title: string) => `Выйти из «${title}»? Ваши ответы сохранятся: если войдёте снова по ссылке, продолжите с того же места.`,
+  leaveYes: 'Выйти',
+  save: 'Сохранить',
+  saving: 'Сохраняем…',
+  saved: 'Сохранено.',
+  nameMissing: 'Назовите экзамен.',
+  loadFailed: 'Настройки не загрузились. Проверьте связь и обновите страницу.',
+  retry: 'Повторить',
+} as const;
+
+// ─────────────────────────────────────────────── «Пригласить группу» ───────────────────────────────────────────────
+
+export const INVITE = {
+  title: 'Пригласить группу',
+  close: 'Закрыть',
+  lede: (subjectCount: number, questionCount: number) =>
+    `По ссылке каждый получит весь экзамен: ${subjectCount > 1 ? `${subjects(subjectCount)}, ` : ''}${questions(questionCount)}. Прогресс у каждого свой, а исправленный вами ключ придёт всем.`,
+  noKey: (n: number) =>
+    n % 10 === 1 && n % 100 !== 11
+      ? `${questions(n)} пока без ключа: участникам он придёт, когда вы отметите ответ.`
+      : `${questions(n)} пока без ключа: участникам они придут, когда вы отметите ответ.`,
+  consent: 'Делюсь с группой вопросами, ключами из файлов, текстом моих лекций и пунктами ответа. Мои ответы и прогресс никто не увидит.',
+  create: 'Создать ссылку',
+  creating: 'Создаём ссылку…',
+  linkLabel: 'Ссылка для группы',
+  copy: 'Скопировать',
+  copied: 'Скопировано',
+  textLabel: 'Текст для беседы группы',
+  copyText: 'Скопировать текст',
+  message: (title: string, subjectCount: number, questionCount: number, url: string) =>
+    `Готовимся вместе в Meldy: «${title}», ${subjectCount > 1 ? `${subjects(subjectCount)}, ` : ''}${questions(questionCount)}. Ссылка: ${url}`,
+  once: 'Meldy хранит не саму ссылку, а её отпечаток. Ссылка останется на этом устройстве; потеряете — создайте новую, а эту закройте.',
+  onceLost: 'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.',
+  openElsewhere: 'Ссылка открыта, но сама она осталась на устройстве, где её создали.',
+  newLink: 'Создать новую ссылку',
+  joined: (members: number, seats: number) =>
+    members === 0 ? 'Пока никто не вошёл' : `${members % 10 === 1 && members % 100 !== 11 ? 'Вошёл' : 'Вошли'} ${members} из ${seats}`,
+  who: 'Кто вошёл',
+  revoke: 'Закрыть ссылку',
+  revokeAsk: 'По ней больше никто не войдёт. Кто уже вошёл, останется в экзамене.',
+  revokeYes: 'Да, закрыть',
+  revokeNo: 'Отмена',
+  revoked: 'Ссылка закрыта.',
+  copiedLink: 'Ссылка скопирована.',
+  copiedText: 'Текст скопирован.',
+  copyFailed: 'Не получилось скопировать: выделите текст и скопируйте его сами.',
+  made: 'Ссылка создана. Отправьте её группе.',
+  errors: {
+    MC007: 'Открытых ссылок может быть до 10. Закройте одну из старых.',
+    MC008: 'Отметьте согласие: в экзамене есть устные предметы.',
+    '22023': 'Пока делиться нечем: ни у одного вопроса нет ключа.',
+    network: 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+  } as Record<string, string>,
+  failed: 'Ссылка не создалась. Попробуйте ещё раз.',
+} as const;
+
+export const MEMBERS = {
+  title: 'Кто вошёл',
+  empty: 'Пока никто не вошёл.',
+  since: (day: string) => `с ${day}`,
+  remove: 'Убрать',
+  removeAsk: (name: string) => `Убрать из экзамена: ${name}? Экзамен у участника пропадёт, его ответы останутся у него.`,
+  removeYes: 'Убрать',
+  removeNo: 'Отмена',
+  removedTitle: 'Убраны',
+  restore: 'Вернуть',
+  removeAll: 'Убрать всех',
+  removeAllAsk: (n: number) => `Убрать всех: ${count(n, 'участника', 'участников', 'участников')}? Экзамен у них пропадёт, ответы останутся у них.`,
+  noName: 'Без имени',
+  loadFailed: 'Список не загрузился. Попробуйте ещё раз.',
+  retry: 'Повторить',
+} as const;
+
+// ─────────────────────────────────────────────── /g/<код> (no «копия» here: spec §16 #52) ───────────────────────────────
+
+export const JOIN = {
+  docTitle: 'Приглашение к экзамену',
+  title: (title: string) => `Вас пригласили готовиться к экзамену «${title}» в Meldy`,
+  meta: (subjectCount: number, questionCount: number, day: string | null) =>
+    [
+      [subjectCount > 1 ? subjects(subjectCount) : null, questionCount > 0 ? questions(questionCount) : null].filter(Boolean).join(', '),
+      day ? `экзамен ${day}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  lede: 'Вопросы и ключи — из файлов автора, его исправления придут и вам. Ваши ответы и прогресс не видит никто. Автор увидит только ваше имя среди вошедших.',
+  oral: 'С устными предметами придут текст лекций автора и пункты ответа.',
+  google: 'Войти через Google',
+  or: 'или',
+  mail: 'Войти по почте',
+  mailHere: 'Войти по почте здесь',
+  register: 'Создать аккаунт',
+  opening: 'Открываем экзамен…',
+  loading: 'Открываем приглашение…',
+  failedTitle: 'Приглашение не открылось',
+  own: 'Это ваша ссылка',
+  ownLede: 'Однокурсники, которые по ней войдут, получат весь экзамен. Их ответов и прогресса вы не увидите, только имена.',
+  openExam: 'Открыть экзамен',
+  unreadable: 'Ссылка не распознана. Проверьте, что она скопирована целиком, или попросите прислать её ещё раз.',
+  status: {
+    not_found: 'Ссылка не найдена. Проверьте, что она скопирована целиком.',
+    revoked: 'Автор закрыл эту ссылку. Попросите у него новую.',
+    expired: 'Срок действия ссылки закончился. Попросите у автора новую.',
+    full: 'По этой ссылке мест больше нет: все места заняты.',
+    removed: 'Автор убрал вас из этого экзамена. Если это ошибка, попросите его вернуть вас.',
+  } as Record<string, string>,
+  errors: {
+    MC001: 'Ссылка не найдена. Проверьте, что она скопирована целиком.',
+    MC002: 'Автор закрыл эту ссылку. Попросите у него новую.',
+    MC003: 'Срок действия ссылки закончился. Попросите у автора новую.',
+    MC004: 'По этой ссылке мест больше нет: все места заняты.',
+    MC005: 'Это ваша ссылка: экзамен уже ваш.',
+    MC006: 'Автор убрал вас из этого экзамена. Если это ошибка, попросите его вернуть вас.',
+    network: 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+  } as Record<string, string>,
+  failed: 'Не получилось открыть экзамен. Попробуйте ещё раз.',
+  retry: 'Попробовать ещё раз',
+  today: 'На «Сегодня»',
+  example: 'Попробовать на примере',
+  what: 'Что такое Meldy',
+} as const;
+
+// ─────────────────────────────────────────────── errors of the container functions ───────────────────────────────
+
+/** SQLSTATEs of spec §8 in the words of these screens (the API layer's own text is the fallback). */
+export const RPC_ERRORS: Record<string, string> = {
+  MC007: 'В экзамене помещается 20 предметов и 2000 вопросов с вариантами.',
+  MC009: 'В экзамене есть участники. Сначала уберите их — тогда экзамен можно будет удалить.',
+  '42501': 'Это может изменить только автор экзамена.',
+  P0002: 'Экзамен не найден: возможно, его уже удалили.',
+  '22023': 'Сервер не принял данные. Обновите страницу и попробуйте ещё раз.',
+  '28000': 'Войдите в аккаунт и попробуйте ещё раз.',
+  network: 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+  unavailable: 'Экзамены с предметами пока недоступны на сервере.',
+};
+
+/** The Russian line for an error of the container API: ours by code, else the API's own message. */
+export function errorText(error: unknown, table: Record<string, string> = RPC_ERRORS, fallback = 'Не получилось. Попробуйте ещё раз.'): string {
+  const code = typeof (error as { code?: unknown } | null)?.code === 'string' ? (error as { code: string }).code : '';
+  if (code && table[code]) return table[code];
+  if (code && RPC_ERRORS[code]) return RPC_ERRORS[code];
+  const message = error instanceof Error ? error.message.trim() : '';
+  // An English text from a layer that did not translate it is never shown.
+  return message && /[а-яё]/i.test(message) ? message : fallback;
+}
