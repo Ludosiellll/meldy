@@ -438,6 +438,27 @@ test('two ticks at once → one post; a timeout after the send → unknown, neve
   assert.deepEqual([k.fg.post(POST)!.status, k.fg.post(POST)!.messageId], ['open', 1000]);
 });
 
+test('the database fails right after the send: the row stays in sending → unknown, never a second post; a press gives the id back', async () => {
+  const h = groupHarness();
+  h.fdb.fail('bot_group_posted', new DbError('bot_group_posted', 503, ''));
+  const stats = (await posted(h)).stats;
+  assert.equal(stats.posts_error, 1, 'the step failed after the send');
+  assert.equal(delivered(h, GROUP).length, 1);
+  assert.equal(h.fg.post(POST)!.status, 'sending');
+  for (const later of [11, 40]) {
+    h.set(AT_1201 + later * MIN);
+    await h.tick();
+  }
+  assert.equal(h.fg.post(POST)!.status, 'unknown');
+  assert.equal(h.tg.of('sendMessage').length, 1, 'never sent again');
+  const reply = await tap(h, keyButton(DHCP), MEMBER.tg, { messageId: 1000 });
+  assert.equal(reply.text, 'Верно.');
+  assert.deepEqual([h.fg.post(POST)!.status, h.fg.post(POST)!.messageId], ['open', 1000]);
+  h.advance(MIN);
+  await h.tick();
+  assert.match(words(edits(h).at(-1)!.text), /\n\nОтветили 1\.$/, 'the counter edits it after all');
+});
+
 test('429 → retry in 10 minutes and the step stops; 403 → the group is unbound; migrate_to_chat_id → it moves and posts there', async () => {
   const h = groupHarness();
   h.tg.fail('sendMessage', { kind: '429', retryAfter: 9 });

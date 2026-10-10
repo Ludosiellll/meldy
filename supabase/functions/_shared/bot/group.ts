@@ -618,12 +618,10 @@ export function createGroup(): GroupPort {
       return 'ok';
     }
     const out = g4(row.title, row.containerId, ctx.site);
+    let sent: TgMessage;
     try {
       await pace();
-      const sent = await send(ctx.tg, { chatId: row.chatId, text: out.text, keyboard: out.keyboard });
-      await ctx.db.deliveryDone(row.deliveryId, 'sent', sent.message_id);
-      add(stats, 'g4');
-      return 'ok';
+      sent = await send(ctx.tg, { chatId: row.chatId, text: out.text, keyboard: out.keyboard });
     } catch (error) {
       if (isRateLimited(error)) {
         // Telegram did nothing: back to `claimed` for a later tick (or closed by the database when out of tries).
@@ -641,6 +639,10 @@ export function createGroup(): GroupPort {
       add(stats, 'g4_unknown'); // a timeout or a 5xx: left in sending, it becomes unknown
       return 'ok';
     }
+    // Out of the try: if the database fails here, the row stays in sending and becomes unknown — never sent twice.
+    await ctx.db.deliveryDone(row.deliveryId, 'sent', sent.message_id);
+    add(stats, 'g4');
+    return 'ok';
   }
 
   /** One post (CONTRACT_T7 step 2): pick → order → sending → sendMessage → posted. 'stop' on a 429. */
@@ -666,16 +668,14 @@ export function createGroup(): GroupPort {
       return 'ok';
     }
     const out = postOut(view, ctx.botUsername);
+    let sent: TgMessage;
     try {
       await pace();
-      const sent = await send(ctx.tg, { chatId: view.chatId, text: out.text, keyboard: out.keyboard });
-      await gdb.posted(row.postId, 'sent', sent.message_id);
-      add(stats, 'posted');
-      return 'ok';
+      sent = await send(ctx.tg, { chatId: view.chatId, text: out.text, keyboard: out.keyboard });
     } catch (error) {
       if (error instanceof TelegramError && error.migrateTo !== null) {
         // The group became a supergroup: nothing went out. It moves; the post is offered again in 10 minutes.
-        await gdb.event(view.chatId, 'migrated', error.migrateTo);
+        await gdb.event(view.chatId, 'migrated', error.migrateTo).catch(() => undefined);
         await gdb.posted(row.postId, 'retry', null, 'migrated');
         add(stats, 'migrated');
         return 'ok';
@@ -696,6 +696,11 @@ export function createGroup(): GroupPort {
       add(stats, 'unknown');
       return 'ok';
     }
+    // Out of the try: if the database fails here, the row stays in sending and becomes unknown — never sent twice
+    // (the first press gives the message id back).
+    await gdb.posted(row.postId, 'sent', sent.message_id);
+    add(stats, 'posted');
+    return 'ok';
   }
 
   const port: GroupPort = {
@@ -768,14 +773,13 @@ export function createGroup(): GroupPort {
           add(stats, 'left');
           continue; // leased: it comes back when the lease ends
         }
+        let result: 'ok' | 'same' | 'gone';
         try {
           await tools.pace();
           // No keyboard: the edit takes the buttons off. A deleted question: only the keyboard comes off.
-          const result = row.view
+          result = row.view
             ? await edit(ctx.tg, { chatId: row.chatId, messageId: row.messageId, text: postOut(row.view, ctx.botUsername, { answered: row.answered, closed: true }).text, keyboard: null })
             : await editKeyboard(ctx.tg, { chatId: row.chatId, messageId: row.messageId, keyboard: null });
-          await gdb.closed(row.postId, result === 'gone' ? 'gone' : 'closed');
-          add(stats, result === 'gone' ? 'gone' : 'closed');
         } catch (error) {
           if (refused(error)) {
             await gdb.closed(row.postId, 'failed').catch(() => undefined);
@@ -788,7 +792,10 @@ export function createGroup(): GroupPort {
             break; // 429 stops the step
           }
           add(stats, 'retry');
+          continue;
         }
+        await gdb.closed(row.postId, result === 'gone' ? 'gone' : 'closed');
+        add(stats, result === 'gone' ? 'gone' : 'closed');
       }
       return stats;
     },
@@ -824,12 +831,11 @@ export function createGroup(): GroupPort {
           continue;
         }
         const out = postOut(row.view, ctx.botUsername, { answered: row.answered });
+        let result: 'ok' | 'same' | 'gone';
         try {
           await tools.pace();
           // The same keyboard again: an edit without it would take the buttons off.
-          const result = await edit(ctx.tg, { chatId: row.chatId, messageId: row.messageId, text: out.text, keyboard: out.keyboard });
-          await gdb.counterDone(row.postId, row.answered, result === 'gone' ? 'gone' : 'shown');
-          add(stats, result === 'gone' ? 'gone' : 'shown');
+          result = await edit(ctx.tg, { chatId: row.chatId, messageId: row.messageId, text: out.text, keyboard: out.keyboard });
         } catch (error) {
           await gdb.counterDone(row.postId, row.answered, 'failed').catch(() => undefined);
           if (isRateLimited(error)) {
@@ -837,7 +843,10 @@ export function createGroup(): GroupPort {
             break;
           }
           add(stats, 'failed');
+          continue;
         }
+        await gdb.counterDone(row.postId, row.answered, result === 'gone' ? 'gone' : 'shown');
+        add(stats, result === 'gone' ? 'gone' : 'shown');
       }
       return stats;
     },
