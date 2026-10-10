@@ -278,10 +278,13 @@ def _words_line(raw: str) -> bool:
     return bool(letters) and sum(1 for char in letters if "а" <= char.lower() <= "я" or char in "ёЁ") * 2 > len(letters)
 
 
+_ASKS_RE = re.compile(r"[^\W\d_]\?\s*$")  # конец вопроса: слово и «?» («ls?», «Where is it?»), но не «echo $?»
+
+
 def sql_or_shell_line(raw: str) -> bool:
     """Строка — узнаваемая строка SQL или оболочки (команда, приглашение, оператор), а не вопрос и не русские слова."""
     text = raw.strip()
-    if not text or text.endswith("?") or _words_line(text):
+    if not text or _ASKS_RE.search(text) or _words_line(text):
         return False
     return bool(SQL_LINE_RE.match(text) or SHELL_LINE_RE.match(text))
 

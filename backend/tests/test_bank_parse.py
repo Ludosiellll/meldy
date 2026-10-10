@@ -1240,7 +1240,7 @@ def test_no_line_of_a_question_without_code_reads_as_sql_or_shell():
     "select name from students where id = 1", "uname -r", "ps aux | grep nginx", "kill -9 2741", "$ ls -l report.txt",
     "#!/bin/bash", "@echo off", "C:\\>ping 8.8.8.8", "chmod 755 deploy.sh", "sudo chown -R www-data:www-data /var/www/site",
     'grep -q "ERROR" app.log && echo "Есть ошибки" || echo "Ошибок нет"', "docker ps -a", "history | tail -5",
-    "Get-Process | Where-Object { $_.CPU -gt 100 }",
+    "Get-Process | Where-Object { $_.CPU -gt 100 }", "echo $?",
 ])
 def test_sql_and_shell_lines_are_code(line):
     assert bank_parse.sql_or_shell_line(line)
