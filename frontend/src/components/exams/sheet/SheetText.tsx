@@ -1,7 +1,14 @@
 import { Fragment, useMemo } from 'react';
 import { sample, seedFrom, tapered, type Pt } from '../../marks';
+import { gluedArrows } from './copy';
+
+export { gluedArrows };
 
 /**
+ * The handwritten line of the paper pictures that still draw one — the landing's hero sheet and the films'
+ * stage paper (components/home/HeroSheet, components/film/StageSheet); the exam page's sheet itself is
+ * plain Onest since 2026-10-10 (notes: 40_Decisions/2026-10-10_cheat-sheet-native-look).
+ *
  * A handwritten line with its arrows (spec 5.2). Caveat has no ↑ ↓ → ← ⇒, and a system font that
  * would stand in looks typed, so each arrow is drawn in ink with the strokes of the marks kit
  * (sample + tapered: the same hand as every pencil mark), on the text's baseline and at the size of
@@ -80,14 +87,6 @@ export function SheetArrow({ direction, seed }: { direction: Direction; seed: nu
       <span className="sr-only">{direction}</span>
     </span>
   );
-}
-
-/**
- * The line's words with no arrow alone at the start of a row: ↑ and ↓ hold on to the word before
- * them, → ⇒ ← to the word after them (a no-break space instead of the space).
- */
-export function gluedArrows(text: string): string {
-  return text.replace(/[ \t]+([↑↓])/g, '\u00a0$1').replace(/([→⇒←])[ \t]+/g, '$1\u00a0');
 }
 
 /**

@@ -2429,7 +2429,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(screen.getByRole('menuitem', { name: 'Тянуть билет из всех вопросов' })).toHaveAttribute('href', '/exams/exam-1/draw');
   });
 
-  it('a phone’s «Шпаргалка»: one block above the paper — the count, the switch, the last answer, the history; the rest behind «Как стираются строки»; the «⋯» at the top', async () => {
+  it('a phone’s «Шпаргалка»: the count and the map at the top of the sheet’s card, the switches and the links right under it; the rest behind «Как стираются строки»; the «⋯» at the top', async () => {
     setPhone();
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     mocks.fetchSheet.mockResolvedValue({ ...sheetOf(forty(), [1]), unwritable: 1 });
@@ -2438,15 +2438,24 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     renderDetail();
     await opened();
     const paper = await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
-    const block = screen.getByRole('region', { name: 'Шпаргалка: сколько осталось' });
-    await waitFor(() => expect(block.querySelector('.cs-sum[data-variant="phone"]')).not.toBeNull());
-    expect(block.compareDocumentPosition(paper) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await waitFor(() => expect(paper.querySelector('.cs-top .cs-sum[data-variant="phone"]')).not.toBeNull());
+    const block = paper.querySelector('.cs-top .cs-sum[data-variant="phone"]') as HTMLElement;
+    // The card starts with them, before its first question: the list starts high. No block between the tabs and the card.
+    expect(block.compareDocumentPosition(paper.querySelector('.cs-q') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Шпаргалка: сколько осталось' })).toBeNull();
     expect(plain(block.querySelector('.cs-count .sr-only')?.textContent)).toBe('2 строки осталось из 2');
-    expect(within(block).getByRole('switch', { name: 'Спрятать строки' })).toBeInTheDocument();
+    // The map of the lines under the count, compact: a square per line, one named once.
+    expect(block.querySelector('.cs-mapbox')).toHaveAttribute('data-compact', '');
+    expect([...block.querySelectorAll<HTMLElement>('.cs-sq')].map((square) => square.dataset.s)).toEqual(['half', 'left']);
+    // The switches and the links: right under the card.
+    const tools = document.querySelector('.cs-sum[data-variant="phone-tools"]') as HTMLElement;
+    expect(paper.compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(block).queryAllByRole('switch')).toHaveLength(0);
+    expect(within(tools).getByRole('switch', { name: 'Спрятать строки' })).toBeInTheDocument();
     // Nothing is erased yet: the second switch would hide nothing, so it is not offered.
-    expect(within(block).queryByRole('switch', { name: 'Скрыть строки, стёртые совсем' })).toBeNull();
-    expect(within(block).getByRole('button', { name: 'Показать последний ответ' })).toHaveTextContent('Последний ответ');
-    expect(within(block).getByRole('button', { name: 'История шпаргалки' })).toHaveTextContent('История');
+    expect(within(tools).queryByRole('switch', { name: 'Скрыть строки, стёртые совсем' })).toBeNull();
+    expect(within(tools).getByRole('button', { name: 'Показать последний ответ' })).toHaveTextContent('Последний ответ');
+    expect(within(tools).getByRole('button', { name: 'История шпаргалки' })).toHaveTextContent('История');
     // The rule, what the count means and the questions without points: behind «Как стираются строки», a muted link after
     // the count's words (as «Как считается» on «Вопросы»).
     expect(block.querySelector('.cs-rule')).toBeNull();
@@ -2469,9 +2478,10 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     const menu = await screen.findByRole('button', { name: 'Ещё: лист экзамена' });
     expect(menu.closest('.ex-titlerow')).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Ещё: лист экзамена' })).toHaveLength(1);
-    // The self-test from the block.
-    fireEvent.click(within(block).getByRole('switch', { name: 'Спрятать строки' }));
-    expect(within(block).getByRole('switch', { name: 'Спрятать строки' })).toHaveAttribute('aria-checked', 'true');
+    // The self-test from under the card.
+    fireEvent.click(within(tools).getByRole('switch', { name: 'Спрятать строки' }));
+    expect(within(tools).getByRole('switch', { name: 'Спрятать строки' })).toHaveAttribute('aria-checked', 'true');
+    expect(paper.querySelectorAll('.cs-line[data-cover]')).toHaveLength(2);
   });
 
   it('a phone’s sheet with no lines yet still says which questions could not be written (no one block there to say it)', async () => {

@@ -24,7 +24,6 @@ import { KIND_LABELS } from '../../lib/exams/format';
 import { splitFragmentHeading } from '../../utils/fragmentText';
 import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, answerableQuestions, exampleExamQuestion } from '../../data/example';
 import { parsePeakFlags, type PeakFlag } from '../exams/peak';
-import { loadSheetFont } from '../exams/sheet/sheetFont';
 import { useSheetView, type SheetLinks } from '../exams/sheet/useSheetPage';
 import { useAuth } from '../../hooks/useAuth';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -314,8 +313,6 @@ export default function ExampleSheet() {
           aria-controls="tx-view-panel"
           tabIndex={view === item ? 0 : -1}
           onClick={() => chooseView(item)}
-          onMouseEnter={item === 'sheet' ? () => void loadSheetFont() : undefined}
-          onFocus={item === 'sheet' ? () => void loadSheetFont() : undefined}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
             event.preventDefault();
@@ -338,7 +335,7 @@ export default function ExampleSheet() {
   const sheetCaption = (
     <>
       <p className="tx-sheet-cap">
-        {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. ')}
+        {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — с пометкой «не назван». ')}
         {glue(`Ответьте на вопрос${NBSP}5 — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.`)}
         {touched ? (
           <>
@@ -386,7 +383,8 @@ export default function ExampleSheet() {
 
         {!frame.side ? <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div> : null}
 
-        {!frame.side ? (
+        {/* A phone's sheet has its count and map at the top of its card: here only what comes before the card. */}
+        {!frame.side && (!onSheet || sheetPage.top) ? (
           <section className="ex-col" aria-label={onSheet ? 'Шпаргалка: сколько осталось' : 'Сводка'}>
             {onSheet ? sheetPage.top : summary}
           </section>

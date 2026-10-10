@@ -1,26 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-const font = vi.hoisted(() => {
-  const state = { settled: false, resolve: () => undefined as void };
-  const ready = new Promise<void>((resolve) => {
-    state.resolve = () => {
-      state.settled = true;
-      resolve();
-    };
-  });
-  return { state, ready };
-});
+const font = vi.hoisted(() => ({
+  // A handwriting that never arrives: the sheet must not wait for it.
+  load: vi.fn(() => new Promise<void>(() => undefined)),
+}));
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: null, session: null, loading: false, signOut: vi.fn() }) }));
 vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: vi.fn(async () => true), alert: vi.fn() }) }));
-// A browser where the handwriting is still on its way.
 vi.mock('../components/exams/sheet/sheetFont', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/exams/sheet/sheetFont')>()),
-  isSheetFontSettled: () => font.state.settled,
-  loadSheetFont: () => font.ready,
+  isSheetFontSettled: () => false,
+  loadSheetFont: font.load,
 }));
 
 import TryExample from './TryExample';
@@ -30,8 +23,8 @@ afterEach(() => {
   window.sessionStorage.clear();
 });
 
-describe('the sheet waits for its handwriting', () => {
-  it('lays the paper out once, in the handwriting: until the font is there, «Загружаем шпаргалку…»', async () => {
+describe('the sheet in the app’s own type (2026-10-10_cheat-sheet-native-look)', () => {
+  it('lays the card out at once: no handwriting to load, nothing to wait for', () => {
     render(
       <MemoryRouter initialEntries={['/try']}>
         <Routes>
@@ -39,15 +32,11 @@ describe('the sheet waits for its handwriting', () => {
         </Routes>
       </MemoryRouter>,
     );
-    // The count is known already; the paper (whose lines would wrap anew under a late font) waits.
-    expect(screen.getByText('Загружаем шпаргалку…')).toBeInTheDocument();
-    expect(document.querySelector('.cs-paper')).toBeNull();
-    expect(document.querySelector('.cs-big')?.textContent).toBe('47');
-    await act(async () => {
-      font.state.resolve();
-      await font.ready;
-    });
-    await waitFor(() => expect(document.querySelector('.cs-paper')).not.toBeNull());
+    expect(document.querySelector('.cs-paper')).not.toBeNull();
+    expect(document.querySelectorAll('.cs-line').length).toBeGreaterThan(0);
     expect(screen.queryByText('Загружаем шпаргалку…')).toBeNull();
+    expect(document.querySelector('.cs-big')?.textContent).toBe('47');
+    // «Meldy Hand» is not asked for, not even on the way to the sheet.
+    expect(font.load).not.toHaveBeenCalled();
   });
 });

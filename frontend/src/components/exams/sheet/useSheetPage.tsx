@@ -20,17 +20,18 @@ import { countBucket, track } from '../../../lib/telemetry';
 import { glue } from '../sheetModel';
 import type { PeakFlag } from '../peak';
 import type { FrameBox } from '../useFrame';
-import CheatSheet, { topLineBottom, writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
+import CheatSheet, { isCoverable, topLineBottom, writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
 import { historyResult, LinePanel, SheetSummaryCard, SheetWriteCard, unwritableLine, useUnitsLeft } from './SheetColumn';
 import { changeNote, changeSentence, counterLabel } from './copy';
-import { isSheetFontSettled, loadSheetFont } from './sheetFont';
+import { createDrawnStore, SheetMap } from './SheetMap';
 import { useCheatSheet, type CheatSheetData } from './useCheatSheet';
 
 /**
  * The cheat sheet on the exam page (spec 4.1–4.2, 6.6, 7): one hook that owns the sheet's state and
- * hands the page its parts — the paper for the left column, Meldy's column (or, on a phone, the block
- * above the paper and the bottom sheet of a line). It also is the one controller of the after-answer
- * flag in this view: the page's own show of «Вопросы» does not run while the sheet is on screen.
+ * hands the page its parts — the sheet's card for the left column, Meldy's column with the count and the
+ * map of lines (or, on a phone, the count and the map at the top of the card, and the bottom sheet of a
+ * line). It also is the one controller of the after-answer flag in this view: the page's own show of
+ * «Вопросы» does not run while the sheet is on screen.
  */
 
 const PEEK_MS = 6000;
@@ -123,21 +124,22 @@ export interface SheetPageInput {
   /** What «Скрыть строки, стёртые совсем» says while nothing is erased (the example names the answer that erases). */
   onlyLeftNone?: string | null;
   /**
-   * A phone on the exam page (10_Project/Phone_Declutter_2026-10-08): one summary block above the paper — the count,
-   * the switches, the last answer and the history, the rest behind «Подробнее» — instead of the count above the paper
-   * and the cards under it. The paper itself is drawn as before.
+   * A phone on the exam page (10_Project/Phone_Declutter_2026-10-08): one summary — the count and the map at the top of
+   * the sheet's card with the rest behind «Как стираются строки», the switches, the last answer and the history right
+   * under the card — instead of the count above the card and three cards under it.
    */
   oneBlock?: boolean;
 }
 
 export interface SheetPage {
   data: CheatSheetData;
+  /** The sheet's card (on phones and tablets with the count and the map of lines at its top). */
   paper: ReactNode;
   /** Meldy's column (≥ 1024 px). */
   column: ReactNode;
-  /** Phones and tablets: the counter and the one switch above the paper, and writing. */
+  /** Phones and tablets: writing, above the card (and the loading word before the card is there). */
   top: ReactNode;
-  /** Phones and tablets: the share, the self-test, the last answer and the history, under the paper. */
+  /** Phones and tablets: the share, the self-test, the last answer and the history, under the card. */
   after: ReactNode;
   /** Phones and tablets: the bottom sheet of a line, and the end of the after-answer show. */
   overlay: ReactNode;
@@ -241,26 +243,15 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const replaySeq = useRef(0);
   const viewTracked = useRef(false);
 
-  // The lines' states are known once the journal has been read: until then no paper, no counter.
+  // The lines' states are known once the journal has been read: until then no card, no counter. The card is in
+  // the app's own font (Onest, there with the page): it is laid out at once, with nothing to wait for.
   const ready = data.status === 'ready' && data.eventsState === 'ready';
   const shown = data.status === 'ready' && data.journalRead;
-  // The paper is laid out once, in its own handwriting: with a fallback font first its lines would
-  // wrap anew when the handwriting comes, and every question below would jump (layout shift). The
-  // font loads while the sheet and the journal are read; its wait is at most 1.5 s.
-  const [fontReady, setFontReady] = useState(isSheetFontSettled);
-  useEffect(() => {
-    if (!active || fontReady) return undefined;
-    let alive = true;
-    void loadSheetFont().then(() => {
-      if (alive) setFontReady(true);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [active, fontReady]);
-  const paperShown = shown && fontReady;
+  const paperShown = shown;
   const sheet = data.sheet;
   const side = input.side;
+  // What the card draws during a show, for the map of lines (it follows square by square).
+  const [drawn] = useState(createDrawnStore);
 
   // «Только то, что осталось» turns on by itself when half the lines are erased or the exam is today or
   // tomorrow. Decided once a visit, when the sheet is first there: an answer that crosses the half
@@ -501,10 +492,9 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const onLine = useCallback(
     (line: SheetLine) => {
       if (history) setHistory(null);
-      const readable: ReadonlySet<LineState> = new Set<LineState>(['fresh', 'missed', 'returned']);
-      // The self-test: a tap opens a covered line. Its words were readable anyway (the switch only hid
-      // them), so opening one is not a peek and does not keep it from erasing; a rubbed line is never covered.
-      if (mode.cover && readable.has(line.status.state) && !opened.has(line.key)) {
+      // The self-test: a tap opens a covered line. Its words were on the card anyway (the switch only hid
+      // them), so opening one is not a peek and does not keep it from erasing; an erased line is never covered.
+      if (mode.cover && isCoverable(line.status.state) && !opened.has(line.key)) {
         setOpened((current) => new Set(current).add(line.key));
         return;
       }
@@ -586,9 +576,10 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const oneBlock = Boolean(input.oneBlock) && !side;
   // The phone's block says the questions whose points could not be written behind «Подробнее» (not a card of their own).
   const unwritableMore = oneBlock && data.unwritable > 0 ? <p className="ex-fine cs-unwritable">{glue(unwritableLine(data.unwritable))}</p> : null;
-  const summary = (variant: 'full' | 'top' | 'after' | 'phone') => (
+  const summary = (variant: 'full' | 'top' | 'after' | 'phone' | 'phone-tools') => (
     <SheetSummaryCard
-      id={variant === 'top' ? undefined : `cs-sum-${examId}`}
+      map={variant === 'full' || variant === 'top' || variant === 'phone' ? <SheetMap blocks={blocks} drawn={drawn} compact={variant !== 'full'} /> : undefined}
+      id={variant === 'top' || variant === 'phone' ? undefined : `cs-sum-${examId}`}
       counts={shownCounts}
       left={shownCounts.left}
       roll={Boolean(replay) && !replayLive}
@@ -699,26 +690,20 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     );
   }
 
-  // A phone shows the paper on the first screen: above it only the count and «Только то, что осталось»
-  // (and the first write); what the count means, the last answer, the self-test and the rest come under it.
-  // Nothing to count and nothing to write (every question in no lecture): no empty block between the tabs and the paper.
+  // A phone shows the list on the first screen: the count and the map of lines (on /try with «Скрыть строки, стёртые
+  // совсем» beside the count; on the exam page with «Как стираются строки» and the last answer's change) stand at the
+  // top of the card, compact; above the card only the first write; the switches, the last answer, the history and the
+  // rest come under the card. Nothing to count and nothing to write (every question in no lecture): no empty block
+  // between the tabs and the card.
   const topWrites = firstWrite || writing || input.unmapped;
-  const top = shown ? (
-    counts.total > 0 || topWrites ? (
-      <>
-        {counts.total > 0 && summary(oneBlock ? 'phone' : 'top')}
-        {topWrites && writeCard(true)}
-      </>
-    ) : null
-  ) : (
-    column
-  );
-  // Under the paper: shown with the paper, so the paper's arrival does not push it down under the eye.
+  const head = !side && counts.total > 0 ? summary(oneBlock ? 'phone' : 'top') : null;
+  const top = shown ? (topWrites ? writeCard(true) : null) : column;
+  // Under the card: shown with the card, so the card's arrival does not push it down under the eye.
   const after =
     paperShown && (counts.total > 0 || !firstWrite) ? (
       <>
         {!(firstWrite || writing || input.unmapped) && writeCard(true)}
-        {counts.total > 0 && !oneBlock && summary('after')}
+        {counts.total > 0 && summary(oneBlock ? 'phone-tools' : 'after')}
       </>
     ) : null;
 
@@ -803,6 +788,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       questionPanelId={input.questionPanelId}
       onWaiting={onWaiting}
       skip={counts.total > 0 && !oneBlock ? skip : null}
+      head={head}
+      drawn={drawn}
       onLine={onLine}
       onQuestion={onQuestion}
       onZoomPick={onZoomPick}
