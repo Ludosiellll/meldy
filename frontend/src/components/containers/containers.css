@@ -1,0 +1,415 @@
+/* The exam (container) pages: the exam page, a subject's page, their sheets and the «Сегодня» card's extras, in the
+   Meldy language (10_Project/Design_Language_2026-10-04) and the phone rules of release 34
+   (40_Decisions/2026-10-08_phone-declutter): today's step first in a white status card with the screen's one yellow
+   line, then the figure as a large number with a two-line label, rows of one card, one blue pill (at the bottom on a
+   phone and a tablet, in the card on a computer). Only the existing tokens (index.css, styles/paper.css); every rule
+   is scoped under .ct-*. */
+
+.ct-page {
+  --ct-card: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  --ct-wrong-bg: color-mix(in srgb, var(--m-pink) 26%, var(--sf-surface));
+  --ct-right-bg: var(--m-green-soft);
+}
+.dark .ct-page { --ct-card: var(--m-card-shadow); }
+
+/* ---------------------------------------------------------------- loading, errors */
+.ct-page .ct-wait { padding-top: 56px; margin: 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); }
+.ct-page .ct-error { max-width: 560px; padding-top: 56px; }
+.ct-page .ct-error h1 { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.028em; }
+.ct-page .ct-error p { margin: 10px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- header */
+.ct-head { padding-top: 32px; }
+.ct-crumb { display: flex; margin: 0 0 18px; }
+.ct-crumb a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 0 18px 0 12px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  transition: background-color .45s var(--m-ease);
+}
+.ct-crumb a:hover { background: var(--sf-surface-soft); }
+.ct-crumb svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 1023px) {
+  .ct-crumb { display: none; }
+}
+.ct-titlerow { display: flex; align-items: flex-start; gap: 12px; }
+.ct-h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: clamp(40px, 3.6vw, 56px);
+  line-height: 1.04;
+  font-weight: 500;
+  letter-spacing: -.04em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+}
+.ct-meta { margin: 10px 0 0; font-size: 17px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+/* The computer's link row: white pills (as today's exam page), the danger one quiet at the end. */
+.ct-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.ct-links .ct-pill-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color .45s var(--m-ease);
+}
+.ct-links .ct-pill-link:hover { background: var(--sf-surface-soft); }
+.ct-links .ct-pill-link:focus-visible { border-radius: 999px; }
+.ct-links .ct-quiet { margin-left: 6px; }
+/* The phone's «⋯» beside the heading: a white circle with a ring. */
+.ct-more { flex: none; margin-top: 2px; }
+.ct-more .mm-round.sf-more {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+}
+.ct-more .mm-round.sf-more:hover,
+.ct-more .mm-round.sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); }
+.ct-more .mm-round.sf-more svg { width: 22px; height: 22px; }
+.ct-more .sf-menu.mm-menu { top: calc(100% + 8px); min-width: 260px; }
+.ct-more .mm-item { width: 100%; text-align: left; }
+
+/* ---------------------------------------------------------------- the plan card: today's step */
+.ct-plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 40px;
+  margin-top: 26px;
+  padding: 24px 32px 26px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: var(--ct-card);
+}
+.ct-plan-body { min-width: 0; }
+.ct-plan-t {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.18;
+  font-weight: 500;
+  letter-spacing: -.024em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+}
+.ct-plan-t:focus { outline: none; }
+.ct-plan-sub { margin: 8px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.ct-plan-sub .sf-link,
+.ct-plan-links .sf-link,
+.ct-note .sf-link { min-height: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
+.ct-plan-sub .sf-link { color: var(--sf-muted); }
+.ct-plan-sub .sf-link:hover { color: var(--sf-ink); }
+.ct-plan-links { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 10px 0 0; font-size: 17px; line-height: 1.5; }
+.ct-plan-links .sf-link { padding: 4px 0; }
+.ct-plan-act { display: grid; justify-items: end; gap: 8px; }
+.ct-plan-notes { display: grid; gap: 4px; margin-top: 10px; }
+.ct-plan-notes .ct-note { margin: 0; }
+.ct-plan[data-quiet] { grid-template-columns: minmax(0, 1fr); }
+
+/* The yellow hand-drawn line (one per screen). */
+.ct-mark { position: relative; z-index: 0; white-space: nowrap; }
+.ct-mark svg {
+  position: absolute;
+  z-index: -1;
+  left: -1%;
+  bottom: -.12em;
+  width: 102%;
+  height: .34em;
+  overflow: visible;
+  pointer-events: none;
+}
+.ct-mark path {
+  fill: none;
+  stroke: var(--m-yellow);
+  stroke-width: 8px;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ct-draw 1.1s .3s cubic-bezier(.65, 0, .35, 1) forwards;
+}
+@keyframes ct-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ---------------------------------------------------------------- the body: the figure and the rows */
+.ct-body {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  align-items: start;
+  gap: 48px;
+  margin-top: 30px;
+}
+.ct-body[data-solo] { grid-template-columns: minmax(0, 1fr); }
+.ct-figure { min-width: 0; }
+.ct-fig { display: flex; align-items: center; gap: 16px; margin: 0; }
+.ct-fig-n {
+  font-size: 64px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -.045em;
+  color: var(--sf-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+.ct-fig-l { display: grid; font-size: 17px; line-height: 1.3; color: var(--sf-ink); }
+.ct-fig-first { margin: 0; font-size: 20px; line-height: 1.35; font-weight: 500; letter-spacing: -.012em; color: var(--sf-ink); text-wrap: pretty; }
+.ct-fig-rule { margin: 0; font-size: 17px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.ct-fig-sub { margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.ct-fig-sub .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; white-space: nowrap; }
+.ct-how { margin-top: 12px; padding: 16px 18px; border-radius: 20px; background: var(--sf-surface-soft); box-shadow: inset 0 0 0 1px var(--sf-line); }
+.ct-how p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--sf-ink); text-wrap: pretty; }
+.ct-how p + p { margin-top: 8px; }
+.ct-main { min-width: 0; }
+
+/* Rows of one card (phone rule 8): a subject or a topic, its numbers under its name, the arrow on the right. */
+.ct-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 28px;
+  background: var(--sf-surface);
+  box-shadow: var(--ct-card);
+  overflow: hidden;
+}
+.ct-rows > li + li { border-top: 1px solid var(--sf-line); }
+.ct-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 14px 20px 14px 22px;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  text-align: left;
+  color: var(--sf-ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color .3s ease;
+}
+.ct-row:hover { background: var(--sf-surface-soft); }
+.ct-row:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -3px; border-radius: 28px; }
+.ct-row-t { display: block; font-size: 17px; line-height: 1.3; font-weight: 500; letter-spacing: -.008em; overflow-wrap: anywhere; }
+.ct-row-m { display: block; margin-top: 4px; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }
+.ct-chev { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; color: var(--sf-muted); }
+.ct-rows-h { margin: 0 0 10px; font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-muted); }
+
+/* Quiet lines under the rows and in the card: one line each, a link at the end. */
+.ct-notes { display: grid; gap: 6px; margin-top: 16px; }
+.ct-note { margin: 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.ct-note[data-tone='muted'] { color: var(--sf-muted); }
+.ct-note .sf-link { color: var(--sf-ink); }
+.ct-plan .ct-note { font-size: 15px; color: var(--sf-muted); }
+.ct-plan .ct-note .sf-link { color: var(--sf-ink); }
+
+/* ---------------------------------------------------------------- the phone and tablet bar */
+.ct-cta {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin: 24px calc(-1 * var(--sf-g)) -96px;
+  padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--sf-canvas) 86%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+  box-shadow: 0 -1px 0 var(--sf-line);
+}
+.ct-cta .sf-primary { width: 100%; justify-content: space-between; }
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .ct-cta { background: var(--sf-canvas); }
+}
+
+/* ---------------------------------------------------------------- sheets */
+.ct-sheet-root { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; }
+.ct-scrim { position: absolute; inset: 0; background: rgba(11, 18, 28, .42); animation: ct-fade .2s ease both; }
+.dark .ct-scrim { background: rgba(0, 0, 0, .6); }
+.ct-sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 24px 28px 26px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
+  font-family: var(--ph-sans);
+  animation: ct-rise .28s var(--m-ease) both;
+}
+.ct-sheet:focus { outline: none; }
+.ct-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.ct-sheet-t { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.ct-sheet-x { flex: none; }
+.ct-sheet-body { margin-top: 8px; }
+.ct-sheet-body > p { margin: 10px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.ct-sheet-body > p[data-muted] { color: var(--sf-muted); font-size: 15px; }
+.ct-sheet-acts { display: grid; justify-items: start; gap: 6px; margin-top: 22px; }
+.ct-sheet-acts .sf-primary { width: 100%; justify-content: space-between; }
+@keyframes ct-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ct-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@media (max-width: 639px) {
+  .ct-sheet-root { place-items: end stretch; }
+  .ct-sheet {
+    width: 100%;
+    max-height: 86dvh;
+    padding: 22px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
+  }
+  .ct-sheet-t { font-size: 22px; }
+}
+
+/* Day rows and choices in sheets. */
+.ct-days { display: grid; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; }
+.ct-days li { padding: 11px 0; border-top: 1px solid var(--sf-line); font-size: 16px; line-height: 1.45; text-wrap: pretty; }
+.ct-days li:first-child { border-top: 0; padding-top: 4px; }
+.ct-days .sf-link { min-height: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
+.ct-choices { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; border: 0; }
+.ct-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: 18px;
+  font-size: 17px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ct-choice:hover { background: var(--sf-surface-soft); }
+.ct-choice:has(input:checked) { background: var(--sf-accent-soft); }
+.ct-choice input { width: 20px; height: 20px; margin: 0; accent-color: var(--sf-accent); }
+.ct-field { display: grid; gap: 6px; margin-top: 14px; font-size: 15px; font-weight: 500; color: var(--sf-muted); }
+.ct-field textarea,
+.ct-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--sf-line);
+  border-radius: 16px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  font: 400 16px/1.45 var(--ph-sans);
+}
+.ct-field textarea { min-height: 96px; resize: vertical; }
+.ct-field textarea:focus-visible,
+.ct-field input:focus-visible { outline: none; border-color: var(--sf-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent) 22%, transparent); }
+.ct-sheet-status { margin: 14px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); }
+.ct-sheet-error { margin: 12px 0 0; font-size: 15px; line-height: 1.45; color: var(--ph-wrong); }
+.ct-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.ct-selects .ct-select { display: grid; gap: 6px; min-width: 0; font-size: 15px; font-weight: 500; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- tablets and phones */
+@media (max-width: 1023px) {
+  .ct-head { padding-top: 26px; }
+  .ct-plan { grid-template-columns: minmax(0, 1fr); margin-top: 20px; padding: 20px 24px 22px; border-radius: 28px; }
+  .ct-plan-act { display: none; }
+  .ct-plan-t { font-size: 25px; }
+  .ct-body { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 24px; }
+  .ct-fig-n { font-size: 56px; }
+}
+@media (max-width: 639px) {
+  .ct-head { padding-top: 18px; }
+  .ct-h1 { font-size: min(36px, calc((100vw - 2 * var(--sf-g, 16px) - 60px) / (var(--ct-h1-word, 1) * .6))); line-height: 1.06; letter-spacing: -.035em; }
+  .ct-meta { margin-top: 8px; font-size: 16px; line-height: 1.4; }
+  .ct-plan { margin-top: 18px; padding: 16px 20px 18px; }
+  .ct-plan-t { font-size: 22px; line-height: 1.25; letter-spacing: -.018em; }
+  .ct-plan-sub { margin-top: 6px; font-size: 16px; line-height: 1.45; }
+  .ct-plan-links { gap: 2px 20px; font-size: 16px; }
+  .ct-body { gap: 16px; margin-top: 20px; }
+  .ct-fig { gap: 14px; }
+  .ct-fig-n { font-size: 52px; }
+  .ct-fig-l { font-size: 16px; }
+  .ct-fig-first { font-size: 18px; }
+  .ct-fig-sub { margin-top: 8px; }
+  .ct-rows { border-radius: 26px; }
+  .ct-row { min-height: 68px; padding: 13px 16px 13px 20px; }
+  .ct-row-t { font-size: 16.5px; }
+  .ct-row-m { margin-top: 3px; font-size: 14.5px; }
+  .ct-note { font-size: 15px; }
+  .ct-notes { margin-top: 14px; }
+}
+
+/* A low window (1532 × 734): the pill on the first screen with room to spare. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .ct-head { padding-top: 20px; }
+  .ct-crumb { margin-bottom: 12px; }
+  .ct-h1 { font-size: 48px; }
+  .ct-meta { margin-top: 6px; }
+  .ct-links { margin-top: 12px; }
+  .ct-plan { margin-top: 18px; padding: 20px 30px 22px; }
+  .ct-plan-t { font-size: 26px; }
+  .ct-body { margin-top: 22px; }
+  .ct-fig-n { font-size: 58px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-mark path { animation: none; stroke-dashoffset: 0; }
+  .ct-sheet,
+  .ct-scrim { animation: none; }
+  .ct-row,
+  .ct-crumb a,
+  .ct-links .ct-pill-link { transition: none; }
+}
+html[data-stage] .ct-links { display: none; }
+
+/* ---------------------------------------------------------------- the «Сегодня» card (TodayExamCard, decision 47) */
+/* The card wears today's oral card (pages/Dashboard.css .td-exam); these rules only add what it lacks. */
+.td-exam .tc-today { margin: 0; }
+.td-exam .tc-note { margin: 10px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.td-exam .tc-fig-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 18px;
+  row-gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+.td-exam .tc-fig-link:hover .td-share-cap { color: var(--sf-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+.td-exam .tc-fig-link .td-arrow { display: inline-block; width: 16px; height: 16px; margin-left: 6px; vertical-align: -3px; }
+.td-exam .tc-rule-link {
+  display: inline-block;
+  padding: 10px 0;
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  text-wrap: pretty;
+}
+.td-exam .tc-rule-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+.td-exam .tc-rule-link .td-arrow { display: inline-block; width: 16px; height: 16px; margin-left: 6px; vertical-align: -3px; }
+.td-exam .tc-wait { margin: 18px 0 0; font-size: 16px; line-height: 1.45; color: var(--sf-muted); }
