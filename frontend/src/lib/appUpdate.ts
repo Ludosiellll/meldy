@@ -58,9 +58,10 @@ export const TAKEOVER_RETRY_MS = 5_000;
  * the rooms of components/Layout.tsx (isRoomPath: the draw, the answer, the talk about a lecture, the
  * report for the teacher), the draw and the answer of the example (/try, pages/TryExample.tsx), a
  * lecture being analysed (the file and the run would be lost: «Материал не сохранён») and the exam
- * editor (questions not saved yet). There the offer is not shown either. The rooms are repeated here,
- * not imported: Layout is a file of its own that the first screen does not carry (appUpdate.test.ts
- * keeps the two lists together).
+ * editor (questions not saved yet). So are an exam container's «занятие» and «Как на экзамене» (an unfinished
+ * session or run, also rooms of Layout) and the import page /exams/import (the parsed preview of the files would be
+ * lost). There the offer is not shown either. The rooms are repeated here, not imported: Layout is a file of its own
+ * that the first screen does not carry (appUpdate.test.ts keeps the two lists together).
  */
 const HOLD_SCREENS: readonly RegExp[] = [
   /^\/exams\/[^/]+\/(draw|ticket|report)\/?$/,
@@ -68,6 +69,8 @@ const HOLD_SCREENS: readonly RegExp[] = [
   /^\/try\/(draw|ticket)\/?$/,
   /^\/analyze\/?$/,
   /^\/exams\/(new|[^/]+\/edit)\/?$/,
+  /^\/exams\/c\/[^/]+\/(study|mock)\/?$/,
+  /^\/exams\/import\/?$/,
 ];
 
 export function holdsUpdate(pathname: string): boolean {

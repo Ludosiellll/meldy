@@ -63,6 +63,11 @@ const worker = {
 const cacheStorage = { delete: vi.fn(() => Promise.resolve(true)) };
 /** What the worker set up as it loaded (the config clears mock calls before each test). */
 const atLoad = { precached: 0, routes: 0 };
+/** The page route the worker registered (a mocked NavigationRoute keeps its handler and options). */
+let pageRoute: null | {
+  handler: { options: { plugins: Array<{ handlerDidError: (args: { request: Request }) => Promise<Response> }> } };
+  options: { denylist: RegExp[] };
+} = null;
 
 /** An open window that answers MAY_ACTIVATE (or, like a page of a release before the change, never does). */
 function openWindow(id: string, answer: { url: string; free: boolean } | 'silent') {
@@ -104,6 +109,7 @@ beforeAll(async () => {
   await import('./sw.js');
   atLoad.precached = workbox.precacheAndRoute.mock.calls.length;
   atLoad.routes = workbox.registerRoute.mock.calls.length;
+  pageRoute = workbox.registerRoute.mock.calls[0]?.[0] as typeof pageRoute;
 });
 
 beforeEach(() => {
@@ -213,5 +219,41 @@ describe('as before the change', () => {
       badge: '/pwa-192x192.svg',
       data: { url: '/review' },
     });
+  });
+});
+
+describe('a page without network (spec decision 31)', () => {
+  const APP = 'app shell of this release';
+  const OFFLINE = 'offline page';
+  /** The page route's answer when the network fails, with what the precache holds. */
+  async function offlineAnswer(path: string, precache: Record<string, string> = { '/index.html': APP, '/offline.html': OFFLINE }) {
+    workbox.matchPrecache.mockImplementation(async (url: string) => (url in precache ? new Response(precache[url]) : undefined));
+    const plugin = pageRoute!.handler.options.plugins[0];
+    const response = await plugin.handlerDidError({ request: new Request(`https://meldy.test${path}`) });
+    return response.type === 'error' ? 'error' : await response.text();
+  }
+
+  it('«Сегодня», «Экзамены» and an exam container open from the precached app of this release', async () => {
+    for (const path of ['/', '/dashboard', '/dashboard/', '/exams', '/exams/', '/exams/c/abc', '/exams/c/abc/', '/exams/c/abc/s/sub-1', '/exams/c/abc/study', '/exams/c/abc/study?s=sub-1&kind=answer', '/exams/c/abc/mock', '/exams/c/abc/keys', '/exams/c/abc/settings']) {
+      expect(await offlineAnswer(path), path).toBe(APP);
+    }
+    expect(workbox.matchPrecache).toHaveBeenCalledWith('/index.html');
+  });
+
+  it('every other page gets the offline page, as before', async () => {
+    for (const path of ['/library', '/library/abc', '/exams/abc', '/exams/abc/ticket', '/exams/import', '/exams/c', '/review', '/profile', '/g/abcdefghjkmn', '/join/abcdefghjkmn', '/login', '/dashboardx', '/examsx']) {
+      expect(await offlineAnswer(path), path).toBe(OFFLINE);
+    }
+  });
+
+  it('without the app in the precache the offline page; without either a network error', async () => {
+    expect(await offlineAnswer('/exams/c/abc', { '/offline.html': OFFLINE })).toBe(OFFLINE);
+    expect(await offlineAnswer('/exams/c/abc', {})).toBe('error');
+    expect(await offlineAnswer('/library', {})).toBe('error');
+  });
+
+  it('pages still come from the network first, and the API and Supabase are never pages', () => {
+    expect(swSource).toMatch(/new NetworkOnly\(/);
+    expect(pageRoute!.options.denylist.map(String)).toEqual([String(/^\/api/), String(/^\/sb\//), String(/^\/supabase/)]);
   });
 });

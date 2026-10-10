@@ -88,12 +88,24 @@ const state = {
 
 // ── Small helpers (exported for tests and for the one-line calls in pages) ─────
 
-/** The route pattern of a path: /exams/0f8c…/ticket → /exams/:id/ticket. No ids, no query, no hash. */
+/**
+ * Segments whose next segment is a secret code, never a word: a group link /join/<код> or /g/<код> (12 characters of
+ * the code alphabet — a code made only of letters would otherwise pass as a word and be recorded).
+ */
+const CODE_BEFORE: ReadonlySet<string> = new Set(['join', 'g']);
+
+/** The route pattern of a path: /exams/0f8c…/ticket → /exams/:id/ticket. No ids, no codes, no query, no hash. */
 export function routePattern(path: string): string {
   try {
     const bare = String(path || '/').split(/[?#]/)[0];
     const segments = bare.split('/').filter(Boolean).slice(0, 8);
-    const pattern = '/' + segments.map((segment) => (WORD_SEGMENT_RE.test(segment) ? segment : ':id')).join('/');
+    const pattern =
+      '/' +
+      segments
+        .map((segment, index) =>
+          (index > 0 && CODE_BEFORE.has(segments[index - 1])) || !WORD_SEGMENT_RE.test(segment) ? ':id' : segment,
+        )
+        .join('/');
     return pattern.slice(0, 120);
   } catch {
     return '/';
