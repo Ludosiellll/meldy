@@ -250,9 +250,11 @@ export function listRows(plain: ExamListItem[], containers: OverviewContainer[],
 function ContainerRow({ container, questions, phone }: { container: OverviewContainer; questions: number; phone: boolean }) {
   const figure = containerFigure(container);
   const date = containerDateLine(container);
+  // A computer: the figure joins the meta and stays whole («верно в два разных дня: 143 из 960»), so a long line breaks
+  // after «·», never inside it.
   const meta = phone
     ? `${date} · ${containerSizeLine(container, questions, false)}`
-    : `${date} · ${containerSizeLine(container, questions, true)}${figure ? ` · ${containerFigureLine(figure).replace(/^В/, 'в')}` : ''}`;
+    : `${date} · ${containerSizeLine(container, questions, true)}${figure ? ` · ${containerFigureLine(figure).replace(/^В/, 'в').replace(/ /g, '\u00a0')}` : ''}`;
   return (
     <li data-near={containerIsNear(container) ? '' : undefined} data-container="">
       {/* The whole card is the link; no pill: the exam's page holds its one action (Concept 1 §3.1). */}
