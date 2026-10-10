@@ -61,6 +61,21 @@
   animation: ps-in 160ms var(--m-ease, ease) both;
 }
 .ps-list[data-above] { top: auto; bottom: calc(100% + 8px); }
+/* PaperSelect's list: in a portal, fixed to the window at the place PaperSelect.tsx (placeList) gives it, so a sheet
+   or a dialog that scrolls never cuts it; it scrolls inside itself. The rise starts once it stands in its place. */
+.ps-list[data-float] {
+  position: fixed;
+  z-index: 90;
+  top: 0;
+  left: 0;
+  bottom: auto;
+  min-width: 0;
+  max-width: none;
+  overscroll-behavior: contain;
+  animation: none;
+}
+.ps-list[data-float][data-placed] { animation: ps-in 160ms var(--m-ease, ease) both; }
+.ps-list[data-float][data-placed][data-above] { animation-name: ps-in-up; }
 .ps-option {
   display: flex;
   align-items: center;
@@ -89,8 +104,14 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes ps-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .ps-list { animation: none; }
+  .ps-list,
+  .ps-list[data-float][data-placed],
+  .ps-list[data-float][data-placed][data-above] { animation: none; }
   .ps-chevron,
   .ps-trigger { transition: none; }
 }

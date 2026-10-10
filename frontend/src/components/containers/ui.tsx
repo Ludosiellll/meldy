@@ -60,6 +60,9 @@ export function Sheet({ title, onClose, children, actions, bare = false, classNa
     (first ?? node)?.focus({ preventScroll: true });
     const back = opener.current;
     const onKey = (event: KeyboardEvent) => {
+      // An open list in the sheet (PaperSelect) takes Escape itself: it closes, the sheet stays.
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (event.key === 'Escape' && target?.getAttribute('role') === 'combobox' && target.getAttribute('aria-expanded') === 'true') return;
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();

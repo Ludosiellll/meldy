@@ -37,8 +37,14 @@ export default function MockSetup({ keyed, last, onClose, onStart }: { keyed: nu
   const counts = useMemo(() => mockCounts(keyed), [keyed]);
   const [count, setCount] = useState(() => defaultCount(keyed));
   const [minutes, setMinutes] = useState(() => defaultMinutes(defaultCount(keyed)));
+  // «без времени» is 0: it is the last choice, never a number of its own at the top of the list.
   const minuteOptions = useMemo(
-    () => [...Array.from(new Set([...MINUTES, minutes])).sort((a, b) => a - b).map((m) => ({ value: m, label: String(m) })), { value: 0, label: copy.MOCK_NO_LIMIT }],
+    () => [
+      ...Array.from(new Set(minutes > 0 ? [...MINUTES, minutes] : MINUTES))
+        .sort((a, b) => a - b)
+        .map((m) => ({ value: m, label: String(m) })),
+      { value: 0, label: copy.MOCK_NO_LIMIT },
+    ],
     [minutes],
   );
   return (
