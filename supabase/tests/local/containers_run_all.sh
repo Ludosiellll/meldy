@@ -7,9 +7,10 @@
 #   four default-privilege gaps) → behaviour (writes the real RPC outputs and the rule vectors) → rule vectors equal
 #   contracts/container/rule_vectors.json → tsc --strict of the outputs against frontend/src/types/container.ts → oral
 #   checks → the revokes twice → behaviour again → contract_ok → the migration once more (keeps the revokes) →
-#   fingerprint (no line of the base changed or gone) → oral checks → the rollback twice (catalog = the base) → oral
-#   checks → apply again (= the first apply) → concurrency → 2000 items × 30 members (reads, 1000-row cap) →
-#   docs/container-numbers.sql.
+#   fingerprint (no line of the base changed or gone) → oral checks → the follow-ups' rollback (FK indexes, the
+#   oral-codes fix: exactly their lines go) and again → the rollback twice (catalog = the base) → oral checks → apply
+#   again in the live order (= the first apply) → concurrency → 2000 items × 30 members (reads, 1000-row cap) →
+#   docs/container-numbers.sql. The follow-ups (FOLLOW, applied live after the two) ride every apply of the migration.
 # Usage: supabase/tests/local/containers_run_all.sh
 # Env (all optional): CONTAINERS_PG_PORT (54371); CONTAINERS_WORK (scratch dir, default ${TMPDIR:-/tmp}/meldy-containers);
 #   PG_BIN (/usr/lib/postgresql/16/bin); CONTRACT_TS (frontend/src/types/container.ts); TSC (frontend's tsc);
@@ -28,6 +29,8 @@ TSC=${TSC:-$REPO/frontend/node_modules/typescript/bin/tsc}
 MIG=$SB/migrations/20261009093500_containers.sql
 REV=$SB/migrations/20261009093501_containers_revokes.sql
 DOWN=$SB/rollback/20261009093500_containers_down.sql
+FOLLOW=("$SB/migrations/20261010074500_containers_fk_indexes.sql" "$SB/migrations/20261010110000_containers_oral_codes_closed.sql")
+FOLLOW_DOWN=("$SB/rollback/20261010110000_containers_oral_codes_closed_down.sql" "$SB/rollback/20261010074500_containers_fk_indexes_down.sql")
 VECTORS=$REPO/contracts/container/rule_vectors.json
 NUMBERS=$REPO/docs/container-numbers.sql
 export PGHOST=127.0.0.1 PGPORT=$PORT PGUSER=postgres
@@ -59,6 +62,8 @@ echo "containers rehearsal: PostgreSQL $("${PSQL[@]}" -d postgres -c 'show serve
 
 run() { "${PSQL[@]}" -d "$1" -f "$2" > "$OUT/last.log" 2>&1 || { echo "    $2 failed on $1:"; grep -v NOTICE "$OUT/last.log" | head -5 | sed 's/^/    /'; return 1; }; }
 fresh() { "${PSQL[@]}" -d postgres -c "drop database if exists $1" -c "create database $1 template c_base" >/dev/null 2>&1; }
+follow() { local f; for f in "${FOLLOW[@]}"; do run "$1" "$f" || return 1; done; }
+follow_down() { local f; for f in "${FOLLOW_DOWN[@]}"; do run "$1" "$f" || return 1; done; }
 
 # ── the base: what the containers migration meets live (the repo's local baselines + the live migrations they rehearse)
 load_base() {
@@ -125,7 +130,8 @@ if echo "$C" | grep -q '"contract_ok" : false'; then ok "containers.sql on the b
 
 echo "2. the migration"
 fresh c_main
-if run c_main "$MIG" && run c_main "$MIG"; then ok "migration applied twice"; else bad "migration applied twice"; fi
+if run c_main "$MIG" && run c_main "$MIG" && follow c_main && follow c_main; then ok "migration applied twice, the follow-ups twice"
+else bad "migration applied twice, the follow-ups twice"; fi
 C=$(contract c_main)
 FAILED=$(echo "$C" | grep -o '"failed" : \[[^]]*\]')
 if [ "$FAILED" = '"failed" : ["anon_runs_only_the_preview", "anon_reads_no_table", "clients_never_write_log_states_items", "link_salt_hidden"]' ]; then
@@ -174,7 +180,7 @@ else bad "behaviour (after the revokes)" "$(grep -m1 'ERROR\|FAILED' "$OUT/behav
 C=$(contract c_main)
 if echo "$C" | grep -q '"contract_ok" : true'; then ok "supabase/tests/containers.sql" "contract_ok: true"; else bad "supabase/tests/containers.sql" "$(echo "$C" | grep -o '"failed" : \[[^]]*\]')"; fi
 fingerprint c_main "$OUT/fp_after.txt"
-if run c_main "$MIG"; then
+if run c_main "$MIG" && follow c_main; then
   fingerprint c_main "$OUT/fp_again.txt"
   if cmp -s "$OUT/fp_after.txt" "$OUT/fp_again.txt" && contract c_main | grep -q '"contract_ok" : true'; then
     ok "migration re-applied after the revokes" "catalog unchanged, contract_ok true"
@@ -187,12 +193,24 @@ else bad "pre-existing objects changed or gone" "$CHANGED of $BASE_LINES: $(comm
 expect_oral c_main "oral checks after the revokes"
 
 echo "4. the rollback"
+fresh c_nofollow
+if run c_nofollow "$MIG" && run c_nofollow "$REV" && follow_down c_main && follow_down c_main; then
+  fingerprint c_nofollow "$OUT/fp_nofollow.txt"
+  fingerprint c_main "$OUT/fp_follow_down.txt"
+  GONE=$(comm -23 "$OUT/fp_after.txt" "$OUT/fp_nofollow.txt" | cut -d' ' -f1-2 | tr '\n' ' ')
+  if cmp -s "$OUT/fp_nofollow.txt" "$OUT/fp_follow_down.txt" && [ "$(comm -13 "$OUT/fp_after.txt" "$OUT/fp_nofollow.txt" | wc -l)" = 1 ]; then
+    ok "follow-ups rolled back twice → the two-file catalog" "their lines: $GONE"
+  else bad "follow-ups rolled back twice" "$(diff "$OUT/fp_nofollow.txt" "$OUT/fp_follow_down.txt" | head -3 | tr '\n' ' ')"; fi
+  if follow c_main; then fingerprint c_main "$OUT/fp_follow_up.txt"; fi
+  if cmp -s "$OUT/fp_after.txt" "$OUT/fp_follow_up.txt"; then ok "follow-ups applied again" "= the first apply"
+  else bad "follow-ups applied again" "$(diff "$OUT/fp_after.txt" "$OUT/fp_follow_up.txt" | head -3 | tr '\n' ' ')"; fi
+else bad "follow-ups rolled back twice" "a file failed"; fi
 if run c_main "$DOWN" && run c_main "$DOWN"; then ok "rollback applied twice"; else bad "rollback applied twice"; fi
 fingerprint c_main "$OUT/fp_down.txt"
 D=$(diff "$OUT/fp_base.txt" "$OUT/fp_down.txt" | wc -l)
 if [ "$D" = 0 ]; then ok "rollback → catalog equals the base" "0 differing lines"; else bad "rollback → catalog equals the base" "$D differing lines"; fi
 expect_oral c_main "oral checks after the rollback"
-if run c_main "$MIG" && run c_main "$REV"; then
+if run c_main "$MIG" && run c_main "$REV" && follow c_main; then
   fingerprint c_main "$OUT/fp_reup.txt"
   if cmp -s "$OUT/fp_after.txt" "$OUT/fp_reup.txt"; then ok "applied again after the rollback" "= the first apply"
   else bad "applied again after the rollback" "$(diff "$OUT/fp_after.txt" "$OUT/fp_reup.txt" | head -3 | tr '\n' ' ')"; fi
@@ -200,13 +218,13 @@ else bad "applied again after the rollback"; fi
 
 echo "5. concurrency"
 fresh c_conc
-if run c_conc "$MIG" && run c_conc "$REV" && CONTAINERS_PG_LOG=$PG_LOG "$HERE/containers_concurrency.sh" c_conc > "$OUT/concurrency.log" 2>&1; then
+if run c_conc "$MIG" && run c_conc "$REV" && follow c_conc && CONTAINERS_PG_LOG=$PG_LOG "$HERE/containers_concurrency.sh" c_conc > "$OUT/concurrency.log" 2>&1; then
   ok "first answer from two devices; opposite-order batches" "$(grep -o 'waited [0-9.]* s' "$OUT/concurrency.log" | tr '\n' ' ')no lost update, no deadlock"
 else bad "concurrency" "$(grep -m1 FAILED "$OUT/concurrency.log")"; fi
 
 echo "6. scale: 4 subjects × 500 items, 30 members (states ≈ 70 % of the items each, two log rows a state)"
 fresh c_scale
-run c_scale "$MIG" && run c_scale "$REV" || bad "scale database"
+run c_scale "$MIG" && run c_scale "$REV" && follow c_scale || bad "scale database"
 "${PSQL[@]}" -d c_scale > "$OUT/scale_build.log" 2>&1 <<'SQL'
 \set ON_ERROR_STOP 1
 set role authenticated;
