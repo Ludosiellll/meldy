@@ -25,6 +25,9 @@ import { editKeyboard, isBlocked, isRateLimited, remove, send, TelegramError } f
 
 export type StepStats = Record<string, number>;
 
+/** What every step gets: when to stop starting work (epoch ms) and the shared pacer (≤ 25 sends a second). */
+export interface TickTools { deadline: number; pace: () => Promise<void> }
+
 export const TICK_BUDGET_MS = 30_000;
 /** Work starts only while this much of the budget is left (a send takes up to 10 s with its timeout). */
 export const STOP_MARGIN_MS = 5_000;
@@ -193,11 +196,12 @@ export async function runTick(ctx: Ctx, ports: Ports, options: TickOptions = {})
   const pace = pacer(ctx.now, options.sleep ?? defaultSleep);
   const limit = options.limit ?? CLAIM_LIMIT;
   const totals: StepStats = {};
+  const tools: TickTools = { deadline, pace };
   const steps: Array<[string, () => Promise<StepStats>]> = [
-    ['close', () => ports.group.closePosts(ctx, deadline)],
-    ['posts', () => ports.group.sendPosts(ctx, deadline)],
+    ['close', () => ports.group.closePosts(ctx, tools)],
+    ['posts', () => ports.group.sendPosts(ctx, tools)],
     ['rem', () => reminders(ctx, deadline, pace, limit)],
-    ['count', () => ports.group.counters(ctx, deadline)],
+    ['count', () => ports.group.counters(ctx, tools)],
     ['night', () => dayClose(ctx, deadline, pace, limit)],
     ['k3', () => afterDate(ctx, deadline, pace, limit)],
     ['flush', () => flushPending(ctx)],

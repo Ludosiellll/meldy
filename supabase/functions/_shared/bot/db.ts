@@ -122,6 +122,8 @@ export interface ExamMeta {
   createdAt: string | null;
   /** Answered items whose key the author changed since («Автор исправил ключ…», members only): the subjects' `stale`. */
   keyChanges: number;
+  /** A subject has an oral part: its questions are planned on the site («Устные — в Meldy»). */
+  hasOral: boolean;
 }
 
 /** Everything a card needs, read once: bot_today, or bot_reminder_context in the tick. */
@@ -309,6 +311,7 @@ export function examMeta(overview: unknown): ExamMeta[] {
     id: String(c.id ?? ''),
     createdAt: typeof c.created_at === 'string' ? c.created_at : null,
     keyChanges: c.role === 'member' ? (Array.isArray(c.subjects) ? c.subjects : []).reduce((sum, s) => sum + (num(s.stale) ?? 0), 0) : 0,
+    hasOral: (Array.isArray(c.subjects) ? c.subjects : []).some((s) => s.has_oral === true),
   })).filter((e) => e.id !== '');
 }
 

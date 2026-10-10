@@ -151,7 +151,7 @@ test('the day: bot_today (plan, overview, the open session, the day row), card e
   assert.equal(today.link.tgUserId, 700100);
   assert.equal(today.now, 1_792_170_000_000);
   assert.equal(today.wire!.containers[0].id, CID);
-  assert.deepEqual(today.exams, [{ id: CID, createdAt: '2026-10-05T09:00:00+00:00', keyChanges: 3 }]);
+  assert.deepEqual(today.exams, [{ id: CID, createdAt: '2026-10-05T09:00:00+00:00', keyChanges: 3, hasOral: false }]);
   assert.deepEqual(today.session, { sid: '7k2pm9qa', containerId: CID, subjectId: 's1', messageId: 900, chatId: 700100, position: 1,
     queue: [{ id: 'i1', retry: 0 }, { id: 'i2', retry: 0 }, { id: 'i3', retry: 1 }], localDay: '2026-10-16', kind: 'plan' });
   assert.deepEqual(today.day, { cardMessageId: 41, cardUsed: false, lastMessageId: null });

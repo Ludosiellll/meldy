@@ -48,7 +48,8 @@ function variants(): Record<string, CardResult> {
       today: { firstAt: Math.floor((NOW - 3 * 3_600_000) / 1000), doneSec: 2700 } }]), 'today', SITE),
     k1_no_date: dayCard(todayOf([{ ...AUTUMN, date: null }]), 'reminder', SITE),
     k1_two_exams: dayCard(todayOf([AUTUMN, { id: CID2, title: TITLE2, date: '2027-01-12', started: 30 }]), 'reminder', SITE),
-    k1_keys_fixed: dayCard(todayOf([AUTUMN], { exams: [{ id: CID, createdAt: null, keyChanges: 2 }] }), 'reminder', SITE),
+    k1_keys_fixed: dayCard(todayOf([AUTUMN], { exams: [{ id: CID, createdAt: null, keyChanges: 2, hasOral: false }] }), 'reminder', SITE),
+    k1_oral_on_site: dayCard(todayOf([AUTUMN], { exams: [{ id: CID, createdAt: null, keyChanges: 0, hasOral: true }] }), 'reminder', SITE),
     k1_no_exam: dayCard(todayOf(null), 'today', SITE),
     k1_after_date: dayCard(todayOf([AUTUMN], {}, at(2026, 11, 5)), 'today', SITE),
   };
@@ -137,7 +138,7 @@ test('the lead exam: nearest date with work today; exam day first; a done day on
   const done = { id: CID2, title: TITLE2, date: '2026-10-20', perSubject: 10, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3_600_000) / 1000), doneSec: 2700 } };
   assert.equal(dayView(todayOf([AUTUMN, done])).main!.id, CID, 'the done exam leads only when nothing else has work');
   const sameDay = todayOf([AUTUMN, { ...AUTUMN, id: CID2, title: TITLE2 }]);
-  sameDay.exams = [{ id: CID, createdAt: '2026-10-01T00:00:00Z', keyChanges: 0 }, { id: CID2, createdAt: '2026-10-02T00:00:00Z', keyChanges: 0 }];
+  sameDay.exams = [{ id: CID, createdAt: '2026-10-01T00:00:00Z', keyChanges: 0, hasOral: false }, { id: CID2, createdAt: '2026-10-02T00:00:00Z', keyChanges: 0, hasOral: false }];
   assert.equal(dayView(sameDay).main!.id, CID2, 'ties: the newer exam');
   assert.equal(dayView(todayOf([AUTUMN, winterSoon]), CID).main!.id, CID, '«Другой экзамен» focuses');
 });

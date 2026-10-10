@@ -20,7 +20,7 @@ import { askTime, claimLink, m1, openPrompt, promptOf, timeChosen, timeReply, TI
 import { buttonsOnly, dateReply, helpCommand, isDatePrompt, settingsCommand, settingsTap, showSettings, stopCommand } from './settings.ts';
 import { errorName, log, type LogRoute } from './log.ts';
 import { processUpdate } from './ledger.ts';
-import { runTick, type StepStats } from './tick.ts';
+import { runTick, type StepStats, type TickTools } from './tick.ts';
 import { readStatus, runSetup } from './setup.ts';
 import {
   answer as answerQuery, createTelegram, editKeyboard, editOrSend, remove, send, type FetchLike, type Keyboard, type Telegram, type TgChat,
@@ -90,7 +90,7 @@ export function hourlyGate(now: () => number): (chatId: number) => boolean {
 
 export type SessionCallback = Extract<Callback, { kind: 'session' }>;
 export type GroupCallback = Extract<Callback, { kind: 'group' }>;
-export type { StepStats };
+export type { StepStats, TickTools };
 
 /**
  * T6 — the session in chat (Z1–Z12, I1–I3, §4.8). The router does not look the user up for these: T5's SQL resolves
@@ -117,10 +117,13 @@ export interface GroupPort {
   member(ctx: Ctx, update: TgChatMemberUpdated): Promise<void>;
   /** The group became a supergroup (`migrate_to_chat_id`). */
   migrate(ctx: Ctx, fromChatId: number, toChatId: number): Promise<void>;
-  /** Tick steps 1 (close posts at 21:00), 2 (send posts), 4 («Ответили N»); `deadline` = epoch ms the step must end by. */
-  closePosts(ctx: Ctx, deadline: number): Promise<StepStats>;
-  sendPosts(ctx: Ctx, deadline: number): Promise<StepStats>;
-  counters(ctx: Ctx, deadline: number): Promise<StepStats>;
+  /**
+   * Tick steps 1 (close posts at 21:00), 2 (send posts), 4 («Ответили N»). `tools.deadline`: epoch ms to stop starting
+   * work by; `tools.pace()`: await it before every call to Telegram (the whole tick sends at most 25 a second).
+   */
+  closePosts(ctx: Ctx, tools: TickTools): Promise<StepStats>;
+  sendPosts(ctx: Ctx, tools: TickTools): Promise<StepStats>;
+  counters(ctx: Ctx, tools: TickTools): Promise<StepStats>;
 }
 
 /** T9 — a forwarded file (§4.7) and `GET /telegram/file?t=`. */
@@ -386,6 +389,9 @@ export function routeOf(url: string): Route {
 
 const empty = (status: number) => new Response(null, { status });
 
+/** How long /status answers from memory. */
+export const STATUS_CACHE_MS = 15_000;
+
 export function createApp(deps: AppDeps): (req: Request) => Promise<Response> {
   const now = deps.now ?? (() => Date.now());
   const tg = createTelegram({ token: deps.token, fetch: deps.fetch, sleep: deps.sleep, random: deps.random });
@@ -437,10 +443,14 @@ export function createApp(deps: AppDeps): (req: Request) => Promise<Response> {
     return Response.json(result, { status, headers: { 'Cache-Control': 'no-store' } });
   }
 
+  // /status is public: one read of Telegram and the database per 15 s and instance, whoever asks.
+  let statusCache: { at: number; body: unknown } | null = null;
   async function status(req: Request): Promise<Response> {
     if (req.method !== 'GET') return empty(405);
-    const body = await readStatus(ctx, { functionUrl: deps.functionUrl, region: deps.region ?? null });
-    return Response.json(body, { headers: { 'Cache-Control': 'no-store' } });
+    if (!statusCache || now() - statusCache.at >= STATUS_CACHE_MS) {
+      statusCache = { at: now(), body: await readStatus(ctx, { functionUrl: deps.functionUrl, region: deps.region ?? null }) };
+    }
+    return Response.json(statusCache.body, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   return async (req: Request): Promise<Response> => {

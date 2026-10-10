@@ -27,6 +27,7 @@ export interface ExamDay {
   daysLeft: number | null;
   createdAt: string | null;
   keyChanges: number;
+  hasOral: boolean;
   plan: DayPlan;
   input: PlanInput;
 }
@@ -76,6 +77,7 @@ export function dayView(today: Today, focus?: string | null): DayView {
           daysLeft: date === null ? null : daysBetween(plan.day, date),
           createdAt: meta?.createdAt ?? null,
           keyChanges: meta?.keyChanges ?? 0,
+          hasOral: meta?.hasOral ?? false,
           plan,
           input,
         });
@@ -210,6 +212,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
       keyboard.push(row({ text: lineText(more), data: encode({ kind: 'go', cid, mode: 'x' }) }));
     }
     if (noDate) keyboard.push(row({ text: W.SET_DATE, url: url(site, W.PATH.examSettings(cid)) }));
+    // Oral questions are planned on the site (the bot's plan input has the test part only): a quiet way there.
+    if (main.hasOral) keyboard.push(row({ text: W.ORAL_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
   }
   for (const other of view.others) {
     const sec = other.plan.counts.leftSec > 0 ? other.plan.counts.leftSec : other.plan.counts.estSec;

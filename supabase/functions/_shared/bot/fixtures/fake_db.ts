@@ -53,7 +53,7 @@ interface DayRow { cardMessageId: number | null; cardUsed: boolean; lastMessageI
 /** What bot_today / bot_reminder_context read for a user: the plan wire, the exams' meta, the open session. */
 export interface UserData {
   wire?: PlanInputsWire | null;
-  exams?: Array<{ id: string; createdAt?: string | null; keyChanges?: number }>;
+  exams?: Array<{ id: string; createdAt?: string | null; keyChanges?: number; hasOral?: boolean }>;
   session?: OpenSession | null;
   /** Moments of answers on the site or in the bot (ms), for «recently active» and K2. */
   answers?: number[];
@@ -117,7 +117,7 @@ export function fakeDb(options: { now: () => number }) {
       link,
       now: link.now,
       wire: data.wire ?? null,
-      exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0 })),
+      exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0, hasOral: e.hasOral ?? false })),
       session: withSession ? data.session ?? null : null,
       day: withSession && row ? { cardMessageId: row.cardMessageId, cardUsed: row.cardUsed, lastMessageId: row.lastMessageId } : null,
     };

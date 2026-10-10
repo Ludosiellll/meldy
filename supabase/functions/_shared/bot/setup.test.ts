@@ -110,6 +110,10 @@ test('/status: public, no secret; the webhook as Telegram sees it, the last tick
   assert.deepEqual(Object.keys(body.calls), ['month', 'updates', 'ticks', 'total']);
   assert.equal(body.calls.ticks, 1);
   h.tg.result('getWebhookInfo', () => ({ url: 'https://elsewhere.example/hook', pending_update_count: 0 }));
+  const calls = h.tg.of('getWebhookInfo').length;
+  assert.equal((await (await h.app(new Request(`${TEST_FUNCTION_URL}/status`))).json()).webhook.url_ok, true, 'answered from memory within 15 s');
+  assert.equal(h.tg.of('getWebhookInfo').length, calls);
+  h.advance(15_000);
   assert.equal((await (await h.app(new Request(`${TEST_FUNCTION_URL}/status`))).json()).webhook.url_ok, false);
   assert.equal((await h.app(new Request(`${TEST_FUNCTION_URL}/status`, { method: 'POST' }))).status, 405);
 });

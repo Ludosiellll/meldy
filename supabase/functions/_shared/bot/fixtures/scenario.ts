@@ -141,7 +141,7 @@ export function todayOf(specs: ExamSpec[] | null, extra: Partial<Today> = {}, no
     link: linkOf({}, nowMs),
     now: nowMs,
     wire: specs ? wireOf(specs, nowMs) : null,
-    exams: (specs ?? []).map((s, i) => ({ id: s.id, createdAt: `2026-10-0${i + 1}T10:00:00Z`, keyChanges: 0 })),
+    exams: (specs ?? []).map((s, i) => ({ id: s.id, createdAt: `2026-10-0${i + 1}T10:00:00Z`, keyChanges: 0, hasOral: false })),
     session: null,
     day: null,
     ...extra,

@@ -61,6 +61,7 @@ export const SET_DATE = 'Указать дату';
 export const OTHER_EXAM = 'Другой экзамен';
 export const BACK = '‹ Назад';
 export const NEW_DATE = 'Новая дата';
+export const ORAL_IN_MELDY = 'Устные — в Meldy';
 export const EXAM_EVE = 'Завтра экзамен.';
 export const NO_DATE = 'дата не указана';
 export const onlyErrors = (n: number) => `Только ошибки: ${n}`;
