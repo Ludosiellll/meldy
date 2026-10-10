@@ -25,8 +25,12 @@ export const DELETE_NOT_FOUND = 'Bad Request: message to delete not found';
 export const QUERY_TOO_OLD = 'Bad Request: query is too old and response timeout expired or query ID is invalid';
 export const BLOCKED = 'Forbidden: bot was blocked by the user';
 
-export function fakeTelegram(options: { token?: string; now?: () => number } = {}) {
+/** The test project's function URL (`https://<ref>.supabase.co/functions/v1/telegram`). */
+export const TEST_FUNCTION_URL = 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/telegram';
+
+export function fakeTelegram(options: { token?: string; now?: () => number; webhookUrl?: string } = {}) {
   const token = options.token ?? TEST_TOKEN;
+  const webhookInfoUrl = options.webhookUrl ?? '';
   const now = options.now ?? (() => Date.now());
   const calls: Call[] = [];
   const failures = new Map<string, Failure[]>();
@@ -106,7 +110,7 @@ export function fakeTelegram(options: { token?: string; now?: () => number } = {
       messages.delete(key(params.chat_id, params.message_id));
     } else if (method === 'getMe') result = TEST_BOT;
     else if (method === 'getWebhookInfo') {
-      result = { url: 'https://example.supabase.co/functions/v1/telegram?forceFunctionRegion=eu-north-1', has_custom_certificate: false,
+      result = { url: webhookInfoUrl, has_custom_certificate: false,
         pending_update_count: 0, max_connections: 10, allowed_updates: ['message', 'callback_query', 'my_chat_member'] };
     } else if (method === 'getUserProfilePhotos') result = { total_count: 0, photos: [] };
     return Response.json({ ok: true, result });

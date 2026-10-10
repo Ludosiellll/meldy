@@ -86,7 +86,7 @@ test('429: an interactive call waits retry_after up to 3 s once; longer, or in t
 
   const long = client();
   long.tg.fail('sendMessage', { kind: '429', retryAfter: 7 });
-  const error = await long.api.call('sendMessage', { chat_id: 1, text: 'a' }).catch((e) => e);
+  const error = (await long.api.call('sendMessage', { chat_id: 1, text: 'a' }).catch((e) => e)) as TelegramError;
   assert.equal(error.code, 429);
   assert.equal(error.retryAfter, 7);
   assert.equal(long.tg.of('sendMessage').length, 1);
