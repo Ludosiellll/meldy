@@ -25,8 +25,10 @@
  * Long options are letters, as Z2 (decision 13); options in code are letters in `<code>` (Z3). The strings are plain
  * text; builders glue and escape them (html.ts). Comments stay in English: a test reads the Russian strings.
  */
+import { codeLike } from '../plan/codeLines.ts';
 import { pickGroupQuestion, type GroupInput, type GroupItemCounts } from '../plan/group.ts';
 import { optionOrder, pinnedLast } from '../plan/session.ts';
+import { stemParts } from '../plan/stemCode.ts';
 import { TWO_DAYS } from '../plan/words.ts';
 import { dayCard } from './card.ts';
 import { encode } from './codec.ts';
@@ -369,39 +371,6 @@ export const MAX_OPTIONS = 8;
 export const TEXT_MAX = 4096;
 export const TOAST_MAX = 200;
 
-/** A line of code: the site's heuristic (components/containers/model.ts `codeLike`), kept in step with it. */
-export function codeLike(line: string): boolean {
-  const text = line.trim();
-  if (!text) return false;
-  if (/^(\/\/|\/\*|#|--\s)/.test(text)) return true;
-  const bare = text
-    .replace(/\/\*.*?\*\//g, ' ')
-    .replace(/\/\/.*$/, ' ')
-    .replace(/\s--\s.*$/, ' ')
-    .replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`[^`]*`/g, '""')
-    .trim();
-  const letters = bare.match(/[a-zа-яё]/gi) ?? [];
-  const cyrillic = bare.match(/[а-яё]/gi) ?? [];
-  if (letters.length > 0 && cyrillic.length / letters.length > 0.5) return false;
-  if (/^\s{2,}|\t/.test(line)) return true;
-  if (/[;{}]|=>|==|!=|\+\+|::|<\/?\w+>|\w\(.*\)|\[\d*\]/.test(bare)) return true;
-  return /^(int|var|let|const|string|bool|double|float|char|long|class|struct|public|private|protected|static|void|for|while|if|else|return|using|namespace|import|from|def|print|console|select|insert|update|delete|create|alter|drop|begin|end|function|new)\b/i.test(bare);
-}
-
-/** The question's words before the code, the code block, the words after (the site's `splitStem`). */
-export function splitStem(stem: string, code: boolean): { before: string; code: string | null; after: string } {
-  const text = stem.replace(/\r\n?/g, '\n');
-  if (!code || !text.includes('\n')) return { before: text.trim(), code: null, after: '' };
-  const all = text.split('\n');
-  let first = all.findIndex((line) => codeLike(line));
-  if (first < 0) return { before: text.trim(), code: null, after: '' };
-  let last = all.length - 1;
-  while (last > first && !codeLike(all[last])) last -= 1;
-  if (first === 0 && all.length > 1 && /[?:]\s*$/.test(all[0]) && !/[;{}]/.test(all[0])) first = 1;
-  const block = all.slice(first, last + 1).join('\n').replace(/\s+$/, '');
-  return { before: all.slice(0, first).join('\n').trim(), code: block || null, after: all.slice(last + 1).join('\n').trim() };
-}
-
 const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 export interface OptionLayout {
@@ -434,10 +403,13 @@ export const studyUrl = (botUsername: string, chatId: number) => `https://t.me/$
 /** `g|<post base36>|<i>`, `i` = the button's index in the shown order. */
 export const postData = (postId: number, i: number) => encode({ kind: 'group', post: postId.toString(36), i });
 
-/** The post's text: the title, the question (its code in `<pre>`), the letters when long, and an optional last line. */
+/**
+ * The post's text: the title, the question (split as the site splits it, the copied `stemParts`: its code in `<pre>`),
+ * the letters when long, and an optional last line.
+ */
 export function postText(view: PostView, tail: string | null = null): string {
   const layout = optionLayout(view);
-  const stem = splitStem(view.stem, view.code);
+  const stem = stemParts(view.stem, view.code);
   const body: Array<string | null> = [b(GW.postTitle(view.subject)), ''];
   if (stem.before) body.push(t(stem.before));
   if (stem.code) body.push(pre(stem.code));

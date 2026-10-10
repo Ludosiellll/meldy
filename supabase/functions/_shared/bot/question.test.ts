@@ -1,13 +1,22 @@
 // One question of a «занятие» (spec §4.3, decisions 13–16): buttons or letters, code, masks, the short answer's
 // normalisation, the seeded order («все перечисленные» last, keep_order), repeats 3–5 later at most twice.
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   codeLike, comesAgain, counterAt, fileOptionsOf, flip, isMarked, layoutOf, letterRows, marked, matchedForm, orderFor,
-  queueAfter, requeueAfterMiss, shortNorm, shownOrder, splitStem, typedAnswer, validMask, type QueueEntry,
+  queueAfter, requeueAfterMiss, shortNorm, shownOrder, stemParts, typedAnswer, validMask, type QueueEntry,
 } from './question.ts';
 import { ACID, ALL_LISTED, DRAW, HTTPS, IPV4_BITS, KEEP_ORDER, POSTFIX, PRIVATE_IP } from './fixtures/session/bank.ts';
+import {
+  ASKED_AFTER, CREATE, CSHARP, HTTP, LOOP_C, LOOP_SH, LS, MONGO, PING, PIPE, ROUTES, SCRIPT, SHEBANG, SQL, TABLE, TRY_CATCH,
+  WORDS, WORDS_AFTER,
+} from './fixtures/stems.ts';
+import { codeLike as copiedCodeLike } from '../plan/codeLines.ts';
 import { optionOrder, pinnedLast } from '../plan/session.ts';
+import { stemParts as copiedStemParts } from '../plan/stemCode.ts';
 
 const q = (spec: typeof HTTPS) => ({ kind: spec.kind, options: spec.options, code: spec.code, keepOrder: spec.keepOrder });
 const ids = (n: number): QueueEntry[] => Array.from({ length: n }, (_, i) => ({ id: `id-${i}`, retry: 0 as const }));
@@ -63,15 +72,51 @@ test('a short answer is compared as the server does (meldy_short_norm): case, ё
   assert.equal([...(typedAnswer('я'.repeat(1500)) as string)].length, 1000, 'longer than the server grades: cut to 1000');
 });
 
-test('code: the site\'s codeLike and splitStem, the same vectors', () => {
-  const stem = 'Что выведет программа?\nint a = 7;\nint b = 2;\nConsole.WriteLine(a / b);';
-  assert.deepEqual(splitStem(stem, true), { before: 'Что выведет программа?', code: 'int a = 7;\nint b = 2;\nConsole.WriteLine(a / b);', after: '' });
-  assert.equal(splitStem('Какая команда удаляет таблицу?', true).code, null);
-  assert.equal(splitStem(stem, false).code, null);
+test('code: the site\'s own codeLike and stemParts (the copied lib/containers modules), the site\'s vectors', () => {
+  assert.equal(codeLike, copiedCodeLike, 'question.ts hands out the copy, not a rule of its own');
+  assert.equal(stemParts, copiedStemParts);
+  assert.deepEqual(stemParts(CSHARP, true), { before: 'Что выведет программа?', code: 'int a = 7;\nint b = 2;\nConsole.WriteLine(a / b);', after: '' });
+  assert.equal(stemParts('Какая команда удаляет таблицу?', true).code, null);
   assert.equal(codeLike('    return x;'), true);
   assert.equal(codeLike('Какая нормальная форма (третья) нужна?'), false);
   assert.equal(codeLike('public virtual void Draw()'), true);
   assert.equal(codeLike('14'), false);
+});
+
+/** The first line is the question; the rest is code as typed. */
+const questionThenCode = (stem: string) => ({ before: stem.split('\n')[0], code: stem.split('\n').slice(1).join('\n'), after: '' });
+
+test('code in a question as the site splits it (stemCode.test.tsx): SQL, a shell and C, with the import\'s flag and without it', () => {
+  const stems = { SQL, CREATE, PIPE, SCRIPT, SHEBANG, LOOP_SH, LS, PING, TABLE, ROUTES, CSHARP, LOOP_C, TRY_CATCH, MONGO };
+  for (const [name, stem] of Object.entries(stems)) {
+    assert.deepEqual(stemParts(stem, true), questionThenCode(stem), `${name} with the flag`);
+    // Without the flag (90 of 203 such questions, usability check m1), later lines that clearly read as code still do.
+    assert.deepEqual(stemParts(stem, false), questionThenCode(stem), `${name} without the flag`);
+  }
+  // A line of HTTP is code only once the question is code.
+  assert.deepEqual(stemParts(HTTP, true), questionThenCode(HTTP));
+  assert.deepEqual(stemParts(HTTP, false), { before: HTTP, code: null, after: '' });
+  // A command's output belongs to it, up to a question at the end; words after the code stay words.
+  assert.deepEqual(stemParts(ASKED_AFTER, true), { before: '', code: '$ ls -ld /tmp\ndrwxrwxrwt 18 root root 4096 окт  9 08:00 /tmp', after: 'Что означает буква t?' });
+  for (const flag of [true, false]) {
+    assert.deepEqual(stemParts(WORDS_AFTER, flag), { before: 'Дан фрагмент:', code: 'int x = 1;\nx++;', after: 'Что выведет программа?' }, `flag ${flag}`);
+  }
+  // Words stay words without the flag: Russian lines, English questions, a formula, one row of numbers.
+  for (const stem of WORDS) assert.deepEqual(stemParts(stem, false), { before: stem, code: null, after: '' }, stem);
+  assert.equal(stemParts('Какая команда удаляет таблицу?', false).code, null);
+});
+
+test('the bot keeps no code rule of its own: question.ts and group.ts take codeLike and stemParts from the copied modules', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  for (const file of readdirSync(here).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))) {
+    const source = readFileSync(join(here, file), 'utf8');
+    assert.doesNotMatch(source, /function (codeLike|splitStem|stemParts|codeLine|sureCodeLine|wordsLine)\b/, `${file}: the site's rule is copied, never rewritten`);
+  }
+  for (const file of ['question.ts', 'group.ts']) {
+    const source = readFileSync(join(here, file), 'utf8');
+    assert.match(source, /^import \{ codeLike \} from '\.\.\/plan\/codeLines\.ts';$/m, file);
+    assert.match(source, /^import \{ stemParts \} from '\.\.\/plan\/stemCode\.ts';$/m, file);
+  }
 });
 
 test('the order: seeded by <sid>:<pos> (the same everywhere), a retry gets a new one; keep_order keeps the file; «Все перечисленные» last', () => {
