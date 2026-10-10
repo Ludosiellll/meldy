@@ -1,8 +1,28 @@
 /**
  * The «Сегодня» card of an exam container (package D3b builds it; spec §16 #47): the same anatomy as today's oral
  * exam card — flag, one meta line, the one blue button, then the blue number. Package E places it on «Сегодня».
+ *
+ * - The flag «Экзамен через 19 дней» (yellow at three days or less), the name, «28 октября · 960 вопросов».
+ * - One line of today's step: «Сегодня 90 вопросов, около 45 минут.», then the pill «Начать: 20 вопросов» (a session
+ *   left today: «Продолжить…»); when the day is done the plan's line («На сегодня всё. Завтра около 40 минут.») and no
+ *   pill, so «Начать повторение» can take the blue.
+ * - Under a hairline the figure as the oral card shows its share: a blue «143» and «из 960 верно в два разных дня →»,
+ *   the link to the exam's page. While nothing counts yet: the dated line of the plan; before any answer: the rule in
+ *   one line. No «Видели N из M» (decision 47).
+ * The card leads «Сегодня» (`lead`) or steps aside: then its pill is white on a computer, a quiet link on a phone.
  */
-import type { DayPlan, OverviewContainer } from '../../types/container';
+import { useId, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import type { DayPlan, LocalDay, OverviewContainer } from '../../types/container';
+import { dayText, startLabel } from '../../lib/containers/words';
+import { usePhone } from '../../lib/usePhone';
+import { useAuth } from '../../hooks/useAuth';
+import { firstCountText, planText } from './planLines';
+import * as copy from './copy';
+import { dayDiff, dayIn, examPlanNumbers, firstSession, minutesOf, studyHref } from './model';
+import { loadSession, resumable, resumeCounts } from './sessionStore';
+import { useWide } from './useWide';
+import './containers.css';
 
 export interface TodayExamCardProps {
   container: OverviewContainer;
@@ -12,6 +32,150 @@ export interface TodayExamCardProps {
   lead: boolean;
 }
 
-export default function TodayExamCard(_props: TodayExamCardProps): JSX.Element | null {
-  return null;
+function ArrowIcon() {
+  return (
+    <svg className="td-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function PillDot() {
+  return (
+    <span className="td-dot" aria-hidden="true">
+      <ArrowIcon />
+    </span>
+  );
+}
+
+function localToday(): LocalDay {
+  let tz = 'Europe/Minsk';
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz;
+  } catch {
+    // The default zone of the plan.
+  }
+  return dayIn(Date.now(), tz);
+}
+
+/** The nearest test date still ahead (or today), else the last one, else null. */
+export function nearestDate(container: OverviewContainer, today: LocalDay): LocalDay | null {
+  const dates = Array.from(new Set([...container.subjects.map((subject) => subject.exam_date), container.exam_date].filter((day): day is string => Boolean(day)))).sort();
+  return dates.find((date) => (dayDiff(today, date) ?? -1) >= 0) ?? dates[dates.length - 1] ?? null;
+}
+
+function safeStart(count: number, minutes: number | null, resume: { done: number; of: number } | null): string {
+  try {
+    return startLabel(count, minutes, resume);
+  } catch {
+    return copy.glue(resume ? `Продолжить: ещё ${copy.q(Math.max(1, resume.of - resume.done))}` : `Начать: ${copy.q(count)}`);
+  }
+}
+
+export default function TodayExamCard({ container, plan, offline = false, lead }: TodayExamCardProps) {
+  const titleId = useId();
+  const phone = usePhone();
+  const wide = useWide();
+  const { user } = useAuth();
+  const today = plan?.day ?? localToday();
+  const page = `/exams/c/${container.id}`;
+  const date = nearestDate(container, today);
+  const days = date ? dayDiff(today, date) : null;
+  const flag = date && days !== null && days >= 0 ? copy.todayFlag(days) : null;
+  const meta = copy.todayMeta(date ? dayText(date) : null, container.items);
+
+  // ── today's step and the pill
+  const saved = user?.id ? resumable(loadSession(user.id, container.id), today) : null;
+  let line: string;
+  let target: { href: string; label: string } | null = null;
+  if (!plan) {
+    line = copy.TODAY_LOADING;
+  } else if (saved) {
+    const counts = resumeCounts(saved);
+    const numbers = examPlanNumbers(plan);
+    line = `${copy.planTitleText(Math.max(numbers.questions, counts.of - counts.done), numbers.minutes, true)}.`;
+    target = { href: studyHref(container.id, { resume: 1 }), label: safeStart(counts.of - counts.done, null, counts) };
+  } else if (plan.state === 'study' && plan.sessions.length > 0) {
+    const numbers = examPlanNumbers(plan);
+    line = `${copy.planTitleText(numbers.questions, numbers.minutes, numbers.left)}.`;
+    const session = firstSession(plan);
+    if (session) {
+      if (session.kind === 'ai_check') {
+        const examId = container.subjects.find((subject) => subject.id === session.subjectId)?.oral_exam_id ?? null;
+        if (examId) target = { href: `/exams/${examId}/ticket?q=${session.ids.slice(0, 3).join(',')}&from=c:${container.id}`, label: copy.ANSWER_ALOUD(Math.min(3, session.ids.length)) };
+      } else {
+        target = {
+          href: studyHref(container.id, { s: session.subjectId, kind: session.kind === 'self_check' ? 'self_check' : null }),
+          label: safeStart(session.ids.length, wide ? minutesOf(session.estSec) : null, null),
+        };
+      }
+    }
+  } else {
+    line = planText(plan) || copy.SUBJECT_DONE;
+  }
+
+  let pill: ReactNode = null;
+  if (target) {
+    pill =
+      phone && !lead ? (
+        <Link className="sf-link td-alt" to={target.href}>
+          {target.label}
+        </Link>
+      ) : (
+        <Link className={lead ? 'sf-primary' : 'sf-secondary td-pill'} to={target.href}>
+          {target.label}
+          {lead ? null : <PillDot />}
+        </Link>
+      );
+  }
+
+  // ── the figure
+  const figure = plan
+    ? { twoDays: plan.figure.twoDays, total: plan.figure.inPlan, seen: plan.figure.seen }
+    : container.subjects.reduce((sum, subject) => ({ twoDays: sum.twoDays + subject.two_days, total: sum.total + subject.keyed, seen: sum.seen + subject.seen }), { twoDays: 0, total: 0, seen: 0 });
+  let figureRow: ReactNode;
+  if (figure.twoDays > 0) {
+    figureRow = (
+      <p className="td-share">
+        <Link className="tc-fig-link" to={page}>
+          <span className="td-share-fig">{figure.twoDays}</span>
+          <span className="td-share-cap">
+            {copy.todayFigure(figure.total)}
+            <ArrowIcon />
+          </span>
+        </Link>
+      </p>
+    );
+  } else {
+    const text = figure.seen > 0 ? firstCountText(plan) ?? copy.FIRST_COUNT_FALLBACK : copy.TODAY_RULE;
+    figureRow = (
+      <p className="td-sheet">
+        <Link className="tc-rule-link" to={page}>
+          {copy.glue(text.replace(/[.]$/, ''))}
+          <ArrowIcon />
+        </Link>
+      </p>
+    );
+  }
+
+  return (
+    <article className="td-card td-main td-exam td-rise" data-d="2" data-phone={phone ? '' : undefined} data-container="" aria-labelledby={titleId}>
+      {flag ? (
+        <span className="td-flag" data-tone={days !== null && days <= 3 ? 'y' : 'g'} aria-hidden="true">
+          {flag}
+        </span>
+      ) : null}
+      <h2 className="td-h2" id={titleId}>
+        {container.title}
+        {flag ? <span className="sr-only">{` — ${flag.toLocaleLowerCase('ru-RU')}`}</span> : null}
+      </h2>
+      <p className="td-meta">{meta}</p>
+      <div className="td-next">
+        <p className="td-erase-t tc-today">{line}</p>
+        {pill ? <div className="td-actions">{pill}</div> : null}
+      </div>
+      {offline ? <p className="tc-note">{copy.OFFLINE_PAGE}</p> : null}
+      <div className="td-ready">{figureRow}</div>
+    </article>
+  );
 }
