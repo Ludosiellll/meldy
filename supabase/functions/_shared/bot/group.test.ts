@@ -10,6 +10,7 @@ import { pickGroupQuestion } from '../plan/group.ts';
 import { optionOrder, pinnedLast } from '../plan/session.ts';
 import { DbError } from './db.ts';
 import * as G from './group.ts';
+import { layoutOf } from './question.ts';
 import { esc, t, visibleLength, visibleText } from './html.ts';
 import { lintMessage } from './lint.ts';
 import { derivedSecret } from './secrets.ts';
@@ -904,4 +905,20 @@ test('the fake token never appears in a log line or an error, and no log line na
     assert.doesNotMatch(line, /[а-яё]/i, `${line}: no text`);
   }
   assert.ok(LOGS.some((line) => /"route":"tick"/.test(line)));
+});
+
+test('a post judges its options as code exactly as a session does (question.ts layoutOf): a multi-line option line by line', () => {
+  const views = [
+    { options: ['Объявляет переменную и сразу\nint x = 5;', 'Ничего не делает', 'Ошибка компиляции', 'Цикл'], code: true, keepOrder: false },
+    { options: ['x++', '++x', 'x += 1', 'x = x + 1'], code: true, keepOrder: false },
+    { options: ['x++', '++x', 'x += 1', 'x = x + 1'], code: false, keepOrder: false },
+    { options: ['Первая строка\nвторая строка', 'Да', 'Нет', 'Не знаю'], code: true, keepOrder: true },
+  ];
+  for (const view of views) {
+    const asSession = layoutOf({ kind: 'single', ...view });
+    assert.deepEqual(G.optionLayout(view).code, asSession.code, view.options[0]);
+  }
+  // Before: codeLike on the whole option read the Russian line first and called this one words.
+  assert.deepEqual(G.optionLayout(views[0]).code, [true, false, false, false]);
+  assert.equal(G.optionLayout(views[0]).mode, 'letters');
 });

@@ -25,7 +25,6 @@
  * Long options are letters, as Z2 (decision 13); options in code are letters in `<code>` (Z3). The strings are plain
  * text; builders glue and escape them (html.ts). Comments stay in English: a test reads the Russian strings.
  */
-import { codeLike } from '../plan/codeLines.ts';
 import { pickGroupQuestion, type GroupInput, type GroupItemCounts } from '../plan/group.ts';
 import { optionOrder, pinnedLast } from '../plan/session.ts';
 import { stemParts } from '../plan/stemCode.ts';
@@ -35,6 +34,7 @@ import { encode } from './codec.ts';
 import type { BotDb, Who } from './db.ts';
 import { b, EN_SPACE, esc, lines, pre, t, typo, visibleLength } from './html.ts';
 import { m1 } from './link.ts';
+import { optionIsCode } from './question.ts';
 import type { Ctx, GroupCallback, GroupPort, StepStats, Tap, TgChatMemberUpdated, TickTools } from './router.ts';
 import {
   edit, editKeyboard, isBlocked, isRateLimited, remove, send, TelegramError, type Button, type Keyboard, type Out, type TgMessage,
@@ -385,7 +385,8 @@ export interface OptionLayout {
  * the order is not the file's own (`keep_order`); otherwise letters in the text and buttons А–З.
  */
 export function optionLayout(view: Pick<PostView, 'options' | 'code' | 'keepOrder'>): OptionLayout {
-  const code = view.options.map((o) => view.code && codeLike(o));
+  // The session's own judgement (question.ts): a multi-line option is code when one of its lines reads as code.
+  const code = view.options.map((o) => optionIsCode(view, o));
   const buttons = !view.keepOrder && view.options.every((o, i) => !code[i] && !/[\r\n]/.test(o.trim()) && [...oneLine(o)].length <= OPTION_MAX);
   return { mode: buttons ? 'buttons' : 'letters', code };
 }

@@ -106,7 +106,7 @@ test('code in a question as the site splits it (stemCode.test.tsx): SQL, a shell
   assert.equal(stemParts('Какая команда удаляет таблицу?', false).code, null);
 });
 
-test('the bot keeps no code rule of its own: question.ts and group.ts take codeLike and stemParts from the copied modules', () => {
+test('the bot keeps no code rule of its own: question.ts takes codeLike and stemParts from the copied modules, group.ts the session\'s optionIsCode', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   for (const file of readdirSync(here).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))) {
     const source = readFileSync(join(here, file), 'utf8');
@@ -114,9 +114,14 @@ test('the bot keeps no code rule of its own: question.ts and group.ts take codeL
   }
   for (const file of ['question.ts', 'group.ts']) {
     const source = readFileSync(join(here, file), 'utf8');
-    assert.match(source, /^import \{ codeLike \} from '\.\.\/plan\/codeLines\.ts';$/m, file);
     assert.match(source, /^import \{ stemParts \} from '\.\.\/plan\/stemCode\.ts';$/m, file);
   }
+  const question = readFileSync(join(here, 'question.ts'), 'utf8');
+  assert.match(question, /^import \{ codeLike \} from '\.\.\/plan\/codeLines\.ts';$/m, 'question.ts');
+  // A post's options are code exactly as in a session: one judgement for both (a multi-line option, line by line).
+  const group = readFileSync(join(here, 'group.ts'), 'utf8');
+  assert.match(group, /^import \{ optionIsCode \} from '\.\/question\.ts';$/m, 'group.ts');
+  assert.doesNotMatch(group, /codeLike\(/, 'group.ts: options are judged by optionIsCode only');
 });
 
 test('the order: seeded by <sid>:<pos> (the same everywhere), a retry gets a new one; keep_order keeps the file; «Все перечисленные» last', () => {
