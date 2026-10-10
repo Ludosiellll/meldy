@@ -94,6 +94,20 @@ describe('route patterns and buckets', () => {
     expect(routePattern('')).toBe('/');
   });
 
+  it('always masks the code of a group link, even one made only of letters', () => {
+    // Codes are 12 characters of 0-9a-hjkmnp-tv-z: «abcdefghjkmn» would otherwise pass as a word and be recorded.
+    expect(routePattern('/join/abcdefghjkmn')).toBe('/join/:id');
+    expect(routePattern('/g/abcdefghjkmn')).toBe('/g/:id');
+    expect(routePattern('/g/abcdefghjkmn/')).toBe('/g/:id');
+    expect(routePattern('/g/ab12cd34ef56?next=/exams')).toBe('/g/:id');
+    expect(routePattern('/join/ABC-def')).toBe('/join/:id');
+    expect(routePattern('/join')).toBe('/join');
+    expect(routePattern('/g')).toBe('/g');
+    expect(routePattern('/api/exam-shares/join')).toBe('/api/exam-shares/join');
+    expect(routePattern(`/exams/c/${UUID}/study`)).toBe('/exams/c/:id/study');
+    expect(routePattern('/exams/import')).toBe('/exams/import');
+  });
+
   it('gives sizes and times as small buckets', () => {
     expect([0, 1, 2, 3, 5, 6, 40, 41, 300, 301].map(countBucket)).toEqual(['0', '1-2', '1-2', '3-5', '3-5', '6-10', '21-40', '41-80', '151-300', '301+']);
     expect([1_000, 45_000, 90_000, 200_000, 400_000, 900_000].map(secondsBucket)).toEqual(['<30s', '30-60s', '1-2m', '2-5m', '5-10m', '10m+']);
@@ -227,6 +241,21 @@ describe('track and the queue', () => {
     flushTelemetry();
     const views = sent.flatMap((batch) => batch.events).filter((event) => event.name === 'page_view');
     expect(views.map((event) => event.route)).toEqual(['/', '/courses', '/exams/:id/draw']);
+  });
+
+  it('a page view of a group link never carries its code', () => {
+    installTelemetry();
+    vi.advanceTimersByTime(400);
+    window.history.pushState(null, '', '/g/abcdefghjkmn');
+    vi.advanceTimersByTime(400);
+    window.history.pushState(null, '', '/join/kmnpqrstvwxy');
+    vi.advanceTimersByTime(400);
+    track('group_join_view', { inapp: 'none' });
+    flushTelemetry();
+    const events = sent.flatMap((batch) => batch.events);
+    expect(events.filter((event) => event.name === 'page_view').map((event) => event.route)).toEqual(['/', '/g/:id', '/join/:id']);
+    expect(events[events.length - 1].route).toBe('/join/:id');
+    expect(JSON.stringify(events)).not.toMatch(/abcdefghjkmn|kmnpqrstvwxy/);
   });
 
   it('respects Do Not Track for product events and still reports errors', () => {
