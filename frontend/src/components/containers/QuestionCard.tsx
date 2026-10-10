@@ -1,7 +1,7 @@
 import { forwardRef, type ReactNode, type Ref } from 'react';
 import type { TestItem } from '../../types/container';
 import * as copy from './copy';
-import { splitStem } from './model';
+import { stemParts } from './stemCode';
 import './room.css';
 
 /**
@@ -67,7 +67,8 @@ function Check() {
 
 const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function QuestionCard(props, ref) {
   const { item, order, context, mode, answered, ticked, picked, text, textInvalid, hint, onPick, onText, onSubmitText, stemRef, fileRef } = props;
-  const stem = splitStem(item.stem, item.code);
+  // The flag of the import, and lines that clearly read as code even without it (stemCode.ts, usability check m1).
+  const stem = stemParts(item.stem, item.code);
   const multiple = item.kind === 'multiple';
   const learn = mode === 'learn';
 

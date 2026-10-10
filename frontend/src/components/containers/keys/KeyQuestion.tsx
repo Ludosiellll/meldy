@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { letter, nb, QUEUE } from '../copyImport';
+import { stemParts } from '../stemCode';
 import './keys.css';
 
 /**
@@ -46,20 +47,24 @@ interface Props {
   headingId?: string;
 }
 
-/** The question's own lines: a code question keeps every line, each wrapping with a hanging indent. */
+/**
+ * The question's own lines: the words, then the code as typed, each line wrapping with a hanging indent (as in a
+ * «занятие», stemCode.ts: lines that clearly read as code are code even without the import's flag).
+ */
 function Stem({ text, code }: { text: string; code: boolean }) {
-  const lines = text.split('\n');
-  if (!code || lines.length < 2) return <p className="kq-stem">{text}</p>;
+  const parts = stemParts(text, code);
+  if (!parts.code) return <p className="kq-stem">{text}</p>;
   return (
     <div className="kq-stem">
-      <p className="kq-stem-lead">{lines[0]}</p>
+      {parts.before ? <p className="kq-stem-lead">{parts.before}</p> : null}
       <div className="kq-code" role="group" aria-label={QUEUE.code}>
-        {lines.slice(1).map((line, index) => (
+        {parts.code.replace(/\t/g, '    ').split('\n').map((line, index) => (
           <span key={index} className="kq-code-line">
             {line || '\u00a0'}
           </span>
         ))}
       </div>
+      {parts.after ? <p className="kq-stem-lead">{parts.after}</p> : null}
     </div>
   );
 }
