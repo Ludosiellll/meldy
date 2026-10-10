@@ -42,6 +42,7 @@ import {
   SUBJECT_OS,
   containerData,
   dayPlan,
+  dbItems,
   item,
   subject,
   summary,
@@ -342,6 +343,60 @@ describe('the states of the exam page (§3.3 table)', () => {
     const row = screen.getByRole('link', { name: /Гражданское право/ });
     expect(plain(row.textContent)).toContain('60 устных · нужны лекции');
     expect(row.getAttribute('href')).toBe(`/exams/${ORAL_EXAM}?from=c:${CONTAINER}`);
+  });
+
+  describe('an exam with an oral part (usability check 2026-10-10, m6, m7)', () => {
+    // The QA's exam: an oral exam of 20 questions, 16 of them in the plan (4 wait for lectures), and questions with
+    // variants; today 16 new and 16 oral, about 30 minutes.
+    const oralSubject = subject({ id: SUBJECT_ORAL, position: 1, title: 'Гражданское право', keyed: 0, seen: 0, two_days: 0, open_errors: 0, topics: [], topic_titles: [], oral: { exam_id: ORAL_EXAM, questions: 20 } });
+    const oralItems = Array.from({ length: 16 }, (_, i) => ({ id: `o-${i}`, s: SUBJECT_ORAL, f: 'o' as const, tp: null, o: i + 1, l: [], m: { sc: null, rating: 0 as const, ac: null, prepared: false } }));
+    const qaPlan = () =>
+      dayPlan({
+        sessions: [
+          { subjectId: SUBJECT_ORAL, kind: 'self_check', ids: oralItems.slice(0, 10).map((entry) => entry.id), estSec: 600 },
+          { subjectId: SUBJECT_ORAL, kind: 'self_check', ids: oralItems.slice(10).map((entry) => entry.id), estSec: 360 },
+          { subjectId: SUBJECT_DB, kind: 'answer', ids: dbItems().map((entry) => entry.id), estSec: 840 },
+        ],
+        counts: { newItems: 5, reviews: 0, oral: 16, aiChecks: 0, estSec: 1800, leftSec: 1800, doneSec: 0 },
+        perSubject: [
+          { subjectId: SUBJECT_ORAL, estSec: 960, items: 16, figure: { inPlan: 16, twoDays: 0, seen: 1, errors: 0 } },
+          ...dayPlan().perSubject,
+        ],
+        lines: [{ key: 'short', n: [30, 700, 976, 60], day: '2026-10-28' }],
+      });
+    const qaData = () => {
+      const data = containerData({ summary: summary({ subjects: [oralSubject, ...summary().subjects.map((s) => ({ ...s, position: s.position + 1 }))] }), plan: qaPlan(), oralWithoutPoints: 4 });
+      data.planInput.items = [...data.planInput.items, ...oralItems];
+      data.planInput.subjects = [{ id: SUBJECT_ORAL, title: 'Гражданское право', date: '2026-10-28' }, ...data.planInput.subjects];
+      data.planInput.budgetMin = 30;
+      return data;
+    };
+
+    it('the oral subject’s row says «устный», as «Настройки» does (m7)', () => {
+      renderPage(loaded(qaData()));
+      const row = document.querySelector<HTMLAnchorElement>(`a.ct-row[href="/exams/${ORAL_EXAM}?from=c:${CONTAINER}"]`);
+      expect(plain(row?.textContent)).toBe('Гражданское правоустный · 0 из 16 · сегодня 16');
+      expect(page()).toContain('Ещё 4 устных войдут в план, когда к предмету будут лекции.');
+      // the exam's one size: 960 with variants and 20 oral
+      expect(page()).toContain('980 вопросов');
+    });
+
+    it('«План по дням»: today at the card’s minutes, the days with oral questions say so (m6, m7)', () => {
+      renderPage(loaded(qaData()));
+      expect(page()).toContain('Сегодня 21 вопрос, около 30 минут');
+      fireEvent.click(screen.getByRole('button', { name: 'План по дням' }));
+      const rows = Array.from(screen.getByRole('dialog', { name: 'План по дням' }).querySelectorAll('li')).map((node) => plain(node.textContent));
+      expect(rows[0]).toBe('Время в день: 45 минут · Изменить');
+      expect(rows[1]).toBe('10 октября — около 30 минут, с устными');
+      expect(rows[2]).toMatch(/^11–23 октября — около \d+ минут в день, с устными$/);
+      expect(rows[3]).toBe('24–27 октября — новых нет, только знакомые, с устными, сначала ошибки');
+      expect(rows[4]).toBe('28 октября — экзамен');
+    });
+
+    it('what the minutes reach names its count «в плане»: the exam says 980, the plan holds 976 (m6)', () => {
+      renderPage(loaded(qaData()));
+      expect(page()).toContain('При 30 минутах к 28 октября вы увидите около 700 из 976 в плане. Чтобы увидеть все, нужно около 60 минут.');
+    });
   });
 
   it('a set-aside question comes back with «Вернуть в занятия»', async () => {

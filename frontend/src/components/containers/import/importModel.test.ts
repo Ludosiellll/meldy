@@ -339,6 +339,21 @@ describe('helpers', () => {
       ['f1:3', 1],
       ['f1:4', 1],
     ]);
+    expect(input).not.toHaveProperty('examQuestions');
+  });
+
+  it('a joining oral exam is subject 1 of the draft with its questions in the plan; the exam’s size rides along', () => {
+    const subjects = deriveSubjects([file(bank([item(1), item(2)]))]);
+    const oral = Array.from({ length: 3 }, (_, i) => ({ id: `o${i}`, s: 'anything', f: 'o' as const, tp: null, o: i + 1, l: [], m: { sc: null, rating: 0 as const, ac: null, prepared: false } }));
+    const input = draftPlanInput(subjects, {
+      now: 1, tz: 'Europe/Minsk', today: '2026-10-10', minutes: 30, date: '2026-10-28', perSubject: false,
+      extra: { id: 'old:db', title: 'Базы данных', date: '2026-10-21', items: oral }, examQuestions: 22,
+    });
+    expect(input.subjects).toEqual([{ id: 'old:db', title: 'Базы данных', date: '2026-10-21' }, { id: 'f1:1', title: 'Сети', date: '2026-10-28' }]);
+    expect(input.items.map((entry) => [entry.id, entry.s, entry.f])).toEqual([
+      ['o0', 'old:db', 'o'], ['o1', 'old:db', 'o'], ['o2', 'old:db', 'o'], ['f1:1', 'f1:1', 't'], ['f1:2', 'f1:1', 't'],
+    ]);
+    expect(input.examQuestions).toBe(22);
   });
 
   it('spot-checks three keyed questions spread over the subjects', () => {

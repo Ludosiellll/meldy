@@ -53,17 +53,29 @@ export function text(line: Line): string {
   }
 }
 
-/** The plan's lines for the card: notes (with their links) and the link-only lines, in the plan's order. */
-export function planLineViews(plan: DayPlan | null): LineView[] {
-  return lineViews(plan?.lines ?? []);
+/**
+ * The plan's lines for the card: notes (with their links) and the link-only lines, in the plan's order. `size` is the
+ * exam's number of questions (model.ts examQuestions): «вы увидите около 40 из 50» then says «из 50 в плане» when the
+ * plan holds fewer than the exam (usability check 2026-10-10, m6).
+ */
+export function planLineViews(plan: DayPlan | null, size?: number): LineView[] {
+  return lineViews(plan?.lines ?? [], size);
+}
+
+/** A line of what the minutes reach by the date with the exam's size after its count (words.ts reads it there). */
+function sized(line: Line, size: number | undefined): Line {
+  if (size === undefined || !Number.isFinite(size) || (line.key !== 'short' && line.key !== 'short_max')) return line;
+  const n = [...(line.n ?? [])];
+  n[line.key === 'short' ? 4 : 3] = size;
+  return { ...line, n };
 }
 
 /** Lines of the plan or of one subject (plan.ts subjectInfo) as views. */
-export function lineViews(lines: readonly Line[]): LineView[] {
+export function lineViews(lines: readonly Line[], size?: number): LineView[] {
   const out: LineView[] = [];
   for (const [index, line] of lines.entries()) {
     if (NOT_NOTES.has(line.key)) continue;
-    const words = text(line);
+    const words = text(sized(line, size));
     if (words) out.push({ key: `${line.key}-${index}`, kind: line.key, text: words, action: lineAction(line.key), linkOnly: LINK_ONLY.has(line.key) });
   }
   return out;

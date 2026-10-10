@@ -445,6 +445,12 @@ export interface PlanInput {
    */
   dayStart?: Record<string, UnitState>;
   ai: { left: number; resetsAt: number } | null;
+  /**
+   * The exam's size as its screens say it: all its questions, with variants (with a key or not) and oral (those waiting
+   * for lectures too). The plan never reads it; the line of what the minutes reach by the date (the import page,
+   * «Настройки») counts the questions in the plan and says «в плане» when the exam holds more. Absent: the same count.
+   */
+  examQuestions?: number;
 }
 export type Cls = 'relearn' | 'confirm' | 'new_floor' | 'confirm_ai' | 'start_ai' | 'check' | 'final' | 'new_fill';
 export interface DayPlan {

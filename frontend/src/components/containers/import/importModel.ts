@@ -17,7 +17,7 @@
  * - ItemInput: file_no = the file's number, topic per subject, key_source from the evidence (a checkbox → 'marker'),
  *   keep_order for «Все перечисленные» / «Ни один…», ref = `<import id>:<position>`.
  */
-import type { BankItem, BankParseResult, ItemInput, ItemKind, KeySource, PlanInput } from '../../../types/container';
+import type { BankItem, BankParseResult, ItemInput, ItemKind, KeySource, PlanInput, PlanItem } from '../../../types/container';
 import { subjectFromFileName } from './subjectName';
 
 export const ORAL_CAP = 150;
@@ -765,12 +765,27 @@ export function newImportId(now: number = Date.now(), random: () => number = Mat
   return `imp-${now.toString(36)}-${tail}`;
 }
 
-/** The input of `feasibility` (lib/containers/plan.ts) for the questions about to be saved: nothing answered yet. */
+/**
+ * The input of `feasibility` (lib/containers/plan.ts) for the questions about to be saved: nothing answered yet; an oral
+ * exam joining as subject 1 with its questions in the plan as they stand.
+ */
 export function draftPlanInput(
   subjects: readonly DraftSubject[],
-  options: { now: number; tz: string; today: string; minutes: number; date: string | null; perSubject: boolean },
+  options: {
+    now: number;
+    tz: string;
+    today: string;
+    minutes: number;
+    date: string | null;
+    perSubject: boolean;
+    /** An oral exam that joins as subject 1 («Куда добавить: к …»): its questions in the plan, as they stand. */
+    extra?: { id: string; title: string; date: string | null; items: PlanItem[] } | null;
+    /** The exam's size after saving (every question, oral included): the minutes line names what it counts by it. */
+    examQuestions?: number;
+  },
 ): PlanInput {
   const active = activeSubjects(subjects);
+  const extra = options.extra ?? null;
   return {
     v: 1,
     now: options.now,
@@ -778,22 +793,29 @@ export function draftPlanInput(
     containerId: 'draft',
     budgetMin: options.minutes,
     firstPlanDay: options.today,
-    subjects: active.map((subject) => ({ id: subject.key, title: subject.title, date: options.perSubject ? subject.date : options.date })),
-    items: active.flatMap((subject) =>
-      subject.test
-        .filter((item) => item.kind === 'short' || item.correct.length > 0)
-        .map((item) => ({
-          id: item.uid,
-          s: subject.key,
-          f: 't' as const,
-          tp: item.topic,
-          o: item.position,
-          ...(item.code || item.kind === 'multiple' ? { slow: 1 as const } : {}),
-        })),
-    ),
+    subjects: [
+      ...(extra ? [{ id: extra.id, title: extra.title, date: extra.date }] : []),
+      ...active.map((subject) => ({ id: subject.key, title: subject.title, date: options.perSubject ? subject.date : options.date })),
+    ],
+    items: [
+      ...(extra ? extra.items.map((item) => ({ ...item, s: extra.id })) : []),
+      ...active.flatMap((subject) =>
+        subject.test
+          .filter((item) => item.kind === 'short' || item.correct.length > 0)
+          .map((item) => ({
+            id: item.uid,
+            s: subject.key,
+            f: 't' as const,
+            tp: item.topic,
+            o: item.position,
+            ...(item.code || item.kind === 'multiple' ? { slow: 1 as const } : {}),
+          })),
+      ),
+    ],
     today: { firstAt: null, doneSec: 0, newDone: {} },
     pace: null,
     ai: null,
+    ...(typeof options.examQuestions === 'number' ? { examQuestions: options.examQuestions } : {}),
   };
 }
 

@@ -207,7 +207,7 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
   const pace = paceNote({ input: planInput, plan, budget: summary.settings.minutes_per_day, firstPlanDay: summary.first_plan_day });
   const paceShown = pace && paceTold < pace.stage ? pace : null;
   // While the pace line says it, the plan's «При 45 минутах…» waits.
-  const lines = planLineViews(plan).filter((line) => !(paceShown?.line.key === 'pace_slower' && (line.kind === 'short' || line.kind === 'short_max')));
+  const lines = planLineViews(plan, examQuestions(summary)).filter((line) => !(paceShown?.line.key === 'pace_slower' && (line.kind === 'short' || line.kind === 'short_max')));
   const hasLine = (action: LineView['action']) => lines.some((line) => line.action === action);
   const planNotes: CardNote[] = [];
   if (offline) planNotes.push({ kind: 'offline', node: <NoteLine key="offline" text={copy.OFFLINE_PAGE} /> });
@@ -393,6 +393,7 @@ export default function ExamView({ containerId, data, plan, offline, reload }: V
       {daysOpen ? (
         <PlanByDaysSheet
           input={planInput}
+          plan={plan}
           subjects={summary.subjects}
           minutes={summary.settings.minutes_per_day}
           noDate={day.noDate}

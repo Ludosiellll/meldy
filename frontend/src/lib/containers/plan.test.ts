@@ -6,8 +6,8 @@ import {
   feasibility, mockOffered, oralToPrepare, planDay, subjectInfo, windowDays,
 } from './plan.ts';
 import { prng } from './session.ts';
-import { addDays, clockText, localDay } from './time.ts';
-import { LINE_KEYS, lineText } from './words.ts';
+import { addDays, clockText, localDay, studyDaysBetween } from './time.ts';
+import { LINE_KEYS, lineText, shownMinutes } from './words.ts';
 import { TZ, at, makeInput, newSim, oralItems, simFigure, simInput, simSeen, sit, stateAfter, testItems } from './__fixtures__/scenarios.ts';
 
 const DAY1 = '2026-10-07';
@@ -523,13 +523,66 @@ describe('first count, next, lines', () => {
   });
 
   it('a skipped day: «Вчера без занятий. Сегодня те же 60 минут — больше знакомых вопросов.»', () => {
+    // The exam was made before those answers (its first plan day): a question is answered only once its exam exists.
+    const made = addDays(DAY1, -6);
     const items = withStates(testItems('a', 30), (_, i) => (i < 10 ? stateAfter([{ at: at(addDays(DAY1, -2), '20:00'), correct: i % 2 === 0 }]) : undefined));
-    const p = planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items, budgetMin: 60 }));
+    const p = planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items, budgetMin: 60, firstPlanDay: made }));
     expect(p.lines.find((l) => l.key === 'skip')).toEqual({ key: 'skip', n: [1, 60] });
     const three = withStates(testItems('a', 30), (_, i) => (i < 10 ? stateAfter([{ at: at(addDays(DAY1, -4), '20:00'), correct: true }]) : undefined));
-    expect(planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items: three })).lines.find((l) => l.key === 'skip')?.n).toEqual([3, 60]);
+    expect(planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items: three, firstPlanDay: made })).lines.find((l) => l.key === 'skip')?.n).toEqual([3, 60]);
     const yesterday = withStates(testItems('a', 30), (_, i) => (i < 10 ? stateAfter([{ at: at(addDays(DAY1, -1), '20:00'), correct: true }]) : undefined));
-    expect(keysOf(planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items: yesterday })))).not.toContain('skip');
+    expect(keysOf(planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items: yesterday, firstPlanDay: made })))).not.toContain('skip');
+  });
+
+  describe('no skipped day before the exam’s first plan day (usability check 2026-10-10, m5)', () => {
+    // An oral exam answered on 7–8 October joins an exam made on 10 October: «2 дня без занятий» was the oral exam's.
+    const today = '2026-10-10';
+    const both = [{ id: 'db', date: '2026-10-21' }, { id: 'cs', date: '2026-10-21' }];
+    const oral = (sc: LocalDay | null) => oralItems('db', 16, { prepared: false }, 0).map((item, i) => (i === 0 && sc ? { ...item, m: { ...item.m!, sc, rating: 2 as const } } : item));
+    const plan = (firstPlanDay: LocalDay, sc: LocalDay | null, mask?: number) =>
+      planDay(makeInput({ now: at(today, '16:10'), subjects: both, items: [...testItems('cs', 20), ...oral(sc)], budgetMin: 30, firstPlanDay, studyWeekdays: mask }));
+
+    it('a brand-new exam with an oral exam answered before it: no «дня без занятий»', () => {
+      const fresh = plan(today, '2026-10-08');
+      expect(fresh.state).toBe('study');
+      expect(keysOf(fresh)).not.toContain('skip');
+      expect(fresh.lines.map(lineText).join(' ')).not.toMatch(/без занятий/);
+      // the same exam made yesterday: yesterday was its own day, and it was missed («Вчера без занятий»)
+      expect(plan('2026-10-09', '2026-10-07').lines.find((l) => l.key === 'skip')).toEqual({ key: 'skip', n: [1, 30] });
+      // made on 8 October: the 8th and the 9th were its days
+      expect(plan('2026-10-08', '2026-10-07').lines.find((l) => l.key === 'skip')).toEqual({ key: 'skip', n: [2, 30] });
+      // made a week ago, the oral exam's answers of 7 October are the last study day: 8 and 9 October were missed
+      expect(plan('2026-10-03', '2026-10-07').lines.find((l) => l.key === 'skip')).toEqual({ key: 'skip', n: [2, 30] });
+    });
+
+    it('only the exam’s own study days count, and a day off between still names the last missed day', () => {
+      // Пн–Пт, today Monday 12 October.
+      const monday = '2026-10-12';
+      const atMonday = (firstPlanDay: LocalDay, sc: LocalDay) =>
+        planDay(makeInput({ now: at(monday, '16:10'), subjects: both, items: [...testItems('cs', 20), ...oral(sc)], budgetMin: 30, firstPlanDay, studyWeekdays: 31 }));
+      // made on Friday 9 October, the oral exam answered on Wednesday 7: only Friday was missed (the weekend is off)
+      expect(atMonday('2026-10-09', '2026-10-07').lines.find((l) => l.key === 'skip')).toEqual({ key: 'skip', n: [1, 30], day: '2026-10-09' });
+      // made on Monday itself: nothing was missed
+      expect(keysOf(atMonday(monday, '2026-10-07'))).not.toContain('skip');
+    });
+
+    it('an exam of questions with variants only: the line is exactly as before (answers never precede the exam by two days)', () => {
+      // The old rule counted the study days from the day after the last answers; the exam's first day is at most one day
+      // after its first answer (the server's day is Europe/Minsk, the answer's the device's), so it changes nothing.
+      for (const mask of [127, 31, 85]) {
+        for (let last = 1; last <= 9; last += 1) {
+          const lastDay = addDays(DAY1, -last);
+          const items = withStates(testItems('a', 30), (_, i) => (i < 6 ? stateAfter([{ at: at(lastDay, '20:00'), correct: i % 2 === 0 }]) : undefined));
+          for (const made of [addDays(lastDay, -3), addDays(lastDay, -1), lastDay, addDays(lastDay, 1)]) {
+            const p = planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items, budgetMin: 45, firstPlanDay: made, studyWeekdays: mask }));
+            const old = studyDaysBetween(addDays(lastDay, 1), DAY1, mask);
+            const skip = p.lines.find((l) => l.key === 'skip');
+            if (p.state !== 'study' || old < 1) expect(skip, `${mask} ${lastDay} ${made}`).toBeUndefined();
+            else expect(skip?.n, `${mask} ${lastDay} ${made}`).toEqual([old, 45]);
+          }
+        }
+      }
+    });
   });
 
   it('a short budget says what the student will see and how many minutes would cover everything', () => {
@@ -607,13 +660,79 @@ describe('determinism', () => {
 
 describe('helpers for the screens', () => {
   it('«План по дням»: study days, the window without minutes, the exam day', () => {
-    const rows = daysAhead(makeInput({ now: at('2026-10-10', '09:00'), subjects: [{ id: 'a', date: '2026-10-28' }], items: testItems('a', 200), budgetMin: 45, firstPlanDay: '2026-10-08' }));
+    const input = makeInput({ now: at('2026-10-10', '09:00'), subjects: [{ id: 'a', date: '2026-10-28' }], items: testItems('a', 200), budgetMin: 45, firstPlanDay: '2026-10-08' });
+    const rows = daysAhead(input);
+    // Today takes the whole 45 minutes (more new questions while they last); the days after, the minutes the date needs.
     expect(rows.map((r) => [r.from, r.to, r.kind])).toEqual([
-      ['2026-10-10', '2026-10-23', 'study'], ['2026-10-24', '2026-10-27', 'window'], ['2026-10-28', '2026-10-28', 'exam'],
+      ['2026-10-10', '2026-10-10', 'study'], ['2026-10-11', '2026-10-23', 'study'], ['2026-10-24', '2026-10-27', 'window'], ['2026-10-28', '2026-10-28', 'exam'],
     ]);
-    expect(rows[0].minutes).toBeLessThanOrEqual(45);
-    expect(rows[1].minutes).toBeNull();
+    expect(rows[0].minutes).toBe(shownMinutes(planDay(input).counts.estSec));
+    expect(rows[1].minutes).toBe(feasibility(input).neededMin);
+    expect(rows[1].minutes).toBeLessThan(45);
+    expect(rows[2].minutes).toBeNull();
+    expect(rows.every((row) => !('oral' in row))).toBe(true);
     expect(daysAhead(makeInput({ now: at('2026-10-10', '09:00'), subjects: [{ id: 'a', date: null }], items: testItems('a', 5) }))).toEqual([]);
+  });
+
+  describe('«План по дням» and the card say one number for today (usability check 2026-10-10, m6)', () => {
+    const today = '2026-10-10';
+    const date = '2026-10-21';
+
+    it('today is the card’s «около N минут»: the day takes more than the date needs while new questions are left', () => {
+      // The QA's exam: 14 + 20 questions with variants and 16 oral, 30 minutes, made today.
+      const input = makeInput({
+        now: at(today, '16:10'), subjects: [{ id: 'db', date }, { id: 'inf', date }, { id: 'cs', date }],
+        items: [...oralItems('db', 16, { prepared: false }, 0), ...testItems('inf', 14), ...testItems('cs', 20)], budgetMin: 30, firstPlanDay: today,
+      });
+      const plan = planDay(input);
+      const rows = daysAhead(input, plan);
+      expect(shownMinutes(plan.counts.leftSec)).toBe(30);
+      expect(rows[0]).toMatchObject({ from: today, to: today, kind: 'study', minutes: 30, oral: true });
+      expect(rows[1]).toMatchObject({ from: '2026-10-11', to: '2026-10-17', kind: 'study', minutes: feasibility(input).neededMin, oral: true });
+      expect(rows[1].minutes).toBe(20);
+      expect(rows[2]).toMatchObject({ from: '2026-10-18', to: '2026-10-20', kind: 'window', minutes: null, oral: true });
+      expect(rows[3]).toEqual({ from: date, to: date, kind: 'exam', minutes: null, subjectIds: ['db', 'inf', 'cs'] });
+      // the same rows without passing the plan: daysAhead plans the day itself
+      expect(daysAhead(input)).toEqual(rows);
+    });
+
+    it('a today at the minutes of the days after it stays one row with them (960 questions, 45 minutes)', () => {
+      const input = makeInput({ now: at(DAY1, '20:00'), subjects: four(addDays(DAY1, 21)), items: fourItems(), budgetMin: 45, firstPlanDay: DAY1 });
+      const plan = planDay(input);
+      const real = daysAhead(input, plan);
+      expect(real[0]).toMatchObject({ from: DAY1, kind: 'study', minutes: shownMinutes(plan.counts.estSec) });
+      // the date needs more than 45 minutes a day: the days after today take all 45
+      expect(feasibility(input).neededMin).toBeGreaterThan(45);
+      const full = daysAhead(input, { ...plan, counts: { ...plan.counts, estSec: 45 * 60, leftSec: 45 * 60 } });
+      expect(full[0]).toMatchObject({ from: DAY1, to: addDays(DAY1, 16), kind: 'study', minutes: 45 });
+    });
+
+    it('half done: today keeps the whole day’s minutes; a day with nothing to do has no row', () => {
+      const items = withStates(testItems('a', 40), (_, i) => (i < 12 ? stateAfter([{ at: at(today, '09:00') + i * 40_000, correct: true }]) : undefined));
+      const input = makeInput({ now: at(today, '10:00'), firstAt: at(today, '09:00'), doneSec: 480, subjects: [{ id: 'a', date }], items, budgetMin: 30, firstPlanDay: '2026-10-08' });
+      const plan = planDay(input);
+      expect(plan.state).toBe('study');
+      expect(daysAhead(input, plan)[0]).toMatchObject({ from: today, to: today, minutes: shownMinutes(plan.counts.estSec) });
+      const nothing: DayPlan = { ...plan, state: 'nothing', sessions: [] };
+      expect(daysAhead(input, nothing)[0].from).toBe('2026-10-11');
+      // a plan of another day is not today's
+      expect(daysAhead(input, { ...plan, day: '2026-10-09' })[0].from).toBe(today);
+    });
+  });
+
+  it('«План по дням» says the days with oral questions; the days after the oral part’s date do not', () => {
+    const input = makeInput({
+      now: at('2026-10-10', '09:00'), subjects: [{ id: 'o', date: '2026-10-16' }, { id: 'a', date: '2026-10-28' }],
+      items: [...oralItems('o', 10), ...testItems('a', 100)], budgetMin: 45, firstPlanDay: '2026-10-10',
+    });
+    const rows = daysAhead(input);
+    for (const row of rows) {
+      const oralAhead = row.kind !== 'exam' && row.to < '2026-10-16';
+      expect(Boolean(row.oral), `${row.from}–${row.to} ${row.kind}`).toBe(oralAhead);
+    }
+    expect(rows.find((row) => row.kind === 'exam' && row.from === '2026-10-16')?.subjectIds).toEqual(['o']);
+    // an oral part with no questions in the plan (all wait for lectures) brings no oral days
+    expect(daysAhead({ ...input, items: testItems('a', 100) }).some((row) => row.oral)).toBe(false);
   });
 
   it('«Как на экзамене» is offered from half seen, every 4th day, on the first window day, once a day', () => {

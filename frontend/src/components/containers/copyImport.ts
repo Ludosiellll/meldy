@@ -144,8 +144,15 @@ export const IMPORT = {
   target: 'Куда добавить',
   targetNew: 'Новый экзамен',
   targetTo: (title: string) => `К «${title}»`,
+  /** Two targets of one name: the date and the size, as «Экзамены» says them; a copy equal in both: the day it was made. */
+  targetDetail: (day: string, n: number) => `${day || 'дата не указана'} · ${questions(n)}`,
+  targetMade: (day: string, time: string | null) => (time ? `создан ${day} в ${time}` : `создан ${day}`),
   name: 'Название',
-  nameNow: (n: number) => `Теперь в экзамене ${subjects(n)}. Название`,
+  /** An oral exam joins as subject 1: it is named, the rows above are the other subjects (usability check 2026-10-10, m4). */
+  nameWith: (title: string, n: number) => `В экзамене будут «${title}» и ещё ${subjects(n)}. Название`,
+  /** «Добавить предмет» of an exam: the student's oral exams outside any exam join it as they are. */
+  oralOffer: 'Или устный экзамен, который уже есть',
+  oralOfferMeta: (day: string, n: number) => `устный · ${day || 'дата не указана'} · ${questions(n)}`,
   namePlaceholder: 'Например, Зимняя сессия',
   nameTwo: (a: string, b: string) => `${a} и ${b}`,
   nameMissing: 'Назовите экзамен.',

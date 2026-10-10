@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { PlanInput, SummarySubject } from '../../types/container';
+import type { DayPlan, PlanInput, SummarySubject } from '../../types/container';
 import { daysAhead, type DayRow } from '../../lib/containers/plan';
 import { EVERY_DAY, studyMask } from '../../lib/containers/time';
 import { SKIP_NOTE, dayRowText } from '../../lib/containers/words';
@@ -10,15 +10,16 @@ import * as copy from './copy';
 // ─────────────────────────────────────────────── «План по дням» (Concept 1 §3.3 with the critique's rows)
 
 /**
- * The rows of «План по дням» from the study engine (lib/containers/plan.ts daysAhead, words.ts dayRowText): study days
- * at about the minutes a day, the final days without a promised number of minutes, each exam day — with whose exam it
- * is when the subjects have different dates. Days off have no row (the sheet says the days of the week above them).
+ * The rows of «План по дням» from the study engine (lib/containers/plan.ts daysAhead, words.ts dayRowText): today at
+ * the minutes of today's plan (the card's, `plan`), the other study days at about the minutes a day, the final days
+ * without a promised number of minutes, each exam day — with whose exam it is when the subjects have different dates;
+ * days with oral questions say so. Days off have no row (the sheet says the days of the week above them).
  */
-export function dayRows(input: PlanInput | null, subjects: readonly SummarySubject[]): Array<{ key: string; text: string }> {
+export function dayRows(input: PlanInput | null, subjects: readonly SummarySubject[], plan?: DayPlan | null): Array<{ key: string; text: string }> {
   if (!input) return [];
   let rows: DayRow[];
   try {
-    rows = daysAhead(input);
+    rows = plan ? daysAhead(input, plan) : daysAhead(input);
   } catch {
     return [];
   }
@@ -41,6 +42,7 @@ export function dayRows(input: PlanInput | null, subjects: readonly SummarySubje
 
 export function PlanByDaysSheet({
   input,
+  plan,
   subjects,
   minutes,
   noDate,
@@ -49,6 +51,8 @@ export function PlanByDaysSheet({
   onClose,
 }: {
   input: PlanInput | null;
+  /** Today's plan, the one the card shows: today's row says its minutes. */
+  plan?: DayPlan | null;
   subjects: readonly SummarySubject[];
   minutes: number;
   noDate: boolean;
@@ -56,7 +60,7 @@ export function PlanByDaysSheet({
   minutesHref: string;
   onClose: () => void;
 }) {
-  const rows = dayRows(input, subjects);
+  const rows = dayRows(input, subjects, plan);
   const weekdays = studyMask(input?.studyWeekdays);
   return (
     <Sheet title={copy.PLAN_BY_DAYS} onClose={onClose}>

@@ -113,11 +113,16 @@ export function subjectRowTest(p: { twoDays: number; keyed: number; seen: number
   if (p.today > 0 && !p.passed) parts.push(`сегодня ${p.today}`);
   return glue(parts.join(SEP));
 }
+/** «Устный» as «Настройки» marks an oral subject: the row of an oral part says it first (usability check 2026-10-10, m7). */
+export const ORAL_ROW = 'устный';
 export function subjectRowOral(p: { twoDays: number; inPlan: number; questions: number; today: number; dateText: string | null }): string {
   const parts: string[] = [];
-  if (p.dateText) parts.push(p.dateText);
-  if (p.inPlan === 0) parts.push(`${p.questions} ${pl(p.questions, 'устный', 'устных', 'устных')}${SEP}нужны лекции`);
-  else {
+  if (p.inPlan === 0) {
+    if (p.dateText) parts.push(p.dateText);
+    parts.push(`${p.questions} ${pl(p.questions, 'устный', 'устных', 'устных')}${SEP}нужны лекции`);
+  } else {
+    parts.push(ORAL_ROW);
+    if (p.dateText) parts.push(p.dateText);
     parts.push(`${p.twoDays} из ${p.inPlan}`);
     if (p.today > 0) parts.push(`сегодня ${p.today}`);
   }
@@ -398,5 +403,7 @@ export function todayFlag(days: number): string {
   if (days === 1) return 'Экзамен завтра';
   return `Экзамен через ${days} ${pl(days, 'день', 'дня', 'дней')}`;
 }
-export const todayMeta = (dayText: string | null, questions: number) => glue(dayText ? `${dayText}${SEP}${q(questions)}` : q(questions));
+/** «28 октября · 960 вопросов»; the date alone while the size is not known (model.ts overviewQuestions). */
+export const todayMeta = (dayText: string | null, questions: number | null) =>
+  glue([dayText, questions === null ? null : q(questions)].filter(Boolean).join(SEP));
 export const TODAY_LOADING = 'Считаем план на сегодня…';

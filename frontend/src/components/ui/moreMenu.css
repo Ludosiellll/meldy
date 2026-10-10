@@ -9,6 +9,7 @@
   cursor: pointer;
 }
 .sf-menu.mm-menu { min-width: 220px; }
+/* Upwards: a bar's menu (`up`); a menu with no room below is measured as it opens and placed inline (MoreMenu.tsx). */
 .sf-menu.mm-menu[data-up] { top: auto; bottom: calc(100% + 2px); }
 .sf-menu.mm-menu[data-start] { right: auto; left: 0; }
 .sf-menu a.mm-item {

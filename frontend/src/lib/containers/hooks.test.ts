@@ -184,6 +184,17 @@ describe('useContainerData', () => {
     expect((await lastContainer(A, C1))?.oral).toEqual(oralParts);
   });
 
+  it('the plan input carries the exam’s size as its page says it, oral questions included (usability check 2026-10-10, m6)', async () => {
+    const { result } = renderHook(() => useContainerData(C1));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+    const data = result.current.data!;
+    // 18 with variants and an oral part of 7 (components/containers/model.ts examQuestions: the exam page's number)
+    expect(data.planInput.examQuestions).toBe(25);
+    expect(data.planInput.examQuestions).toBe(summary.items_version.count + summary.subjects.reduce((sum, subject) => sum + (subject.oral?.questions ?? 0), 0));
+    // the plan holds fewer (the oral questions without points wait for lectures): the minutes line says «в плане»
+    expect(data.planInput.items.length).toBeLessThan(data.planInput.examQuestions!);
+  });
+
   it('a subject with only an oral part in the plan takes its oral exam’s date; test subjects keep theirs', async () => {
     const { result } = renderHook(() => useContainerData(C1));
     await waitFor(() => expect(result.current.data).not.toBeNull());

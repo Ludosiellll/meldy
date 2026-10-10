@@ -93,6 +93,22 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
     expect(minutesLines(mixed, 45)?.line).toBe('Чтобы увидеть все 240 вопросов к 28 октября, нужно около 35 минут в день.');
   });
 
+  it('names its count «в плане» when the exam holds more questions (usability check 2026-10-10, m6)', () => {
+    const words = (lines: ReturnType<typeof minutesLines>) => lines?.line.replace(/\u00a0/g, ' ');
+    // The QA's exam: 34 with variants and 16 oral in the plan; the exam says 54 (4 oral wait for lectures).
+    const qa = { ...input([{ id: 'db', title: 'Базы данных', date: '2026-10-21' }, { id: 'cs', title: 'C#', date: '2026-10-21' }], { db: 16, cs: 34 }), examQuestions: 54 };
+    plan.feasibility.mockReturnValue({ neededMin: 20, option: 30, seenByDateEst: 50 });
+    expect(words(minutesLines(qa, 30))).toBe('Чтобы увидеть все 50 вопросов в плане к 21 октября, нужно около 20 минут в день.');
+    plan.feasibility.mockReturnValue({ neededMin: 40, option: 45, seenByDateEst: 41 });
+    expect(words(minutesLines(qa, 30))).toBe('При 30 минутах к 21 октября вы увидите около 41 из 50 в плане. Чтобы увидеть все, нужно около 40 минут.');
+    plan.feasibility.mockReturnValue({ neededMin: 120, option: null, seenByDateEst: 41 });
+    expect(words(minutesLines(qa, 90))).toBe('Даже при 90 минутах в день к 21 октября вы увидите около 41 из 50 в плане.');
+    // the exam's size equals the count (or is not known): the words as before
+    plan.feasibility.mockReturnValue({ neededMin: 35, option: 45, seenByDateEst: 476 });
+    expect(words(minutesLines({ ...ONE_DATE, examQuestions: 476 }, 45))).toBe('Чтобы увидеть все 476 вопросов к 28 октября, нужно около 35 минут в день.');
+    expect(words(minutesLines(ONE_DATE, 45))).toBe('Чтобы увидеть все 476 вопросов к 28 октября, нужно около 35 минут в день.');
+  });
+
   it('no date, no questions or a failing estimate: no line', () => {
     plan.feasibility.mockReturnValue({ neededMin: 35, option: 45, seenByDateEst: 10 });
     expect(minutesLines(input([{ id: 'a', title: 'Сети', date: null }], { a: 10 }), 45)).toBeNull();

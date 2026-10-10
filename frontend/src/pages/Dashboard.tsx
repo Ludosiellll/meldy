@@ -35,6 +35,7 @@ import { planDay } from '../lib/containers/plan';
 import { glue as glueCount, shownMinutes } from '../lib/containers/words';
 import TodayExamCard from '../components/containers/TodayExamCard';
 import { isDayOff } from '../components/containers/planLines';
+import { examQuestions, overviewQuestions } from '../components/containers/model';
 import type { DayPlan, OverviewContainer } from '../types/container';
 import { containerDays, layerKey, QuietBoundary, useContainerLayer, type ContainerLayer } from './containerLayer';
 import './containerScreens.css';
@@ -1131,6 +1132,7 @@ export default function Dashboard() {
               <TodayExamCard
                 container={layout.main.item.container}
                 plan={layout.main.item.plan.status === 'ready' ? layout.main.item.plan.plan : null}
+                questions={layout.main.item.plan.status === 'ready' ? layout.main.item.plan.questions ?? null : null}
                 offline={(on?.offline ?? false) || (layout.main.item.plan.status === 'ready' && layout.main.item.plan.offline)}
                 lead={layout.mainLeads}
               />
@@ -1171,6 +1173,7 @@ export default function Dashboard() {
                 <TodayExamCard
                   container={alone.main.item.container}
                   plan={alone.main.item.plan.status === 'ready' ? alone.main.item.plan.plan : null}
+                  questions={alone.main.item.plan.status === 'ready' ? alone.main.item.plan.questions ?? null : null}
                   offline={on.offline || (alone.main.item.plan.status === 'ready' && alone.main.item.plan.offline)}
                   lead={alone.mainLeads}
                 />
@@ -1611,7 +1614,8 @@ function Desk({
 /** How long the page waits for the containers' plans before it draws them without (the card then shows its own wait). */
 export const PLAN_WAIT = { ms: 3000 };
 
-export type PlanResult = { status: 'loading' } | { status: 'ready'; plan: DayPlan; offline: boolean } | { status: 'failed' };
+/** A container's plan for today; with it, the exam's size as its page says it (`questions`, oral questions included). */
+export type PlanResult = { status: 'loading' } | { status: 'ready'; plan: DayPlan; offline: boolean; questions?: number } | { status: 'failed' };
 const PLAN_LOADING: PlanResult = { status: 'loading' };
 const PLAN_FAILED: PlanResult = { status: 'failed' };
 const NO_CONTAINERS: OverviewContainer[] = [];
@@ -1623,7 +1627,9 @@ const PLAN_STATES = new Set(['study', 'done', 'nothing', 'exam_today', 'after', 
  */
 function samePlanResult(a: PlanResult | undefined, b: PlanResult): boolean {
   if (!a || a.status !== b.status) return false;
-  if (a.status === 'ready' && b.status === 'ready') return a.offline === b.offline && (a.plan === b.plan || JSON.stringify(a.plan) === JSON.stringify(b.plan));
+  if (a.status === 'ready' && b.status === 'ready') {
+    return a.offline === b.offline && a.questions === b.questions && (a.plan === b.plan || JSON.stringify(a.plan) === JSON.stringify(b.plan));
+  }
   return true;
 }
 
@@ -1632,6 +1638,7 @@ function PlanSource({ id, onPlan }: { id: string; onPlan: (id: string, result: P
   const loadable = useContainerData(id);
   const { data, loading, offline, unavailable } = loadable ?? { data: null, loading: false, offline: false, unavailable: true };
   const planInput = data?.planInput;
+  const summary = data?.summary;
   useEffect(() => {
     if (!planInput) {
       onPlan(id, loading && !unavailable ? PLAN_LOADING : PLAN_FAILED);
@@ -1643,8 +1650,20 @@ function PlanSource({ id, onPlan }: { id: string; onPlan: (id: string, result: P
     } catch (error) {
       console.error('The plan of an exam container failed; «Сегодня» goes on without it:', error);
     }
-    onPlan(id, plan && typeof plan === 'object' && PLAN_STATES.has(plan.state) ? { status: 'ready', plan, offline: Boolean(offline) } : PLAN_FAILED);
-  }, [id, planInput, loading, offline, unavailable, onPlan]);
+    // The exam's size as its page says it (oral questions included: the overview has no oral counts).
+    let questions: number | undefined;
+    try {
+      questions = summary ? examQuestions(summary) : undefined;
+    } catch {
+      questions = undefined;
+    }
+    onPlan(
+      id,
+      plan && typeof plan === 'object' && PLAN_STATES.has(plan.state)
+        ? { status: 'ready', plan, offline: Boolean(offline), ...(questions === undefined ? {} : { questions }) }
+        : PLAN_FAILED,
+    );
+  }, [id, planInput, summary, loading, offline, unavailable, onPlan]);
   return null;
 }
 
@@ -1736,7 +1755,11 @@ export function containerRowMeta(item: TodayContainer, today: string, now: Date 
   else if (plan?.state === 'done') parts.push('на сегодня всё');
   else if (plan?.state === 'nothing' && isDayOff(plan)) parts.push('сегодня выходной');
   else if (plan?.state === 'exam_today') parts.push('сегодня экзамен');
-  else if (item.container.items > 0) parts.push(`${item.container.items} ${pluralRu(item.container.items, QUESTION_FORMS)}`);
+  else {
+    // The exam's one size, as its page says it (oral questions included); none until it is known.
+    const size = overviewQuestions(item.container, item.plan.status === 'ready' ? item.plan.questions : null);
+    if (size !== null && size > 0) parts.push(`${size} ${pluralRu(size, QUESTION_FORMS)}`);
+  }
   return parts.filter(Boolean).join(' · ');
 }
 
