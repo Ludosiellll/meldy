@@ -8,3 +8,4 @@ for a DO block, raises nothing). Only the newest line is read. The job prints fi
 failed checks, never row data.
 
 - 2026-10-10 — apply: supabase/migrations/20261009093500_containers.sql, supabase/migrations/20261009093501_containers_revokes.sql; check: supabase/tests/containers.sql, supabase/tests/cheat_sheet.sql, supabase/tests/exam_shares.sql, supabase/tests/journal_exams_rls.sql, supabase/tests/ai_quota_server.sql, supabase/tests/app_telemetry.sql, supabase/tests/oral_answer_texts.sql
+- 2026-10-10 — apply: supabase/migrations/20261009093500_containers.sql, supabase/migrations/20261009093501_containers_revokes.sql, supabase/migrations/20261010074500_containers_fk_indexes.sql; check: supabase/tests/containers.sql
