@@ -86,6 +86,8 @@
   opacity: .8;
   transition: opacity .2s ease, transform .2s ease;
 }
+/* Over a screen with its own buttons at the bottom (the Telegram chat's input bar), the button is at the top. */
+.tp-box[data-play-at='top'] .tp-play { top: 8px; bottom: auto; }
 .tp-box:hover .tp-play,
 .tp-play:focus-visible,
 .tp-box[data-playing='false'] .tp-play { opacity: 1; }
@@ -129,6 +131,14 @@
 .tp-card[data-layout='row'] .tp-title { grid-area: title; margin-top: 4px; }
 .tp-card[data-layout='row'] .tp-text { grid-area: text; }
 .tp-card[data-layout='row'] .tp-acts { grid-area: acts; margin-top: 14px; }
+/* A tall clip (the Telegram chat, square) stands beside the title, the words and the buttons, as tall as the card. */
+.tp-card[data-layout='row'][data-clip='tall'] {
+  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas: 'clip title' 'clip text' 'clip acts' 'clip .';
+}
+/* A clip that follows the site's theme (the Telegram chat in Telegram's night colours): its frame is dark there too. */
+.dark .tp-box[data-themed] { background: #0f141c; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06); }
+.dark .tp-box[data-themed] .mr-stage.tp-stage { background: #0f141c; }
 
 /* The words: the title, a sentence or two in the muted ink. */
 .tp-title { margin: 16px 6px 0; font-size: 22px; font-weight: 600; line-height: 1.15; letter-spacing: -.025em; color: var(--sf-ink); }

@@ -4,8 +4,8 @@ import { Send } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { usePhone } from '../../lib/usePhone';
 import {
-  TelegramApiError, fetchTelegramState, isTelegramMissing, startTelegramLink, telegramErrorText, unlinkTelegram, updateTelegramSettings,
-  type TelegramExam, type TelegramLinkCode, type TelegramState,
+  TELEGRAM_ERROR_TEXT, TelegramApiError, fetchTelegramState, isTelegramMissing, startTelegramLink, telegramErrorText, unlinkTelegram,
+  updateTelegramSettings, type TelegramExam, type TelegramLinkCode, type TelegramState,
 } from '../../api/telegram';
 import { fetchOverview } from '../../api/containers';
 import { browserZone, chatUrl, linkQr, onComputer, zoneWords } from '../../lib/telegram/links';
@@ -681,6 +681,102 @@ export default function TelegramCard() {
           {error}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+// ── The window of the exam page's tip ──────────────────────────────────────────────────────────────────────
+
+/**
+ * The link window that the Telegram tip on the exam's page opens (components/telegram/ExamTelegramTip), in a sheet: the
+ * profile's window at once — the tip's «Подключить Telegram» was the press, so the code is asked as soon as the state
+ * says the account is not linked. A phone gets the blue «Открыть Telegram» (the bot's chat in the app); a computer the
+ * link as a QR code for the phone, and «Открыть Telegram на компьютере». The state is read every 3 s until the bot has
+ * linked the account («Telegram подключён.» and the plan's time) or the code has ended («Подключить Telegram» asks for
+ * a new one). «Отмена» closes the window (`onClose`).
+ */
+export function TelegramLinkWindow({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const computer = useMemo(() => onComputer(), []);
+  const link = useTelegramLink(userId);
+  const { phase, state, error, busy } = link;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef<HTMLAnchorElement>(null);
+  const titleRef = useRef<HTMLParagraphElement>(null);
+  const connectRef = useRef<HTMLButtonElement>(null);
+  useFocusMoves(phase, rootRef, { open: openRef, title: titleRef, connect: connectRef });
+
+  // One code, asked once the first read has ended (asking earlier would race it); a new one only by the button.
+  const asked = useRef(false);
+  const connect = link.connect;
+  useEffect(() => {
+    if (asked.current || phase.kind !== 'idle' || phase.note !== null) return;
+    asked.current = true;
+    connect();
+  }, [phase, connect]);
+
+  let body: ReactNode;
+  if (!userId || phase.kind === 'missing') {
+    body = <p className="tg-note">{glue(TELEGRAM_ERROR_TEXT.missing)}</p>;
+  } else if (phase.kind === 'failed') {
+    body = (
+      <>
+        <p className="tg-note">{glue(TELEGRAM_COPY.readFailed)}</p>
+        <div className="tg-acts">
+          <button type="button" className="sf-link" aria-busy={busy || undefined} onClick={() => !busy && link.read()}>
+            {TELEGRAM_COPY.retry}
+          </button>
+        </div>
+      </>
+    );
+  } else if (phase.kind === 'linked' && state) {
+    const zone = browserZone();
+    const linkZone = state.zone ?? zone;
+    body = (
+      <>
+        <p className="tg-step" role="status" ref={titleRef} tabIndex={-1}>
+          {TELEGRAM_COPY.linkedNow}
+        </p>
+        {state.remindOn ? (
+          <p className="tg-fine">{glue(timeLine(state.remindAt, sameClock(linkZone, zone, Date.now()) ? null : linkZone))}</p>
+        ) : null}
+      </>
+    );
+  } else if (phase.kind === 'waiting') {
+    body = <WaitPanel link={phase.link} computer={computer} blue openRef={openRef} onCancel={onClose} />;
+  } else if (phase.kind === 'idle' && (phase.note === 'expired' || error)) {
+    // The code ended or could not be had: what happened, and the button that asks for a new one.
+    body = (
+      <>
+        {phase.note === 'expired' ? (
+          <p className="tg-note" role="status">
+            {glue(TELEGRAM_COPY.expired)}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="tg-note" data-tone="warn" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="tg-acts">
+          <button type="button" ref={connectRef} className="sf-primary" onClick={() => link.connect()}>
+            {TELEGRAM_COPY.connect}
+          </button>
+        </div>
+      </>
+    );
+  } else {
+    // The state is read and the code is on its way: the window's first line, already where it stays.
+    body = (
+      <p className="tg-step" aria-busy="true">
+        {glue(computer ? TELEGRAM_COPY.scanStep : TELEGRAM_COPY.appStep)}
+      </p>
+    );
+  }
+  return (
+    <div className="tg-window" ref={rootRef} data-state={phase.kind}>
+      {body}
     </div>
   );
 }

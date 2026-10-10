@@ -19,7 +19,15 @@ vi.mock('../../lib/containers/plan', async (original) => (await import('../../co
 vi.mock('../../lib/containers/session', async (original) => (await import('../../components/containers/testkit/engine')).sessionModule(original));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: mocks.confirm, alert: mocks.alert }) }));
-vi.mock('../../components/guide/GuideContext', () => ({ useGuide: () => ({ start: mocks.start }) }));
+vi.mock('../../components/guide/GuideContext', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../components/guide/GuideContext')>()),
+  useGuide: () => ({ start: mocks.start }),
+}));
+// The Telegram tip has its own tests (components/telegram/ExamTelegramTip.test): here the bot is not on the server.
+vi.mock('../../api/telegram', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/telegram')>()),
+  fetchTelegramState: vi.fn(async () => null),
+}));
 vi.mock('../../api/containers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/containers')>()),
   saveSettings: mocks.saveSettings,
