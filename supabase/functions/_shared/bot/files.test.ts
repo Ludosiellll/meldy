@@ -10,6 +10,7 @@ import {
 import { NBSP } from './html.ts';
 import { lintMessage } from './lint.ts';
 import { setLogSink } from './log.ts';
+import { matchSnapshots } from './fixtures/snapshot.ts';
 import { createApp, type Ctx } from './router.ts';
 import { derivedSecret } from './secrets.ts';
 import { createTelegram, type Keyboard, type TgMessage } from './tg.ts';
@@ -144,14 +145,15 @@ test('F1 and the refusals of §4.7: text and keyboard as the spec draws them, th
     text: n('Сюда можно переслать файл с~вопросами~— Word, Excel или TXT. План на~сегодня~— /today.'),
     keyboard: null,
   });
-  for (const [name, out] of Object.entries(shots)) {
-    assert.deepEqual(lintMessage({ text: out.text, keyboard: out.keyboard, chat: 'private', user: [NAME, 'Сети.txt'] }), [], name);
-  }
-  // A long name is shortened in the middle, its extension kept, and still passes the linter.
+  // A long name is shortened in the middle, its extension kept.
   const long = 'Банк_БД_2026_осенняя_сессия_все_предметы_и_темы_с_ответами_версия_окончательная.docx';
-  const out = f1(W.SITE, { name: long, size: 20 * 1024 * 1024, ticket });
-  assert.ok(out.text.startsWith(`<b>${shownName(long)}</b>`) && shownName(long).endsWith('….docx') && [...shownName(long)].length === 64, out.text);
-  assert.deepEqual(lintMessage({ text: out.text, keyboard: out.keyboard, chat: 'private', user: [shownName(long)] }), []);
+  const f1Long = f1(W.SITE, { name: long, size: 20 * 1024 * 1024, ticket });
+  assert.ok(f1Long.text.startsWith(`<b>${shownName(long)}</b>`) && shownName(long).endsWith('….docx') && [...shownName(long)].length === 64, f1Long.text);
+  const all = { ...shots, f1_long_name: f1Long };
+  for (const [name, out] of Object.entries(all)) {
+    assert.deepEqual(lintMessage({ text: out.text, keyboard: out.keyboard, chat: 'private', user: [NAME, 'Сети.txt', shownName(long)] }), [], name);
+  }
+  matchSnapshots('files', Object.fromEntries(Object.entries(all).map(([name, out]) => [name, { text: out.text, keyboard: out.keyboard ?? null }])));
   // The name is the user's: escaped, never formatted.
   assert.ok(f1(W.SITE, { name: 'a<b>&"c".txt', size: null, ticket }).text.startsWith('<b>a&lt;b&gt;&amp;&quot;c&quot;.txt</b>'));
 });
@@ -517,7 +519,7 @@ test('files.ts: no console, no table or REST access but rpc, no database URL, no
   const source = readFileSync(new URL('./files.ts', import.meta.url), 'utf8');
   const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   assert.ok(!/console\./.test(code), 'console');
-  assert.ok(!/SUPABASE_DB_URL|postgres:\/\//.test(code), 'database URL');
+  assert.ok(!code.includes(['SUPABASE', 'DB', 'URL'].join('_')) && !/postgres(ql)?:\/\//.test(code), 'a database connection string');
   assert.ok(!/rest\/v1|\.from\(/.test(code), 'table access');
   assert.ok(!/Deno\./.test(code), 'Deno');
   assert.ok(!/'sendMessage'|"sendMessage"|editMessage/.test(code), 'messages only through send()');
