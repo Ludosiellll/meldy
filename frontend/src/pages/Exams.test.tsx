@@ -16,6 +16,10 @@ vi.mock('../api/learning', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/learning')>();
   return { ...actual, fetchQuestionEvents: mocks.fetchQuestionEvents };
 });
+// An account without exam containers (package D1's hook; the container cases are in Exams.containers.test.tsx).
+vi.mock('../lib/containers/hooks', () => ({
+  useContainersOverview: () => ({ data: { v: 1, day: '', containers: [], attached_exam_ids: [] }, loading: false, offline: false, unavailable: false, error: null, reload: () => undefined }),
+}));
 
 import Exams, { examCoverageLine, examDateLine, examPhoneCountsLine, examPhoneDateLine } from './Exams';
 import { PHONE_QUERY } from '../lib/usePhone';
@@ -180,14 +184,21 @@ describe('Exams', () => {
     expect(plain(within(list).getAllByRole('link')[0].textContent)).toContain('идёт сверка с лекциями');
   });
 
-  it('starts empty with the department’s list as the one action', async () => {
+  it('starts empty with one door into the import page (Concept 1 §3.1; the old page without containers: Exams.containers.test.tsx)', async () => {
     mocks.listExams.mockResolvedValue([]);
-    renderList();
-    expect(await screen.findByRole('heading', { name: 'Вставьте список вопросов, который дала кафедра' })).toBeInTheDocument();
-    expect(screen.getByText(/Meldy отметит, какие вопросы есть в ваших лекциях/)).toBeInTheDocument();
+    render(
+      <MemoryRouter initialEntries={['/exams']}>
+        <Routes>
+          <Route path="/exams" element={<Exams />} />
+          <Route path="/exams/import" element={<h1>Новый экзамен</h1>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Загрузите вопросы к экзамену' })).toBeInTheDocument();
+    expect(screen.getByText(/Один общий файл или по файлу на предмет/)).toBeInTheDocument();
     // The example exam is one quiet link away, for a student who wants to see it work first.
     expect(screen.getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
-    fireEvent.click(screen.getByRole('button', { name: 'Вставить список вопросов' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Выбрать файлы' }));
     expect(await screen.findByRole('heading', { name: 'Новый экзамен' })).toBeInTheDocument();
   });
 
