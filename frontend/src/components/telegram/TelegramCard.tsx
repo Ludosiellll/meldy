@@ -669,8 +669,9 @@ export default function TelegramCard() {
         </div>
       ) : null}
 
-      {/* Rendered from the start so a reader hears what changes in it. */}
-      <p className="tg-note" role="status">
+      {/* Rendered from the start so a reader hears what changes in it. «Telegram подключён.» is heard only: the title
+          already says it on screen. */}
+      <p className={note === TELEGRAM_COPY.linkedNow ? 'tg-note sr-only' : 'tg-note'} role="status">
         {note ? glue(note) : null}
       </p>
       {error ? (

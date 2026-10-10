@@ -280,7 +280,9 @@ describe('polling while the code waits', () => {
     await tick(POLL_MS);
     expect(calls('telegram_link_state')).toHaveLength(4);
     expect(screen.getByText(TELEGRAM_COPY.linked)).toHaveFocus();
+    // Heard, not shown twice: the title says it on screen.
     expect(screen.getByRole('status')).toHaveTextContent('Telegram подключён.');
+    expect(screen.getByRole('status')).toHaveClass('sr-only');
     expect(plain(container.textContent)).toContain('План на день — в 20:00.');
     expect(plain(container.textContent)).toContain('Экзамен — «Осенняя сессия», 3 ноября.');
     expect(screen.queryByRole('img', { name: TELEGRAM_COPY.qr })).toBeNull();

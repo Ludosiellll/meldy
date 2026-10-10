@@ -6,6 +6,9 @@
  * --sf-accent-fg; --sf-accent only fills. */
 
 .tg { min-width: 0; scroll-margin-top: 150px; }
+/* A linked card is taller than its neighbours: its mark and its button keep to the title, as theirs do (centred, they
+   floated beside the data line). */
+.tg > .ac-row { align-items: flex-start; }
 
 /* A hairline between the card and the row before or after it (the calendar's .rm, the push row's .ac-row). */
 .tg + .rm,
