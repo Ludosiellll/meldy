@@ -1374,9 +1374,54 @@ begin
 end;
 $fn$;
 
--- 4n. The outcome: sent (+ the message id) | failed | skipped (+ a short reason: done, nothing, exam_today, 429 …).
---     A sent K1 becomes today's card (prev_card_message_id = an unused /today card of that day, to delete); a sent K2
---     sets asked_at; a day_close closes its day. An unknown row may still be resolved. status: ok | ignored.
+-- 4n. Telegram answered 429 (spec §6.7): nothing went out, so the row may still go out once — back from sending to
+--     claimed, its attempts kept, and a later claim takes it again after 10 minutes under its own rules (at most 3
+--     tries in all). Only while the row is in sending and still due: the link active and not blocked; for the day
+--     card and K3 the plan on, no pause, the same local day and the window still open; for the night's close one of
+--     the last two days; a try left. true → back to claimed. false → not in sending (nothing changes), or no longer due
+--     (closed as failed with p_error; no further call). Then the step stops: the rows not tried yet stay claimed.
+create or replace function public.bot_delivery_retry(p_delivery_id bigint, p_error text default '429',
+                                                     p_now timestamptz default null)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_now timestamptz := coalesce(p_now, pg_catalog.now());
+  v_d bot.deliveries%rowtype;
+  v_l bot.links%rowtype;
+  v_local timestamp;
+  v_due boolean;
+  v_error text := pg_catalog.left(coalesce(nullif(p_error, ''), '429'), 200);
+begin
+  perform meldy_private.require_service_role();
+  select d.* into v_d from bot.deliveries d where d.id = p_delivery_id for update;
+  if v_d.id is null or v_d.status <> 'sending' then
+    return false;
+  end if;
+  select l.* into v_l from bot.links l where l.id = v_d.link_id;
+  v_local := v_now at time zone v_l.tz;
+  v_due := v_l.id is not null and v_l.unlinked_at is null and v_l.blocked_at is null and v_d.attempts < 3
+           and case when v_d.kind = 'day_close' then v_d.local_day >= v_local::date - 2
+                    when v_d.kind in ('reminder', 'ask', 'after_date') then
+                      v_l.remind_on and (v_l.paused_until is null or v_l.paused_until <= v_local::date)
+                      and v_d.local_day = v_local::date and bot.in_window(v_local, v_l.remind_at)
+                    else true end;
+  if coalesce(v_due, false) then
+    update bot.deliveries d set status = 'claimed', claimed_at = v_now, error = v_error where d.id = v_d.id;
+    return true;
+  end if;
+  update bot.deliveries d set status = 'failed', error = v_error where d.id = v_d.id;
+  return false;
+end;
+$fn$;
+
+-- 4o. The outcome: sent (+ the message id) | failed (+ the code: 403, 400 …) | skipped (+ a short reason: done, nothing,
+--     exam_today …). A 429 is not an outcome: bot_delivery_retry. A sent K1 becomes today's card (prev_card_message_id
+--     = an unused /today card of that day, to delete); a sent K2 sets asked_at; a day_close closes its day. An unknown
+--     row may still be resolved. status: ok | ignored.
 create or replace function public.bot_delivery_done(p_delivery_id bigint, p_status text, p_tg_message_id bigint default null,
                                                     p_error text default null, p_now timestamptz default null)
 returns jsonb
@@ -1424,7 +1469,7 @@ begin
 end;
 $fn$;
 
--- 4o. The night's close (spec §6.6 step 5, decision 20): for each link a day of the last two local days that has an
+-- 4p. The night's close (spec §6.6 step 5, decision 20): for each link a day of the last two local days that has an
 --     unused card (delete it) or a summary with a keyboard (take the keyboard off), once (kind day_close). A card that
 --     became a session (card_used, or a session of package T5 in that message: bot.session_message) is never deleted.
 --     Blocked and unlinked chats are left alone.
@@ -1485,7 +1530,7 @@ begin
 end;
 $fn$;
 
--- 4p. K3 «Экзамен прошёл …» (spec §4.2, §8.2 «после даты — по одному разу»): on the day after an exam's last test date
+-- 4q. K3 «Экзамен прошёл …» (spec §4.2, §8.2 «после даты — по одному разу»): on the day after an exam's last test date
 --     (or within two more days, if the bot could not send it then), at the link's usual time, under the reminder's
 --     rules (window, plan on, no pause, not blocked, no answer in the last 30 minutes); once per user and exam, ever.
 --     exam = bot.after_date_json (title, dates, active days, answers, the figure). ref = the container id.
@@ -1567,5 +1612,5 @@ grant execute on function public.bot_setup(text, bigint, text, text, text), publ
   public.bot_whoami(bigint), public.bot_settings(bigint, jsonb), public.bot_today(bigint),
   public.bot_card_sent(bigint, bigint, text), public.bot_claim_reminders(integer, timestamptz),
   public.bot_reminder_context(bigint), public.bot_delivery_sending(bigint, timestamptz),
-  public.bot_delivery_done(bigint, text, bigint, text, timestamptz), public.bot_claim_day_close(integer, timestamptz),
-  public.bot_claim_after_date(integer, timestamptz) to service_role;
+  public.bot_delivery_retry(bigint, text, timestamptz), public.bot_delivery_done(bigint, text, bigint, text, timestamptz),
+  public.bot_claim_day_close(integer, timestamptz), public.bot_claim_after_date(integer, timestamptz) to service_role;
