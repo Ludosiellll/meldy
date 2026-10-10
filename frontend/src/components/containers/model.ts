@@ -19,7 +19,7 @@ import type {
   TestItem,
   UnitState,
 } from '../../types/container';
-import { extraNew } from '../../lib/containers/plan';
+import { extraNew, promiseTime } from '../../lib/containers/plan';
 import { countableFrom, emptyState, isOpenError, isSeen } from '../../lib/containers/rule';
 import { figureChange } from '../../lib/containers/session';
 import { dayText, shownMinutes } from '../../lib/containers/words';
@@ -50,16 +50,6 @@ export function addDay(day: LocalDay, n: number): LocalDay {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
-/** «17:00» in the student's zone. */
-export function clockIn(ms: number, tz: string): string {
-  try {
-    return new Intl.DateTimeFormat('ru-RU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hourCycle: 'h23' }).format(ms);
-  } catch {
-    const d = new Date(ms);
-    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
-}
-
 /** The local day of a moment in the student's zone. */
 export function dayIn(ms: number, tz: string): LocalDay {
   try {
@@ -70,13 +60,6 @@ export function dayIn(ms: number, tz: string): LocalDay {
     const d = new Date(ms);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
-}
-
-/** The hour of a moment in the zone, rounded up («17:23» → «18:00»): by then it surely can count. */
-export function hourAfter(ms: number, tz: string): { day: LocalDay; time: string; hour: number } {
-  const up = Math.ceil(ms / 3_600_000) * 3_600_000;
-  const time = clockIn(up, tz);
-  return { day: dayIn(up, tz), time, hour: Number(time.split(':')[0]) };
 }
 
 // ─────────────────────────────────────────────── subjects
@@ -372,13 +355,26 @@ export function gradeLocal(item: TestItem, answer: LocalAnswer): boolean {
   return key.length === chosen.length && key.every((value, index) => value === chosen[index]);
 }
 
-/** The shown letters of the key: the file indices of the key at their places on the screen. */
-export function keyLetters(item: TestItem, order: readonly number[]): string[] {
-  const out: string[] = [];
-  order.forEach((fileIndex, place) => {
-    if (item.correct.includes(fileIndex)) out.push(copy.OPTION_LETTERS[place] ?? String(place + 1));
-  });
-  return out;
+/** An option names the key in the verdict up to this many characters; a longer one is cut at a word, with «…». */
+export const KEY_NAME_MAX = 40;
+
+/** One option as the verdict names it: its own words on one line, cut at a word when long; an empty one by its letter. */
+export function optionName(text: string | undefined, fileIndex: number): string {
+  const words = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!words) return copy.OPTION_LETTERS[fileIndex] ?? String(fileIndex + 1);
+  if (words.length <= KEY_NAME_MAX) return words;
+  const head = words.slice(0, KEY_NAME_MAX);
+  const space = head.lastIndexOf(' ');
+  return `${(space >= KEY_NAME_MAX / 2 ? head.slice(0, space) : head).replace(/[\s,;:.—–-]+$/u, '')}…`;
+}
+
+/**
+ * The key as the file has it, for the verdict «В файле — 7 12» (usability check, m2): the options' own words in the
+ * file's order. Never the letters of the shuffled screen — the key panel and «Ключи» use the file's letters, and a
+ * letter of one would contradict the other.
+ */
+export function keyNames(item: TestItem): string[] {
+  return [...item.correct].sort((a, b) => a - b).map((fileIndex) => optionName(item.options[fileIndex], fileIndex));
 }
 
 /** «тема 2.12» from a topic title that starts with its number («Тема 2.12. Индексы», «2.12 Индексы»); else null. */
@@ -484,19 +480,21 @@ export function summarize(
   };
 }
 
-/** «после 17:00» when the moment is later today; null (= «завтра») when it is on another day or early in the morning. */
+/**
+ * «после 17:05» when the moment is later today; null (= «завтра») when it is on another day. The time is the plan's
+ * (lib/containers/plan.ts promiseTime: rounded up to 5 minutes), so the end of a session and the exam page name one time.
+ */
 export function laterToday(ms: number | null, today: LocalDay, tz: string): string | null {
   if (ms === null) return null;
-  const at = hourAfter(ms, tz);
+  const at = promiseTime(ms, tz);
   return at.day === today ? at.time : null;
 }
 
-/** The time of tomorrow's first count («завтра после 17:00»), or null for «завтра» alone. */
+/** The time of tomorrow's first count («завтра после 17:05», as the plan's line says it), or null for «завтра» alone. */
 export function tomorrowTime(ms: number | null, today: LocalDay, tz: string): string | null {
   if (ms === null) return null;
-  const at = hourAfter(ms, tz);
-  if (at.day !== addDay(today, 1) || at.hour < 10) return null;
-  return at.time;
+  const at = promiseTime(ms, tz);
+  return at.day === addDay(today, 1) ? at.time : null;
 }
 
 // ─────────────────────────────────────────────── roles and names

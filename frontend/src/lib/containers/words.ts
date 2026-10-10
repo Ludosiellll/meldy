@@ -18,8 +18,8 @@ export const SKIP_NOTE = 'Если пропустите день, его воп�
 
 /** Every key `DayPlan.lines` (and `subjectInfo().lines`) can carry. */
 export const LINE_KEYS = [
-  'later', 'first_count', 'skip', 'short', 'short_max', 'need', 'window_ahead', 'window_in', 'exam_today', 'exam_errors',
-  'after', 'no_date', 'first_day', 'more_new', 'ai_limit', 'oral', 'oral_no_lectures', 'done', 'nothing',
+  'later', 'first_count', 'skip', 'short', 'short_max', 'need', 'window_ahead', 'window_detail', 'window_in', 'exam_today',
+  'exam_errors', 'after', 'no_date', 'first_day', 'more_new', 'ai_limit', 'oral', 'oral_no_lectures', 'done', 'nothing',
   'pace_faster', 'pace_slower',
 ] as const;
 export type LineKey = typeof LINE_KEYS[number];
@@ -116,7 +116,11 @@ export function lineText(line: Line): string {
       return `Даже при ${minutesPrep(nth(line, 0))} в день к ${dayText(line.day ?? '')} вы увидите около ${nth(line, 1)} из ${nth(line, 2)}.`;
     case 'need':
       return `Чтобы увидеть все ${questions(nth(line, 0))} к ${dayText(line.day ?? '')}, нужно около ${minutesGen(nth(line, 1))} в день.`;
-    case 'window_ahead': {
+    case 'window_ahead':
+      // The plan card's note: one line on a phone from day 1 (usability check, m9). What those days hold is the row
+      // of «План по дням» and, under «Время в день», `window_detail`.
+      return `С ${dayText(line.day ?? '')} новых вопросов не будет.`;
+    case 'window_detail': {
       const w = nth(line, 0);
       const last = w <= 1 ? 'последний день' : `последние ${days(w)}`;
       return `С ${dayText(line.day ?? '')} новых вопросов не будет: ${last} — только знакомые, сначала ошибки.`;

@@ -648,6 +648,105 @@ begin
 end
 $t$;
 
+-- 4c. The day as it began (20261010130000_containers_frozen_pace.sql): F answers yesterday and today. The trigger keeps
+--     each item's state before its first answer of a day (a second answer that day, a late answer of an older day and
+--     a key change leave it be); plan_inputs sends it as day_start for the items answered today that were seen
+--     before, and pace_day counts only the answers made before today's first one.
+reset role;
+insert into auth.users (id) values ('f1f1f1f1-0000-4000-8000-000000000001');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'f1f1f1f1-0000-4000-8000-000000000001', true);
+do $t$
+declare r jsonb; o jsonb; d date := (now() at time zone 'utc')::date; ld text; v_c uuid; v_s uuid; x text;
+begin
+  r := public.container_create('Сутки', d + 20, '[{"title":"Один"}]');
+  v_c := (r ->> 'container_id')::uuid;
+  v_s := (r -> 'subjects' -> 0 ->> 'id')::uuid;
+  o := public.container_items_add(v_s, '[{"ref":"day:1","stem":"Первый","options":["a","b"],"correct":[0]},
+                                          {"ref":"day:2","stem":"Второй","options":["a","b"],"correct":[0]},
+                                          {"ref":"day:3","stem":"Третий","options":["a","b"],"correct":[0]}]');
+  insert into ctx values ('fc', v_c), ('fs', v_s);
+  insert into ctx select 'f' || split_part(e ->> 'ref', ':', 2), e ->> 'id' from jsonb_array_elements(o -> 'items') e;
+  -- yesterday: x1 right (a series starts), x2 wrong
+  ld := to_char(d - 1, 'YYYY-MM-DD');
+  r := public.record_test_answers(jsonb_build_array(
+    jsonb_build_object('client_event_id', 'f-ans-0001', 'item_id', pg_temp.c('f1'), 'chosen', 0, 'local_date', ld, 'ms', 20000, 'cls', 'new_floor'),
+    jsonb_build_object('client_event_id', 'f-ans-0002', 'item_id', pg_temp.c('f2'), 'chosen', 1, 'local_date', ld, 'ms', 40000, 'cls', 'new_floor')));
+  if (select count(*) from jsonb_array_elements(r -> 'results') e where e ->> 'status' = 'saved') <> 2 then
+    raise exception 'FAILED: yesterday''s answers %', r; end if;
+  -- a first answer ever: the day began with the item unseen
+  x := pg_temp.c('f1');
+  if (select s.day_start - 'streak_at' - 'named_at' - 'clean_ok_at' - 'two_days_at' from public.test_item_states s
+       where s.item_id = x::uuid) is distinct from jsonb_build_object('day', d - 1, 'rev', 1, 'seen', 0, 'wrong', 0,
+         'first_seen_day', null, 'last_answer_day', null, 'last_result', null, 'streak_day', null, 'checks', 0, 'peek_day', null,
+         'was_two_days', false) then
+    raise exception 'FAILED: day start of a first answer %', (select day_start from public.test_item_states s where s.item_id = x::uuid); end if;
+end
+$t$;
+-- Yesterday's answers were made yesterday (the fixture moves their log rows back; states keep their moments).
+reset role;
+update public.test_answers set created_at = now() - interval '20 hours'
+ where user_id = 'f1f1f1f1-0000-4000-8000-000000000001' and local_date = (now() at time zone 'utc')::date - 1;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'f1f1f1f1-0000-4000-8000-000000000001', true);
+do $t$
+declare r jsonb; p jsonb; d date := (now() at time zone 'utc')::date; ld text := to_char((now() at time zone 'utc')::date, 'YYYY-MM-DD');
+        s public.test_item_states; v_before public.test_item_states; n int;
+begin
+  select st.* into v_before from public.test_item_states st where st.item_id = pg_temp.c('f1')::uuid;
+  -- today: x1 right again, then again (free study), x3 for the first time
+  r := public.record_test_answers(jsonb_build_array(
+    jsonb_build_object('client_event_id', 'f-ans-0003', 'item_id', pg_temp.c('f1'), 'chosen', 0, 'local_date', ld, 'ms', 15000, 'cls', 'confirm'),
+    jsonb_build_object('client_event_id', 'f-ans-0004', 'item_id', pg_temp.c('f3'), 'chosen', 1, 'local_date', ld, 'ms', 30000, 'cls', 'new_floor')));
+  r := public.record_test_answers(jsonb_build_array(
+    jsonb_build_object('client_event_id', 'f-ans-0005', 'item_id', pg_temp.c('f1'), 'chosen', 1, 'local_date', ld, 'ms', 9000, 'cls', 'free')));
+  -- a late answer of yesterday: the log keeps it, the state does not move
+  r := public.record_test_answers(jsonb_build_array(
+    jsonb_build_object('client_event_id', 'f-ans-0006', 'item_id', pg_temp.c('f1'), 'chosen', 0, 'local_date', to_char(d - 1, 'YYYY-MM-DD'), 'ms', 5000, 'cls', 'confirm')));
+  if r -> 'results' -> 0 ->> 'status' <> 'late' then raise exception 'FAILED: late %', r; end if;
+  select st.* into s from public.test_item_states st where st.item_id = pg_temp.c('f1')::uuid;
+  -- the day began as yesterday left it, whatever today did after (a miss now)
+  if s.last_result <> 'wrong' or s.day_start - 'streak_at' - 'named_at' - 'clean_ok_at' - 'two_days_at'
+     is distinct from jsonb_build_object('day', d, 'rev', 1, 'seen', 1, 'wrong', 0, 'first_seen_day', d - 1,
+       'last_answer_day', d - 1, 'last_result', 'right', 'streak_day', d - 1, 'checks', 0, 'peek_day', null, 'was_two_days', false)
+     or (s.day_start ->> 'streak_at')::numeric <> extract(epoch from v_before.streak_at)
+     or (s.day_start ->> 'named_at')::numeric <> extract(epoch from v_before.named_at)
+     or s.day_start -> 'two_days_at' <> 'null'::jsonb then
+    raise exception 'FAILED: day start %', s.day_start; end if;
+
+  p := public.plan_inputs(ld, pg_temp.c('fc')::uuid);
+  perform pg_temp.keep('plan_frozen_day', 'plan_inputs', p);
+  -- day_start: x1 only (x2 not answered today, x3 first seen today), in the tuple of `states`
+  if p -> 'day_start' <> jsonb_build_array(jsonb_build_array(
+       (select (i - 1)::int from jsonb_array_elements(p -> 'items') with ordinality as t(it, i) where it ->> 0 = pg_temp.c('f1')),
+       1, 0, -1, -1, 0, -1, ceil(extract(epoch from v_before.streak_at))::bigint, null,
+       ceil(extract(epoch from v_before.named_at))::bigint, 0, null, 0, ceil(extract(epoch from v_before.clean_ok_at))::bigint)) then
+    raise exception 'FAILED: plan day_start %', p -> 'day_start'; end if;
+  -- pace: every learn answer with a time (yesterday's two, today's three and the late one, a log row too);
+  -- pace_day: only yesterday's two, made before today's first answer
+  select coalesce(sum((e ->> 'n')::int), 0) into n from jsonb_array_elements(p -> 'pace_day') e;
+  if n <> 2 or (select count(*) from jsonb_array_elements(p -> 'pace_day') e where e ->> 'cls' = 'new_floor' and (e ->> 'n')::int = 2
+                                                                            and (e ->> 'p_wrong')::numeric = 0.5) <> 1 then
+    raise exception 'FAILED: pace_day %', p -> 'pace_day'; end if;
+  select coalesce(sum((e ->> 'n')::int), 0) into n from jsonb_array_elements(p -> 'pace') e;
+  if n <> 6 then raise exception 'FAILED: pace %', p -> 'pace'; end if;
+end
+$t$;
+-- F is the author: a key change restarts x1 for F (a new rev), and its day start goes with the old rev.
+do $t$
+declare p jsonb; r jsonb; ld text := to_char((now() at time zone 'utc')::date, 'YYYY-MM-DD');
+begin
+  r := public.container_item_update(pg_temp.c('f1')::uuid, '{"correct":[1]}');
+  if not (r ->> 'rev_changed')::boolean then raise exception 'FAILED: rev %', r; end if;
+  p := public.plan_inputs(ld, pg_temp.c('fc')::uuid);
+  if p -> 'day_start' <> '[]'::jsonb then raise exception 'FAILED: day_start after a key change %', p -> 'day_start'; end if;
+  -- a container nobody answered today: pace_day = pace
+  p := public.plan_inputs(to_char((now() at time zone 'utc')::date + 1, 'YYYY-MM-DD'), pg_temp.c('fc')::uuid);
+  if p -> 'pace_day' <> p -> 'pace' or p -> 'day_start' <> '[]'::jsonb then
+    raise exception 'FAILED: tomorrow''s plan inputs: pace_day % pace %', p -> 'pace_day', p -> 'pace'; end if;
+end
+$t$;
+
 -- 5. The mass-wrong signal: D, E and C join and pick the same wrong option of q3 first; B's first was «Не знаю».
 select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004', true);
 select public.container_join(pg_temp.c('code')) is not null;

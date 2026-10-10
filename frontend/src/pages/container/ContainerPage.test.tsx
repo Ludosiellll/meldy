@@ -119,8 +119,8 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     expect(plain(card.textContent)).toContain('Сегодня 90 вопросов, около 45 минут');
     expect(plain(card.textContent)).toContain('30 новых и 60 знакомых.');
     expect(within(card).getByRole('button', { name: 'План по дням' })).toBeInTheDocument();
-    // The laptop: the pill sits in the card, with its minutes.
-    expect(within(card).getByRole('link', { name: nm('Начать: 20 вопросов, около 9 минут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_CS}`);
+    // The laptop: the pill sits in the card; with work in two subjects today it names the first (m3).
+    expect(within(card).getByRole('link', { name: nm('Начать: Программирование на C# — 20 вопросов') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_CS}`);
     const figure = screen.getByRole('region', { name: 'верно в два разных дня' });
     expect(plain(figure.textContent)).toContain('143');
     expect(plain(figure.textContent)).toContain('из 960 верно');
@@ -141,7 +141,7 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     renderPage(loaded(containerData()), { phone: true });
     expect(page()).toContain('28 октября, через 18 дней · 960 вопросов');
     expect(page()).not.toContain('4 предмета');
-    const pill = screen.getByRole('link', { name: nm('Начать: 20 вопросов') });
+    const pill = screen.getByRole('link', { name: nm('Начать: Программирование на C# — 20 вопросов') });
     expect(pill.closest('.ct-cta')).not.toBeNull();
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
@@ -154,6 +154,40 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
       'Настройки',
       'Удалить',
     ]);
+  });
+
+  it('names no subject when only one has work today: «Начать: 20 вопросов», with its minutes on a laptop (m3)', () => {
+    const plan = dayPlan({ sessions: [{ subjectId: SUBJECT_CS, kind: 'answer', ids: Array.from({ length: 20 }, (_, i) => `cs-${i}`), estSec: 540 }] });
+    renderPage(loaded(containerData({ plan })));
+    expect(screen.getByRole('link', { name: nm('Начать: 20 вопросов, около 9 минут') })).toBeInTheDocument();
+    cleanup();
+    renderPage(loaded(containerData({ plan })), { phone: true });
+    expect(screen.getByRole('link', { name: nm('Начать: 20 вопросов') }).closest('.ct-cta')).not.toBeNull();
+  });
+
+  it('shows one note of the card on a phone and two on a laptop, what explains today first (m9)', () => {
+    const lines = [
+      { key: 'window_ahead', n: [4], day: '2026-10-24' },
+      { key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' },
+      { key: 'skip', n: [1, 45] },
+      { key: 'first_day' },
+    ];
+    const notes = () => Array.from(document.querySelectorAll('.ct-plan-notes .ct-note')).map((node) => plain(node.textContent));
+    renderPage(loaded(containerData({ plan: dayPlan({ lines }) })), { phone: true });
+    expect(notes()).toEqual(['Вчера без занятий. Сегодня те же 45 минут — больше знакомых вопросов.']);
+    cleanup();
+    renderPage(loaded(containerData({ plan: dayPlan({ lines }) })));
+    expect(notes()).toEqual([
+      'Вчера без занятий. Сегодня те же 45 минут — больше знакомых вопросов.',
+      'При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут. Изменить время',
+    ]);
+    cleanup();
+    // offline first; the final days, announced from day 1, in one line when nothing comes before them
+    renderPage(loaded(containerData({ plan: dayPlan({ lines }) }), { offline: true }), { phone: true });
+    expect(notes()).toEqual(['Нет сети. Вопросы на сегодня сохранены, заниматься можно.']);
+    cleanup();
+    renderPage(loaded(containerData({ plan: dayPlan({ lines: [lines[0], lines[3]] }) })), { phone: true });
+    expect(notes()).toEqual(['С 24 октября новых вопросов не будет.']);
   });
 
   it('shows the author «Ключи · 7 ждут» when keys or doubts wait, and the laptop’s row of the same actions', () => {

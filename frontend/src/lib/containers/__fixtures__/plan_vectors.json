@@ -11168,6 +11168,1196 @@
    }
   },
   {
+   "name": "frozen_day_start",
+   "about": "frozen at 09:00 with the day as it began (dayStart, paceDay): eight mistakes of yesterday answered right today and two new ones, slowly (1450 s of 30 min): the morning's target without them, as many as the cheapest fit the real minutes left, planned with the pace of the day's start (today's faster pace ignored)",
+   "input": {
+    "v": 1,
+    "now": 1791441600000,
+    "tz": "Europe/Minsk",
+    "containerId": "c-1",
+    "budgetMin": 30,
+    "firstPlanDay": "2026-10-07",
+    "subjects": [
+     {
+      "id": "a",
+      "title": "a",
+      "date": "2026-10-28"
+     }
+    ],
+    "items": [
+     {
+      "id": "a-t0001",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 1,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349200000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349200000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349200000
+      }
+     },
+     {
+      "id": "a-t0002",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 2,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349230000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349230000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349230000
+      }
+     },
+     {
+      "id": "a-t0003",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 3,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349260000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349260000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349260000
+      }
+     },
+     {
+      "id": "a-t0004",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 4,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349290000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349290000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349290000
+      }
+     },
+     {
+      "id": "a-t0005",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 5,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349320000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349320000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349320000
+      }
+     },
+     {
+      "id": "a-t0006",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 6,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349350000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349350000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349350000
+      }
+     },
+     {
+      "id": "a-t0007",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 7,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349380000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349380000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349380000
+      }
+     },
+     {
+      "id": "a-t0008",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 8,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349410000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349410000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349410000
+      }
+     },
+     {
+      "id": "a-t0009",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 9,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349440000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349440000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349440000
+      }
+     },
+     {
+      "id": "a-t0010",
+      "s": "a",
+      "f": "t",
+      "tp": 1,
+      "o": 10,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349470000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349470000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349470000
+      }
+     },
+     {
+      "id": "a-t0011",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 11,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349500000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349500000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349500000
+      }
+     },
+     {
+      "id": "a-t0012",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 12,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349530000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349530000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349530000
+      }
+     },
+     {
+      "id": "a-t0013",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 13,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349560000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349560000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349560000
+      }
+     },
+     {
+      "id": "a-t0014",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 14,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349590000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349590000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349590000
+      }
+     },
+     {
+      "id": "a-t0015",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 15,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": 1791349620000,
+       "seriesDay": "2026-10-07",
+       "twoDaysAt": null,
+       "namedAt": 1791349620000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791349620000
+      }
+     },
+     {
+      "id": "a-t0016",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 16,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439500000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439500000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439500000
+      }
+     },
+     {
+      "id": "a-t0017",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 17,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439520000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439520000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439520000
+      }
+     },
+     {
+      "id": "a-t0018",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 18,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439540000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439540000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439540000
+      }
+     },
+     {
+      "id": "a-t0019",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 19,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439560000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439560000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439560000
+      }
+     },
+     {
+      "id": "a-t0020",
+      "s": "a",
+      "f": "t",
+      "tp": 2,
+      "o": 20,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439580000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439580000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439580000
+      }
+     },
+     {
+      "id": "a-t0021",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 21,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439600000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439600000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439600000
+      }
+     },
+     {
+      "id": "a-t0022",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 22,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439620000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439620000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439620000
+      }
+     },
+     {
+      "id": "a-t0023",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 23,
+      "u": {
+       "seen": 2,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791439640000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791439640000,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": 1791439640000
+      }
+     },
+     {
+      "id": "a-t0024",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 24,
+      "u": {
+       "seen": 1,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": null,
+       "seriesDay": null,
+       "twoDaysAt": null,
+       "namedAt": null,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": null
+      }
+     },
+     {
+      "id": "a-t0025",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 25,
+      "u": {
+       "seen": 1,
+       "wrong": 1,
+       "firstDay": "2026-10-07",
+       "lastDay": "2026-10-07",
+       "seriesAt": null,
+       "seriesDay": null,
+       "twoDaysAt": null,
+       "namedAt": null,
+       "checks": 0,
+       "peekDay": "2026-10-07",
+       "wasTwoDays": false,
+       "cleanOkAt": null
+      }
+     },
+     {
+      "id": "a-t0026",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 26,
+      "u": {
+       "seen": 1,
+       "wrong": 0,
+       "firstDay": "2026-10-08",
+       "lastDay": "2026-10-08",
+       "seriesAt": 1791440000000,
+       "seriesDay": "2026-10-08",
+       "twoDaysAt": null,
+       "namedAt": 1791440000000,
+       "checks": 0,
+       "peekDay": null,
+       "wasTwoDays": false,
+       "cleanOkAt": 1791440000000
+      }
+     },
+     {
+      "id": "a-t0027",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 27,
+      "u": {
+       "seen": 1,
+       "wrong": 1,
+       "firstDay": "2026-10-08",
+       "lastDay": "2026-10-08",
+       "seriesAt": null,
+       "seriesDay": null,
+       "twoDaysAt": null,
+       "namedAt": null,
+       "checks": 0,
+       "peekDay": "2026-10-08",
+       "wasTwoDays": false,
+       "cleanOkAt": null
+      }
+     },
+     {
+      "id": "a-t0028",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 28
+     },
+     {
+      "id": "a-t0029",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 29
+     },
+     {
+      "id": "a-t0030",
+      "s": "a",
+      "f": "t",
+      "tp": 3,
+      "o": 30
+     },
+     {
+      "id": "a-t0031",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 31
+     },
+     {
+      "id": "a-t0032",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 32
+     },
+     {
+      "id": "a-t0033",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 33
+     },
+     {
+      "id": "a-t0034",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 34
+     },
+     {
+      "id": "a-t0035",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 35
+     },
+     {
+      "id": "a-t0036",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 36
+     },
+     {
+      "id": "a-t0037",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 37
+     },
+     {
+      "id": "a-t0038",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 38
+     },
+     {
+      "id": "a-t0039",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 39
+     },
+     {
+      "id": "a-t0040",
+      "s": "a",
+      "f": "t",
+      "tp": 4,
+      "o": 40
+     },
+     {
+      "id": "a-t0041",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 41
+     },
+     {
+      "id": "a-t0042",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 42
+     },
+     {
+      "id": "a-t0043",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 43
+     },
+     {
+      "id": "a-t0044",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 44
+     },
+     {
+      "id": "a-t0045",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 45
+     },
+     {
+      "id": "a-t0046",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 46
+     },
+     {
+      "id": "a-t0047",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 47
+     },
+     {
+      "id": "a-t0048",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 48
+     },
+     {
+      "id": "a-t0049",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 49
+     },
+     {
+      "id": "a-t0050",
+      "s": "a",
+      "f": "t",
+      "tp": 5,
+      "o": 50
+     },
+     {
+      "id": "a-t0051",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 51
+     },
+     {
+      "id": "a-t0052",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 52
+     },
+     {
+      "id": "a-t0053",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 53
+     },
+     {
+      "id": "a-t0054",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 54
+     },
+     {
+      "id": "a-t0055",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 55
+     },
+     {
+      "id": "a-t0056",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 56
+     },
+     {
+      "id": "a-t0057",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 57
+     },
+     {
+      "id": "a-t0058",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 58
+     },
+     {
+      "id": "a-t0059",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 59
+     },
+     {
+      "id": "a-t0060",
+      "s": "a",
+      "f": "t",
+      "tp": 6,
+      "o": 60
+     },
+     {
+      "id": "a-t0061",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 61
+     },
+     {
+      "id": "a-t0062",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 62
+     },
+     {
+      "id": "a-t0063",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 63
+     },
+     {
+      "id": "a-t0064",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 64
+     },
+     {
+      "id": "a-t0065",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 65
+     },
+     {
+      "id": "a-t0066",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 66
+     },
+     {
+      "id": "a-t0067",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 67
+     },
+     {
+      "id": "a-t0068",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 68
+     },
+     {
+      "id": "a-t0069",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 69
+     },
+     {
+      "id": "a-t0070",
+      "s": "a",
+      "f": "t",
+      "tp": 7,
+      "o": 70
+     },
+     {
+      "id": "a-t0071",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 71
+     },
+     {
+      "id": "a-t0072",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 72
+     },
+     {
+      "id": "a-t0073",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 73
+     },
+     {
+      "id": "a-t0074",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 74
+     },
+     {
+      "id": "a-t0075",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 75
+     },
+     {
+      "id": "a-t0076",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 76
+     },
+     {
+      "id": "a-t0077",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 77
+     },
+     {
+      "id": "a-t0078",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 78
+     },
+     {
+      "id": "a-t0079",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 79
+     },
+     {
+      "id": "a-t0080",
+      "s": "a",
+      "f": "t",
+      "tp": 8,
+      "o": 80
+     }
+    ],
+    "today": {
+     "firstAt": 1791439200000,
+     "doneSec": 1450,
+     "newDone": {
+      "a": 2
+     }
+    },
+    "pace": {
+     "a": {
+      "tNew": 9,
+      "tRev": 6,
+      "tWrong": 10,
+      "tRetry": 12,
+      "tSC": 60,
+      "tAC": 150,
+      "pWrong": {
+       "new": 0.1,
+       "relearn": 0.1,
+       "confirm": 0.05,
+       "check": 0.05,
+       "final": 0.05
+      }
+     }
+    },
+    "ai": null,
+    "paceDay": null,
+    "dayStart": {
+     "a-t0016": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     },
+     "a-t0017": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     },
+     "a-t0018": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     },
+     "a-t0019": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     },
+     "a-t0020": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     },
+     "a-t0021": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     },
+     "a-t0022": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     },
+     "a-t0023": {
+      "seen": 1,
+      "wrong": 1,
+      "firstDay": "2026-10-07",
+      "lastDay": "2026-10-07",
+      "seriesAt": null,
+      "seriesDay": null,
+      "twoDaysAt": null,
+      "namedAt": null,
+      "checks": 0,
+      "peekDay": "2026-10-07",
+      "wasTwoDays": false,
+      "cleanOkAt": null
+     }
+    }
+   },
+   "expect": {
+    "day": "2026-10-08",
+    "state": "study",
+    "sessions": [
+     {
+      "subjectId": "a",
+      "kind": "answer",
+      "ids": [
+       "a-t0024",
+       "a-t0025",
+       "a-t0001",
+       "a-t0002",
+       "a-t0003",
+       "a-t0004",
+       "a-t0005",
+       "a-t0006",
+       "a-t0007",
+       "a-t0008",
+       "a-t0009",
+       "a-t0010",
+       "a-t0011",
+       "a-t0012"
+      ],
+      "estSec": 337
+     }
+    ],
+    "counts": {
+     "newItems": 0,
+     "reviews": 14,
+     "oral": 0,
+     "aiChecks": 0,
+     "estSec": 1800,
+     "leftSec": 350,
+     "doneSec": 1450
+    },
+    "postponed": {
+     "confirm": 3,
+     "new_floor": 2
+    },
+    "coverage": {
+     "unseen": 53,
+     "floor": 2,
+     "lastNewDay": "2026-10-23",
+     "seenByDateEst": 80,
+     "neededMin": 5
+    },
+    "window": {
+     "from": "2026-10-24",
+     "days": 4,
+     "inWindow": false
+    },
+    "units": null,
+    "figure": {
+     "inPlan": 80,
+     "twoDays": 0,
+     "seen": 27,
+     "errors": 3,
+     "selfKnow": 0
+    },
+    "perSubject": [
+     {
+      "subjectId": "a",
+      "estSec": 337,
+      "items": 14,
+      "figure": {
+       "inPlan": 80,
+       "twoDays": 0,
+       "seen": 27,
+       "errors": 3
+      }
+     }
+    ],
+    "next": 1791511500000,
+    "firstCountDay": "2026-10-08",
+    "lines": [
+     {
+      "key": "window_ahead",
+      "n": [
+       4
+      ],
+      "day": "2026-10-24"
+     },
+     {
+      "key": "first_count",
+      "n": [
+       0
+      ],
+      "day": "2026-10-08"
+     }
+    ]
+   }
+  },
+  {
    "name": "dst_berlin",
    "about": "Europe/Berlin on its 25-hour day: confirmations from the evening before are «после» a local time",
    "input": {

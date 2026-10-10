@@ -13,7 +13,7 @@ import {
   gradeLocal,
   hasGroup,
   isAuthor,
-  keyLetters,
+  keyNames,
   subjectTitle,
   summarize,
   topicNumber,
@@ -31,7 +31,8 @@ import './room.css';
  * - a wrong answer or «Не знаю» comes back 3–5 questions later (at most twice, «повтор, не в счёт») and tomorrow;
  * - «Нажали не туда?» under a wrong answer until «Дальше»: the answer then goes to the server with `misclick` — not a
  *   mistake, the series kept, no count today;
- * - «Сомневаюсь в ключе» sets the question aside; the author's «Ключ неверный?» fixes the key in place;
+ * - a member's «Сомневаюсь в ключе» sets the question aside; the author (a solo student is the author of their own
+ *   exam) has «Ключ неверный?» instead, which fixes the key in place (the bot spec's decision 17);
  * - an answer leaves the device when the student moves on (so «Нажали не туда?» can still mark it), through the offline
  *   queue, with its client_event_id, the item's rev, the shown order in file indices, ms, cls, the local day and the
  *   session;
@@ -517,8 +518,9 @@ export default function StudyRun(props: StudyRunProps) {
       const form = item.answers[0] ?? '';
       verdict = pending.dontKnow ? copy.shortDontKnow(form, pending.again) : copy.verdictShortWrong(form, pending.again);
     } else {
-      const letters = keyLetters(item, order);
-      verdict = pending.dontKnow ? copy.verdictDontKnow(letters, pending.again) : copy.verdictWrong(letters, pending.again);
+      // The key in the file's own words: the screen's letters are shuffled, the key panel and «Ключи» use the file's.
+      const names = keyNames(item);
+      verdict = pending.dontKnow ? copy.verdictDontKnow(names, pending.again) : copy.verdictWrong(names, pending.again);
     }
   }
 
@@ -539,7 +541,9 @@ export default function StudyRun(props: StudyRunProps) {
         </button>,
       );
     }
-    if (!aside.has(item.id) && !fixed) {
+    // A member doubts the key; the author — a solo student too, the author of their own exam — fixes it (the bot
+    // spec's decision 17): one key link each, never both.
+    if (!author && !aside.has(item.id) && !fixed) {
       under.push(
         <button key="doubt" type="button" className="sf-link" data-muted="" aria-haspopup="dialog" onClick={() => setDoubtOpen(true)}>
           {copy.DOUBT}
