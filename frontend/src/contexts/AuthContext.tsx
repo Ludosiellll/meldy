@@ -15,6 +15,19 @@ function guestMayWait(): boolean {
   return !hasStoredSession();
 }
 
+/**
+ * Offline with a complete session kept here: the student is signed in with it at once. The client's own answer waits
+ * for the network: with an expired access token auth-js retries the refresh for about a minute before it reports no
+ * session (52 s on «Сегодня», usability check of 2026-10-10, m5), and the pages that draw from the device (spec
+ * decision 31) waited with it. The client's answer is still taken when it comes (`settle`); a sign-in in the address
+ * is never pre-empted.
+ */
+function keptWhileOffline(): Session | null {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined' || navigator.onLine !== false) return null;
+  if (signInInAddress()) return null;
+  return keptSession();
+}
+
 // A signed-in student: the client gates every signed-in screen, so its file is fetched as the app
 // starts, ahead of the screen's own files.
 if (typeof window !== 'undefined' && hasStoredSession()) void loadSupabase().catch(() => undefined);
@@ -35,9 +48,9 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(keptWhileOffline);
+  const [user, setUser] = useState<User | null>(() => session?.user ?? null);
+  const [loading, setLoading] = useState(() => session === null);
   const [wanted, setWanted] = useState(() => typeof window === 'undefined' || !guestMayWait());
 
   useEffect(() => {
