@@ -276,21 +276,22 @@ describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
     expect(api.playSuccessSound).not.toHaveBeenCalled();
   });
 
-  it('writes «завтра» in pencil only when the card is due tomorrow, and types any other interval', async () => {
+  it('types in the card\'s corner when it comes back — «завтра», «через 9 дней» — never in pencil handwriting', async () => {
     api.updateCardProgress.mockResolvedValueOnce({ card_id: 'card-1', interval_days: 1, duplicate: false });
     const user = userEvent.setup();
     const { container, unmount } = renderReview();
     await revealAndChoose(user, 'Не помню');
     await screen.findByText('Не помню — вернётся завтра.');
-    expect(container.querySelector('svg.sf-hand')).not.toBeNull();
+    expect(container.querySelector('.rv-when')?.textContent).toBe('завтра');
+    expect(container.querySelector('.rv-face svg')).toBeNull();
     unmount();
 
     api.updateCardProgress.mockResolvedValueOnce({ card_id: 'card-1', interval_days: 9, duplicate: false });
     const second = renderReview();
     await revealAndChoose(user, 'Помню');
     await screen.findByText('Помню — вернётся через 9 дней.');
-    expect(second.container.querySelector('svg.sf-hand')).toBeNull();
-    expect(screen.getByText('через 9 дней')).toBeInTheDocument();
+    expect(second.container.querySelector('.rv-when')?.textContent).toBe('через 9 дней');
+    expect(second.container.querySelector('.rv-face svg')).toBeNull();
   });
 
   it('turns the card with Space and grades with 1, 2 and 3', async () => {

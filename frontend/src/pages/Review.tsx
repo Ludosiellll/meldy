@@ -13,7 +13,6 @@ import { recordStudyActivity } from '../api/studyActivity';
 import { newEventId } from '../api/learning';
 import { supabase } from '../lib/supabase';
 import { pluralRu } from '../components/conversation/visuals';
-import { HandPhraseMark, handPhraseFor } from '../components/marks';
 import '../styles/paper.css';
 import './Review.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
@@ -299,8 +298,9 @@ async function loadLectureTitles(cards: DueCard[]): Promise<Record<string, strin
 
 /**
  * Review of due cards («Повторение», redesign spec 5.13): one index card at a time in a column of
- * 600, recall first, then turn the card over and say how it went in one of three words. The pencil
- * writes when the card comes back («завтра» only when it is tomorrow); then the next card.
+ * 600, recall first, then turn the card over and say how it went in one of three words. The card says in its corner
+ * when it comes back («завтра», «через 9 дней»; typed — no pencil handwriting since decision 2026-10-10); then the
+ * next card.
  *
  * Every answer goes through the review_flashcard RPC with its own client_event_id. A failed save
  * keeps that id for the card, so a retry can never apply the same answer twice; the id is dropped
@@ -707,7 +707,6 @@ export default function Review() {
   const card = cards[idx];
   const { followUp, title, context } = cardContext(card, titles);
   const note = sourceNote(title, card.source_ids);
-  const hand = judged ? handPhraseFor(judged.days) : null;
   const longQuestion = card.question.length > 90;
   const longAnswer = card.answer.length > 220;
   const progress = cards.length > 0 ? (idx + (judged ? 1 : 0)) / cards.length : 0;
@@ -775,15 +774,7 @@ export default function Review() {
                   </div>
                 ) : null}
                 {note ? <p className="sf-pnote rv-source">{note}</p> : null}
-                {judged ? (
-                  hand ? (
-                    <span className="rv-hand">
-                      <HandPhraseMark phrase={hand} px={26} />
-                    </span>
-                  ) : Number.isFinite(judged.days) ? (
-                    <span className="sf-pnote rv-when">{`через ${judged.days} ${pluralRu(judged.days, ['день', 'дня', 'дней'])}`}</span>
-                  ) : null
-                ) : null}
+                {judged && Number.isFinite(judged.days) ? <span className="sf-pnote rv-when">{dayColumnTitle(judged.days).toLowerCase()}</span> : null}
               </section>
             </div>
           </div>

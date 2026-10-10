@@ -469,10 +469,11 @@ describe('«Вы: в ответе не прозвучало» (live run of relea
 });
 
 describe('<ReviewCard>', () => {
-  it('puts the follow-up on an index card with a pencil «завтра»', () => {
+  it('puts the follow-up on an index card with «завтра» typed in its corner, no pencil handwriting', () => {
     const { container } = render(<ReviewCard question="А что будет, если взять слишком большую скорость обучения?" />);
     expect(screen.getByText('А что будет, если взять слишком большую скорость обучения?')).toBeInTheDocument();
-    expect(container.querySelector('svg.or-rcard-zav path')).not.toBeNull();
+    expect(container.querySelector('.or-rcard-when')?.textContent).toBe('завтра');
+    expect(container.querySelector('.or-rcard svg')).toBeNull();
     expect(screen.getByText('Вернётся в повторении завтра.')).toBeInTheDocument();
   });
 });
