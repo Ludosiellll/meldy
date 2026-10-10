@@ -261,6 +261,50 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     await waitFor(() => expect(where).toBe('/exams'));
   });
 
+  it('sets the days of the week, Пн–Вс, saved with the minutes (spec §3: «минуты и дни недели»)', async () => {
+    renderAt();
+    const days = within(screen.getByRole('group', { name: SETTINGS.days }));
+    const buttons = days.getAllByRole('button');
+    // Seen «Пн … Вс», read «понедельник … воскресенье».
+    expect(buttons.map((button) => button.querySelector('[aria-hidden]')?.textContent)).toEqual(['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']);
+    expect(buttons.map((button) => button.querySelector('.sr-only')?.textContent)).toEqual(SETTINGS.dayFull);
+    expect(buttons.every((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true);
+    fireEvent.click(days.getByRole('button', { name: 'суббота' }));
+    fireEvent.click(days.getByRole('button', { name: 'воскресенье' }));
+    expect(days.getByRole('button', { name: 'суббота' })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    // Monday … Friday: 1 + 2 + 4 + 8 + 16; the minutes stay as they were.
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 45, study_weekdays: 31 }));
+    expect(api.updateContainer).not.toHaveBeenCalled();
+  });
+
+  it('keeps at least one day: the last one stays on and the page says why', () => {
+    api.state.summary = { ...solo(), settings: { minutes_per_day: 45, study_weekdays: 4 } };
+    renderAt();
+    const days = within(screen.getByRole('group', { name: SETTINGS.days }));
+    const wednesday = days.getByRole('button', { name: 'среда' });
+    expect(wednesday).toHaveAttribute('aria-pressed', 'true');
+    expect(wednesday).toHaveAttribute('aria-disabled', 'true');
+    expect(days.getAllByRole('button').filter((button) => button.getAttribute('aria-pressed') === 'true')).toHaveLength(1);
+    fireEvent.click(wednesday);
+    expect(wednesday).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(SETTINGS.daysLeast)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
+    // Another day on: Wednesday can go now.
+    fireEvent.click(days.getByRole('button', { name: 'пятница' }));
+    fireEvent.click(wednesday);
+    expect(wednesday).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument();
+  });
+
+  it('a member sets their own days too', async () => {
+    api.state.summary = { ...solo(), role: 'member', owner: null };
+    renderAt();
+    fireEvent.click(within(screen.getByRole('group', { name: SETTINGS.days })).getByRole('button', { name: 'понедельник' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 45, study_weekdays: 126 }));
+  });
+
   it('opens «Пригласить группу» from ?invite=1 and links «Добавить предмет» to the import page', () => {
     renderAt(`/exams/c/${ID}/settings?invite=1`);
     expect(screen.getByRole('dialog', { name: 'Пригласить группу' })).toBeInTheDocument();

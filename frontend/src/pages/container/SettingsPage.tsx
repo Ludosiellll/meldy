@@ -20,6 +20,7 @@ import InviteExam from '../../components/containers/group/InviteExam';
 import MembersList from '../../components/containers/group/MembersList';
 import { errorText, IMPORT, INVITE, nb, SETTINGS } from '../../components/containers/copyImport';
 import { minutesLines } from '../../components/containers/import/minutesLines';
+import { cleanDays, dayCount, dayOn, toggleDay } from '../../components/containers/weekdays';
 import type { PlanInput, SummarySubject, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
@@ -29,9 +30,9 @@ import './SettingsPage.css';
  * /exams/c/:id/settings — the one «Настройки» of an exam (spec §16 #44, design critique I9): the name, the date (or a
  * date per subject), the minutes a day 30 / 45 / 60 / 90 with the plan's line under them — what they need to see every
  * question by the date, or what they reach when they fall short (Concept 2 §3.6, the design table; the exam page's
- * «Время в день» leads here) — the subjects (rename, remove, add), the group, and «Удалить экзамен», refused while
- * members are in (MC009) until the author removes them. A member sets only their own minutes; their way out is
- * «Выйти из экзамена».
+ * «Время в день» leads here) — the days of the week (Пн–Вс, at least one; spec §3), the subjects (rename, remove,
+ * add), the group, and «Удалить экзамен», refused while members are in (MC009) until the author removes them. A member
+ * sets only their own minutes and days; their way out is «Выйти из экзамена».
  *
  * Anchors for the exam page's «⋯»: #minutes («Время в день»), #subjects, #group, #delete; ?invite=1 opens
  * «Пригласить группу».
@@ -62,10 +63,12 @@ export default function SettingsPage() {
   const [perSubject, setPerSubject] = useState(false);
   const [subjectDates, setSubjectDates] = useState<Record<string, string>>({});
   const [minutes, setMinutes] = useState(60);
+  const [weekdays, setWeekdays] = useState(127);
+  const [lastDayTried, setLastDayTried] = useState(false);
   const [filled, setFilled] = useState<string | null>(null);
   useEffect(() => {
     if (!summary) return;
-    const stamp = `${summary.id}:${summary.title}:${summary.exam_date}:${summary.settings.minutes_per_day}:${summary.subjects.map((subject) => `${subject.id}=${subject.exam_date}`).join(',')}`;
+    const stamp = `${summary.id}:${summary.title}:${summary.exam_date}:${summary.settings.minutes_per_day}:${summary.settings.study_weekdays}:${summary.subjects.map((subject) => `${subject.id}=${subject.exam_date}`).join(',')}`;
     if (filled === stamp) return;
     setFilled(stamp);
     rememberContainerTitle(summary.id, summary.title);
@@ -76,6 +79,7 @@ export default function SettingsPage() {
     setPerSubject((current) => current || distinct);
     setSubjectDates(Object.fromEntries(summary.subjects.map((subject) => [subject.id, subject.exam_date ?? ''])));
     setMinutes(summary.settings.minutes_per_day);
+    setWeekdays(cleanDays(summary.settings.study_weekdays));
   }, [summary, filled]);
 
   const [saving, setSaving] = useState(false);
@@ -94,7 +98,8 @@ export default function SettingsPage() {
         (owner && !perSubject && date !== (summary.exam_date ?? '')) ||
         (owner && changedSubjects.length > 0) ||
         (owner && ownDates.length > 0) ||
-        minutes !== summary.settings.minutes_per_day),
+        minutes !== summary.settings.minutes_per_day ||
+        weekdays !== cleanDays(summary.settings.study_weekdays)),
   );
 
   // ── the minutes and the plan's line under them, for the dates as the form has them now ──
@@ -164,9 +169,12 @@ export default function SettingsPage() {
           await updateSubject(subject.id, { exam_date: null });
         }
       }
-      if (minutes !== summary.settings.minutes_per_day) {
-        await saveSettings(containerId, { minutes_per_day: minutes, study_weekdays: summary.settings.study_weekdays });
-        track('container.minutes_set', { minutes });
+      // The minutes and the days are one row of the user's own (container_plans): saved together.
+      const daysChanged = weekdays !== cleanDays(summary.settings.study_weekdays);
+      if (minutes !== summary.settings.minutes_per_day || daysChanged) {
+        await saveSettings(containerId, { minutes_per_day: minutes, study_weekdays: weekdays });
+        if (minutes !== summary.settings.minutes_per_day) track('container.minutes_set', { minutes });
+        if (daysChanged) track('container.days_set', { days: dayCount(weekdays) });
       }
       if (owner) rememberContainerTitle(containerId, title.trim());
       setNote({ text: SETTINGS.saved });
@@ -289,6 +297,44 @@ export default function SettingsPage() {
     </div>
   );
 
+  // Пн–Вс, each a toggle; the last day on stays on (the plan needs a day to study in).
+  const daysField = (
+    <div className="im-field st-days-field" id="settings-days">
+      <span className="im-label" id={`${formId}-days`}>
+        {SETTINGS.days}
+      </span>
+      <div className="st-days" role="group" aria-labelledby={`${formId}-days`}>
+        {SETTINGS.dayShort.map((short, day) => {
+          const on = dayOn(weekdays, day);
+          const last = on && dayCount(weekdays) === 1;
+          return (
+            <button
+              key={short}
+              type="button"
+              className="st-day"
+              aria-pressed={on}
+              aria-disabled={last || undefined}
+              disabled={saving}
+              onClick={() => {
+                const next = toggleDay(weekdays, day);
+                setLastDayTried(next === null);
+                if (next !== null) setWeekdays(next);
+              }}
+            >
+              <span aria-hidden="true">{short}</span>
+              <span className="sr-only">{SETTINGS.dayFull[day]}</span>
+            </button>
+          );
+        })}
+      </div>
+      {lastDayTried ? (
+        <p className="im-hint" data-muted="" role="status">
+          {SETTINGS.daysLeast}
+        </p>
+      ) : null}
+    </div>
+  );
+
   const bar = !dirty && !note && !nameTried ? null : (
     <div className="ex-cta st-cta" data-row={frame.side ? '' : undefined}>
       {note ? (
@@ -310,7 +356,10 @@ export default function SettingsPage() {
     return (
       <div className="sf-page st-page" ref={frame.ref} data-frame={frame.size}>
         {header}
-        <section className="st-form">{minutesField}</section>
+        <section className="st-form">
+          {minutesField}
+          {daysField}
+        </section>
         <section className="st-danger" id="settings-delete">
           {asking ? (
             <p className="st-line st-ask">
@@ -393,6 +442,7 @@ export default function SettingsPage() {
             {!anyDate ? <p className="im-hint" data-muted="">{nb(SETTINGS.noDate)}</p> : null}
           </div>
           {minutesField}
+          {daysField}
         </section>
 
         <div className="st-side">
