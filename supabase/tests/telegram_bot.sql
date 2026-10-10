@@ -32,7 +32,7 @@
 --     message_id).
 -- Later packages add a row to packages, their names to the lists below and their own checks in their range: T5 30–49
 -- (20261010120003), T7 50–59 (20261010120004), T10 60–69 (20261010120006), T9 70–79 (20261010120005), T11 80–89
--- (20261010120007, bot_oral_inputs; a slot until it lands). The only functions a client without a session may run are
+-- (20261010120007, bot_oral_inputs). The only functions a client without a session may run are
 -- T10's two entry points for the Space (public.bridge_voice_take(text), bridge_voice_refund(text): anon and the service
 -- role with a single-use 64-hex ticket, checks 60 and 65); every bot_* stays the service role's. Local rehearsal of all
 -- of it: supabase/tests/local/telegram_bot_run.sh.
@@ -44,7 +44,8 @@ packages(pkg, migration, first_check, last_check) AS (VALUES
   ('T7', '20261010120004', 50, 59),
   ('T9', '20261010120005', 70, 79),
   ('T10', '20261010120006', 60, 69)
-  -- T11 slot (20261010120007_oral_plan_inputs.sql, bot_oral_inputs): , ('T11', '20261010120007', 80, 89)
+  -- T11 (20261010120007_oral_plan_inputs.sql, bot_oral_inputs):
+  , ('T11', '20261010120007', 80, 89)
 ),
 -- ── the lists (one line per object; later packages append theirs) ──────────────────────────────────────────────────────
 bot_tables(pkg, name) AS (VALUES
@@ -95,7 +96,8 @@ bot_fns(pkg, sig) AS (VALUES
   ('T10', 'bot_voice_followup(bigint,text,text,text,text)'), ('T10', 'bot_voice_release(bigint,text)'),
   ('T10', 'bot_voice_record(bigint,text,jsonb,text)'), ('T10', 'bot_voice_self(bigint,text)'),
   ('T10', 'bot_voice_rate(bigint,text,text)')
-  -- T11 slot (20261010120007): , ('T11', 'bot_oral_inputs(bigint)')
+  -- T11 (20261010120007):
+  , ('T11', 'bot_oral_inputs(bigint)')
 ),
 site_fns(pkg, sig) AS (VALUES
   ('T1', 'telegram_link_start(text)'), ('T1', 'telegram_link_state()'), ('T1', 'telegram_settings(boolean,time,text)'),
@@ -521,8 +523,24 @@ checks (ord, name, ok) AS (
          (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p
            WHERE p.pronamespace = 'public'::regnamespace
              AND p.proname IN ('bot_file_offer', 'bot_file_redeem', 'telegram_file_take')) = 3
-  -- ── T11 slot: 80–89 (20261010120007_oral_plan_inputs.sql: bot_oral_inputs, the oral plan on the server) ──
-  --    UNION ALL SELECT 80, '<name>', <boolean> …
+  -- ── T11: 80–89 (20261010120007_oral_plan_inputs.sql: bot_oral_inputs, the oral plan on the server) ──
+  UNION ALL
+  SELECT 80, 'oral_cores_private',
+         coalesce((SELECT pg_catalog.bool_and(p.oid IS NOT NULL AND NOT p.prosecdef
+                     AND pg_catalog.array_to_string(p.proconfig, ',') LIKE 'search_path=%'
+                     AND NOT pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
+                     AND NOT pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+                     FROM (VALUES ('oral_sheet_for(uuid,uuid)'), ('oral_events_for(uuid,text[])'),
+                                  ('oral_events_json(uuid,text[],text[])'),
+                                  ('oral_rubric_key(text,text[],jsonb,text)'), ('oral_clean_points(jsonb)'),
+                                  ('oral_clean_materials(jsonb)'), ('oral_sheet_short(jsonb,timestamptz,text)'), ('py_str(jsonb)'),
+                                  ('py_repr(jsonb)'), ('py_repr_text(text)'), ('py_float_repr(text)')) s(sig)
+                     LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure('meldy_private.' || s.sig)), false)
+  UNION ALL
+  SELECT 81, 'oral_inputs_read_only_through_the_link',
+         coalesce((SELECT p.provolatile = 's' AND p.prosrc ~ 'bot\.active_link\(' AND p.prosrc ~ 'meldy_private\.oral_sheet_for\('
+                          AND p.prosrc ~ 'meldy_private\.oral_events_json\('
+                     FROM pg_catalog.pg_proc p WHERE p.oid = pg_catalog.to_regprocedure('public.bot_oral_inputs(bigint)')), false)
 ),
 -- Per package: its own checks (its range) that fail and, for an applied package other than T1, the checks over every
 -- listed object that one of its own objects fails.

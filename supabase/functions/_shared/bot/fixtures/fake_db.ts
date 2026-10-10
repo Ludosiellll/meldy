@@ -120,6 +120,7 @@ export function fakeDb(options: { now: () => number }) {
       now: link.now,
       wire: data.wire ?? null,
       oral: [],
+      oralParts: [],
       exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0, hasOral: e.hasOral ?? false })),
       session: withSession ? data.session ?? null : null,
       day: withSession && row ? { cardMessageId: row.cardMessageId, cardUsed: row.cardUsed, lastMessageId: row.lastMessageId } : null,

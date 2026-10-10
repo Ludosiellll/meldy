@@ -320,6 +320,14 @@ values ('dddddddd-0000-0000-0000-000000000004', public.meldy_question_hash('Вз
         'race-key-0000', '44444444-4444-4444-4444-444444444444', 'Взаимоблокировка: условия возникновения и способы предотвращения.',
         '{"coverage": "full", "materials": [], "points": [{"id": "p1", "title": "Пункт", "essential": true, "source_quote": "", "source_ids": [],
           "followup": {"question": "Вопрос?", "expected": ""}}]}');
+-- With T11's oral_sheet_for, the sheet takes the rubric under the key the Space writes (meldy_private.oral_rubric_key).
+do $$ begin
+  if pg_catalog.to_regprocedure('meldy_private.oral_rubric_key(text,text[],jsonb,text)') is not null then
+    execute $q$update public.oral_rubrics set source_key = (select meldy_private.oral_rubric_key(x.materials_fingerprint, '{}'::text[],
+                 x.evidence, x.coverage_method) from public.exam_questions x where x.id = 'e0e00000-0000-4000-8000-000000000401')
+               where source_key = 'race-key-0000'$q$;
+  end if;
+end $$;
 select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004', false);
 set role authenticated;
 create temp table race_c as select public.container_create('Осенняя сессия', null,

@@ -161,7 +161,8 @@ marks = {
     "bot_fns": "  -- T11 slot (20261010120007): , ('T11', 'bot_oral_inputs(bigint)')\n",
     "checks": "  --    UNION ALL SELECT 80, '<name>', <boolean> …\n",
 }
-for name, mark in marks.items():
+already = "  , ('T11', '20261010120007', 80, 89)\n" in contract   # merged: the block is in T1's file itself
+for name, mark in ({} if already else marks).items():
     if contract.count(mark) != 1:
         raise SystemExit(f"the marker of [{name}] is not in telegram_bot.sql once")
     contract = contract.replace(mark, mark + part(name))

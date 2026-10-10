@@ -88,6 +88,7 @@ declare
                     'Виртуальная память: страничная организация и замещение страниц.',
                     'Файловые системы: журналирование и восстановление после сбоя.'];
   rubric jsonb;
+  rubric_key text;
   r jsonb;
 begin
   insert into bot.links (user_id, tg_user_id, chat_id, tz, linked_at, last_seen_at) values
@@ -121,8 +122,17 @@ begin
         jsonb_build_object('id', 'p3', 'title', 'Круговое ожидание: цепочка процессов ждёт друг друга', 'essential', false,
           'source_quote', 'процессы образуют замкнутую цепь ожидания', 'source_ids', jsonb_build_array('M1:S05'),
           'anchors', '[["кругов"]]'::jsonb, 'followup', jsonb_build_object('question', 'Что такое круговое ожидание?', 'expected', 'Замкнутая цепь.'))));
+    -- The rubric's key: with T11's oral_sheet_for live, the sheet takes a question's rubric under the key the Space writes
+    -- (backend/oral.py rubric_key, ported as meldy_private.oral_rubric_key over the question's fingerprint, the exam's
+    -- lectures, its evidence and method), so the fixture stores exactly that key; T11's local stub takes the newest.
+    rubric_key := 'key-' || i || '-current-0000';
+    if pg_catalog.to_regprocedure('meldy_private.oral_rubric_key(text,text[],jsonb,text)') is not null then
+      execute 'select meldy_private.oral_rubric_key(x.materials_fingerprint, $1, x.evidence, x.coverage_method)
+                 from public.exam_questions x where x.id = $2'
+        into rubric_key using array[mat::text], ('e0e00000-0000-4000-8000-00000000010' || i)::uuid;
+    end if;
     insert into public.oral_rubrics (id, user_id, question_hash, source_key, material_id, material_ids, question, rubric, model)
-    values (('e0e00000-0000-4000-8000-00000000020' || i)::uuid, a, public.meldy_question_hash(q[i]), 'key-' || i || '-current-0000',
+    values (('e0e00000-0000-4000-8000-00000000020' || i)::uuid, a, public.meldy_question_hash(q[i]), rubric_key,
             mat, array[mat], q[i], rubric, 'test');
   end loop;
   perform pg_temp.put('exam', exam::text);
