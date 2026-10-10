@@ -32,3 +32,5 @@
 .sf-page.im-page[data-frame='s'] { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
 .sf-page.im-page[data-frame='s'] > .ex-cta { margin-top: auto; }
 .sf-page.im-page[data-frame='s'] > :nth-last-child(2) { margin-bottom: 24px; }
+/* «Обновить из файла»: one column of a readable width — the counts, the keys that differ, the quiet links. */
+.sf-page.im-page .im-body-update { max-width: 720px; }

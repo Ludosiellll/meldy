@@ -264,6 +264,12 @@
 .sf-page .im-keytext { display: grid; gap: 8px; margin-top: 26px; }
 .sf-page .im-keytext-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 4px; }
 
+/* «Обновить из файла»: the counts as rows of one card, then the questions whose key differs, by number. */
+.sf-page .im-update-which { margin-top: 18px; }
+.sf-page .im-update-rows { margin-top: 18px; }
+.sf-page .im-update-keys ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.sf-page .im-update-keys li { margin-top: 4px; font-size: 15px; line-height: 1.5; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+
 /* ── the queue ── */
 .sf-page .im-queue { margin-top: 24px; scroll-margin-top: 80px; }
 .sf-page .im-queue-end { margin: 8px 0 20px; font-size: 17px; line-height: 1.5; }

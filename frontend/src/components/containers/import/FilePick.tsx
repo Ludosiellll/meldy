@@ -30,9 +30,12 @@ interface Props {
   platform: Platform;
   onFiles: (files: File[]) => void;
   onText: (text: string) => void;
+  /** «Обновить из файла»: its own heading and line instead of the new exam's. */
+  title?: string;
+  lede?: string;
 }
 
-export default function FilePick({ phone, side, platform, onFiles, onText }: Props) {
+export default function FilePick({ phone, side, platform, onFiles, onText, title = IMPORT.dropTitle, lede }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const pasteRef = useRef<HTMLTextAreaElement>(null);
   const [pasting, setPasting] = useState(false);
@@ -66,10 +69,10 @@ export default function FilePick({ phone, side, platform, onFiles, onText }: Pro
   };
 
   return (
-    <section className="im-pick" data-drag={dragging ? '' : undefined} aria-label={IMPORT.dropTitle} {...drop}>
+    <section className="im-pick" data-drag={dragging ? '' : undefined} aria-label={title} {...drop}>
       <div className="im-pick-main">
-        {!phone ? <h2 className="im-pick-h">{IMPORT.dropTitle}</h2> : null}
-        <p className="im-pick-sub">{nb(phone ? IMPORT.lede : IMPORT.dropLede)}</p>
+        {!phone ? <h2 className="im-pick-h">{title}</h2> : null}
+        <p className="im-pick-sub">{nb(lede ?? (phone ? IMPORT.lede : IMPORT.dropLede))}</p>
         {pasting ? (
           <div className="im-paste">
             <label className="im-label" htmlFor={pasteId}>
