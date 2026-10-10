@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import source from './copy.ts?raw';
 import * as copy from './copy';
+import { comesBackWhen } from './model';
 
 /**
  * Spec 2026-10-09 §16 #45: one source of the screens' words, and a test that fails on the banned ones — «контейнер»,
@@ -163,5 +164,43 @@ describe('copy.ts: the words of the exam screens', () => {
     expect(plain(copy.verdictWrong(long, false))).toBe('Неверно. В файле верны 3 варианта — они отмечены выше. Вернётся завтра.');
     expect(plain(copy.startSubject('Базы данных', 17))).toBe('Начать: Базы данных — 17 вопросов');
     expect(plain(copy.aloudSubject('Гражданское право', 3))).toBe('Ответить вслух: Гражданское право — 3 вопроса');
+  });
+
+  it('a mistake comes back on the next study day: every day the same bytes as «завтра» always said, else its day', () => {
+    // Every day (127): exactly the lines as they were before the days of the week.
+    const tomorrow = comesBackWhen('2026-10-09', 127);
+    expect(tomorrow).toBe('завтра');
+    expect(copy.verdictWrong(['7 12'], true, tomorrow)).toBe(copy.glue('Неверно. В файле — 7 12. Вернётся через пару вопросов и завтра.'));
+    expect(copy.verdictDontKnow(['DHCP'], false, tomorrow)).toBe(copy.glue('В файле — DHCP. Вернётся завтра.'));
+    expect(copy.verdictShortWrong('ROLLBACK', false, tomorrow)).toBe(copy.glue('Неверно. В файле — ROLLBACK. Вернётся завтра.'));
+    expect(copy.shortDontKnow('32', true, tomorrow)).toBe(copy.glue('В файле — 32. Вернётся через пару вопросов и завтра.'));
+    expect(copy.misclickLine(tomorrow)).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся завтра.');
+    expect(copy.misclickLine()).toBe(copy.misclickLine(tomorrow));
+    expect(copy.mockErrors(1, 0, tomorrow)).toBe(copy.glue('Одна ошибка: она вернётся завтра.'));
+    expect(copy.mockErrors(2, 2)).toBe(copy.glue('Ошибки — 2, из них без ответа 2: они вернутся завтра.'));
+    expect(copy.errorsBack(1, tomorrow)).toBe(copy.errorsBack(1));
+    // Friday 9 October, Saturday off: Sunday; Saturday and Sunday off: Monday.
+    const plain = (text: string) => text.split(copy.NBSP).join(' ');
+    const sunday = comesBackWhen('2026-10-09', 127 - 32);
+    const monday = comesBackWhen('2026-10-09', 31);
+    expect(plain(copy.verdictWrong(['7 12'], true, sunday))).toBe('Неверно. В файле — 7 12. Вернётся через пару вопросов и в воскресенье.');
+    expect(plain(copy.verdictDontKnow(['DHCP'], false, monday))).toBe('В файле — DHCP. Вернётся в понедельник.');
+    expect(plain(copy.verdictShortWrong('ROLLBACK', true, monday))).toBe('Неверно. В файле — ROLLBACK. Вернётся через пару вопросов и в понедельник.');
+    expect(plain(copy.shortDontKnow('32', false, sunday))).toBe('В файле — 32. Вернётся в воскресенье.');
+    expect(plain(copy.misclickLine(monday))).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся в понедельник.');
+    expect(plain(copy.errorsBack(1, sunday))).toBe('1 ошибка вернётся в воскресенье.');
+    expect(plain(copy.errorsBack(5, monday))).toBe('5 ошибок вернутся в понедельник.');
+    expect(plain(copy.tooEarlyLine(2, null, monday))).toBe('На 2 вопроса вы снова ответили верно, но раньше чем через 20 часов: они войдут в счёт, если ответите в понедельник.');
+    expect(plain(copy.mockErrors(1, 0, sunday))).toBe('Одна ошибка: она вернётся в воскресенье.');
+    expect(plain(copy.mockErrors(3, 1, monday))).toBe('Ошибки — 3, из них без ответа 1: они вернутся в понедельник.');
+    // «во вторник» (Tuesdays only, on Wednesday) and a date (Fridays only, on Friday); the preposition keeps its word.
+    const tuesday = comesBackWhen('2026-10-07', 2);
+    const date = comesBackWhen('2026-10-09', 16);
+    expect(plain(copy.verdictWrong(['DHCP'], false, tuesday))).toBe('Неверно. В файле — DHCP. Вернётся во вторник.');
+    expect(plain(copy.verdictDontKnow(['DHCP'], true, date))).toBe('В файле — DHCP. Вернётся через пару вопросов и 16 октября.');
+    expect(plain(copy.misclickLine(date))).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся 16 октября.');
+    expect(plain(copy.mockErrors(2, 0, tuesday))).toBe('Ошибки — 2: они вернутся во вторник.');
+    expect(copy.misclickLine(monday)).toContain(`в${copy.NBSP}понедельник`);
+    expect(copy.verdictDontKnow(['DHCP'], true, tuesday)).toContain(`и${copy.NBSP}во${copy.NBSP}вторник`);
   });
 });

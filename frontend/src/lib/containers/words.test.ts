@@ -3,8 +3,8 @@ import wordsSource from './words.ts?raw';
 import type { DayPlan } from '../../types/container';
 import { planDay } from './plan.ts';
 import {
-  LINE_KEYS, NBSP, RULE_LINE, SKIP_NOTE, TWO_DAYS, dayRowText, dayText, figureLines, figureRow, glue, lineText, planDetail, planLine,
-  planTitle, plural, rangeText, shownMinutes, startLabel, weekdayText, type LineKey,
+  LINE_KEYS, NBSP, RULE_LINE, SKIP_NOTE, TWO_DAYS, dayRowText, dayText, figureLines, figureRow, glue, lineText, nextStudyDayWord, planDetail,
+  planLine, planTitle, plural, rangeText, shownMinutes, startLabel, weekdayText, type LineKey,
 } from './words.ts';
 import { at, makeInput, testItems } from './__fixtures__/scenarios.ts';
 
@@ -88,6 +88,26 @@ describe('days', () => {
     expect(ru(rangeText('2026-10-24', '2026-10-27'))).toBe('24–27 октября');
     expect(ru(rangeText('2026-10-30', '2026-11-02'))).toBe('30 октября – 2 ноября');
     expect(ru(rangeText('2026-10-30', '2026-10-30'))).toBe('30 октября');
+  });
+
+  it('names the next study day after today: «завтра», «в понедельник» within the week, else the date', () => {
+    const FRI = '2026-10-09';
+    // Every day: always «завтра», whatever the day (and a mask out of 1..127 is every day).
+    for (const day of ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', FRI, '2026-10-10', '2026-10-11']) {
+      expect(nextStudyDayWord(day, 127)).toBe('завтра');
+    }
+    expect(nextStudyDayWord(FRI, 0)).toBe('завтра');
+    expect(nextStudyDayWord(FRI, 200)).toBe('завтра');
+    // Saturday off, on Friday: Sunday. Saturday and Sunday off: Monday, from Friday, Saturday or Sunday.
+    expect(nextStudyDayWord(FRI, 127 - 32)).toBe('в воскресенье');
+    expect(nextStudyDayWord(FRI, 31)).toBe('в понедельник');
+    expect(nextStudyDayWord('2026-10-10', 31)).toBe('в понедельник');
+    expect(nextStudyDayWord('2026-10-11', 31)).toBe('завтра');
+    expect(nextStudyDayWord('2026-10-12', 31)).toBe('завтра');
+    // Tuesdays only, on Wednesday: six days ahead, by name; Fridays only, on Friday: a week ahead, by date.
+    expect(nextStudyDayWord('2026-10-07', 2)).toBe('во вторник');
+    expect(ru(nextStudyDayWord(FRI, 16))).toBe('16 октября');
+    expect(ru(nextStudyDayWord('2026-10-30', 16))).toBe('6 ноября');
   });
 });
 

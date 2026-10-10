@@ -10,7 +10,7 @@ import { RoomBar } from './RoomParts';
 import MockSetup from './MockSetup';
 import { Mark, Sheet } from './ui';
 import * as copy from './copy';
-import { dayIn, studyHref, subjectTitle } from './model';
+import { comesBackWhen, dayIn, studyHref, subjectTitle } from './model';
 import { clock, drawMock, isAnswered, mockAnswers, scoreMock, type MockAnswer } from './mockModel';
 import { newId } from './sessionStore';
 import { useWide } from './useWide';
@@ -260,7 +260,7 @@ export default function MockRun({
             <Mark>{copy.mockScore(result.correct, result.items)}</Mark>
           </p>
           <p className="ct-end-p">
-            {copy.mockTime(result.minutes, result.limit)} {copy.mockErrors(errors, result.unanswered)}
+            {copy.mockTime(result.minutes, result.limit)} {copy.mockErrors(errors, result.unanswered, comesBackWhen(result.day, input?.studyWeekdays))}
           </p>
           {result.offline ? <p className="ct-end-small">{copy.MOCK_OFFLINE}</p> : null}
           {errors > 0 ? (

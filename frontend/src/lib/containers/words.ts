@@ -7,7 +7,7 @@
  * banned-word test reads the source.
  */
 import type { DayPlan, LocalDay } from '../../types/container.ts';
-import { dayIndex, weekday } from './time.ts';
+import { addDays, dayIndex, daysBetween, studyDayFrom, weekday } from './time.ts';
 
 export const TWO_DAYS = 'верно в два разных дня';
 export const NBSP = ' ';
@@ -84,6 +84,16 @@ function relDay(offset: number | undefined, day: LocalDay | undefined): string {
 function weekDay(offset: number | undefined, day: LocalDay | undefined): string {
   if (day && typeof offset === 'number' && offset >= 2 && offset <= 6) return WEEKDAYS_ON[weekday(day)];
   return relDay(offset, day);
+}
+
+/**
+ * When the plan brings back what was answered `today` (a mistake, a misclick): its first study day after `today`
+ * (`mask`, settings.study_weekdays) as 'завтра', 'в понедельник' (2–6 days ahead) or '16 октября' (a week ahead: the
+ * one study day of the week is today's weekday). Every day (127): always 'завтра'.
+ */
+export function nextStudyDayWord(today: LocalDay, mask: number): string {
+  const next = studyDayFrom(addDays(today, 1), mask);
+  return weekDay(daysBetween(today, next), next);
 }
 
 /** Minutes shown for an estimate: 1 at least, to the minute below 10, else to 5. */

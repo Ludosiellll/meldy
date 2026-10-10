@@ -134,7 +134,8 @@ export default function SessionEnd({
   if (stats) {
     if (moved) parts.push(`${time}.`);
     if (stats.questions > 0) parts.push(copy.firstRight(stats.firstRight, stats.questions));
-    // What comes back after today comes back on a study day (input.studyWeekdays): «завтра», or the next one by date.
+    // What comes back after today comes back on a study day (input.studyWeekdays): «завтра», or the next one
+    // («в понедельник»), the word of the verdicts in the session.
     const back = comesBackWhen(today, input?.studyWeekdays);
     if (stats.errors > 0) parts.push(copy.errorsBack(stats.errors, back));
     if (stats.dropped > 0) parts.push(copy.droppedLine(stats.dropped));
