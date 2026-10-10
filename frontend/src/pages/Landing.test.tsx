@@ -216,7 +216,8 @@ describe('Landing page', () => {
       .getAllByRole('button', { name: /Смотреть в ролике/ })
       .forEach((button) => fireEvent.click(button));
     window.removeEventListener(REEL_EVENT, listener);
-    expect(asked).toEqual(['tickets', 'oral']);
+    // The list is chapter 01; the spoken answer opens chapter 04, before its sheet.
+    expect(asked).toEqual(['questions', 'sheet']);
 
     const replays: Event[] = [];
     const onReplay = (event: Event) => replays.push(event);

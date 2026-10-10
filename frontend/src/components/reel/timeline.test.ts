@@ -1,17 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { ReelClock } from './clock';
-import { QUOTE, SHEET_ROWS, SHEET_TOTALS, TICKET } from './content';
-import { MARK_AT, QUOTE_AT, TICKETS_CURSOR } from './scenes/Tickets';
-import { CHAPTERS, POSTER_AT, SCENES, TOTAL, activeScenes, chapterAt, ease, plural, rng, seg } from './timeline';
+import { CHAPTERS, POSTER_AT, SCENES, TOTAL, activeScenes, chapterAt, ease, plural, rng, sceneWindow, seg } from './timeline';
+import { END_AT, TAP_WRONG } from './scenes/Session';
 
 describe('the reel timeline', () => {
   it('plays the scenes in story order, each overlapping the next for its transition, within the reel', () => {
-    expect(SCENES.map((scene) => scene.id)).toEqual(['intro', 'chaos', 'brand', 'tour', 'tickets', 'oral', 'sheet', 'days', 'outro']);
+    expect(SCENES.map((scene) => scene.id)).toEqual(['intro', 'chaos', 'brand', 'questions', 'plan', 'session', 'sheet', 'group', 'outro']);
     expect(SCENES[0].from).toBe(0);
     expect(SCENES[SCENES.length - 1].to).toBe(TOTAL);
     for (let i = 1; i < SCENES.length; i += 1) {
       expect(SCENES[i].from).toBeGreaterThan(SCENES[i - 1].from);
       expect(SCENES[i].from).toBeLessThan(SCENES[i - 1].to);
+    }
+  });
+
+  it('runs about 48 seconds, so it has room to breathe', () => {
+    expect(TOTAL).toBeGreaterThanOrEqual(46000);
+    expect(TOTAL).toBeLessThanOrEqual(48000);
+    // Each chapter is on the stage for at least six seconds.
+    for (const chapter of CHAPTERS) {
+      const scene = sceneWindow(chapter.id);
+      expect(scene.to - scene.from).toBeGreaterThanOrEqual(6000);
     }
   });
 
@@ -22,15 +31,29 @@ describe('the reel timeline', () => {
     expect(activeScenes(2700)).toEqual(['intro', 'chaos']);
     expect(activeScenes(6400)).toEqual(['chaos', 'brand']);
     expect(activeScenes(TOTAL - 1)).toEqual(['outro']);
+    // A chapter is built well before it shows, not on the frame before it.
+    for (const chapter of CHAPTERS) expect(sceneWindow(chapter.id).lead ?? 0).toBeGreaterThanOrEqual(1000);
   });
 
-  it('names the chapters 01–04 and knows which one plays', () => {
-    expect(CHAPTERS.map((chapter) => `${chapter.number} ${chapter.label}`)).toEqual(['01 Билеты', '02 Ответ вслух', '03 Шпаргалка', '04 Разные дни']);
+  it('keeps the group under the ending until its iris covers the stage', () => {
+    // Outro.tsx opens a circle over 680 ms; nothing of the dark stage may show around it.
+    expect(sceneWindow('group').to).toBeGreaterThanOrEqual(sceneWindow('outro').from + 680);
+  });
+
+  it('names the chapters 01–05 and knows which one plays', () => {
+    expect(CHAPTERS.map((chapter) => `${chapter.number} ${chapter.label}`)).toEqual(['01 Вопросы', '02 План', '03 Занятие', '04 Шпаргалка', '05 Группа']);
     expect(chapterAt(1000)).toBeNull();
-    expect(chapterAt(POSTER_AT)?.label).toBe('Билеты');
-    expect(chapterAt(CHAPTERS[2].at + 10)?.label).toBe('Шпаргалка');
-    expect(chapterAt(CHAPTERS[3].at + 10)?.label).toBe('Разные дни');
+    expect(chapterAt(CHAPTERS[0].at + 10)?.label).toBe('Вопросы');
+    expect(chapterAt(CHAPTERS[3].at + 10)?.label).toBe('Шпаргалка');
+    expect(chapterAt(CHAPTERS[4].at + 10)?.label).toBe('Группа');
     expect(chapterAt(TOTAL - 10)).toBeNull();
+  });
+
+  it('takes its poster from the «занятие»: the figure and a wrong answer with the key from the file, before the session runs on', () => {
+    expect(chapterAt(POSTER_AT)?.label).toBe('Занятие');
+    const session = sceneWindow('session');
+    expect(POSTER_AT - session.from).toBeGreaterThan(TAP_WRONG + 500);
+    expect(POSTER_AT - session.from).toBeLessThan(END_AT - 600);
   });
 
   it('eases like the CSS curves it stands for', () => {
@@ -55,38 +78,6 @@ describe('the reel timeline', () => {
   it('declines Russian nouns after numbers', () => {
     const forms = ['вопрос', 'вопроса', 'вопросов'] as const;
     expect([1, 2, 5, 11, 21, 24, 40].map((n) => plural(n, forms))).toEqual(['вопрос', 'вопроса', 'вопросов', 'вопросов', 'вопрос', 'вопроса', 'вопросов']);
-  });
-});
-
-describe('the reel content', () => {
-  it('uses the stage list of the app: 40 questions, 24 «есть», 7 «частично», 9 «нет»', () => {
-    expect(SHEET_ROWS).toHaveLength(40);
-    expect(SHEET_TOTALS).toEqual({ ok: 24, half: 7, no: 9 });
-  });
-
-  it('marks the rows of the ticket sheet in order, every one while the chapter plays', () => {
-    for (let i = 1; i < MARK_AT.length; i += 1) expect(MARK_AT[i]).toBeGreaterThanOrEqual(MARK_AT[i - 1]);
-    const chapter = SCENES.find((scene) => scene.id === 'tickets')!;
-    expect(MARK_AT[MARK_AT.length - 1]).toBeLessThan(chapter.to - chapter.from - 1500);
-  });
-
-  it('opens the lecture quote of a question found in the lectures, after every row is marked and the cursor is on it', () => {
-    expect(SHEET_ROWS[QUOTE.row]).toEqual({ title: 'Экономический рост', status: 'ok' });
-    expect(QUOTE_AT).toBeGreaterThan(Math.max(...MARK_AT));
-    const onRow = TICKETS_CURSOR.find((key) => key.y < 600);
-    expect(onRow && onRow.at).toBeLessThanOrEqual(QUOTE_AT);
-    // The poster (reduced motion) shows the marked list with the quote open.
-    const tickets = SCENES.find((scene) => scene.id === 'tickets')!;
-    expect(POSTER_AT - tickets.from).toBeGreaterThan(QUOTE_AT + 620);
-    expect(POSTER_AT - tickets.from).toBeLessThan(3980);
-  });
-
-  it('names every point of the ticket but the missed one during the answer', () => {
-    const words = TICKET.answer.split(' ');
-    const named = Object.keys(TICKET.namedAfterWord).map(Number);
-    expect(named).not.toContain(TICKET.missed);
-    expect(named.sort()).toEqual([1, 2, 3, 4]);
-    for (const index of Object.values(TICKET.namedAfterWord)) expect(index).toBeLessThan(words.length);
   });
 });
 

@@ -9,6 +9,7 @@ import { usePrefersReducedMotion } from '../components/landing/usePrefersReduced
 import { ty } from '../components/landing/typo';
 import { freePlanLine } from '../components/landing/freePlan';
 import { lazyPart, useLazyPart } from '../lib/lazyPart';
+import { TOTAL, plural } from '../components/reel/timeline';
 import '../components/home/home.css';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 
@@ -407,7 +408,7 @@ function HowSection() {
               </span>
               <h3 className="hm-h3">{ty(step.title)}</h3>
               <p className="hm-p">{ty(step.text)}</p>
-              {index === 0 && <More chapter="tickets" />}
+              {index === 0 && <More chapter="questions" />}
               {/* The quotes are in the example's «Вопросы» view, not on its sheet (audit PUB-13). */}
               {index === 1 && (
                 <button type="button" className="hm-more" onClick={() => navigate('/try?view=questions')}>
@@ -415,7 +416,8 @@ function HowSection() {
                   <Arrow />
                 </button>
               )}
-              {index === 2 && <More chapter="oral" />}
+              {/* The answer aloud and what it does to the sheet: the reel's chapter 04. */}
+              {index === 2 && <More chapter="sheet" />}
               {index === 3 && <ShowOnSheet />}
             </div>
           </li>
@@ -471,10 +473,13 @@ function ResultAndGroup() {
   );
 }
 
+/** The reel's heading: its own length in whole seconds, «Meldy за 48 секунд». */
+export const REEL_HEADING = `Meldy за ${Math.round(TOTAL / 1000)} ${plural(Math.round(TOTAL / 1000), ['секунду', 'секунды', 'секунд'])}`;
+
 /**
- * «Meldy за 36 секунд»: the motion reel (loaded after the first screen). Its heading row is read by screen
- * readers and named by the «Ролик» link, but not drawn (home.css), so the video starts right under the
- * buttons. Its end card opens the example, as the hero's first button does.
+ * «Meldy за 48 секунд»: the motion reel (loaded after the first screen); the number is the reel's own length. Its
+ * heading row is read by screen readers and named by the «Ролик» link, but not drawn (home.css), so the video starts
+ * right under the buttons. Its end card opens the example, as the hero's first button does.
  */
 function ReelSection() {
   const navigate = useNavigate();
@@ -485,7 +490,7 @@ function ReelSection() {
     <section id="reel" className="hm-wrap hm-sec" aria-labelledby="reel-heading">
       <div className="hm-reel-head">
         <h2 id="reel-heading" className="hm-h2">
-          Meldy за 36 секунд
+          {REEL_HEADING}
         </h2>
         <p className="hm-sub">{ty('От списка вопросов до пустой шпаргалки. Ролик без звука — главы можно листать.')}</p>
       </div>

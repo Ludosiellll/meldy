@@ -7,7 +7,7 @@
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
 
-export type SceneId = 'intro' | 'chaos' | 'brand' | 'tour' | 'tickets' | 'oral' | 'sheet' | 'days' | 'outro';
+export type SceneId = 'intro' | 'chaos' | 'brand' | 'questions' | 'plan' | 'session' | 'sheet' | 'group' | 'outro';
 
 export interface SceneWindow {
   id: SceneId;
@@ -19,24 +19,29 @@ export interface SceneWindow {
   lead?: number;
 }
 
-/** In order of the story; a later scene lies above an earlier one. */
+/**
+ * In order of the story; a later scene lies above an earlier one. Since 2026-10-10 the reel tells the exam container:
+ * the session's questions from the department's files, the plan by days, the «занятие», the cheat sheet that empties,
+ * the group and the bot. The opening (dot, chaos, brand) and the ending are the approved ones.
+ */
 export const SCENES: readonly SceneWindow[] = [
   { id: 'intro', from: 0, to: 3500 },
   // Mounted with the intro, while the stage is still dark: mounting it 0.4 s ahead fell on the
   // intro's slow push-in and showed as a hitch right before the burst.
   { id: 'chaos', from: 3000, to: 7100, lead: 3000 },
   { id: 'brand', from: 6700, to: 10000 },
-  { id: 'tour', from: 9500, to: 12000 },
-  // A second longer than before 2026-10-08: the cursor opens the lecture quote of one question.
-  { id: 'tickets', from: 11700, to: 17300 },
-  { id: 'oral', from: 16900, to: 23100 },
-  // The cheat sheet after the answer, then over different days: one paper handed from scene to scene.
-  { id: 'sheet', from: 22700, to: 26300 },
-  { id: 'days', from: 25900, to: 32300 },
-  { id: 'outro', from: 31900, to: 36000 },
+  // Starts under the brand's flight: the wordmark lands in the app's top bar of the import page. Each chapter is put
+  // on the stage at a calm moment of the one before it (its `lead`), so building it never falls on a busy frame.
+  { id: 'questions', from: 9500, to: 16300, lead: 1200 },
+  { id: 'plan', from: 15900, to: 22100, lead: 1000 },
+  { id: 'session', from: 21700, to: 29300, lead: 1000 },
+  { id: 'sheet', from: 28900, to: 36900, lead: 1100 },
+  // Until the ending's iris has opened over the whole stage (680 ms): nothing dark shows outside it.
+  { id: 'group', from: 36500, to: 44600, lead: 2400 },
+  { id: 'outro', from: 43900, to: 48000 },
 ];
 
-export const TOTAL = 36000;
+export const TOTAL = 48000;
 
 /** A scene is put on the stage this early, hidden, so its first visible frame is ready. */
 export const PREMOUNT = 400;
@@ -61,10 +66,11 @@ export interface Chapter {
 }
 
 export const CHAPTERS: readonly Chapter[] = [
-  { id: 'tickets', number: '01', label: 'Билеты', at: sceneWindow('tickets').from },
-  { id: 'oral', number: '02', label: 'Ответ вслух', at: sceneWindow('oral').from },
-  { id: 'sheet', number: '03', label: 'Шпаргалка', at: sceneWindow('sheet').from },
-  { id: 'days', number: '04', label: 'Разные дни', at: sceneWindow('days').from },
+  { id: 'questions', number: '01', label: 'Вопросы', at: sceneWindow('questions').from },
+  { id: 'plan', number: '02', label: 'План', at: sceneWindow('plan').from },
+  { id: 'session', number: '03', label: 'Занятие', at: sceneWindow('session').from },
+  { id: 'sheet', number: '04', label: 'Шпаргалка', at: sceneWindow('sheet').from },
+  { id: 'group', number: '05', label: 'Группа', at: sceneWindow('group').from },
 ];
 
 /** The chapter playing at `t`, or null before the first one and after the last one ends. */
@@ -75,8 +81,11 @@ export function chapterAt(t: number): Chapter | null {
   return found;
 }
 
-/** The poster: the moment shown when motion is reduced (the ticket sheet, fully marked, with the quote open). */
-export const POSTER_AT = 15400;
+/**
+ * The poster: the one still of the reel, shown when motion is reduced and on the landing until the reel first plays —
+ * the «занятие» with the progress figure and a wrong answer that comes back on the next study day.
+ */
+export const POSTER_AT = 26000;
 
 // ---------------------------------------------------------------------------------------------
 // Math

@@ -6,9 +6,22 @@ import { REEL_EVENT, takePendingChapter, type ReelChapter } from '../home/reelJu
 import { ReelClock } from './clock';
 import { put } from './engine';
 import ReelStage from './ReelStage';
-import { QUOTE, SHEET_ROWS } from './content';
+import {
+  BOT,
+  CHAOS_LINES,
+  FIGURE_AFTER_FIRST,
+  GROUP_MEMBERS,
+  GROUP_WORDS,
+  IMPORT_WORDS,
+  ORAL,
+  PLAN_WORDS,
+  QUESTIONS_TOTAL,
+  SESSION_WORDS,
+  SUBJECTS,
+  subjectMeta,
+} from './content';
 import { OUTRO_CTA, OUTRO_CTA_AT, OUTRO_CTA_LABEL } from './scenes/Outro';
-import { POSTER_AT, STAGE_H, STAGE_W, TOTAL, clamp, plural, sceneWindow } from './timeline';
+import { CHAPTERS, POSTER_AT, STAGE_H, STAGE_W, TOTAL, clamp, plural, sceneWindow } from './timeline';
 import './reel.css';
 
 declare global {
@@ -19,13 +32,15 @@ declare global {
   }
 }
 
-/** The bar under the reel: the opening, the four chapters and the ending, by their length. */
+/** The bar under the reel: the opening, the five chapters and the ending, by their length. */
 export const SEGMENTS: Array<{ label: string; from: number; to: number; id?: ReelChapter }> = [
-  { label: 'Начало', from: 0, to: sceneWindow('tickets').from },
-  { label: 'Билеты', from: sceneWindow('tickets').from, to: sceneWindow('oral').from, id: 'tickets' },
-  { label: 'Ответ вслух', from: sceneWindow('oral').from, to: sceneWindow('sheet').from, id: 'oral' },
-  { label: 'Шпаргалка', from: sceneWindow('sheet').from, to: sceneWindow('days').from, id: 'sheet' },
-  { label: 'Разные дни', from: sceneWindow('days').from, to: sceneWindow('outro').from, id: 'days' },
+  { label: 'Начало', from: 0, to: CHAPTERS[0].at },
+  ...CHAPTERS.map((chapter, index) => ({
+    label: chapter.label,
+    from: chapter.at,
+    to: index + 1 < CHAPTERS.length ? CHAPTERS[index + 1].at : sceneWindow('outro').from,
+    id: chapter.id as ReelChapter,
+  })),
   { label: 'Итог', from: sceneWindow('outro').from, to: TOTAL },
 ];
 
@@ -37,10 +52,11 @@ const segmentAt = (t: number) => Math.max(0, SEGMENTS.findIndex((segment) => t >
  */
 export const CAPTIONS: readonly string[] = [
   'Сессия начинается со списка вопросов.',
-  'Вопросы сверены с вашими лекциями.',
-  'Экзаменатор спрашивает о пропущенном пункте.',
-  'Строки стирают только ответы.',
-  'Назвали снова в другой день — строка стёрлась совсем.',
+  'Файлы кафедры как есть: ключ — из файла, без ИИ.',
+  'План по дням до экзамена, только в ваши дни занятий.',
+  'Ключ виден после ответа, а ошибка вернётся в день занятий.',
+  'Строки уходят, когда вы называете пункт в разные дни.',
+  'Одна ссылка на всю группу, а план на день — в Telegram.',
   'Вспоминать полезнее, чем перечитывать.',
 ];
 
@@ -49,13 +65,14 @@ export const REEL_SECONDS = Math.round(TOTAL / 1000);
 
 /** What the reel says, for screen readers (the stage itself is hidden from them). */
 const TRANSCRIPT = [
-  'Сессия: 40 вопросов, 12 дней. С чего начать?',
+  `Сессия: ${CHAOS_LINES[0]} ${CHAOS_LINES[1]}`,
   'Meldy. Сессия начинается со списка вопросов.',
-  `Билеты: 24 из 40 вопросов уже есть в ваших лекциях. К вопросу «${SHEET_ROWS[QUOTE.row].title}» — цитата из лекции: «${QUOTE.quote}» (${QUOTE.source}). Тянуть билет.`,
-  'Ответ вслух, как на экзамене: пункты ответа отмечаются, экзаменатор спрашивает о пропущенном, ответ проверен по пунктам.',
-  'Шпаргалка: строки стирают только ответы. После ответа 4 строки стёрлись наполовину, а пункт, названный только после вопроса экзаменатора, не стёрся.',
-  'Разные дни: одного ответа мало. Назвали снова в другой день — строка стёрлась совсем; стёртую строку не назвали — она вернулась.',
-  `Meldy. Вспоминать полезнее, чем перечитывать. Билеты по вашим лекциям, ответ вслух с вопросом экзаменатора, шпаргалка, которую стирают только ответы, и копия экзамена у каждого в группе. ${OUTRO_CTA_LABEL}.`,
+  `Вопросы: файлы кафедры, по одному на предмет. ${IMPORT_WORDS.found}: ${SUBJECTS.map((subject) => `«${subject.title}» — ${subjectMeta(subject)}`).join('; ')}. ${IMPORT_WORDS.noAi}`,
+  `План: ${PLAN_WORDS.head} ${PLAN_WORDS.studyDays}, в воскресенье выходной, в последние дни — только знакомые вопросы. ${PLAN_WORDS.title}.`,
+  `Занятие: ответ — нажатием, ключ из файла виден сразу. Верно — и ${FIGURE_AFTER_FIRST} из ${QUESTIONS_TOTAL} верно в два разных дня. ${SESSION_WORDS.wrong} В конце: ${SESSION_WORDS.endHead.join('')}. ${SESSION_WORDS.endText} ${SESSION_WORDS.endLeft}`,
+  `Шпаргалка: строки стирают только ответы. Ответ вслух на вопрос «${ORAL.question}»: названные пункты загораются, их строки бледнеют, а в другой день, названные снова, исчезают. К экзамену на шпаргалке остаётся немного строк.`,
+  `Группа: одна ссылка на всю группу — ${GROUP_WORDS.inExam(GROUP_MEMBERS)}, прогресс у каждого свой. ${GROUP_WORDS.botHead.join(' ')} В ${BOT.time} бот присылает план: «${BOT.plan}» «${BOT.start}» — и вопросы с вариантами на кнопках.`,
+  `Meldy. Вспоминать полезнее, чем перечитывать. Вопросы, план, шпаргалка и группа. ${OUTRO_CTA_LABEL}.`,
 ];
 
 const exportRequested = () => typeof window !== 'undefined' && window.__MELDY_REEL_EXPORT__ === true;
@@ -78,9 +95,10 @@ function PauseIcon() {
 }
 
 /**
- * «Meldy за 36 секунд»: the reel on the page. It plays silently while it is on screen and the tab
- * is visible, loops, can be paused and jumped by chapter. With reduced motion it shows one still
- * frame and plays only when asked.
+ * «Meldy за 48 секунд»: the reel on the page. It plays silently while it is on screen and the tab
+ * is visible, loops, can be paused and jumped by chapter. Until it first plays it shows its poster,
+ * one still of the «занятие» (with reduced motion it waits on it until asked); it starts from its
+ * first frame.
  */
 export default function MeldyReel({ onCta }: { onCta?: () => void }) {
   const captionId = useId();
@@ -92,6 +110,10 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
   const exporting = useMemo(exportRequested, []);
   const [scale, setScale] = useState(0.5);
   const [inView, setInView] = useState(false);
+  /** The observer has said once whether the frame is on screen. */
+  const [measured, setMeasured] = useState(false);
+  /** The reel has played (or was jumped to a chapter): no poster any more. */
+  const started = useRef(false);
   const [userPaused, setUserPaused] = useState(false);
   const [asked, setAsked] = useState(false);
   const [segment, setSegment] = useState(0);
@@ -125,21 +147,37 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
       setInView(true);
       return undefined;
     }
-    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting && entry.intersectionRatio >= 0.35), {
-      threshold: [0, 0.35, 0.6],
-    });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Several changes can arrive at once (a page resized and back, a quick scroll past): the last one is now.
+        const entry = entries[entries.length - 1];
+        setInView(entry.isIntersecting && entry.intersectionRatio >= 0.35);
+        setMeasured(true);
+      },
+      { threshold: [0, 0.35, 0.6] },
+    );
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  // Under reduced motion the reel waits on its poster frame.
+  // The poster until the reel first plays: under reduced motion until asked, otherwise while the frame is off screen.
+  // A frame on screen at load starts at its first moment without showing the poster for a frame before it.
+  const poster = !exporting && !started.current && (reduce ? !asked : measured && !inView);
   useEffect(() => {
-    if (reduce && !asked) clock.seek(POSTER_AT);
-  }, [reduce, asked, clock]);
+    if (poster) clock.seek(POSTER_AT);
+  }, [poster, clock]);
 
   useEffect(() => {
-    if (playing) clock.play();
-    else clock.pause();
+    if (!playing) {
+      clock.pause();
+      return;
+    }
+    // The first play starts the reel from its beginning (a chapter asked for has set its own moment).
+    if (!started.current) {
+      started.current = true;
+      clock.seek(0);
+    }
+    clock.play();
   }, [playing, clock]);
 
   // The chapter bar fills with the clock; React state changes only when the segment changes.
@@ -192,6 +230,7 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
 
   const jump = useCallback(
     (index: number) => {
+      started.current = true;
       clock.seek(SEGMENTS[index].from + (index === 0 ? 0 : 60));
       setAsked(true);
       setUserPaused(false);

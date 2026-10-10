@@ -2,7 +2,7 @@
  * «Смотреть в ролике» on the landing: scrolls to the reel and asks it to play a chapter. The reel is
  * a lazy chunk, so a request made before it loads waits here and is taken when it mounts.
  */
-export type ReelChapter = 'tickets' | 'oral' | 'sheet' | 'days';
+export type ReelChapter = 'questions' | 'plan' | 'session' | 'sheet' | 'group';
 
 export const REEL_EVENT = 'meldy-reel';
 
