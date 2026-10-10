@@ -1,0 +1,60 @@
+-- telegram_bot_cron (second file of 20261010120000_telegram_bot.sql): the minute tick (spec §6.6, decision 8; §10).
+-- pg_cron runs `select bot.tick()` every minute; bot.tick() reads the function's URL, region and tick token from
+-- bot.config and POSTs to …/telegram/tick?forceFunctionRegion=<region> through pg_net. The function checks x-meldy-tick
+-- (HMAC of the bot token), answers 202 at once and works in EdgeRuntime.waitUntil; pg_net only waits up to 10 s for that
+-- answer. Until POST /telegram/setup has filled bot.config (bot_setup) the job fires but bot.tick() returns null without
+-- a request. The region is the one bot_setup stored (the function passes the constant it gives setWebhook): regional
+-- invocation does not offer the database's own region, so the function runs in the nearest one it offers.
+-- Saving mode (spec §10; bot.tick_mode, bot.tick_due in the first file): while this month's calls are under 300 000 (60 %
+-- of the free plan's 500 000) and flags.tick is not 'when_due', every minute; otherwise only when something may be
+-- due, and every 15th minute (UTC) regardless, for the housekeeping and /status.
+-- This file holds no secret and no project value: the URL, the region and the token come from bot.config.
+-- Enabling the extensions, as the Supabase docs give it (guides/cron/install; database/extensions/pg_net and the
+-- automatic-embeddings guide, read 2026-10-10): pg_cron into pg_catalog (it makes its own schema cron, with grants to
+-- postgres), pg_net into extensions (its functions live in schema net). Both were available but not installed on the
+-- live project (pg_cron 1.6.4, pg_net 0.20.0). If the connector cannot create them, the owner enables both in
+-- Dashboard → Database → Extensions and this file runs again (spec §9, step 2).
+-- pg_net keeps queued requests (with their headers: the tick token) in net.http_request_queue until sent and the
+-- responses 6 hours in net._http_response; schema net is not exposed by the API, and anon/authenticated cannot log in.
+-- Re-runnable: IF NOT EXISTS, OR REPLACE, cron.schedule replaces a job of the same name.
+-- Local rehearsal: supabase/tests/local/telegram_bot_run.sh stubs cron and net (the two CREATE EXTENSION lines are the
+-- only ones it skips). Rollback: supabase/rollback/20261010120000_telegram_bot_down.sql (unschedules the job).
+create extension if not exists pg_cron with schema pg_catalog;
+grant usage on schema cron to postgres;
+grant all privileges on all tables in schema cron to postgres;
+create extension if not exists pg_net with schema extensions;
+
+-- One POST to the bot's tick route, or null: before /setup, or in the saving mode when nothing is due off the 15-minute
+-- beat. p_now is for tests; pg_cron passes nothing.
+create or replace function bot.tick(p_now timestamptz default null)
+returns bigint
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_now timestamptz := coalesce(p_now, pg_catalog.now());
+  v_c bot.config%rowtype;
+begin
+  perform meldy_private.require_service_role();
+  select c.* into v_c from bot.config c where c.id = 1;
+  if v_c.function_url is null or v_c.tick_token is null or v_c.function_region is null then
+    return null;   -- /setup has not run yet: stay quiet
+  end if;
+  if bot.tick_mode(v_now) = 'when_due'
+     and extract(minute from v_now at time zone 'utc')::integer % 15 <> 0
+     and not bot.tick_due(v_now) then
+    return null;   -- saving mode: nothing due this minute
+  end if;
+  return net.http_post(
+    url := v_c.function_url || '/tick?forceFunctionRegion=' || v_c.function_region,
+    body := pg_catalog.jsonb_build_object('at', v_now),
+    headers := pg_catalog.jsonb_build_object('Content-Type', 'application/json', 'x-meldy-tick', v_c.tick_token),
+    timeout_milliseconds := 10000);
+end;
+$fn$;
+comment on function bot.tick(timestamptz) is 'The minute tick (pg_cron job meldy-telegram-tick): POST <function_url>/tick?forceFunctionRegion=<region> with x-meldy-tick; null before /setup and, in the saving mode, when nothing is due.';
+
+-- Every minute (spec §6.6). Re-running replaces the job of the same name.
+select cron.schedule('meldy-telegram-tick', '* * * * *', 'select bot.tick()');
