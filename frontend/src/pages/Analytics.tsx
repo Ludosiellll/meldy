@@ -46,6 +46,7 @@ import SectionCrumb from '../components/SectionCrumb';
 import { ty } from '../components/landing/typo';
 import { usePhone } from '../lib/usePhone';
 import '../styles/paper.css';
+import { useContainerLayer } from './containerLayer';
 import './Analytics.css';
 
 /**
@@ -584,6 +585,10 @@ function ledeOf(sources: Sources): string {
 function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (key: SourceKey) => void; userId: string | null }) {
   const { materials, cards, quiz, journal, activity, legacyExams, mistakes, exams } = sources;
   const phone = usePhone();
+  // The answers to the questions of an exam container are counted on that exam's page, not here (Concept 1 §5): one
+  // line says where. Whenever the containers cannot be read the section is today's.
+  const { layer, probe } = useContainerLayer();
+  const hasContainers = layer.mode === 'on' && layer.overview.containers.length > 0;
   const [howOpen, setHowOpen] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncFailed, setSyncFailed] = useState<string | null>(null);
@@ -666,6 +671,7 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
 
   return (
     <>
+      {probe}
       {phone ? (
         <PhoneSummary
           cards={cards}
@@ -732,12 +738,14 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
         ) : exams.status === 'loading' ? (
           <Quiet>Загружаем…</Quiet>
         ) : exams.data.length === 0 ? (
-          <div className="pg-card pg-exam-empty">
-            <p>Добавьте список вопросов к экзамену — здесь будет видно, какие из них уже подтверждены ответами.</p>
-            <Link className="sf-secondary" to="/exams/new">
-              Новый экзамен
-            </Link>
-          </div>
+          hasContainers ? null : (
+            <div className="pg-card pg-exam-empty">
+              <p>Добавьте список вопросов к экзамену — здесь будет видно, какие из них уже подтверждены ответами.</p>
+              <Link className="sf-secondary" to="/exams/new">
+                Новый экзамен
+              </Link>
+            </div>
+          )
         ) : (
           <ul className="sf-ledger">
             {exams.data.map((exam) => {
@@ -789,6 +797,13 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
             })}
           </ul>
         )}
+        {hasContainers ? (
+          <p className="pg-quiet pg-exam-tests" style={{ marginTop: exams.status === 'ok' && exams.data.length === 0 ? 0 : 16 }}>
+            <Link className="sf-link" to="/exams">
+              Ответы по вопросам экзаменов — на странице экзамена
+            </Link>
+          </p>
+        ) : null}
       </Section>
 
       {phone ? (

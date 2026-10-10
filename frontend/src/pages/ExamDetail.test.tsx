@@ -87,6 +87,7 @@ vi.mock('../components/exams/preload', () => ({
 import ExamDetail, { BAR_WAIT_MS, phoneMetaLine, ROW_HINT } from './ExamDetail';
 import { resetMapJobsForTests } from '../components/exams/mapJobs';
 import { PHONE_QUERY } from '../lib/usePhone';
+import { ATTACHED_EXAMS_KEY, rememberAttachedExams, rememberContainerTitle } from '../lib/containers/titleCache';
 
 // ------------------------------------------------------------------------------------ fixtures
 
@@ -2552,5 +2553,78 @@ describe('ExamDetail: «Пригласить группу»', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Пригласить группу' });
     expect(await within(dialog).findByText('Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/api/exam-shares?exam_id=exam-1', undefined);
+  });
+});
+
+// ------------------------------------------------------------------------------------ inside an exam container
+
+describe('ExamDetail inside an exam container (spec decisions 29б, 38): guarded, nothing changes for other exams', () => {
+  beforeEach(() => {
+    window.localStorage.removeItem(ATTACHED_EXAMS_KEY);
+  });
+  afterEach(() => {
+    window.localStorage.removeItem(ATTACHED_EXAMS_KEY);
+    window.sessionStorage.clear();
+  });
+
+  const crumb = () => document.querySelector('.ex-crumb a') as HTMLAnchorElement;
+  const linkNames = () => Array.from(document.querySelectorAll('.ex-links > a, .ex-links > button, .ex-links > span')).map((el) => plain(el.textContent));
+
+  it('a plain exam: the crumb leads to «Экзамены» and the group link stays, even when another exam lives in a container', async () => {
+    rememberAttachedExams({ 'exam-9': { containerId: 'c-1', title: 'Аккредитация' } });
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(crumb()).toHaveAttribute('href', '/exams');
+    expect(crumb()).toHaveTextContent(/^Экзамены$/);
+    expect(screen.getByRole('button', { name: 'Пригласить группу' })).toBeInTheDocument();
+  });
+
+  it('an exam inside a container: the crumb leads to that exam by its title; its own group link is gone, the rest stays', async () => {
+    rememberAttachedExams({ 'exam-1': { containerId: 'c-1', title: 'Аккредитация' } });
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(crumb()).toHaveAttribute('href', '/exams/c/c-1');
+    expect(crumb()).toHaveTextContent(/^Аккредитация$/);
+    expect(screen.queryByRole('button', { name: 'Пригласить группу' })).toBeNull();
+    expect(linkNames()).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Отчёт для преподавателя']);
+  });
+
+  it('names the container as this tab knows it (a title read on its own page wins)', async () => {
+    rememberAttachedExams({ 'exam-1': { containerId: 'c-1', title: 'Аккредитация' } });
+    rememberContainerTitle('c-1', 'Зимняя сессия');
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(crumb()).toHaveTextContent(/^Зимняя сессия$/);
+  });
+
+  it('on a phone «⋯» has no «Пригласить группу» inside a container, and keeps it for a plain exam', async () => {
+    setPhone();
+    rememberAttachedExams({ 'exam-1': { containerId: 'c-1', title: 'Аккредитация' } });
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Отчёт для преподавателя']);
+    cleanup();
+    rememberAttachedExams({});
+    renderDetail();
+    await opened();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя']);
+  });
+
+  it('follows the attached exams when they arrive after the page opened (the overview read elsewhere)', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(crumb()).toHaveAttribute('href', '/exams');
+    act(() => {
+      rememberAttachedExams({ 'exam-1': { containerId: 'c-1', title: 'Аккредитация' } });
+    });
+    await waitFor(() => expect(crumb()).toHaveAttribute('href', '/exams/c/c-1'));
+    expect(screen.queryByRole('button', { name: 'Пригласить группу' })).toBeNull();
   });
 });

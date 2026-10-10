@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Profile, { loadProfileStats } from './Profile';
+import { ContainerApiError } from '../api/containers';
+import { windowStart } from '../lib/learning/studyDays';
 import { PHONE_QUERY } from '../lib/usePhone';
 
 const db = vi.hoisted(() => ({
@@ -15,7 +17,7 @@ vi.mock('../lib/supabase', () => ({
       const entry = { table, calls: [] as Array<[string, unknown[]]> };
       db.queries.push(entry);
       const chain: Record<string, unknown> = {};
-      for (const method of ['select', 'eq', 'gte', 'in', 'order', 'limit']) {
+      for (const method of ['select', 'eq', 'gte', 'in', 'order', 'limit', 'range']) {
         chain[method] = (...args: unknown[]) => {
           entry.calls.push([method, args]);
           return chain;
@@ -28,6 +30,12 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
+// Days with answers to the questions of an exam's file (package D1 builds the read; spec decision 2 / test_answer_days).
+const containers = vi.hoisted(() => ({ fetchAnswerDays: vi.fn() }));
+vi.mock('../api/containers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/containers')>()),
+  fetchAnswerDays: (...args: unknown[]) => containers.fetchAnswerDays(...args),
+}));
 vi.mock('../api/social', () => ({
   // The old counters still hold zeros: the page must not show them.
   getProfile: async () => ({ id: 'user-1', full_name: 'Анна', streak_days: 0, total_materials: 0, total_reviews: 0, is_pro: false }),
@@ -62,6 +70,8 @@ function liveRows(now: Date) {
 
 beforeEach(() => {
   db.queries.length = 0;
+  // A database without the exam containers: the old path.
+  containers.fetchAnswerDays.mockReset().mockRejectedValue(new ContainerApiError('unavailable', 'Не получилось.'));
 });
 
 afterEach(cleanup);
@@ -82,6 +92,83 @@ describe('the profile’s figures (LIB-13)', () => {
     expect(db.queries.every((query) => eqOf(query.calls, 'user_id') === 'user-1')).toBe(true);
     // The profile's own counters are not read.
     expect(db.queries.some((query) => query.table === 'profiles')).toBe(false);
+  });
+
+  it('counts a day with answers to the questions of an exam’s file as a day in a row (test_answer_days)', async () => {
+    const now = new Date();
+    db.answer = liveRows(now);
+    const back = (n: number) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - n);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    // Cards today, a ticket yesterday, a test the day before: 3. Answers to exam questions 3 and 4 days ago: 5.
+    containers.fetchAnswerDays.mockResolvedValue([
+      { local_date: back(3), answers: 20 },
+      { local_date: back(4), answers: 7 },
+      { local_date: back(6), answers: 0 },
+    ]);
+    expect(await loadProfileStats('user-1', now)).toEqual({ streak: 5, lectures: 3, answers: 14 });
+    // The same window as the other reads.
+    expect(containers.fetchAnswerDays).toHaveBeenCalledWith(windowStart(60, now));
+  });
+
+  it('fills a gap with exam answers alone, and counts as before when the database has no such answers', async () => {
+    const now = new Date();
+    const day = (back: number) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - back);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    // Cards today and a ticket two days ago; yesterday only questions of an exam's file.
+    db.answer = (table, calls) => {
+      if (table === 'study_sessions') return { data: [{ date: day(0), cards_reviewed: 4 }], error: null };
+      if (table === 'learning_events' && !isHead(calls)) return { data: [{ kind: 'exam_answer', local_date: day(2) }], error: null };
+      return liveRows(now)(table, calls);
+    };
+    containers.fetchAnswerDays.mockResolvedValue([{ local_date: day(1), answers: 12 }]);
+    expect((await loadProfileStats('user-1', now)).streak).toBe(3);
+    // The function is missing (an old database), or the read fails: the old count, never a failed figure.
+    containers.fetchAnswerDays.mockRejectedValue(new ContainerApiError('unavailable', 'Не получилось.'));
+    expect((await loadProfileStats('user-1', now)).streak).toBe(1);
+    containers.fetchAnswerDays.mockImplementation(() => {
+      throw new Error('not built');
+    });
+    expect((await loadProfileStats('user-1', now)).streak).toBe(1);
+    containers.fetchAnswerDays.mockResolvedValue(null);
+    expect((await loadProfileStats('user-1', now)).streak).toBe(1);
+  });
+
+  it('reads the journal page by page: an answer beyond the first 1000 still counts its day (Concept 3 §5.4)', async () => {
+    const now = new Date();
+    const day = (back: number) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - back);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    // 1000 answers today and yesterday, the 1001st two days ago: newest first, it is on the second page.
+    const journal = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ kind: 'quiz_answer', local_date: day(index < 500 ? 0 : 1) })),
+      { kind: 'exam_answer', local_date: day(2) },
+    ];
+    db.answer = (table, calls) => {
+      if (table === 'study_sessions') return { data: [], error: null };
+      if (table === 'learning_events' && !isHead(calls)) {
+        const [from, to] = calls.find(([method]) => method === 'range')![1] as [number, number];
+        return { data: journal.slice(from, to + 1), error: null };
+      }
+      return liveRows(now)(table, calls);
+    };
+    expect((await loadProfileStats('user-1', now)).streak).toBe(3);
+    const pages = db.queries.filter((query) => query.table === 'learning_events' && !isHead(query.calls));
+    expect(pages.map((page) => page.calls.find(([method]) => method === 'range')![1])).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ]);
+    expect(pages[0].calls.filter(([method]) => method === 'order')).toEqual([
+      ['order', ['local_date', { ascending: false }]],
+      ['order', ['id', { ascending: false }]],
+    ]);
   });
 
   it('shows the live figures with words that agree, never the old zeros', async () => {

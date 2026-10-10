@@ -12,7 +12,7 @@ const db = vi.hoisted(() => {
     const entry: Entry = { table, ops: [] };
     state.calls.push(entry);
     const builder: Record<string, unknown> = {};
-    for (const method of ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'in', 'order', 'limit', 'single', 'maybeSingle']) {
+    for (const method of ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'in', 'order', 'limit', 'range', 'single', 'maybeSingle']) {
       builder[method] = (...args: unknown[]) => {
         entry.ops.push([method, args]);
         return builder;
@@ -542,6 +542,74 @@ describe('listExams', () => {
   it('throws a plain error when the list cannot be read', async () => {
     db.respond = () => ({ data: null, error: { code: '500', message: 'boom' } });
     await expect(listExams('user-1')).rejects.toThrow('Не удалось загрузить экзамены. Проверьте связь и повторите.');
+  });
+
+  describe('reads every question, page by page (one request returns at most 1000 rows; Concept 3 §5.4)', () => {
+    const EXAMS = [
+      { id: 'e-a', title: 'Первый', kind: 'exam', exam_date: '2999-01-10', created_at: '2026-09-03T00:00:00Z' },
+      { id: 'e-b', title: 'Второй', kind: 'exam', exam_date: '2999-01-20', created_at: '2026-09-02T00:00:00Z' },
+      { id: 'e-c', title: 'Третий', kind: 'exam', exam_date: '2999-01-30', created_at: '2026-09-01T00:00:00Z' },
+    ];
+    /** `total` question rows over the three exams in the order of the read (exam, then id), as a server would page them. */
+    function serve(total: number) {
+      const rows = Array.from({ length: total }, (_, index) => {
+        const exam = EXAMS[Math.min(2, Math.floor((index * 3) / Math.max(1, total)))];
+        return { id: `q-${String(index).padStart(5, '0')}`, exam_id: exam.id, question_hash: index.toString(16).padStart(32, '0'), coverage: index % 4 === 0 ? 'full' : null };
+      });
+      db.respond = (entry) => {
+        if (entry.table === 'exams') return { data: EXAMS, error: null };
+        const [from, to] = op(entry, 'range') as [number, number];
+        // The server's cap: never more than 1000 rows, whatever was asked.
+        return { data: rows.slice(from, Math.min(to + 1, from + 1000)), error: null };
+      };
+      return rows;
+    }
+
+    for (const total of [0, 999, 1000, 1001, 2500]) {
+      it(`${total} rows: every question counted, pages of 1000 until a short one`, async () => {
+        const rows = serve(total);
+        const items = await listExams('user-1');
+        expect(items.map((item) => item.id)).toEqual(['e-a', 'e-b', 'e-c']);
+        for (const exam of EXAMS) {
+          const own = rows.filter((row) => row.exam_id === exam.id);
+          const item = items.find((entry) => entry.id === exam.id)!;
+          expect(item.total).toBe(own.length);
+          expect(item.coverage.full).toBe(own.filter((row) => row.coverage === 'full').length);
+          expect(item.coverage.unmapped).toBe(own.filter((row) => row.coverage === null).length);
+          expect(item.hashes).toEqual(own.map((row) => row.question_hash));
+        }
+        expect(items.reduce((sum, item) => sum + item.total, 0)).toBe(total);
+        const pages = calls('exam_questions');
+        expect(pages).toHaveLength(Math.floor(total / 1000) + 1);
+        pages.forEach((page, index) => {
+          expect(op(page, 'range')).toEqual([index * 1000, index * 1000 + 999]);
+          // A fixed order, so the pages neither repeat nor skip a row.
+          expect(ops(page, 'order')).toEqual([
+            ['exam_id', { ascending: true }],
+            ['id', { ascending: true }],
+          ]);
+          expect(op(page, 'in')).toEqual(['exam_id', ['e-a', 'e-b', 'e-c']]);
+          expect(op(page, 'limit')).toBeUndefined();
+        });
+      });
+    }
+
+    it('stops after a hundred full pages, whatever the server keeps answering', async () => {
+      db.respond = (entry) => {
+        if (entry.table === 'exams') return { data: EXAMS.slice(0, 1), error: null };
+        return { data: Array.from({ length: 1000 }, (_, index) => ({ id: `q${index}`, exam_id: 'e-a', question_hash: null, coverage: null })), error: null };
+      };
+      const items = await listExams('user-1');
+      expect(calls('exam_questions')).toHaveLength(100);
+      expect(items[0].total).toBe(100_000);
+    });
+
+    it('fails as a whole when a later page cannot be read', async () => {
+      serve(2500);
+      const respond = db.respond;
+      db.respond = (entry) => (entry.table === 'exam_questions' && (op(entry, 'range') as number[])[0] === 1000 ? { data: null, error: { code: '500', message: 'boom' } } : respond(entry));
+      await expect(listExams('user-1')).rejects.toThrow('Не удалось загрузить экзамены. Проверьте связь и повторите.');
+    });
   });
 });
 
