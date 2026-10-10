@@ -207,7 +207,7 @@ export function deviceZone(now: Date = new Date()): IcsZone | null {
 /** What the event says, in plain words: why every day, where to answer, how to stop it. */
 export function reminderDescription(url: string): string {
   return [
-    'Строки шпаргалки в Meldy стирают только ответы в разные дни: назвали пункт — строка стёрлась наполовину, назвали снова в другой день — совсем.',
+    'В Meldy ответ идёт в счёт, когда вы назвали его пункты в два разных дня, — поэтому напоминание приходит каждый день.',
     `Ответить на билет: ${url}`,
     'Чтобы напоминания прекратились, удалите это событие со всеми повторами.',
   ].join('\n\n');

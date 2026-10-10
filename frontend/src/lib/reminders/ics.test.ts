@@ -118,7 +118,7 @@ describe('the calendar file (RFC 5545)', () => {
     expect(continuations.length).toBeGreaterThan(3);
     // Each physical line is whole UTF-16 (no half of a surrogate pair) and survives a UTF-8 round trip.
     for (const line of physical) expect(new TextDecoder('utf-8', { fatal: true }).decode(new TextEncoder().encode(line))).toBe(line);
-    const description = unfold(text).find((line) => line.startsWith('DESCRIPTION:Строки'))!;
+    const description = unfold(text).find((line) => line.startsWith('DESCRIPTION:'))!;
     expect(unescapeText(description.slice('DESCRIPTION:'.length))).toBe(reminderDescription(URL_TODAY));
   });
 
@@ -162,7 +162,9 @@ describe('the calendar file (RFC 5545)', () => {
     expect(unescapeText(one(event, 'SUMMARY').value)).toBe('Meldy: ответить на билет');
     expect(one(event, 'URL').value).toBe(URL_TODAY);
     expect(unescapeText(one(event, 'DESCRIPTION').value)).toContain(`Ответить на билет: ${URL_TODAY}`);
-    expect(unescapeText(one(event, 'DESCRIPTION').value)).toContain('в разные дни');
+    expect(unescapeText(one(event, 'DESCRIPTION').value)).toContain('в два разных дня');
+    // The reminder no longer describes the cheat sheet (owner, 2026-10-10).
+    expect(unescapeText(one(event, 'DESCRIPTION').value)).not.toMatch(/шпаргал/i);
     expect(one(event, 'TRANSP').value).toBe('TRANSPARENT');
     const alarm = child(event, 'VALARM');
     expect(one(alarm, 'ACTION').value).toBe('DISPLAY');

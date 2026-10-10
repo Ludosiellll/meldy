@@ -154,7 +154,7 @@ describe('«Пригласить группу»', () => {
     expect(message.value).toBe(groupMessage('Макроэкономика', url));
     // What the copy gives, then the link; no word about browsers: Google sign-in works in Telegram's links (owner).
     expect(message.value.split('\n')).toEqual([
-      'Готовимся к экзамену «Макроэкономика» в Meldy. По ссылке у каждого будет своя копия: вопросы, лекции и шпаргалка с пунктами ответа. Отвечаете вслух — строки шпаргалки стираются. Ваши ответы видите только вы.',
+      'Готовимся к экзамену «Макроэкономика» в Meldy. По ссылке у каждого будет своя копия: вопросы и текст лекций. Ваши ответы видите только вы.',
       url,
     ]);
     expect(message.value).not.toMatch(/Google|Telegram|Viber|Chrome|Safari|браузер/);
@@ -269,7 +269,7 @@ describe('«Пригласить группу»', () => {
     expect(within(dialog).queryByRole('button', { name: 'Создать ссылку' })).toBeNull();
     // The intro does not promise written points over a refusal (live check 07.10).
     expect(plain(dialog.querySelector('.ig-lede')?.textContent)).toBe(
-      'Каждый однокурсник получит свою копию экзамена: вопросы, текст ваших лекций и шпаргалку с пунктами ответа. Ваши ответы и прогресс никто не увидит.',
+      'Каждый однокурсник получит свою копию экзамена: вопросы и текст ваших лекций. Ваши ответы и прогресс никто не увидит.',
     );
     const lectures = within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' });
     expect(lectures).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
@@ -290,7 +290,7 @@ describe('«Пригласить группу»', () => {
     );
     expect(within(note as HTMLElement).getByRole('link', { name: 'Добавить лекции' })).toHaveAttribute('href', `/exams/${EXAM}/edit#lectures`);
     // A link can be made: the intro says why it costs the classmates nothing.
-    expect(plain(dialog.querySelector('.ig-lede')?.textContent)).toContain('Пункты уже записаны, поэтому им вход ничего не стоит.');
+    expect(plain(dialog.querySelector('.ig-lede')?.textContent)).toContain('Пункты ответа уже готовы, поэтому вход им ничего не стоит.');
     // The warning comes before the consent: read first, then decide.
     const consent = within(dialog).getByRole('checkbox', { name: CONSENT });
     expect(note.compareDocumentPosition(consent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
