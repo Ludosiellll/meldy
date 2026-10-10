@@ -10,7 +10,6 @@ import {
 } from '../../api/containers';
 import { forgetBank } from '../../lib/containers/bankCache';
 import { useContainerData } from '../../lib/containers/hooks';
-import { feasibility, windowDays } from '../../lib/containers/plan';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -19,32 +18,26 @@ import MoreMenu from '../../components/ui/MoreMenu';
 import PaperSelect from '../../components/ui/PaperSelect';
 import InviteExam from '../../components/containers/group/InviteExam';
 import MembersList from '../../components/containers/group/MembersList';
-import { dayText, errorText, IMPORT, INVITE, nb, SETTINGS } from '../../components/containers/copyImport';
-import type { SummarySubject, Uuid } from '../../types/container';
+import { errorText, IMPORT, INVITE, nb, SETTINGS } from '../../components/containers/copyImport';
+import { minutesLines } from '../../components/containers/import/minutesLines';
+import type { PlanInput, SummarySubject, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './SettingsPage.css';
 
 /**
  * /exams/c/:id/settings — the one «Настройки» of an exam (spec §16 #44, design critique I9): the name, the date (or a
- * date per subject), the minutes a day 30 / 45 / 60 / 90 with the honest line when they fall short (Concept 2 §3.6,
- * the design table), the subjects (rename, remove, add), the group, and «Удалить экзамен», refused while members are
- * in (MC009) until the author removes them. A member sets only their own minutes; their way out is «Выйти из экзамена».
+ * date per subject), the minutes a day 30 / 45 / 60 / 90 with the plan's line under them — what they need to see every
+ * question by the date, or what they reach when they fall short (Concept 2 §3.6, the design table; the exam page's
+ * «Время в день» leads here) — the subjects (rename, remove, add), the group, and «Удалить экзамен», refused while
+ * members are in (MC009) until the author removes them. A member sets only their own minutes; their way out is
+ * «Выйти из экзамена».
  *
  * Anchors for the exam page's «⋯»: #minutes («Время в день»), #subjects, #group, #delete; ?invite=1 opens
  * «Пригласить группу».
  */
 
 const MINUTE_OPTIONS = [30, 45, 60, 90] as const;
-
-function addDays(day: string, n: number): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
-
-function about(n: number): number {
-  return n >= 100 ? Math.floor(n / 10) * 10 : Math.max(0, Math.round(n));
-}
 
 const oralOnly = (subject: SummarySubject) => subject.keyed + subject.no_key === 0 && Boolean(subject.oral);
 
@@ -104,28 +97,22 @@ export default function SettingsPage() {
         minutes !== summary.settings.minutes_per_day),
   );
 
-  // ── the minutes and the honest line (only when they fall short) ──
-  const today = planInput?.firstPlanDay ?? '';
+  // ── the minutes and the plan's line under them, for the dates as the form has them now ──
   const anyDate = perSubject ? subjects.some((subject) => subjectDates[subject.id] || summary?.exam_date) : Boolean(date);
-  const short = useMemo(() => {
-    if (!planInput || !anyDate || planInput.items.length === 0) return null;
-    try {
-      const at = feasibility({ ...planInput, budgetMin: minutes });
-      if (at.seenByDateEst >= planInput.items.length) return null;
-      return { seen: about(at.seenByDateEst), needed: Math.ceil(at.neededMin / 5) * 5, max: minutes >= 90 || at.option === null, total: planInput.items.length };
-    } catch {
-      return null;
-    }
-  }, [planInput, anyDate, minutes]);
-  const windowLine = useMemo(() => {
-    if (!short || perSubject || !date || !planInput) return null;
-    try {
-      const days = windowDays(planInput.firstPlanDay, date);
-      return days > 0 ? SETTINGS.window(dayText(addDays(date, -days)), days) : null;
-    } catch {
-      return null;
-    }
-  }, [short, perSubject, date, planInput]);
+  const liveInput = useMemo((): PlanInput | null => {
+    if (!planInput || !summary) return null;
+    return {
+      ...planInput,
+      subjects: planInput.subjects.map((entry) => {
+        const subject = summary.subjects.find((candidate) => candidate.id === entry.id);
+        // An oral-only subject keeps the date of its oral page; the rest take their own date or the exam's.
+        if (!subject || oralOnly(subject)) return entry;
+        const own = perSubject ? subjectDates[entry.id] || null : null;
+        return { ...entry, date: own ?? (date || null) };
+      }),
+    };
+  }, [planInput, summary, perSubject, subjectDates, date]);
+  const lines = useMemo(() => minutesLines(liveInput, minutes), [liveInput, minutes]);
   const [moreOpen, setMoreOpen] = useState(false);
 
   // ── subjects ──
@@ -284,14 +271,10 @@ export default function SettingsPage() {
         onChange={(value) => setMinutes(value)}
         disabled={saving}
       />
-      {short ? (
+      {lines ? (
         <p className="im-hint">
-          {nb(
-            short.max
-              ? SETTINGS.shortMax(perSubject ? null : dayText(date), short.seen, short.total)
-              : SETTINGS.short(minutes, perSubject ? null : dayText(date), short.seen, short.total, short.needed),
-          )}
-          {windowLine ? (
+          {nb(lines.line)}
+          {lines.window ? (
             <>
               {' '}
               <button type="button" className="sf-link" data-muted="" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
@@ -301,7 +284,7 @@ export default function SettingsPage() {
           ) : null}
         </p>
       ) : null}
-      {short && windowLine && moreOpen ? <p className="im-hint" data-muted="">{nb(windowLine)}</p> : null}
+      {lines?.window && moreOpen ? <p className="im-hint" data-muted="">{nb(lines.window)}</p> : null}
       {!owner ? <p className="im-hint" data-muted="">{SETTINGS.minutesMember}</p> : null}
     </div>
   );

@@ -2,21 +2,21 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { deferGuideOnce } from '../../components/guide/guideLater';
-import { useContainersOverview } from '../../lib/containers/hooks';
-import { feasibility, windowDays } from '../../lib/containers/plan';
+import { useContainerData, useContainersOverview } from '../../lib/containers/hooks';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
-import type { BankParseResult } from '../../types/container';
-import { dayText, errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
+import type { BankParseResult, TestItem, Uuid } from '../../types/container';
+import { errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
 import KeySource from '../../components/containers/import/KeySource';
 import ReadingList, { type ReadingRow } from '../../components/containers/import/ReadingList';
 import SubjectDetail from '../../components/containers/import/SubjectDetail';
 import SubjectRows from '../../components/containers/import/SubjectRows';
+import UpdatePreview from '../../components/containers/import/UpdatePreview';
 import { fetchOldExams, ownContainers, type OldExam } from '../../components/containers/import/targets';
 import {
   activeSubjects,
@@ -37,8 +37,18 @@ import {
   type ItemFix,
   type KeySignal,
 } from '../../components/containers/import/importModel';
+import { minutesLines } from '../../components/containers/import/minutesLines';
 import { readBank, ReadError } from '../../components/containers/import/readFiles';
-import { freshSaveState, saveImport, type SaveProgress, type SaveState, type SaveTarget } from '../../components/containers/import/saveImport';
+import {
+  freshSaveState,
+  saveImport,
+  saveStarted,
+  saveUpdate,
+  type SaveProgress,
+  type SaveState,
+  type SaveTarget,
+} from '../../components/containers/import/saveImport';
+import { bestSource, planUpdate, updateItemInputs, updateSources } from '../../components/containers/import/updateModel';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './ImportPage.css';
@@ -49,6 +59,10 @@ import './ImportPage.css';
  * a PDF read as a list without variants. The preview goes by subject; «Проверить» opens the problem queue, which never
  * blocks saving — only a missing name does. A single oral list becomes today's oral exam and goes on to its lectures;
  * everything else becomes one exam with subjects (or joins one: ?from=c:<id>, «Куда добавить»).
+ *
+ * «Обновить из файла» (?from=c:<id>&subject=<id>, Concept 1 §3.4): a newer file of one subject. Only its new questions
+ * with variants are added; the ones already there stay as they are, keys included — a key that differs in the file is
+ * listed by number and changes only in «Ключи» (updateModel.ts).
  *
  * The mandatory first run of the guide waits here (decision 25): deferGuideOnce() runs when this file loads on this
  * address and again as the page first renders, before the guide can open over a student who came to load a file.
@@ -105,23 +119,12 @@ function localDay(now: Date = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function addDays(day: string, n: number): string {
-  const [y, m, d] = day.split('-').map(Number);
-  const moment = new Date(Date.UTC(y, m - 1, d + n));
-  return moment.toISOString().slice(0, 10);
-}
-
 function timeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Minsk';
   } catch {
     return 'Europe/Minsk';
   }
-}
-
-/** «около 700»: a forecast to the tens (the estimate is ±10 %, Concept 2 §3.6). */
-function about(n: number): number {
-  return n >= 100 ? Math.floor(n / 10) * 10 : Math.max(0, Math.round(n));
 }
 
 let entrySeq = 0;
@@ -147,7 +150,17 @@ export default function ImportPage() {
   const containers = useMemo(() => ownContainers(overview.data), [overview.data]);
   const fromContainer = fromId ? containers.find((container) => container.id === fromId) ?? null : null;
   const fromTitle = fromContainer?.title ?? null;
-  useDocumentTitle(fromId ? IMPORT.titleAdd : IMPORT.docTitle);
+  // «Обновить из файла»: the subject and its saved questions, to compare the file with.
+  const subjectRaw = search.get('subject') ?? '';
+  const updateId = fromId && CONTAINER_ID.test(subjectRaw) ? subjectRaw : null;
+  const updateData = useContainerData((updateId && fromId ? fromId : '') as Uuid);
+  const updateSummary = updateId ? updateData.data?.summary ?? null : null;
+  const updateSubject = updateSummary?.subjects.find((subject) => subject.id === updateId) ?? null;
+  const savedItems = useMemo<TestItem[]>(
+    () => (updateSubject && updateData.data ? [...updateData.data.items.values()].filter((item) => item.subject_id === updateSubject.id) : []),
+    [updateSubject, updateData.data],
+  );
+  useDocumentTitle(updateId ? IMPORT.titleUpdate : fromId ? IMPORT.titleAdd : IMPORT.docTitle);
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [edits, setEdits] = useState<ImportEdits>(NO_EDITS);
@@ -177,7 +190,7 @@ export default function ImportPage() {
   );
 
   useEffect(() => {
-    track('container.import_opened', { from: fromId ? 'container' : 'new' });
+    track('container.import_opened', { from: updateId ? 'subject' : fromId ? 'container' : 'new' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -318,6 +331,24 @@ export default function ImportPage() {
   const active = useMemo(() => activeSubjects(subjects), [subjects]);
   const totals = useMemo(() => totalsOf(subjects), [subjects]);
   const problems = useMemo(() => queueOf(subjects), [subjects]);
+  const [sourceKey, setSourceKey] = useState<string | null>(null);
+  const sources = useMemo(() => (updateId ? updateSources(subjects) : []), [updateId, subjects]);
+  const source = useMemo(
+    () =>
+      sources.find((entry) => entry.key === sourceKey) ??
+      (updateSubject ? bestSource(sources, savedItems, updateSubject.title) : null),
+    [sources, sourceKey, updateSubject, savedItems],
+  );
+  const updatePlan = useMemo(
+    () => (updateSubject && updateData.data ? planUpdate(source, savedItems, updateSubject) : null),
+    [updateSubject, updateData.data, source, savedItems],
+  );
+  // The queue of an update: only the questions it adds.
+  const shownProblems = useMemo(() => {
+    if (!updateId) return problems;
+    const uids = new Set(updatePlan ? [...updatePlan.add, ...updatePlan.blocked].map((item) => item.uid) : []);
+    return problems.filter((entry) => uids.has(entry.uid));
+  }, [updateId, updatePlan, problems]);
   const singleOral = isSingleOralList(subjects);
   const removedCount = subjects.length - active.length;
 
@@ -374,39 +405,20 @@ export default function ImportPage() {
   const showDate = targetKind !== 'container';
 
   const today = localDay();
-  const plan = useMemo(() => {
-    if (!showMinutes || totals.test === 0) return null;
-    const make = (minutes: number) =>
-      draftPlanInput(subjects, { now: Date.now(), tz: timeZone(), today, minutes, date: date || null, perSubject });
+  // The questions about to be saved, nothing answered yet: what the minutes reach by the date (the plan's own line).
+  const draftInput = useMemo(() => {
+    if (!showMinutes || totals.test === 0 || !anyDate) return null;
     try {
-      const base = feasibility(make(form.minutes ?? 60));
-      const keyed = make(60).items.length;
-      return { base, keyed, at: (minutes: number) => feasibility(make(minutes)) };
+      return draftPlanInput(subjects, { now: Date.now(), tz: timeZone(), today, minutes: 60, date: date || null, perSubject });
     } catch {
       return null;
     }
-  }, [showMinutes, totals.test, subjects, today, date, perSubject, form.minutes]);
-  const defaultMinutes = !anyDate ? 60 : plan?.base.option ?? (plan ? 90 : 60);
+  }, [showMinutes, totals.test, anyDate, subjects, today, date, perSubject]);
+  const base = useMemo(() => minutesLines(draftInput, 60), [draftInput]);
+  // Without a date 60 minutes; with one, the smallest option that is enough (90 when none is).
+  const defaultMinutes = !base ? 60 : base.option ?? 90;
   const minutes = form.minutes ?? defaultMinutes;
-  const short = useMemo(() => {
-    if (!plan || !anyDate) return null;
-    try {
-      const at = plan.at(minutes);
-      if (at.seenByDateEst >= plan.keyed) return null;
-      return { seen: about(at.seenByDateEst), needed: Math.ceil(at.neededMin / 5) * 5, max: minutes >= 90 || at.option === null };
-    } catch {
-      return null;
-    }
-  }, [plan, anyDate, minutes]);
-  const windowLine = useMemo(() => {
-    if (!short || perSubject || !date) return null;
-    try {
-      const days = windowDays(today, date);
-      return days > 0 ? SETTINGS.window(dayText(addDays(date, -days)), days) : null;
-    } catch {
-      return null;
-    }
-  }, [short, perSubject, date, today]);
+  const lines = useMemo(() => minutesLines(draftInput, minutes), [draftInput, minutes]);
 
   // ───────────────────────────── views (the address's #… so «назад» closes them) ─────────────────────────────
 
@@ -431,7 +443,7 @@ export default function ImportPage() {
 
   // ───────────────────────────── saving ─────────────────────────────
 
-  const started = Boolean(saveState.current.containerId) || Object.keys(saveState.current.oralExamIds).length > 0;
+  const started = saveStarted(saveState.current);
   const locked = saving.status === 'saving' || started;
   const subjectsAfter = active.length + (targetKind === 'old' ? 1 : 0) + (container ? container.subjects : 0);
   const itemsAfter = totals.test + (container ? container.items : 0);
@@ -457,7 +469,58 @@ export default function ImportPage() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [stage, saving.status]);
 
+  const updateCount = updateSummary && updatePlan ? updateSummary.items_version.count + updatePlan.add.length : 0;
+  const updateMissing = !updateId
+    ? null
+    : !user
+      ? IMPORT.signedOut
+      : !updateData.data
+        ? updateData.error
+          ? IMPORT.updateLoadFailed
+          : IMPORT.updateLoading
+        : !updateSubject
+          ? IMPORT.updateNotFound
+          : updateSummary?.role !== 'owner'
+            ? IMPORT.updateAuthorOnly
+            : updateCount > ITEMS_CAP
+              ? IMPORT.tooManyItems(updateCount)
+              : null;
+  const subjectHref = `/exams/c/${fromId ?? ''}/s/${updateId ?? ''}`;
+  const firstDiffer = updatePlan?.keyDiffers[0] ?? null;
+  const keysHref = `/exams/c/${fromId ?? ''}/keys?s=${updateId ?? ''}${firstDiffer?.saved.file_no ? `&no=${encodeURIComponent(firstDiffer.saved.file_no)}` : ''}`;
+
+  const runUpdate = async () => {
+    if (saving.status === 'saving' || updateMissing || !updatePlan || !updateId) return;
+    if (updatePlan.add.length === 0) {
+      // Nothing new: a differing key is the next thing to look at, in «Ключи».
+      navigate(firstDiffer ? keysHref : subjectHref, { replace: true });
+      return;
+    }
+    const importId = files.find((file) => file.id === source?.fileId)?.importId ?? 'imp';
+    setSaving({ status: 'saving', error: null, progress: null });
+    try {
+      await saveUpdate({ subjectId: updateId, topics: updatePlan.topics, items: updateItemInputs(updatePlan, importId) }, saveState.current, (progress) =>
+        setSaving((current) => ({ ...current, progress })),
+      );
+      track('container.updated', {
+        added: updatePlan.add.length,
+        same: updatePlan.same,
+        key_differs: updatePlan.keyDiffers.length,
+        not_in_file: updatePlan.notInFile,
+        topics_added: updatePlan.topics ? updatePlan.topics.length - (updateSubject?.topic_titles.length ?? 0) : 0,
+      });
+      setSaving({ status: 'done', error: null, progress: null });
+      navigate(subjectHref, { replace: true });
+    } catch (error) {
+      setSaving({ status: 'failed', error: saveStarted(saveState.current) ? IMPORT.saveRetry : errorText(error, {}, IMPORT.saveFailed), progress: null });
+    }
+  };
+
   const runSave = async () => {
+    if (updateId) {
+      await runUpdate();
+      return;
+    }
     if (saving.status === 'saving') return;
     if (missing) {
       if (missing === IMPORT.nameMissing) {
@@ -499,15 +562,17 @@ export default function ImportPage() {
       setSaving({ status: 'done', error: null, progress: null });
       navigate(path, { replace: true });
     } catch (error) {
-      const partial = Boolean(saveState.current.containerId) || Object.keys(saveState.current.oralExamIds).length > 0;
+      const partial = saveStarted(saveState.current);
       setSaving({ status: 'failed', error: partial ? IMPORT.saveRetry : errorText(error, {}, IMPORT.saveFailed), progress: null });
     }
   };
 
   // ───────────────────────────── render ─────────────────────────────
 
-  const heading = fromId ? IMPORT.titleAdd : IMPORT.title;
-  const crumb = fromId ? (
+  const heading = updateId ? IMPORT.titleUpdate : fromId ? IMPORT.titleAdd : IMPORT.title;
+  const crumb = updateId ? (
+    <Link to={subjectHref}>{updateSubject?.title ?? fromTitle ?? IMPORT.titleUpdate}</Link>
+  ) : fromId ? (
     <Link to={`/exams/c/${fromId}`}>{fromTitle ?? IMPORT.titleAdd}</Link>
   ) : (
     <Link to="/exams">{IMPORT.crumb}</Link>
@@ -540,11 +605,48 @@ export default function ImportPage() {
     read({ ...entry, status: 'reading' });
   };
 
+  // «Обновить из файла» that cannot go on (no such subject, not the author): say so instead of asking for a file.
+  const updateRefused = Boolean(updateId && updateData.data && (!updateSubject || updateSummary?.role !== 'owner'));
+  const updateFailed = Boolean(updateId && updateData.error && !updateData.data);
+  // While the subject loads, the bar says so; the body speaks only when something is wrong.
+  const updateNote = updateRefused || updateFailed ? (
+    <section className="im-found-sec">
+      <p className="im-line" role={updateFailed ? 'alert' : 'status'}>
+        {updateMissing}
+      </p>
+      {updateFailed ? (
+        <p className="im-line">
+          <button type="button" className="sf-link" onClick={updateData.reload}>
+            {IMPORT.retryFile}
+          </button>
+        </p>
+      ) : updateRefused ? (
+        <p className="im-line">
+          <Link className="sf-link" to={updateSubject ? subjectHref : `/exams/c/${fromId ?? ''}`}>
+            {IMPORT.updateToExam}
+          </Link>
+        </p>
+      ) : null}
+    </section>
+  ) : null;
+
   if (stage === 'pick') {
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
         {header}
-        <FilePick phone={phone} side={frame.side} platform={platform} onFiles={addFiles} onText={addText} />
+        {updateRefused ? (
+          updateNote
+        ) : (
+          <FilePick
+            phone={phone}
+            side={frame.side && !updateId}
+            platform={platform}
+            onFiles={addFiles}
+            onText={addText}
+            title={updateId ? IMPORT.updateDropTitle : undefined}
+            lede={updateId && updateSubject ? IMPORT.updateLede(updateSubject.title) : undefined}
+          />
+        )}
       </div>
     );
   }
@@ -640,34 +742,103 @@ export default function ImportPage() {
   const singleFileOral = singleFile ? active.every((subject) => subject.test.length === 0 && subject.blocked.length === 0) : false;
   const imageLabels = totals.imageLost.map((item) => item.label).filter(Boolean);
   const progress = saving.progress;
+  const nothingNew = Boolean(updatePlan && updatePlan.add.length === 0);
   const barLine =
     saving.status === 'failed'
       ? saving.error
       : saving.status === 'saving' && progress && progress.total > 0
         ? IMPORT.savingItems(progress.done, progress.total)
-        : missing && (missing !== IMPORT.nameMissing || nameTried)
-          ? missing
-          : asOralExam
-            ? IMPORT.nextLectures
-            : null;
+        : updateId
+          ? updateMissing ?? (nothingNew ? IMPORT.updateNothing : null)
+          : missing && (missing !== IMPORT.nameMissing || nameTried)
+            ? missing
+            : asOralExam
+              ? IMPORT.nextLectures
+              : null;
   const saveLabel =
     saving.status === 'saving'
       ? IMPORT.saving
-      : targetKind === 'container'
-        ? IMPORT.saveAdd(active.length)
-        : IMPORT.save;
+      : updateId
+        ? !updatePlan
+          ? IMPORT.titleUpdate
+          : nothingNew
+            ? firstDiffer
+              ? IMPORT.updateToKeys
+              : IMPORT.updateDone
+            : IMPORT.updateSave(updatePlan.add.length)
+        : targetKind === 'container'
+          ? IMPORT.saveAdd(active.length)
+          : IMPORT.save;
+
+  /** A file without keys asks one question (decision 34): paste the key, mark as you go, or read it as oral. */
+  const noKeyBlock = (list: ReadonlyArray<{ key: string; title: string; fileId: string }>, named: boolean) =>
+    list.map((subject) => (
+      <div key={`nokey-${subject.key}`} className="im-nokey">
+        <p className="im-nokey-t">{named ? IMPORT.noKeyIn(subject.title) : IMPORT.noKeyTitle}</p>
+        <p className="im-nokey-acts">
+          <button type="button" className="sf-link" disabled={locked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
+            {IMPORT.noKeyPaste}
+          </button>
+          <button type="button" className="sf-link" disabled={locked} onClick={() => setFileEdit(subject.fileId, { noKeyLater: true })}>
+            {IMPORT.noKeyLater}
+          </button>
+          <button type="button" className="sf-link" disabled={locked} onClick={() => reread(subject.fileId, { format: 'open' })}>
+            {IMPORT.noKeyOral}
+          </button>
+        </p>
+      </div>
+    ));
+  const problemsLine = (list: ReadonlyArray<{ uid: string }>) =>
+    list.length > 0 ? (
+      <p className="im-line">
+        {nb(IMPORT.problems(list.length))}{' '}
+        <button type="button" className="sf-link" disabled={locked} onClick={() => openQueue(list.map((entry) => entry.uid))}>
+          {IMPORT.problemsGo}
+        </button>
+      </p>
+    ) : null;
+  const failedFiles =
+    failed.length > 0 ? (
+      <ReadingList rows={readingRows.filter((row) => row.status === 'failed')} onRemove={removeEntry} onRetry={retryEntry} onFiles={addFiles} heading={false} />
+    ) : null;
+  const rereadingLine = rereading ? (
+    <p className="im-line" role="status">
+      {IMPORT.rereading}
+    </p>
+  ) : null;
+  const pdfLine = files.some((file) => file.source === 'pdf') ? <p className="im-line" data-muted="">{IMPORT.pdfNote}</p> : null;
+
+  // «Обновить из файла»: what the file brings to the subject; the notes speak of the new questions only.
+  const updateNew = updatePlan?.add ?? [];
+  const updateImages = updateNew.filter((item) => item.imageLost);
+  const updateImageLabels = updateImages.map((item) => item.label).filter(Boolean);
+  const updateBody =
+    updateId && updatePlan && updateSubject && !updateRefused ? (
+      <section className="im-found-sec" aria-label={IMPORT.found(1, source?.found ?? 0)}>
+        <h2 className="im-found">{nb(IMPORT.found(1, source?.found ?? 0))}</h2>
+        {failedFiles}
+        {rereadingLine}
+        <UpdatePreview subject={updateSubject} sources={sources} source={source} onSource={setSourceKey} plan={updatePlan} locked={locked} />
+        {source && source.allNoKey && updateNew.length > 0 ? noKeyBlock([source], false) : null}
+        {problemsLine(shownProblems)}
+        {updateImages.length > 0 ? (
+          <p className="im-line" data-muted="">
+            {nb(IMPORT.imageLost(updateImageLabels.length <= 5 ? updateImageLabels : [], updateImages.length))}
+          </p>
+        ) : null}
+        {updatePlan.blocked.length > 0 ? <p className="im-line" data-muted="">{nb(IMPORT.blocked(updatePlan.blocked.length))}</p> : null}
+        {source && source.skippedKinds > 0 ? <p className="im-line" data-muted="">{nb(IMPORT.notInPlan(source.skippedKinds))}</p> : null}
+        {pdfLine}
+      </section>
+    ) : (
+      updateNote
+    );
 
   const rows = (
     <section className="im-found-sec" aria-label={IMPORT.found(totals.subjects, totals.found)}>
       <h2 className="im-found">{nb(IMPORT.found(totals.subjects, totals.found))}</h2>
-      {failed.length > 0 ? (
-        <ReadingList rows={readingRows.filter((row) => row.status === 'failed')} onRemove={removeEntry} onRetry={retryEntry} onFiles={addFiles} heading={false} />
-      ) : null}
-      {rereading ? (
-        <p className="im-line" role="status">
-          {IMPORT.rereading}
-        </p>
-      ) : null}
+      {failedFiles}
+      {rereadingLine}
       <SubjectRows subjects={active} disabled={locked} onOpen={(key) => openView(`#s=${encodeURIComponent(key)}`)} />
       {removedCount > 0 && !locked ? (
         <p className="im-line" data-muted="">
@@ -687,31 +858,8 @@ export default function ImportPage() {
         </p>
       ) : null}
 
-      {noKeySubjects.map((subject) => (
-        <div key={`nokey-${subject.key}`} className="im-nokey">
-          <p className="im-nokey-t">{active.length > 1 ? IMPORT.noKeyIn(subject.title) : IMPORT.noKeyTitle}</p>
-          <p className="im-nokey-acts">
-            <button type="button" className="sf-link" disabled={locked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
-              {IMPORT.noKeyPaste}
-            </button>
-            <button type="button" className="sf-link" disabled={locked} onClick={() => setFileEdit(subject.fileId, { noKeyLater: true })}>
-              {IMPORT.noKeyLater}
-            </button>
-            <button type="button" className="sf-link" disabled={locked} onClick={() => reread(subject.fileId, { format: 'open' })}>
-              {IMPORT.noKeyOral}
-            </button>
-          </p>
-        </div>
-      ))}
-
-      {problems.length > 0 ? (
-        <p className="im-line">
-          {nb(IMPORT.problems(problems.length))}{' '}
-          <button type="button" className="sf-link" disabled={locked} onClick={() => openQueue(problems.map((entry) => entry.uid))}>
-            {IMPORT.problemsGo}
-          </button>
-        </p>
-      ) : null}
+      {noKeyBlock(noKeySubjects, active.length > 1)}
+      {problemsLine(problems)}
       {splitGroups.map((subject) => (
         <p key={`split-${subject.key}`} className="im-line" data-muted="">
           {nb(IMPORT.split(subject.title.replace(/, часть 1$/, ''), subject.oralTotal, subject.parts))}
@@ -733,13 +881,13 @@ export default function ImportPage() {
       {totals.skippedKinds > 0 ? <p className="im-line" data-muted="">{nb(IMPORT.notInPlan(totals.skippedKinds))}</p> : null}
       {totals.oral > 0 ? <p className="im-line" data-muted="">{nb(IMPORT.oralCost(totals.oral))}</p> : null}
       {totals.answerDropped > 0 ? <p className="im-line" data-muted="">{IMPORT.oralAnswers}</p> : null}
-      {files.some((file) => file.source === 'pdf') ? <p className="im-line" data-muted="">{IMPORT.pdfNote}</p> : null}
+      {pdfLine}
     </section>
   );
 
   const details = (
     <div className="im-details">
-      {totals.test > 0 ? (
+      {totals.test > 0 && !updateId ? (
         <div>
           <button type="button" className="sf-link" data-muted="" aria-expanded={spotOpen} onClick={() => setSpotOpen((open) => !open)}>
             {IMPORT.spotCheck}
@@ -873,14 +1021,10 @@ export default function ImportPage() {
         onChange={(value) => setForm((current) => ({ ...current, minutes: value }))}
         disabled={locked}
       />
-      {short ? (
+      {lines ? (
         <p className="im-hint">
-          {nb(
-            short.max
-              ? SETTINGS.shortMax(perSubject ? null : dayText(date), short.seen, plan?.keyed ?? 0)
-              : SETTINGS.short(minutes, perSubject ? null : dayText(date), short.seen, plan?.keyed ?? 0, short.needed),
-          )}
-          {windowLine ? (
+          {nb(lines.line)}
+          {lines.window ? (
             <>
               {' '}
               <button type="button" className="sf-link" data-muted="" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
@@ -890,7 +1034,7 @@ export default function ImportPage() {
           ) : null}
         </p>
       ) : null}
-      {short && windowLine && moreOpen ? <p className="im-hint" data-muted="">{nb(windowLine)}</p> : null}
+      {lines?.window && moreOpen ? <p className="im-hint" data-muted="">{nb(lines.window)}</p> : null}
     </div>
   ) : null;
 
@@ -921,21 +1065,34 @@ export default function ImportPage() {
   return (
     <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
       {header}
-      <div className="im-body" data-side={frame.side ? '' : undefined}>
-        <div className="im-main">
-          {rows}
-          {frame.side ? details : null}
+      {updateId ? (
+        <div className="im-body im-body-update">
+          {updateBody}
+          {updatePlan && !updateRefused ? details : null}
         </div>
-        {formBlock}
-        {!frame.side ? details : null}
-      </div>
+      ) : (
+        <div className="im-body" data-side={frame.side ? '' : undefined}>
+          <div className="im-main">
+            {rows}
+            {frame.side ? details : null}
+          </div>
+          {formBlock}
+          {!frame.side ? details : null}
+        </div>
+      )}
       <div className="ex-cta im-cta" data-row={frame.side ? '' : undefined}>
         {barLine ? (
           <p className="ex-cta-why" role={saving.status === 'failed' ? 'alert' : 'status'} data-next={barLine === IMPORT.nextLectures ? '' : undefined}>
             {nb(barLine)}
           </p>
         ) : null}
-        <button type="button" className="sf-primary" disabled={saving.status === 'saving'} aria-busy={saving.status === 'saving' || undefined} onClick={() => void runSave()}>
+        <button
+          type="button"
+          className="sf-primary"
+          disabled={saving.status === 'saving' || Boolean(updateId && (!updatePlan || updateRefused))}
+          aria-busy={saving.status === 'saving' || undefined}
+          onClick={() => void runSave()}
+        >
           {saveLabel}
         </button>
       </div>

@@ -3,7 +3,9 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import twoSubjects from '../../../../contracts/container/parse_bank_two_subjects.json';
 import openList from '../../../../contracts/container/parse_bank_open.json';
-import type { BankItem, BankParseResult, ContainersOverview } from '../../types/container';
+import summaryJson from '../../../../contracts/container/summary.json';
+import itemsJson from '../../../../contracts/container/items_page.json';
+import type { BankItem, BankParseResult, ContainerSummary, ContainersOverview, TestItem } from '../../types/container';
 
 const api = vi.hoisted(() => {
   class ContainerApiError extends Error {
@@ -26,11 +28,15 @@ const api = vi.hoisted(() => {
     windowDays: vi.fn(),
     fetchOldExams: vi.fn(),
     overview: { data: null as ContainersOverview | null },
+    // «Обновить из файла»: the exam's data and the direct writes of a subject's topics.
+    container: { summary: null as ContainerSummary | null, items: [] as TestItem[], error: null as string | null },
+    subjectWrites: [] as Array<{ table: string; values: unknown; id: string }>,
   };
 });
 
 vi.mock('../../api/containers', () => ({
   ContainerApiError: api.ContainerApiError,
+  containerError: (error: unknown) => error,
   parseBank: api.parseBank,
   createContainer: api.createContainer,
   addSubject: api.addSubject,
@@ -45,6 +51,31 @@ vi.mock('../../api/exams', () => ({
 vi.mock('../../lib/containers/plan', () => ({ feasibility: api.feasibility, windowDays: api.windowDays }));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainersOverview: () => ({ data: api.overview.data, loading: false, offline: false, unavailable: false, error: null, reload: () => undefined }),
+  useContainerData: (id: string) => ({
+    data:
+      id && api.container.summary
+        ? { summary: api.container.summary, items: new Map(api.container.items.map((entry) => [entry.id, entry])), planInput: null, oralWithoutPoints: 0 }
+        : null,
+    loading: false,
+    offline: false,
+    unavailable: false,
+    error: id ? api.container.error : null,
+    reload: () => undefined,
+  }),
+}));
+vi.mock('../../lib/supabase', () => ({
+  supabase: {
+    from: (table: string) => ({
+      update: (values: unknown) => ({
+        eq: (_column: string, id: string) => ({
+          select: async () => {
+            api.subjectWrites.push({ table, values, id });
+            return { data: [{ id }], error: null, status: 200 };
+          },
+        }),
+      }),
+    }),
+  },
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
 vi.mock('../../components/containers/import/targets', async () => {
@@ -72,6 +103,8 @@ function renderAt(path = '/exams/import') {
       <Routes>
         <Route path="/exams/import" element={<ImportPage />} />
         <Route path="/exams/c/:id" element={<p>Экзамен открыт</p>} />
+        <Route path="/exams/c/:id/s/:subjectId" element={<p>Предмет открыт</p>} />
+        <Route path="/exams/c/:id/keys" element={<p>Ключи открыты</p>} />
         <Route path="/exams/:id/edit" element={<p>Редактор устного экзамена</p>} />
       </Routes>
       <Where />
@@ -143,6 +176,10 @@ beforeEach(() => {
   api.feasibility.mockReset().mockReturnValue({ neededMin: 45, option: 45, seenByDateEst: 10_000 });
   api.windowDays.mockReset().mockReturnValue(4);
   api.fetchOldExams.mockReset().mockResolvedValue([]);
+  api.container.summary = null;
+  api.container.items = [];
+  api.container.error = null;
+  api.subjectWrites = [];
 });
 afterEach(() => cleanup());
 
@@ -391,24 +428,35 @@ describe('ImportPage: one door for every file', () => {
     expect(api.addItems).toHaveBeenCalledTimes(3);
   });
 
-  it('shows the honest line when the minutes fall short, with the final window under «Подробнее»', async () => {
-    api.feasibility.mockImplementation((input: { budgetMin: number }) => ({
-      neededMin: 72,
-      option: 90,
-      seenByDateEst: input.budgetMin === 45 ? 14 : 18,
-    }));
-    api.parseBank.mockResolvedValue(TWO);
-    renderAt();
-    upload(['Две.docx']);
-    await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
-    fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '2026-10-28' } });
-    fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
-    fireEvent.click(await screen.findByRole('option', { name: /^45\sминут$/ }));
-    expect(
-      await screen.findByText(/При 45\sминутах к 28\sоктября вы увидите около 14 из 18\. Чтобы увидеть все, нужно около 75\sминут\./),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
-    expect(screen.getByText(/С 24\sоктября новых вопросов не будет: последние 4\sдня — только знакомые, сначала ошибки\./)).toBeInTheDocument();
+  it('says under the minutes what they need by the date, and what they reach when they fall short', async () => {
+    // The draft's «today» is the device's: a fixed day keeps the date ahead whenever the test runs.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-10T09:00:00Z'));
+    try {
+      api.feasibility.mockImplementation((input: { budgetMin: number }) => ({
+        neededMin: 72,
+        option: 90,
+        seenByDateEst: input.budgetMin === 45 ? 14 : 18,
+      }));
+      api.parseBank.mockResolvedValue(TWO);
+      renderAt();
+      upload(['Две.docx']);
+      await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
+      expect(screen.queryByText(/Чтобы увидеть все/)).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '2026-10-28' } });
+      // With a date the minutes start at the smallest option that is enough.
+      expect(await screen.findByText(/^Чтобы увидеть все 18\sвопросов к 28\sоктября, нужно около 75\sминут в день\./)).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Время в день' })).toHaveTextContent(/90\sминут/);
+      fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
+      fireEvent.click(await screen.findByRole('option', { name: /^45\sминут$/ }));
+      expect(
+        await screen.findByText(/При 45\sминутах к 28\sоктября вы увидите около 14 из 18\. Чтобы увидеть все, нужно около 75\sминут\./),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
+      expect(screen.getByText(/С 24\sоктября новых вопросов не будет: последние 4\sдня — только знакомые, сначала ошибки\./)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('reads pasted text as a file', async () => {
@@ -440,5 +488,97 @@ describe('ImportPage: one door for every file', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Убрать предмет' }));
     await screen.findByRole('heading', { name: /Нашли 12\sвопросов/ });
     expect(screen.getByText(/Убрано: 1\sпредмет/)).toBeInTheDocument();
+  });
+});
+
+describe('ImportPage: «Обновить из файла» of one subject (?from=c:<id>&subject=<id>, Concept 1 §3.4)', () => {
+  const SUMMARY = summaryJson as unknown as ContainerSummary;
+  const CID = SUMMARY.id;
+  const SUBJECT = SUMMARY.subjects[0];
+  const SAVED = (itemsJson as unknown as TestItem[]).filter((entry) => entry.subject_id === SUBJECT.id);
+  const AT = `/exams/import?from=c:${CID}&subject=${SUBJECT.id}`;
+
+  /** A saved question as the newer file has it again. */
+  const again = (saved: TestItem, patch: Partial<BankItem> = {}) =>
+    item(saved.position, {
+      label: saved.file_no,
+      topic: saved.topic,
+      text: saved.stem,
+      options: [...saved.options],
+      correct: [...saved.correct],
+      marks: { bold: saved.options.map((_, index) => (saved.correct.includes(index) ? 1 : 0)) },
+      ...patch,
+    });
+  const newer = (items: BankItem[]): BankParseResult => ({
+    ...bank(items, null),
+    topics: [
+      { index: 1, title: 'Тема 1. Директивы и пространства имён', subject: 1, items: 4 },
+      { index: 2, title: 'Тема 2. Делегаты и события', subject: 1, items: 4 },
+      { index: 3, title: 'Тема 3. Строки', subject: 1, items: 4 },
+      { index: 4, title: 'Тема 4. Коллекции', subject: 1, items: 1 },
+    ],
+  });
+
+  beforeEach(() => {
+    api.container.summary = SUMMARY;
+    api.container.items = SAVED;
+  });
+
+  it('adds only the new questions, keeps the saved ones and their keys, and lists a key that differs by number', async () => {
+    api.parseBank.mockResolvedValue(
+      newer([
+        ...SAVED.slice(0, 11).map((saved, index) => (index === 6 ? again(saved, { correct: [0], marks: { bold: [1, 0, 0, 0] } }) : again(saved))),
+        item(13, { label: '13', topic: 4, text: 'Какая коллекция хранит пары «ключ — значение»?', options: ['List<T>', 'Dictionary<TKey, TValue>', 'Queue<T>', 'Stack<T>'], correct: [1], marks: { bold: [0, 1, 0, 0] } }),
+      ]),
+    );
+    renderAt(AT);
+    expect(screen.getByRole('heading', { level: 1, name: 'Обновить из файла' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: SUBJECT.title })).toHaveAttribute('href', `/exams/c/${CID}/s/${SUBJECT.id}`);
+    expect(screen.getByText(IMPORT.updateLede(SUBJECT.title))).toBeInTheDocument();
+    upload(['Программирование v2.docx']);
+    const rows = await screen.findByRole('list', { name: SUBJECT.title });
+    const count = (label: string) => within(rows).getByText(label).nextElementSibling?.textContent;
+    expect(count(IMPORT.updateRowNew)).toBe('1');
+    expect(count(IMPORT.updateRowSame)).toBe('11');
+    expect(count(IMPORT.updateRowKey)).toBe('1');
+    expect(count(IMPORT.updateRowGone)).toBe('1');
+    expect(screen.getByText(IMPORT.updateKeyLine)).toBeInTheDocument();
+    expect(screen.getByText(/^№\s7: в файле А, сейчас Б$/)).toBeInTheDocument();
+    // No name, date or minutes: the subject is there already.
+    expect(screen.queryByLabelText('Название')).not.toBeInTheDocument();
+    expect(screen.queryByText('Время в день')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Добавить 1\sвопрос$/ }));
+    await waitFor(() => expect(where).toBe(`/exams/c/${CID}/s/${SUBJECT.id}`));
+    expect(api.subjectWrites).toEqual([{ table: 'container_subjects', values: { topics: [...SUBJECT.topic_titles, 'Тема 4. Коллекции'] }, id: SUBJECT.id }]);
+    expect(api.addItems).toHaveBeenCalledTimes(1);
+    const [subjectId, inputs] = api.addItems.mock.calls[0] as [string, Array<{ ref: string; stem: string; topic: number; correct: number[] }>];
+    expect(subjectId).toBe(SUBJECT.id);
+    expect(inputs.map((input) => [input.ref.replace(/^imp-[a-z0-9]+-[a-z0-9]+/, 'imp'), input.topic, input.correct])).toEqual([['imp:13', 4, [1]]]);
+    expect(api.addSubject).not.toHaveBeenCalled();
+    expect(api.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('with nothing new says so; a differing key is the next thing to look at, in «Ключи»', async () => {
+    api.parseBank.mockResolvedValue(newer(SAVED.map((saved, index) => (index === 6 ? again(saved, { correct: [0], marks: { bold: [1, 0, 0, 0] } }) : again(saved)))));
+    renderAt(AT);
+    upload(['Программирование.docx']);
+    expect(await screen.findByText(IMPORT.updateNothing)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: IMPORT.updateToKeys }));
+    await waitFor(() => expect(where).toBe(`/exams/c/${CID}/keys?s=${SUBJECT.id}&no=7`));
+    expect(api.addItems).not.toHaveBeenCalled();
+    expect(api.subjectWrites).toEqual([]);
+  });
+
+  it('only the author adds questions from a file; a subject that is gone is said so', () => {
+    api.container.summary = { ...SUMMARY, role: 'member', owner: null };
+    renderAt(AT);
+    expect(screen.getByText(IMPORT.updateAuthorOnly)).toBeInTheDocument();
+    expect(document.querySelector('input[type=file]')).toBeNull();
+    cleanup();
+    api.container.summary = SUMMARY;
+    renderAt(`/exams/import?from=c:${CID}&subject=no-such-subject`);
+    expect(screen.getByText(IMPORT.updateNotFound)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: IMPORT.updateToExam })).toHaveAttribute('href', `/exams/c/${CID}`);
   });
 });

@@ -205,6 +205,33 @@ export const IMPORT = {
   keyListEmpty: 'Вставьте ключ: номер вопроса и букву ответа.',
   keyListResult: (keyed: number, total: number) => `Ключ подошёл к ${keyed} из ${total}.`,
   keyClose: 'Готово',
+
+  // «Обновить из файла» (?from=c:<id>&subject=<id>): a newer file of one subject. New questions are added; the ones
+  // already there stay as they are, keys included (a key changes only in «Ключи»).
+  titleUpdate: 'Обновить из файла',
+  updateDropTitle: 'Новая версия файла',
+  updateLede: (title: string) =>
+    `Файл предмета «${title}». Новые вопросы добавятся, а те, что уже есть, останутся как были — с ключами и ответами.`,
+  updateLoading: 'Загружаем вопросы предмета…',
+  updateLoadFailed: 'Вопросы предмета не загрузились. Проверьте связь и обновите страницу.',
+  updateNotFound: 'Этого предмета в экзамене нет — возможно, его уже убрали.',
+  updateAuthorOnly: 'Вопросы из файла добавляет автор экзамена.',
+  updateToExam: 'К экзамену',
+  updateWhich: 'Какой предмет из файла',
+  updateRowNew: 'Новые — добавятся',
+  updateRowSame: 'Уже в предмете',
+  updateRowKey: 'Ключ в файле другой',
+  updateRowGone: 'Есть в предмете, нет в файле',
+  updateRowOral: 'Устные — сюда не добавляются',
+  updateKeyLine: 'Ключ здесь не меняется — его меняют в «Ключах», найдя вопрос по номеру.',
+  updateKeyItem: (no: string, file: string, now: string | null) => `${no ? `№ ${no}` : 'Без номера'}: в файле ${file}, сейчас ${now ?? 'без ключа'}`,
+  updateKeyShort: (no: string) => `${no ? `№ ${no}` : 'Без номера'}: в файле другие ответы`,
+  updateKeyMore: (n: number) => `и ещё ${n}`,
+  updateToKeys: 'Сверить ключи',
+  updateGoneLine: 'Вопросы, которых нет в файле, остаются с ответами. Лишний можно удалить в «Ключах».',
+  updateSave: (n: number) => `Добавить ${questions(n)}`,
+  updateNothing: 'Новых вопросов в файле нет.',
+  updateDone: 'Готово',
 } as const;
 
 /** «Проверьте 7: в 4 нет ответа, в 2 выделено два, 1 повторяется.» — one part per kind of problem. */
@@ -398,13 +425,8 @@ export const SETTINGS = {
   noDate: 'Без даты — по 15 новых вопросов в день на предмет.',
   minutes: 'Время в день',
   minutesMember: 'Время в день — только для вас. Даты ставит автор экзамена.',
-  short: (minutes: number, day: string | null, seen: number, total: number, needed: number) =>
-    `При ${minutes}${NBSP}минутах${day ? ` к ${day}` : ''} вы увидите около ${seen} из ${total}. Чтобы увидеть все, нужно около ${needed}${NBSP}минут.`,
-  shortMax: (day: string | null, seen: number, total: number) =>
-    `Даже при 90${NBSP}минутах${day ? ` к ${day}` : ''} вы увидите около ${seen} из ${total}.`,
+  // The lines under «Время в день» are the plan's own (lib/containers/words.ts: need, short, short_max, window_ahead).
   more: 'Подробнее',
-  window: (from: string, days: number) =>
-    `С ${from} новых вопросов не будет: последние ${count(days, 'день', 'дня', 'дней')} — только знакомые, сначала ошибки.`,
   subjects: 'Предметы',
   addSubject: 'Добавить предмет',
   subjectMore: (title: string) => `Ещё: ${title}`,

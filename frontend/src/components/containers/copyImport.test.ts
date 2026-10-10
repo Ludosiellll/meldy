@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import source from './copyImport.ts?raw';
 import * as copy from './copyImport';
-import { count, dayText, errorText, IMPORT, INVITE, JOIN, KEYS, lettersText, nb, NBSP, plural, QUEUE, SETTINGS } from './copyImport';
+import { count, dayText, errorText, IMPORT, INVITE, JOIN, KEYS, lettersText, nb, NBSP, plural, QUEUE } from './copyImport';
 
 /**
  * Spec §16 #45: one source of words, and a test that fails on the banned ones. The list is the spec's (plus the design
@@ -117,9 +117,8 @@ describe('copyImport: the words of the import, keys, settings and group screens'
     expect(QUEUE.noKey).toBe('Ответ в файле не отмечен. Отметьте верный, если знаете, или пропустите — вопрос подождёт.');
     expect(IMPORT.tgIphone).toBe('Файл из Telegram сначала сохраните в «Файлы».');
     expect(IMPORT.tgAndroid).toContain('Сохранить в загрузки');
-    expect(SETTINGS.short(45, '28 октября', 700, 960, 75)).toBe(
-      `При 45${NBSP}минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75${NBSP}минут.`,
-    );
+    expect(IMPORT.updateSave(12)).toBe(`Добавить 12${NBSP}вопросов`);
+    expect(IMPORT.updateSave(1)).toBe(`Добавить 1${NBSP}вопрос`);
     expect(KEYS.changed(true)).toBe('Ключ изменён. Счёт по этому вопросу начнётся заново, у вас и у группы.');
     expect(KEYS.changed(false)).toBe('Ключ изменён. Счёт по этому вопросу начнётся заново.');
     expect(INVITE.lede(4, 960)).toBe(`По ссылке каждый получит весь экзамен: 4${NBSP}предмета, 960${NBSP}вопросов. Прогресс у каждого свой, а исправленный вами ключ придёт всем.`);

@@ -58,8 +58,9 @@ const PLAN: PlanInput = {
   containerId: ID,
   budgetMin: 45,
   firstPlanDay: '2026-12-14',
-  subjects: [],
-  items: Array.from({ length: 960 }, (_, index) => ({ id: `i${index}`, s: 's', f: 't' as const, tp: 1, o: index + 1 })),
+  subjects: SUMMARY.subjects.map((subject) => ({ id: subject.id, title: subject.title, date: subject.exam_date })),
+  // 960 questions with a key, all in the first subject (now = 0: every date is ahead).
+  items: Array.from({ length: 960 }, (_, index) => ({ id: `i${index}`, s: SUMMARY.subjects[0].id, f: 't' as const, tp: 1, o: index + 1 })),
   today: { firstAt: null, doneSec: 0, newDone: {} },
   pace: null,
   ai: null,
@@ -152,14 +153,40 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     expect(api.updateSubject).not.toHaveBeenCalledWith(SUMMARY.subjects[2].id, expect.anything());
   });
 
+  it('says what the minutes need to see every question by the date (the exam page’s «Время в день» leads here)', async () => {
+    api.feasibility.mockReturnValue({ neededMin: 70, option: 90, seenByDateEst: 960 });
+    renderAt(`/exams/c/${ID}/settings#minutes`);
+    expect(screen.getByText(/^Чтобы увидеть все 960\sвопросов к 12\sянваря, нужно около 70\sминут в день\.$/)).toBeInTheDocument();
+    expect(api.feasibility).toHaveBeenLastCalledWith(expect.objectContaining({ budgetMin: SUMMARY.settings.minutes_per_day }));
+    // The line follows the form: a new date counts before it is saved.
+    fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '2027-01-14' } });
+    expect(screen.getByText(/^Чтобы увидеть все 960\sвопросов к 14\sянваря, нужно около 70\sминут в день\.$/)).toBeInTheDocument();
+    const input = api.feasibility.mock.calls[api.feasibility.mock.calls.length - 1][0] as PlanInput;
+    expect(input.subjects.find((subject) => subject.id === SUMMARY.subjects[0].id)?.date).toBe('2027-01-14');
+    // Without a date there is nothing to count to.
+    fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '' } });
+    expect(screen.queryByText(/Чтобы увидеть все/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Без даты — по 15\sновых вопросов в день на предмет\./)).toBeInTheDocument();
+  });
+
   it('says honestly what the minutes reach when they fall short, the final window under «Подробнее»', async () => {
-    api.feasibility.mockImplementation((input: PlanInput) => ({ neededMin: 72, option: 90, seenByDateEst: input.budgetMin === 30 ? 704 : 960 }));
+    api.feasibility.mockImplementation((input: PlanInput) => ({ neededMin: 75, option: 90, seenByDateEst: input.budgetMin === 30 ? 704 : 960 }));
     renderAt();
     fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
     fireEvent.click(await screen.findByRole('option', { name: /^30\sминут$/ }));
-    expect(screen.getByText(/При 30\sминутах к 12\sянваря вы увидите около 700 из 960\. Чтобы увидеть все, нужно около 75\sминут\./)).toBeInTheDocument();
+    expect(screen.getByText(/^При 30\sминутах к 12\sянваря вы увидите около 700 из 960\. Чтобы увидеть все, нужно около 75\sминут\./)).toBeInTheDocument();
+    expect(screen.queryByText(/в день\.$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
     expect(screen.getByText(/С 8\sянваря новых вопросов не будет: последние 4\sдня — только знакомые, сначала ошибки\./)).toBeInTheDocument();
+  });
+
+  it('even 90 minutes falling short is said at 90 only: at fewer minutes the line names the minutes chosen', async () => {
+    api.feasibility.mockImplementation((input: PlanInput) => ({ neededMin: 120, option: null, seenByDateEst: input.budgetMin === 90 ? 812 : 455 }));
+    renderAt();
+    expect(screen.getByText(/^При 45\sминутах к 12\sянваря вы увидите около 450 из 960\. Чтобы увидеть все, нужно около 120\sминут\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
+    fireEvent.click(await screen.findByRole('option', { name: /^90\sминут$/ }));
+    expect(screen.getByText(/^Даже при 90\sминутах в день к 12\sянваря вы увидите около 810 из 960\./)).toBeInTheDocument();
   });
 
   it('renames and removes a subject; the last subject is removed only with the exam', async () => {

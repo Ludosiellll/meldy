@@ -8,11 +8,13 @@
  * - Otherwise: each subject's oral part is an oral exam (createExam), then container_create with every subject (an old
  *   exam first when the student adds to it: decision 22) or container_subject_add for each one (?from=c:<id>), then
  *   the questions with variants in batches (addItems), then the minutes a day.
+ * - «Обновить из файла» (saveUpdate): the subject's new topics, if any, then its new questions (updateModel.ts).
  */
-import { addItems, addSubject, createContainer, saveSettings } from '../../../api/containers';
+import { addItems, addSubject, containerError, createContainer, saveSettings } from '../../../api/containers';
 import { createExam, type ExamDraft } from '../../../api/exams';
-import type { CreateSubjectInput } from '../../../types/container';
+import type { CreateSubjectInput, ItemInput } from '../../../types/container';
 import { rememberContainerTitle } from '../../../lib/containers/titleCache';
+import { supabase } from '../../../lib/supabase';
 import { type DraftSubject, isSingleOralList, itemInputs } from './importModel';
 
 export type SaveTarget =
@@ -37,9 +39,32 @@ export interface SaveState {
   subjectIds: Record<string, string>;
   itemsDone: Record<string, boolean>;
   settingsDone: boolean;
+  /** «Обновить из файла»: the subject's topics are written. */
+  topicsDone: boolean;
+  /** Some questions may be saved already (a batch went out): the preview no longer changes. */
+  itemsStarted: boolean;
 }
 
-export const freshSaveState = (): SaveState => ({ oralExamIds: {}, containerId: null, subjectIds: {}, itemsDone: {}, settingsDone: false });
+export const freshSaveState = (): SaveState => ({
+  oralExamIds: {},
+  containerId: null,
+  subjectIds: {},
+  itemsDone: {},
+  settingsDone: false,
+  topicsDone: false,
+  itemsStarted: false,
+});
+
+/** Something is in the database already: a retry goes on from there, so the preview stays as it was saved. */
+export function saveStarted(state: SaveState): boolean {
+  return (
+    Boolean(state.containerId) ||
+    Object.keys(state.oralExamIds).length > 0 ||
+    Object.keys(state.subjectIds).length > 0 ||
+    state.topicsDone ||
+    state.itemsStarted
+  );
+}
 
 export interface SaveProgress {
   done: number;
@@ -137,6 +162,7 @@ export async function saveImport(input: SaveInput, state: SaveState, onProgress?
     if (subject.test.length === 0 || state.itemsDone[subject.key]) continue;
     const subjectId = state.subjectIds[subject.key];
     if (!subjectId) throw new Error('subject not created');
+    state.itemsStarted = true;
     const before = done;
     await addItems(subjectId, itemInputs(subject, input.importIds[subject.fileId] ?? 'imp'), (batchDone) =>
       onProgress?.({ done: before + batchDone, total }),
@@ -156,4 +182,43 @@ export async function saveImport(input: SaveInput, state: SaveState, onProgress?
   }
   if (title) rememberContainerTitle(containerId, title);
   return `/exams/c/${containerId}`;
+}
+
+// ─────────────────────────────────────────────── «Обновить из файла» ───────────────────────────────────────────────
+
+export interface UpdateInput {
+  subjectId: string;
+  /** The subject's topic titles after the update, when the file brings new topics (null: unchanged). */
+  topics: string[] | null;
+  /** The new questions only (updateModel.ts): refs make a resent batch insert nothing twice. */
+  items: ItemInput[];
+}
+
+/**
+ * The subject's topic titles: the owner's direct write (RLS «Container subjects: update own»; at most 99 titles of at
+ * most 200 characters, the table's own check). api/containers.ts updateSubject does not take topics.
+ */
+async function writeTopics(subjectId: string, topics: string[]): Promise<void> {
+  let result: { data: unknown[] | null; error: unknown; status: number };
+  try {
+    result = await supabase.from('container_subjects').update({ topics }).eq('id', subjectId).select('id');
+  } catch (error) {
+    throw containerError(error);
+  }
+  if (result.error) throw containerError(result.error, result.status);
+  if (!result.data || result.data.length === 0) throw containerError({ code: 'P0002', message: 'subject not found' }, result.status);
+}
+
+/** Saves what is not saved yet of an update; throws on the first failure, call again to go on. */
+export async function saveUpdate(input: UpdateInput, state: SaveState, onProgress?: (progress: SaveProgress) => void): Promise<void> {
+  if (input.topics && !state.topicsDone) {
+    await writeTopics(input.subjectId, input.topics);
+    state.topicsDone = true;
+  }
+  if (input.items.length === 0 || state.itemsDone[input.subjectId]) return;
+  state.itemsStarted = true;
+  onProgress?.({ done: 0, total: input.items.length });
+  await addItems(input.subjectId, input.items, (done, total) => onProgress?.({ done, total }));
+  state.itemsDone[input.subjectId] = true;
+  onProgress?.({ done: input.items.length, total: input.items.length });
 }

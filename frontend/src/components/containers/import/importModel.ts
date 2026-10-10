@@ -737,7 +737,7 @@ export function spotCheck(subjects: readonly DraftSubject[]): Array<{ subject: s
 // ─────────────────────────────────────────────── saving ───────────────────────────────────────────────
 
 /** The items of one subject as container_items_add takes them (types/container.ts ItemInput). */
-export function itemInputs(subject: DraftSubject, importId: string): ItemInput[] {
+export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string): ItemInput[] {
   return subject.test.map((item) => {
     const input: ItemInput = {
       ref: `${importId}:${item.position}`,
