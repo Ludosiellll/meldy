@@ -1,14 +1,29 @@
 #!/usr/bin/env bash
-# LOCAL ONLY; NEVER AGAINST THE LIVE PROJECT. The whole rehearsal of the Telegram bot's database core (package T1:
-# supabase/migrations/20261010120000_telegram_bot.sql, _cron.sql, _revokes.sql and
-# supabase/rollback/20261010120000_telegram_bot_down.sql) on a scratch PostgreSQL 16 cluster:
-#   the base (the repo's local baselines, the live migrations they rehearse, the exam container's migrations, and stubs
-#   of the schemas cron and net when pg_cron / pg_net are not installed here) → catalog fingerprint → the contract on
-#   the base never raises → T1's main and cron files twice → the contract before the revokes (exactly the three
-#   default-privilege gaps) → behaviour and claims under those grants → the revokes twice → behaviour and claims again →
-#   contract_ok → the main and cron files once more (catalog unchanged, still contract_ok) → no line of the base changed
-#   → the container's contract still ok → concurrency (two claims at once, two ledger begins at once, one code claimed
-#   from two Telegrams at once) → the rollback twice (catalog = the base) → apply again (= the first apply).
+# LOCAL ONLY; NEVER AGAINST THE LIVE PROJECT. The whole rehearsal of the Telegram bot's database on a scratch PostgreSQL
+# 16 cluster: package T1 (supabase/migrations/20261010120000_telegram_bot.sql, _cron.sql, _revokes.sql and
+# supabase/rollback/20261010120000_telegram_bot_down.sql), then the later packages in the live order, each on top of
+# the ones before: T5 (20261010120003, the session in chat), T7 (20261010120004, the group chat), T9 (20261010120005,
+# the files), and the slots of T10 (20261010120006) and T11 (20261010120007), applied only when their files are here.
+#   1. the base (the repo's local baselines, the live migrations they rehearse, the exam container's migrations, stubs
+#      of the schemas cron and net when pg_cron / pg_net are not installed here, dblink when available) → catalog
+#      fingerprint → the contract on the base never raises;
+#   2. T1's main and cron files twice → the contract: T1 fails exactly the three default-privilege gaps, every other
+#      failure is a check of a package not applied yet → behaviour and claims under those grants;
+#   3. the revokes twice → behaviour and claims again → T1's checks all hold → the main and cron files once more
+#      (catalog unchanged) → no line of the base changed → the container's contract still ok;
+#   4. concurrency on T1 (two claims at once, two ledger begins at once, one code claimed from two Telegrams at once);
+#      then T7 and T9 without T5 on that database: the contract reads such a partial apply too;
+#   5–9. per package (T5, T7, T9, slot T10, slot T11) on the database of steps 2–3: its migration twice, no line of
+#      what was there before changed or gone, the contract (T1 and every applied package ok, only the packages not
+#      applied yet fail), its own local tests (T5: telegram_bot_sessions.sql, part 2 through dblink; T7:
+#      telegram_bot_groups.sql and telegram_bot_groups_race.sql; T9: telegram_bot_files.sql and two redeems of one
+#      token at once), T1's behaviour and claims with it;
+#   10. everything applied: contract_ok with every check, the container's contract, T1's rollback refuses (and leaves
+#      everything) while a later package's objects remain;
+#   11. the rollbacks in reverse (T11 → T10 → T9 → T7 → T5 → T1), each twice: after each the catalog equals the one
+#      before that package, the contract still reads; after T1's the base (pg_cron's grants to postgres stay), the tick
+#      unscheduled, the container's contract ok;
+#   12. everything applied again: after each package the catalog equals its first apply; contract_ok.
 # Usage: supabase/tests/local/telegram_bot_run.sh
 # Env (all optional): TELEGRAM_PG_PORT (54381); TELEGRAM_WORK (scratch dir, default ${TMPDIR:-/tmp}/meldy-telegram);
 #   PG_BIN (/usr/lib/postgresql/16/bin). A cluster already listening on the port is used as it is; otherwise one is
@@ -30,8 +45,9 @@ OUT=$WORK/out
 mkdir -p "$OUT"
 PSQL=(psql -X -q -At -v ON_ERROR_STOP=1)
 FAILS=0
-ok() { printf '  ok    %-62s %s\n' "$1" "${2:-}"; }
-bad() { printf '  FAIL  %-62s %s\n' "$1" "${2:-}"; FAILS=$((FAILS + 1)); }
+ok() { printf '  ok    %-64s %s\n' "$1" "${2:-}"; }
+bad() { printf '  FAIL  %-64s %s\n' "$1" "${2:-}"; FAILS=$((FAILS + 1)); }
+skip() { printf '  skip  %-64s %s\n' "$1" "${2:-}"; }
 
 # ── the cluster (postgres refuses to run as root: a user namespace maps root to uid 1000) ─────────────────────────────
 as_pg() { if [ "$(id -u)" = 0 ]; then unshare --user --map-user=1000 --map-group=1000 bash -c "$1"; else bash -c "$1"; fi; }
@@ -48,11 +64,14 @@ if ! "$PG_BIN/pg_isready" -q -h 127.0.0.1 -p "$PORT"; then
 fi
 stop_cluster() { if [ $STARTED = 1 ]; then as_pg "'$PG_BIN/pg_ctl' -D '$WORK/pg/data' -m fast -w stop" >/dev/null && echo "cluster stopped"; fi; }
 trap stop_cluster EXIT
-echo "telegram bot (T1) rehearsal: PostgreSQL $("${PSQL[@]}" -d postgres -c 'show server_version') on 127.0.0.1:$PORT, work dir $WORK"
+echo "telegram bot rehearsal: PostgreSQL $("${PSQL[@]}" -d postgres -c 'show server_version') on 127.0.0.1:$PORT, work dir $WORK"
 
 run() { "${PSQL[@]}" -d "$1" -f "$2" > "$OUT/last.log" 2>&1 || { echo "    $2 failed on $1:"; grep -v NOTICE "$OUT/last.log" | head -5 | sed 's/^/    /'; return 1; }; }
 fresh() { "${PSQL[@]}" -d postgres -c "drop database if exists $1" -c "create database $1 template t_base" >/dev/null 2>&1; }
 fingerprint() { "${PSQL[@]}" -d "$1" -f "$FINGERPRINT" > "$2"; }
+# Lines of $1 changed or gone in $2, and lines new in $2 (fingerprints, any order).
+gone() { comm -23 <(sort "$1") <(sort "$2"); }
+new_lines() { comm -13 <(sort "$1") <(sort "$2"); }
 # The cron file grants postgres USAGE on schema cron and all on its tables (the Supabase docs' way of enabling pg_cron);
 # they belong to the extension, which the rollback leaves installed. Comparisons with the base leave out the ACLs of the
 # stub schema cron; cron_grants checks that those grants are its only change.
@@ -63,6 +82,48 @@ cron_grants() {  # $1 base fingerprint, $2 fingerprint after: every changed line
 }
 contract() { "${PSQL[@]}" -d "$1" -f "$CONTRACT" 2>&1; }
 field() { python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(json.dumps(d$1))"; }
+# judge <contract output> <T1's expected failures, a JSON list>: green when the output is the report (it never raises),
+# T1 fails exactly those, every applied later package is ok, and every other failure is a check of a package not
+# applied yet (the report's packages names each package's failures). Prints a summary.
+judge() {
+  python3 -c '
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+except ValueError:
+    print("not the report: " + " ".join(sys.argv[1].split())[:240]); sys.exit(1)
+exp = json.loads(sys.argv[2]); pk = d.get("packages") or {}; errs = []; allowed = set(exp); applied = []; waiting = []
+if "T1" not in pk: errs.append("no packages.T1")
+elif pk["T1"]["failed"] != exp: errs.append("T1 failed %s" % pk["T1"]["failed"])
+for name, p in pk.items():
+    if name == "T1": continue
+    if p["applied"]:
+        applied.append(name)
+        if not p["ok"]: errs.append("%s failed %s" % (name, p["failed"]))
+    else:
+        allowed.update(p["failed"]); waiting.append("%s %d" % (name, len(p["failed"])))
+extra = [c for c in d.get("failed", []) if c not in allowed]
+if extra: errs.append("other failures %s" % extra)
+if errs: print("; ".join(errs)); sys.exit(1)
+print("%d checks; T1 %s; applied %s; not yet %s" % (len(d["checks"]), "ok" if not exp else "fails only the %d gaps" % len(exp),
+      " ".join(applied) or "-", ", ".join(waiting) or "-"))
+' "$1" "$2"
+}
+contract_check() {  # <label> <db> <T1's expected failures>
+  local c msg; c=$(contract "$2")
+  if msg=$(judge "$c" "$3"); then ok "$1" "$msg"; else bad "$1" "$msg"; fi
+}
+# The report with everything applied: contract_ok, every check true, every package applied and ok.
+contract_full() {  # <label> <db>
+  local c msg; c=$(contract "$2")
+  if msg=$(python3 -c '
+import json, sys
+d = json.loads(sys.argv[1]); pk = d["packages"]
+bad = [n for n, v in d["checks"].items() if v is not True] + [n for n, p in pk.items() if not (p["applied"] and p["ok"])]
+if d["contract_ok"] is not True or d["failed"] or bad: print("failed %s %s" % (d["failed"], bad)); sys.exit(1)
+print("contract_ok: true, all %d checks; packages %s" % (len(d["checks"]), " ".join(pk)))
+' "$c" 2>&1); then ok "$1" "$msg"; else bad "$1" "$msg"; fi
+}
 
 # The cron file as this cluster can take it: as it is when pg_cron and pg_net are installed here; otherwise without its
 # two CREATE EXTENSION lines (the base then has the stubs below).
@@ -75,6 +136,10 @@ if [ "$("${PSQL[@]}" -d postgres -c "select count(*) from pg_available_extension
 else
   CRON_RUN=$CRON
 fi
+# dblink (the later packages' two-session tests) lives in the base when this cluster has it, so no test creates or
+# drops it between two fingerprints.
+DBLINK=0
+[ "$("${PSQL[@]}" -d postgres -c "select count(*) from pg_available_extensions where name = 'dblink'")" = 1 ] && DBLINK=1
 apply_t1() { run "$1" "$MIG" && run "$1" "$CRON_RUN"; }
 
 # ── the base: what the bot's migrations meet live ───────────────────────────────────────────────────────────────────
@@ -97,10 +162,11 @@ delete from public.ai_usage u
  using (select user_id, date, min(created_at) as first from public.ai_usage where user_id is not null group by 1, 2 having count(*) > 1) t
  where u.user_id = t.user_id and u.date = t.date and u.created_at > t.first;
 SQL
+  # the exam container and its two follow-ups, as applied live
   for f in migrations/20261004205613_ai_quota_server.sql migrations/20261005031722_ai_quota_lockdown.sql \
            migrations/20261007103621_oral_answer_texts.sql tests/local/containers_baseline.sql \
            migrations/20261009093500_containers.sql migrations/20261009093501_containers_revokes.sql \
-           migrations/20261010074500_containers_fk_indexes.sql; do
+           migrations/20261010074500_containers_fk_indexes.sql migrations/20261010110000_containers_oral_codes_closed.sql; do
     run t_base "$SB/$f" || return 1
   done
   if [ $STUBS = 1 ]; then
@@ -137,6 +203,7 @@ create or replace function net.http_post(url text, body jsonb default '{}'::json
   values (url, body, params, headers, timeout_milliseconds) returning id $$;
 SQL
   fi
+  if [ $DBLINK = 1 ]; then "${PSQL[@]}" -d t_base -c "create extension if not exists dblink" >/dev/null || return 1; fi
 }
 behaviour() {  # $1 db
   "${PSQL[@]}" -d "$1" -f "$HERE/telegram_bot_behaviour.sql" > "$OUT/behaviour.log" 2>&1
@@ -147,56 +214,84 @@ claims() {  # $1 db
   grep -q 'TELEGRAM BOT CLAIMS PASSED' "$OUT/claims.log"
 }
 first_error() { grep -m1 'ERROR\|FAILED' "$1" | sed 's/^psql:[^:]*:[0-9]*: //'; }
+t1_tests() {  # <label> <db>: T1's behaviour and claims
+  if behaviour "$2"; then ok "$1: T1's behaviour" "TELEGRAM BOT CHECKS PASSED"
+  else bad "$1: T1's behaviour" "$(first_error "$OUT/behaviour.log")"; fi
+  if claims "$2"; then ok "$1: T1's claims" "TELEGRAM BOT CLAIMS PASSED"
+  else bad "$1: T1's claims" "$(first_error "$OUT/claims.log")"; fi
+}
+# sql_test <label> <db> <file> [marker…]: a package's local test; green when psql exits 0 and prints every marker.
+sql_test() {
+  local label=$1 db=$2 file=$3 log rc m missing=""; shift 3
+  log=$OUT/$(basename "$file" .sql).log
+  "${PSQL[@]}" -d "$db" -f "$file" > "$log" 2>&1; rc=$?
+  for m in "$@"; do grep -q "$m" "$log" || missing="$missing «$m»"; done
+  if [ $rc = 0 ] && [ -z "$missing" ]; then ok "$label" "${*:-exit 0}"
+  else bad "$label" "$(first_error "$log")${missing:+ (not printed:$missing)}"; fi
+}
+
+# ── the later packages on t_main: each one's files, fingerprints and the package before it ───────────────────────────
+declare -a DONE=()                   # applied on t_main, in order
+declare -A MIG_OF=() DOWN_OF=() PREV_OF=()
+LAST=T1                              # fingerprints: $OUT/fp_<pkg>.txt after its first apply (fp_T1: with the revokes)
+# stage <pkg> <version>: the package's migration twice on t_main, nothing before it changed or gone, the contract.
+# Returns 1 when the migration is not in this tree (a slot not filled yet).
+stage() {
+  local pkg=$1 ver=$2 mig down prev
+  mig=$(compgen -G "$SB/migrations/${ver}_*.sql" | head -1)
+  down=$(compgen -G "$SB/rollback/${ver}_*_down.sql" | head -1)
+  if [ -z "$mig" ]; then skip "$pkg: supabase/migrations/${ver}_*.sql" "not in this tree"; return 1; fi
+  prev=$OUT/fp_$LAST.txt
+  if run t_main "$mig" && run t_main "$mig"; then ok "$pkg: $(basename "$mig") applied twice"; else bad "$pkg: $(basename "$mig") applied twice"; fi
+  fingerprint t_main "$OUT/fp_$pkg.txt"
+  if [ "$(gone "$prev" "$OUT/fp_$pkg.txt" | wc -l)" = 0 ]; then
+    ok "$pkg: objects before it changed or gone" "0 of $(wc -l < "$prev"); $(new_lines "$prev" "$OUT/fp_$pkg.txt" | wc -l) new"
+  else bad "$pkg: objects before it changed or gone" "$(gone "$prev" "$OUT/fp_$pkg.txt" | head -3 | tr '\n' ' ')"; fi
+  [ -n "$down" ] || bad "$pkg: its rollback supabase/rollback/${ver}_*_down.sql" "missing"
+  MIG_OF[$pkg]=$mig; DOWN_OF[$pkg]=$down; PREV_OF[$pkg]=$LAST; DONE+=("$pkg"); LAST=$pkg
+  contract_check "$pkg: supabase/tests/telegram_bot.sql" t_main '[]'
+  return 0
+}
 
 T0=$(date +%s)
 echo "1. base"
-if load_base; then ok "base loaded (t_base)" "$([ $STUBS = 1 ] && echo 'cron and net stubbed' || echo 'pg_cron and pg_net installed')"
+if load_base; then
+  ok "base loaded (t_base)" "$([ $STUBS = 1 ] && echo 'cron and net stubbed' || echo 'pg_cron and pg_net installed'); dblink $([ $DBLINK = 1 ] && echo installed || echo 'not available')"
 else bad "base loaded"; echo "cannot continue"; exit 1; fi
 fingerprint t_base "$OUT/fp_base.txt"
 BASE_LINES=$(wc -l < "$OUT/fp_base.txt")
 C=$(contract t_base)
-if echo "$C" | grep -q '"contract_ok" : false'; then ok "telegram_bot.sql on the base: reads, never raises" "contract_ok false"
+if [ "$(echo "$C" | field "['contract_ok']" 2>/dev/null)" = false ] && [ "$(echo "$C" | field "['packages']['T1']['applied']" 2>/dev/null)" = false ]; then
+  ok "telegram_bot.sql on the base: reads, never raises" "contract_ok false, nothing applied"
 else bad "telegram_bot.sql on the base" "$C"; fi
 
-echo "2. the migration (main + cron), before the revokes"
+echo "2. T1: the migration (main + cron), before the revokes"
 fresh t_main
 if apply_t1 t_main && apply_t1 t_main; then ok "main and cron files applied twice"; else bad "main and cron files applied twice"; fi
-FAILED=$(contract t_main | field "['failed']")
-if [ "$FAILED" = '["bot_functions_closed_to_clients", "site_functions_authenticated_only", "bot_helpers_closed_to_clients"]' ]; then
-  ok "contract before the revokes" "only the three default-privilege gaps"
-else bad "contract before the revokes" "$FAILED"; fi
-if behaviour t_main; then ok "behaviour (the migration's grants)" "TELEGRAM BOT CHECKS PASSED"
-else bad "behaviour (the migration's grants)" "$(first_error "$OUT/behaviour.log")"; fi
-if claims t_main; then ok "claims (the migration's grants)" "TELEGRAM BOT CLAIMS PASSED"
-else bad "claims (the migration's grants)" "$(first_error "$OUT/claims.log")"; fi
+contract_check "contract before the revokes" t_main \
+  '["bot_functions_closed_to_clients", "site_functions_authenticated_only", "bot_helpers_closed_to_clients"]'
+t1_tests "the migration's grants" t_main
 
-echo "3. the revokes"
+echo "3. T1: the revokes"
 if run t_main "$REV" && run t_main "$REV"; then ok "revokes applied twice"; else bad "revokes applied twice"; fi
-if behaviour t_main; then ok "behaviour (after the revokes)" "TELEGRAM BOT CHECKS PASSED"
-else bad "behaviour (after the revokes)" "$(first_error "$OUT/behaviour.log")"; fi
-if claims t_main; then ok "claims (after the revokes)" "TELEGRAM BOT CLAIMS PASSED"
-else bad "claims (after the revokes)" "$(first_error "$OUT/claims.log")"; fi
-C=$(contract t_main)
-if echo "$C" | grep -q '"contract_ok" : true'; then ok "supabase/tests/telegram_bot.sql" "contract_ok: true, $(echo "$C" | field "['checks']" | grep -o 'true' | wc -l) checks"
-else bad "supabase/tests/telegram_bot.sql" "$(echo "$C" | field "['failed']")"; fi
-fingerprint t_main "$OUT/fp_after.txt"
+t1_tests "after the revokes" t_main
+contract_check "supabase/tests/telegram_bot.sql (T1's checks)" t_main '[]'
+fingerprint t_main "$OUT/fp_T1.txt"
 if apply_t1 t_main; then
   fingerprint t_main "$OUT/fp_again.txt"
-  if cmp -s "$OUT/fp_after.txt" "$OUT/fp_again.txt" && contract t_main | grep -q '"contract_ok" : true'; then
-    ok "main and cron files re-applied after the revokes" "catalog unchanged, contract_ok true"
-  else bad "main and cron files re-applied after the revokes" "$(diff "$OUT/fp_after.txt" "$OUT/fp_again.txt" | head -3 | tr '\n' ' ')"; fi
+  if cmp -s "$OUT/fp_T1.txt" "$OUT/fp_again.txt"; then ok "main and cron files re-applied after the revokes" "catalog unchanged"
+  else bad "main and cron files re-applied after the revokes" "$(diff "$OUT/fp_T1.txt" "$OUT/fp_again.txt" | head -3 | tr '\n' ' ')"; fi
 else bad "main and cron files re-applied after the revokes"; fi
-CHANGED=$(comm -23 <(no_cron_acl "$OUT/fp_base.txt" | sort) <(no_cron_acl "$OUT/fp_after.txt" | sort) | wc -l)
-NEW=$(comm -13 <(no_cron_acl "$OUT/fp_base.txt" | sort) <(no_cron_acl "$OUT/fp_after.txt" | sort) | wc -l)
-if [ "$CHANGED" = 0 ]; then ok "objects of the base changed or gone" "0 of $BASE_LINES; $NEW new"
-else bad "objects of the base changed or gone" "$CHANGED of $BASE_LINES: $(comm -23 <(no_cron_acl "$OUT/fp_base.txt" | sort) <(no_cron_acl "$OUT/fp_after.txt" | sort) | head -3 | tr '\n' ' ')"; fi
-if cron_grants "$OUT/fp_base.txt" "$OUT/fp_after.txt"; then ok "schema cron: only the docs' grants to postgres" "$(diff <(grep -E '^(nsp cron |rel cron\.)' "$OUT/fp_base.txt") <(grep -E '^(nsp cron |rel cron\.)' "$OUT/fp_after.txt") | grep -c '^>') ACL lines"
+CHANGED=$(gone <(no_cron_acl "$OUT/fp_base.txt") <(no_cron_acl "$OUT/fp_T1.txt") | wc -l)
+if [ "$CHANGED" = 0 ]; then ok "objects of the base changed or gone" "0 of $BASE_LINES; $(new_lines <(no_cron_acl "$OUT/fp_base.txt") <(no_cron_acl "$OUT/fp_T1.txt") | wc -l) new"
+else bad "objects of the base changed or gone" "$CHANGED of $BASE_LINES: $(gone <(no_cron_acl "$OUT/fp_base.txt") <(no_cron_acl "$OUT/fp_T1.txt") | head -3 | tr '\n' ' ')"; fi
+if cron_grants "$OUT/fp_base.txt" "$OUT/fp_T1.txt"; then ok "schema cron: only the docs' grants to postgres" "$(diff <(grep -E '^(nsp cron |rel cron\.)' "$OUT/fp_base.txt") <(grep -E '^(nsp cron |rel cron\.)' "$OUT/fp_T1.txt") | grep -c '^>') ACL lines"
 else bad "schema cron: only the docs' grants to postgres"; fi
 if "${PSQL[@]}" -d t_main -f "$SB/tests/containers.sql" 2>&1 | grep -q '"contract_ok" : true'; then
   ok "the container's contract (supabase/tests/containers.sql)" "contract_ok: true"
 else bad "the container's contract (supabase/tests/containers.sql)"; fi
 
-echo "4. concurrency (two sessions, service role)"
+echo "4. T1: concurrency (two sessions, service role), then a partial apply"
 fresh t_conc
 apply_t1 t_conc && run t_conc "$REV" || bad "concurrency database"
 SVC="set role service_role; select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', false) is null;"
@@ -244,29 +339,133 @@ KA=$(grep -E '^(linked|used|expired|invalid|slow_down|private_only)$' "$OUT/code
 LINKS=$("${PSQL[@]}" -d t_conc -c "select count(*) from bot.links where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and unlinked_at is null")
 if [ $RA = 0 ] && [ $RB = 0 ] && [ "$KA" = linked ] && [ "$KB" = used ] && [ "$LINKS" = 1 ]; then ok "one code from two Telegrams at once" "A $KA, B $KB, one active link"
 else bad "one code from two Telegrams at once" "A=$KA B=$KB links=$LINKS"; fi
+# d) a partial apply: T7 and T9 on T1 without T5. The contract reads it: T5's checks fail, the rest hold.
+for v in 20261010120004 20261010120005; do
+  f=$(compgen -G "$SB/migrations/${v}_*.sql" | head -1)
+  [ -z "$f" ] || run t_conc "$f" || bad "partial apply: $(basename "$f")"
+done
+contract_check "contract with T7 and T9 but not T5 (t_conc)" t_conc '[]'
 
-echo "5. the rollback"
-if run t_main "$DOWN" && run t_main "$DOWN"; then ok "rollback applied twice"; else bad "rollback applied twice"; fi
-fingerprint t_main "$OUT/fp_down.txt"
-D=$(diff <(no_cron_acl "$OUT/fp_base.txt") <(no_cron_acl "$OUT/fp_down.txt") | wc -l)
-if [ "$D" = 0 ] && cron_grants "$OUT/fp_base.txt" "$OUT/fp_down.txt"; then
-  ok "rollback → catalog equals the base" "0 differing lines (pg_cron's grants to postgres stay)"
-else bad "rollback → catalog equals the base" "$D differing lines"; fi
-if [ "$("${PSQL[@]}" -d t_main -c "select count(*) from cron.job where jobname = 'meldy-telegram-tick'")" = 0 ]; then ok "rollback unschedules the tick"
-else bad "rollback unschedules the tick"; fi
-if "${PSQL[@]}" -d t_main -f "$SB/tests/containers.sql" 2>&1 | grep -q '"contract_ok" : true'; then ok "the container's contract after the rollback" "contract_ok: true"
-else bad "the container's contract after the rollback"; fi
+echo "5. T5: the session in chat"
+if stage T5 20261010120003; then
+  if [ $DBLINK = 1 ]; then
+    sql_test "T5: telegram_bot_sessions.sql (part 2 through dblink)" t_main "$HERE/telegram_bot_sessions.sql" \
+      'TELEGRAM BOT SESSIONS CHECKS PASSED' 'TELEGRAM BOT SESSIONS CONCURRENCY PASSED'
+  else
+    sql_test "T5: telegram_bot_sessions.sql" t_main "$HERE/telegram_bot_sessions.sql" 'TELEGRAM BOT SESSIONS CHECKS PASSED'
+    skip "T5: telegram_bot_sessions.sql part 2 (two sessions)" "dblink is not available on this cluster"
+  fi
+  t1_tests "with T5" t_main
+fi
+
+echo "6. T7: the group chat"
+if stage T7 20261010120004; then
+  sql_test "T7: telegram_bot_groups.sql (spec §8.2 «Беседа»)" t_main "$HERE/telegram_bot_groups.sql" 'TELEGRAM BOT GROUP CHECKS PASSED'
+  if [ $DBLINK = 1 ]; then
+    sql_test "T7: telegram_bot_groups_race.sql (two sessions)" t_main "$HERE/telegram_bot_groups_race.sql" 'TELEGRAM BOT GROUP RACES PASSED'
+  else skip "T7: telegram_bot_groups_race.sql (two sessions)" "dblink is not available on this cluster"; fi
+  t1_tests "with T5 and T7" t_main
+fi
+
+echo "7. T9: the files"
+if stage T9 20261010120005; then
+  sql_test "T9: telegram_bot_files.sql (spec §8.2 «Файлы»)" t_main "$HERE/telegram_bot_files.sql" 'TELEGRAM BOT FILES CHECKS PASSED'
+  # Two redeems of one token at once (telegram_bot_files.sql's header): A holds its row 1.5 s, B waits, then reads used.
+  TOKEN=$("${PSQL[@]}" -d t_main <<'SQL' | tail -1
+insert into auth.users (id) values ('f9000000-0000-4000-8000-0000000000aa') on conflict do nothing;
+insert into bot.links (user_id, tg_user_id, chat_id) values ('f9000000-0000-4000-8000-0000000000aa', 709010, 709010);
+set role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', false) is null;
+select set_config('t9.ticket', public.bot_file_offer(709010, 'BQACAgIAAxkBAAIBc2Zm_race', 'race.docx', 10, null) ->> 'ticket', false) is null;
+reset role;
+set role authenticated;
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"f9000000-0000-4000-8000-0000000000aa"}', false) is null;
+select set_config('request.jwt.claim.sub', 'f9000000-0000-4000-8000-0000000000aa', false) is null;
+select public.telegram_file_take(current_setting('t9.ticket')) ->> 'token';
+SQL
+)
+  { echo "$SVC"; echo "begin;"; echo "select public.bot_file_redeem('$TOKEN') ->> 'status';"; echo "select pg_sleep(1.5); commit;"; } > "$OUT/redeem_a.sql"
+  { echo "$SVC"; echo "select public.bot_file_redeem('$TOKEN') ->> 'status';"; } > "$OUT/redeem_b.sql"
+  "${PSQL[@]}" -d t_main -f "$OUT/redeem_a.sql" > "$OUT/redeem_a.out" 2>&1 & PA=$!
+  sleep 0.5
+  TB0=$(date +%s.%N); "${PSQL[@]}" -d t_main -f "$OUT/redeem_b.sql" > "$OUT/redeem_b.out" 2>&1; RB=$?; TB1=$(date +%s.%N)
+  wait $PA; RA=$?
+  SA=$(grep -E '^(ok|used|expired|invalid)$' "$OUT/redeem_a.out"); SBB=$(grep -E '^(ok|used|expired|invalid)$' "$OUT/redeem_b.out")
+  WAIT=$(awk "BEGIN { printf \"%.1f\", $TB1 - $TB0 }")
+  if [ $RA = 0 ] && [ $RB = 0 ] && [ "$SA" = ok ] && [ "$SBB" = used ] && awk "BEGIN { exit !($TB1 - $TB0 > 0.5) }"; then
+    ok "T9: two redeems of one token at once" "A $SA, B $SBB (B waited ${WAIT} s on A's row)"
+  else bad "T9: two redeems of one token at once" "A=$SA B=$SBB token=${#TOKEN} chars $(cat "$OUT/redeem_a.out" "$OUT/redeem_b.out" | grep -m1 ERROR)"; fi
+  "${PSQL[@]}" -d t_main -c "delete from auth.users where id = 'f9000000-0000-4000-8000-0000000000aa'" >/dev/null || bad "T9: race fixture removed"
+  t1_tests "with T5, T7 and T9" t_main
+fi
+
+# ── slot: package T10 (20261010120006_telegram_bot_voice.sql, voice behind a flag). Applied only when its migration is
+#    in this tree; its local test supabase/tests/local/telegram_bot_voice.sql when that is too (green on exit 0: put
+#    its PASSED line here when it lands).
+echo "8. slot T10: voice"
+if stage T10 20261010120006; then
+  [ -f "$HERE/telegram_bot_voice.sql" ] && sql_test "T10: telegram_bot_voice.sql" t_main "$HERE/telegram_bot_voice.sql"
+  t1_tests "with T10" t_main
+fi
+# ── slot: package T11 (20261010120007_oral_plan_inputs.sql, bot_oral_inputs: the oral plan on the server). Applied only
+#    when its migration is in this tree; its local test supabase/tests/local/oral_plan_inputs.sql when that is too
+#    (green on exit 0: put its PASSED line here when it lands).
+echo "9. slot T11: the oral plan on the server"
+if stage T11 20261010120007; then
+  [ -f "$HERE/oral_plan_inputs.sql" ] && sql_test "T11: oral_plan_inputs.sql" t_main "$HERE/oral_plan_inputs.sql"
+  t1_tests "with T11" t_main
+fi
+
+echo "10. everything applied (T1 ${DONE[*]})"
+contract_full "supabase/tests/telegram_bot.sql" t_main
+if "${PSQL[@]}" -d t_main -f "$SB/tests/containers.sql" 2>&1 | grep -q '"contract_ok" : true'; then
+  ok "the container's contract (supabase/tests/containers.sql)" "contract_ok: true"
+else bad "the container's contract (supabase/tests/containers.sql)"; fi
+fingerprint t_main "$OUT/fp_all.txt"
+if ! "${PSQL[@]}" -d t_main -f "$DOWN" > "$OUT/down_blocked.log" 2>&1; then
+  fingerprint t_main "$OUT/fp_blocked.txt"
+  if cmp -s "$OUT/fp_all.txt" "$OUT/fp_blocked.txt"; then ok "T1's rollback refuses while later packages' objects remain" "and leaves everything"
+  else bad "T1's rollback with later packages" "half done: $(diff "$OUT/fp_all.txt" "$OUT/fp_blocked.txt" | wc -l) differing lines"; fi
+else bad "T1's rollback with later packages" "it ran"; fi
+
+echo "11. the rollbacks in reverse"
+for ((i = ${#DONE[@]} - 1; i >= 0; i--)); do
+  pkg=${DONE[$i]}; prev=${PREV_OF[$pkg]}
+  if [ -n "${DOWN_OF[$pkg]}" ] && run t_main "${DOWN_OF[$pkg]}" && run t_main "${DOWN_OF[$pkg]}"; then
+    fingerprint t_main "$OUT/fp_down_$pkg.txt"
+    if cmp -s "$OUT/fp_$prev.txt" "$OUT/fp_down_$pkg.txt"; then ok "$pkg: rollback twice → catalog as before $pkg" "0 differing lines"
+    else bad "$pkg: rollback twice → catalog as before $pkg" "$(diff "$OUT/fp_$prev.txt" "$OUT/fp_down_$pkg.txt" | head -3 | tr '\n' ' ')"; fi
+    contract_check "$pkg: the contract after its rollback" t_main '[]'
+  else bad "$pkg: rollback applied twice"; fi
+done
+if run t_main "$DOWN" && run t_main "$DOWN"; then ok "T1: rollback applied twice"; else bad "T1: rollback applied twice"; fi
+fingerprint t_main "$OUT/fp_down_T1.txt"
+D=$(diff <(no_cron_acl "$OUT/fp_base.txt") <(no_cron_acl "$OUT/fp_down_T1.txt") | wc -l)
+if [ "$D" = 0 ] && cron_grants "$OUT/fp_base.txt" "$OUT/fp_down_T1.txt"; then
+  ok "T1: rollback → catalog equals the base" "0 differing lines (pg_cron's grants to postgres stay)"
+else bad "T1: rollback → catalog equals the base" "$D differing lines"; fi
+if [ "$("${PSQL[@]}" -d t_main -c "select count(*) from cron.job where jobname = 'meldy-telegram-tick'")" = 0 ]; then ok "T1: rollback unschedules the tick"
+else bad "T1: rollback unschedules the tick"; fi
+C=$(contract t_main)
+if [ "$(echo "$C" | field "['contract_ok']" 2>/dev/null)" = false ]; then ok "T1: the contract after the rollback: reads, never raises" "contract_ok false"
+else bad "T1: the contract after the rollback" "$C"; fi
+if "${PSQL[@]}" -d t_main -f "$SB/tests/containers.sql" 2>&1 | grep -q '"contract_ok" : true'; then ok "the container's contract after the rollbacks" "contract_ok: true"
+else bad "the container's contract after the rollbacks"; fi
+
+echo "12. everything applied again"
 if apply_t1 t_main && run t_main "$REV"; then
-  fingerprint t_main "$OUT/fp_reup.txt"
-  if cmp -s "$OUT/fp_after.txt" "$OUT/fp_reup.txt"; then ok "applied again after the rollback" "= the first apply"
-  else bad "applied again after the rollback" "$(diff "$OUT/fp_after.txt" "$OUT/fp_reup.txt" | head -3 | tr '\n' ' ')"; fi
-else bad "applied again after the rollback"; fi
-# A later package's object in schema bot stops the rollback (no CASCADE): T5's table stays, nothing is half-dropped.
-"${PSQL[@]}" -d t_main -c "create table bot.sessions (sid text primary key)" >/dev/null
-if ! "${PSQL[@]}" -d t_main -f "$DOWN" > "$OUT/down_blocked.log" 2>&1 \
-   && [ "$("${PSQL[@]}" -d t_main -c "select count(*) from pg_proc where proname = 'bot_today'")" = 1 ]; then
-  ok "rollback stops while a later package's table is in schema bot" "and rolls back whole"
-else bad "rollback with a later package's table" "$(head -3 "$OUT/down_blocked.log" | tr '\n' ' ')"; fi
+  fingerprint t_main "$OUT/fp_re_T1.txt"
+  if cmp -s "$OUT/fp_T1.txt" "$OUT/fp_re_T1.txt"; then ok "T1: applied again" "= its first apply"
+  else bad "T1: applied again" "$(diff "$OUT/fp_T1.txt" "$OUT/fp_re_T1.txt" | head -3 | tr '\n' ' ')"; fi
+else bad "T1: applied again"; fi
+for pkg in "${DONE[@]}"; do
+  if run t_main "${MIG_OF[$pkg]}"; then
+    fingerprint t_main "$OUT/fp_re_$pkg.txt"
+    if cmp -s "$OUT/fp_$pkg.txt" "$OUT/fp_re_$pkg.txt"; then ok "$pkg: applied again" "= its first apply"
+    else bad "$pkg: applied again" "$(diff "$OUT/fp_$pkg.txt" "$OUT/fp_re_$pkg.txt" | head -3 | tr '\n' ' ')"; fi
+  else bad "$pkg: applied again"; fi
+done
+contract_full "supabase/tests/telegram_bot.sql again" t_main
 
 echo
 echo "elapsed $(( $(date +%s) - T0 )) s; outputs in $OUT"
