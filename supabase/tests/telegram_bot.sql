@@ -31,7 +31,8 @@ WITH
 bot_tables(pkg, name) AS (VALUES
   ('T1', 'config'), ('T1', 'link_codes'), ('T1', 'links'), ('T1', 'updates'), ('T1', 'claim_failures'),
   ('T1', 'deliveries'), ('T1', 'days'), ('T1', 'usage')
-  -- T5: , ('T5', 'sessions')
+  -- T5 (20261010120003_telegram_bot_sessions.sql):
+  , ('T5', 'sessions')
   -- T7: , ('T7', 'groups'), ('T7', 'group_posts'), ('T7', 'group_answers')
   -- T9: , ('T9', 'files')
 ),
@@ -45,7 +46,12 @@ bot_fns(pkg, sig) AS (VALUES
   ('T1', 'bot_delivery_sending(bigint,timestamptz)'), ('T1', 'bot_delivery_retry(bigint,text,timestamptz)'),
   ('T1', 'bot_delivery_done(bigint,text,bigint,text,timestamptz)'),
   ('T1', 'bot_claim_day_close(integer,timestamptz)'), ('T1', 'bot_claim_after_date(integer,timestamptz)')
-  -- T5: , ('T5', 'bot_session_start(…)'), ('T5', 'bot_session_view(…)'), ('T5', 'bot_session_answer(…)'), …
+  -- T5 (20261010120003_telegram_bot_sessions.sql):
+  , ('T5', 'bot_session_items(bigint,uuid,uuid[])'), ('T5', 'bot_session_start(bigint,text,uuid,uuid,text,jsonb,bigint,jsonb)'),
+  ('T5', 'bot_session_view(bigint,text,integer)'), ('T5', 'bot_session_answer(bigint,text,integer,jsonb)'),
+  ('T5', 'bot_session_resolve(bigint,text,integer,text,jsonb)'), ('T5', 'bot_session_finish(bigint,text)'),
+  ('T5', 'bot_session_move(bigint,text,bigint)'), ('T5', 'bot_key_doubt(bigint,text,integer)'),
+  ('T5', 'bot_flush_pending(timestamptz)')
   -- T7: , ('T7', 'bot_group_claim(…)'), …
   -- T9: , ('T9', 'bot_file_offer(…)'), ('T9', 'bot_file_redeem(…)')
 ),
@@ -62,7 +68,18 @@ helpers(pkg, sig) AS (VALUES
   ('T1', 'answered_since(uuid,timestamptz)'), ('T1', 'link_json(bot.links,timestamptz)'), ('T1', 'exams_json(uuid)'),
   ('T1', 'site_state(uuid)'), ('T1', 'calls_json(timestamptz)'), ('T1', 'sweep(text[],timestamptz)'),
   ('T1', 'after_date_json(uuid,uuid,date)'), ('T1', 'session_message(bigint,bigint)'), ('T1', 'cleanup(timestamptz)')
-  -- T5 / T7 / T9: their helpers of schema bot
+  -- T5 (20261010120003_telegram_bot_sessions.sql):
+  , ('T5', 'tick_due_sessions(timestamptz)'), ('T5', 'session_order_ok(jsonb,integer)'), ('T5', 'session_identity(integer)'),
+  ('T5', 'session_count(jsonb,text,integer)'), ('T5', 'session_set_add(jsonb,text)'), ('T5', 'session_counts_json(jsonb)'),
+  ('T5', 'session_figure_json(jsonb)'), ('T5', 'session_live(bot.sessions,text,timestamptz,boolean)'),
+  ('T5', 'session_save(bot.sessions)'), ('T5', 'session_stamp(bot.sessions,timestamptz)'),
+  ('T5', 'session_tally(bot.sessions,jsonb,jsonb)'), ('T5', 'session_record(bot.sessions,boolean)'),
+  ('T5', 'session_close(bot.sessions,text,boolean,timestamptz)'), ('T5', 'session_logged(uuid,text,integer)'),
+  ('T5', 'session_json(bot.sessions,text,timestamptz)'), ('T5', 'session_view_json(bot.sessions)'),
+  ('T5', 'session_reply(text,bot.sessions,text,timestamptz,jsonb)'),
+  ('T5', 'session_refusal(text,bot.sessions,text,timestamptz,jsonb)'), ('T5', 'session_take(bigint,text,timestamptz,boolean)'),
+  ('T5', 'session_requeue(bot.sessions,jsonb)'), ('T5', 'session_drop(bot.sessions,integer,uuid,smallint)')
+  -- T7 / T9: their helpers of schema bot
 ),
 -- ── the catalog ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 schema_bot AS (SELECT n.oid FROM pg_catalog.pg_namespace n WHERE n.nspname = 'bot'),
@@ -231,7 +248,50 @@ checks (ord, name, ok) AS (
          pg_catalog.to_regclass('bot.sessions') IS NULL
          OR (SELECT pg_catalog.count(*) FROM session_cols
               WHERE attname IN ('user_id', 'status', 'chat_id', 'message_id')) = 4
-  -- ── T5: 30–49 ── (UNION ALL SELECT 30, '<name>', <boolean> …)
+  -- ── T5: 30–49 (20261010120003_telegram_bot_sessions.sql: the «занятие», spec §6.2, §6.3) ──
+  UNION ALL
+  SELECT 30, 'sessions_one_open_per_user',
+         EXISTS (SELECT 1 FROM idx WHERE tbl = 'sessions' AND indisunique
+                    AND def ~ ' ON bot\.sessions USING btree \(user_id\) WHERE \(status = ''open''::text\)$')
+  UNION ALL
+  SELECT 31, 'sessions_sid_and_session_uuid',
+         EXISTS (SELECT 1 FROM cons WHERE tbl = 'sessions' AND contype = 'p' AND def = 'PRIMARY KEY (sid)')
+         AND EXISTS (SELECT 1 FROM cons WHERE tbl = 'sessions' AND contype = 'c' AND def LIKE '%sid ~ ''^[0-9a-z]{8}$''%')
+         AND EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a
+                      WHERE a.attrelid = pg_catalog.to_regclass('bot.sessions') AND a.attname = 'session_uuid'
+                        AND a.attgenerated = 's' AND NOT a.attisdropped)
+         AND EXISTS (SELECT 1 FROM idx WHERE tbl = 'sessions' AND indisunique
+                        AND def ~ ' ON bot\.sessions USING btree \(session_uuid\)$')
+  UNION ALL
+  SELECT 32, 'sessions_states_and_kinds',
+         coalesce((SELECT pg_catalog.bool_and((SELECT pg_catalog.string_agg(def, ' ') FROM cons
+                                                WHERE tbl = 'sessions' AND contype = 'c' AND def LIKE '%status%')
+                                              LIKE '%''' || s || '''%')
+                     FROM pg_catalog.unnest(ARRAY['open', 'finished', 'abandoned']) s), false)
+         AND coalesce((SELECT pg_catalog.bool_and((SELECT pg_catalog.string_agg(def, ' ') FROM cons
+                                                    WHERE tbl = 'sessions' AND contype = 'c' AND def LIKE '%kind%')
+                                                  LIKE '%''' || k || '''%')
+                         FROM pg_catalog.unnest(ARRAY['plan', 'errors', 'extra']) k), false)
+  UNION ALL
+  SELECT 33, 'sessions_message_and_flush_indexes',
+         EXISTS (SELECT 1 FROM idx WHERE tbl = 'sessions'
+                    AND def ~ ' ON bot\.sessions USING btree \(chat_id, message_id\)')
+         AND EXISTS (SELECT 1 FROM idx WHERE tbl = 'sessions'
+                        AND def ~ ' ON bot\.sessions USING btree \(pending_at\) WHERE \(pending_at IS NOT NULL\)$')
+  UNION ALL
+  SELECT 34, 'sessions_follow_the_account',
+         EXISTS (SELECT 1 FROM cons WHERE tbl = 'sessions' AND contype = 'f'
+                    AND def = 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE')
+  UNION ALL
+  SELECT 35, 'session_cores_present',
+         pg_catalog.to_regprocedure('meldy_private.record_test_answers_for(uuid,jsonb,text,integer,text,uuid)') IS NOT NULL
+         AND pg_catalog.to_regprocedure('meldy_private.grade_answer(text,integer,smallint[],text[],jsonb)') IS NOT NULL
+         AND pg_catalog.to_regprocedure('meldy_private.test_key_doubt_for(uuid,uuid,jsonb,text)') IS NOT NULL
+         AND pg_catalog.to_regprocedure('meldy_private.role_in(uuid,uuid)') IS NOT NULL
+  UNION ALL
+  SELECT 36, 'tick_due_sessions_hook',
+         coalesce((SELECT p.prorettype = 'pg_catalog.bool'::pg_catalog.regtype FROM pg_catalog.pg_proc p
+                    WHERE p.oid = pg_catalog.to_regprocedure('bot.tick_due_sessions(timestamptz)')), false)
   -- ── T7: 50–69 ──
   -- ── T9: 70–89 ──
 )
