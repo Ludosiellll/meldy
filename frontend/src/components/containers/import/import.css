@@ -174,7 +174,8 @@
 .sf-page .im-spot-q { margin: 2px 0 0; font-size: 16px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .sf-page .im-spot-a { margin: 4px 0 0; font-size: 15px; line-height: 1.45; font-weight: 500; color: var(--m-green-ink); overflow-wrap: anywhere; }
 .sf-page .im-spot-wrong { margin: 12px 0 0; font-size: 15px; color: var(--sf-muted); }
-.sf-page .im-spot-wrong .sf-link { min-height: 0; font-size: 15px; }
+/* «Отмечен по-другому?» in a line: a 44 px target, the room taken from the line (as .im-line), so the card does not grow. */
+.sf-page .im-spot-wrong .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; vertical-align: baseline; }
 
 /* ── the form: where, name, date, minutes ── */
 .sf-page .im-form { display: grid; gap: 18px; margin-top: 26px; }
