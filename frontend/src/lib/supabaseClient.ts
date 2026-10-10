@@ -4,6 +4,8 @@
  * (contexts/AuthContext, lib/apiAuth, api/limits) reach it through here; pages import lib/supabase as
  * before.
  */
+import type { Session } from '@supabase/supabase-js';
+
 type Client = (typeof import('./supabase'))['supabase'];
 
 let pending: Promise<Client> | null = null;
@@ -79,6 +81,20 @@ function storedSession(): StoredSession | null {
     // Unreadable or not JSON: no session.
   }
   return null;
+}
+
+/**
+ * The whole session the client keeps here, when it is a complete one (tokens and the user's id); null otherwise.
+ * AuthContext falls back to it when the client reports no session but still keeps one: auth-js keeps the stored
+ * session only when its refresh failed for a retryable reason (no network; every other failure removes it), so a
+ * student opening «Сегодня» or an exam without network stays signed in on the pages that draw from the device (spec
+ * decision 31). The client refreshes it on its own once the network is back.
+ */
+export function keptSession(): Session | null {
+  const session = storedSession() as (StoredSession & { refresh_token?: unknown; user?: { id?: unknown } | null }) | null;
+  if (!session || typeof session.access_token !== 'string' || typeof session.refresh_token !== 'string') return null;
+  if (!session.user || typeof session.user.id !== 'string' || !session.user.id) return null;
+  return session as unknown as Session;
 }
 
 /** The access token of the session the client keeps here, read without the client; null without one. */
