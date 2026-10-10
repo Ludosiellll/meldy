@@ -258,7 +258,7 @@ stage() {
 
 # ── T10's tests (telegram_bot_voice.sql and its runner's ticket race) ─────────────────────────────────────────────────
 # LOCAL STUB of package T11's meldy_private.oral_sheet_for (20261010120007_oral_plan_inputs.sql), the same as
-# telegram_bot_voice_run.sh's: the shape of GET /api/oral/sheet for the fields T10 reads; a question's NEWEST usable
+# T10's former runner: the shape of GET /api/oral/sheet for the fields T10 reads; a question's NEWEST usable
 # rubric of the user instead of the one under the rubric key (T11 ports the key byte-exactly). P0002 for another's exam.
 cat > "$OUT/oral_sheet_stub.sql" <<'SQL'
 create or replace function meldy_private.oral_sheet_for(p_user uuid, p_exam_id uuid)
@@ -302,7 +302,7 @@ voice_tests() {
     "${PSQL[@]}" -d t_main -c "drop function meldy_private.oral_sheet_for(uuid, uuid)" >/dev/null || bad "$1: the local stub dropped"
   fi
 }
-# Two takes of one ticket at once (telegram_bot_voice_run.sh's race, two anon sessions): one ok, the other used.
+# Two takes of one ticket at once (T10's race, two anon sessions): one ok, the other used.
 voice_race() {
   local ticket a b ra rb pa
   "${PSQL[@]}" -d postgres -c "drop database if exists t_voice" -c "create database t_voice template t_main" >/dev/null 2>&1 \
@@ -496,7 +496,7 @@ fi
 # ── package T10 (20261010120006_telegram_bot_voice.sql, voice behind bot.config.flags.voice). Its behaviour test and its
 #    ticket race read the oral questions through package T11's meldy_private.oral_sheet_for. With T11's migration in
 #    this tree they run after T11's step, on the real function; without it, on the same LOCAL STUB as
-#    telegram_bot_voice_run.sh, created only while they run and dropped right after (no fingerprint sees it).
+#    T10's former runner, created only while they run and dropped right after (no fingerprint sees it).
 echo "8. T10: voice"
 VOICE_AFTER_T11=0
 if stage T10 20261010120006; then

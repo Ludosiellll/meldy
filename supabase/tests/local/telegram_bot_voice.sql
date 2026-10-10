@@ -1,5 +1,5 @@
 -- LOCAL ONLY; NEVER RUN AGAINST THE LIVE PROJECT. Behaviour of the bot's voice stage (package T10:
--- supabase/migrations/20261010120006_telegram_bot_voice.sql) on the scratch database of telegram_bot_voice_run.sh, on top of
+-- supabase/migrations/20261010120006_telegram_bot_voice.sql) on the scratch database of telegram_bot_run.sh (stage T10), on top of
 -- T1's bot core, the exam container and T11's oral sheet read (or its local stub). Spec §4.9 and the T10 brief:
 --   the switch (off by default; off answers «off» everywhere, the Space gets nothing); the gates (anon and authenticated
 --   get 42501 from bot_voice_*; the Space's entry points need a ticket); single-use tickets (hash only, 2 minutes, one

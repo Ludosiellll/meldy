@@ -449,10 +449,12 @@ checks (ord, name, ok) AS (
                                  OR pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')))
   UNION ALL
   -- The cores the bot charges and records with are the site's functions word for word, but the line that reads the user
-  -- (auth.uid() → p_user): a later change of a site function without its core shows here. Closed to clients.
+  -- (auth.uid() → p_user): a later change of a site function without its core shows here. Closed to clients. Line ends
+  -- are compared as LF: live, public.consume_ai_units was stored with CRLF (same code, same behaviour).
   SELECT 61, 'voice_cores_match_the_site',
          coalesce((SELECT pg_catalog.bool_and(c.oid IS NOT NULL AND s.oid IS NOT NULL
-                     AND pg_catalog.replace(c.prosrc, v.core_line, v.site_line) = s.prosrc
+                     AND pg_catalog.replace(pg_catalog.replace(c.prosrc, E'\r\n', E'\n'), v.core_line, v.site_line)
+                         = pg_catalog.replace(s.prosrc, E'\r\n', E'\n')
                      AND NOT pg_catalog.has_function_privilege('anon', c.oid, 'EXECUTE')
                      AND NOT pg_catalog.has_function_privilege('authenticated', c.oid, 'EXECUTE'))
                      FROM (VALUES ('meldy_private.ai_quota_status_for(uuid)', 'public.ai_quota_status()',

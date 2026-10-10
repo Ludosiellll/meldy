@@ -4,7 +4,7 @@
 -- of bot.config.flags (the switch and the owner's overrides): without the stage they mean nothing.
 -- The tables go with their rows: open questions, single-use tickets and the audio counters (their AI charges stay in
 -- public.ai_charges / ai_usage as the site's own; answers already recorded stay in the journal, as answers on the site).
--- Local check: supabase/tests/local/telegram_bot_voice_run.sh (rollback twice → the catalog equals the base).
+-- Local check: supabase/tests/local/telegram_bot_run.sh, stage T10 (rollback twice → the catalog before T10).
 begin;
 
 drop function if exists public.bridge_voice_refund(text);
