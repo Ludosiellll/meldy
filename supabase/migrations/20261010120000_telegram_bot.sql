@@ -87,8 +87,8 @@ comment on table bot.link_codes is 'One-time codes (sha256 only): L… links a T
 --     wins on both sides). Unlinking sets unlinked_at. We keep the Telegram user and chat ids, the language and the
 --     settings; no name, @username or phone (spec §6.4). remind_at 07:00–22:59 (M4); paused_until = the first day the
 --     card comes again (S3); asked_at = when «Присылать план дальше?» (K2) went out; last_seen_at = the user's last
---     action in the bot or in its settings (ends K2's silence; a reminder waits 30 minutes after it); hint_at = the last
---     «Здесь отвечают кнопками…» (S6, at most once an hour); prompt = the function's pending ForceReply (M4, S3).
+--     action in the bot or in its settings (ends K2's silence); hint_at = the last «Здесь отвечают кнопками…» (S6, at
+--     most once an hour); prompt = the function's pending ForceReply (M4, S3).
 create table if not exists bot.links (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -260,17 +260,17 @@ as $fn$
      and p_local::time < time '23:00'
 $fn$;
 
--- 2e. Active in the last 30 minutes: an answer on the site or in the bot, or an action in the bot (a reminder waits).
+-- 2e. An answer in the last 30 minutes, on the site or in the bot (spec decision 20, §6.6: the card waits). Only
+--     answers count, as the spec says: an action in the bot (/settings, a new time) does not delay the card.
 --     local_date is the device's day kept within a day of the server's, hence the bounded range of the index.
-create or replace function bot.recently_active(p_user uuid, p_seen timestamptz, p_now timestamptz, p_day date)
+create or replace function bot.recently_active(p_user uuid, p_now timestamptz, p_day date)
 returns boolean
 language sql
 stable
 cost 1000
 set search_path = ''
 as $fn$
-  select coalesce(p_seen > p_now - interval '30 minutes', false)
-      or exists (select 1 from public.test_answers a
+  select exists (select 1 from public.test_answers a
                   where a.user_id = p_user and a.local_date >= p_day - 2
                     and a.created_at > p_now - interval '30 minutes')
 $fn$;
@@ -427,7 +427,7 @@ begin
 end;
 $fn$;
 
--- 2o. The tick's mode (spec §10: the free plan has 500 000 function calls a month; a minute tick is 43 200 of them).
+-- 2n. The tick's mode (spec §10: the free plan has 500 000 function calls a month; a minute tick is 43 200 of them).
 --     every_minute while this month's calls (bot.usage, UTC) are under 300 000 (60 %) and the owner has not set
 --     flags.tick = 'when_due'; when_due otherwise: bot.tick() then posts only when bot.tick_due() says something may be
 --     due, and every 15th minute regardless (housekeeping, /status).
@@ -442,10 +442,10 @@ as $fn$
               then 'when_due' else 'every_minute' end
 $fn$;
 
--- 2p. May anything be due this minute? Cheap and conservative (true when unsure): a day card window open for a link
+-- 2o. May anything be due this minute? Cheap and conservative (true when unsure): a day card window open for a link
 --     with no card claimed today (the 30-minute rule is left to the claim), a K3 window, a night's close, a claimed
---     row waiting to be taken again; package T5's pending answers and package T7's group posts through their hooks
---     (see the two marked blocks).
+--     row the next claim would take again or give up; package T5's pending answers and package T7's group posts
+--     through their hooks (see the two marked blocks).
 create or replace function bot.tick_due(p_now timestamptz default pg_catalog.now())
 returns boolean
 language plpgsql
@@ -488,9 +488,11 @@ begin
                                  where d.kind = 'day_close' and d.chat_id = l.chat_id and d.local_day = dy.local_day)) then
     return true;
   end if;
-  -- a worker died after a claim: the row waits to be taken again
+  -- a worker died after a claim: the row waits to be taken again (after 10 minutes, 3 tries) or given up (3 hours)
   if exists (select 1 from bot.deliveries d
-              where d.status = 'claimed' and d.kind in ('reminder', 'ask', 'after_date', 'day_close')) then
+              where d.status = 'claimed' and d.kind in ('reminder', 'ask', 'after_date', 'day_close')
+                and ((d.attempts < 3 and d.claimed_at < p_now - interval '10 minutes')
+                     or d.claimed_at < p_now - interval '3 hours')) then
     return true;
   end if;
   -- ── package T5 hook: bot.tick_due_sessions(p_now timestamptz) returns boolean (a pending answer older than 30
@@ -521,7 +523,7 @@ begin
 end;
 $fn$;
 
--- 2n. Housekeeping, at most once an hour from bot_tick_beat. Bounded deletes; the tick job's own run history too
+-- 2p. Housekeeping, at most once an hour from bot_tick_beat. Bounded deletes; the tick job's own run history too
 --     (Supabase never cleans cron.job_run_details). Codes stay 30 days after they expire (the pilot counts the link
 --     funnel over 14–30 days).
 create or replace function bot.cleanup(p_now timestamptz)
@@ -980,8 +982,8 @@ end;
 $fn$;
 
 -- 4g. Who writes: not linked → {linked: false}; linked → the link (bot.link_json), the user's exams and today's day card
---     delivery. Marks the user as seen (an action in the bot ends K2's silence; a reminder waits 30 minutes after it):
---     call it only for updates the user sent, never from the tick.
+--     delivery. Marks the user as seen (an action in the bot ends K2's silence): call it only for updates the user sent,
+--     never from the tick.
 create or replace function public.bot_whoami(p_tg_user_id bigint)
 returns jsonb
 language plpgsql
@@ -1232,7 +1234,7 @@ end;
 $fn$;
 
 -- 4k. The reminders' claim (spec §6.6 step 3; the engineer's fix): a link is due when its local time is in the window
---     (bot.in_window), the plan is on, not paused (paused_until = the first day back), not blocked, nothing active in the
+--     (bot.in_window), the plan is on, not paused (paused_until = the first day back), not blocked, no answer in the
 --     last 30 minutes, and no day card claimed for its chat today — that last filter runs BEFORE the limit, so a big
 --     20:00 cohort drains over a few ticks. A row claimed but never tried is taken again after 10 minutes (at most 3
 --     tries, still in the window); a row in sending never is (bot.sweep). Order: remind_at, link id. p_now is for tests.
@@ -1252,7 +1254,7 @@ begin
   perform bot.sweep(array['reminder', 'ask'], v_now);
   return query
   with active as (
-    select l.id as link_id, l.user_id, l.chat_id, l.tz, l.remind_at, l.paused_until, l.last_seen_at,
+    select l.id as link_id, l.user_id, l.chat_id, l.tz, l.remind_at, l.paused_until,
            (v_now at time zone l.tz) as local_ts
       from bot.links l
      where l.unlinked_at is null and l.blocked_at is null and l.remind_on
@@ -1264,7 +1266,7 @@ begin
        and (a.paused_until is null or a.paused_until <= a.local_ts::date)
        and not exists (select 1 from bot.deliveries d
                         where d.chat_id = a.chat_id and d.local_day = a.local_ts::date and d.kind in ('reminder', 'ask'))
-       and not bot.recently_active(a.user_id, a.last_seen_at, v_now, a.local_ts::date)
+       and not bot.recently_active(a.user_id, v_now, a.local_ts::date)
      order by a.remind_at, a.link_id
      limit v_limit
   ),
@@ -1283,7 +1285,7 @@ begin
        and d.local_day = a.local_ts::date
        and bot.in_window(a.local_ts, a.remind_at)
        and (a.paused_until is null or a.paused_until <= a.local_ts::date)
-       and not bot.recently_active(a.user_id, a.last_seen_at, v_now, a.local_ts::date)
+       and not bot.recently_active(a.user_id, v_now, a.local_ts::date)
     returning d.id, d.chat_id, d.local_day, d.link_id
   )
   select x.id, x.chat_id, x.local_day, a.tz
@@ -1485,7 +1487,7 @@ $fn$;
 
 -- 4p. K3 «Экзамен прошёл …» (spec §4.2, §8.2 «после даты — по одному разу»): on the day after an exam's last test date
 --     (or within two more days, if the bot could not send it then), at the link's usual time, under the reminder's
---     rules (window, plan on, no pause, not blocked, nothing in the last 30 minutes); once per user and exam, ever.
+--     rules (window, plan on, no pause, not blocked, no answer in the last 30 minutes); once per user and exam, ever.
 --     exam = bot.after_date_json (title, dates, active days, answers, the figure). ref = the container id.
 create or replace function public.bot_claim_after_date(p_limit integer default 50, p_now timestamptz default null)
 returns table (delivery_id bigint, chat_id bigint, local_day date, tz text, container_id uuid, exam jsonb)
@@ -1508,7 +1510,7 @@ begin
      where l.unlinked_at is null and l.blocked_at is null and l.remind_on
        and bot.in_window(v_now at time zone l.tz, l.remind_at)
        and (l.paused_until is null or l.paused_until <= (v_now at time zone l.tz)::date)
-       and not bot.recently_active(l.user_id, l.last_seen_at, v_now, (v_now at time zone l.tz)::date)
+       and not bot.recently_active(l.user_id, v_now, (v_now at time zone l.tz)::date)
   ),
   exams as (
     select r.link_id, r.user_id, r.chat_id, r.tz, r.day, c.id as cid,
@@ -1530,7 +1532,8 @@ begin
     insert into bot.deliveries (kind, chat_id, link_id, local_day, ref, claimed_at)
     select 'after_date', d.chat_id, d.link_id, d.day, d.cid::text, v_now from due d
     on conflict do nothing
-    returning bot.deliveries.id, bot.deliveries.link_id, bot.deliveries.ref
+    returning bot.deliveries.id, bot.deliveries.chat_id, bot.deliveries.local_day, bot.deliveries.link_id,
+              bot.deliveries.ref
   ),
   stale as (
     update bot.deliveries d
@@ -1538,17 +1541,19 @@ begin
       from ready r
      where r.link_id = d.link_id and d.kind = 'after_date' and d.status = 'claimed' and d.attempts < 3
        and d.claimed_at < v_now - interval '10 minutes' and d.local_day = r.day
-    returning d.id, d.link_id, d.ref
+    returning d.id, d.chat_id, d.local_day, d.link_id, d.ref
   )
-  select dl.id, dl.chat_id, dl.local_day, l.tz, dl.ref::uuid,
-         bot.after_date_json(l.user_id, dl.ref::uuid,
+  -- the rows come from RETURNING: a data-modifying CTE's rows are not visible to a join on bot.deliveries here
+  select x.id, x.chat_id, x.local_day, l.tz, x.ref::uuid,
+         bot.after_date_json(l.user_id, x.ref::uuid,
                              coalesce((select pg_catalog.max(coalesce(s.exam_date, c.exam_date))
                                          from public.container_subjects s where s.container_id = c.id), c.exam_date))
-    from (select f.id from fresh f union all select s.id from stale s) x
-    join bot.deliveries dl on dl.id = x.id
-    join bot.links l on l.id = dl.link_id
-    left join public.containers c on c.id = dl.ref::uuid
-   order by dl.id;
+    from (select f.id, f.chat_id, f.local_day, f.link_id, f.ref from fresh f
+          union all
+          select s.id, s.chat_id, s.local_day, s.link_id, s.ref from stale s) x
+    join bot.links l on l.id = x.link_id
+    left join public.containers c on c.id = x.ref::uuid
+   order by x.id;
 end;
 $fn$;
 

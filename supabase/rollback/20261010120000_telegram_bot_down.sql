@@ -35,7 +35,7 @@ drop function if exists bot.tick(timestamptz), bot.tick_due(timestamptz), bot.ti
   bot.cleanup(timestamptz), bot.session_message(bigint, bigint),
   bot.after_date_json(uuid, uuid, date), bot.sweep(text[], timestamptz), bot.calls_json(timestamptz),
   bot.site_state(uuid), bot.exams_json(uuid), bot.answered_since(uuid, timestamptz),
-  bot.recently_active(uuid, timestamptz, timestamptz, date), bot.in_window(timestamp, time), bot.tz_ok(text),
+  bot.recently_active(uuid, timestamptz, date), bot.in_window(timestamp, time), bot.tz_ok(text),
   bot.local_day(text, timestamptz);
 -- These two take the row type of bot.links: they go before the table.
 do $do$

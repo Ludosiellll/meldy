@@ -57,7 +57,7 @@ site_fns(pkg, sig) AS (VALUES
 helpers(pkg, sig) AS (VALUES
   ('T1', 'tick(timestamptz)'), ('T1', 'tick_mode(timestamptz)'), ('T1', 'tick_due(timestamptz)'),
   ('T1', 'active_link(bigint)'), ('T1', 'local_day(text,timestamptz)'), ('T1', 'tz_ok(text)'),
-  ('T1', 'in_window(timestamp,time)'), ('T1', 'recently_active(uuid,timestamptz,timestamptz,date)'),
+  ('T1', 'in_window(timestamp,time)'), ('T1', 'recently_active(uuid,timestamptz,date)'),
   ('T1', 'answered_since(uuid,timestamptz)'), ('T1', 'link_json(bot.links,timestamptz)'), ('T1', 'exams_json(uuid)'),
   ('T1', 'site_state(uuid)'), ('T1', 'calls_json(timestamptz)'), ('T1', 'sweep(text[],timestamptz)'),
   ('T1', 'after_date_json(uuid,uuid,date)'), ('T1', 'session_message(bigint,bigint)'), ('T1', 'cleanup(timestamptz)')
