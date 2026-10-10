@@ -9,6 +9,7 @@ import { DoubtSheet, KeyFix, RoomBar } from './RoomParts';
 import SessionEnd from './SessionEnd';
 import * as copy from './copy';
 import {
+  comesBackWhen,
   dayIn,
   gradeLocal,
   hasGroup,
@@ -28,7 +29,8 @@ import './room.css';
  * A «занятие» of questions with variants (Concept 1 §3.7; spec decisions 12, 13, 14, 37, 41–43, 50):
  * - a tap is the answer; the verdict comes from the key on the device at once (the server's verdict, which wins, comes
  *   with the queue's result); a right answer moves on after a second, a tap in that second holds it;
- * - a wrong answer or «Не знаю» comes back 3–5 questions later (at most twice, «повтор, не в счёт») and tomorrow;
+ * - a wrong answer or «Не знаю» comes back 3–5 questions later (at most twice, «повтор, не в счёт») and on the next
+ *   study day (tomorrow, or after the days off);
  * - «Нажали не туда?» under a wrong answer until «Дальше»: the answer then goes to the server with `misclick` — not a
  *   mistake, the series kept, no count today;
  * - a member's «Сомневаюсь в ключе» sets the question aside; the author (a solo student is the author of their own
@@ -511,16 +513,19 @@ export default function StudyRun(props: StudyRunProps) {
 
   let verdict: string | null = null;
   if (pending && answered) {
+    // A mistake comes back on the next study day (input.studyWeekdays), as the end of the session says: «завтра», or
+    // «в понедельник» when tomorrow is a day off.
+    const back = comesBackWhen(today, input.studyWeekdays);
     if (fixedNow.current) verdict = copy.VERDICT_KEY_FIXED;
-    else if (pending.misclick) verdict = copy.MISCLICK_LINE;
+    else if (pending.misclick) verdict = copy.misclickLine(back);
     else if (answered.correct) verdict = item.kind === 'multiple' ? copy.verdictRightAll(item.correct.length) : copy.VERDICT_RIGHT;
     else if (item.kind === 'short') {
       const form = item.answers[0] ?? '';
-      verdict = pending.dontKnow ? copy.shortDontKnow(form, pending.again) : copy.verdictShortWrong(form, pending.again);
+      verdict = pending.dontKnow ? copy.shortDontKnow(form, pending.again, back) : copy.verdictShortWrong(form, pending.again, back);
     } else {
       // The key in the file's own words: the screen's letters are shuffled, the key panel and «Ключи» use the file's.
       const names = keyNames(item);
-      verdict = pending.dontKnow ? copy.verdictDontKnow(names, pending.again) : copy.verdictWrong(names, pending.again);
+      verdict = pending.dontKnow ? copy.verdictDontKnow(names, pending.again, back) : copy.verdictWrong(names, pending.again, back);
     }
   }
 

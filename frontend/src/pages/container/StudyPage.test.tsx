@@ -388,17 +388,54 @@ describe('the end of a session (decision 49)', () => {
     expect(screen.getByTestId('where').textContent).toBe(`/exams/c/${CONTAINER}`);
   });
 
-  it('what comes back after today comes back on a study day: with Sunday off, «вернётся 12 октября»', async () => {
+  it('what comes back after today comes back on a study day: with Sunday off, «вернётся в понедельник»', async () => {
     serverSays(() => 'miss');
     renderStudy(dataWith(['q-iso'], { input: { studyWeekdays: 63 } })); // Пн–Сб: today is Saturday 10 October
     fireEvent.click(option('READ COMMITTED'));
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и в понедельник.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     fireEvent.click(option('SERIALIZABLE'));
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
     await waitFor(() => expect(document.querySelector('.ct-end-p')).not.toBeNull());
-    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибка вернётся 12 октября.');
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибка вернётся в понедельник.');
+  });
+
+  it('on Friday before a day off the session and its end name the next study day, not «завтра»', async () => {
+    serverSays((input) => (input.item_id === 'q-plain' ? 'start' : 'miss'));
+    // Friday 9 October: the plan's day and the input's clock; Saturday off (every day but Saturday).
+    const friday = (ids: string[], studyWeekdays: number) => containerData({
+      plan: dayPlan({ day: '2026-10-09', sessions: [{ subjectId: SUBJECT_DB, kind: 'answer', ids, estSec: ids.length * 30 }] }),
+      input: { now: Date.parse('2026-10-09T18:00:00+03:00'), studyWeekdays },
+    });
+    const view = renderStudy(friday(['q-iso', 'q-short', 'q-plain'], 127 - 32));
+    // A wrong tap, then «Нажали не туда?»: no mistake, the question still comes back.
+    fireEvent.click(option('READ COMMITTED'));
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и в воскресенье.');
+    fireEvent.click(screen.getByRole('button', { name: 'Нажали не туда?' }));
+    expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся в воскресенье.');
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    // «Не знаю» on a short answer: the one mistake of the session.
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    expect(verdict()).toBe('В файле — ROLLBACK. Вернётся через пару вопросов и в воскресенье.');
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    fireEvent.click(option('Третья'));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    // Its retry, right: the session ends.
+    fireEvent.change(screen.getByLabelText('Ваш ответ'), { target: { value: 'rollback' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+    await waitFor(() => expect(document.querySelector('.ct-end-p')).not.toBeNull());
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибка вернётся в воскресенье.');
+    // Saturday and Sunday off: Monday.
+    view.unmount();
+    window.localStorage.clear();
+    renderStudy(friday(['q-iso'], 31));
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    expect(verdict()).toBe('В файле — SERIALIZABLE. Вернётся через пару вопросов и в понедельник.');
   });
 
   it('the plan read again after the session does not change the screen being read (M1)', async () => {

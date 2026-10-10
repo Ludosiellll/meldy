@@ -24,7 +24,7 @@ import { extraNew, onStudyDay, promiseTime } from '../../lib/containers/plan';
 import { EVERY_DAY, studyDayFrom, studyMask } from '../../lib/containers/time';
 import { countableFrom, emptyState, isOpenError, isSeen } from '../../lib/containers/rule';
 import { figureChange } from '../../lib/containers/session';
-import { dayText, shownMinutes } from '../../lib/containers/words';
+import { dayText, nextStudyDayWord, shownMinutes } from '../../lib/containers/words';
 import * as copy from './copy';
 
 // ─────────────────────────────────────────────── days
@@ -481,25 +481,33 @@ export function tomorrowTime(ms: number | null, today: LocalDay, tz: string): st
 }
 
 /**
- * When what was answered today comes back, as the plan brings it back: «завтра», or the next study day («12 октября»)
- * when tomorrow is not one of the student's days of the week (`mask`, settings.study_weekdays; every day: «завтра»).
+ * When what was answered today comes back, as the plan brings it back: «завтра», or the next study day when tomorrow
+ * is not one of the student's days of the week (`mask`, settings.study_weekdays): «в понедельник» within the week,
+ * else its date (words.ts nextStudyDayWord). Every day, or a day the words cannot read: «завтра».
  */
 export function comesBackWhen(today: LocalDay, mask?: number): string {
-  const tomorrow = addDay(today, 1);
-  const next = studyDayFrom(tomorrow, studyMask(mask));
-  return next === tomorrow ? 'завтра' : dayText(next);
+  try {
+    return nextStudyDayWord(today, studyMask(mask));
+  } catch {
+    return 'завтра';
+  }
 }
 
 /**
  * When the first questions can count, as the plan's line on the exam page says it: «завтра после 17:05», or from the
- * start of the next study day («12 октября») when tomorrow is a day off. Every day: exactly `tomorrowTime`.
+ * start of the next study day («12 октября», by date as the plan's `first_count` line) when tomorrow is a day off.
+ * Every day: exactly `tomorrowTime`.
  */
 export function firstCountWhen(ms: number | null, today: LocalDay, tz: string, mask?: number): { when: string; time: string | null } {
   const m = studyMask(mask);
+  const tomorrow = addDay(today, 1);
   if (m === EVERY_DAY) return { when: 'завтра', time: tomorrowTime(ms, today, tz) };
-  if (ms === null) return { when: comesBackWhen(today, m), time: null };
+  if (ms === null) {
+    const next = studyDayFrom(tomorrow, m);
+    return { when: next === tomorrow ? 'завтра' : dayText(next), time: null };
+  }
   const at = promiseTime(onStudyDay(ms, m, tz), tz);
-  return at.day === addDay(today, 1) ? { when: 'завтра', time: at.time } : { when: dayText(at.day), time: at.time };
+  return at.day === tomorrow ? { when: 'завтра', time: at.time } : { when: dayText(at.day), time: at.time };
 }
 
 // ─────────────────────────────────────────────── roles and names

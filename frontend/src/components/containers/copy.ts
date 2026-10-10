@@ -223,8 +223,11 @@ export const TAG_FILE = 'В файле';
 export const TAG_RIGHT = 'Верно';
 export const VERDICT_RIGHT = 'Верно.';
 export const verdictRightAll = (n: number) => glue(`Верно: ${n === 2 ? 'оба' : `все ${n}`}.`);
-/** The return, after a wrong answer or «Не знаю»: in this session and tomorrow, or tomorrow only. */
-export const comesBack = (again: boolean) => (again ? 'Вернётся через пару вопросов и завтра.' : 'Вернётся завтра.');
+/**
+ * The return, after a wrong answer or «Не знаю»: in this session and on `when`, or on `when` only. `when` is «завтра»,
+ * or the next study day when tomorrow is a day off («в понедельник», model.ts comesBackWhen).
+ */
+export const comesBack = (again: boolean, when = 'завтра') => (again ? `Вернётся через пару вопросов и ${when}.` : `Вернётся ${when}.`);
 /** Several keys are named while their words fit this; past it the verdict points to the options marked above. */
 const KEY_NAMES_MAX = 90;
 /** A name that ends a sentence itself («…», «?», «;») takes no period after it. */
@@ -239,19 +242,20 @@ function inFile(names: string[]): string {
   if (list.length > KEY_NAMES_MAX) return `В файле верны ${names.length} ${pl(names.length, 'вариант', 'варианта', 'вариантов')} — они отмечены выше.`;
   return sentence(`В файле верны: ${list}`);
 }
-export function verdictWrong(keyNames: string[], again: boolean): string {
-  return glue(`Неверно. ${inFile(keyNames)} ${comesBack(again)}`);
+export function verdictWrong(keyNames: string[], again: boolean, when?: string): string {
+  return glue(`Неверно. ${inFile(keyNames)} ${comesBack(again, when)}`);
 }
-export function verdictDontKnow(keyNames: string[], again: boolean): string {
-  return glue(`${inFile(keyNames)} ${comesBack(again)}`);
+export function verdictDontKnow(keyNames: string[], again: boolean, when?: string): string {
+  return glue(`${inFile(keyNames)} ${comesBack(again, when)}`);
 }
-export function verdictShortWrong(answer: string, again: boolean): string {
-  return glue(`Неверно. ${inFile([answer])} ${comesBack(again)}`);
+export function verdictShortWrong(answer: string, again: boolean, when?: string): string {
+  return glue(`Неверно. ${inFile([answer])} ${comesBack(again, when)}`);
 }
-export const shortDontKnow = (answer: string, again: boolean) => glue(`${inFile([answer])} ${comesBack(again)}`);
+export const shortDontKnow = (answer: string, again: boolean, when?: string) => glue(`${inFile([answer])} ${comesBack(again, when)}`);
 /** After the author changed the key in place (decision 14): the panel says what changed; this answer is not sent. */
 export const VERDICT_KEY_FIXED = 'Этот ответ в счёт не идёт.';
-export const MISCLICK_LINE = 'Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся завтра.';
+/** «Нажали не туда?»: no mistake, but the answer was seen, so the question comes back on `when` (as comesBack). */
+export const misclickLine = (when = 'завтра') => `Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся ${glue(when)}.`;
 function listLetters(names: string[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}` : names.join('');
 }
@@ -316,8 +320,8 @@ export const nowFigure = (n: number, total: number) => glue(`Теперь ${n} �
 export const nowFigureParts = (n: number, total: number): [string, string, string] => ['Теперь ', glue(`${n} из ${total}`), glue(` — ${TWO_DAYS}`)];
 export const firstRight = (n: number, of: number) => glue(`Верно с первого раза — ${n} из ${of}.`);
 /**
- * `when` on the lines below: «завтра», or the next study day («12 октября», model.ts comesBackWhen) when tomorrow is
- * not one of the student's days of the week — the plan brings nothing back on a day off.
+ * `when` on the lines below: «завтра», or the next study day («в понедельник», model.ts comesBackWhen) when tomorrow
+ * is not one of the student's days of the week — the plan brings nothing back on a day off.
  */
 export const errorsBack = (n: number, when = 'завтра') => glue(`${n} ${pl(n, 'ошибка вернётся', 'ошибки вернутся', 'ошибок вернутся')} ${when}.`);
 export function droppedLine(n: number): string {
@@ -376,10 +380,11 @@ export const mockResultHead = (dayText: string) => glue(`${MOCK_TITLE} · ${dayT
 export const mockScore = (correct: number, total: number) => glue(`${correct} из ${total}`);
 export const mockTime = (minutes: number, limit: number | null) =>
   glue(limit ? `Время: ${minNom(Math.max(1, minutes))} из ${limit}.` : `Время: ${minNom(Math.max(1, minutes))}.`);
-export function mockErrors(errors: number, unanswered: number): string {
+/** The errors of a try; they come back on `when`, as after a «занятие» (errorsBack). */
+export function mockErrors(errors: number, unanswered: number, when = 'завтра'): string {
   if (errors === 0) return 'Ошибок нет.';
   const of = unanswered > 0 ? `, из них без ответа ${unanswered}` : '';
-  return glue(errors === 1 ? `Одна ошибка${of}: она вернётся завтра.` : `Ошибки — ${errors}${of}: они вернутся завтра.`);
+  return glue(errors === 1 ? `Одна ошибка${of}: она вернётся ${when}.` : `Ошибки — ${errors}${of}: они вернутся ${when}.`);
 }
 export const MOCK_REVIEW = 'Разобрать ошибки';
 export const MOCK_OFFLINE = 'Нет сети. Итог посчитан на этом устройстве, ответы уйдут, когда сеть появится.';

@@ -144,6 +144,21 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     expect(mocks.track).toHaveBeenCalledWith('container.mock_finished', { items: 3, correct: 1 });
   });
 
+  it('the errors come back on the next study day: a try on Friday with the weekend off — «в понедельник»', async () => {
+    // Friday 9 October, 18:00 in Minsk: the day of the try (only the date is fixed; the timers run).
+    vi.useFakeTimers({ now: Date.parse('2026-10-09T18:00:00+03:00'), toFake: ['Date'] });
+    mocks.submitMock.mockResolvedValue({ run_id: 'r', items: 3, correct: 1, unanswered: 2, duplicate: false });
+    renderMock(`?s=${SUBJECT_DB}&n=3&t=40`, containerData({ items: three(), input: { studyWeekdays: 31 } }));
+    fireEvent.click(options()[0]);
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Завершить' }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Как на экзамене' })).getByRole('button', { name: 'Завершить' }));
+    });
+    await waitFor(() => expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3'));
+    expect(page()).toContain('Как на экзамене · 9 октября');
+    expect(page()).toContain('Ошибки — 2, из них без ответа 2: они вернутся в понедельник.');
+  });
+
   it('without network the result is counted on the device and the answers wait in the queue', async () => {
     mocks.submitMock.mockResolvedValue(null);
     renderMock(`?s=${SUBJECT_DB}&n=3&t=40`);

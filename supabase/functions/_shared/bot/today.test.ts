@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dayView, planSentence } from './card.ts';
 import { decode } from './codec.ts';
-import { answeredToday, clsOf, errorsSubject, examOf, firstCountText, kindOfMode, modeOfKind, pickBlock, restOfDay } from './today.ts';
+import {
+  answeredToday, clsOf, comesBackText, errorsSubject, examOf, firstCountText, kindOfMode, modeOfKind, pickBlock, restOfDay,
+} from './today.ts';
 import { buildSession } from '../plan/session.ts';
 import { emptyState } from '../plan/rule.ts';
 import { AUTUMN, CID, CID2, NOW, SUBJECT_IDS, SUBJECTS, TITLE2, todayOf } from './fixtures/scenario.ts';
@@ -122,6 +124,17 @@ test('while the figure is 0, the plan\'s own «Первые войдут в сч
   const zero = examOf(todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', started: 60, errors: 5 }]), CID)!;
   assert.match((firstCountText(zero) ?? '').replace(/\u00a0/g, ' '), /^Первые войдут в счёт /);
   assert.equal(firstCountText(examOf(todayOf([AUTUMN]), CID)), null, 'the figure is not 0');
+});
+
+test('what the record says comes back: «завтра», or the exam\'s next study day when tomorrow is a day off', () => {
+  // Friday 16 October: every day «завтра»; Saturday off — Sunday; the weekend off — Monday; Fridays only — a week ahead.
+  const on = (weekdays: number) => comesBackText(examOf(todayOf([{ ...AUTUMN, weekdays }]), CID));
+  assert.equal(comesBackText(examOf(todayOf([AUTUMN]), CID)), 'завтра');
+  assert.equal(on(127), 'завтра');
+  assert.equal(on(127 - 32), 'в воскресенье');
+  assert.equal(on(31), 'в понедельник');
+  assert.equal(on(16).replace(/\u00a0/g, ' '), '23 октября');
+  assert.equal(comesBackText(null), 'завтра', 'without the exam');
 });
 
 test('answeredToday and clsOf: the site\'s model.ts rules', () => {

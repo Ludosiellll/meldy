@@ -83,6 +83,19 @@ test('I2: «Закончить» — the mistakes come back tomorrow, «Прод
   assert.deepEqual(noResume.keyboard!.map((r) => r.map((b) => b.text)), [['Готово']]);
 });
 
+test('before a day off the record names the next study day (`back`), through the linter; every day it is the record as it was', () => {
+  const input: SummaryInput = { ...I1, counts: counts({ ...I1.counts, tooEarly: 2 }), back: 'в понедельник' };
+  const out = summaryOut(input);
+  assert.deepEqual(lintMessage({ text: out.text, keyboard: out.keyboard, chat: 'private', user: [input.subject] }), []);
+  const text = words(out.text);
+  assert.match(text, /\nОшибки повторили — в понедельник они вернутся\.\n/);
+  assert.match(text, /\n2 вопроса — снова верно, но меньше чем через 20 часов: войдут в счёт, если ответите в понедельник\.\n/);
+  assert.ok(out.text.includes('в\u00a0понедельник'), 'the preposition keeps its word');
+  const stopped = summaryOut({ ...input, end: 'stopped', counts: counts({ questions: 7, right: 5, wrong: 2 }), back: 'во вторник' });
+  assert.match(words(stopped.text), /\nОшибки вернутся во вторник\.\n/);
+  assert.deepEqual(summaryOut({ ...I1, back: 'завтра' }), summaryOut(I1));
+});
+
 test('the day done: [[Готово]] and «Ещё 20 новых» (go|<cid>|x); nothing next: [[Готово]] alone', () => {
   const done = summaryOut({ ...I1, rest: rest({ line: 'На сегодня всё.', moreNew: { label: 'Ещё 20 новых', data: go('x') } }) });
   assert.deepEqual(done.keyboard!.map((r) => r.map((b) => [b.text, b.style ?? ''])), [[['Готово', 'primary']], [['Ещё 20 новых', '']]]);
@@ -108,6 +121,13 @@ test('the lines and their plurals', () => {
   assert.equal(droppedLine(2).replace(/\u00a0/g, ' '), '2 вопроса выпали из счёта: в них сегодня ошибка.');
   assert.equal(tooEarlyLine(3, '19:00').replace(/\u00a0/g, ' '), '3 вопроса — снова верно, но меньше чем через 20 часов: войдут в счёт, если ответите после 19:00.');
   assert.equal(tooEarlyLine(1, null).replace(/\u00a0/g, ' '), '1 вопрос — снова верно, но меньше чем через 20 часов: войдёт в счёт, если ответите завтра.');
+  // Before a day off (the record's `back`): the next study day; «завтра» is the same line as above.
+  assert.equal(errorsLine(counts({ wrong: 1, retries: 1 }), 'done', 'в воскресенье'), 'Ошибки повторили — в воскресенье они вернутся.');
+  assert.equal(errorsLine(counts({ dontKnow: 2 }), 'stopped', 'в понедельник'), 'Ошибки вернутся в понедельник.');
+  assert.equal(errorsLine(counts({ wrong: 1 }), 'stopped', '16 октября'), 'Ошибки вернутся 16 октября.');
+  assert.equal(errorsLine(counts({ wrong: 1, retries: 1 }), 'done', 'завтра'), errorsLine(counts({ wrong: 1, retries: 1 }), 'done'));
+  assert.equal(tooEarlyLine(1, null, 'в понедельник').replace(/\u00a0/g, ' '), '1 вопрос — снова верно, но меньше чем через 20 часов: войдёт в счёт, если ответите в понедельник.');
+  assert.equal(tooEarlyLine(3, '19:00', 'в понедельник'), tooEarlyLine(3, '19:00'), 'later today the time wins');
   assert.equal(skippedLine(1).replace(/\u00a0/g, ' '), '1 вопрос — только на сайте: он не помещается в сообщение Telegram.');
   assert.equal(skippedLine(3).replace(/\u00a0/g, ' '), '3 вопроса — только на сайте: они не помещаются в сообщение Telegram.');
 });

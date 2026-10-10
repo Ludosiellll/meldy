@@ -102,12 +102,13 @@ export default function SettingsPage() {
         weekdays !== cleanDays(summary.settings.study_weekdays)),
   );
 
-  // ── the minutes and the plan's line under them, for the dates as the form has them now ──
+  // ── the minutes and the plan's line under them, for the dates and the days of the week as the form has them now ──
   const anyDate = perSubject ? subjects.some((subject) => subjectDates[subject.id] || summary?.exam_date) : Boolean(date);
   const liveInput = useMemo((): PlanInput | null => {
     if (!planInput || !summary) return null;
     return {
       ...planInput,
+      studyWeekdays: weekdays,
       subjects: planInput.subjects.map((entry) => {
         const subject = summary.subjects.find((candidate) => candidate.id === entry.id);
         // An oral-only subject keeps the date of its oral page; the rest take their own date or the exam's.
@@ -116,7 +117,7 @@ export default function SettingsPage() {
         return { ...entry, date: own ?? (date || null) };
       }),
     };
-  }, [planInput, summary, perSubject, subjectDates, date]);
+  }, [planInput, summary, perSubject, subjectDates, date, weekdays]);
   const lines = useMemo(() => minutesLines(liveInput, minutes), [liveInput, minutes]);
   const [moreOpen, setMoreOpen] = useState(false);
 

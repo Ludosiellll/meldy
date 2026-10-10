@@ -39,7 +39,7 @@ import {
   shortRightOut, type QuestionView, type Shown,
 } from './render.ts';
 import { summaryOut, type RestOfDay, type SessionCounts } from './summary.ts';
-import { examOf, firstCountText, pickBlock, restOfDay, type Block, type SessionKind } from './today.ts';
+import { comesBackText, examOf, firstCountText, pickBlock, restOfDay, type Block, type SessionKind } from './today.ts';
 
 // ─────────────────────────────────────────── T5's functions: shapes ───────────────────────────────────────────
 
@@ -529,6 +529,7 @@ export function createSession(options: SessionOptions = {}): SessionPort {
       figure,
       firstCount: sameDay && figure !== null && figure.twoDays === 0 ? firstCountText(exam) : null,
       tooEarlyAt: sameDay && exam ? tooEarlyClock(row, exam.input.tz, now) : null,
+      back: comesBackText(sameDay ? exam : null),
       rest,
       resume: end === 'stopped' && row.status === 'open' && row.position < row.queue.length ? resumeCounter(row) : null,
     });

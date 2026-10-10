@@ -225,16 +225,23 @@ describe('the end of a session', () => {
     expect(comesBackWhen('2026-10-10')).toBe('завтра');
     expect(comesBackWhen('2026-10-10', 127)).toBe('завтра');
     expect(comesBackWhen('2026-10-10', 64)).toBe('завтра');
-    // Пн–Пт on Friday or Saturday: Monday 12 October
-    expect(plain(comesBackWhen('2026-10-09', 31))).toBe('12 октября');
-    expect(plain(comesBackWhen('2026-10-10', 31))).toBe('12 октября');
+    // Пн–Пт on Friday or Saturday: Monday 12 October, by name within the week; Saturday off on Friday: Sunday
+    expect(plain(comesBackWhen('2026-10-09', 31))).toBe('в понедельник');
+    expect(plain(comesBackWhen('2026-10-10', 31))).toBe('в понедельник');
+    expect(plain(comesBackWhen('2026-10-09', 127 - 32))).toBe('в воскресенье');
+    // Fridays only, on Friday: a week ahead, by date; a day the words cannot read: «завтра»
+    expect(plain(comesBackWhen('2026-10-09', 16))).toBe('16 октября');
+    expect(comesBackWhen('', 31)).toBe('завтра');
     const sunday = Date.parse('2026-10-11T14:00:00Z'); // 17:00 on Sunday in Minsk
     // every day: exactly tomorrowTime
     expect(firstCountWhen(sunday, '2026-10-10', 'Europe/Minsk')).toEqual({ when: 'завтра', time: '17:00' });
     expect(firstCountWhen(null, '2026-10-10', 'Europe/Minsk', 127)).toEqual({ when: 'завтра', time: null });
-    // Sunday off: from the start of Monday, with no time (the exam page's «Первые войдут в счёт 12 октября»)
+    // Sunday off: from the start of Monday, with no time and by date, as the exam page's «Первые войдут в счёт
+    // 12 октября» (when an answer can count, not when the plan brings it: not «в понедельник»)
     const off = firstCountWhen(sunday, '2026-10-10', 'Europe/Minsk', 31);
     expect({ ...off, when: plain(off.when) }).toEqual({ when: '12 октября', time: null });
+    const unknown = firstCountWhen(null, '2026-10-10', 'Europe/Minsk', 31);
+    expect({ ...unknown, when: plain(unknown.when) }).toEqual({ when: '12 октября', time: null });
     expect(firstCountWhen(sunday, '2026-10-10', 'Europe/Minsk', 64 + 31)).toEqual({ when: 'завтра', time: '17:00' });
   });
 
