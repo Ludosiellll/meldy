@@ -246,14 +246,17 @@ describe('not linked', () => {
     expect(calls('telegram_link_start')).toHaveLength(1);
   });
 
-  it('says so when the state cannot be read, and reads it again on «Повторить»', async () => {
+  it('says so when the state cannot be read, and reads it again on «Повторить», the row staying in place', async () => {
     server([{ error: { code: 'XX000', message: 'boom' }, status: 500 }, NOT_LINKED]);
-    show();
+    const { container } = show();
     await tick();
     expect(screen.getByText(TELEGRAM_COPY.readFailed)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    press(screen.getByRole('button', { name: 'Повторить' }));
+    // While it reads again the row stays, busy.
+    expect(screen.getByRole('button', { name: 'Повторить' })).toHaveAttribute('aria-busy', 'true');
+    expect(container.querySelector('#telegram')).not.toBeNull();
     await tick();
-    expect(screen.getByRole('button', { name: 'Подключить Telegram' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Подключить Telegram' })).toHaveFocus();
   });
 });
 
@@ -623,6 +626,13 @@ describe('the words', () => {
     expect(leadingExam([{ title: 'Без даты', exam_date: null }, { title: 'Позже', exam_date: '2026-12-01' }], today)).toEqual({ title: 'Позже', date: '2026-12-01' });
     expect(leadingExam([{ title: 'Без даты', exam_date: null }, { title: 'Прошла', exam_date: '2026-10-01' }], today)).toEqual({ title: 'Без даты', date: null });
     expect(leadingExam([{ title: 'Сегодня', exam_date: '2026-10-16' }, { title: 'Завтра', exam_date: '2026-10-17' }], today)).toEqual({ title: 'Сегодня', date: '2026-10-16' });
+    // Subjects with dates of their own: the exam's own date does not count («Сегодня» counts the same way).
+    expect(
+      leadingExam([{ title: 'Осенняя сессия', exam_date: '2026-11-01', subjects: [{ exam_date: '2026-11-03' }, { exam_date: '2026-11-05' }] }], today),
+    ).toEqual({ title: 'Осенняя сессия', date: '2026-11-03' });
+    expect(leadingExam([{ title: 'Осенняя сессия', exam_date: '2026-11-01', subjects: [{ exam_date: null }] }], today)).toEqual({
+      title: 'Осенняя сессия', date: '2026-11-01',
+    });
   });
 
   it('keeps to the copy rules: no «!», emoji, caps or the words the spec forbids', () => {

@@ -108,7 +108,9 @@ function sameClock(a: string, b: string, now: number): boolean {
 
 /**
  * The exam the bot plans for, from the exams list when the server's state does not name it: the nearest date still
- * ahead, else an exam without a date; an exam whose dates have all passed is over for the bot (spec K3).
+ * ahead, else an exam without a date; an exam whose dates have all passed is over for the bot (spec K3). An exam's
+ * dates are its subjects' (each the subject's own, else the exam's), the exam's own only when no subject has one — as
+ * «Сегодня» counts them (pages/containerLayer.tsx, containerDays).
  */
 export function leadingExam(
   containers: ReadonlyArray<{ title: string; exam_date: string | null; subjects?: ReadonlyArray<{ exam_date: string | null }> }>,
@@ -117,9 +119,8 @@ export function leadingExam(
   let best: TelegramExam | null = null;
   let bestKey = '';
   for (const container of containers) {
-    const dates = [...(container.subjects ?? []).map((subject) => subject.exam_date), container.exam_date].filter(
-      (date): date is string => isLocalDay(date),
-    );
+    const subjectDates = (container.subjects ?? []).map((subject) => subject.exam_date).filter((date): date is string => isLocalDay(date));
+    const dates = subjectDates.length > 0 ? subjectDates : [container.exam_date].filter((date): date is string => isLocalDay(date));
     const ahead = dates.filter((date) => date >= today).sort();
     let key: string;
     let candidate: TelegramExam;
@@ -465,9 +466,10 @@ function useFocusMoves(
     before.current = phase.kind;
     if (was === phase.kind) return;
     if (!inside.current) return;
+    // The element that had the focus is gone or replaced: its successor gets it.
     if (phase.kind === 'waiting') targets.open.current?.focus();
-    else if (phase.kind === 'linked' && was === 'waiting') targets.title.current?.focus();
-    else if (phase.kind === 'idle' && was !== 'loading' && was !== 'failed') targets.connect.current?.focus();
+    else if (phase.kind === 'linked') targets.title.current?.focus();
+    else if (phase.kind === 'idle') targets.connect.current?.focus();
   }, [phase.kind, targets.open, targets.title, targets.connect]);
 }
 
