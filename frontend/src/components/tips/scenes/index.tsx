@@ -257,18 +257,11 @@ function BotPhoto({ className }: { className: string }) {
 }
 
 /** Material's icons as Telegram for Android draws them in the chat (24 dp). */
-function Icon({ name }: { name: 'back' | 'more' | 'menu' | 'smile' | 'clip' | 'mic' }) {
+function Icon({ name }: { name: 'back' | 'menu' | 'smile' | 'clip' | 'mic' }) {
   const line = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
   return (
     <svg className={`ts-tg-i ts-tg-i--${name}`} viewBox="0 0 24 24" aria-hidden="true">
       {name === 'back' ? <path d="M19.5 12H5M11 5.8 4.8 12l6.2 6.2" {...line} strokeWidth={2} /> : null}
-      {name === 'more' ? (
-        <g fill="currentColor">
-          <circle cx="12" cy="5.6" r="1.9" />
-          <circle cx="12" cy="12" r="1.9" />
-          <circle cx="12" cy="18.4" r="1.9" />
-        </g>
-      ) : null}
       {name === 'menu' ? <path d="M5 7h14M5 12h14M5 17h14" {...line} strokeWidth={2} /> : null}
       {name === 'smile' ? (
         <g>
@@ -542,7 +535,7 @@ function Telegram() {
               <span className="ts-tg-name">{TG_UI.name}</span>
               <span className="ts-tg-sub">{TG_UI.subtitle}</span>
             </span>
-            <Icon name="more" />
+            {/* No «⋮» on the right: the tip's own play/pause button stands in that corner (tips.css, data-play-at). */}
           </div>
           <div data-a="alert" className="ts-tg-alert" style={{ opacity: 0 }}>
             <span className="ts-tg-alert-name">{TG_UI.name}</span>

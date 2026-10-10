@@ -204,7 +204,6 @@
 .ts-tg-who { display: grid; margin-left: 12px; }
 .ts-tg-name { font-size: 17.5px; font-weight: 500; line-height: 21px; }
 .ts-tg-sub { font-size: 13.5px; line-height: 17px; color: var(--tg-head-sub); }
-.ts-tg-head .ts-tg-i--more { margin-left: auto; }
 
 /* The chat: what fits above the input bar, the newest at the bottom; it scrolls under the header. */
 .ts-tg-chat { position: absolute; left: 0; right: 0; top: 0; height: 348px; overflow: hidden; }
