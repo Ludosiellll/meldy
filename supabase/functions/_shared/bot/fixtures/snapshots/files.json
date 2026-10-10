@@ -1,0 +1,64 @@
+{
+ "f1": {
+  "text": "<b>Банк_БД_2026.docx</b> · 1,2 МБ\nОткройте его в загрузке Meldy: там видно, как отмечены ответы, и можно проверить вопросы.",
+  "keyboard": [
+   [
+    {
+     "text": "Открыть в Meldy",
+     "url": "https://ludosiel-studyforge.hf.space/exams/import?tg=F0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+     "style": "primary"
+    }
+   ]
+  ]
+ },
+ "f1_no_size": {
+  "text": "<b>Сети.txt</b>\nОткройте его в загрузке Meldy: там видно, как отмечены ответы, и можно проверить вопросы.",
+  "keyboard": [
+   [
+    {
+     "text": "Открыть в Meldy",
+     "url": "https://ludosiel-studyforge.hf.space/exams/import?tg=F0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+     "style": "primary"
+    }
+   ]
+  ]
+ },
+ "not_linked": {
+  "text": "Чтобы открыть файл в Meldy, сначала подключите Telegram в профиле. Потом перешлите файл ещё раз.",
+  "keyboard": [
+   [
+    {
+     "text": "Открыть профиль Meldy",
+     "url": "https://ludosiel-studyforge.hf.space/profile#telegram"
+    }
+   ]
+  ]
+ },
+ "too_big": {
+  "text": "Файл больше 20 МБ — бот не может его скачать. Загрузите его на сайте.",
+  "keyboard": [
+   [
+    {
+     "text": "Загрузить на сайте",
+     "url": "https://ludosiel-studyforge.hf.space/exams/import"
+    }
+   ]
+  ]
+ },
+ "not_a_document": {
+  "text": "Сюда можно переслать файл с вопросами — Word, Excel или TXT. План на сегодня — /today.",
+  "keyboard": null
+ },
+ "f1_long_name": {
+  "text": "<b>Банк_БД_2026_осенняя_сессия_все_предметы_и_темы_с_ответами….docx</b> · 20 МБ\nОткройте его в загрузке Meldy: там видно, как отмечены ответы, и можно проверить вопросы.",
+  "keyboard": [
+   [
+    {
+     "text": "Открыть в Meldy",
+     "url": "https://ludosiel-studyforge.hf.space/exams/import?tg=F0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+     "style": "primary"
+    }
+   ]
+  ]
+ }
+}

@@ -39,6 +39,7 @@ import {
 } from '../../components/containers/import/importModel';
 import { minutesLines } from '../../components/containers/import/minutesLines';
 import { readBank, ReadError } from '../../components/containers/import/readFiles';
+import { useTelegramFile } from '../../lib/telegram/fileTicket';
 import {
   freshSaveState,
   saveImport,
@@ -275,6 +276,8 @@ export default function ImportPage() {
     },
     [read],
   );
+  // A file forwarded to the Telegram bot (?tg=<ticket>, bot spec §4.7 F1) comes in through the same door.
+  const telegramFile = useTelegramFile(addFiles);
 
   const addText = useCallback(
     (text: string) => {
@@ -634,6 +637,7 @@ export default function ImportPage() {
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
         {header}
+        {telegramFile.line ? <p className="im-line" role={telegramFile.alert ? 'alert' : 'status'}>{nb(telegramFile.line)}</p> : null}
         {updateRefused ? (
           updateNote
         ) : (
