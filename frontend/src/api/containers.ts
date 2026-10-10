@@ -75,6 +75,13 @@ export function isContainersUnavailable(error: unknown): boolean {
 export function isOffline(error: unknown): boolean {
   return error instanceof ContainerApiError && error.code === 'network';
 }
+/**
+ * True when the exam is not the caller's (P0002, live as HTTP 500): the author deleted it, the member left, or the author
+ * removed them. Another try changes nothing.
+ */
+export function isGone(error: unknown): boolean {
+  return error instanceof ContainerApiError && error.code === 'P0002';
+}
 /** Russian text for any error of this module (anything else: the general line, never an English message). */
 export function containerErrorText(error: unknown): string {
   return error instanceof ContainerApiError && error.message ? error.message : CONTAINER_ERROR_TEXT.unknown;

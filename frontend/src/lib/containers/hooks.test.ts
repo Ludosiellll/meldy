@@ -251,6 +251,20 @@ describe('useContainerData', () => {
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.error).toBe(CONTAINER_ERROR_TEXT.P0002));
     expect(result.current.unavailable).toBe(false);
+    // Not the user's any more (deleted, left, removed: P0002 comes as HTTP 500): gone, which another try cannot change.
+    expect(result.current.gone).toBe(true);
+    api.fetchSummary.mockRejectedValue(new ContainerApiError('unknown', CONTAINER_ERROR_TEXT.unknown, { status: 502 }));
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.error).toBe(CONTAINER_ERROR_TEXT.unknown));
+    expect(result.current.gone).toBe(false);
+  });
+
+  it('no network is never gone, even for an exam not kept on the device', async () => {
+    api.fetchSummary.mockRejectedValue(networkDown());
+    const { result } = renderHook(() => useContainerData(C1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current).toMatchObject({ data: null, offline: true, error: CONTAINER_ERROR_TEXT.network });
+    expect(result.current.gone).toBeFalsy();
   });
 
   it('another exam id reads that exam', async () => {

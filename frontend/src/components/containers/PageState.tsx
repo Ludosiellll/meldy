@@ -4,6 +4,7 @@ import type { DayPlan, PlanInput } from '../../types/container';
 import type { Loadable } from '../../lib/containers/hooks';
 import { planDay } from '../../lib/containers/plan';
 import * as copy from './copy';
+import { GONE } from './copyImport';
 
 /** The day's plan from the exam's input (lib/containers/plan.ts); null when there is no input or the engine failed. */
 export function usePlan(input: PlanInput | null | undefined): DayPlan | null {
@@ -31,9 +32,26 @@ export function useShownAfter(active: boolean, ms = 300): boolean {
   return active && shown;
 }
 
-/** What a page of the exam shows while its data is not there: the wait, a failure with «Повторить», no functions yet. */
+/**
+ * What a page of the exam shows while its data is not there: the wait, a failure with «Повторить», no functions yet, or
+ * an exam that is no longer the user's — deleted, left, removed — with the way to «Экзамены» and no «Повторить», which
+ * could not help (usability check m2).
+ */
 export function PageState<T>({ state, loadingText = copy.LOADING }: { state: Loadable<T>; loadingText?: string }) {
   const waiting = useShownAfter(state.loading && !state.data);
+  if (state.gone && !state.data) {
+    return (
+      <div className="sf-page ct-page">
+        <div className="ct-error">
+          <h1>{GONE.title}</h1>
+          <p>{GONE.text}</p>
+          <Link className="sf-link" to="/exams">
+            {copy.TO_EXAMS}
+          </Link>
+        </div>
+      </div>
+    );
+  }
   if (state.unavailable) {
     return (
       <div className="sf-page ct-page">

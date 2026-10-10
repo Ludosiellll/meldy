@@ -12,7 +12,7 @@ const api = vi.hoisted(() => ({
   deleteItem: vi.fn(),
   fetchDoubts: vi.fn(),
   reload: vi.fn(),
-  state: { summary: null as unknown, items: null as unknown, loading: false, error: null as string | null },
+  state: { summary: null as unknown, items: null as unknown, loading: false, error: null as string | null, gone: false },
 }));
 
 vi.mock('../../api/containers', () => ({
@@ -28,12 +28,13 @@ vi.mock('../../lib/containers/hooks', () => ({
     offline: false,
     unavailable: false,
     error: api.state.error,
+    gone: api.state.gone,
     reload: api.reload,
   }),
 }));
 
 import KeysPage from './KeysPage';
-import { KEYS, QUEUE } from '../../components/containers/copyImport';
+import { GONE, KEYS, QUEUE } from '../../components/containers/copyImport';
 
 const SUMMARY = summaryJson as unknown as ContainerSummary;
 const BASE_ITEMS = itemsJson as unknown as TestItem[];
@@ -79,6 +80,7 @@ beforeEach(() => {
   api.state.items = itemsFor();
   api.state.loading = false;
   api.state.error = null;
+  api.state.gone = false;
   api.updateItem.mockReset().mockImplementation(async (id: string) => ({ id, rev: 2, rev_changed: true, doubts_resolved: 0 }));
   api.keepKey.mockReset().mockResolvedValue(2);
   api.deleteItem.mockReset().mockResolvedValue(undefined);
@@ -176,5 +178,15 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(screen.getByText(new RegExp(KEYS.loadFailed))).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(api.reload).toHaveBeenCalled();
+  });
+
+  it('an exam that is not the user’s any more: says so, the way to «Экзамены», no retry (usability check m2)', () => {
+    api.state.summary = null;
+    api.state.error = 'Не нашли — возможно, его уже удалили.';
+    api.state.gone = true;
+    renderAt();
+    expect(screen.getByText(`${GONE.title}. ${GONE.text}`)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
+    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
   });
 });

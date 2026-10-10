@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { createLink, revokeLink } from '../../../api/containers';
 import { copyText } from '../../../lib/clipboard';
 import { track } from '../../../lib/telemetry';
 import type { ContainerSummary, LinkCreated, Uuid } from '../../../types/container';
-import { errorText, INVITE, nb } from '../copyImport';
+import { errorText, INVITE, MEMBERS, nb } from '../copyImport';
+import { useFocusAfter } from '../useFocusAfter';
 import MembersList from './MembersList';
 import GroupBotInvite from '../../telegram/GroupBotInvite';
 import { forgetLink, keepLink, keptCode } from './linkStore';
@@ -15,7 +16,13 @@ import './group.css';
  * paragraph about what the group gets, the consent box only when the exam has oral subjects (their lectures and
  * answer points go to the members' copies), «Создать ссылку». The link is shown once — Meldy keeps only its
  * fingerprint — with «Скопировать» and a text for the group's chat; this device keeps the code to show it again.
- * Under it «Вошли 12 из 60 · Кто вошёл» with the members (remove, return) and «Закрыть ссылку».
+ * Under it the group's one line, «В экзамене 12 участников · Кто вошёл», with the members (remove, return) and
+ * «Закрыть ссылку». «Кто вошёл» stays while anyone ever came in, so a removed member can be returned (usability
+ * check M1).
+ *
+ * One link is open at a time (M2): «Закрыть ссылку» closes every open link of the exam, and a new link closes the open
+ * ones before it is made (the window says so before «Создать новую ссылку»), so no link stays open unseen. A closed
+ * link leaves «Ссылка закрыта…» on screen and the way to a new one.
  *
  * The exam page opens it from «⋯ → Пригласить группу» (package D3b) with its summary; «Настройки» also does.
  */
@@ -66,9 +73,16 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const linkRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const copyRef = useRef<HTMLButtonElement>(null);
+  const makeRef = useRef<HTMLDivElement>(null);
+  const createRef = useRef<HTMLButtonElement>(null);
+  const closedRef = useRef<HTMLParagraphElement>(null);
+  const revokeRef = useRef<HTMLButtonElement>(null);
+  const revokeNoRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const counts = useMemo(() => examCounts(summary), [summary]);
+  const focusAfter = useFocusAfter();
 
   const now = Date.now();
   const links = useMemo(
@@ -88,11 +102,14 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const [wantNew, setWantNew] = useState(false);
   const [consent, setConsent] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<'link' | 'text' | null>(null);
   const [announce, setAnnounce] = useState('');
   const [closing, setClosing] = useState(false);
+  const [revoked, setRevoked] = useState(false);
   const [who, setWho] = useState(false);
+  const busy = creating || revoking;
 
   useEffect(() => {
     boxRef.current?.focus();
@@ -131,39 +148,85 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
     }
   };
 
-  const create = useCallback(async () => {
-    if (creating || (counts.oral && !consent)) return;
+  /**
+   * Closes every open link of the exam one by one: the one on screen and any other still open (made on another device,
+   * or before a new link closed the old ones). `done` collects the closed ones; they stay closed on screen when a later
+   * one fails (its error is thrown).
+   */
+  const closeOpen = async (done: string[]) => {
+    const ids = [...new Set([...(created ? [created.link_id] : []), ...open.map((link) => link.id)])];
+    try {
+      for (const id of ids) {
+        await revokeLink(id);
+        forgetLink(containerId, id);
+        done.push(id);
+      }
+    } finally {
+      if (done.length > 0) {
+        setClosed((current) => new Set([...current, ...done]));
+        if (created && done.includes(created.link_id)) setCreated(null);
+      }
+    }
+  };
+
+  const create = async () => {
+    if (busy || (counts.oral && !consent)) return;
     setCreating(true);
     setError(null);
+    const done: string[] = [];
+    let made = false;
     try {
+      // The new link replaces the open ones: they close first, so no link stays open unseen.
+      await closeOpen(done);
       const result = await createLink(containerId, 60, counts.oral ? INVITE.consent : null);
+      made = true;
       const kept = keepLink(containerId, result.link_id, result.code);
       setCreated({ ...result, kept });
       setWantNew(false);
+      setRevoked(false);
       setAnnounce(INVITE.made);
       track('container.link_created', { oral: counts.oral });
-      onChanged?.();
+      focusAfter(() => copyRef.current);
     } catch (failure) {
       setError(errorText(failure, INVITE.errors, INVITE.failed));
+      // «Создать ссылку» was disabled while it worked, so the focus left it: it comes back.
+      focusAfter(() => createRef.current);
     } finally {
       setCreating(false);
+      if (made || done.length > 0) onChanged?.();
     }
-  }, [creating, counts.oral, consent, containerId, onChanged]);
+  };
 
   const revoke = async () => {
-    if (!linkId) return;
+    if (busy || !linkId) return;
+    setRevoking(true);
     setError(null);
+    const done: string[] = [];
     try {
-      await revokeLink(linkId);
-      forgetLink(containerId, linkId);
-      setClosed((current) => new Set(current).add(linkId));
-      setCreated(null);
+      await closeOpen(done);
       setClosing(false);
-      setAnnounce(INVITE.revoked);
-      onChanged?.();
+      setWantNew(false);
+      setRevoked(true);
+      focusAfter(() => closedRef.current);
     } catch (failure) {
       setError(errorText(failure, INVITE.errors));
+    } finally {
+      setRevoking(false);
+      if (done.length > 0) onChanged?.();
     }
+  };
+
+  const askRevoke = () => {
+    setClosing(true);
+    focusAfter(() => revokeNoRef.current);
+  };
+  const keepOpen = () => {
+    setClosing(false);
+    focusAfter(() => revokeRef.current);
+  };
+  const wantNewLink = () => {
+    setWantNew(true);
+    focusAfter(() => makeRef.current?.querySelector<HTMLElement>('input, button'));
   };
 
   const url = code ? `${window.location.origin}/g/${code}` : '';
@@ -176,18 +239,13 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
     } else setAnnounce(INVITE.copyFailed);
   };
 
-  const seatLink = created ? { members: 0, max_members: 60 } : openLink;
   const members = summary.owner?.members ?? 0;
+  // Anyone ever in: a seat taken through any link of the exam, closed ones too (a rejoin takes none).
+  const everJoined = members > 0 || (summary.owner?.links ?? []).some((link) => link.members > 0);
   const showMake = (!openLink && !created) || wantNew;
-  // «Вошли 12 из 60» of the open link; «В экзамене 12 участников» when they came through an earlier link.
-  const seatsLine =
-    seatLink && !showMake && seatLink.members > 0
-      ? INVITE.joined(seatLink.members, seatLink.max_members)
-      : members > 0
-        ? INVITE.members(members)
-        : seatLink && !showMake
-          ? INVITE.joined(0, seatLink.max_members)
-          : null;
+  const linkShown = Boolean(linkId) && !showMake;
+  // The group's one line: who is in the exam now; «Пока никто не вошёл» only beside a link nobody has used yet.
+  const seatsLine = everJoined || linkShown ? MEMBERS.inExam(members, everJoined) : null;
 
   return (
     <div className="gr-layer">
@@ -225,7 +283,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
             </label>
             <div className="gr-row">
               <input id={`${titleId}-link`} ref={linkRef} className="gr-field" readOnly value={url} onFocus={(event) => event.target.select()} />
-              <button type="button" className="gr-copy" onClick={() => void copy('link')}>
+              <button ref={copyRef} type="button" className="gr-copy" onClick={() => void copy('link')}>
                 {copied === 'link' ? INVITE.copied : INVITE.copy}
               </button>
             </div>
@@ -242,15 +300,21 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
 
         {openLink && !code && !wantNew ? (
           <p className="gr-line">
-            {INVITE.openElsewhere}{' '}
-            <button type="button" className="sf-link" onClick={() => setWantNew(true)}>
+            {INVITE.openElsewhere} {INVITE.newLinkNote}{' '}
+            <button type="button" className="sf-link" onClick={wantNewLink}>
               {INVITE.newLink}
             </button>
           </p>
         ) : null}
 
+        {revoked && !openLink && !created ? (
+          <p ref={closedRef} className="gr-line" tabIndex={-1}>
+            {INVITE.revoked}
+          </p>
+        ) : null}
+
         {showMake ? (
-          <div className="gr-make">
+          <div className="gr-make" ref={makeRef}>
             {counts.oral ? (
               <label className="gr-consent" htmlFor={consentId}>
                 <input id={consentId} type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
@@ -258,9 +322,10 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
               </label>
             ) : null}
             <button
+              ref={createRef}
               type="button"
               className="sf-primary gr-go"
-              disabled={creating || (counts.oral && !consent)}
+              disabled={busy || (counts.oral && !consent)}
               aria-busy={creating || undefined}
               onClick={() => void create()}
             >
@@ -279,7 +344,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
           <div className="gr-seats">
             <p className="gr-line">
               {nb(seatsLine)}
-              {members > 0 || (seatLink && seatLink.members > 0) ? (
+              {everJoined ? (
                 <>
                   {' · '}
                   <button type="button" className="sf-link" aria-expanded={who} onClick={() => setWho((value) => !value)}>
@@ -289,20 +354,20 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
               ) : null}
             </p>
             {who ? <MembersList containerId={containerId} onChanged={() => onChanged?.()} /> : null}
-            {linkId && !showMake ? (
+            {linkShown ? (
               closing ? (
-                <p className="gr-line gr-ask">
-                  <span>{INVITE.revokeAsk}</span>
+                <p className="gr-line gr-ask" role="group" aria-labelledby={`${titleId}-revoke`}>
+                  <span id={`${titleId}-revoke`}>{INVITE.revokeAsk}</span>
                   <button type="button" className="sf-link" onClick={() => void revoke()}>
                     {INVITE.revokeYes}
                   </button>
-                  <button type="button" className="sf-link" data-muted="" onClick={() => setClosing(false)}>
+                  <button ref={revokeNoRef} type="button" className="sf-link" data-muted="" onClick={keepOpen}>
                     {INVITE.revokeNo}
                   </button>
                 </p>
               ) : (
                 <p className="gr-line">
-                  <button type="button" className="sf-link" data-muted="" onClick={() => setClosing(true)}>
+                  <button ref={revokeRef} type="button" className="sf-link" data-muted="" onClick={askRevoke}>
                     {INVITE.revoke}
                   </button>
                 </p>
@@ -310,7 +375,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
             ) : null}
           </div>
         ) : null}
-        <GroupBotInvite containerId={containerId} linkOpen={Boolean(linkId) && !showMake} />
+        <GroupBotInvite containerId={containerId} linkOpen={linkShown} />
       </div>
     </div>
   );

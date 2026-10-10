@@ -8,7 +8,8 @@
  * - useContainerData: one exam — container_summary, its plan_inputs decoded into the plan's input with the oral
  *   questions and the answers still in the offline queue, and the exam's questions from the device's bank (read again
  *   only when its stamp changed). Without network: the last summary, plan inputs and oral items kept for this account
- *   and exam, with the bank on the device (`offline: true`). The oral sheet failing alone keeps the last oral items.
+ *   and exam, with the bank on the device (`offline: true`). The oral sheet failing alone keeps the last oral items. An
+ *   exam that is not the user's any more (deleted, left, removed: P0002) is `gone: true` besides its error.
  *
  * Both start a flush of the offline answer queue when they mount (the queue itself flushes on `online` and when the
  * tab comes back), and read again when the network comes back after an offline read.
@@ -17,7 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import {
   CONTAINER_ERROR_TEXT, ContainerApiError, containerErrorText, fetchOverview, fetchPlanInputs, fetchSummary,
-  isContainersUnavailable, isOffline,
+  isContainersUnavailable, isGone, isOffline,
 } from '../../api/containers';
 import type { ContainerSummary, ContainersOverview, PlanInput, PlanInputsWire, TestItem, Uuid } from '../../types/container';
 import { localDateKey } from '../../utils/streak';
@@ -34,6 +35,7 @@ export interface Loadable<T> {
   offline: boolean; // drawn from the device's cache
   unavailable: boolean; // the database has no container functions: show today's screens
   error: string | null;
+  gone?: boolean; // the exam is not the user's (deleted, left, removed): no «Повторить», the way to «Экзамены»
   reload: () => void;
 }
 
@@ -170,7 +172,7 @@ async function readContainer(userId: string, containerId: Uuid): Promise<State<C
     return { ...SIGNED_OUT, data: buildData(summary, wire, items, oral, userId) };
   } catch (error) {
     if (isContainersUnavailable(error)) return { ...SIGNED_OUT, unavailable: true };
-    if (!isOffline(error)) return { ...SIGNED_OUT, error: containerErrorText(error) };
+    if (!isOffline(error)) return { ...SIGNED_OUT, error: containerErrorText(error), gone: isGone(error) };
     const kept = await lastContainer(userId, containerId);
     if (!kept) return { ...SIGNED_OUT, offline: true, error: containerErrorText(error) };
     try {

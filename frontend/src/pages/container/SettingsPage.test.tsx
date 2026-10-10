@@ -19,7 +19,7 @@ const api = vi.hoisted(() => ({
   feasibility: vi.fn(),
   windowDays: vi.fn(),
   reload: vi.fn(),
-  state: { summary: null as ContainerSummary | null, plan: null as PlanInput | null },
+  state: { summary: null as ContainerSummary | null, plan: null as PlanInput | null, error: null as string | null, gone: false },
 }));
 vi.mock('../../api/containers', () => ({
   updateContainer: api.updateContainer,
@@ -41,13 +41,14 @@ vi.mock('../../lib/containers/hooks', () => ({
     loading: false,
     offline: false,
     unavailable: false,
-    error: null,
+    error: api.state.error,
+    gone: api.state.gone,
     reload: api.reload,
   }),
 }));
 
 import SettingsPage from './SettingsPage';
-import { SETTINGS } from '../../components/containers/copyImport';
+import { GONE, MEMBERS, SETTINGS } from '../../components/containers/copyImport';
 
 const SUMMARY = summaryJson as unknown as ContainerSummary;
 const ID = SUMMARY.id;
@@ -97,6 +98,8 @@ beforeEach(() => {
   where = '';
   api.state.summary = solo();
   api.state.plan = PLAN;
+  api.state.error = null;
+  api.state.gone = false;
   for (const fn of [api.updateContainer, api.updateSubject, api.deleteSubject, api.deleteContainer, api.saveSettings, api.leaveContainer, api.forgetBank]) {
     fn.mockReset().mockResolvedValue(undefined);
   }
@@ -196,12 +199,27 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     fireEvent.change(screen.getByRole('textbox', { name: 'Переименовать' }), { target: { value: 'История' } });
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     await waitFor(() => expect(api.updateSubject).toHaveBeenCalledWith(SUMMARY.subjects[1].id, { title: 'История' }));
+    // The summary is read again (here it never comes back): the new name stays meanwhile, never the old one (n2).
+    expect(api.reload).toHaveBeenCalled();
+    expect(await screen.findByText('История')).toBeInTheDocument();
+    expect(screen.queryByText('История Беларуси')).not.toBeInTheDocument();
+    // The focus is back on the row's «⋯» (m9).
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Ещё: История' })));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: История Беларуси' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: История' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Убрать предмет' }));
-    expect(screen.getByText(/Убрать «История Беларуси»\? Его вопросы и ответы по ним пропадут\./)).toBeInTheDocument();
+    expect(screen.getByText(/Убрать «История»\? Его вопросы и ответы по ним пропадут\./)).toBeInTheDocument();
+    // The confirm takes the focus on «Отмена»; «Отмена» gives it back to the «⋯» (m9).
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
+    expect(screen.getByRole('group', { name: /Убрать «История»\?/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Ещё: История' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: История' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Убрать предмет' }));
     fireEvent.click(screen.getByRole('button', { name: 'Убрать' }));
     await waitFor(() => expect(api.deleteSubject).toHaveBeenCalledWith(SUMMARY.subjects[1].id));
+    // The row goes with the next summary: the focus waits on the list's heading.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Предметы' })));
 
     cleanup();
     api.state.summary = { ...solo(), subjects: [SUMMARY.subjects[0]] };
@@ -232,19 +250,45 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     api.state.summary = { ...solo(), owner: { members: 3, doubts_open: 0, links: [] } };
     renderAt();
     fireEvent.click(screen.getByRole('button', { name: 'Удалить экзамен' }));
-    expect(screen.getByText(/Сначала уберите участников: в экзамене 3\sучастника\./)).toBeInTheDocument();
+    // The refusal is said aloud, and «Отмена» has the focus (m9).
+    expect(screen.getByRole('alert').textContent).toMatch(/Сначала уберите участников: в экзамене 3\sучастника\./);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
     expect(api.deleteContainer).not.toHaveBeenCalled();
     fireEvent.click(within(screen.getByText(/Сначала уберите участников/).closest('p')!).getByRole('button', { name: 'Кто вошёл' }));
     await waitFor(() => expect(api.fetchMembers).toHaveBeenCalledWith(ID));
+    // The focus goes to the group's «Кто вошёл», now open, with the list under it.
+    const groupWho = within(document.getElementById('settings-group')!).getByRole('button', { name: 'Кто вошёл' });
+    await waitFor(() => expect(document.activeElement).toBe(groupWho));
+    expect(groupWho).toHaveAttribute('aria-expanded', 'true');
+    // «Отмена» closes the refusal and gives the focus back to «Удалить экзамен».
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Удалить экзамен' })));
   });
 
-  it('deletes an exam without members, and shows the database’s refusal when someone joined meanwhile', async () => {
+  it('deletes an exam without members; the database’s refusal (someone joined meanwhile) turns the confirm into the members’ one (m8)', async () => {
     renderAt();
     fireEvent.click(screen.getByRole('button', { name: 'Удалить экзамен' }));
-    expect(screen.getByText(/Удалить «Зимняя сессия»\? Вопросы, ответы и прогресс пропадут\. Устные предметы останутся в «Экзаменах» отдельно\./)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Удалить «Зимняя сессия»\? Вопросы, ответы и прогресс пропадут\. Устные предметы останутся в «Экзаменах» отдельно\./ })).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
+    expect(screen.getByText(MEMBERS.inExam(0, false))).toBeInTheDocument();
     api.deleteContainer.mockRejectedValueOnce(Object.assign(new Error('the container has members'), { code: 'MC009' }));
     fireEvent.click(screen.getByRole('button', { name: SETTINGS.removeYes }));
-    expect(await screen.findByText(/Сначала уберите участников: в экзамене 1\sучастник\./)).toBeInTheDocument();
+    // No second «Удалить экзамен»: the members' confirm with its words (an alert), «Кто вошёл» and «Отмена» (focused).
+    const refusal = await screen.findByRole('alert');
+    expect(refusal.textContent).toMatch(/^Сначала уберите участников: в экзамене 1\sучастник\. Тогда экзамен можно будет удалить\.$/);
+    expect(screen.queryByRole('button', { name: SETTINGS.removeYes })).not.toBeInTheDocument();
+    expect(within(refusal.closest('p')!).getByRole('button', { name: 'Кто вошёл' })).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
+    // The group is read again; until it comes back it says one member is in, with «Кто вошёл».
+    expect(api.reload).toHaveBeenCalled();
+    expect(screen.getByText(/^В экзамене 1\sучастник/)).toBeInTheDocument();
+    expect(within(document.getElementById('settings-group')!).getByRole('button', { name: 'Кто вошёл' })).toBeInTheDocument();
+    expect(screen.queryByText(/Пока никто не вошёл/)).not.toBeInTheDocument();
+
+    // The new summary: the member left again, nobody is in, and the exam can go.
+    api.state.summary = solo();
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить экзамен' }));
     fireEvent.click(screen.getByRole('button', { name: SETTINGS.removeYes }));
     await waitFor(() => expect(where).toBe('/exams'));
     expect(api.forgetBank).toHaveBeenCalledWith(ID);
@@ -256,9 +300,41 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     expect(screen.queryByLabelText('Название')).not.toBeInTheDocument();
     expect(screen.getByText(SETTINGS.minutesMember)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: SETTINGS.leave }));
+    // The confirm keeps its words and takes the focus on «Отмена»; «Отмена» gives it back (m9).
+    expect(screen.getByRole('group', { name: SETTINGS.leaveAsk('Зимняя сессия') })).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: SETTINGS.leave })));
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.leave }));
     fireEvent.click(screen.getByRole('button', { name: SETTINGS.leaveYes }));
     await waitFor(() => expect(api.leaveContainer).toHaveBeenCalledWith(ID));
     await waitFor(() => expect(where).toBe('/exams'));
+  });
+
+  it('the member’s «⋯ → Выйти из экзамена» opens here at the leave confirm (#leave, usability check m1)', async () => {
+    api.state.summary = { ...solo(), role: 'member', owner: null };
+    renderAt(`/exams/c/${ID}/settings#leave`);
+    expect(screen.getByText(SETTINGS.leaveAsk('Зимняя сессия'))).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.leaveYes }));
+    await waitFor(() => expect(api.leaveContainer).toHaveBeenCalledTimes(1));
+    // The author has no leave: #leave opens nothing for them.
+    cleanup();
+    api.state.summary = solo();
+    renderAt(`/exams/c/${ID}/settings#leave`);
+    expect(screen.queryByText(/Выйти из «/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Удалить экзамен' })).toBeInTheDocument();
+  });
+
+  it('a failed leave says why in an alert and keeps the confirm', async () => {
+    api.state.summary = { ...solo(), role: 'member', owner: null };
+    api.leaveContainer.mockRejectedValueOnce(Object.assign(new Error('Failed to fetch'), { code: 'network' }));
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.leave }));
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.leaveYes }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.');
+    expect(screen.getByRole('button', { name: SETTINGS.leaveYes })).toBeInTheDocument();
+    expect(where).toBe(`/exams/c/${ID}/settings`);
   });
 
   it('sets the days of the week, Пн–Вс, saved with the minutes (spec §3: «минуты и дни недели»)', async () => {
@@ -329,5 +405,61 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     renderAt(`/exams/c/${ID}/settings?invite=1`);
     expect(screen.getByRole('dialog', { name: 'Пригласить группу' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Добавить предмет' })).toHaveAttribute('href', `/exams/import?from=c:${ID}`);
+  });
+});
+
+describe('SettingsPage: the group’s one line and «Кто вошёл» (usability checks M1, m3)', () => {
+  const LINK = { id: 'link-1', created_at: '2026-10-08T10:00:00Z', expires_at: '2099-01-01T00:00:00Z', revoked_at: null, members: 0, max_members: 60, oral: 0 };
+  const groupLine = () => document.querySelector<HTMLElement>('#settings-group > .st-line')!;
+
+  it('says who is in now, not the seats of the newest link: a member who came through an older link counts', () => {
+    api.state.summary = {
+      ...solo(),
+      owner: { members: 1, doubts_open: 0, links: [LINK, { ...LINK, id: 'link-0', created_at: '2026-10-01T10:00:00Z', revoked_at: '2026-10-02T10:00:00Z', members: 1 }] },
+    };
+    renderAt();
+    expect(groupLine().textContent).toMatch(/^В экзамене 1\sучастник\s· Кто вошёл$/);
+    expect(screen.queryByText(/Пока никто не вошёл/)).not.toBeInTheDocument();
+  });
+
+  it('nobody ever came in: «Пока никто не вошёл» and no «Кто вошёл»', () => {
+    api.state.summary = { ...solo(), owner: { members: 0, doubts_open: 0, links: [LINK] } };
+    renderAt();
+    expect(groupLine().textContent).toBe('Пока никто не вошёл');
+    expect(screen.queryByRole('button', { name: 'Кто вошёл' })).not.toBeInTheDocument();
+  });
+
+  it('the only member removed and the link closed: «Кто вошёл» stays and «Вернуть» brings them back', async () => {
+    api.state.summary = { ...solo(), owner: { members: 0, doubts_open: 0, links: [{ ...LINK, revoked_at: '2026-10-09T10:00:00Z', members: 1 }] } };
+    api.fetchMembers.mockResolvedValue([{ user_id: 'u-3', name: 'Вика', joined_at: '2026-10-08T15:00:00Z', left_at: null, removed_at: '2026-10-09T09:00:00Z' }]);
+    renderAt();
+    expect(groupLine().textContent).toMatch(/^Сейчас в экзамене никого\s· Кто вошёл$/);
+    fireEvent.click(screen.getByRole('button', { name: 'Кто вошёл' }));
+    const vika = (await screen.findByText('Вика')).closest('li')!;
+    // One line says who is in; the list does not say «Пока никто не вошёл» again.
+    expect(screen.queryByText(/Пока никто не вошёл/)).not.toBeInTheDocument();
+    expect(screen.getByText('Убраны')).toBeInTheDocument();
+    fireEvent.click(within(vika).getByRole('button', { name: 'Вернуть' }));
+    await waitFor(() => expect(api.removeMember).toHaveBeenCalledWith(ID, 'u-3', true));
+    expect(api.reload).toHaveBeenCalled();
+  });
+
+  it('an exam that is not the user’s any more (deleted, left, removed): says so, no «Повторить», the way to «Экзамены» (m2)', () => {
+    api.state.summary = null;
+    api.state.error = 'Не нашли — возможно, его уже удалили.';
+    api.state.gone = true;
+    renderAt();
+    expect(screen.getByText(`${GONE.title}. ${GONE.text}`)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
+    expect(screen.queryByRole('button', { name: SETTINGS.retry })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // A real failure keeps «Повторить».
+    cleanup();
+    api.state.error = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.';
+    api.state.gone = false;
+    renderAt();
+    expect(screen.getByRole('alert').textContent).toContain('Нет связи с сервером.');
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.retry }));
+    expect(api.reload).toHaveBeenCalled();
   });
 });

@@ -448,10 +448,6 @@ export const SETTINGS = {
   oralRow: 'устный',
   group: 'Группа',
   invite: 'Пригласить группу',
-  joined: (members: number, seats: number | null) =>
-    members === 0
-      ? 'Пока никто не вошёл'
-      : `${members % 10 === 1 && members % 100 !== 11 ? 'Вошёл' : 'Вошли'} ${members}${seats ? ` из ${seats}` : ''}`,
   who: 'Кто вошёл',
   remove: 'Удалить экзамен',
   removeAsk: (title: string, oral: boolean) =>
@@ -495,16 +491,15 @@ export const INVITE = {
   once: 'Meldy хранит не саму ссылку, а её отпечаток. Ссылка останется на этом устройстве; потеряете — создайте новую, а эту закройте.',
   onceLost: 'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.',
   openElsewhere: 'Ссылка открыта, но сама она осталась на устройстве, где её создали.',
+  // Said before «Создать новую ссылку» is pressed: the new link closes every open one (usability check M2).
+  newLinkNote: 'Новая ссылка заменит её: по старой больше никто не войдёт.',
   newLink: 'Создать новую ссылку',
-  joined: (members: number, seats: number) =>
-    members === 0 ? 'Пока никто не вошёл' : `${members % 10 === 1 && members % 100 !== 11 ? 'Вошёл' : 'Вошли'} ${members} из ${seats}`,
   who: 'Кто вошёл',
-  members: (n: number) => `В экзамене ${count(n, 'участник', 'участника', 'участников')}`,
   revoke: 'Закрыть ссылку',
   revokeAsk: 'По ней больше никто не войдёт. Кто уже вошёл, останется в экзамене.',
   revokeYes: 'Да, закрыть',
   revokeNo: 'Отмена',
-  revoked: 'Ссылка закрыта.',
+  revoked: 'Ссылка закрыта. По ней больше никто не войдёт.',
   copiedLink: 'Ссылка скопирована.',
   copiedText: 'Текст скопирован.',
   copyFailed: 'Не получилось скопировать: выделите текст и скопируйте его сами.',
@@ -520,7 +515,17 @@ export const INVITE = {
 
 export const MEMBERS = {
   title: 'Кто вошёл',
+  // The group's one line, the same in «Пригласить группу» and «Настройки» (usability check m3): who is in the exam now,
+  // never the seats of one link; «Пока никто не вошёл» only before anyone came in.
+  inExam: (active: number, ever: boolean) =>
+    active > 0
+      ? `В экзамене ${count(active, 'участник', 'участника', 'участников')}`
+      : ever
+        ? 'Сейчас в экзамене никого'
+        : 'Пока никто не вошёл',
   empty: 'Пока никто не вошёл.',
+  // Nobody to list: everyone who came in left on their own (they are not listed; a left member rejoins by a link).
+  allLeft: 'Все вышли сами. Вернуться они могут по ссылке.',
   since: (day: string) => `с ${day}`,
   remove: 'Убрать',
   removeAsk: (name: string) => `Убрать из экзамена: ${name}? Экзамен у участника пропадёт, его ответы останутся у него.`,
@@ -533,6 +538,16 @@ export const MEMBERS = {
   noName: 'Без имени',
   loadFailed: 'Список не загрузился. Попробуйте ещё раз.',
   retry: 'Повторить',
+} as const;
+
+/**
+ * The address of an exam that is no longer the user's (P0002: the database says «not found» to a non-member): the
+ * author deleted it, the member left, or the author removed them. Another try changes nothing, so no «Повторить»
+ * (usability check m2).
+ */
+export const GONE = {
+  title: 'Этого экзамена больше нет в вашем списке',
+  text: 'Его удалили, вы из него вышли или автор убрал вас.',
 } as const;
 
 // ─────────────────────────────────────────────── /g/<код> (no «копия» here: spec §16 #52) ───────────────────────────────
@@ -563,15 +578,17 @@ export const JOIN = {
   ownLede: 'Однокурсники, которые по ней войдут, получат весь экзамен. Их ответов и прогресса вы не увидите, только имена.',
   openExam: 'Открыть экзамен',
   unreadable: 'Ссылка не распознана. Проверьте, что она пришла целиком, или попросите прислать её ещё раз.',
+  // A link the database does not know: its exam was deleted (the links go with it) or the code came cut. A closed link
+  // is not this: it says «revoked» (usability check m10).
   status: {
-    not_found: 'Ссылка не найдена. Проверьте, что она пришла целиком.',
+    not_found: 'Ссылка не работает: экзамен удалили или она пришла не целиком.',
     revoked: 'Автор закрыл эту ссылку. Попросите у него новую.',
     expired: 'Срок действия ссылки закончился. Попросите у автора новую.',
     full: 'По этой ссылке мест больше нет: все места заняты.',
     removed: 'Автор убрал вас из этого экзамена. Если это ошибка, попросите его вернуть вас.',
   } as Record<string, string>,
   errors: {
-    MC001: 'Ссылка не найдена. Проверьте, что она пришла целиком.',
+    MC001: 'Ссылка не работает: экзамен удалили или она пришла не целиком.',
     MC002: 'Автор закрыл эту ссылку. Попросите у него новую.',
     MC003: 'Срок действия ссылки закончился. Попросите у автора новую.',
     MC004: 'По этой ссылке мест больше нет: все места заняты.',

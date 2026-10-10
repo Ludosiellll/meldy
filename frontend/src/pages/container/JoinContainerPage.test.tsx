@@ -140,6 +140,23 @@ describe('JoinContainerPage: /g/<код> (spec decisions 24, 25, 52)', () => {
     expect(screen.getByRole('link', { name: JOIN.example })).toHaveAttribute('href', '/try');
   });
 
+  it('a link the database does not know names both reasons: a deleted exam or a cut link (usability check m10)', async () => {
+    api.previewLink.mockResolvedValue({ status: 'not_found' });
+    renderAt();
+    const said = await screen.findByRole('alert');
+    expect(said.textContent).toBe('Ссылка не работает: экзамен удалили или она пришла не целиком.');
+    expect(screen.queryByText(/Ссылка не найдена/)).not.toBeInTheDocument();
+    // Signed in, a link gone between the preview and the join says the same.
+    cleanup();
+    api.auth.user = { id: 'member-1' };
+    api.previewLink.mockResolvedValue(ACTIVE);
+    api.joinByCode.mockRejectedValue(Object.assign(new Error('no such link'), { code: 'MC001' }));
+    renderAt();
+    expect(await screen.findByText(JOIN.status.not_found)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: JOIN.retry })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: JOIN.today })).toHaveAttribute('href', '/dashboard');
+  });
+
   it('the author on their own link: «Это ваша ссылка» and the way to the exam', async () => {
     api.auth.user = { id: 'author-1' };
     api.previewLink.mockResolvedValue({ ...ACTIVE, status: 'own', container_id: CONTAINER });
