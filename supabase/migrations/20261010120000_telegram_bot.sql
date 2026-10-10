@@ -87,8 +87,8 @@ comment on table bot.link_codes is 'One-time codes (sha256 only): L… links a T
 --     wins on both sides). Unlinking sets unlinked_at. We keep the Telegram user and chat ids, the language and the
 --     settings; no name, @username or phone (spec §6.4). remind_at 07:00–22:59 (M4); paused_until = the first day the
 --     card comes again (S3); asked_at = when «Присылать план дальше?» (K2) went out; last_seen_at = the user's last
---     action in the bot or in its settings (ends K2's silence); hint_at = the last
---     «Здесь отвечают кнопками…» (S6, at most once an hour); prompt = the function's pending ForceReply (M4, S3).
+--     action in the bot or in its settings (ends K2's silence); hint_at = the last «Здесь отвечают кнопками…» (S6, at
+--     most once an hour); prompt = the function's pending ForceReply (M4, S3).
 create table if not exists bot.links (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -427,7 +427,7 @@ begin
 end;
 $fn$;
 
--- 2o. The tick's mode (spec §10: the free plan has 500 000 function calls a month; a minute tick is 43 200 of them).
+-- 2n. The tick's mode (spec §10: the free plan has 500 000 function calls a month; a minute tick is 43 200 of them).
 --     every_minute while this month's calls (bot.usage, UTC) are under 300 000 (60 %) and the owner has not set
 --     flags.tick = 'when_due'; when_due otherwise: bot.tick() then posts only when bot.tick_due() says something may be
 --     due, and every 15th minute regardless (housekeeping, /status).
@@ -442,10 +442,10 @@ as $fn$
               then 'when_due' else 'every_minute' end
 $fn$;
 
--- 2p. May anything be due this minute? Cheap and conservative (true when unsure): a day card window open for a link
+-- 2o. May anything be due this minute? Cheap and conservative (true when unsure): a day card window open for a link
 --     with no card claimed today (the 30-minute rule is left to the claim), a K3 window, a night's close, a claimed
---     row waiting to be taken again; package T5's pending answers and package T7's group posts through their hooks
---     (see the two marked blocks).
+--     row the next claim would take again or give up; package T5's pending answers and package T7's group posts
+--     through their hooks (see the two marked blocks).
 create or replace function bot.tick_due(p_now timestamptz default pg_catalog.now())
 returns boolean
 language plpgsql
@@ -488,9 +488,11 @@ begin
                                  where d.kind = 'day_close' and d.chat_id = l.chat_id and d.local_day = dy.local_day)) then
     return true;
   end if;
-  -- a worker died after a claim: the row waits to be taken again
+  -- a worker died after a claim: the row waits to be taken again (after 10 minutes, 3 tries) or given up (3 hours)
   if exists (select 1 from bot.deliveries d
-              where d.status = 'claimed' and d.kind in ('reminder', 'ask', 'after_date', 'day_close')) then
+              where d.status = 'claimed' and d.kind in ('reminder', 'ask', 'after_date', 'day_close')
+                and ((d.attempts < 3 and d.claimed_at < p_now - interval '10 minutes')
+                     or d.claimed_at < p_now - interval '3 hours')) then
     return true;
   end if;
   -- ── package T5 hook: bot.tick_due_sessions(p_now timestamptz) returns boolean (a pending answer older than 30
@@ -521,7 +523,7 @@ begin
 end;
 $fn$;
 
--- 2n. Housekeeping, at most once an hour from bot_tick_beat. Bounded deletes; the tick job's own run history too
+-- 2p. Housekeeping, at most once an hour from bot_tick_beat. Bounded deletes; the tick job's own run history too
 --     (Supabase never cleans cron.job_run_details). Codes stay 30 days after they expire (the pilot counts the link
 --     funnel over 14–30 days).
 create or replace function bot.cleanup(p_now timestamptz)

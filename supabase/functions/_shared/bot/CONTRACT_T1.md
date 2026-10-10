@@ -85,7 +85,7 @@ Every claim first sweeps its kinds: a row in `sending` for 10 minutes becomes `u
 | `bot_delivery_sending(p_delivery_id)` | `true` → send now; `false` → do NOT send (taken, given up, or the link ended or was blocked). Call it right before `sendMessage` (or the day close's calls). |
 | `bot_delivery_done(p_delivery_id, p_status, p_tg_message_id = null, p_error = null)` | `{status: "ok", kind, prev_card_message_id}` \| `{status: "ignored"}`. `p_status`: `sent` (+ message id) \| `failed` \| `skipped` (+ a short reason, ≤ 200 chars, no text of the user). A sent K1 becomes today's card (`prev_card_message_id` = an unused /today card of that day: delete it); a sent K2 sets `asked_at`; a `day_close` closes its day. 429 → leave the rest `claimed` (no call). 403 → `bot_chat_event(…, 'blocked')` + `failed`. |
 | `bot_claim_day_close(p_limit int = 50)` | rows `{delivery_id, chat_id, local_day, card_message_id, last_message_id}`: for a day of the last two local days, delete `card_message_id` (when not null: unused and not a session), take the keyboard off `last_message_id` (when not null); then `bot_delivery_done(id, 'sent'\|'failed')`. Once per chat and day. |
-| `bot_claim_after_date(p_limit int = 50)` | rows `{delivery_id, chat_id, local_day, tz, container_id, exam}`, `exam` = `{container_id, title, exam_date, last_date, first_plan_day, active_days, answers, two_days, keyed}` for K3 (no sound): the day after the exam's last test date (or 2 more days to catch up), at the usual time, under the reminder's rules, once per user and exam. «За N дней» = `last_date − first_plan_day + 1`. |
+| `bot_claim_after_date(p_limit int = 50)` | rows `{delivery_id, chat_id, local_day, tz, container_id, exam}`, `exam` = `{container_id, title, exam_date, last_date, first_plan_day, active_days, answers, two_days, keyed}` for K3 (no sound): the day after the exam's last test date (or 2 more days to catch up), at the usual time, under the reminder's rules, once per user and exam. «За N дней» = `last_date − first_plan_day + 1`. `exam` is null when the exam was deleted meanwhile: `bot_delivery_done(id, 'skipped', null, 'gone')`. |
 
 ## Helpers for the packages after T1 (schema `bot`, not callable by clients)
 
@@ -94,13 +94,16 @@ Every claim first sweeps its kinds: a row in `sending` for 10 minutes becomes `u
 - `bot.session_message(p_chat_id, p_message_id) returns boolean` reads `bot.sessions(chat_id, message_id)`;
   `bot_today` reads `bot.sessions(user_id, status = 'open')`. T5: keep these spec §6.2 column names.
 - `bot.deliveries.kind = 'notice'` is reserved for one-off messages (at most once by the same unique key).
+- `bot.link_codes` takes T7's group codes as they are: `purpose = 'group'`, `container_id` (required), `post_hour`
+  0–23, `tz`; the hash is `meldy_private.code_hash(code)`; a claim sets `used_at` and `used_by_tg` together. The 5-an-hour
+  limit counts link codes only; codes are kept 30 days after they expire.
 - `bot.tick_due(p_now)`: the two hooks above. New functions in schema `bot` are executable by PUBLIC until revoked: take
   EXECUTE back from public, anon, authenticated (the contract check `bot_helpers_closed_to_clients` fails otherwise).
 
 ## Tables (schema `bot`; RLS on, no policy, no client grants)
 
 `config` (one row), `link_codes`, `links`, `updates`, `claim_failures`, `deliveries` (+ `answer` of a K2), `days`,
-`usage` (calls per UTC day). Uniqueness: one active link per `user_id` and per `tg_user_id`; `deliveries` unique `(kind, chat_id, local_day,
-ref)` nulls not distinct, plus one day card (`reminder`/`ask`) per chat and day; `updates` pk `update_id`; `days` pk
-`(link_id, local_day)`. Housekeeping (hourly, from `bot_tick_beat`): updates > 3 days, claim failures > 1 day, codes
+`usage` (calls per UTC day). Uniqueness: one active link per `user_id` and per `tg_user_id`; `deliveries` unique
+`(kind, chat_id, local_day, ref)` nulls not distinct, plus one day card (`reminder`/`ask`) per chat and day; `updates`
+pk `update_id`; `days` pk `(link_id, local_day)`. Housekeeping (hourly, from `bot_tick_beat`): updates > 3 days, claim failures > 1 day, codes
 expired > 30 days, deliveries > 90 days, days > 30 days, unlinked links > 30 days, the tick job's cron history > 7 days.
