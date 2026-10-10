@@ -62,20 +62,20 @@ function summary(extra: Partial<SheetSummaryProps> = {}) {
 }
 
 describe('SheetSummaryCard', () => {
-  it('full: the flag with «Весь лист на экране», the count with its details, the change, the rule with how a line looks, the share, two switches and the links', () => {
-    const props = summary();
+  it('full: the flag with «Весь лист на экране», the count with its details, the map, the change, the rule, the share, two switches and the links', () => {
+    const props = summary({ map: <div className="cs-mapbox" data-testid="map" /> });
     expect(screen.getByText('Шпаргалка')).toBeTruthy();
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47');
     expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных строк — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · у 6 вопросов нет пунктов ответа');
-    // The rule, word for word, with a piece of the paper after «наполовину» and «совсем» (EX-17): for the eye only.
+    // The map of the lines under the big count and what it means, before the change.
+    const order = [...(document.querySelector('.cs-sum') as HTMLElement).children].map((child) => child.className);
+    expect(order.indexOf('cs-sub')).toBeLessThan(order.indexOf('cs-mapbox'));
+    expect(order.indexOf('cs-mapbox')).toBeLessThan(order.indexOf('cs-change'));
+    // The rule, word for word, in words only: the map's key says how a line looks.
     const rule = document.querySelector('.cs-rule') as HTMLElement;
     expect(plain(rule.textContent)).toBe(SHEET_RULE);
-    expect([...rule.querySelectorAll<HTMLElement>('.cs-swatch')].map((swatch) => [swatch.dataset.state, swatch.getAttribute('aria-hidden')])).toEqual([
-      ['rubbed', 'true'],
-      ['erased', 'true'],
-    ]);
-    expect(rule.querySelector('.cs-swatch .cs-line[data-state="rubbed"] .cs-patch')).not.toBeNull();
+    expect(rule.children).toHaveLength(0);
     // The rolling digits are hidden from a screen reader; the count is read once, whole.
     expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
@@ -145,11 +145,12 @@ describe('SheetSummaryCard', () => {
     expect(document.querySelector('.cs-next')).toBeNull();
   });
 
-  it('top (a phone, above the paper): the count and «Только то, что осталось» in one row, so the paper’s lines are on the first screen', () => {
-    summary({ variant: 'top', mode: { ...MODE, onlyLeft: true } });
+  it('top (a phone, at the top of the sheet’s card): the count and «Скрыть строки…» in one row, the map under them, so the lines are on the first screen', () => {
+    summary({ variant: 'top', mode: { ...MODE, onlyLeft: true }, map: <div className="cs-mapbox" data-testid="map" /> });
     expect(screen.queryByText('Шпаргалка')).toBeNull();
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(document.querySelector('.cs-count .cs-count-switch')).not.toBeNull();
+    expect(document.querySelector('.cs-count')?.nextElementSibling).toBe(screen.getByTestId('map'));
     expect(document.querySelector('.cs-sub')).toBeNull();
     expect(document.querySelector('.cs-change')).toBeNull();
     expect(document.querySelector('.cs-rule')).toBeNull();
@@ -161,13 +162,14 @@ describe('SheetSummaryCard', () => {
   });
 
   it('after (a phone, under the paper): what the count means, the change, the rule, the share, the self-test and the links', () => {
-    summary({ variant: 'after', changeNote: 'Подсмотренное сегодня ответ не стирает.' });
+    summary({ variant: 'after', changeNote: 'Подсмотренное сегодня ответ не стирает.', map: <div className="cs-mapbox" data-testid="map" /> });
     expect(document.querySelector('.cs-big')).toBeNull();
+    // The map stands at the top of the card, with the count.
+    expect(screen.queryByTestId('map')).toBeNull();
     expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных строк — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · у 6 вопросов нет пунктов ответа');
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(plain(document.querySelector('.cs-change-note')?.textContent)).toBe('Подсмотренное сегодня ответ не стирает.');
     expect(document.querySelector('.cs-rule')).toBeTruthy();
-    expect(document.querySelector('.cs-rule .cs-swatch')).toBeTruthy();
     expect(document.querySelector('.cs-share')).toBeTruthy();
     expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Спрятать строки']);
     expect(screen.queryByRole('button', { name: 'Весь лист на экране' })).toBeNull();
@@ -235,21 +237,18 @@ describe('SheetSummaryCard', () => {
   });
 });
 
-describe('SheetSummaryCard on the exam page’s phone (one block above the paper, Phone_Declutter_2026-10-08)', () => {
-  it('the count, both switches once something is erased, the last answer and the history in sight; the rest behind «Как стираются строки»', () => {
-    const props = summary({ variant: 'phone', more: <p className="cs-unwritable">{unwritableLine(2)}</p> });
+describe('SheetSummaryCard on the exam page’s phone (Phone_Declutter_2026-10-08): the count and the map at the top of the card, the tools under it', () => {
+  it('phone: the count, the map and the last answer’s change at the top of the card; the rest behind «Как стираются строки»', () => {
+    summary({ variant: 'phone', more: <p className="cs-unwritable">{unwritableLine(2)}</p>, map: <div className="cs-mapbox" data-testid="map" /> });
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
     // The count's words, then the rule a tap away — as «… в лекциях. Как считается» over the list (a muted link: it explains).
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47. Как стираются строки');
-    expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Скрыть строки, стёртые совсем', 'Спрятать строки']);
-    // The words are short for one row on a 360 px phone; the names are whole.
-    const replay = screen.getByRole('button', { name: 'Показать последний ответ' });
-    expect(replay).toHaveTextContent('Последний ответ');
-    fireEvent.click(replay);
-    expect(props.onReplay).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'История шпаргалки' }));
-    expect(props.onHistory).toHaveBeenCalledTimes(1);
+    // The map right under the count; the switches and the links are under the card (phone-tools), so the list starts high.
+    expect(document.querySelector('.cs-count')?.nextElementSibling).toBe(screen.getByTestId('map'));
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Показать последний ответ' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'История шпаргалки' })).toBeNull();
     // What the count means, the rule, the share and the questions without points: one tap away.
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(document.querySelector('.cs-rule')).toBeNull();
@@ -271,20 +270,46 @@ describe('SheetSummaryCard on the exam page’s phone (one block above the paper
     expect(plain(more.querySelector('.cs-unwritable')?.textContent)).toBe(unwritableLine(2).replace(/\u00a0/g, ' '));
   });
 
-  it('nothing erased: only «Спрятать строки»; while the history plays, the count rolls and the rest steps aside', () => {
-    summary({ variant: 'phone', counts: { ...COUNTS, erased: 0 } });
+  it('phone-tools: both switches once something is erased, the last answer and the history, right under the card', () => {
+    const props = summary({ variant: 'phone-tools', id: 'cs-sum-exam-1' });
+    const tools = document.querySelector('.cs-sum') as HTMLElement;
+    expect(tools).toHaveAttribute('data-variant', 'phone-tools');
+    // The keyboard's skip lands here: the switches.
+    expect(tools).toHaveAttribute('id', 'cs-sum-exam-1');
+    expect(document.querySelector('.cs-big')).toBeNull();
+    expect(document.querySelector('.cs-change')).toBeNull();
+    expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Скрыть строки, стёртые совсем', 'Спрятать строки']);
+    // The words are short for one row on a 360 px phone; the names are whole.
+    const replay = screen.getByRole('button', { name: 'Показать последний ответ' });
+    expect(replay).toHaveTextContent('Последний ответ');
+    fireEvent.click(replay);
+    expect(props.onReplay).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'История шпаргалки' }));
+    expect(props.onHistory).toHaveBeenCalledTimes(1);
+    cleanup();
+    summary({ variant: 'phone-tools', mode: { ...MODE, cover: true } });
+    expect(plain(document.querySelector('.cs-cover-note')?.textContent)).toBe('Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.');
+  });
+
+  it('nothing erased: only «Спрятать строки»; while the history plays, the count rolls and the tools step aside', () => {
+    summary({ variant: 'phone-tools', counts: { ...COUNTS, erased: 0 } });
     expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Спрятать строки']);
     cleanup();
     const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
     summary({ variant: 'phone', history: { frame: first, first, lowest: first.left, running: true } });
     expect(document.querySelector('.cs-big')?.textContent).toBe('180');
-    expect(screen.queryAllByRole('switch')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Как стираются строки' })).toBeNull();
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 180');
     cleanup();
+    // Its day and «Остановить» ride over the bottom bar meanwhile (the page's chip).
+    summary({ variant: 'phone-tools', history: { frame: first, first, lowest: first.left, running: true } });
+    expect(document.querySelector('.cs-sum')).toBeNull();
+    cleanup();
     const last: HistoryFrame = { day: '2026-10-06', at: 0, left: 61, total: 180 };
-    const props = summary({ variant: 'phone', history: { frame: last, first, lowest: 61, running: false } });
+    summary({ variant: 'phone', history: { frame: last, first, lowest: 61, running: false } });
     expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('180 → 61 строка за 5 недель');
+    cleanup();
+    const props = summary({ variant: 'phone-tools', history: { frame: last, first, lowest: 61, running: false } });
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть историю шпаргалки' }));
     expect(props.onHistoryStop).toHaveBeenCalledTimes(1);
   });

@@ -25,6 +25,14 @@ export function unitsWord(count: number): string {
   return pluralRu(count, ['единица', 'единицы', 'единиц']);
 }
 
+/**
+ * A line's words with no arrow alone at the start of a row: ↑ and ↓ hold on to the word before them, → ⇒ ← to
+ * the word after them (a no-break space instead of the space).
+ */
+export function gluedArrows(text: string): string {
+  return text.replace(/[ \t]+([↑↓])/g, `${NBSP}$1`).replace(/([→⇒←])[ \t]+/g, `$1${NBSP}`);
+}
+
 /** «строк осталось из 47» under the big number. */
 export function counterLabel(counts: Pick<SheetCounts, 'left' | 'total'>): string {
   const verb = counts.left % 10 === 1 && counts.left % 100 !== 11 ? 'осталась' : 'осталось';
@@ -97,9 +105,9 @@ export function historyLine(event: LineEvent): string {
 }
 
 /**
- * The pencil note under a line (Onest, graphite), or null. Only readable lines carry one: the
- * words of a rubbed line would give it away. Due lines say why they show through. `spoken`: the
- * same note for a screen reader (whole month names, commas for the dots).
+ * The small caption under a line, or null: when a point was missed, that a line came back, why a due line is
+ * there to check, and that a line uncovered today will not erase today. A line named once has none of its own
+ * (its yellow dot says it). `spoken`: the same note for a screen reader (whole month names, commas for the dots).
  */
 export function lineNote(status: LineStatus, peekedNow = false, spoken = false): string | null {
   const say = spoken ? SPOKEN : WRITTEN;
@@ -193,11 +201,10 @@ export function erasableSentence(status: LineStatus, now: number = Date.now()): 
 }
 
 /**
- * What the screen reader hears for a line whose words the eye cannot read (rubbed, erased, due): its
- * state, whole month names, and what Enter does. Readable lines: lineSpeech.
+ * The state of a line the yellow dot or the strike marks (rubbed, due, erased), as a screen reader hears it:
+ * whole month names, and when a naming erases it. Null for the lines that are simply there.
  */
-export function lineLabel(text: string, status: LineStatus, essential: boolean, now: number = Date.now()): string {
-  const kind = essential ? 'Главный пункт' : 'Пункт';
+export function lineLabel(status: LineStatus, essential: boolean, now: number = Date.now()): string | null {
   // A line is erased; a point is named: «Строка главного пункта стёрта наполовину».
   const line = essential ? 'Строка главного пункта' : 'Строка пункта';
   const erased = dayOf(status.erasedAt, status.erasedOn);
@@ -205,24 +212,23 @@ export function lineLabel(text: string, status: LineStatus, essential: boolean, 
     case 'rubbed': {
       const when = status.erasableFrom ? erasableWhen(status.erasableFrom, now, SPOKEN) : null;
       const rest = status.erasableFrom ? (when ? `; сотрётся совсем, если назовёте пункт снова${when}` : '; назовёте пункт в ответе снова — сотрётся совсем') : '';
-      return `${line} стёрта наполовину${rest}. Открыть подробности`;
+      return `${line} стёрта наполовину${rest}.`;
     }
     case 'erased':
-      return `${line} стёрта${erased ? ` ${SPOKEN.day(erased)}` : ''}`;
+      return `${line} стёрта${erased ? ` ${SPOKEN.day(erased)}` : ''}.`;
     case 'due':
-      return `${line} стёрта${erased ? ` ${SPOKEN.day(erased)}` : ''}, пора проверить. Открыть подробности`;
-    case 'missed':
-    case 'returned':
-      return `${kind}: ${text}. ${lineNote(status, false, true) ?? ''}`.trim();
+      return `${line} стёрта${erased ? ` ${SPOKEN.day(erased)}` : ''}, пора проверить.`;
     default:
-      return `${kind}: ${text}`;
+      return null;
   }
 }
 
 /**
- * A line for a screen reader. A line the eye can read is named by the words it shows (speech input
- * says what it sees: «цена ↑ → спрос ↓»), and described by the rest: main or not, the whole point
- * when the line is its short form, the pencil note. A line it cannot read says only its state.
+ * A line for a screen reader, at the level of the eye: every line shows its words now (a line named once in
+ * a quieter ink, an erased one struck through), so every line is named by them — speech input says what it
+ * sees («цена ↑ → спрос ↓») — and described by the rest. A line that is simply there: main or not, the whole
+ * point when the line is its short form, its caption. A line named once, due or erased: main or not and its
+ * state (the whole point and the lecture's words stay behind «Подсмотреть» in its details).
  */
 export function lineSpeech(
   line: { text: string; title: string; essential: boolean },
@@ -230,13 +236,14 @@ export function lineSpeech(
   peeked = false,
   now: number = Date.now(),
 ): { name: string; description: string | null } {
-  const readable = peeked || status.state === 'fresh' || status.state === 'missed' || status.state === 'returned';
-  if (!readable) return { name: lineLabel(line.text, status, line.essential, now), description: null };
   const text = line.text.trim();
   const title = line.title.trim();
+  const name = text || title;
+  const readable = peeked || status.state === 'fresh' || status.state === 'missed' || status.state === 'returned';
+  if (!readable) return { name, description: lineLabel(status, line.essential, now) };
   const note = lineNote(status, peeked, true);
   const parts = [line.essential ? 'Главный пункт' : 'Пункт', title && title !== text ? `Полностью: ${title.replace(/[.!?…]+$/u, '')}` : null, note ? note.charAt(0).toUpperCase() + note.slice(1) : null];
-  return { name: text || title, description: `${parts.filter(Boolean).join('. ')}.` };
+  return { name, description: `${parts.filter(Boolean).join('. ')}.` };
 }
 
 function singular(count: number): boolean {
@@ -257,8 +264,8 @@ export function changeParts(summary: ChangeSummary): string | null {
   }
   if (summary.checked > 0) add(summary.checked, singular(summary.checked) ? 'прошла проверку' : 'прошли проверку');
   if (summary.returned > 0) add(summary.returned, singular(summary.returned) ? 'вернулась' : 'вернулись');
-  // A fresh line the answer did not name: still there, now with a wave («не стёрлась», not «осталась»,
-  // which the counter above already says of every line left).
+  // A fresh line the answer did not name: still there, now with its «не назван» caption («не стёрлась», not
+  // «осталась», which the counter above already says of every line left).
   if (summary.stayed > 0) add(summary.stayed, singular(summary.stayed) ? 'не стёрлась' : 'не стёрлись');
   return items.length > 0 ? items.join(', ') : null;
 }

@@ -150,44 +150,45 @@ describe('cheat sheet words', () => {
     const rubbed = status({ state: 'rubbed', erasableFrom: new Date(2026, 9, 6, 15, 40).toISOString() });
     expect(plain(erasableSentence(rubbed, new Date(2026, 9, 6, 9, 0).getTime()))).toBe('Сотрётся совсем, если назовёте пункт снова после 6 окт., 15:40.');
     expect(erasableSentence(rubbed, new Date(2026, 9, 6, 15, 41).getTime())).toBe('Назовёте пункт в ответе снова — сотрётся совсем.');
-    // A screen reader hears whole month names, and that Enter opens the details (where «Подсмотреть» is).
-    expect(plain(lineLabel('цена ↑', rubbed, true, new Date(2026, 9, 6, 9, 0).getTime()))).toBe(
-      'Строка главного пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова после 6 октября, 15:40. Открыть подробности',
+    // A screen reader hears whole month names (the line's description; its name is its words).
+    expect(plain(lineLabel(rubbed, true, new Date(2026, 9, 6, 9, 0).getTime()))).toBe(
+      'Строка главного пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова после 6 октября, 15:40.',
     );
-    expect(lineLabel('цена ↑', rubbed, true, new Date(2026, 9, 7, 9, 0).getTime())).toBe(
-      'Строка главного пункта стёрта наполовину; назовёте пункт в ответе снова — сотрётся совсем. Открыть подробности',
-    );
+    expect(lineLabel(rubbed, true, new Date(2026, 9, 7, 9, 0).getTime())).toBe('Строка главного пункта стёрта наполовину; назовёте пункт в ответе снова — сотрётся совсем.');
     expect(erasableSentence(status({ state: 'fresh' }))).toBeNull();
   });
 
   it('names a day, not «0:00», when the line waits for the next day (after a peek, or the 20 hours ending at midnight)', () => {
     const nextDay = status({ state: 'rubbed', erasableFrom: new Date(2026, 9, 8, 0, 0).toISOString() });
     expect(plain(erasableSentence(nextDay, new Date(2026, 9, 7, 9, 0).getTime()))).toBe('Сотрётся совсем, если назовёте пункт снова 8 окт. или позже.');
-    expect(plain(lineLabel('x', nextDay, false, new Date(2026, 9, 7, 9, 0).getTime()))).toBe(
-      'Строка пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова 8 октября или позже. Открыть подробности',
+    expect(plain(lineLabel(nextDay, false, new Date(2026, 9, 7, 9, 0).getTime()))).toBe(
+      'Строка пункта стёрта наполовину; сотрётся совсем, если назовёте пункт снова 8 октября или позже.',
     );
     expect(erasableSentence(nextDay, new Date(2026, 9, 8, 0, 1).getTime())).toBe('Назовёте пункт в ответе снова — сотрётся совсем.');
   });
 
-  it('gives a screen reader the words only where the eye can read them', () => {
-    const rubbed = lineLabel('цена ↑ → спрос ↓', status({ state: 'rubbed' }), false);
-    expect(rubbed).not.toContain('цена');
-    expect(rubbed).toContain('Открыть подробности');
+  it('says the state of a line named once, erased or due; a line simply there has none to say', () => {
+    expect(lineLabel(status({ state: 'rubbed' }), false)).toBe('Строка пункта стёрта наполовину.');
     // A line is erased, a point is named.
-    expect(plain(lineLabel('x', status({ state: 'erased', erasedOn: '2026-10-04' }), false))).toBe('Строка пункта стёрта 4 октября');
-    expect(plain(lineLabel('x', status({ state: 'due', erasedOn: '2026-09-20' }), true))).toBe('Строка главного пункта стёрта 20 сентября, пора проверить. Открыть подробности');
+    expect(plain(lineLabel(status({ state: 'erased', erasedOn: '2026-10-04' }), false))).toBe('Строка пункта стёрта 4 октября.');
+    expect(plain(lineLabel(status({ state: 'due', erasedOn: '2026-09-20' }), true))).toBe('Строка главного пункта стёрта 20 сентября, пора проверить.');
+    expect(lineLabel(status({ state: 'fresh' }), true)).toBeNull();
+    expect(lineLabel(status({ state: 'missed' }), true)).toBeNull();
   });
 
-  it('names a readable line by the words it shows, and describes the rest (speech input says what it sees)', () => {
+  it('names every line by the words it shows, and describes the rest (speech input says what it sees)', () => {
     const line = { text: 'цена ↑ → спрос ↓', title: 'Закон спроса: чем выше цена, тем меньше спрос.', essential: true };
     expect(lineSpeech(line, status({ state: 'fresh' }))).toEqual({ name: 'цена ↑ → спрос ↓', description: 'Главный пункт. Полностью: Закон спроса: чем выше цена, тем меньше спрос.' });
     const missed = status({ state: 'missed', history: [{ at: '', date: '2026-10-06', outcome: 'missed', word: 'mentioned', sessionId: null }] });
     expect(lineSpeech({ ...line, text: line.title, essential: false }, missed)).toEqual({ name: line.title, description: 'Пункт. 6 октября только упомянут.' });
-    // Uncovered now: named by its words, with the peek's note.
+    // Uncovered now: with the whole point and the peek's note.
     expect(lineSpeech(line, status({ state: 'rubbed' }), true).description).toBe('Главный пункт. Полностью: Закон спроса: чем выше цена, тем меньше спрос. Подсмотрели — сегодня не сотрётся.');
-    // A rubbed line has no words to say.
-    expect(lineSpeech(line, status({ state: 'rubbed' }))).toMatchObject({ description: null });
-    expect(lineSpeech(line, status({ state: 'rubbed' })).name).not.toContain('цена');
+    // Named once, erased: the words the eye reads (in a quieter ink, struck through), and the state; the whole point
+    // stays behind «Подсмотреть» in the details.
+    expect(lineSpeech(line, status({ state: 'rubbed' }))).toEqual({ name: 'цена ↑ → спрос ↓', description: 'Строка главного пункта стёрта наполовину.' });
+    expect(plain(lineSpeech({ ...line, essential: false }, status({ state: 'erased', erasedOn: '2026-10-04' })).description)).toBe('Строка пункта стёрта 4 октября.');
+    // No short form: the whole point is the line's words.
+    expect(lineSpeech({ ...line, text: '' }, status({ state: 'erased' })).name).toBe(line.title);
   });
 
   it('names the same day in a note as the line’s history does with its time (after a change of time zone too)', () => {

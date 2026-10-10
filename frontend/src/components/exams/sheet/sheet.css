@@ -1,165 +1,132 @@
-/* «Шпаргалка, которая исчезает» (CheatSheet.tsx; notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05,
-   sections 5–6). Squared school paper on Meldy's desk: the department's questions printed in Onest, the
-   answer points written by hand (Caveat, loaded as «Meldy Hand» by sheetFont.ts) on a 24 px grid whose
-   lines run under the handwriting's baselines. The paper keeps its own light tokens in both themes; at
-   night it is a dimmed light paper. A line's state is told by channels of the same ink — never blur,
-   glow, stains or texture images: rubbed = broken ink left by two eraser passes, erased = only the rubbed
-   paper and a ghost of the ink, a graphite wave under a missed point, a graphite ring round the bullet
-   when an erased line is due. Masks that sweep exist only while a line moves. */
+/* «Шпаргалка, которая исчезает» in the app's own look (CheatSheet.tsx, SheetMap.tsx; notes:
+   40_Decisions/2026-10-10_cheat-sheet-native-look, mechanics: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05).
+   The sheet is a white card of the app, with the app's tokens in both themes: a question is its number and title
+   (Onest 600), a point a line (Onest 400) with a marker — a dot in ink for a main point, a short dash for a
+   detail, a yellow dot once it was named once (its words then in a quieter ink), none once it is erased (its
+   words faint and struck through). A small caption under a line says when it was missed or why it is back. The
+   map of lines shows the same states square by square. Movement is transforms and opacity only — a strike drawn
+   left to right, words fading to their state, markers and squares cross-fading — and none with reduced motion. */
+
+/* The sheet's own values, for the card, its map and its key. The words of a line named once and of an erased
+   line are the ink at these opacities: the app's muted and its faint control edge, so a change is a fade. */
+.sf-page,
+.cs-wrap,
+.cs-mapbox {
+  /* The yellow of a line named once: the logo dot's, deeper on white so a 7 px dot holds its own. */
+  --cs-half: #e9b13c;
+  --cs-faint: #8a8f97;
+  /* The self-test's bar over the words: the answer screen's closed point (oral.css --or-bar). */
+  --cs-bar: #e9e9e3;
+  /* The highlighter under the title of the last answer's question. */
+  --cs-mark: rgba(244, 196, 91, .5);
+  --cs-half-o: .74;
+  --cs-gone-o: .47;
+}
+.dark .sf-page,
+.dark .cs-wrap,
+.dark .cs-mapbox {
+  --cs-half: #f4c45b;
+  --cs-faint: #6b7383;
+  --cs-bar: rgba(243, 243, 240, .1);
+  --cs-mark: rgba(244, 196, 91, .3);
+  --cs-half-o: .7;
+  --cs-gone-o: .42;
+}
 
 .cs-wrap {
   position: relative;
   min-width: 0;
-  --cs-marker-ms: 450ms;
 }
-.cs-wrap[data-slow] { --cs-marker-ms: 900ms; }
 
-/* The paper's own light tokens; a piece of it in the column's key (SheetLegend: .cs-swatch) has them too. */
-.cs-paper,
-.cs-swatch {
-  --cs-paper: #fffefa;
-  --cs-grid: rgba(31, 61, 148, .13);
-  --cs-margin: #e3a2b8;
-  --cs-ink: #1f3d94;
-  --cs-graphite: #50565f;
-  --cs-print: #0b121c;
-  --cs-focus: #1f5bc6;
-  /* One grid row; the handwriting's baseline in it (Caveat 22/24 with the fixed metrics of sheetFont.ts). */
-  --cs-row: 24px;
-  --cs-base: 19px;
-  --cs-hand: 22px;
-  --cs-print-size: 15px;
-  --cs-note-size: 14px;
-  /* Onest sits 2 px higher in a 24 px row than the handwriting: printed lines are moved onto the grid line. */
-  --cs-print-shift: 2px;
-  --cs-pad-l: 24px;
-  --cs-pad-r: 72px;
-  --cs-gap: 48px;
-  /* A rubbed line: two passes of the eraser across it leave islands of the strokes (A ∩ B) in dark ink,
-     between them almost nothing: the hand is still there, the words are not readable. An erased line
-     is a ghost of 7 % on the rubbed paper. Both passes share one 22 px period at ±7°: passes of
-     different periods (12 and 13 px) beat into a ~120 px moiré, and in its 60 px windows whole words
-     survived — readable at 1.25×–3× (the visual critic, 2026-10-07). One island is 2–3 letters wide;
-     a finer hatch reads worse, the eye joins the dots. */
-  --cs-rub: .8;
-  --cs-erased: .07;
-  --cs-pass-a: repeating-linear-gradient(97deg, #000 0 9px, rgba(0, 0, 0, .04) 9px 22px);
-  --cs-pass-b: repeating-linear-gradient(83deg, #000 0 10px, rgba(0, 0, 0, .06) 10px 22px);
-  --ph-pencil-desk: var(--cs-focus);
-  --ph-graphite-desk: var(--cs-graphite);
-  --ph-focus: var(--cs-focus);
-  color-scheme: light;
-}
+/* ---------------------------------------------------------------- the card */
 .cs-paper {
+  /* A row of a title or a line; the strike's thickness and its height in the words' box (the drawn strike of
+     CheatSheet.useStrikeRows ends exactly there). */
+  --cs-row: 24px;
+  --cs-strike-w: 1.5px;
+  --cs-strike-f: 60%;
   position: relative;
-  padding: var(--cs-row) var(--cs-pad-r) var(--cs-row) var(--cs-pad-l);
-  border-radius: 3px;
-  background-color: var(--cs-paper);
-  /* «Вся шпаргалка» scales the paper down: its lines stay one device pixel (--cs-zoom). */
-  --cs-line: calc(1px / var(--cs-zoom, 1));
-  background-image:
-    linear-gradient(to bottom, transparent var(--cs-base), var(--cs-grid) var(--cs-base), var(--cs-grid) calc(var(--cs-base) + var(--cs-line)), transparent calc(var(--cs-base) + var(--cs-line))),
-    linear-gradient(to right, var(--cs-grid) var(--cs-line), transparent var(--cs-line));
-  background-size: 100% var(--cs-row), var(--cs-row) 100%;
-  box-shadow: 0 0 0 1px rgba(16, 41, 90, .1), 0 1px 1px rgba(11, 18, 28, .05), 0 14px 32px -16px rgba(16, 41, 90, .22);
-  color: var(--cs-ink);
+  padding: 30px 34px 26px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card, 0 0 0 1px var(--sf-line), var(--m-card-shadow));
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
   transform-origin: 50% 0;
 }
-/* The pink margin line on the right, on a line of the grid (--cs-margin-x, from the paper's width). */
-.cs-paper::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 24px));
-  width: 1.5px;
-  background: var(--cs-margin);
-  pointer-events: none;
-}
-.dark .cs-paper,
-.dark .cs-swatch {
-  --cs-paper: #dedbd1;
-  --cs-margin: #c98a9f;
-}
-.dark .cs-paper { box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 30px 60px -30px rgba(0, 0, 0, .8); }
-/* A phone's paper: the 24 px grid too (every line a 24 px target for a finger, WCAG 2.5.8), the
-   handwriting at 20/24 (its baseline at 18.6 px: on the line at 18). The squares start at the
-   bullets' column, so no bullet stands across a vertical line. */
-.cs-paper[data-narrow] {
-  --cs-base: 18px;
-  --cs-hand: 20px;
-  --cs-print-size: 14px;
-  --cs-note-size: 13px;
-  --cs-pad-l: 16px;
-  --cs-pad-r: 36px;
-  background-position: 0 0, var(--cs-pad-l) 0;
-}
-.cs-paper[data-narrow]::after { left: var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 14px)); }
+/* A phone's card: as the cards around it (the list of «Вопросы»), less padding. */
+.cs-paper[data-narrow] { padding: 20px 18px 16px; border-radius: 32px; }
 
-/* Two columns from 760 px of paper, each a whole number of grid cells (layout.paperGeometry); «Весь
-   лист» may set more (the template is then inline). */
+/* Two columns from 760 px of card (layout.paperGeometry); «Весь лист на экране» may set more (the template is then inline). */
 .cs-paper:not([data-columns='1']) {
   display: grid;
   grid-template-columns: var(--cs-col) var(--cs-col);
-  column-gap: var(--cs-gap);
+  column-gap: 40px;
   align-items: start;
 }
 .cs-col { min-width: 0; }
-/* «История шпаргалки»: the day in the paper's corner, written by hand like the date of a notebook
-   page. It stays in the paper's top row (its padding), so it never covers a section title or a long
-   question in one column (a phone) or the other. */
+
+/* A phone: the count and the map of lines at the top of the card, so the list starts right under them. */
+.cs-top {
+  grid-column: 1 / -1;
+  margin: 0 0 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--sf-line);
+}
+
+/* «История шпаргалки»: the day shown, on a tag at the card's top edge (it covers nothing of the list). */
 .cs-date {
   position: absolute;
-  /* Its baseline on the grid line, as the handwriting's (Caveat at 1.15 sits 1 px lower in the row). */
-  top: -1px;
-  /* 10 px left of the margin line, wherever the grid puts it. */
-  left: calc(var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 24px)) - 10px);
-  transform: translateX(-100%);
-  z-index: 1;
+  top: 0;
+  right: 32px;
+  z-index: 2;
   margin: 0;
-  font-family: 'Meldy Hand', var(--ph-sans);
-  font-size: calc(var(--cs-hand) * 1.15);
-  line-height: var(--cs-row);
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font-size: 14px;
+  line-height: 28px;
   font-weight: 500;
-  color: var(--cs-ink);
   white-space: nowrap;
   pointer-events: none;
+  transform: translateY(-50%);
   animation: cs-fade 150ms ease-out both;
 }
-.cs-paper[data-narrow] .cs-date { left: calc(var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 14px)) - 8px); }
+.cs-paper[data-narrow] .cs-date { right: 22px; }
 
 /* ---------------------------------------------------------------- a question */
 .cs-q {
   position: relative;
-  padding-bottom: var(--cs-row);
+  padding-bottom: 20px;
 }
+/* A section of the department's list: a label, as over the list of «Вопросы». */
 .cs-paper .cs-sec {
-  margin: 0;
-  position: relative;
-  top: var(--cs-print-shift);
-  font-family: var(--ph-sans);
-  font-size: 12px;
-  line-height: var(--cs-row);
+  margin: 0 0 12px;
+  padding-top: 4px;
+  font-size: 13px;
+  line-height: 20px;
   font-weight: 600;
-  letter-spacing: .07em;
+  letter-spacing: .08em;
   text-transform: uppercase;
-  color: var(--cs-graphite);
+  color: var(--sf-accent-fg);
+  text-wrap: balance;
 }
+.cs-paper[data-narrow] .cs-sec { font-size: 15px; letter-spacing: 0; text-transform: none; }
 .cs-qh {
   position: relative;
   margin: 0;
-  font-family: var(--ph-sans);
-  font-size: var(--cs-print-size);
-  line-height: var(--cs-row);
+  font-size: 17px;
+  line-height: 24px;
   font-weight: 600;
-  letter-spacing: 0;
-  color: var(--cs-print);
+  letter-spacing: -.005em;
+  color: var(--sf-ink);
 }
 .cs-qbtn {
   position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: .35em;
+  grid-template-columns: var(--cs-num-w, 28px) minmax(0, 1fr);
   width: 100%;
   margin: 0;
   padding: 0;
@@ -171,219 +138,189 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* The printed words move onto the grid line, not the button: one row's button does not reach into the next. */
-.cs-qbtn > span:not(.sr-only) { position: relative; top: var(--cs-print-shift); }
-.cs-qn { font-variant-numeric: tabular-nums; }
+.cs-qn { font-weight: 500; color: var(--cs-faint); }
 .cs-qt { min-width: 0; text-wrap: pretty; }
 .cs-qbtn:hover .cs-qm {
   text-decoration: underline;
-  text-decoration-color: rgba(11, 18, 28, .28);
+  text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
   text-decoration-thickness: 1px;
   text-underline-offset: 4px;
 }
-.cs-qbtn:focus-visible { outline: calc(2px / var(--cs-zoom, 1)) solid var(--cs-focus); outline-offset: 2px; border-radius: 4px; }
-/* The ticket's marker: a yellow stroke over the printed words of the last answer's question. */
+.cs-qbtn:focus-visible { outline: calc(2px / var(--cs-zoom, 1)) solid var(--ph-focus, var(--sf-accent)); outline-offset: 4px; border-radius: 10px; }
+/* The question of the last answer: a flat yellow highlighter under the lower part of its words, row by row (it
+   appears when a show reaches the question). */
 .cs-qm[data-marker] {
-  background-image: linear-gradient(transparent 44%, rgba(244, 196, 91, .55) 44%, rgba(244, 196, 91, .55) 90%, transparent 90%);
+  background-image: linear-gradient(var(--cs-mark), var(--cs-mark));
   background-repeat: no-repeat;
-  background-size: 100% 100%;
-  -webkit-box-decoration-break: slice;
-  box-decoration-break: slice;
-  mix-blend-mode: multiply;
-  /* A highlighter's stroke, not a box: its ends soften over a few px. */
-  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, .55), #000 4px, #000 calc(100% - 5px), rgba(0, 0, 0, .4));
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, .55), #000 4px, #000 calc(100% - 5px), rgba(0, 0, 0, .4));
+  background-size: 100% 42%;
+  background-position: 0 92%;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
-.cs-qm[data-marker='draw'] { animation: cs-marker var(--cs-marker-ms) cubic-bezier(.35, .05, .45, 1) both; }
-@keyframes cs-marker {
-  from { background-size: 0% 100%; }
-}
-/* «Главные строки стёрты»: a graphite tick in the margin by the number. */
-.cs-tick {
-  position: absolute;
-  left: calc(-1 * var(--cs-pad-l) + 1px);
-  top: calc(var(--cs-print-shift) + 3px);
-  width: 20px;
+/* «Главные строки стёрты»: a small check after the title; a question in no lecture: a short dash there. */
+.cs-tick { display: inline-block; white-space: nowrap; color: var(--sf-muted); }
+.cs-gapmark { color: var(--cs-faint); }
+.cs-tick-i {
+  display: inline-block;
+  width: 16px;
   height: 16px;
-  pointer-events: none;
+  vertical-align: -2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.cs-paper[data-narrow] .cs-tick { left: -14px; transform: scale(.65); transform-origin: 0 50%; }
-/* A question in no lecture when the page says it once for the whole sheet: a graphite dash where a tick would be. */
-.cs-gapmark { top: calc(var(--cs-print-shift) + 6px); height: 10px; }
-/* A line of a learned question comes back: the tick stays until the line is written again, then fades. */
+.cs-tick[data-draw] { animation: cs-pop 260ms cubic-bezier(.2, .7, .3, 1) var(--cs-tick-in, 0ms) both; }
+/* A line of a question whose main lines were all erased comes back: the check stays until it is back, then fades. */
 .cs-tick[data-out] { animation: cs-fade-out 200ms ease-in var(--cs-out, 0ms) both; }
+@keyframes cs-pop {
+  from { opacity: 0; transform: scale(.6); }
+}
 @keyframes cs-fade-out {
   to { opacity: 0; }
 }
-.cs-q[data-folded] .cs-qh { color: #5b616b; }
+.cs-q[data-folded] .cs-qh { color: var(--sf-muted); }
 
-/* ---------------------------------------------------------------- the handwritten lines */
-.cs-lines { margin: 0; padding: 0; list-style: none; }
-.cs-line { position: relative; }
+/* ---------------------------------------------------------------- the lines */
+.cs-lines { margin: 5px 0 0; padding: 0; list-style: none; }
+.cs-line { position: relative; isolation: isolate; }
 .cs-lbtn {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: var(--cs-row) minmax(0, 1fr);
+  grid-template-columns: var(--cs-num-w, 28px) minmax(0, 1fr);
   width: 100%;
   margin: 0;
-  padding: 0;
+  padding: 3px 0;
   border: 0;
   background: none;
-  font-family: 'Meldy Hand', var(--ph-sans);
-  font-size: var(--cs-hand);
-  line-height: var(--cs-row);
-  font-weight: 500;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
   letter-spacing: 0;
-  color: var(--cs-ink);
+  color: var(--sf-ink);
   text-align: left;
   cursor: pointer;
   touch-action: pan-y;
   -webkit-tap-highlight-color: transparent;
 }
-.cs-lbtn:focus-visible { outline: calc(2px / var(--cs-zoom, 1)) solid var(--cs-focus); outline-offset: 2px; border-radius: 6px; }
-/* A finger (EX-23, PUB-28): the lines stay on the 24 px grid (WCAG 2.5.8, spec 14.1), and a line's target
-   takes the free rows around it — its pencil note's row (the note is the line's own words, not a control)
-   and half of the air under a question's last line — so a line with a note is a 48 px target and the
-   last one 36 px; a question's printed line takes the other half of that air (36 px for one row). The
-   overlays belong to the buttons (a line's positioned box is .cs-line, a question's its own button).
-   Lines next to each other keep 24 px each: a taller target would need a taller grid. */
+.cs-lbtn:focus-visible { outline: calc(2px / var(--cs-zoom, 1)) solid var(--ph-focus, var(--sf-accent)); outline-offset: 2px; border-radius: 8px; }
+/* The line whose details are open (the app's blue tint) and the line a square of the map points at (a grey one):
+   its words and its caption. */
+.cs-line::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 -10px;
+  border-radius: 10px;
+  background: var(--sf-tint, rgba(11, 18, 28, .05));
+  opacity: 0;
+  transition: opacity .2s ease;
+  pointer-events: none;
+}
+.cs-line[data-selected]::before { background: var(--sf-accent-soft); opacity: 1; }
+.cs-line[data-hot]::before { opacity: 1; }
+/* A finger (EX-23, PUB-28): a line's target takes its caption's row (the caption is the line's own words, not a control). */
 @media (pointer: coarse) {
-  .cs-lbtn::after {
+  .cs-line:has(> .cs-note) > .cs-lbtn::after {
     content: '';
     position: absolute;
-    inset: 0;
+    inset: 0 0 -18px;
   }
-  .cs-line:last-child > .cs-lbtn::after { bottom: calc(var(--cs-row) / -2); }
-  /* The note is drawn over the line's overlay (it comes later): a tap on it goes through to the line. */
   .cs-line > .cs-note { pointer-events: none; }
-  /* A question's printed line takes the other half of the air above it. */
-  .cs-qbtn::after {
-    content: '';
-    position: absolute;
-    inset: calc(var(--cs-row) / -2) 0 0;
-  }
 }
-.cs-bullet {
-  text-align: center;
-  transition: opacity 180ms linear var(--cs-delay, 0ms);
+
+/* The marker in the number's column: a dot in ink for a main point, a short dash for a detail; a yellow dot once
+   named once, a yellow ring while an erased line is due; nothing once erased. Two layers, so a change is a fade. */
+.cs-mk { position: relative; height: 24px; }
+.cs-mk::before,
+.cs-mk::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 8.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
 }
+.cs-mk::before { background: var(--sf-ink); opacity: var(--mk-a, 1); }
+.cs-line:not([data-essential]) .cs-mk::before { left: 3px; top: 11.25px; width: 8px; height: 1.5px; border-radius: 1px; background: var(--sf-muted); }
+.cs-mk::after { background: var(--cs-half); opacity: var(--mk-b, 0); }
+.cs-line:is([data-state='due'], [data-from='due']) .cs-mk::after { left: 3.5px; top: 8px; width: 8px; height: 8px; background: transparent; box-shadow: inset 0 0 0 1.75px var(--cs-half); }
+.cs-line:is([data-state='rubbed'], [data-state='due']) { --mk-a: 0; --mk-b: 1; }
+.cs-line[data-state='erased'] { --mk-a: 0; --mk-b: 0; }
+
 .cs-body {
   position: relative;
-  isolation: isolate;
   justify-self: start;
   max-width: 100%;
   min-width: 0;
 }
 .cs-ink {
+  position: relative;
   display: inline-block;
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-/* An arrow drawn in ink (SheetText): sized in em, standing on the text's baseline. It holds on to its
-   word (a no-break space alone does not hold an inline SVG): ↓ never starts a row by itself. */
-.cs-arrow { white-space: nowrap; }
-.cs-glue { white-space: nowrap; }
-.cs-arrow-ink {
-  display: inline;
-  height: auto;
-  margin: 0 .05em;
-  overflow: visible;
-  fill: currentColor;
-  vertical-align: baseline;
+.cs-line:is([data-state='rubbed'], [data-state='due']) .cs-ink { opacity: var(--cs-half-o); }
+.cs-line[data-state='erased'] .cs-ink { opacity: var(--cs-gone-o); }
+/* The steady strike of an erased line: one stroke at the words' middle through every row they take. */
+.cs-line[data-state='erased']:not([data-anim]) .cs-ink-t {
+  background-image: linear-gradient(color-mix(in srgb, currentColor 62%, transparent), color-mix(in srgb, currentColor 62%, transparent));
+  background-repeat: no-repeat;
+  background-size: 100% var(--cs-strike-w);
+  background-position: 0 var(--cs-strike-f);
 }
-
-/* Rubbed paper under a line that was rubbed (rubbed, erased, due, returned): the grid shows at 55 % under
-   a graphite haze, so the place looks dull, not lighter. One strip per row of words (CheatSheet useRows),
-   8 px past them on each side, its ends feathered: the eraser's track, not a grey bar. */
-.cs-patch {
-  position: absolute;
-  z-index: -1;
-  height: calc(var(--cs-row) - 2px);
-  background: linear-gradient(rgba(90, 96, 105, .03), rgba(90, 96, 105, .03)), color-mix(in srgb, var(--cs-paper) 45%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-  pointer-events: none;
-  opacity: 0;
-}
-.cs-line:is([data-state='rubbed'], [data-state='erased'], [data-state='due'], [data-state='returned']) .cs-patch { opacity: 1; }
-/* Rows not measured (yet): one strip under the whole line, as before. */
-.cs-patch[data-whole] { inset: 1px -8px; height: auto; }
-
-/* Steady states. */
-.cs-line:is([data-state='rubbed'], [data-state='due']):not([data-anim]):not([data-peek]) .cs-ink {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--cs-rub)), rgba(0, 0, 0, var(--cs-rub))), var(--cs-pass-a), var(--cs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--cs-rub)), rgba(0, 0, 0, var(--cs-rub))), var(--cs-pass-a), var(--cs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-}
-.cs-line[data-state='erased']:not([data-anim]) .cs-ink {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--cs-erased)), rgba(0, 0, 0, var(--cs-erased))), var(--cs-pass-a), var(--cs-pass-b);
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--cs-erased)), rgba(0, 0, 0, var(--cs-erased))), var(--cs-pass-a), var(--cs-pass-b);
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-}
-.cs-line:is([data-state="rubbed"], [data-state="due"]):not([data-peek]) .cs-bullet { opacity: .3; }
-/* Hidden words are not in a selection either (select-all, copy, read-aloud of the page). */
-.cs-line:is([data-state='rubbed'], [data-state='due'], [data-state='erased']):not([data-peek]) .cs-ink,
-.cs-line[data-cover] .cs-ink { -webkit-user-select: none; user-select: none; }
-.cs-line[data-state='erased'] .cs-bullet { opacity: .12; }
-
 /* Uncovered for a moment («Подсмотреть»): the line reads in full ink. */
-.cs-line[data-peek] .cs-ink { animation: cs-peek 220ms ease-out both; }
+.cs-line[data-peek] .cs-ink { opacity: 1; animation: cs-peek 220ms ease-out both; }
 @keyframes cs-peek {
-  from { opacity: .3; }
+  from { opacity: var(--cs-half-o); }
 }
 
-/* The self-test («Закрыть строки»): a dotted slot instead of the words, on every row a wrapped line takes. */
-.cs-line[data-cover] .cs-ink,
-.cs-line[data-cover] .sf-under-ink { visibility: hidden; }
+/* The self-test («Спрятать строки»): a soft bar instead of the words, on every row a wrapped line takes (the answer
+   screen's closed point). */
+.cs-line[data-cover] .cs-ink { visibility: hidden; }
 .cs-slot {
   position: absolute;
-  height: 0;
-  margin-top: calc(var(--cs-base) + 1px);
-  border-bottom: 2px dotted var(--cs-graphite);
-  opacity: .75;
+  height: 10px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--cs-bar);
   pointer-events: none;
 }
-.cs-slot[data-whole] { left: 0; right: 0; bottom: calc(var(--cs-row) - var(--cs-base) + 3px); margin-top: 0; }
+.cs-slot[data-whole] { left: 0; right: 0; top: 0; }
 
-/* A due line: a graphite ring round its bullet («пора проверить»); the line whose details are open: a
-   pencil stroke just left of the bullet and a faint blue under the line. */
-.cs-due {
-  position: absolute;
-  left: 1px;
-  top: 2px;
-  pointer-events: none;
-}
-.cs-paper[data-narrow] .cs-due { left: 0; top: 1px; }
-.cs-line .sf-margin-stroke { left: -12px; }
-.cs-line[data-selected] > .cs-lbtn { border-radius: 6px; background: rgba(31, 91, 198, .06); }
-/* The wave under a missed point: graphite, a little lighter than the ink it underlines. */
-.cs-line .sf-under-ink { opacity: .8; }
-
-/* Pencil notes: under a line (its state in the protocol's words) and under a question (Meldy's note). */
-.cs-note,
-.cs-pnote {
+/* The caption under a line (when it was missed, that it came back, why it is due, that it was uncovered today). */
+.cs-note {
   position: relative;
-  top: var(--cs-print-shift);
-  margin: 0;
-  padding-left: var(--cs-row);
-  font-family: var(--ph-sans);
-  font-size: var(--cs-note-size);
-  line-height: var(--cs-row);
-  font-weight: 500;
-  color: var(--cs-graphite);
+  margin: -3px 0 3px;
+  padding-left: var(--cs-num-w, 28px);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--sf-muted);
   text-wrap: pretty;
 }
-.cs-note[data-kind='peek'] { color: var(--cs-focus); }
-.dark .cs-note[data-kind='peek'] { color: #1a4fb0; }
-/* A note keeps its row under a hidden line, and while a show plays (it appears or goes then): nothing below moves. */
+.cs-note[data-kind='peek'] { color: var(--sf-accent-fg); }
+/* A caption keeps its row under a covered line, and while a show plays (it appears or goes then): nothing below moves. */
 .cs-line[data-cover] .cs-note,
 .cs-note[data-reserve] { visibility: hidden; }
-/* The note of a peek opens its row instead of pushing the sheet down at once. */
-.cs-note[data-enter] { overflow: hidden; animation: cs-row-in 220ms ease-out both; }
-@keyframes cs-row-in {
-  from { max-height: 0; opacity: 0; }
-  to { max-height: calc(var(--cs-row) * 3); opacity: 1; }
+/* The caption of a peek comes in under the eye. */
+.cs-note[data-enter] { animation: cs-caption-in 220ms ease-out both; }
+@keyframes cs-caption-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+/* Meldy's note under a question (no lecture has it, what a partial one lacks, not written yet). */
+.cs-pnote {
+  margin: 6px 0 0;
+  padding-left: var(--cs-num-w, 28px);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--sf-muted);
+  text-wrap: pretty;
 }
 .cs-pnote-link {
   color: inherit;
@@ -391,98 +328,76 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
-.cs-pnote-link:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 4px; }
+.cs-pnote-link:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 2px; border-radius: 4px; }
+/* «Стирает только ответ» when a hand rubs a line: a small tag after its last word (or at the end of its row). */
 .cs-rubnote {
   position: absolute;
   right: 0;
   top: 0;
   z-index: 2;
-  padding: 0 8px;
-  background: var(--cs-paper);
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
   white-space: nowrap;
-  font-family: var(--ph-sans);
-  font-size: var(--cs-note-size);
-  line-height: var(--cs-row);
+  font-size: 13px;
+  line-height: 18px;
   font-weight: 500;
-  color: var(--cs-graphite);
   pointer-events: none;
   animation: cs-fade 150ms ease-out both;
 }
-/* After the last word, on the paper's own grid: no strip of paper over it. */
-.cs-rubnote[data-after] { right: auto; padding: 0; background: none; }
+.cs-rubnote[data-after] { right: auto; }
 
-/* The handwriting waits for its font (at most 1.5 s), so no line jumps under the reader. */
-.cs-paper[data-font='waiting'] .cs-lines { visibility: hidden; }
-.cs-paper[data-font='ready'] .cs-lines { animation: cs-fade 200ms ease-out both; }
-
-/* ---------------------------------------------------------------- movement (spec 6) */
-/* Written in: the ink appears left to right at the speed of a hand (a narrow edge: a pen, not a fade). */
-.cs-line[data-anim='write'] .cs-ink {
-  -webkit-mask-image: linear-gradient(90deg, #000 49%, transparent 51%);
-  mask-image: linear-gradient(90deg, #000 49%, transparent 51%);
-  -webkit-mask-size: 225% 100%;
-  mask-size: 225% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  animation: cs-write var(--cs-ms) cubic-bezier(.35, .05, .45, 1) var(--cs-delay) both;
+/* ---------------------------------------------------------------- movement (transforms and opacity only) */
+/* Written in: a line comes in from a little below, one after another at the pen's pace. */
+.cs-line[data-anim='write'] { animation: cs-line-in var(--cs-ms) cubic-bezier(.2, .7, .3, 1) var(--cs-delay) both; }
+@keyframes cs-line-in {
+  from { opacity: 0; transform: translateY(6px); }
 }
-.cs-line[data-anim='write'] .cs-bullet { animation: cs-fade 120ms linear var(--cs-delay) both; }
-@keyframes cs-write {
-  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
-  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
+/* A line that changes: until its turn it looks as it was (data-from), then its words fade to their state and its
+   markers cross-fade, in the line's own time. */
+.cs-line:is([data-from='fresh'], [data-from='missed'], [data-from='returned']) { --cs-from-o: 1; --mk-a0: 1; --mk-b0: 0; }
+.cs-line:is([data-from='rubbed'], [data-from='due']) { --cs-from-o: var(--cs-half-o); --mk-a0: 0; --mk-b0: 1; }
+.cs-line[data-from='erased'] { --cs-from-o: var(--cs-gone-o); --mk-a0: 0; --mk-b0: 0; }
+.cs-line[data-from] .cs-ink { animation: cs-ink-from var(--cs-ms) ease var(--cs-delay) both; }
+.cs-line[data-from] .cs-mk::before { animation: cs-mk-a var(--cs-ms) ease var(--cs-delay) both; }
+.cs-line[data-from] .cs-mk::after { animation: cs-mk-b var(--cs-ms) ease var(--cs-delay) both; }
+@keyframes cs-ink-from {
+  from { opacity: var(--cs-from-o, 1); }
 }
-
-/* Rubbed: the eraser passes → and leaves its fragments; the paper under the line goes dull. Four mask
-   layers: the level (sweeping) ∩ (the part not reached yet ∪ (pass A ∩ pass B)), so the line ends
-   exactly as a rubbed line stands. */
-.cs-line[data-anim='rub'] .cs-ink,
-.cs-line[data-anim='return'] .cs-ink {
-  -webkit-mask-size: 225% 100%, 225% 100%, auto, auto;
-  mask-size: 225% 100%, 225% 100%, auto, auto;
-  -webkit-mask-repeat: no-repeat, no-repeat, repeat, repeat;
-  mask-repeat: no-repeat, no-repeat, repeat, repeat;
-  -webkit-mask-composite: source-in, source-over, source-in;
-  mask-composite: intersect, add, intersect;
+@keyframes cs-mk-a {
+  from { opacity: var(--mk-a0, 1); }
 }
-.cs-line[data-anim='rub'] .cs-ink {
-  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--cs-rub)) 46%, #000 54%), linear-gradient(90deg, transparent 46%, #000 54%), var(--cs-pass-a), var(--cs-pass-b);
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--cs-rub)) 46%, #000 54%), linear-gradient(90deg, transparent 46%, #000 54%), var(--cs-pass-a), var(--cs-pass-b);
-  animation: cs-sweep-right var(--cs-ms) cubic-bezier(.4, 0, .2, 1) var(--cs-delay) both;
+@keyframes cs-mk-b {
+  from { opacity: var(--mk-b0, 0); }
 }
-.cs-line[data-anim='rub'] .cs-patch { animation: cs-fade var(--cs-ms) ease-out var(--cs-delay) both; }
-/* Erased: a second pass ← leaves the fainter fragments; the height of the line stays. */
-.cs-line[data-anim='erase'] .cs-ink {
-  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--cs-rub)) 46%, rgba(0, 0, 0, var(--cs-erased)) 54%), var(--cs-pass-a), var(--cs-pass-b);
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--cs-rub)) 46%, rgba(0, 0, 0, var(--cs-erased)) 54%), var(--cs-pass-a), var(--cs-pass-b);
-  -webkit-mask-size: 225% 100%, auto, auto;
-  mask-size: 225% 100%, auto, auto;
-  -webkit-mask-repeat: no-repeat, repeat, repeat;
-  mask-repeat: no-repeat, repeat, repeat;
-  -webkit-mask-composite: source-in, source-in;
-  mask-composite: intersect, intersect;
-  animation: cs-erase-left var(--cs-ms) cubic-bezier(.4, 0, .2, 1) var(--cs-delay) both;
+/* Covered again after «Подсмотреть»: back to the quieter ink. */
+.cs-line[data-anim='recover'] .cs-ink { animation: cs-recover var(--cs-ms) ease both; }
+@keyframes cs-recover {
+  from { opacity: 1; }
 }
-/* A moving line's mask reaches 8 px below the words: the pencil wave under them is drawn, not masked away. */
-.cs-line[data-anim] .cs-ink { padding-bottom: 8px; margin-bottom: -8px; }
-/* Returned: written again over its trace at the speed of a hand, then the wave, then the note. */
-.cs-line[data-anim='return'] .cs-ink {
-  -webkit-mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, var(--cs-rub)) 54%), linear-gradient(90deg, #000 46%, transparent 54%), var(--cs-pass-a), var(--cs-pass-b);
-  mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, var(--cs-rub)) 54%), linear-gradient(90deg, #000 46%, transparent 54%), var(--cs-pass-a), var(--cs-pass-b);
-  animation: cs-sweep-right calc(var(--cs-ms) * .55) cubic-bezier(.35, .05, .45, 1) var(--cs-delay) both;
+/* Erased: a strike is drawn left to right through each row in turn (CheatSheet measures the rows as it starts). */
+.cs-strike {
+  position: absolute;
+  z-index: 1;
+  height: var(--cs-strike-w);
+  background: color-mix(in srgb, currentColor 62%, transparent);
+  transform-origin: 0 50%;
+  pointer-events: none;
 }
-.cs-line[data-anim='return'][data-trace='erased'] .cs-ink {
-  -webkit-mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, var(--cs-erased)) 54%), linear-gradient(90deg, #000 46%, transparent 54%), var(--cs-pass-a), var(--cs-pass-b);
-  mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, var(--cs-erased)) 54%), linear-gradient(90deg, #000 46%, transparent 54%), var(--cs-pass-a), var(--cs-pass-b);
+.cs-strike[data-whole] { left: 0; right: 0; top: calc(var(--cs-strike-f) - var(--cs-strike-w) / 2); }
+.cs-line[data-anim='erase'] .cs-strike { animation: cs-strike-draw var(--cs-row-ms, var(--cs-ms)) linear var(--cs-row-delay, var(--cs-delay)) both; }
+.cs-line[data-anim='erase'] .cs-strike:is([data-one], [data-whole]) { animation-timing-function: cubic-bezier(.45, .05, .25, 1); }
+@keyframes cs-strike-draw {
+  from { transform: scaleX(0); }
 }
-.cs-line:is([data-anim='return'], [data-anim='miss']) .cs-note { animation: cs-fade 200ms ease-out calc(var(--cs-delay) + var(--cs-ms) * .85) both; }
-@keyframes cs-sweep-right {
-  from { -webkit-mask-position: 100% 0, 100% 0, 0 0, 0 0; mask-position: 100% 0, 100% 0, 0 0, 0 0; }
-  to { -webkit-mask-position: 0 0, 0 0, 0 0, 0 0; mask-position: 0 0, 0 0, 0 0, 0 0; }
+/* Back in the list after it was erased: the strike goes, the words come back to full ink. */
+.cs-line[data-anim='return'] .cs-strike { animation: cs-strike-off calc(var(--cs-ms) * .45) ease var(--cs-delay) both; }
+@keyframes cs-strike-off {
+  to { opacity: 0; }
 }
-@keyframes cs-erase-left {
-  from { -webkit-mask-position: 0 0, 0 0, 0 0; mask-position: 0 0, 0 0, 0 0; }
-  to { -webkit-mask-position: 100% 0, 0 0, 0 0; mask-position: 100% 0, 0 0, 0 0; }
-}
+/* A caption that comes with the change (a missed point, a line back) appears when the line has changed. */
+.cs-line:is([data-anim='return'], [data-anim='miss']) .cs-note { animation: cs-fade 220ms ease-out calc(var(--cs-delay) + var(--cs-ms) * .7) both; }
 @keyframes cs-fade {
   from { opacity: 0; }
 }
@@ -497,7 +412,7 @@
   justify-content: center;
   margin-top: 16px;
 }
-/* The paper's first stop for a keyboard: past every line, to the counter and the switches. */
+/* The card's first stop for a keyboard: past every line, to the counter and the switches. */
 .cs-skip {
   position: absolute;
   top: 8px;
@@ -516,49 +431,87 @@
 }
 .cs-skip:focus-visible { clip-path: none; outline: 2px solid var(--ph-focus); outline-offset: 2px; }
 
-/* «Весь лист»: the whole paper in the window; a click on a question goes back to it. */
+/* «Весь лист на экране»: the whole card in the window; a click on a question goes back to it. */
 .cs-wrap[data-zoom] { overflow: hidden; }
-/* The page's column stays under the top line while the paper is scaled into the window. */
+/* The page's column stays under the top line while the card is scaled into the window. */
 .cs-wrap[data-zoom] { min-height: calc(100vh - 92px); }
 .cs-wrap[data-zoom] .cs-paper { max-width: none; }
 .cs-wrap[data-zoom] .cs-paper,
 .cs-wrap[data-zoom] button { cursor: zoom-in; }
 
-/* A phone: the paper takes the whole width of the screen. */
-.sf-page[data-frame='s'] .cs-wrap { margin-inline: calc(-1 * var(--sf-g)); }
-.sf-page[data-frame='s'] .cs-paper { border-radius: 0; box-shadow: 0 0 0 1px rgba(16, 41, 90, .08); }
-.dark .sf-page[data-frame='s'] .cs-paper { box-shadow: none; }
+/* ---------------------------------------------------------------- the map of lines (SheetMap) */
+.cs-mapbox { margin-top: 18px; }
+.cs-map {
+  display: grid;
+  gap: var(--cs-sq-gap, 6px);
+  justify-content: start;
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--sf-canvas);
+}
+.cs-mapbox[data-compact] { margin-top: 12px; }
+.cs-mapbox[data-compact] .cs-map { padding: 10px 12px; border-radius: 14px; }
+/* A square: an empty outline under two fills (ink: there; yellow: named once, a ring: due), so a change is a fade. */
+.cs-sq {
+  position: relative;
+  display: block;
+  width: var(--cs-sq, 12px);
+  height: var(--cs-sq, 12px);
+  border-radius: max(2px, calc(var(--cs-sq, 12px) / 4));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cs-faint) 70%, transparent);
+  cursor: pointer;
+}
+.cs-sq::before,
+.cs-sq::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transition: opacity var(--cs-ms, 320ms) ease var(--cs-delay, 0ms);
+}
+.cs-sq::before { background: var(--sf-ink); opacity: var(--sq-a, 1); }
+.cs-sq::after { background: var(--cs-half); opacity: var(--sq-b, 0); }
+.cs-sq:is([data-s='half'], [data-s='due']) { --sq-a: 0; --sq-b: 1; }
+.cs-sq[data-s='due']::after { background: transparent; box-shadow: inset 0 0 0 2px var(--cs-half); }
+.cs-sq[data-s='gone'] { --sq-a: 0; --sq-b: 0; }
+.cs-sq:hover,
+.cs-sq[data-hot] { outline: 2px solid var(--sf-accent); outline-offset: 1px; }
+/* A square of a question written now comes in. */
+.cs-sq[data-new] { animation: cs-pop 300ms cubic-bezier(.2, .7, .3, 1) both; }
+/* The map's key: a square of each state with its word, one line under the map. */
+.cs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 10px 2px 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sf-muted);
+}
+.cs-legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.cs-legend i { flex: none; width: 11px; height: 11px; border-radius: 3px; background: var(--sf-ink); }
+.cs-legend i[data-s='half'] { background: var(--cs-half); }
+.cs-legend i[data-s='gone'] { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cs-faint) 70%, transparent); }
+.cs-legend i[data-s='due'] { background: transparent; box-shadow: inset 0 0 0 2px var(--cs-half); }
+.cs-mapbox[data-compact] .cs-legend { gap: 2px 14px; margin-top: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
-  /* No sweeps: a state changes in 150 ms, without masks moving. */
-  .cs-ink,
-  .cs-patch,
-  .cs-bullet { transition: opacity 150ms ease; }
-  .cs-line:is([data-state='rubbed'], [data-state='due']):not([data-anim]):not([data-peek]) .cs-ink {
-    -webkit-mask-image: var(--cs-pass-a), var(--cs-pass-b);
-    mask-image: var(--cs-pass-a), var(--cs-pass-b);
-    -webkit-mask-composite: source-in;
-    mask-composite: intersect;
-    opacity: var(--cs-rub);
-  }
-  .cs-line[data-state='erased']:not([data-anim]) .cs-ink {
-    -webkit-mask-image: var(--cs-pass-a), var(--cs-pass-b);
-    mask-image: var(--cs-pass-a), var(--cs-pass-b);
-    -webkit-mask-composite: source-in;
-    mask-composite: intersect;
-    opacity: var(--cs-erased);
-  }
-  .cs-line[data-peek] .cs-ink,
-  .cs-qm[data-marker='draw'],
-  .cs-paper[data-font='ready'] .cs-lines,
-  .cs-note[data-enter],
-  .cs-rubnote { animation: none; }
+  /* Nothing moves: every state is there at once. */
+  .cs-line,
+  .cs-line *,
+  .cs-line *::before,
+  .cs-line *::after,
+  .cs-tick,
+  .cs-date,
+  .cs-sq,
+  .cs-sq::before,
+  .cs-sq::after { animation: none !important; transition: none !important; }
 }
 
 /* ---------------------------------------------------------------- Meldy's column beside the sheet */
-/* The card «Шпаргалка»: its flag in the pink of the paper's margin line, the big count, the quiet switches.
-   Beside the flag, «Весь лист на экране»: a quiet pill with a magnifier — a zoom of the paper (EX-14), not
-   a third switch under «Скрыть строки…» (where «Вся шпаргалка» read as «show all»). */
+/* The card «Шпаргалка»: its flag in the app's pink, the big count, the map of lines and its key, the quiet
+   switches. Beside the flag, «Весь лист на экране»: a quiet pill with a magnifier — a zoom of the card (EX-14),
+   not a third switch under «Скрыть строки…» (where «Вся шпаргалка» read as «show all»). */
 .sf-page .cs-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 4px; }
 .sf-page .cs-zoom {
   display: inline-flex;
@@ -682,46 +635,13 @@
 .sf-page .cs-outcome { font-weight: 500; }
 .sf-page .cs-write .ex-fine + .ex-fine { margin-top: 4px; }
 
-/* The rule under the counter, with a piece of the paper after «наполовину» and after «совсем» (SheetLegend,
-   EX-17): the line in that state drawn by the sheet's own masks; and what «Спрятать строки» does. */
-.sf-page .cs-rule { margin-top: 10px; font-size: 15px; line-height: 24px; color: var(--sf-ink); text-wrap: pretty; }
-.sf-page .cs-key { white-space: nowrap; }
+/* The rule under the counter, and what «Спрятать строки» does. */
+.sf-page .cs-rule { margin-top: 16px; font-size: 15px; line-height: 22px; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .cs-cover-note { margin-top: 4px; }
-/* A piece of the paper: its grid, two handwritten words, the paper’s ring; light in both themes, as the sheet. */
-.cs-swatch {
-  --cs-row: 22px;
-  --cs-base: 17px;
-  display: inline-block;
-  box-sizing: border-box;
-  height: var(--cs-row);
-  margin: 0 1px 0 6px;
-  padding: 0 7px;
-  border-radius: 3px;
-  vertical-align: -6px;
-  background-color: var(--cs-paper);
-  background-image:
-    linear-gradient(to bottom, transparent var(--cs-base), var(--cs-grid) var(--cs-base), var(--cs-grid) calc(var(--cs-base) + 1px), transparent calc(var(--cs-base) + 1px)),
-    linear-gradient(to right, var(--cs-grid) 1px, transparent 1px);
-  background-size: 100% var(--cs-row), var(--cs-row) 100%;
-  box-shadow: 0 0 0 1px rgba(16, 41, 90, .14);
-  font-family: 'Meldy Hand', var(--ph-sans);
-  font-size: 17px;
-  line-height: var(--cs-row);
-  font-weight: 500;
-  color: var(--cs-ink);
-  white-space: nowrap;
-  overflow: hidden;
-}
-.dark .cs-swatch { box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); }
-.cs-swatch .cs-line { display: block; }
-.cs-swatch .cs-body { display: inline-block; vertical-align: top; }
-/* Its word is CSS content, not text: the rule reads and copies as the sentence it is. */
-.cs-swatch .cs-ink::before { content: 'пункт ответа'; }
-.cs-swatch .cs-patch[data-whole] { inset: 1px -5px; }
 /* The page's next step in the card, between what the answer changed and the rule (the example's own exam). */
 .sf-page .cs-next { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--sf-line); }
 
-/* A phone: the end of the after-answer show over the bottom bar (the column with it is above the paper). */
+/* A phone: the end of the after-answer show over the bottom bar (the column with it is above the card). */
 .cs-chip {
   position: fixed;
   bottom: calc(118px + env(safe-area-inset-bottom));
@@ -765,6 +685,11 @@
 @keyframes cs-chip-in {
   from { opacity: 0; transform: translateY(12px); }
 }
+@media (prefers-reduced-motion: reduce) {
+  .cs-chip,
+  .sf-page .cs-change,
+  .sf-page .cs-change-note { animation: none; }
+}
 
 /* The details of a line (as «почему»): the state in words, «Подсмотреть», the lecture's words, the history. */
 .sf-page .cs-lp-peek { display: grid; justify-items: start; gap: 10px; margin-top: 16px; }
@@ -779,23 +704,8 @@
 .sf-page .cs-lp h3:focus { outline: none; }
 .sf-page .cs-lp h3:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; border-radius: 6px; }
 
-/* Bars over the paper are opaque: the handwriting does not show through them as a grey haze (dark theme
-   above all); a short fade above the bottom ones. The example's room line (/try, .sf-room-bar) too. */
-body:has(.cs-paper) .sf-bar,
-body:has(.cs-paper) .sf-room-bar {
-  background: var(--sf-canvas);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-body:has(.cs-paper) .sf-tabbar,
-body:has(.cs-paper) .sf-page .ex-cta {
-  background: var(--sf-canvas);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-/* A keyboard's focus never hides under the bars over the paper (WCAG 2.4.11): the page scrolls it
-   clear of them. A very low window (a phone held flat, a page zoomed to 200 %) gives the bottom bar back
-   to the page. */
+/* A keyboard's focus never hides under the bars over the sheet (WCAG 2.4.11): the page scrolls it clear of
+   them. A very low window (a phone held flat, a page zoomed to 200 %) gives the bottom bar back to the page. */
 html:has(.cs-paper) { scroll-padding-top: 84px; }
 html:has(.sf-page:is([data-frame='s'], [data-frame='m']) .cs-paper) { scroll-padding-top: 68px; scroll-padding-bottom: calc(118px + env(safe-area-inset-bottom)); }
 @media (max-height: 480px) {
@@ -803,14 +713,15 @@ html:has(.sf-page:is([data-frame='s'], [data-frame='m']) .cs-paper) { scroll-pad
   html:has(.sf-page:is([data-frame='s'], [data-frame='m']) .cs-paper) { scroll-padding-bottom: 0; }
 }
 
-/* Phones and tablets: the count and «Только то, что осталось» above the paper, compact; the rest under it. */
-.sf-page .ex-col > .cs-sum[data-variant='top'] { padding: 16px 20px 10px; border-radius: 24px; }
-.sf-page .cs-sum[data-variant='top'] .cs-count { margin-top: 0; gap: 2px 10px; align-items: center; }
+/* Phones and tablets: the count (and «Скрыть строки…» beside it) with the map of lines at the top of the card,
+   compact; the rest under the card. */
+.sf-page .cs-top > .cs-sum { padding: 0; border-radius: 0; background: none; box-shadow: none; }
+.sf-page .cs-sum:is([data-variant='top'], [data-variant='phone']) .cs-count { margin-top: 0; gap: 2px 10px; align-items: center; }
 /* The one switch beside the count, at the end of its row (under it when the row is too narrow). */
 .sf-page .cs-count-switch { margin-left: auto; }
 .sf-page .cs-count-switch .cs-toggle { margin: 0 -8px 0 0; }
-.sf-page .cs-sum[data-variant='top'] .ex-big { font-size: 40px; }
-.sf-page .cs-sum[data-variant='top'] .cs-count-l { font-size: 16px; line-height: 22px; }
+.sf-page .cs-sum:is([data-variant='top'], [data-variant='phone']) .ex-big { font-size: 40px; }
+.sf-page .cs-sum:is([data-variant='top'], [data-variant='phone']) .cs-count-l { font-size: 16px; line-height: 22px; }
 .sf-page .cs-sum[data-variant='top'] .cs-sub { margin-top: 2px; font-size: 14px; line-height: 20px; }
 .sf-page .cs-sum[data-variant='top'] .cs-toggles { margin-top: 6px; }
 .sf-page .cs-sum[data-variant='after'] > .cs-share:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
@@ -820,13 +731,19 @@ html:has(.sf-page:is([data-frame='s'], [data-frame='m']) .cs-paper) { scroll-pad
 .sf-page:is([data-frame='s'], [data-frame='m']) .ex-col > .cs-write .cs-write-go { margin: 12px 0 6px; }
 .sf-page .cs-write-short { font-size: 15px; line-height: 22px; }
 
-/* Windows High Contrast (forced colours): the switches keep their state, the marker does not blank the
-   printed words, the chosen view is outlined. */
+/* Windows High Contrast (forced colours): the switches keep their state, the highlighter does not blank the title,
+   the chosen view is outlined, the markers and squares keep their shapes. */
 @media (forced-colors: active) {
-  .cs-qm[data-marker] { mix-blend-mode: normal; }
+  .cs-qm[data-marker] { background-image: none; text-decoration: underline 3px; }
   .sf-page .cs-toggle-box { forced-color-adjust: none; background: Canvas; border: 1px solid CanvasText; box-sizing: border-box; box-shadow: none; }
   .sf-page .cs-toggle-box::after { forced-color-adjust: none; background: CanvasText; box-shadow: none; top: 1px; left: 1px; }
   .sf-page .cs-toggle[aria-checked='true'] .cs-toggle-box { background: Highlight; border-color: Highlight; }
   .sf-page .cs-toggle[aria-checked='true'] .cs-toggle-box::after { background: HighlightText; }
   .ex-views [role='tab'][aria-selected='true'] { outline: 2px solid CanvasText; outline-offset: -2px; }
+  .cs-mk::before,
+  .cs-mk::after,
+  .cs-sq,
+  .cs-sq::before,
+  .cs-sq::after,
+  .cs-legend i { forced-color-adjust: none; }
 }

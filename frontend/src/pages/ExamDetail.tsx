@@ -86,7 +86,6 @@ import { useSheetView } from '../components/exams/sheet/useSheetPage';
 import { useCheatSheet } from '../components/exams/sheet/useCheatSheet';
 import { useUnitsLeft } from '../components/exams/sheet/SheetColumn';
 import { nextErasableLine } from '../components/exams/sheet/copy';
-import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import InviteGroup, { InviteGroupDialog } from '../components/exams/share/InviteGroup';
 import MoreMenu, { type MoreMenuItem } from '../components/ui/MoreMenu';
@@ -1309,8 +1308,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
             aria-controls="ex-view-panel"
             tabIndex={view === item ? 0 : -1}
             onClick={() => chooseView(item)}
-            onMouseEnter={item === 'sheet' ? () => void loadSheetFont() : undefined}
-            onFocus={item === 'sheet' ? () => void loadSheetFont() : undefined}
             onKeyDown={(event) => {
               if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
               event.preventDefault();

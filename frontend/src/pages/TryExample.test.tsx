@@ -451,7 +451,7 @@ describe('«Попробовать на примере» (/try)', () => {
     renderAt('/try');
     expect(screen.getByRole('tab', { name: 'Шпаргалка' })).toHaveAttribute('aria-selected', 'true');
     expect(plain(document.querySelector('.tx-sheet-cap')?.textContent)).toBe(
-      'Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.',
+      'Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — с пометкой «не назван». Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.',
     );
     // The scripted moment is the page's blue pill under the caption (PUB-15); «Тянуть билет» (a random question) is the white one.
     expect(screen.getByRole('link', { name: 'Ответить на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');
@@ -467,7 +467,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(states('q2')).toEqual(['fresh', 'fresh', 'fresh']);
     // Nothing touched yet: no «Начать пример заново».
     expect(screen.queryByRole('button', { name: 'Начать пример заново' })).toBeNull();
-    // The lines are the hand-written short ones; a question in no lecture says so, with no link to add one.
+    // The lines are the short ones; a question in no lecture says so, with no link to add one.
     expect(plain(paper.querySelector('#cs-q-q7 .cs-line .cs-ink')?.textContent)).toBe('выручка = цена × количество');
     expect(plain(paper.querySelector('#cs-q-q12 .cs-pnote')?.textContent)).toBe('Ни в одной из 3 лекций нет фрагмента об этом');
     expect(paper.querySelector('#cs-q-q12 .cs-pnote a')).toBeNull();

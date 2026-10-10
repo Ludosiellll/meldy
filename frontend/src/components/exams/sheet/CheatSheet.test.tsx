@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LearningEvent } from '../../../api/learning';
 import { buildSheet, localDayOf, sheetChanges, sheetWithout, type SheetBlock, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
 import { formatShortDay } from '../../../lib/exams/format';
-import CheatSheet, { animFor, changeGroups, writeMs, type CheatSheetProps, type SheetReplay } from './CheatSheet';
+import CheatSheet, { animFor, changeGroups, isCoverable, writeMs, type CheatSheetProps, type SheetReplay } from './CheatSheet';
+import { createDrawnStore, SheetMap } from './SheetMap';
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/\u00a0/g, ' ');
 
@@ -119,7 +120,7 @@ describe('the cheat sheet', () => {
     expect(writeMs('x'.repeat(80))).toBe(1000);
   });
 
-  it('prints the questions and writes their lines; a screen reader hears the words only of readable lines', () => {
+  it('prints the questions and writes their lines, each with its marker; a screen reader hears the words the eye reads', () => {
     const q1 = question(1);
     const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY), named(q1, 'p2', NOW - DAY, false)], NOW);
     const { container } = renderSheet(props(sheet.blocks));
@@ -134,21 +135,28 @@ describe('the cheat sheet', () => {
     expect(lines[0].dataset.state).toBe('rubbed');
     expect(lines[1].dataset.state).toBe('missed');
     expect(lines[2].dataset.state).toBe('fresh');
+    // Every line shows its words (a line named once in a quieter ink): it is named by them (speech input says
+    // them), and described by its state.
     const rubbed = within(lines[0]).getByRole('button');
-    expect(rubbed.getAttribute('aria-label')).not.toContain('Закон спроса');
-    expect(rubbed.getAttribute('aria-label')).toContain('Открыть подробности');
-    // A readable line is named by the words it shows (speech input says them), described by the rest.
+    expect(rubbed).toHaveAccessibleName('закон: цена ↑ → спрос ↓');
+    expect(rubbed).toHaveAccessibleDescription(/^Строка главного пункта стёрта наполовину/);
     expect(within(lines[2]).getByRole('button')).toHaveAccessibleName('Неценовые факторы сдвигают кривую спроса');
     expect(within(lines[2]).getByRole('button')).toHaveAccessibleDescription('Пункт.');
     expect(within(lines[1]).getByRole('button')).toHaveAccessibleDescription(/4 октября не назван\.$/);
-    // The pencil note is for the eye: the description says it already.
+    // The caption is for the eye: the description says it already.
     expect(lines[1].querySelector('.cs-note')).toHaveAttribute('aria-hidden', 'true');
-    // The short line is written, its arrows drawn in ink with the character kept for copying.
+    // The words are plain text in the app's type, the arrows kept as characters (glued to their words).
     expect(lines[2].querySelector('.cs-ink')).toHaveTextContent('Неценовые факторы сдвигают кривую спроса');
-    expect(lines[0].querySelectorAll('.cs-arrow')).toHaveLength(3);
-    expect(lines[0].querySelector('.cs-ink')).toHaveTextContent('закон: цена ↑ → спрос ↓');
-    // A missed line carries the pencil wave and the note in the protocol's words.
-    expect(lines[1].querySelector('[data-mark="wave"]')).not.toBeNull();
+    expect(plain(lines[0].querySelector('.cs-ink')?.textContent)).toBe('закон: цена ↑ → спрос ↓');
+    expect(lines[0].querySelector('.cs-ink svg')).toBeNull();
+    // The marker in the numbers' column, for the eye: the main points and the details tell apart by it.
+    expect([...lines].slice(0, 3).map((line) => [line.querySelector('.cs-mk')?.getAttribute('aria-hidden'), line.hasAttribute('data-essential')])).toEqual([
+      ['true', true],
+      ['true', true],
+      ['true', false],
+    ]);
+    // A missed line: no mark on its words, a caption in the protocol's words.
+    expect(lines[1].querySelector('[data-mark]')).toBeNull();
     expect(lines[1].querySelector('.cs-note')?.textContent?.replace(/ /g, ' ')).toBe('4 окт. не назван');
   });
 
@@ -173,15 +181,21 @@ describe('the cheat sheet', () => {
     expect(screen.queryByText('Стирает только ответ')).toBeNull();
   });
 
-  it('covers readable lines in the self-test and opens the ones already opened', () => {
+  it('covers every line still on the sheet in the self-test (one named once too) and opens the ones already opened', () => {
     const q1 = question(1);
-    const sheet = buildSheet([q1], [named(q1, 'p1', NOW - DAY)], NOW);
+    // The first point named on two days (erased), the second once (named once), the third opened.
+    const events = [named(q1, 'p1', NOW - 3 * DAY), named(q1, 'p1', NOW - DAY), named(q1, 'p2', NOW - DAY)];
+    const sheet = buildSheet([q1], events, NOW);
     const opened = new Set([`${RUBRIC_A}:p3`]);
     const { container } = renderSheet(props(sheet.blocks, { mode: { onlyLeft: false, cover: true, zoom: false }, opened }));
     const lines = container.querySelectorAll<HTMLElement>('.cs-line');
-    expect(lines[0].dataset.cover).toBeUndefined(); // rubbed: unreadable anyway
+    expect([...lines].map((line) => line.dataset.state)).toEqual(['erased', 'rubbed', 'fresh']);
+    // Erased: nothing left to recall.
+    expect(lines[0].dataset.cover).toBeUndefined();
+    // Named once: its words are readable now, so it is covered as well.
     expect(lines[1].dataset.cover).toBe('');
     expect(within(lines[1]).getByRole('button')).toHaveAccessibleName('Главный пункт спрятан. Открыть');
+    expect(within(lines[1]).getByRole('button')).not.toHaveAccessibleDescription();
     expect(lines[1].querySelector('.cs-slot')).not.toBeNull();
     expect(lines[2].dataset.cover).toBeUndefined();
   });
@@ -249,7 +263,7 @@ describe('the cheat sheet', () => {
     const { container } = renderSheet(props(sheet.blocks, { quietGaps: true }));
     expect(container.querySelectorAll('.cs-pnote')).toHaveLength(0);
     expect(screen.queryByRole('link', { name: 'Добавить лекцию' })).toBeNull();
-    expect(container.querySelectorAll('.cs-gapmark svg[data-mark="dash"]')).toHaveLength(2);
+    expect(container.querySelectorAll('.cs-gapmark svg')).toHaveLength(2);
     // A screen reader hears it with each question, as the printed number.
     expect(within(container.querySelector('#cs-q-q1') as HTMLElement).getByText('Ответа в лекциях нет')).toHaveClass('sr-only');
   });
@@ -454,7 +468,7 @@ describe('the cheat sheet', () => {
       expect(container.querySelectorAll('.cs-col')).toHaveLength(2);
       const held = secondColumn(container);
       // The first question gets its lines with a long note under it: measured anew, the split would move up.
-      const longer = unwritten.map((item, index) => (index === 0 ? question(1, { coverage: 'partial', missing_note: 'x'.repeat(400) }) : item));
+      const longer = unwritten.map((item, index) => (index === 0 ? question(1, { coverage: 'partial', missing_note: 'x'.repeat(1200) }) : item));
       const during = buildSheet(longer, [], NOW);
       const view = (blocks: SheetBlock[], holdColumns: boolean) => (
         <MemoryRouter>
@@ -540,7 +554,81 @@ describe('the cheat sheet', () => {
     expect(plain(first().querySelector('.cs-note')?.textContent)).toBe(`стёрта наполовину: назван ${plain(formatShortDay(localDayOf(NOW - 60_000)))}`);
   });
 
-  describe('the rubbed paper under a line’s rows of words (EX-18)', () => {
+  it('covers in the self-test every line but an erased one', () => {
+    expect(['fresh', 'rubbed', 'due', 'missed', 'returned', 'erased'].map((state) => isCoverable(state as Parameters<typeof isCoverable>[0]))).toEqual([true, true, true, true, true, false]);
+  });
+
+  it('tells the map what it draws: during a show its squares change with the lines, then stand as the sheet is', async () => {
+    vi.useFakeTimers();
+    const q1 = question(1);
+    const earlier = [named(q1, 'p1', NOW - 2 * DAY, true, 'old')];
+    const answer = [named(q1, 'p1', NOW - 60_000, true, 'last'), named(q1, 'p2', NOW - 60_000, true, 'last')];
+    const after = buildSheet([q1], [...earlier, ...answer], NOW);
+    const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
+    const drawn = createDrawnStore();
+    const p = props(after.blocks, { drawn, replay: { token: 13, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } });
+    const { container, unmount } = render(
+      <MemoryRouter>
+        <SheetMap blocks={after.blocks} drawn={drawn} />
+        <CheatSheet {...p} />
+      </MemoryRouter>,
+    );
+    const squares = () => [...container.querySelectorAll<HTMLElement>('.cs-sq')].map((square) => [square.dataset.s, square.dataset.anim ?? null]);
+    // Before anything moves: the squares stand as the lines were before the answer.
+    expect(squares()).toEqual([
+      ['half', null],
+      ['left', null],
+      ['left', null],
+    ]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
+    });
+    // Square by square with the lines, on the paper's own timing.
+    expect(squares()).toEqual([
+      ['gone', 'erase'],
+      ['half', 'rub'],
+      ['left', null],
+    ]);
+    const square = container.querySelector<HTMLElement>('.cs-sq')!;
+    const line = container.querySelector<HTMLElement>('.cs-line')!;
+    expect(square.style.getPropertyValue('--cs-delay')).toBe(line.style.getPropertyValue('--cs-delay'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(p.onReplayEnd).toHaveBeenCalledWith(13);
+    expect(squares()).toEqual([
+      ['gone', null],
+      ['half', null],
+      ['left', null],
+    ]);
+    unmount();
+    expect(drawn.get().states.size + drawn.get().motions.size).toBe(0);
+  });
+
+  it('a line under the pointer or the keyboard lights its square on the map; a square under the pointer lights its line', () => {
+    const sheet = buildSheet([question(1)], [], NOW);
+    const { container } = render(
+      <MemoryRouter>
+        <SheetMap blocks={sheet.blocks} />
+        <CheatSheet {...props(sheet.blocks)} />
+      </MemoryRouter>,
+    );
+    const lines = [...container.querySelectorAll<HTMLElement>('.cs-line')];
+    const squares = [...container.querySelectorAll<HTMLElement>('.cs-sq')];
+    const hot = (items: HTMLElement[]) => items.map((item) => item.hasAttribute('data-hot'));
+    act(() => within(lines[1]).getByRole('button').focus());
+    expect(hot(squares)).toEqual([false, true, false]);
+    act(() => within(lines[1]).getByRole('button').blur());
+    expect(hot(squares)).toEqual([false, false, false]);
+    fireEvent.mouseOver(within(lines[0]).getByRole('button'));
+    expect(hot(squares)).toEqual([true, false, false]);
+    fireEvent.mouseOver(squares[2]);
+    expect(hot(lines)).toEqual([false, false, true]);
+    fireEvent.mouseLeave(container.querySelector('.cs-map')!);
+    expect(hot(lines)).toEqual([false, false, false]);
+  });
+
+  describe('the layers measured on a line’s rows of words: the self-test’s bars, the strike (EX-18)', () => {
     // jsdom lays nothing out: the words of a line lie in rows of the body's width (WORDS px in all), measured
     // by stubs; the observers of size are fakes the test reports through.
     const WORDS = 450;
@@ -620,36 +708,75 @@ describe('the cheat sheet', () => {
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       });
     };
-    const patches = (container: HTMLElement) =>
-      [...container.querySelectorAll<HTMLElement>('.cs-line[data-state="rubbed"] .cs-patch')].map((patch) => ({ top: patch.style.top, width: patch.style.width }));
+    const bars = (container: HTMLElement) =>
+      [...container.querySelectorAll<HTMLElement>('.cs-line[data-state="rubbed"] .cs-slot')].map((bar) => ({ top: bar.style.top, width: bar.style.width }));
+    const selfTest = { onlyLeft: false, cover: true, zoom: false };
 
-    it('lays the questions out in the paper’s columns before a line measures its words', () => {
+    it('lays the questions out in the card’s columns before a line measures its words', () => {
       const q1 = question(1);
       const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY)], NOW);
-      renderSheet(props(sheet.blocks));
-      // A line that measured its words in a paper of one column kept strips as wide as the whole paper.
+      renderSheet(props(sheet.blocks, { mode: selfTest }));
+      // A line that measured its words in a card of one column kept bars as wide as the whole card.
       expect(seen.length).toBeGreaterThan(0);
       expect(seen[0]).toBe('2');
     });
 
-    it('one strip per row of words, never wider than the line’s body; measured again when the body changes, its first report too', async () => {
+    it('one bar per row of words, never wider than the line’s body; measured again when the body changes, its first report too', async () => {
       const q1 = question(1);
       const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY)], NOW);
-      const { container } = renderSheet(props(sheet.blocks));
-      expect(patches(container)).toEqual([{ top: '1px', width: `${WORDS + 16}px` }]);
-      // The body narrowed between the first measure and the observer's first report (the paper got its columns,
-      // a font, a scrollbar): three rows of words, three strips — not the one wide strip measured before.
+      const { container } = renderSheet(props(sheet.blocks, { mode: selfTest }));
+      expect(bars(container)).toEqual([{ top: '0px', width: `${WORDS}px` }]);
+      // The body narrowed between the first measure and the observer's first report (the card got its columns,
+      // a font, a scrollbar): three rows of words, three bars — not the one wide bar measured before.
       bodyWidth = 200;
       await reportBodies();
-      expect(patches(container)).toEqual([
-        { top: '1px', width: '216px' },
-        { top: '25px', width: '216px' },
-        { top: '49px', width: '66px' },
+      expect(bars(container)).toEqual([
+        { top: '0px', width: '200px' },
+        { top: '24px', width: '200px' },
+        { top: '48px', width: '50px' },
       ]);
       // A report of the size already measured measures nothing again.
       const calls = seen.length;
       await reportBodies();
       expect(seen.length).toBe(calls);
+    });
+
+    it('draws the strike of a line being erased row by row, left to right, as one stroke across its rows', async () => {
+      vi.useFakeTimers();
+      bodyWidth = 200;
+      const q1 = question(1);
+      const earlier = [named(q1, 'p1', NOW - 2 * DAY, true, 'old')];
+      const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
+      const after = buildSheet([q1], [...earlier, ...answer], NOW);
+      const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
+      const { container } = renderSheet(props(after.blocks, { replay: { token: 12, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
+      });
+      const line = container.querySelector<HTMLElement>('#cs-q-q1 .cs-line')!;
+      expect([line.dataset.state, line.dataset.anim, line.dataset.from]).toEqual(['erased', 'erase', 'rubbed']);
+      const strikes = [...line.querySelectorAll<HTMLElement>('.cs-strike')];
+      // At the words' middle on each of the three rows, as long as the row's words.
+      expect(strikes.map((strike) => parseFloat(strike.style.width))).toEqual([200, 200, 50]);
+      const tops = strikes.map((strike) => parseFloat(strike.style.top));
+      expect(tops[1] - tops[0]).toBeCloseTo(24, 5);
+      expect(tops[2] - tops[1]).toBeCloseTo(24, 5);
+      expect(tops[0]).toBeGreaterThan(8);
+      expect(tops[0]).toBeLessThan(16);
+      // Each row starts where the one before it ends: the delays grow by the rows' lengths.
+      const delays = strikes.map((strike) => parseInt(strike.style.getPropertyValue('--cs-row-delay'), 10));
+      const lengths = strikes.map((strike) => parseInt(strike.style.getPropertyValue('--cs-row-ms'), 10));
+      expect(delays[1]).toBeGreaterThan(delays[0]);
+      expect(delays[2]).toBeGreaterThan(delays[1]);
+      expect(Math.abs(delays[1] - delays[0] - lengths[0])).toBeLessThanOrEqual(1);
+      expect(lengths[0]).toBe(lengths[1]);
+      expect(lengths[2]).toBeLessThan(lengths[0]);
+      // The steady strike takes over once the show is over.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(line.dataset.anim).toBeUndefined();
+      expect(line.querySelectorAll('.cs-strike')).toHaveLength(0);
     });
   });
 

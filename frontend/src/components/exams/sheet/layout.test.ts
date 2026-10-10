@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { buildSheet, type SheetQuestion } from '../../../lib/exams/cheatSheet';
-import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns, splitIndex, splitMany, zoomPlan } from './layout';
+import {
+  BLOCK_GAP,
+  blockHeight,
+  CAPTION_PX,
+  estimateHeight,
+  LINE_PAD,
+  LINES_GAP,
+  mapGap,
+  mapGeometry,
+  NOTE_GAP,
+  NOTE_PX,
+  numberGutter,
+  paperGeometry,
+  ROW_PX,
+  rowMetrics,
+  SECTION_PX,
+  splitColumns,
+  splitIndex,
+  splitMany,
+  zoomPlan,
+} from './layout';
+
+/** A line of one row of words with its air, px. */
+const LINE = ROW_PX + 2 * LINE_PAD;
 
 function question(position: number, points: number, extra: Partial<SheetQuestion> = {}): SheetQuestion {
   return {
@@ -37,57 +60,71 @@ function question(position: number, points: number, extra: Partial<SheetQuestion
 }
 
 describe('the paper layout', () => {
-  it('counts characters per row from the column width', () => {
-    expect(rowMetrics(360)).toEqual({ print: 42, hand: 38, note: 44 });
-    expect(rowMetrics(100).hand).toBeGreaterThanOrEqual(10);
+  it('counts characters per row from the column width, after the numbers’ column', () => {
+    // 360 px of column, 28 px of numbers: Onest 17/600 titles, 16 px lines, 13 px captions, 14 px notes.
+    expect(rowMetrics(360)).toEqual({ title: 36, line: 41, caption: 51, note: 48 });
+    expect(rowMetrics(360, 40).line).toBeLessThan(41);
+    expect(rowMetrics(100).line).toBeGreaterThanOrEqual(10);
   });
 
-  it('lays the paper out by its width: two columns on whole grid cells from 760 px, the phone grid below 560 px', () => {
-    expect(paperGeometry(1000)).toEqual({ columns: 2, narrow: false, row: 24, column: 408 });
-    expect(paperGeometry(759)).toEqual({ columns: 1, narrow: false, row: 24, column: 663 });
-    expect(paperGeometry(390)).toEqual({ columns: 1, narrow: true, row: 24, column: 338 });
+  it('lays the card out by its width: two columns from 760 px, a phone’s padding below 560 px', () => {
+    expect(paperGeometry(1000)).toEqual({ columns: 2, narrow: false, column: 446 });
+    expect(paperGeometry(759)).toEqual({ columns: 1, narrow: false, column: 691 });
+    expect(paperGeometry(390)).toEqual({ columns: 1, narrow: true, column: 354 });
     expect(paperGeometry(0).columns).toBe(1);
   });
 
-  it('measures a block in grid rows: section title, question, lines, notes and a row of air', () => {
+  it('gives the numbers one column, as wide as the widest number: the titles and the lines start at one edge', () => {
+    expect(numberGutter([{ number: '1' }, { number: '9' }])).toBe(28);
+    expect(numberGutter([{ number: '1' }, { number: '12' }])).toBe(34);
+    expect(numberGutter([{ number: '300' }])).toBe(42);
+    expect(numberGutter([])).toBe(28);
+  });
+
+  it('measures a block in px: section title, question, lines, notes and the air after it', () => {
     const sheet = buildSheet([question(1, 3), question(2, 0, { coverage: 'none' })], [], Date.now());
     const metrics = rowMetrics(360);
-    expect(blockRows(sheet.blocks[0], metrics)).toBe(1 + 3 + 1);
-    expect(blockRows(sheet.blocks[1], metrics, { note: 'Ни в одной из 9 лекций нет фрагмента об этом' })).toBe(1 + 1 + 1);
-    expect(blockRows(sheet.blocks[1], metrics, { note: 'x'.repeat(100), heading: true })).toBe(1 + 1 + 3 + 1);
+    expect(blockHeight(sheet.blocks[0], metrics)).toBe(ROW_PX + LINES_GAP + 3 * LINE + BLOCK_GAP);
+    expect(blockHeight(sheet.blocks[1], metrics, { note: 'Ни в одной из 9 лекций нет фрагмента об этом' })).toBe(ROW_PX + NOTE_GAP + NOTE_PX + BLOCK_GAP);
+    expect(blockHeight(sheet.blocks[1], metrics, { note: 'x'.repeat(100), heading: true })).toBe(SECTION_PX + ROW_PX + NOTE_GAP + 3 * NOTE_PX + BLOCK_GAP);
   });
 
-  it('counts the pencil row of a line that says what its look means', () => {
+  it('counts the caption of a line that says what its look means', () => {
     const block = buildSheet([question(1, 3)], [], Date.now()).blocks[0];
     const metrics = rowMetrics(360);
-    expect(blockRows(block, metrics, { explained: new Map([[block.lines[1].key, 'стёрта наполовину: пункт назван 4 окт.']]) })).toBe(1 + 3 + 1 + 1);
+    expect(blockHeight(block, metrics, { explained: new Map([[block.lines[1].key, 'стёрта наполовину: пункт назван 4 окт.']]) })).toBe(
+      ROW_PX + LINES_GAP + 3 * LINE + CAPTION_PX + BLOCK_GAP,
+    );
   });
 
-  it('under «Только то, что осталось» counts no erased line, except the ones kept in view', () => {
+  it('under «Скрыть строки, стёртые совсем» counts no erased line, except the ones kept in view', () => {
     const sheet = buildSheet([question(1, 3)], [], Date.now());
     const block = sheet.blocks[0];
     const erased = { ...block, lines: block.lines.map((line, index) => (index < 2 ? { ...line, status: { ...line.status, state: 'erased' as const } } : line)) };
     const metrics = rowMetrics(360);
-    expect(blockRows(erased, metrics)).toBe(1 + 3 + 1);
-    expect(blockRows(erased, metrics, { hideErased: true })).toBe(1 + 1 + 1);
-    expect(blockRows(erased, metrics, { hideErased: true, keep: new Set([erased.lines[0].key]) })).toBe(1 + 2 + 1);
-    // Every line erased: only the printed question, unless one is kept.
+    expect(blockHeight(erased, metrics)).toBe(ROW_PX + LINES_GAP + 3 * LINE + BLOCK_GAP);
+    expect(blockHeight(erased, metrics, { hideErased: true })).toBe(ROW_PX + LINES_GAP + LINE + BLOCK_GAP);
+    expect(blockHeight(erased, metrics, { hideErased: true, keep: new Set([erased.lines[0].key]) })).toBe(ROW_PX + LINES_GAP + 2 * LINE + BLOCK_GAP);
+    // Every line erased: only the question's title, unless one is kept.
     const gone = { ...erased, lines: erased.lines.map((line) => ({ ...line, status: { ...line.status, state: 'erased' as const } })) };
-    expect(blockRows(gone, metrics, { hideErased: true, note: 'заметка' })).toBe(1 + 1);
-    expect(blockRows(gone, metrics, { hideErased: true, keep: new Set([gone.lines[2].key]) })).toBe(1 + 1 + 1);
+    expect(blockHeight(gone, metrics, { hideErased: true, note: 'заметка' })).toBe(ROW_PX + BLOCK_GAP);
+    expect(blockHeight(gone, metrics, { hideErased: true, keep: new Set([gone.lines[2].key]) })).toBe(ROW_PX + LINES_GAP + LINE + BLOCK_GAP);
   });
 
   it('counts a question still to be written as tall as the written ones', () => {
     const metrics = rowMetrics(360);
     const unwritten = buildSheet([question(1, 0)], [], Date.now()).blocks[0];
     expect(unwritten.kind).toBe('unwritten');
-    expect(estimateRows([unwritten], metrics)).toBe(4);
+    // Nothing written yet: four lines.
+    expect(estimateHeight([unwritten], metrics)).toBe(LINES_GAP + 4 * LINE);
+    // The mean of the written ones: 3 and 5 lines.
     const written = buildSheet([question(2, 3), question(3, 5), question(1, 0)], [], Date.now()).blocks;
-    expect(estimateRows(written, metrics)).toBe(4);
-    expect(blockRows(unwritten, metrics, { estimate: 4 })).toBe(1 + 4 + 1);
+    const estimate = estimateHeight(written, metrics);
+    expect(estimate).toBe(LINES_GAP + 4 * LINE);
+    expect(blockHeight(unwritten, metrics, { estimate })).toBe(ROW_PX + estimate + BLOCK_GAP);
     // A written question or a gap is measured as it is.
     const three = written.find((block) => block.questionId === 'q2')!;
-    expect(blockRows(three, metrics, { estimate: 4 })).toBe(1 + 3 + 1);
+    expect(blockHeight(three, metrics, { estimate })).toBe(ROW_PX + LINES_GAP + 3 * LINE + BLOCK_GAP);
   });
 
   it('keeps a held split while it fits, else splits anew', () => {
@@ -131,14 +168,44 @@ describe('the paper layout', () => {
   it('«Весь лист» takes more columns of the same width rather than an ever smaller scale', () => {
     const geometry = paperGeometry(1000);
     // A short sheet is shown as it is.
-    expect(zoomPlan({ wrapWidth: 1000, available: 800, rows: [5, 5, 5, 5], geometry })).toEqual({ columns: 2, scale: 1, width: 1000 });
-    // 30 questions of 6 rows: in two columns 92 rows high (scale 0.32); four columns of 408 px are larger (0.53).
-    const rows = Array.from({ length: 30 }, () => 6);
-    const plan = zoomPlan({ wrapWidth: 1000, available: 700, rows, geometry });
+    expect(zoomPlan({ wrapWidth: 1000, available: 800, heights: [100, 100, 100, 100], geometry })).toEqual({ columns: 2, scale: 1, width: 1000 });
+    // 30 questions of 150 px: in two columns 2306 px high (scale 0.30); four columns of 446 px are larger (0.51).
+    const heights = Array.from({ length: 30 }, () => 150);
+    const plan = zoomPlan({ wrapWidth: 1000, available: 700, heights, geometry });
     expect(plan.columns).toBe(4);
-    expect(plan.width).toBe(24 + 72 + 4 * 408 + 3 * 48);
+    expect(plan.width).toBe(34 + 34 + 4 * 446 + 3 * 40);
     expect(plan.scale).toBeCloseTo(1000 / plan.width, 5);
     // Never more columns than allowed.
-    expect(zoomPlan({ wrapWidth: 1000, available: 300, rows, geometry, maxColumns: 3 }).columns).toBeLessThanOrEqual(3);
+    expect(zoomPlan({ wrapWidth: 1000, available: 300, heights, geometry, maxColumns: 3 }).columns).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('the map of the lines', () => {
+  it('keeps the gap between squares half their side, at least a pixel', () => {
+    expect(mapGap(12)).toBe(6);
+    expect(mapGap(8)).toBe(4);
+    expect(mapGap(5)).toBe(2);
+    expect(mapGap(3)).toBe(1);
+  });
+
+  it('draws a few dozen lines as 12 px squares in one even grid', () => {
+    expect(mapGeometry(36, 290, { maxHeight: 150 })).toEqual({ size: 12, gap: 6, columns: 16, rows: 3, height: 48 });
+    // A phone's compact map: smaller squares, a lower map.
+    expect(mapGeometry(36, 290, { maxHeight: 56, maxSize: 8 })).toEqual({ size: 8, gap: 4, columns: 24, rows: 2, height: 20 });
+  });
+
+  it('takes smaller squares and more columns for hundreds of lines, under its height', () => {
+    for (const count of [180, 600, 1373]) {
+      const map = mapGeometry(count, 290, { maxHeight: 150 });
+      expect(map.height).toBeLessThanOrEqual(150);
+      expect(map.columns * map.rows).toBeGreaterThanOrEqual(count);
+      expect(map.columns * (map.size + map.gap) - map.gap).toBeLessThanOrEqual(290);
+    }
+    expect(mapGeometry(1373, 290, { maxHeight: 150 }).size).toBeLessThan(mapGeometry(180, 290, { maxHeight: 150 }).size);
+    // Past the smallest square the map simply grows taller.
+    const huge = mapGeometry(20000, 290, { maxHeight: 150 });
+    expect(huge.size).toBe(3);
+    expect(huge.height).toBeGreaterThan(150);
+    expect(mapGeometry(0, 290, { maxHeight: 150 }).rows).toBe(1);
   });
 });
