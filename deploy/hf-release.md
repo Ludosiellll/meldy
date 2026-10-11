@@ -4,6 +4,14 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-11 — Release 44.1: what the live re-check of 44 found (from the commit of this entry)
+
+- **Recordings back to the measured-best setup** (`edf8859`): release 44's Whisper large-v3 with a topic prompt from the file name scored 32–76 % of the source words on the QA MP3 (84.6 % before 44), invented sentences and once ended with «Лекция физика закон Ома… Субтитры создавал DimaTorzok». Now `whisper-large-v3-turbo` first, no prompt, Russian kept; known Russian Whisper credit lines and end loops are cleaned; an empty result goes on to Gemini.
+- **The конспект retells, not copies:** 44's «keep the sections» made the medium конспект repeat the lecture word for word and drop «Ключевые тезисы»/«Выводы»; the prompts now keep the sections in order but retell each about three times shorter, with the two blocks back.
+- **Podcast voice on the result screen** (`b362369`): the first ▶ waited for a fresh edge-tts synthesis that started only when the player came into view, and line 2 raced line 1's retry; now the first two lines are prepared as the result appears, the queue waits for the line being played, the 502 carries `Retry-After: 1`, each attempt is logged, and the status says the voice server failed instead of «Медленный интернет».
+- **Screens:** the result tabs wrap on phones (all five visible at 390 px), the Выжимка card at full width, the «Текст распознан…» note on the lecture page too (`summary_json.recognized`), «Ссылку на видео не открыть» on the disabled start, formulas drawn in fragments (KaTeX).
+- **Verified before release:** pytest 1922, bot 319 and its plan copy, Vitest 275 files / 4506 tests, the build in the Docker layout; the release gate runs them again on this commit. Live, after release: the same MP3 twice against the 84.6 % baseline, the biology PDF's конспект, the first ▶ on the result screen, the phone tabs.
+
 ## 2026-10-11 — Release 44: lectures, as a live run found them (from the commit of this entry)
 
 - **Why:** the owner calls the lecture toolkit more important than the exam; a live run on account B (11.10, seven ways in, `scratchpad/lecture-qa/`) found every way in working (4–21 s) but four serious faults and a dozen small ones.
