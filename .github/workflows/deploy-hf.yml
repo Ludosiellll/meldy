@@ -5,10 +5,15 @@ name: Deploy to Hugging Face Space
 #   the tree of the released GitHub commit without QA screenshots. The live main is tagged first.
 # Check only: a commit that changes deploy/hf-check.md (and not hf-release.md) waits for the
 #   Space's current main to run and smoke-checks it, without pushing anything.
+# Tests: every run first passes every suite on the pushed commit (Vitest, the bot's node tests and
+#   its plan copy, the frontend build in the Docker layout, pytest); a red suite stops the release.
+#   A check-only commit is therefore also a dry run of the release gate. Run by hand
+#   (workflow_dispatch), the workflow runs the tests alone and releases nothing.
 on:
   push:
     branches: [claude/relaxed-hypatia-1tpmq5]
     paths: [deploy/hf-release.md, deploy/hf-check.md]
+  workflow_dispatch:
 
 concurrency:
   group: hf-deploy
@@ -22,7 +27,65 @@ env:
   SPACE_HOST: ludosiel-studyforge.hf.space
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      # The bot's tests strip types natively (node --experimental-strip-types needs Node 22.6+).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install the frontend
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Vitest
+        working-directory: frontend
+        run: ./node_modules/.bin/vitest run
+
+      - name: Bot tests and its copy of the plan
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts
+          node scripts/sync_bot_plan.mjs --check
+
+      # The image builds the frontend with node:20 from frontend/ and contracts/ only (Dockerfile):
+      # the same two folders, the same Node, so a file the build needs from elsewhere fails here.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Frontend build in the Docker layout
+        run: |
+          set -euo pipefail
+          B=$(mktemp -d)
+          git archive HEAD frontend contracts | tar -x -C "$B"
+          ln -s "$PWD/frontend/node_modules" "$B/frontend/node_modules"
+          cd "$B/frontend"
+          ./node_modules/.bin/tsc -b
+          ./node_modules/.bin/vite build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: pytest
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          python -m pip install -q -r requirements.txt pytest==9.1.1 pytest-asyncio==1.4.0
+          python -m pytest -q
+
   deploy:
+    needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -106,8 +169,16 @@ jobs:
           done
           echo "::error::Space did not reach RUNNING on $EXPECT (last stage=$STAGE sha=$SHA)"; exit 1
 
+      # RUNNING comes a moment before uvicorn answers: /api/health may say 502 for the first seconds
+      # (runs 37829212148, 38101865091), so the check waits up to two minutes for a 200.
       - name: Smoke check
         run: |
-          set -euo pipefail
-          curl -fsSL -o /dev/null -w "root: %{http_code}\n" "https://${SPACE_HOST}/"
-          curl -fsSL "https://${SPACE_HOST}/api/health" | jq .
+          set -uo pipefail
+          for i in $(seq 1 12); do
+            if curl -fsSL -o /tmp/health.json "https://${SPACE_HOST}/api/health"; then
+              jq . /tmp/health.json
+              curl -fsSL -o /dev/null -w "root: %{http_code}\n" "https://${SPACE_HOST}/" && exit 0
+            fi
+            echo "[$i] not answering yet"; sleep 10
+          done
+          echo "::error::The Space did not answer /api/health and / with 200 within two minutes"; exit 1
