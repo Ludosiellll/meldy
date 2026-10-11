@@ -183,9 +183,16 @@ export function firstCountText(exam: ExamDay | null): string | null {
  * a session says it. Without the exam: «завтра».
  */
 export function comesBackText(exam: ExamDay | null): string {
-  if (!exam) return 'завтра';
+  return exam ? comesBackOn(exam.plan.day, exam.input.studyWeekdays) : 'завтра';
+}
+
+/**
+ * The same word for one press (the review of a mistake, «Нажали не туда?»): the first study day after `day` by the
+ * exam's days of the week (`weekdays`, settings.study_weekdays). A day the words cannot read: «завтра».
+ */
+export function comesBackOn(day: LocalDay, weekdays: number | undefined): string {
   try {
-    return nextStudyDayWord(exam.plan.day, studyMask(exam.input.studyWeekdays));
+    return nextStudyDayWord(day, studyMask(weekdays));
   } catch {
     return 'завтра';
   }

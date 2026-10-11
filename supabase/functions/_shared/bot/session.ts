@@ -20,13 +20,13 @@
  *   «message to edit not found» → the same screen as a new message; the session follows it (`bot_session_move`).
  */
 import { encode, SID_RE, type GoMode, type SessionAct } from './codec.ts';
-import { dayCard } from './card.ts';
+import { dayCard, planInputOf } from './card.ts';
 import { DbError, type BotDb, type Link, type Today } from './db.ts';
 import { transient } from './ledger.ts';
 import type { Ctx, SessionCallback, SessionPort, Tap } from './router.ts';
 import { edit, editKeyboard, remove, send, type InlineKeyboardMarkup, type Keyboard, type Out, type TgMessage } from './tg.ts';
 import * as W from './words.ts';
-import type { PlanCls } from '../plan/container.ts';
+import type { PlanCls, PlanInput } from '../plan/container.ts';
 import { countableFrom } from '../plan/rule.ts';
 import { TIME_STEP_MIN } from '../plan/plan.ts';
 import { clockText, localDay } from '../plan/time.ts';
@@ -39,7 +39,7 @@ import {
   shortRightOut, type QuestionView, type Shown,
 } from './render.ts';
 import { summaryOut, type RestOfDay, type SessionCounts } from './summary.ts';
-import { comesBackText, examOf, firstCountText, pickBlock, restOfDay, type Block, type SessionKind } from './today.ts';
+import { comesBackOn, comesBackText, examOf, firstCountText, pickBlock, restOfDay, type Block, type SessionKind } from './today.ts';
 
 // ─────────────────────────────────────────── T5's functions: shapes ───────────────────────────────────────────
 
@@ -409,8 +409,11 @@ export function shownOf(view: ViewData): Shown {
   };
 }
 
-/** The screen of the current state (VIEW): the question, its review, «Нажали не туда?», the doubt done, a typed answer right. */
-export function screenOf(row: SessionRow, view: ViewData, site: string, mask = 0): Out {
+/**
+ * The screen of the current state (VIEW): the question, its review, «Нажали не туда?», the doubt done, a typed answer
+ * right. `back`: when a mistake comes back (`backOf`), «завтра» when left out.
+ */
+export function screenOf(row: SessionRow, view: ViewData, site: string, mask = 0, back?: string): Out {
   const v = questionView(row, view);
   const r = view.review;
   if (!r) return questionOut(v, mask);
@@ -420,8 +423,11 @@ export function screenOf(row: SessionRow, view: ViewData, site: string, mask = 0
     return shortRightOut(v, form);
   }
   const stage = r.misclick ? 'misclick' : r.doubt ? 'doubted' : 'review';
-  return reviewOut(v, shownOf(view), stage, { site });
+  return reviewOut(v, shownOf(view), stage, { site, back });
 }
+
+/** A screen that says when the question comes back: the review of a mistake or «Не знаю», and «Нажали не туда?». */
+const saysBack = (view: ViewData) => Boolean(view.review && !view.review.correct && !view.review.doubt);
 
 const normEq = (a: string, b: string) => shortNorm(a) === shortNorm(b);
 
@@ -489,6 +495,35 @@ export function createSession(options: SessionOptions = {}): SessionPort {
     if (headers.size > 2000) headers.clear();
     headers.set(`${chatId}:${messageId}`, header);
   };
+  /** sid → the exam's days of the week and the student's zone (this instance only: «Начать» keeps them, `backOf` reads them). */
+  const weeks = new Map<string, { weekdays: number | undefined; tz: string }>();
+  const keepWeek = (sid: string, input: PlanInput) => {
+    if (weeks.size > 2000) weeks.clear();
+    weeks.set(sid, { weekdays: input.studyWeekdays, tz: input.tz });
+  };
+
+  /**
+   * When the question of a press comes back: the exam's next study day after today («в понедельник» before a day off,
+   * settings.study_weekdays), as the site's answer and the record say it. SESSION carries no days of the week: they
+   * come from the plan read at «Начать», or, on an instance that did not start the session, from one bot_today read
+   * (after the callback's answer). Without the plan: «завтра».
+   */
+  async function backOf(ctx: Ctx, tg: number, row: SessionRow): Promise<string> {
+    if (!weeks.has(row.sid)) {
+      const today = await ctx.db.today(tg).catch(() => null);
+      try {
+        if (today) keepWeek(row.sid, planInputOf(today, row.containerId));
+      } catch {
+        // the exam is not in the plan any more
+      }
+    }
+    const week = weeks.get(row.sid);
+    try {
+      return week ? comesBackOn(localDay(row.now ?? ctx.now(), week.tz), week.weekdays) : 'завтра';
+    } catch {
+      return 'завтра'; // a zone the clock cannot read
+    }
+  }
 
   /** Edits the message, or sends it anew when it is gone; the session (sid) follows a new message. */
   async function put(ctx: Ctx, api: SessionApi, tg: number, chatId: number, messageId: number | null, out: Out, sid: string | null): Promise<number> {
@@ -586,7 +621,7 @@ export function createSession(options: SessionOptions = {}): SessionPort {
         r = next;
         continue;
       }
-      const out = screenOf(row, view, ctx.site, mask);
+      const out = screenOf(row, view, ctx.site, mask, saysBack(view) ? await backOf(ctx, tg, row) : undefined);
       const header = headerText(questionView(row, view));
       remember(chatId, messageId, header);
       const id = await put(ctx, api, tg, chatId, messageId, out, row.sid);
@@ -723,6 +758,8 @@ export function createSession(options: SessionOptions = {}): SessionPort {
         else await send(ctx.tg, { chatId: tap.chatId, text: card.out.text, keyboard: card.out.keyboard });
         return;
       }
+      // The exam's days of the week, for the presses of this session (a mistake comes back on the next study day).
+      if (exam) keepWeek(reply.session.sid, exam.input);
       await tap.answer();
       if (!inPlace && tap.messageId) await editKeyboard(ctx.tg, { chatId: tap.chatId, messageId: tap.messageId, keyboard: null }).catch(() => undefined);
       const shownIn = reply.session.messageId ?? (inPlace ? tap.messageId : null);
@@ -835,7 +872,8 @@ export function createSession(options: SessionOptions = {}): SessionPort {
           }
           await tap.answer();
           const v = questionView(r.session, r.view);
-          const out = reviewOut(v, shownOf(r.view), act.a === 'doubt' ? 'doubt' : 'review', { site: ctx.site });
+          const back = act.a === 'doubt' ? undefined : await backOf(ctx, tg, r.session);
+          const out = reviewOut(v, shownOf(r.view), act.a === 'doubt' ? 'doubt' : 'review', { site: ctx.site, back });
           remember(chatId, messageId, headerText(v));
           await put(ctx, api, tg, chatId, messageId, out, r.session.sid);
           return;

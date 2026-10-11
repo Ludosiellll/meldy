@@ -237,6 +237,34 @@ test('«Закончить» before a day off (I2): the mistakes come back on th
   lintAll(h);
 });
 
+test('a press before a day off (Z7, Z9, Z8): the question comes back on the exam\'s next study day, on any instance', async () => {
+  // Saturday 17 October, 12:00 in Minsk; the exam is studied every day but Sunday: «в понедельник», not «завтра».
+  const h = sessionHarness({ now: Date.UTC(2026, 9, 17, 9, 0, 0) });
+  h.linked([{ ...AUTUMN, weekdays: 127 - 64 }]);
+  const card = h.card(900);
+  await h.press(`go|${CID}|p`, card);
+  const sid = h.fs.open(USER)!.sid;
+  const row = () => h.fs.sessions.get(sid)!;
+  const key = (pos: number) => row().shown[pos].o.findIndex((f) => h.fs.bank.get(row().items[pos])!.correct.includes(f));
+  const todays = () => h.fdb.of('bot_today').length;
+  const read = todays();
+  await h.press(`s|${sid}|0|${(key(0) + 1) % row().shown[0].o.length}`, card);
+  assert.match(words(h.message(card)!.text), /Неверно\. Вернётся через пару вопросов и в понедельник\./);
+  await h.press(`s|${sid}|0|m`, card);
+  assert.match(words(h.message(card)!.text), /Отменили: ошибку не считаем\. Ответ вы уже видели — вопрос вернётся в понедельник\./);
+  assert.equal(todays(), read, 'the days of the week came with «Начать»: no plan read on a press');
+  // Another instance takes the next presses: it reads the plan once, for the first screen that says the day.
+  h.restart();
+  await h.press(`s|${sid}|0|n`, card);
+  await h.press(`s|${sid}|1|x`, card);
+  assert.match(words(h.message(card)!.text), /\nВернётся через пару вопросов и в понедельник\.\n/);
+  await h.press(`s|${sid}|1|n`, card);
+  await h.press(`s|${sid}|2|${(key(2) + 1) % row().shown[2].o.length}`, card);
+  assert.match(words(h.message(card)!.text), /Неверно\. Вернётся через пару вопросов и в понедельник\./);
+  assert.equal(todays(), read + 1);
+  lintAll(h);
+});
+
 test('«Закончить» before any answer: the session is abandoned and the card comes back', async () => {
   const s = await started();
   await s.at('f', 0);

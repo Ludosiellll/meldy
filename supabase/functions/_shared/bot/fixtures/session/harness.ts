@@ -32,22 +32,27 @@ export function sessionHarness(options: { now?: number; seed?: number; session?:
   const tg = fakeTelegram({ now });
   const fdb = fakeDb({ now });
   const fs = fakeSessions(fdb, { now });
-  const port = createSession({ random: seeded(options.seed ?? 7), ...(options.session ?? {}) });
   const waits: Promise<unknown>[] = [];
-  const app = createApp({
-    token: TEST_TOKEN,
-    fetch: tg.fetch,
-    db: fdb.db,
-    functionUrl: TEST_FUNCTION_URL,
-    region: FUNCTION_REGION,
-    waitUntil: (work) => waits.push(work),
-    now,
-    ports: { session: port },
-    sleep: async (ms) => {
-      t += ms;
-    },
-    random: () => 0.5,
-  });
+  /** The function as one instance runs it: a session port of its own (what it keeps in memory) over the same fakes. */
+  const boot = () => {
+    const sessionPort = createSession({ random: seeded(options.seed ?? 7), ...(options.session ?? {}) });
+    const instance = createApp({
+      token: TEST_TOKEN,
+      fetch: tg.fetch,
+      db: fdb.db,
+      functionUrl: TEST_FUNCTION_URL,
+      region: FUNCTION_REGION,
+      waitUntil: (work) => waits.push(work),
+      now,
+      ports: { session: sessionPort },
+      sleep: async (ms) => {
+        t += ms;
+      },
+      random: () => 0.5,
+    });
+    return { port: sessionPort, app: instance };
+  };
+  let { port, app } = boot();
 
   async function post(update: TgUpdate): Promise<Response> {
     const secret = await derivedSecret(TEST_TOKEN, 'webhook');
@@ -116,10 +121,14 @@ export function sessionHarness(options: { now?: number; seed?: number; session?:
   }
 
   return {
-    tg, fdb, fs, app, post, tick, linked, card, press, type, message, datas, labels, toasts, waits, port,
+    tg, fdb, fs, post, tick, linked, card, press, type, message, datas, labels, toasts, waits,
+    get app() { return app; },
+    get port() { return port; },
     get now() { return t; },
     advance(ms: number) { t += ms; },
     set(ms: number) { t = ms; },
+    /** Another instance of the function takes the next updates (nothing in the old one's memory). */
+    restart() { ({ port, app } = boot()); },
   };
 }
 

@@ -47,7 +47,6 @@ export const S = {
   right: 'Верно.',
   wrong: 'Неверно.',
   markOne: 'Отметьте хотя бы один вариант.',
-  misclickDone: 'Отменили: ошибку не считаем. Ответ вы уже видели — вопрос вернётся завтра.',
   doubtDone: 'Отложено. Когда автор ответит, вопрос вернётся в занятия.',
   manualByAuthor: 'В файле ответ не был выделен — ключ поставил автор.',
   manualByYou: 'В файле ответ не был выделен — ключ поставили вы.',
@@ -55,11 +54,15 @@ export const S = {
 } as const;
 
 /**
- * «Вернётся через пару вопросов и завтра.» while the session still brings it back, else «Вернётся завтра.» A press
- * reads no exam settings (T5's SESSION has no study_weekdays), so this and `misclickDone` keep «завтра» before a day
- * off too; the record names the next study day (summary.ts `back`).
+ * «Вернётся через пару вопросов и завтра.» while the session still brings it back, else «Вернётся завтра.» `when` is
+ * the exam's next study day after today («в понедельник» before a day off: today.ts `comesBackOn`), as the site's
+ * answer, the record (summary.ts `back`) and `misclickDone` say it.
  */
-export const comesBack = (again: boolean) => (again ? 'Вернётся через пару вопросов и завтра.' : 'Вернётся завтра.');
+export const comesBack = (again: boolean, when = 'завтра') => (again ? `Вернётся через пару вопросов и ${when}.` : `Вернётся ${when}.`);
+/** Z9, «Нажали не туда?»: the answer was seen, so the question comes back on `when` (as `comesBack`). */
+export const misclickDone = (when = 'завтра') => `Отменили: ошибку не считаем. Ответ вы уже видели — вопрос вернётся ${when}.`;
+/** The longest `when` (a weekday of `comesBackOn`): what `fitsTelegram` measures a review with. */
+const LONGEST_WHEN = 'в воскресенье';
 export const doubtAsk = (no: string) =>
   `Сомневаетесь в ключе к № ${no}? Автор экзамена увидит, сколько участников сомневаются, — без имён. Вопрос отложим у вас, пока автор не ответит.`;
 export const keyFixedOn = (day: string) => `Ключ исправлен автором ${dayText(day)}.`;
@@ -114,6 +117,8 @@ export type ReviewStage = 'review' | 'misclick' | 'doubt' | 'doubted';
 
 export interface RenderOptions {
   site: string;
+  /** When a mistake or a misclick comes back (`comesBack`): the exam's next study day; «завтра» when left out. */
+  back?: string;
 }
 
 const data = (v: Pick<QuestionView, 'sid' | 'pos'>, act: SessionAct) => encode({ kind: 'session', sid: v.sid, pos: v.pos, act });
@@ -270,11 +275,12 @@ function reviewKeyboard(v: QuestionView, shown: Shown, stage: ReviewStage, optio
  */
 export function reviewOut(v: QuestionView, shown: Shown, stage: ReviewStage, options: RenderOptions): Out {
   const no = fileNumber(v.item);
+  const back = options.back ?? 'завтра';
   let verdict: string;
-  if (stage === 'misclick') verdict = S.misclickDone;
+  if (stage === 'misclick') verdict = misclickDone(back);
   else if (stage === 'doubt') verdict = doubtAsk(no);
   else if (stage === 'doubted') verdict = S.doubtDone;
-  else verdict = shown.dontKnow ? comesBack(shown.again) : `${S.wrong} ${comesBack(shown.again)}`;
+  else verdict = shown.dontKnow ? comesBack(shown.again, back) : `${S.wrong} ${comesBack(shown.again, back)}`;
   const text = lines(
     t(headerText(v)),
     '',
@@ -319,7 +325,7 @@ export function fitsTelegram(v: QuestionView, options: RenderOptions): boolean {
     worst = { dontKnow: false, key: byLength.slice(0, 1), chosen: byLength.slice(1, 2), forms: [], text: null, again: true };
   }
   for (const stage of ['review', 'doubt', 'doubted'] as const) {
-    if (visibleLength(reviewOut(v, worst, stage, options).text) > limit) return false;
+    if (visibleLength(reviewOut(v, worst, stage, { ...options, back: LONGEST_WHEN }).text) > limit) return false;
   }
   return true;
 }
