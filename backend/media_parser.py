@@ -19,20 +19,24 @@ from agents.base import (
 )
 from ocr import OCR_INLINE_MAX_BYTES, OCR_PROMPT, recognize_image
 
-# Recordings of lectures (live QA 2026-10-11, a 2:50 MP3 through whisper-large-v3-turbo without a
-# language): ~10 s of speech lost, «вольтметр» → «Вт метр», «нихрома» → «них ума», «закон Ома» →
-# «закон ОМО». A lecture is not a live answer: it gets Groq's most accurate Whisper, the error-sensitive
-# whisper-large-v3 (WER 10.3 % against 12 % of the turbo, Groq's speech-to-text docs, checked
-# 2026-10-11; same free limits), then the turbo one (GROQ_TRANSCRIPTION_MODEL, the model of spoken
-# answers in stt.py) if the first is busy or gone, then Gemini. Whisper is told the language (ru) and
-# gets a short Russian prompt with the topic from the file name: the prompt sets the style and the
-# spelling of terms (Groq: up to 224 tokens, in the language of the audio). Temperature 0, as Groq advises.
-GROQ_LECTURE_MODEL_DEFAULT = "whisper-large-v3"
-GROQ_FALLBACK_MODEL_DEFAULT = "whisper-large-v3-turbo"
+# Recordings of lectures, measured live on the same 2:50 MP3 of a physics lecture (account B, 2026-10-11):
+# - whisper-large-v3-turbo, no language, no prompt: 84.6 % of the lecture's words, one ~10 s passage skipped,
+#   nothing invented;
+# - release 44, whisper-large-v3 first, language ru, the prompt «Запись лекции на русском языке. Тема: {topic}.»
+#   with the topic from the file name: 32.0, 75.2 and 76.1 % in three runs. Where the turbo skipped, it wrote
+#   sentences nobody said («…мы поистине придерживаемся высокого депрессанта…»), and one run stopped at 45 s
+#   with «. . Лекция физика закон Ома. Лекция физика закон Ома. Субтитры создавал DimaTorzok» — the prompt
+#   read back and a subtitle credit Whisper picked up in training.
+# So a lecture gets the turbo model and no prompt. whisper-large-v3 is not asked by default: the invented
+# sentences came only from its runs, and a sentence made up silently is worse for a student than a busy
+# message; GROQ_LECTURE_TRANSCRIPTION_MODEL can still name it. The language stays ru: without it Whisper picks
+# one language from the first 30 s and then decodes as if it had been given (the reference code,
+# openai/whisper transcribe.py), so a Russian lecture comes out the same, and a quiet or musical start cannot
+# turn the whole file into another language. A lecture in another language would come out in Russian words —
+# the trade the spoken answers (stt.py) already make.
+# Temperature 0, as before.
+GROQ_LECTURE_MODEL_DEFAULT = "whisper-large-v3-turbo"
 TRANSCRIPTION_LANGUAGE = "ru"
-LECTURE_PROMPT = "Запись лекции на русском языке."
-TOPIC_PROMPT = "Запись лекции на русском языке. Тема: {topic}."
-TOPIC_MAX_CHARS = 120
 # Groq reads these files as they are (flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm); a video lecture
 # (MP4, MPEG) goes to Whisper too, its first audio track.
 GROQ_MEDIA_TYPES = ("audio/", "video/mp4", "video/mpeg")
@@ -65,39 +69,106 @@ def media_processing_poll_seconds() -> float:
     return value if value > 0 else 120.0
 
 
-def recording_topic(filename: str | None) -> str:
-    """The topic of a recording from its file name («Лекция_физика_закон_Ома.mp3» → «Лекция физика закон
-    Ома»), or '' when the name says nothing: fewer than two Russian words of three letters
-    («Запись 12.m4a», «audio_2026-10-11.mp3»)."""
-    name = os.path.basename(filename or "")
-    stem = name.rsplit(".", 1)[0] if "." in name else name
-    words = re.sub(r"[_\s]+", " ", stem).split()
-    if sum(1 for word in words if re.fullmatch(r"[А-Яа-яЁё][А-Яа-яЁё-]{2,}", word)) < 2:
-        return ""
-    return " ".join(words)[:TOPIC_MAX_CHARS].strip()
-
-
 def lecture_transcription_models() -> list[str]:
-    """Whisper models for a lecture, the most accurate first (GROQ_LECTURE_TRANSCRIPTION_MODEL, then
-    GROQ_TRANSCRIPTION_MODEL — the model of spoken answers — as the one to fall back on)."""
+    """Whisper models for a lecture: GROQ_LECTURE_TRANSCRIPTION_MODEL, then GROQ_TRANSCRIPTION_MODEL (the model of
+    spoken answers, stt.py) when the first is busy or gone. Both default to whisper-large-v3-turbo, the model that
+    measured best, so without them it is the only one and Gemini comes next."""
     models = []
-    for name, default in (
-        ("GROQ_LECTURE_TRANSCRIPTION_MODEL", GROQ_LECTURE_MODEL_DEFAULT),
-        ("GROQ_TRANSCRIPTION_MODEL", GROQ_FALLBACK_MODEL_DEFAULT),
-    ):
-        model = os.getenv(name, "").strip() or default
+    for name in ("GROQ_LECTURE_TRANSCRIPTION_MODEL", "GROQ_TRANSCRIPTION_MODEL"):
+        model = os.getenv(name, "").strip() or GROQ_LECTURE_MODEL_DEFAULT
         if model not in models:
             models.append(model)
     return models
+
+
+# Where it hears no clear speech, and after the last word, Whisper writes lines of the subtitles it learned from:
+# credits of Russian subtitles («Субтитры создавал DimaTorzok» ended a live transcript, 2026-10-11, see above),
+# «Продолжение следует…», «Спасибо за просмотр», the same sentence again and again at the end. Only these go: a
+# whole sentence, or a credit glued to the end of one; a sentence that merely mentions subtitles or a proofreader
+# stays. (stt.py drops more for a spoken answer, where a short phrase is the whole answer.)
+# A sentence ends at a line break, or at . ! ? or … before a space, but not at an initial: «Корректор
+# А. Егорова» is one sentence.
+_SENTENCE_BREAK_RE = re.compile(r"\n\s*|(?<=[.!?…])(?<!\b[А-ЯЁA-Z]\.)\s+")
+_CREDIT_LINE = (
+    r"(?:Субтитры\s+(?:создавал|сделал|делал|подготовил)а?(?:\s+\S+){1,4}"
+    r"|Редактор\s+субтитров(?:\s+\S+){0,6}"
+    # A name with initials after it («Корректор А.Егорова»), not «Корректор — это …».
+    r"|Корректор(?:ка)?\s+(?:[А-ЯЁ]\.\s?){1,2}[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?"
+    r"|Продолжение\s+следует)"
+)
+# The whole sentence is a credit.
+_CREDIT_SENTENCE_RE = re.compile(_CREDIT_LINE, re.IGNORECASE)
+# A credit glued to the end of a sentence (Whisper's pieces do not always end with a full stop: «…большое, Но,
+# в точку…» in a live run): after a space, with the capital letter a new piece starts with.
+_CREDIT_TAIL_RE = re.compile(r"(?<![ \t])[ \t]+" + _CREDIT_LINE + r"[.!?…»\"']*$")
+# This nickname is a credit wherever it stands: no lecture has it.
+_NICKNAME_RE = re.compile(r"(?:субтитры\S*\s+(?:\S+\s+)?)?dimatorzok\S*", re.IGNORECASE)
+# Only when it stands alone at the very end: a lecturer says it too, and then it carries nothing to learn.
+_LAST_THANKS_RE = re.compile(r"спасибо\s+за\s+(?:просмотр|внимание)", re.IGNORECASE)
+_WORD_RE = re.compile(r"\w+")
+
+
+def _sentence_core(sentence: str) -> str:
+    return sentence.strip().lstrip("«\"'").rstrip(".!?…»\"' ").strip()
+
+
+def _sentence_words(sentence: str) -> str:
+    return " ".join(_WORD_RE.findall(sentence.lower().replace("ё", "е")))
+
+
+def _without_made_up_lines(sentence: str) -> str:
+    """The sentence without a credit in it; '' when nothing else is left («.» between two sentences included)."""
+    if _CREDIT_SENTENCE_RE.fullmatch(_sentence_core(sentence)):
+        return ""
+    cleaned = _CREDIT_TAIL_RE.sub("", _NICKNAME_RE.sub("", sentence))
+    if cleaned != sentence:
+        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+    return cleaned if _WORD_RE.search(cleaned) else ""
+
+
+def clean_whisper_transcript(text: str) -> str:
+    """Whisper's transcript without the lines it makes up (above): subtitle credits and «Продолжение следует…»
+    anywhere, «Спасибо за просмотр/внимание» standing alone at the very end, and a sentence repeated at the end
+    kept once (a loop usually repeats a sentence that was said). Everything else stays as it was, spaces and
+    line breaks included; '' when nothing else was there."""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    pieces: list[list[str]] = []  # [sentence, the space after it]
+    start = 0
+    for match in _SENTENCE_BREAK_RE.finditer(text):
+        pieces.append([text[start:match.start()], match.group()])
+        start = match.end()
+    pieces.append([text[start:], ""])
+
+    kept: list[list[str]] = []
+    changed = 0
+    for sentence, space in pieces:
+        cleaned = _without_made_up_lines(sentence)
+        changed += cleaned != sentence
+        if cleaned:
+            kept.append([cleaned, space])
+        elif kept and space.count("\n") > kept[-1][1].count("\n"):
+            kept[-1][1] = space  # a paragraph break after a dropped sentence stays
+    while kept and (
+        _LAST_THANKS_RE.fullmatch(_sentence_core(kept[-1][0]))
+        or (len(kept) > 1 and _sentence_words(kept[-1][0]) == _sentence_words(kept[-2][0]))
+    ):
+        kept.pop()
+        changed += 1
+    if changed:
+        print(f"Whisper transcript: {changed} made-up sentence(s) dropped or cut")
+    return "".join(sentence + space for sentence, space in kept).strip()
 
 
 def _groq_reads(file_path: str, mime_type: str | None) -> bool:
     return bool(mime_type and mime_type.startswith(GROQ_MEDIA_TYPES)) and file_path.lower().endswith(GROQ_MEDIA_EXTENSIONS)
 
 
-async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None, topic: str = "") -> str:
-    """Whisper's text of the recording ('' without a key). The next model is asked only when one is busy
-    (429) or not there any more (404): any other failure goes to Gemini at once."""
+async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None) -> str:
+    """Whisper's text of the recording without the lines it makes up (clean_whisper_transcript; '' without a key
+    or when nothing else was heard). No prompt: release 44's topic prompt came back as text (see above). The next
+    model is asked only when one is busy (429) or not there any more (404): any other failure goes to Gemini at once."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         return ""
@@ -105,7 +176,6 @@ async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None, top
     from groq import AsyncGroq
 
     client = AsyncGroq(api_key=api_key)
-    prompt = TOPIC_PROMPT.format(topic=topic) if topic else LECTURE_PROMPT
     models = lecture_transcription_models()
     for index, model in enumerate(models):
         try:
@@ -114,7 +184,6 @@ async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None, top
                     model=model,
                     file=(os.path.basename(file_path), audio_file, mime_type or "audio/mpeg"),
                     language=TRANSCRIPTION_LANGUAGE,
-                    prompt=prompt,
                     response_format="text",
                     temperature=0,
                 )
@@ -124,9 +193,8 @@ async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None, top
                 print(f"Groq transcription: {model} unavailable ({classify_error(exc)}), trying {models[index + 1]}")
                 continue
             raise
-        if isinstance(response, str):
-            return response.strip()
-        return str(getattr(response, "text", "") or "").strip()
+        text = response if isinstance(response, str) else str(getattr(response, "text", "") or "")
+        return clean_whisper_transcript(text)
     return ""
 
 def get_gemini_keys():
@@ -235,13 +303,13 @@ def _media_generation_config(model: str) -> types.GenerateContentConfig:
     return types.GenerateContentConfig(**config)
 
 
-async def transcribe_media_file(file_path: str, mime_type: str = None, *, topic: str = "") -> str:
+async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
     """Text of an audio, video or image file.
 
-    Audio and MP4/MPEG video: Groq Whisper first (lecture_transcription_models, Russian, ``topic`` —
-    recording_topic of the file name — in the prompt), then Gemini. An image (a photo of a page) up to
-    OCR_INLINE_MAX_BYTES goes to Gemini inline with the OCR prompt of ocr.py (no Files API);
-    a bigger one and audio/video go through the Files API. Models: GEMINI_MODELS.
+    Audio and MP4/MPEG video: Groq Whisper first (lecture_transcription_models, Russian, no prompt, its made-up
+    lines dropped), then Gemini. An image (a photo of a page) up to OCR_INLINE_MAX_BYTES goes to Gemini inline
+    with the OCR prompt of ocr.py (no Files API); a bigger one and audio/video go through the Files API.
+    Models: GEMINI_MODELS.
     """
     is_image = bool(mime_type and mime_type.startswith("image/"))
     if is_image and os.path.getsize(file_path) <= OCR_INLINE_MAX_BYTES:
@@ -251,7 +319,7 @@ async def transcribe_media_file(file_path: str, mime_type: str = None, *, topic:
 
     if _groq_reads(file_path, mime_type):
         try:
-            groq_text = await _transcribe_audio_with_groq(file_path, mime_type, topic)
+            groq_text = await _transcribe_audio_with_groq(file_path, mime_type)
             if groq_text:
                 return groq_text
         except Exception as exc:
