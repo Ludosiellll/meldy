@@ -1,134 +1,215 @@
 {
  "clip": "07",
- "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/07-e",
+ "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/07-g",
  "size": [
-  1440,
-  900
+  1792,
+  1400
  ],
  "viewport": {
-  "width": 1440,
-  "height": 900
+  "width": 1024,
+  "height": 800
  },
- "capture_scale": 1.0,
- "device_scale": 2,
+ "capture_scale": 1.75,
+ "device_scale": 1.75,
  "fps": 30,
- "frames": 594,
- "seconds": 19.8,
- "dissolve_frames": 15,
+ "frames": 708,
+ "seconds": 23.6,
+ "loop_fade_frames": 15,
  "stretches": [
   {
-   "from": "new-0.2",
-   "to": "@4.0",
+   "from": "@1.2",
+   "to": "@4.4",
    "clip_from": 0.0,
-   "clip_to": 2.567,
-   "take_from": 1.437,
-   "take_to": 4.0,
-   "hold": 0
+   "clip_to": 3.2,
+   "take_from": 1.2,
+   "take_to": 4.4,
+   "hold": 0,
+   "fade": 0
   },
   {
-   "from": "@4.2",
-   "to": "@7.42",
-   "clip_from": 2.567,
-   "clip_to": 6.2,
-   "take_from": 4.2,
-   "take_to": 7.42,
-   "hold": 0.4
+   "from": "found-0.05",
+   "to": "@9.7",
+   "clip_from": 3.2,
+   "clip_to": 7.4,
+   "take_from": 5.501,
+   "take_to": 9.7,
+   "hold": 0,
+   "fade": 0.45
   },
   {
-   "from": "@7.75",
-   "to": "dated+0.5",
-   "clip_from": 6.2,
-   "clip_to": 9.067,
-   "take_from": 7.75,
-   "take_to": 10.614,
-   "hold": 0
+   "from": "@10.3",
+   "to": "@17.4",
+   "clip_from": 7.4,
+   "clip_to": 14.5,
+   "take_from": 10.3,
+   "take_to": 17.4,
+   "hold": 0,
+   "fade": 0.4
   },
   {
-   "from": "minutes-0.05",
-   "to": "minuted+0.4",
-   "clip_from": 9.067,
-   "clip_to": 11.867,
-   "take_from": 11.377,
-   "take_to": 14.193,
-   "hold": 0
-  },
-  {
-   "from": "save-0.05",
-   "to": "@17.95",
-   "clip_from": 11.867,
-   "clip_to": 14.833,
-   "take_from": 14.97,
-   "take_to": 17.95,
-   "hold": 0
-  },
-  {
-   "from": "@19.28",
-   "to": "@20.95",
-   "clip_from": 14.833,
+   "from": "@18.4",
+   "to": "@20.4",
+   "clip_from": 14.5,
    "clip_to": 16.5,
-   "take_from": 19.28,
-   "take_to": 20.95,
-   "hold": 0
+   "take_from": 18.4,
+   "take_to": 20.4,
+   "hold": 0,
+   "fade": 0.4
   },
   {
-   "from": "plan-0.05",
-   "to": "@24.6",
+   "from": "today-0.05",
+   "to": "@25.9",
    "clip_from": 16.5,
-   "clip_to": 19.8,
-   "take_from": 22.191,
-   "take_to": 24.6,
-   "hold": 0.9
+   "clip_to": 19.1,
+   "take_from": 23.293,
+   "take_to": 25.9,
+   "hold": 0,
+   "fade": 0.45
+  },
+  {
+   "from": "@27.6",
+   "to": "@32.1",
+   "clip_from": 19.1,
+   "clip_to": 23.6,
+   "take_from": 27.6,
+   "take_to": 32.1,
+   "hold": 0,
+   "fade": 0.4
   }
  ],
+ "swaps": [],
  "moments": {
-  "new": 0.2,
-  "import": 2.267,
-  "chooser": 3.633,
-  "file": 4.1,
-  "found": 4.933,
-  "date": 7.7,
-  "dated": 8.567,
-  "hint": 8.567,
-  "minutes": 9.1,
-  "minuted": 11.467,
-  "save": 11.9,
-  "saving": 13.2,
-  "today": 14.967,
-  "plan": 16.533,
-  "planned": 17.733
+  "pick": 1.57,
+  "chooser": 2.813,
+  "found": 3.25,
+  "form": 6.195,
+  "date": 8.207,
+  "dated": 9.66,
+  "minutes": 10.775,
+  "menu": 12.665,
+  "minuted": 13.511,
+  "save": 14.732,
+  "today": 16.55,
+  "still_poster": 18.088,
+  "dialog": 20.453
  },
- "camera": [
+ "clicks": [
   {
-   "top": 0,
-   "bottom": 650,
-   "clip": 0.0
+   "clip": 2.715,
+   "x": 180.3,
+   "y": 409.2
   },
   {
-   "top": 165,
-   "bottom": 890,
-   "clip": 4.133
+   "clip": 7.76,
+   "x": 691.6,
+   "y": 518.7
   },
   {
-   "top": 0,
-   "bottom": 650,
-   "clip": 14.833
+   "clip": 11.761,
+   "x": 731.8,
+   "y": 610.7
+  },
+  {
+   "clip": 13.411,
+   "x": 760.0,
+   "y": 465.0
+  },
+  {
+   "clip": 15.962,
+   "x": 896.0,
+   "y": 756.0
+  },
+  {
+   "clip": 20.343,
+   "x": 283.9,
+   "y": 380.0
   }
  ],
+ "camera": {
+  "min_w": 640,
+  "pad": 16,
+  "move": 0.9,
+  "y_min": 0,
+  "keys": [
+   {
+    "clip": 0.0,
+    "rect": [
+     40,
+     175,
+     625,
+     480
+    ],
+    "beat": "upload"
+   },
+   {
+    "clip": 3.2,
+    "rect": [
+     40,
+     175,
+     610,
+     390
+    ],
+    "move": 0.6,
+    "beat": "found"
+   },
+   {
+    "clip": 6.2,
+    "rect": [
+     644,
+     460,
+     984,
+     640
+    ],
+    "move": 1.0,
+    "beat": "date"
+   },
+   {
+    "clip": 14.6,
+    "rect": [
+     644,
+     600,
+     984,
+     790
+    ],
+    "move": 0.8,
+    "beat": "save"
+   },
+   {
+    "clip": 16.5,
+    "rect": [
+     40,
+     148,
+     984,
+     477.7
+    ],
+    "move": 0.6,
+    "beat": "plan"
+   },
+   {
+    "clip": 20.367,
+    "rect": [
+     252,
+     208.5,
+     772,
+     591.5
+    ],
+    "beat": "days"
+   }
+  ]
+ },
  "window": {
   "name": "07-exam-plan",
   "box": [
-   1080,
-   544
+   1152,
+   568
   ],
-  "radius": 24
+  "radius": 22,
+  "bg": "#0b121c"
  },
  "poster": {
+  "clip": 17.833,
   "file": "07-poster.png",
   "still": "poster",
-  "scale": 2.0,
-  "camera": {
-   "top": 0,
-   "bottom": 650
-  }
+  "scale": 3.0
  }
 }

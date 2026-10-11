@@ -1,6 +1,6 @@
 {
  "clip": "08",
- "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/08-d",
+ "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/08-i",
  "size": [
   780,
   1688
@@ -12,128 +12,98 @@
  "capture_scale": 2.0,
  "device_scale": 2,
  "fps": 30,
- "frames": 567,
- "seconds": 18.9,
- "dissolve_frames": 15,
+ "frames": 769,
+ "seconds": 25.633,
+ "loop_fade_frames": 15,
  "stretches": [
   {
-   "from": "@0.3",
-   "to": "@1.2",
+   "from": "@1.0",
+   "to": "@14.9",
    "clip_from": 0.0,
-   "clip_to": 0.9,
-   "take_from": 0.3,
-   "take_to": 1.2,
-   "hold": 0
+   "clip_to": 13.9,
+   "take_from": 1.0,
+   "take_to": 14.9,
+   "hold": 0,
+   "fade": 0
   },
   {
-   "from": "@3.55",
-   "to": "@5.72",
-   "clip_from": 0.9,
-   "clip_to": 3.067,
-   "take_from": 3.55,
-   "take_to": 5.72,
-   "hold": 0
+   "from": "@16.3",
+   "to": "@17.4",
+   "clip_from": 13.9,
+   "clip_to": 15.0,
+   "take_from": 16.3,
+   "take_to": 17.4,
+   "hold": 0,
+   "fade": 0.4
   },
   {
-   "from": "@7.3",
-   "to": "@9.3",
-   "clip_from": 3.067,
-   "clip_to": 5.067,
-   "take_from": 7.3,
-   "take_to": 9.3,
-   "hold": 0
+   "from": "asked+0.3",
+   "to": "@24.5",
+   "clip_from": 15.0,
+   "clip_to": 19.933,
+   "take_from": 19.571,
+   "take_to": 24.5,
+   "hold": 0,
+   "fade": 0.45
   },
   {
-   "from": "@17.0",
-   "to": "@18.3",
-   "clip_from": 5.067,
-   "clip_to": 6.367,
-   "take_from": 17.0,
-   "take_to": 18.3,
-   "hold": 0
-  },
-  {
-   "from": "@43.9",
-   "to": "@45.45",
-   "clip_from": 6.367,
-   "clip_to": 7.9,
-   "take_from": 43.9,
-   "take_to": 45.45,
-   "hold": 0
-  },
-  {
-   "from": "@47.35",
-   "to": "@49.8",
-   "clip_from": 7.9,
-   "clip_to": 10.367,
-   "take_from": 47.35,
-   "take_to": 49.8,
-   "hold": 0
-  },
-  {
-   "from": "@51.25",
-   "to": "@52.75",
-   "clip_from": 10.367,
-   "clip_to": 11.867,
-   "take_from": 51.25,
-   "take_to": 52.75,
-   "hold": 0
-  },
-  {
-   "from": "@53.45",
-   "to": "@55.33",
-   "clip_from": 11.867,
-   "clip_to": 13.733,
-   "take_from": 53.45,
-   "take_to": 55.33,
-   "hold": 0
-  },
-  {
-   "from": "@55.7",
-   "to": "@58.3",
-   "clip_from": 13.733,
-   "clip_to": 16.333,
-   "take_from": 55.7,
-   "take_to": 58.3,
-   "hold": 0
-  },
-  {
-   "from": "@59.95",
-   "to": "@62.2",
-   "clip_from": 16.333,
-   "clip_to": 18.9,
-   "take_from": 59.95,
-   "take_to": 62.2,
-   "hold": 0.3
+   "from": "@25.5",
+   "to": "@31.2",
+   "clip_from": 19.933,
+   "clip_to": 25.633,
+   "take_from": 25.5,
+   "take_to": 31.2,
+   "hold": 0,
+   "fade": 0.4
   }
  ],
+ "swaps": [],
  "moments": {
-  "draw": 0.6,
-  "drawn": 1.333,
-  "answer": 2.833,
-  "speak": 4.033,
-  "spoken": 6.567,
-  "still_spoken": 6.567,
-  "done": 7.567,
-  "asked": 8.4,
-  "protocol": 10.633,
-  "scroll0": 11.933,
-  "scroll1": 13.8,
-  "asked-point": 16.333
+  "speak": 1.006,
+  "done": 14.351,
+  "dontknow": 17.419,
+  "protocol": 17.656,
+  "scroll": 20.077,
+  "points": 23.088,
+  "still_points": 23.789
  },
- "camera": [],
+ "clicks": [
+  {
+   "clip": 1.146,
+   "x": 268.5,
+   "y": 806
+  },
+  {
+   "clip": 14.491,
+   "x": 312.5,
+   "y": 806
+  },
+  {
+   "clip": 17.576,
+   "x": 125.7,
+   "y": 806
+  }
+ ],
+ "camera": {
+  "min_w": 640,
+  "pad": 16,
+  "move": 0.9,
+  "y_min": 0,
+  "keys": []
+ },
  "window": {
   "name": "08-oral-answer",
   "box": [
-   360,
-   792
+   392,
+   848
   ],
-  "radius": 44
+  "radius": 36,
+  "bg": "#0b121c"
  },
  "poster": {
+  "clip": 23.7,
   "file": "08-poster.png",
   "still": "points",
-  "scale": 3.0,
-  "camera": {}
+  "scale": 3.0
  }
 }
