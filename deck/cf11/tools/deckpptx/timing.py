@@ -8,17 +8,28 @@ read PowerPoint files, oox/source/ppt/commontimenodecontext.cxx `preset_mapping`
   appear    | Appear (Появление)                   | 1 / 0            | set style.visibility=visible
   fade      | Fade (Выцветание)                    | 10 / 0           | set + animEffect transition=in filter=fade
   rise      | Float In, Up (Всплывание, вверх)     | 42 / 0           | set + animEffect fade + anim ppt_x #ppt_x->#ppt_x
-            |                                      |                  |   + anim ppt_y "#ppt_y+.1" -> "#ppt_y"
-  wipe      | Wipe, From Left (Появление сбоку...) | 22 / 8           | set + animEffect transition=in filter="wipe(left)"
+            |                                      |                  |   + anim ppt_y "#ppt_y+.1" -> "#ppt_y" (decel)
+  wipe      | Wipe (Появление сбоку), From Left /  | 22 / 8, 2, 1, 4  | set + animEffect transition=in
+            |   Right / Top / Bottom               |                  |   filter="wipe(left|right|up|down)"
   zoom      | Zoom, Object Center (Масштабирование)| 53 / 16          | set + anim ppt_w 0->#ppt_w + anim ppt_h 0->#ppt_h
-            |                                      |                  |   + animEffect fade
+            |                                      |                  |   (decel) + animEffect fade
+  settle    | Basic Zoom, In Slightly (Простое     | 23 / 272         | set + anim ppt_w "#ppt_w*0.92"->#ppt_w + ppt_h
+            |   увеличение, слегка внутрь)         |                  |   likewise (decel) + animEffect fade
 Sources: appear, fade, rise and zoom are copied from slides saved by Microsoft Office PowerPoint in LibreOffice's
 test corpus (sd/qa/unit/data/pptx/tdf112089.pptx, tdf104788.pptx slide 6, tdf112086.pptx). Wipe: preset 22, subtype
-8 = "from-left" (commontimenodecontext.cxx) and filter "wipe(left)" = barWipe leftToRight in the default direction
-(pptfilterhelpers.cxx transition table, `mbDirection` true = default geometric direction; the filter names the side
-the wipe starts from, PowerPoint's default Wipe From Bottom is "wipe(down)"). Checked by round trip: LibreOffice
-turns this XML into its own "ooo-entrance-wipe" / "from-left" = barWipe leftToRight (sd/xml/effects.xml). No
+8/2/1/4 = "from-left/right/top/bottom" (commontimenodecontext.cxx convert_subtype) and the filter names the side the
+wipe starts from: "wipe(left)" = barWipe leftToRight in the default direction (pptfilterhelpers.cxx transition table,
+`mbDirection` true = default geometric direction), PowerPoint's default Wipe From Bottom is "wipe(down)". Checked by
+round trip: LibreOffice turns this XML into its own "ooo-entrance-wipe" / "from-left" (sd/xml/effects.xml). No
 PowerPoint-saved sample of Wipe was available here.
+settle (fade + scale up from 92 % around the centre, decelerating) has no stock preset: Basic Zoom «In Slightly»
+(23/272) is the closest by name, but PowerPoint's own scales from 2/3 without a fade (LibreOffice's copy of the
+preset, sd/xml/effects.xml "ooo-entrance-zoom" / "in-slightly"). The file keeps 23/272, so the Animation pane shows
+«Basic Zoom / In Slightly», with these behaviours; picking another option in PowerPoint regenerates the stock ones.
+Easing: PowerPoint writes no accel/decel for its Fade, Float In and Zoom (the corpus samples above, PowerPoint 2013
+and 2016 files): they are linear. Its own eased presets put decel="100000" on the motion/scale behaviour (Rise Up,
+tdf104788 slide 6: the ppt_y anim; Magnify, tdf104786: the animScale), and so do these: the motion of rise and the
+scale of zoom and settle decelerate to a stop (SMIL decelerate 100 % = quadratic ease-out); fades stay linear.
 
 Structure (as PowerPoint writes it, e.g. tdf124457.pptx / bnc591147.pptx):
   tmRoot > mainSeq(seq concurrent=1 nextAc=seek) > click group par (cond delay=indefinite, plus
@@ -47,7 +58,12 @@ PRESETS = {
     'rise': (42, 0),
     'wipe': (22, 8),
     'zoom': (53, 16),
+    'settle': (23, 272),
 }
+# Wipe direction (data-anim-dir names the side the wipe starts from, as PowerPoint's «Direction» does)
+WIPE_SUBTYPE = {'left': 8, 'right': 2, 'up': 1, 'down': 4}
+SETTLE_FROM = 0.92           # settle scales from 92 % of the final size
+DECEL = 100000               # 100 %: decelerate over the whole behaviour, as PowerPoint's Rise Up / Magnify write it
 
 
 @dataclass
@@ -60,11 +76,12 @@ class Target:
 @dataclass
 class Effect:
     target: Target
-    effect: str                # appear | fade | rise | wipe | zoom
+    effect: str                # appear | fade | rise | wipe | zoom | settle
     trigger: str               # click | with | after
     delay_ms: int = 0
     dur_ms: int = 500
     companions: list = field(default_factory=list)   # Targets that play the same effect "with" this one
+    direction: str = 'left'    # wipe only: the side it starts from (left | right | up | down)
 
 
 @dataclass
@@ -138,9 +155,9 @@ def _anim_effect(lst, spid, dur, flt):
     _el('spTgt', tg, spid=spid)
 
 
-def _anim(lst, spid, dur, attr, frm, to, frm_is_float=False):
+def _anim(lst, spid, dur, attr, frm, to, frm_is_float=False, decel=None):
     a = _el('anim', lst, calcmode='lin', valueType='num')
-    _bhvr(a, spid, dur, attr=attr)
+    _bhvr(a, spid, dur, attr=attr, extra_ctn={'decel': decel} if decel else None)
     tl = _el('tavLst', a)
     for tm, val, flt in (('0', frm, frm_is_float), ('100000', to, False)):
         tav = _el('tav', tl, tm=tm)
@@ -151,7 +168,7 @@ def _anim(lst, spid, dur, attr, frm, to, frm_is_float=False):
             _el('strVal', v, val=val)
 
 
-def behaviours(lst, effect: str, spid: int, dur: int):
+def behaviours(lst, effect: str, spid: int, dur: int, direction: str = 'left'):
     """Append the behaviour nodes of one preset to <p:childTnLst> lst."""
     _set_visible(lst, spid)
     if effect == 'fade':
@@ -159,24 +176,30 @@ def behaviours(lst, effect: str, spid: int, dur: int):
     elif effect == 'rise':
         _anim_effect(lst, spid, dur, 'fade')
         _anim(lst, spid, dur, 'ppt_x', '#ppt_x', '#ppt_x')
-        _anim(lst, spid, dur, 'ppt_y', '#ppt_y+.1', '#ppt_y')
+        _anim(lst, spid, dur, 'ppt_y', '#ppt_y+.1', '#ppt_y', decel=DECEL)
     elif effect == 'wipe':
-        _anim_effect(lst, spid, dur, 'wipe(left)')
+        _anim_effect(lst, spid, dur, f'wipe({direction if direction in WIPE_SUBTYPE else "left"})')
     elif effect == 'zoom':
-        _anim(lst, spid, dur, 'ppt_w', '0', '#ppt_w', frm_is_float=True)
-        _anim(lst, spid, dur, 'ppt_h', '0', '#ppt_h', frm_is_float=True)
+        _anim(lst, spid, dur, 'ppt_w', '0', '#ppt_w', frm_is_float=True, decel=DECEL)
+        _anim(lst, spid, dur, 'ppt_h', '0', '#ppt_h', frm_is_float=True, decel=DECEL)
+        _anim_effect(lst, spid, dur, 'fade')
+    elif effect == 'settle':
+        _anim(lst, spid, dur, 'ppt_w', f'#ppt_w*{SETTLE_FROM:g}', '#ppt_w', decel=DECEL)
+        _anim(lst, spid, dur, 'ppt_h', f'#ppt_h*{SETTLE_FROM:g}', '#ppt_h', decel=DECEL)
         _anim_effect(lst, spid, dur, 'fade')
 
 
-def effect_par(parent, effect: str, target: Target, node_type: str, delay: int, dur: int):
+def effect_par(parent, effect: str, target: Target, node_type: str, delay: int, dur: int, direction: str = 'left'):
     pid, sub = PRESETS[effect]
+    if effect == 'wipe':
+        sub = WIPE_SUBTYPE.get(direction, WIPE_SUBTYPE['left'])
     par = _el('par', parent)
     ctn = _ctn(par, presetID=pid, presetClass='entr', presetSubtype=sub, fill='hold')
     if target.has_text:
         ctn.set('grpId', '0')
     ctn.set('nodeType', node_type)
     _cond(_el('stCondLst', ctn), delay)
-    behaviours(_el('childTnLst', ctn), effect, target.spid, dur)
+    behaviours(_el('childTnLst', ctn), effect, target.spid, dur, direction)
     return par
 
 
@@ -265,10 +288,10 @@ def build_timing(effects: list[Effect], media: list[Media]):
                 skids = _el('childTnLst', sctn)
                 longest = 0
                 for e, node_type in sg:
-                    effect_par(skids, e.effect, e.target, node_type, e.delay_ms, e.dur_ms)
+                    effect_par(skids, e.effect, e.target, node_type, e.delay_ms, e.dur_ms, e.direction)
                     bld_targets.append(e.target)
                     for c in e.companions:
-                        effect_par(skids, e.effect, c, 'withEffect', e.delay_ms, e.dur_ms)
+                        effect_par(skids, e.effect, c, 'withEffect', e.delay_ms, e.dur_ms, e.direction)
                         bld_targets.append(c)
                     longest = max(longest, effect_length(e))
                 start += longest

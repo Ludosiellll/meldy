@@ -26,7 +26,8 @@
   </div>
   <div class="left" data-pptx="text" data-name="!!left">осталось 8&nbsp;из&nbsp;10</div>
   <h1 class="label" data-pptx="title">Актуальность</h1>
-  <div class="word" data-pptx="text" data-name="!!word">Meldy</div>
+  <!-- lint case: !!word morphs in from slide 2 but also has an entrance animation (check_pptx warns) -->
+  <div class="word" data-pptx="text" data-name="!!word" data-anim="fade" data-anim-trigger="after" data-anim-dur="300">Meldy</div>
 
   <p class="claim s3-claim" data-pptx="text" data-anim="rise" data-anim-trigger="after">Экзамены по&nbsp;билетам — норма, а&nbsp;к&nbsp;сотням вопросов готовятся без плана</p>
 
@@ -36,7 +37,7 @@
   <p class="src s3-src" data-pptx="text" data-anim="fade" data-anim-trigger="with">студентов вузов в&nbsp;Беларуси, 2026 — <a href="https://www.gs.by">gs.by</a>, дата обращения 10.10.2026; экзамены по&nbsp;билетам — постановление № 319 от&nbsp;13.10.2023</p>
   <p class="s3-note" data-pptx="text">Сессия дважды в&nbsp;год: <u>подчёркнуто</u>, <s>зачёркнуто</s>, полупрозрачный текст.</p>
 
-  <div class="card s3-card" data-pptx="shape" data-name="!!card" data-anim="wipe" data-anim-trigger="click">
+  <div class="card s3-card" data-pptx="shape" data-name="!!card" data-anim="wipe" data-anim-dir="right" data-anim-trigger="click">
     <span class="tag">Без Meldy</span>
     <h3 data-pptx="text">Сотни вопросов и&nbsp;стопка лекций — без плана и&nbsp;проверки</h3>
     <div class="row" style="top: 300px">Вопрос 1 из&nbsp;214</div>
@@ -44,7 +45,7 @@
     <div class="row" style="top: 460px">Проверка: только на&nbsp;экзамене</div>
   </div>
 
-  <span class="pill" data-pptx="text" data-anim="appear" data-anim-trigger="with">Постановление № 319</span>
+  <span class="pill" data-pptx="text" data-anim="settle" data-anim-trigger="with" data-anim-dur="600">Постановление № 319</span>
   <i class="sticker" data-pptx="shape" aria-label="Розовая наклейка" data-anim="rise" data-anim-trigger="click"></i>
 
   <template data-pptx="notes">ЯДРО 0:25–1:00. Экзамен по билетам — обычная форма контроля, так её устанавливает постановление Министерства образования номер триста девятнадцать.

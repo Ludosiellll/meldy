@@ -15,18 +15,21 @@ export PYTHON
 mode="${1:-deck}"
 if [ "$mode" = fixtures ]; then
   SLIDES="$TOOLS/fixtures"; OUT="$DECK/out/fixtures"; PPTX="$OUT/cf11-fixtures.pptx"; RULES=""
+  FILL="$TOOLS/fixtures/fill.json"          # fake values; the deck reads deck/cf11/private/fill.json (git-ignored)
   node "$TOOLS/fixtures/make_media.mjs" || exit 1
 else
   SLIDES="$DECK/slides"; OUT="$DECK/out"; PPTX="$OUT/meldy-codingfest11.pptx"; RULES="--deck-rules"
+  FILL="$DECK/private/fill.json"
 fi
 BUILD="$OUT/build"
 fail=0
 step() { echo; echo "=== $*"; }
 
 step "extract ($SLIDES)"
-node "$TOOLS/extract.mjs" --slides "$SLIDES" --out "$BUILD" || exit 1
+node "$TOOLS/extract.mjs" --slides "$SLIDES" --out "$BUILD" --fill "$FILL" || exit 1
 step "build"
 "$PYTHON" "$TOOLS/build.py" --build "$BUILD" --out "$PPTX" $RULES || fail=1
+[ -f "$PPTX" ] || { echo; echo "BUILD FAILED: no $PPTX (see the errors above)"; exit 1; }
 step "check the saved file"
 "$PYTHON" "$TOOLS/check_pptx.py" "$PPTX" "$BUILD/slides.json" $RULES || fail=1
 step "render with LibreOffice"

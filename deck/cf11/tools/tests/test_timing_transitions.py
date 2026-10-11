@@ -35,7 +35,7 @@ def test_first_effect_on_click_has_no_auto_group():
 
 
 @pytest.mark.parametrize('name, pid, sub', [('appear', '1', '0'), ('fade', '10', '0'), ('rise', '42', '0'),
-                                            ('wipe', '22', '8'), ('zoom', '53', '16')])
+                                            ('wipe', '22', '8'), ('zoom', '53', '16'), ('settle', '23', '272')])
 def test_presets(name, pid, sub):
     t = build_timing([eff(5, name, 'click', dur=700)], [])
     ctn = xp(t, '//p:cTn[@presetClass="entr"]')[0]
@@ -51,6 +51,36 @@ def test_presets(name, pid, sub):
         assert xp(ctn, './/p:anim[.//p:attrName="ppt_w"]//p:fltVal/@val') == ['0']
     if name != 'appear':
         assert set(xp(ctn, './/p:cBhvr/p:cTn/@dur')) >= {'700'}
+
+
+def test_settle_is_basic_zoom_in_slightly_with_fade_and_92_percent():
+    t = build_timing([eff(5, 'settle', 'after', dur=600)], [])
+    ctn = xp(t, '//p:cTn[@presetClass="entr"]')[0]
+    for attr in ('ppt_w', 'ppt_h'):
+        anim = xp(ctn, f'.//p:anim[.//p:attrName="{attr}"]')[0]
+        assert xp(anim, './/p:strVal/@val') == [f'#{attr}*0.92', f'#{attr}']
+        assert xp(anim, './p:cBhvr/p:cTn/@decel') == ['100000'] and xp(anim, './p:cBhvr/p:cTn/@dur') == ['600']
+    assert xp(ctn, './/p:animEffect/@filter') == ['fade']
+
+
+def test_easing_decelerates_motion_and_scale_but_not_fades():
+    t = build_timing([eff(2, 'rise', 'after'), eff(3, 'zoom', 'after'), eff(4, 'fade', 'after')], [])
+    decel = {(c.get('presetID'), a): xp(c, f'.//p:anim[.//p:attrName="{a}"]/p:cBhvr/p:cTn/@decel')
+             for c in xp(t, '//p:cTn[@presetClass="entr"]') for a in ('ppt_x', 'ppt_y', 'ppt_w', 'ppt_h')}
+    assert decel[('42', 'ppt_y')] == ['100000'] and decel[('42', 'ppt_x')] == []
+    assert decel[('53', 'ppt_w')] == ['100000'] and decel[('53', 'ppt_h')] == ['100000']
+    assert xp(t, '//p:animEffect/p:cBhvr/p:cTn/@decel') == []          # fades stay linear
+    assert xp(t, '//p:cTn[@presetClass="entr"]/@decel') == []           # nothing on the effect level
+
+
+@pytest.mark.parametrize('direction, sub, flt', [('left', '8', 'wipe(left)'), ('right', '2', 'wipe(right)'),
+                                                 ('up', '1', 'wipe(up)'), ('down', '4', 'wipe(down)')])
+def test_wipe_direction(direction, sub, flt):
+    e = Effect(Target(5, has_text=True), 'wipe', 'click', 0, 500, [Target(6)], direction=direction)
+    t = build_timing([e], [])
+    ctns = xp(t, '//p:cTn[@presetClass="entr"]')
+    assert [c.get('presetSubtype') for c in ctns] == [sub, sub]           # the layer wipes the same way
+    assert xp(t, '//p:animEffect/@filter') == [flt, flt]
 
 
 def test_delays_and_after_previous_start():
@@ -115,7 +145,8 @@ def test_no_timing_without_effects_or_media():
 @pytest.mark.skipif(not PML_XSD.exists(), reason='pptx skill schemas not available')
 def test_timing_is_schema_valid():
     schema = etree.XMLSchema(etree.parse(str(PML_XSD)))
-    e = [eff(2, n, t) for n, t in (('fade', 'after'), ('rise', 'with'), ('zoom', 'click'), ('wipe', 'after'), ('appear', 'with'))]
+    e = [eff(2, n, t) for n, t in (('fade', 'after'), ('rise', 'with'), ('zoom', 'click'), ('wipe', 'after'), ('appear', 'with'),
+                                   ('settle', 'after'))]
     timing = build_timing(e, [Media(spid=9, dur_ms=2000, loop=True, shown_by=e[2])])
     sld = etree.fromstring(
         '<p:sld xmlns:a="%s" xmlns:p="%s" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
@@ -133,6 +164,17 @@ def test_morph_transition_markup():
     assert tr.get('{%s}dur' % NS['p14']) == '1500' and tr.get('spd') == 'slow'
     assert xp(tr, './p159:morph/@option') == ['byObject']
     assert xp(ac, './mc:Fallback/p:transition/p:fade')
+
+
+@pytest.mark.parametrize('option, xml', [('object', 'byObject'), ('word', 'byWord'), ('char', 'byChar')])
+def test_morph_option(option, xml):
+    ac = transition_xml('morph', 1500, option)
+    assert xp(ac, './mc:Choice/p:transition/p159:morph/@option') == [xml]
+
+
+def test_unknown_morph_option_is_refused():
+    with pytest.raises(ValueError):
+        transition_xml('morph', 1500, 'letters')
 
 
 def test_fade_and_none():

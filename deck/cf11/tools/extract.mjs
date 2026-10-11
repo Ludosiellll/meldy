@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 // HTML slides -> slides.json + pictures, per deck/cf11/CONTRACT.md.
 //
-//   node extract.mjs [--slides <dir>] [--out <dir>] [--only 01,03] [--no-opt]
+//   node extract.mjs [--slides <dir>] [--out <dir>] [--only 01,03] [--no-opt] [--fill <private/fill.json>]
 //
-// For every <dir>/NN-*.html: open at 1920x1080 (device scale 1), wait for fonts, window.__ready and finished CSS
-// animations, read every [data-pptx] element (extract_page.js), then render
+// For every <dir>/NN-*.html: open at 1920x1080 (device scale 1), put the private values into [data-fill] elements
+// (--fill, default <slides>/../private/fill.json, git-ignored; a missing file or key keeps the placeholder and warns
+// once per key), wait for fonts, window.__ready and finished CSS animations, read every [data-pptx] element
+// (extract_page.js), then render
 //   img/NN/ref.png  the slide as authored (for render comparison)
 //   img/NN/bg.png   the slide with every marked element invisible (layout kept) -> the PPTX background picture
 //   img/NN/eK*.png  2x transparent renders: data-pptx="image", SVG fallbacks, the under-layer of a text (inline
 //                   highlights, decorations) and the over-layer of a shape (its unmarked content, shadow)
+//   img/NN/eK-text.png  the glyphs of each live text box alone (for the motion preview only)
 // Finally imgopt.py trims the layers and picks PNG8 or PNG24 for each picture (skip with --no-opt).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,17 +23,33 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DECK = path.resolve(HERE, '..');
 
 function parseArgs(argv) {
-  const a = { slides: path.join(DECK, 'slides'), out: path.join(DECK, 'out', 'build'), only: null, opt: true };
+  const a = { slides: path.join(DECK, 'slides'), out: path.join(DECK, 'out', 'build'), only: null, opt: true, fill: null };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--slides') a.slides = path.resolve(argv[++i]);
     else if (k === '--out') a.out = path.resolve(argv[++i]);
     else if (k === '--only') a.only = new Set(argv[++i].split(',').map((s) => s.trim().padStart(2, '0')));
     else if (k === '--no-opt') a.opt = false;
-    else if (k === '-h' || k === '--help') { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 14).join('\n')); process.exit(0); }
+    else if (k === '--fill') a.fill = path.resolve(argv[++i]);
+    else if (k === '-h' || k === '--help') { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 20).join('\n')); process.exit(0); }
     else throw new Error('unknown argument ' + k);
   }
+  // the private values live next to the slides' folder: deck/cf11/private/fill.json (git-ignored)
+  if (!a.fill) a.fill = path.join(path.dirname(a.slides), 'private', 'fill.json');
   return a;
+}
+
+// data-fill="key" -> the value from the private fill file (personal data stays out of git; only the PPTX gets it)
+function loadFill(file) {
+  if (!fs.existsSync(file)) return { map: null, file };
+  let map;
+  try { map = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
+    throw Object.assign(new Error(`${file}: not valid JSON (${e.message})`), { friendly: true });
+  }
+  if (!map || typeof map !== 'object' || Array.isArray(map)) {
+    throw Object.assign(new Error(`${file}: expected an object {"key": "text", ...}`), { friendly: true });
+  }
+  return { map, file };
 }
 
 const HIDE_MARKED_CSS = `
@@ -57,13 +76,15 @@ async function settle(page) {
   });
 }
 
-async function openSlide(ctx, file) {
+async function openSlide(ctx, file, fill) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.warn(`  page error in ${path.basename(file)}: ${e.message}`));
   await page.goto(pathToFileURL(file).href, { waitUntil: 'load', timeout: 60000 });
   await page.addScriptTag({ path: path.join(HERE, 'extract_page.js') });
   await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
+  const filled = await page.evaluate((m) => window.__pptxFill(m), fill ? fill.map : null);
   await settle(page);
+  page.__fill = filled;
   return page;
 }
 
@@ -111,6 +132,8 @@ async function main() {
   const imgRoot = path.join(args.out, 'img');
   if (!args.only) fs.rmSync(imgRoot, { recursive: true, force: true });
 
+  const fill = loadFill(args.fill);
+  const missingFill = new Map();     // key -> slides that keep their placeholder
   const chromium = await loadChromium();
   const browser = await chromium.launch();
   const init = () => { window.__PPTX_EXPORT__ = true; };
@@ -131,9 +154,11 @@ async function main() {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
 
-    const page = await openSlide(ctx1, abs);
+    const page = await openSlide(ctx1, abs, fill);
+    for (const key of page.__fill.missing) missingFill.set(key, [...(missingFill.get(key) || []), nn]);
     const data = await page.evaluate(() => window.__pptxCollect());
     if (data.error) throw new Error(`${file}: ${data.error}`);
+    data.filled = page.__fill.filled;
     const clip = { x: data.root.x, y: data.root.y, width: data.root.w, height: data.root.h };
     await page.screenshot({ path: path.join(dir, 'ref.png'), clip });
     await page.addStyleTag({ content: HIDE_MARKED_CSS });
@@ -141,7 +166,7 @@ async function main() {
     await page.screenshot({ path: path.join(dir, 'bg.png'), clip });
     await page.close();
 
-    const page2 = await openSlide(ctx2, abs);
+    const page2 = await openSlide(ctx2, abs, fill);
     await page2.evaluate(() => window.__pptxAssignIds());
     for (const e of data.elements) {
       if (e.src) {
@@ -177,6 +202,18 @@ async function main() {
       }
       await page2.evaluate(() => window.__pptxRenderClear());
     }
+    // the glyphs of every live text box alone, 2x: not used by the PPTX, but the motion preview animates them
+    for (const e of data.elements) {
+      if (e.type !== 'text' && e.type !== 'title') continue;
+      const out = path.join(dir, `${e.id}-text.png`);
+      const r = await page2.evaluate(([id]) => window.__pptxRenderPrep(id, 'text', ''), [e.id]);
+      await page2.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
+      if (r) {
+        await page2.screenshot({ path: out, omitBackground: true, clip: { x: r.page.x, y: r.page.y, width: r.page.w, height: r.page.h } });
+        e.textLayer = { png: relOut(args.out, out), rect: r.slide, scale: 2 };
+      }
+      await page2.evaluate(() => window.__pptxRenderClear());
+    }
     await page2.close();
 
     for (const w of data.warnings) console.warn(`  ! ${file}: ${w}`);
@@ -188,6 +225,13 @@ async function main() {
                   reference: relOut(args.out, path.join(dir, 'ref.png')), ...data });
   }
   await browser.close();
+  for (const [key, nns] of missingFill) {
+    const where = `slide${nns.length > 1 ? 's' : ''} ${[...new Set(nns)].join(', ')}`;
+    console.warn(fill.map
+      ? `  ! fill: no "${key}" in ${fill.file} (${where}): the authored placeholder stays`
+      : `  ! fill: ${fill.file} not found, "${key}" keeps the authored placeholder (${where})`);
+    warnCount += 1;
+  }
 
   let all = slides;
   if (prev) {
