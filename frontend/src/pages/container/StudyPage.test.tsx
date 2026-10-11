@@ -576,6 +576,68 @@ describe('the end of a session (decision 49)', () => {
     expect(screenNow()).toEqual(first);
   });
 
+  /**
+   * The live re-check of 2026-10-11: the headline said «Теперь 5 из 960» and, half a second later, «Теперь 6 из 960» —
+   * the last answer's result came after the screen opened. Here the session's only counted question is its last answer:
+   * «2 вопроса за 1 минуту» would turn into «Теперь 144 из 960 …» under the finger.
+   */
+  function lastResultLate() {
+    const late: Array<() => void> = [];
+    mocks.enqueue.mockImplementation((_user: string, answers: AnswerInput[]) => {
+      const results = answers.map((input) => ({ client_event_id: input.client_event_id, item_id: input.item_id, status: 'saved', correct: true, step: input.item_id === 'q-plain' ? 'two_days' : 'start', rev: 1, state: null }));
+      return answers.some((input) => input.item_id === 'q-plain') ? new Promise((resolve) => late.push(() => resolve(results))) : Promise.resolve(results);
+    });
+    renderStudy(dataWith(['q-iso', 'q-plain']));
+    return late;
+  }
+
+  async function answerBoth() {
+    fireEvent.click(option('SERIALIZABLE'));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    fireEvent.click(option('Третья'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+  }
+
+  it('the headline says the server’s figure once the session’s answers have all come back: a result inside the hold is said, and the headline takes the focus then', async () => {
+    const late = lastResultLate();
+    await answerBoth();
+    // The last result is on its way: the headline and the paragraph keep their place, unseen, and nothing has the focus.
+    const heading = document.querySelector('h1.ct-end-h') as HTMLElement;
+    expect(heading).toHaveAttribute('aria-hidden', 'true');
+    expect(heading.style.visibility).toBe('hidden');
+    expect((document.querySelector('.ct-end-p') as HTMLElement).style.visibility).toBe('hidden');
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(document.activeElement).not.toBe(heading);
+    // It comes: the headline says it the first time it is seen, and takes the focus.
+    await act(async () => {
+      for (const go of late.splice(0)) go();
+    });
+    const shown = await screen.findByRole('heading', { level: 1 });
+    expect(shown).toBe(heading);
+    expect(plain(shown.textContent)).toBe('Теперь 144 из 960 — верно в два разных дня');
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe('2 вопроса за 1 минуту. Верно с первого раза — 2 из 2.');
+    expect(document.activeElement).toBe(shown);
+  });
+
+  it('a server result that comes after the headline was shown changes nothing: after LEFT_WAIT it says what was known', async () => {
+    LEFT_WAIT.ms = 30;
+    const late = lastResultLate();
+    await answerBoth();
+    const shown = await screen.findByRole('heading', { level: 1 });
+    expect(plain(shown.textContent)).toBe('2 вопроса за 1 минуту');
+    expect(document.activeElement).toBe(shown);
+    const paragraph = plain(document.querySelector('.ct-end-p')?.textContent);
+    // The last result comes now: before the fix the headline turned into «Теперь 144 из 960 …» here.
+    await act(async () => {
+      for (const go of late.splice(0)) go();
+    });
+    await act(async () => undefined);
+    expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 вопроса за 1 минуту');
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(paragraph);
+  });
+
   it('when the figure did not move, the headline is the session’s count and time', async () => {
     renderStudy(dataWith(['q-plain']));
     fireEvent.click(option('Третья'));
@@ -919,7 +981,9 @@ describe('an oral self-check (decisions 19, 51)', () => {
     expect(page()).toContain('Пунктов пока нет: к предмету не добавлены лекции.');
     fireEvent.click(screen.getByRole('button', { name: 'Плаваю' }));
     await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 вопроса за 1 минуту'));
-    // Each rating was saved before the next question: the plan is read again as the session ends.
+    // Each rating was saved before the next question: the headline is final as the screen opens, and has the focus.
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
+    // The plan is read again as the session ends.
     await waitFor(() => expect((mocks.state as Loadable<ContainerData>).reload).toHaveBeenCalledTimes(1));
     expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('«Знаю» — 1 · «плаваю» — 1 · «не знаю» — 0.');
     // Both questions were rated: nothing of this session is offered again today, the pill is «Готово».

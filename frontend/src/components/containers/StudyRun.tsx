@@ -39,7 +39,7 @@ import './room.css';
  * - an answer leaves the device when the student moves on (so «Нажали не туда?» can still mark it), through the offline
  *   queue, with its client_event_id, the item's rev, the shown order in file indices, ms, cls, the local day and the
  *   session; the plan is read again once the session's answers have left (SessionEnd useReplan), so the end screen
- *   says what the exam page will;
+ *   says the server's results and what the exam page will;
  * - keys on a computer: 1–8 (or А–З) answer, 0 «Не знаю», Enter «Дальше», Backspace «Нажали не туда?».
  */
 interface Pending {
@@ -483,6 +483,7 @@ export default function StudyRun(props: StudyRunProps) {
         base={base}
         plan={plan}
         input={input}
+        settled={replan.settled}
         fresh={replan.fresh}
         answered={new Set(records.map((r) => r.id))}
         tz={tz}

@@ -119,6 +119,8 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
         base={base}
         plan={plan}
         input={input}
+        // Each rating was saved before the next question: the headline and the tally are final when the screen opens.
+        settled
         fresh={replan.fresh}
         answered={rated}
         tz={tz}
