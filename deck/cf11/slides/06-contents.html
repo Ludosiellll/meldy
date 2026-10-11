@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="../design/deck.css">
 <style>
 /* The five blocks as the cheat sheet writes its lines: a dot for each main point, the line written in from the
-   left. The first dot is the logo's, yellow: on the next slide it opens into the window with the product. */
+   left. The first dot is the logo's: it came down from the corner, and on the next slide it opens into the laptop. */
 .item { left: 176px; font-size: 48px; line-height: 60px; white-space: nowrap; }
 .ref { left: 840px; width: 220px; font-size: 28px; line-height: 60px; color: var(--faint); text-align: right; white-space: nowrap; }
 .chip-t { font-size: 32px; line-height: 60px; font-weight: 500; text-align: center; white-space: nowrap; }
@@ -14,25 +14,12 @@
 </head>
 <body>
 <main class="slide" data-transition-dur="1500">
-<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
-<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
-<div class="sq now" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="left" data-pptx="text" data-name="!!left">осталось 5 из&nbsp;10</div>
-<!-- header:end -->
 
 <div class="label" data-pptx="title">Содержание</div>
 <div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Один экзамен: перечень вопросов, лекции,<br>план до&nbsp;даты и&nbsp;шпаргалка</div>
 
 <!-- Five blocks; on the right of each, the slide that shows it. -->
-<div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:131px;top:465px;width:18px;height:18px;border-radius:8.5px"></div>
+<div class="bul" data-pptx="shape" data-name="!!dot" style="left:134px;top:468px;width:12px;height:12px;border-radius:5.5px"></div>
 <div class="item" data-pptx="text" style="top:444px" data-anim-trigger="with" data-anim="wipe" data-anim-delay="300" data-anim-dur="500" data-anim-order="2">Экзамен из&nbsp;перечня</div>
 <div class="ref" data-pptx="text" style="top:444px" data-anim="fade" data-anim-trigger="with" data-anim-delay="600" data-anim-dur="400" data-anim-order="2">слайд 7</div>
 
@@ -69,6 +56,21 @@
 <div class="chip-t" data-pptx="text" style="left:1576px;top:720px;width:120px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1690" data-anim-dur="400" data-anim-order="9">фото</div>
 
 <div class="note ink" data-pptx="text" style="left:1170px;top:812px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1800" data-anim-dur="500" data-anim-order="10">тестовые и&nbsp;устные вопросы;<br>веб-приложение и&nbsp;бот в&nbsp;Telegram</div>
+
+<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
+<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
+<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
+<div class="sq now" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
+<div class="left" data-pptx="text" data-name="!!left">осталось 5 из&nbsp;10</div>
+<!-- header:end -->
 
 <template data-pptx="notes">Внутри один экзамен на всю подготовку: до двух тысяч вопросов, тестовых и устных, из файлов PDF, Word, PowerPoint или фото.
 

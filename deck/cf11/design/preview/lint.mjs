@@ -157,7 +157,7 @@ for (const slide of SLIDES) {
       if (m.dir != null && (m.anim !== 'wipe' || !DIRS.has(m.dir))) err(slide.n, `data-anim-dir="${m.dir}" (wipe only: left|right|up|down)`);
     } else if (m.trig || m.delay || m.dur || m.dir) err(slide.n, `animation attributes without data-anim on ${m.cls}`);
     if (m.fill != null && (!FILL.test(m.fill) || m.kind !== 'text')) err(slide.n, `data-fill="${m.fill}" (author1|author2 .name|.role|.initials, on text)`);
-    if (m.play != null && (m.play !== 'with' || m.kind !== 'video')) err(slide.n, `data-play="${m.play}" (with, on a video)`);
+    if (m.play != null && (!['with', 'after'].includes(m.play) || m.kind !== 'video')) err(slide.n, `data-play="${m.play}" (with|after, on a video)`);
     // the round-2 scale
     const cl = String(m.cls).split(/\s+/);
     for (const [k, [a, b]] of Object.entries(SCALE)) {
@@ -216,12 +216,13 @@ for (const slide of SLIDES) {
     const state = squareState(slide, i);
     if (!sq) { err(slide.n, `strip square ${name} missing`); continue; }
     if (sq.kind !== 'shape') err(slide.n, `${name} is not a shape`);
-    if (state !== 'gather') {
+    if (state !== 'seed') {
       if (!sq.cls.split(/\s+/).includes(state)) err(slide.n, `${name} should be «${state}», is «${sq.cls}»`);
       if (Math.round(sq.box.x) !== STRIP.x + STRIP.step * (i - 1) || Math.round(sq.box.y) !== STRIP.y || Math.round(sq.box.w) !== STRIP.size) err(slide.n, `${name} not at its place in the strip`);
     } else {
       const dot = slideNames.get('!!dot');
-      if (!dot || Math.abs(dot.box.x - sq.box.x) > 1 || Math.abs(dot.box.y - sq.box.y) > 1) err(slide.n, `${name} has not gathered into the dot`);
+      const b = sq.box, d = dot && dot.box;
+      if (!d || b.x < d.x || b.y < d.y || b.x + b.w > d.x + d.w || b.y + b.h > d.y + d.h) err(slide.n, `${name} is not a seed inside the wordmark's dot`);
     }
     if (sq.anim && !slide.opening) err(slide.n, `${name} must not be animated (it morphs)`);
   }

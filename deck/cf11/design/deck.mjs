@@ -26,8 +26,10 @@ export const SECTIONS = [
  * The 15 slides. `section` is the mandatory section (1–10) the slide belongs to; an own slide has none and
  * sits between `after` and the next one. `corner`: what the top right shows — the wordmark with its dot
  * (the dot is at home), the contest's name (the title), or nothing (the dot is out: 06–10; 15 has the big one).
- * `dark`: a stage slide in the app's dark theme (05, 12). `opening`: the strip is not out yet — its ten squares
- * sit gathered under the wordmark's dot and burst out into the strip on 02 (no counter on 01).
+ * `dark`: a stage slide in the app's dark theme (05, 12). `opening`: the strip is not out yet — its ten squares are
+ * seeds hidden in the wordmark's dot and unroll out of it into the strip on 02 (no counter on 01); on the `finale`
+ * they fly back into the dot. `dotAway`: the chain's dot (!!dot) is elsewhere on the slide (11: the first step of the
+ * path, which the chat of 10 closes into), so the corner wordmark's dot gets a name that pairs with nothing.
  */
 export const SLIDES = [
   { n: 1, file: '01-title.html', title: 'Титульный', section: 1, corner: 'runner', opening: true },
@@ -40,7 +42,7 @@ export const SLIDES = [
   { n: 8, file: '08-oral.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
   { n: 9, file: '09-sheet.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
   { n: 10, file: '10-group.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 11, file: '11-testing.html', title: 'Тестирование и продвижение', section: null, after: 7, corner: 'mark' },
+  { n: 11, file: '11-testing.html', title: 'Тестирование и продвижение', section: null, after: 7, corner: 'mark', dotAway: true },
   { n: 12, file: '12-scale.html', title: 'Масштабируемость', section: null, after: 7, corner: 'mark', dark: true },
   { n: 13, file: '13-sources.html', title: 'Используемые источники', section: 8, corner: 'mark' },
   { n: 14, file: '14-tech.html', title: 'Технические требования', section: 9, corner: 'mark' },
@@ -60,9 +62,10 @@ export function passed(slide) {
   return slide.section - 1;
 }
 
-/** The state of square i (1–10) on this slide: 'now' (yellow), 'done' (an outline), 'next' (ink), or 'gather'. */
+/** The state of square i (1–10) on this slide: 'now' (yellow), 'done' (an outline), 'next' (ink), or 'seed'
+ *  (hidden in the wordmark's dot on the opening and the finale; stamp.mjs draws it). */
 export function squareState(slide, i) {
-  if (slide.finale || slide.opening) return 'gather';
+  if (slide.finale || slide.opening) return 'seed';
   if (slide.section === i) return 'now';
   return i <= passed(slide) ? 'done' : 'next';
 }
