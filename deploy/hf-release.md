@@ -4,6 +4,11 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-11 — Release 43.6: «Разобрать лекцию» — the start no longer stands out of step 3 (from the commit of this entry)
+
+- **Owner's bug:** on a wide screen (two columns, step 3 in the 340 px right column) the quiet start pill of the link tab, «Введите ссылку на страницу», was 290 px wide and stood 22 px out of its card (live at 1100–1532 px, both themes). The link tab now asks «Вставьте ссылку» (like the text tab's «Вставьте текст»), and a quiet pill wraps a long reason inside its card instead of pushing past it (`min-width: 0`, wrapping text in the disabled state).
+- **Verified before release:** Vitest 268 files / 4415 tests (new: the link tab's short label), `tsc -b`, the build in the Docker layout. Live, after release: the pill measured inside the card at 1532, 1180 and 1100 px.
+
 ## 2026-10-11 — Release 43.5: the end of a session speaks once (from the commit of this entry)
 
 - **The headline holds too:** the live re-check saw «Теперь 5 из 960 — верно в два разных дня» turn into «Теперь 6 из 960» half a second after it appeared (the last answer's server result came after the end screen opened). The headline and the paragraph under it now wait until every answer of the session has come back (at most 1.5 s, in their place, invisible), then appear once with the server's figure and never change; the headline takes focus when it is shown (unless the student has moved focus meanwhile). After 1.5 s without the results, what is known locally, as before. The self-check's end screen has no such race and shows at once.
