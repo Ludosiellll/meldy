@@ -1,0 +1,28 @@
+/* Shared base of the deck's motion clips: the deck's fonts and tokens, a stage of a fixed size, nothing that
+   moves by itself (every state is set by window.__clip.seek(ms)). */
+@font-face { font-family: 'Onest'; font-weight: 400; font-display: block; src: url('../design/fonts/Onest-400.ttf') format('truetype'); }
+@font-face { font-family: 'Onest'; font-weight: 500; font-display: block; src: url('../design/fonts/Onest-500.ttf') format('truetype'); }
+@font-face { font-family: 'Onest'; font-weight: 600; font-display: block; src: url('../design/fonts/Onest-600.ttf') format('truetype'); }
+@font-face { font-family: 'Onest'; font-weight: 700; font-display: block; src: url('../design/fonts/Onest-700.ttf') format('truetype'); }
+
+:root {
+  --canvas: #f3f3f0; --surface: #ffffff; --ink: #0b121c; --muted: #4b515b; --faint: #8a8f97; --line: #e3e3dd;
+  --blue: #2869dd; --blue-fg: #1f5bc6; --yellow: #f4c45b; --named: #e9b13c; --pink: #f5b6cd;
+  --outline: rgba(138, 143, 151, .55); --tint: rgba(11, 18, 28, .05);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--surface); }
+body { overflow: hidden; }
+.stage {
+  position: relative; overflow: hidden; background: var(--surface); color: var(--ink);
+  font-family: 'Onest', sans-serif; font-weight: 400; font-kerning: normal;
+  -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision;
+}
+.stage * { position: absolute; }
+/* Inline formatting stays in the flow of its line. */
+.stage b, .stage em, .stage strong { position: static; }
+.tag {
+  display: flex; align-items: center; height: 48px; padding: 0 34px 0 20px; font-size: 28px; font-weight: 500;
+  background: var(--pink); color: var(--ink); white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 50%, 100% 100%, 0 100%);
+}

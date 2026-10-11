@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>07 · Представление блоков проекта: экзамен и план — Meldy · CodingFest-11</title>
+<link rel="stylesheet" href="../design/deck.css">
+<style>
+.step-n { left: 128px; width: 40px; font-size: 40px; line-height: 50px; font-weight: 600; color: var(--faint); }
+.step-t { left: 176px; font-size: 40px; line-height: 50px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.step-d { left: 176px; font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
+</style>
+</head>
+<body>
+<main class="slide">
+<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
+<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
+<div class="sq now" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
+<div class="left" data-pptx="text" data-name="!!left">осталось 4 из&nbsp;10</div>
+<!-- header:end -->
+
+<!-- The label stays put on 08–10 (same name, no animation there): one section, four slides. -->
+<div class="label" data-pptx="title" data-name="!!t07" data-anim="fade" data-anim-dur="400">Представление блоков проекта</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-delay="100" data-anim-dur="600">Перечень вопросов за&nbsp;минуту превращается<br>в&nbsp;план до&nbsp;даты экзамена</div>
+
+<!-- The window: the dot of slide 06 has grown into it (Morph, !!dot). Inside, the laptop recording. -->
+<div class="shadow r40" style="left:680px;top:424px;width:1112px;height:576px"></div>
+<div class="card r40" data-pptx="shape" data-name="!!dot" style="left:680px;top:424px;width:1112px;height:576px"></div>
+<img data-pptx="video" data-src="../media/gen/ph-07.mp4" data-poster="../media/gen/ph-07.png" data-loop src="../media/gen/ph-07.png" aria-label="Ролик с ноутбука: файл с вопросами, вопросы и ключ, дата и минуты, план по дням" alt="" style="left:696px;top:440px;width:1080px;height:544px" data-anim="fade" data-anim-delay="0" data-anim-dur="400">
+
+<!-- What the recording shows, step by step (the reader without the video sees the same). -->
+<div class="step-n" data-pptx="text" style="top:440px" data-anim="fade" data-anim-delay="150" data-anim-dur="400">1</div>
+<div class="step-t" data-pptx="text" style="top:440px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Файл с&nbsp;вопросами</div>
+<div class="step-d" data-pptx="text" style="top:492px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">PDF, DOCX, PPTX или фото</div>
+
+<div class="step-n" data-pptx="text" style="top:580px" data-anim="fade" data-anim-delay="100" data-anim-dur="400">2</div>
+<div class="step-t" data-pptx="text" style="top:580px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Вопросы и&nbsp;ключ</div>
+<div class="step-d" data-pptx="text" style="top:632px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">ключ&nbsp;— по&nbsp;жирному шрифту<br>или пометке в&nbsp;файле</div>
+
+<div class="step-n" data-pptx="text" style="top:720px" data-anim="fade" data-anim-delay="100" data-anim-dur="400">3</div>
+<div class="step-t" data-pptx="text" style="top:720px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Дата и&nbsp;минуты в&nbsp;день</div>
+<div class="step-d" data-pptx="text" style="top:772px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">когда экзамен и&nbsp;сколько минут<br>в&nbsp;день есть на&nbsp;подготовку</div>
+
+<div class="step-n" data-pptx="text" style="top:860px" data-anim="fade" data-anim-delay="100" data-anim-dur="400">4</div>
+<div class="step-t" data-pptx="text" style="top:860px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">План по&nbsp;дням</div>
+<div class="step-d" data-pptx="text" style="top:912px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">новые и&nbsp;повторения на&nbsp;сегодня;<br>пересчёт, если день пропущен</div>
+
+<template data-pptx="notes">Как это выглядит. Студент перетаскивает файл с вопросами. Meldy находит вопросы и, если у них есть варианты, берёт ключ прямо из файла — по жирному шрифту или пометке.
+
+Студент указывает дату экзамена и сколько минут в день готов заниматься. Дальше Meldy сам считает, сколько новых вопросов и сколько повторений на сегодня, и пересчитывает план, если день пропущен.</template>
+</main>
+</body>
+</html>
