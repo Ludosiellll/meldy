@@ -51,7 +51,7 @@ function Harness({
 }
 
 const textarea = () => screen.getByLabelText('Текст лекции или конспекта') as HTMLTextAreaElement;
-const startButton = () => screen.getByRole('button', { name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Введите ссылку|Запускаем/ });
+const startButton = () => screen.getByRole('button', { name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Вставьте ссылку|Запускаем/ });
 const lecture = (length: number) => `Лекция 3. Эластичность спроса\n${'а'.repeat(Math.max(0, length - 30))}`;
 
 afterEach(cleanup);
@@ -120,6 +120,12 @@ describe('UploadZone text tab', () => {
     expect(file?.name).toBe('pasted-text.txt');
     expect(await file?.text()).toBe(text);
     expect(options).toEqual({ sourceName: 'Лекция 3. Эластичность спроса.txt', text });
+  });
+
+  it('asks for the link in two words, like the text tab (a long reason stood out of the 340 px column)', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    expect(startButton()).toHaveTextContent('Вставьте ссылку');
+    expect(startButton()).toBeDisabled();
   });
 
   it('keeps the text when switching to another tab and back', () => {

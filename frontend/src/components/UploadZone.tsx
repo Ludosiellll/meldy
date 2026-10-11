@@ -219,7 +219,7 @@ export default function UploadZone({
   let startLabel = 'Запустить анализ';
   if (busy) startLabel = 'Запускаем…';
   else if (!isReady && !limited) {
-    if (tab === 'url') startLabel = 'Введите ссылку на страницу';
+    if (tab === 'url') startLabel = 'Вставьте ссылку';
     else if (tab === 'text') startLabel = trimmedLength === 0 ? 'Вставьте текст' : 'Запустить анализ';
     else startLabel = 'Сначала выберите файл';
   }
