@@ -2,9 +2,9 @@
 // drawn as Telegram for Android, rendered from the credential-free harness that mounts the app's components with
 // fakes (Vite on 127.0.0.1:5199, see the deck's PLAN.md). Until the real recording of the live site replaces it.
 //
-//   node deck/cf11/motion/telegram.mjs [--from 2550] [--to 8400] [--poster 3900] [--size 640]
+//   node deck/cf11/motion/telegram.mjs [--from 2550] [--to 8400] [--poster 3900] [--size 672]
 //
-// Writes media/gen/telegram.mp4 (640 × 640, the chat sharp: the day's card, «Начать», a question, «Верно.»),
+// Writes media/gen/telegram.mp4 (672 × 672 in the ink bezel of slide 10, the chat sharp: the day's card, «Начать», a question, «Верно.»),
 // looping through a short crossfade, and media/gen/telegram.jpg (the poster: the day's card with «Начать»).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,8 +16,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GEN = path.join(path.dirname(HERE), 'media', 'gen');
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i < 0 ? d : Number(args[i + 1]); };
-const FROM = opt('from', 2550), TO = opt('to', 8400), POSTER = opt('poster', 3900), SIZE = opt('size', 640);
+const FROM = opt('from', 2550), TO = opt('to', 8400), POSTER = opt('poster', 3900), SIZE = opt('size', 672);
 const FPS = 30, XFADE = 15, RADIUS = 24;
+const BG = '#0b121c'; // the corners outside the rounded screen: the device's ink bezel on the slide
 const raw = path.join(GEN, 'frames', 'telegram-raw');
 const out = path.join(GEN, 'frames', 'telegram');
 fs.rmSync(raw, { recursive: true, force: true });
@@ -59,14 +60,14 @@ await box.screenshot({ path: posterRaw });
 await browser.close();
 console.log(`telegram: ${n} frames ${FROM}–${TO} ms (+${XFADE} for the loop)`);
 
-execFileSync('python3', ['-I', path.join(HERE, 'loopmask.py'), raw, out, String(SIZE), String(SIZE), '--radius', String(RADIUS), '--xfade', String(XFADE)], { stdio: 'inherit' });
+execFileSync('python3', ['-I', path.join(HERE, 'loopmask.py'), raw, out, String(SIZE), String(SIZE), '--radius', String(RADIUS), '--bg', BG, '--xfade', String(XFADE)], { stdio: 'inherit' });
 // The poster at 2×, with the same corners.
 const pdir = path.join(GEN, 'frames', 'telegram-poster');
 fs.rmSync(pdir, { recursive: true, force: true });
 fs.mkdirSync(pdir, { recursive: true });
 fs.copyFileSync(posterRaw, path.join(pdir, 'f0000.png'));
 const pout = path.join(GEN, 'frames', 'telegram-poster-out');
-execFileSync('python3', ['-I', path.join(HERE, 'loopmask.py'), pdir, pout, String(SIZE * 2), String(SIZE * 2), '--radius', String(RADIUS * 2)], { stdio: 'inherit' });
+execFileSync('python3', ['-I', path.join(HERE, 'loopmask.py'), pdir, pout, String(SIZE * 2), String(SIZE * 2), '--radius', String(RADIUS * 2), '--bg', BG], { stdio: 'inherit' });
 // Telegram's wallpaper makes a heavy PNG: the poster is a JPEG of high quality (≈ a third of the size).
 execFileSync('python3', ['-I', '-c', 'import sys; from PIL import Image; Image.open(sys.argv[1]).convert("RGB").save(sys.argv[2], quality=90, subsampling=0)', path.join(pout, 'f0000.png'), path.join(GEN, 'telegram.jpg')]);
 

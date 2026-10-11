@@ -5,14 +5,15 @@
 <title>14 · Технические требования — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <style>
-.req { left: 216px; font-size: 40px; line-height: 50px; white-space: nowrap; }
-.layer { left: 1170px; font-size: 32px; line-height: 42px; white-space: nowrap; }
-.layer .k { color: var(--muted); }
-.layer .v { font-weight: 600; }
+/* Two columns, typography only: what a user needs, what it is built with. */
+.req { left: 176px; font-size: 44px; line-height: 54px; white-space: nowrap; }
+.req .m { font-size: 32px; color: var(--muted); }
+.layer-k { left: 1122px; font-size: 28px; line-height: 34px; color: var(--muted); white-space: nowrap; }
+.layer-v { left: 1122px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.015em; white-space: nowrap; }
 </style>
 </head>
 <body>
-<main class="slide">
+<main class="slide" data-transition-dur="900">
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
 <div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
 <div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
@@ -29,31 +30,32 @@
 <div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1782px;top:66px"></div>
 <!-- header:end -->
 
-<div class="label" data-pptx="title" data-anim="fade" data-anim-dur="400">Технические требования</div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-delay="100" data-anim-dur="600">Браузер на&nbsp;телефоне или компьютере,<br>без установки</div>
+<div class="label" data-pptx="title">Технические требования</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Браузер на&nbsp;телефоне или компьютере,<br>без установки</div>
 
-<div class="shadow" style="left:128px;top:424px;width:954px;height:528px"></div>
-<div class="card" data-pptx="shape" data-name="!!c1" style="left:128px;top:424px;width:954px;height:528px"></div>
-<div class="cap" data-pptx="text" style="left:176px;top:468px" data-anim="fade" data-anim-delay="150" data-anim-dur="400">Минимальные требования</div>
-<div class="bul" data-pptx="shape" style="left:180px;top:543px;width:12px;height:12px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400"></div>
-<div class="req" data-pptx="text" style="top:524px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Телефон или компьютер с&nbsp;браузером<br><span class="muted">Chrome, Edge, Firefox или Safari</span></div>
-<div class="bul" data-pptx="shape" style="left:180px;top:667px;width:12px;height:12px" data-anim="fade" data-anim-delay="80" data-anim-dur="400"></div>
-<div class="req" data-pptx="text" style="top:648px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Интернет</div>
-<div class="bul" data-pptx="shape" style="left:180px;top:741px;width:12px;height:12px" data-anim="fade" data-anim-delay="80" data-anim-dur="400"></div>
-<div class="req" data-pptx="text" style="top:722px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Микрофон&nbsp;— для&nbsp;ответов вслух</div>
-<div class="bul" data-pptx="shape" style="left:180px;top:815px;width:12px;height:12px" data-anim="fade" data-anim-delay="80" data-anim-dur="400"></div>
-<div class="req" data-pptx="text" style="top:796px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Telegram&nbsp;— по&nbsp;желанию</div>
+<div class="rule" data-pptx="shape" style="left:128px;top:416px;width:914px" data-anim="wipe" data-anim-dur="500" data-anim-order="2"></div>
+<div class="cap" data-pptx="text" style="left:128px;top:432px" data-anim="fade" data-anim-trigger="with" data-anim-delay="80" data-anim-dur="400" data-anim-order="2">Минимальные требования</div>
+<div class="bul" data-pptx="shape" style="left:132px;top:497px;width:14px;height:14px" data-anim="settle" data-anim-delay="150" data-anim-dur="400" data-anim-order="2"></div>
+<div class="req" data-pptx="text" style="top:476px" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="2">Телефон или компьютер с&nbsp;браузером<br><span class="m">Chrome, Edge, Firefox или Safari</span></div>
+<div class="bul" data-pptx="shape" style="left:132px;top:621px;width:14px;height:14px" data-anim="settle" data-anim-trigger="with" data-anim-delay="270" data-anim-dur="400" data-anim-order="2"></div>
+<div class="req" data-pptx="text" style="top:600px" data-anim="fade" data-anim-trigger="with" data-anim-delay="270" data-anim-dur="500" data-anim-order="2">Интернет</div>
+<div class="bul" data-pptx="shape" style="left:132px;top:701px;width:14px;height:14px" data-anim="settle" data-anim-trigger="with" data-anim-delay="390" data-anim-dur="400" data-anim-order="2"></div>
+<div class="req" data-pptx="text" style="top:680px" data-anim="fade" data-anim-trigger="with" data-anim-delay="390" data-anim-dur="500" data-anim-order="2">Микрофон&nbsp;— для&nbsp;ответов вслух</div>
+<div class="bul" data-pptx="shape" style="left:132px;top:781px;width:14px;height:14px" data-anim="settle" data-anim-trigger="with" data-anim-delay="510" data-anim-dur="400" data-anim-order="2"></div>
+<div class="req" data-pptx="text" style="top:760px" data-anim="fade" data-anim-trigger="with" data-anim-delay="510" data-anim-dur="500" data-anim-order="2">Telegram&nbsp;— по&nbsp;желанию</div>
 
-<!-- What it is built with, layer by layer. -->
-<div class="shadow" style="left:1122px;top:424px;width:670px;height:528px"></div>
-<div class="card" data-pptx="shape" data-name="!!c2" style="left:1122px;top:424px;width:670px;height:528px"></div>
-<div class="cap" data-pptx="text" style="left:1170px;top:468px" data-anim="fade" data-anim-delay="150" data-anim-dur="400">Средства разработки</div>
-<div class="layer" data-pptx="text" style="top:524px" data-anim="fade" data-anim-delay="80" data-anim-dur="400"><span class="k">Интерфейс</span><br><span class="v">React, TypeScript</span></div>
-<div class="layer" data-pptx="text" style="top:612px" data-anim="fade" data-anim-delay="80" data-anim-dur="400"><span class="k">Сервер</span><br><span class="v">Python, FastAPI</span></div>
-<div class="layer" data-pptx="text" style="top:700px" data-anim="fade" data-anim-delay="80" data-anim-dur="400"><span class="k">База данных</span><br><span class="v">Supabase</span></div>
-<div class="layer" data-pptx="text" style="top:788px" data-anim="fade" data-anim-delay="80" data-anim-dur="400"><span class="k">Языковые модели и&nbsp;бот</span><br><span class="v">Gemini, Groq, Telegram Bot API</span></div>
+<div class="rule" data-pptx="shape" style="left:1122px;top:416px;width:670px" data-anim="wipe" data-anim-dur="500" data-anim-order="3"></div>
+<div class="cap" data-pptx="text" style="left:1122px;top:432px" data-anim="fade" data-anim-trigger="with" data-anim-delay="80" data-anim-dur="400" data-anim-order="3">Средства разработки</div>
+<div class="layer-k" data-pptx="text" style="top:476px" data-anim="fade" data-anim-delay="150" data-anim-dur="500" data-anim-order="3">Интерфейс</div>
+<div class="layer-v" data-pptx="text" style="top:512px" data-anim="rise" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="3">React, TypeScript</div>
+<div class="layer-k" data-pptx="text" style="top:580px" data-anim="fade" data-anim-trigger="with" data-anim-delay="270" data-anim-dur="500" data-anim-order="3">Сервер</div>
+<div class="layer-v" data-pptx="text" style="top:616px" data-anim="rise" data-anim-trigger="with" data-anim-delay="270" data-anim-dur="500" data-anim-order="3">Python, FastAPI</div>
+<div class="layer-k" data-pptx="text" style="top:684px" data-anim="fade" data-anim-trigger="with" data-anim-delay="390" data-anim-dur="500" data-anim-order="3">База данных</div>
+<div class="layer-v" data-pptx="text" style="top:720px" data-anim="rise" data-anim-trigger="with" data-anim-delay="390" data-anim-dur="500" data-anim-order="3">Supabase</div>
+<div class="layer-k" data-pptx="text" style="top:788px" data-anim="fade" data-anim-trigger="with" data-anim-delay="510" data-anim-dur="500" data-anim-order="3">Языковые модели и&nbsp;бот</div>
+<div class="layer-v" data-pptx="text" style="top:824px" data-anim="rise" data-anim-trigger="with" data-anim-delay="510" data-anim-dur="500" data-anim-order="3">Gemini, Groq, Telegram Bot API</div>
 
-<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim="fade" data-anim-delay="200" data-anim-dur="400">Сайт: ludosiel-studyforge.hf.space · бот в&nbsp;Telegram: @Meldyteach_bot</div>
+<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim="fade" data-anim-delay="200" data-anim-dur="500" data-anim-order="4">Сайт: ludosiel-studyforge.hf.space · бот в&nbsp;Telegram: @Meldyteach_bot</div>
 
 <template data-pptx="notes">Требования минимальные: любой современный браузер на телефоне или компьютере, установка не нужна.
 

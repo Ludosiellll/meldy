@@ -9,6 +9,8 @@ const START = '<!-- header:start · written by design/stamp.mjs from design/deck
 const END = '<!-- header:end -->';
 
 const html = (s) => s.replace(/\u00a0/g, '&nbsp;');
+/** The title's build step in which the dot settles (01-title.html uses the same order on the dot). */
+const OPENING = { order: 3, dur: 700 };
 
 function header(slide, source) {
   const out = [START];
@@ -17,9 +19,12 @@ function header(slide, source) {
     const name = `!!s${String(i).padStart(2, '0')}`;
     const state = squareState(slide, i);
     if (state === 'gather') {
-      if (!gather) throw new Error(`${slide.file}: the finale needs data-gather="x,y,size" on .slide`);
+      if (!gather) throw new Error(`${slide.file}: a gathered strip needs data-gather="x,y,size" on .slide`);
       const [, x, y, s] = gather.map(Number);
-      out.push(`<div class="sq now" data-pptx="shape" data-name="${name}" style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;border-radius:${s / 2}px"></div>`);
+      // On the title the squares arrive with the dot they hide behind (the same settle, in the dot's step);
+      // on the finale they morph in from the strip and do not animate.
+      const anim = slide.opening ? ` data-anim="settle"${i > 1 ? ' data-anim-trigger="with"' : ''} data-anim-dur="${OPENING.dur}" data-anim-order="${OPENING.order}"` : '';
+      out.push(`<div class="sq now" data-pptx="shape" data-name="${name}"${anim} style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;border-radius:${s / 2}px"></div>`);
     } else {
       out.push(`<div class="sq ${state}" data-pptx="shape" data-name="${name}" style="left:${STRIP.x + STRIP.step * (i - 1)}px"></div>`);
     }
@@ -30,11 +35,16 @@ function header(slide, source) {
     out.push(`<div class="sq-gap" data-pptx="shape" data-name="!!sx" style="left:${gapX}px"></div>`);
   }
   const at = /data-counter-at="(\d+),(\d+)"/.exec(source);
-  if (slide.finale) {
+  if (counterText(slide) == null) {
+    // no counter yet: it fades in on 02, when the squares have burst out into the strip
+  } else if (slide.finale) {
     if (!at) throw new Error(`${slide.file}: the finale needs data-counter-at="x,y" on .slide`);
     out.push(`<div class="left fin" data-pptx="text" data-name="!!left" style="left:${at[1]}px;top:${at[2]}px">${html(counterText(slide))}</div>`);
   } else {
-    out.push(`<div class="left" data-pptx="text" data-name="!!left">${html(counterText(slide))}</div>`);
+    // The first counter of the deck fades in as the first step, once the squares have burst out into the strip.
+    const prev = SLIDES[SLIDES.indexOf(slide) - 1];
+    const first = prev && counterText(prev) == null ? ' data-anim="fade" data-anim-dur="600" data-anim-order="0"' : '';
+    out.push(`<div class="left" data-pptx="text" data-name="!!left"${first}>${html(counterText(slide))}</div>`);
   }
   if (slide.corner === 'mark') {
     const dotLeft = MARK.right - MARK.dot;

@@ -5,12 +5,17 @@
 <title>11 · Тестирование и продвижение — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <style>
-.step-c { font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-.arrow { width: 88px; font-size: 48px; line-height: 56px; color: var(--faint); text-align: center; }
+/* The path upward, in the field's own marks (slide 12): a group is a dot; a department, a few groups; colleges and
+   universities, a field of them. Each step: its marks, its name, what happens there. */
+.st-t { font-size: 56px; line-height: 64px; font-weight: 600; letter-spacing: -.025em; white-space: nowrap; }
+.st-d { font-size: 32px; line-height: 42px; color: var(--muted); white-space: nowrap; }
+.arrow { width: 72px; font-size: 56px; line-height: 64px; color: var(--faint); text-align: center; }
+.dots i { position: absolute; display: block; border-radius: 50%; background: #0b121c; }
+.dots i.y { background: #f4c45b; }
 </style>
 </head>
 <body>
-<main class="slide">
+<main class="slide" data-transition-dur="1300">
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
 <div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
 <div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
@@ -28,42 +33,32 @@
 <div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1782px;top:66px"></div>
 <!-- header:end -->
 
-<div class="label" data-pptx="title" data-anim="fade" data-anim-dur="400">Тестирование и продвижение</div>
+<div class="label" data-pptx="title">Тестирование и продвижение</div>
 <!-- The pilot's numbers are not known yet: faint placeholders in dashed frames, filled by 21.10 or replaced by
      the honest «пилот идёт с [даты]». -->
-<div class="ph-frame" data-pptx="image" aria-label="Заполнить до отправки" style="left:356px;top:190px;width:125px;height:88px"></div>
-<div class="ph-frame" data-pptx="image" aria-label="Заполнить до отправки" style="left:849px;top:190px;width:134px;height:88px"></div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-delay="100" data-anim-dur="600">Пилот: <span class="ph">[N]</span> студентов, <span class="ph">[M]</span> дней</div>
+<div class="ph-frame" data-pptx="image" aria-label="Заполнить до отправки" style="left:344px;top:190px;width:125px;height:88px" data-anim="fade" data-anim-dur="500" data-anim-order="1"></div>
+<div class="ph-frame" data-pptx="image" aria-label="Заполнить до отправки" style="left:840px;top:190px;width:134px;height:88px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="1"></div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-trigger="with" data-anim-dur="700" data-anim-order="1">Пилот: <span class="ph">[N]</span> студентов, <span class="ph">[M]</span>&nbsp;дней</div>
+<div class="ph-frame" data-pptx="image" aria-label="Заполнить до отправки" style="left:128px;top:300px;width:730px;height:58px;border-radius:14px" data-anim="fade" data-anim-delay="150" data-anim-dur="500" data-anim-order="2"></div>
+<div class="note ph" data-pptx="text" style="left:148px;top:308px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="2">[Результат пилота одной фразой&nbsp;— к&nbsp;21.10]</div>
 
 <!-- Promotion from below: a group, its department, then colleges and universities. -->
-<div class="cap" data-pptx="text" style="left:128px;top:336px" data-anim="fade" data-anim-delay="150" data-anim-dur="400">Продвижение</div>
-<div class="shadow" style="left:128px;top:384px;width:496px;height:320px"></div>
-<div class="card" data-pptx="shape" data-name="!!c1" style="left:128px;top:384px;width:496px;height:320px"></div>
-<div class="shadow" style="left:712px;top:384px;width:496px;height:320px"></div>
-<div class="card" data-pptx="shape" data-name="!!c2" style="left:712px;top:384px;width:496px;height:320px"></div>
-<div class="shadow" style="left:1296px;top:384px;width:496px;height:320px"></div>
-<div class="card" data-pptx="shape" data-name="!!c3" style="left:1296px;top:384px;width:496px;height:320px"></div>
+<div class="cap" data-pptx="text" style="left:128px;top:404px" data-anim="fade" data-anim-delay="100" data-anim-dur="400" data-anim-order="3">Продвижение</div>
+<div class="dots" data-pptx="image" aria-label="" style="left:128px;top:452px;width:220px;height:112px" data-anim="settle" data-anim-delay="150" data-anim-dur="500" data-anim-order="3"><i class="y" style="left:0px;top:76px;width:36px;height:36px"></i></div>
+<div class="st-t" data-pptx="text" style="left:128px;top:588px" data-anim="rise" data-anim-trigger="with" data-anim-delay="100" data-anim-dur="500" data-anim-order="3">Группа</div>
+<div class="st-d" data-pptx="text" style="left:128px;top:664px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="3">одна группа приглашает<br>другую по&nbsp;ссылке</div>
+<div class="arrow" data-pptx="text" style="left:632px;top:588px" data-anim="wipe" data-anim-delay="50" data-anim-dur="350" data-anim-order="3">→</div>
+<div class="dots" data-pptx="image" aria-label="" style="left:712px;top:452px;width:220px;height:112px" data-anim="settle" data-anim-delay="250" data-anim-dur="500" data-anim-order="4"><i style="left:0px;top:50px;width:24px;height:24px"></i><i style="left:38px;top:50px;width:24px;height:24px"></i><i style="left:76px;top:50px;width:24px;height:24px"></i><i style="left:114px;top:50px;width:24px;height:24px"></i><i style="left:0px;top:88px;width:24px;height:24px"></i><i class="y" style="left:38px;top:88px;width:24px;height:24px"></i><i style="left:76px;top:88px;width:24px;height:24px"></i><i style="left:114px;top:88px;width:24px;height:24px"></i></div>
+<div class="st-t" data-pptx="text" style="left:712px;top:588px" data-anim="rise" data-anim-trigger="with" data-anim-delay="100" data-anim-dur="500" data-anim-order="4">Кафедра</div>
+<div class="st-d" data-pptx="text" style="left:712px;top:664px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="4">отчёт преподавателю: какие<br>вопросы группа знает хуже</div>
+<div class="arrow" data-pptx="text" style="left:1216px;top:588px" data-anim="wipe" data-anim-delay="50" data-anim-dur="350" data-anim-order="4">→</div>
+<div class="dots" data-pptx="image" aria-label="" style="left:1296px;top:452px;width:220px;height:112px" data-anim="settle" data-anim-delay="250" data-anim-dur="500" data-anim-order="5"><i style="left:0px;top:12px;width:10px;height:10px"></i><i style="left:18px;top:12px;width:10px;height:10px"></i><i style="left:36px;top:12px;width:10px;height:10px"></i><i style="left:54px;top:12px;width:10px;height:10px"></i><i style="left:72px;top:12px;width:10px;height:10px"></i><i style="left:90px;top:12px;width:10px;height:10px"></i><i style="left:108px;top:12px;width:10px;height:10px"></i><i style="left:126px;top:12px;width:10px;height:10px"></i><i style="left:144px;top:12px;width:10px;height:10px"></i><i style="left:162px;top:12px;width:10px;height:10px"></i><i style="left:180px;top:12px;width:10px;height:10px"></i><i style="left:198px;top:12px;width:10px;height:10px"></i><i style="left:0px;top:30px;width:10px;height:10px"></i><i style="left:18px;top:30px;width:10px;height:10px"></i><i style="left:36px;top:30px;width:10px;height:10px"></i><i style="left:54px;top:30px;width:10px;height:10px"></i><i style="left:72px;top:30px;width:10px;height:10px"></i><i style="left:90px;top:30px;width:10px;height:10px"></i><i style="left:108px;top:30px;width:10px;height:10px"></i><i style="left:126px;top:30px;width:10px;height:10px"></i><i style="left:144px;top:30px;width:10px;height:10px"></i><i style="left:162px;top:30px;width:10px;height:10px"></i><i style="left:180px;top:30px;width:10px;height:10px"></i><i style="left:198px;top:30px;width:10px;height:10px"></i><i style="left:0px;top:48px;width:10px;height:10px"></i><i style="left:18px;top:48px;width:10px;height:10px"></i><i style="left:36px;top:48px;width:10px;height:10px"></i><i style="left:54px;top:48px;width:10px;height:10px"></i><i style="left:72px;top:48px;width:10px;height:10px"></i><i style="left:90px;top:48px;width:10px;height:10px"></i><i style="left:108px;top:48px;width:10px;height:10px"></i><i style="left:126px;top:48px;width:10px;height:10px"></i><i style="left:144px;top:48px;width:10px;height:10px"></i><i style="left:162px;top:48px;width:10px;height:10px"></i><i style="left:180px;top:48px;width:10px;height:10px"></i><i style="left:198px;top:48px;width:10px;height:10px"></i><i style="left:0px;top:66px;width:10px;height:10px"></i><i style="left:18px;top:66px;width:10px;height:10px"></i><i style="left:36px;top:66px;width:10px;height:10px"></i><i style="left:54px;top:66px;width:10px;height:10px"></i><i class="y" style="left:72px;top:66px;width:10px;height:10px"></i><i style="left:90px;top:66px;width:10px;height:10px"></i><i style="left:108px;top:66px;width:10px;height:10px"></i><i style="left:126px;top:66px;width:10px;height:10px"></i><i style="left:144px;top:66px;width:10px;height:10px"></i><i style="left:162px;top:66px;width:10px;height:10px"></i><i style="left:180px;top:66px;width:10px;height:10px"></i><i style="left:198px;top:66px;width:10px;height:10px"></i><i style="left:0px;top:84px;width:10px;height:10px"></i><i style="left:18px;top:84px;width:10px;height:10px"></i><i style="left:36px;top:84px;width:10px;height:10px"></i><i style="left:54px;top:84px;width:10px;height:10px"></i><i style="left:72px;top:84px;width:10px;height:10px"></i><i style="left:90px;top:84px;width:10px;height:10px"></i><i style="left:108px;top:84px;width:10px;height:10px"></i><i style="left:126px;top:84px;width:10px;height:10px"></i><i style="left:144px;top:84px;width:10px;height:10px"></i><i style="left:162px;top:84px;width:10px;height:10px"></i><i style="left:180px;top:84px;width:10px;height:10px"></i><i style="left:198px;top:84px;width:10px;height:10px"></i><i style="left:0px;top:102px;width:10px;height:10px"></i><i style="left:18px;top:102px;width:10px;height:10px"></i><i style="left:36px;top:102px;width:10px;height:10px"></i><i style="left:54px;top:102px;width:10px;height:10px"></i><i style="left:72px;top:102px;width:10px;height:10px"></i><i style="left:90px;top:102px;width:10px;height:10px"></i><i style="left:108px;top:102px;width:10px;height:10px"></i><i style="left:126px;top:102px;width:10px;height:10px"></i><i style="left:144px;top:102px;width:10px;height:10px"></i><i style="left:162px;top:102px;width:10px;height:10px"></i><i style="left:180px;top:102px;width:10px;height:10px"></i><i style="left:198px;top:102px;width:10px;height:10px"></i></div>
+<div class="st-t" data-pptx="text" style="left:1296px;top:588px" data-anim="rise" data-anim-trigger="with" data-anim-delay="100" data-anim-dur="500" data-anim-order="5">Колледжи и&nbsp;вузы</div>
+<div class="st-d" data-pptx="text" style="left:1296px;top:664px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="5">лицензия для колледжа</div>
 
-<div class="step-c" data-pptx="text" style="left:168px;top:424px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Шаг 1</div>
-<div class="h" data-pptx="text" style="left:168px;top:468px" data-anim="rise" data-anim-trigger="with" data-anim-dur="500">Группа</div>
-<div class="note" data-pptx="text" style="left:168px;top:540px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500">одна группа приглашает<br>другую по&nbsp;ссылке</div>
-
-<div class="arrow" data-pptx="text" style="left:624px;top:504px" data-anim="fade" data-anim-delay="80" data-anim-dur="300">→</div>
-<div class="step-c" data-pptx="text" style="left:752px;top:424px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Шаг 2</div>
-<div class="h" data-pptx="text" style="left:752px;top:468px" data-anim="rise" data-anim-trigger="with" data-anim-dur="500">Кафедра</div>
-<div class="note" data-pptx="text" style="left:752px;top:540px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500">отчёт преподавателю:<br>какие вопросы группа<br>знает хуже</div>
-
-<div class="arrow" data-pptx="text" style="left:1208px;top:504px" data-anim="fade" data-anim-delay="80" data-anim-dur="300">→</div>
-<div class="step-c" data-pptx="text" style="left:1336px;top:424px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Шаг 3</div>
-<div class="h" data-pptx="text" style="left:1336px;top:468px" data-anim="rise" data-anim-trigger="with" data-anim-dur="500">Колледжи и&nbsp;вузы</div>
-<div class="note" data-pptx="text" style="left:1336px;top:540px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500">лицензия для колледжа</div>
-
-<!-- Testing: what is true today, and the pilot's result as a marked placeholder. -->
-<div class="cap" data-pptx="text" style="left:128px;top:744px" data-anim="fade" data-anim-delay="200" data-anim-dur="400">Проверка</div>
-<div class="ph-frame" data-pptx="image" aria-label="Заполнить до отправки" style="left:128px;top:782px;width:690px;height:58px;border-radius:14px"></div>
-<div class="note ph" data-pptx="text" style="left:146px;top:790px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">[Результат пилота одной фразой&nbsp;— к&nbsp;21.10]</div>
-<div class="note ink" data-pptx="text" style="left:128px;top:864px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Сайт открыт: пример экзамена работает без&nbsp;регистрации</div>
-<div class="note blue" data-pptx="text" data-href="https://ludosiel-studyforge.hf.space/try" style="left:128px;top:912px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">ludosiel-studyforge.hf.space/try</div>
+<!-- What is true today. -->
+<div class="t40" data-pptx="text" style="left:128px;top:852px" data-anim="fade" data-anim-delay="250" data-anim-dur="500" data-anim-order="6">Сайт открыт: пример экзамена работает без&nbsp;регистрации</div>
+<div class="note blue" data-pptx="text" data-href="https://ludosiel-studyforge.hf.space/try" style="left:128px;top:910px" data-anim="fade" data-anim-trigger="with" data-anim-delay="100" data-anim-dur="500" data-anim-order="6">ludosiel-studyforge.hf.space/try</div>
 
 <template data-pptx="notes">Как мы проверяем. [Результат пилота одной фразой.] Сайт открыт, пример экзамена работает без регистрации.
 

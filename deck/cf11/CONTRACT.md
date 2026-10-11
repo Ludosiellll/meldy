@@ -18,11 +18,15 @@ slide texts and the talk: meldy-notes `10_Project/CodingFest_11_Deck_Script.md`;
   only in motion or only in the notes.
 - Onest only (static TTFs in `design/fonts/`, embedded in the PPTX). Meldy tokens only: canvas `#F3F3F0`, surface
   `#FFFFFF`, ink `#0B121C`, muted `#4B515B`, faint `#8A8F97`, line `#E3E3DD`, blue `#2869DD` (pill) / `#1F5BC6` (labels),
-  yellow dot `#F4C45B`, named-once `#E9B13C`, pink tag `#F5B6CD`. No gradients, glow, glass, particles, emoji,
-  generated pictures, paper or handwriting.
-- Type on a 1920×1080 slide: mandatory label 40–48 px (20–24 pt) caps 600 blue; claim 72–88 px (36–44 pt) 600, two
-  lines at most; body 48–56 px (24–28 pt), never under 40 px; big numbers 144–240 px; sources and «как считается»
-  28–32 px (14–16 pt); nothing under 28 px.
+  blue-soft `#E8EFFC` (an avatar's round), yellow dot `#F4C45B`, named-once `#E9B13C`, pink tag `#F5B6CD`.
+  **Dark stage slides** (05 «Новизна», 12 «Масштабируемость»; `<main class="slide dark">`) use the app's own dark
+  theme (`frontend/src/index.css` `.dark`) instead: canvas `#0B0F16`, surface `#141A24`, surface-soft `#1B2230`, ink
+  `#F3F3F0`, muted `#A7ADB7`, line `#262E3B`, labels `#8DB2F5`, yellow `#F4C45B`; Morph into and out of them is the
+  lights going down and up. No gradients, glow, glass, particles, emoji, generated pictures, paper or handwriting.
+- Type on a 1920×1080 slide: mandatory label 40–48 px (20–24 pt) caps 600 blue; claim 72–80 px (36–40 pt) 600, two
+  lines at most; a manifesto's statement (05) 96–112 px; the wordmark on 01 and 15 280–320 px; hero numbers 360–440 px;
+  steps and lists 44–48 px; sources and «как считается» 28–32 px (14–16 pt); nothing under 28 px. One hero per slide;
+  about 35 words at most outside the reading layer (the list slides 02, 13, 14 excepted).
 
 ## Geometry
 

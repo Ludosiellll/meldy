@@ -1,11 +1,12 @@
 // A placeholder for a product recording that is not shot yet: a calm frame inside the window, the words
 // «ролик с сайта: …» in the faint colour and a dashed frame, so nobody takes it for the product.
-// Usage in a page: <script>window.PLACEHOLDER = { width, height, radius, lines: [...] }</script><script src="placeholder.js">
+// Usage in a page: <script>window.PLACEHOLDER = { width, height, radius, frame, lines: [...] }</script><script src="placeholder.js">
+// `frame` is the colour outside the rounded screen: the device's bezel around it on the slide (ink).
 (function () {
   const P = window.PLACEHOLDER;
   const stage = document.createElement('div');
   stage.className = 'stage';
-  stage.style.cssText = `width:${P.width}px;height:${P.height}px;background:#ffffff`;
+  stage.style.cssText = `width:${P.width}px;height:${P.height}px;background:${P.frame || '#ffffff'}`;
   stage.innerHTML = `
     <div style="left:0;top:0;width:${P.width}px;height:${P.height}px;border-radius:${P.radius}px;background:#f3f3f0"></div>
     <div style="left:${P.inset}px;top:${P.inset}px;width:${P.width - 2 * P.inset}px;height:${P.height - 2 * P.inset}px;border-radius:${Math.max(8, P.radius - P.inset)}px;border:3px dashed rgba(138,143,151,.55)"></div>

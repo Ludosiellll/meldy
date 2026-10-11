@@ -2,11 +2,16 @@
 //
 //   node deck/cf11/design/preview/lint.mjs            exit 1 if anything is an error
 //
-// Errors: the title (one, the exact mandatory name), data-pptx / data-anim values, Morph names (unique on a
-// slide, one kind across slides, never animated where they morph), the strip and counter of each slide, text under
-// 28 px, colours outside the tokens, missing media, text outside the slide or its card, missing notes, Russian
-// typography that breaks (a hanging short word at a line end, " - " for a dash, straight quotes, a full stop after
-// a heading). Warnings: a regular space where a non-breaking one belongs.
+// Errors: the title (one, the exact mandatory name), data-pptx / data-anim / data-anim-dir / data-morph /
+// data-transition(-dur) / data-fill / data-play values, Morph names (unique on a slide, one kind across slides, never
+// animated where they morph in — titles included: the compiler names every title !!title), the strip and counter of
+// each slide (gathered under the dot on 01 and 15, light on the dark stage slides), text under 28 px, colours outside
+// the slide's token set (light, or the app's dark theme on 05 and 12), the round-2 scale (claim 72–80 px and two lines
+// at most, statement 96–112, hero number 360–440, wordmark 280–320), missing media, native objects crossing the
+// slide's edge, text outside its card, missing notes, Russian typography that breaks (a hanging short word at a line
+// end, " - " for a dash, straight quotes, a full stop after a heading). Warnings: a regular space where a non-breaking
+// one belongs, more than about 35 words outside the reading layer (02, 13, 14 excepted), a picture or video that
+// crosses the edge (the compiler crops it).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,11 +19,24 @@ import { SLIDES, SLIDES_DIR, STRIP, squareState, counterText, loadPlaywright } f
 
 const TOKENS = {
   canvas: '243,243,240', surface: '255,255,255', ink: '11,18,28', muted: '75,81,91', faint: '138,143,151',
-  line: '227,227,221', blue: '40,105,221', blueFg: '31,91,198', yellow: '244,196,91', named: '233,177,60', pink: '245,182,205',
+  line: '227,227,221', blue: '40,105,221', blueFg: '31,91,198', blueSoft: '232,239,252', yellow: '244,196,91',
+  named: '233,177,60', pink: '245,182,205',
+};
+// The stage slides (05, 12): the app's dark theme (frontend/src/index.css .dark), plus the yellow dot.
+const DARK = {
+  canvas: '11,15,22', surface: '20,26,36', surfaceSoft: '27,34,48', ink: '243,243,240', muted: '167,173,183',
+  line: '38,46,59', labels: '141,178,245', yellow: '244,196,91', named: '233,177,60',
 };
 const TOKEN_RGB = new Set(Object.values(TOKENS));
+const DARK_RGB = new Set(Object.values(DARK));
 const PPTX = new Set(['title', 'text', 'shape', 'image', 'video', 'gif', 'notes']);
-const ANIM = new Set(['fade', 'rise', 'wipe', 'zoom', 'appear']);
+const ANIM = new Set(['fade', 'rise', 'wipe', 'zoom', 'appear', 'settle']);
+const DIRS = new Set(['left', 'right', 'up', 'down']);
+const MORPH = new Set(['object', 'word', 'char']);
+const FILL = /^author[12]\.(name|role|initials)$/;
+// The round-2 scale: one hero per slide at a size nothing else comes near.
+const SCALE = { claim: [72, 80], statement: [96, 112], hero: [360, 440], word: [280, 320] };
+const WORDY_OK = new Set([2, 13, 14]); // list slides: the authors, the sources, the requirements
 const TRIG = new Set(['after', 'with', 'click']);
 // Short words that must not end a line and should be glued to the next word.
 // (Particles «же», «ли», «бы» bind to the word before them, so they are not here.)
@@ -48,7 +66,10 @@ for (const slide of SLIDES) {
       i, kind: el.dataset.pptx, name: el.dataset.name || null, cls: el.className || '', tag: el.tagName,
       text: el.dataset.pptx === 'text' || el.dataset.pptx === 'title' ? el.innerText : '',
       anim: el.dataset.anim || null, trig: el.dataset.animTrigger || null, delay: el.dataset.animDelay ?? null,
-      dur: el.dataset.animDur ?? null, order: el.dataset.animOrder ?? null,
+      dur: el.dataset.animDur ?? null, order: el.dataset.animOrder ?? null, dir: el.dataset.animDir ?? null,
+      fill: el.dataset.fill ?? null, play: el.dataset.play ?? null,
+      size: parseFloat(getComputedStyle(el).fontSize), lh: parseFloat(getComputedStyle(el).lineHeight),
+      words: el.dataset.pptx === 'text' || el.dataset.pptx === 'title' ? el.innerText.split(/\s+/).filter((w) => /[A-Za-zА-Яа-яЁё0-9]/.test(w)).length : 0,
       src: el.dataset.src || null, poster: el.dataset.poster || null, imgsrc: el.tagName === 'IMG' ? el.getAttribute('src') : null,
       innerImgs: [...el.querySelectorAll('img')].map((im) => im.getAttribute('src')),
       box: box(el), sw: el.scrollWidth, cw: el.clientWidth, ws: getComputedStyle(el).whiteSpace,
@@ -109,7 +130,8 @@ for (const slide of SLIDES) {
     const cards = [...document.querySelectorAll('.card[data-pptx="shape"]')].map((el) => box(el));
     const notes = document.querySelector('template[data-pptx="notes"]');
     const slideEl = document.querySelector('.slide');
-    return { marked, texts, colours, cards, buried, ghost, notes: notes ? notes.innerHTML.trim() : null, transition: slideEl.dataset.transition || 'morph' };
+    return { marked, texts, colours, cards, buried, ghost, notes: notes ? notes.innerHTML.trim() : null, transition: slideEl.dataset.transition || 'morph',
+      tdur: slideEl.dataset.transitionDur ?? null, morph: slideEl.dataset.morph ?? null, dark: slideEl.classList.contains('dark') };
   });
 
   // ---- the title
@@ -117,6 +139,10 @@ for (const slide of SLIDES) {
   if (titles.length !== 1) err(slide.n, `${titles.length} title elements (need exactly one)`);
   else if (titles[0].text.trim().toLowerCase() !== slide.title.toLowerCase()) err(slide.n, `title «${titles[0].text.trim()}» ≠ «${slide.title}»`);
   if (!['morph', 'fade', 'none'].includes(R.transition)) err(slide.n, `data-transition="${R.transition}"`);
+  if (R.tdur != null && (!/^\d+$/.test(R.tdur) || Number(R.tdur) < 300 || Number(R.tdur) > 3000)) err(slide.n, `data-transition-dur="${R.tdur}" (300–3000 ms)`);
+  if (R.morph != null && !MORPH.has(R.morph)) err(slide.n, `data-morph="${R.morph}"`);
+  if (Boolean(slide.dark) !== R.dark) err(slide.n, slide.dark ? 'a stage slide must be <main class="slide dark">' : 'class "dark" on a light slide');
+  if (slide.n > 1 && titles.length === 1 && titles[0].anim) err(slide.n, 'the title morphs in from the previous slide (!!title): no entrance animation');
 
   // ---- markup values
   const slideNames = new Map();
@@ -126,9 +152,19 @@ for (const slide of SLIDES) {
       if (!ANIM.has(m.anim)) err(slide.n, `data-anim="${m.anim}" on ${m.cls}`);
       if (m.trig != null && !TRIG.has(m.trig)) err(slide.n, `data-anim-trigger="${m.trig}"`);
       for (const [k, v] of [['delay', m.delay], ['dur', m.dur], ['order', m.order]]) if (v != null && !/^\d+$/.test(v)) err(slide.n, `data-anim-${k}="${v}"`);
-      if (m.delay != null && Number(m.delay) > 400) warn(slide.n, `long delay ${m.delay} ms`);
+      if (m.delay != null && Number(m.delay) > 600 && m.trig !== 'with') warn(slide.n, `long delay ${m.delay} ms`);
       if (m.dur != null && (Number(m.dur) < 200 || Number(m.dur) > 1200)) warn(slide.n, `duration ${m.dur} ms`);
-    } else if (m.trig || m.delay || m.dur) err(slide.n, `animation attributes without data-anim on ${m.cls}`);
+      if (m.dir != null && (m.anim !== 'wipe' || !DIRS.has(m.dir))) err(slide.n, `data-anim-dir="${m.dir}" (wipe only: left|right|up|down)`);
+    } else if (m.trig || m.delay || m.dur || m.dir) err(slide.n, `animation attributes without data-anim on ${m.cls}`);
+    if (m.fill != null && (!FILL.test(m.fill) || m.kind !== 'text')) err(slide.n, `data-fill="${m.fill}" (author1|author2 .name|.role|.initials, on text)`);
+    if (m.play != null && (m.play !== 'with' || m.kind !== 'video')) err(slide.n, `data-play="${m.play}" (with, on a video)`);
+    // the round-2 scale
+    const cl = String(m.cls).split(/\s+/);
+    for (const [k, [a, b]] of Object.entries(SCALE)) {
+      if (!cl.includes(k) || (m.kind !== 'text')) continue;
+      if (m.size < a - 0.01 || m.size > b + 0.01) err(slide.n, `${k} at ${m.size}px (${a}–${b}): «${m.text.slice(0, 30)}»`);
+      if ((k === 'claim' || k === 'statement') && Math.round(m.box.h / m.lh) > 2) err(slide.n, `${k} on ${Math.round(m.box.h / m.lh)} lines (two at most)`);
+    }
     if (m.name) {
       if (!m.name.startsWith('!!')) err(slide.n, `Morph name «${m.name}» must start with !!`);
       if (slideNames.has(m.name)) err(slide.n, `Morph name ${m.name} used twice`);
@@ -148,11 +184,19 @@ for (const slide of SLIDES) {
     if (m.kind === 'gif' && !m.src) err(slide.n, 'gif without data-src');
     // inside the slide
     const b = m.box;
-    if (b.x < -1 || b.y < -1 || b.x + b.w > 1921 || b.y + b.h > 1081) err(slide.n, `${m.kind} ${m.cls} outside the slide (${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}×${Math.round(b.h)})`);
+    if (b.x < -0.5 || b.y < -0.5 || b.x + b.w > 1920.5 || b.y + b.h > 1080.5) {
+      const where = `(${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}×${Math.round(b.h)})`;
+      // A picture or video may bleed (the compiler crops it); a native shape or text never crosses the edge.
+      if (['image', 'video', 'gif'].includes(m.kind)) warn(slide.n, `${m.kind} crosses the slide's edge ${where}: the compiler crops it`);
+      else err(slide.n, `${m.kind} ${m.cls} crosses the slide's edge ${where}`);
+    }
     if ((m.kind === 'text' || m.kind === 'title') && m.hasExplicitWidth && m.sw > m.cw + 1) err(slide.n, `text overflows its box: «${m.text.slice(0, 40)}» (${m.sw} > ${m.cw})`);
   }
   perSlideNames.push(slideNames);
   if (R.marked.filter((m) => m.anim).length < 2) err(slide.n, 'fewer than 2 animation steps');
+  // About 35 words outside the reading layer (text over 32 px), the header band and the title not counted.
+  const loud = R.marked.filter((m) => m.kind === 'text' && m.size > 32 && !/^!!(left|word)$/.test(m.name || '')).reduce((n, m) => n + m.words, 0);
+  if (loud > 40 && !WORDY_OK.has(slide.n)) warn(slide.n, `${loud} words outside the reading layer (about 35 at most)`);
 
   // ---- text inside its card: a live text whose middle is on a card stays 24 px inside the card's edges
   for (const m of R.marked.filter((x) => x.kind === 'text')) {
@@ -179,10 +223,11 @@ for (const slide of SLIDES) {
       const dot = slideNames.get('!!dot');
       if (!dot || Math.abs(dot.box.x - sq.box.x) > 1 || Math.abs(dot.box.y - sq.box.y) > 1) err(slide.n, `${name} has not gathered into the dot`);
     }
-    if (sq.anim) err(slide.n, `${name} must not be animated (it morphs)`);
+    if (sq.anim && !slide.opening) err(slide.n, `${name} must not be animated (it morphs)`);
   }
   const left = slideNames.get('!!left');
-  if (!left) err(slide.n, 'counter !!left missing');
+  if (counterText(slide) == null) { if (left) err(slide.n, 'no counter on this slide: the strip is still gathered in the dot'); }
+  else if (!left) err(slide.n, 'counter !!left missing');
   else if (left.text.trim() !== counterText(slide)) err(slide.n, `counter «${left.text.trim()}» ≠ «${counterText(slide)}»`);
   if (slide.corner === 'mark' && (!slideNames.get('!!word') || !slideNames.get('!!dot'))) err(slide.n, 'the corner wordmark or its dot is missing');
 
@@ -195,7 +240,8 @@ for (const slide of SLIDES) {
     const rgb = parts.slice(0, 3).map(Number).join(',');
     const a = parts[3] != null ? Number(parts[3]) : 1;
     if (a === 0) continue;
-    if (!TOKEN_RGB.has(rgb)) err(slide.n, `colour ${c.v} (${c.prop}) on ${String(c.cls).slice(0, 40)} is not a token`);
+    const set = slide.dark ? DARK_RGB : TOKEN_RGB;
+    if (!set.has(rgb)) err(slide.n, `colour ${c.v} (${c.prop}) on ${String(c.cls).slice(0, 40)} is not a ${slide.dark ? 'dark-stage' : 'light'} token`);
   }
 
   for (const x of R.buried) err(slide.n, `baked layer drawn above a native object would be hidden under it in PowerPoint: ${x}`);
@@ -233,7 +279,7 @@ for (const slide of SLIDES) {
 // ---- Morph names across slides: report each name's chain; a name that morphs must not be animated on arrival
 for (let k = 1; k < SLIDES.length; k += 1) {
   const prev = perSlideNames[k - 1], cur = perSlideNames[k];
-  for (const [name, m] of cur) if (prev.has(name) && m.anim && name !== '!!t07') err(SLIDES[k].n, `${name} morphs from slide ${SLIDES[k - 1].n} but has an entrance animation`);
+  for (const [name, m] of cur) if (prev.has(name) && m.anim) err(SLIDES[k].n, `${name} morphs from slide ${SLIDES[k - 1].n} but has an entrance animation`);
 }
 const chains = [...names.entries()].map(([n, r]) => `${n.padEnd(8)} ${r.kind.padEnd(6)} ${r.slides.join(' ')}`);
 

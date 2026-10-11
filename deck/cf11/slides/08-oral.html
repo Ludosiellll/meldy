@@ -5,13 +5,15 @@
 <title>08 · Представление блоков проекта: ответ вслух — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <style>
-.step-n { left: 128px; width: 40px; font-size: 40px; line-height: 50px; font-weight: 600; color: var(--faint); }
-.step-t { left: 176px; font-size: 40px; line-height: 50px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
-.step-d { left: 176px; font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
+/* Device: the bezel is a native ink shape (!!dot, it morphs along 06 → 11), the screen a video inside it. */
+.dev { background: #0b121c; }
+.step-n { left: 128px; }
+.step-t { left: 184px; }
+.step-d { left: 184px; font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; }
 </style>
 </head>
 <body>
-<main class="slide">
+<main class="slide" data-transition-dur="1300">
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
 <div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
 <div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
@@ -26,27 +28,24 @@
 <div class="left" data-pptx="text" data-name="!!left">осталось 4 из&nbsp;10</div>
 <!-- header:end -->
 
-<div class="label" data-pptx="title" data-name="!!t07">Представление блоков проекта</div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-delay="100" data-anim-dur="600">Ответ вслух сверяется с&nbsp;лекциями,<br>о&nbsp;пропущенном Meldy переспросит</div>
+<div class="label" data-pptx="title">Представление блоков проекта</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Ответ вслух сверяется с&nbsp;лекциями,<br>о&nbsp;пропущенном Meldy переспросит</div>
 
-<!-- The phone: 07's window, reshaped (Morph, !!dot). Inside, the phone recording of an answer aloud. -->
-<div class="shadow r72" style="left:1392px;top:144px;width:400px;height:832px;border-radius:64px"></div>
-<div class="card" data-pptx="shape" data-name="!!dot" style="left:1392px;top:144px;width:400px;height:832px;border-radius:64px"></div>
-<img data-pptx="video" data-src="../media/gen/ph-08.mp4" data-poster="../media/gen/ph-08.png" data-loop src="../media/gen/ph-08.png" aria-label="Ролик с телефона: ответ голосом, названные и пропущенные пункты с цитатами, переспрос" alt="" style="left:1412px;top:164px;width:360px;height:792px" data-anim="fade" data-anim-delay="0" data-anim-dur="400">
+<!-- The phone: the laptop's bezel has become the phone's (!!dot, Morph); the screen comes on inside it. -->
+<div class="dev lift" data-pptx="shape" data-name="!!dot" style="left:1368px;top:112px;width:424px;height:880px;border-radius:64px"></div>
+<img data-pptx="video" data-src="../media/gen/ph-08.mp4" data-poster="../media/gen/ph-08.png" data-loop src="../media/gen/ph-08.png" aria-label="Ролик с телефона: ответ голосом, названные и пропущенные пункты с цитатами, переспрос" alt="" style="left:1384px;top:128px;width:392px;height:848px" data-anim="fade" data-anim-dur="500" data-anim-order="2">
 
-<div class="step-n" data-pptx="text" style="top:448px" data-anim="fade" data-anim-delay="150" data-anim-dur="400">1</div>
-<div class="step-t" data-pptx="text" style="top:448px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Ответ голосом</div>
-<div class="step-d" data-pptx="text" style="top:500px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">как на&nbsp;экзамене</div>
+<div class="step-n" data-pptx="text" style="top:448px;font-size:48px;line-height:56px" data-anim="fade" data-anim-delay="300" data-anim-dur="400" data-anim-order="3">1</div>
+<div class="step-t" data-pptx="text" style="top:448px;font-size:48px;line-height:56px" data-anim="rise" data-anim-trigger="with" data-anim-dur="500" data-anim-order="3">Ответ голосом</div>
+<div class="step-d" data-pptx="text" style="top:508px" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="3">как на&nbsp;экзамене</div>
+<div class="step-n" data-pptx="text" style="top:604px;font-size:48px;line-height:56px" data-anim="fade" data-anim-delay="500" data-anim-dur="400" data-anim-order="4">2</div>
+<div class="step-t" data-pptx="text" style="top:604px;font-size:48px;line-height:56px" data-anim="rise" data-anim-trigger="with" data-anim-dur="500" data-anim-order="4">Названо и&nbsp;пропущено</div>
+<div class="step-d" data-pptx="text" style="top:664px" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="4">к&nbsp;каждому пункту&nbsp;— цитата из&nbsp;лекции</div>
+<div class="step-n" data-pptx="text" style="top:760px;font-size:48px;line-height:56px" data-anim="fade" data-anim-delay="500" data-anim-dur="400" data-anim-order="5">3</div>
+<div class="step-t" data-pptx="text" style="top:760px;font-size:48px;line-height:56px" data-anim="rise" data-anim-trigger="with" data-anim-dur="500" data-anim-order="5">Переспрос</div>
+<div class="step-d" data-pptx="text" style="top:820px" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="5">о&nbsp;пропущенном пункте, как экзаменатор</div>
 
-<div class="step-n" data-pptx="text" style="top:584px" data-anim="fade" data-anim-delay="100" data-anim-dur="400">2</div>
-<div class="step-t" data-pptx="text" style="top:584px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Названо и&nbsp;пропущено</div>
-<div class="step-d" data-pptx="text" style="top:636px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">к&nbsp;каждому пункту&nbsp;— цитата из&nbsp;лекции</div>
-
-<div class="step-n" data-pptx="text" style="top:720px" data-anim="fade" data-anim-delay="100" data-anim-dur="400">3</div>
-<div class="step-t" data-pptx="text" style="top:720px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Переспрос</div>
-<div class="step-d" data-pptx="text" style="top:772px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">о&nbsp;пропущенном пункте, как экзаменатор</div>
-
-<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim="fade" data-anim-delay="200" data-anim-dur="400">Оценок нет&nbsp;— только что названо и&nbsp;что нет. ИИ&nbsp;проверяет по&nbsp;материалу преподавателя</div>
+<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim="fade" data-anim-delay="300" data-anim-dur="500" data-anim-order="6">Оценок нет&nbsp;— только что названо и&nbsp;что нет. ИИ&nbsp;проверяет по&nbsp;материалу преподавателя</div>
 
 <template data-pptx="notes">Устные вопросы — главное. Студент отвечает голосом, как на экзамене. Meldy сверяет ответ с его же лекциями: какие пункты названы, каких нет, и к каждому показывает цитату из лекции.
 

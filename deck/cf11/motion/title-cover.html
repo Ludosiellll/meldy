@@ -9,6 +9,14 @@
    Monday: an answer aloud names every line once (yellow dots). Tuesday: the second answer erases them — a strike
    drawn left to right, the counter rolls to 0. Then the lines come back and the loop starts again.
    Vertical rhythm: tag 32 · question 112 · lines 180 + 58·i · count baseline 652 · voice 688–748. */
+/* The GIF carries its own card: the white card (r40) on the slide's canvas with the deck's shadow, so the card can
+   settle in on the title without a baked shadow showing first. Frame 736 × 888: the card at (56, 16), 624 × 776;
+   the margins hold the whole shadow down to half a level (σ = 40 px: ~51 px past the sides, ~91 px below), so the
+   GIF's edge never shows on the slide's canvas. */
+html, body { background: var(--canvas); }
+.frame { position: relative; width: 736px; height: 888px; overflow: hidden; background: var(--canvas); }
+.frame > .stage { position: absolute; left: 56px; top: 16px; border-radius: 40px;
+  box-shadow: 0 1px 3px rgba(11, 18, 28, .05), 0 40px 80px -48px rgba(11, 18, 28, .30); }
 .stage { width: 624px; height: 776px; }
 .date { left: 348px; top: 32px; width: 244px; height: 48px; border-radius: 24px; background: var(--tint); overflow: hidden; }
 .date div { left: 0; right: 0; top: 0; height: 48px; line-height: 48px; text-align: center; font-size: 28px; color: var(--muted); white-space: nowrap; }
@@ -31,6 +39,7 @@
 </style>
 </head>
 <body>
+<div class="frame">
 <div class="stage" id="stage">
   <div class="tag" style="left:32px;top:32px">Шпаргалка</div>
   <div class="date"><div id="d1">Пн, 12 октября</div><div id="d2">Вт, 13 октября</div></div>
@@ -45,6 +54,7 @@
     <div class="wave" id="wave"></div>
     <div class="time" id="time">0:00</div>
   </div>
+</div>
 </div>
 <script src="clip.js"></script>
 <script>
@@ -166,7 +176,7 @@
     }
   }
   seek(0);
-  window.__clip = { T, seek, width: 624, height: 776, poster: 0, loop: true };
+  window.__clip = { T, seek, width: 736, height: 888, poster: 0, loop: true };
 })();
 </script>
 </body>
