@@ -9,7 +9,7 @@ import './moreMenu.css';
  * «Ещё»: the secondary actions of a screen in one menu, so the screen keeps one main action in sight
  * (10_Project/Phone_Declutter_2026-10-08). The same menu as the lecture's «⋯» (`.sf-menu`): arrows move between
  * items, Escape closes it and gives the focus back to the button, Tab and a click outside close it; an action gives
- * the focus back to the button before it runs.
+ * the focus back to the button before it runs. A switch (`checked`) is turned in place: the menu stays open on it.
  *
  * `variant="text"` is a quiet «Ещё» link in a row of links; `variant="round"` is the 44 px «⋯» circle. The menu opens
  * under its button, or above it when it would leave the window there and the room above is larger (measured as it
@@ -39,6 +39,13 @@ export interface MoreMenuItem {
   to?: string;
   /** Anything else (a dialog, a switch). */
   onSelect?: () => void;
+  /**
+   * A switch (role menuitemcheckbox): its state is drawn as the app's switch and said by aria-checked. Choosing it
+   * runs `onSelect` (which turns it) and keeps the menu open, so the new state is seen at once.
+   */
+  checked?: boolean;
+  /** Under a switch's label, smaller, read as its description («и проверить, что помните их»). */
+  hint?: ReactNode;
   /** «Удалить …»: drawn in the danger colour, after a line. */
   danger?: boolean;
   /** A line above this item. */
@@ -59,7 +66,7 @@ interface MoreMenuProps {
   className?: string;
 }
 
-const ITEMS = '[role="menuitem"]';
+const ITEMS = '[role="menuitem"], [role="menuitemcheckbox"]';
 
 export default function MoreMenu({ items, label = 'Ещё', text = 'Ещё', variant = 'text', up = false, alignStart = false, className = '' }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
@@ -156,7 +163,35 @@ export default function MoreMenu({ items, label = 'Ещё', text = 'Ещё', var
 }
 
 function MenuRow({ item, onPicked, buttonRef }: { item: MoreMenuItem; onPicked: () => void; buttonRef: RefObject<HTMLButtonElement | null> }) {
+  const hintId = useId();
   const sep = item.separatorBefore || item.danger ? <div className="sf-menu-sep" role="separator" /> : null;
+  if (item.checked !== undefined) {
+    // A switch stays in its menu: the focus stays on it, and its state changes under the eye.
+    return (
+      <>
+        {sep}
+        <button
+          type="button"
+          role="menuitemcheckbox"
+          aria-checked={item.checked}
+          aria-describedby={item.hint ? hintId : undefined}
+          className="mm-item mm-check"
+          onClick={() => item.onSelect?.()}
+        >
+          <span className="mm-check-text">
+            <span>{item.label}</span>
+            {/* The name is the label; the hint is the item's description (and seen under it). */}
+            {item.hint ? (
+              <span className="mm-check-hint" id={hintId} aria-hidden="true">
+                {item.hint}
+              </span>
+            ) : null}
+          </span>
+          <span className="mm-switch" aria-hidden="true" />
+        </button>
+      </>
+    );
+  }
   if (item.to) {
     return (
       <>

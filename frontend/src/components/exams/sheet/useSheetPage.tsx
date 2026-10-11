@@ -576,7 +576,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const oneBlock = Boolean(input.oneBlock) && !side;
   // The phone's block says the questions whose points could not be written behind «Подробнее» (not a card of their own).
   const unwritableMore = oneBlock && data.unwritable > 0 ? <p className="ex-fine cs-unwritable">{glue(unwritableLine(data.unwritable))}</p> : null;
-  const summary = (variant: 'full' | 'top' | 'after' | 'phone' | 'phone-tools') => (
+  const summary = (variant: 'full' | 'top' | 'after' | 'phone') => (
     <SheetSummaryCard
       map={variant === 'full' || variant === 'top' || variant === 'phone' ? <SheetMap blocks={blocks} drawn={drawn} compact={variant !== 'full'} /> : undefined}
       id={variant === 'top' || variant === 'phone' ? undefined : `cs-sum-${examId}`}
@@ -690,11 +690,11 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     );
   }
 
-  // A phone shows the list on the first screen: the count and the map of lines (on /try with «Скрыть строки, стёртые
-  // совсем» beside the count; on the exam page with «Как стираются строки» and the last answer's change) stand at the
-  // top of the card, compact; above the card only the first write; the switches, the last answer, the history and the
-  // rest come under the card. Nothing to count and nothing to write (every question in no lecture): no empty block
-  // between the tabs and the card.
+  // A phone shows the list on the first screen: the count and the map of lines stand at the top of the card, compact;
+  // above the card only the first write. On /try «Скрыть строки, стёртые совсем» is beside the count and the rest comes
+  // under the card (a short sheet); on the exam page «Как стираются строки», the last answer's change and the «⋯» with
+  // the switches, the last answer and the history are at the top (a sheet of many screens), and nothing of it under the
+  // card. Nothing to count and nothing to write (every question in no lecture): no empty block between the tabs and the card.
   const topWrites = firstWrite || writing || input.unmapped;
   const head = !side && counts.total > 0 ? summary(oneBlock ? 'phone' : 'top') : null;
   const top = shown ? (topWrites ? writeCard(true) : null) : column;
@@ -703,7 +703,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     paperShown && (counts.total > 0 || !firstWrite) ? (
       <>
         {!(firstWrite || writing || input.unmapped) && writeCard(true)}
-        {counts.total > 0 && summary(oneBlock ? 'phone-tools' : 'after')}
+        {counts.total > 0 && !oneBlock && summary('after')}
       </>
     ) : null;
 

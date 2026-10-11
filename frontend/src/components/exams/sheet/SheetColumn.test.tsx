@@ -7,7 +7,7 @@ vi.mock('../../../lib/supabase', () => ({ supabase: {} }));
 import type { SheetWriteState } from '../../../api/cheatSheet';
 import { localDayOf, type HistoryFrame, type LineState, type LineStatus, type SheetBlock, type SheetCounts, type SheetLine } from '../../../lib/exams/cheatSheet';
 import { formatShortDay } from '../../../lib/exams/format';
-import { historyResult, LinePanel, outcomeLine, quoteText, SheetSummaryCard, SheetWriteCard, unwritableLine, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
+import { COVER_NOTE, historyResult, LinePanel, outcomeLine, quoteText, SHEET_OPTIONS_LABEL, SheetSummaryCard, SheetWriteCard, unwritableLine, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
 import { examSheetLinks } from './useSheetPage';
 import { SHEET_RULE } from './copy';
 
@@ -237,14 +237,14 @@ describe('SheetSummaryCard', () => {
   });
 });
 
-describe('SheetSummaryCard on the exam page’s phone (Phone_Declutter_2026-10-08): the count and the map at the top of the card, the tools under it', () => {
+describe('SheetSummaryCard on the exam page’s phone (Phone_Declutter_2026-10-08): all of it at the top of the card', () => {
   it('phone: the count, the map and the last answer’s change at the top of the card; the rest behind «Как стираются строки»', () => {
     summary({ variant: 'phone', more: <p className="cs-unwritable">{unwritableLine(2)}</p>, map: <div className="cs-mapbox" data-testid="map" /> });
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
     // The count's words, then the rule a tap away — as «… в лекциях. Как считается» over the list (a muted link: it explains).
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47. Как стираются строки');
-    // The map right under the count; the switches and the links are under the card (phone-tools), so the list starts high.
+    // The map right under the count; the switches and the links behind the «⋯», so the list starts high.
     expect(document.querySelector('.cs-count')?.nextElementSibling).toBe(screen.getByTestId('map'));
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Показать последний ответ' })).toBeNull();
@@ -267,50 +267,76 @@ describe('SheetSummaryCard on the exam page’s phone (Phone_Declutter_2026-10-0
     expect(plain(more.querySelector('.cs-sub')?.textContent)).toBe('главных строк — 21 из 27 · стёрты наполовину — 5 · пора проверить — 3 · у 6 вопросов нет пунктов ответа');
     expect(plain(more.querySelector('.cs-rule')?.textContent)).toBe(SHEET_RULE);
     expect(plain(more.querySelector('.cs-share')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях');
-    expect(plain(more.querySelector('.cs-unwritable')?.textContent)).toBe(unwritableLine(2).replace(/\u00a0/g, ' '));
+    expect(plain(more.querySelector('.cs-unwritable')?.textContent)).toBe(unwritableLine(2).replace(/ /g, ' '));
   });
 
-  it('phone-tools: both switches once something is erased, the last answer and the history, right under the card', () => {
-    const props = summary({ variant: 'phone-tools', id: 'cs-sum-exam-1' });
-    const tools = document.querySelector('.cs-sum') as HTMLElement;
-    expect(tools).toHaveAttribute('data-variant', 'phone-tools');
-    // The keyboard's skip lands here: the switches.
-    expect(tools).toHaveAttribute('id', 'cs-sum-exam-1');
-    expect(document.querySelector('.cs-big')).toBeNull();
-    expect(document.querySelector('.cs-change')).toBeNull();
-    expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Скрыть строки, стёртые совсем', 'Спрятать строки']);
-    // The words are short for one row on a 360 px phone; the names are whole.
-    const replay = screen.getByRole('button', { name: 'Показать последний ответ' });
-    expect(replay).toHaveTextContent('Последний ответ');
-    fireEvent.click(replay);
+  it('the «⋯» at the right of the count: both switches in their state once something is erased, the last answer and the history', () => {
+    const props = summary({ variant: 'phone', mode: { ...MODE, cover: true } });
+    const options = screen.getByRole('button', { name: SHEET_OPTIONS_LABEL });
+    // In the count's row (sheet.css keeps its room on the first line), after «Как стираются строки» for the keyboard.
+    expect(options.closest('.cs-count-l')).toHaveAttribute('data-options');
+    expect(screen.getByRole('button', { name: 'Как стираются строки' }).compareDocumentPosition(options) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(options).toHaveAttribute('aria-haspopup', 'menu');
+    expect(options).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(options);
+    const menu = screen.getByRole('menu', { name: SHEET_OPTIONS_LABEL });
+    // The switches in their state: by their names, on or off (the app's switch drawn at their right).
+    const switches = within(menu).getAllByRole('menuitemcheckbox');
+    expect(switches.map((item) => [item.querySelector('.mm-check-text > span')?.textContent, item.getAttribute('aria-checked')])).toEqual([
+      ['Скрыть строки, стёртые совсем', 'false'],
+      ['Спрятать строки', 'true'],
+    ]);
+    expect(switches[0]).toHaveAccessibleName('Скрыть строки, стёртые совсем');
+    expect(switches[0]).toHaveFocus();
+    expect(switches.every((item) => item.querySelector('.mm-switch[aria-hidden="true"]'))).toBe(true);
+    fireEvent.click(switches[0]);
+    expect(props.onMode).toHaveBeenCalledWith({ ...MODE, cover: true, onlyLeft: true });
+    // A switch is turned in place: the menu stays open on it, its new state under the eye.
+    expect(screen.getByRole('menu', { name: SHEET_OPTIONS_LABEL })).toBe(menu);
+    fireEvent.click(switches[1]);
+    expect(props.onMode).toHaveBeenLastCalledWith({ ...MODE, cover: false });
+    // The links by their whole names; one closes the menu and gives the keyboard back to the «⋯».
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Показать последний ответ', 'История шпаргалки']);
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Показать последний ответ' }));
     expect(props.onReplay).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'История шпаргалки' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(options).toHaveFocus();
+    fireEvent.click(options);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'История шпаргалки' }));
     expect(props.onHistory).toHaveBeenCalledTimes(1);
-    cleanup();
-    summary({ variant: 'phone-tools', mode: { ...MODE, cover: true } });
-    expect(plain(document.querySelector('.cs-cover-note')?.textContent)).toBe('Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.');
+    // Escape closes it and gives the keyboard back.
+    fireEvent.click(options);
+    fireEvent.keyDown(screen.getAllByRole('menuitemcheckbox')[0], { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(options).toHaveFocus();
+    // The self-test is on: what a tap on a hidden line does, at the top of the card.
+    expect(plain(document.querySelector('.cs-cover-note')?.textContent)).toBe(COVER_NOTE);
   });
 
-  it('nothing erased: only «Спрятать строки»; while the history plays, the count rolls and the tools step aside', () => {
-    summary({ variant: 'phone-tools', counts: { ...COUNTS, erased: 0 } });
-    expect(screen.getAllByRole('switch').map((item) => item.querySelector('.cs-toggle-t')?.textContent)).toEqual(['Спрятать строки']);
+  it('nothing erased: only «Спрятать строки», with what it is for; while the history plays, the count rolls and the «⋯» steps aside', () => {
+    summary({ variant: 'phone', counts: { ...COUNTS, erased: 0 } });
+    fireEvent.click(screen.getByRole('button', { name: SHEET_OPTIONS_LABEL }));
+    const switches = screen.getAllByRole('menuitemcheckbox');
+    expect(switches).toHaveLength(1);
+    expect(switches[0]).toHaveAccessibleName('Спрятать строки');
+    expect(switches[0]).toHaveAccessibleDescription(/^и\sпроверить,\sчто\sпомните\sих$/);
+    expect(switches[0]).toHaveAttribute('aria-checked', 'false');
+    expect(document.querySelector('.cs-cover-note')).toBeNull();
     cleanup();
     const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
     summary({ variant: 'phone', history: { frame: first, first, lowest: first.left, running: true } });
     expect(document.querySelector('.cs-big')?.textContent).toBe('180');
+    // Its day and «Остановить» ride over the bottom bar meanwhile (the page's chip).
     expect(screen.queryByRole('button', { name: 'Как стираются строки' })).toBeNull();
+    expect(screen.queryByRole('button', { name: SHEET_OPTIONS_LABEL })).toBeNull();
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 180');
     cleanup();
-    // Its day and «Остановить» ride over the bottom bar meanwhile (the page's chip).
-    summary({ variant: 'phone-tools', history: { frame: first, first, lowest: first.left, running: true } });
-    expect(document.querySelector('.cs-sum')).toBeNull();
-    cleanup();
     const last: HistoryFrame = { day: '2026-10-06', at: 0, left: 61, total: 180 };
-    summary({ variant: 'phone', history: { frame: last, first, lowest: 61, running: false } });
+    const props = summary({ variant: 'phone', history: { frame: last, first, lowest: 61, running: false }, onReplay: null, onHistory: null });
     expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('180 → 61 строка за 5 недель');
-    cleanup();
-    const props = summary({ variant: 'phone-tools', history: { frame: last, first, lowest: 61, running: false } });
-    fireEvent.click(screen.getByRole('button', { name: 'Закрыть историю шпаргалки' }));
+    fireEvent.click(screen.getByRole('button', { name: SHEET_OPTIONS_LABEL }));
+    expect(screen.queryByRole('menuitem', { name: 'История шпаргалки' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Закрыть историю шпаргалки' }));
     expect(props.onHistoryStop).toHaveBeenCalledTimes(1);
   });
 });
