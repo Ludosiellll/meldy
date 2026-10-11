@@ -5,7 +5,7 @@ import { counter } from '../../lib/containers/session';
 import { recordSelfRating, recordSheetPeek, type SelfRating } from '../../api/learning';
 import { track } from '../../lib/telemetry';
 import { RoomBar } from './RoomParts';
-import SessionEnd, { type OralTally } from './SessionEnd';
+import SessionEnd, { useReplan, type OralTally } from './SessionEnd';
 import * as copy from './copy';
 import { subjectTitle, type Figure } from './model';
 import { clearSession, firstSessionDone, markFirstSessionDone, markSelfCheckNoteSeen, selfCheckNoteSeen } from './sessionStore';
@@ -17,7 +17,8 @@ import './room.css';
  * «Вспомните ответ — вслух или про себя.» → «Показать пункты» (the cheat sheet's lines of the question, read with the
  * existing api/cheatSheet.ts; opening them is a peek of each line, as on the sheet) → «Знаю · Плаваю · Не знаю», the
  * existing `self_rating`. A self-check never counts; no «Ответить с проверкой Meldy» here — the AI check is a session
- * of its own (one ticket, decision 29в).
+ * of its own (one ticket, decision 29в). Each rating is saved before the next question, so the plan is read again
+ * (SessionEnd useReplan) as soon as the session ends, once the peeks of its points have left too.
  */
 interface Props {
   containerId: string;
@@ -57,6 +58,9 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
   const firstEver = useRef(!firstSessionDone());
   const showNote = useRef(!selfCheckNoteSeen());
   const headRef = useRef<HTMLHeadingElement | null>(null);
+  /** The peeks of the points on their way: the plan is read again once they have left. */
+  const peeks = useRef<Promise<unknown>[]>([]);
+  const replan = useReplan(input, onEnded);
   const ids = useMemo(() => setup.queue.map((entry) => entry.id), [setup.queue]);
   const subject = subjectTitle(summary, setup.subjectId);
 
@@ -91,7 +95,7 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
     if (userId) clearSession(userId, containerId);
     markFirstSessionDone();
     track('container.session_finished', { answered: tally.questions, retries: 0, minutes: Math.max(1, Math.round((at - setup.startedAt) / 60_000)) });
-    onEnded();
+    replan.ask(peeks.current);
   };
 
   // A question that left the oral list (the author edited it): step over it.
@@ -115,6 +119,7 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
         base={base}
         plan={plan}
         input={input}
+        fresh={replan.fresh}
         answered={rated}
         tz={tz}
         today={today}
@@ -175,7 +180,7 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
     setShown(true);
     if (!question.rubric || !question.question_hash || !examId) return;
     for (const point of points) {
-      void recordSheetPeek({ questionHash: question.question_hash, rubricId: question.rubric.rubric_id, pointId: point.id, title: point.title, examId }).catch(() => undefined);
+      peeks.current.push(recordSheetPeek({ questionHash: question.question_hash, rubricId: question.rubric.rubric_id, pointId: point.id, title: point.title, examId }).catch(() => undefined));
     }
   };
 

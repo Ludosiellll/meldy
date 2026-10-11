@@ -1,6 +1,7 @@
 import type { ContainerSummary, DayPlan, LocalDay, PlanCls, PlanInput } from '../../types/container';
+import { SESSION_SIZE } from '../../lib/containers/plan';
 import { buildSession, freeSession, shuffled, type QueueEntry } from '../../lib/containers/session';
-import { answeredToday, clsOf, firstSession, moreNew, subjectKind, type StudyRecord } from './model';
+import { answeredToday, clsOf, firstSession, moreNew, subjectKind, type DaySession, type StudyRecord } from './model';
 import { newId, resumable, type SavedSession } from './sessionStore';
 
 /**
@@ -61,9 +62,7 @@ export function setupSession(p: {
   }
 
   const subjectId = params.get('s') || firstSession(plan)?.subjectId || summary.subjects[0]?.id || '';
-  // An oral subject has only self-checks here (its AI checks are a ticket of the oral exam).
-  const oralOnly = summary.subjects.some((subject) => subject.id === subjectId && subjectKind(subject) === 'oral');
-  const kind = params.get('kind') === 'self_check' || oralOnly ? 'self_check' : 'answer';
+  const kind = kindOf(summary, subjectId, params.get('kind'));
   const topicRaw = Number(params.get('topic'));
   const topic = Number.isInteger(topicRaw) && topicRaw > 0 ? topicRaw : null;
   const onlyRaw = params.get('only');
@@ -104,4 +103,28 @@ export function setupSession(p: {
     );
   }
   return { id, subjectId, kind, topic, only, queue, pos: 0, records: [], startedAt: now, resumed: false, cls };
+}
+
+/** A «занятие» of a subject: an oral subject has only self-checks here (its AI checks are a ticket of the oral exam). */
+function kindOf(summary: ContainerSummary, subjectId: string, asked: string | null): 'answer' | 'self_check' {
+  const oralOnly = summary.subjects.some((subject) => subject.id === subjectId && subjectKind(subject) === 'oral');
+  return asked === 'self_check' || oralOnly ? 'self_check' : 'answer';
+}
+
+/**
+ * How many questions the link of a plan session opens (model.ts sessionHref), so a pill names exactly that (usability
+ * check 2026-10-11, D3: «Ещё 13 вопросов» opened 18): a «занятие» takes setupSession's queue — the subject's next
+ * questions of its kind across the plan's sessions, up to a session's size, past what was answered today and past
+ * `answered` (a session the plan does not count yet); an AI check, the ticket's questions.
+ */
+export function sessionOpens(p: { plan: DayPlan; input: PlanInput | null; summary: ContainerSummary; session: DaySession; answered?: Iterable<string> }): number {
+  const { plan, input, summary, session } = p;
+  if (session.kind === 'ai_check') return Math.min(SESSION_SIZE.ai_check, session.ids.length);
+  const kind = kindOf(summary, session.subjectId, session.kind);
+  const done = [...answeredToday(input, plan.day), ...(p.answered ?? [])];
+  try {
+    return buildSession(plan, session.subjectId, kind, done, 'opens').length;
+  } catch {
+    return session.ids.length;
+  }
 }

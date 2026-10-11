@@ -1,0 +1,65 @@
+import { describe, expect, it } from 'vitest';
+import type { DayPlan, PlanInput } from '../../types/container';
+import { sessionOpens, setupSession } from './studySetup';
+import { sessionHref } from './model';
+import { CONTAINER, ORAL_EXAM, SUBJECT_CS, SUBJECT_DB, SUBJECT_ORAL, TODAY, dayPlan, planInput, subject, summary, unit } from './testkit/fixtures';
+
+/**
+ * The end screen's pill names what its link opens (usability check 2026-10-11, D3: «Ещё 13 вопросов» opened 18):
+ * sessionOpens against setupSession's own queue for the link.
+ */
+const ids = (prefix: string, from: number, count: number) => Array.from({ length: count }, (_, i) => `${prefix}-${from + i}`);
+const exam = summary({
+  subjects: [...summary().subjects, subject({ id: SUBJECT_ORAL, title: 'Гражданское право', keyed: 0, topics: [], oral: { exam_id: ORAL_EXAM, questions: 12 } })],
+});
+
+/** The questions a session at `href` takes on this plan and input (StudyPage: setupSession). */
+function queued(href: string, plan: DayPlan, input: PlanInput): number {
+  const params = new URLSearchParams(href.split('?')[1] ?? '');
+  return setupSession({ params, saved: null, plan, input, summary: exam, today: plan.day, now: 0 }).queue.length;
+}
+
+describe('sessionOpens: the questions a plan session’s link opens', () => {
+  // «Программирование на C#» today: 25 questions in two sessions of the plan (20 and 5), «Базы данных» 25 too.
+  const plan = dayPlan({
+    sessions: [
+      { subjectId: SUBJECT_CS, kind: 'answer', ids: ids('cs', 0, 20), estSec: 600 },
+      { subjectId: SUBJECT_DB, kind: 'answer', ids: ids('db', 0, 20), estSec: 600 },
+      { subjectId: SUBJECT_CS, kind: 'answer', ids: ids('cs', 20, 5), estSec: 150 },
+      { subjectId: SUBJECT_DB, kind: 'answer', ids: ids('db', 20, 5), estSec: 150 },
+      { subjectId: SUBJECT_ORAL, kind: 'self_check', ids: ids('o', 0, 12), estSec: 720 },
+      { subjectId: SUBJECT_ORAL, kind: 'ai_check', ids: ids('a', 0, 5), estSec: 750 },
+    ],
+  });
+  const answered = ids('cs', 0, 7);
+
+  it('the same subject: the rest of its first session and its next ones, up to 20 — 18, not the 13 left of the first', () => {
+    const rest = { ...plan.sessions[0], ids: plan.sessions[0].ids.filter((id) => !answered.includes(id)) };
+    expect(rest.ids).toHaveLength(13);
+    // The plan as the session ended, the session's answers named.
+    const before = planInput();
+    expect(sessionOpens({ plan, input: before, summary: exam, session: rest, answered })).toBe(18);
+    // The plan read after it: the answers are answered today in its input.
+    const after = planInput({ items: answered.map((id, k) => ({ id, s: SUBJECT_CS, f: 't' as const, tp: 1, o: k + 1, u: unit({ seen: 1, firstDay: TODAY, lastDay: TODAY }) })) });
+    expect(sessionOpens({ plan, input: after, summary: exam, session: rest })).toBe(18);
+    expect(queued(sessionHref(CONTAINER, exam, rest) as string, plan, after)).toBe(18);
+  });
+
+  it('another subject, the oral self-checks (10 a session) and the AI check (a ticket of 3): each what its link takes', () => {
+    const input = planInput();
+    const db = plan.sessions[1];
+    expect(sessionOpens({ plan, input, summary: exam, session: db })).toBe(20);
+    expect(queued(sessionHref(CONTAINER, exam, db) as string, plan, input)).toBe(20);
+    const self = plan.sessions[4];
+    expect(sessionOpens({ plan, input, summary: exam, session: self })).toBe(10);
+    expect(queued(sessionHref(CONTAINER, exam, self) as string, plan, input)).toBe(10);
+    const aloud = plan.sessions[5];
+    expect(sessionOpens({ plan, input, summary: exam, session: aloud })).toBe(3);
+    expect(new URL(sessionHref(CONTAINER, exam, aloud) as string, 'https://x').searchParams.get('q')?.split(',')).toHaveLength(3);
+  });
+
+  it('fewer than a session left: all of them', () => {
+    const small = dayPlan({ sessions: [{ subjectId: SUBJECT_CS, kind: 'answer', ids: ids('cs', 0, 4), estSec: 120 }] });
+    expect(sessionOpens({ plan: small, input: planInput(), summary: exam, session: small.sessions[0], answered: ['cs-0'] })).toBe(3);
+  });
+});
