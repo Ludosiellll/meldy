@@ -510,7 +510,11 @@ async def _analysis_events(
     yield {"type": "text_extracted", "length": len(text), "text": text, **(extracted or {})}
     coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
     terminal = None
-    async for event in coordinator.process(text, enabled_agents=_parse_enabled_agents(enabled_agents), **settings):
+    # The text of a recording is speech recognition: the prompts say so (agents/base.py RECORDING_RULE).
+    recording = bool((extracted or {}).get("transcribed"))
+    async for event in coordinator.process(
+        text, enabled_agents=_parse_enabled_agents(enabled_agents), recording=recording, **settings
+    ):
         if terminal is not None:
             continue  # nothing may follow the terminal event
         if event.get("type") == "results":
@@ -540,11 +544,19 @@ async def _guarded(
     were already given out (agent_done ok): then their share stays charged, as the page saves them
     (a cut connection was a way to get sections for free, 2026-10-05). The core sections count
     when any was asked for, like the coordinator's own «usable run» rule.
+
+    Nothing paid, nothing charged: results whose every answer came from the server's cache, with no
+    real model or transcription call in the run (agents.base.CallCount), give the units back too —
+    before the results go out, so the limit the page reads right after them is already right (live
+    recheck 2026-10-11: a repeated analysis came back in 4.2 s and took 20 units). A scan's
+    recognition was really made: its units stay (ChargeGroup.refund_unpaid_soon).
     """
     results_sent = False
     terminal_sent = False
     asked: list[str] = []
     given: set[str] = set()
+    # The sections' tasks start inside this iteration, so they add their real calls to this count.
+    calls = ai_base.count_calls()
     try:
         async for event in events:
             if terminal_sent:
@@ -552,8 +564,13 @@ async def _guarded(
             kind = event.get("type")
             if kind == "results":
                 results_sent = True
-                if charge is not None:
+                if charge is not None and calls.real:
                     charge.keep()
+                elif charge is not None:
+                    if charge.units:
+                        print(f"{label}: every answer came from the cache, the units go back")
+                    charge.refund_unpaid_soon()
+                    await charge.wait_refund()
             elif kind in ("error", "done"):
                 terminal_sent = True
             elif kind == "agent_start" and isinstance(event.get("agent"), str):
@@ -771,6 +788,8 @@ async def event_stream_media(
             finally:
                 if tmp_path and os.path.exists(tmp_path):
                     os.remove(tmp_path)
+        # The transcription or the recognition is never cached: a real call, part of the lecture's price.
+        ai_base.note_real_call()
 
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_IN_MEDIA_MESSAGE}
@@ -1266,14 +1285,17 @@ def validate_mistakes_practice(raw, allowed_mistake_ids: set) -> Optional[list]:
 from agents.base import build_quick_prep_prompt, build_mistakes_practice_prompt
 
 
-async def _checked_answer(ask, usable) -> tuple[Any, Any]:
+async def _checked_answer(ask, usable, source: str = "") -> tuple[Any, Any]:
     """(usable(answer) or None, raw answer) for a lecture material outside the analysis stream.
 
     ``ask()`` returns (parsed, raw); ``usable(parsed)`` gives the material or None. The material then
     goes through mixed_script.check, as in the analysis (coordinator.py): Latin look-alikes in Russian
-    words are replaced; a word with a real Latin chunk inside asks the model once more, and a second
-    such answer loses the sentences with it (``usable`` runs again on what is left).
+    words are replaced and remarks in brackets about the source go; a word with a real Latin chunk
+    inside, letters of a script ``source`` (the lecture) does not use or a remark inside a sentence ask
+    the model once more, and a second such answer loses the sentences with them (``usable`` runs again
+    on what is left). An answer from the BaseAgent cache is checked the same way.
     """
+    scripts = mixed_script.scripts_of(source)
     payload: Any = None
     raw: Any = None
     for attempt in range(2):
@@ -1281,13 +1303,13 @@ async def _checked_answer(ask, usable) -> tuple[Any, Any]:
         payload = usable(parsed)
         if payload is None:
             return None, raw
-        payload, broken = mixed_script.check(payload)
+        payload, broken = mixed_script.check(payload, scripts)
         if not broken:
             return payload, raw
         if attempt == 0:
             _forget_cached_response(raw)
-            print(f"{len(broken)} mixed-script word(s) in a model answer, asking again")
-    return usable(mixed_script.drop_broken(payload)), raw
+            print(f"{len(broken)} broken word(s) in a model answer, asking again")
+    return usable(mixed_script.drop_broken(payload, scripts)), raw
 
 
 class QuickPrepRequest(BaseModel):
@@ -1329,7 +1351,7 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
 
     charge = await quota.charge(request, "cheatsheet", AI_COSTS["cheatsheet"])
     async with quota.refund_on_failure(charge):
-        parsed, raw = await _checked_answer(ask, usable)
+        parsed, raw = await _checked_answer(ask, usable, context)
         if parsed is None:
             _forget_cached_response(raw)
             raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
@@ -1760,6 +1782,7 @@ async def podcast_generate(request: Request, req: PodcastGenerateRequest):
         lines, raw = await _checked_answer(
             lambda: _run_podcast_model(system_prompt, user_text),
             lambda parsed: sanitize_podcast_lines(_first_list(parsed, "podcast"), source_text=context) or None,
+            context,
         )
         if not lines:
             _forget_cached_response(raw)
@@ -1808,7 +1831,10 @@ async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
 
     charge = await quota.charge(request, "visuals", AI_COSTS["visuals"])
     async with quota.refund_on_failure(charge):
-        visuals, raw = await _checked_answer(lambda: _run_podcast_model(build_podcast_visuals_prompt(), user_text), usable)
+        # The pictures draw on the lines and the material: what the model was given.
+        visuals, raw = await _checked_answer(
+            lambda: _run_podcast_model(build_podcast_visuals_prompt(), user_text), usable, user_text
+        )
         if not visuals:
             _forget_cached_response(raw)
             raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)

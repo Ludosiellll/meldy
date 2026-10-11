@@ -368,6 +368,7 @@ export default function ConversationPlayer({
   playbackRef.current = playback;
   const listRef = useRef<HTMLOListElement | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
+  const playerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<HTMLElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const lineRef = useRef<HTMLParagraphElement | null>(null);
@@ -564,6 +565,25 @@ export default function ConversationPlayer({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [revealOnMount, total]);
+
+  // На телефоне строка под плеером (что с голосом, «Повторить») — его нижняя строка, а к низу экрана над нижним меню
+  // плеер прилипает, только когда страница до него прокручена. Вверху страницы он стоит в начале своей панели и
+  // растёт вниз: строка уходила под нижнее меню (QA 2026-10-11, 390×844: строка на 770–860, меню с 782). Когда она
+  // появляется, страница поднимается ровно на то, что скрыто, — если сам плеер на экране; страницу, которую читают
+  // в другом месте, не трогаем. На компьютере строку ничто не закрывает.
+  const playerNote = audioProblem ?? waitNote;
+  useEffect(() => {
+    if (!playerNote || !phone || typeof window === 'undefined' || typeof window.scrollBy !== 'function') return;
+    const player = playerRef.current;
+    if (!player) return;
+    const box = player.getBoundingClientRect();
+    // Где плеер прилипает: над нижним меню (bottom липкого плеера) или у края экрана.
+    const stick = typeof window.getComputedStyle === 'function' ? parseFloat(window.getComputedStyle(player).bottom) : 0;
+    const edge = window.innerHeight - (Number.isFinite(stick) ? stick : 0);
+    const hidden = Math.ceil(box.bottom - edge);
+    if (hidden <= 0 || box.top >= edge) return;
+    window.scrollBy({ top: hidden, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, [playerNote, phone, reduceMotion]);
 
   const voiceAt = (index: number): HostVoice => {
     const line = linesRef.current[index];
@@ -1055,7 +1075,7 @@ export default function ConversationPlayer({
 
       {phone ? null : voice}
 
-      <div className="cv-player" role="group" aria-label="Плеер">
+      <div ref={playerRef} className="cv-player" role="group" aria-label="Плеер">
         <div className="cv-transport">
           <button
             type="button"

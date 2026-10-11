@@ -7,7 +7,9 @@
 AILimitExceeded: 429 {"detail", "code": "ai_limit", "used", "limit", "resets_at", "pro"}.
 Модель не дала годного ответа (ошибка, таймаут, ничего не сохранено) — Charge.refund():
 refund_ai_units возвращает единицы этого списания по его номеру. Номер видит только
-сервер, поэтому клиент не может «вернуть» себе единицы сам.
+сервер, поэтому клиент не может «вернуть» себе единицы сам. Анализ, все ответы которого
+пришли из кэша сервера (ни одного настоящего вызова), тоже ничего не стоит:
+Charge.refund_unpaid_soon() (main._guarded).
 
 Сбой самой проверки (Supabase недоступен, 5xx, таймаут ~3 с, функции ещё нет в базе)
 учёбу не останавливает: действие разрешается, в журнал сервера уходит одна строка на
@@ -416,6 +418,11 @@ class Charge:
         self.returned = self.units
         self._settle_log()
 
+    def refund_unpaid_soon(self) -> None:
+        """Результат отдан, но ни одного настоящего вызова за него не было (все ответы из кэша сервера): ничего
+        не оплачено — ничего не списано, единицы возвращаются в фоне, как refund_soon()."""
+        self.refund_soon()
+
     def keep_share(self, given: int, total: int) -> None:
         """Отдана часть результата (given из total частей): её доля единиц (с округлением вверх)
         остаётся списанной, остальное возвращается в фоне. Потом refund() и release_unkept() ничего
@@ -555,6 +562,16 @@ class ChargeGroup:
         for index, item in enumerate(self.charges):
             if index == 0:
                 item.keep_share(given, total)
+            else:
+                item.keep()
+
+    def refund_unpaid_soon(self) -> None:
+        """Анализ отдан, а его ответы все из кэша сервера: своё списание потока (первое) возвращается в фоне,
+        добавленные (распознавание скана — настоящий вызов, оно сделано) остаются целиком."""
+        self.kept = True
+        for index, item in enumerate(self.charges):
+            if index == 0:
+                item.refund_unpaid_soon()
             else:
                 item.keep()
 

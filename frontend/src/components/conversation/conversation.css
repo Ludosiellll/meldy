@@ -583,7 +583,9 @@ html[data-stage] .cv-meta { display: none; }
   .cv-player { gap: 8px 16px; }
 }
 /* Phone: the segments on their own row; the controls stay at the bottom of the screen while the
-   subtitle scrolls (above the bottom menu where a page has one), on a solid rose bar. */
+   subtitle scrolls (above the bottom menu where a page has one, as tall as that menu: its 62 px, not the 56 px
+   of an older bar, which left the player's last row under it), on a solid rose bar. A status line that appears
+   while the player still stands at the top of its panel brings the player into view (ConversationPlayer). */
 @media (max-width: 639px) {
   .cv-show { padding: 14px 12px 12px; border-radius: 34px; }
   .cv-player {
@@ -598,7 +600,7 @@ html[data-stage] .cv-meta { display: none; }
     border-radius: 26px;
     background: var(--cv-bar-solid, var(--sf-canvas));
   }
-  .sf-shell[data-tabs] .cv-player { bottom: calc(56px + env(safe-area-inset-bottom)); }
+  .sf-shell[data-tabs] .cv-player { bottom: calc(var(--sf-tabs-h, 62px) + env(safe-area-inset-bottom)); }
   .cv-transport { gap: 6px; }
   .cv-play { width: 56px; height: 56px; margin: 0 2px; }
   .cv-pos { justify-self: start; align-self: center; }

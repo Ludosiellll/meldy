@@ -1172,6 +1172,99 @@ describe('ConversationPlayer on a phone: the line over the sheet (QA 2026-10-11,
   });
 });
 
+describe('ConversationPlayer on a phone: its status line in sight above the bottom bar (recheck of 44.1, 390×844)', () => {
+  const PHONE_QUERY = '(max-width: 639px)';
+  const originalRect = Element.prototype.getBoundingClientRect;
+  const originalHeight = window.innerHeight;
+  let scrolls: ScrollToOptions[];
+
+  /**
+   * The page at its top, as the recheck found it: the player stands at the top of its panel (630) and grows down; with
+   * a status line it is 236 px tall and ends at 866, under the bar that starts at 782 (844 − 62).
+   */
+  function layOut(top: number) {
+    Element.prototype.getBoundingClientRect = function rect(this: Element) {
+      const box = (y: number, h: number) => ({ top: y, bottom: y + h, left: 24, right: 366, width: 342, height: h, x: 24, y, toJSON: () => ({}) }) as DOMRect;
+      if (this.classList.contains('cv-player')) return box(top, this.querySelector('.cv-status') ? 236 : 142);
+      return box(0, 0);
+    };
+  }
+
+  function asPhone() {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query === PHONE_QUERY, media: query, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {} }),
+    });
+  }
+
+  /** ▶, then the voice server fails for good: «Звук не загрузился. Попробуйте ещё раз.» with «Повторить». */
+  function failTheVoice() {
+    const player = screen.getByRole('group', { name: 'Плеер' });
+    // Where the sticky player stops on a phone: above the 62 px bar (conversation.css).
+    player.style.bottom = '62px';
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    act(() => lastPlay()[3]({ code: 'unavailable', reason: 'server' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
+  }
+
+  beforeEach(() => {
+    scrolls = [];
+    vi.clearAllMocks();
+    tts.getTTSPlaybackRate.mockReturnValue(1);
+    tts.prefetchTTSInOrder.mockResolvedValue(undefined);
+    tts.playTTS.mockResolvedValue(undefined);
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    vi.spyOn(window, 'scrollBy').mockImplementation(((options: ScrollToOptions) => {
+      scrolls.push(options);
+    }) as typeof window.scrollBy);
+  });
+  afterEach(() => {
+    cleanup();
+    Element.prototype.getBoundingClientRect = originalRect;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight });
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('moves the page up by what the bar hides when the line appears, so the status and «Повторить» are in sight', () => {
+    asPhone();
+    layOut(630);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    failTheVoice();
+    // 866 − 782: the sticky player then settles right above the bar.
+    expect(scrolls).toEqual([{ top: 84, behavior: 'smooth' }]);
+  });
+
+  it('does the same for the line of a retry', () => {
+    asPhone();
+    layOut(630);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    screen.getByRole('group', { name: 'Плеер' }).style.bottom = '62px';
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    act(() => lastPlay()[5].onRetry?.('server'));
+    expect(screen.getByRole('status')).toHaveTextContent('Сервер озвучки ответил с ошибкой, пробуем ещё раз.');
+    expect(scrolls).toEqual([{ top: 84, behavior: 'smooth' }]);
+  });
+
+  it('leaves the page alone when nothing is hidden, when the player is out of sight, and on a computer', () => {
+    asPhone();
+    // Stuck above the bar already (the page was scrolled to it): the line grows the player upwards.
+    layOut(546);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    failTheVoice();
+    cleanup();
+    // The page was scrolled up away from the player: it stays where the student reads.
+    layOut(800);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    failTheVoice();
+    cleanup();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    layOut(630);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    failTheVoice();
+    expect(scrolls).toEqual([]);
+  });
+});
+
 describe('ConversationPlayer brought into view (revealOnMount; QA 2026-10-11: ▶ below the first screen of a laptop)', () => {
   const originalRect = Element.prototype.getBoundingClientRect;
   const originalHeight = window.innerHeight;

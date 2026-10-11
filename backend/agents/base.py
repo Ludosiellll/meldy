@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import contextlib
+import contextvars
 import email.utils
 import hashlib
 import json
@@ -92,6 +93,17 @@ SOURCE_FACTS_RULE = (
     "Формулы, даты, числа и имена бери только из текста лекции и переписывай их точно. Не придумывай их и не "
     "выводи новые, не пиши оговорок вроде «условно», «для наглядности» или «для симулятора». Формулу из лекции "
     "записывай в LaTeX (через $...$ или $$...$$) и поясняй обозначения. Если в лекции нет формул, их нет и здесь."
+)
+
+# The text of a recording is speech recognition: it misspells names and terms («Вт метр» for «вольтметр», «закон
+# ОМО»), and the конспект of the live recheck of release 44.1 told the reader so: «вольтметр (в тексте упомянут как
+# Вт метр)» (2026-10-11). Every section prompt of a recorded lecture says what its text is (coordinator.build_prompts);
+# mixed_script.check strips such a remark when it comes all the same.
+RECORDING_RULE = (
+    "\n\nТЕКСТ ИЗ ЗАПИСИ:\nТекст лекции получен распознаванием речи из записи, поэтому в нём могут быть ошибки в "
+    "именах, терминах и отдельных словах. Если уверен, какое слово имелось в виду, пиши его правильно — это и значит "
+    "передавать имена и термины точно. Никогда не упоминай текст, запись или её распознавание и не пиши пояснений "
+    "вроде «в тексте упомянут как…»: пиши так, будто сам слушал лекцию."
 )
 
 
@@ -215,6 +227,9 @@ def build_quiz_prompt(count: int = 5, difficulty: str = "mixed", qtype: str = "m
 Пиши на языке исходного текста."""
 
 
+# «Как запомнить» used to be a required section of 2-3 tips, and a model with nothing to offer made one up: «Амперметр —
+# Последовательно (обе буквы согласные/сложные), Вольтметр — Параллельно» (live recheck of release 44.1, 2026-10-11).
+# The section is written only when a tip really helps, like «Формулы» only when the lecture has formulas.
 def build_cheatsheet_prompt() -> str:
     return """Ты — мастер визуального конспектирования и создания выжимок.
 Твоя задача — проанализировать предоставленный текст лекции и превратить его в ультра-короткую, сверх-эффективную выжимку на 1 страницу для быстрого повторения за 5 минут до экзамена.
@@ -223,7 +238,7 @@ def build_cheatsheet_prompt() -> str:
 1. Выдели ТОЛЬКО самое главное из лекции: фундаментальные термины и определения, законы и правила, а также формулы, даты и числа, если они есть в тексте лекции. Никакой "воды", рассуждений или длинных абзацев.
 2. """ + SOURCE_FACTS_RULE + """
 3. Раздел «Формулы» пиши, только если в тексте лекции есть формулы; если их нет, этого раздела в выжимке нет совсем.
-4. Приёмы запоминания (ассоциации, опорные слова, сравнения) — только для того, что есть в лекции, без новых фактов.
+4. Раздел «Как запомнить» — только если есть приём, который правда помогает запомнить: ассоциация, опорное слово или сравнение для того, что есть в лекции, без новых фактов. Мнемонику добавляй, только если она правда помогает запомнить; созвучие или буквы, которые ничего не объясняют, не пиши. Нет такого приёма — нет и этого раздела.
 5. Блок «Где легко ошибиться»: 2-3 места из лекции, которые легко перепутать или забыть.
 6. Оформляй строго в Markdown с использованием жирного шрифта и коротких списков.
 
@@ -239,7 +254,7 @@ def build_cheatsheet_prompt() -> str:
 (Только если в лекции есть формулы: каждая в LaTeX с расшифровкой обозначений. Нет формул в лекции — нет этого раздела.)
 
 ## Как запомнить
-(2-3 совета, как легко запомнить сложные части темы)
+(Только если есть приём, который правда помогает запомнить трудное место лекции: 1-2 приёма. Нет такого приёма — нет этого раздела.)
 
 ## Где легко ошибиться
 (2-3 места из лекции, которые легко перепутать или забыть)
@@ -1289,7 +1304,37 @@ def add_call_observer(observer) -> None:
         _CALL_OBSERVERS.append(observer)
 
 
+# --- real answers of one piece of work: an analysis made of cached answers only costs nothing -------------------
+class CallCount:
+    """The real (not cached) answers the work of a task got: every answer of BaseAgent that a provider gave, and a
+    transcription or a recognition the work notes itself (note_real_call). The analysis stream (main._guarded) gives
+    its units back when there were none: a repeated analysis came back from the cache in 4.2 s and took 20 units
+    (live recheck of release 44.1, 2026-10-11)."""
+
+    def __init__(self) -> None:
+        self.real = 0
+
+
+_CALL_COUNT: contextvars.ContextVar[Optional[CallCount]] = contextvars.ContextVar("meldy_call_count", default=None)
+
+
+def count_calls() -> CallCount:
+    """A new count for the current task; the tasks it starts after this (the sections of an analysis) add to it too."""
+    count = CallCount()
+    _CALL_COUNT.set(count)
+    return count
+
+
+def note_real_call() -> None:
+    """A real answer outside BaseAgent — a recording transcribed, a photo recognised — for the current count."""
+    count = _CALL_COUNT.get()
+    if count is not None:
+        count.real += 1
+
+
 def _record_call(provider: Optional[str], model: Optional[str], ok: bool, ms: int) -> None:
+    if ok:
+        note_real_call()
     if ok and provider and model:
         at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         _LAST_ANSWER.update(provider=provider, model=model, at=at)
@@ -1394,7 +1439,10 @@ async def probe_groq_call(
 class BaseAgent:
     # A bounded process-local cache prevents repeated demo requests from
     # burning provider quota without allowing an unbounded memory leak.
-    # Values are the raw model text (BaseAgent.forget evicts by value).
+    # Values are the raw model text (BaseAgent.forget evicts by value): a cached
+    # answer goes through the caller's checks again (validate_section and
+    # mixed_script.check in coordinator.py, main._checked_answer), and one they
+    # refuse is evicted and asked again. A cache hit is no real call (CallCount).
     _run_cache = OrderedDict()
     _cache_info: dict = {}
     _max_cache_entries = max(16, int(os.getenv("AI_CACHE_ENTRIES", "128")))
