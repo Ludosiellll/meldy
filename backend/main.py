@@ -37,7 +37,8 @@ from ratelimit import limiter, rate_limit_exceeded_handler, user_or_ip_key
 from sse import SSE_HEADERS, sse_event, with_keepalive
 from uploads import AI_UNAVAILABLE_DETAIL, ai_configured, max_upload_bytes, read_upload_with_limit
 
-from parser import PPT_LEGACY_DETAIL, PPTX_NO_TEXT_DETAIL, extract_text
+from parser import PPTX_NO_TEXT_DETAIL, extract_text, unsupported_format_detail
+import mixed_script
 import ocr
 from ocr import OcrError
 from agents import base as ai_base
@@ -48,7 +49,7 @@ import receipts
 import supabase_rest
 from supabase_proxy import router as supabase_proxy_router
 from plans import AI_COSTS
-from utils import scrape_url
+from utils import is_video_link, scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from bank_api import router as bank_router
@@ -382,10 +383,30 @@ app.include_router(health_deep_router)
 # terminal: results + done, or error (never followed by results or done).
 
 ANALYSIS_INTERNAL_MESSAGE = "Не удалось завершить анализ. Код ошибки: {error_id}"
-NO_TEXT_IN_FILE_MESSAGE = "В файле не найден текст. Для сканированного PDF используйте PDF с OCR или DOCX/TXT."
+# A scanned PDF and a photo are recognised here (ocr.py): a file without text is told to come as one.
+NO_TEXT_IN_FILE_MESSAGE = "В файле нет текста. Если это скан или фото, загрузите его как PDF или фото — Meldy распознает текст сам."
 UNREADABLE_FILE_MESSAGE = "Не удалось прочитать файл. Сохраните его как PDF с текстом, DOCX или TXT и попробуйте снова."
 NO_TEXT_IN_MEDIA_MESSAGE = "Не удалось получить текст из медиа."
 NO_TEXT_AT_URL_MESSAGE = "Не удалось получить текст из веб-страницы. Проверьте ссылку или вставьте текст."
+# «Ссылка» reads the text of a page; a video page has none (utils.is_video_link). Refused before the charge.
+VIDEO_LINK_DETAIL = (
+    "Ссылку на видео Meldy пока не открывает. Если запись лекции есть у вас файлом, "
+    "загрузите её во вкладке «Аудио и видео» (до 15 МБ)."
+)
+# Less text than this (letters and digits) makes no notes, cards or quiz: the stream ends with no_text
+# and the lecture's units go back. The same 200 below which a PDF counts as having no text layer
+# (ocr.OCR_MIN_TOTAL_CHARS); the «Текст» tab asks for 300 characters before it sends anything.
+LECTURE_MIN_CHARS = ocr.OCR_MIN_TOTAL_CHARS
+TOO_LITTLE_TEXT_MESSAGES = {
+    "file": f"В файле слишком мало текста: нужно хотя бы {LECTURE_MIN_CHARS} знаков, чтобы получились конспект, "
+            "карточки и тест. Загрузите лекцию целиком. Лимит не списан.",
+    "url": f"На странице слишком мало текста: нужно хотя бы {LECTURE_MIN_CHARS} знаков. Дайте ссылку на страницу "
+           "с самим текстом лекции или статьи. Лимит не списан.",
+    "recording": f"В записи слишком мало речи: из неё получилось меньше {LECTURE_MIN_CHARS} знаков текста. "
+                 "Загрузите запись лекции целиком. Лимит не списан.",
+    "photo": f"На фото слишком мало текста: нужно хотя бы {LECTURE_MIN_CHARS} знаков. Сфотографируйте страницу "
+             "целиком или загрузите несколько страниц одним PDF. Лимит не списан.",
+}
 MEDIA_TIMEOUT_MESSAGE = "Расшифровка заняла слишком много времени. Попробуйте файл короче."
 MEDIA_BUSY_MESSAGE = "Сервис ИИ сейчас занят. Материал не сохранён, лимит не списан. Попробуйте через минуту."
 # Распознавание скана или фото (ocr.py) в потоке анализа: ошибки сервиса распознавания.
@@ -396,7 +417,14 @@ OCR_TIMEOUT_MESSAGE = (
 OCR_FAILED_MESSAGE = "Не удалось распознать текст. Материал не сохранён, лимит не списан. Попробуйте ещё раз."
 OCR_UNAVAILABLE_MESSAGE = "Распознавание текста сейчас недоступно. Материал не сохранён, лимит не списан. Загрузите файл с текстом."
 DOCUMENT_EXTENSIONS = (".pdf", ".txt", ".docx", ".pptx", ".md", ".html", ".htm")
-MEDIA_EXTENSIONS = (".mp4", ".mp3", ".wav", ".mpeg", ".m4a", ".jpg", ".jpeg", ".png")
+RECORDING_EXTENSIONS = (".mp4", ".mp3", ".wav", ".mpeg", ".m4a")
+PHOTO_EXTENSIONS = (".jpg", ".jpeg", ".png")
+# /api/analyze/media takes a recording and a photo of a page (ocr.py); a refusal names the formats
+# of the file's own kind (parser.unsupported_format_detail).
+MEDIA_EXTENSIONS = RECORDING_EXTENSIONS + PHOTO_EXTENSIONS
+# The type of a recording when the browser sent none (or application/octet-stream): Groq and Gemini
+# are told what the bytes are.
+RECORDING_TYPES = {".mp4": "video/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mpeg": "video/mpeg", ".m4a": "audio/mp4"}
 
 
 def media_transcribe_timeout_seconds() -> float:
@@ -441,6 +469,14 @@ def _ocr_failure_event(exc: Exception) -> dict:
     if status == 503:
         return {"type": "error", "code": "no_text", "message": OCR_UNAVAILABLE_MESSAGE}
     return {"type": "error", "code": "failed", "message": OCR_FAILED_MESSAGE}
+
+
+def _too_little_text_event(text: str, source: str) -> Optional[dict]:
+    """The stream's no_text error for a text with fewer than LECTURE_MIN_CHARS letters and digits
+    (``source``: file, url, recording or photo), or None: «Лекция 1. Введение.» was charged as a lecture."""
+    if sum(1 for char in text if char.isalnum()) >= LECTURE_MIN_CHARS:
+        return None
+    return {"type": "error", "code": "no_text", "message": TOO_LITTLE_TEXT_MESSAGES[source]}
 
 
 def _failed_core_sections(sections: Any) -> list[str]:
@@ -616,6 +652,10 @@ async def event_stream(
             message = PPTX_NO_TEXT_DETAIL if name.lower().endswith(".pptx") else NO_TEXT_IN_FILE_MESSAGE
             yield {"type": "error", "code": "no_text", "message": message}
             return
+        too_little = _too_little_text_event(text, "file")
+        if too_little is not None:
+            yield too_little
+            return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
         async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
             yield event
@@ -638,13 +678,9 @@ async def analyze(
     enabled_agents: Optional[str] = Form(None),
 ):
     ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext == ".ppt":
-        raise HTTPException(status_code=400, detail=PPT_LEGACY_DETAIL)
     if ext not in DOCUMENT_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Неподдерживаемый формат. Поддерживаются: {', '.join(DOCUMENT_EXTENSIONS)}",
-        )
+        # .doc and .ppt by name, a recording or a photo with the formats of its kind.
+        raise HTTPException(status_code=400, detail=unsupported_format_detail(file.filename or "", file.content_type))
     _require_ai_configured()
     # Read before the stream starts, so an oversized file is a real 413, not a stream error.
     contents = await read_upload_with_limit(file)
@@ -670,7 +706,8 @@ async def analyze(
     )
 
 
-from media_parser import MediaProcessingTimeout, extract_youtube_transcript, transcribe_media_file
+# extract_youtube_transcript stays unwired: YouTube asks servers to «Sign in to confirm you're not a bot» (VIDEO_LINK_DETAIL).
+from media_parser import MediaProcessingTimeout, extract_youtube_transcript, recording_topic, transcribe_media_file
 
 
 async def event_stream_media(
@@ -692,12 +729,14 @@ async def event_stream_media(
 
     A photo of a page (JPG/PNG) is recognised by ocr.py with its bytes in the request (no temp
     file, no Files API, the OCR rate limit of ``ocr_key``); text_extracted then carries
-    ocr: true and pages: 1.
+    ocr: true and pages: 1. The text of a recording carries transcribed: true: the results say
+    «Текст распознан из записи — сверьте термины, числа и имена» (lib/lectureFormats.ts), as
+    for a photo.
     """
     async def events():
         yield {"type": "status", "message": "Распознаём текст файла. Это может занять несколько минут."}
         photo = ocr.image_mime(filename, content_type, content)
-        extracted: dict = {"ocr": True, "pages": 1} if photo else {}
+        extracted: dict = {"ocr": True, "pages": 1} if photo else {"transcribed": True}
         if photo and len(content) <= ocr.OCR_INLINE_MAX_BYTES:
             try:
                 text = await ocr.recognize_photo(content, photo, rate_key=ocr_key)
@@ -718,7 +757,7 @@ async def event_stream_media(
                     tmp.write(content)
                 try:
                     text = await asyncio.wait_for(
-                        transcribe_media_file(tmp_path, photo or content_type),
+                        transcribe_media_file(tmp_path, photo or content_type, topic=recording_topic(filename)),
                         timeout=media_transcribe_timeout_seconds(),
                     )
                 except (asyncio.TimeoutError, MediaProcessingTimeout):
@@ -735,6 +774,10 @@ async def event_stream_media(
 
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_IN_MEDIA_MESSAGE}
+            return
+        too_little = _too_little_text_event(text, "photo" if photo else "recording")
+        if too_little is not None:
+            yield too_little
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
         async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
@@ -761,20 +804,24 @@ async def analyze_media(
         raise HTTPException(status_code=400, detail="Выберите файл.")
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in MEDIA_EXTENSIONS:
+        # A voice note (.ogg, .opus) or a phone video (.mov, .webm) hears which formats a recording may
+        # have; a photo (.heic) which a photo may have — the old list named .jpg and .png as media.
         raise HTTPException(
-            status_code=400,
-            detail=f"Неподдерживаемый формат медиа. Поддерживаются: {', '.join(MEDIA_EXTENSIONS)}",
+            status_code=400, detail=unsupported_format_detail(file.filename or "", file.content_type, media=True)
         )
     _require_ai_configured()
     # Read (and size-check) before any temp file exists.
     content = await read_upload_with_limit(file)
     if not content:
         raise HTTPException(status_code=400, detail="Файл пустой. Выберите другой файл.")
+    content_type = file.content_type
+    if ext in RECORDING_TYPES and not (content_type or "").startswith(("audio/", "video/")):
+        content_type = RECORDING_TYPES[ext]
     charge = await quota.charge(request, "lecture", AI_COSTS["lecture"])
 
     return StreamingResponse(
         with_keepalive(event_stream_media(
-            content, file.filename or "", file.content_type,
+            content, file.filename or "", content_type,
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
             charge=charge,
@@ -811,6 +858,10 @@ async def event_stream_url(
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_AT_URL_MESSAGE}
             return
+        too_little = _too_little_text_event(text, "url")
+        if too_little is not None:
+            yield too_little
+            return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
         async for event in _analysis_events(text, settings, enabled_agents, owner=owner):
             yield event
@@ -834,6 +885,10 @@ async def analyze_url(
 ):
     if not url or not url.strip():
         raise HTTPException(status_code=400, detail="Укажите корректный URL-адрес.")
+    if is_video_link(url):
+        # Before the charge and the fetch: a video page has no text to read (the scraped YouTube chrome
+        # was analysed for 20 units, live QA 2026-10-11).
+        raise HTTPException(status_code=400, detail=VIDEO_LINK_DETAIL)
     _require_ai_configured()
     charge = await quota.charge(request, "lecture", AI_COSTS["lecture"])
 
@@ -1211,6 +1266,30 @@ def validate_mistakes_practice(raw, allowed_mistake_ids: set) -> Optional[list]:
 from agents.base import build_quick_prep_prompt, build_mistakes_practice_prompt
 
 
+async def _checked_answer(ask, usable) -> tuple[Any, Any]:
+    """(usable(answer) or None, raw answer) for a lecture material outside the analysis stream.
+
+    ``ask()`` returns (parsed, raw); ``usable(parsed)`` gives the material or None. The material then
+    goes through mixed_script.check, as in the analysis (coordinator.py): Latin look-alikes in Russian
+    words are replaced; a word with a real Latin chunk inside asks the model once more, and a second
+    such answer loses the sentences with it (``usable`` runs again on what is left).
+    """
+    payload: Any = None
+    raw: Any = None
+    for attempt in range(2):
+        parsed, raw = await ask()
+        payload = usable(parsed)
+        if payload is None:
+            return None, raw
+        payload, broken = mixed_script.check(payload)
+        if not broken:
+            return payload, raw
+        if attempt == 0:
+            _forget_cached_response(raw)
+            print(f"{len(broken)} mixed-script word(s) in a model answer, asking again")
+    return usable(mixed_script.drop_broken(payload)), raw
+
+
 class QuickPrepRequest(BaseModel):
     context: str
 
@@ -1228,8 +1307,8 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
     if not context:
         raise HTTPException(status_code=400, detail="Недостаточно текста для выжимки.")
     agent = BaseAgent(api_key=GROQ_API_KEY)
-    charge = await quota.charge(request, "cheatsheet", AI_COSTS["cheatsheet"])
-    async with quota.refund_on_failure(charge):
+
+    async def ask() -> tuple[Any, Any]:
         try:
             raw = await agent.run(build_quick_prep_prompt(), context)
         except Exception as exc:
@@ -1238,14 +1317,20 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
             if status == 429:
                 raise HTTPException(status_code=429, detail="Сервис сейчас занят. Подождите минуту и попробуйте ещё раз.")
             raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
-
         try:
-            parsed = parse_model_json(raw)
+            return parse_model_json(raw), raw
         except Exception as exc:
             print(f"Quick prep returned invalid JSON: {type(exc).__name__}")
-            parsed = None
+            return None, raw
+
+    def usable(parsed: Any) -> Any:
         cheatsheet = parsed.get("cheatsheet") if isinstance(parsed, dict) else None
-        if not isinstance(cheatsheet, str) or not cheatsheet.strip():
+        return parsed if isinstance(cheatsheet, str) and cheatsheet.strip() else None
+
+    charge = await quota.charge(request, "cheatsheet", AI_COSTS["cheatsheet"])
+    async with quota.refund_on_failure(charge):
+        parsed, raw = await _checked_answer(ask, usable)
+        if parsed is None:
             _forget_cached_response(raw)
             raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
     return parsed
@@ -1656,11 +1741,14 @@ async def podcast_generate(request: Request, req: PodcastGenerateRequest):
         parts.append(terms_block)
     parts.append("МАТЕРИАЛ:\n" + context)
 
+    user_text = "\n\n".join(parts)
     charge = await quota.charge(request, "conversation", AI_COSTS["conversation"])
     async with quota.refund_on_failure(charge):
-        parsed, raw = await _run_podcast_model(system_prompt, "\n\n".join(parts))
         # Charts and timelines survive only if their numbers and dates are in the material.
-        lines = sanitize_podcast_lines(_first_list(parsed, "podcast"), source_text=context)
+        lines, raw = await _checked_answer(
+            lambda: _run_podcast_model(system_prompt, user_text),
+            lambda parsed: sanitize_podcast_lines(_first_list(parsed, "podcast"), source_text=context) or None,
+        )
         if not lines:
             _forget_cached_response(raw)
             raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
@@ -1700,13 +1788,15 @@ async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
     if context:
         parts.append("МАТЕРИАЛ ДЛЯ СВЕРКИ:\n" + context)
 
+    user_text = "\n\n".join(parts)
+
+    def usable(parsed: _Any) -> Optional[list]:
+        items = sanitize_podcast_visuals(_first_list(parsed, "visuals"), len(req.lines), source_text=context or None)
+        return [item for item in items if item["index"] in usable_indices] or None
+
     charge = await quota.charge(request, "visuals", AI_COSTS["visuals"])
     async with quota.refund_on_failure(charge):
-        parsed, raw = await _run_podcast_model(build_podcast_visuals_prompt(), "\n\n".join(parts))
-        visuals = [
-            item for item in sanitize_podcast_visuals(_first_list(parsed, "visuals"), len(req.lines), source_text=context or None)
-            if item["index"] in usable_indices
-        ]
+        visuals, raw = await _checked_answer(lambda: _run_podcast_model(build_podcast_visuals_prompt(), user_text), usable)
         if not visuals:
             _forget_cached_response(raw)
             raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)

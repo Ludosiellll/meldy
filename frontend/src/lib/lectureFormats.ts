@@ -17,6 +17,9 @@ export const OCR_NOTICE = 'Текст распознан со скана — с�
 /** То же для фото страницы. */
 export const OCR_PHOTO_NOTICE = 'Текст распознан с фото — сверьте формулы и числа с оригиналом.';
 
+/** Текст из записи лекции (text_extracted с transcribed: true): речь распознаётся с ошибками в терминах и именах. */
+export const TRANSCRIPT_NOTICE = 'Текст распознан из записи — сверьте термины, числа и имена.';
+
 export function isLegacyPpt(fileName: string): boolean {
   return /\.ppt$/i.test(fileName.trim());
 }

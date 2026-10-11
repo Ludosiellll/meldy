@@ -1,19 +1,62 @@
 import io
+import math
 import re
 from dataclasses import dataclass, replace
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from utils import pack_source_blocks
 
 PPT_LEGACY_DETAIL = "Старый формат PowerPoint (.ppt) не читается. Сохраните презентацию как PPTX или PDF и загрузите снова."
+DOC_LEGACY_DETAIL = "Старый формат Word (.doc) не читается. Сохраните файл как DOCX или PDF и загрузите снова."
 PPTX_NO_TEXT_DETAIL = (
     "В презентации нет текста: похоже, слайды сделаны картинками. "
     "Сохраните её как PDF — такой файл Meldy распознает как скан."
 )
 
+# Отказ по формату файла (до запуска анализа, без списания): что подойдёт вместо него.
+# Записи лекций Meldy открывает в MP4, MP3, WAV, MPEG и M4A, фото страниц — в JPG и PNG
+# (main.RECORDING_EXTENSIONS, main.PHOTO_EXTENSIONS); те же строки показывает выбор файла.
+# {subject} — «Формат OGG» (расширение заглавными) или «Этот формат», если расширения нет.
+RECORDING_FORMAT_DETAIL = (
+    "{subject} не подходит: для записей лекций подходят MP4, MP3, WAV, MPEG и M4A. "
+    "Конвертируйте запись, например в MP3, и загрузите снова."
+)
+PHOTO_FORMAT_DETAIL = (
+    "{subject} не подходит: для фото страниц подходят JPG и PNG. Сохраните фото в одном из них и загрузите снова."
+)
+DOCUMENT_FORMAT_DETAIL = "Этот формат не подходит. Загрузите PDF, DOCX, PPTX, TXT, MD или HTML."
+MEDIA_FORMAT_DETAIL = (
+    "Этот формат не подходит: для записей лекций подходят MP4, MP3, WAV, MPEG и M4A, для фото страниц — JPG и PNG."
+)
+# Голосовые сообщения, видео с телефона и прочие записи, которых Meldy не открывает.
+_RECORDING_EXTENSIONS = frozenset({
+    "ogg", "oga", "opus", "webm", "weba", "mov", "qt", "avi", "mkv", "mka", "m4v", "3gp", "3g2", "aac", "flac",
+    "wma", "wmv", "amr", "aif", "aiff", "caf", "mpg", "mpga", "mp2", "ts", "mts", "m2ts", "flv", "f4v", "vob",
+})
+_PHOTO_EXTENSIONS = frozenset({"heic", "heif", "webp", "gif", "bmp", "tif", "tiff", "avif", "jfif", "dng"})
+
 
 class UnsupportedFormat(ValueError):
     """A format the app knows but cannot read. The message is shown to the user as is."""
+
+
+def unsupported_format_detail(filename: str, content_type: Optional[str] = None, *, media: bool = False) -> str:
+    """Why a file of this format is not taken, in Russian: the old Word and PowerPoint formats by name,
+    a recording or a photo by its kind with the formats that fit it, anything else with the list of
+    the route's formats (``media`` — /api/analyze/media, else the document analysis)."""
+    name = (filename or "").rsplit("/", 1)[-1]
+    ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
+    mime = (content_type or "").lower()
+    if ext == "doc":
+        return DOC_LEGACY_DETAIL
+    if ext == "ppt":
+        return PPT_LEGACY_DETAIL
+    subject = f"Формат {ext.upper()}" if ext.isascii() and ext.isalnum() and len(ext) <= 5 else "Этот формат"
+    if ext in _RECORDING_EXTENSIONS or (ext not in _PHOTO_EXTENSIONS and mime.startswith(("audio/", "video/"))):
+        return RECORDING_FORMAT_DETAIL.format(subject=subject)
+    if ext in _PHOTO_EXTENSIONS or mime.startswith("image/"):
+        return PHOTO_FORMAT_DETAIL.format(subject=subject)
+    return MEDIA_FORMAT_DETAIL if media else DOCUMENT_FORMAT_DETAIL
 
 
 def extract_text(contents: bytes, filename: str) -> str:
@@ -27,6 +70,8 @@ def extract_text(contents: bytes, filename: str) -> str:
         return _extract_pptx(contents)
     elif ext == "ppt":
         raise UnsupportedFormat(PPT_LEGACY_DETAIL)
+    elif ext == "doc":
+        raise UnsupportedFormat(DOC_LEGACY_DETAIL)
     elif ext in ("html", "htm"):
         return _extract_html(contents)
     elif ext in ("txt", "md"):
@@ -46,17 +91,365 @@ def pdf_page_count(contents: bytes) -> Optional[int]:
 
 
 def _extract_pdf(contents: bytes) -> str:
+    """Текст PDF: страницы по порядку, абзацы — блоками для фрагментов лекции (как у DOCX).
+
+    Каждую страницу читает _PdfPage (пробелы по промежуткам между словами, абзацы по
+    интервалам); страницу, которую он не умеет измерить, — PyPDF2 (page.extract_text), как раньше.
+    """
     try:
         from PyPDF2 import PdfReader
         reader = PdfReader(io.BytesIO(contents))
-        text_parts = []
+        units: list[str] = []
         for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text_parts.append(page_text)
-        return clean_extracted_text("\n\n".join(text_parts))
+            paragraphs = _pdf_page_paragraphs(page, reader)
+            if paragraphs is None:
+                page_text = page.extract_text()
+                paragraphs = [page_text] if page_text and page_text.strip() else []
+            units.extend(paragraphs)
+        return clean_extracted_text(pack_source_blocks(units))
     except Exception as e:
         raise ValueError(f"Ошибка чтения PDF: {e}")
+
+
+# ── Текст страницы PDF по положению букв ─────────────────────────────────────────
+#
+# PyPDF2 3.0 (page.extract_text) ставит пробел, когда текст сдвигается дальше ~1,9 em от того
+# места, где НАЧАЛСЯ предыдущий кусок, а не где он кончился. Chromium и Skia (браузеры, Google
+# Docs) пишут жирный заголовок кусками по кернинговым парам, и длинный кусок перед сдвигом
+# получал пробел посреди слова: «Строение эук арио тиче ской клетки», «М ембрана и цит оплаз ма»
+# (7 из 8 заголовков PDF живого прогона 2026-10-11). Здесь каждый кусок измеряется ширинами
+# глифов его шрифта, и пробел встаёт только там, где между концом одного куска и началом
+# следующего есть промежуток: на странице, где пробелы — это символы (Chromium, Word), — от
+# 0,3 em (табуляция, ячейка таблицы), на странице без символов пробела (TeX) — от 0,15 em.
+# Строки делятся по базовой линии; заметно больший интервал между строками или другой размер
+# шрифта начинает новый абзац — фрагменты лекции ([S01]…) идут по её абзацам и разделам
+# (pack_source_blocks в _extract_pdf), а не режутся по 850 знаков посреди раздела; номер страницы
+# в поле под текстом или над ним не попадает в текст. Страница, где есть то, чего этот разбор не измеряет
+# (шрифт без ширин — 14 стандартных, Type3, кодировка CMap кроме Identity-H, повёрнутый или
+# вертикальный текст, form XObject, письмо справа налево), остаётся за PyPDF2.
+
+_PDF_SPACE_GAP_EM = 0.3  # пробел между кусками на странице, где пробелы — символы
+_PDF_TIGHT_SPACE_GAP_EM = 0.15  # пробел на странице без символов пробела
+_PDF_EXPLICIT_SPACE_SHARE = 0.05  # столько пробелов среди знаков — пробелы на странице символами
+_PDF_SAME_LINE_EM = 0.6  # сдвиг базовой линии меньше — та же строка (индексы, сноски)
+_PDF_PARAGRAPH_GAP = 1.25  # интервал больше обычного во столько раз — новый абзац
+_PDF_SIZE_CHANGE = 0.05  # размер шрифта другой на столько — новый абзац (заголовок)
+_RTL_RE = re.compile("[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]")
+
+
+class _PdfUnsupported(Exception):
+    """На странице есть то, чего _PdfPage не измеряет: её текст берётся у PyPDF2."""
+
+
+@dataclass
+class _PdfFont:
+    two_byte: bool  # Identity-H: код глифа — два байта
+    encoding: Any  # однобайтовый шрифт: {код: знак} или None (знак = код)
+    to_unicode: dict
+    widths: dict  # код → ширина в долях em
+    default_width: float
+
+    def glyphs(self, data: bytes) -> list[tuple[str, float, bool]]:
+        """(текст, ширина в em, одиночный байт 32 — к нему прибавляется Tw) для каждого кода."""
+        out = []
+        if self.two_byte:
+            for index in range(0, len(data) - 1, 2):
+                code = data[index] << 8 | data[index + 1]
+                char = chr(code)
+                out.append((self.to_unicode.get(char, char), self.widths.get(code, self.default_width), False))
+            return out
+        for code in data:
+            char = self.encoding.get(code, chr(code)) if isinstance(self.encoding, dict) else chr(code)
+            text = self.to_unicode.get(char, char)
+            out.append((text if isinstance(text, str) else char, self.widths.get(code, self.default_width), code == 32))
+        return out
+
+
+def _pdf_value(value: Any) -> Any:
+    """Значение без косвенной ссылки (PyPDF2 IndirectObject → сам объект)."""
+    return value.get_object() if hasattr(value, "get_object") else value
+
+
+def _pdf_number(value: Any) -> float:
+    number = float(_pdf_value(value))
+    if not math.isfinite(number):
+        raise _PdfUnsupported("number")
+    return number
+
+
+def _pdf_cid_widths(descendant: Any) -> dict:
+    """Ширины /W шрифта CID: [c [w1 w2 …]] и [c_first c_last w], в долях em."""
+    widths: dict = {}
+    raw = descendant.get("/W")
+    items = [_pdf_value(item) for item in _pdf_value(raw)] if raw is not None else []
+    index = 0
+    while index < len(items):
+        first = int(items[index])
+        following = items[index + 1]
+        if isinstance(following, list):
+            for offset, width in enumerate(following):
+                widths[first + offset] = _pdf_number(width) / 1000.0
+            index += 2
+        else:
+            last = int(following)
+            if last - first > 65535:
+                raise _PdfUnsupported("widths")
+            width = _pdf_number(items[index + 2]) / 1000.0
+            for code in range(first, last + 1):
+                widths[code] = width
+            index += 3
+    return widths
+
+
+def _pdf_font(page: Any, name: str) -> _PdfFont:
+    from PyPDF2._cmap import build_char_map
+
+    _, _, encoding, to_unicode, font = build_char_map(name, 200.0, page)
+    font = _pdf_value(font)
+    subtype = _pdf_value(font.get("/Subtype"))
+    if "/DescendantFonts" in font:
+        if _pdf_value(font.get("/Encoding")) != "/Identity-H" or encoding != "utf-16-be":
+            raise _PdfUnsupported("cmap")
+        descendant = _pdf_value(_pdf_value(font["/DescendantFonts"])[0])
+        default = _pdf_number(descendant.get("/DW", 1000)) / 1000.0
+        return _PdfFont(True, None, to_unicode, _pdf_cid_widths(descendant), default)
+    if subtype not in ("/Type1", "/TrueType", "/MMType1") or "/Widths" not in font:
+        raise _PdfUnsupported("font")  # Type3 или один из 14 стандартных шрифтов без /Widths
+    if not (encoding == "charmap" or isinstance(encoding, dict)):
+        raise _PdfUnsupported("encoding")
+    first = int(_pdf_value(font.get("/FirstChar", 0)))
+    widths = {first + offset: _pdf_number(width) / 1000.0 for offset, width in enumerate(_pdf_value(font["/Widths"]))}
+    descriptor = _pdf_value(font.get("/FontDescriptor")) or {}
+    default = _pdf_number(descriptor.get("/MissingWidth", 0)) / 1000.0
+    return _PdfFont(False, encoding if isinstance(encoding, dict) else None, to_unicode, widths, default)
+
+
+@dataclass
+class _PdfRun:
+    text: str
+    x0: float
+    x1: float
+    y: float
+    size: float
+
+
+def _mul(m: list, n: list) -> list:
+    return [
+        m[0] * n[0] + m[1] * n[2], m[0] * n[1] + m[1] * n[3],
+        m[2] * n[0] + m[3] * n[2], m[2] * n[1] + m[3] * n[3],
+        m[4] * n[0] + m[5] * n[2] + n[4], m[4] * n[1] + m[5] * n[3] + n[5],
+    ]
+
+
+class _PdfPage:
+    """Куски текста страницы с их положением (PDF 32000, 9.4): строки, пробелы, абзацы."""
+
+    def __init__(self, page: Any, reader: Any) -> None:
+        from PyPDF2.generic import ContentStream
+
+        self.page = page
+        resources = page.get("/Resources")
+        resources = resources.get_object() if resources is not None else {}
+        fonts = resources.get("/Font")
+        self.font_names = set(fonts.get_object().keys()) if fonts is not None else set()
+        xobjects = resources.get("/XObject")
+        self.forms = set()
+        if xobjects is not None:
+            for key, value in xobjects.get_object().items():
+                if value.get_object().get("/Subtype") == "/Form":
+                    self.forms.add(key)
+        contents = page.get("/Contents")
+        self.operations = ContentStream(contents.get_object(), reader, "bytes").operations if contents is not None else []
+        self.fonts: dict = {}
+        self.runs: list = []
+
+    def _font(self, name: str) -> _PdfFont:
+        if name not in self.fonts:
+            if name not in self.font_names:
+                raise _PdfUnsupported("missing font")
+            self.fonts[name] = _pdf_font(self.page, name)
+        return self.fonts[name]
+
+    def read(self) -> list:
+        ctm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        stack: list = []
+        tm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        tlm = list(tm)
+        state = {"font": None, "size": 0.0, "tc": 0.0, "tw": 0.0, "th": 1.0, "tl": 0.0, "rise": 0.0}
+
+        def show(data: Any) -> None:
+            nonlocal tm
+            font = state["font"]
+            if font is None or not isinstance(data, bytes):
+                raise _PdfUnsupported("text before Tf")
+            m = _mul(tm, ctm)
+            if m[0] <= 0 or m[3] <= 0 or abs(m[1]) > 1e-3 * abs(m[0]) or abs(m[2]) > 1e-3 * abs(m[3]):
+                raise _PdfUnsupported("rotated text")
+            size = abs(state["size"] * m[3])
+            start = m[4] + state["rise"] * m[2]
+            y = m[5] + state["rise"] * m[3]
+            text = []
+            advance = 0.0
+            for chars, width, single_space in font.glyphs(bytes(data)):
+                text.append(chars)
+                advance += (width * state["size"] + state["tc"] + (state["tw"] if single_space else 0.0)) * state["th"]
+            tm = [tm[0], tm[1], tm[2], tm[3], tm[4] + advance * tm[0], tm[5] + advance * tm[1]]
+            joined = "".join(text)
+            if joined:
+                self.runs.append(_PdfRun(joined, start, start + advance * m[0], y, size))
+
+        def move(tx: float, ty: float) -> None:
+            nonlocal tm, tlm
+            tlm = _mul([1.0, 0.0, 0.0, 1.0, tx, ty], tlm)
+            tm = list(tlm)
+
+        for operands, operator in self.operations:
+            if operator == b"q":
+                stack.append((list(ctm), dict(state)))
+            elif operator == b"Q":
+                if stack:
+                    ctm, state = stack.pop()
+            elif operator == b"cm":
+                ctm = _mul([_pdf_number(value) for value in operands[:6]], ctm)
+            elif operator == b"BT":
+                tm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+                tlm = list(tm)
+            elif operator == b"Tf":
+                state["font"] = self._font(operands[0])
+                state["size"] = _pdf_number(operands[1])
+            elif operator == b"Tc":
+                state["tc"] = _pdf_number(operands[0])
+            elif operator == b"Tw":
+                state["tw"] = _pdf_number(operands[0])
+            elif operator == b"Tz":
+                state["th"] = _pdf_number(operands[0]) / 100.0
+            elif operator == b"TL":
+                state["tl"] = _pdf_number(operands[0])
+            elif operator == b"Ts":
+                state["rise"] = _pdf_number(operands[0])
+            elif operator == b"Tm":
+                tm = [_pdf_number(value) for value in operands[:6]]
+                tlm = list(tm)
+            elif operator == b"Td":
+                move(_pdf_number(operands[0]), _pdf_number(operands[1]))
+            elif operator == b"TD":
+                state["tl"] = -_pdf_number(operands[1])
+                move(_pdf_number(operands[0]), _pdf_number(operands[1]))
+            elif operator == b"T*":
+                move(0.0, -state["tl"])
+            elif operator == b"Tj":
+                show(operands[0])
+            elif operator == b"'":
+                move(0.0, -state["tl"])
+                show(operands[0])
+            elif operator == b'"':
+                state["tw"] = _pdf_number(operands[0])
+                state["tc"] = _pdf_number(operands[1])
+                move(0.0, -state["tl"])
+                show(operands[2])
+            elif operator == b"TJ":
+                for item in operands[0]:
+                    if isinstance(item, bytes):
+                        show(item)
+                    else:
+                        shift = -_pdf_number(item) / 1000.0 * state["size"] * state["th"]
+                        tm = [tm[0], tm[1], tm[2], tm[3], tm[4] + shift * tm[0], tm[5] + shift * tm[1]]
+            elif operator == b"Do" and operands and operands[0] in self.forms:
+                raise _PdfUnsupported("form xobject")
+        if any(_RTL_RE.search(run.text) for run in self.runs):
+            raise _PdfUnsupported("right-to-left text")
+        return self.runs
+
+    def lines(self) -> list:
+        """[(текст строки, базовая линия, размер шрифта)] в порядке потока страницы.
+
+        Линия и размер строки — у её самого крупного текста, чтобы индекс («c²», «H₂O») или
+        знак сноски не уводили строку и не начинали новую."""
+        runs = self.read()
+        spaces = sum(run.text.count(" ") for run in runs)
+        letters = sum(len(run.text) for run in runs) - spaces
+        explicit = letters > 0 and spaces >= _PDF_EXPLICIT_SPACE_SHARE * letters
+        gap_em = _PDF_SPACE_GAP_EM if explicit else _PDF_TIGHT_SPACE_GAP_EM
+        out: list = []
+        parts: list = []
+        base: Optional[_PdfRun] = None  # основной текст строки
+        last: Optional[_PdfRun] = None  # предыдущий кусок: промежуток меряется от его конца
+
+        def flush() -> None:
+            text = " ".join("".join(parts).split())
+            if text and base is not None:
+                out.append((text, base.y, base.size))
+
+        for run in runs:
+            if base is not None and abs(run.y - base.y) > _PDF_SAME_LINE_EM * max(run.size, base.size, 1e-6):
+                flush()
+                parts, base, last = [], None, None
+            if last is not None:
+                gap = run.x0 - last.x1
+                size = max(run.size, last.size)
+                # A jump back far over the previous piece (a table drawn column by column) parts words
+                # too; a kerning overlap is a fraction of an em.
+                if (gap > gap_em * size or gap < -size) and not parts[-1].endswith(" ") and not run.text.startswith(" "):
+                    parts.append(" ")
+            parts.append(run.text)
+            if base is None or run.size > base.size:
+                base = run
+            last = run
+        flush()
+        return out
+
+    def paragraphs(self) -> list:
+        """Абзацы страницы: строки абзаца — через перевод строки, номер страницы в поле — без него."""
+        lines = self.lines()
+        steps = [
+            y0 - y1
+            for (_, y0, size0), (_, y1, size1) in zip(lines, lines[1:])
+            if 0.8 * size1 <= y0 - y1 <= 3.0 * size1 and abs(size0 - size1) <= _PDF_SIZE_CHANGE * max(size0, size1)
+        ]
+        # Обычный шаг строк: нижняя треть шагов, чтобы страница из коротких абзацев не приняла
+        # отступ между ними за шаг строки.
+        usual = sorted(steps)[int(len(steps) * 0.3)] if steps else None
+        if usual is not None:
+            lines = _without_page_numbers(lines, usual)
+        paragraphs: list = []
+        current: list = []
+        for index, (text, y, size) in enumerate(lines):
+            if current:
+                _, y0, size0 = lines[index - 1]
+                new_size = abs(size0 - size) > _PDF_SIZE_CHANGE * max(size0, size)
+                if y0 - y < 0 or new_size or (usual is not None and y0 - y > usual * _PDF_PARAGRAPH_GAP):
+                    paragraphs.append("\n".join(current))
+                    current = []
+            current.append(text)
+        if current:
+            paragraphs.append("\n".join(current))
+        return paragraphs
+
+
+_PAGE_NUMBER_RE = re.compile(r"^[-–—\s]*(?:(?:стр|страница|с)\.?\s*)?\d{1,4}(?:\s*(?:из|/)\s*\d{1,4})?[-–—\s]*$", re.IGNORECASE)
+
+
+def _without_page_numbers(lines: list, usual: float) -> list:
+    """Строки без номера страницы: строки из одного номера («2», «— 2 —», «стр. 2 из 9») ниже
+    всего остального текста страницы (или выше него) больше чем на полтора шага строки. Номер
+    вопроса из таблицы стоит рядом со своей строкой и остаётся."""
+    kept = []
+    for index, line in enumerate(lines):
+        text, y, _ = line
+        if _PAGE_NUMBER_RE.match(text):
+            others = [other for position, (_, other, _) in enumerate(lines) if position != index]
+            if others and (y < min(others) - 1.5 * usual or y > max(others) + 1.5 * usual):
+                continue
+        kept.append(line)
+    return kept
+
+
+def _pdf_page_paragraphs(page: Any, reader: Any) -> Optional[list]:
+    """Абзацы страницы, или None — тогда её текст берёт PyPDF2."""
+    try:
+        return _PdfPage(page, reader).paragraphs()
+    except Exception:
+        return None
 
 
 def _extract_docx(contents: bytes) -> str:

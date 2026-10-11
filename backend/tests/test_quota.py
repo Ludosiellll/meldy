@@ -482,6 +482,20 @@ def test_the_built_in_demo_text_is_free_and_any_other_text_costs_a_lecture(analy
     assert analyze.server.rpc("refund_ai_units") == [] and analyze.server.used == 20
 
 
+def test_a_near_empty_text_costs_nothing_and_a_video_link_is_never_charged(analyze):
+    """Live QA 2026-10-11: «Лекция 1. Введение.» and a YouTube page were each analysed for a lecture's units."""
+    response = post_text(analyze, "Лекция 1. Введение.\n", name="почти_пусто.txt")
+    assert sse_types(response) == ["error"] and FakeCoordinator.runs == 0
+    # Reserved before the stream, as every lecture, and given back with the error.
+    assert analyze.server.rpc("consume_ai_units") == [{"p_units": AI_COSTS["lecture"], "p_kind": "lecture"}]
+    assert [args["p_kind"] for args in analyze.server.rpc("refund_ai_units")] == ["lecture"]
+    assert analyze.server.used == 0
+
+    response = analyze.post("/api/analyze/url", data={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
+    assert response.status_code == 400 and response.json() == {"detail": analyze.main.VIDEO_LINK_DETAIL}
+    assert len(analyze.server.rpc("consume_ai_units")) == 1 and analyze.server.used == 0
+
+
 @pytest.mark.parametrize("outcome", ["error", "crash"])
 def test_a_run_without_results_gives_the_lecture_units_back(analyze, outcome):
     FakeCoordinator.outcome = outcome

@@ -16,7 +16,7 @@ import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, nextL
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
-import { OCR_NOTICE, OCR_PHOTO_NOTICE, lectureFormatOf } from '../lib/lectureFormats';
+import { OCR_NOTICE, OCR_PHOTO_NOTICE, TRANSCRIPT_NOTICE, lectureFormatOf } from '../lib/lectureFormats';
 import { secondsBucket, track } from '../lib/telemetry';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import {
@@ -165,7 +165,8 @@ export default function Analyze() {
   const [starting, setStarting] = useState(false);
   // Сообщение сервера о долгом шаге (расшифровка медиа, загрузка страницы).
   const [statusNote, setStatusNote] = useState<string | undefined>(undefined);
-  // Текст этого запуска распознан со скана или фото (text_extracted с ocr: true): строка над результатом.
+  // Текст этого запуска распознан со скана или фото (text_extracted с ocr: true) или из записи (transcribed: true):
+  // строка над результатом.
   const [ocrNotice, setOcrNotice] = useState<string | null>(null);
   const [save, setSave] = useState<SaveInfo>(IDLE_SAVE);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -309,6 +310,8 @@ export default function Analyze() {
       if (event.ocr === true) {
         const photo = lastRequestRef.current?.file?.type.startsWith('image/') ?? false;
         setOcrNotice(photo ? OCR_PHOTO_NOTICE : OCR_NOTICE);
+      } else if (event.transcribed === true) {
+        setOcrNotice(TRANSCRIPT_NOTICE);
       }
       setState(prev => ({ ...prev, phase: 'analyzing', textLength: length ?? prev.textLength }));
     } else if (event.type === 'agent_start' && isSectionName(event.agent)) {

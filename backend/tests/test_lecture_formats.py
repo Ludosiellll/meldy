@@ -218,7 +218,12 @@ def page_numbers(data: bytes) -> list[int]:
 
 
 def page_text(number: int) -> str:
-    return f"Страница {number}. Деньги выполняют функцию меры стоимости."
+    """Одна страница — больше main.LECTURE_MIN_CHARS букв: такой скан анализируется и с одной страницы."""
+    return (
+        f"Страница {number}. Деньги выполняют функцию меры стоимости: цены всех товаров выражают в деньгах, "
+        "и по ним товары сравнивают между собой. Деньги служат и средством обращения: товар продают за деньги, "
+        "а на вырученные деньги покупают другой товар."
+    )
 
 
 def transcribe(call):
@@ -705,9 +710,12 @@ def test_ocr_has_its_own_per_user_limit_and_ordinary_files_do_not_count(api, mon
 
 
 def test_a_photo_is_recognised_inline_with_the_ocr_prompt_and_marked_as_recognised(api, monkeypatch):
-    fake = FakeGemini(lambda call: ("Лекция 5. Инфляция\nИнфляция — рост общего уровня цен.", "STOP")).install(
-        monkeypatch, models="model-from-env"
+    board = (
+        "Лекция 5. Инфляция\nИнфляция — рост общего уровня цен. Её измеряют индексом потребительских цен, "
+        "который сравнивает стоимость одной и той же корзины товаров в разные годы. Центральный банк сдерживает "
+        "инфляцию ключевой ставкой, а высокая инфляция обесценивает сбережения."
     )
+    fake = FakeGemini(lambda call: (board, "STOP")).install(monkeypatch, models="model-from-env")
     calls = answer_with(monkeypatch, {"summarizer": SUMMARY})
     response = api.post(
         "/api/analyze/media",
