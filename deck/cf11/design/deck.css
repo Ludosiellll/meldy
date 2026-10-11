@@ -153,8 +153,10 @@ template { display: none; }
 /* ------------------------------------------------------------------ surfaces */
 /* A card is an empty shape (it morphs between slides); its contents are siblings drawn on top.
    A card that stays put may have its shadow as a separate unmarked .shadow element, baked into the background;
-   a card that moves or builds in carries its own (.lift): the compiler places that shadow as a picture that
-   travels and builds with the card. */
+   a card that moves or builds in carries its own (.lift): the compiler writes it as the card's native PowerPoint
+   shadow (one layer, the deck's 0 40px 80px -48px; the 5 % contact layer is dropped), so it travels, scales and
+   builds with the card. data-shadow="bake" bakes it into the card's layer picture instead: for a small box with a
+   strong negative spread, which LibreOffice draws as a hard band. */
 .card { background: var(--surface); border-radius: 48px; }
 .card.r40 { border-radius: 40px; }
 .card.r32 { border-radius: 32px; }

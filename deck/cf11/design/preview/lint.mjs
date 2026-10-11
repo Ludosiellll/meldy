@@ -3,7 +3,7 @@
 //   node deck/cf11/design/preview/lint.mjs            exit 1 if anything is an error
 //
 // Errors: the title (one, the exact mandatory name), data-pptx / data-anim / data-anim-dir / data-morph /
-// data-transition(-dur) / data-fill / data-play values, Morph names (unique on a slide, one kind across slides, never
+// data-transition(-dur) / data-fill / data-play / data-shadow values, Morph names (unique on a slide, one kind across slides, never
 // animated where they morph in — titles included: the compiler names every title !!title), the strip and counter of
 // each slide (gathered under the dot on 01 and 15, light on the dark stage slides), text under 28 px, colours outside
 // the slide's token set (light, or the app's dark theme on 05 and 12), the round-2 scale (claim 72–80 px and two lines
@@ -68,6 +68,7 @@ for (const slide of SLIDES) {
       anim: el.dataset.anim || null, trig: el.dataset.animTrigger || null, delay: el.dataset.animDelay ?? null,
       dur: el.dataset.animDur ?? null, order: el.dataset.animOrder ?? null, dir: el.dataset.animDir ?? null,
       fill: el.dataset.fill ?? null, play: el.dataset.play ?? null,
+      shadow: el.dataset.shadow ?? null, boxShadow: getComputedStyle(el).boxShadow,
       size: parseFloat(getComputedStyle(el).fontSize), lh: parseFloat(getComputedStyle(el).lineHeight),
       words: el.dataset.pptx === 'text' || el.dataset.pptx === 'title' ? el.innerText.split(/\s+/).filter((w) => /[A-Za-zА-Яа-яЁё0-9]/.test(w)).length : 0,
       src: el.dataset.src || null, poster: el.dataset.poster || null, imgsrc: el.tagName === 'IMG' ? el.getAttribute('src') : null,
@@ -130,7 +131,8 @@ for (const slide of SLIDES) {
     const cards = [...document.querySelectorAll('.card[data-pptx="shape"]')].map((el) => box(el));
     const notes = document.querySelector('template[data-pptx="notes"]');
     const slideEl = document.querySelector('.slide');
-    return { marked, texts, colours, cards, buried, ghost, notes: notes ? notes.innerHTML.trim() : null, transition: slideEl.dataset.transition || 'morph',
+    const strayShadow = [...document.querySelectorAll('[data-shadow]:not([data-pptx])')].map((el) => el.className || el.tagName);
+    return { marked, texts, colours, cards, buried, ghost, strayShadow, notes: notes ? notes.innerHTML.trim() : null, transition: slideEl.dataset.transition || 'morph',
       tdur: slideEl.dataset.transitionDur ?? null, morph: slideEl.dataset.morph ?? null, dark: slideEl.classList.contains('dark') };
   });
 
@@ -145,6 +147,7 @@ for (const slide of SLIDES) {
   if (slide.n > 1 && titles.length === 1 && titles[0].anim) err(slide.n, 'the title morphs in from the previous slide (!!title): no entrance animation');
 
   // ---- markup values
+  for (const c of R.strayShadow) err(slide.n, `data-shadow on an unmarked element (${c}): only a marked object has its own shadow`);
   const slideNames = new Map();
   for (const m of R.marked) {
     if (!PPTX.has(m.kind)) err(slide.n, `data-pptx="${m.kind}"`);
@@ -158,6 +161,9 @@ for (const slide of SLIDES) {
     } else if (m.trig || m.delay || m.dur || m.dir) err(slide.n, `animation attributes without data-anim on ${m.cls}`);
     if (m.fill != null && (!FILL.test(m.fill) || m.kind !== 'text')) err(slide.n, `data-fill="${m.fill}" (author1|author2 .name|.role|.initials, on text)`);
     if (m.play != null && (!['with', 'after'].includes(m.play) || m.kind !== 'video')) err(slide.n, `data-play="${m.play}" (with|after, on a video)`);
+    // data-shadow (tools/README.md note 21): «native» is the default, «bake» keeps the shadow in the object's layer
+    if (m.shadow != null && !['bake', 'native'].includes(m.shadow)) err(slide.n, `data-shadow="${m.shadow}" (bake|native)`);
+    if (m.shadow != null && m.boxShadow === 'none') warn(slide.n, `data-shadow="${m.shadow}" on ${m.cls || m.kind} without a box-shadow`);
     // the round-2 scale
     const cl = String(m.cls).split(/\s+/);
     for (const [k, [a, b]] of Object.entries(SCALE)) {

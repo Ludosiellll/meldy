@@ -51,8 +51,10 @@ Sources of truth:
     the wordmark change colour with it: the lights go down and come back up.
 - **Surfaces.**
   * Cards are empty native rounded rectangles: radius 48, devices 36–52.
-  * A card that builds or travels carries its own shadow (`.lift`). The compiler places that shadow as a picture
-    that builds and morphs with the card, so no shadow ever waits alone or stays behind.
+  * A card that builds or travels carries its own shadow (`.lift`). The compiler writes it as the object's native
+    PowerPoint shadow, so it builds with the card and travels and scales with it under Morph: no shadow ever waits
+    alone or stays behind. `data-shadow="bake"` keeps a shadow in the object's layer picture instead (for a small
+    box with a strong negative spread, which LibreOffice draws as a hard band).
   * The devices on 07–10 are ink bezels (`#0B121C`). The screen is the video inside them, its corners painted ink.
 
 ## 2. The deck-wide system
@@ -207,8 +209,10 @@ own text at build time.
 - `data-play`: `with` (the compiler's default since round 2) starts a clip with its entrance, or with the slide
   when it has none, so «with» builds at the clip's moments run alongside it (12's ladder; checked frame by frame in
   `12-in.mp4`).
-- Cards that build or move carry `box-shadow` on the marked shape (`.lift`). The shadow becomes the shape's over-layer
-  picture and builds and morphs with it.
+- Cards that build or move carry `box-shadow` on the marked shape (`.lift`). The compiler writes it as a native
+  outer shadow (one layer: `0 40px 80px -48px`), which builds, travels and scales with the shape (tools/README.md,
+  Shadows and note 21); `compare.py` measures each one against the HTML. Static cards keep a separate `.shadow`
+  element, baked into the background.
 - The bake of every slide is a flat canvas (`shoot.mjs --bg`); everything visible is a native object or a picture.
 
 ## 7. Tools
