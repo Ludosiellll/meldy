@@ -81,6 +81,18 @@ test('the rest of the day: the plan\'s sentence; «Ещё N вопросов» i
   assert.equal(other.moreNew, null);
 });
 
+test('the rest of the day offers the same day in the Mini App only while there is a next block', () => {
+  const today = todayOf([{ ...AUTUMN, answeredToday: 44, today: { firstAt: Math.floor((NOW - 9 * H) / 1000), doneSec: 1500 } }]);
+  const exam = examOf(today, CID)!;
+  const r = restOfDay(exam, { subjectId: exam.plan.sessions.find((s) => s.kind === 'answer')!.subjectId, kind: 'plan' }, SITE);
+  assert.ok(r.next);
+  assert.deepEqual(r.app, { label: 'Открыть занятие', webApp: `${SITE}/tg?c=${CID}` });
+  const done = todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', perSubject: 60, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3 * H) / 1000), doneSec: 2700 } }]);
+  const finished = restOfDay(examOf(done, CID)!, { subjectId: SUBJECT_IDS[0], kind: 'plan' }, SITE);
+  assert.equal(finished.next, null);
+  assert.equal(finished.app ?? null, null);
+});
+
 test('the rest of the day when it is done: «На сегодня всё…» with «Ещё 20 новых» (go|<cid>|x)', () => {
   const done = todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', perSubject: 60, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3 * H) / 1000), doneSec: 2700 } }]);
   const exam = examOf(done, CID)!;

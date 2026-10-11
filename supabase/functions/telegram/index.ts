@@ -1,6 +1,7 @@
 // The `telegram` Edge Function of @Meldyteach_bot (spec Telegram_Bot_Spec_2026-10-09 §6.1). Deploy with
 // verify_jwt = false: Telegram and pg_net call it without a Supabase JWT; the webhook and the tick check their own
-// HMAC headers (derived from TELEGRAM_BOT_TOKEN), /setup takes no input, /status shows no secret.
+// HMAC headers (derived from TELEGRAM_BOT_TOKEN), /setup takes no input, /status shows no secret. The Mini App's
+// /webapp/session (Telegram_Mini_App_Spec_2026-10-10) checks Telegram's initData signature itself.
 //
 // Deno glue only: the routes, the dispatch, the tick and every message are in ../_shared/bot/ (plain TS, tested with
 // `node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts`).
@@ -9,6 +10,7 @@ import { files } from '../_shared/bot/files.ts';
 import { group } from '../_shared/bot/group.ts';
 import { session } from '../_shared/bot/session.ts';
 import { createVoice } from '../_shared/bot/voice.ts';
+import { createAuthAdmin, createWebApp } from '../_shared/bot/webapp.ts';
 import { readEnv } from '../_shared/bot/env.ts';
 import { log } from '../_shared/bot/log.ts';
 import { createApp, type Ports } from '../_shared/bot/router.ts';
@@ -26,6 +28,11 @@ const ports: Ports = {
   files, // T9: a forwarded file (F1) and GET /telegram/file
   // T10: a voice answer (V1–V4); off until bot.config.flags.voice is true. A factory: the file download needs the token.
   voice: createVoice({ token: env.token, fetch: http }),
+  // The Mini App's sign-in: the token checks initData; Auth mints the one-time sign-in and checks the user's JWT.
+  webapp: createWebApp({
+    token: () => env.token,
+    auth: env.supabaseUrl && env.serviceKey ? createAuthAdmin({ url: env.supabaseUrl, key: env.serviceKey, fetch: http }) : null,
+  }),
 };
 const app = env.token && env.supabaseUrl && env.serviceKey
   ? createApp({

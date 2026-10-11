@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { test } from 'node:test';
 import { ALLOWED_UPDATES, FUNCTION_REGION, MAX_CONNECTIONS, webhookUrl } from './setup.ts';
-import { lintProfile } from './lint.ts';
+import { copyProblems, lintProfile } from './lint.ts';
 import { PROFILE } from './words.ts';
 import { harness } from './fixtures/harness.ts';
 import { TEST_FUNCTION_URL, TEST_TOKEN } from './fixtures/fake_telegram.ts';
@@ -42,7 +42,10 @@ test('/setup: getMe → bot_setup → setWebhook → the profile → the photo; 
   assert.deepEqual(h.tg.of('setMyDescription')[0].params, { description: PROFILE.description });
   assert.deepEqual(h.tg.of('setMyCommands')[0].params, { commands: PROFILE.commands, scope: { type: 'all_private_chats' } });
   assert.deepEqual(h.tg.of('deleteMyCommands')[0].params, { scope: { type: 'default' } });
-  assert.deepEqual(h.tg.of('setChatMenuButton')[0].params, { menu_button: { type: 'commands' } });
+  // The menu button opens Meldy as a Mini App, for every private chat (no chat_id): «Сегодня» on the site.
+  assert.deepEqual(h.tg.of('setChatMenuButton')[0].params, {
+    menu_button: { type: 'web_app', text: 'Открыть Meldy', web_app: { url: 'https://ludosiel-studyforge.hf.space/tg' } },
+  });
   const photo = h.tg.of('setMyProfilePhoto')[0].params;
   assert.deepEqual(photo.photo, { type: 'static', photo: 'attach://avatar' });
   assert.equal(photo.avatar.type, 'image/jpeg');
@@ -126,4 +129,6 @@ test('the profile: «Meldy», 81 of 120 and 398 of 512 characters, three command
   assert.deepEqual(PROFILE.commands.map((c) => c.command), ['today', 'settings', 'help']);
   assert.deepEqual(PROFILE.commands.map((c) => c.description), ['План на сегодня', 'Время и пауза', 'Как это работает']);
   assert.deepEqual(lintProfile(PROFILE), []);
+  assert.equal(PROFILE.menuButton, 'Открыть Meldy');
+  assert.deepEqual(copyProblems(PROFILE.menuButton, 'menu button'), []);
 });

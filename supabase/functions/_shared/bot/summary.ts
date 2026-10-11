@@ -10,7 +10,8 @@
  *   (lines by occasion: dropped out of the figure; right again too early; only on the site — over 4096)
  *
  *   Сегодня осталось 70 вопросов, около 35 минут.
- *   [[Дальше: Компьютерные сети]] or [[Ещё 20 вопросов]] / [Готово]; the day done: [[Готово]] / [Ещё 20 новых]
+ *   [[Дальше: Компьютерные сети]] or [[Ещё 20 вопросов]] / [Открыть занятие] (the Mini App, web_app) / [Готово];
+ *   the day done: [[Готово]] / [Ещё 20 новых]
  * I2: the same record with «Ошибки вернутся завтра.» and [[Продолжить: 8 из 20]] (today only).
  *
  * The numbers come from the session's counts (T5's `counts`); the figure («147 из 960»), the line of the rest of the
@@ -72,6 +73,8 @@ export interface RestOfDay {
   moreNew: NextBlock | null;
   /** A quiet way to the site (oral questions are planned there). */
   link: { label: string; url: string } | null;
+  /** «Открыть занятие»: the same day in the Mini App (`web_app`), while there is a next block today. */
+  app?: { label: string; webApp: string } | null;
 }
 
 export interface SummaryInput {
@@ -181,7 +184,10 @@ export function summaryOut(input: SummaryInput): Out {
     const data = encode({ kind: 'session', sid: input.sid, pos: input.pos, act: { a: 'continue' } });
     keyboard.push(row({ text: W.resume(input.resume.n, input.resume.of), data, style: 'primary' }));
   } else if (input.end === 'done' && rest.next) {
-    keyboard.push(row({ text: rest.next.label, data: rest.next.data, style: 'primary' }), row({ text: S.done, data: done }));
+    // Two ways on (in the chat, or the same day in the Mini App), then «Готово».
+    keyboard.push(row({ text: rest.next.label, data: rest.next.data, style: 'primary' }));
+    if (rest.app) keyboard.push(row({ text: rest.app.label, webApp: rest.app.webApp }));
+    keyboard.push(row({ text: S.done, data: done }));
   } else if (input.end === 'done' && rest.moreNew) {
     keyboard.push(row({ text: S.done, data: done, style: 'primary' }), row({ text: rest.moreNew.label, data: rest.moreNew.data }));
   } else {

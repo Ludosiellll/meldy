@@ -20,8 +20,10 @@
   переходит на экономный тик, а агент присылает вам цифры. Переходить ли на платный план, решаете вы.
 - Токен вводится только в двух местах: в @BotFather и в Supabase → Edge Functions → Secrets. Не присылайте его агенту
   и не кладите в чат, GitHub, файлы или адресную строку браузера.
-- Остальное делает агент через `/setup`: вебхук, имя и описание бота, команды, аватарку. В @BotFather ничего менять
-  не нужно: режим приватности включён, группы разрешены, inline выключен (§5).
+- Остальное делает агент через `/setup`: вебхук, имя и описание бота, команды, аватарку, кнопку меню «Открыть Meldy».
+  В @BotFather ничего менять не нужно: режим приватности включён, группы разрешены, inline выключен (§5).
+- **По желанию:** в @BotFather можно включить Main Mini App (раздел «Мини-приложение»). Кнопке меню и кнопкам
+  «Открыть занятие» это не нужно.
 
 ## Из чего состоит бот
 
@@ -35,6 +37,8 @@
 | Тик | задание pg_cron `meldy-telegram-tick` раз в минуту → `bot.tick()` → pg_net → `POST /telegram/tick?forceFunctionRegion=<регион>`; в экономном режиме `bot.tick()` зовёт функцию, только когда `bot.tick_due()` видит дело, и каждую 15-ю минуту | миграция `…120001_telegram_bot_cron.sql` |
 | Регион функции | `eu-central-1` (Франкфурт): константа `FUNCTION_REGION` в коде функции, её же `/setup` пишет в `bot.config.function_region`. База остаётся в `eu-north-1` (Стокгольм) | агент: выкладка функции и `/setup` |
 | Карточка Telegram в профиле сайта | `frontend/src/components/telegram/TelegramCard.tsx` | выпуск сайта, `deploy/hf-release.md` |
+| Мини-приложение (сайт внутри Telegram) | сайт: `/tg` — `frontend/src/pages/TelegramMiniApp.tsx`, `frontend/src/lib/telegram/miniApp.ts`, CSP в `nginx.conf`; функция: `supabase/functions/_shared/bot/webapp.ts` | выпуск сайта и функции |
+| Использованные `initData` | `bot.webapp_uses` (только `sha256(hash)`, 2 часа) и `bot_webapp_session` — миграция `20261010150000_telegram_webapp.sql` | агент, `deploy/supabase-migrate.md` |
 | Копия плана контейнера | `supabase/functions/_shared/plan/*` и `SOURCE_HASH` из `frontend/src/lib/containers/*` | `scripts/sync_bot_plan.mjs` |
 
 Адрес функции — `https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram`. Маршруты (§6.1):
@@ -46,6 +50,7 @@
 | `POST /telegram/setup` | агент после выкладки | без входа, не чаще раза в минуту |
 | `GET /telegram/status` | кто угодно | без входа и без секретов |
 | `GET /telegram/file?t=` | сайт (этап 4) | одноразовый билет |
+| `POST /telegram/webapp/session` | мини-приложение `/tg`, только внутри клиента Telegram | `initData` с подписью от токена бота, не старше часа, один раз; CORS — только сайт. Ничего не привязывает |
 
 Функция ходит в базу только через `/rest/v1/rpc/bot_*` с секретным ключом (роль `service_role`). `SUPABASE_DB_URL`,
 который Supabase тоже даёт функции, бот не использует, и тест это проверяет.
@@ -188,7 +193,7 @@ curl -sS -X POST 'https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram
 2. `setWebhook`: адрес `…/functions/v1/telegram?forceFunctionRegion=eu-central-1`, секрет вебхука,
    `allowed_updates = ["message","callback_query","my_chat_member"]`, `max_connections = 10`.
 3. Профиль бота: имя «Meldy», короткое описание и описание, команды `today`, `settings`, `help` (только в личных
-   чатах), кнопка меню с командами, аватарка.
+   чатах), кнопка меню «Открыть Meldy» (тип `web_app`, адрес `<сайт>/tg`; команды остаются в списке по «/»), аватарка.
 
 В ответе есть итог каждого шага, секретов там нет. Если шаг не прошёл, ищите его в журнале функции, поле `error_name`
 (раздел «Журнал функции без токена»).
@@ -226,6 +231,7 @@ curl -sS -X POST 'https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram
 | SQL | новый файл миграции и новая строка в `deploy/supabase-migrate.md` |
 | `frontend/src/lib/containers/*` (выпуск сайта) | `node scripts/sync_bot_plan.mjs`, тесты, выложить функцию в тот же день. Иначе бот и «Сегодня» посчитают план по-разному, бот покажет код в вопросе не так, как сайт (`stemCode.ts`, `codeLines.ts`), а тест `SOURCE_HASH` покажет расхождение |
 | карточка Telegram на сайте | выпуск сайта (`deploy/hf-release.md`) |
+| мини-приложение `/tg`, CSP | выпуск сайта; кнопки бота и меню — функция и `/setup` (раздел «Мини-приложение») |
 
 ### Аварийная остановка
 
@@ -238,6 +244,51 @@ curl -sS -X POST 'https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram
   `deploy/supabase-functions.md`). Шлюз будет отвечать 401 раньше кода бота, и на обновления, и на тик. Telegram
   сохранит сообщения и будет повторять их до 24 часов. Чтобы вернуть бота, верните `false` и выложите функцию снова.
   `/setup` не нужен, если токен не меняли.
+
+## Мини-приложение (2026-10-10)
+
+Сайт открывается внутри Telegram: кнопка меню «Открыть Meldy» ведёт на `/tg` → «Сегодня», кнопка «Открыть занятие»
+в карточке дня и в итоге занятия — на `/tg?c=<экзамен>` → занятие этого экзамена поверх «Сегодня». Вход — по данным
+Telegram (`initData`): привязанный студент входит сразу. Неподключённому мини-приложение говорит, как подключить
+Telegram: в браузере, в профиле, «Подключить Telegram» (код `/start L…` в боте). Само оно ничего не привязывает: данные
+запуска приходят в адресе, и любой может вложить свои в ссылку на `/tg` (проверка безопасности 2026-10-11). По той же
+причине режим мини-приложения включается только внутри клиента Telegram (его мост: `TelegramWebviewProxy`,
+`external.notify` или рамка Telegram Web); в обычной вкладке браузера `/tg` — просто сайт. Если в WebView уже открыт
+другой аккаунт Meldy, приложение спрашивает, прежде чем его сменить. Спецификация:
+`meldy-notes/10_Project/Telegram_Mini_App_Spec_2026-10-10.md`.
+
+**Порядок выпуска:**
+1. Миграция `20261010150000_telegram_webapp.sql` — строкой в `deploy/supabase-migrate.md`, проверка
+   `supabase/tests/telegram_bot.sql` (пакет WA).
+2. Выпуск сайта (`deploy/hf-release.md`): страница `/tg`, CSP в `nginx.conf`, путь `/sb/` для нового POST. До
+   функции: иначе кнопки откроют сайт, где `/tg` ещё нет.
+3. Функция `telegram` — строкой в `deploy/supabase-functions.md` (`verify_jwt: false`, как всегда).
+4. `/setup` ставит кнопку меню «Открыть Meldy».
+
+**Откат:** прежняя версия функции и `/setup` (прежний `/setup` ставит кнопку меню с командами). Страница `/tg` на сайте
+без функции безвредна: вход через Telegram отвечает «Meldy сейчас не отвечает».
+
+**По желанию владельца, в @BotFather:**
+- Main Mini App: /mybots → Meldy → Bot Settings → Configure Mini App → Enable Mini App, адрес `<сайт>/tg`. Даёт кнопку
+  «Открыть» в профиле бота и ссылки `t.me/Meldyteach_bot?startapp`.
+- Прямая ссылка `t.me/Meldyteach_bot/<имя>?startapp=<id экзамена>`: /newapp, адрес `<сайт>/tg`. Порядок вопросов
+  BotFather не сверен с документацией.
+
+**Журнал:** `route` — `webapp`; `kind` — `session`, а при сбое Auth — `magic_link`; `outcome` — `linked`, `same`,
+`other` (в WebView другой аккаунт), `unlinked`, `replayed`, `stale`, `invalid`, `slow_down`, `unavailable` и другие.
+`initData`, токены, JWT, почта и id в журнал не пишутся.
+
+**Живая проверка** (Android, iPhone, Telegram Desktop, Telegram Web):
+- [ ] Кнопка меню «Открыть Meldy» открывает «Сегодня» уже со входом; повторное открытие не создаёт новую сессию.
+- [ ] «Открыть занятие» из карточки и из итога открывает занятие; ответ — с вибро; «Назад» Telegram ведёт на «Сегодня».
+- [ ] Тема Meldy следует теме Telegram, в том числе после её смены при открытом приложении.
+- [ ] Неподключённый Telegram: экран «…этот Telegram ещё не подключён к Meldy» и «Открыть профиль в браузере»; после
+  «Подключить Telegram» в профиле повторное открытие входит сразу.
+- [ ] В WebView открыт другой аккаунт Meldy: вопрос «В Meldy уже открыт другой аккаунт», без смены до ответа.
+- [ ] Ссылка `/tg#tgWebAppData=…` в обычном браузере открывает сайт как обычно: без входа через Telegram, без режима
+  Telegram, «Выйти» на месте.
+- [ ] В Telegram Web «Перезагрузить» оставляет на той же странице со входом.
+- [ ] В журнале функции нет `initData` и токенов.
 
 ## Смена токена
 
@@ -340,7 +391,7 @@ limit 100;
 ```
 
 Строка бота — JSON. Значения `route`, `kind` и `outcome` задаёт `_shared/bot/log.ts`: `route` — `webhook`, `tick`,
-`setup`, `status`; `kind` у нажатия — `callback`; `outcome` — `ok`, `skip`, `busy`, `failed`, `unauthorized` и
+`setup`, `status`, `file`, `webapp`; `kind` у нажатия — `callback`; `outcome` — `ok`, `skip`, `busy`, `failed`, `unauthorized` и
 другие.
 
 **Исходы по маршрутам и ошибкам:**

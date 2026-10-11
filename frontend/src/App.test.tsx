@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 
 const auth = vi.hoisted(() => ({
@@ -38,6 +38,8 @@ vi.mock('./pages/container/KeysPage', () => ({ default: () => <h1>Ключи</h1
 vi.mock('./pages/container/SettingsPage', () => ({ default: () => <h1>Настройки экзамена</h1> }));
 vi.mock('./pages/container/JoinContainerPage', () => ({ default: () => <h1>Приглашение к экзамену</h1> }));
 vi.mock('./components/authReel/AuthReel', () => ({ default: () => null }));
+// The Mini App's own page has its tests (pages/TelegramMiniApp.test.tsx): here it is its heading.
+vi.mock('./pages/TelegramMiniApp', () => ({ default: () => <h1>Вход через Telegram</h1> }));
 vi.mock('./api/materials', () => ({
   getMaterials: vi.fn(async () => materials.list),
   deleteMaterial: vi.fn(),
@@ -53,6 +55,8 @@ vi.mock('./lib/followupCards', async (importOriginal) => ({
 vi.mock('./contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => false) }));
 
 import App from './App';
+import { bootMiniApp } from './lib/telegram/miniApp';
+import { fakeInitData, fakeWebApp, putTelegramBridge, startMiniApp, stopMiniApp } from './test/telegramWebApp';
 
 function openAt(path: string) {
   window.history.pushState({}, '', path);
@@ -370,5 +374,74 @@ describe('signing in and coming back (lib/returnTo)', () => {
     openAt('/dashboard');
     expect(await screen.findByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/dashboard');
+  });
+});
+
+describe('Meldy as a Telegram Mini App (/tg)', () => {
+  afterEach(() => {
+    stopMiniApp();
+    for (const script of Array.from(document.head.querySelectorAll('script'))) script.remove();
+  });
+
+  it('/tg opens without the sign-in wall and outside the app layout', async () => {
+    auth.value = { user: null, loading: false };
+    await startMiniApp();
+    openAt('/tg?c=69ead689-38d6-4350-bc5d-13d273f8b9b2');
+    expect(await screen.findByRole('heading', { name: 'Вход через Telegram' })).toBeInTheDocument();
+    expect(screen.queryByTestId('layout')).toBeNull();
+    expect(window.location.pathname).toBe('/tg');
+  });
+
+  it('inside Telegram a signed-out private page goes to Telegram\'s sign-in, not to the site\'s', async () => {
+    auth.value = { user: null, loading: false };
+    // A tab /tg marked: Telegram reloaded the Mini App on a page inside it.
+    window.sessionStorage.setItem('meldy_tg', '1');
+    await startMiniApp(undefined, '/exams');
+    openAt('/exams');
+    expect(await screen.findByRole('heading', { name: 'Вход через Telegram' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/tg');
+  });
+
+  it('while Telegram\'s script loads it waits; a visit that is not Telegram\'s goes to the site\'s sign-in', async () => {
+    auth.value = { user: null, loading: false };
+    window.sessionStorage.setItem('meldy_tg', '1');
+    putTelegramBridge();
+    const booting = bootMiniApp('/exams');
+    openAt('/exams');
+    expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/exams');
+    await act(async () => {
+      document.head.querySelector('script[src*="telegram.org"]')?.dispatchEvent(new Event('error'));
+      await booting;
+    });
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+  });
+
+  it('inside Telegram files are added on the site: the import page says so and opens it in the browser', async () => {
+    const webApp = await startMiniApp(undefined, '/tg');
+    openAt('/exams/import?from=c:abc');
+    expect(await screen.findByRole('heading', { name: 'Загружать файлы удобнее на сайте' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Загрузка вопросов' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть сайт в браузере' }));
+    expect(webApp.openLink).toHaveBeenCalledWith(`${window.location.origin}/exams/import?from=c:abc`);
+  });
+
+  it('a link with someone\'s launch data in a plain browser tab: the site as it is — «Выйти», the sign-in page, no Telegram', async () => {
+    // Signed out: a private page goes to the site's own sign-in, not to /tg.
+    auth.value = { user: null, loading: false };
+    window.sessionStorage.setItem('meldy_tg', '1');
+    await startMiniApp(fakeWebApp(), '/exams', { bridge: false });
+    expect(window.sessionStorage.getItem('meldy_tg')).toBeNull();
+    openAt(`/exams#tgWebAppData=${encodeURIComponent(fakeInitData())}`);
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(document.documentElement.classList.contains('tg-mode')).toBe(false);
+    expect(document.head.querySelector('script[src*="telegram.org"]')).toBeNull();
+  });
+
+  it('outside Telegram nothing of it shows: no script, no class, the import page as it is', async () => {
+    openAt('/exams/import');
+    expect(await screen.findByRole('heading', { name: 'Загрузка вопросов' })).toBeInTheDocument();
+    expect(document.head.querySelector('script[src*="telegram.org"]')).toBeNull();
+    expect(document.documentElement.classList.contains('tg-mode')).toBe(false);
   });
 });

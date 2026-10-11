@@ -5,7 +5,8 @@
  * (the username, the bot id, the tick token, the function URL and region for `bot.tick()`) → `setWebhook` (the
  * function's URL with `forceFunctionRegion`, the derived `secret_token`, `allowed_updates`, `max_connections = 10`) →
  * the profile: name, descriptions, the commands of private chats (none by default, so groups show none), the menu
- * button, the photo when the bot has none. The answer names each step's outcome and holds no secret.
+ * button «Открыть Meldy» that opens the Mini App (Telegram_Mini_App_Spec_2026-10-10, decision 1; the commands stay a
+ * «/» away), the photo when the bot has none. The answer names each step's outcome and holds no secret.
  *
  * /status is public: Telegram's pending updates and last error, the last tick and setup, the calls this month, the
  * region the function ran in. No token, no secret, no user count.
@@ -15,7 +16,12 @@ import { derivedSecret } from './secrets.ts';
 import { errorName } from './log.ts';
 import type { Ctx } from './router.ts';
 import { TelegramError } from './tg.ts';
-import { PROFILE } from './words.ts';
+import { PATH, PROFILE } from './words.ts';
+
+/** The default menu button of private chats: Meldy as a Mini App (MenuButtonWebApp, Bot API setChatMenuButton). */
+export function menuButton(site: string): { type: 'web_app'; text: string; web_app: { url: string } } {
+  return { type: 'web_app', text: PROFILE.menuButton, web_app: { url: `${site}${PATH.miniApp()}` } };
+}
 
 /**
  * The region the webhook and the tick ask Supabase to run the function in: Frankfurt, the nearest region regional
@@ -73,7 +79,8 @@ export async function runSetup(ctx: Ctx, deps: { token: string; functionUrl: str
     ['setMyShortDescription', () => ctx.tg.call('setMyShortDescription', { short_description: PROFILE.shortDescription })],
     ['setMyCommands', () => ctx.tg.call('setMyCommands', { commands: PROFILE.commands, scope: { type: 'all_private_chats' } })],
     ['deleteMyCommands', () => ctx.tg.call('deleteMyCommands', { scope: { type: 'default' } })],
-    ['setChatMenuButton', () => ctx.tg.call('setChatMenuButton', { menu_button: { type: 'commands' } })],
+    // Without chat_id: the default for every private chat.
+    ['setChatMenuButton', () => ctx.tg.call('setChatMenuButton', { menu_button: menuButton(ctx.site) })],
   ];
   let failed: string | undefined;
   for (const [name, run] of profile) {

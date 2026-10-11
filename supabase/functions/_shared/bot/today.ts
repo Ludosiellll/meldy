@@ -162,6 +162,8 @@ export function restOfDay(exam: ExamDay | null, finished: { subjectId: string; k
     if (exam.hasOral && plan.sessions.some((s) => s.kind !== 'answer' && s.ids.length > 0)) {
       rest.link = { label: W.ORAL_IN_MELDY, url: `${site}${W.PATH.exam(cid)}` };
     }
+    // More today: the same day in the Mini App (Telegram_Mini_App_Spec_2026-10-10, decision 2).
+    if (rest.next) rest.app = { label: W.OPEN_SESSION, webApp: `${site}${W.PATH.miniApp(cid)}` };
   } catch {
     return nothing(line);
   }

@@ -11,7 +11,9 @@ function everyString(): string[] {
   for (const [name, value] of Object.entries(W)) {
     if (typeof value === 'string') out.push(value);
     else if (Array.isArray(value)) out.push(...value.filter((v): v is string => typeof v === 'string'));
-    else if (name === 'PROFILE') out.push(W.PROFILE.name, W.PROFILE.shortDescription, W.PROFILE.description, ...W.PROFILE.commands.map((c) => c.description));
+    else if (name === 'PROFILE') {
+      out.push(W.PROFILE.name, W.PROFILE.shortDescription, W.PROFILE.description, W.PROFILE.menuButton, ...W.PROFILE.commands.map((c) => c.description));
+    }
   }
   for (const n of [1, 2, 5, 21]) {
     out.push(W.dateWhen('2026-11-03', n), W.aboutMinutes(n * 10), W.alsoToday('Зимняя', n * 10), W.keysFixed(n), W.k2Body(n * 3, 45), W.k2Body(null, n),

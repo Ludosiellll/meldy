@@ -73,6 +73,12 @@ export function recordingPorts(calls: PortCall[], options: { sessionTakesText?: 
         return false;
       },
     },
+    webapp: {
+      async http(_req, _ctx, action) {
+        rec('webapp', 'http', [action]);
+        return new Response(null, { status: 204 });
+      },
+    },
   };
 }
 

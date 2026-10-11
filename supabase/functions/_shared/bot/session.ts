@@ -454,6 +454,8 @@ export function remark(markup: InlineKeyboardMarkup | null | undefined, sid: str
     if (data && data.startsWith(prefix) && /^a\d+$/.test(data.slice(prefix.length))) {
       return { text, data: encode({ kind: 'session', sid, pos, act: { a: 'submit', mask } }), ...(style ? { style } : {}) };
     }
+    const webApp = str(obj(button.web_app).url);
+    if (webApp) return { text, webApp, ...(style ? { style } : {}) };
     return url ? { text, url, ...(style ? { style } : {}) } : { text, data: data ?? '', ...(style ? { style } : {}) };
   }));
   return found && validMask(mask, k) ? keyboard : null;

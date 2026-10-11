@@ -101,7 +101,7 @@ export function sessionHarness(options: { now?: number; seed?: number; session?:
   /** The callback_data of the buttons of a message, row by row. */
   function datas(messageId: number): string[][] {
     const m = message(messageId);
-    return (m?.markup?.inline_keyboard ?? []).map((row: Array<{ callback_data?: string; url?: string }>) => row.map((b) => b.callback_data ?? b.url ?? ''));
+    return (m?.markup?.inline_keyboard ?? []).map((row: Array<{ callback_data?: string; url?: string; web_app?: { url?: string } }>) => row.map((b) => b.callback_data ?? b.url ?? b.web_app?.url ?? ''));
   }
 
   /** Button labels, row by row (no-break spaces read as spaces). */

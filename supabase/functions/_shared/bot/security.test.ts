@@ -48,6 +48,8 @@ const RPC_ALLOWED = new Set([
   'bot_voice_state', 'bot_voice_start', 'bot_voice_next', 'bot_voice_sent', 'bot_voice_ticket', 'bot_voice_part', 'bot_voice_restart',
   'bot_voice_checked', 'bot_voice_followup', 'bot_voice_release', 'bot_voice_record', 'bot_voice_self', 'bot_voice_rate',
   'bot_oral_inputs',
+  // The Mini App (webapp.ts, migration 20261010150000_telegram_webapp.sql).
+  'bot_webapp_session',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {
@@ -62,6 +64,33 @@ test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract
     assert.ok(!/postgres(ql)?:\/\//.test(text), `${name(path)}: a connection string`);
     for (const m of text.matchAll(/['"`](bot_[a-z_]+)['"`]/g)) assert.ok(RPC_ALLOWED.has(m[1]), `${name(path)}: ${m[1]} is not in the contract`);
   }
+});
+
+test('Supabase Auth only from webapp.ts, and only its one call: the admin magic link', () => {
+  const auth = join('_shared', 'bot', 'webapp.ts');
+  let seen = 0;
+  for (const path of sources) {
+    const text = code(path);
+    if (name(path) !== auth) {
+      assert.ok(!/\/auth\/v1\b/.test(text), `${name(path)} reaches Supabase Auth`);
+      assert.ok(!/generate_link|generateLink/.test(text), `${name(path)} mints a sign-in`);
+      continue;
+    }
+    // The one function that reaches Auth takes only this path, and is called only with it. No user's JWT is ever
+    // checked here: the Mini App links nothing (Telegram_Mini_App_Spec_2026-10-10, «Проверка безопасности 2026-10-11»).
+    const signature = /function call\(path: '([^']+)'(\s*\|[^,]*)?,/.exec(text);
+    assert.ok(signature, 'webapp.ts has one typed call(path) to Auth');
+    assert.equal(signature[1], 'admin/generate_link');
+    assert.equal(signature[2], undefined, 'one path only');
+    for (const m of text.matchAll(/\bcall\('([^']+)'/g)) {
+      assert.equal(m[1], 'admin/generate_link', `call('${m[1]}')`);
+      seen += 1;
+    }
+    assert.ok(!/\/user\b|userOfToken|bot_webapp_link/.test(text), 'no user check and no link');
+    assert.ok(/\/auth\/v1`/.test(text), 'webapp.ts builds the Auth base');
+    assert.ok(!/admin\/users|admin\/sessions|\/logout|\/token\b/.test(text), 'no other Auth call');
+  }
+  assert.equal(seen, 1, 'one call to Auth in webapp.ts');
 });
 
 test('no database connection string anywhere in the function (code and tests)', () => {
