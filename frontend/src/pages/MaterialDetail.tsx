@@ -325,46 +325,15 @@ export default function MaterialDetail() {
   const sectionParam = sectionValue === 'quiz' || sectionValue === 'flashcards' || sectionValue === 'summary' ? sectionValue : undefined;
   const { user } = useAuth();
   const { confirm } = useConfirm();
-  // A phone draws one row of tabs, «Конспект · Карточки 6 · Тест 5 · Подкаст», in place of the modes and the
-  // results' own row, and keeps «Экспорт» in «⋯» (10_Project/Phone_Declutter_2026-10-08).
+  // A phone draws one set of tabs, «Конспект · Карточки 6 · Тест 5 · Подкаст», in place of the modes and the
+  // results' own row, and keeps «Экспорт» in «⋯» (10_Project/Phone_Declutter_2026-10-08). Tabs that do not fit one
+  // row go to a second one, as on the result screen: the sideways scroll hid «Подкаст» (QA 2026-10-11, 390 and 360).
   const phone = usePhone();
   const tabRefs = useRef<Partial<Record<string, HTMLButtonElement | null>>>({});
   // The section of «Материал» the phone's row chose (null: the one the lecture opens on).
   const [sectionChoice, setSectionChoice] = useState<ResultTab | null>(null);
   // What «Экспорт» offers on the section on screen: ResultsPanel keeps it current, «⋯» reads it when it opens.
   const exportItemsRef = useRef<ResultExportItem[]>([]);
-  // The phone's row fades at an edge while more tabs are hidden past it (320 px, or with «Выжимка»).
-  const phoneRowRef = useRef<HTMLDivElement | null>(null);
-  const [rowMore, setRowMore] = useState<'' | 'right' | 'left' | 'both'>('');
-  const measureRow = useCallback(() => {
-    const row = phoneRowRef.current;
-    const right = Boolean(row && row.scrollLeft + row.clientWidth < row.scrollWidth - 1);
-    const left = Boolean(row && row.scrollLeft > 1);
-    setRowMore(right && left ? 'both' : right ? 'right' : left ? 'left' : '');
-  }, []);
-  // The tab selected in the phone's row (set while rendering it) and the one last brought into the row's view.
-  const rowSelectedRef = useRef<string | null>(null);
-  const rowShownRef = useRef<string | null>(null);
-  // After every render (the tabs may have changed) and when the window or the fonts change. A newly selected tab
-  // that the row hides on the right (or left) is brought into it: the row scrolls, never the page.
-  useEffect(() => {
-    measureRow();
-    const key = rowSelectedRef.current;
-    const row = phoneRowRef.current;
-    if (!key || !row || key === rowShownRef.current) return;
-    rowShownRef.current = key;
-    const tab = tabRefs.current[key];
-    if (!tab) return;
-    const bounds = row.getBoundingClientRect();
-    const box = tab.getBoundingClientRect();
-    if (box.right > bounds.right) row.scrollLeft += box.right - bounds.right + 28;
-    else if (box.left < bounds.left) row.scrollLeft -= bounds.left - box.left;
-  });
-  useEffect(() => {
-    window.addEventListener('resize', measureRow);
-    void document.fonts?.ready?.then(measureRow);
-    return () => window.removeEventListener('resize', measureRow);
-  }, [measureRow]);
   const [material, setMaterial] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingLine, setLoadingLine] = useState(false);
@@ -691,7 +660,6 @@ export default function MaterialDetail() {
     { key: 'podcast', label: MODE_LABELS.podcast, mode: 'podcast' as Mode },
   ];
   const lectureTab = mode === 'full' && sectionTabs.length > 0 ? section : mode;
-  rowSelectedRef.current = phone ? lectureTab : null;
   const selectLectureTab = (item: LectureTab) => {
     selectMode(item.mode);
     if (item.section) setSectionChoice(item.section);
@@ -898,16 +866,13 @@ export default function MaterialDetail() {
         ) : null}
       </div>
 
-      {/* A phone: one row of tabs, the sections of «Материал» next to the page's own modes (spec «Лекция»). */}
+      {/* A phone: one set of tabs, the sections of «Материал» next to the page's own modes (spec «Лекция»). */}
       {phone ? (
         <div
           role="tablist"
           aria-label="Разделы лекции"
           className="md-ptabs"
-          ref={phoneRowRef}
-          onScroll={measureRow}
           data-many={lectureTabs.length > 4 ? '' : undefined}
-          data-more={rowMore || undefined}
         >
           {lectureTabs.map((item, index) => {
             const selected = lectureTab === item.key;

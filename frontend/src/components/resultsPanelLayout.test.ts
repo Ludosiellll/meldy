@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 /**
- * The result screen's layout rules that the QA of release 44 found broken (2026-10-11, live, 390×844 and 1532×734).
- * The page itself is checked by screenshots; these tests keep the rules from going away.
+ * The layout rules of the result screen and the lecture page that the QA of release 44 and its recheck found broken
+ * (2026-10-11, live, 390×844, 360×800 and 1532×734). The pages themselves are checked by screenshots; these tests keep
+ * the rules from going away.
  *
  * The styles are read from disk: Vitest turns every CSS import into an empty module, `?raw` included.
  */
@@ -54,6 +55,32 @@ describe('the result screen on a phone: every section in sight (QA 2026-10-11: �
     const row = phone.find(rule => rule.selector === '.rp-tabsrow .sf-sectabs');
     expect(row?.body).toMatch(/flex-wrap:\s*wrap/);
     expect(row?.body).toMatch(/overflow:\s*visible/);
+  });
+});
+
+describe('the lecture page on a phone: every tab in sight (recheck of 44.1: «Подкаст» cut off at 390 and 360)', () => {
+  it('lets the row of tabs go to a second row instead of scrolling sideways, each row on its own hairline', async () => {
+    const css = rules((await nodeFs()).readFileSync(`${SRC}pages/MaterialDetail.css`, 'utf8'));
+    const row = css.find(rule => rule.media === '' && rule.selector === '.md-ptabs');
+    expect(row?.body).toMatch(/flex-wrap:\s*wrap/);
+    expect(row?.body).not.toMatch(/overflow/);
+    // The 46 px rows have no gap between them; the background draws a hairline under each.
+    expect(row?.body).toMatch(/gap:\s*0 22px/);
+    expect(row?.body).toMatch(/repeating-linear-gradient\(to bottom, transparent 0 45px, var\(--sf-line\) 45px 46px\)/);
+    expect(css.find(rule => rule.selector === ".md-ptabs [role='tab']")?.body).toMatch(/height:\s*46px/);
+    // Nothing is hidden past an edge any more, so no edge fades.
+    expect(css.filter(rule => rule.selector.includes('data-more'))).toEqual([]);
+  });
+});
+
+describe('the podcast player on a phone sticks above the bottom bar, not under it (recheck of 44.1, 390×844)', () => {
+  it('keeps the bar’s own height under the player: 62 px, the last row of the player was under the bar at 56', async () => {
+    const player = rules((await nodeFs()).readFileSync(`${SRC}components/conversation/conversation.css`, 'utf8'))
+      .find(rule => rule.media === '@media (max-width: 639px)' && rule.selector === '.sf-shell[data-tabs] .cv-player');
+    expect(player?.body).toMatch(/bottom:\s*calc\(var\(--sf-tabs-h, 62px\) \+ env\(safe-area-inset-bottom\)\)/);
+    const layout = rules((await nodeFs()).readFileSync(`${SRC}components/layout.css`, 'utf8'));
+    expect(layout.find(rule => rule.media === '@media (max-width: 1023px)' && rule.selector === '.sf-shell')?.body)
+      .toMatch(/--sf-tabs-h:\s*62px/);
   });
 });
 

@@ -247,23 +247,22 @@ html[data-stage] .md-crumb { display: none; }
   :where(.md-page) .md-acts .md-dot { width: 36px; height: 36px; }
   :where(.md-page) .md-round.sf-more { width: 48px; height: 48px; }
 }
-/* ---------------------------------------------------------------- one row of tabs (phones) */
-/* 10_Project/Phone_Declutter_2026-10-08, «Лекция»: «Конспект · Карточки 6 · Тест 5 · Подкаст» in one row of quiet
-   words on a hairline, the current one in ink on a 2 px ink bar — in place of the white capsule of the modes and the
-   results' row of pills. The page renders it on phones only (usePhone); a row that does not fit (320 px, or with
-   «Кратко») scrolls, and its right edge fades. The phone's text tabs: 16/500 muted, the current one ink at the same
-   weight, its 2 px bar flush on the row's 1 px hairline (drawn inside the row, so the scrolling row does not clip
-   the bar), the counts 14 muted, the current one's in ink. */
+/* ---------------------------------------------------------------- the tabs of a phone */
+/* 10_Project/Phone_Declutter_2026-10-08, «Лекция»: «Конспект · Карточки 6 · Тест 5 · Подкаст» as quiet words on a
+   hairline, the current one in ink on a 2 px ink bar — in place of the white capsule of the modes and the results'
+   row of pills. The page renders it on phones only (usePhone). The phone's text tabs: 16/500 muted, the current one
+   ink at the same weight, its 2 px bar flush on its row's 1 px hairline, the counts 14 muted, the current one's in
+   ink. Tabs that do not fit one row go to a second one, as the result screen's pills do (ResultsPanel.css): with
+   «Выжимка» the row was 416 px in 358 at 390 px, scrolled sideways and cut «Подкаст» (QA 2026-10-11, 390 and 360).
+   The rows are 46 px with no gap between them, and each has its own hairline (the background, one line every 46 px). */
 .md-ptabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0 22px;
   margin: 14px 0 0;
   padding: 0;
-  box-shadow: inset 0 -1px 0 var(--sf-line);
-  overflow-x: auto;
-  scrollbar-width: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 45px, var(--sf-line) 45px 46px);
 }
-.md-ptabs::-webkit-scrollbar { display: none; }
 .md-ptabs [role='tab'] {
   position: relative;
   flex: none;
@@ -281,20 +280,6 @@ html[data-stage] .md-crumb { display: none; }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* More tabs past an edge (MaterialDetail sets data-more: right, left or both): that edge fades over 28 px, so the
-   cut word reads as «more». */
-.md-ptabs[data-more='right'] {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-}
-.md-ptabs[data-more='left'] {
-  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
-  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
-}
-.md-ptabs[data-more='both'] {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
-}
 .md-ptabs [role='tab'][aria-selected='true'] { color: var(--sf-ink); }
 .md-ptabs [role='tab'][aria-selected='true']::after {
   content: '';
@@ -308,8 +293,8 @@ html[data-stage] .md-crumb { display: none; }
 .md-ptabs [role='tab']:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -2px; border-radius: 6px; }
 .md-ptab-n { font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
 .md-ptabs [role='tab'][aria-selected='true'] .md-ptab-n { color: var(--sf-ink); }
-/* Five tabs (with «Кратко») and narrow phones: the words stay 16 px, the gaps narrow before the row scrolls (at 360 the
-   four tabs fit). */
+/* Five tabs (with «Выжимка») and narrow phones: the words stay 16 px and the gaps narrow; with five tabs the first
+   row takes four at 390 px and three at 360, the second row the rest. */
 .md-ptabs[data-many] { gap: 0 18px; }
 @media (max-width: 374px) {
   .md-ptabs { gap: 0 16px; }
