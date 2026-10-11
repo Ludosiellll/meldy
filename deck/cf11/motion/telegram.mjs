@@ -23,11 +23,22 @@ const out = path.join(GEN, 'frames', 'telegram');
 fs.rmSync(raw, { recursive: true, force: true });
 fs.mkdirSync(raw, { recursive: true });
 
+const HARNESS = `http://127.0.0.1:5199/clip.html?kind=tip&id=telegram&w=${SIZE}&theme=light`;
+try {
+  const res = await fetch(HARNESS);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+} catch (e) {
+  console.error(`The app harness is not answering at 127.0.0.1:5199 (${e.message}).
+Start it first: a Vite server that mounts frontend/src/components/tips with fakes for Supabase, auth and the
+Telegram API (see PLAN.md, «Tools»), then run this script again.`);
+  process.exit(2);
+}
+
 const { chromium } = await loadPlaywright();
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: SIZE + 48, height: SIZE + 160 }, deviceScaleFactor: 2 });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto(`http://127.0.0.1:5199/clip.html?kind=tip&id=telegram&w=${SIZE}&theme=light`);
+await page.goto(HARNESS);
 await page.waitForFunction(() => Boolean(window.__meldyTipClip), null, { timeout: 30000 });
 await page.evaluate(() => document.fonts.ready);
 await page.addStyleTag({ content: '.tp-play, .tp-start { display: none !important; }' });

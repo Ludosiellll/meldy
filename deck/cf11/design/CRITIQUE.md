@@ -47,5 +47,11 @@ a later step).
 
 ## Round 2 (after the fixes)
 
+| # | Finding | Status |
+|---|---|---|
+| R2.1 | 01: the small QR card faded in, but its shadow is baked — a lone shadow would sit there for a second before the card. | **fixed** — the card is static, its QR and caption build; the lint fails on any animated shape over a baked shadow. |
+| R2.2 | 13: the dashed frame of the access date touched the colon of «обращения:». | **fixed** — the frame hugs the bracketed date, inside the right margin. |
+| R2.3 | Bakes (`--bg`) of every slide hold only the canvas and the cards' shadows: everything visible is a live or native object. | **checked** |
+
 `node design/preview/lint.mjs` — no errors, no warnings. Contact sheet, build-ups and Morph maps re-rendered and
 read slide by slide; the remaining items are the **open** ones above.

@@ -95,10 +95,21 @@ for (const slide of SLIDES) {
         if (ox > 1 && oy > 1) { buried.push(`${el.className || el.tagName} under ${below.dataset.pptx} ${below.dataset.name || below.className}`); break; }
       }
     });
+    // A baked shadow under a shape that fades in would show alone before its shape arrives.
+    const ghost = [];
+    layers.forEach((el) => {
+      if (!el.classList.contains('shadow')) return;
+      const e = el.getBoundingClientRect();
+      for (const s of layers) {
+        if (s.dataset.pptx !== 'shape' || !s.dataset.anim) continue;
+        const r = s.getBoundingClientRect();
+        if (Math.abs(r.left - e.left) < 2 && Math.abs(r.top - e.top) < 2 && Math.abs(r.width - e.width) < 2) ghost.push(s.className);
+      }
+    });
     const cards = [...document.querySelectorAll('.card[data-pptx="shape"]')].map((el) => box(el));
     const notes = document.querySelector('template[data-pptx="notes"]');
     const slideEl = document.querySelector('.slide');
-    return { marked, texts, colours, cards, buried, notes: notes ? notes.innerHTML.trim() : null, transition: slideEl.dataset.transition || 'morph' };
+    return { marked, texts, colours, cards, buried, ghost, notes: notes ? notes.innerHTML.trim() : null, transition: slideEl.dataset.transition || 'morph' };
   });
 
   // ---- the title
@@ -188,6 +199,8 @@ for (const slide of SLIDES) {
   }
 
   for (const x of R.buried) err(slide.n, `baked layer drawn above a native object would be hidden under it in PowerPoint: ${x}`);
+
+  for (const x of R.ghost) err(slide.n, `a shape with an entrance animation has a baked shadow, which would show before it: ${x}`);
 
   // ---- notes
   if (!R.notes) err(slide.n, 'no speaker notes');
