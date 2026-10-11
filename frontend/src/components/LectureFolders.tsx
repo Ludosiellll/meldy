@@ -96,11 +96,33 @@ export function forgetLecture(userId: string | null | undefined, materialId: str
   }
 }
 
-/** The confirm of «Удалить лекцию…», the same in the list and on the lecture page. */
-export function deleteLectureConfirm(title: string) {
+/** What a lecture has, for the confirm of its deletion. */
+export interface LectureMaterials {
+  summary?: boolean;
+  cards?: boolean;
+  quiz?: boolean;
+  cheatsheet?: boolean;
+  podcast?: boolean;
+}
+
+const GONE_WITH: Array<[keyof LectureMaterials, string]> = [
+  ['summary', 'конспектом'],
+  ['cards', 'карточками'],
+  ['quiz', 'тестом'],
+  ['cheatsheet', 'выжимкой'],
+  ['podcast', 'подкастом'],
+];
+
+/**
+ * The confirm of «Удалить лекцию…», the same in the list and on the lecture page: «… исчезнет из библиотеки вместе с
+ * конспектом и тестом» — only what the lecture has (QA 2026-10-11: «карточками и тестом» was said of every lecture).
+ */
+export function deleteLectureConfirm(title: string, has: LectureMaterials = {}) {
+  const named = GONE_WITH.filter(([key]) => has[key]).map(([, words]) => words);
+  const together = named.length > 1 ? `${named.slice(0, -1).join(', ')} и ${named[named.length - 1]}` : named[0];
   return {
     title: 'Удалить лекцию?',
-    message: `«${title}» исчезнет из библиотеки вместе с конспектом, карточками и тестом. Это нельзя отменить.`,
+    message: `«${title}» исчезнет из библиотеки${together ? ` вместе с ${together}` : ''}. Это нельзя отменить.`,
     confirmText: 'Удалить',
     cancelText: 'Оставить',
   };

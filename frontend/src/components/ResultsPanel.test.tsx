@@ -48,7 +48,7 @@ vi.mock('react-hot-toast', () => ({
   default: Object.assign(vi.fn(), { success: (...args: unknown[]) => db.toastSuccess(...args), error: vi.fn() }),
 }));
 
-import ResultsPanel, { buildHtmlExport } from './ResultsPanel';
+import ResultsPanel, { buildHtmlExport, restsOnLine } from './ResultsPanel';
 import type { ResultExportItem, ResultTab } from './resultSections';
 
 const summary = { title: 'Энтропия', subject: 'Физика', content: 'Энтропия — мера беспорядка системы.', terms: [], source_ids: ['S01'] };
@@ -150,9 +150,9 @@ describe('header', () => {
     expect(screen.getByText('Выжимка не получилась: модель не ответила.')).toBeInTheDocument();
   });
 
-  it('says what the cards and the test rest on in the student’s words, never «confirmed» (finding LIB-19)', () => {
+  it('says what rests on the fragments in the student’s words, never «confirmed» (finding LIB-19)', () => {
     const { unmount } = renderPanel({
-      results: { ...partialResults(), grounding: { ...grounding, source_count: 23, citable_items: 9 } },
+      results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 23, citable_items: 9 } },
     });
     expect(screen.getByText('Конспект, карточки и тест опираются на 23 фрагмента лекции')).toBeInTheDocument();
     // Links found by matching words, not checked: «похожий фрагмент».
@@ -160,19 +160,50 @@ describe('header', () => {
     expect(document.body.textContent).not.toMatch(/подтвержд|исходник|наиболее похож/i);
     unmount();
 
-    renderPanel({ results: { ...partialResults(), grounding: { ...grounding, source_count: 21, citable_items: 1 } } });
+    renderPanel({ results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 21, citable_items: 1 } } });
     expect(screen.getByText('Конспект, карточки и тест опираются на 21 фрагмент лекции')).toBeInTheDocument();
     expect(screen.getByText('у 1 пункта есть ссылка на похожий фрагмент')).toBeInTheDocument();
   });
 
-  it('on the material page says it in one line next to the cards and the test', () => {
+  it('names only the materials the result has (QA 2026-10-11: «карточки и тест» under a lone конспект)', () => {
+    const lone = { summarizer: summary, flashcards: { flashcards: [] }, quiz: { quiz: [] }, grounding: { ...grounding, source_count: 4, citable_items: 0 } } as AnalysisResults;
+    const { unmount } = renderPanel({ results: lone });
+    expect(screen.getByText('Конспект опирается на 4 фрагмента лекции')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/карточки|тест опира/i);
+    unmount();
+
+    // The test did not come: the summary and the cards rest on the fragments.
+    renderPanel({ results: { ...partialResults(), grounding: { ...grounding, source_count: 23, citable_items: 9 } } });
+    expect(screen.getByText('Конспект и карточки опираются на 23 фрагмента лекции')).toBeInTheDocument();
+  });
+
+  it('builds the line from what exists, with the verb in the right number', () => {
+    expect(restsOnLine(['summary'], 4)).toBe('Конспект опирается на 4\u00a0фрагмента лекции');
+    expect(restsOnLine(['flashcards'], 1)).toBe('Карточки опираются на 1\u00a0фрагмент лекции');
+    expect(restsOnLine(['quiz'], 11)).toBe('Тест опирается на 11\u00a0фрагментов лекции');
+    expect(restsOnLine(['summary', 'quiz'], 2)).toBe('Конспект и тест опираются на 2\u00a0фрагмента лекции');
+    expect(restsOnLine(['summary', 'flashcards', 'quiz'], 5)).toBe('Конспект, карточки и тест опираются на 5\u00a0фрагментов лекции');
+    expect(restsOnLine([], 5)).toBe('');
+    expect(restsOnLine(['summary'], 0)).toBe('');
+  });
+
+  it('on the material page says it in one line next to the cards and the test, naming only those it has', () => {
+    const { unmount } = renderPanel({
+      embedded: true,
+      initialTab: 'flashcards',
+      results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 17, citable_items: 17 } },
+    });
+    expect(screen.getByText('Карточки и тест опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/исходник|наиболее похож/i);
+    unmount();
+
+    // The test failed: the cards alone.
     renderPanel({
       embedded: true,
       initialTab: 'flashcards',
       results: { ...partialResults(), grounding: { ...grounding, source_count: 17, citable_items: 17 } },
     });
-    expect(screen.getByText('Карточки и тест опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/исходник|наиболее похож/i);
+    expect(screen.getByText('Карточки опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
   });
 
   it('on the material page says «Обработан частично» as a plain line when a saved section is not ok', () => {
@@ -217,6 +248,93 @@ describe('header', () => {
     });
     expect(screen.getByRole('button', { name: /^Подкаст/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Разговор/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('«Выжимка» on the result screen (QA 2026-10-11: made, and shown nowhere here)', () => {
+  const brief = '# Экспресс-шпаргалка\n\n## Суть\n\nКлетка — основа жизни [S01].\n\n- **АТФ:** источник энергии [S02].';
+  const withBrief = (): AnalysisResults => ({
+    ...partialResults(),
+    quiz,
+    cheatsheet: { content: brief },
+    podcast: { podcast: [{ speaker: 'Макс', text: 'Что такое клетка?' }] },
+    sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' }, cheatsheet: { status: 'ok' }, podcast: { status: 'ok' } },
+  });
+
+  it('is a tab of its own, named as the picker and the lecture page name it, between the test and the podcast', () => {
+    renderPanel({ results: withBrief() });
+    const row = screen.getByRole('navigation', { name: 'Разделы результата' });
+    expect(Array.from(row.querySelectorAll('.sf-sectab-label')).map(label => label.textContent)).toEqual(['Конспект', 'Карточки', 'Тест', 'Выжимка', 'Подкаст']);
+    fireEvent.click(screen.getByRole('button', { name: 'Выжимка' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Выжимка' })).toBeInTheDocument();
+    expect(screen.getByText('Главное из материала для быстрого повторения')).toBeInTheDocument();
+    expect(screen.getByText('Клетка — основа жизни.')).toBeInTheDocument();
+    // Neither the fragment marks nor the old name of its first heading.
+    expect(document.querySelector('.xp-md')?.textContent).not.toMatch(/\[S0|шпаргалка/i);
+  });
+
+  it('copies the text as it is shown', async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    renderPanel({ results: withBrief() });
+    fireEvent.click(screen.getByRole('button', { name: 'Выжимка' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Копировать']);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Копировать' }));
+    expect(writeText).toHaveBeenCalledWith('## Суть\n\nКлетка — основа жизни.\n\n- **АТФ:** источник энергии.');
+  });
+
+  it('stays the lecture page’s own tab there, and a failed one is the line under the header', () => {
+    const { unmount } = renderPanel({ results: withBrief(), embedded: true });
+    expect(screen.queryByRole('button', { name: 'Выжимка' })).toBeNull();
+    unmount();
+
+    renderPanel({
+      results: { ...withBrief(), cheatsheet: { content: '' }, sections: { ...withBrief().sections, cheatsheet: { status: 'failed', message: 'Модель не ответила' } } },
+    });
+    expect(screen.queryByRole('button', { name: 'Выжимка' })).toBeNull();
+    expect(screen.getByText('Выжимка не получилась: модель не ответила.')).toBeInTheDocument();
+  });
+});
+
+describe('«Подкаст» on the result screen opens with its player in view (QA 2026-10-11: ▶ below the first screen at 1532×734)', () => {
+  const originalRect = Element.prototype.getBoundingClientRect;
+  const withPodcast = (): AnalysisResults => ({
+    ...partialResults(),
+    quiz,
+    podcast: { podcast: [{ speaker: 'Макс', text: 'Что такое энтропия?' }, { speaker: 'Софья', text: 'Мера беспорядка.' }] },
+    sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' }, podcast: { status: 'ok' } },
+  });
+  let reveals: Array<ScrollIntoViewOptions | boolean | undefined>;
+
+  beforeEach(() => {
+    reveals = [];
+    // The panel under the result's tall header: it starts at 508 px of a 734 px window.
+    Element.prototype.getBoundingClientRect = function rect(this: Element) {
+      const box = (y: number, h: number) => ({ top: y, bottom: y + h, left: 0, right: 900, width: 900, height: h, x: 0, y, toJSON: () => ({}) }) as DOMRect;
+      if (this.classList.contains('cv-show')) return box(508, 495);
+      if (this.classList.contains('cv-play')) return box(913, 60);
+      if (this.classList.contains('cv-sheet')) return box(522, 258);
+      return box(0, 0);
+    };
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function scroll(this: HTMLElement, options?: ScrollIntoViewOptions | boolean) {
+      if (this.classList.contains('cv-show')) reveals.push(options);
+    });
+  });
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = originalRect;
+  });
+
+  it('brings the player into the window when the tab is opened', () => {
+    renderPanel({ results: withPodcast() });
+    expect(reveals).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: /^Подкаст/ }));
+    expect(screen.getByRole('button', { name: 'Слушать' })).toBeInTheDocument();
+    expect(reveals).toHaveLength(1);
   });
 });
 
@@ -483,6 +601,20 @@ describe('text-only materials', () => {
 });
 
 describe('HTML export', () => {
+  it('leaves out the fragment marks the model copied into cards and questions (QA 2026-10-11)', () => {
+    const html = buildHtmlExport(
+      {
+        summarizer: { content: 'Клетка — единица живого [S01].' },
+        flashcards: { flashcards: [{ id: 1, question: 'Что такое клетка? [S01]', answer: 'Единица живого [S01, S02].' }] },
+        quiz: { quiz: [{ id: 1, question: 'Где синтез АТФ? [S02]', options: ['A) В митохондриях [S02]', 'B) В ядре'], correct: 'A', explanation: 'Так в лекции [S02].' }] },
+      } as unknown as AnalysisResults,
+      'Клетка',
+    );
+    expect(html).not.toMatch(/\[S0/);
+    expect(html).toContain('Что такое клетка?');
+    expect(html).toContain('A) В митохондриях ✓');
+  });
+
   it('is self-contained: no web-font links, the system font stack, no capitals by CSS', () => {
     const html = buildHtmlExport(
       { summarizer: { content: '# Энтропия\nМера беспорядка' }, flashcards: { flashcards: [] }, quiz: { quiz: [] } } as unknown as AnalysisResults,

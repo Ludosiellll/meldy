@@ -14,6 +14,7 @@ import type { QuestionState, Readiness } from '../../lib/learning/readiness';
 import { daysUntil, questionNumber } from '../../lib/exams/format';
 import { orderExamLectures } from '../../lib/lectureOrder';
 import { normalizeForMatch, wordStem } from '../conversation/visuals';
+import { stripSourceMarkers } from '../summary/sourceMarkers';
 import { displayMaterialTitle } from '../../utils/materialTitle';
 
 // ---------------------------------------------------------------------------------------------
@@ -120,8 +121,9 @@ export function extractTerms(raw: unknown): ParsedTerm[] {
   const terms: ParsedTerm[] = [];
   for (const item of structured) {
     if (!isRecord(item) || typeof item.term !== 'string') continue;
-    const term = item.term.trim();
-    const definition = typeof item.definition === 'string' ? item.definition.trim() : '';
+    // The fragment marks the model copied («[S01]») are not words of the glossary.
+    const term = stripSourceMarkers(item.term).trim();
+    const definition = typeof item.definition === 'string' ? stripSourceMarkers(item.definition).trim() : '';
     if (term && definition) terms.push({ term, definition, sourceIds: cleanSourceIds(item.source_ids) });
   }
   if (terms.length > 0) return dedupeTerms(terms);

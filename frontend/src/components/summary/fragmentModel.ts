@@ -1,4 +1,7 @@
 import { normalizeForMatch, wordStem } from '../conversation/visuals';
+import { SOURCE_MARK, stripSourceMarkers } from './sourceMarkers';
+
+export { stripSourceMarkers };
 
 /**
  * The summary next to its lecture (redesign spec 5.3): which lecture fragments stand by each
@@ -32,9 +35,7 @@ export interface SummarySection {
 }
 
 const MAX_REFS = 4;
-const MARK = String.raw`\[\s*S\d{1,3}(?:\s*[,;]\s*S?\d{1,3})*\s*\]`;
-const MARK_ONE = new RegExp(MARK, 'g');
-const MARK_RUN = new RegExp(String.raw`[ \t]*${MARK}(?:[ \t]*,?[ \t]*${MARK})*`, 'g');
+const MARK_ONE = new RegExp(SOURCE_MARK, 'g');
 const PICTOGRAPHS = /[\p{Extended_Pictographic}️]/gu;
 
 // Frequent words that say nothing about the topic (four letters and longer: shorter ones are skipped anyway).
@@ -49,11 +50,6 @@ const STOP_WORDS = new Set(
     'какие каких каждый каждая каждое данный данная данные данных этом этой своей своем своём'
   ).split(' '),
 );
-
-/** Drops «[S02]», «[S01, S03]» and runs like «[S04], [S05]» the model copied from its input. */
-export function stripSourceMarkers(text: string): string {
-  return text.replace(MARK_RUN, '');
-}
 
 /** «S04» → 4. */
 export function fragmentNumber(id: string): number | null {

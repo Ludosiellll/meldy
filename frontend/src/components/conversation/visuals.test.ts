@@ -4,10 +4,10 @@ import {
   buildConversation,
   cleanSourceIds,
   conversationOutline,
-  estimateMinutes,
+  estimateSeconds,
   conversationMeta,
   fragmentWords,
-  minutesPhrase,
+  lengthPhrase,
   sourceNote,
   visualCaption,
   hasModelVisuals,
@@ -33,6 +33,22 @@ import { axisNotToScale, chartScale } from './ChartView';
 import { splitStep } from './ConversationVisual';
 
 describe('sanitizeVisual', () => {
+  it('drops the fragment marks the model copied into the words on the sheet (QA 2026-10-11)', () => {
+    expect(sanitizeVisual({ type: 'term', term: 'Клетка [S01]', definition: 'Наименьшая единица живого [S01, S02].' })).toEqual({
+      type: 'term',
+      term: 'Клетка',
+      definition: 'Наименьшая единица живого.',
+    });
+    expect(sanitizeVisual({ type: 'steps', title: 'Путь белка', items: ['Рибосома [S02]', 'ЭПС [S03], [S04]'] })).toMatchObject({
+      items: ['Рибосома', 'ЭПС'],
+    });
+    // A glossary term picked for a line of an older podcast says its definition without them too.
+    const [line] = buildConversation([{ speaker: 'Софья', text: 'Начнём с того, что такое клетка.' }], {
+      terms: [{ term: 'Клетка', definition: 'Наименьшая единица живого, способная к существованию [S01].' }],
+    });
+    expect(line.visual).toEqual({ type: 'term', term: 'Клетка', definition: 'Наименьшая единица живого, способная к существованию.' });
+  });
+
   it('keeps a valid chart and strips unknown keys', () => {
     const visual = sanitizeVisual({
       type: 'chart',
@@ -396,11 +412,13 @@ describe('helpers', () => {
     expect(parseGeneratedLines({ error: 'nope' })).toEqual([]);
   });
 
-  it('estimates duration at about 150 words per minute', () => {
-    const words = Array.from({ length: 300 }, () => 'слово').join(' ');
-    expect(estimateMinutes([{ text: words }])).toBe(2);
-    expect(estimateMinutes([{ text: 'коротко' }])).toBe(1);
-    expect(estimateMinutes([])).toBe(0);
+  it('estimates how long the hosts speak, at the 140 words a minute their voices were measured at', () => {
+    const words = (count: number) => Array.from({ length: count }, () => 'слово').join(' ');
+    expect(estimateSeconds([{ text: words(280) }])).toBe(120);
+    // The podcast of the live QA (2026-10-11): 208 words in 14 lines, about 85 s of speech.
+    expect(estimateSeconds([{ text: words(100) }, { text: words(108) }])).toBe(89);
+    expect(estimateSeconds([{ text: 'коротко' }])).toBe(0);
+    expect(estimateSeconds([])).toBe(0);
   });
 });
 
@@ -545,12 +563,23 @@ describe('words on the paper sheet (spec 5.7)', () => {
   });
 
   it('says who talks, how many lines and how long, in one line above the sheet', () => {
-    expect(conversationMeta(['Макс', 'Софья'], 14, 1)).toBe('Макс и Софья обсуждают лекцию · 14 реплик, около минуты');
-    expect(conversationMeta(['Макс', 'Софья', 'Анна', 'Борис'], 3, 2)).toBe('Макс, Софья и Анна обсуждают лекцию · 3 реплики, около 2 минут');
+    // ~85 s was «около минуты» while the length was whole minutes (live QA 2026-10-11).
+    expect(conversationMeta(['Макс', 'Софья'], 14, 89)).toBe('Макс и Софья обсуждают лекцию · 14 реплик, около полутора минут');
+    expect(conversationMeta(['Макс', 'Софья', 'Анна', 'Борис'], 3, 120)).toBe('Макс, Софья и Анна обсуждают лекцию · 3 реплики, около 2 минут');
     expect(conversationMeta(['Софья'], 1, 0)).toBe('Софья рассказывает о лекции · 1 реплика');
-    expect(conversationMeta([], 21, 21)).toBe('Подкаст по лекции · 21 реплика, около 21 минуты');
-    expect(minutesPhrase(1)).toBe('около минуты');
-    expect(minutesPhrase(5)).toBe('около 5 минут');
+    expect(conversationMeta([], 21, 21 * 60)).toBe('Подкаст по лекции · 21 реплика, около 21 минуты');
+  });
+
+  it('names the length to the half minute while it is short', () => {
+    expect(lengthPhrase(8)).toBe('меньше минуты');
+    expect(lengthPhrase(44)).toBe('меньше минуты');
+    expect(lengthPhrase(45)).toBe('около минуты');
+    expect(lengthPhrase(74)).toBe('около минуты');
+    expect(lengthPhrase(85)).toBe('около полутора минут');
+    expect(lengthPhrase(104)).toBe('около полутора минут');
+    expect(lengthPhrase(105)).toBe('около 2 минут');
+    expect(lengthPhrase(150)).toBe('около 3 минут');
+    expect(lengthPhrase(300)).toBe('около 5 минут');
   });
 
   it('never shows the internal «Из источника S03» title of a found quote', () => {

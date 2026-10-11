@@ -1181,6 +1181,11 @@ describe('«Сегодня»: below the desk', () => {
 
   it('describes a lecture as the Library does and notes missing cards only when they exist', () => {
     expect(lectureMeta(LECTURES[0])).toBe('конспект · 8 карточек · тест · подкаст');
+    // The выжимка is named as «Лекции» names it, in the order of the lecture's tabs (QA 2026-10-11).
+    const brief = { ...LECTURES[0], summary_json: { ...LECTURES[0].summary_json, cheatsheet: '# Выжимка\n\nГлавное.' } };
+    expect(lectureMeta(brief)).toBe('конспект · 8 карточек · тест · выжимка · подкаст');
+    expect(lectureMetaShort(brief)).toBe('8 карточек · тест · выжимка · подкаст · 2 окт.');
+    expect(lectureMeta({ ...LECTURES[2], summary_json: { content: 'Конспект', cheatsheet: ' ' } })).toBe('конспект · 1 карточка · тест');
     expect(lectureMeta(LECTURES[1])).toBe('только текст, конспекта нет');
     expect(lectureMeta({ summary_json: null, flashcards_json: null, quiz_json: null })).toBe('');
     const inReview = new Set(['m1']);

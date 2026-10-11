@@ -40,6 +40,12 @@ describe('terms of a summary', () => {
     expect(terms).toEqual([{ term: 'Инфляция', definition: 'Рост общего уровня цен.', sourceIds: ['S03'] }]);
   });
 
+  it('reads a definition without the fragment marks the model copied into it (QA 2026-10-11)', () => {
+    expect(extractTerms({ terms: [{ term: 'Клетка [S01]', definition: 'Наименьшая единица живого [S01, S02].', source_ids: ['S01'] }] })).toEqual([
+      { term: 'Клетка', definition: 'Наименьшая единица живого.', sourceIds: ['S01'] },
+    ]);
+  });
+
   it('falls back to the «Термины» section of older Markdown summaries (also stored as a JSON string)', () => {
     const markdown = '## Конспект\n\nТекст.\n\n## Термины\n\n1. **Ставка процента** — цена кредита.\n- **Ликвидность**: способность актива быстро стать деньгами.';
     expect(extractTerms(JSON.stringify({ content: markdown })).map((term) => term.term)).toEqual(['Ставка процента', 'Ликвидность']);

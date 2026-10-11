@@ -31,6 +31,7 @@ import {
   writeAssignments,
   writeFolders,
   writeJson,
+  type LectureMaterials,
   type LibraryFolder,
 } from '../components/LectureFolders';
 import '../styles/paper.css';
@@ -41,7 +42,7 @@ import { displayMaterialTitle } from '../utils/materialTitle';
  * The Library as the course's table of contents (redesign spec 5.1): the lectures grouped by the
  * exam they were added to, in the order they were added (lib/lectureOrder, the map numbers them the
  * same way); one line per lecture with what it has («конспект · 8 карточек · ещё 2 из ответов на
- * билеты · тест · подкаст» or «только текст, конспекта нет») and its date. No cards grid, chips,
+ * билеты · тест · выжимка · подкаст» or «только текст, конспекта нет») and its date. No cards grid, chips,
  * capitals, statistics tiles or quick-view drawer: a click opens the lecture. Folders (kept on this
  * device, and the page says so) and search appear only when they help (a folder the student made,
  * 13+ lectures).
@@ -56,6 +57,8 @@ export interface LibraryEntry {
   summary: boolean;
   cards: number;
   quiz: boolean;
+  /** The lecture has its «Выжимка» (summary_json.cheatsheet). */
+  cheatsheet: boolean;
   talk: boolean;
 }
 
@@ -92,6 +95,7 @@ export function toEntry(raw: unknown): LibraryEntry | null {
       summary: raw.summary === true,
       cards: typeof raw.cards === 'number' ? raw.cards : 0,
       quiz: raw.quiz === true,
+      cheatsheet: raw.cheatsheet === true,
       talk: raw.talk === true,
     };
   }
@@ -106,13 +110,15 @@ export function toEntry(raw: unknown): LibraryEntry | null {
     summary: typeof summary.content === 'string' && summary.content.trim() !== '',
     cards,
     quiz: quiz > 0,
+    cheatsheet: typeof summary.cheatsheet === 'string' && summary.cheatsheet.trim() !== '',
     talk: Array.isArray(summary.podcast) && summary.podcast.length > 0,
   };
 }
 
 /**
- * «конспект · 8 карточек · тест · подкаст» (only what exists) or «только текст, конспекта нет». Cards the
- * lecture got from ticket answers are named apart (decision 4): «6 карточек · ещё 4 из ответов на билеты».
+ * «конспект · 8 карточек · тест · выжимка · подкаст» (only what exists, in the order of the lecture's tabs) or «только
+ * текст, конспекта нет». Cards the lecture got from ticket answers are named apart (decision 4): «6 карточек · ещё 4 из
+ * ответов на билеты».
  * `short` (a phone, 10_Project/Phone_Declutter_2026-10-08): «6 карточек · тест» — a summary goes without saying
  * and only its absence is named; the cards from ticket answers are counted on the lecture's «Карточки».
  */
@@ -124,8 +130,14 @@ export function lectureMeta(entry: LibraryEntry, followups = 0, short = false): 
   if (!entry.summary && short) parts.push('без конспекта');
   if (cards) parts.push(cards);
   if (entry.quiz) parts.push('тест');
+  if (entry.cheatsheet) parts.push('выжимка');
   if (entry.talk) parts.push('подкаст');
   return parts.join(DOT);
+}
+
+/** What goes with the lecture when it is deleted: what its row names (LectureFolders.deleteLectureConfirm). */
+export function entryMaterials(entry: LibraryEntry): LectureMaterials {
+  return { summary: entry.summary, cards: entry.cards > 0, quiz: entry.quiz, cheatsheet: entry.cheatsheet, podcast: entry.talk };
 }
 
 /** «15 сент.», with the year when it is not this year. */
@@ -191,6 +203,10 @@ function time(entry: LibraryEntry): number {
  * it and then uploaded (lib/lectureOrder, as the knowledge map numbers them); lectures in no exam under
  * «Другие материалы», newest first. All lectures in one exam: the exam is the page. No exams: one list,
  * newest first. A lecture in two exams is shown in both.
+ *
+ * «Другие материалы» comes first while it holds the newest lecture of all: a lecture just analysed is in no exam yet,
+ * and it stood under every exam at the bottom of the page (QA 2026-10-11: y ≈ 1900 of 2154 on a phone). Once the
+ * newest lecture is in an exam, the exams lead again and «Другие материалы» closes the page.
  */
 export function libraryLayout(entries: LibraryEntry[], shelves: ExamShelf[]): LibraryLayout {
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -208,7 +224,12 @@ export function libraryLayout(entries: LibraryEntry[], shelves: ExamShelf[]): Li
   if (groups.length === 0) return { mode: 'plain', entries: newestFirst(entries) };
   const rest = newestFirst(entries.filter((entry) => !placed.has(entry.id)));
   if (groups.length === 1 && rest.length === 0) return { mode: 'single', exam: groups[0].exam as ExamShelf, entries: groups[0].entries };
-  if (rest.length > 0) groups.push({ key: 'other', exam: null, entries: rest });
+  if (rest.length > 0) {
+    const other: LibraryGroup = { key: 'other', exam: null, entries: rest };
+    const newestInExams = Math.max(...groups.flatMap((group) => group.entries.map(time)));
+    if (time(rest[0]) > newestInExams) groups.unshift(other);
+    else groups.push(other);
+  }
   return { mode: 'sections', groups };
 }
 
@@ -553,7 +574,7 @@ export default function Library() {
       saveAssignments(next.assignments);
     },
     remove: async (entry) => {
-      const ok = await confirm(deleteLectureConfirm(displayMaterialTitle(entry.title)));
+      const ok = await confirm(deleteLectureConfirm(displayMaterialTitle(entry.title), entryMaterials(entry)));
       if (!ok) return;
       try {
         await deleteMaterial(entry.id);

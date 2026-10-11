@@ -24,6 +24,26 @@ describe('resultTabs', () => {
     expect(resultTabs(result({ quiz: { quiz: [] } })).map(tab => tab.id)).toEqual(['summary', 'flashcards']);
   });
 
+  it('has the выжимка, by the name the picker and the lecture page give it, only where the page shows it as a tab (QA 2026-10-11)', () => {
+    const withBrief = result({ cheatsheet: { content: '# Выжимка\n\n- Клетка — основа жизни.' } });
+    expect(resultTabs(withBrief, { showCheatsheet: true, showConversation: true, conversationCount: 14 })).toEqual([
+      { id: 'summary', label: 'Конспект' },
+      { id: 'flashcards', label: 'Карточки', count: 6 },
+      { id: 'quiz', label: 'Тест', count: 5 },
+      { id: 'cheatsheet', label: 'Выжимка' },
+      { id: 'podcast', label: 'Подкаст', count: 14 },
+    ]);
+    // The lecture page has its own «Выжимка»; a failed or empty one is a line under the header, not a tab.
+    expect(resultTabs(withBrief).map(tab => tab.id)).not.toContain('cheatsheet');
+    const failed = result({ cheatsheet: { content: '' }, sections: { cheatsheet: { status: 'failed' } } });
+    expect(resultTabs(failed, { showCheatsheet: true }).map(tab => tab.id)).not.toContain('cheatsheet');
+    // Only a выжимка: the result opens on it.
+    const onlyBrief = result({ summarizer: { content: '' } as AnalysisResults['summarizer'], flashcards: { flashcards: [] }, quiz: { quiz: [] }, cheatsheet: { content: 'Главное' } });
+    const tabs = resultTabs(onlyBrief, { showCheatsheet: true });
+    expect(tabs.map(tab => tab.id)).toEqual(['cheatsheet']);
+    expect(openingResultTab(tabs, onlyBrief)).toBe('cheatsheet');
+  });
+
   it('has the podcast only where the page shows it as a tab, and nothing for a text-only material', () => {
     expect(resultTabs(result(), { showConversation: true, conversationCount: 3 }).map(tab => tab.id)).toEqual(['summary', 'flashcards', 'quiz', 'podcast']);
     expect(resultTabs(result(), { conversationCount: 3 }).map(tab => tab.id)).not.toContain('podcast');

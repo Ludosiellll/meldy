@@ -111,6 +111,25 @@ describe('<SummaryView> on a narrow page', () => {
     expect(screen.queryByText(/фрагменты лекции, ближайшие/)).toBeNull();
     expect(document.body.textContent).not.toMatch(/\[S\d+/);
   });
+
+  it('shows the terms without the marks the model copied into them (QA 2026-10-11: «…существованию [S01].»)', () => {
+    const data = {
+      content: CONTENT,
+      terms: [
+        { term: 'Клетка', definition: 'Наименьшая единица живого, способная к самостоятельному существованию [S01].', source_ids: ['S01'] },
+        { term: 'Митохондрии [S03]', definition: 'Органоиды, в которых синтезируется АТФ [S02], [S03].', source_ids: ['S03'] },
+      ],
+      source_ids: ['S01', 'S02', 'S03'],
+    } as never;
+    render(<SummaryView data={data} sources={SOURCES} />);
+    const glossary = screen.getByRole('heading', { level: 2, name: 'Термины' }).closest('section') as HTMLElement;
+    expect(glossary.textContent).not.toMatch(/\[S\d+/);
+    expect(within(glossary).getByText('Наименьшая единица живого, способная к самостоятельному существованию.')).toBeInTheDocument();
+    expect(within(glossary).getByText('Митохондрии')).toBeInTheDocument();
+    expect(within(glossary).getByText('Органоиды, в которых синтезируется АТФ.')).toBeInTheDocument();
+    // The term keeps its own fragment links: they come from source_ids, not from the words.
+    expect(within(glossary).getAllByRole('button', { name: /Фрагмент лекции/ }).map(link => link.textContent)).toEqual(['фрагмент 1', 'фрагмент 3']);
+  });
 });
 
 describe('<SummaryView> formulas (finding LIB-2)', () => {

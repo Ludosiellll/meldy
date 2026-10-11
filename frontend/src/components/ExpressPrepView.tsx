@@ -1,16 +1,10 @@
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 import { AlertCircle, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { notifyAIUsageChanged } from '../api/limits';
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
-import { stripSourceMarkers } from './summary/fragmentModel';
-import { repairMathEscapes } from '../lib/mathEscapes';
-import { displayCheatsheet } from '../utils/cheatsheetDisplay';
+import CheatsheetSheet from './CheatsheetSheet';
 import { ConversationError, postJson, saveCheatsheet } from './conversation/persistence';
 import { runJob, useJobStatus } from './conversation/jobs';
 import type { ConversationFlashcard, PodcastLine } from './conversation/types';
@@ -31,7 +25,7 @@ interface ExpressPrepViewProps {
    * id — материал, для которого работа делалась: страница могла уже показать другой.
    */
   onUpdate?: (updatedFields: any) => void;
-  /** Вкладка, которую выбрала страница («Кратко» или «Разговор»). */
+  /** Вкладка, которую выбрала страница («Выжимка» или «Подкаст»). */
   tab: ExpressTab;
   /** Прокрутить к плееру разговора после открытия (переход по ссылке на разговор). */
   revealPlayer?: boolean;
@@ -114,21 +108,7 @@ export default function ExpressPrepView({
     );
   }
 
-  if (cheatsheet.trim()) {
-    return (
-      <article className="xp-sheet">
-        <header className="xp-sheet-head">
-          <h2>Выжимка</h2>
-          <p>Главное из материала для быстрого повторения</p>
-        </header>
-        <div className="xp-md">
-          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-            {displayCheatsheet(repairMathEscapes(stripSourceMarkers(cheatsheet)))}
-          </ReactMarkdown>
-        </div>
-      </article>
-    );
-  }
+  if (cheatsheet.trim()) return <CheatsheetSheet text={cheatsheet} />;
 
   return (
     <section className="xp-empty">

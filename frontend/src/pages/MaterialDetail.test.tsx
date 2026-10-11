@@ -233,7 +233,7 @@ describe('summary_json writes do not overwrite each other', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Создать подкаст' }));
     await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
 
-    fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Выжимка/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Создать выжимку' }));
     await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
 
@@ -268,7 +268,7 @@ describe('model jobs outlive the tab that started them', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Добавить схемы/ }));
     await waitFor(() => expect(pending['/api/podcast/visuals']).toHaveLength(1));
 
-    fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Выжимка/ }));
     fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
 
     const busy = await screen.findByRole('button', { name: /Подбираем схемы/ });
@@ -292,7 +292,7 @@ describe('model jobs outlive the tab that started them', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Добавить схемы/ }));
     await waitFor(() => expect(pending['/api/podcast/visuals']).toHaveLength(1));
 
-    fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Выжимка/ }));
     fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Слушать' }));
     await waitFor(() => expect(FakeAudio.instances.length).toBeGreaterThan(0));
@@ -326,7 +326,7 @@ describe('model jobs outlive the tab that started them', () => {
     await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('tab', { name: /Материал/ }));
-    fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Выжимка/ }));
     expect(await screen.findByRole('button', { name: /Составляем выжимку/ })).toBeDisabled();
 
     await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Готово' })));
@@ -547,7 +547,7 @@ describe('mode switcher', () => {
 
     material.focus();
     fireEvent.keyDown(material, { key: 'ArrowRight' });
-    const brief = screen.getByRole('tab', { name: /Кратко/ });
+    const brief = screen.getByRole('tab', { name: /Выжимка/ });
     expect(brief).toHaveAttribute('aria-selected', 'true');
     expect(brief).toHaveFocus();
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', brief.id);
@@ -561,7 +561,7 @@ describe('mode switcher', () => {
   });
 });
 
-describe('«Кратко»: the lecture text is «Выжимка»', () => {
+describe('«Выжимка»: one name for the tab and its card, as in the picker and on the result screen (QA 2026-10-11)', () => {
   it('says «Выжимка» once, hides the old heading of a saved text and does not rewrite the text', async () => {
     const saved = '# Экспресс-шпаргалка\n\n## Суть в 3 словах\n\nЭнтропия не убывает.';
     state.material = makeMaterial({ cheatsheet: saved, podcast: [] });
@@ -629,7 +629,7 @@ describe('section statuses saved with the material', () => {
     expect(screen.queryByRole('button', { name: 'Создать тест заново' })).not.toBeInTheDocument();
   });
 
-  // Анализ записал «не получилось», а выжимку и разговор потом создали в «Кратко» и «Разговоре».
+  // Анализ записал «не получилось», а выжимку и разговор потом создали в «Выжимке» и «Подкасте».
   const madeLater = () =>
     makeMaterial({
       cheatsheet: '# Выжимка',
@@ -664,11 +664,11 @@ describe('section statuses saved with the material', () => {
     expect(await screen.findByRole('button', { name: 'Создать подкаст' })).toBeInTheDocument();
   });
 
-  it('a cheat sheet that failed and is still missing: the line stays and «Кратко» offers to make it', async () => {
+  it('a cheat sheet that failed and is still missing: the line stays and «Выжимка» offers to make it', async () => {
     state.material = makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' }, cheatsheet: { status: 'failed', message: 'Модель не ответила' } } });
     renderPage('/library/m1');
     expect(await screen.findByText('Выжимка не получилась: модель не ответила.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Выжимка/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
     await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
     await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Главное' })));
@@ -854,9 +854,17 @@ describe('the browser tab and the meta line', () => {
     const api = await import('../api/materials');
     vi.mocked(api.getMaterialById).mockRejectedValueOnce(new Error('not found'));
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    renderPage('/library/gone');
+    const failed = renderPage('/library/gone');
     expect(await screen.findByRole('heading', { level: 1, name: 'Лекция не найдена' })).toBeInTheDocument();
     expect(document.title).toBe('Лекция не найдена — Meldy');
+    failed.unmount();
+    quiet.mockClear();
+
+    // A deleted lecture is no row (maybeSingle), not an error: the same page, and nothing in the console (QA 2026-10-11).
+    vi.mocked(api.getMaterialById).mockResolvedValueOnce(null);
+    renderPage('/library/deleted');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Лекция не найдена' })).toBeInTheDocument();
+    expect(quiet).not.toHaveBeenCalled();
     quiet.mockRestore();
   });
 
@@ -928,6 +936,10 @@ describe('the lecture’s «⋯» moves it to a folder and deletes it (finding L
   it('deletes the lecture after the question «Лекций» asks, forgets its folder and goes back to the list', async () => {
     const api = await import('../api/materials');
     vi.mocked(api.deleteMaterial).mockClear();
+    state.material = {
+      ...makeMaterial({ podcast: [], cheatsheet: '# Выжимка\n\nГлавное.' }),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
     window.localStorage.setItem('library_folder_assignments_user-1', JSON.stringify({ m1: 'folder_9', m2: 'folder_9' }));
     window.localStorage.setItem('library_entries_user-1', JSON.stringify({ items: [{ id: 'm1' }, { id: 'm2' }] }));
     render(
@@ -942,9 +954,10 @@ describe('the lecture’s «⋯» moves it to a folder and deletes it (finding L
     state.confirm = vi.fn(async () => false);
     await chooseFromMenu('Удалить лекцию…');
     await waitFor(() => expect(state.confirm).toHaveBeenCalledTimes(1));
+    // What the lecture has, and nothing else (QA 2026-10-11: «карточками и тестом» was said of every lecture).
     expect(state.confirm.mock.calls[0][0]).toEqual({
       title: 'Удалить лекцию?',
-      message: '«Энтропия» исчезнет из библиотеки вместе с конспектом, карточками и тестом. Это нельзя отменить.',
+      message: '«Энтропия» исчезнет из библиотеки вместе с конспектом, карточками и выжимкой. Это нельзя отменить.',
       confirmText: 'Удалить',
       cancelText: 'Оставить',
     });
@@ -1077,9 +1090,9 @@ describe('the lecture on a phone', () => {
     second.unmount();
 
     renderPage('/library/m1?mode=express');
-    const brief = await screen.findByRole('tab', { name: 'Кратко' });
+    const brief = await screen.findByRole('tab', { name: 'Выжимка' });
     expect(brief).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Конспект', 'Карточки 6', 'Тест 5', 'Кратко', 'Подкаст']);
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Конспект', 'Карточки 6', 'Тест 5', 'Выжимка', 'Подкаст']);
     expect(await screen.findByRole('button', { name: 'Создать выжимку' })).toBeInTheDocument();
   });
 

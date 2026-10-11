@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { ChevronDown, FileText, Link as LinkIcon, Type, Video, X, type LucideIcon } from 'lucide-react';
 import SettingsPanel, { settingsSummary } from './SettingsPanel';
 import type { AnalysisSettings } from '../types';
@@ -6,7 +6,15 @@ import { hasBadWords } from '../utils/moderation';
 import { compressImage } from '../lib/imageCompression';
 import { charactersLabel, pastedTextFile, pastedTextProblem, pastedTextTitle } from '../utils/pastedText';
 import { DEMO_SETTINGS, isDemoText } from '../data/demo';
-import { PPTX_MIME, PPT_LEGACY_MESSAGE, isLegacyPpt } from '../lib/lectureFormats';
+import {
+  DOC_FORMATS,
+  PPTX_MIME,
+  RECORDING_FORMATS,
+  VIDEO_LINK_MESSAGE,
+  formatsList,
+  isVideoLink,
+  unreadableFileMessage,
+} from '../lib/lectureFormats';
 import { usePhone } from '../lib/usePhone';
 import { NBSP, ty } from './landing/typo';
 import './UploadZone.css';
@@ -65,11 +73,13 @@ function audioMinutes(kbps: number): number {
 export const MEDIA_LENGTH = `${audioMinutes(AUDIO_KBPS[0])}–${audioMinutes(AUDIO_KBPS[1])} минут звука`;
 const DOC_ACCEPT = `.pdf,.docx,.pptx,.txt,.md,.html,.htm,.jpg,.jpeg,.png,${PPTX_MIME}`;
 const MEDIA_ACCEPT = '.mp4,.mp3,.wav,.mpeg,.m4a';
-/** Форматы на плашках — ровно то, что принимает поле выбора файла (HTM и JPEG — те же HTML и JPG). */
-const DOC_FORMATS = ['PDF', 'DOCX', 'PPTX', 'HTML', 'TXT', 'MD', 'JPG', 'PNG'];
-const MEDIA_FORMATS = ['MP4', 'MP3', 'WAV', 'MPEG', 'M4A'];
-const DOC_FORMATS_TEXT = `PDF, DOCX, PPTX, HTML, TXT, MD, JPG и PNG — до ${MAX_SIZE_MB} МБ`;
-const MEDIA_FORMATS_TEXT = `MP4, MP3, WAV, MPEG и M4A — до ${MAX_SIZE_MB} МБ, примерно ${MEDIA_LENGTH}`;
+/**
+ * Форматы на плашках — ровно то, что принимает поле выбора файла (HTM и JPEG — те же HTML и JPG); у записей — только
+ * записи (lib/lectureFormats, там же слова о формате, который сервер не прочтёт).
+ */
+const MEDIA_FORMATS = RECORDING_FORMATS;
+const DOC_FORMATS_TEXT = `${formatsList(DOC_FORMATS)} — до ${MAX_SIZE_MB} МБ`;
+const MEDIA_FORMATS_TEXT = `${formatsList(MEDIA_FORMATS)} — до ${MAX_SIZE_MB} МБ, примерно ${MEDIA_LENGTH}`;
 /** A phone writes the formats as one line of text, not chips (10_Project/Phone_Declutter_2026-10-08). */
 const formatsLine = (formats: string[]) => `${formats.join(', ')} · до ${MAX_SIZE_MB}${NBSP}МБ`;
 /** What the demo text is analysed with, whatever the panel says (Analyze.startRun uses DEMO_SETTINGS). */
@@ -85,6 +95,23 @@ function ArrowIcon() {
 
 function megabytes(bytes: number, digits: number): string {
   return (bytes / 1024 / 1024).toFixed(digits).replace('.', ',');
+}
+
+/**
+ * Brings a refusal into view when it is not (a file dropped on a panel scrolled half away), clear of the sticky top line
+ * and of the start bar at the bottom by its CSS scroll margins. The focus stays where it was: the refusal is an alert.
+ * Not scrollIntoView({ block: 'nearest' }): Chromium takes a block under a sticky bar for a visible one.
+ */
+function bringIntoView(element: HTMLElement | null) {
+  if (!element || typeof element.scrollIntoView !== 'function' || typeof window === 'undefined') return;
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+  const above = parseFloat(style.scrollMarginTop) || 0;
+  const below = parseFloat(style.scrollMarginBottom) || 0;
+  const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const behavior: ScrollBehavior = still ? 'auto' : 'smooth';
+  if (rect.top - above < 0) element.scrollIntoView({ block: 'start', behavior });
+  else if (rect.bottom + below > window.innerHeight) element.scrollIntoView({ block: 'end', behavior });
 }
 
 /**
@@ -116,17 +143,24 @@ export default function UploadZone({
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
+  // Every refusal, the same words again included, is brought into view.
+  const [refusals, setRefusals] = useState(0);
   const [isCompressing, setIsCompressing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // «Открыть «Аудио и видео»» under a video link: the focus goes on to the file picker of that tab.
+  const [focusPicker, setFocusPicker] = useState(false);
   const phone = usePhone();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const pickerRef = useRef<HTMLButtonElement | null>(null);
+  const errorRef = useRef<HTMLParagraphElement | null>(null);
   const tabRefs = useRef<Partial<Record<UploadTab, HTMLButtonElement | null>>>({});
   const ids = useId();
   const panelId = `${ids}-panel`;
   const textId = `${ids}-text`;
   const textHintId = `${ids}-text-hint`;
   const noteId = `${ids}-note`;
+  const videoNoteId = `${ids}-video`;
   const settingsId = `${ids}-settings-panel`;
   const settingsWhyId = `${ids}-settings-why`;
 
@@ -134,17 +168,36 @@ export default function UploadZone({
   const demoText = tab === 'text' && isDemoText(text);
   const trimmedLength = text.trim().length;
   const textProblem = pastedTextProblem(text);
+  // A link to a video (YouTube, RuTube, VK Video, Dzen…): said before the start, which waits (lib/lectureFormats).
+  const videoLink = tab === 'url' && isVideoLink(url);
+
+  useEffect(() => {
+    if (refusals > 0) bringIntoView(errorRef.current);
+  }, [refusals]);
+
+  useEffect(() => {
+    if (!focusPicker) return;
+    setFocusPicker(false);
+    pickerRef.current?.focus();
+  }, [focusPicker]);
+
+  const refuse = (message: string) => {
+    setFileError(message);
+    setFile(null);
+    setRefusals(count => count + 1);
+  };
 
   const validateAndSet = async (picked: File) => {
-    // Брошенный на панель файл обходит список форматов поля выбора: старый .ppt останавливаем сразу.
-    if (isLegacyPpt(picked.name)) {
-      setFileError(PPT_LEGACY_MESSAGE);
-      setFile(null);
-      return;
-    }
     let finalFile = picked;
     if (!picked.name.includes('.') && picked.size > 0 && picked.type.startsWith('image/')) {
       finalFile = new File([picked], `${picked.name}.jpg`, { type: picked.type });
+    }
+    // A dropped file, or one chosen with «Все файлы», bypasses the picker's list of formats: a format the server would
+    // refuse (an old .ppt or .doc, a recording in .ogg or .mov) is stopped here, before the start, with what to do.
+    const unreadable = unreadableFileMessage(finalFile, tab === 'media' ? 'media' : 'file');
+    if (unreadable) {
+      refuse(unreadable);
+      return;
     }
     if (finalFile.type.startsWith('image/')) {
       setIsCompressing(true);
@@ -157,15 +210,13 @@ export default function UploadZone({
     }
     if (finalFile.size > MAX_SIZE) {
       const media = finalFile.type.startsWith('audio/') || finalFile.type.startsWith('video/');
-      setFileError(
+      refuse(
         media
           ? `Файл занимает ${megabytes(finalFile.size, 1)} МБ, а можно до ${MAX_SIZE_MB} МБ — примерно ${MEDIA_LENGTH}. Разделите запись на части.`
           : `Файл занимает ${megabytes(finalFile.size, 1)} МБ. Максимальный размер — ${MAX_SIZE_MB} МБ.`,
       );
-      setFile(null);
     } else if (hasBadWords(finalFile.name)) {
-      setFileError('Название файла содержит недопустимые слова. Пожалуйста, переименуйте файл.');
-      setFile(null);
+      refuse('Название файла содержит недопустимые слова. Пожалуйста, переименуйте файл.');
     } else {
       setFileError('');
       setFile(finalFile);
@@ -200,8 +251,18 @@ export default function UploadZone({
     if (dropped) void validateAndSet(dropped);
   };
 
+  /** Under a video link: «Аудио и видео» in one tap, its file picker focused. */
+  const openRecordings = () => {
+    selectTab('media');
+    setFocusPicker(true);
+  };
+
   const isReady =
-    tab === 'url' ? Boolean(url.trim()) && url.includes('.') : tab === 'text' ? textProblem === null : Boolean(file) && !isCompressing;
+    tab === 'url'
+      ? Boolean(url.trim()) && url.includes('.') && !videoLink
+      : tab === 'text'
+        ? textProblem === null
+        : Boolean(file) && !isCompressing;
   const limited = Boolean(startDisabledReason);
   const canStart = isReady && !busy && !limited;
 
@@ -219,12 +280,14 @@ export default function UploadZone({
   let startLabel = 'Запустить анализ';
   if (busy) startLabel = 'Запускаем…';
   else if (!isReady && !limited) {
-    if (tab === 'url') startLabel = 'Вставьте ссылку';
+    // A video link is there, and the line under it says why the start waits.
+    if (tab === 'url') startLabel = videoLink ? 'Запустить анализ' : 'Вставьте ссылку';
     else if (tab === 'text') startLabel = trimmedLength === 0 ? 'Вставьте текст' : 'Запустить анализ';
     else startLabel = 'Сначала выберите файл';
   }
 
   const startNote = limited ? startDisabledReason : demoText ? undefined : costNote;
+  const startDescribedBy = [videoLink ? videoNoteId : '', startNote ? noteId : ''].filter(Boolean).join(' ') || undefined;
   const formats = tab === 'media' ? MEDIA_FORMATS : DOC_FORMATS;
   // The demo text is analysed with its own settings: the line says what will be made, and «Изменить» waits.
   const summary = settingsSummary(demoText ? DEMO_SETTINGS : settings);
@@ -315,7 +378,8 @@ export default function UploadZone({
                       </button>
                     )}
                   </span>
-                  <span className="az-count">{charactersLabel(trimmedLength)}</span>
+                  {/* «Нужно хотя бы 300 символов, сейчас 67» already says the count: one number, not two (QA 2026-10-11). */}
+                  {!demoText && trimmedLength > 0 && textProblem ? null : <span className="az-count">{charactersLabel(trimmedLength)}</span>}
                 </div>
               </div>
             </div>
@@ -337,6 +401,7 @@ export default function UploadZone({
                     placeholder="https://ru.wikipedia.org/wiki/..."
                     value={url}
                     onChange={event => onUrlChange(event.target.value)}
+                    aria-describedby={videoLink ? videoNoteId : undefined}
                     className="az-input"
                   />
                   {url && (
@@ -345,9 +410,22 @@ export default function UploadZone({
                     </button>
                   )}
                 </div>
-                <p className="az-help">
-                  Подойдёт открытая страница<span className="az-wide">: Meldy возьмёт основной текст без меню и рекламы</span>.
-                </p>
+                {videoLink ? (
+                  // Said as the link is typed or pasted, before the start: the page of a video has no text to analyse
+                  // (live QA 2026-10-11). The way out is one tap: the recording as a file.
+                  <div className="az-error az-video">
+                    <p id={videoNoteId} role="alert">
+                      {ty(VIDEO_LINK_MESSAGE)}
+                    </p>
+                    <button type="button" onClick={openRecordings} className="az-inline az-video-go">
+                      Открыть «Аудио и видео»
+                    </button>
+                  </div>
+                ) : (
+                  <p className="az-help">
+                    Подойдёт открытая страница<span className="az-wide">: Meldy возьмёт основной текст без меню и рекламы</span>.
+                  </p>
+                )}
                 <div className="az-examples">
                   <span className="az-examples-l">Например:</span>
                   <button type="button" onClick={() => onUrlChange('https://ru.wikipedia.org/wiki/Законы_Ньютона')} className="az-chip">
@@ -363,10 +441,23 @@ export default function UploadZone({
 
           {isFileTab && (
             <>
+              {/* A refusal stands over the file's place, where the eye is after choosing (QA 2026-10-11: under the panel
+                  it was below the first screen of a 1532×734 laptop). */}
+              {fileError && (
+                <p ref={errorRef} role="alert" className="az-error az-file-error">
+                  {fileError}
+                </p>
+              )}
               {phone && !file ? (
                 // A phone: one plain frame — the button, the formats as one line of text and, for a lecture, the camera.
                 <div className="az-pick">
-                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isCompressing} className="az-pick-btn">
+                  <button
+                    ref={pickerRef}
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isCompressing}
+                    className="az-pick-btn"
+                  >
                     {isCompressing ? 'Сжимаем изображение…' : 'Выбрать файл'}
                   </button>
                   <p className="az-pick-fmt">{formatsLine(formats)}</p>
@@ -407,7 +498,13 @@ export default function UploadZone({
                       </button>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isCompressing} className="az-window az-drop">
+                    <button
+                      ref={pickerRef}
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isCompressing}
+                      className="az-window az-drop"
+                    >
                       <span className="az-drop-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" focusable="false">
                           <path d="M12 16V5M7 10l5-5 5 5M5 19h14" />
@@ -473,11 +570,6 @@ export default function UploadZone({
                   event.target.value = '';
                 }}
               />
-              {fileError && (
-                <p role="alert" className="az-error">
-                  {fileError}
-                </p>
-              )}
             </>
           )}
         </div>
@@ -537,7 +629,7 @@ export default function UploadZone({
           type="button"
           onClick={handleStart}
           disabled={!canStart}
-          aria-describedby={startNote ? noteId : undefined}
+          aria-describedby={startDescribedBy}
           className="sf-primary az-start"
         >
           {startLabel}

@@ -16,6 +16,7 @@ import {
   type VisualOrigin,
 } from './types';
 import { chartSourceIds, timelineSourceIds } from './grounding';
+import { stripSourceMarkers } from '../summary/sourceMarkers';
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Ограничения (зеркало серверной проверки)
@@ -42,9 +43,10 @@ export function truncateText(value: string, max: number): string {
   return `${cut.replace(/[\s,.;:–—-]+$/u, '')}…`;
 }
 
+/** A text of a picture: without control characters, extra spaces and the fragment marks («[S01]») the model copied. */
 function cleanText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
-  const text = value.replace(CONTROL_CHARS, '').replace(/\s+/g, ' ').trim();
+  const text = stripSourceMarkers(value.replace(CONTROL_CHARS, '')).replace(/\s+/g, ' ').trim();
   if (!text) return null;
   return truncateText(text, max);
 }
@@ -669,17 +671,29 @@ export function mergeVisualsByIndex(rawLines: unknown, payload: unknown): { line
  * Мелочи для плеера
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const WORDS_PER_MINUTE = 150;
+/**
+ * How fast the hosts' voices speak at 1×: 133–153 words a minute line by line, 142 on average (live QA 2026-10-11, a
+ * 14-line podcast of about 85 s that the old 150 words a minute and whole minutes called «около минуты»).
+ */
+const WORDS_PER_MINUTE = 140;
 
 export function countWords(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
-/** Примерная длительность разговора в минутах (~150 слов в минуту). */
-export function estimateMinutes(lines: { text: string }[]): number {
+/** About how long the podcast speaks at 1×, in seconds (0 without words). */
+export function estimateSeconds(lines: { text: string }[]): number {
   const words = lines.reduce((sum, line) => sum + countWords(line.text), 0);
-  if (words === 0) return 0;
-  return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+  return Math.round((words / WORDS_PER_MINUTE) * 60);
+}
+
+/** «меньше минуты», «около минуты», «около полутора минут», «около 4 минут»: to the half minute while it is short. */
+export function lengthPhrase(seconds: number): string {
+  if (seconds < 45) return 'меньше минуты';
+  if (seconds < 75) return 'около минуты';
+  if (seconds < 105) return 'около полутора минут';
+  const minutes = Math.round(seconds / 60);
+  return `около ${minutes} ${pluralRu(minutes, ['минуты', 'минут', 'минут'])}`;
 }
 
 /** «1 реплика», «3 реплики», «12 реплик». */
@@ -792,17 +806,11 @@ export function sourceNote(provenance: Provenance): string | null {
   }
 }
 
-/** «около минуты», «около 3 минут», «около 21 минуты». */
-export function minutesPhrase(minutes: number): string {
-  if (minutes <= 1) return 'около минуты';
-  return `около ${minutes} ${pluralRu(minutes, ['минуты', 'минут', 'минут'])}`;
-}
-
 /**
- * Строка над листом: «Макс и Софья обсуждают лекцию · 14 реплик, около минуты».
- * Имена — как в репликах, не больше трёх.
+ * Строка над листом: «Макс и Софья обсуждают лекцию · 14 реплик, около полутора минут» — длина по словам реплик
+ * (estimateSeconds), не круглыми минутами. Имена — как в репликах, не больше трёх.
  */
-export function conversationMeta(speakers: readonly string[], lineCount: number, minutes: number): string {
+export function conversationMeta(speakers: readonly string[], lineCount: number, seconds: number): string {
   const names = speakers.filter(Boolean).slice(0, 3);
   const who =
     names.length === 0
@@ -810,7 +818,7 @@ export function conversationMeta(speakers: readonly string[], lineCount: number,
       : names.length === 1
         ? `${names[0]} рассказывает о лекции`
         : `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]} обсуждают лекцию`;
-  const length = minutes > 0 ? `${pluralLines(lineCount)}, ${minutesPhrase(minutes)}` : pluralLines(lineCount);
+  const length = seconds > 0 ? `${pluralLines(lineCount)}, ${lengthPhrase(seconds)}` : pluralLines(lineCount);
   return `${who} · ${length}`;
 }
 
