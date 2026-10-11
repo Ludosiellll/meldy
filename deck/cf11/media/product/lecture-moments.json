@@ -1,0 +1,67 @@
+{
+  "clip": "lecture-materials.mp4",
+  "poster": "lecture-materials.jpg",
+  "seconds": 30.0,
+  "screen": { "box": [1152, 568], "radius": 22, "bg": "#0b121c", "same_as": "slide 07's laptop screen" },
+  "loop": "The clip begins on its poster's frame (frame 0 = lecture-materials.jpg: «Разобрать лекцию» and its four tabs) and loops every 30.0 s; from 29.1 s the camera eases back to the first framing and the last 0.5 s dissolve into frame 0.",
+  "moments": {
+    "tabs": 0.0,
+    "video": 5.78,
+    "ticked": 9.7,
+    "start": 11.04,
+    "konspekt": 14.1,
+    "kartochki": 18.23,
+    "test": 20.53,
+    "vyzhimka": 24.43,
+    "podcast": 26.53
+  },
+  "beats": [
+    {
+      "beat": "tabs", "label": "Четыре способа: Файл, Текст, Ссылка, Аудио и видео", "from": 0.0, "to": 3.1,
+      "detail": "«Разобрать лекцию» with its four tabs from the first frame; the camera moves onto the tabs 0.6–1.8 s."
+    },
+    {
+      "beat": "video", "label": "Аудио и видео → видео лекции", "from": 3.1, "to": 7.27,
+      "detail": "«Аудио и видео» pressed at 3.10; the panel with MP4, MP3, WAV, MPEG, M4A, до 15 МБ 3.2–5.7; the drop area pressed at 5.25 (the system's file window is cut); the chosen file «Рыночное равновесие (лекция).mp4 · 2,03 МБ» from 5.78."
+    },
+    {
+      "beat": "ticked", "label": "Что сделать из лекции — все пять", "from": 7.27, "to": 10.37,
+      "detail": "Конспект, Карточки, Тест are on by default; Выжимка ticked at 7.49, Подкаст at 9.70 (all five from 9.70)."
+    },
+    {
+      "beat": "start", "label": "Запустить анализ", "from": 10.37, "to": 14.1,
+      "detail": "Pressed at 11.04; the progress card at 11.96 («Читаем текст…», then «Распознаём текст файла. Это может занять несколько минут.» from 12.67); the wait is cut at 13.37; 13.37–14.10 the card as it was just before the results: «Готовим конспект, карточки, тест, выжимку и подкаст · Завершено 4 из 5»."
+    },
+    {
+      "beat": "konspekt", "label": "Конспект: разделы и термины", "from": 14.1, "to": 18.23,
+      "detail": "The results fade in 13.4–14.2: «Материал обработан», «Рыночное равновесие: спрос, предложение и цены», tabs «Конспект · Карточки 6 · Тест 5 · Подкаст 12», the first section «Введение в рыночное равновесие»; «Термины» (5) from 16.33."
+    },
+    {
+      "beat": "kartochki", "label": "Карточки", "from": 18.23, "to": 20.53,
+      "detail": "Card 1 «Как формируется равновесная цена на рынке и кто её устанавливает?» pressed at 18.73, its answer open from 18.84."
+    },
+    {
+      "beat": "test", "label": "Тест: ответ и пояснение", "from": 20.53, "to": 24.43,
+      "detail": "«Проверочный тест», question 1 «Что гласит закон спроса?» answered at 21.12 (answering the other four questions and «Проверить ответы» are cut); from 22.43 the right answer marked and «Пояснение: Закон спроса гласит: чем выше цена, тем меньше величина спроса.»"
+    },
+    {
+      "beat": "vyzhimka", "label": "Выжимка (вкладка «Кратко»)", "from": 24.43, "to": 26.53,
+      "detail": "The lecture's page («Открыть лекцию» and the page load are cut): «Кратко» pressed at 24.90, the выжимка from 25.07 («Выжимка · Главное из материала для быстрого повторения · Суть в 3 словах»)."
+    },
+    {
+      "beat": "podcast", "label": "Подкаст", "from": 26.53, "to": 30.0,
+      "detail": "«Подкаст» (the tab press is cut): the scene «О чём подкаст · Рыночное равновесие» with its terms list (Равновесная цена, Отклонение цены вверх/вниз, Потолок цен), Макс's first line as subtitles; ▶ pressed at 27.79; the speech loading (about 22 s) is cut; playing (⏸, «Реплика 1 из 12») from 28.20. No sound in the deck."
+    }
+  ],
+  "presses": [3.1, 5.25, 7.49, 9.7, 11.04, 18.73, 21.12, 24.9, 27.79],
+  "cuts": [
+    "4.0: the hand's travel to the drop area (identical frames)",
+    "5.73: the system's file window",
+    "7.27: the scroll to «Что подготовить», «Изменить», the scroll to the list",
+    "10.37: a pause before «Запустить анализ»",
+    "13.37: the analysis (22.4 s from the press to all five materials in this take)",
+    "16.33, 18.23, 20.53, 24.43, 26.53: scrolls, tab presses, «Открыть лекцию»",
+    "22.43: answering questions 2–5 and «Проверить ответы»",
+    "28.20: the podcast's speech loading (about 22 s)"
+  ]
+}

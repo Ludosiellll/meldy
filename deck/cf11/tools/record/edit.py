@@ -14,6 +14,10 @@ The camera is not applied here: the master keeps the whole window, and its json 
 each beat shows (`camera.keys`: from the take's logged boxes, in CSS px) and when the camera moves there. fit.py
 frames it for a screen of any size and draws a ring where the hand pressed (`clicks`).
 
+`mask` (optional): rectangles of the window, in CSS px, that the master and the poster must not keep — the site's top
+line with the account's avatar and limit — painted over in one colour (`{"rects": [[x0, y0, x1, y1]], "color": …}`).
+The camera never frames them (`camera.y_min`), so the fitted clip is the same with or without the mask.
+
 Writes, in the masters folder (default $MELDY_MASTERS, else <takes>/../masters):
   <clip>-master.mp4   the whole window at the recording's device pixels (laptop 1024 × 800 CSS at 1.75 → 1792 × 1400,
                       phone 390 × 844 at 2 → 780 × 1688), 30 fps, H.264 4:4:4, full range, BT.709, CRF 18
@@ -29,7 +33,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageDraw
 
 DEFAULT_TAKES = '/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes'
 
@@ -114,6 +118,19 @@ def main():
     fps = cut.get('fps', 30)
     W, H = Image.open(take_dir / 'raw' / frames[0]['file']).size
     scale = W / take['viewport']['width']
+    mask = cut.get('mask') or {}
+    mask_rects = mask.get('rects', [])
+    mask_color = mask.get('color', '#f3f3f0')
+
+    def masked(im, k):
+        """The window with the mask's rectangles painted over (k: image pixels per CSS px)."""
+        if not mask_rects:
+            return im
+        im = im.copy()
+        d = ImageDraw.Draw(im)
+        for r in mask_rects:
+            d.rectangle([round(r[0] * k), round(r[1] * k), round(r[2] * k) - 1, round(r[3] * k) - 1], fill=mask_color)
+        return im
 
     def frame_file(t):
         return frames[max(0, bisect.bisect_right(times, t) - 1)]['file']
@@ -199,6 +216,7 @@ def main():
             age = t - sw['t']
             if 0 <= age < swap_fade and plan[seg['start']] <= sw['t']:
                 im = Image.blend(load(sw['pre']), im, smooth((age + 1 / fps) / (swap_fade + 1 / fps)))
+        im = masked(im, scale)
         if k == 0:
             first = im.copy()
         if loop_fade and k >= total - loop_fade:
@@ -258,11 +276,17 @@ def main():
         'camera': {'min_w': cam.get('min_w', 640), 'pad': cam.get('pad', 16), 'move': cam.get('move', 0.9), 'y_min': cam.get('y_min', 0), 'keys': keys},
         'window': cut.get('window', {}),
     }
+    if mask_rects:
+        meta['mask'] = {'rects': mask_rects, 'color': mask_color}
     poster = cut.get('poster')
     if poster:
         src = take_dir / 'stills' / f"{poster['still']}.png"
         dst = masters / f'{cut["clip"]}-poster.png'
-        shutil.copyfile(src, dst)
+        if mask_rects:
+            still = Image.open(src)
+            masked(still, still.size[0] / take['viewport']['width']).save(dst)
+        else:
+            shutil.copyfile(src, dst)
         meta['poster'] = {'clip': clip_time(poster['at']), 'file': dst.name, 'still': poster['still'],
                           'scale': Image.open(src).size[0] / take['viewport']['width']}
     (masters / f'{cut["clip"]}-master.json').write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')
