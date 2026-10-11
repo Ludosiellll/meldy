@@ -5,9 +5,9 @@
                             [--clicks slides/preview-clicks.json] [--size 1280x720] [--fps 30]
 
 Everything that moves comes from the file itself (deckpptx/morph.py reads it): objects in z-order with their
-geometry, fill, outline, picture + crop, video + poster, GIF; the transition (Morph and its option, Fade, none) and
-its p14:dur; the main sequence (click groups, with/after, delays, durations, every behaviour node with its values
-and easing) and the media commands. Pixels of live text come from extract's text layers through the build's
+geometry, fill, outline, outer shadow, picture + crop, video + poster, GIF; the transition (Morph and its option,
+Fade, none) and its p14:dur; the main sequence (click groups, with/after, delays, durations, every behaviour node with
+its values and easing) and the media commands. Pixels of live text come from extract's text layers through the build's
 <deck>.objects.json; pictures, posters, GIFs and videos are taken out of the PPTX package.
 
 Clicks: every click group starts on a click; the default script clicks 1.2 s (--gap) after the previous build
@@ -36,7 +36,7 @@ HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 DECK = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
-from deckpptx.morph import NS, Package, Pairing, pair_slides   # noqa: E402
+from deckpptx.morph import NS, Package, Pairing, layer_owner, pair_slides   # noqa: E402
 
 P = '{%s}' % NS['p']
 SLIDE_W, SLIDE_H = 1920.0, 1080.0
@@ -308,7 +308,11 @@ def obj_json(o, side: dict | None, assets: Assets, build_dir: Path) -> dict:
          'line': ({'rgba': rgba((o.line['rgb'], o.line['alpha'])), 'w': o.line['w'], 'dash': o.line['dash'],
                    'join': o.line['join']} if o.line else None),
          'buildsIn': o.builds_in, 'role': (side or {}).get('role'), 'element': (side or {}).get('element'),
-         'label': o.label(), 'text': o.text}
+         'label': o.label(), 'text': o.text, 'layerOf': layer_owner(o.name) if o.kind == 'picture' else None}
+    if o.shadow:
+        sh = o.shadow
+        d['shadow'] = {'blur': sh['blur'], 'dist': sh['dist'], 'dir': sh['dir'], 'sx': sh['sx'], 'sy': sh['sy'],
+                       'rotWith': sh['rotWith'], 'rgba': rgba((sh['rgb'], sh['alpha']))}
     if o.kind in ('picture', 'media') and o.image:
         d['img'] = {'src': assets.image(o.image), 'crop': o.crop, 'alpha': o.alpha}
         if o.image.lower().endswith('.gif'):
@@ -347,12 +351,21 @@ def draw_order(pr: Pairing, prev_objs: list, cur_objs: list) -> list[dict]:
     return items
 
 
+def shadow_key(o):
+    """A shadow as authored (blur, offset, colour); its sx/sy follow the object's size, so they are left out."""
+    sh = o.shadow
+    return sh and (round(sh['blur'], 1), round(sh['dist'], 1), round(sh['dir'], 1), sh['rgb'], round(sh['alpha'], 3))
+
+
 def log_transition(lines: list, prev, cur, pr: Pairing | None):
     t = cur.transition
     head = f'{prev.index:02d} → {cur.index:02d}' if prev else f'(start) → {cur.index:02d}'
     if t.kind == 'morph':
+        layers = [p.b.name for p in pr.pairs if p.b.kind == 'picture' and layer_owner(p.b.name)]
         lines.append(f'\n{head}  Morph ({t.option}), {t.dur_ms} ms: {len(pr.pairs)} pairs, {len(pr.gone)} fade out, '
-                     f'{len(pr.new)} fade in, {len(pr.held)} build in later')
+                     f'{len(pr.new)} fade in, {len(pr.held)} build in later'
+                     + (f'; layers travelling with their owners: {", ".join(layer_owner(n) for n in layers)}'
+                        if layers else ''))
     elif t.kind == 'fade':
         lines.append(f'\n{head}  Fade{" from black" if not prev else ""}, {t.dur_ms} ms (no pairing)')
         return
@@ -379,6 +392,8 @@ def log_transition(lines: list, prev, cur, pr: Pairing | None):
             change.append('text differs: crossfade')
         if p.a.kind in ('picture', 'media') and p.a.image_sha1 != p.b.image_sha1:
             change.append('different picture: crossfade')
+        if (p.a.shadow or p.b.shadow) and shadow_key(p.a) != shadow_key(p.b):
+            change.append('shadow ' + ('appears' if not p.a.shadow else 'goes' if not p.b.shadow else 'changes'))
         if abs(p.a.rot - p.b.rot) > 0.05:
             change.append(f'rotation {p.a.rot:g}° → {p.b.rot:g}°')
         lines.append(f'  pair {how:<4} {p.a.label()}  →  {p.b.label()}' + (f'   [{"; ".join(change)}]' if change else '   [no change]')

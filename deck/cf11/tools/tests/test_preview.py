@@ -69,3 +69,17 @@ def test_text_layers_reach_the_scene_and_the_log_names_the_pairs(scenes):
     assert 'pair name !!dot [roundRect]  →  !!dot [ellipse]' in log
     assert 'blocked !!word' in log and 'Fade from black' in log
     assert not res['warnings']
+
+
+def test_layers_travel_with_their_owner_and_shadows_reach_the_scene(scenes):
+    _, sc, out = scenes
+    log = (out / 'morph-log.txt').read_text(encoding='utf-8')
+    assert 'layers travelling with their owners: !!card' in log
+    assert 'pair name !!card·layer [layer of !!card]  →  !!card·layer [layer of !!card]' in log
+    assert 'pair name !!card [roundRect]  →  !!card [roundRect +shadow]' in log and 'shadow appears' in log
+    cur = {o['name']: o for o in sc['03']['cur']}
+    assert cur['!!card·layer']['layerOf'] == '!!card' and cur['!!card']['layerOf'] is None
+    sh = cur['!!card']['shadow']
+    assert sh['dist'] == pytest.approx(48) and sh['dir'] == pytest.approx(90) and sh['rgba'][3] == pytest.approx(0.38)
+    keys = {o['key']: o['name'] for o in sc['03']['cur']}
+    assert {keys[x['b']] for x in sc['03']['draw'] if x['kind'] == 'pair'} >= {'!!card', '!!card·layer'}

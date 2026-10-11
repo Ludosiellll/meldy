@@ -19,6 +19,9 @@ How Morph pairs objects (Microsoft, «Morph transition: Tips and tricks», suppo
 Not documented, assumed here (and stated in the preview's README): an object with an entrance effect on the incoming
 slide is hidden when the slide starts, so it takes no part in the Morph (its would-be partner fades out) and builds
 in afterwards; "type" means the PowerPoint object class (shape incl. text boxes and placeholders, picture, media).
+
+build.py names the layer picture of a "!!x" owner (its baked over- or under-layer) "!!x·layer" (LAYER_SUFFIX), so it
+pairs by name with the owner's layer on the other slide and travels with it.
 """
 from __future__ import annotations
 
@@ -40,6 +43,12 @@ NS = {'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
 P, A, R = '{%s}' % NS['p'], '{%s}' % NS['a'], '{%s}' % NS['r']
 EMU_PX = 6350.0
 SPD_MS = {'fast': 500, 'med': 750, 'slow': 1000}
+LAYER_SUFFIX = '·layer'
+
+
+def layer_owner(name: str) -> str | None:
+    """The owner's name of a "!!x·layer" picture, else None."""
+    return name[:-len(LAYER_SUFFIX)] if name.startswith('!!') and name.endswith(LAYER_SUFFIX) else None
 
 
 def _xp(el, expr):
@@ -76,6 +85,7 @@ class Obj:
     media_sha1: str | None = None
     decorative: bool = False
     builds_in: bool = False         # an entrance effect of the main sequence targets it
+    shadow: dict | None = None      # a:outerShdw in px / degrees: blur, dist, dir, sx, sy, rgb, alpha, rotWith
 
     @property
     def forced(self) -> bool:
@@ -84,6 +94,10 @@ class Obj:
     def label(self) -> str:
         what = {'shape': 'text' if self.text and self.geom == 'rect' and not self.fill and not self.line else self.geom,
                 'picture': 'picture', 'media': 'video'}.get(self.kind, self.kind)
+        if self.kind == 'picture' and layer_owner(self.name):
+            what = f'layer of {layer_owner(self.name)}'
+        elif self.shadow:
+            what += ' +shadow'
         t = f' «{_short(self.text)}»' if self.text else ''
         return f'{self.name} [{what}{t}]'
 
@@ -202,6 +216,7 @@ class Package:
                 o.geom, o.path = 'custom', read_paths(cg)
             o.fill = solid_fill(sppr)
             o.line = read_line(sppr.find('a:ln', NS))
+            o.shadow = read_shadow(sppr.find('a:effectLst/a:outerShdw', NS))
         if tag == 'sp':
             o.text_box = el.find('p:nvSpPr/p:cNvSpPr', NS) is not None and el.find('p:nvSpPr/p:cNvSpPr', NS).get('txBox') == '1'
             ph = el.find('p:nvSpPr/p:nvPr/p:ph', NS)
@@ -254,6 +269,19 @@ def _color(el) -> tuple | None:
         return None
     a = c.find('a:alpha', NS)
     return c.get('val').upper(), (int(a.get('val')) / 100000.0 if a is not None else 1.0)
+
+
+def read_shadow(sh) -> dict | None:
+    """<a:outerShdw> -> px / degrees (blur = blurRad, the DrawingML blur radius)."""
+    if sh is None:
+        return None
+    col = _color(sh)
+    if col is None:
+        return None
+    return {'blur': int(sh.get('blurRad', '0')) / EMU_PX, 'dist': int(sh.get('dist', '0')) / EMU_PX,
+            'dir': int(sh.get('dir', '0')) / 60000.0, 'sx': int(sh.get('sx', '100000')) / 100000.0,
+            'sy': int(sh.get('sy', '100000')) / 100000.0, 'algn': sh.get('algn', 'b'),
+            'rotWith': sh.get('rotWithShape', '1') in ('1', 'true'), 'rgb': col[0], 'alpha': col[1]}
 
 
 def solid_fill(sppr) -> tuple | None:

@@ -18,8 +18,8 @@ The deck at 1280×720 takes about 3 minutes (≈ 22 frames/s). Output:
 |---|---|
 | `deck.mp4` | the whole deck: fade from black, every transition, every build with its trigger, delay and duration, 3 s hold after each slide's last build. H.264, 30 fps, BT.709, ≈ 2 min |
 | `NN-in.mp4` | the transition into slide NN, its builds and the hold, alone |
-| `keyframes/NN-in.png` | the transition at 0, 25, 50, 75 and 100 % (100 % = the slide's start state, before its builds), plus a **pair map** for a Morph. In the map, blue boxes are pairs forced by a `!!` name and orange boxes are automatic pairs; both carry an arrow where the object travels. Red boxes fade out, green boxes fade in, and purple boxes wait for their build |
-| `morph-log.txt` | every Morph pair and every unpaired object per transition, with what changes (box, geometry, fill, text, picture) and the warnings |
+| `keyframes/NN-in.png` | the transition at 0, 25, 50, 75 and 100 % (100 % = the slide's start state, before its builds), plus a **pair map** for a Morph. In the map, blue boxes are pairs forced by a `!!` name and orange boxes are automatic pairs; both carry an arrow where the object travels. Teal dotted boxes are layers travelling with their `!!` owner («layer of !!x»). Red boxes fade out, green boxes fade in, and purple boxes wait for their build. The sheet's header counts the travelling layers |
+| `morph-log.txt` | every Morph pair and every unpaired object per transition, with what changes (box, geometry, fill, text, picture, shadow) and the warnings; the header of a transition names the owners whose layers travel with them, and a layer reads `!!x·layer [layer of !!x]` |
 | `scenes/NN.json`, `assets/`, `keys/` | the player's input (objects, effects with absolute times) and the pictures, GIF frames and video frames taken out of the PPTX |
 
 A small label at the bottom right of the video shows the slide, the time, the phase and the click count (`--no-label`
@@ -29,7 +29,7 @@ turns it off).
 
 1. `scene.py` reads the PPTX with `deckpptx/morph.py`. The same reader drives the lint in `check_pptx.py`. It takes:
    * the objects in z-order, with box, rotation, flips, preset or custom geometry (radii from `adj`), fill, outline,
-     picture and `srcRect`, `alphaModFix`, video and poster, and GIF;
+     outer shadow (`a:outerShdw`), picture and `srcRect`, `alphaModFix`, video and poster, and GIF;
    * the transition from the `mc:Choice` (`p159:morph` and its option, `p:fade`) and its `p14:dur`;
    * the main sequence: every click group, sub-group, effect and behaviour node (`set`, `anim` with its `tavLst`
      formulas, `animEffect` filters, `animScale`, `cmd playFrom`), with delays, durations, `accel` and `decel`;
@@ -59,7 +59,15 @@ turns it off).
   * When the content differs (other text, another picture), the box moves and the two contents crossfade. This is a
     true crossfade: identical content does not dip.
   * The same picture keeps its pixels and interpolates its crop.
+  * A layer named `!!x·layer` (the over- or under-layer of a `!!x` owner, see the compiler README) pairs by name like
+    any picture, so it moves and scales with its owner; two different layer pictures crossfade in the moving box.
 * **Unpaired objects** fade out (old slide) and fade in (new slide) over the whole transition.
+* **Shadows.** An `a:outerShdw` is drawn under its object as calibrated against LibreOffice: the silhouette scaled by
+  `sx`/`sy` about its centre, moved by `dist` along `dir` (turning with the shape), blurred with σ = `blurRad` / 2.2
+  (the build writes 1.1 × the CSS blur, whose σ is half of it), so it looks like the HTML's `box-shadow`. It moves,
+  scales, fades and wipes with its object; a pair interpolates two shadows (blur, offset, scale, colour) and fades
+  one in or out when only one side has a shadow. An object that fades (unpaired, or a fade build) fades as one
+  picture, so its shadow never shows through its own fill.
 * **Curve.** Morph uses a symmetric cubic ease-in-out over `p14:dur`. Fade is linear.
 * **Z-order during a Morph** follows the new slide. An object that leaves without a partner is drawn just above the
   partner of the nearest paired object that was below it.
@@ -93,8 +101,12 @@ turns it off).
 * **Objects with an entrance effect** are assumed to stay out of the Morph: the old partner fades out and the new one
   builds in afterwards. If PowerPoint morphs them first and then hides them for their build, these objects will
   flicker. The lint in `check_pptx.py` lists every such case.
-* **Z-order mid-Morph**, morphing between unlike shapes (PowerPoint morphs vertices), shadows and 3-D effects (none in
-  this file) are approximations.
+* **Z-order mid-Morph**, morphing between unlike shapes (PowerPoint morphs vertices) and 3-D effects (none in this
+  file) are approximations.
+* **Shadows.** PowerPoint's blur radius and the order of scaling and blurring were not measured (LibreOffice scales
+  the blurred shadow, which the preview does not copy: it shows the CSS-like result the build aims at). That Morph
+  carries a shadow with its object follows from the shadow being part of the object; whether PowerPoint interpolates
+  two different shadows, or fades a fading object's shadow as one picture with it, is not documented.
 * **Media.** The freeze during a transition and media in a Morph pair (two clips named alike) are untested. Every clip
   in this file is unpaired.
 * **Pixels.** Live text is drawn from Chromium's rendering of the HTML (the same Onest), not from PowerPoint's text

@@ -4,7 +4,8 @@
 
 Checks: slide count; each slide's title placeholder text; every "!!name" of the HTML present on its slide; the
 background picture at the bottom of the z-order; notes text; transitions (morph / fade / none, Morph with a Fade
-fallback); timing (entrance effects, media play + loop) exactly where the HTML asks for it; every live text run in
+fallback); timing (entrance effects, media play + loop) exactly where the HTML asks for it; one well-formed native
+outer shadow (a:outerShdw) per object whose box-shadow the HTML carries natively; every live text run in
 an embedded Onest face with a language; media and picture relationships resolvable; embedded fonts present, EOT
 headers readable and naming the faces the runs use; no hidden slides; core properties without personal data.
 --deck-rules adds the contest rules: 10 mandatory names in order, at most 15 slides, file <= 9.5 MB.
@@ -29,7 +30,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from build import MANDATORY, mandatory_order_problems   # noqa: E402
 from deckpptx.fonts import FACES, parse_eot_header       # noqa: E402
-from deckpptx.morph import Package, pair_slides          # noqa: E402
+from deckpptx.morph import Package, layer_owner, pair_slides   # noqa: E402
 
 NS = {'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
       'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
@@ -55,6 +56,18 @@ class Checker:
         else:
             self.fails.append(msg)
         return cond
+
+
+def native_shadow_expected(e: dict) -> bool:
+    """build.py gives this element an a:outerShdw (extract_page.js chose a native shadow for it)."""
+    st = e.get('style') or {}
+    if not st.get('shadowNative'):
+        return False
+    if e['type'] in ('text', 'title'):
+        return bool(st.get('fill') or (st.get('line') and st.get('lineUniform')))
+    if e['type'] == 'image':
+        return bool(e.get('src'))
+    return e['type'] in ('shape', 'video', 'gif')
 
 
 def title_of(sdata: dict) -> str | None:
@@ -177,6 +190,15 @@ def main() -> int:
         first = next((el for el in tree if el.tag in (P + 'pic', P + 'sp')), None)
         c.ok(first is not None and first.tag == P + 'pic' and first.find('.//p:cNvPr', NS).get('name') == '!!bg',
              f'{tag}: background picture is not at the bottom of the z-order')
+        # native shadows: well-formed, and one per object the HTML gives one
+        shadows = xp(tree, './/p:spPr/a:effectLst/a:outerShdw')
+        for sh in shadows:
+            c.ok(int(sh.get('blurRad', '0')) >= 0 and int(sh.get('dist', '0')) >= 0
+                 and 0 <= int(sh.get('dir', '0')) < 21600000 and sh.find('a:srgbClr', NS) is not None
+                 and sh.get('algn') == 'ctr', f'{tag}: malformed a:outerShdw {dict(sh.attrib)}')
+        if sd:
+            want = sum(1 for e in sd['elements'] if native_shadow_expected(e))
+            c.ok(len(shadows) == want, f'{tag}: {len(shadows)} native shadows, the HTML asks for {want}')
         # names unique, !! names unique
         dup = {n for n in names if names.count(n) > 1 and n}
         c.ok(not dup, f'{tag}: duplicate object names {sorted(dup)}')
@@ -228,19 +250,31 @@ def morph_lint(path: Path) -> list[str]:
     for prev, cur in zip(pkg.slides, pkg.slides[1:]):
         if cur.transition.kind != 'morph':
             continue
-        res = pair_slides(prev.objects, cur.objects, cur.transition.option or 'byObject')
-        for p in res.blocked:
-            if p.how == 'name':
-                out.append(f'slide {cur.index}: {p.b.label()} has an entrance animation but morphs in from slide '
-                           f'{prev.index} ({p.a.label()}) by its name: it takes no part in the Morph - the old one fades '
-                           f'out, this one builds in afterwards. Drop the animation or the name')
-        auto = [p for p in res.blocked if p.how != 'name']
-        if auto:
-            pairs = ', '.join(f'{p.b.name} ~ {p.a.name}' for p in auto[:4]) + (', …' if len(auto) > 4 else '')
-            out.append(f'slide {cur.index}: {len(auto)} object(s) with entrance animations look like objects of slide '
-                       f'{prev.index} that PowerPoint may match automatically (same shape type and text / same picture: '
-                       f'{pairs}); if it pairs them, the Morph of each is lost to its build. Harmless if PowerPoint '
-                       f'leaves animated objects out of the Morph, as the preview assumes')
+        out += lint_transition(prev.index, cur.index,
+                               pair_slides(prev.objects, cur.objects, cur.transition.option or 'byObject'))
+    return out
+
+
+def lint_transition(prev_index: int, cur_index: int, res) -> list[str]:
+    """The lint lines for one Morph's pairing: one per object blocked by name ("!!x·layer" folded into its owner's),
+    one for all the automatic look-alikes."""
+    out = []
+    named = [p for p in res.blocked if p.how == 'name']
+    owners = {p.b.name for p in named}
+    for p in named:
+        if layer_owner(p.b.name) in owners:
+            continue                       # "!!x·layer" builds in with its owner: one warning for both
+        layer = ' (with its layer)' if any(layer_owner(q.b.name) == p.b.name for q in named) else ''
+        out.append(f'slide {cur_index}: {p.b.label()}{layer} has an entrance animation but morphs in from slide '
+                   f'{prev_index} ({p.a.label()}) by its name: it takes no part in the Morph - the old one fades '
+                   f'out, this one builds in afterwards. Drop the animation or the name')
+    auto = [p for p in res.blocked if p.how != 'name']
+    if auto:
+        pairs = ', '.join(f'{p.b.name} ~ {p.a.name}' for p in auto[:4]) + (', …' if len(auto) > 4 else '')
+        out.append(f'slide {cur_index}: {len(auto)} object(s) with entrance animations look like objects of slide '
+                   f'{prev_index} that PowerPoint may match automatically (same shape type and text / same picture: '
+                   f'{pairs}); if it pairs them, the Morph of each is lost to its build. Harmless if PowerPoint '
+                   f'leaves animated objects out of the Morph, as the preview assumes')
     return out
 
 

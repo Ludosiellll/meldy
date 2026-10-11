@@ -16,7 +16,9 @@
   .s3-card .row { position: absolute; left: 56px; width: 576px; height: 64px; border-radius: 20px; background: var(--canvas); font-size: 28px; line-height: 64px; padding-left: 28px; color: var(--muted); }
   .pill { position: absolute; left: 1104px; top: 840px; height: 64px; padding: 0 32px; border-radius: 999px; background: var(--blue);
           color: #fff; font-size: 30px; line-height: 64px; font-weight: 500; white-space: nowrap; }
-  .sticker { position: absolute; left: 1560px; top: 840px; width: 220px; height: 96px; border-radius: 16px; background: var(--pink); transform: rotate(-6deg); }
+  .sticker { position: absolute; left: 1560px; top: 840px; width: 220px; height: 96px; border-radius: 16px; background: var(--pink); transform: rotate(-6deg);
+             box-shadow: 0 14px 30px -10px rgba(11, 18, 28, .35); }   /* native, turns with the shape (rotWithShape) */
+  .pill { box-shadow: 0 10px 24px -8px rgba(40, 105, 221, .45); }       /* data-shadow="bake": in the under-layer */
 </style>
 </head>
 <body>
@@ -37,16 +39,16 @@
   <p class="src s3-src" data-pptx="text" data-anim="fade" data-anim-trigger="with">студентов вузов в&nbsp;Беларуси, 2026 — <a href="https://www.gs.by">gs.by</a>, дата обращения 10.10.2026; экзамены по&nbsp;билетам — постановление № 319 от&nbsp;13.10.2023</p>
   <p class="s3-note" data-pptx="text">Сессия дважды в&nbsp;год: <u>подчёркнуто</u>, <s>зачёркнуто</s>, полупрозрачный текст.</p>
 
-  <div class="card s3-card" data-pptx="shape" data-name="!!card" data-anim="wipe" data-anim-dir="right" data-anim-trigger="click">
+  <div class="card s3-card" data-pptx="shape" data-name="!!card">
     <span class="tag">Без Meldy</span>
-    <h3 data-pptx="text">Сотни вопросов и&nbsp;стопка лекций — без плана и&nbsp;проверки</h3>
+    <h3 data-pptx="text" data-anim="fade" data-anim-trigger="click">Сотни вопросов и&nbsp;стопка лекций — без плана и&nbsp;проверки</h3>
     <div class="row" style="top: 300px">Вопрос 1 из&nbsp;214</div>
     <div class="row" style="top: 380px">План: нет</div>
     <div class="row" style="top: 460px">Проверка: только на&nbsp;экзамене</div>
   </div>
 
-  <span class="pill" data-pptx="text" data-anim="settle" data-anim-trigger="with" data-anim-dur="600">Постановление № 319</span>
-  <i class="sticker" data-pptx="shape" aria-label="Розовая наклейка" data-anim="rise" data-anim-trigger="click"></i>
+  <span class="pill" data-pptx="text" data-shadow="bake" data-anim="settle" data-anim-trigger="with" data-anim-dur="600">Постановление № 319</span>
+  <i class="sticker" data-pptx="shape" aria-label="Розовая наклейка" data-anim="wipe" data-anim-dir="right" data-anim-trigger="click"></i>
 
   <template data-pptx="notes">ЯДРО 0:25–1:00. Экзамен по билетам — обычная форма контроля, так её устанавливает постановление Министерства образования номер триста девятнадцать.
 

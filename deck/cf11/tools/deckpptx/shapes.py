@@ -8,8 +8,17 @@ Geometry choice (radii come from extract_page.js after the CSS overlapping-curve
   anything else                          -> custGeom path with arcs
 A CSS border is drawn inside the box, a DrawingML outline is centred on the path, so a bordered shape is inset by
 half the border width (radii too): the stroke then covers exactly the CSS border area.
+
+A CSS box-shadow (its most visible outer layer, chosen by extract_page.js) becomes <a:effectLst><a:outerShdw>, so
+the shadow travels and scales with the object under Morph: dist/dir from the offset, the spread as a scale about the
+centre (sx = (w + 2 spread) / w), the colour with its alpha, blurRad = SHADOW_BLUR_K x the CSS blur radius
+(research/calibrate_shadow.py: the factor that matches LibreOffice 26.8 best; PowerPoint's blur is not measured).
+LibreOffice scales the shadow after blurring it, so a strong negative spread on a small box (sy far below 100 %)
+comes out tighter than the CSS one; compare.py flags such a shadow and data-shadow="bake" bakes it instead.
 """
 from __future__ import annotations
+
+import math
 
 from lxml import etree
 
@@ -20,6 +29,7 @@ NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 A = f'{{{NS_A}}}'
 EPS = 0.5
 K45 = 0.29289   # 1 - cos 45deg: how far the preset text rectangles sit inside a rounded corner
+SHADOW_BLUR_K = 1.1
 
 
 def text_rect_insets(w: float, h: float, radii) -> tuple[float, float, float, float]:
@@ -136,8 +146,37 @@ def box_geometry(box: dict, style: dict) -> tuple[dict, list, dict | None]:
     return b, radii, line
 
 
-def sp_pr(box: dict, style: dict | None, opacity: float, rot: float = 0.0, fill_override=None):
-    """<p:spPr> with xfrm, geometry, fill and outline for an element box (slide px)."""
+def shadow_el(shadow: dict | None, w: float, h: float, opacity: float = 1.0):
+    """<a:effectLst><a:outerShdw .../></a:effectLst> for one CSS box-shadow layer {dx, dy, blur, spread, color}
+    (slide px) of a w x h px object, or None when it draws nothing. algn="ctr" scales about the centre, as a CSS
+    spread grows or shrinks the shadow on every side; rotWithShape="1": a CSS shadow turns with its element."""
+    if not shadow or not shadow.get('color') or w <= 0 or h <= 0:
+        return None
+    spread = shadow.get('spread') or 0.0
+    sx, sy = (w + 2 * spread) / w, (h + 2 * spread) / h
+    alpha = shadow['color'].get('alpha', 1.0) * opacity
+    if sx <= 0.001 or sy <= 0.001 or alpha <= 0.002:
+        return None
+    dx, dy = shadow.get('dx') or 0.0, shadow.get('dy') or 0.0
+    eff = etree.Element(A + 'effectLst')
+    sh = etree.SubElement(eff, A + 'outerShdw', blurRad=str(emu(max(0.0, shadow.get('blur') or 0.0) * SHADOW_BLUR_K)))
+    dist = math.hypot(dx, dy)
+    if dist > 0.01:
+        sh.set('dist', str(emu(dist)))
+        sh.set('dir', str(int(round((math.degrees(math.atan2(dy, dx)) % 360.0) * 60000)) % 21600000))
+    if abs(sx - 1) > 1e-5 or abs(sy - 1) > 1e-5:
+        # both, always: LibreOffice 26.8 ignores sy when sx is absent (research/calibrate_shadow.py)
+        sh.set('sx', str(int(round(sx * 100000))))
+        sh.set('sy', str(int(round(sy * 100000))))
+    sh.set('algn', 'ctr')
+    sh.set('rotWithShape', '1')
+    sh.append(color_el('solidFill', shadow['color'], opacity)[0])
+    return eff
+
+
+def sp_pr(box: dict, style: dict | None, opacity: float, rot: float = 0.0, fill_override=None, shadow=None):
+    """<p:spPr> with xfrm, geometry, fill, outline and (shadow = a CSS box-shadow layer) an outer shadow for an
+    element box (slide px)."""
     from .units import angle
     style = style or {}
     b, radii, line = box_geometry(box, style)
@@ -152,4 +191,7 @@ def sp_pr(box: dict, style: dict | None, opacity: float, rot: float = 0.0, fill_
     fill = fill_override if fill_override is not None else style.get('fill')
     sp.append(color_el('solidFill', fill, opacity))
     sp.append(line_el(line, opacity, sharp=(kind == 'rect')))
+    eff = shadow_el(shadow, box['w'], box['h'], opacity)     # the silhouette: fill + outline = the CSS border box
+    if eff is not None:
+        sp.append(eff)
     return sp, kind

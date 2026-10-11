@@ -38,13 +38,13 @@ It ends with `ALL GREEN` or lists what failed. Step by step:
 | Step | Command | Output |
 |---|---|---|
 | extract | `node tools/extract.mjs [--slides DIR] [--out DIR] [--only 03,04] [--no-opt] [--fill FILE]` | `out/build/slides.json`, `out/build/img/NN/*.png` (incl. `eK-text.png`, the glyphs of each text box for the preview) |
-| build | `python tools/build.py [--build DIR] [--out FILE.pptx] [--embed all\|used\|none] [--deck-rules]` | the PPTX, `FILE.objects.json` (shape id → element/layer), a size report, warnings; ERRORS (no file) for native objects across the slide edge |
-| check | `python tools/check_pptx.py FILE.pptx out/build/slides.json [--deck-rules]` | re-opens the file with python-pptx and checks it against the HTML; lint warnings for entrance animations on objects that morph in |
+| build | `python tools/build.py [--build DIR] [--out FILE.pptx] [--embed all\|used\|none] [--deck-rules]` | the PPTX, `FILE.objects.json` (shape id → element/layer), a size report, warnings (incl. a native shadow reaching past the slide edge); ERRORS (no file) for native objects across the slide edge |
+| check | `python tools/check_pptx.py FILE.pptx out/build/slides.json [--deck-rules]` | re-opens the file with python-pptx and checks it against the HTML (incl. one well-formed `a:outerShdw` per native shadow); lint warnings for entrance animations on objects that morph in |
 | render | `tools/render.sh FILE.pptx out/render out/build/slides.json` | PDF, `slide-N.png` at 1920 px, `contact-sheet.png`, pdffonts, size, the pptx skill's `validate.py` |
-| compare | `python tools/compare.py out/build out/render` | `out/render/compare/side-NN.png`, `diff-NN.png`, per-text offsets, exit 1 above 2.5 px (plus LibreOffice's run-change spacing drift, listed) |
+| compare | `python tools/compare.py out/build out/render` | `out/render/compare/side-NN.png`, `diff-NN.png`, per-text offsets, exit 1 above 2.5 px (plus LibreOffice's run-change spacing drift, listed); every native shadow's ring against the HTML, exit 1 above p99 10 grey levels |
 | animations | `python tools/lo_roundtrip.py FILE.pptx out/build/slides.json` | how LibreOffice reads every effect, trigger, wipe direction, settle, easing, video play/loop |
 | preview | `tools/preview/preview.sh [fixtures] [--only 06,07]` | `out/preview/motion/`: `deck.mp4`, `NN-in.mp4`, `keyframes/NN-in.png`, `morph-log.txt` (not part of `make.sh`: ≈ 3 min) |
-| tests | `python -m pytest deck/cf11/tools/tests` | unit tests (geometry, runs, fonts, EOT, timing XML vs the ISO schema, transitions, crops, bleed, Morph pairing, fill, preview scenes) and an integration build |
+| tests | `python -m pytest deck/cf11/tools/tests` | unit tests (geometry, runs, fonts, EOT, timing XML vs the ISO schema, transitions, crops, bleed, Morph pairing, fill, native shadows, travelling layers, preview scenes) and an integration build |
 
 `--deck-rules` enforces the contest rules: the 10 mandatory names of Приложение 2 in order («Представление блоков
 проекта» may repeat on consecutive slides, own slides only between the blocks and «Используемые источники»), at
@@ -60,11 +60,12 @@ in desktop PowerPoint, check it, and save (see «Needs real PowerPoint»).
 | everything unmarked | one full-bleed background picture `!!bg` (decorative), bottom of the z-order, PNG8 when it shows no banding |
 | `title` | the slide's title placeholder (the outline and slide list show the mandatory name as authored; `text-transform: uppercase` becomes `cap="all"`), named `!!title` so the label stays in place under Morph |
 | `text` | a text box: runs per colour/weight/size/spacing/underline/strike/link, Onest face per weight (400 `Onest`, 500 `Onest Medium`, 600 `Onest SemiBold`, 700 `Onest` + bold), size px/2 pt, `spc` from letter-spacing, exact line spacing from line-height, `lang` from `<html lang>`, no autofit, zero insets + measured offsets, ≥ 10 % width slack, every soft wrap of the browser as `<a:br/>` |
-| `shape` | `rect` / `roundRect` / `ellipse` / `round2SameRect` / custom path from border-radius, fill and outline with alpha, the outline inset by half its width (CSS borders are inside the box) |
-| `image` | the element rendered at 2× as a transparent PNG (shadows included), or the `data-src` file (object-fit crop, rounded corners of the box or of a clipping parent); SVG files get an `svgBlip` with a PNG stand-in |
+| `shape` | `rect` / `roundRect` / `ellipse` / `round2SameRect` / custom path from border-radius, fill and outline with alpha, the outline inset by half its width (CSS borders are inside the box); its `box-shadow` a native outer shadow (Shadows, below) |
+| `image` | the element rendered at 2× as a transparent PNG (shadows included), or the `data-src` file (object-fit crop, rounded corners of the box or of a clipping parent, its `box-shadow` a native outer shadow); SVG files get an `svgBlip` with a PNG stand-in |
 | `gif` | the GIF as a picture (PowerPoint 365 animates it in Normal view too) |
 | `video` | MP4 with its poster, autoplay (`mediacall playFrom`) when it appears (`data-play`, below), loop (`repeatCount="indefinite"`), click toggles pause |
-| `data-name="!!x"` | object name `!!x` (Morph pairs); other objects get unique names like `Text 03.07` |
+| `data-name="!!x"` | object name `!!x` (Morph pairs), its layer picture `!!x·layer` (travels with it); other objects get unique names like `Text 03.07`, `Shape 03.09:over` |
+| `data-shadow="bake"` | the element's `box-shadow` is baked into its layer picture instead of a native shadow |
 | `data-anim*` | entrance effect, see below |
 | `data-morph="object\|word\|char"` on `main.slide` | the Morph option (`byObject` default, `byWord`, `byChar`) |
 | `data-fill="key"` | at extract time the element's text becomes `key`'s value from `deck/cf11/private/fill.json` (git-ignored; `private/fill.example.json` shows the form) and the element gets `data-filled`, so CSS can drop placeholder styling. A missing file or key keeps the placeholder and warns once per key. Personal data reaches only the built PPTX (and `out/`, which git ignores) |
@@ -73,7 +74,40 @@ in desktop PowerPoint, check it, and save (see «Needs real PowerPoint»).
 **Slide edge (bleed).** A picture, GIF or layer whose box crosses the slide edge is cropped to the slide (`a:srcRect`,
 the rounded corners on a cut side become square); a video is re-encoded to its visible part (warned). A native shape
 or live text whose box (text: its line boxes) crosses the edge is a build ERROR: PowerPoint's Normal view shows the
-part outside the slide on the pasteboard. The text slack never takes a frame past the edge.
+part outside the slide on the pasteboard. The text slack never takes a frame past the edge. A native shadow whose
+visible part (its spread box plus 1.5 σ of the blur) reaches past the edge is a warning: the show clips it, Normal view
+is expected to show it on the pasteboard; `data-shadow="bake"` bakes it into a cropped layer instead.
+
+## Shadows
+
+A `box-shadow` on a marked element becomes a native DrawingML outer shadow, `a:effectLst/a:outerShdw`, so it travels
+and scales with its object under Morph instead of crossfading with the background. One layer is carried: PowerPoint
+has one outer shadow per object, so a multi-layer CSS shadow is approximated by its most visible outer layer
+(alpha × how far it reaches: blur + 2 × offset + spread; the deck's `--shadow` keeps `0 40px 80px -48px`, its
+`0 1px 3px` contact layer at 5 % is dropped). The mapping (`deckpptx/shapes.py`):
+
+| CSS | `a:outerShdw` |
+|---|---|
+| offset `dx dy` | `dist` = its length, `dir` = its angle (0 = right, 90° = down) |
+| blur radius `b` | `blurRad` = 1.1 × b (`research/calibrate_shadow.py`: the factor that matches LibreOffice 26.8 best) |
+| spread `s` | `sx` = (w + 2s) / w, `sy` = (h + 2s) / h, `algn="ctr"`: the silhouette shrinks or grows about its centre; both always written (LibreOffice ignores `sy` without `sx`) |
+| colour | `srgbClr` + `alpha` (× the element's opacity) |
+| rotation | `rotWithShape="1"`: a CSS shadow turns with its element |
+
+CSS paints an outer shadow only outside the box; DrawingML draws it under the whole object. So a shadow is native only
+where the object hides it: a shape, or a text with a box, with an opaque fill; a placed `data-src` picture, video or
+GIF; opacity 1 and no clip-path. Otherwise, and with `data-shadow="bake"` or any `inset` layer, it is baked as before:
+into the over-layer of a shape, the under-layer of a text (a text without a box always bakes: its CSS shadow is the
+shadow of a box the PPTX does not draw). A placed file has no layer, so its unbakeable shadow is dropped with a
+warning (mark the element `data-pptx="image"` to render it with its shadow). The layer render hides a native shadow.
+
+Measured with LibreOffice 26.8.1.1, in each shadow's ring against the HTML: the deck's ten `.lift` shadows (cards
+and the device, round 2) mean 0.2–0.9, p99 3–4 grey levels; the round-1 slides with all 22 cards carrying
+`--shadow` themselves (a scratch variant) mean 0.2–1.0, p99 3–4. LibreOffice applies `sx`/`sy` to the blurred
+shadow, so its blur shrinks with them; for the deck's cards (`sy` 0.67–0.82) the 1.1 factor absorbs it, but a strong
+negative spread on a small box (the fixtures' 140 px card at `sy` 0.2) comes out as a hard band where CSS keeps a
+soft one (p99 15): `compare.py` fails such a shadow (p99 above 10) and `data-shadow="bake"` is the per-element way
+out (the fixtures' slide 2 card uses it).
 
 ## Fidelity measures (and why)
 
@@ -96,15 +130,20 @@ part outside the slide on the pasteboard. The text slack never takes a frame pas
   equal attributes are merged and unaffected; `research/calibrate_spacing.py`). No run markup makes LibreOffice and
   a CSS-like renderer agree, so the file follows the HTML; `compare.py` allows that drift and lists the elements.
 * **Layers**: what a native object cannot draw is rendered at 2× and placed next to it: the *over-layer* of a shape
-  (its unmarked children, shadow, background image) above it, the *under-layer* of a text (highlight marks, inline
-  decorations) below it. A layer animates with its element. Marked descendants are never part of a layer.
+  (its unmarked children, a shadow that cannot be native, background image) above it, the *under-layer* of a text
+  (highlight marks, inline decorations) below it. A layer animates with its element. Marked descendants are never part
+  of a layer. **Layers travel**: the layer of a `!!x` owner is named `!!x·layer`, so under Morph it pairs by name
+  with the layer of `!!x` on the other slide (over- or under-layer alike) and moves, scales and crossfades with its
+  owner instead of fading out in place; two different layer pictures stretch with the box like any paired picture.
+  Layers of unnamed owners stay unique (`Shape 03.09:over`). The Morph lint folds a layer into its owner's warning.
 * **Video**: LibreOffice ignores `srcRect` on video, so a clip whose aspect differs from its box is re-encoded to the
   visible part (H.264 CRF 20, BT.709, faststart, no audio) and its poster cropped; the build warns, render the clip
   at the box size instead.
 
 Measured on the fixtures (LibreOffice 26.8.1.1): every live text within 1.06 px of the HTML (30 text elements),
-2.0–2.7 % of pixels differing by more than 32 levels (anti-aliasing, the GIF frame, link underlines), file 0.46 MB,
-`validate.py` PASSED, 483 structural checks passed, every animation read back as intended.
+1.9–2.7 % of pixels differing by more than 32 levels (anti-aliasing, the GIF frame, link underlines), four native
+shadows (a card, a rotated shape, an ellipse, a placed GIF) within mean 0.1–1.1 / p99 1–4 grey levels, file 0.46 MB,
+`validate.py` PASSED, 494 structural checks passed, every animation read back as intended.
 
 ## Entrance animations
 
@@ -161,7 +200,8 @@ byChar"` ([MS-PPTX] 2.6.4.1, from `data-morph`) in an `mc:AlternateContent` with
 default), `fade` = `p:fade` (700 ms), `none` = nothing.
 
 **Morph lint** (`check_pptx.py`, warnings only). An object with an entrance animation that morphs in from the
-previous slide by its `!!` name takes no part in the Morph: the old one fades out and this one builds in afterwards.
+previous slide by its `!!` name takes no part in the Morph: the old one fades out and this one builds in afterwards
+(its `!!x·layer` builds in with it: one warning, «with its layer»).
 This is the design lint's rule, now applied to the file, the compiler's own `!!title` included. Objects that build in
 and look like an object of the previous slide (same shape type and text, same picture) are listed per slide as
 possible automatic matches. Slide 1 is exempt (no previous slide). The pairing rules are in `deckpptx/morph.py`.
@@ -183,7 +223,10 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
       "clip": {...} | null, "clipRadius": {"px", "box"} | null, "href": null, "alt": "aria-label",
       "anim": {"effect": "fade", "trigger": "after", "delayMs": 0, "durMs": 500, "order": null, "dir": "left"} | null,
       "style": {"fill": {"rgb": "F4C45B", "alpha": 1} | null, "line": {"w", "color", "dash"} | null,
-                "lineUniform": true, "radii": [[rx, ry] x4], "shadow": false, "bgImage": false},
+                "lineUniform": true, "radii": [[rx, ry] x4], "bgImage": false,
+                "shadow": true, "shadows": [{"dx", "dy", "blur", "spread", "color", "inset"}],   // every layer, slide px
+                "shadowNative": {"dx": 0, "dy": 40, "blur": 80, "spread": -48, "color": {...}, "dropped": 1} | null,
+                "shadowBaked": false},                       // native -> a:outerShdw; baked -> in the layer
       "text": {"insets": {"l","t","r","b"}, "wrapNone": false, "lang": "ru",
                "paragraphs": [{"align": "l|ctr|r", "lineHeightPx": 70.4, "indentPx": 0, "marLPx": 0, "marRPx": 0,
                  "lines": [{"baseline": 520.5, "left": 128, "right": 990, "maxSizePx": 64,
@@ -223,6 +266,11 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
 * **Letter spacing**: PowerPoint is expected to add `spc` after every character, as CSS does (unverified). The
   line-end shift above is calibrated on LibreOffice, so in PowerPoint a right-aligned line may sit up to |spacing|
   (a centred one half of it) off; at a colour change inside a condensed line the file follows CSS.
+* **Shadows**: `blurRad` = 1.1 × the CSS blur is calibrated on LibreOffice only; PowerPoint's blur radius, and
+  whether it scales a shadow (`sx`/`sy`) before or after blurring it, were not measured. That Morph carries a shadow
+  with its object follows from the shadow being part of the object; whether it interpolates two different shadows
+  is undocumented (the preview interpolates them). A picture with transparent pixels may cast its shadow from its
+  pixels rather than its frame (CSS uses the box); the deck's placed files are opaque.
 * **Hyperlink colour**: inline links carry `ahyp:hlinkClr val="tx"` (keep the text colour) under the extension URI
   `{A12FA001-AC4F-418D-AE19-62706E023703}` from memory; if PowerPoint ignores it, the theme hyperlink colour (set
   to the label blue) applies. PowerPoint and LibreOffice underline run hyperlinks; `data-href` on a whole element is
@@ -234,6 +282,7 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
   characters ² ³ ₂. List markers (`::marker`) and generated `::before/::after` text are not live text (warned).
 * Rotated text is measured in its rotated box (warned): mark it `image`. Scaled text (`transform: scale`) is fine.
 * A transparent layer with a soft shadow stays PNG32 (Pillow's RGBA quantiser bands the shadow; no libimagequant).
+* One outer shadow per object (the most visible CSS layer); inset shadows are always baked.
 * Video crop is a re-encode (warned); a GIF is placed as authored (warned above 0.4 MB).
 * Text inside a clipping parent is not clipped (warned); pictures and video are cropped to the clip.
 
@@ -249,8 +298,9 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
 4. `<br>` and block children start paragraphs (as the contract says); the browser's soft wraps are `<a:br/>` inside
    a paragraph.
 5. **Names**: `data-name` is used as given (Morph needs it to start with `!!` and be unique per slide, warned). The
-   background is `!!bg` and the title `!!title` on every slide, so both crossfade in place under Morph. Layers are
-   named `<name>:over` / `<name>:under`.
+   background is `!!bg` and the title `!!title` on every slide, so both crossfade in place under Morph. The layer of
+   a `!!x` owner is `!!x·layer` (it pairs with the owner's layer on the next slide); other layers are
+   `<name>:over` / `<name>:under`, unique per slide.
 6. `data-transition-dur` (ms) on `main.slide` sets the transition length (defaults: Morph 1500 ms, Fade 700 ms).
 7. `data-loop` / `data-autoplay` accept `false|0|no|off`. A video without `data-poster` gets frame 0 (warned).
 8. `data-src` on an `image` places the file (object-fit/position honoured); an `.svg` is normalised (namespace,
@@ -266,15 +316,19 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
     `right`, `up` (= From Top), `down` (= From Bottom). On other effects it is ignored with a warning.
 15. `data-anim="settle"`: fade + 92 % → 100 % around the centre, decelerating, written under «Basic Zoom / In Slightly»
     (see Entrance animations). The design lint (`design/preview/lint.mjs`) has to accept `settle`, `data-anim-dir`,
-    `data-morph`, `data-fill` and `data-play`.
+    `data-morph`, `data-fill`, `data-play` and `data-shadow`.
 16. `data-morph="object|word|char"` on `main.slide` sets the Morph option of the transition *into* that slide.
 17. `data-fill="key"`: the private value replaces the element's whole text (its children too) before anything is
     measured, and the element gets `data-filled`. Values are plain text. The file lives next to `slides/`
     (`deck/cf11/private/fill.json`; `extract.mjs --fill` points elsewhere, the fixtures use `fixtures/fill.json`).
 18. The slide edge is enforced on the PPTX objects, not the HTML: pictures and layers are cropped, native shapes and
     live text outside it fail the build (see Slide edge). Shadows and decoration baked into the background never move
-    with a Morph; they crossfade with the background.
+    with a Morph; they crossfade with the background. A `box-shadow` on the marked element itself does move (note 21).
 19. A Morph name on an object that also builds in is a lint warning, not an error. The compiler's own `!!title` and
     `!!bg` count, so an animated title is reported on every Morph slide.
 20. `data-play="with|after"` on a `video` (default `with`): the clip starts with its entrance (or the slide's start) or
     after the builds of its click group. See Entrance animations, Media. Unknown values warn and use `with`.
+21. `box-shadow` on a marked element is a native outer shadow where it looks like CSS (see Shadows), else baked into
+    the element's layer. `data-shadow="bake"` forces the layer, `data-shadow="native"` is the default; other values
+    warn. A shadow drawn by a separate unmarked element (deck.css `.shadow`) stays in the background
+    picture: to let it travel, put the `box-shadow` on the card itself.

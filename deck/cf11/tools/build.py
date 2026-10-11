@@ -37,7 +37,8 @@ sys.path.insert(0, str(HERE))
 from deckpptx import fonts as F                      # noqa: E402
 from deckpptx.pictures import (crop_video, first_frame, intersect, pic_el, placement, probe_media,  # noqa: E402
                                src_rect_el, xfrm as xfrm_el)
-from deckpptx.shapes import geometry_el, sp_pr       # noqa: E402
+from deckpptx.morph import LAYER_SUFFIX              # noqa: E402
+from deckpptx.shapes import geometry_el, shadow_el, sp_pr   # noqa: E402
 from deckpptx.template import app_properties_xml, new_presentation   # noqa: E402
 from deckpptx.text import RunCtx, ooxml_lang, plan_text, tx_body     # noqa: E402
 from deckpptx.timing import Effect, Media, Target, build_timing      # noqa: E402
@@ -80,6 +81,16 @@ def crop_to_slide(frame: dict, crop: dict | None) -> tuple[dict, dict | None]:
         return frame, crop                                   # wholly outside: left to the caller's warning
     vis = {'x': x1, 'y': y1, 'w': x2 - x1, 'h': y2 - y1}
     return vis, {'l': (x1 - ix) / iw, 't': (y1 - iy) / ih, 'r': (ix + iw - x2) / iw, 'b': (iy + ih - y2) / ih}
+
+
+def shadow_extent(e: dict, rect: dict | None = None) -> dict | None:
+    """Where an element's native shadow visibly reaches (1.5 sigma of the blur beyond its spread box), slide px."""
+    sh = (e.get('style') or {}).get('shadowNative')
+    if not sh:
+        return None
+    b = rect or e['bbox']
+    g = 0.75 * sh['blur'] + sh['spread']
+    return {'x': b['x'] + sh['dx'] - g, 'y': b['y'] + sh['dy'] - g, 'w': b['w'] + 2 * g, 'h': b['h'] + 2 * g}
 
 
 def text_extent(e: dict) -> dict:
@@ -134,6 +145,15 @@ class SlideBuilder:
             self.error(f'{e["id"]} {e.get("name") or ""} {what} crosses the slide edge ({sides}): PowerPoint shows the '
                        f'part outside the slide on the pasteboard in Normal view. Keep it inside the slide, or mark it '
                        f'data-pptx="image" so it is cropped')
+
+    def check_shadow_edge(self, e: dict, rect: dict | None = None):
+        r = shadow_extent(e, rect)
+        o = overhang(r) if r else None
+        if o:
+            sides = ', '.join(f'{k} {v:g} px' for k, v in o.items())
+            self.warn(f'{e["id"]} {e.get("name") or ""} native shadow reaches past the slide edge ({sides}): in Normal '
+                      f'view PowerPoint is expected to show that part on the pasteboard (the show clips it); '
+                      f'data-shadow="bake" bakes it into the slide instead')
 
     def next_id(self) -> int:
         ids = [int(c.get('id')) for c in self.tree.iter(P + 'cNvPr')]
@@ -218,7 +238,12 @@ class SlideBuilder:
         rid = self.image(self.dir / r['png'])
         spid = self.next_id()
         frame, crop = crop_to_slide(r['rect'], None)
-        name = self.name_for(e, f':{which}')
+        # a "!!" owner's layer is "!!owner·layer": it pairs with the owner's layer on the next slide and travels
+        # with it under Morph (over- or under-layer alike); other owners' layers stay unique, as auto-match bait
+        if (e.get('name') or '').startswith('!!'):
+            name = self.unique(e['name'] + LAYER_SUFFIX)
+        else:
+            name = self.name_for(e, f':{which}')
         self.add(pic_el(spid, name, rid, frame, decorative=True, crop=crop))
         self.record(spid, name, which, e)
         return Target(spid)
@@ -251,7 +276,9 @@ class SlideBuilder:
             etree.SubElement(nv, P + 'nvPr')
         frame = {'x': plan.x, 'y': plan.y, 'w': plan.w, 'h': plan.h}
         if visible_box:
-            spr, _ = sp_pr(e['box'], style, e.get('opacity', 1.0), e.get('rot', 0))   # same frame as plan_text
+            spr, _ = sp_pr(e['box'], style, e.get('opacity', 1.0), e.get('rot', 0),   # same frame as plan_text
+                           shadow=style.get('shadowNative'))
+            self.check_shadow_edge(e)
         else:
             spr = etree.Element(P + 'spPr')
             xfrm_el(spr, frame, e.get('rot', 0))
@@ -283,7 +310,9 @@ class SlideBuilder:
             etree.SubElement(c, A + 'hlinkClick').set(R + 'id', self.link(e['href']))
         etree.SubElement(nv, P + 'cNvSpPr')
         etree.SubElement(nv, P + 'nvPr')
-        spr, _ = sp_pr(e['box'], e.get('style'), e.get('opacity', 1.0), e.get('rot', 0))
+        spr, _ = sp_pr(e['box'], e.get('style'), e.get('opacity', 1.0), e.get('rot', 0),
+                       shadow=(e.get('style') or {}).get('shadowNative'))
+        self.check_shadow_edge(e)
         sp.append(spr)
         body = etree.SubElement(sp, P + 'txBody')
         etree.SubElement(body, A + 'bodyPr', rtlCol='0', anchor='ctr')
@@ -308,18 +337,28 @@ class SlideBuilder:
             rid = self.image(self.dir / r['png'])
             svg_rid = self.svg(self.dir / r['svg'])
             frame, crop = crop_to_slide(r['rect'], None)
-            self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, svg_rid=svg_rid,
-                            alpha=e.get('opacity', 1.0), crop=crop))
+            pic = self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, svg_rid=svg_rid,
+                                  alpha=e.get('opacity', 1.0), crop=crop))
+            self.shadow(pic, e, frame)
         else:
             src = Path(e['src']['path'])
             with Image.open(src) as im:
                 natural = im.size
             frame, crop, geom = self.media_frame(e, natural)
             rid = self.image(self.optimized(src) if e['type'] == 'image' else src)   # a GIF stays as authored
-            self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, rot=e.get('rot', 0),
-                            crop=crop, geom=geom, alpha=e.get('opacity', 1.0)))
+            pic = self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, rot=e.get('rot', 0),
+                                  crop=crop, geom=geom, alpha=e.get('opacity', 1.0)))
+            self.shadow(pic, e, frame)
         self.record(spid, name, e['type'] if e['type'] == 'gif' else (r['mode'] if r else 'image'), e)
         self.animate(e, Target(spid), [])
+
+    def shadow(self, pic, e: dict, frame: dict):
+        """A placed file's native outer shadow (box-shadow), sized to the picture frame it is drawn from."""
+        eff = shadow_el((e.get('style') or {}).get('shadowNative'), frame['w'], frame['h'], e.get('opacity', 1.0))
+        if eff is not None:
+            pic.find(f'{P}spPr').append(eff)
+            self.check_shadow_edge(e, frame)
+        return pic
 
     def media_frame(self, e: dict, natural):
         """Visible frame, srcRect and corner geometry for a file placed in an element box (object-fit, clipping,
@@ -377,6 +416,7 @@ class SlideBuilder:
         if e.get('rot'):
             from deckpptx.units import angle
             spr.find(f'{A}xfrm').set('rot', str(angle(e['rot'])))
+        self.shadow(pic, e, frame)
         eff = self.animate(e, Target(spid), [])
         self.media.append(Media(spid=spid, dur_ms=info['durMs'], loop=e['src'].get('loop', False),
                                 autoplay=e['src'].get('autoplay', True), shown_by=eff,

@@ -13,6 +13,12 @@ only when the spacing is positive (impedit3.cxx, "#i9050# Do Kerning also behind
 line moves right by |spacing| per change (research/calibrate_spacing.py). PowerPoint, like CSS, is expected to keep
 it, and no run markup makes both agree, so the file follows the HTML; such an element may be off by up to that
 drift on top of --max-shift and is listed.
+
+Native shadows (a box-shadow carried as a:outerShdw): for every such object the ring the shadow falls on - around the
+box, out to the offset plus the blur, without the boxes of the slide's other objects - is compared in grey levels
+(mean and 99th percentile; research/calibrate_shadow.py measured 1-4 for the shadows LibreOffice matches and 13-15
+for one it draws visibly tighter). Exit status 1 when a ring's p99 exceeds --max-shadow: LibreOffice draws that
+shadow unlike the HTML; data-shadow="bake" on the element bakes it into the slide instead.
 """
 from __future__ import annotations
 
@@ -47,6 +53,39 @@ def lo_spacing_drift(el: dict) -> float:
                        and tuple(a.get(k) for k in RUN_ATTRS) != tuple(b.get(k) for k in RUN_ATTRS))
             worst = max(worst, lost)
     return round(worst, 2)
+
+
+def native_shadow(e: dict) -> dict | None:
+    """The box-shadow layer build.py carries as a:outerShdw for this element (check_pptx.native_shadow_expected)."""
+    st = e.get('style') or {}
+    sh = st.get('shadowNative')
+    if not sh:
+        return None
+    if e['type'] in ('text', 'title') and not (st.get('fill') or (st.get('line') and st.get('lineUniform'))):
+        return None
+    if e['type'] == 'image' and not e.get('src'):
+        return None
+    return sh
+
+
+def shadow_ring(e: dict, sh: dict, elements: list, size: tuple[int, int]) -> np.ndarray:
+    """Mask of the pixels the element's shadow falls on, outside the element and every other object (their own
+    rendering differences, e.g. text antialiasing or an edge, are not the shadow's)."""
+    W, H = size
+    b = e['bbox']
+    reach = sh['blur'] + max(0.0, sh['spread']) + 4
+    x0 = min(b['x'], b['x'] + sh['dx']) - reach
+    y0 = min(b['y'], b['y'] + sh['dy']) - reach
+    x1 = max(b['x'] + b['w'], b['x'] + b['w'] + sh['dx']) + reach
+    y1 = max(b['y'] + b['h'], b['y'] + b['h'] + sh['dy']) + reach
+    m = np.zeros((H, W), bool)
+    clip = lambda v, hi: int(max(0, min(hi, round(v))))   # noqa: E731
+    m[clip(y0, H):clip(y1, H), clip(x0, W):clip(x1, W)] = True
+    for o in elements:
+        ob, pad = o['bbox'], (4 if o is not e else 1)
+        m[clip(ob['y'] - pad, H):clip(ob['y'] + ob['h'] + pad, H),
+          clip(ob['x'] - pad, W):clip(ob['x'] + ob['w'] + pad, W)] = False
+    return m
 
 
 def best_shift(ref: np.ndarray, out: np.ndarray, box: tuple[int, int, int, int]) -> tuple[float, float, float]:
@@ -84,6 +123,8 @@ def main() -> int:
     ap.add_argument('renders')
     ap.add_argument('--out', default=None)
     ap.add_argument('--max-shift', type=float, default=2.5)
+    ap.add_argument('--max-shadow', type=float, default=10.0,
+                    help='99th-percentile grey-level error allowed in a native shadow ring')
     a = ap.parse_args()
     build, renders = Path(a.build), Path(a.renders)
     out_dir = Path(a.out) if a.out else renders / 'compare'
@@ -91,6 +132,7 @@ def main() -> int:
     doc = json.loads((build / 'slides.json').read_text(encoding='utf-8'))
     font = ImageFont.truetype(str(FONT), 22) if FONT.exists() else ImageFont.load_default()
     report, worst, worst_raw, drifted = [], 0.0, 0.0, []
+    shadow_rows, shadow_bad = [], []
     print(f"{'slide':<6}{'diff>32':>9}{'mean':>7}   text elements: offset (render - HTML) px")
     for i, s in enumerate(doc['slides'], start=1):
         rpath = renders / f'slide-{i}.png'
@@ -122,7 +164,25 @@ def main() -> int:
             worst = max(worst, max(0.0, abs(dx) - drift), abs(dy))
             if drift:
                 drifted.append(f"{s['nn']} {e['id']} dx {dx:+.1f} (allowed {a.max_shift + drift:.1f})")
-        report.append({'slide': s['nn'], 'diffFrac': round(frac, 4), 'meanAbs': round(mean, 2), 'texts': texts})
+        shadows = []
+        for e in s['elements']:
+            sh = native_shadow(e)
+            if not sh:
+                continue
+            m = shadow_ring(e, sh, s['elements'], (rg.shape[1], rg.shape[0]))
+            if m.sum() < 200:
+                continue
+            d = np.abs(rg[m] - og[m])
+            row = {'id': e['id'], 'name': e.get('name'), 'mean': round(float(d.mean()), 2),
+                   'p99': round(float(np.percentile(d, 99)), 1), 'pixels': int(m.sum())}
+            shadows.append(row)
+            shadow_rows.append(f"{s['nn']} {e['id']}{' ' + e['name'] if e.get('name') else ''} "
+                               f"{row['mean']:.1f}/{row['p99']:.0f}")
+            if row['p99'] > a.max_shadow:
+                shadow_bad.append(f"{s['nn']} {e['id']} {e.get('name') or ''} p99 {row['p99']:.0f} "
+                                  f"(limit {a.max_shadow:g})")
+        report.append({'slide': s['nn'], 'diffFrac': round(frac, 4), 'meanAbs': round(mean, 2), 'texts': texts,
+                       'shadows': shadows})
         print(f"{s['nn']:<6}{frac * 100:8.2f}%{mean:7.2f}   " +
               '  '.join(f"{t['id']}({t['dx']:+.1f},{t['dy']:+.1f})" for t in texts))
         # side by side + diff
@@ -142,9 +202,13 @@ def main() -> int:
     if drifted:
         print('LibreOffice-only drift (negative letter spacing lost at run changes; PowerPoint is expected to keep '
               'it): ' + '; '.join(drifted))
+    if shadow_rows:
+        print(f'native shadows, ring error mean/p99 grey levels: ' + ', '.join(shadow_rows))
+    for b in shadow_bad:
+        print(f'  ✗ native shadow unlike the HTML: {b}; data-shadow="bake" bakes it instead')
     print(f'worst text offset {worst:.2f} px beyond that drift (limit {a.max_shift}; raw worst {worst_raw:.2f} px); '
           f'images and report.json in {out_dir}')
-    return 0 if worst <= a.max_shift else 1
+    return 0 if worst <= a.max_shift and not shadow_bad else 1
 
 
 if __name__ == '__main__':

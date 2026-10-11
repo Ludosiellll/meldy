@@ -334,14 +334,50 @@
     c.scale(st.flipH ? -1 : 1, st.flipV ? -1 : 1);
     c.translate(-st.w / 2, -st.h / 2);
   }
-  function wipeRect(st) {
+  // the part of the box a wipe has uncovered; ext: unbounded across the wipe and behind its edge (for the shadow)
+  function wipeRect(st, ext = false) {
     const w = st.wipe; if (!w) return null;
-    const p = clamp(w.p, 0, 1);
-    if (w.dir === 'left') return [0, 0, st.w * p, st.h];
-    if (w.dir === 'right') return [st.w * (1 - p), 0, st.w * p, st.h];
-    if (w.dir === 'up') return [0, 0, st.w, st.h * p];
-    if (w.dir === 'down') return [0, st.h * (1 - p), st.w, st.h * p];
+    const p = clamp(w.p, 0, 1), B = ext ? 1e4 : 0;
+    if (w.dir === 'left') return [-B, -B, st.w * p + B, st.h + 2 * B];
+    if (w.dir === 'right') return [st.w * (1 - p), -B, st.w * p + B, st.h + 2 * B];
+    if (w.dir === 'up') return [-B, -B, st.w + 2 * B, st.h * p + B];
+    if (w.dir === 'down') return [-B, st.h * (1 - p), st.w + 2 * B, st.h * p + B];
     return null;
+  }
+  // a:outerShdw as calibrated against LibreOffice (research/calibrate_shadow.py): a Gaussian of sigma = blurRad / 2.2
+  // (the build writes blurRad = 1.1 x the CSS blur, whose sigma is half of that), the silhouette scaled by sx/sy about
+  // its centre and moved by dist along dir, turning with the shape. Drawn with the canvas shadow API, whose blur and
+  // offsets are bitmap pixels the transform leaves alone: the silhouette goes far off-canvas, only its shadow lands.
+  const OFF = 4 * SW;
+  function drawShadow(c, st, sh, alpha) {
+    if (!sh || !sh.rgba || st.hidden) return;
+    const a = sh.rgba[3] * alpha;
+    if (a <= 0.002) return;
+    const m = c.getTransform(), k = Math.hypot(m.a, m.b);
+    const ang = ((sh.dir + (sh.rotWith ? st.rot || 0 : 0)) * Math.PI) / 180;
+    c.save();
+    const wr = wipeRect(st, true);
+    if (wr) { local(c, st); c.beginPath(); c.rect(...wr); c.clip(); c.setTransform(m); }
+    c.shadowColor = `rgba(${sh.rgba[0]},${sh.rgba[1]},${sh.rgba[2]},${a})`;
+    c.shadowBlur = (sh.blur / 1.1) * k;
+    c.shadowOffsetX = (OFF + Math.cos(ang) * sh.dist) * k;
+    c.shadowOffsetY = Math.sin(ang) * sh.dist * k;
+    c.translate(-OFF, 0);
+    local(c, st);
+    c.translate(st.w / 2, st.h / 2); c.scale(sh.sx, sh.sy); c.translate(-st.w / 2, -st.h / 2);
+    tracePath(c, st.g, st.w, st.h);
+    c.fillStyle = '#000';
+    c.fill();
+    c.restore();
+  }
+  // Morph is assumed to carry a shadow along like the rest of the shape; two different shadows are interpolated
+  function lerpShadow(a, b, p) {
+    if (!a && !b) return null;
+    const none = (x) => ({ ...x, rgba: [x.rgba[0], x.rgba[1], x.rgba[2], 0] });
+    const A = a || none(b), B = b || none(a);
+    const turn = ((B.dir - A.dir + 540) % 360) - 180;
+    return { blur: lerp(A.blur, B.blur, p), dist: lerp(A.dist, B.dist, p), dir: A.dir + turn * p, sx: lerp(A.sx, B.sx, p),
+      sy: lerp(A.sy, B.sy, p), rotWith: p < 0.5 ? A.rotWith : B.rotWith, rgba: lerpColor(A.rgba, B.rgba, p) };
   }
   function drawShape(c, st, alpha) {
     if (!st.fill && !st.line) return;
@@ -399,6 +435,18 @@
     if (st.hidden) return;
     const a = alpha * st.opacity;
     if (a <= 0.002) return;
+    if (o.shadow && a < 0.999) {
+      // a fading object with a shadow fades as one picture (its shadow must not show through its own fill)
+      const g = offscreen(2);
+      drawObject(g.x, o, { ...st, opacity: 1 }, 1, side, t);
+      c.save();
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalAlpha = a;
+      c.drawImage(g.c, 0, 0);
+      c.restore();
+      return;
+    }
+    drawShadow(c, st, o.shadow, a);
     drawShape(c, st, a);
     const src = pictureSrc(o, side, t);
     if (src) drawPicture(c, st, src, o.img ? o.img.crop : null, a * (o.img ? o.img.alpha : 1));
@@ -417,6 +465,7 @@
   function drawPair(c, A, B, p, t) {
     const sa = baseState(A), sb = baseState(B);
     const st = lerpState(sa, sb, p);
+    drawShadow(c, st, lerpShadow(A.shadow, B.shadow, p), 1);
     drawShape(c, st, 1);
     const srcA = pictureSrc(A, 'prev', t), srcB = pictureSrc(B, 'cur', t);
     const hasContent = srcA || srcB || A.textLayer || B.textLayer;
@@ -484,8 +533,9 @@
   }
 
   function overlayPairs() {
-    // the incoming slide's start dimmed, then: name pairs blue, automatic pairs orange, out red, in green,
-    // built-in-later purple; an arrow runs from where a paired object was to where it lands
+    // the incoming slide's start dimmed, then: name pairs blue, automatic pairs orange, layers travelling with their
+    // "!!" owner teal, out red, in green, built-in-later purple; an arrow runs from where a paired object was to where
+    // it lands
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.fillStyle = 'rgba(8,10,14,0.62)';
     ctx.fillRect(0, 0, SW, SH);
@@ -519,11 +569,13 @@
     for (const it of S.draw) {
       if (it.kind !== 'pair') continue;
       const A = S.byKey.get(it.a), B = S.byKey.get(it.b);
-      const col = it.how === 'name' ? '#74c0fc' : '#ffa94d';
+      const layer = B.layerOf;
+      const col = layer ? '#63e6be' : it.how === 'name' ? '#74c0fc' : '#ffa94d';
       const moved = Math.abs(A.x - B.x) + Math.abs(A.y - B.y) + Math.abs(A.w - B.w) + Math.abs(A.h - B.h) > 2;
-      box(A, col, [6, 6], 2); box(B, col, [], 4);
+      box(A, col, [6, 6], 2); box(B, col, layer ? [3, 5] : [], layer ? 3 : 4);
       if (moved) arrow(A.x + A.w / 2, A.y + A.h / 2, B.x + B.w / 2, B.y + B.h / 2, col);
-      if (moved || it.how !== 'name' || !/^!!(s\d\d|bg)$/.test(B.name)) label((it.how === 'name' ? '' : 'auto ') + name(B), B.x, B.y - 4, col);
+      if (layer) label(`layer of ${layer}`, B.x, B.y + B.h + 24, col);
+      else if (moved || it.how !== 'name' || !/^!!(s\d\d|bg)$/.test(B.name)) label((it.how === 'name' ? '' : 'auto ') + name(B), B.x, B.y - 4, col);
     }
     for (const it of S.draw) {
       if (it.kind === 'gone') { const o = S.byKey.get(it.a); label('out ' + name(o), o.x, o.y + o.h + 24, '#ff6b6b'); }
