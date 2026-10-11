@@ -61,6 +61,9 @@
 .gr-line[data-muted] { color: var(--sf-muted); }
 .gr-line .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; vertical-align: baseline; }
 .gr-note { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--m-yellow-soft); color: var(--m-yellow-ink); font-size: 15px; line-height: 1.45; }
+/* The link's part of the window (InviteExam `hold`): its own block, so the height it keeps while a call is out counts
+   the first line's margin too and nothing under it moves when the answer comes. */
+.gr-area { display: flow-root; }
 .gr-make { display: grid; gap: 14px; margin-top: 20px; }
 .gr-consent {
   display: flex;
@@ -105,6 +108,13 @@
   cursor: pointer;
 }
 .gr-copy:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+/* While the link is being made: its buttons wait, quietly. */
+.gr-copy:disabled { opacity: .45; cursor: default; }
+/* Beside the field, «Скопировать» and «Скопировано» share one cell: the button keeps its width, so the field beside it
+   does not move when the word changes (and changes back two seconds later). */
+.gr-row .gr-copy { display: inline-grid; place-items: center; }
+.gr-copy-w { grid-area: 1 / 1; }
+.gr-copy-w[aria-hidden='true'] { visibility: hidden; }
 .gr-copy-text { justify-self: start; }
 .gr-once { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .gr-seats { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--sf-line); }

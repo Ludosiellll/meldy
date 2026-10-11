@@ -225,6 +225,9 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     fireEvent.click(screen.getByRole('button', { name: 'Создать новую ссылку' }));
     expect(screen.getByText(/Новая ссылка заменит открытую: по старой больше никто не войдёт\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Создать ссылку' }));
+    // While the new one is made, the place is the new link's: nothing of the old full one comes back.
+    expect(screen.getByLabelText(INVITE.linkLabel)).toHaveAttribute('placeholder', INVITE.creating);
+    expect(screen.queryByText(/Мест по этой ссылке больше нет/)).not.toBeInTheDocument();
     await waitFor(() => expect(api.revokeLink).toHaveBeenCalledWith('link-1'));
     await waitFor(() => expect(api.createLink).toHaveBeenCalled());
     expect(api.revokeLink.mock.invocationCallOrder[0]).toBeLessThan(api.createLink.mock.invocationCallOrder[0]);
@@ -241,6 +244,66 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     render(<InviteExam summary={TEST_ONLY} onClose={() => undefined} />);
     fireEvent.click(screen.getByRole('button', { name: 'Создать ссылку' }));
     expect(await screen.findByText(INVITE.errors.MC007)).toBeInTheDocument();
+  });
+
+  it('«Создать ссылку» draws the link’s place at the press; the answer only fills it in (third live check: CLS 0.46)', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    api.createLink.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    render(<InviteExam summary={TEST_ONLY} onClose={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Создать ссылку' }));
+    // Before the server answers: the field says what happens, its buttons wait, the group's line is there.
+    const field = screen.getByLabelText(INVITE.linkLabel);
+    expect(field).toHaveValue('');
+    expect(field).toHaveAttribute('placeholder', INVITE.creating);
+    expect(field.closest('.gr-made')).toHaveAttribute('aria-busy', 'true');
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    const copyLink = screen.getByRole('button', { name: INVITE.copy });
+    expect(copyLink).toBeDisabled();
+    expect(screen.getByRole('button', { name: INVITE.copyText })).toBeDisabled();
+    expect(screen.getByText(INVITE.once)).toBeInTheDocument();
+    expect(screen.getByText('Пока никто не вошёл')).toBeInTheDocument();
+    const revoke = screen.getByRole('button', { name: 'Закрыть ссылку' });
+    expect(revoke).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Создать ссылку' })).not.toBeInTheDocument();
+    answer({ link_id: 'link-new', code: 'abcd2fghjkmn', path: '/g/abcd2fghjkmn', oral_subjects: 0, expires_at: '2026-10-30T00:00:00Z' });
+    // The same lines, filled in: nothing new comes in above or under them.
+    await waitFor(() => expect(field).toHaveValue(`${window.location.origin}/g/abcd2fghjkmn`));
+    expect(screen.getByLabelText(INVITE.linkLabel)).toBe(field);
+    expect(field).not.toHaveAttribute('placeholder');
+    expect(field.closest('.gr-made')).not.toHaveAttribute('aria-busy');
+    expect(screen.getByRole('button', { name: INVITE.copy })).toBe(copyLink);
+    expect(copyLink).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Закрыть ссылку' })).toBe(revoke);
+    expect(revoke).toBeEnabled();
+    await waitFor(() => expect(document.activeElement).toBe(copyLink));
+  });
+
+  it('while a call is out the link’s part keeps its height, so a closed link or a failure moves nothing; the next press gives it back', async () => {
+    const box = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { height: this.classList.contains('gr-area') ? 412.5 : 0, width: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    try {
+      keepLink(SUMMARY.id, 'link-1', 'qrst2vwxyz01');
+      render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 0, doubts_open: 0, links: [{ ...LINK, members: 0 }] } }} onClose={() => undefined} />);
+      const area = document.querySelector<HTMLElement>('.gr-area')!;
+      expect(area.style.minHeight).toBe('');
+      fireEvent.click(screen.getByRole('button', { name: 'Закрыть ссылку' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Да, закрыть' }));
+      expect(await screen.findByText(INVITE.revoked)).toBeInTheDocument();
+      // The link went, its room stayed: what is under it does not move up when the answer comes.
+      expect(area.style.minHeight).toBe('412.5px');
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Создать ссылку' }));
+      expect(area.style.minHeight).toBe('');
+      // A link that could not be made: «Создать ссылку» and the error come back in the room the link’s place took.
+      api.createLink.mockRejectedValue(Object.assign(new Error('Failed to fetch'), { code: 'network' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Создать ссылку' }));
+      expect((await screen.findByRole('alert')).textContent).toBe(INVITE.errors.network);
+      expect(area.style.minHeight).toBe('412.5px');
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Создать ссылку' }), { key: 'Tab' });
+      expect(area.style.minHeight).toBe('');
+    } finally {
+      box.mockRestore();
+    }
   });
 
   it('closes on Escape and on ×', () => {

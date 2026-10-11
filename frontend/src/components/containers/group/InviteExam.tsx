@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { createLink, revokeLink } from '../../../api/containers';
 import { copyText } from '../../../lib/clipboard';
@@ -23,6 +23,12 @@ import './group.css';
  * One link is open at a time (M2): «Закрыть ссылку» closes every open link of the exam, and a new link closes the open
  * ones before it is made (the window says so before «Создать новую ссылку»), so no link stays open unseen. A closed
  * link leaves «Ссылка закрыта…» on screen and the way to a new one.
+ *
+ * The window changes its size only with the author's own press, never when the server answers (third live check: it
+ * jumped once the link came, CLS 0.46 on a phone): «Создать ссылку» draws the link's place at once — the field says
+ * «Создаём ссылку…», the text and the group's line are there — and the answer fills it in; while a call is out, the
+ * part under the paragraph keeps the height it has, so a closed link or a failure moves nothing either, and the next
+ * press gives the room back.
  *
  * The exam page opens it from «⋯ → Пригласить группу» (package D3b) with its summary; «Настройки» also does.
  */
@@ -77,6 +83,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const makeRef = useRef<HTMLDivElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const closedRef = useRef<HTMLParagraphElement>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
   const revokeRef = useRef<HTMLButtonElement>(null);
   const revokeNoRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -110,6 +117,14 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const [revoked, setRevoked] = useState(false);
   const [who, setWho] = useState(false);
   const busy = creating || revoking;
+  // The height of the part under the paragraph while a call is out, kept until the next press (no jump at the answer).
+  const [hold, setHold] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (busy && areaRef.current) setHold(areaRef.current.getBoundingClientRect().height);
+  }, [busy]);
+  const release = () => {
+    if (hold !== null && !busy) setHold(null);
+  };
 
   useEffect(() => {
     boxRef.current?.focus();
@@ -173,6 +188,9 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
     if (busy || (counts.oral && !consent)) return;
     setCreating(true);
     setError(null);
+    setAnnounce(INVITE.creating);
+    // The link's place is on screen from the press: the focus waits in its field.
+    focusAfter(() => linkRef.current);
     const done: string[] = [];
     let made = false;
     try {
@@ -189,7 +207,8 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
       focusAfter(() => copyRef.current);
     } catch (failure) {
       setError(errorText(failure, INVITE.errors, INVITE.failed));
-      // «Создать ссылку» was disabled while it worked, so the focus left it: it comes back.
+      setAnnounce('');
+      // «Создать ссылку» gave its place to the link's while it worked: it comes back, and the focus with it.
       focusAfter(() => createRef.current);
     } finally {
       setCreating(false);
@@ -242,10 +261,13 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const members = summary.owner?.members ?? 0;
   // Anyone ever in: a seat taken through any link of the exam, closed ones too (a rejoin takes none).
   const everJoined = members > 0 || (summary.owner?.links ?? []).some((link) => link.members > 0);
-  const showMake = (!openLink && !created) || wantNew;
-  const linkShown = Boolean(linkId) && !showMake;
+  const showMake = !creating && ((!openLink && !created) || wantNew);
+  // While a new link is made, the old one (closed first) is not on screen any more.
+  const linkShown = Boolean(linkId) && !showMake && !creating;
+  // The link on screen, or its place while it is being made (the same lines: the answer only fills them in).
+  const linkPlace = creating || Boolean(code && linkId && !wantNew);
   // The group's one line: who is in the exam now; «Пока никто не вошёл» only beside a link nobody has used yet.
-  const seatsLine = everJoined || linkShown ? MEMBERS.inExam(members, everJoined) : null;
+  const seatsLine = everJoined || linkShown || creating ? MEMBERS.inExam(members, everJoined) : null;
   // Every seat of the open link taken: said under the group's line, with the way to a new link when this device can
   // make one beside the old (without the code here, the line above already offers it).
   const full = linkShown && openLink !== null && openLink.members >= openLink.max_members ? openLink : null;
@@ -261,6 +283,8 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={trap}
+        onPointerDownCapture={release}
+        onKeyDownCapture={release}
       >
         <div className="gr-head">
           <h2 id={titleId} className="gr-h">
@@ -279,120 +303,134 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
         <p className="gr-lede">{nb(INVITE.lede(counts.subjects, counts.questions))}</p>
         {counts.noKey > 0 ? <p className="gr-line" data-muted="">{nb(INVITE.noKey(counts.noKey))}</p> : null}
 
-        {code && linkId && !wantNew ? (
-          <div className="gr-made">
-            <label className="gr-label" htmlFor={`${titleId}-link`}>
-              {INVITE.linkLabel}
-            </label>
-            <div className="gr-row">
-              <input id={`${titleId}-link`} ref={linkRef} className="gr-field" readOnly value={url} onFocus={(event) => event.target.select()} />
-              <button ref={copyRef} type="button" className="gr-copy" onClick={() => void copy('link')}>
-                {copied === 'link' ? INVITE.copied : INVITE.copy}
+        <div className="gr-area" ref={areaRef} style={hold === null ? undefined : { minHeight: hold }}>
+          {linkPlace ? (
+            <div className="gr-made" aria-busy={creating || undefined}>
+              <label className="gr-label" htmlFor={`${titleId}-link`}>
+                {INVITE.linkLabel}
+              </label>
+              <div className="gr-row">
+                <input
+                  id={`${titleId}-link`}
+                  ref={linkRef}
+                  className="gr-field"
+                  readOnly
+                  value={creating ? '' : url}
+                  placeholder={creating ? INVITE.creating : undefined}
+                  onFocus={(event) => event.target.select()}
+                />
+                <button ref={copyRef} type="button" className="gr-copy" disabled={creating} onClick={() => void copy('link')}>
+                  <span className="gr-copy-w" aria-hidden={copied === 'link' || undefined}>
+                    {INVITE.copy}
+                  </span>
+                  <span className="gr-copy-w" aria-hidden={copied !== 'link' || undefined}>
+                    {INVITE.copied}
+                  </span>
+                </button>
+              </div>
+              <label className="gr-label" htmlFor={`${titleId}-text`}>
+                {INVITE.textLabel}
+              </label>
+              <textarea id={`${titleId}-text`} ref={textRef} className="gr-field gr-text" readOnly rows={3} value={creating ? '' : message} />
+              <button type="button" className="gr-copy gr-copy-text" disabled={creating} onClick={() => void copy('text')}>
+                {copied === 'text' ? INVITE.copied : INVITE.copyText}
+              </button>
+              {created || creating ? <p className="gr-once">{created && !created.kept ? INVITE.onceLost : INVITE.once}</p> : null}
+            </div>
+          ) : null}
+
+          {openLink && !code && !wantNew && !creating ? (
+            <p className="gr-line">
+              {INVITE.openElsewhere} {INVITE.newLinkNote}{' '}
+              <button type="button" className="sf-link" onClick={wantNewLink}>
+                {INVITE.newLink}
+              </button>
+            </p>
+          ) : null}
+
+          {revoked && !openLink && !created && !creating ? (
+            <p ref={closedRef} className="gr-line" tabIndex={-1}>
+              {INVITE.revoked}
+            </p>
+          ) : null}
+
+          {showMake ? (
+            <div className="gr-make" ref={makeRef}>
+              {/* Beside the button that does it: the new link closes the open one (M2), said again after «Создать новую ссылку». */}
+              {wantNew && openLink ? <p className="gr-line">{nb(INVITE.newLinkNote)}</p> : null}
+              {counts.oral ? (
+                <label className="gr-consent" htmlFor={consentId}>
+                  <input id={consentId} type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
+                  <span>{INVITE.consent}</span>
+                </label>
+              ) : null}
+              <button
+                ref={createRef}
+                type="button"
+                className="sf-primary gr-go"
+                disabled={busy || (counts.oral && !consent)}
+                onClick={() => void create()}
+              >
+                {INVITE.create}
               </button>
             </div>
-            <label className="gr-label" htmlFor={`${titleId}-text`}>
-              {INVITE.textLabel}
-            </label>
-            <textarea id={`${titleId}-text`} ref={textRef} className="gr-field gr-text" readOnly rows={3} value={message} />
-            <button type="button" className="gr-copy gr-copy-text" onClick={() => void copy('text')}>
-              {copied === 'text' ? INVITE.copied : INVITE.copyText}
-            </button>
-            {created ? <p className="gr-once">{created.kept ? INVITE.once : INVITE.onceLost}</p> : null}
-          </div>
-        ) : null}
+          ) : null}
 
-        {openLink && !code && !wantNew ? (
-          <p className="gr-line">
-            {INVITE.openElsewhere} {INVITE.newLinkNote}{' '}
-            <button type="button" className="sf-link" onClick={wantNewLink}>
-              {INVITE.newLink}
-            </button>
-          </p>
-        ) : null}
-
-        {revoked && !openLink && !created ? (
-          <p ref={closedRef} className="gr-line" tabIndex={-1}>
-            {INVITE.revoked}
-          </p>
-        ) : null}
-
-        {showMake ? (
-          <div className="gr-make" ref={makeRef}>
-            {/* Beside the button that does it: the new link closes the open one (M2), said again after «Создать новую ссылку». */}
-            {wantNew && openLink ? <p className="gr-line">{nb(INVITE.newLinkNote)}</p> : null}
-            {counts.oral ? (
-              <label className="gr-consent" htmlFor={consentId}>
-                <input id={consentId} type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-                <span>{INVITE.consent}</span>
-              </label>
-            ) : null}
-            <button
-              ref={createRef}
-              type="button"
-              className="sf-primary gr-go"
-              disabled={busy || (counts.oral && !consent)}
-              aria-busy={creating || undefined}
-              onClick={() => void create()}
-            >
-              {creating ? INVITE.creating : INVITE.create}
-            </button>
-          </div>
-        ) : null}
-
-        {error ? (
-          <p className="gr-note" role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        {seatsLine ? (
-          <div className="gr-seats">
-            <p className="gr-line">
-              {nb(seatsLine)}
-              {everJoined ? (
-                <>
-                  {' · '}
-                  <button type="button" className="sf-link" aria-expanded={who} onClick={() => setWho((value) => !value)}>
-                    {INVITE.who}
-                  </button>
-                </>
-              ) : null}
+          {error ? (
+            <p className="gr-note" role="alert">
+              {error}
             </p>
-            {full ? (
+          ) : null}
+
+          {seatsLine ? (
+            <div className="gr-seats">
               <p className="gr-line">
-                {nb(INVITE.full(full.max_members))}
-                {code ? (
+                {nb(seatsLine)}
+                {everJoined ? (
                   <>
-                    {' '}
-                    <button type="button" className="sf-link" onClick={wantNewLink}>
-                      {INVITE.newLink}
+                    {' · '}
+                    <button type="button" className="sf-link" aria-expanded={who} onClick={() => setWho((value) => !value)}>
+                      {INVITE.who}
                     </button>
                   </>
                 ) : null}
               </p>
-            ) : null}
-            {who ? <MembersList containerId={containerId} onChanged={() => onChanged?.()} /> : null}
-            {linkShown ? (
-              closing ? (
-                <p className="gr-line gr-ask" role="group" aria-labelledby={`${titleId}-revoke`}>
-                  <span id={`${titleId}-revoke`}>{INVITE.revokeAsk}</span>
-                  <button type="button" className="sf-link" onClick={() => void revoke()}>
-                    {INVITE.revokeYes}
-                  </button>
-                  <button ref={revokeNoRef} type="button" className="sf-link" data-muted="" onClick={keepOpen}>
-                    {INVITE.revokeNo}
-                  </button>
-                </p>
-              ) : (
+              {full ? (
                 <p className="gr-line">
-                  <button ref={revokeRef} type="button" className="sf-link" data-muted="" onClick={askRevoke}>
-                    {INVITE.revoke}
-                  </button>
+                  {nb(INVITE.full(full.max_members))}
+                  {code ? (
+                    <>
+                      {' '}
+                      <button type="button" className="sf-link" onClick={wantNewLink}>
+                        {INVITE.newLink}
+                      </button>
+                    </>
+                  ) : null}
                 </p>
-              )
-            ) : null}
-          </div>
-        ) : null}
+              ) : null}
+              {who ? <MembersList containerId={containerId} onChanged={() => onChanged?.()} /> : null}
+              {linkShown || creating ? (
+                closing ? (
+                  <p className="gr-line gr-ask" role="group" aria-labelledby={`${titleId}-revoke`}>
+                    <span id={`${titleId}-revoke`}>{INVITE.revokeAsk}</span>
+                    <button type="button" className="sf-link" onClick={() => void revoke()}>
+                      {INVITE.revokeYes}
+                    </button>
+                    <button ref={revokeNoRef} type="button" className="sf-link" data-muted="" onClick={keepOpen}>
+                      {INVITE.revokeNo}
+                    </button>
+                  </p>
+                ) : (
+                  <p className="gr-line">
+                    <button ref={revokeRef} type="button" className="sf-link" data-muted="" disabled={creating} onClick={askRevoke}>
+                      {INVITE.revoke}
+                    </button>
+                  </p>
+                )
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         <GroupBotInvite containerId={containerId} linkOpen={linkShown} />
       </div>
     </div>
