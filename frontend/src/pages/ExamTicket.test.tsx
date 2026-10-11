@@ -1814,6 +1814,13 @@ describe('ExamTicket: a saved protocol, read only', () => {
 });
 
 describe('ExamTicket: a ticket of two questions', () => {
+  // These tests walk between questions, not the examiner's voice. The ticket warms «Так…» as it opens; when that
+  // finishes before «Готово» (a slower machine, CI run 38166494591), the examiner first waits up to FILLER_WAIT_MS
+  // (2.5 s) for the filler, past findBy's 1 s. Its clip failing keeps the filler out, so the order is the same everywhere.
+  beforeEach(() => {
+    ttsFailing.add('Так…');
+  });
+
   it('moves to the second question after the first protocol', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
     api['/api/oral/rubric'].mockImplementation(async (body) =>
@@ -2284,6 +2291,13 @@ describe('ExamTicket: what «Готово» leads to, its keys, and the tab’s 
 import { containerFrom, keepFrom } from './ExamTicket';
 
 describe('ExamTicket from an exam container’s «занятие» (?from=c:<id>): guarded, nothing changes without it', () => {
+  // These tests walk between questions, not the examiner's voice. The ticket warms «Так…» as it opens; when that
+  // finishes before «Готово» (a slower machine, CI run 38166494591), the examiner first waits up to FILLER_WAIT_MS
+  // (2.5 s) for the filler, past findBy's 1 s. Its clip failing keeps the filler out, so the order is the same everywhere.
+  beforeEach(() => {
+    ttsFailing.add('Так…');
+  });
+
   async function renderFrom(url: string) {
     vi.resetModules();
     const { default: ExamTicket } = await import('./ExamTicket');
