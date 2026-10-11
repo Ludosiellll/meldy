@@ -44,11 +44,16 @@ beforeEach(() => {
   stubMatchMedia();
   addThemeColorMetas();
   document.documentElement.className = '';
+  document.documentElement.removeAttribute('data-tg-theme');
   window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 afterEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
+  window.history.replaceState(null, '', '/');
+  delete window.TelegramWebviewProxy;
 });
 
 describe('public/theme-init.js', () => {
@@ -115,6 +120,104 @@ describe('public/theme-init.js', () => {
     runThemeInit();
     expect(document.documentElement.getAttribute('style')).toBeNull();
     expect(themeInitSource).not.toMatch(/\.style\b|colorScheme/);
+  });
+});
+
+describe('public/theme-init.js inside Telegram (the Mini App)', () => {
+  // A native Telegram client around the page (lib/telegram/miniApp.ts hasTelegramBridge); a plain tab has none.
+  beforeEach(() => {
+    window.TelegramWebviewProxy = { postEvent: () => undefined };
+  });
+
+  /** Telegram's launch address: the theme as URL-encoded JSON after #, with the signed data and the version. */
+  const launchAt = (path: string, theme: Record<string, string>) =>
+    window.history.replaceState(
+      null,
+      '',
+      `${path}#tgWebAppData=query_id%3DAAH&tgWebAppVersion=8.0&tgWebAppPlatform=android&tgWebAppThemeParams=${encodeURIComponent(JSON.stringify(theme))}`,
+    );
+  const TG_DARK = { bg_color: '#17212b', text_color: '#f5f5f5', secondary_bg_color: '#232e3c' };
+  const TG_LIGHT = { bg_color: '#ffffff', text_color: '#000000', secondary_bg_color: '#f1f1f1' };
+  const tgTheme = () => document.documentElement.getAttribute('data-tg-theme');
+
+  it('/tg takes Telegram\'s dark over a stored light, and marks it for ThemeProvider', () => {
+    window.localStorage.setItem('studyforge-theme', 'light');
+    launchAt('/tg', TG_DARK);
+    runThemeInit();
+    expect(html().contains('dark')).toBe(true);
+    expect(html().contains('light')).toBe(false);
+    expect(tgTheme()).toBe('dark');
+    expect(metaColors()).toEqual(['#0b0f16', '#0b0f16']);
+  });
+
+  it('/tg takes Telegram\'s light over a stored dark and a dark OS', () => {
+    osDark = true;
+    window.localStorage.setItem('studyforge-theme', 'dark');
+    launchAt('/tg?c=69ead689-38d6-4350-bc5d-13d273f8b9b2', TG_LIGHT);
+    runThemeInit();
+    expect(html().contains('light')).toBe(true);
+    expect(tgTheme()).toBe('light');
+  });
+
+  it('a reload inside the Mini App reads what Telegram\'s script kept in the tab: its last theme first', () => {
+    window.sessionStorage.setItem('meldy_tg', '1');
+    window.sessionStorage.setItem('__telegram__themeParams', JSON.stringify({ bg_color: '#212121' }));
+    launchAt('/exams/c/x/study', TG_LIGHT);
+    runThemeInit();
+    expect(tgTheme()).toBe('dark');
+    window.sessionStorage.removeItem('__telegram__themeParams');
+    window.sessionStorage.setItem('__telegram__initParams', JSON.stringify({ tgWebAppThemeParams: JSON.stringify({ bg_color: '#000' }) }));
+    window.history.replaceState(null, '', '/dashboard');
+    runThemeInit();
+    expect(tgTheme()).toBe('dark');
+    expect(html().contains('dark')).toBe(true);
+  });
+
+  it('Telegram\'s parameters in the address of a plain browser tab mean nothing: the site\'s own theme', () => {
+    delete window.TelegramWebviewProxy;
+    window.localStorage.setItem('studyforge-theme', 'light');
+    launchAt('/tg', TG_DARK);
+    window.sessionStorage.setItem('meldy_tg', '1');
+    window.sessionStorage.setItem('__telegram__themeParams', JSON.stringify(TG_DARK));
+    runThemeInit();
+    expect(html().contains('light')).toBe(true);
+    expect(tgTheme()).toBeNull();
+    expect(themeInitSource).toContain('TelegramWebviewProxy');
+  });
+
+  it('elsewhere Telegram\'s parameters mean nothing: the site\'s own theme', () => {
+    window.localStorage.setItem('studyforge-theme', 'light');
+    launchAt('/dashboard', TG_DARK);
+    window.sessionStorage.setItem('__telegram__themeParams', JSON.stringify(TG_DARK));
+    runThemeInit();
+    expect(html().contains('light')).toBe(true);
+    expect(tgTheme()).toBeNull();
+  });
+
+  it('broken parameters fall back to the site\'s own theme', () => {
+    window.localStorage.setItem('studyforge-theme', 'light');
+    for (const hash of ['#tgWebAppThemeParams=%7Bnot-json', '#tgWebAppThemeParams=%E0%A4%A', `#tgWebAppThemeParams=${encodeURIComponent('{"bg_color":"red"}')}`, '#tgWebAppData=x']) {
+      window.history.replaceState(null, '', `/tg${hash}`);
+      document.documentElement.className = '';
+      expect(runThemeInit, hash).not.toThrow();
+      expect(html().contains('light'), hash).toBe(true);
+      expect(tgTheme(), hash).toBeNull();
+    }
+  });
+
+  it('throwing storage raises nothing, and nothing is ever written', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    launchAt('/tg', TG_DARK);
+    runThemeInit();
+    expect(tgTheme()).toBe('dark');
+    expect(setItem).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError');
+    });
+    expect(runThemeInit).not.toThrow();
+    expect(html().contains('dark')).toBe(true);
   });
 });
 

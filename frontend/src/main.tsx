@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { installApiAuth } from './lib/apiAuth'
 import { installTelemetry } from './lib/telemetry'
+import { bootMiniApp } from './lib/telegram/miniApp'
 import { AILimitDialogHost } from './hooks/useEnergyConfirm'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
 
@@ -17,6 +18,8 @@ const queryClient = new QueryClient()
 installApiAuth()
 // Meldy's own statistics and error reports (lib/telemetry, docs/analytics.md): page views, errors, batched sends.
 installTelemetry()
+// Meldy as a Telegram Mini App: only on /tg or in a tab /tg marked, Telegram's script is loaded (lib/telegram/miniApp).
+void bootMiniApp()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

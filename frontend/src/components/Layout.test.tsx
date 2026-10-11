@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   resolvedTheme: 'light' as 'light' | 'dark',
   signOut: vi.fn(),
   from: vi.fn(),
+  showInstall: false,
 }));
 
 vi.mock('../hooks/useAuth', () => ({
@@ -23,10 +24,12 @@ vi.mock('../api/limits', async (importOriginal) => {
 });
 vi.mock('../api/flashcards', () => ({ countDueCards: (...args: unknown[]) => mocks.countDueCards(...args) }));
 vi.mock('../lib/supabase', () => ({ supabase: { from: (...args: unknown[]) => mocks.from(...args) } }));
-vi.mock('../contexts/ThemeProvider', () => ({
+// The rest of the module stays real: lib/telegram/miniApp paints Telegram with its THEME_CANVAS.
+vi.mock('../contexts/ThemeProvider', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../contexts/ThemeProvider')>()),
   useTheme: () => ({ theme: mocks.resolvedTheme, resolved: mocks.resolvedTheme, setTheme: mocks.setTheme }),
 }));
-vi.mock('../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: false }) }));
+vi.mock('../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: mocks.showInstall }) }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }) }));
 
 import Layout, { DESK_LINKS, NAV_ITEMS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining, sectionOf } from './Layout';
@@ -34,6 +37,7 @@ import { LOW_SHARE, quotaLevel, quotaSentence } from './QuotaMeter';
 import { rememberAttachedExams, rememberContainerTitle } from '../lib/containers/titleCache';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
 import { OPEN_PRO_EVENT } from '../lib/plans';
+import { startMiniApp, stopMiniApp } from '../test/telegramWebApp';
 
 function renderAt(path: string, page: React.ReactNode = <p>Содержимое страницы</p>) {
   return render(
@@ -62,6 +66,7 @@ beforeEach(() => {
   mocks.setTheme.mockReset();
   mocks.resolvedTheme = 'light';
   mocks.signOut.mockReset();
+  mocks.showInstall = false;
   window.localStorage.clear();
   document.documentElement.removeAttribute('data-stage');
 });
@@ -764,5 +769,61 @@ describe('projector mode', () => {
     renderAt('/exams');
     expect(document.documentElement.hasAttribute('data-stage')).toBe(true);
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+});
+
+describe('inside Telegram (the Mini App: meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5)', () => {
+  afterEach(() => {
+    stopMiniApp();
+  });
+
+  it('keeps the sections and drops «‹ Родитель», the theme button, projector mode, PRO, installing and «Выйти»', async () => {
+    mocks.showInstall = true;
+    await startMiniApp();
+    renderAt('/library/lecture-1');
+    expect(bar().querySelector('.sf-back')).toBeNull();
+    expect(document.querySelector('.sf-shell')).not.toHaveAttribute('data-back');
+    expect(within(bar()).queryByRole('button', { name: /^Включить (тёмную|светлую) тему$/ })).toBeNull();
+    expect(within(deskNav()).getAllByRole('link')).toHaveLength(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Алина: профиль, справка' }));
+    const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
+    expect(within(menu).getByRole('link', { name: 'Профиль' })).toHaveAttribute('href', '/profile');
+    expect(within(menu).getByRole('button', { name: 'Как пользоваться Meldy' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('switch', { name: /Показ на проекторе/ })).toBeNull();
+    expect(within(menu).queryByRole('button', { name: /PRO/ })).toBeNull();
+    expect(within(menu).queryByRole('button', { name: 'Установить приложение' })).toBeNull();
+    expect(within(menu).queryByRole('button', { name: 'Выйти' })).toBeNull();
+    expect(menu.querySelector('.sf-acct-sep')).toBeNull();
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('outside Telegram the same page keeps all of it', async () => {
+    mocks.showInstall = true;
+    renderAt('/library/lecture-1');
+    expect(bar().querySelector('.sf-back')).not.toBeNull();
+    expect(within(bar()).getByRole('button', { name: /^Включить (тёмную|светлую) тему$/ })).toBeInTheDocument();
+    openMenu();
+    const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
+    expect(within(menu).getByRole('button', { name: 'Установить приложение' })).toBeInTheDocument();
+    expect(within(menu).getByRole('button', { name: 'Выйти' })).toBeInTheDocument();
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('the limit\'s meter explains the limit, with the free day spent too, and offers no PRO', async () => {
+    const opened = vi.fn();
+    window.addEventListener(OPEN_PRO_EVENT, opened);
+    try {
+      await startMiniApp();
+      mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true, limit: 100 });
+      renderAt('/dashboard');
+      const meter = () => within(bar()).getByTestId('quota-meter');
+      await waitFor(() => expect(meter().querySelector('.sf-quota-n')?.textContent).toBe('0'));
+      fireEvent.click(meter());
+      const dialog = screen.getByRole('dialog', { name: 'Дневной лимит ИИ' });
+      expect(within(dialog).queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
+      expect(opened).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(OPEN_PRO_EVENT, opened);
+    }
   });
 });

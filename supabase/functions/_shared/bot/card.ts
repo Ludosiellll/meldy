@@ -189,7 +189,10 @@ function noExamCard(site: string, state = 'none'): CardResult {
   };
 }
 
-/** K1 for the tick (`reminder`) and for /today and /start (`today`: adds «Видели…», «Только ошибки» and «Открыть в Meldy»). */
+/**
+ * K1 for the tick (`reminder`) and for /today and /start (`today`: adds «Видели…», «Только ошибки» and, on a day
+ * without work, «Открыть в Meldy»). A day with work has «Открыть занятие» under the blue: the Mini App (`web_app`).
+ */
 export function dayCard(today: Today, mode: CardMode, site: string, focus?: string | null): CardResult {
   const view = dayView(today, focus);
   const main = view.main;
@@ -246,6 +249,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
       const first = plan.sessions.find((s) => s.kind === 'answer');
       if (resume) keyboard.push(row(resume));
       else if (first) keyboard.push(row({ text: startLabel(first.ids.length, null, null), data: encode({ kind: 'go', cid, mode: 'p' }), style: 'primary' }));
+      // The same day on the site, inside Telegram and signed in (Telegram_Mini_App_Spec_2026-10-10, decision 2).
+      keyboard.push(row({ text: W.OPEN_SESSION, webApp: url(site, W.PATH.miniApp(cid)) }));
     } else if (more) {
       keyboard.push(row({ text: lineText(more), data: encode({ kind: 'go', cid, mode: 'x' }) }));
     }
@@ -259,7 +264,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
   }
   if (mode === 'today') {
     if (errors > 0 && plan.state !== 'exam_today') keyboard.push(row({ text: W.onlyErrors(errors), data: encode({ kind: 'go', cid, mode: 'e' }) }));
-    keyboard.push(row({ text: W.OPEN_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
+    // On a day with work «Открыть занятие» (the Mini App) is the way to the site; otherwise the exam's page.
+    if (plan.state !== 'study') keyboard.push(row({ text: W.OPEN_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
   }
   if (view.listed.length > 1) keyboard.push(row({ text: W.OTHER_EXAM, data: encode({ kind: 'exam', cid: null }) }));
 

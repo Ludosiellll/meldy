@@ -130,7 +130,7 @@ describe('the Telegram tip’s clip', () => {
     expect(stage.style.height).toBe('400px');
     expect(stage.style.transform).toBe('scale(1)');
     const words = plain(stage.textContent);
-    // Telegram's own words: the bot's name and «бот», «Меню» of its commands, «Сообщение», the dates of the two days.
+    // Telegram's own words: the bot's name and «бот», its menu button «Открыть Meldy», «Сообщение», the dates of the two days.
     for (const word of Object.values(TG_UI)) expect(words).toContain(word);
     expect((document.querySelector('.ts-tg-head') as HTMLElement).textContent).toBe(`${TG_UI.name}${TG_UI.subtitle}`);
     expect((document.querySelector('.ts-tg-hint') as HTMLElement).textContent).toBe(TG_UI.field);
@@ -189,9 +189,10 @@ describe('the Telegram tip’s clip', () => {
     expect(botSession).toContain('await tap.answer(rightToast(');
     expect(botSession).toMatch(/await tap\.answer\(\);\s*if \(!inPlace && tap\.messageId\)/);
     // link.ts: the bot removes the «/start» it was linked with, so the chat starts with M2 → M3; setup.ts: the
-    // menu button is the bot's commands («Меню»).
+    // menu button opens the Mini App, a web_app button with its own text (words.ts PROFILE.menuButton).
     expect(botLink).toContain('await remove(ctx.tg, chatId, msg.message_id);');
-    expect(botSetup).toContain("menu_button: { type: 'commands' }");
+    expect(botSetup).toContain("return { type: 'web_app', text: PROFILE.menuButton, web_app: { url: `${site}${PATH.miniApp()}` } };");
+    expect(botWords).toContain(`menuButton: '${TG_UI.menu}'`);
     // No «печатает…» in these steps: only the voice flows send a chat action.
     for (const source of [botCard, botSession, botRouter, botLink]) expect(source).not.toContain('sendChatAction');
   });

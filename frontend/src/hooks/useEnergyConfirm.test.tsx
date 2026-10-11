@@ -27,6 +27,7 @@ import TokenInfoModal from '../components/TokenInfoModal';
 import { formatLimitReset, nextLimitReset, reportAILimit, resetAILimitReportsForTests } from '../api/limits';
 import { AI_COSTS, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, OPEN_PRO_EVENT } from '../lib/plans';
 import { WITHOUT_UNITS } from '../components/pro/planCopy';
+import { startMiniApp, stopMiniApp } from '../test/telegramWebApp';
 
 type Verify = ReturnType<typeof useEnergyConfirm>['verifyEnergy'];
 
@@ -121,6 +122,22 @@ describe('verifyEnergy', () => {
     expect(proOpened).toEqual([{ reason: 'limit' }]);
     const everything = JSON.stringify({ ...options, icon: undefined, secondaryText: undefined });
     expect(everything).not.toMatch(/PRO|⚡|тариф|энерги/i);
+  });
+
+  it('inside Telegram says the same and offers no PRO: it is not sold in the Mini App', async () => {
+    await startMiniApp();
+    try {
+      h.check.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
+      const host = renderHookHost();
+      await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
+      const options = h.alert.mock.calls[0][0];
+      expect(options.title).toBe('Дневной лимит исчерпан');
+      expect(options.confirmText).toBe('Понятно');
+      expect(options.secondaryText).toBeUndefined();
+      expect(options.onSecondary).toBeUndefined();
+    } finally {
+      stopMiniApp();
+    }
   });
 
   it('says the limit is exhausted only when nothing is left', async () => {

@@ -137,15 +137,40 @@ test('the eve of the final days is the last study day before them: with Пн–�
   assert.ok(words(dayCard(todayOf([spec], {}, at(2026, 11, 1)), 'reminder', SITE)).includes(eve));
 });
 
-test('/today adds «Видели · ошибок сейчас», «Только ошибки» and «Открыть в Meldy»; the reminder does not', () => {
+test('/today adds «Видели · ошибок сейчас» and «Только ошибки»; a day with work has «Открыть занятие» (the Mini App)', () => {
   const reminder = dayCard(todayOf([AUTUMN]), 'reminder', SITE);
   const today = dayCard(todayOf([AUTUMN]), 'today', SITE);
   assert.ok(!visibleText(reminder.out.text).includes('Видели'));
   assert.ok(visibleText(today.out.text).replace(/ /g, ' ').includes('Видели 410 · ошибок сейчас 37'));
+  // The reminder: the one blue «Начать» in the chat, and the same day in the Mini App under it (not blue).
+  assert.equal(reminder.out.keyboard!.length, 2);
+  assert.equal(reminder.out.keyboard![0][0].style, 'primary');
+  assert.deepEqual(reminder.out.keyboard![1], [{ text: 'Открыть занятие', webApp: `${SITE}/tg?c=${CID}` }]);
   const labels = today.out.keyboard!.flat().map((b) => b.text);
-  assert.deepEqual(labels.slice(1), ['Только ошибки: 37', 'Открыть в Meldy']);
-  assert.deepEqual(decode(today.out.keyboard![1][0].data), { kind: 'go', cid: CID, mode: 'e' });
-  assert.equal(today.out.keyboard![2][0].url, `${SITE}/exams/c/${CID}`);
+  assert.deepEqual(labels.slice(1), ['Открыть занятие', 'Только ошибки: 37']);
+  assert.equal(today.out.keyboard![1][0].webApp, `${SITE}/tg?c=${CID}`);
+  assert.deepEqual(decode(today.out.keyboard![2][0].data), { kind: 'go', cid: CID, mode: 'e' });
+  // The Mini App takes the place of the URL to the exam's page on a day with work.
+  assert.ok(today.out.keyboard!.flat().every((b) => b.url === undefined));
+});
+
+test('a day without work keeps «Открыть в Meldy» to the exam\'s page and has no Mini App button', () => {
+  for (const card of [variants().k1_done_today, variants().k1_exam_today, variants().k1_day_off]) {
+    const buttons = card.out.keyboard!.flat();
+    assert.ok(buttons.every((b) => b.webApp === undefined), buttons.map((b) => b.text).join(', '));
+    assert.ok(buttons.some((b) => b.text === 'Открыть в Meldy' && b.url === `${SITE}/exams/c/${CID}`));
+  }
+});
+
+test('the Mini App button never goes to a group: the linter refuses it there', () => {
+  const card = dayCard(todayOf([AUTUMN]), 'reminder', SITE);
+  assert.deepEqual(lintMessage({ text: card.out.text, keyboard: card.out.keyboard, chat: 'private', user: card.user }), []);
+  const blueless = card.out.keyboard!.map((row) => row.map(({ style: _style, ...button }) => button));
+  assert.ok(lintMessage({ text: card.out.text, keyboard: blueless, chat: 'group', user: card.user }).includes('a web_app button in a group'));
+  assert.ok(lintMessage({ text: 'Текст.', keyboard: [[{ text: 'Открыть занятие', webApp: 'http://example.test/tg' }]] })
+    .some((p) => p.includes('web_app http://example.test/tg')));
+  assert.ok(lintMessage({ text: 'Текст.', keyboard: [[{ text: 'Открыть занятие', webApp: `${SITE}/tg`, url: `${SITE}/tg` }]] })
+    .some((p) => p.includes('exactly one of callback data, url and web_app')));
 });
 
 test('the window line shows only on the eve of the final days and inside them', () => {

@@ -347,14 +347,14 @@
   align-items: center;
   gap: 4.5px;
   height: 32px;
-  padding: 0 10px 0 9.5px;
+  padding: 0 12px;
   border-radius: 16px;
   background: var(--tg-blue);
   font-size: 15px;
   font-weight: 500;
   color: #fff;
+  white-space: nowrap;
 }
-.ts-tg-menu .ts-tg-i { width: 20px; height: 20px; }
 .ts-tg-field .ts-tg-i--smile { margin-left: 12px; color: var(--tg-icon); }
 .ts-tg-hint { margin-left: 13px; font-size: 18px; line-height: 22px; color: var(--tg-hint); white-space: nowrap; }
 .ts-tg-field .ts-tg-i--clip { margin-left: auto; color: var(--tg-icon); }

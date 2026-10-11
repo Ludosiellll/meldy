@@ -160,11 +160,15 @@ export function createTelegram(options: TelegramOptions): Telegram {
 
 // ─────────────────────────────────────────── messages ───────────────────────────────────────────
 
-/** One button: `data` (callback, ≤ 64 bytes) or `url`; `primary` is the one blue, `danger` the red «Отключить». */
+/**
+ * One button: `data` (callback, ≤ 64 bytes), `url`, or `webApp` — the URL of the Mini App it opens (`web_app`, private
+ * chats only, Bot API). `primary` is the one blue, `danger` the red «Отключить».
+ */
 export interface Button {
   text: string;
   data?: string;
   url?: string;
+  webApp?: string;
   style?: 'primary' | 'danger';
 }
 export type Keyboard = Button[][];
@@ -182,6 +186,7 @@ export function inlineMarkup(keyboard: Keyboard): InlineKeyboardMarkup {
     inline_keyboard: keyboard.map((row) => row.map((button) => {
       const out: Record<string, unknown> = { text: button.text };
       if (button.url) out.url = button.url;
+      else if (button.webApp) out.web_app = { url: button.webApp };
       else out.callback_data = button.data ?? '';
       if (button.style) out.style = button.style;
       return out;

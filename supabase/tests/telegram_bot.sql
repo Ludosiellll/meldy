@@ -32,7 +32,7 @@
 --     message_id).
 -- Later packages add a row to packages, their names to the lists below and their own checks in their range: T5 30–49
 -- (20261010120003), T7 50–59 (20261010120004), T10 60–69 (20261010120006), T9 70–79 (20261010120005), T11 80–89
--- (20261010120007, bot_oral_inputs). The only functions a client without a session may run are
+-- (20261010120007, bot_oral_inputs), WA 90–99 (20261010150000, the Mini App's sign-in). The only functions a client without a session may run are
 -- T10's two entry points for the Space (public.bridge_voice_take(text), bridge_voice_refund(text): anon and the service
 -- role with a single-use 64-hex ticket, checks 60 and 65); every bot_* stays the service role's. Local rehearsal of all
 -- of it: supabase/tests/local/telegram_bot_run.sh.
@@ -46,6 +46,8 @@ packages(pkg, migration, first_check, last_check) AS (VALUES
   ('T10', '20261010120006', 60, 69)
   -- T11 (20261010120007_oral_plan_inputs.sql, bot_oral_inputs):
   , ('T11', '20261010120007', 80, 89)
+  -- WA (20261010150000_telegram_webapp.sql, the Mini App's sign-in):
+  , ('WA', '20261010150000', 90, 99)
 ),
 -- ── the lists (one line per object; later packages append theirs) ──────────────────────────────────────────────────────
 bot_tables(pkg, name) AS (VALUES
@@ -60,6 +62,8 @@ bot_tables(pkg, name) AS (VALUES
   -- T10 (20261010120006_telegram_bot_voice.sql):
   , ('T10', 'voice_attempts'), ('T10', 'voice_tickets'), ('T10', 'voice_audio'), ('T10', 'voice_days')
   -- T11 slot (20261010120007): its tables of schema bot, if any
+  -- WA (20261010150000_telegram_webapp.sql):
+  , ('WA', 'webapp_uses')
 ),
 bot_fns(pkg, sig) AS (VALUES
   ('T1', 'bot_setup(text,bigint,text,text,text)'), ('T1', 'bot_update_begin(bigint,timestamptz)'),
@@ -98,6 +102,8 @@ bot_fns(pkg, sig) AS (VALUES
   ('T10', 'bot_voice_rate(bigint,text,text)')
   -- T11 (20261010120007):
   , ('T11', 'bot_oral_inputs(bigint)')
+  -- WA (20261010150000_telegram_webapp.sql):
+  , ('WA', 'bot_webapp_session(bigint,text,timestamptz,timestamptz)')
 ),
 site_fns(pkg, sig) AS (VALUES
   ('T1', 'telegram_link_start(text)'), ('T1', 'telegram_link_state()'), ('T1', 'telegram_settings(boolean,time,text)'),
@@ -541,6 +547,27 @@ checks (ord, name, ok) AS (
          coalesce((SELECT p.provolatile = 's' AND p.prosrc ~ 'bot\.active_link\(' AND p.prosrc ~ 'meldy_private\.oral_sheet_for\('
                           AND p.prosrc ~ 'meldy_private\.oral_events_json\('
                      FROM pg_catalog.pg_proc p WHERE p.oid = pg_catalog.to_regprocedure('public.bot_oral_inputs(bigint)')), false)
+  -- ── WA: 90–99 (20261010150000_telegram_webapp.sql: the Mini App's sign-in, Telegram_Mini_App_Spec_2026-10-10 §3–§4) ──
+  UNION ALL
+  SELECT 90, 'webapp_uses_one_use_each',
+         EXISTS (SELECT 1 FROM cons WHERE tbl = 'webapp_uses' AND contype = 'p' AND def = 'PRIMARY KEY (init_hash, purpose)')
+         AND EXISTS (SELECT 1 FROM cons WHERE tbl = 'webapp_uses' AND contype = 'c' AND def LIKE '%(init_hash ~ ''^[0-9a-f]{64}$''%')
+  UNION ALL
+  SELECT 91, 'webapp_uses_hashes_only',
+         (SELECT pg_catalog.array_agg(a.attname::text ORDER BY a.attname::text COLLATE "C") FROM pg_catalog.pg_attribute a
+           WHERE a.attrelid = pg_catalog.to_regclass('bot.webapp_uses') AND a.attnum > 0 AND NOT a.attisdropped)
+         = ARRAY['auth_date', 'init_hash', 'purpose', 'tg_user_id', 'used_at', 'user_id']
+  UNION ALL
+  SELECT 92, 'webapp_uses_go_with_the_account',
+         EXISTS (SELECT 1 FROM cons WHERE tbl = 'webapp_uses' AND contype = 'f'
+                    AND def = 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE')
+  UNION ALL
+  -- One sign-in function and no in-page link: a valid initData can be anyone's launch put into someone else's
+  -- browser, so the Mini App links nothing (Telegram_Mini_App_Spec_2026-10-10, «Проверка безопасности 2026-10-11»).
+  SELECT 93, 'webapp_session_only_no_link',
+         (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p
+           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'bot_webapp_session') = 1
+         AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.proname = 'bot_webapp_link')
 ),
 -- Per package: its own checks (its range) that fail and, for an applied package other than T1, the checks over every
 -- listed object that one of its own objects fails.

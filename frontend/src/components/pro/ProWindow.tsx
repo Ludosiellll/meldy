@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { OPEN_PRO_EVENT, type ProReason } from '../../lib/plans';
 import { track } from '../../lib/telemetry';
 import { lazyPart, useLazyPart } from '../../lib/lazyPart';
+import { isMiniApp } from '../../lib/telegram/miniApp';
 
 /**
  * The window itself (ProWindowDialog.tsx, its styles and words) is a file of its own: fetched the
@@ -17,7 +18,8 @@ const isReason = (value: unknown): value is ProReason => typeof value === 'strin
 /**
  * Mounted once inside the router (App.tsx): listens for `meldy:open-pro` (lib/plans.ts
  * openProWindow) and shows the window over any page. Focus goes back to what opened it; another
- * page closes it.
+ * page closes it. Inside Telegram it never opens: PRO is not sold in the Mini App (digital goods there
+ * go through Telegram Stars; meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5).
  */
 export function ProWindowProvider() {
   const [state, setState] = useState<{ open: boolean; reason: ProReason }>({ open: false, reason: 'pricing' });
@@ -28,6 +30,7 @@ export function ProWindowProvider() {
 
   useEffect(() => {
     const onOpen = (event: Event) => {
+      if (isMiniApp()) return;
       const detail = (event as CustomEvent<{ reason?: unknown } | null>).detail;
       const reason = isReason(detail?.reason) ? detail.reason : 'pricing';
       if (!openRef.current) {

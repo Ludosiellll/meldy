@@ -14,6 +14,11 @@ type ThemeProviderState = {
   /** Что показывает страница: выбранная тема, а пока выбора нет («system») — тема устройства. */
   resolved: Resolved;
   setTheme: (theme: Theme) => void;
+  /**
+   * Тема, заданная извне, поверх выбора: в мини-приложении Telegram — схема Telegram (components/telegram/TelegramChrome).
+   * В хранилище не пишется; null возвращает выбор пользователя.
+   */
+  setForcedTheme: (theme: Resolved | null) => void;
 };
 
 /**
@@ -28,6 +33,7 @@ const initialState: ThemeProviderState = {
   theme: 'system',
   resolved: 'light',
   setTheme: () => null,
+  setForcedTheme: () => null,
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
@@ -38,6 +44,19 @@ function readStoredTheme(storageKey: string): Theme | null {
     return value && (THEMES as readonly string[]).includes(value) ? (value as Theme) : null;
   } catch {
     return null; // хранилище недоступно (приватный режим, запрет сайта)
+  }
+}
+
+/**
+ * Тема Telegram, которую public/theme-init.js поставил до запуска приложения (html[data-tg-theme]): держится, пока
+ * скрипт Telegram грузится, — без кадра в теме из хранилища.
+ */
+function readEarlyForced(): Resolved | null {
+  try {
+    const value = document.documentElement.getAttribute('data-tg-theme');
+    return value === 'dark' || value === 'light' ? value : null;
+  } catch {
+    return null;
   }
 }
 
@@ -63,6 +82,7 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme(storageKey) ?? defaultTheme);
   const [systemDark, setSystemDark] = useState(systemPrefersDark);
+  const [forced, setForced] = useState<Resolved | null>(readEarlyForced);
 
   // Выбора нет — страница следует устройству, в том числе когда оно переключается при открытой странице (вечером, вручную).
   useEffect(() => {
@@ -85,7 +105,7 @@ export function ThemeProvider({
     return () => query.removeListener?.(onChange);
   }, [theme]);
 
-  const resolved: Resolved = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+  const resolved: Resolved = forced ?? (theme === 'system' ? (systemDark ? 'dark' : 'light') : theme);
 
   // До отрисовки: при переключении нет кадра со старыми цветами, и смена успевает внутрь view transition.
   useLayoutEffect(() => {
@@ -106,6 +126,7 @@ export function ThemeProvider({
       }
       setTheme(next);
     },
+    setForcedTheme: setForced,
   };
 
   return (

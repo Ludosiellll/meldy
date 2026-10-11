@@ -102,6 +102,30 @@ def test_the_bots_file_link_is_the_one_function_passed_and_only_for_reading(prox
     assert len(proxy.seen) == 1
 
 
+def test_the_mini_apps_sign_in_passes_as_post_only_with_the_users_headers(proxy):
+    proxy.replies.update(json={"status": "linked", "token_hash": "b" * 56},
+                         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Set-Cookie": "x=1"})
+    response = proxy.post("/sb/functions/v1/telegram/webapp/session?forceFunctionRegion=eu-central-1",
+                          json={"init_data": "auth_date=1&hash=x"},
+                          headers={"apikey": "anon", "Authorization": "Bearer user-token", "Origin": "https://evil.example",
+                                   "x-client-info": "supabase-js-web/2"})
+    assert response.status_code == 200 and response.json()["status"] == "linked"
+    sent = proxy.seen[-1]
+    assert str(sent.url) == f"{UPSTREAM}/functions/v1/telegram/webapp/session?forceFunctionRegion=eu-central-1"
+    assert sent.method == "POST" and b'"init_data"' in sent.content
+    assert sent.headers["authorization"] == "Bearer user-token" and sent.headers["apikey"] == "anon"
+    # The page's Origin stays behind: the function serves a request without one (the site's own way).
+    assert "origin" not in sent.headers
+    assert response.headers["cache-control"] == "no-store" and "set-cookie" not in response.headers
+    # No linking from the Mini App (security review 2026-10-11): /webapp/link does not pass, nor anything else there.
+    for method, path in (("get", "/sb/functions/v1/telegram/webapp/session"), ("post", "/sb/functions/v1/telegram/webapp/link"),
+                         ("put", "/sb/functions/v1/telegram/webapp/link"),
+                         ("post", "/sb/functions/v1/telegram/webapp"), ("post", "/sb/functions/v1/telegram/webapp/other"),
+                         ("post", "/sb/functions/v1/telegram/webapp/session/../../setup")):
+        assert getattr(proxy, method)(path).status_code == 404, (method, path)
+    assert len(proxy.seen) == 1
+
+
 def test_an_unreachable_supabase_is_a_plain_russian_502(proxy, capsys):
     proxy.replies["fail"] = True
     response = proxy.get("/sb/rest/v1/materials?select=id", headers={"apikey": "anon"})

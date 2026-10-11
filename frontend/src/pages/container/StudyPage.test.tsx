@@ -53,6 +53,7 @@ import {
   subject,
   summary,
 } from '../../components/containers/testkit/fixtures';
+import { startMiniApp, stopMiniApp } from '../../test/telegramWebApp';
 
 const NB = String.fromCharCode(0xa0);
 const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
@@ -205,6 +206,35 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     await waitFor(() => expect(sent()).toHaveLength(5));
     expect(sent()[4]).toMatchObject({ item_id: 'q-iso', chosen: 3, retry: true });
+  });
+
+  it('inside Telegram the phone answers too: success on a right answer, error on a wrong one, warning on «Не знаю»', async () => {
+    const webApp = await startMiniApp();
+    try {
+      renderStudy(dataWith(['q-iso', 'q-plain', 'q-code']));
+      fireEvent.click(option('REPEATABLE READ'));
+      expect(webApp.HapticFeedback.notificationOccurred).toHaveBeenLastCalledWith('error');
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+      expect(webApp.HapticFeedback.notificationOccurred).toHaveBeenLastCalledWith('warning');
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+      // q-code, then the retry of q-iso: «Не знаю», then the right answer.
+      fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+      fireEvent.click(option('SERIALIZABLE'));
+      expect(verdict()).toBe('Верно.');
+      expect(webApp.HapticFeedback.notificationOccurred).toHaveBeenLastCalledWith('success');
+      expect(webApp.HapticFeedback.notificationOccurred).toHaveBeenCalledTimes(4);
+    } finally {
+      stopMiniApp();
+    }
+  });
+
+  it('outside Telegram an answer touches no Telegram API', () => {
+    renderStudy(dataWith(['q-iso']));
+    fireEvent.click(option('SERIALIZABLE'));
+    expect(verdict()).toBe('Верно.');
+    expect(window.Telegram).toBeUndefined();
   });
 
   it('«Не знаю» shows the key and sends no choice', async () => {

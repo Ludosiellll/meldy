@@ -3,6 +3,7 @@ import { Clock } from 'lucide-react';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { AI_LIMIT_EVENT, checkAILimit, formatLimitReset, nextLimitReset, remainingUnits, type AILimitInfo } from '../api/limits';
 import { dailyUnits, openProWindow } from '../lib/plans';
+import { isMiniApp } from '../lib/telegram/miniApp';
 import { track } from '../lib/telemetry';
 import { WITHOUT_UNITS } from '../components/pro/planCopy';
 
@@ -21,7 +22,7 @@ type AlertFn = ReturnType<typeof useConfirm>['alert'];
 /**
  * Окно дневного лимита — одно на всё приложение: заголовок («Дневной лимит исчерпан», если не
  * осталось ничего, иначе «Не хватает дневного лимита»), время сброса, «Понятно» и — для аккаунта
- * без PRO — «Что даёт PRO» (окно PRO по событию openProWindow('limit')).
+ * без PRO — «Что даёт PRO» (окно PRO по событию openProWindow('limit')); внутри Telegram его нет: PRO там не продаётся.
  */
 export async function showLimitDialog(
   alert: AlertFn,
@@ -34,7 +35,7 @@ export async function showLimitDialog(
       type: 'info',
       icon: Clock,
       confirmText: 'Понятно',
-      ...(isPro ? {} : { secondaryText: 'Что даёт PRO', onSecondary: () => openProWindow('limit') }),
+      ...(isPro || isMiniApp() ? {} : { secondaryText: 'Что даёт PRO', onSecondary: () => openProWindow('limit') }),
     });
   } catch (err) {
     console.error('Не удалось показать сообщение о лимите ИИ:', err);

@@ -60,6 +60,7 @@ import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { OPEN_PRO_EVENT, openProWindow } from '../../lib/plans';
 import { ProWindowProvider } from './ProWindow';
 import { ProDemoClosedError, startProDemo, stopProDemo } from './proPlan';
+import { startMiniApp, stopMiniApp } from '../../test/telegramWebApp';
 
 function Page() {
   const navigate = useNavigate();
@@ -368,6 +369,20 @@ describe('the PRO window', () => {
 });
 
 describe('the window is quiet when nothing asks for it', () => {
+  it('never opens inside Telegram: PRO is not sold in the Mini App (Telegram wants Stars for digital goods)', async () => {
+    await startMiniApp();
+    try {
+      renderApp();
+      act(() => openProWindow('limit'));
+      await act(async () => undefined);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(db.track).not.toHaveBeenCalled();
+      expect(db.tables).toEqual([]);
+    } finally {
+      stopMiniApp();
+    }
+  });
+
   it('renders nothing and touches no data until opened', async () => {
     renderApp();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Что даёт PRO' })).toBeInTheDocument());

@@ -56,7 +56,7 @@ function lintAll(h: SessionHarness) {
   const user = [...h.fs.bank.values()].flatMap((i) => [i.stem, ...i.options, ...(i.topicTitle ? [i.topicTitle] : []), ...i.answers]);
   user.push('Компьютерные сети', 'Базы данных', 'Операционные системы', 'Основы программирования', 'Осенняя сессия', '23', 'ТРИДЦАТЬ  ДВА');
   for (const call of [...h.tg.of('sendMessage'), ...h.tg.of('editMessageText')]) {
-    const keyboard = (call.params.reply_markup?.inline_keyboard ?? []).map((r: Array<Record<string, string>>) => r.map((b) => ({ text: b.text, data: b.callback_data, url: b.url, style: b.style as 'primary' | undefined })));
+    const keyboard = (call.params.reply_markup?.inline_keyboard ?? []).map((r: Array<Record<string, string>>) => r.map((b) => ({ text: b.text, data: b.callback_data, url: b.url, webApp: (b.web_app as unknown as { url?: string } | undefined)?.url, style: b.style as 'primary' | undefined })));
     const options = keyboard.flat().map((b: { text: string }) => b.text.replace(/^✓ /, '')).filter((t: string) => user.includes(t));
     const problems = lintMessage({ text: call.params.text, keyboard, chat: 'private', user, options });
     assert.deepEqual(problems, [], `${call.method}: ${problems.join('; ')}\n${words(call.params.text)}`);
