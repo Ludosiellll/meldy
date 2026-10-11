@@ -79,7 +79,7 @@ Sources of truth:
   |---|---|
   | 01 | the big wordmark's dot (84 px) |
   | 02–05 | the corner wordmark's dot |
-  | 06 | the first bullet of the contents, in ink like the others: it came down from the corner |
+  | 06 | the first bullet of the exam's five blocks, in ink like the others: it came down from the corner |
   | 07 | the laptop's ink bezel, 1184 × 600 |
   | 08 | the phone, 424 × 880 |
   | 09 | the laptop again |
@@ -136,7 +136,7 @@ Sources of truth:
 | 01 | the dot and its hidden squares settle together |
 | 04 | the erased map sweeps in from the left |
 | 05 | rows wipe in one by one, then Meldy's yellow ticks cascade |
-| 06 | the five blocks are written in like cheat-sheet lines |
+| 06 | the exam's five blocks are written in like cheat-sheet lines; the lecture's tabs settle like the app's, then its tree is drawn down from «Лекция» and each branch shoots out to a material as it passes; the last, blue branch is the answer aloud |
 | 10 | six copies of one exam settle one after another |
 | 11 | the path's dots settle from one group to a field |
 | 12 | the ladder of stops builds on the clip's stops |
@@ -184,7 +184,7 @@ Eye order is what the eye takes first, second and third in the still.
 | 03 | Актуальность | «229 тыс.» | claim → the № 319 card (the attestation rules of higher education, by full name) → on a click «229 тыс.» | claim · card · № 319 · title; *click* 229 тыс. (1.4 + 0.9 s) |
 | 04 | Цель, задачи | «0» 420 px | «0 строк осталось» → the erased map → four tasks | caption · map sweeps · tasks 1–4 (2.0 s) |
 | 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade (2.8 s); what «частично» means and the review's date are in the notes |
-| 06 | Содержание | the five blocks | the blocks as cheat-sheet lines, with the slide of each → «Число и формат»: questions from Word, Excel, TXT or PDF; lectures from PDF, DOCX, PPTX or a photo | claim · lines written in · card · the two format lines · note (2.3 s) |
+| 06 | Содержание | the two halves | claim («Meldy делает из перечня вопросов экзамен, а из лекций — конспект, карточки и тест») → the format line (web app for a phone and a computer, bot in Telegram) → «Экзамен»: Word, Excel, TXT, PDF; up to 2000 questions, test and oral; the five blocks as cheat-sheet lines with the slide of each → «Лекция»: the four tabs of «Разобрать лекцию» with the app's icons; PDF, DOCX, PPTX, photo, MP4, MP3, a link to a page; a tree into the five materials of «Что сделать из лекции», in the app's words; its sixth, blue line: the answer aloud, checked against the lectures (slide 8; the exam's «Ответ вслух» has a blue dot too) | claim · format line · the heads and their chips · the exam's lines written in · the tabs · the lecture's tree drawn down, its lines written in as it passes (2.8 s) |
 | 07 | Представление блоков проекта | the laptop | claim → the recording → what it shows, large: «Нашли 240 вопросов и ключ — жирным в файле», «2 ноября, 45 минут в день», «Сегодня 52 вопроса, около 45 минут» | the screen turns on · claim · each moment as the clip reaches it (found 5.08, date 7.85, today 15.12 s; re-timed when the re-cut clips land) |
 | 08 | Представление блоков проекта | the phone | claim → the recording → what it shows, large: the answer becomes text, the examiner's question «Почему при использовании многоверсионности читатели не ждут писателей?», «Сами назвали 3 из 3 главных пунктов», the lecture's quote | the screen rides in with the bezel · claim · each moment as the clip reaches it (speak 6.73, asked 11.10, protocol 13.33, quote 16.5 s) · the reading line (17.2 s) |
 | 09 | Представление блоков проекта | the laptop with the sheet | claim → the recording → «47 → 44», «3 строки стёрты: названы в разные дни» → the sheet's own key (осталось · названо один раз · стёрто) | claim · the key as the clip reaches the sheet (9.43 s) · the counter and the erased lines with the erase (12.63 s) |

@@ -189,3 +189,20 @@ After the fixes:
 * `node design/preview/lint.mjs`: no errors, no warnings; `timeline.mjs`: no warnings.
 * `tools/make.sh`: ALL GREEN, 5.96 MB (1387 checks; the ten native shadows within p99 4 grey levels).
 * morph-log: 0 automatic pairs, 0 geometry changes.
+
+## Round 6 — the owner's note on 06: the lectures
+
+The owner, 2026-10-11: «почему нет информации о лекциях обычных, о карточках и тд (ну в целом об этом всем) о том что
+через видео, ссылку и тд это можно сделать?» The deck told the exam path (07–10) and said almost nothing about the
+lecture toolkit: 06 had one line, «лекции — PDF, DOCX, PPTX или фото». Still 15 slides; 06 now shows both halves.
+
+| # | Finding | Status |
+|---|---|---|
+| O6.1 | The lectures were missing: how a lecture gets in, what Meldy makes of it. | **fixed** — 06 is two halves under ink heads. «Экзамен»: Word, Excel, TXT, PDF; «до 2000 вопросов, тестовые и устные»; the five blocks with the slide of each. «Лекция»: the four tabs of «Разобрать лекцию» with the app's icons (Файл, Текст, Ссылка, Аудио и видео); a tree into the five materials of «Что сделать из лекции», in the app's words; its sixth, blue branch is «Ответ вслух — сверка с лекциями и цитаты, слайд 8» (the exam's «Ответ вслух» has a blue dot too). Claim: «Meldy делает из перечня вопросов экзамен, а из лекций — конспект, карточки и тест»; under it the format line. |
+| O6.2 | «Ссылка» beside «Аудио и видео» could read as a link to a video, which Meldy does not open. | **fixed** — the line under the tabs: «PDF, DOCX, PPTX, фото, MP4, MP3; ссылка на страницу»; the notes say aloud that a video comes as a file (up to 15 MB, about 15–30 minutes of sound). |
+| O6.3 | The big «до 2000» of the old card is gone. | **kept** — the claim and the two heads carry the slide; 2000 is the line under «Экзамен». |
+| O6.4 | The lists are 36 px (the plan's lists are 44–48), the descriptions, chips and slide numbers 28 px. | **kept** — twice the content of the old 06 on one slide; nothing under the lint's 28 px. |
+| M6.1 | 05→06 and 06→07: the corner dot lands as the exam's first bullet (134, 670) and grows into the laptop. | **checked** — keyframes 06-in, 07-in; morph-log 0 automatic pairs. |
+| M6.2 | The build: the heads and chips settle, the exam's lines are written in, the lecture's spine is drawn down (900 ms) and each branch shoots out as its front passes, the line written in after it; one automatic group of 2.8 s, 58 effects. | **checked** — `06-in.mp4` at 1.5–4.5 s. |
+| E6.1 | «сверка с лекциями, с цитатами»: two «с» (cf. 3.4); «… компьютера и бот в Telegram»: two «и». | **fixed** — «сверка с лекциями и цитаты»; «Веб-приложение для телефона и компьютера, бот в Telegram». |
+| T6.1 | The notes for 06 grew from about 45 to about 175 words (the script gave 06 twenty seconds). | **open** — the script's timing (meldy-notes `CodingFest_11_Deck_Script.md`); the speaker can drop the details of the formats. |

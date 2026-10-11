@@ -5,52 +5,99 @@
 <title>06 · Содержание — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <style>
-/* The five blocks as the cheat sheet writes its lines: a dot for each main point, the line written in from the
-   left. The first dot is the logo's: it came down from the corner, and on the next slide it opens into the laptop. */
-.item { left: 176px; font-size: 48px; line-height: 60px; white-space: nowrap; }
-.ref { left: 840px; width: 220px; font-size: 28px; line-height: 60px; color: var(--faint); text-align: right; white-space: nowrap; }
-.fmt { font-size: 32px; line-height: 42px; font-weight: 500; white-space: nowrap; }
-.fmt .muted { font-weight: 400; }
+/* Both halves of Meldy, each under its ink head, the app's chosen pill: what goes in (white chips), one line about it,
+   and what comes out. The exam: the question list in; the five blocks out, written in as cheat-sheet lines, each with
+   the slide that shows it. The lecture: the four ways in (the tabs of «Разобрать лекцию»); a tree grows out of
+   «Лекция» into the five materials of «Что сделать из лекции», and its sixth branch, blue, is the answer aloud,
+   checked against the same lectures. The first bullet of the exam is the logo's dot: it came down from the corner,
+   and on the next slide it opens into the laptop. */
+.fmt { font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; }
+.hp { height: 56px; padding: 8px 28px 0; border-radius: 28px; background: var(--ink); color: #ffffff; font-size: 32px; line-height: 40px; font-weight: 600; white-space: nowrap; }
+.ch { height: 56px; padding: 8px 20px 0; border-radius: 28px; background: var(--surface); border: 2px solid var(--line); font-size: 28px; line-height: 36px; font-weight: 500; white-space: nowrap; }
+.ic { width: 26px; height: 26px; }
+.ic svg { display: block; }
+.nt { font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
+.spine { width: 3px; background: rgba(138, 143, 151, .7); }
+.bul { width: 12px; height: 12px; }
+.bul.blue-b { background: var(--blue-fg); }
+.row { font-size: 36px; line-height: 44px; white-space: nowrap; }
+.md { font-size: 28px; line-height: 44px; color: var(--muted); white-space: nowrap; }
+.ref { font-size: 28px; line-height: 44px; color: var(--faint); white-space: nowrap; }
 </style>
 </head>
 <body>
 <main class="slide" data-transition-dur="1500">
 
 <div class="label" data-pptx="title">Содержание</div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Один экзамен: перечень вопросов, лекции,<br>план до&nbsp;даты и&nbsp;шпаргалка</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Meldy делает из&nbsp;перечня вопросов экзамен,<br>а&nbsp;из&nbsp;лекций&nbsp;— конспект, карточки и&nbsp;тест</div>
+<div class="fmt" data-pptx="text" style="left:128px;top:368px" data-anim="fade" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="600" data-anim-order="1">Веб-приложение для&nbsp;телефона и&nbsp;компьютера, бот в&nbsp;Telegram</div>
 
-<!-- Five blocks; on the right of each, the slide that shows it. -->
-<div class="bul" data-pptx="shape" data-name="!!dot" style="left:134px;top:468px;width:12px;height:12px;border-radius:5px"></div>
-<div class="item" data-pptx="text" style="top:444px" data-anim-trigger="with" data-anim="wipe" data-anim-delay="300" data-anim-dur="500" data-anim-order="2">Экзамен из&nbsp;перечня</div>
-<div class="ref" data-pptx="text" style="top:444px" data-anim="fade" data-anim-trigger="with" data-anim-delay="600" data-anim-dur="400" data-anim-order="2">слайд 7</div>
+<!-- The lecture's tree first, under everything: a spine from «Лекция», a branch to every line it makes; the sixth,
+     blue, is the answer aloud, checked against the same lectures (slide 8). The spine is drawn down, and each branch
+     shoots out as it passes. -->
+<div class="spine" data-pptx="shape" data-name="!!x0601" style="left:946.5px;top:504px;height:442px" data-anim="wipe" data-anim-dir="up" data-anim-trigger="with" data-anim-delay="1150" data-anim-dur="900" data-anim-order="1"></div>
+<div data-pptx="image" aria-label="" style="left:949.5px;top:659px;width:32px;height:20px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1468" data-anim-dur="220" data-anim-order="1"><svg width="32" height="20" viewBox="0 0 32 20" style="display:block"><path d="M-1.5 0 L-1.5 1 A16 16 0 0 0 14.5 17 L32 17" fill="none" stroke="#8a8f97" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/></svg></div>
+<div data-pptx="image" aria-label="" style="left:949.5px;top:713px;width:32px;height:20px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1578" data-anim-dur="220" data-anim-order="1"><svg width="32" height="20" viewBox="0 0 32 20" style="display:block"><path d="M-1.5 0 L-1.5 1 A16 16 0 0 0 14.5 17 L32 17" fill="none" stroke="#8a8f97" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/></svg></div>
+<div data-pptx="image" aria-label="" style="left:949.5px;top:767px;width:32px;height:20px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1688" data-anim-dur="220" data-anim-order="1"><svg width="32" height="20" viewBox="0 0 32 20" style="display:block"><path d="M-1.5 0 L-1.5 1 A16 16 0 0 0 14.5 17 L32 17" fill="none" stroke="#8a8f97" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/></svg></div>
+<div data-pptx="image" aria-label="" style="left:949.5px;top:821px;width:32px;height:20px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1798" data-anim-dur="220" data-anim-order="1"><svg width="32" height="20" viewBox="0 0 32 20" style="display:block"><path d="M-1.5 0 L-1.5 1 A16 16 0 0 0 14.5 17 L32 17" fill="none" stroke="#8a8f97" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/></svg></div>
+<div data-pptx="image" aria-label="" style="left:949.5px;top:875px;width:32px;height:20px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1907" data-anim-dur="220" data-anim-order="1"><svg width="32" height="20" viewBox="0 0 32 20" style="display:block"><path d="M-1.5 0 L-1.5 1 A16 16 0 0 0 14.5 17 L32 17" fill="none" stroke="#8a8f97" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/></svg></div>
+<div data-pptx="image" aria-label="" style="left:945px;top:945px;width:36px;height:20px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="2050" data-anim-dur="220" data-anim-order="1"><svg width="36" height="20" viewBox="0 0 36 20" style="display:block"><path d="M3 0 L3 1 A16 16 0 0 0 19 17 L36 17" fill="none" stroke="#1f5bc6" stroke-opacity="1" stroke-width="3" stroke-linecap="round"/></svg></div>
 
-<div class="bul" data-pptx="shape" data-name="!!x0601" style="left:134px;top:560px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="450" data-anim="settle" data-anim-dur="300" data-anim-order="3"></div>
-<div class="item" data-pptx="text" style="top:536px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="530" data-anim-dur="500" data-anim-order="3">План по&nbsp;дням</div>
-<div class="ref" data-pptx="text" style="top:536px" data-anim="fade" data-anim-trigger="with" data-anim-delay="750" data-anim-dur="400" data-anim-order="3">слайд 7</div>
+<!-- Экзамен: the question list goes in (its formats), the five blocks come out as the cheat sheet's lines, each
+     with the slide that shows it. The first bullet is the logo's dot (!!dot, no entrance: it morphs in). -->
+<div class="hp" data-pptx="text" style="left:128px;top:448px" data-anim="settle" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="1">Экзамен</div>
+<div class="ch" data-pptx="text" style="left:176px;top:520px" data-anim="settle" data-anim-trigger="with" data-anim-delay="330" data-anim-dur="400" data-anim-order="1">Word</div>
+<div class="ch" data-pptx="text" style="left:302px;top:520px" data-anim="settle" data-anim-trigger="with" data-anim-delay="400" data-anim-dur="400" data-anim-order="1">Excel</div>
+<div class="ch" data-pptx="text" style="left:426px;top:520px" data-anim="settle" data-anim-trigger="with" data-anim-delay="470" data-anim-dur="400" data-anim-order="1">TXT</div>
+<div class="ch" data-pptx="text" style="left:530px;top:520px" data-anim="settle" data-anim-trigger="with" data-anim-delay="540" data-anim-dur="400" data-anim-order="1">PDF</div>
+<div class="nt" data-pptx="text" style="left:176px;top:592px" data-anim="fade" data-anim-trigger="with" data-anim-delay="560" data-anim-dur="500" data-anim-order="1">до&nbsp;2000&nbsp;вопросов, тестовые и&nbsp;устные</div>
+<div class="bul" data-pptx="shape" data-name="!!dot" style="left:134px;top:670px;border-radius:5px"></div>
+<div class="row" data-pptx="text" style="left:176px;top:654px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="680" data-anim-dur="500" data-anim-order="1">Экзамен из&nbsp;перечня</div>
+<div class="ref" data-pptx="text" style="left:544px;top:657px" data-anim="fade" data-anim-trigger="with" data-anim-delay="940" data-anim-dur="400" data-anim-order="1">слайд 7</div>
+<div class="bul" data-pptx="shape" data-name="!!x0602" style="left:134px;top:724px" data-anim="settle" data-anim-trigger="with" data-anim-delay="760" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:176px;top:708px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="820" data-anim-dur="500" data-anim-order="1">План по&nbsp;дням</div>
+<div class="ref" data-pptx="text" style="left:428px;top:711px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1080" data-anim-dur="400" data-anim-order="1">слайд 7</div>
+<div class="bul" data-pptx="shape" data-name="!!x0603" style="left:134px;top:778px" data-anim="settle" data-anim-trigger="with" data-anim-delay="900" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:176px;top:762px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="960" data-anim-dur="500" data-anim-order="1">Занятие</div>
+<div class="ref" data-pptx="text" style="left:335px;top:765px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1220" data-anim-dur="400" data-anim-order="1">слайды 7 и&nbsp;10</div>
+<div class="bul blue-b" data-pptx="shape" data-name="!!x0604" style="left:134px;top:832px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1040" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:176px;top:816px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1100" data-anim-dur="500" data-anim-order="1">Ответ вслух со&nbsp;шпаргалкой</div>
+<div class="ref" data-pptx="text" style="left:672px;top:819px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1360" data-anim-dur="400" data-anim-order="1">слайды 8 и&nbsp;9</div>
+<div class="bul" data-pptx="shape" data-name="!!x0605" style="left:134px;top:886px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1180" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:176px;top:870px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1240" data-anim-dur="500" data-anim-order="1">Группа с&nbsp;Telegram</div>
+<div class="ref" data-pptx="text" style="left:507px;top:873px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1500" data-anim-dur="400" data-anim-order="1">слайд 10</div>
 
-<div class="bul" data-pptx="shape" data-name="!!x0602" style="left:134px;top:652px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="600" data-anim="settle" data-anim-dur="300" data-anim-order="4"></div>
-<div class="item" data-pptx="text" style="top:628px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="680" data-anim-dur="500" data-anim-order="4">Занятие</div>
-<div class="ref" data-pptx="text" style="top:628px" data-anim="fade" data-anim-trigger="with" data-anim-delay="900" data-anim-dur="400" data-anim-order="4">слайды 7 и&nbsp;10</div>
-
-<div class="bul" data-pptx="shape" data-name="!!x0603" style="left:134px;top:744px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="750" data-anim="settle" data-anim-dur="300" data-anim-order="5"></div>
-<div class="item" data-pptx="text" style="top:720px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="830" data-anim-dur="500" data-anim-order="5">Ответ вслух со&nbsp;шпаргалкой</div>
-<div class="ref" data-pptx="text" style="top:720px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1050" data-anim-dur="400" data-anim-order="5">слайды 8 и&nbsp;9</div>
-
-<div class="bul" data-pptx="shape" data-name="!!x0604" style="left:134px;top:836px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="900" data-anim="settle" data-anim-dur="300" data-anim-order="6"></div>
-<div class="item" data-pptx="text" style="top:812px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="980" data-anim-dur="500" data-anim-order="6">Группа с&nbsp;Telegram</div>
-<div class="ref" data-pptx="text" style="top:812px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1200" data-anim-dur="400" data-anim-order="6">слайд 10</div>
-
-<!-- Число и формат: what the project holds and in which form (Приложение 2, п. 6). -->
-<div class="card lift" data-pptx="shape" data-name="!!c2" style="left:1122px;top:424px;width:670px;height:528px" data-anim-trigger="with" data-anim-delay="1000" data-anim="settle" data-anim-dur="700" data-anim-order="7"></div>
-<div class="cap" data-pptx="text" style="left:1170px;top:468px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1250" data-anim-dur="500" data-anim-order="8">Число и&nbsp;формат</div>
-<div class="h muted w500" data-pptx="text" style="left:1170px;top:572px" data-anim-delay="1250" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="8">до</div>
-<div class="num120" data-pptx="text" style="left:1242px;top:516px" data-anim-delay="1250" data-anim="settle" data-anim-trigger="with" data-anim-dur="600" data-anim-order="8">2000</div>
-<div class="t40m" data-pptx="text" style="left:1170px;top:644px" data-anim-delay="1250" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="8">вопросов в&nbsp;одном экзамене</div>
-
-<div class="fmt" data-pptx="text" style="left:1170px;top:716px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1450" data-anim-dur="500" data-anim-order="9"><span class="muted">вопросы&nbsp;—</span> Word, Excel, TXT или PDF</div>
-<div class="fmt" data-pptx="text" style="left:1170px;top:760px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1550" data-anim-dur="500" data-anim-order="9"><span class="muted">лекции&nbsp;—</span> PDF, DOCX, PPTX или фото</div>
-
-<div class="note ink" data-pptx="text" style="left:1170px;top:828px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1800" data-anim-dur="500" data-anim-order="10">тестовые и&nbsp;устные вопросы;<br>веб-приложение и&nbsp;бот в&nbsp;Telegram</div>
+<!-- Лекция: four ways in (the tabs of «Разобрать лекцию» with the app's icons: lucide-react 0.383.0, ISC licence), five
+     materials out (its «Что сделать из лекции», in the app's words). -->
+<div class="hp" data-pptx="text" style="left:920px;top:448px" data-anim="settle" data-anim-trigger="with" data-anim-delay="700" data-anim-dur="500" data-anim-order="1">Лекция</div>
+<div class="ch" data-pptx="text" style="left:976px;top:520px;padding-left:56px" data-anim="settle" data-anim-trigger="with" data-anim-delay="830" data-anim-dur="400" data-anim-order="1">Файл</div>
+<div class="ic" data-pptx="image" aria-label="" style="left:996px;top:535px" data-anim="settle" data-anim-trigger="with" data-anim-delay="830" data-anim-dur="400" data-anim-order="1"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0b121c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></div>
+<div class="ch" data-pptx="text" style="left:1138px;top:520px;padding-left:56px" data-anim="settle" data-anim-trigger="with" data-anim-delay="900" data-anim-dur="400" data-anim-order="1">Текст</div>
+<div class="ic" data-pptx="image" aria-label="" style="left:1158px;top:535px" data-anim="settle" data-anim-trigger="with" data-anim-delay="900" data-anim-dur="400" data-anim-order="1"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0b121c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg></div>
+<div class="ch" data-pptx="text" style="left:1303px;top:520px;padding-left:56px" data-anim="settle" data-anim-trigger="with" data-anim-delay="970" data-anim-dur="400" data-anim-order="1">Ссылка</div>
+<div class="ic" data-pptx="image" aria-label="" style="left:1323px;top:535px" data-anim="settle" data-anim-trigger="with" data-anim-delay="970" data-anim-dur="400" data-anim-order="1"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0b121c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+<div class="ch" data-pptx="text" style="left:1494px;top:520px;padding-left:56px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1040" data-anim-dur="400" data-anim-order="1">Аудио и&nbsp;видео</div>
+<div class="ic" data-pptx="image" aria-label="" style="left:1514px;top:535px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1040" data-anim-dur="400" data-anim-order="1"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0b121c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></div>
+<div class="nt" data-pptx="text" style="left:976px;top:592px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1080" data-anim-dur="500" data-anim-order="1">PDF, DOCX, PPTX, фото, MP4, MP3; ссылка на&nbsp;страницу</div>
+<div class="bul" data-pptx="shape" data-name="!!x0606" style="left:984px;top:670px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1568" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:1012px;top:654px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1598" data-anim-dur="450" data-anim-order="1">Конспект</div>
+<div class="md" data-pptx="text" style="left:1195px;top:657px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1748" data-anim-dur="450" data-anim-order="1">главное по&nbsp;разделам и&nbsp;словарь терминов</div>
+<div class="bul" data-pptx="shape" data-name="!!x0607" style="left:984px;top:724px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1678" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" data-name="!!x0608" style="left:1012px;top:708px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1708" data-anim-dur="450" data-anim-order="1">Карточки</div>
+<div class="md" data-pptx="text" style="left:1195px;top:711px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1858" data-anim-dur="450" data-anim-order="1">вопрос&nbsp;— ответ, для&nbsp;повторения по&nbsp;дням</div>
+<div class="bul" data-pptx="shape" data-name="!!x0609" style="left:984px;top:778px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1788" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:1012px;top:762px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1818" data-anim-dur="450" data-anim-order="1">Тест</div>
+<div class="md" data-pptx="text" style="left:1195px;top:765px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1968" data-anim-dur="450" data-anim-order="1">с&nbsp;вариантами и&nbsp;объяснением ошибок</div>
+<div class="bul" data-pptx="shape" data-name="!!x0610" style="left:984px;top:832px" data-anim="settle" data-anim-trigger="with" data-anim-delay="1898" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:1012px;top:816px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1928" data-anim-dur="450" data-anim-order="1">Выжимка</div>
+<div class="md" data-pptx="text" style="left:1195px;top:819px" data-anim="fade" data-anim-trigger="with" data-anim-delay="2078" data-anim-dur="450" data-anim-order="1">главное на&nbsp;одну страницу перед экзаменом</div>
+<div class="bul" data-pptx="shape" data-name="!!x0611" style="left:984px;top:886px" data-anim="settle" data-anim-trigger="with" data-anim-delay="2007" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row" data-pptx="text" style="left:1012px;top:870px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="2037" data-anim-dur="450" data-anim-order="1">Подкаст</div>
+<div class="md" data-pptx="text" style="left:1195px;top:873px" data-anim="fade" data-anim-trigger="with" data-anim-delay="2187" data-anim-dur="450" data-anim-order="1">два ведущих обсуждают лекцию</div>
+<div class="bul blue-b" data-pptx="shape" data-name="!!x0612" style="left:984px;top:956px" data-anim="settle" data-anim-trigger="with" data-anim-delay="2150" data-anim-dur="300" data-anim-order="1"></div>
+<div class="row blue" data-pptx="text" style="left:1012px;top:940px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="2180" data-anim-dur="450" data-anim-order="1">Ответ вслух</div>
+<div class="md" data-pptx="text" style="left:1243px;top:943px" data-anim="fade" data-anim-trigger="with" data-anim-delay="2330" data-anim-dur="450" data-anim-order="1">сверка с&nbsp;лекциями и&nbsp;цитаты</div>
+<div class="ref" data-pptx="text" style="left:1641px;top:943px" data-anim="fade" data-anim-trigger="with" data-anim-delay="2430" data-anim-dur="400" data-anim-order="1">слайд 8</div>
 
 <!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
@@ -66,9 +113,15 @@
 <div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
 <!-- header:end -->
 
-<template data-pptx="notes">Внутри один экзамен на всю подготовку: до двух тысяч вопросов, тестовых и устных. Перечень вопросов загружается из Word, Excel, TXT или PDF, лекции — из PDF, Word, PowerPoint или фото.
+<template data-pptx="notes">Внутри у Meldy две половины.
 
-Пять блоков: экзамен из перечня, план по дням, занятие, ответ вслух со шпаргалкой и группа с Telegram.</template>
+Первая — экзамен. Студент загружает перечень вопросов кафедры из Word, Excel, TXT или PDF: до двух тысяч вопросов, тестовые и устные. Дальше пять блоков: экзамен из перечня, план по дням, занятие, ответ вслух со шпаргалкой и группа с Telegram — их покажем на следующих слайдах.
+
+Вторая — лекции. Лекцию можно добавить четырьмя способами. Файлом — PDF, Word, PowerPoint или фото; сканы и фото распознаёт Google Gemini, а на телефоне конспект можно просто сфотографировать. Текстом — вставить в поле. Ссылкой на открытую страницу: Meldy возьмёт основной текст без меню и рекламы. Или записью — аудио или видео файлом до пятнадцати мегабайт, это примерно пятнадцать–тридцать минут звука. Ссылку на видео Meldy не открывает, нужен сам файл.
+
+Из лекции Meldy делает то, что выберет студент: конспект со словарём терминов, карточки для повторения по дням, тест с объяснением ошибок, выжимку на одну страницу перед экзаменом и подкаст, где два ведущих обсуждают лекцию. А по этим же лекциям Meldy сверяет ответ вслух и показывает цитаты — это слайд восемь.
+
+Всё это — веб-приложение для телефона и компьютера и бот в Telegram.</template>
 </main>
 </body>
 </html>
