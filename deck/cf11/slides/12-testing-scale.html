@@ -24,13 +24,14 @@
 
 <div class="label" data-pptx="title">Тестирование, продвижение и масштабируемость</div>
 <!-- The lights go down first (the transition), then the claim rises in the dark. -->
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="0">Каждый выпуск проверяют автотесты,<br>потом&nbsp;— живой сайт</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="0">Каждый выпуск автоматически проходит<br>все автотесты, потом&nbsp;— проверка живого сайта</div>
 
-<!-- Testing: how many automated tests there are (the full runs of 2026-10-11, recounted on the freeze day). Not «before
-     every release»: no CI runs all three suites yet, so the number stands alone and the claim says only what is true. -->
+<!-- Testing: every release passes the gate first (.github/workflows/deploy-hf.yml: the deploy job needs the test job —
+     Vitest, the bot's tests, the frontend build in the Docker layout, pytest), then the smoke check of the live Space.
+     The counts are the full runs of 2026-10-11 (recounted on the freeze day). -->
 <div class="cap" data-pptx="text" style="left:128px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="400" data-anim-order="1">Тестирование</div>
 <div class="n180" data-pptx="text" style="left:120px;top:436px" data-anim="settle" data-anim-trigger="with" data-anim-delay="400" data-anim-dur="700" data-anim-order="1">6&nbsp;566</div>
-<div class="t40" data-pptx="text" style="left:128px;top:612px" data-anim="fade" data-anim-trigger="with" data-anim-delay="650" data-anim-dur="500" data-anim-order="1">автотестов</div>
+<div class="t40" data-pptx="text" style="left:128px;top:612px" data-anim="fade" data-anim-trigger="with" data-anim-delay="650" data-anim-dur="500" data-anim-order="1">автотестов перед каждым выпуском</div>
 <div class="part-n" data-pptx="text" style="left:128px" data-anim="fade" data-anim-trigger="with" data-anim-delay="850" data-anim-dur="500" data-anim-order="1">4&nbsp;415</div>
 <div class="part-t" data-pptx="text" style="left:128px" data-anim="fade" data-anim-trigger="with" data-anim-delay="850" data-anim-dur="500" data-anim-order="1">сайт · Vitest</div>
 <div class="part-n" data-pptx="text" style="left:348px" data-anim="fade" data-anim-trigger="with" data-anim-delay="950" data-anim-dur="500" data-anim-order="1">1&nbsp;832</div>
@@ -78,13 +79,13 @@
 <div class="mark-dot" data-pptx="shape" data-name="!!x12dot" style="left:1782px;top:66px"></div>
 <!-- header:end -->
 
-<template data-pptx="notes">Как мы проверяем: каждый выпуск проверяют автотесты, потом — живой сайт. Всего автотестов 6 566 — у сайта, сервера и бота. Сейчас на сайте выпуск № 43, пример экзамена открыт без регистрации.
+<template data-pptx="notes">Как мы проверяем: каждый выпуск автоматически проходит все автотесты, потом — проверка живого сайта. Автотестов 6 566 — у сайта, сервера и бота. Сейчас на сайте выпуск № 43, пример экзамена открыт без регистрации.
 
 Масштаб: тестовые вопросы проверяются без ИИ и ничего не стоят, а ИИ у каждого аккаунта ограничен дневным лимитом.
 
 Продвижение — снизу вверх: группа по одной ссылке, потом кафедра — отчёт для преподавателя, потом колледжи и вузы — лицензия для учреждения.
 
-Если спросят: 6 566 = 4 415 сайт (Vitest) + 1 832 сервер (pytest) + 319 бот, полные прогоны 11.10.2026, пересчитаем в день заморозки. Лимит ИИ — 100 единиц в день бесплатно и 1000 в PRO; разбор лекции стоит 20 единиц, проверка ответа вслух — 4. Около 229 тысяч студентов вузов — это 9 160 групп по 25 человек. Следующий шаг для кафедры — сводка по всей группе.</template>
+Если спросят: 6 566 = 4 415 сайт (Vitest) + 1 832 сервер (pytest) + 319 бот, полные прогоны 11.10.2026, пересчитаем в день заморозки. Выпуск не выкладывается, пока не пройдут Vitest, тесты бота, сборка сайта и pytest; после выкладки автоматически проверяется, что сайт отвечает. Лимит ИИ — 100 единиц в день бесплатно и 1000 в PRO; разбор лекции стоит 20 единиц, проверка ответа вслух — 4. Около 229 тысяч студентов вузов — это 9 160 групп по 25 человек. Следующий шаг для кафедры — сводка по всей группе.</template>
 </main>
 </body>
 </html>
