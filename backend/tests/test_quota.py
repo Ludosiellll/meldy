@@ -431,6 +431,8 @@ def test_successful_answers_keep_their_units(api):
 
 class FakeCoordinator:
     outcome = "results"
+    # Every answer of the run from the server's cache: no real model call (agents.base.CallCount).
+    cached = False
     runs = 0
     sections: dict = {}
 
@@ -439,6 +441,8 @@ class FakeCoordinator:
 
     async def process(self, text, enabled_agents=None, **settings):
         FakeCoordinator.runs += 1
+        if not FakeCoordinator.cached:
+            base.note_real_call()  # a section's model answered for real
         yield {"type": "grounding", "source_count": 1, "sources": []}
         if FakeCoordinator.outcome == "results":
             yield {"type": "results", "summarizer": {"content": "Конспект"}, "warnings": [],
@@ -458,6 +462,7 @@ class FakeCoordinator:
 def analyze(api, monkeypatch):
     monkeypatch.setattr(api.main, "CoordinatorAgent", FakeCoordinator)
     FakeCoordinator.outcome, FakeCoordinator.runs, FakeCoordinator.sections = "results", 0, {}
+    FakeCoordinator.cached = False
     return api
 
 
@@ -496,17 +501,20 @@ def test_a_near_empty_text_costs_nothing_and_a_video_link_is_never_charged(analy
     assert len(analyze.server.rpc("consume_ai_units")) == 1 and analyze.server.used == 0
 
 
+@pytest.mark.parametrize("cached", [False, True])
 @pytest.mark.parametrize("outcome", ["error", "crash"])
-def test_a_run_without_results_gives_the_lecture_units_back(analyze, outcome):
-    FakeCoordinator.outcome = outcome
+def test_a_run_without_results_gives_the_lecture_units_back(analyze, outcome, cached):
+    # Real calls or none, a run without results is refunded once, as before.
+    FakeCoordinator.outcome, FakeCoordinator.cached = outcome, cached
     response = post_text(analyze, "Лекция про инфляцию. " * 30)
     assert response.status_code == 200 and sse_types(response)[-1] == "error"
     (refund,) = analyze.server.rpc("refund_ai_units")
     assert refund["p_units"] == 20 and analyze.server.used == 0
 
 
-def test_a_run_cut_after_some_sections_keeps_their_share(analyze):
-    FakeCoordinator.outcome = "cut"
+@pytest.mark.parametrize("cached", [False, True])
+def test_a_run_cut_after_some_sections_keeps_their_share(analyze, cached):
+    FakeCoordinator.outcome, FakeCoordinator.cached = "cut", cached
     response = post_text(analyze, "Лекция про инфляцию. " * 30)
     assert sse_types(response)[-1] == "error"
     kept = -(-AI_COSTS["lecture"] // 3)  # конспект — один из трёх основных разделов, с округлением вверх
@@ -665,6 +673,133 @@ def test_a_scan_over_the_rest_of_the_limit_ends_the_stream_with_ai_limit_before_
     }
     assert fake.calls == [] and FakeCoordinator.runs == 0
     assert analyze.server.used == FREE_DAILY_UNITS - left
+
+
+# ── Анализ из кэша сервера: ничего не оплачено — ничего не списано ─────────────
+# Живая перепроверка выпуска 44.1 (2026-10-11): повторный разбор той же лекции пришёл из кэша за 4,2 с и списал 20.
+
+CACHED_LECTURE = "Инфляция — устойчивый рост общего уровня цен на товары и услуги, его измеряют индексом цен. " * 4
+SECTION_ANSWERS = {
+    "summarizer": json.dumps({"title": "Инфляция", "subject": "Экономика", "content": "Рост цен.", "terms": []},
+                             ensure_ascii=False),
+    "quiz": json.dumps({"quiz": [{"question": "Что такое инфляция?", "options": ["A) Рост цен", "B) Падение цен"],
+                                  "correct": "A"}]}, ensure_ascii=False),
+}
+
+
+def install_sections(monkeypatch, answers=SECTION_ANSWERS):
+    """Gemini that answers each section of an analysis by its prompt; the sections it was really asked for.
+
+    The analysis runs through the real coordinator and BaseAgent, with the answer cache of BaseAgent on."""
+    from test_analyze_stream import section_of
+
+    asked = []
+
+    class FakeClient:
+        def __init__(self, api_key=None, **kwargs):
+            async def generate_content(*, model, contents, config):
+                section = section_of(contents)
+                asked.append(section)
+                return SimpleNamespace(text=answers[section], candidates=[SimpleNamespace(finish_reason="STOP")])
+
+            self.aio = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+
+    monkeypatch.setattr(base.genai, "Client", FakeClient)
+    monkeypatch.setenv("AI_AGENT_STAGGER_SECONDS", "0")
+    base._GENAI_CLIENTS.clear()
+    base._MODEL_SKIP.clear()
+    return asked
+
+
+def post_sections(client, sections, text=CACHED_LECTURE):
+    return client.post("/api/analyze", files={"file": ("lecture.txt", text.encode("utf-8"), "text/plain")},
+                       data={"enabled_agents": json.dumps(list(sections))})
+
+
+def test_an_analysis_from_the_cache_gives_its_units_back_and_a_real_call_is_charged(api, clean_agent, monkeypatch):
+    asked = install_sections(monkeypatch)
+    assert sse_types(post_sections(api, ["summarizer"]))[-2:] == ["results", "done"]
+    assert asked == ["summarizer"] and api.server.used == AI_COSTS["lecture"]
+    assert api.server.rpc("refund_ai_units") == []
+
+    # The same lecture again: every answer from the cache — the units go back.
+    assert sse_types(post_sections(api, ["summarizer"]))[-2:] == ["results", "done"]
+    assert asked == ["summarizer"]
+    (refund,) = api.server.rpc("refund_ai_units")
+    assert (refund["p_kind"], refund["p_units"]) == ("lecture", AI_COSTS["lecture"])
+    assert api.server.used == AI_COSTS["lecture"]
+
+    # With the test asked for too: one real call, the run is charged.
+    assert sse_types(post_sections(api, ["summarizer", "quiz"]))[-2:] == ["results", "done"]
+    assert asked == ["summarizer", "quiz"]
+    assert len(api.server.rpc("consume_ai_units")) == 3 and len(api.server.rpc("refund_ai_units")) == 1
+    assert api.server.used == 2 * AI_COSTS["lecture"]
+
+
+def test_a_link_analysed_again_from_the_cache_costs_nothing(api, clean_agent, monkeypatch):
+    asked = install_sections(monkeypatch)
+
+    async def scrape(url):
+        return CACHED_LECTURE
+
+    monkeypatch.setattr(api.main, "scrape_url", scrape)
+    for _ in range(2):
+        response = api.post("/api/analyze/url", data={"url": "https://example.com/inflation",
+                                                       "enabled_agents": json.dumps(["summarizer"])})
+        assert sse_types(response)[-2:] == ["results", "done"]
+    assert asked == ["summarizer"]
+    assert [args["p_units"] for args in api.server.rpc("refund_ai_units")] == [AI_COSTS["lecture"]]
+    assert api.server.used == AI_COSTS["lecture"]
+
+
+def test_a_recording_is_transcribed_each_time_so_its_analysis_is_charged_from_the_cache(api, clean_agent, monkeypatch):
+    asked = install_sections(monkeypatch)
+    transcribed = []
+
+    async def transcribe(path, mime_type=None, **kwargs):
+        transcribed.append(mime_type)  # a real Whisper call: the transcription is never cached
+        return CACHED_LECTURE
+
+    monkeypatch.setattr(api.main, "transcribe_media_file", transcribe)
+    for _ in range(2):
+        response = api.post("/api/analyze/media", files={"file": ("lecture.mp3", b"ID3 audio", "audio/mpeg")},
+                            data={"enabled_agents": json.dumps(["summarizer"])})
+        assert sse_types(response)[-2:] == ["results", "done"]
+    assert asked == ["summarizer"] and len(transcribed) == 2
+    assert api.server.rpc("refund_ai_units") == [] and api.server.used == 2 * AI_COSTS["lecture"]
+
+
+def test_a_scan_whose_analysis_came_from_the_cache_keeps_only_its_recognition(analyze, gemini):
+    gemini()
+    FakeCoordinator.cached = True
+    response = analyze.post("/api/analyze", files=scan_file(), data={"enabled_agents": json.dumps(["summarizer"])})
+    assert sse_types(response)[-2:] == ["results", "done"]
+    # The recognition of the pages was really made: its units stay; the analysis cost nothing.
+    (refund,) = analyze.server.rpc("refund_ai_units")
+    assert (refund["p_kind"], refund["p_units"]) == ("lecture", AI_COSTS["lecture"])
+    assert analyze.server.used == AI_COSTS["scanPages"]
+
+
+def test_the_units_of_a_cached_run_are_back_before_its_results_go_out(server):
+    """The page reads the limit as soon as the results are saved: the refund must be done by then."""
+    import main
+
+    async def events():
+        yield {"type": "grounding", "source_count": 1, "sources": []}
+        yield {"type": "results", "summarizer": {"content": "Рост цен."}, "warnings": [], "sections": {}}
+        yield {"type": "done"}
+
+    async def go():
+        spent = await quota.reserve("token-a", "lecture", AI_COSTS["lecture"])
+        refunds_at_results = []
+        async for frame in main._guarded(events(), "Analysis", spent):
+            if json.loads(frame[len("data: "):])["type"] == "results":
+                refunds_at_results.append(len(server.rpc("refund_ai_units")))
+        await spent.release_unkept()  # the response's background task: nothing more to give back
+        return refunds_at_results
+
+    assert run(go()) == [1]
+    assert len(server.rpc("refund_ai_units")) == 1 and server.used == 0
 
 
 def test_a_spent_day_or_hour_window_says_so_instead_of_wait_a_minute():

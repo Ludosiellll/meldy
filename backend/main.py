@@ -544,11 +544,19 @@ async def _guarded(
     were already given out (agent_done ok): then their share stays charged, as the page saves them
     (a cut connection was a way to get sections for free, 2026-10-05). The core sections count
     when any was asked for, like the coordinator's own «usable run» rule.
+
+    Nothing paid, nothing charged: results whose every answer came from the server's cache, with no
+    real model or transcription call in the run (agents.base.CallCount), give the units back too —
+    before the results go out, so the limit the page reads right after them is already right (live
+    recheck 2026-10-11: a repeated analysis came back in 4.2 s and took 20 units). A scan's
+    recognition was really made: its units stay (ChargeGroup.refund_unpaid_soon).
     """
     results_sent = False
     terminal_sent = False
     asked: list[str] = []
     given: set[str] = set()
+    # The sections' tasks start inside this iteration, so they add their real calls to this count.
+    calls = ai_base.count_calls()
     try:
         async for event in events:
             if terminal_sent:
@@ -556,8 +564,13 @@ async def _guarded(
             kind = event.get("type")
             if kind == "results":
                 results_sent = True
-                if charge is not None:
+                if charge is not None and calls.real:
                     charge.keep()
+                elif charge is not None:
+                    if charge.units:
+                        print(f"{label}: every answer came from the cache, the units go back")
+                    charge.refund_unpaid_soon()
+                    await charge.wait_refund()
             elif kind in ("error", "done"):
                 terminal_sent = True
             elif kind == "agent_start" and isinstance(event.get("agent"), str):
@@ -775,6 +788,8 @@ async def event_stream_media(
             finally:
                 if tmp_path and os.path.exists(tmp_path):
                     os.remove(tmp_path)
+        # The transcription or the recognition is never cached: a real call, part of the lecture's price.
+        ai_base.note_real_call()
 
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_IN_MEDIA_MESSAGE}

@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import contextlib
+import contextvars
 import email.utils
 import hashlib
 import json
@@ -1303,7 +1304,37 @@ def add_call_observer(observer) -> None:
         _CALL_OBSERVERS.append(observer)
 
 
+# --- real answers of one piece of work: an analysis made of cached answers only costs nothing -------------------
+class CallCount:
+    """The real (not cached) answers the work of a task got: every answer of BaseAgent that a provider gave, and a
+    transcription or a recognition the work notes itself (note_real_call). The analysis stream (main._guarded) gives
+    its units back when there were none: a repeated analysis came back from the cache in 4.2 s and took 20 units
+    (live recheck of release 44.1, 2026-10-11)."""
+
+    def __init__(self) -> None:
+        self.real = 0
+
+
+_CALL_COUNT: contextvars.ContextVar[Optional[CallCount]] = contextvars.ContextVar("meldy_call_count", default=None)
+
+
+def count_calls() -> CallCount:
+    """A new count for the current task; the tasks it starts after this (the sections of an analysis) add to it too."""
+    count = CallCount()
+    _CALL_COUNT.set(count)
+    return count
+
+
+def note_real_call() -> None:
+    """A real answer outside BaseAgent — a recording transcribed, a photo recognised — for the current count."""
+    count = _CALL_COUNT.get()
+    if count is not None:
+        count.real += 1
+
+
 def _record_call(provider: Optional[str], model: Optional[str], ok: bool, ms: int) -> None:
+    if ok:
+        note_real_call()
     if ok and provider and model:
         at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         _LAST_ANSWER.update(provider=provider, model=model, at=at)
@@ -1411,7 +1442,7 @@ class BaseAgent:
     # Values are the raw model text (BaseAgent.forget evicts by value): a cached
     # answer goes through the caller's checks again (validate_section and
     # mixed_script.check in coordinator.py, main._checked_answer), and one they
-    # refuse is evicted and asked again.
+    # refuse is evicted and asked again. A cache hit is no real call (CallCount).
     _run_cache = OrderedDict()
     _cache_info: dict = {}
     _max_cache_entries = max(16, int(os.getenv("AI_CACHE_ENTRIES", "128")))
