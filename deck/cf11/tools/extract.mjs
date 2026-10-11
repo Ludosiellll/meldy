@@ -10,7 +10,8 @@
 //   img/NN/ref.png  the slide as authored (for render comparison)
 //   img/NN/bg.png   the slide with every marked element invisible (layout kept) -> the PPTX background picture
 //   img/NN/eK*.png  2x transparent renders: data-pptx="image", SVG fallbacks, the under-layer of a text (inline
-//                   highlights, decorations) and the over-layer of a shape (its unmarked content, shadow)
+//                   highlights, decorations) and the over-layer of a shape (its unmarked content; its shadow only
+//                   when that cannot be a native one)
 //   img/NN/eK-text.png  the glyphs of each live text box alone (for the motion preview only)
 // Finally imgopt.py trims the layers and picks PNG8 or PNG24 for each picture (skip with --no-opt).
 import fs from 'node:fs';
@@ -190,6 +191,7 @@ async function main() {
         const parts = [];
         if (e.style.fill) parts.push('bg');
         if (e.style.line && e.style.lineUniform) parts.push('border');
+        if (e.style.shadowNative) parts.push('shadow');     // the PPTX object draws it (a:outerShdw)
         hide = parts.join(' ');
       }
       const r = await page2.evaluate(([id, mode, h]) => window.__pptxRenderPrep(id, mode, h), [e.id, e.render.mode, hide]);

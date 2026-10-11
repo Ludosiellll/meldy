@@ -132,15 +132,74 @@
     if (sumY1 > h) f = Math.min(f, h / sumY1);
     if (sumY2 > h) f = Math.min(f, h / sumY2);
     const outline = cs.outlineStyle !== 'none' && num(cs.outlineWidth) > 0 && parseColor(cs.outlineColor);
+    const shadows = parseShadows(cs.boxShadow, scale);
     return {
       fill: parseColor(cs.backgroundColor),
       line, lineUniform, hasBorder: vis.length > 0,
       radii: radii.map(([x, y]) => [round(x * f), round(y * f)]),
       bgImage: cs.backgroundImage !== 'none',
-      shadow: cs.boxShadow !== 'none',
+      shadow: shadows.length > 0,
+      shadows,
+      shadowNative: nativeShadow(shadows, w, h),
       outline: !!outline,
       clipPath: cs.clipPath && cs.clipPath !== 'none',
     };
+  }
+
+  // box-shadow layers as computed ("rgba(11, 18, 28, 0.3) 0px 40px 80px -48px, ..."), lengths scaled to the slide
+  function parseShadows(value, scale = 1) {
+    if (!value || value === 'none') return [];
+    const layers = [];
+    let depth = 0, cur = '';
+    for (const ch of value) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { layers.push(cur); cur = ''; } else cur += ch;
+    }
+    if (cur.trim()) layers.push(cur);
+    return layers.map((l) => {
+      const inset = /\binset\b/.test(l);
+      const colorTok = (l.match(/(rgba?|hsla?|color|oklch|oklab|lab|lch)\([^)]*\)|#[0-9a-fA-F]{3,8}\b/) || [null])[0];
+      const lens = (l.replace(colorTok || '', '').match(/-?[\d.]+px/g) || []).map(num);
+      const [dx = 0, dy = 0, blur = 0, spread = 0] = lens;
+      return { dx: round(dx * scale), dy: round(dy * scale), blur: round(blur * scale), spread: round(spread * scale),
+               color: parseColor(colorTok || 'currentcolor'), inset };
+    }).filter((s) => s.color);
+  }
+  // DrawingML has one outer shadow per object: take the most visible outer layer (alpha x how far it reaches out);
+  // inset shadows cannot be carried. null when nothing would show (transparent, or a spread that eats the box).
+  function nativeShadow(shadows, w, h) {
+    if (!shadows.length || shadows.some((s) => s.inset)) return null;
+    const score = (s) => s.color.alpha * (s.blur + 2 * Math.hypot(s.dx, s.dy) + Math.max(0, s.spread) + 1);
+    const best = shadows.reduce((a, b) => (score(b) > score(a) ? b : a));
+    if (best.color.alpha <= 0.002 || w + 2 * best.spread <= 0.5 || h + 2 * best.spread <= 0.5) return null;
+    return { dx: best.dx, dy: best.dy, blur: best.blur, spread: best.spread, color: best.color, dropped: shadows.length - 1 };
+  }
+
+  // A box-shadow becomes a native DrawingML outer shadow (it travels and scales with the object under Morph) where
+  // that looks like CSS: CSS paints an outer shadow only outside the box, DrawingML draws it under the whole object,
+  // so the object must hide it - an opaque fill (or a placed picture), no transparency, no clip-path. Otherwise, and
+  // with data-shadow="bake" or an inset layer, the shadow is baked into the object's layer picture as before.
+  // kind: 'box' = a shape or a text with a visible box, 'text' = a text without one, 'file' = a placed picture/video/gif
+  function shadowChoice(el, d, label, kind, warnings) {
+    const s = d.style;
+    const mode = (el.dataset.shadow || 'native').trim();
+    if (!['native', 'bake'].includes(mode)) warnings.push(`${label}: unknown data-shadow="${mode}", using native`);
+    let why = null;
+    if (!s.shadow) why = 'none';
+    else if (mode === 'bake') why = 'data-shadow="bake"';
+    else if (s.shadows.some((x) => x.inset)) why = 'an inset shadow';
+    else if (!s.shadowNative) why = 'nothing visible';
+    else if (kind === 'text') why = 'a text without a fill of its own';
+    else if (d.opacity < 0.999) why = 'opacity below 1';
+    else if (kind === 'box' && !(s.fill && s.fill.alpha >= 0.999)) why = 'no opaque fill';
+    else if (s.clipPath) why = 'clip-path';
+    if (why) s.shadowNative = null;
+    s.shadowBaked = !!s.shadow && !s.shadowNative;
+    if (s.shadowBaked && kind === 'file' && why !== 'nothing visible') {
+      warnings.push(`${label}: box-shadow not carried (${why}): a placed file has no layer to bake it into; ` +
+                    `mark it data-pptx="image" to bake the element with its shadow`);
+    }
   }
 
   function pseudoPaints(el) {
@@ -477,7 +536,8 @@
         d.text = { ...t, insets: { l: round(cb.ins.l * sc), t: round(cb.ins.t * sc), r: round(cb.ins.r * sc), b: round(cb.ins.b * sc) },
           lang, wrapNone: /^(nowrap|pre)$/.test(cs.whiteSpace) };
         if (!t.paragraphs.length) warnings.push(`${label}: no visible text`);
-        const ownExtra = d.style.bgImage || d.style.shadow || d.style.outline || !d.style.lineUniform || pseudoPaints(el);
+        shadowChoice(el, d, label, d.style.fill || (d.style.line && d.style.lineUniform) ? 'box' : 'text', warnings);
+        const ownExtra = d.style.bgImage || d.style.shadowBaked || d.style.outline || !d.style.lineUniform || pseudoPaints(el);
         if (ownExtra || descendantsPaint(el, false) || t.replacedChildren) d.render = { mode: 'under' };
         if (d.style.clipPath) warnings.push(`${label}: clip-path on a text element is not carried`);
         const families = new Set(t.paragraphs.flatMap((p) => p.lines.flatMap((l) => l.runs.map((r) => r.family))));
@@ -485,13 +545,15 @@
       } else if (type === 'shape') {
         d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
         if (!d.style.fill && !d.style.line && !d.style.hasBorder) warnings.push(`${label}: shape has neither fill nor border`);
-        const ownExtra = d.style.bgImage || d.style.shadow || d.style.outline || !d.style.lineUniform || pseudoPaints(el) || d.style.clipPath;
+        shadowChoice(el, d, label, 'box', warnings);
+        const ownExtra = d.style.bgImage || d.style.shadowBaked || d.style.outline || !d.style.lineUniform || pseudoPaints(el) || d.style.clipPath;
         if (ownExtra || descendantsPaint(el, true)) d.render = { mode: 'over' };
       } else if (type === 'image') {
         const src = el.dataset.src;
         if (src) {
           d.src = { url: fileOf(src), fit: el.localName === 'img' ? cs.objectFit : 'cover', position: cs.objectPosition };
           d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
+          shadowChoice(el, d, label, 'file', warnings);
           if (/\.svg(\?|#|$)/i.test(src)) d.render = { mode: 'svg' };
         } else {
           d.render = { mode: 'image' };
@@ -509,6 +571,7 @@
           position: cs.objectPosition,
         };
         d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
+        shadowChoice(el, d, label, 'file', warnings);
         if (type === 'video' && !d.src.poster) warnings.push(`${label}: no data-poster; the build takes frame 0`);
         if (!['with', 'after'].includes(d.src.play)) { warnings.push(`${label}: unknown data-play="${d.src.play}", using with`); d.src.play = 'with'; }
         if (type !== 'video' && el.dataset.play !== undefined) warnings.push(`${label}: data-play only applies to video, ignored`);
@@ -538,6 +601,7 @@
     html.pptx-render [data-pptx-target] [data-pptx], html.pptx-render [data-pptx-target] [data-pptx] * { visibility: hidden !important; }
     html.pptx-render [data-pptx-target][data-pptx-hidebox~="bg"] { background-color: transparent !important; }
     html.pptx-render [data-pptx-target][data-pptx-hidebox~="border"] { border-color: transparent !important; }
+    html.pptx-render [data-pptx-target][data-pptx-hidebox~="shadow"] { box-shadow: none !important; }
     html.pptx-render [data-pptx-target][data-pptx-mode="under"], html.pptx-render [data-pptx-target][data-pptx-mode="under"] * {
       -webkit-text-fill-color: transparent !important; text-decoration-color: transparent !important;
       text-shadow: none !important; -webkit-text-stroke-color: transparent !important; caret-color: transparent !important; }

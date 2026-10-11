@@ -17,6 +17,7 @@
   .wash { position: absolute; left: 128px; top: 812px; width: 520px; height: 168px; border-radius: 24px; background: rgba(40, 105, 221, .12); }
   .dash { position: absolute; left: 680px; top: 812px; width: 240px; height: 168px; border: 3px dashed var(--faint); border-radius: 0; }
   .count { position: absolute; left: 128px; top: 830px; width: 480px; font-size: 104px; line-height: 1; font-weight: 700; text-align: right; letter-spacing: -.04em; color: var(--blue); }
+  .s2-card { left: 1104px; top: 850px; width: 688px; height: 140px; padding: 49px 56px; }
 </style>
 </head>
 <body>
@@ -45,6 +46,11 @@
   <div class="wash" data-pptx="shape" data-anim="fade" data-anim-trigger="with"></div>
   <div class="dash" data-pptx="shape"></div>
   <div class="count" data-pptx="text" data-anim="zoom" data-anim-trigger="with" data-anim-delay="250">2&nbsp;автора</div>
+
+  <!-- !!card grows into the card of slide 3, its layer (the unmarked tag) "!!card·layer" travels with it.
+       Its shadow is baked into that layer: a 140 px card with a -56 px spread needs the shadow scaled to 20 % of its
+       height, which LibreOffice applies after the blur - a hard band instead of the soft CSS one (compare.py p99 15) -->
+  <div class="card s2-card" data-pptx="shape" data-name="!!card" data-shadow="bake"><span class="tag">Билет 7</span></div>
 
   <template data-pptx="notes">ЯДРО 0:15–0:25. Проект сделали мы вдвоём, учащиеся Бобруйского государственного лесотехнического колледжа.
 

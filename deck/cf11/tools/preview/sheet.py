@@ -33,9 +33,13 @@ def summary(scene: dict) -> str:
         draw = scene['draw']
         pairs = [d for d in draw if d['kind'] == 'pair']
         auto = sum(1 for d in pairs if d.get('how') == 'auto')
+        layer_of = {o['key']: o.get('layerOf') for o in scene['cur']}
+        layers = sum(1 for d in pairs if layer_of.get(d['b']))
         n = {k: sum(1 for d in draw if d['kind'] == k) for k in ('gone', 'new', 'held')}
-        return (f'Morph {tr.get("option") or "byObject"}, {tr["dur"]:.0f} ms: {len(pairs)} pairs ({auto} automatic), '
-                f'{n["gone"]} fade out, {n["new"]} fade in, {n["held"]} build in later')
+        return (f'Morph {tr.get("option") or "byObject"}, {tr["dur"]:.0f} ms: {len(pairs)} pairs ({auto} automatic'
+                + (f', {layers} layer{"s" if layers > 1 else ""} with {"their" if layers > 1 else "its"} owner'
+                   if layers else '')
+                + f'), {n["gone"]} fade out, {n["new"]} fade in, {n["held"]} build in later')
     if kind == 'fade':
         return f'Fade{" from black" if tr.get("fromBlack") else ""}, {tr["dur"]:.0f} ms'
     return 'no transition (cut)'
@@ -55,7 +59,7 @@ def main(motion: Path) -> int:
         cells = [(f, cap) for f, cap in zip(frames, ('start', '25 %', '50 %', '75 %', 'end = start of the slide'))]
         mp = keys / f'{nn}-map.png'
         if mp.exists():
-            cells.append((mp, 'pairs: blue = name, orange = automatic, red = out, green = in, purple = builds later'))
+            cells.append((mp, 'blue = name, orange = auto, teal = layer, red = out, green = in, purple = later'))
         cols = 3
         rows = (len(cells) + cols - 1) // cols
         W = cols * CELL[0] + (cols + 1) * GAP
