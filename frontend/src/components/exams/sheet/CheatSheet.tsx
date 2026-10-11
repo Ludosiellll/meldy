@@ -264,14 +264,20 @@ export async function bringIntoView(element: HTMLElement, smooth: boolean, signa
   }
   await new Promise<void>((resolve) => {
     let done = false;
+    let fallback = 0;
+    // The fallback is cleared once the scroll has ended, and touches no window that is gone (a test's torn-down
+    // jsdom): a late timer threw «window is not defined» after a test had finished.
     const finish = () => {
       if (done) return;
       done = true;
-      window.removeEventListener('scrollend', finish);
+      if (typeof window !== 'undefined') {
+        window.clearTimeout(fallback);
+        window.removeEventListener('scrollend', finish);
+      }
       resolve();
     };
     window.addEventListener('scrollend', finish, { once: true });
-    window.setTimeout(finish, SCROLL_FALLBACK_MS);
+    fallback = window.setTimeout(finish, SCROLL_FALLBACK_MS);
     window.scrollTo({ top: to, behavior: 'smooth' });
     if (signal.cancelled) finish();
   });
