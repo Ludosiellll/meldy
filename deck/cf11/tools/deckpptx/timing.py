@@ -38,8 +38,12 @@ Structure (as PowerPoint writes it, e.g. tdf124457.pptx / bnc591147.pptx):
   nodeType clickEffect | withEffect | afterEffect, cond delay = data-anim-delay).
   Media: <p:video><p:cMediaNode><p:cTn fill=hold display=0 [repeatCount=indefinite]> with end conditions
   onNext/onPrev, plus an interactiveSeq that toggles pause when the video is clicked (bnc591147.pptx).
-  Autoplay = a mediacall/presetID 1 playFrom(0.0) effect whose cmd lasts the clip (bnc591147.pptx). It is appended
-  as the last sub-group of the click group in which the video appears, so no "after previous" effect waits for it.
+  Autoplay = a mediacall/presetID 1 playFrom(0.0) effect whose cmd lasts the clip (bnc591147.pptx). Where it sits
+  (data-play): "with" (default) puts it in the sub-group of the video's entrance, as a withEffect with the entrance's
+  delay, or - no entrance - with the first effects of the slide-start group (alone it is an afterEffect, as PowerPoint
+  writes an automatic play), so the clip starts the moment it appears and "with" effects with delays run alongside
+  it; "after" appends it as the last sub-group of the click group in which the video appears (after its builds).
+  The sub-group delays written for later "after previous" effects never include the clip's length.
   bldLst: a bldP (grpId=0) for every animated shape that carries text, animBg=1 when it also has a fill/outline
   (tdf112086.pptx, tdf124457.pptx); pictures and plain shapes get none (tdf104788.pptx groups).
 """
@@ -91,6 +95,8 @@ class Media:
     loop: bool = False
     autoplay: bool = True
     shown_by: Effect | None = None     # the entrance effect that reveals the video, if any
+    play: str = 'with'                 # with: starts as it appears (its entrance's sub-group, or the slide start);
+                                       # after: after the builds of its click group
 
 
 def _el(tag, parent=None, **attrs):
@@ -203,10 +209,18 @@ def effect_par(parent, effect: str, target: Target, node_type: str, delay: int, 
     return par
 
 
-def media_par(parent, m: Media, node_type: str):
+@dataclass
+class _Play:
+    """A media play command placed inside a sub-group, next to effects."""
+    media: Media
+    node_type: str
+    delay: int
+
+
+def media_par(parent, m: Media, node_type: str, delay: int = 0):
     par = _el('par', parent)
     ctn = _ctn(par, presetID=1, presetClass='mediacall', presetSubtype=0, fill='hold', nodeType=node_type)
-    _cond(_el('stCondLst', ctn), 0)
+    _cond(_el('stCondLst', ctn), delay)
     lst = _el('childTnLst', ctn)
     cmd = _el('cmd', lst, type='call', cmd='playFrom(0.0)')
     cb = _el('cBhvr', cmd)
@@ -247,20 +261,35 @@ def build_timing(effects: list[Effect], media: list[Media]):
     if not effects and not media:
         return None
     groups, auto_first = schedule(effects)
-    # media play: last sub-group of the click group where the video appears (group 0 = slide start)
-    if any(m.autoplay and m.shown_by is None for m in media) and not auto_first:
-        groups.insert(0, [])                  # a group that starts with the slide, holding only the playback
+    autoplay = [m for m in media if m.autoplay]
+    # a video without an entrance plays from the slide's start: that needs a group that starts with the slide
+    if any(m.shown_by is None for m in autoplay) and not auto_first:
+        groups.insert(0, [])
         auto_first = True
-    plays: dict[int, list[Media]] = {}
-    for m in media:
-        if not m.autoplay:
-            continue
-        gi = 0
+    plays: dict[int, list[Media]] = {}        # play="after": the last sub-group of the click group
+    for m in autoplay:
+        where = None
         if m.shown_by is not None:
-            for k, g in enumerate(groups):
-                if any(e is m.shown_by for sg in g for e, _ in sg):
-                    gi = k
-        plays.setdefault(gi, []).append(m)
+            for gi, g in enumerate(groups):
+                for si, sg in enumerate(g):
+                    if any(isinstance(x, tuple) and x[0] is m.shown_by for x in sg):
+                        where = (gi, si)
+        if m.play == 'after':
+            plays.setdefault(where[0] if where else 0, []).append(m)
+        elif where is None:
+            # play="with", no entrance: with the first effects of the slide-start group (alone: as PowerPoint
+            # writes an automatic play, an afterEffect)
+            if not groups[0]:
+                groups[0].append([])
+            sg = groups[0][0]
+            sg.append(_Play(m, 'withEffect' if sg else 'afterEffect', 0))
+        else:
+            # play="with": next to its entrance, same sub-group and delay, so "with" effects with delays run
+            # alongside the clip; the clip's length does not hold back the next "after" sub-group
+            gi, si = where
+            sg = groups[gi][si]
+            k = next(i for i, x in enumerate(sg) if isinstance(x, tuple) and x[0] is m.shown_by)
+            sg.insert(k + 1, _Play(m, 'withEffect', m.shown_by.delay_ms))
 
     timing = _el('timing')
     tn_lst = _el('tnLst', timing)
@@ -287,7 +316,11 @@ def build_timing(effects: list[Effect], media: list[Media]):
                 _cond(_el('stCondLst', sctn), start)
                 skids = _el('childTnLst', sctn)
                 longest = 0
-                for e, node_type in sg:
+                for x in sg:
+                    if isinstance(x, _Play):
+                        media_par(skids, x.media, x.node_type, x.delay)
+                        continue
+                    e, node_type = x
                     effect_par(skids, e.effect, e.target, node_type, e.delay_ms, e.dur_ms, e.direction)
                     bld_targets.append(e.target)
                     for c in e.companions:

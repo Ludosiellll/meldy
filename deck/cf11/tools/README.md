@@ -63,7 +63,7 @@ in desktop PowerPoint, check it, and save (see «Needs real PowerPoint»).
 | `shape` | `rect` / `roundRect` / `ellipse` / `round2SameRect` / custom path from border-radius, fill and outline with alpha, the outline inset by half its width (CSS borders are inside the box) |
 | `image` | the element rendered at 2× as a transparent PNG (shadows included), or the `data-src` file (object-fit crop, rounded corners of the box or of a clipping parent); SVG files get an `svgBlip` with a PNG stand-in |
 | `gif` | the GIF as a picture (PowerPoint 365 animates it in Normal view too) |
-| `video` | MP4 with its poster, autoplay (`mediacall playFrom`), loop (`repeatCount="indefinite"`), click toggles pause |
+| `video` | MP4 with its poster, autoplay (`mediacall playFrom`) when it appears (`data-play`, below), loop (`repeatCount="indefinite"`), click toggles pause |
 | `data-name="!!x"` | object name `!!x` (Morph pairs); other objects get unique names like `Text 03.07` |
 | `data-anim*` | entrance effect, see below |
 | `data-morph="object\|word\|char"` on `main.slide` | the Morph option (`byObject` default, `byWord`, `byChar`) |
@@ -131,8 +131,24 @@ Triggers: `click` opens a click group (`clickEffect`), `after` a new sub-group t
 (`afterEffect`), `with` joins the current sub-group (`withEffect`). A first effect that is not `click` starts with the
 slide (`onBegin`). `data-anim-delay` is the effect's own delay, `data-anim-dur` its duration; order = `data-anim-order`
 when given, else DOM order. Text targets get a build entry (`bldP grpId="0"`, `animBg="1"` when the box has a fill).
-Media: a video's play command is the last sub-group of the click group in which the video appears (slide start when
-it has no entrance), so no «after previous» effect waits for the clip.
+**Media (`data-play` on the video).** `with` (the default) starts the clip the moment it appears. The play command
+(`mediacall` presetID 1, `playFrom(0.0)`, lasting the clip) sits in the same sub-group as the video's entrance, as a
+«With Previous» effect with the entrance's delay. A video without an entrance plays with the first effects of the
+slide-start group (alone it is an «After Previous» play, as PowerPoint writes an automatic play). «With» effects with
+delays that follow the video's entrance therefore run alongside the clip, for example a step list timed to the
+recording's moments. `after` (round 1's placement) appends the play as the last sub-group of the click group, after
+its builds. In both modes the delay written for a later «After Previous» sub-group counts the visual effects only,
+never the clip's length.
+
+Why the default is `with`: no slide wants its clip to wait on its poster while the texts build, and nothing
+downstream depends on the old order. `lo_roundtrip.py` checks the placement (same sub-group and begin as the
+entrance, or the first sub-group of the slide-start group) as LibreOffice reads it.
+
+What PowerPoint is expected to do (not played here): its Animation Pane shows the command as «Play» with «Start:
+With Previous» in the video's click group. The command begins with its par, so the clip starts with the entrance.
+Slide-show playback follows the delays written in the timing tree. If someone re-times that slide in PowerPoint's
+Animation Pane, a later «After Previous» effect may be moved to after the Play bar (the clip's length). Timing items
+to a clip with «With Previous» and a delay avoids that.
 
 Sources: preset ids/subtypes from LibreOffice's PowerPoint import table (`oox/source/ppt/commontimenodecontext.cxx`);
 the behaviour XML of appear, fade, rise, zoom and the auto-play/loop video copied from slides saved by Microsoft
@@ -176,7 +192,7 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
                              "strike": false, "transform": "none", "baselineShift": 0, "href": null,
                              "ascPx": 62.08, "descPx": 19.52, "gapPx": 7.68}]}]}]},
       "src": {"path": "/abs/file.mp4", "poster": "/abs/poster.png", "loop": true, "autoplay": true,
-              "fit": "cover", "position": "50% 50%"},
+              "play": "with|after", "fit": "cover", "position": "50% 50%"},
       "render": {"mode": "image|svg|under|over", "png": "img/01/e15-under.opt.png", "rect": {...},
                  "scale": 2, "format": "png32", "bytes": 1700},
       "textLayer": {"png": "img/01/e15-text.png", "rect": {...}, "scale": 2}   // title/text: glyphs alone (preview)
@@ -197,7 +213,8 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
   schema-checked but not seen in PowerPoint.
 * **Timing XML** playback: the effects are byte-for-byte the structures PowerPoint wrote in the sample files, and
   LibreOffice reads every one as intended, but none was played in PowerPoint here; in particular video autoplay +
-  loop with entrance effects on the same slide, and the wipe direction.
+  loop with entrance effects on the same slide, the play command next to the video's entrance (`data-play="with"`),
+  and the wipe direction.
 * **Embedded fonts**: uncompressed EOT, byte-identical to what LibreOffice 26.8 itself embeds in PPTX; whether
   PowerPoint accepts this form (PowerPoint writes its own, possibly MTX-compressed) is unverified. If PowerPoint
   shows a substitute font, install Onest (design/fonts) on the PC, open and save with «Embed fonts».
@@ -249,7 +266,7 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
     `right`, `up` (= From Top), `down` (= From Bottom). On other effects it is ignored with a warning.
 15. `data-anim="settle"`: fade + 92 % → 100 % around the centre, decelerating, written under «Basic Zoom / In Slightly»
     (see Entrance animations). The design lint (`design/preview/lint.mjs`) has to accept `settle`, `data-anim-dir`,
-    `data-morph` and `data-fill`.
+    `data-morph`, `data-fill` and `data-play`.
 16. `data-morph="object|word|char"` on `main.slide` sets the Morph option of the transition *into* that slide.
 17. `data-fill="key"`: the private value replaces the element's whole text (its children too) before anything is
     measured, and the element gets `data-filled`. Values are plain text. The file lives next to `slides/`
@@ -259,3 +276,5 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
     with a Morph; they crossfade with the background.
 19. A Morph name on an object that also builds in is a lint warning, not an error. The compiler's own `!!title` and
     `!!bg` count, so an animated title is reported on every Morph slide.
+20. `data-play="with|after"` on a `video` (default `with`): the clip starts with its entrance (or the slide's start) or
+    after the builds of its click group. See Entrance animations, Media. Unknown values warn and use `with`.

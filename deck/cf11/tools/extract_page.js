@@ -504,11 +504,14 @@
           poster: el.dataset.poster ? fileOf(el.dataset.poster) : null,
           loop: type === 'video' && el.hasAttribute('data-loop') && !/^(false|0|no|off)$/i.test(el.dataset.loop || ''),
           autoplay: type === 'video' ? !/^(false|0|no|off)$/i.test(el.dataset.autoplay || '') : true,
+          play: (el.dataset.play || 'with').trim(),
           fit: (el.localName === 'img' || el.localName === 'video') ? cs.objectFit : 'cover',
           position: cs.objectPosition,
         };
         d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
         if (type === 'video' && !d.src.poster) warnings.push(`${label}: no data-poster; the build takes frame 0`);
+        if (!['with', 'after'].includes(d.src.play)) { warnings.push(`${label}: unknown data-play="${d.src.play}", using with`); d.src.play = 'with'; }
+        if (type !== 'video' && el.dataset.play !== undefined) warnings.push(`${label}: data-play only applies to video, ignored`);
       }
       // clipping by an overflow ancestor
       if (d.clip) {
