@@ -9,8 +9,15 @@ A model answer counts only after validate_section accepted it. An unusable
 answer is evicted from the BaseAgent cache and asked once more; a section that
 still has nothing usable is reported as ``empty``, never filled with stand-ins.
 An accepted answer then goes through mixed_script.check: Latin look-alikes in
-Russian words are replaced, and a word with a real Latin chunk inside is asked
-once more the same way (a second such answer loses the sentences with it).
+Russian words are replaced and remarks in brackets about the source text go; a
+word with a real Latin chunk inside, letters of a script the lecture does not
+use («Чем植物 клетки») or a remark inside a sentence are asked once more the same
+way (a second such answer loses the sentences with them). The check runs on a
+cached answer too: the cache keeps the model's raw text, not checked material.
+
+A lecture that came from a recording (``recording``) has the RECORDING_RULE in
+every section prompt: its text is speech recognition and may misspell names and
+terms.
 """
 import asyncio
 import json
@@ -26,6 +33,7 @@ from utils import (
     sanitize_podcast_payload,
 )
 from .base import (
+    RECORDING_RULE,
     AIError,
     BaseAgent,
     ai_call_timeout_seconds,
@@ -130,8 +138,9 @@ def normalize_settings(settings: Optional[dict] = None, **overrides: Any) -> dic
     }
 
 
-def build_prompts(settings: dict, source_chunks: list) -> dict:
-    grounding = GROUNDING_INSTRUCTION + build_source_context(source_chunks)
+def build_prompts(settings: dict, source_chunks: list, *, recording: bool = False) -> dict:
+    """The prompt of every section with the grounding block; a recorded lecture's ones say what its text is."""
+    grounding = (RECORDING_RULE if recording else "") + GROUNDING_INSTRUCTION + build_source_context(source_chunks)
     prompts = {
         "summarizer": build_summarizer_prompt(settings["summary_detail"]),
         "flashcards": build_flashcards_prompt(settings["flashcard_count"]),
@@ -527,6 +536,8 @@ class CoordinatorAgent:
         deadline_seconds = agent_timeout_seconds()
         deadline = loop.time() + deadline_seconds
         json_mode = name in JSON_SECTIONS
+        # The scripts the lecture itself uses are in place in its materials: a lecture about Chinese writes 汉字.
+        scripts = mixed_script.scripts_of(text)
 
         async def attempts() -> tuple[str, Any]:
             for attempt in range(2):
@@ -536,15 +547,19 @@ class CoordinatorAgent:
                 payload, status = validate_section(name, raw, source_text=text)
                 if status == "ok":
                     # Latin look-alikes in Russian words are replaced silently; a word with a real
-                    # Latin chunk inside («национаisticских») asks for the section once more, and
-                    # a second such answer loses the sentences with it (mixed_script.py).
-                    payload, broken = mixed_script.check(payload)
+                    # Latin chunk inside («национаisticских»), letters of another script («植物») or a
+                    # remark about the source inside a sentence ask for the section once more, and a
+                    # second such answer loses the sentences with them (mixed_script.py). A cached
+                    # answer is checked the same way: one the old check let through is asked again.
+                    payload, broken = mixed_script.check(payload, scripts)
                     if broken and attempt == 0:
                         BaseAgent.forget(raw)
-                        print(f"Agent {name}: {len(broken)} mixed-script word(s) on attempt 1, asking again")
+                        print(f"Agent {name}: {len(broken)} broken word(s) on attempt 1, asking again")
                         continue
                     if broken:
-                        payload, status = validate_section(name, mixed_script.drop_broken(payload), source_text=text)
+                        payload, status = validate_section(
+                            name, mixed_script.drop_broken(payload, scripts), source_text=text
+                        )
                 if status == "ok":
                     return "ok", enrich_agent_result(name, payload, source_chunks)
                 # Never keep an unusable answer: the retry (and the next run) must ask again.
@@ -569,6 +584,7 @@ class CoordinatorAgent:
         quiz_difficulty: str = "mixed",
         quiz_type: str = "multiple",
         enabled_agents: Optional[list[str]] = None,
+        recording: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         settings = normalize_settings(
             summary_detail=summary_detail, flashcard_count=flashcard_count, quiz_count=quiz_count,
@@ -577,7 +593,7 @@ class CoordinatorAgent:
         source_chunks = build_source_chunks(text)
         yield {"type": "grounding", "source_count": len(source_chunks), "sources": source_chunks}
 
-        prompts = build_prompts(settings, source_chunks)
+        prompts = build_prompts(settings, source_chunks, recording=recording)
         wanted = (
             {name for name in enabled_agents if isinstance(name, str)}
             if isinstance(enabled_agents, (list, tuple, set)) else set()

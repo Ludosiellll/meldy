@@ -4,9 +4,12 @@
 2. A recording goes to Groq's turbo Whisper in Russian with no prompt (the recheck of release 44 found its
    large-v3 with a file-name prompt worse), Whisper's made-up lines go (subtitle credits, a loop at the end),
    Gemini is the fallback with transcript settings, and the text of a recording is marked (transcribed: true).
-3. Russian words with Latin letters inside, in every generated lecture material (mixed_script.py).
+3. Russian words with Latin letters inside, letters of a script the lecture does not use («Чем植物 клетки…») and
+   remarks about the source («(в тексте упомянут как Вт метр)»), in every generated lecture material, cached or
+   not (mixed_script.py; the recheck of release 44.1).
 4. The material prompts take formulas, dates and numbers from the lecture only; the конспект retells each
-   section of the lecture shorter, between «Ключевые тезисы» and «Выводы».
+   section of the lecture shorter, between «Ключевые тезисы» and «Выводы»; a recorded lecture's prompts say its
+   text is speech recognition; the Выжимка gives a mnemonic only when it really helps.
 5. A web page comes without the addresses of its links, images and reference lists (utils.clean_page_text).
 6. PDF text is read by the position of its letters (parser._PdfPage): no spaces inside words, sections kept.
 7. A near-empty text ends the stream with a clear no_text error and no model call (the units: test_quota).
@@ -566,6 +569,208 @@ def test_quick_prep_and_podcast_go_through_the_same_check(api, monkeypatch):
     assert [line["text"] for line in response.json()["podcast"]] == ["Почему растут цены?", "Из-за спроса."]
 
 
+# Letters of another script: line 15 of the biology lecture's podcast in the live recheck of release 44.1.
+QA_FOREIGN_LINE = "Чем植物 клетки отличаются от животных?"
+CHINESE_LECTURE = (
+    "Китайская письменность. Иероглиф 汉 обозначает китайский народ, иероглиф 字 — знак письма, вместе 汉字 — "
+    "китайские иероглифы. Их пишут по правилам порядка черт: сверху вниз и слева направо.\n\n"
+    "Иероглифы делят на простые и составные. Составной знак складывается из ключа, который подсказывает смысл, "
+    "и фонетика, который подсказывает чтение."
+)
+
+
+def _podcast(*texts: str) -> str:
+    lines = [{"speaker": "Макс" if index % 2 == 0 else "Софья", "text": text} for index, text in enumerate(texts)]
+    return json.dumps({"podcast": lines}, ensure_ascii=False)
+
+
+def _post_sections(client, sections, text=LECTURE):
+    return client.post(
+        "/api/analyze",
+        files={"file": ("lecture.txt", io.BytesIO(text.encode("utf-8")), "text/plain")},
+        data={"enabled_agents": json.dumps(list(sections))},
+    )
+
+
+def _results(response) -> dict:
+    return next(item for item in frames(response.text) if item != "KA" and item["type"] == "results")
+
+
+def test_letters_of_another_script_are_broken_words_in_every_script_the_check_knows():
+    assert mixed_script.fix_text(QA_FOREIGN_LINE) == (QA_FOREIGN_LINE, ["植物"])
+    for word in ("漢字", "ひらがな", "カタカナ", "한글", "عربي", "עברית", "देवनागरी", "ไทย", "ქართული", "Հայերեն"):
+        assert mixed_script.fix_text(f"Здесь {word} в русском тексте.")[1] == [word], word
+    assert mixed_script.drop_text(f"Растительные клетки. {QA_FOREIGN_LINE} Животные клетки.") == (
+        "Растительные клетки. Животные клетки."
+    )
+    line = {"speaker": "Макс", "text": QA_FOREIGN_LINE, "source_ids": ["S01"]}
+    payload, broken = mixed_script.check({"podcast": [line]})
+    assert broken == ["植物"]
+    assert mixed_script.drop_broken(payload) == {"podcast": [{**line, "text": ""}]}
+
+
+def test_greek_formulas_code_and_the_lectures_own_script_are_not_flagged():
+    # Greek letters are ordinary in science; formulas and code are not checked; an Arabic comma or digit is no word.
+    sample = "Длина волны λ, угол α, Δt и β-распад; $植物 = x$, `print('你好')`, ٣ и ، — не слова; 𝐼 = 𝑈/𝑅, µ, ℏ."
+    assert mixed_script.fix_text(sample) == (sample, [])
+    scripts = mixed_script.scripts_of(CHINESE_LECTURE)
+    assert scripts == frozenset({"Han"})
+    own = "Иероглифы 汉字 пишут сверху вниз."
+    assert mixed_script.fix_text(own, scripts) == (own, [])
+    # Only the scripts of the lecture: kana in the notes of a lecture about Chinese is still a slip.
+    assert mixed_script.fix_text("Слово ひらがな.", scripts)[1] == ["ひらがな"]
+    assert mixed_script.scripts_of(LECTURE) == frozenset() and mixed_script.scripts_of(None) == frozenset()
+
+
+PLANT_QUESTION = "Чем растительные клетки отличаются от животных?"
+PLANT_ANSWER = "У растительных клеток есть стенка."
+
+
+def test_a_podcast_line_in_another_script_is_asked_again_then_loses_its_sentence(api, monkeypatch):
+    calls = answer_with(monkeypatch, {"podcast": _answers(
+        _podcast(QA_FOREIGN_LINE, PLANT_ANSWER), _podcast(PLANT_QUESTION, PLANT_ANSWER),
+    )})
+    lines = _results(_post_sections(api, ["podcast"]))["podcast"]["podcast"]
+    assert [line["text"] for line in lines] == [PLANT_QUESTION, PLANT_ANSWER] and calls == ["podcast", "podcast"]
+
+    broken = _podcast("Почему клетки разные?", QA_FOREIGN_LINE, PLANT_ANSWER)
+    calls = answer_with(monkeypatch, {"podcast": _answers(broken, broken)})
+    results = _results(_post_sections(api, ["podcast"]))
+    assert [line["text"] for line in results["podcast"]["podcast"]] == ["Почему клетки разные?", PLANT_ANSWER]
+    assert "植物" not in json.dumps(results, ensure_ascii=False) and calls == ["podcast", "podcast"]
+
+
+def test_the_notes_of_a_lecture_about_chinese_keep_its_characters(api, monkeypatch):
+    calls = answer_with(monkeypatch, {"summarizer": _summary("Иероглиф 汉 значит «китайский», 字 — «знак».")})
+    results = _results(_post_sections(api, ["summarizer"], CHINESE_LECTURE))
+    assert results["summarizer"]["content"] == "Иероглиф 汉 значит «китайский», 字 — «знак»."
+    assert calls == ["summarizer"]
+
+
+def _prep(cheatsheet: str) -> str:
+    return json.dumps({"key_points": ["Главное"], "cheatsheet": cheatsheet, "questions": []}, ensure_ascii=False)
+
+
+def test_quick_prep_and_the_podcast_drop_another_scripts_letters_too(api, monkeypatch):
+    from agents.base import BaseAgent
+
+    prep = _prep(f"# Выжимка\n\nКлетки бывают разные. {QA_FOREIGN_LINE}")
+    runs = []
+
+    async def run(self, system_prompt, user_text, **kwargs):
+        runs.append(1)
+        return prep
+
+    monkeypatch.setattr(BaseAgent, "run", run)
+    response = api.post("/api/quick-prep", json={"context": LECTURE})
+    assert response.json()["cheatsheet"] == "# Выжимка\n\nКлетки бывают разные." and len(runs) == 2
+    # The lecture about Chinese: the same characters are its own.
+    prep = _prep("# Выжимка\n\nВместе 汉字 — китайские иероглифы.")
+    response = api.post("/api/quick-prep", json={"context": CHINESE_LECTURE})
+    assert response.json()["cheatsheet"] == "# Выжимка\n\nВместе 汉字 — китайские иероглифы." and len(runs) == 3
+
+    lines = iter([_podcast(QA_FOREIGN_LINE, "Есть стенка."), _podcast("Чем они отличаются?", "Есть стенка.")])
+
+    async def podcast(self, system_prompt, user_text, **kwargs):
+        return next(lines)
+
+    monkeypatch.setattr(BaseAgent, "run", podcast)
+    response = api.post("/api/podcast/generate", json={"context": LECTURE})
+    assert [line["text"] for line in response.json()["podcast"]] == ["Чем они отличаются?", "Есть стенка."]
+
+
+def _model_answers(monkeypatch, answers: list) -> list:
+    """agents.base's genai.Client answering answers[-1] (the test may add one), BaseAgent's cache on; the calls."""
+    from agents import base as ai_base
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self, api_key=None, **kwargs):
+            async def generate_content(*, model, contents, config):
+                calls.append(model)
+                return SimpleNamespace(text=answers[-1], candidates=[SimpleNamespace(finish_reason="STOP")])
+
+            self.aio = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+
+    monkeypatch.setattr(ai_base.genai, "Client", FakeClient)
+    monkeypatch.delenv("AI_CACHE_DISABLED", raising=False)
+    monkeypatch.delenv("GEMINI_MODELS", raising=False)
+    ai_base._GENAI_CLIENTS.clear()
+    ai_base._MODEL_SKIP.clear()
+    return calls
+
+
+def test_a_cached_answer_is_checked_again_and_one_with_foreign_letters_is_asked_anew(api, monkeypatch):
+    """The recheck analysed the same lecture again and the server cache served «Чем植物 клетки…» once more.
+
+    The cache sits in agents/base.py (BaseAgent._run_cache, BaseAgent.run(use_cache=True)) and keeps the model's raw
+    text; the coordinator checks every answer BaseAgent.run gives it, from the cache or not."""
+    from agents import base as ai_base
+
+    bad = _podcast(QA_FOREIGN_LINE, PLANT_ANSWER)
+    good = _podcast(PLANT_QUESTION, PLANT_ANSWER)
+    answers = [bad]
+    calls = _model_answers(monkeypatch, answers)
+    cache = ai_base.BaseAgent._run_cache
+    try:
+        # Release 44.1's check did not know other scripts: the bad answer was shown and kept in the cache.
+        with monkeypatch.context() as old_check:
+            old_check.setattr(mixed_script, "_foreign", lambda run, scripts: False)
+            first = _results(_post_sections(api, ["podcast"]))
+        assert "植物" in json.dumps(first, ensure_ascii=False) and len(calls) == 1 and bad in cache.values()
+
+        answers.append(good)
+        again = _results(_post_sections(api, ["podcast"]))
+        assert [line["text"] for line in again["podcast"]["podcast"]] == [PLANT_QUESTION, PLANT_ANSWER]
+        # The cached answer was checked, evicted and asked again: one real call more, the good answer kept instead.
+        assert len(calls) == 2 and bad not in cache.values() and good in cache.values()
+    finally:
+        ai_base._GENAI_CLIENTS.clear()
+        ai_base._MODEL_SKIP.clear()
+
+
+# Remarks about the source: the конспект of the recorded lecture in the same recheck.
+QA_REMARK = "Для измерения напряжения нужен вольтметр (в тексте упомянут как Вт метр)."
+
+
+def test_a_remark_in_brackets_about_the_source_goes_and_ordinary_text_stays():
+    assert mixed_script.fix_text(QA_REMARK) == ("Для измерения напряжения нужен вольтметр.", [])
+    card = "Напряжение измеряется вольтметром (в тексте указан как Вт метр), который подключается параллельно."
+    assert mixed_script.fix_text(card) == ("Напряжение измеряется вольтметром, который подключается параллельно.", [])
+    for remark in ("(в расшифровке — «Вт метр»)", "(в записи — «Вт метр»)", "(в записи лекции: «закон ОМО»)",
+                   "(в тексте лекции ошибочно написано «Вирхоф»)", "(В записи назван как «Вт метр»)"):
+        text = f"Прибор {remark} подключают параллельно."
+        assert mixed_script.fix_text(text) == ("Прибор подключают параллельно.", []), remark
+    ordinary = [
+        "В тексте Конституции указано, что власть принадлежит народу.",
+        "Учёные участвовали в расшифровке генома человека.",
+        "Скобки (в записи формулы знак минус опускают) нужны.",
+        "НДС (в расшифровке — налог на добавленную стоимость) платит покупатель.",
+        "В тексте упомянуты три причины войны.",
+        "Главный герой (в тексте назван «Незнакомцем») появляется в начале.",
+        "Олицетворение (в тексте — «буря мглою небо кроет») оживляет природу.",
+        "Верный ответ — B (в тексте лекции указано, что мембрана двойная).",
+        "Симфония (в записи — оркестр Караяна) звучит долго.",
+    ]
+    for text in ordinary:
+        assert mixed_script.fix_text(text) == (text, []), text
+
+
+def test_a_remark_inside_a_sentence_is_asked_again_then_loses_its_sentence(api, monkeypatch):
+    remark = "Напряжение измеряют прибором, который в тексте упомянут как «Вт метр». Его включают параллельно."
+    assert mixed_script.fix_text(remark)[1] == ["в тексте упомянут как"]
+    assert mixed_script.drop_text(remark) == "Его включают параллельно."
+    fixed = "Вольтметр включают параллельно."
+    calls = answer_with(monkeypatch, {"summarizer": _answers(_summary(remark), _summary(fixed))})
+    assert _results(_post_sections(api, ["summarizer"]))["summarizer"]["content"] == fixed
+    assert calls == ["summarizer", "summarizer"]
+    # A remark in brackets needs no second answer: it goes at once.
+    calls = answer_with(monkeypatch, {"summarizer": _summary(QA_REMARK)})
+    content = _results(_post_sections(api, ["summarizer"]))["summarizer"]["content"]
+    assert content == "Для измерения напряжения нужен вольтметр." and calls == ["summarizer"]
+
+
 # ── 4. Prompts: formulas, dates and numbers from the lecture only ─────────────────
 
 PUSHES = ("ОБЯЗАТЕЛЬНО выписывай", "виджеты-симуляторы", "интерактивные парсеры", "v = s/t", "p = m/V",
@@ -621,6 +826,50 @@ def test_the_brief_notes_and_unknown_levels_keep_their_prompts():
     assert "краткий конспект: заголовок + 3-5 ключевых тезисов + 1 абзац выводов" in brief
     assert "## Ключевые тезисы" not in brief and "своими словами" not in brief
     assert build_summarizer_prompt("unknown") == build_summarizer_prompt("medium") == build_summarizer_prompt()
+
+
+def test_the_cheatsheet_asks_for_a_mnemonic_only_when_it_really_helps():
+    # The recheck of release 44.1: «Амперметр — Последовательно (обе буквы согласные/сложные), Вольтметр — Параллельно».
+    prompt = build_cheatsheet_prompt()
+    assert "2-3 совета, как легко запомнить" not in prompt
+    assert "Мнемонику добавляй, только если она правда помогает запомнить" in prompt
+    assert "## Как запомнить\n(Только если есть приём, который правда помогает запомнить" in prompt
+    assert "Нет такого приёма — нет и этого раздела." in prompt
+    # The other prompts ask for no mnemonic at all.
+    for other in (build_quick_prep_prompt(), build_flashcards_prompt(6), build_quiz_prompt(5), build_podcast_prompt()):
+        assert "мнемоник" not in other.lower() and "Как запомнить" not in other
+
+
+def test_the_prompts_of_a_recorded_lecture_say_its_text_is_speech_recognition(api, monkeypatch):
+    import main
+    from agents.base import RECORDING_RULE, BaseAgent
+
+    for words in ("получен распознаванием речи из записи", "могут быть ошибки в именах, терминах",
+                  "Если уверен, какое слово имелось в виду, пиши его правильно",
+                  "Никогда не упоминай текст, запись или её распознавание", "«в тексте упомянут как…»"):
+        assert words in RECORDING_RULE, words
+    recorded = build_prompts(normalize_settings(), build_source_chunks(LECTURE), recording=True)
+    written = build_prompts(normalize_settings(), build_source_chunks(LECTURE))
+    for name, prompt in recorded.items():
+        assert RECORDING_RULE in prompt and RECORDING_RULE not in written[name], name
+        assert prompt.index(RECORDING_RULE) < prompt.index(GROUNDING_INSTRUCTION)
+
+    # The route knows its source: the transcription path asks with the rule, a text file without it.
+    asked = []
+
+    async def run(self, system_prompt, user_text, **kwargs):
+        asked.append(system_prompt)
+        return SUMMARY
+
+    async def transcribe(path, mime_type=None, **kwargs):
+        return LECTURE
+
+    monkeypatch.setattr(BaseAgent, "run", run)
+    monkeypatch.setattr(main, "transcribe_media_file", transcribe)
+    api.post("/api/analyze/media", files={"file": ("lecture.mp3", io.BytesIO(b"ID3 audio"), "audio/mpeg")},
+             data={"enabled_agents": json.dumps(["summarizer"])})
+    _post_sections(api, ["summarizer"])
+    assert len(asked) == 2 and RECORDING_RULE in asked[0] and RECORDING_RULE not in asked[1]
 
 
 def test_no_material_prompt_pushes_formulas_and_every_analysis_prompt_is_grounded():
