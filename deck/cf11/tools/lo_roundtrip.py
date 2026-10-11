@@ -5,7 +5,9 @@
 LibreOffice maps PowerPoint's preset ids, subtypes and behaviour XML onto its own named effects
 (oox/source/ppt/commontimenodecontext.cxx); reading them back is an independent check that the timing XML says
 what the HTML asked for: effect, direction (wipe from the left = barWipe leftToRight, not reversed), trigger
-(on-click / with-previous / after-previous), the layer pictures moving with their element, and video playback.
+(on-click / with-previous / after-previous), the layer pictures moving with their element, and video playback:
+the play command next to the video's entrance (data-play="with", or at the slide start without an entrance) or
+after the builds of its click group (data-play="after"), and the loop.
 """
 from __future__ import annotations
 
@@ -27,7 +29,13 @@ PRES = '{%s}' % NS['presentation']
 SMIL = '{%s}' % NS['smil']
 EXPECT = {'fade': ('ooo-entrance-fade-in', None), 'rise': ('ooo-entrance-ascend', None),
           'wipe': ('ooo-entrance-wipe', 'from-left'), 'zoom': ('ooo-entrance-fade-in-and-zoom', None),
-          'appear': ('ooo-entrance-appear', None)}
+          'appear': ('ooo-entrance-appear', None), 'settle': ('ooo-entrance-zoom', 'in-slightly')}
+# data-anim-dir of a wipe -> LibreOffice's sub-type and barWipe (pptfilterhelpers.cxx: wipe(up) = topToBottom forward,
+# wipe(down) = topToBottom reverse, wipe(left) = leftToRight forward, wipe(right) = leftToRight reverse)
+WIPE = {'left': ('from-left', ('barWipe', 'leftToRight', 'forward')),
+        'right': ('from-right', ('barWipe', 'leftToRight', 'reverse')),
+        'up': ('from-top', ('barWipe', 'topToBottom', 'forward')),
+        'down': ('from-bottom', ('barWipe', 'topToBottom', 'reverse'))}
 TRIG = {'click': 'on-click', 'with': 'with-previous', 'after': 'after-previous'}
 DEFAULT_SOFFICE = '/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/deck-refs/tech/lo268/root/opt/libreoffice26.8/program/soffice'
 
@@ -51,13 +59,23 @@ def effects_per_page(odp: Path) -> list[list[dict]]:
             if not pc:
                 continue
             filt = node.find('anim:transitionFilter', NS)
-            ys = [a.get(SMIL + 'values') for a in node.findall('anim:animate', NS) if a.get(SMIL + 'attributeName') == 'y']
+            vals = {a.get(SMIL + 'attributeName'): a.get(SMIL + 'values') for a in node.findall('anim:animate', NS)}
+            decel = {a.get(SMIL + 'attributeName'): a.get(SMIL + 'decelerate') for a in node.findall('anim:animate', NS)}
             cmd = node.find('anim:command', NS)
+            tgt = next((c.get(SMIL + 'targetElement') for c in node if c.get(SMIL + 'targetElement')), None)
+            sub = node.getparent()
+            grp = sub.getparent() if sub is not None else None
+            sibs = [c for c in grp if isinstance(c.tag, str)] if grp is not None else []
+            grps = [c for c in grp.getparent() if isinstance(c.tag, str)] if grp is not None and grp.getparent() is not None else []
             seq.append({'class': pc, 'id': node.get(PRES + 'preset-id'), 'sub': node.get(PRES + 'preset-sub-type'),
                         'node': node.get(PRES + 'node-type'),
                         'filter': filt is not None and (filt.get(SMIL + 'type'), filt.get(SMIL + 'subtype'),
                                                         filt.get(SMIL + 'direction', 'forward')),
-                        'y': ys[0] if ys else None, 'command': cmd is not None and cmd.get('{%s}command' % NS['anim'])})
+                        'y': vals.get('y'), 'width': vals.get('width'), 'decel': decel,
+                        'command': cmd is not None and cmd.get('{%s}command' % NS['anim']),
+                        'target': tgt, 'begin': node.get(SMIL + 'begin'), 'parent': sub,
+                        'sub_index': sibs.index(sub) if sub in sibs else None, 'sub_count': len(sibs),
+                        'group_index': grps.index(grp) if grp in grps else None})
         audio = [a for a in page.iter('{%s}audio' % NS['anim'])]
         pages.append({'effects': seq, 'media_repeat': [a.get(SMIL + 'repeatCount') for a in audio]})
     return pages
@@ -70,11 +88,31 @@ def expected(slide: dict) -> list[tuple]:
     for i, e in enumerate(anim):
         a = e['anim']
         trig = TRIG[a['trigger']]
-        out.append((a['effect'], trig))
+        out.append((a['effect'], trig, a.get('dir') or 'left'))
         r = e.get('render')
         if r and r['mode'] in ('under', 'over'):
-            out.append((a['effect'], 'with-previous'))
+            out.append((a['effect'], 'with-previous', a.get('dir') or 'left'))
     return out
+
+
+def play_problems(video: dict, play: dict, effects: list[dict]) -> list[str]:
+    """Where LibreOffice puts a video's play command: with its entrance (or the slide start) or after the builds."""
+    mode = video['src'].get('play', 'with')
+    entr = [x for x in effects if x['class'] == 'entrance' and x['target'] == play['target']]
+    if mode == 'with' and entr:
+        e = entr[0]
+        if not (e['parent'] is play['parent'] and e['begin'] == play['begin'] and play['node'] == 'with-previous'):
+            return [f'play (with) is not next to its entrance: {play["node"]} begin {play["begin"]}, entrance '
+                    f'begin {e["begin"]}, same sub-group {e["parent"] is play["parent"]}']
+    elif mode == 'with':
+        if not (play['group_index'] == 0 and play['sub_index'] == 0 and play['begin'] in ('0s', None)):
+            return [f'play (with, no entrance) is not at the slide start: group {play["group_index"]} '
+                    f'sub-group {play["sub_index"]} begin {play["begin"]}']
+    else:
+        siblings = [x for x in effects if x['parent'] is play['parent']]
+        if any(x['class'] != 'media-call' for x in siblings) or play['sub_index'] != play['sub_count'] - 1:
+            return ['play (after) is not the last sub-group of its click group']
+    return []
 
 
 def main() -> int:
@@ -88,21 +126,26 @@ def main() -> int:
         want = expected(s)
         got = [(next((k for k, v in EXPECT.items() if v[0] == x['id']), x['id']), x['node']) for x in entr]
         problems = []
-        if [w for w, _ in want] != [g for g, _ in got]:
+        if [w for w, _, _ in want] != [g for g, _ in got]:
             problems.append(f'effects {got} != {want}')
         else:
-            for (eff, trig), (_, node), x in zip(want, got, entr):
+            for (eff, trig, d), (_, node), x in zip(want, got, entr):
                 if node != trig and not (x is entr[0] and trig == 'after-previous' and node == 'after-previous'):
                     problems.append(f'{eff}: trigger {node}, expected {trig}')
-                if eff == 'wipe' and (x['sub'] != 'from-left' or x['filter'] != ('barWipe', 'leftToRight', 'forward')):
-                    problems.append(f'wipe reads as {x["sub"]} {x["filter"]}, expected from-left barWipe leftToRight forward')
-                if eff == 'rise' and x['y'] != 'y+.1;y':
-                    problems.append(f'rise y values {x["y"]}')
+                if eff == 'wipe' and (x['sub'], x['filter']) != WIPE[d]:
+                    problems.append(f'wipe {d} reads as {x["sub"]} {x["filter"]}, expected {WIPE[d]}')
+                if eff == 'rise' and (x['y'] != 'y+.1;y' or x['decel'].get('y') != '1'):
+                    problems.append(f'rise y values {x["y"]}, decelerate {x["decel"].get("y")}')
+                if eff == 'settle' and (x['sub'] != 'in-slightly' or not (x['width'] or '').startswith('width*0.92')
+                                        or x['decel'].get('width') != '1'):
+                    problems.append(f'settle reads as {x["sub"]} width {x["width"]} decelerate {x["decel"].get("width")}')
         vids = [e for e in s['elements'] if e['type'] == 'video']
         plays = [x for x in page['effects'] if x['class'] == 'media-call' and x['command'] == 'play']
         auto = [v for v in vids if v['src'].get('autoplay', True)]
         if len(plays) != len(auto):
             problems.append(f'{len(plays)} media play commands, {len(auto)} autoplay videos')
+        for v, p in zip(auto, plays):
+            problems += play_problems(v, p, page['effects'])
         loops = [v for v in vids if v['src'].get('loop')]
         if loops and 'indefinite' not in page['media_repeat']:
             problems.append('looping video not read as repeatCount=indefinite')

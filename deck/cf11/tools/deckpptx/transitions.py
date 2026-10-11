@@ -1,9 +1,10 @@
 """Slide transitions.
 
-morph: [MS-PPTX] 2.2.1 / 2.6.1.1 - p:transition with a p159:morph child (option byObject) inside an
-       mc:AlternateContent Choice that Requires the p159 namespace; p14:dur ([MS-PPTX] 2.3.2.3) carries the
-       duration in ms. The Fallback is a plain Fade, which is what PowerPoint 2013 and older, LibreOffice
-       (it has no Morph import) and other readers show. Shape pairs are matched by "!!name" (see build.py).
+morph: [MS-PPTX] 2.2.1 / 2.6.1.1 - p:transition with a p159:morph child inside an mc:AlternateContent Choice that
+       Requires the p159 namespace; p14:dur ([MS-PPTX] 2.3.2.3) carries the duration in ms. option ([MS-PPTX]
+       ST_MorphOption) = byObject (default) | byWord | byChar, from data-morph="object|word|char" on the slide root.
+       The Fallback is a plain Fade, which is what PowerPoint 2013 and older, LibreOffice (it has no Morph import)
+       and other readers show. Shape pairs are matched by "!!name" (see build.py, deckpptx/morph.py).
 fade:  ISO 29500 p:fade inside the same AlternateContent pattern ([MS-PPTX] 3.1 example), so p14:dur is honoured.
 none:  no p:transition at all.
 """
@@ -17,6 +18,7 @@ NS_P14 = 'http://schemas.microsoft.com/office/powerpoint/2010/main'
 NS_P159 = 'http://schemas.microsoft.com/office/powerpoint/2015/09/main'
 
 DEFAULT_MS = {'morph': 1500, 'fade': 700}
+MORPH_OPTION = {'object': 'byObject', 'word': 'byWord', 'char': 'byChar'}
 
 
 def speed(ms: int) -> str:
@@ -24,15 +26,18 @@ def speed(ms: int) -> str:
     return 'fast' if ms <= 500 else 'med' if ms <= 750 else 'slow'
 
 
-def transition_xml(kind: str, dur_ms: int | None = None):
+def transition_xml(kind: str, dur_ms: int | None = None, option: str = 'object'):
     """The element to insert after p:clrMapOvr, or None for no transition."""
     if kind == 'none':
         return None
     ms = int(dur_ms or DEFAULT_MS[kind])
     spd = speed(ms)
     if kind == 'morph':
+        opt = MORPH_OPTION.get(option or 'object')
+        if opt is None:
+            raise ValueError(f'unknown morph option {option!r}')
         choice = (f'<mc:Choice xmlns:p159="{NS_P159}" xmlns:p14="{NS_P14}" Requires="p159">'
-                  f'<p:transition spd="{spd}" p14:dur="{ms}"><p159:morph option="byObject"/></p:transition></mc:Choice>')
+                  f'<p:transition spd="{spd}" p14:dur="{ms}"><p159:morph option="{opt}"/></p:transition></mc:Choice>')
     elif kind == 'fade':
         choice = (f'<mc:Choice xmlns:p14="{NS_P14}" Requires="p14">'
                   f'<p:transition spd="{spd}" p14:dur="{ms}"><p:fade/></p:transition></mc:Choice>')
@@ -43,11 +48,11 @@ def transition_xml(kind: str, dur_ms: int | None = None):
     return etree.fromstring(xml)
 
 
-def set_transition(sld_el, kind: str, dur_ms: int | None = None):
+def set_transition(sld_el, kind: str, dur_ms: int | None = None, option: str = 'object'):
     """Replace any transition on a p:sld element (keeps schema order: cSld, clrMapOvr, transition, timing, extLst)."""
     for old in sld_el.findall(f'{{{NS_P}}}transition') + sld_el.findall(f'{{{NS_MC}}}AlternateContent'):
         sld_el.remove(old)
-    el = transition_xml(kind, dur_ms)
+    el = transition_xml(kind, dur_ms, option)
     if el is None:
         return None
     anchor = sld_el.find(f'{{{NS_P}}}clrMapOvr')

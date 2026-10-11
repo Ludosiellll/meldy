@@ -8,6 +8,12 @@ Per slide: the background picture full-bleed at the bottom ("!!bg", marked decor
 in DOM order - live text (title placeholder or text box), native shapes, pictures, GIF, video - with the 2x
 under/over layers next to their element; entrance animations, media autoplay/loop, the transition and the notes.
 Then the Onest faces are embedded and the package metadata is set (no personal data). See README.md.
+
+Bleed: a picture, GIF or layer that crosses the slide edge is cropped to the slide (a:srcRect), a video is
+re-encoded to its visible part (warned); a native shape or live text that crosses the edge is an ERROR (PowerPoint's
+Normal view shows the outside part on the pasteboard) and the build fails. Next to the PPTX the build writes
+<name>.objects.json: for every PPTX object (slide, shape id, name) the element and layer it came from - the motion
+preview (tools/preview) reads the PPTX and takes the pixels of live text from extract's text layers through it.
 """
 from __future__ import annotations
 
@@ -29,8 +35,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 from deckpptx import fonts as F                      # noqa: E402
-from deckpptx.pictures import (crop_video, first_frame, pic_el, placement, probe_media, src_rect_el,  # noqa: E402
-                               xfrm as xfrm_el)
+from deckpptx.pictures import (crop_video, first_frame, intersect, pic_el, placement, probe_media,  # noqa: E402
+                               src_rect_el, xfrm as xfrm_el)
 from deckpptx.shapes import geometry_el, sp_pr       # noqa: E402
 from deckpptx.template import app_properties_xml, new_presentation   # noqa: E402
 from deckpptx.text import RunCtx, ooxml_lang, plan_text, tx_body     # noqa: E402
@@ -44,6 +50,51 @@ NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 A, P, R = f'{{{NS_A}}}', f'{{{NS_P}}}', f'{{{NS_R}}}'
 DECK = HERE.parent
 TYPE_LABEL = {'title': 'Title', 'text': 'Text', 'shape': 'Shape', 'image': 'Picture', 'video': 'Video', 'gif': 'GIF'}
+SLIDE_RECT = {'x': 0.0, 'y': 0.0, 'w': 1920.0, 'h': 1080.0}
+EDGE_TOL = 0.5      # px a native object may overhang the slide edge (sub-pixel rounding)
+
+
+def objects_path(pptx: Path) -> Path:
+    """The sidecar of a built PPTX: deck.pptx -> deck.objects.json."""
+    return Path(pptx).with_suffix('.objects.json')
+
+
+def overhang(r: dict) -> dict:
+    """px by which a rectangle sticks out of the slide on each side (only the sides that do)."""
+    o = {'left': -r['x'], 'top': -r['y'], 'right': r['x'] + r['w'] - SLIDE_RECT['w'],
+         'bottom': r['y'] + r['h'] - SLIDE_RECT['h']}
+    return {k: round(v, 1) for k, v in o.items() if v > EDGE_TOL}
+
+
+def crop_to_slide(frame: dict, crop: dict | None) -> tuple[dict, dict | None]:
+    """Intersect a picture frame with the slide; compose the cut with the picture's existing srcRect."""
+    if not overhang(frame):
+        return frame, crop
+    c = crop or {'l': 0.0, 't': 0.0, 'r': 0.0, 'b': 0.0}
+    iw = frame['w'] / max(1e-9, 1.0 - c['l'] - c['r'])       # the whole image, in slide px
+    ih = frame['h'] / max(1e-9, 1.0 - c['t'] - c['b'])
+    ix, iy = frame['x'] - c['l'] * iw, frame['y'] - c['t'] * ih
+    x1, y1 = max(frame['x'], 0.0), max(frame['y'], 0.0)
+    x2, y2 = min(frame['x'] + frame['w'], SLIDE_RECT['w']), min(frame['y'] + frame['h'], SLIDE_RECT['h'])
+    if x2 <= x1 or y2 <= y1:
+        return frame, crop                                   # wholly outside: left to the caller's warning
+    vis = {'x': x1, 'y': y1, 'w': x2 - x1, 'h': y2 - y1}
+    return vis, {'l': (x1 - ix) / iw, 't': (y1 - iy) / ih, 'r': (ix + iw - x2) / iw, 'b': (iy + ih - y2) / ih}
+
+
+def text_extent(e: dict) -> dict:
+    """The rectangle the glyphs of a live text element occupy (line boxes), in slide px."""
+    x1 = y1 = float('inf')
+    x2 = y2 = float('-inf')
+    for p in e['text']['paragraphs']:
+        for ln in p['lines']:
+            asc = max((r.get('ascPx', r['sizePx']) for r in ln['runs']), default=0)
+            desc = max((r.get('descPx', 0.25 * r['sizePx']) for r in ln['runs']), default=0)
+            x1, x2 = min(x1, ln['left']), max(x2, ln['right'])
+            y1, y2 = min(y1, ln['baseline'] - asc), max(y2, ln['baseline'] + desc)
+    if x1 == float('inf'):
+        return dict(e['bbox'])
+    return {'x': x1, 'y': y1, 'w': x2 - x1, 'h': y2 - y1}
 MANDATORY = ['Титульный', 'Автор проекта', 'Актуальность', 'Цель, задачи', 'Новизна и инновационность', 'Содержание',
              'Представление блоков проекта', 'Используемые источники', 'Технические требования', 'Заключение']
 
@@ -59,6 +110,8 @@ class SlideBuilder:
         self.lang = ooxml_lang(sdata.get('lang'))
         self.title_text = None
         self.nn = sdata['nn']
+        self.errors: list[str] = []
+        self.objects: list[dict] = []          # objects.json: shape id -> element / layer it was built from
         # the layout's title placeholder is re-created where the title element sits in the DOM order
         for sp in list(self.tree.iterchildren(P + 'sp')):
             self.tree.remove(sp)
@@ -66,6 +119,21 @@ class SlideBuilder:
     # ------------------------------------------------------------------ helpers
     def warn(self, msg: str):
         self.log.append(f'{self.s["file"]}: {msg}')
+
+    def error(self, msg: str):
+        self.errors.append(f'{self.s["file"]}: {msg}')
+
+    def record(self, spid: int, name: str, role: str, e: dict | None = None, **extra):
+        self.objects.append({'spid': spid, 'name': name, 'role': role, 'element': e['id'] if e else None,
+                             'elementName': e.get('name') if e else None, **extra})
+
+    def check_edge(self, e: dict, what: str, rect: dict):
+        o = overhang(rect)
+        if o:
+            sides = ', '.join(f'{k} {v:g} px' for k, v in o.items())
+            self.error(f'{e["id"]} {e.get("name") or ""} {what} crosses the slide edge ({sides}): PowerPoint shows the '
+                       f'part outside the slide on the pasteboard in Normal view. Keep it inside the slide, or mark it '
+                       f'data-pptx="image" so it is cropped')
 
     def next_id(self) -> int:
         ids = [int(c.get('id')) for c in self.tree.iter(P + 'cNvPr')]
@@ -128,7 +196,7 @@ class SlideBuilder:
         if not a:
             return None
         eff = Effect(target=main, effect=a['effect'], trigger=a['trigger'], delay_ms=a['delayMs'], dur_ms=a['durMs'],
-                     companions=companions)
+                     companions=companions, direction=a.get('dir') or 'left')
         key = (a['order'] if a.get('order') is not None else e['domIndex'], e['domIndex'])
         self.effects.append((key, eff))
         return eff
@@ -137,9 +205,11 @@ class SlideBuilder:
     def background(self):
         path = self.dir / self.s['background']
         rid = self.image(path)
-        pic = pic_el(self.next_id(), self.unique('!!bg'), rid, {'x': 0, 'y': 0, 'w': 1920, 'h': 1080}, decorative=True)
+        spid, name = self.next_id(), self.unique('!!bg')
+        pic = pic_el(spid, name, rid, {'x': 0, 'y': 0, 'w': 1920, 'h': 1080}, decorative=True)
         # bottom of the z-order: right after nvGrpSpPr/grpSpPr
         self.tree.insert(2, pic)
+        self.record(spid, name, 'bg')
 
     def layer(self, e: dict, which: str) -> Target | None:
         r = e.get('render')
@@ -147,7 +217,10 @@ class SlideBuilder:
             return None
         rid = self.image(self.dir / r['png'])
         spid = self.next_id()
-        self.add(pic_el(spid, self.name_for(e, f':{which}'), rid, r['rect'], decorative=True))
+        frame, crop = crop_to_slide(r['rect'], None)
+        name = self.name_for(e, f':{which}')
+        self.add(pic_el(spid, name, rid, frame, decorative=True, crop=crop))
+        self.record(spid, name, which, e)
         return Target(spid)
 
     def text(self, e: dict, is_title: bool):
@@ -157,6 +230,8 @@ class SlideBuilder:
             self.warn(f'{e["id"]} {n}')
         style = e.get('style') or {}
         visible_box = bool(style.get('fill') or (style.get('line') and style.get('lineUniform')))
+        self.check_edge(e, 'text box' if visible_box or e.get('rot') else 'text',
+                        e['bbox'] if visible_box or e.get('rot') else text_extent(e))
         spid = self.next_id()
         sp = etree.Element(P + 'sp')
         nv = etree.SubElement(sp, P + 'nvSpPr')
@@ -191,14 +266,17 @@ class SlideBuilder:
         self.add(sp)
         if is_title:
             self.title_text = ''.join(r['raw'] for p in e['text']['paragraphs'] for ln in p['lines'] for r in ln['runs']).strip()
+        self.record(spid, name, 'title' if is_title else 'text', e, textLayer=e.get('textLayer'))
         main = Target(spid, has_text=True, has_box=visible_box)
         self.animate(e, main, [under] if under else [])
 
     def shape(self, e: dict):
+        self.check_edge(e, 'shape', e['bbox'])
         spid = self.next_id()
         sp = etree.Element(P + 'sp')
         nv = etree.SubElement(sp, P + 'nvSpPr')
-        c = etree.SubElement(nv, P + 'cNvPr', id=str(spid), name=self.name_for(e))
+        name = self.name_for(e)
+        c = etree.SubElement(nv, P + 'cNvPr', id=str(spid), name=name)
         if e.get('alt'):
             c.set('descr', e['alt'])
         if e.get('href'):
@@ -213,6 +291,7 @@ class SlideBuilder:
         p = etree.SubElement(body, A + 'p')
         etree.SubElement(p, A + 'endParaRPr', lang=self.lang, dirty='0')
         self.add(sp)
+        self.record(spid, name, 'shape', e)
         over = self.layer(e, 'over')
         self.animate(e, Target(spid, has_text=False, has_box=True), [over] if over else [])
 
@@ -223,12 +302,14 @@ class SlideBuilder:
         name = self.name_for(e)
         if r and r['mode'] == 'image':
             rid = self.image(self.dir / r['png'])
-            self.add(pic_el(spid, name, rid, r['rect'], descr=e.get('alt'), hlink_rid=href))
+            frame, crop = crop_to_slide(r['rect'], None)
+            self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, crop=crop))
         elif r and r['mode'] == 'svg':
             rid = self.image(self.dir / r['png'])
             svg_rid = self.svg(self.dir / r['svg'])
-            self.add(pic_el(spid, name, rid, r['rect'], descr=e.get('alt'), hlink_rid=href, svg_rid=svg_rid,
-                            alpha=e.get('opacity', 1.0)))
+            frame, crop = crop_to_slide(r['rect'], None)
+            self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, svg_rid=svg_rid,
+                            alpha=e.get('opacity', 1.0), crop=crop))
         else:
             src = Path(e['src']['path'])
             with Image.open(src) as im:
@@ -237,19 +318,28 @@ class SlideBuilder:
             rid = self.image(self.optimized(src) if e['type'] == 'image' else src)   # a GIF stays as authored
             self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, rot=e.get('rot', 0),
                             crop=crop, geom=geom, alpha=e.get('opacity', 1.0)))
+        self.record(spid, name, e['type'] if e['type'] == 'gif' else (r['mode'] if r else 'image'), e)
         self.animate(e, Target(spid), [])
 
     def media_frame(self, e: dict, natural):
-        """Visible frame, srcRect and corner geometry for a file placed in an element box (object-fit, clipping)."""
+        """Visible frame, srcRect and corner geometry for a file placed in an element box (object-fit, clipping,
+        the slide edge)."""
         src = e.get('src') or {}
         clip = e.get('clip') if e.get('clipped') or e.get('clip') else None
+        clip = intersect(clip, SLIDE_RECT) if clip else dict(SLIDE_RECT)
         frame, crop = placement(e['box'], natural, src.get('fit'), src.get('position'), clip)
-        radii = (e.get('style') or {}).get('radii') or [[0, 0]] * 4
+        radii = [list(r) for r in ((e.get('style') or {}).get('radii') or [[0, 0]] * 4)]
         cr = e.get('clipRadius')
         if cr and cr.get('px', 0) > 0:
             b = cr['box']
             if abs(b['x'] - frame['x']) < 2 and abs(b['y'] - frame['y']) < 2 and abs(b['w'] - frame['w']) < 2 and abs(b['h'] - frame['h']) < 2:
                 radii = [[cr['px'], cr['px']]] * 4
+        # a side cut by the slide edge is straight: its rounded corners are outside the slide
+        cut = overhang(e['box'])
+        for side, corners in (('left', (0, 3)), ('top', (0, 1)), ('right', (1, 2)), ('bottom', (2, 3))):
+            if side in cut:
+                for k in corners:
+                    radii[k] = [0, 0]
         geom, _ = geometry_el(frame['w'], frame['h'], radii)
         return frame, crop, geom
 
@@ -263,7 +353,9 @@ class SlideBuilder:
         frame, crop, geom = self.media_frame(e, (info['w'], info['h']))
         if crop:
             src, poster, flt = crop_video(src, Path(poster), crop, (info['w'], info['h']), self.dir / 'media')
-            self.warn(f'{e["id"]}: clip aspect differs from its box; re-encoded the visible part ({flt}). '
+            why = ('its box crosses the slide edge' if overhang(e['bbox'])
+                   else 'clip aspect differs from its box')
+            self.warn(f'{e["id"]}: {why}; re-encoded the visible part ({flt}). '
                       f'Render the clip at {round(frame["w"])}x{round(frame["h"])} (or that aspect) to avoid it')
             crop = None
         mv = self.slide.shapes.add_movie(str(src), emu(frame['x']), emu(frame['y']), emu(frame['w']), emu(frame['h']),
@@ -271,7 +363,9 @@ class SlideBuilder:
         pic = mv._element
         spid = int(pic.find(f'{P}nvPicPr/{P}cNvPr').get('id'))
         c = pic.find(f'{P}nvPicPr/{P}cNvPr')
-        c.set('name', self.name_for(e))
+        name = self.name_for(e)
+        c.set('name', name)
+        self.record(spid, name, 'video', e)
         if e.get('alt'):
             c.set('descr', e['alt'])
         if crop:
@@ -285,7 +379,8 @@ class SlideBuilder:
             spr.find(f'{A}xfrm').set('rot', str(angle(e['rot'])))
         eff = self.animate(e, Target(spid), [])
         self.media.append(Media(spid=spid, dur_ms=info['durMs'], loop=e['src'].get('loop', False),
-                                autoplay=e['src'].get('autoplay', True), shown_by=eff))
+                                autoplay=e['src'].get('autoplay', True), shown_by=eff,
+                                play=e['src'].get('play') or 'with'))
         if e.get('href'):
             self.warn(f'{e["id"]}: data-href on a video is ignored (a click on a video toggles playback)')
 
@@ -322,7 +417,7 @@ class SlideBuilder:
             else:
                 sld.append(timing)
         tr = self.s.get('transition') or {'type': 'morph'}
-        set_transition(sld, tr['type'], tr.get('durMs'))
+        set_transition(sld, tr['type'], tr.get('durMs'), tr.get('option') or 'object')
         notes = self.s.get('notes') or []
         if notes:
             tf = self.slide.notes_slide.notes_text_frame
@@ -345,6 +440,8 @@ def build(build_dir: Path, out: Path, font_dir: Path, title: str, embed: str) ->
     prs = new_presentation()
     layout = prs.slide_layouts[0]
     log: list[str] = []
+    errors: list[str] = []
+    sidecar = []
     titles, weights, stats = [], set(), []
     n_media = n_notes = words = paragraphs = 0
     for s in doc['slides']:
@@ -353,6 +450,8 @@ def build(build_dir: Path, out: Path, font_dir: Path, title: str, embed: str) ->
         slide = prs.slides.add_slide(layout)
         sb = SlideBuilder(prs, slide, s, build_dir, log)
         st = sb.build()
+        errors += sb.errors
+        sidecar.append({'nn': s['nn'], 'file': s['file'], 'objects': sb.objects})
         titles.append(sb.title_text or '')
         n_media += st['media']
         n_notes += 1 if s.get('notes') else 0
@@ -391,8 +490,16 @@ def build(build_dir: Path, out: Path, font_dir: Path, title: str, embed: str) ->
                 im.save(buf, 'JPEG', quality=85)
                 part._blob = buf.getvalue()
     out.parent.mkdir(parents=True, exist_ok=True)
+    side = objects_path(out)
+    if errors:
+        # no file at all rather than a stale or broken one that later steps would check, render and ship
+        out.unlink(missing_ok=True)
+        side.unlink(missing_ok=True)
+        return {'log': log, 'stats': stats, 'titles': titles, 'size': 0, 'errors': errors}
     prs.save(str(out))
-    return {'log': log, 'stats': stats, 'titles': titles, 'size': out.stat().st_size}
+    side.write_text(json.dumps({'format': 'cf11-objects/1', 'pptx': out.name, 'build': str(build_dir.resolve()),
+                                'slides': sidecar}, ensure_ascii=False, indent=1), encoding='utf-8')
+    return {'log': log, 'stats': stats, 'titles': titles, 'size': out.stat().st_size, 'errors': []}
 
 
 def mandatory_order_problems(titles: list[str]) -> list[str]:
@@ -434,6 +541,11 @@ def main(argv=None) -> int:
         print(f'{nn} {f:<28} {n:3d} objects  {eff:2d} effects  {med} video  transition {tr}')
     for line in res['log']:
         print('  ! ' + line)
+    if res['errors']:
+        for line in res['errors']:
+            print('  ✗ ERROR ' + line)
+        print(f'build failed: {len(res["errors"])} error(s); {a.out} not written')
+        return 1
     size = res['size']
     print(f'saved {a.out}: {size / 1e6:.3f} MB ({size / 2 ** 20:.3f} MiB), budget 9.5 MB -> '
           f'{"OK" if size <= 9_500_000 else "OVER BUDGET"}')

@@ -8,17 +8,28 @@ read PowerPoint files, oox/source/ppt/commontimenodecontext.cxx `preset_mapping`
   appear    | Appear (Появление)                   | 1 / 0            | set style.visibility=visible
   fade      | Fade (Выцветание)                    | 10 / 0           | set + animEffect transition=in filter=fade
   rise      | Float In, Up (Всплывание, вверх)     | 42 / 0           | set + animEffect fade + anim ppt_x #ppt_x->#ppt_x
-            |                                      |                  |   + anim ppt_y "#ppt_y+.1" -> "#ppt_y"
-  wipe      | Wipe, From Left (Появление сбоку...) | 22 / 8           | set + animEffect transition=in filter="wipe(left)"
+            |                                      |                  |   + anim ppt_y "#ppt_y+.1" -> "#ppt_y" (decel)
+  wipe      | Wipe (Появление сбоку), From Left /  | 22 / 8, 2, 1, 4  | set + animEffect transition=in
+            |   Right / Top / Bottom               |                  |   filter="wipe(left|right|up|down)"
   zoom      | Zoom, Object Center (Масштабирование)| 53 / 16          | set + anim ppt_w 0->#ppt_w + anim ppt_h 0->#ppt_h
-            |                                      |                  |   + animEffect fade
+            |                                      |                  |   (decel) + animEffect fade
+  settle    | Basic Zoom, In Slightly (Простое     | 23 / 272         | set + anim ppt_w "#ppt_w*0.92"->#ppt_w + ppt_h
+            |   увеличение, слегка внутрь)         |                  |   likewise (decel) + animEffect fade
 Sources: appear, fade, rise and zoom are copied from slides saved by Microsoft Office PowerPoint in LibreOffice's
 test corpus (sd/qa/unit/data/pptx/tdf112089.pptx, tdf104788.pptx slide 6, tdf112086.pptx). Wipe: preset 22, subtype
-8 = "from-left" (commontimenodecontext.cxx) and filter "wipe(left)" = barWipe leftToRight in the default direction
-(pptfilterhelpers.cxx transition table, `mbDirection` true = default geometric direction; the filter names the side
-the wipe starts from, PowerPoint's default Wipe From Bottom is "wipe(down)"). Checked by round trip: LibreOffice
-turns this XML into its own "ooo-entrance-wipe" / "from-left" = barWipe leftToRight (sd/xml/effects.xml). No
+8/2/1/4 = "from-left/right/top/bottom" (commontimenodecontext.cxx convert_subtype) and the filter names the side the
+wipe starts from: "wipe(left)" = barWipe leftToRight in the default direction (pptfilterhelpers.cxx transition table,
+`mbDirection` true = default geometric direction), PowerPoint's default Wipe From Bottom is "wipe(down)". Checked by
+round trip: LibreOffice turns this XML into its own "ooo-entrance-wipe" / "from-left" (sd/xml/effects.xml). No
 PowerPoint-saved sample of Wipe was available here.
+settle (fade + scale up from 92 % around the centre, decelerating) has no stock preset: Basic Zoom «In Slightly»
+(23/272) is the closest by name, but PowerPoint's own scales from 2/3 without a fade (LibreOffice's copy of the
+preset, sd/xml/effects.xml "ooo-entrance-zoom" / "in-slightly"). The file keeps 23/272, so the Animation pane shows
+«Basic Zoom / In Slightly», with these behaviours; picking another option in PowerPoint regenerates the stock ones.
+Easing: PowerPoint writes no accel/decel for its Fade, Float In and Zoom (the corpus samples above, PowerPoint 2013
+and 2016 files): they are linear. Its own eased presets put decel="100000" on the motion/scale behaviour (Rise Up,
+tdf104788 slide 6: the ppt_y anim; Magnify, tdf104786: the animScale), and so do these: the motion of rise and the
+scale of zoom and settle decelerate to a stop (SMIL decelerate 100 % = quadratic ease-out); fades stay linear.
 
 Structure (as PowerPoint writes it, e.g. tdf124457.pptx / bnc591147.pptx):
   tmRoot > mainSeq(seq concurrent=1 nextAc=seek) > click group par (cond delay=indefinite, plus
@@ -27,8 +38,12 @@ Structure (as PowerPoint writes it, e.g. tdf124457.pptx / bnc591147.pptx):
   nodeType clickEffect | withEffect | afterEffect, cond delay = data-anim-delay).
   Media: <p:video><p:cMediaNode><p:cTn fill=hold display=0 [repeatCount=indefinite]> with end conditions
   onNext/onPrev, plus an interactiveSeq that toggles pause when the video is clicked (bnc591147.pptx).
-  Autoplay = a mediacall/presetID 1 playFrom(0.0) effect whose cmd lasts the clip (bnc591147.pptx). It is appended
-  as the last sub-group of the click group in which the video appears, so no "after previous" effect waits for it.
+  Autoplay = a mediacall/presetID 1 playFrom(0.0) effect whose cmd lasts the clip (bnc591147.pptx). Where it sits
+  (data-play): "with" (default) puts it in the sub-group of the video's entrance, as a withEffect with the entrance's
+  delay, or - no entrance - with the first effects of the slide-start group (alone it is an afterEffect, as PowerPoint
+  writes an automatic play), so the clip starts the moment it appears and "with" effects with delays run alongside
+  it; "after" appends it as the last sub-group of the click group in which the video appears (after its builds).
+  The sub-group delays written for later "after previous" effects never include the clip's length.
   bldLst: a bldP (grpId=0) for every animated shape that carries text, animBg=1 when it also has a fill/outline
   (tdf112086.pptx, tdf124457.pptx); pictures and plain shapes get none (tdf104788.pptx groups).
 """
@@ -47,7 +62,12 @@ PRESETS = {
     'rise': (42, 0),
     'wipe': (22, 8),
     'zoom': (53, 16),
+    'settle': (23, 272),
 }
+# Wipe direction (data-anim-dir names the side the wipe starts from, as PowerPoint's «Direction» does)
+WIPE_SUBTYPE = {'left': 8, 'right': 2, 'up': 1, 'down': 4}
+SETTLE_FROM = 0.92           # settle scales from 92 % of the final size
+DECEL = 100000               # 100 %: decelerate over the whole behaviour, as PowerPoint's Rise Up / Magnify write it
 
 
 @dataclass
@@ -60,11 +80,12 @@ class Target:
 @dataclass
 class Effect:
     target: Target
-    effect: str                # appear | fade | rise | wipe | zoom
+    effect: str                # appear | fade | rise | wipe | zoom | settle
     trigger: str               # click | with | after
     delay_ms: int = 0
     dur_ms: int = 500
     companions: list = field(default_factory=list)   # Targets that play the same effect "with" this one
+    direction: str = 'left'    # wipe only: the side it starts from (left | right | up | down)
 
 
 @dataclass
@@ -74,6 +95,8 @@ class Media:
     loop: bool = False
     autoplay: bool = True
     shown_by: Effect | None = None     # the entrance effect that reveals the video, if any
+    play: str = 'with'                 # with: starts as it appears (its entrance's sub-group, or the slide start);
+                                       # after: after the builds of its click group
 
 
 def _el(tag, parent=None, **attrs):
@@ -138,9 +161,9 @@ def _anim_effect(lst, spid, dur, flt):
     _el('spTgt', tg, spid=spid)
 
 
-def _anim(lst, spid, dur, attr, frm, to, frm_is_float=False):
+def _anim(lst, spid, dur, attr, frm, to, frm_is_float=False, decel=None):
     a = _el('anim', lst, calcmode='lin', valueType='num')
-    _bhvr(a, spid, dur, attr=attr)
+    _bhvr(a, spid, dur, attr=attr, extra_ctn={'decel': decel} if decel else None)
     tl = _el('tavLst', a)
     for tm, val, flt in (('0', frm, frm_is_float), ('100000', to, False)):
         tav = _el('tav', tl, tm=tm)
@@ -151,7 +174,7 @@ def _anim(lst, spid, dur, attr, frm, to, frm_is_float=False):
             _el('strVal', v, val=val)
 
 
-def behaviours(lst, effect: str, spid: int, dur: int):
+def behaviours(lst, effect: str, spid: int, dur: int, direction: str = 'left'):
     """Append the behaviour nodes of one preset to <p:childTnLst> lst."""
     _set_visible(lst, spid)
     if effect == 'fade':
@@ -159,31 +182,45 @@ def behaviours(lst, effect: str, spid: int, dur: int):
     elif effect == 'rise':
         _anim_effect(lst, spid, dur, 'fade')
         _anim(lst, spid, dur, 'ppt_x', '#ppt_x', '#ppt_x')
-        _anim(lst, spid, dur, 'ppt_y', '#ppt_y+.1', '#ppt_y')
+        _anim(lst, spid, dur, 'ppt_y', '#ppt_y+.1', '#ppt_y', decel=DECEL)
     elif effect == 'wipe':
-        _anim_effect(lst, spid, dur, 'wipe(left)')
+        _anim_effect(lst, spid, dur, f'wipe({direction if direction in WIPE_SUBTYPE else "left"})')
     elif effect == 'zoom':
-        _anim(lst, spid, dur, 'ppt_w', '0', '#ppt_w', frm_is_float=True)
-        _anim(lst, spid, dur, 'ppt_h', '0', '#ppt_h', frm_is_float=True)
+        _anim(lst, spid, dur, 'ppt_w', '0', '#ppt_w', frm_is_float=True, decel=DECEL)
+        _anim(lst, spid, dur, 'ppt_h', '0', '#ppt_h', frm_is_float=True, decel=DECEL)
+        _anim_effect(lst, spid, dur, 'fade')
+    elif effect == 'settle':
+        _anim(lst, spid, dur, 'ppt_w', f'#ppt_w*{SETTLE_FROM:g}', '#ppt_w', decel=DECEL)
+        _anim(lst, spid, dur, 'ppt_h', f'#ppt_h*{SETTLE_FROM:g}', '#ppt_h', decel=DECEL)
         _anim_effect(lst, spid, dur, 'fade')
 
 
-def effect_par(parent, effect: str, target: Target, node_type: str, delay: int, dur: int):
+def effect_par(parent, effect: str, target: Target, node_type: str, delay: int, dur: int, direction: str = 'left'):
     pid, sub = PRESETS[effect]
+    if effect == 'wipe':
+        sub = WIPE_SUBTYPE.get(direction, WIPE_SUBTYPE['left'])
     par = _el('par', parent)
     ctn = _ctn(par, presetID=pid, presetClass='entr', presetSubtype=sub, fill='hold')
     if target.has_text:
         ctn.set('grpId', '0')
     ctn.set('nodeType', node_type)
     _cond(_el('stCondLst', ctn), delay)
-    behaviours(_el('childTnLst', ctn), effect, target.spid, dur)
+    behaviours(_el('childTnLst', ctn), effect, target.spid, dur, direction)
     return par
 
 
-def media_par(parent, m: Media, node_type: str):
+@dataclass
+class _Play:
+    """A media play command placed inside a sub-group, next to effects."""
+    media: Media
+    node_type: str
+    delay: int
+
+
+def media_par(parent, m: Media, node_type: str, delay: int = 0):
     par = _el('par', parent)
     ctn = _ctn(par, presetID=1, presetClass='mediacall', presetSubtype=0, fill='hold', nodeType=node_type)
-    _cond(_el('stCondLst', ctn), 0)
+    _cond(_el('stCondLst', ctn), delay)
     lst = _el('childTnLst', ctn)
     cmd = _el('cmd', lst, type='call', cmd='playFrom(0.0)')
     cb = _el('cBhvr', cmd)
@@ -224,20 +261,35 @@ def build_timing(effects: list[Effect], media: list[Media]):
     if not effects and not media:
         return None
     groups, auto_first = schedule(effects)
-    # media play: last sub-group of the click group where the video appears (group 0 = slide start)
-    if any(m.autoplay and m.shown_by is None for m in media) and not auto_first:
-        groups.insert(0, [])                  # a group that starts with the slide, holding only the playback
+    autoplay = [m for m in media if m.autoplay]
+    # a video without an entrance plays from the slide's start: that needs a group that starts with the slide
+    if any(m.shown_by is None for m in autoplay) and not auto_first:
+        groups.insert(0, [])
         auto_first = True
-    plays: dict[int, list[Media]] = {}
-    for m in media:
-        if not m.autoplay:
-            continue
-        gi = 0
+    plays: dict[int, list[Media]] = {}        # play="after": the last sub-group of the click group
+    for m in autoplay:
+        where = None
         if m.shown_by is not None:
-            for k, g in enumerate(groups):
-                if any(e is m.shown_by for sg in g for e, _ in sg):
-                    gi = k
-        plays.setdefault(gi, []).append(m)
+            for gi, g in enumerate(groups):
+                for si, sg in enumerate(g):
+                    if any(isinstance(x, tuple) and x[0] is m.shown_by for x in sg):
+                        where = (gi, si)
+        if m.play == 'after':
+            plays.setdefault(where[0] if where else 0, []).append(m)
+        elif where is None:
+            # play="with", no entrance: with the first effects of the slide-start group (alone: as PowerPoint
+            # writes an automatic play, an afterEffect)
+            if not groups[0]:
+                groups[0].append([])
+            sg = groups[0][0]
+            sg.append(_Play(m, 'withEffect' if sg else 'afterEffect', 0))
+        else:
+            # play="with": next to its entrance, same sub-group and delay, so "with" effects with delays run
+            # alongside the clip; the clip's length does not hold back the next "after" sub-group
+            gi, si = where
+            sg = groups[gi][si]
+            k = next(i for i, x in enumerate(sg) if isinstance(x, tuple) and x[0] is m.shown_by)
+            sg.insert(k + 1, _Play(m, 'withEffect', m.shown_by.delay_ms))
 
     timing = _el('timing')
     tn_lst = _el('tnLst', timing)
@@ -264,11 +316,15 @@ def build_timing(effects: list[Effect], media: list[Media]):
                 _cond(_el('stCondLst', sctn), start)
                 skids = _el('childTnLst', sctn)
                 longest = 0
-                for e, node_type in sg:
-                    effect_par(skids, e.effect, e.target, node_type, e.delay_ms, e.dur_ms)
+                for x in sg:
+                    if isinstance(x, _Play):
+                        media_par(skids, x.media, x.node_type, x.delay)
+                        continue
+                    e, node_type = x
+                    effect_par(skids, e.effect, e.target, node_type, e.delay_ms, e.dur_ms, e.direction)
                     bld_targets.append(e.target)
                     for c in e.companions:
-                        effect_par(skids, e.effect, c, 'withEffect', e.delay_ms, e.dur_ms)
+                        effect_par(skids, e.effect, c, 'withEffect', e.delay_ms, e.dur_ms, e.direction)
                         bld_targets.append(c)
                     longest = max(longest, effect_length(e))
                 start += longest
