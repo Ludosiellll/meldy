@@ -61,33 +61,45 @@ Sources of truth:
   * Ten 22 px squares `!!s01…!!s10` and the counter `!!left`, written by `design/stamp.mjs` from `design/deck.mjs`.
   * The current section is yellow, a passed one an outline, a coming one ink (light on the dark slides): the
     cheat sheet's three states.
-  * **01 has no strip.** The ten squares sit, round and yellow, exactly under the wordmark's dot and settle in with
-    it.
-  * On 02 they **burst out** into the strip, the counter fades in, and the reading line explains it once: «Наверху —
-    шпаргалка этой защиты: 10 обязательных разделов; пройденный гаснет, как строка в Meldy».
+  * **01 has no strip.** The ten squares are *seeds*: invisible 8 px rounds in a row inside the wordmark's dot,
+    already in their colour on 02 at 1 % alpha.
+  * On 02 the strip **unrolls out of the dot**: each seed only moves, grows and comes up to colour, so Morph mixes
+    nothing. The counter fades in, and the reading line explains the strip once: «Наверху — шпаргалка этой защиты:
+    10 обязательных разделов; пройденный гаснет, как строка в Meldy».
   * The own slides 11–12 show a small yellow dot `!!sx` in the gap after square 07.
-  * On 15 the strip **collapses** back into the dot, and the counter comes down under the wordmark: «Шпаргалка этой
-    защиты пуста: осталось 0 из 10».
+  * On 15 the strip **collapses** back into the dot: the squares fly into it and fade away as seeds. The counter
+    comes down under the wordmark: «Шпаргалка этой защиты пуста: осталось 0 из 10».
+  * The header band (strip, counter, corner) is the **last layer** of every slide, so in a Morph its squares and the
+    dot fly over everything.
 - **The dot** `!!dot` (C) travels the whole deck:
 
   | Slide | What the dot is |
   |---|---|
   | 01 | the big wordmark's dot (84 px) |
   | 02–05 | the corner wordmark's dot |
-  | 06 | the yellow first bullet of the contents |
+  | 06 | the first bullet of the contents, in ink like the others: it came down from the corner |
   | 07 | the laptop's ink bezel, 1184 × 600 |
   | 08 | the phone, 424 × 880 |
   | 09 | the laptop again |
   | 10 | the chat, 704 × 704 |
-  | 11–14 | the corner dot again |
+  | 11 | the first step of the path, «Группа»: the chat closes into this ink dot (the corner dot is `!!x11dot`) |
+  | 12 | the corner dot again, flying up from 11 as the lights go down |
+  | 13–14 | the corner dot |
   | 15 | the big dot, with the strip collapsing into it |
 
-  Every morphing dot is a rounded rectangle with radius = half its size, so it opens into a device without changing
-  preset. The corner wordmark `!!word` shrinks out of the big one on 02, leaves on 06–10 and grows back on 15.
+  The chain is **ink from 06 to 11**, so the dot never turns olive while it grows into a bezel or shrinks back: the
+  yellow ↔ ink changes happen only on small dots (05→06, 11→12). Every morphing dot has a radius of half its size
+  less half a pixel. It looks like a circle, but the compiler writes a rounded rectangle at both ends of the Morph,
+  never an ellipse. The corner wordmark `!!word` shrinks out of the big one on 02, leaves on 06–10 and grows back on
+  15.
+- **The screens** on 07–10 are `!!clip`: they ride with the bezel and crossfade their content. 07's clip has an
+  entrance: the dot grows into a dark bezel, then the screen turns on.
 - **Titles** are all `!!title` (the compiler's name), so the label crossfades in place from slide to slide. Labels
   never have an entrance of their own after 01.
 - **Other pairs**: `!!num` turns «229 тыс.» into the «0» (03→04); `!!c1`/`!!c2` name the author cards and the QR
   card.
+- **No automatic Morph matches.** Built objects that PowerPoint could pair with an object of the previous slide
+  (identical bullets, numbers, arrows, chips) carry unique `!!x…` names. The morph-log shows 0 automatic pairs.
 
 ## 3. Motion
 
@@ -101,7 +113,7 @@ Sources of truth:
 | 03→04 | **M2** «229 тыс.» becomes «0» | 1.4 s |
 | 04→05, 05→06 | **M3** lights down, lights up | 1.5 s |
 | 06→07 | **M4** the dot grows into the laptop | 1.5 s |
-| 07→08→09→10→11 | the device chain: laptop → phone → laptop → chat → the corner dot | 1.3 s |
+| 07→08→09→10→11 | the device chain: laptop → phone → laptop → chat → the first step's dot on 11 | 1.3 s |
 | 11→12, 12→13 | **M5** lights down into the night field, and up | 1.5 s |
 | 13→14 | Morph | 0.9 s |
 | 14→15 | **M6** the strip collapses into the dot (Morph by words: «осталось», «из», «10» travel) | 1.6 s |
@@ -147,14 +159,14 @@ Eye order is what the eye takes first, second and third in the still.
 | 02 | Автор проекта | two author cards | initials avatars → names → roles → institution → region → the strip, explained | counter · cards · avatars, names · institution · region · reading line (2.4 s) |
 | 03 | Актуальность | «229 тыс.» | claim → the № 319 card (the attestation rules of higher education, by full name) → on a click «229 тыс.» | claim · card · № 319 · title; *click* 229 тыс. (1.4 + 0.9 s) |
 | 04 | Цель, задачи | «0» 420 px | «0 строк осталось» → the erased map → four tasks | caption · map sweeps · tasks 1–4 (2.0 s) |
-| 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | header · five rows · ticks cascade · reading line (2.55 s) |
+| 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade · reading line (2.85 s) |
 | 06 | Содержание | the five blocks | the blocks as cheat-sheet lines, with the slide of each → «Число и формат» | claim · lines written in · card · chips · note (2.3 s) |
-| 07 | Представление блоков проекта | the laptop | claim → the recording → four steps | claim · screen on · steps (1.6 s) |
-| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | claim · screen on · steps · note (2.0 s) |
-| 09 | Представление блоков проекта | the laptop with the sheet | claim → the clip → the legend in the map's squares | claim · screen on · legend (1.75 s) |
-| 10 | Представление блоков проекта | the chat | claim → the chat → «Пригласить группу» → six copies → Telegram | claim · screen on · group · copies cascade · Telegram (2.35 s) |
+| 07 | Представление блоков проекта | the laptop | claim → the recording → four steps | the screen turns on · claim · steps (1.6 s) |
+| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | the screen rides in with the bezel · claim · steps · note (2.0 s) |
+| 09 | Представление блоков проекта | the laptop with the sheet | claim → the clip → the legend in the map's squares | claim · legend (1.75 s) |
+| 10 | Представление блоков проекта | the chat | claim → the chat → «Пригласить группу» → six copies → Telegram | claim · group · copies cascade · Telegram (2.35 s) |
 | 11 | Тестирование и продвижение | the path | «Пилот: [N] студентов, [M] дней» → group → department → colleges and universities → the open site | claim · result · three steps · site (2.45 s) |
-| 12 | Масштабируемость (dark) | the night field | claim → the field, «ваша группа» → the ladder 1 → 1 → 400 → 25 → ≈ 229 тыс. | the clip fades in and plays; each rung on its stop; «ваша группа» at the end (10.3 s, by design) |
+| 12 | Масштабируемость (dark) | the night field | claim → the field, «ваша группа» → the ladder 1 → 1 → 400 → 25 → ≈ 229 тыс. | the lights are down; the claim rises; 300 ms later the clip fades in and plays; each rung on its stop; «ваша группа» when the field holds (10.6 s, by design) |
 | 13 | Используемые источники | — | three groups of sources, typography only | claim · rules wipe, entries fade (2.1 s) |
 | 14 | Технические требования | — | the requirements → the stack by layer | claim · two columns · reading line (2.1 s) |
 | 15 | Заключение | «Meldy.» 300 px | the wordmark with the strip collapsed into its dot → «пуста: 0 из 10» → recommendations → monetisation → the QR card | lists written in · QR card settles last (2.3 s) |
@@ -176,9 +188,9 @@ own text at build time.
 
 - `settle`, `data-anim-dir`, `data-morph`, `data-fill`, bleed cropping and the Morph lint come from the compiler of
   round 2.
-- **Open:** `data-play="with"` on 12's video, so playback starts with its entrance. Then the ladder's builds,
-  «with» at the clip's stops, run alongside the clip instead of before it. Until it lands, check 12 in the motion
-  preview.
+- `data-play`: `with` (the compiler's default since round 2) starts a clip with its entrance, or with the slide
+  when it has none, so «with» builds at the clip's moments run alongside it (12's ladder; checked frame by frame in
+  `12-in.mp4`).
 - Cards that build or move carry `box-shadow` on the marked shape (`.lift`). The shadow becomes the shape's over-layer
   picture and builds and morphs with it.
 - The bake of every slide is a flat canvas (`shoot.mjs --bg`); everything visible is a native object or a picture.

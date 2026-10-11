@@ -55,3 +55,62 @@ a later step).
 
 `node design/preview/lint.mjs` — no errors, no warnings. Contact sheet, build-ups and Morph maps re-rendered and
 read slide by slide; the remaining items are the **open** ones above.
+
+## Round 3 — the round-2 deck: stills, the motion preview, the words
+
+Read on 2026-10-11 from:
+* the contact sheet (`out/preview/contact.png`);
+* the compiler's motion preview: `out/preview/motion/deck.mp4`, `NN-in.mp4`, the keyframe sheets
+  `keyframes/NN-in.png` (0/25/50/75/100 % of every transition plus its pair map) and `morph-log.txt`;
+* the build strips (`out/preview/build/`) and `timeline.mjs`.
+
+### A jury expert (Normal view / PDF, no talk)
+
+| # | Finding | Status |
+|---|---|---|
+| R3.1 | 01: the cover card is the product's first impression and was still medium. | **fixed** — a third larger (720 × 896), taller, inside the slide. The GIF carries its own card and shadow, 1:1, 388 KB. The thesis is set at 64 px so its first line clears the card; the wordmark keeps 300 px. |
+| R3.2 | 03: the regulation's full title on the «№ 319» card looks small on the contact sheet. | **kept** — it is 28 px, the reading layer (lint). The full name is what shows that № 319 is the higher-education attestation rules; the card's headline is «№ 319 от 13.10.2023». |
+| R3.3 | 12: why dots? The unit of the field has to be read, not guessed. | **fixed** — every rung of the ladder has a picture of its level in the clip's own marks; the last rung reads «≈ 229 тыс. / студентов: 9 160 групп»; «ваша группа» labels the yellow dot. |
+| R3.4 | 01–02: the strip has to be explained where it first appears. | **fixed** — 02's reading line, and one sentence in 02's notes. |
+| R3.5 | 10: the bot's menu button changed with release 43. | **fixed** — the tip clip re-rendered from the merged app: «Открыть Meldy». |
+| R3.6 | 11, 13 and the names on 02. | **open** — the pilot's numbers and result, the BELTA note's address and the access date. The names come from the private fill at the final build. |
+| R3.7 | 07, 08: the product recordings are still placeholders. | **open** — the clips from the recording agent are not merged yet. Fit them to the new screens (07/09 1152 × 568, 08 392 × 848, corners in ink) with `motion/loopmask.py`; re-time the steps to their moments. |
+
+### A motion designer (deck.mp4, keyframes, morph-log)
+
+| # | Finding | Status |
+|---|---|---|
+| M3.1 | 01→02: the ten squares travelled as one clump and turned olive half-way (yellow mixing into ink). | **fixed** — they are seeds: ten invisible 8 px rounds in a row inside the wordmark's dot, already in their colour on 02 at 1 % alpha. The strip unrolls out of the dot as a line and only comes up to colour. On 15 the squares fly back into the dot and fade into it. |
+| M3.2 | 06→07 and 10→11: the dot turned into an olive rectangle as it grew into the ink bezel, and again as the chat shrank back to the corner. | **fixed** — the chain is ink: 06's first bullet is ink like the others, and the chat closes into the first step of 11's path («Группа», an ink dot). The yellow returns on 12, as a small dot flying to the corner while the lights go down. 11's corner dot is `!!x11dot`, so it pairs with nothing. |
+| M3.3 | 06→07: the clip faded in at its final place while the bezel was still growing; frame and picture came apart. | **fixed** — the dot grows into an empty dark bezel, then the screen turns on (07's clip has an entrance). The clips are `!!clip` and ride with the bezel 07→08→09→10. |
+| M3.4 | 10→11: the chat's picture fades in place for half the transition while its bezel leaves. | **kept** — only an exit effect would take it away first, and the deck uses entrances only. The bezel closing into the group's dot is what the eye follows. |
+| M3.5 | 04→05: the claim and the statement crossfaded over each other in mid-transition. | **fixed** — the lights go down first; the statement rises in the dark (05). The same for 12's claim, with the clip and its ladder 300 ms later. |
+| M3.6 | Builds ran 3.5–6.7 s, step after step. | **fixed** — every slide builds as one automatic group of 1.4–2.9 s, the steps overlapping in beats; only 03 waits for a click; 12 follows its clip (10.6 s). |
+| M3.7 | Automatic Morph matches: identical bullets, numbers, arrows, chips would pair across slides. | **fixed** — 38 built objects carry unique `!!x…` names; morph-log: 0 automatic pairs on all 14 transitions. |
+| M3.8 | The strip, the counter and the corner were the bottom layer: in a Morph the flying squares and the dot could pass under cards. | **fixed** — the header band is the last layer of every slide. |
+| M3.9 | 12: does the ladder land on the clip's stops? | **checked** — frames at 2.4, 4.6, 6.9, 9.0, 11.4 and 13.4 s of `12-in.mp4`: each rung arrives as the camera settles on its level; «ваша группа» after the field holds. |
+| M3.10 | 03→04: half-way, the «0» shows inside the shrinking «229». | **kept** — one slot, under a second: the number drops to zero. |
+| M3.11 | Two small colour changes remain: 05→06 (the yellow corner dot lands as 06's ink bullet) and 11→12 (the group's ink dot flies up as the yellow corner dot). | **kept** — dots of 10–36 px, half a second; nothing large changes colour. |
+| M3.12 | The cover GIF went from 12.5 to 10 fps to stay under 0.4 MB at its new size. | **kept** — the voice bars move five times a second; a named line takes 3–4 frames. |
+
+### A Russian-language editor
+
+| # | Finding | Status |
+|---|---|---|
+| E3.1 | 05: the script's claim does not fit two lines at 96 px. | **fixed** — «ИИ не отвечает за студента: он спрашивает и сверяет с лекциями» (accepted by the coordinator). |
+| E3.2 | Non-breaking spaces: «9 160 групп» (12), «120 стран» (13). | **fixed** |
+| E3.3 | 14: «Chrome, Edge, Firefox или Safari» shared a paragraph with a 44 px line; LibreOffice could not set the negative spacing. | **fixed** — its own line, 32 px. |
+| E3.4 | 04: «строк осталось» sat above the zero's baseline. | **fixed** — on the baseline. |
+
+### A viewer at the back of the room (projector)
+
+| # | Finding | Status |
+|---|---|---|
+| S3.1 | 12: a weak projector may wash the night field out. | **kept** — the dots are 50–75 % of the muted token (round 1: about 40 %); the yellow ring, the label and the ladder carry the meaning without the field. |
+| S3.2 | 05: «частично» at 28 px is quiet on the dark stage. | **kept** — by design: the eye goes to Meldy's yellow ticks. |
+
+After the fixes:
+* `node design/preview/lint.mjs`: no errors.
+* `tools/make.sh`: ALL GREEN, 3.23 MB.
+* The motion preview was re-rendered and the keyframes read again.
+* The open items: R3.6, R3.7.
