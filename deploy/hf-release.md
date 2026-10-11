@@ -4,6 +4,18 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-11 — Release 43.4: the example exam for the jury — fair examiner, the strike in view, a lighter first screen (from the commit of this entry)
+
+From a live walk of `/try` as a juror would take it (QR on the slides; phones, laptop, both themes, Slow 4G):
+- **The examiner judges by what was asked.** A short right reply («Совершенно неэластичный и совершенно эластичный спрос.» to «Какие крайние случаи ценовой эластичности спроса бывают?») was judged «не назван»: for `/try` the model saw neither the examiner's question nor the expected answer. The example's server copy now carries each point's follow-up question and expected answer, and the follow-up prompt (real tickets too) says: judge by the question; the expected answer is a sample; don't demand details the question doesn't ask for — half an answer, vague words, the question repeated back and mix-ups still don't count.
+- **The strike-out in view on phones:** «К шпаргалке» now lands question 5 in the band between the bars from the first frame (390×844: struck lines at 225–294 px; before: off-screen at y≈1900–2290), the count steps with each strike (46 → 45 → 44), and a chip over the bottom bar shows it on phones; no flash of the old scroll.
+- **One story in the protocol** after a reply to the examiner: «Пункт N назван только после вопроса экзаменатора», «…один назван после вопроса экзаменатора», the first check's comment marked «В ответе: …» (counting rules unchanged).
+- **The examiner's question above the bottom bar** on phones (360×800: question and field now in view; real tickets too).
+- **One number for «есть в лекциях»:** «11 вопросов примера: 9 есть в лекциях, 2 — частично».
+- **A lighter first screen:** the example no longer pulls the Supabase client, the draw and the answer room are separate files prefetched after the sheet, background work waits for the sheet on `/try` — Slow 4G (400 kbit/s, 400 ms RTT, local build): the first button at 7.9 s instead of 11.5 s, 210 KB of JS before it instead of 364 KB.
+- **Polish:** «Вставить ответ примера» is a visible secondary button (voice stays the main action); the inserted answer is labelled «Ответ примера»; `/register` says «Почта» (placeholder `student@example.com`) and offers «Вернуться к примеру» to a visitor from `/try`.
+- **Verified before release:** Vitest 268 files / 4412 tests, pytest 1832, the bot's 319 tests and its plan copy (re-synced: `cheatSheet.ts`), `tsc -b`, the build in the Docker layout. Not verified before release: the new examiner prompt against the live model — checked right after.
+
 ## 2026-10-11 — Release 43.3: a gone exam reads calmly, the invite window holds still, the sheet's highlighter at night (from the commit of this entry)
 
 - **An exam that is not the user's any more** (deleted, left, removed): its page's two reads now accept the database's calm «not found» (null, HTTP 200) as well as the old P0002 (HTTP 500), and a malformed address is «gone» without a request. The database side is migration `20261011100000_containers_not_found_null.sql`, applied right after this release (the site reads both answers, so the order is safe this way round).
