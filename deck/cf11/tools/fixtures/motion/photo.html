@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Fixture still: a screen-like picture (for object-fit: cover and rounded clipping)</title>
+<link rel="stylesheet" href="../fixture.css">
+<style>
+  html, body { width: 1200px; height: 800px; overflow: hidden; }
+  .s { position: relative; width: 1200px; height: 800px; background: #fff; font-family: 'Onest', sans-serif; color: var(--ink); }
+  .top { position: absolute; left: 0; top: 0; width: 1200px; height: 120px; background: var(--ink); }
+  .top b { position: absolute; left: 60px; top: 30px; font-size: 52px; line-height: 60px; font-weight: 600; color: #fff; letter-spacing: -.04em; }
+  .top i { position: absolute; left: 218px; top: 70px; width: 16px; height: 16px; border-radius: 50%; background: var(--yellow); }
+  .col { position: absolute; top: 180px; width: 300px; height: 560px; border-radius: 32px; background: var(--canvas); }
+  .col p { margin: 36px 32px 0; font-size: 34px; font-weight: 600; }
+  .col span { display: block; margin: 14px 32px 0; height: 20px; border-radius: 10px; background: var(--line); }
+  .c1 { left: 60px; } .c2 { left: 450px; } .c3 { left: 840px; }
+  .c2 span:first-of-type { background: var(--blue); }
+</style>
+</head>
+<body>
+<div class="s">
+  <div class="top"><b>Meldy</b><i></i></div>
+  <div class="col c1"><p>Пн</p><span></span><span></span><span></span></div>
+  <div class="col c2"><p>Вт</p><span></span><span></span><span></span><span></span></div>
+  <div class="col c3"><p>Ср</p><span></span><span></span></div>
+</div>
+</body>
+</html>

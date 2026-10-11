@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Fixture 1 · Титульный</title>
+<link rel="stylesheet" href="fixture.css">
+<style>
+  .word { position: absolute; left: 114px; top: 168px; font-size: 220px; line-height: 1; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
+  .word .dot { display: inline-block; width: .28em; height: .28em; margin-left: .07em; border-radius: 50%; background: var(--yellow); }
+  .s1-claim { top: 452px; width: 1000px; font-size: 64px; }
+  .s1-lead { top: 640px; width: 780px; font-size: 36px; line-height: 1.38; }
+  .s1-card { left: 1180px; top: 128px; width: 612px; height: 640px; padding: 52px 56px; }
+  .s1-card h4 { margin: 28px 0 0; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; }
+  .s1-card .ln { position: relative; height: 58px; padding-left: 40px; font-size: 28px; line-height: 58px; white-space: nowrap; }
+  .s1-card .ln::before { content: ''; position: absolute; left: 4px; top: 24px; width: 10px; height: 10px; border-radius: 5px; background: var(--ink); }
+  .s1-card .ln.d { color: var(--faint); text-decoration: line-through; }
+  .s1-card .count { margin-top: 40px; font-size: 92px; line-height: 1; font-weight: 600; letter-spacing: -.04em; }
+  .s1-card .count small { font-size: 28px; font-weight: 400; color: var(--muted); letter-spacing: 0; margin-left: 12px; }
+  .qr { position: absolute; left: 1600px; top: 820px; width: 192px; height: 192px; }
+  .url { position: absolute; left: 128px; top: 920px; font-size: 32px; line-height: 40px; font-weight: 500; color: var(--label); white-space: nowrap; }
+  .hint { position: absolute; left: 128px; top: 976px; font-size: 28px; line-height: 36px; color: var(--faint); white-space: nowrap; }
+  .gif { position: absolute; left: 1180px; top: 846px; width: 360px; height: 120px; border-radius: 24px; }
+</style>
+</head>
+<body>
+<main class="slide" data-transition="fade">
+  <div class="strip">
+    <i class="now" data-pptx="shape" data-name="!!s01"></i><i data-pptx="shape" data-name="!!s02"></i><i data-pptx="shape" data-name="!!s03"></i><i data-pptx="shape" data-name="!!s04"></i><i data-pptx="shape" data-name="!!s05"></i><i data-pptx="shape" data-name="!!s06"></i><i data-pptx="shape" data-name="!!s07"></i><i data-pptx="shape" data-name="!!s08"></i><i data-pptx="shape" data-name="!!s09"></i><i data-pptx="shape" data-name="!!s10"></i>
+  </div>
+  <div class="left" data-pptx="text" data-name="!!left">осталось 10&nbsp;из&nbsp;10</div>
+  <h1 class="label" data-pptx="title">Титульный</h1>
+
+  <div class="word" data-pptx="text" data-name="!!word">Meldy<i class="dot" data-pptx="shape" data-name="!!dot"></i></div>
+
+  <p class="claim s1-claim" data-pptx="text" data-anim="fade" data-anim-trigger="after" data-anim-dur="600">ИИ не&nbsp;отвечает за&nbsp;студента —<br>он его <mark>спрашивает</mark></p>
+
+  <p class="body s1-lead" data-pptx="text" data-anim="rise" data-anim-trigger="with" data-anim-delay="150">
+    Подготовка к&nbsp;экзамену по&nbsp;перечню из&nbsp;<b>2000</b>&nbsp;вопросов кафедры и&nbsp;по&nbsp;своим лекциям — «шпаргалка» пустеет только от&nbsp;ответов.
+  </p>
+
+  <div class="card s1-card" data-pptx="image" aria-label="Шпаргалка одного вопроса: три строки, одна уже стёрта" data-anim="zoom" data-anim-trigger="click">
+    <span class="tag">Билет 7</span>
+    <h4>Цикл Кребса</h4>
+    <div class="ln">ацетил-КоА + оксалоацетат</div>
+    <div class="ln d">8 реакций в&nbsp;матриксе</div>
+    <div class="ln">выход: 3 НАДН, ФАДН₂, ГТФ</div>
+    <div class="count">2<small>строки осталось</small></div>
+  </div>
+
+  <!-- The QR is shown inline for the HTML preview; the PPTX takes the vector file from data-src. -->
+  <div class="qr" data-pptx="image" data-src="../../reference/qr-try.svg"
+       data-href="https://ludosiel-studyforge.hf.space/try" aria-label="QR-код: попробовать Meldy без регистрации"
+       data-anim="appear" data-anim-trigger="after" data-anim-delay="200"><svg width="192" height="192" viewBox="0 0 29 29" class="segno"><path class="qrline" stroke="#0b121c" d="M0 0.5h7m1 0h3m1 0h1m1 0h1m1 0h3m3 0h7m-29 1h1m5 0h1m1 0h1m7 0h2m1 0h1m2 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h4m2 0h2m2 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m5 0h2m2 0h2m1 0h1m2 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m2 0h1m4 0h1m1 0h2m2 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m3 0h1m3 0h1m7 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-20 1h3m1 0h3m3 0h1m-20 1h1m2 0h7m4 0h4m1 0h1m1 0h1m2 0h1m1 0h3m-26 1h3m3 0h2m4 0h1m3 0h1m1 0h1m1 0h2m1 0h2m-28 1h4m2 0h1m3 0h1m1 0h5m1 0h1m2 0h1m4 0h1m-26 1h1m2 0h2m1 0h2m1 0h1m1 0h1m3 0h3m1 0h2m3 0h1m2 0h1m-29 1h2m2 0h4m1 0h2m1 0h1m2 0h2m2 0h1m2 0h2m4 0h1m-29 1h1m3 0h2m2 0h2m2 0h1m2 0h2m1 0h1m3 0h7m-29 1h1m5 0h1m3 0h1m2 0h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1m-29 1h3m1 0h1m3 0h1m1 0h1m5 0h1m4 0h4m1 0h1m1 0h1m-29 1h1m1 0h5m5 0h1m1 0h3m6 0h1m1 0h1m-26 1h4m1 0h1m1 0h2m1 0h1m1 0h1m2 0h1m1 0h4m3 0h1m1 0h2m-28 1h2m1 0h2m1 0h2m2 0h1m1 0h4m1 0h1m1 0h1m2 0h1m1 0h2m2 0h1m-29 1h6m1 0h3m3 0h3m4 0h2m1 0h4m-27 1h2m1 0h1m2 0h2m3 0h1m1 0h1m1 0h1m1 0h11m-20 1h1m2 0h5m1 0h4m3 0h2m-26 1h7m1 0h3m2 0h1m1 0h1m3 0h2m1 0h1m1 0h2m-26 1h1m5 0h1m1 0h1m2 0h3m1 0h1m1 0h4m3 0h1m3 0h1m-29 1h1m1 0h3m1 0h1m1 0h2m3 0h1m2 0h1m2 0h7m1 0h1m-28 1h1m1 0h3m1 0h1m1 0h2m1 0h1m2 0h2m1 0h2m1 0h2m1 0h1m4 0h1m-29 1h1m1 0h3m1 0h1m3 0h1m1 0h1m2 0h2m1 0h1m1 0h2m1 0h2m1 0h3m-29 1h1m5 0h1m2 0h2m2 0h1m1 0h1m2 0h1m2 0h1m2 0h3m1 0h1m-29 1h7m1 0h1m3 0h2m1 0h1m4 0h2"/></svg></div>
+
+  <div class="url" data-pptx="text" data-href="https://ludosiel-studyforge.hf.space/try">ludosiel-studyforge.hf.space/try</div>
+  <div class="hint" data-pptx="text">Нажмите F5 — на&nbsp;слайдах ролики работы приложения</div>
+
+  <img class="gif" src="media/dots.gif" alt="" data-pptx="gif" data-src="media/dots.gif" aria-label="Точки шпаргалки гаснут по одной">
+
+  <template data-pptx="notes">
+    ЯДРО 0:00–0:15. Здравствуйте. Наш проект — Meldy. Это тренажёр к&nbsp;экзамену, который работает
+    с&nbsp;перечнем вопросов кафедры и&nbsp;с&nbsp;лекциями самого студента.
+
+    Главная мысль — на&nbsp;экране: ИИ не&nbsp;отвечает за&nbsp;студента, он его спрашивает.
+  </template>
+</main>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Fixture clip: plan by days (seamless 2 s loop)</title>
+<link rel="stylesheet" href="../fixture.css">
+<style>
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  .scene { position: relative; width: 1280px; height: 720px; background: var(--canvas); font-family: 'Onest', sans-serif; color: var(--ink); }
+  .panel { position: absolute; left: 160px; top: 110px; width: 960px; height: 500px; border-radius: 40px; background: #fff; }
+  .panel h2 { position: absolute; left: 56px; top: 48px; margin: 0; font-size: 48px; line-height: 56px; font-weight: 600; letter-spacing: -.02em; }
+  .panel p { position: absolute; left: 56px; top: 116px; margin: 0; font-size: 28px; color: var(--muted); }
+  .days { position: absolute; left: 56px; top: 220px; display: flex; gap: 22px; }
+  .d { width: 96px; height: 96px; border-radius: 28px; background: var(--ink); }
+  .bar { position: absolute; left: 56px; top: 380px; width: 848px; height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--blue); }
+</style>
+</head>
+<body>
+<div class="scene">
+  <div class="panel">
+    <h2>План по дням</h2>
+    <p>7 дней до экзамена · 30 минут в день</p>
+    <div class="days"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i></div>
+    <div class="bar"><i></i></div>
+  </div>
+</div>
+<script>
+  // Deterministic, clock-free timeline: every frame is a pure function of t, and t = T looks exactly like t = 0.
+  const days = [...document.querySelectorAll('.d')];
+  const fill = document.querySelector('.bar i');
+  window.__clip = {
+    T: 2000,
+    seek(ms) {
+      const p = ((ms % this.T) + this.T) % this.T / this.T;
+      days.forEach((d, i) => {
+        const k = 0.5 + 0.5 * Math.cos(2 * Math.PI * (p - i / days.length));
+        d.style.transform = `scale(${(0.86 + 0.14 * k).toFixed(4)})`;
+        d.style.background = k > 0.82 ? '#F4C45B' : '#0B121C';
+      });
+      fill.style.width = (50 + 40 * Math.sin(2 * Math.PI * p)).toFixed(3) + '%';
+    },
+  };
+  window.__clip.seek(0);
+</script>
+</body>
+</html>
