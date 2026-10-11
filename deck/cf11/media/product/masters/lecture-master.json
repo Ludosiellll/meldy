@@ -1,0 +1,432 @@
+{
+ "clip": "lecture",
+ "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/lec-b",
+ "size": [
+  1792,
+  1400
+ ],
+ "viewport": {
+  "width": 1024,
+  "height": 800
+ },
+ "capture_scale": 1.75,
+ "device_scale": 1.75,
+ "fps": 30,
+ "frames": 900,
+ "seconds": 30.0,
+ "loop_fade_frames": 15,
+ "stretches": [
+  {
+   "from": "@2.9",
+   "to": "@6.9",
+   "clip_from": 0.0,
+   "clip_to": 4.0,
+   "take_from": 2.9,
+   "take_to": 6.9,
+   "hold": 0,
+   "fade": 0
+  },
+  {
+   "from": "@8.95",
+   "to": "@10.7",
+   "clip_from": 4.0,
+   "clip_to": 5.733,
+   "take_from": 8.95,
+   "take_to": 10.7,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "chosen-0.05",
+   "to": "chosen+1.5",
+   "clip_from": 5.733,
+   "clip_to": 7.267,
+   "take_from": 11.041,
+   "take_to": 12.591,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@25.05",
+   "to": "@28.15",
+   "clip_from": 7.267,
+   "clip_to": 10.367,
+   "take_from": 25.05,
+   "take_to": 28.15,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@33.6",
+   "to": "@36.6",
+   "clip_from": 10.367,
+   "clip_to": 13.367,
+   "take_from": 33.6,
+   "take_to": 36.6,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@56.845",
+   "to": "@56.88",
+   "clip_from": 13.367,
+   "clip_to": 14.1,
+   "take_from": 56.845,
+   "take_to": 56.88,
+   "hold": 0.7,
+   "fade": 0.4
+  },
+  {
+   "from": "@56.88",
+   "to": "@59.12",
+   "clip_from": 14.1,
+   "clip_to": 16.333,
+   "take_from": 56.88,
+   "take_to": 59.12,
+   "hold": 0,
+   "fade": 0.3
+  },
+  {
+   "from": "terms+0.05",
+   "to": "terms+1.95",
+   "clip_from": 16.333,
+   "clip_to": 18.233,
+   "take_from": 64.018,
+   "take_to": 65.918,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@72.45",
+   "to": "@74.75",
+   "clip_from": 18.233,
+   "clip_to": 20.533,
+   "take_from": 72.45,
+   "take_to": 74.75,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@79.65",
+   "to": "@81.55",
+   "clip_from": 20.533,
+   "clip_to": 22.433,
+   "take_from": 79.65,
+   "take_to": 81.55,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "explained+0.15",
+   "to": "explained+2.15",
+   "clip_from": 22.433,
+   "clip_to": 24.433,
+   "take_from": 98.63,
+   "take_to": 100.63,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@109.0",
+   "to": "@111.1",
+   "clip_from": 24.433,
+   "clip_to": 26.533,
+   "take_from": 109.0,
+   "take_to": 111.1,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@119.35",
+   "to": "@121.0",
+   "clip_from": 26.533,
+   "clip_to": 28.2,
+   "take_from": 119.35,
+   "take_to": 121.0,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@143.0",
+   "to": "@144.8",
+   "clip_from": 28.2,
+   "clip_to": 30.0,
+   "take_from": 143.0,
+   "take_to": 144.8,
+   "hold": 0,
+   "fade": 0.4
+  }
+ ],
+ "swaps": [
+  {
+   "after": "pressed",
+   "clip": 11.964
+  }
+ ],
+ "moments": {
+  "tabs": 0.335,
+  "tab": 3.206,
+  "chooser": 5.358,
+  "chosen": 5.783,
+  "tick-podcast": 8.241,
+  "pressed": 11.164,
+  "progress": 11.973,
+  "results": 13.399,
+  "flipped": 18.84,
+  "answered": 21.215,
+  "brief": 25.065,
+  "play": 26.747
+ },
+ "clicks": [
+  {
+   "clip": 3.103,
+   "x": 853.8,
+   "y": 316.9
+  },
+  {
+   "clip": 5.253,
+   "x": 512.0,
+   "y": 528.3
+  },
+  {
+   "clip": 7.485,
+   "x": 222.7,
+   "y": 537.9
+  },
+  {
+   "clip": 9.701,
+   "x": 512.0,
+   "y": 537.9
+  },
+  {
+   "clip": 11.043,
+   "x": 512.0,
+   "y": 185.7
+  },
+  {
+   "clip": 18.733,
+   "x": 358.5,
+   "y": 305.5
+  },
+  {
+   "clip": 21.117,
+   "x": 329.6,
+   "y": 372.3
+  },
+  {
+   "clip": 24.901,
+   "x": 218.3,
+   "y": 285.8
+  },
+  {
+   "clip": 27.786,
+   "x": 158.0,
+   "y": 650.1
+  }
+ ],
+ "camera": {
+  "min_w": 640,
+  "pad": 16,
+  "move": 0.8,
+  "y_min": 84,
+  "keys": [
+   {
+    "clip": 0.0,
+    "rect": [
+     48,
+     108,
+     976,
+     343.9
+    ],
+    "beat": "start"
+   },
+   {
+    "clip": 0.6,
+    "rect": [
+     380,
+     246,
+     980,
+     344
+    ],
+    "move": 1.2,
+    "pad": 0,
+    "min_w": 600,
+    "anchor": "top",
+    "beat": "tabs"
+   },
+   {
+    "clip": 3.5,
+    "rect": [
+     76,
+     282,
+     948,
+     698
+    ],
+    "move": 0.8,
+    "pad": 0,
+    "beat": "media"
+   },
+   {
+    "clip": 5.833,
+    "rect": [
+     76,
+     240,
+     948,
+     560
+    ],
+    "move": 0.7,
+    "pad": 0,
+    "anchor": "top",
+    "beat": "file"
+   },
+   {
+    "clip": 7.267,
+    "rect": [
+     84,
+     279.7,
+     940,
+     623.7
+    ],
+    "move": 0.5,
+    "beat": "ticks"
+   },
+   {
+    "clip": 10.367,
+    "rect": [
+     76,
+     129,
+     948,
+     400
+    ],
+    "move": 0.45,
+    "pad": 0,
+    "anchor": "top",
+    "beat": "start-press"
+   },
+   {
+    "clip": 12.267,
+    "rect": [
+     152,
+     84,
+     872,
+     589
+    ],
+    "move": 0.6,
+    "pad": 0,
+    "anchor": "top",
+    "beat": "progress"
+   },
+   {
+    "clip": 14.233,
+    "rect": [
+     24,
+     124,
+     1000,
+     600
+    ],
+    "move": 0.6,
+    "beat": "results"
+   },
+   {
+    "clip": 16.333,
+    "rect": [
+     64,
+     128,
+     960,
+     400
+    ],
+    "move": 0.5,
+    "pad": 0,
+    "anchor": "top",
+    "beat": "terms"
+   },
+   {
+    "clip": 18.233,
+    "rect": [
+     8,
+     180,
+     1016,
+     400
+    ],
+    "move": 0.5,
+    "pad": 0,
+    "anchor": "top",
+    "beat": "card"
+   },
+   {
+    "clip": 20.533,
+    "rect": [
+     24,
+     189.5,
+     1000,
+     652.3
+    ],
+    "move": 0.5,
+    "beat": "quiz"
+   },
+   {
+    "clip": 22.433,
+    "rect": [
+     40,
+     335,
+     984,
+     600
+    ],
+    "move": 0.5,
+    "pad": 0,
+    "anchor": "top",
+    "beat": "explain"
+   },
+   {
+    "clip": 24.433,
+    "rect": [
+     40,
+     120,
+     984,
+     570
+    ],
+    "move": 0.5,
+    "pad": 12,
+    "beat": "brief"
+   },
+   {
+    "clip": 26.533,
+    "rect": [
+     40,
+     179,
+     984,
+     684
+    ],
+    "move": 0.5,
+    "pad": 0,
+    "beat": "player"
+   }
+  ]
+ },
+ "window": {
+  "name": "lecture-materials",
+  "box": [
+   1152,
+   568
+  ],
+  "radius": 22,
+  "bg": "#0b121c"
+ },
+ "mask": {
+  "rects": [
+   [
+    0,
+    0,
+    1024,
+    80
+   ]
+  ],
+  "color": "#f3f3f0"
+ },
+ "poster": {
+  "clip": 0.0,
+  "file": "lecture-poster.png",
+  "still": "poster",
+  "scale": 3.0
+ }
+}

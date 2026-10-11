@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Рыночное равновесие — слайды лекции</title>
+<!-- The slides of the lecture video (make.py): seven plain teacher-style slides, 1280 × 720 each, one <section
+     class="slide"> per `##` block of lecture.md, in the same order. A lecturer's slides, not Meldy's: system fonts,
+     white paper, a navy title, simple supply-and-demand graphs drawn in SVG. render.cjs shoots each section. -->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #9aa0a6; }
+  /* The same slides as a PDF (render.cjs --pdf): one slide a page, nothing around it. */
+  @page { size: 1280px 720px; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .slide { margin: 0; break-after: page; }
+    .slide:last-of-type { break-after: auto; }
+  }
+  .slide {
+    width: 1280px; height: 720px; margin: 0 0 24px; position: relative; overflow: hidden;
+    background: #fff; color: #222; padding: 52px 72px 0;
+    font-family: "Liberation Sans", Arial, "DejaVu Sans", sans-serif;
+  }
+  h1 { margin: 0; font-size: 44px; line-height: 52px; font-weight: 700; color: #1f3864; }
+  .rule { width: 96px; height: 4px; background: #2e75b6; margin: 14px 0 30px; }
+  .cols { display: flex; gap: 40px; align-items: flex-start; }
+  .text { flex: 1 1 0; font-size: 27px; line-height: 38px; }
+  .text p { margin: 0 0 22px; }
+  .text b { color: #1f3864; }
+  .fig { flex: 0 0 520px; }
+  .fig svg { display: block; width: 520px; height: 470px; }
+  .law { display: block; margin-top: 4px; color: #444; font-size: 24px; }
+  .foot {
+    position: absolute; left: 72px; right: 72px; bottom: 26px; padding-top: 10px; border-top: 1px solid #d9d9d9;
+    display: flex; justify-content: space-between; font-size: 17px; color: #7f7f7f;
+  }
+  /* graph marks */
+  svg text { font-family: "Liberation Sans", Arial, "DejaVu Sans", sans-serif; }
+  .ax { stroke: #333; stroke-width: 2.5; fill: none; }
+  .axl { font-size: 20px; fill: #333; }
+  .d { stroke: #2e75b6; stroke-width: 5; fill: none; stroke-linecap: round; }
+  .s { stroke: #c55a11; stroke-width: 5; fill: none; stroke-linecap: round; }
+  .dl { font-size: 22px; font-weight: 700; fill: #2e75b6; }
+  .sl { font-size: 22px; font-weight: 700; fill: #c55a11; }
+  .dash { stroke: #555; stroke-width: 2; stroke-dasharray: 7 6; fill: none; }
+  .pl { font-size: 21px; fill: #222; }
+  .pt { fill: #1f3864; }
+  /* title slide */
+  .title-slide { padding: 0; display: flex; align-items: center; }
+  .title-slide .band { position: absolute; left: 0; top: 0; bottom: 0; width: 18px; background: #1f3864; }
+  .title-slide .inner { padding: 0 0 40px 110px; width: 760px; }
+  .kicker { font-size: 24px; letter-spacing: .08em; text-transform: uppercase; color: #7f7f7f; margin-bottom: 18px; }
+  .big { font-size: 74px; line-height: 82px; font-weight: 700; color: #1f3864; margin: 0; }
+  .sub { font-size: 26px; line-height: 36px; color: #555; margin-top: 26px; }
+  .title-slide svg { position: absolute; right: 70px; top: 150px; width: 420px; height: 356px; }
+  /* formula */
+  .formula { display: flex; align-items: center; gap: 18px; font-size: 26px; margin: 4px 0 30px; color: #222; }
+  .frac { display: inline-flex; flex-direction: column; align-items: center; }
+  .frac span { padding: 2px 10px; }
+  .frac span + span { border-top: 2px solid #222; }
+  .formula b { color: #1f3864; font-size: 30px; }
+  .frac { font-size: 28px; white-space: nowrap; }
+  .fnote { font-size: 21px; line-height: 28px; color: #555; margin-left: 12px; }
+  ol.sum { margin: 0; padding: 0 0 0 40px; font-size: 30px; line-height: 44px; }
+  ol.sum li { margin: 0 0 22px; padding-left: 8px; }
+  .next { font-size: 24px; color: #555; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- 1 · title -->
+<section class="slide title-slide" id="s1">
+  <div class="band"></div>
+  <div class="inner">
+    <div class="kicker">Микроэкономика · лекция</div>
+    <h1 class="big">Рыночное равновесие</h1>
+    <div class="sub">Спрос и&nbsp;предложение, равновесная цена, излишек и&nbsp;дефицит, потолок цен, эластичность</div>
+  </div>
+  <svg viewBox="0 0 520 440" aria-hidden="true">
+    <path class="ax" d="M60 20 V400 H500" />
+    <path class="d" d="M110 60 L460 370" opacity=".55" />
+    <path class="s" d="M110 370 L460 60" opacity=".55" />
+    <circle class="pt" cx="285" cy="215" r="9" opacity=".7" />
+  </svg>
+</section>
+
+<!-- 2 · demand and supply -->
+<section class="slide" id="s2">
+  <h1>Спрос и&nbsp;предложение</h1>
+  <div class="rule"></div>
+  <div class="cols">
+    <div class="text">
+      <p><b>Спрос</b>&nbsp;— сколько товара покупатели готовы купить при каждой цене.
+        <span class="law">Закон спроса: цена&nbsp;↑ → величина спроса&nbsp;↓</span></p>
+      <p><b>Предложение</b>&nbsp;— сколько товара продавцы готовы продать при каждой цене.
+        <span class="law">Закон предложения: цена&nbsp;↑ → величина предложения&nbsp;↑</span></p>
+    </div>
+    <div class="fig">
+      <svg viewBox="0 0 520 470">
+        <path class="ax" d="M60 20 V400 H500" />
+        <path class="ax" d="M52 32 L60 18 L68 32 M488 392 L502 400 L488 408" />
+        <text class="axl" x="74" y="34">Цена, P</text>
+        <text class="axl" x="330" y="462">Количество, Q</text>
+        <path class="d" d="M110 60 L460 370" />
+        <path class="s" d="M110 370 L460 60" />
+        <text class="dl" x="468" y="374">D</text>
+        <text class="sl" x="468" y="66">S</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>Микроэкономика · Рыночное равновесие</span><span>2 / 7</span></div>
+</section>
+
+<!-- 3 · equilibrium price -->
+<section class="slide" id="s3">
+  <h1>Равновесная цена</h1>
+  <div class="rule"></div>
+  <div class="cols">
+    <div class="text">
+      <p><b>Точка равновесия E</b>&nbsp;— пересечение кривых спроса и&nbsp;предложения.</p>
+      <p><b>P*</b>&nbsp;— равновесная цена,<br><b>Q*</b>&nbsp;— равновесное количество.</p>
+      <p>При цене P* величина спроса равна величине предложения.</p>
+      <p>Равновесную цену никто не&nbsp;назначает: она складывается на&nbsp;рынке.</p>
+    </div>
+    <div class="fig">
+      <svg viewBox="0 0 520 470">
+        <path class="ax" d="M60 20 V400 H500" />
+        <path class="ax" d="M52 32 L60 18 L68 32 M488 392 L502 400 L488 408" />
+        <text class="axl" x="74" y="34">Цена, P</text>
+        <text class="axl" x="330" y="462">Количество, Q</text>
+        <path class="dash" d="M60 215 H285 V400" />
+        <path class="d" d="M110 60 L460 370" />
+        <path class="s" d="M110 370 L460 60" />
+        <circle class="pt" cx="285" cy="215" r="9" />
+        <text class="pl" x="300" y="206" font-weight="700">E</text>
+        <text class="pl" x="14" y="222">P*</text>
+        <text class="pl" x="272" y="428">Q*</text>
+        <text class="dl" x="468" y="374">D</text>
+        <text class="sl" x="468" y="66">S</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>Микроэкономика · Рыночное равновесие</span><span>3 / 7</span></div>
+</section>
+
+<!-- 4 · surplus and shortage -->
+<section class="slide" id="s4">
+  <h1>Излишек и&nbsp;дефицит</h1>
+  <div class="rule"></div>
+  <div class="cols">
+    <div class="text">
+      <p><b>Цена выше равновесной:</b> предлагают больше, чем покупают → <b style="color:#3f7a2a">излишек</b> → цена снижается.</p>
+      <p><b>Цена ниже равновесной:</b> хотят купить больше, чем есть → <b style="color:#b0261e">дефицит</b> → цена растёт.</p>
+      <p>В обоих случаях рынок сам возвращается к&nbsp;равновесию.</p>
+    </div>
+    <div class="fig">
+      <svg viewBox="0 0 520 470">
+        <path class="ax" d="M60 20 V400 H500" />
+        <path class="ax" d="M52 32 L60 18 L68 32 M488 392 L502 400 L488 408" />
+        <text class="axl" x="74" y="34">Цена, P</text>
+        <text class="axl" x="330" y="462">Количество, Q</text>
+        <path class="dash" d="M60 140 H370 M60 290 H370" />
+        <path class="d" d="M110 60 L460 370" />
+        <path class="s" d="M110 370 L460 60" />
+        <path d="M200 140 H370" stroke="#3f7a2a" stroke-width="9" stroke-linecap="round" />
+        <path d="M200 290 H370" stroke="#b0261e" stroke-width="9" stroke-linecap="round" />
+        <text x="226" y="126" font-size="22" font-weight="700" fill="#3f7a2a">излишек</text>
+        <text x="230" y="322" font-size="22" font-weight="700" fill="#b0261e">дефицит</text>
+        <circle cx="285" cy="215" r="7" fill="#888" />
+        <text class="pl" x="14" y="147">P₁</text>
+        <text class="pl" x="14" y="297">P₂</text>
+        <text class="dl" x="468" y="374">D</text>
+        <text class="sl" x="468" y="66">S</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>Микроэкономика · Рыночное равновесие</span><span>4 / 7</span></div>
+</section>
+
+<!-- 5 · price ceiling -->
+<section class="slide" id="s5">
+  <h1>Потолок цен</h1>
+  <div class="rule"></div>
+  <div class="cols">
+    <div class="text">
+      <p><b>Потолок цен</b>&nbsp;— наибольшая цена, которую разрешает государство.</p>
+      <p><b>Ниже равновесной цены:</b> устойчивый дефицит&nbsp;— нехватка товара, очереди, чёрный рынок.</p>
+      <p><b>Выше равновесной цены:</b> на&nbsp;рынок не&nbsp;влияет.</p>
+    </div>
+    <div class="fig">
+      <svg viewBox="0 0 520 470">
+        <path class="ax" d="M60 20 V400 H500" />
+        <path class="ax" d="M52 32 L60 18 L68 32 M488 392 L502 400 L488 408" />
+        <text class="axl" x="74" y="34">Цена, P</text>
+        <text class="axl" x="330" y="462">Количество, Q</text>
+        <path class="dash" d="M60 215 H285" />
+        <path class="dash" d="M200 290 V400 M370 290 V400" />
+        <path class="d" d="M110 60 L460 370" />
+        <path class="s" d="M110 370 L460 60" />
+        <circle cx="285" cy="215" r="7" fill="#888" />
+        <path d="M60 290 H500" stroke="#b0261e" stroke-width="5" />
+        <rect x="200" y="281" width="170" height="18" fill="#b0261e" opacity=".22" />
+        <text x="378" y="282" font-size="21" font-weight="700" fill="#b0261e">потолок цен</text>
+        <text x="236" y="324" font-size="21" font-weight="700" fill="#b0261e">дефицит</text>
+        <text class="pl" x="14" y="222">P*</text>
+        <text class="pl" x="186" y="428">Qs</text>
+        <text class="pl" x="356" y="428">Qd</text>
+        <text class="dl" x="468" y="374">D</text>
+        <text class="sl" x="468" y="66">S</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>Микроэкономика · Рыночное равновесие</span><span>5 / 7</span></div>
+</section>
+
+<!-- 6 · elasticity -->
+<section class="slide" id="s6">
+  <h1>Эластичность спроса</h1>
+  <div class="rule"></div>
+  <div class="cols">
+    <div class="text">
+      <div class="formula">
+        <span><b>Э</b>&nbsp;=</span>
+        <span class="frac"><span>%&thinsp;ΔQ</span><span>%&thinsp;ΔP</span></span>
+        <span class="fnote">изменение величины спроса, %<br>делённое на&nbsp;изменение цены, %</span>
+      </div>
+      <p><b>Больше 1 по&nbsp;модулю</b>&nbsp;— спрос эластичный: покупатели сильно реагируют на&nbsp;цену.</p>
+      <p><b>Меньше 1 по&nbsp;модулю</b>&nbsp;— спрос неэластичный: покупки почти не&nbsp;меняются.</p>
+    </div>
+    <div class="fig">
+      <svg viewBox="0 0 520 470">
+        <path class="ax" d="M60 20 V400 H500" />
+        <path class="ax" d="M52 32 L60 18 L68 32 M488 392 L502 400 L488 408" />
+        <text class="axl" x="74" y="34">Цена, P</text>
+        <text class="axl" x="330" y="462">Количество, Q</text>
+        <path class="dash" d="M60 236 H295 M60 170 H280" />
+        <path class="s" d="M110 380 L470 100" opacity=".45" />
+        <path class="s" d="M60 341 L420 61" />
+        <path class="d" d="M250 40 L330 390" />
+        <circle cx="295" cy="236" r="7" fill="#888" />
+        <circle class="pt" cx="280" cy="170" r="8" />
+        <text class="pl" x="14" y="243">P₁</text>
+        <text class="pl" x="14" y="177">P₂</text>
+        <text class="sl" x="478" y="110" opacity=".6">S₁</text>
+        <text class="sl" x="428" y="66">S₂</text>
+        <text class="dl" x="336" y="384">D</text>
+        <text x="334" y="312" font-size="19" fill="#555">неэластичный спрос</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>Микроэкономика · Рыночное равновесие</span><span>6 / 7</span></div>
+</section>
+
+<!-- 7 · summary -->
+<section class="slide" id="s7">
+  <h1>Итоги</h1>
+  <div class="rule"></div>
+  <ol class="sum">
+    <li>Равновесная цена уравнивает величину спроса и&nbsp;величину предложения.</li>
+    <li>Излишек и&nbsp;дефицит возвращают цену к&nbsp;равновесию.</li>
+    <li>Потолок цен ниже равновесной цены создаёт устойчивый дефицит.</li>
+    <li>Эластичность показывает, насколько сильно покупатели реагируют на&nbsp;цену.</li>
+  </ol>
+  <div class="next">Следующая лекция: налоги и&nbsp;рыночное равновесие.</div>
+  <div class="foot"><span>Микроэкономика · Рыночное равновесие</span><span>7 / 7</span></div>
+</section>
+
+</body>
+</html>

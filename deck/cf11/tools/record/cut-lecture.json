@@ -1,0 +1,49 @@
+{
+  "clip": "lecture",
+  "take": "lec-b",
+  "fps": 30,
+  "fade": 0.4,
+  "segments": [
+    { "from": "@2.9", "to": "@6.9" },
+    { "from": "@8.95", "to": "@10.7" },
+    { "from": "chosen-0.05", "to": "chosen+1.5" },
+    { "from": "@25.05", "to": "@28.15" },
+    { "from": "@33.6", "to": "@36.6" },
+    { "from": "@56.845", "to": "@56.88", "hold": 0.7 },
+    { "from": "@56.88", "to": "@59.12", "fade": 0.3 },
+    { "from": "terms+0.05", "to": "terms+1.95" },
+    { "from": "@72.45", "to": "@74.75" },
+    { "from": "@79.65", "to": "@81.55" },
+    { "from": "explained+0.15", "to": "explained+2.15" },
+    { "from": "@109.0", "to": "@111.1" },
+    { "from": "@119.35", "to": "@121.0" },
+    { "from": "@143.0", "to": "@144.8" }
+  ],
+  "swaps": ["pressed"],
+  "loop": { "fade": 0.5 },
+  "mask": { "rects": [[0, 0, 1024, 80]], "color": "#f3f3f0" },
+  "camera": {
+    "min_w": 640,
+    "pad": 16,
+    "move": 0.8,
+    "y_min": 84,
+    "keys": [
+      { "at": "@2.9", "box": "start", "beat": "start" },
+      { "at": "@3.5", "box": [380, 246, 980, 344], "pad": 0, "min_w": 600, "anchor": "top", "move": 1.2, "beat": "tabs" },
+      { "at": "tab+0.3", "box": [76, 282, 948, 698], "pad": 0, "move": 0.8, "beat": "media" },
+      { "at": "chosen+0.05", "box": [76, 240, 948, 560], "pad": 0, "anchor": "top", "move": 0.7, "beat": "file" },
+      { "at": "@25.05", "box": "grid", "move": 0.5, "beat": "ticks" },
+      { "at": "@33.6", "box": [76, 129, 948, 400], "pad": 0, "anchor": "top", "move": 0.45, "beat": "start-press" },
+      { "at": "progress+0.3", "box": [152, 84, 872, 589], "pad": 0, "anchor": "top", "move": 0.6, "beat": "progress" },
+      { "at": "@57.0", "box": [24, 124, 1000, 600], "move": 0.6, "beat": "results" },
+      { "at": "terms+0.05", "box": [64, 128, 960, 400], "pad": 0, "anchor": "top", "move": 0.5, "beat": "terms" },
+      { "at": "@72.45", "box": [8, 180, 1016, 400], "pad": 0, "anchor": "top", "move": 0.5, "beat": "card" },
+      { "at": "@79.65", "box": "quiz", "move": 0.5, "beat": "quiz" },
+      { "at": "explained+0.15", "box": [40, 335, 984, 600], "pad": 0, "anchor": "top", "move": 0.5, "beat": "explain" },
+      { "at": "@109.0", "box": [40, 120, 984, 570], "pad": 12, "move": 0.5, "beat": "brief" },
+      { "at": "@119.35", "box": [40, 179, 984, 684], "pad": 0, "move": 0.5, "beat": "player" }
+    ]
+  },
+  "poster": { "at": "@2.9", "still": "poster" },
+  "window": { "name": "lecture-materials", "box": [1152, 568], "radius": 22, "bg": "#0b121c" }
+}
