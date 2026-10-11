@@ -165,7 +165,8 @@ export const TG_TOTAL = 9200;
 export const TG_UI = {
   name: 'Meldy',
   subtitle: 'бот',
-  menu: 'Меню',
+  /** The bot's menu button since the Mini App: a web_app button with its own text (words.ts PROFILE.menuButton). */
+  menu: 'Открыть Meldy',
   field: 'Сообщение',
   yesterday: '12 октября',
   today: '13 октября',
@@ -257,12 +258,11 @@ function BotPhoto({ className }: { className: string }) {
 }
 
 /** Material's icons as Telegram for Android draws them in the chat (24 dp). */
-function Icon({ name }: { name: 'back' | 'menu' | 'smile' | 'clip' | 'mic' }) {
+function Icon({ name }: { name: 'back' | 'smile' | 'clip' | 'mic' }) {
   const line = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
   return (
     <svg className={`ts-tg-i ts-tg-i--${name}`} viewBox="0 0 24 24" aria-hidden="true">
       {name === 'back' ? <path d="M19.5 12H5M11 5.8 4.8 12l6.2 6.2" {...line} strokeWidth={2} /> : null}
-      {name === 'menu' ? <path d="M5 7h14M5 12h14M5 17h14" {...line} strokeWidth={2} /> : null}
       {name === 'smile' ? (
         <g>
           <circle cx="12" cy="12" r="9" {...line} />
@@ -543,10 +543,8 @@ function Telegram() {
           </div>
           <div className="ts-tg-input">
             <div className="ts-tg-field">
-              <span className="ts-tg-menu">
-                <Icon name="menu" />
-                {TG_UI.menu}
-              </span>
+              {/* A web_app menu button is its text alone (no «≡»: that one is the commands' «Меню»). */}
+              <span className="ts-tg-menu">{TG_UI.menu}</span>
               <Icon name="smile" />
               <span className="ts-tg-hint">{TG_UI.field}</span>
               <Icon name="clip" />
