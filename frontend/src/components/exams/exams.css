@@ -2451,19 +2451,22 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page.ex-detail .ex-consent[data-short] .sf-link[data-muted] { color: var(--sf-muted); }
   .sf-page.ex-detail .ex-consent[data-short] [role='alert'] { margin-top: 6px; color: var(--sf-ink); }
 
-  /* «Шпаргалка»: the count and the map of lines at the top of the sheet's card (sheet.css .cs-top), the switches, the
-     last answer and the history right under the card, bare, as the summary over the list of «Вопросы». */
-  .sf-page.ex-detail .ex-col > .cs-sum[data-variant='phone-tools'] { padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  /* «Шпаргалка»: the count and the map of lines at the top of the sheet's card (sheet.css .cs-top); the switches, the
+     last answer and the history in the «⋯» at the right of the count (SheetColumn.PhoneSummaryCard). */
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count { margin-top: 0; gap: 2px 10px; align-items: center; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .ex-big { font-size: 40px; }
   /* «строки осталось из 63. Как стираются строки» beside the figure, as «… в лекциях. Как считается» on «Вопросы». */
-  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count-l { flex: 1 1 0; min-width: 0; font-size: 16px; line-height: 22px; text-wrap: pretty; }
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count-l { position: relative; flex: 1 1 0; min-width: 0; font-size: 16px; line-height: 22px; text-wrap: pretty; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count-l .sf-link.cs-how { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; white-space: nowrap; }
-  .sf-page.ex-detail .cs-sum[data-variant='phone-tools'] .cs-toggles { margin-top: 0; }
-  /* The last answer and the history in one row down to 360 px. */
-  .sf-page.ex-detail .cs-sum[data-variant='phone-tools'] .cs-acts { gap: 0 16px; margin-top: 2px; }
-  .sf-page.ex-detail .cs-sum[data-variant='phone-tools'] .cs-acts .sf-link { min-height: 44px; font-size: 15px; }
+  /* The «⋯» over the first line of the words, its icon by the card's inner edge (the map's): the room is kept on that
+     line only (a float one line high), so the words keep their rows and the head is no taller for it. */
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-count-l[data-options]::before { content: ''; float: right; width: 34px; height: 22px; }
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-options { position: absolute; top: -11px; right: -8px; }
+  /* Wide enough for «Показать последний ответ» and the switch's hint on one row each; «Скрыть строки, стёртые совсем»
+     breaks in two, as by the column's switch (the window's width caps it, .sf-menu). */
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-options .sf-menu.mm-menu { min-width: 300px; }
   .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-change { margin-top: 12px; font-size: 16px; line-height: 23px; }
+  .sf-page.ex-detail .cs-sum[data-variant='phone'] .cs-cover-note { margin-top: 10px; font-size: 14px; line-height: 20px; }
   .sf-page.ex-detail .cs-more { margin: 12px 0 6px; padding: 10px 0 12px; border-top: 1px solid var(--sf-line); border-bottom: 1px solid var(--sf-line); }
   .sf-page.ex-detail .cs-more > .cs-sub:first-child,
   .sf-page.ex-detail .cs-more > .cs-rule:first-child { margin-top: 0; }

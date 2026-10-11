@@ -22,6 +22,7 @@ import {
 import type { SheetViewMode } from './CheatSheet';
 import { SheetRule } from './SheetLegend';
 import type { SheetLinks } from './useSheetPage';
+import MoreMenu, { type MoreMenuItem } from '../../ui/MoreMenu';
 
 /**
  * Meldy's column beside the cheat sheet (spec 4.1, 8): how many lines are left and their map, writing the
@@ -130,10 +131,10 @@ export interface SheetSummaryProps {
    * first screen), after — what the count means, the last answer's change, the rule, the share, the self-test,
    * the last answer and the history under the card. phone — the exam page on a phone (10_Project/Phone_Declutter_2026-10-08):
    * at the top of the sheet's card the count and the map, the last answer's change, and what the count means, the rule,
-   * the share and `more` behind «Как стираются строки»; phone-tools — under the card the switches, the last answer
-   * and the history.
+   * the share and `more` behind «Как стираются строки»; the switches, the last answer and the history in the «⋯» at the
+   * right of the count.
    */
-  variant?: 'full' | 'top' | 'after' | 'phone' | 'phone-tools';
+  variant?: 'full' | 'top' | 'after' | 'phone';
   /** More lines behind «Подробнее» of the phone's block (the questions whose points could not be written). */
   more?: ReactNode;
   /**
@@ -243,7 +244,7 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
 
   // A phone's card under the paper says nothing while the history plays (its day rides over the bottom bar).
   if (variant === 'after' && playing) return null;
-  if (variant === 'phone' || variant === 'phone-tools') return <PhoneSummaryCard {...props} />;
+  if (variant === 'phone') return <PhoneSummaryCard {...props} />;
 
   const acts = props.onShow && variant !== 'top' ? (
     <div className="cs-acts">
@@ -333,7 +334,7 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
           <Toggle label={COVER_LABEL} on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint={mode.cover ? null : COVER_HINT} />
         </div>
       )}
-      {mode.cover && variant !== 'top' && !playing && <p className="cs-sub cs-cover-note">Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.</p>}
+      {mode.cover && variant !== 'top' && !playing && <p className="cs-sub cs-cover-note">{COVER_NOTE}</p>}
       {acts}
     </div>
   );
@@ -342,14 +343,19 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
 /** The phone block's disclosure: the rule of erasing — the sentence that says what the sheet is — and the rest. */
 export const ERASE_RULE_LABEL = 'Как стираются строки';
 
+/** The name of the sheet's «⋯» on a phone, and of its menu. */
+export const SHEET_OPTIONS_LABEL = 'Ещё: шпаргалка';
+/** Under «Спрятать строки» while it is on: a tap on a hidden line opens it, and that is not a peek. */
+export const COVER_NOTE = 'Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.';
+
 /**
- * The exam page's sheet on a phone (10_Project/Phone_Declutter_2026-10-08): one summary instead of the count above the
- * card and three cards under it, cut so that the list starts high. phone — at the top of the sheet's card: the count
- * and the map of lines, what the last answer changed; the rule of erasing, what the count means, the share and the
- * questions without points behind «Как стираются строки» after the count's words (a muted link: it explains; as
- * «Подробнее» it hid the sentence that says what the sheet is). phone-tools — right under the card: the two switches,
- * «Показать последний ответ» and «История шпаргалки». While the history plays its day and «Остановить» ride over the
- * bottom bar, as before.
+ * The exam page's sheet on a phone (10_Project/Phone_Declutter_2026-10-08): one summary at the top of the sheet's
+ * card, so that the list starts high — the count and the map of lines, what the last answer changed; the rule of
+ * erasing, what the count means, the share and the questions without points behind «Как стираются строки» after the
+ * count's words (a muted link: it explains; as «Подробнее» it hid the sentence that says what the sheet is). The two
+ * switches, «Показать последний ответ» and «История шпаргалки» are one tap away, in the «⋯» at the right of the
+ * count (the app's menu, as the page's own «⋯»): the card's head is no taller for it. While the history plays its day
+ * and «Остановить» ride over the bottom bar, as before.
  */
 function PhoneSummaryCard(props: SheetSummaryProps) {
   const { counts, mode, onMode } = props;
@@ -366,39 +372,15 @@ function PhoneSummaryCard(props: SheetSummaryProps) {
   const erasedSome = counts.erased > 0;
   if (counts.total === 0) return null;
 
-  if (props.variant === 'phone-tools') {
-    if (playing) return null;
-    const hasActs = Boolean(props.onReplay || props.onHistory || history);
-    return (
-      <div className="ex-summary cs-sum" data-variant="phone-tools" id={props.id} tabIndex={props.id ? -1 : undefined}>
-        <div className="cs-toggles">
-          {/* Only once there is something for it to hide (PUB-16). */}
-          {erasedSome && <Toggle label={ONLY_LEFT_LABEL} on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />}
-          <Toggle label={COVER_LABEL} on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint={mode.cover ? null : COVER_HINT} />
-        </div>
-        {mode.cover && <p className="cs-sub cs-cover-note">Нажмите на спрятанную строку, чтобы открыть её. Это не «Подсмотреть»: ответ стирает её как обычно.</p>}
-        {hasActs && (
-          // One row on a 360 px phone: the visible words are short, the names whole (the words are part of them).
-          <div className="cs-acts">
-            {props.onReplay && (
-              <button type="button" className="sf-link" aria-label="Показать последний ответ" onClick={props.onReplay}>
-                Последний ответ
-              </button>
-            )}
-            {props.onHistory && (
-              <button type="button" className="sf-link" aria-label="История шпаргалки" onClick={props.onHistory}>
-                История
-              </button>
-            )}
-            {history && (
-              <button type="button" className="sf-link" data-muted="" aria-label="Закрыть историю шпаргалки" onClick={props.onHistoryStop}>
-                Закрыть историю
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    );
+  // The switches in their state, then the links; nothing while the history plays (its «Остановить» is over the bar).
+  const options: MoreMenuItem[] = [];
+  if (!playing) {
+    // Only once there is something for it to hide (PUB-16).
+    if (erasedSome) options.push({ key: 'only-left', label: ONLY_LEFT_LABEL, checked: mode.onlyLeft, onSelect: () => onMode({ ...mode, onlyLeft: !mode.onlyLeft }) });
+    options.push({ key: 'cover', label: COVER_LABEL, hint: mode.cover ? null : COVER_HINT, checked: mode.cover, onSelect: () => onMode({ ...mode, cover: !mode.cover }) });
+    if (props.onReplay) options.push({ key: 'replay', label: 'Показать последний ответ', onSelect: props.onReplay, separatorBefore: true });
+    if (props.onHistory) options.push({ key: 'history', label: 'История шпаргалки', onSelect: props.onHistory, separatorBefore: !props.onReplay });
+    if (history) options.push({ key: 'close-history', label: 'Закрыть историю шпаргалки', onSelect: props.onHistoryStop, separatorBefore: true });
   }
 
   const sub = history && !playing ? historyResult(history.first, history.frame, history.lowest) : null;
@@ -415,10 +397,12 @@ function PhoneSummaryCard(props: SheetSummaryProps) {
           <RollingNumber value={countValue} roll={props.roll || Boolean(history)} />
         </span>
         <span className="sr-only">{`${countValue} ${countLabel}`}</span>
-        <span className="cs-count-l">
+        <div className="cs-count-l" data-options={options.length > 0 ? '' : undefined}>
           <span aria-hidden="true">{disclosure ? `${countLabel}.` : countLabel}</span>
           {disclosure ? <> {disclosure}</> : null}
-        </span>
+          {/* At the right of the count's first line (sheet.css keeps that room): after «Как стираются строки» for the keyboard. */}
+          {options.length > 0 && <MoreMenu items={options} label={SHEET_OPTIONS_LABEL} variant="round" className="cs-options" />}
+        </div>
       </div>
       {open && !playing && (
         <div className="cs-more" id={detailsId}>
@@ -432,6 +416,8 @@ function PhoneSummaryCard(props: SheetSummaryProps) {
       {sub && <p className="cs-sub">{sub}</p>}
       {props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
       {props.changeLine && props.changeNote && !history && <p className="cs-change-note">{glue(props.changeNote)}</p>}
+      {/* The self-test is on: what a tap on a hidden line does, where the eye is. */}
+      {mode.cover && !playing && <p className="cs-sub cs-cover-note">{COVER_NOTE}</p>}
       {props.notice}
     </div>
   );

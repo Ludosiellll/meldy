@@ -2429,7 +2429,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(screen.getByRole('menuitem', { name: 'Тянуть билет из всех вопросов' })).toHaveAttribute('href', '/exams/exam-1/draw');
   });
 
-  it('a phone’s «Шпаргалка»: the count and the map at the top of the sheet’s card, the switches and the links right under it; the rest behind «Как стираются строки»; the «⋯» at the top', async () => {
+  it('a phone’s «Шпаргалка»: the count and the map at the top of the sheet’s card, the switches and the links one tap away in its «⋯»; the rest behind «Как стираются строки»; the page’s «⋯» at the top', async () => {
     setPhone();
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     mocks.fetchSheet.mockResolvedValue({ ...sheetOf(forty(), [1]), unwritable: 1 });
@@ -2447,15 +2447,27 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     // The map of the lines under the count, compact: a square per line, one named once.
     expect(block.querySelector('.cs-mapbox')).toHaveAttribute('data-compact', '');
     expect([...block.querySelectorAll<HTMLElement>('.cs-sq')].map((square) => square.dataset.s)).toEqual(['half', 'left']);
-    // The switches and the links: right under the card.
-    const tools = document.querySelector('.cs-sum[data-variant="phone-tools"]') as HTMLElement;
-    expect(paper.compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(block).queryAllByRole('switch')).toHaveLength(0);
-    expect(within(tools).getByRole('switch', { name: 'Спрятать строки' })).toBeInTheDocument();
+    // The switches and the links: one tap away in the «⋯» of the count's row, not repeated under the card.
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+    expect(document.querySelector('.cs-sum[data-variant="after"]')).toBeNull();
+    expect(document.querySelector('.ex-col-after .cs-sum')).toBeNull();
+    const options = within(block).getByRole('button', { name: 'Ещё: шпаргалка' });
+    expect(options.closest('.cs-count')).not.toBeNull();
+    fireEvent.click(options);
+    const menu = screen.getByRole('menu', { name: 'Ещё: шпаргалка' });
     // Nothing is erased yet: the second switch would hide nothing, so it is not offered.
-    expect(within(tools).queryByRole('switch', { name: 'Скрыть строки, стёртые совсем' })).toBeNull();
-    expect(within(tools).getByRole('button', { name: 'Показать последний ответ' })).toHaveTextContent('Последний ответ');
-    expect(within(tools).getByRole('button', { name: 'История шпаргалки' })).toHaveTextContent('История');
+    expect(within(menu).getAllByRole('menuitemcheckbox').map((item) => [item.getAttribute('aria-checked'), item.querySelector('.mm-check-text > span')?.textContent])).toEqual([
+      ['false', 'Спрятать строки'],
+    ]);
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Показать последний ответ', 'История шпаргалки']);
+    // The self-test from the menu: on at once, the menu still open on it, and the note where the eye is.
+    fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Спрятать строки' }));
+    expect(within(menu).getByRole('menuitemcheckbox', { name: 'Спрятать строки' })).toHaveAttribute('aria-checked', 'true');
+    expect(paper.querySelectorAll('.cs-line[data-cover]')).toHaveLength(2);
+    expect(block.querySelector('.cs-cover-note')).not.toBeNull();
+    fireEvent.keyDown(within(menu).getByRole('menuitemcheckbox', { name: 'Спрятать строки' }), { key: 'Escape' });
+    expect(screen.queryByRole('menu', { name: 'Ещё: шпаргалка' })).toBeNull();
+    expect(options).toHaveFocus();
     // The rule, what the count means and the questions without points: behind «Как стираются строки», a muted link after
     // the count's words (as «Как считается» on «Вопросы»).
     expect(block.querySelector('.cs-rule')).toBeNull();
@@ -2472,16 +2484,11 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     expect(more.firstElementChild).toHaveClass('cs-rule');
     expect(plain(block.querySelector('.cs-more .cs-sub')?.textContent)).toBe('главных строк — 1 из 1 · стёрты наполовину — 1 · у 9 вопросов нет пунктов ответа');
     expect(plain(block.querySelector('.cs-unwritable')?.textContent)).toBe('У 1 вопроса пункты не записаны: Meldy не смог подтвердить их цитатами из лекций');
-    // No card under the paper and no skip link past it; the «⋯» of the page's links is on the heading's row.
-    expect(document.querySelector('.cs-sum[data-variant="after"]')).toBeNull();
+    // No skip link past the card; the «⋯» of the page's links is on the heading's row.
     expect(screen.queryByRole('button', { name: 'К счётчику и переключателям' })).toBeNull();
-    const menu = await screen.findByRole('button', { name: 'Ещё: лист экзамена' });
-    expect(menu.closest('.ex-titlerow')).not.toBeNull();
+    const pageMenu = await screen.findByRole('button', { name: 'Ещё: лист экзамена' });
+    expect(pageMenu.closest('.ex-titlerow')).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Ещё: лист экзамена' })).toHaveLength(1);
-    // The self-test from under the card.
-    fireEvent.click(within(tools).getByRole('switch', { name: 'Спрятать строки' }));
-    expect(within(tools).getByRole('switch', { name: 'Спрятать строки' })).toHaveAttribute('aria-checked', 'true');
-    expect(paper.querySelectorAll('.cs-line[data-cover]')).toHaveLength(2);
   });
 
   it('a phone’s sheet with no lines yet still says which questions could not be written (no one block there to say it)', async () => {
