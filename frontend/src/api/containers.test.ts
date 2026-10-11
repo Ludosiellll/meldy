@@ -74,6 +74,7 @@ import {
   fetchSummary,
   finishMock,
   isContainersUnavailable,
+  isGone,
   isOffline,
   joinByCode,
   normalizeCode,
@@ -298,6 +299,32 @@ describe('reads', () => {
     expect(db.rpcCalls[1].args).toEqual({ p_local_date: '2026-12-21', p_container_id: C1 });
     await fetchPlanInputs('2026-12-21');
     expect(db.rpcCalls[2].args).toEqual({ p_local_date: '2026-12-21' });
+  });
+
+  it('an exam that is not the caller’s any more: its page’s reads answer null with HTTP 200, read as gone (third live check)', async () => {
+    // 20261011100000: null, not P0002 — PostgREST answered that with 500, two errors in the console of a deleted exam.
+    db.rpc = () => ({ data: null, error: null, status: 200 });
+    const summary = await caught(fetchSummary(C1, '2026-12-21'));
+    expect(summary).toMatchObject({ code: 'P0002', status: 200, message: CONTAINER_ERROR_TEXT.P0002 });
+    expect(isGone(summary)).toBe(true);
+    expect(isGone(await caught(fetchPlanInputs('2026-12-21', C1)))).toBe(true);
+    // The whole account's plan inputs are never null: a null there is a bad answer, not a gone exam.
+    const all = await caught(fetchPlanInputs('2026-12-21'));
+    expect(all.code).toBe('unknown');
+    // A database before the migration raised P0002 (HTTP 500): the same gone, so the site can go first.
+    db.rpc = () => ({ data: null, error: { code: 'P0002', message: 'container not found', details: null, hint: null }, status: 500 });
+    expect(isGone(await caught(fetchSummary(C1)))).toBe(true);
+    expect(isGone(await caught(fetchPlanInputs('2026-12-21', C1)))).toBe(true);
+  });
+
+  it('an address that cannot be an exam’s (a cut link) is gone without a request', async () => {
+    db.rpc = () => ({ data: summaryJson, error: null, status: 200 });
+    for (const id of ['f4881273-7331-4c39-96d7', 'undefined', `${C1}x`]) {
+      const error = await caught(fetchSummary(id));
+      expect(error, id).toMatchObject({ code: 'P0002', status: null });
+      expect(isGone(await caught(fetchPlanInputs('2026-12-21', id))), id).toBe(true);
+    }
+    expect(db.rpcCalls).toEqual([]);
   });
 });
 

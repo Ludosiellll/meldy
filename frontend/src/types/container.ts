@@ -355,8 +355,10 @@ export type ContainerErrorCode =
 /** Every RPC by name: argument object and response (PostgREST /rest/v1/rpc/<name>). */
 export interface ContainerRpc {
   containers_overview: { args: { p_local_date?: DayKey }; returns: ContainersOverview };
-  container_summary: { args: { p_container_id: Uuid; p_local_date?: DayKey }; returns: ContainerSummary };
-  plan_inputs: { args: { p_local_date?: DayKey; p_container_id?: Uuid }; returns: PlanInputsWire };
+  /** null: the exam is not the caller's (deleted, left, removed), with HTTP 200 (an older database raised P0002). */
+  container_summary: { args: { p_container_id: Uuid; p_local_date?: DayKey }; returns: ContainerSummary | null };
+  /** null only for one exam (`p_container_id`) that is not the caller's, as container_summary. */
+  plan_inputs: { args: { p_local_date?: DayKey; p_container_id?: Uuid }; returns: PlanInputsWire | null };
   record_test_answers: { args: { p_answers: AnswerInput[] }; returns: RecordAnswersResponse };
   container_mock_finish: { args: { p_run: MockRunInput }; returns: MockRunResult };
   container_create: { args: { p_title: string; p_exam_date: DayKey | null; p_subjects: CreateSubjectInput[] }; returns: ContainerCreated };

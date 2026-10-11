@@ -6,12 +6,12 @@
 #   oral checks (+ three more contract checks) → the migration twice → the contract before the revokes (exactly the
 #   four default-privilege gaps) → behaviour (writes the real RPC outputs and the rule vectors) → rule vectors equal
 #   contracts/container/rule_vectors.json → tsc --strict of the outputs against frontend/src/types/container.ts → oral
-#   checks → the revokes twice → behaviour again → contract_ok → the migration once more (keeps the revokes) →
-#   fingerprint (no line of the base changed or gone) → oral checks → the follow-ups' rollback (FK indexes, the
-#   oral-codes fix, the frozen day's start and pace: exactly their lines go) and again → the rollback twice (catalog =
-#   the base) → oral checks → apply again in the live order (= the first apply) → concurrency → 2000 items × 30
-#   members (reads, 1000-row cap) → docs/container-numbers.sql. The follow-ups (FOLLOW, applied live after the two)
-#   ride every apply of the migration.
+#   checks → the revokes twice → behaviour again → contract_ok → the live check of the page's «not found» → the
+#   migration once more (keeps the revokes) → fingerprint (no line of the base changed or gone) → oral checks → the
+#   follow-ups' rollback (FK indexes, the oral-codes fix, the frozen day's start and pace, the page's «not found»:
+#   exactly their lines go) and again → the rollback twice (catalog = the base) → oral checks → apply again in the live
+#   order (= the first apply) → concurrency → 2000 items × 30 members (reads, 1000-row cap) →
+#   docs/container-numbers.sql. The follow-ups (FOLLOW, applied live after the two) ride every apply of the migration.
 # Usage: supabase/tests/local/containers_run_all.sh
 # Env (all optional): CONTAINERS_PG_PORT (54371); CONTAINERS_WORK (scratch dir, default ${TMPDIR:-/tmp}/meldy-containers);
 #   PG_BIN (/usr/lib/postgresql/16/bin); CONTRACT_TS (frontend/src/types/container.ts); TSC (frontend's tsc);
@@ -31,9 +31,9 @@ MIG=$SB/migrations/20261009093500_containers.sql
 REV=$SB/migrations/20261009093501_containers_revokes.sql
 DOWN=$SB/rollback/20261009093500_containers_down.sql
 FOLLOW=("$SB/migrations/20261010074500_containers_fk_indexes.sql" "$SB/migrations/20261010110000_containers_oral_codes_closed.sql"
-        "$SB/migrations/20261010130000_containers_frozen_pace.sql")
-FOLLOW_DOWN=("$SB/rollback/20261010130000_containers_frozen_pace_down.sql" "$SB/rollback/20261010110000_containers_oral_codes_closed_down.sql"
-             "$SB/rollback/20261010074500_containers_fk_indexes_down.sql")
+        "$SB/migrations/20261010130000_containers_frozen_pace.sql" "$SB/migrations/20261011100000_containers_not_found_null.sql")
+FOLLOW_DOWN=("$SB/rollback/20261011100000_containers_not_found_null_down.sql" "$SB/rollback/20261010130000_containers_frozen_pace_down.sql"
+             "$SB/rollback/20261010110000_containers_oral_codes_closed_down.sql" "$SB/rollback/20261010074500_containers_fk_indexes_down.sql")
 VECTORS=$REPO/contracts/container/rule_vectors.json
 NUMBERS=$REPO/docs/container-numbers.sql
 export PGHOST=127.0.0.1 PGPORT=$PORT PGUSER=postgres
@@ -182,6 +182,8 @@ if behaviour c_main; then ok "behaviour (after the revokes)" "CONTAINER CHECKS P
 else bad "behaviour (after the revokes)" "$(grep -m1 'ERROR\|FAILED' "$OUT/behaviour.log")"; fi
 C=$(contract c_main)
 if echo "$C" | grep -q '"contract_ok" : true'; then ok "supabase/tests/containers.sql" "contract_ok: true"; else bad "supabase/tests/containers.sql" "$(echo "$C" | grep -o '"failed" : \[[^]]*\]')"; fi
+if run c_main "$SB/tests/containers_not_found.sql"; then ok "supabase/tests/containers_not_found.sql" "raises nothing"
+else bad "supabase/tests/containers_not_found.sql" "$(grep -m1 ERROR "$OUT/last.log")"; fi
 fingerprint c_main "$OUT/fp_after.txt"
 if run c_main "$MIG" && follow c_main; then
   fingerprint c_main "$OUT/fp_again.txt"
@@ -201,8 +203,9 @@ if run c_nofollow "$MIG" && run c_nofollow "$REV" && follow_down c_main && follo
   fingerprint c_nofollow "$OUT/fp_nofollow.txt"
   fingerprint c_main "$OUT/fp_follow_down.txt"
   GONE=$(comm -23 "$OUT/fp_after.txt" "$OUT/fp_nofollow.txt" | cut -d' ' -f1-2 | tr '\n' ' ')
-  # The follow-ups change two functions of the two files (container_oral_codes, plan_inputs_for); the rest is new.
-  if cmp -s "$OUT/fp_nofollow.txt" "$OUT/fp_follow_down.txt" && [ "$(comm -13 "$OUT/fp_after.txt" "$OUT/fp_nofollow.txt" | wc -l)" = 2 ]; then
+  # The follow-ups change four functions of the two files (container_oral_codes, plan_inputs_for, container_summary,
+  # plan_inputs); the rest is new.
+  if cmp -s "$OUT/fp_nofollow.txt" "$OUT/fp_follow_down.txt" && [ "$(comm -13 "$OUT/fp_after.txt" "$OUT/fp_nofollow.txt" | wc -l)" = 4 ]; then
     ok "follow-ups rolled back twice → the two-file catalog" "their lines: $GONE"
   else bad "follow-ups rolled back twice" "$(diff "$OUT/fp_nofollow.txt" "$OUT/fp_follow_down.txt" | head -3 | tr '\n' ' ')"; fi
   if follow c_main; then fingerprint c_main "$OUT/fp_follow_up.txt"; fi

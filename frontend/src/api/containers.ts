@@ -76,8 +76,9 @@ export function isOffline(error: unknown): boolean {
   return error instanceof ContainerApiError && error.code === 'network';
 }
 /**
- * True when the exam is not the caller's (P0002, live as HTTP 500): the author deleted it, the member left, or the author
- * removed them. Another try changes nothing.
+ * True when the exam is not the caller's (P0002): the author deleted it, the member left, or the author removed them.
+ * Another try changes nothing. Its page reads answer null for it (HTTP 200: `fetchSummary`, `fetchPlanInputs`); other
+ * calls raise P0002, which PostgREST answers with HTTP 500.
  */
 export function isGone(error: unknown): boolean {
   return error instanceof ContainerApiError && error.code === 'P0002';
@@ -122,7 +123,7 @@ export function containerError(error: unknown, status = 0): ContainerApiError {
   if (UNAVAILABLE_CODES.has(code)) return make('unavailable', status);
   // A request without a session: PostgREST answers 401 (an anonymous 42501 too: live, containers_overview as anon).
   if (status === 401 || code === '28000' || /^PGRST30\d$/.test(code)) return make('28000', status);
-  // The body's code decides, never the status: P0002 comes as 500 (live, container_summary for a non-member).
+  // The body's code decides, never the status: P0002 comes as 500 (PostgREST maps every P0 SQLSTATE but P0001 to 500).
   if (CONTAINER_CODES.has(code)) return make(code, status, message, detail);
   // Check, not-null and format violations of a direct write; a malformed id (22P02).
   if (/^(22|23)/.test(code)) return make('22023', status, message, detail);
@@ -300,15 +301,30 @@ export async function fetchOverview(localDate?: DayKey): Promise<ContainersOverv
   }
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * An exam that is not the caller's, as its page's two reads answer it: null with HTTP 200 (20261011100000; before it,
+ * P0002 with HTTP 500, which `containerError` reads the same way). `isGone` is true for both. An address that cannot
+ * be an exam's (a cut link) is the same, without a request (`status` null).
+ */
+const notTheirs = (status: number | null = 200): ContainerApiError => make('P0002', status);
+
 export async function fetchSummary(containerId: Uuid, localDate?: DayKey): Promise<ContainerSummary> {
-  return normalizeSummary(await call('container_summary', { p_container_id: containerId, p_local_date: localDate ?? today() }));
+  if (!UUID.test(containerId)) throw notTheirs(null);
+  const raw = await call('container_summary', { p_container_id: containerId, p_local_date: localDate ?? today() });
+  if (raw === null) throw notTheirs();
+  return normalizeSummary(raw);
 }
 
 /** plan_inputs for every container of the user (Сегодня, the bot) or for one (`containerId`). */
 export async function fetchPlanInputs(localDate?: DayKey, containerId?: Uuid): Promise<PlanInputsWire> {
+  if (containerId && !UUID.test(containerId)) throw notTheirs(null);
   const args: Rpc['plan_inputs']['args'] = { p_local_date: localDate ?? today() };
   if (containerId) args.p_container_id = containerId;
-  return normalizePlanInputs(await call('plan_inputs', args));
+  const raw = await call('plan_inputs', args);
+  if (raw === null && containerId) throw notTheirs();
+  return normalizePlanInputs(raw);
 }
 
 /** Items per keyset page: under PostgREST's 1000-row cap, about 450 KB of synthetic text. */

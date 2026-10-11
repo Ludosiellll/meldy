@@ -435,8 +435,12 @@ declare r jsonb;
 begin
   r := pg_temp.ans('q7', '"chosen":1', 'c-ans-0001');
   if r ->> 'status' <> 'gone' then raise exception 'FAILED: stranger answered %', r; end if;
-  perform pg_temp.expect_error(format($$select public.container_summary(%L)$$, pg_temp.c('c')), 'P0002', 'stranger summary');
-  perform pg_temp.expect_error(format($$select public.plan_inputs(null, %L)$$, pg_temp.c('c')), 'P0002', 'stranger plan inputs');
+  -- The exam's page: «not found» is null (HTTP 200), not P0002 (HTTP 500) — 20261011100000_containers_not_found_null.
+  if public.container_summary(pg_temp.c('c')::uuid) is not null then raise exception 'FAILED: stranger summary'; end if;
+  if public.plan_inputs(null, pg_temp.c('c')::uuid) is not null then raise exception 'FAILED: stranger plan inputs'; end if;
+  r := public.plan_inputs(null);
+  if r is null or jsonb_array_length(r -> 'containers') <> 0 or jsonb_array_length(r -> 'items') <> 0 then
+    raise exception 'FAILED: stranger plan inputs without an exam %', r; end if;
   perform pg_temp.expect_error(format($$insert into public.container_plans (container_id, minutes_per_day) values (%L, 45)$$, pg_temp.c('c')),
                                '42501', 'stranger plan row');
   perform pg_temp.expect_error(format($$select public.test_key_doubt(%L)$$, pg_temp.c('q7')), 'P0002', 'stranger doubt');
@@ -840,6 +844,8 @@ begin
   if (pg_temp.ans('q7', '"chosen":1', 'd-ans-0002') ->> 'status') <> 'gone' then raise exception 'FAILED: removed answers'; end if;
   select count(*) into n from public.test_item_states; if n <> 1 then raise exception 'FAILED: removed member keeps own state rows (%).', n; end if;
   if jsonb_array_length(public.containers_overview(null) -> 'containers') <> 0 then raise exception 'FAILED: removed member overview'; end if;
+  if public.container_summary(pg_temp.c('c')::uuid) is not null or public.plan_inputs(null, pg_temp.c('c')::uuid) is not null then
+    raise exception 'FAILED: removed member reads the exam''s page'; end if;
 end
 $t$;
 
@@ -887,6 +893,8 @@ begin
   r := public.container_leave(pg_temp.c('c')::uuid);
   perform pg_temp.keep('left', 'container_leave', r);
   select count(*) into n from public.test_items; if n <> 0 then raise exception 'FAILED: left member reads items'; end if;
+  if public.container_summary(pg_temp.c('c')::uuid) is not null or public.plan_inputs(null, pg_temp.c('c')::uuid) is not null then
+    raise exception 'FAILED: left member reads the exam''s page'; end if;
   select count(*) into n from public.exams where id = v_copy; if n <> 1 then raise exception 'FAILED: copy kept after leaving'; end if;
   r := public.container_join(pg_temp.c('code'));
   if (r ->> 'joined')::boolean is not true then raise exception 'FAILED: rejoin after leaving %', r; end if;
@@ -1038,6 +1046,11 @@ begin
   begin
     perform public.plan_inputs();
     raise exception 'FAILED: anon plan inputs';
+  exception when sqlstate '28000' or insufficient_privilege then null; end;
+  -- No user is no «not found»: an exam's page still refuses anon.
+  begin
+    perform public.container_summary('00000000-0000-4000-8000-000000000000');
+    raise exception 'FAILED: anon summary';
   exception when sqlstate '28000' or insufficient_privilege then null; end;
   begin
     perform public.container_subject_add('00000000-0000-4000-8000-000000000000', '{"title":"x"}');
