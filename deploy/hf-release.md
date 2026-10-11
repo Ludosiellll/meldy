@@ -4,6 +4,13 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-11 — Release 43.3: a gone exam reads calmly, the invite window holds still, the sheet's highlighter at night (from the commit of this entry)
+
+- **An exam that is not the user's any more** (deleted, left, removed): its page's two reads now accept the database's calm «not found» (null, HTTP 200) as well as the old P0002 (HTTP 500), and a malformed address is «gone» without a request. The database side is migration `20261011100000_containers_not_found_null.sql`, applied right after this release (the site reads both answers, so the order is safe this way round).
+- **«Пригласить группу»:** pressing «Создать ссылку» shows the link's place at once («Создаём ссылку…»), and the window keeps its height while the server answers, so nothing jumps (layout shift over the whole flow: phone 0.97 → 0, laptop 0.22 → 0.01); «Скопировать» / «Скопировано» share one width.
+- **Cheat sheet, dark theme:** the highlighter under the last answer's question is an opaque deep yellow (#906509) instead of a translucent yellow that read olive on the dark card; light theme unchanged.
+- **Verified before release:** Vitest 265 files / 4378 tests (new: not-found reads, invite layout, sheet colours), `tsc -b`, the build in the Docker layout, the bot's 319 tests and its plan copy (`sync_bot_plan --check`). The bot's press wording (the day a mistake comes back) ships with the `telegram` function deploy that follows.
+
 ## 2026-10-11 — Release 43.2: the end of a session promises the first count as the exam page does (from the commit of this entry)
 
 - **While the figure is 0:** the end screen's «Первые войдут в счёт …» is now the exam page's own figure line, from the plan read after the session — a confirmation of the plan can count later today («сегодня после 14:35»), where the screen used to promise «завтра» from the session's own answers. Held in place and frozen with «Сегодня осталось …» (at most 1.5 s); the old wording only when that reading does not come. The first-session reminder under it is held with it, so nothing seen moves.
