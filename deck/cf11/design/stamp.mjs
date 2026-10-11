@@ -9,6 +9,19 @@ const START = '<!-- header:start · written by design/stamp.mjs from design/deck
 const END = '<!-- header:end -->';
 
 const html = (s) => s.replace(/\u00a0/g, '&nbsp;');
+/** A seed: one of the ten squares hidden in the wordmark's dot on 01 and 15 (data-gather = the dot's box). Ten 8 px
+ *  rounds in a row across the dot's middle, in the colour the square has on the neighbouring slide (02 after the
+ *  opening, 14 before the finale) at 1 % alpha: invisible in the still, and in the Morph a square only moves, grows
+ *  or shrinks and comes up to colour or fades away. Nothing is mixed, so no muddy in-between colour. */
+const SEED = { size: 8, step: 8 };
+const SEED_COLOUR = { done: 'background:transparent;border:2px solid rgba(138,143,151,.01)', now: 'background:rgba(244,196,91,.01)', next: 'background:rgba(11,18,28,.01)' };
+function seed(slide, i, gx, gy, gs) {
+  const neighbour = SLIDES[SLIDES.indexOf(slide) + (slide.opening ? 1 : -1)];
+  const state = squareState(neighbour, i);
+  const x = gx + gs / 2 - (SEED.step * 9 + SEED.size) / 2 + SEED.step * (i - 1);
+  const y = gy + gs / 2 - SEED.size / 2;
+  return `left:${x}px;top:${y}px;width:${SEED.size}px;height:${SEED.size}px;border-radius:${SEED.size / 2 - 0.5}px;${SEED_COLOUR[state]}`;
+}
 
 function header(slide, source) {
   const out = [START];
@@ -16,10 +29,10 @@ function header(slide, source) {
   for (let i = 1; i <= 10; i += 1) {
     const name = `!!s${String(i).padStart(2, '0')}`;
     const state = squareState(slide, i);
-    if (state === 'gather') {
-      if (!gather) throw new Error(`${slide.file}: the finale needs data-gather="x,y,size" on .slide`);
+    if (state === 'seed') {
+      if (!gather) throw new Error(`${slide.file}: the seeds need data-gather="x,y,size" (the dot's box) on .slide`);
       const [, x, y, s] = gather.map(Number);
-      out.push(`<div class="sq now" data-pptx="shape" data-name="${name}" style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;border-radius:${s / 2}px"></div>`);
+      out.push(`<div class="sq seed" data-pptx="shape" data-name="${name}" style="${seed(slide, i, x, y, s)}"></div>`);
     } else {
       out.push(`<div class="sq ${state}" data-pptx="shape" data-name="${name}" style="left:${STRIP.x + STRIP.step * (i - 1)}px"></div>`);
     }
@@ -30,17 +43,23 @@ function header(slide, source) {
     out.push(`<div class="sq-gap" data-pptx="shape" data-name="!!sx" style="left:${gapX}px"></div>`);
   }
   const at = /data-counter-at="(\d+),(\d+)"/.exec(source);
-  if (slide.finale) {
+  if (counterText(slide) == null) {
+    // no counter yet: it fades in on 02, when the squares have burst out into the strip
+  } else if (slide.finale) {
     if (!at) throw new Error(`${slide.file}: the finale needs data-counter-at="x,y" on .slide`);
     out.push(`<div class="left fin" data-pptx="text" data-name="!!left" style="left:${at[1]}px;top:${at[2]}px">${html(counterText(slide))}</div>`);
   } else {
-    out.push(`<div class="left" data-pptx="text" data-name="!!left">${html(counterText(slide))}</div>`);
+    // The first counter of the deck fades in as the first step, once the squares have burst out into the strip.
+    const prev = SLIDES[SLIDES.indexOf(slide) - 1];
+    const first = prev && counterText(prev) == null ? ' data-anim="fade" data-anim-dur="600" data-anim-order="0"' : '';
+    out.push(`<div class="left" data-pptx="text" data-name="!!left"${first}>${html(counterText(slide))}</div>`);
   }
   if (slide.corner === 'mark') {
     const dotLeft = MARK.right - MARK.dot;
     const textLeft = dotLeft - MARK.gap - MARK_TEXT_WIDTH;
     out.push(`<div class="mark" data-pptx="text" data-name="!!word" style="left:${textLeft}px;width:${MARK_TEXT_WIDTH + 2}px">Meldy</div>`);
-    out.push(`<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:${dotLeft}px;top:${MARK.dotTop}px"></div>`);
+    const dotName = slide.dotAway ? `!!x${String(slide.n).padStart(2, '0')}dot` : '!!dot';
+    out.push(`<div class="mark-dot" data-pptx="shape" data-name="${dotName}" style="left:${dotLeft}px;top:${MARK.dotTop}px"></div>`);
   } else if (slide.corner === 'runner') {
     out.push('<div class="runner" data-pptx="text" style="left:1392px;width:400px">CodingFest-11</div>');
   }

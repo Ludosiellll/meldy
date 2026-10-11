@@ -14,14 +14,20 @@
  *                3×4: 128–656 | 696–1224 | 1264–1792
  *   rows         header   y 56   (strip, counter, wordmark — 22 px squares, centre line y 67)
  *                label    y 128  (40/48)
- *                claim    y 192  (72/80, two lines end at y 352)
- *                evidence y 424 – 952 (product slides may run to 1000)
+ *                claim    y 192  (72/80, two lines end at y 352; a statement 96/104 ends at y 400)
+ *                evidence y 424 – 952 (product windows may run from 392 to 1016)
  *                reading  y 984  (28–32 px, ends by y 1024)
- *   radii        cards 48, inner panels 24–32, windows 40, phone 72, pills 999
+ *   radii        cards 48, inner panels 24–32, windows 40, phone 64, pills 999
  *
- * TYPE SCALE (Onest, static 400/500/600/700; nothing below 28 px)
- *   240 wordmark · 200 big number · 120 number in a card · 72 claim · 64 the title's line
- *   56 card title · 48 body · 40 label / secondary body · 32 reading layer · 28 sources, counter
+ * SCALE: one hero per slide, at a size nothing else on the slide comes near (Onest, static 400/500/600/700;
+ * nothing below 28 px)
+ *   300 wordmark (01, 15) · 400 hero number («229», «0») · 96 statement (05) · 72 claim · 48 step / list
+ *   40 label / secondary · 32 reading layer · 28 sources, counter
+ *
+ * LIGHT AND DARK: every slide is the app's light paper, except two stage slides (05, 12) in the app's own dark
+ * theme (frontend/src/index.css .dark): <main class="slide dark">. The tokens below switch, so every component
+ * (the strip, the corner wordmark, cards, rules) follows; Morph between a light and a dark slide reads as the
+ * lights going down and up.
  */
 
 @font-face { font-family: 'Onest'; font-style: normal; font-weight: 400; font-display: block; src: url('fonts/Onest-400.ttf') format('truetype'); }
@@ -33,12 +39,14 @@
   /* Meldy tokens (CONTRACT.md) — the only colours a slide may use. */
   --canvas: #f3f3f0;
   --surface: #ffffff;
+  --surface-soft: #f3f3f0;
   --ink: #0b121c;
   --muted: #4b515b;
   --faint: #8a8f97;
   --line: #e3e3dd;
   --blue: #2869dd;      /* the pill */
-  --blue-fg: #1f5bc6;   /* labels, links, the pill's circle */
+  --blue-fg: #1f5bc6;   /* labels, links, the pill's circle, an avatar's initials */
+  --blue-soft: #e8effc; /* an avatar's round (the app's .sf-me) */
   --yellow: #f4c45b;    /* the dot, the current section */
   --named: #e9b13c;     /* named once */
   --pink: #f5b6cd;      /* the «Шпаргалка» tag */
@@ -47,6 +55,21 @@
   --tint: rgba(11, 18, 28, .05);
   --shadow: 0 1px 3px rgba(11, 18, 28, .05), 0 40px 80px -48px rgba(11, 18, 28, .30);
   --ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+/* The stage slides: the app's dark theme, token for token. «faint» has no dark token: it is muted at 55 %. */
+.slide.dark {
+  --canvas: #0b0f16;
+  --surface: #141a24;
+  --surface-soft: #1b2230;
+  --ink: #f3f3f0;
+  --muted: #a7adb7;
+  --faint: rgba(167, 173, 183, .55);
+  --line: #262e3b;
+  --blue-fg: #8db2f5;
+  --outline: rgba(167, 173, 183, .5);
+  --tint: rgba(243, 243, 240, .06);
+  --shadow: 0 0 0 2px #262e3b;
 }
 
 html, body { margin: 0; padding: 0; background: var(--canvas); }
@@ -77,18 +100,22 @@ template { display: none; }
 .sq.now { background: var(--yellow); }
 .sq.done { background: transparent; border: 2px solid var(--outline); }
 /* Between two sections (an own slide): a small yellow dot in the gap. */
-.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); }
+.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 3.5px; background: var(--yellow); }
 .left { top: 52px; left: 488px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; }
 .left.fin { font-size: 40px; line-height: 52px; }
 /* The corner wordmark: «Meldy» live text, its dot a separate shape (!!dot). */
 .mark { top: 46px; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
-.mark-dot { width: 10px; height: 10px; border-radius: 5px; background: var(--yellow); }
+.mark-dot { width: 10px; height: 10px; border-radius: 4.5px; background: var(--yellow); }
 .runner { top: 52px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; text-align: right; }
 
 /* ------------------------------------------------------------------ text */
 .label { left: 128px; top: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-fg); white-space: nowrap; }
 .claim { left: 128px; top: 192px; font-size: 72px; line-height: 80px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
 .claim.t64 { font-size: 64px; line-height: 72px; }
+/* The title's line under the wordmark (01): the claim's weight, a step smaller so the cover card can be large. */
+.thesis { font-size: 64px; line-height: 72px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
+/* A manifesto's statement (05): the claim at stage size. */
+.statement { left: 128px; top: 192px; font-size: 96px; line-height: 104px; font-weight: 600; letter-spacing: -.035em; white-space: nowrap; }
 .lead { font-size: 40px; line-height: 52px; color: var(--muted); white-space: nowrap; }
 .body { font-size: 48px; line-height: 60px; white-space: nowrap; }
 .h { font-size: 48px; line-height: 56px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
@@ -100,6 +127,9 @@ template { display: none; }
 .cap { font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .num { font-size: 200px; line-height: 200px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
 .num120 { font-size: 120px; line-height: 120px; font-weight: 600; letter-spacing: -.04em; white-space: nowrap; }
+/* The hero number: the one thing the slide is about (03 «229 тыс.», 04 «0»). */
+.hero { font-size: 400px; line-height: 400px; font-weight: 600; letter-spacing: -.05em; white-space: nowrap; }
+.hero .unit { font-size: 150px; letter-spacing: -.03em; }
 .blue { color: var(--blue-fg); }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
@@ -109,18 +139,26 @@ template { display: none; }
 .right { text-align: right; }
 .center { text-align: center; }
 
+/* A step list next to a product window (07–10): 3–4 items, large. */
+.step-n { width: 64px; font-size: 44px; line-height: 52px; font-weight: 600; color: var(--faint); }
+.step-t { font-size: 44px; line-height: 52px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+
 /* The wordmark on the title and the conclusion. */
-.word { font-size: 240px; line-height: 240px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
-.word.w200 { font-size: 200px; line-height: 200px; }
-/* The radius is set on each dot to half its size: a circle drawn as a rounded rectangle, so it morphs into windows. */
+.word { font-size: 300px; line-height: 300px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
+/* The radius is set on each dot to half its size less half a pixel: it looks like a circle, but the compiler writes
+   a rounded rectangle (a full half would make an ellipse), so Morph only interpolates the corner as it opens into a
+   device: the same preset at both ends. */
 .word-dot { background: var(--yellow); }
 
 /* ------------------------------------------------------------------ surfaces */
 /* A card is an empty shape (it morphs between slides); its contents are siblings drawn on top.
-   Its shadow is a separate unmarked element, baked into the background under it. */
+   A card that stays put may have its shadow as a separate unmarked .shadow element, baked into the background;
+   a card that moves or builds in carries its own (.lift): the compiler places that shadow as a picture that
+   travels and builds with the card. */
 .card { background: var(--surface); border-radius: 48px; }
 .card.r40 { border-radius: 40px; }
 .card.r32 { border-radius: 32px; }
+.lift { box-shadow: var(--shadow); }
 .shadow { border-radius: 48px; box-shadow: var(--shadow); }
 .shadow.r40 { border-radius: 40px; }
 .shadow.r72 { border-radius: 72px; }
@@ -130,12 +168,16 @@ template { display: none; }
 
 /* The one action: the blue pill with a circle arrow (the app's .sf-primary). */
 .pill { background: var(--blue); border-radius: 999px; }
-.pill-text { font-size: 32px; line-height: 40px; font-weight: 500; color: var(--surface); white-space: nowrap; }
+.pill-text { font-size: 32px; line-height: 40px; font-weight: 500; color: #ffffff; white-space: nowrap; }
 .pill-circle { border-radius: 50%; background: var(--blue-fg); }
-.pill-arrow { font-size: 30px; line-height: 30px; font-weight: 500; color: var(--surface); text-align: center; }
+.pill-arrow { font-size: 30px; line-height: 30px; font-weight: 500; color: #ffffff; text-align: center; }
 /* A white pill (the app's secondary button) and a plain chip. */
 .chip { background: var(--surface); border-radius: 999px; border: 2px solid var(--line); }
 .chip-text { font-size: 36px; line-height: 44px; font-weight: 500; white-space: nowrap; }
+
+/* A person, as the app draws an account without a photo: initials on the soft blue round (.sf-me). */
+.avatar { border-radius: 50%; background: var(--blue-soft); }
+.avatar-t { font-weight: 600; letter-spacing: -.02em; color: var(--blue-fg); text-align: center; white-space: nowrap; }
 
 /* Markers of the cheat sheet: a dot is a main point, a dash a detail, yellow is named once. */
 .bul { border-radius: 50%; background: var(--ink); }
@@ -148,7 +190,7 @@ template { display: none; }
 .msq.gone { background: transparent; border: 2px solid var(--outline); }
 
 /* The pink arrow-cut tag «Шпаргалка» (the app's flag label). Not a native shape: placed as a picture. */
-.tag { display: flex; align-items: center; height: 48px; padding: 0 34px 0 20px; font-size: 28px; font-weight: 500; background: var(--pink); color: var(--ink); white-space: nowrap; clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 50%, 100% 100%, 0 100%); }
+.tag { display: flex; align-items: center; height: 48px; padding: 0 34px 0 20px; font-size: 28px; font-weight: 500; background: var(--pink); color: #0b121c; white-space: nowrap; clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 50%, 100% 100%, 0 100%); }
 
 /* Placeholders that must be filled before the file is sent: faint text in a dashed frame. */
 .ph { color: var(--faint); }

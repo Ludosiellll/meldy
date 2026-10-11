@@ -9,7 +9,12 @@
    recording. Monday, an answer aloud names three lines once (yellow dots). Tuesday, the next answer erases the
    two named again (a strike drawn left to right), names one for the first time, and the one it missed comes
    back; the counter and the map follow. The last second dissolves back into the first frame. */
-.stage { width: 1080px; height: 544px; background: #ffffff; }
+/* Round 2: the laptop's screen inside its ink bezel on the slide, 1152 × 568. The 1080 × 544 layout below is drawn
+   at ×1.0441 (568 / 544), centred; the rounded screen is the canvas, the corners outside it the bezel's ink. */
+.device { position: relative; width: 1152px; height: 568px; overflow: hidden; background: #0b121c; }
+.device > .screenbg { position: absolute; left: 0; top: 0; width: 1152px; height: 568px; border-radius: 22px; background: var(--canvas); }
+.device > .fit { position: absolute; left: 12px; top: 0; width: 1080px; height: 544px; transform: scale(1.0441); transform-origin: 0 0; }
+.stage { width: 1080px; height: 544px; background: transparent; }
 .screen { left: 0; top: 0; width: 1080px; height: 544px; border-radius: 24px; background: var(--canvas); overflow: hidden; }
 .card { background: var(--surface); border-radius: 28px; box-shadow: 0 0 0 1px rgba(11, 18, 28, .06), 0 24px 48px -36px rgba(11, 18, 28, .30); }
 .date { left: 56px; top: 50px; width: 230px; height: 44px; border-radius: 22px; background: var(--tint); overflow: hidden; }
@@ -39,6 +44,9 @@
 </style>
 </head>
 <body>
+<div class="device">
+<div class="screenbg"></div>
+<div class="fit">
 <div class="stage" id="stage">
   <div class="screen">
     <div class="card" style="left:24px;top:24px;width:640px;height:496px"></div>
@@ -63,6 +71,8 @@
   <div class="map" id="map"></div>
 </div>
 <div id="loop" style="position:absolute;left:0;top:0;width:1080px;height:544px;opacity:0"></div>
+</div>
+</div>
 <script src="clip.js"></script>
 <script>
 (() => {
@@ -200,7 +210,7 @@
   // Freeze a copy of the first frame for the dissolve at the end of the loop.
   loop.appendChild(document.getElementById('stage').cloneNode(true));
   loop.firstChild.id = '';
-  window.__clip = { T, seek, width: 1080, height: 544, poster: 8200, loop: true };
+  window.__clip = { T, seek, width: 1152, height: 568, poster: 8200, loop: true };
 })();
 </script>
 </body>

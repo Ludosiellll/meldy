@@ -5,15 +5,59 @@
 <title>06 · Содержание — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <style>
-/* The five blocks as the cheat sheet writes its lines: a dot for each main point. The first dot is the logo's,
-   yellow: the show starts there, and on the next slide it opens into the window with the product. */
+/* The five blocks as the cheat sheet writes its lines: a dot for each main point, the line written in from the
+   left. The first dot is the logo's: it came down from the corner, and on the next slide it opens into the laptop. */
 .item { left: 176px; font-size: 48px; line-height: 60px; white-space: nowrap; }
-.ref { left: 840px; width: 200px; font-size: 28px; line-height: 60px; color: var(--faint); text-align: right; white-space: nowrap; }
+.ref { left: 840px; width: 220px; font-size: 28px; line-height: 60px; color: var(--faint); text-align: right; white-space: nowrap; }
 .chip-t { font-size: 32px; line-height: 60px; font-weight: 500; text-align: center; white-space: nowrap; }
 </style>
 </head>
 <body>
-<main class="slide">
+<main class="slide" data-transition-dur="1500">
+
+<div class="label" data-pptx="title">Содержание</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Один экзамен: перечень вопросов, лекции,<br>план до&nbsp;даты и&nbsp;шпаргалка</div>
+
+<!-- Five blocks; on the right of each, the slide that shows it. -->
+<div class="bul" data-pptx="shape" data-name="!!dot" style="left:134px;top:468px;width:12px;height:12px;border-radius:5.5px"></div>
+<div class="item" data-pptx="text" style="top:444px" data-anim-trigger="with" data-anim="wipe" data-anim-delay="300" data-anim-dur="500" data-anim-order="2">Экзамен из&nbsp;перечня</div>
+<div class="ref" data-pptx="text" style="top:444px" data-anim="fade" data-anim-trigger="with" data-anim-delay="600" data-anim-dur="400" data-anim-order="2">слайд 7</div>
+
+<div class="bul" data-pptx="shape" data-name="!!x0601" style="left:134px;top:560px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="450" data-anim="settle" data-anim-dur="300" data-anim-order="3"></div>
+<div class="item" data-pptx="text" style="top:536px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="530" data-anim-dur="500" data-anim-order="3">План по&nbsp;дням</div>
+<div class="ref" data-pptx="text" style="top:536px" data-anim="fade" data-anim-trigger="with" data-anim-delay="750" data-anim-dur="400" data-anim-order="3">слайд 7</div>
+
+<div class="bul" data-pptx="shape" data-name="!!x0602" style="left:134px;top:652px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="600" data-anim="settle" data-anim-dur="300" data-anim-order="4"></div>
+<div class="item" data-pptx="text" style="top:628px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="680" data-anim-dur="500" data-anim-order="4">Занятие</div>
+<div class="ref" data-pptx="text" style="top:628px" data-anim="fade" data-anim-trigger="with" data-anim-delay="900" data-anim-dur="400" data-anim-order="4">слайды 7 и&nbsp;10</div>
+
+<div class="bul" data-pptx="shape" data-name="!!x0603" style="left:134px;top:744px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="750" data-anim="settle" data-anim-dur="300" data-anim-order="5"></div>
+<div class="item" data-pptx="text" style="top:720px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="830" data-anim-dur="500" data-anim-order="5">Ответ вслух со&nbsp;шпаргалкой</div>
+<div class="ref" data-pptx="text" style="top:720px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1050" data-anim-dur="400" data-anim-order="5">слайды 8 и&nbsp;9</div>
+
+<div class="bul" data-pptx="shape" data-name="!!x0604" style="left:134px;top:836px;width:12px;height:12px" data-anim-trigger="with" data-anim-delay="900" data-anim="settle" data-anim-dur="300" data-anim-order="6"></div>
+<div class="item" data-pptx="text" style="top:812px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="980" data-anim-dur="500" data-anim-order="6">Группа с&nbsp;Telegram</div>
+<div class="ref" data-pptx="text" style="top:812px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1200" data-anim-dur="400" data-anim-order="6">слайд 10</div>
+
+<!-- Число и формат: what the project holds and in which form (Приложение 2, п. 6). -->
+<div class="card lift" data-pptx="shape" data-name="!!c2" style="left:1122px;top:424px;width:670px;height:528px" data-anim-trigger="with" data-anim-delay="1000" data-anim="settle" data-anim-dur="700" data-anim-order="7"></div>
+<div class="cap" data-pptx="text" style="left:1170px;top:468px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1250" data-anim-dur="500" data-anim-order="8">Число и&nbsp;формат</div>
+<div class="h muted w500" data-pptx="text" style="left:1170px;top:572px" data-anim-delay="1250" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="8">до</div>
+<div class="num120" data-pptx="text" style="left:1242px;top:516px" data-anim-delay="1250" data-anim="settle" data-anim-trigger="with" data-anim-dur="600" data-anim-order="8">2000</div>
+<div class="t40m" data-pptx="text" style="left:1170px;top:644px" data-anim-delay="1250" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="8">вопросов в&nbsp;одном экзамене</div>
+
+<div class="chip" data-pptx="shape" data-name="!!x0605" style="left:1170px;top:720px;width:110px;height:60px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1450" data-anim-dur="400" data-anim-order="9"></div>
+<div class="chip-t" data-pptx="text" style="left:1170px;top:720px;width:110px" data-anim-delay="1450" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="9">PDF</div>
+<div class="chip" data-pptx="shape" data-name="!!x0606" style="left:1292px;top:720px;width:132px;height:60px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1530" data-anim-dur="400" data-anim-order="9"></div>
+<div class="chip-t" data-pptx="text" style="left:1292px;top:720px;width:132px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1530" data-anim-dur="400" data-anim-order="9">DOCX</div>
+<div class="chip" data-pptx="shape" data-name="!!x0607" style="left:1436px;top:720px;width:128px;height:60px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1610" data-anim-dur="400" data-anim-order="9"></div>
+<div class="chip-t" data-pptx="text" style="left:1436px;top:720px;width:128px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1610" data-anim-dur="400" data-anim-order="9">PPTX</div>
+<div class="chip" data-pptx="shape" data-name="!!x0608" style="left:1576px;top:720px;width:120px;height:60px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1690" data-anim-dur="400" data-anim-order="9"></div>
+<div class="chip-t" data-pptx="text" style="left:1576px;top:720px;width:120px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1690" data-anim-dur="400" data-anim-order="9">фото</div>
+
+<div class="note ink" data-pptx="text" style="left:1170px;top:812px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1800" data-anim-dur="500" data-anim-order="10">тестовые и&nbsp;устные вопросы;<br>веб-приложение и&nbsp;бот в&nbsp;Telegram</div>
+
+<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
 <div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
 <div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
@@ -27,51 +71,6 @@
 <div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
 <div class="left" data-pptx="text" data-name="!!left">осталось 5 из&nbsp;10</div>
 <!-- header:end -->
-
-<div class="label" data-pptx="title" data-anim="fade" data-anim-dur="400">Содержание</div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-delay="100" data-anim-dur="600">Один экзамен: перечень вопросов, лекции,<br>план до&nbsp;даты и&nbsp;шпаргалка</div>
-
-<!-- Five blocks; on the right, the slide that shows each. -->
-<div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:131px;top:461px;width:18px;height:18px;border-radius:9px"></div>
-<div class="item" data-pptx="text" style="top:440px" data-anim="fade" data-anim-delay="150" data-anim-dur="400">Экзамен из&nbsp;перечня</div>
-<div class="ref" data-pptx="text" style="top:440px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">слайд 7</div>
-
-<div class="bul" data-pptx="shape" style="left:134px;top:548px;width:12px;height:12px" data-anim="fade" data-anim-delay="90" data-anim-dur="400"></div>
-<div class="item" data-pptx="text" style="top:524px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">План по&nbsp;дням</div>
-<div class="ref" data-pptx="text" style="top:524px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">слайд 7</div>
-
-<div class="bul" data-pptx="shape" style="left:134px;top:632px;width:12px;height:12px" data-anim="fade" data-anim-delay="90" data-anim-dur="400"></div>
-<div class="item" data-pptx="text" style="top:608px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Занятие</div>
-<div class="ref" data-pptx="text" style="top:608px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">слайды 7 и&nbsp;10</div>
-
-<div class="bul" data-pptx="shape" style="left:134px;top:716px;width:12px;height:12px" data-anim="fade" data-anim-delay="90" data-anim-dur="400"></div>
-<div class="item" data-pptx="text" style="top:692px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Ответ вслух со&nbsp;шпаргалкой</div>
-<div class="ref" data-pptx="text" style="top:692px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">слайды 8 и&nbsp;9</div>
-
-<div class="bul" data-pptx="shape" style="left:134px;top:800px;width:12px;height:12px" data-anim="fade" data-anim-delay="90" data-anim-dur="400"></div>
-<div class="item" data-pptx="text" style="top:776px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">Группа с&nbsp;Telegram</div>
-<div class="ref" data-pptx="text" style="top:776px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">слайд 10</div>
-
-<!-- Число и формат: what the project holds and in which form (Приложение 2, п. 6). -->
-<div class="shadow" style="left:1122px;top:424px;width:670px;height:528px"></div>
-<div class="card" data-pptx="shape" data-name="!!c2" style="left:1122px;top:424px;width:670px;height:528px"></div>
-<div class="cap" data-pptx="text" style="left:1170px;top:468px" data-anim="fade" data-anim-delay="150" data-anim-dur="400">Число и&nbsp;формат</div>
-<div class="h muted w500" data-pptx="text" style="left:1170px;top:564px" data-anim="fade" data-anim-trigger="with" data-anim-dur="600">до</div>
-<div class="num120" data-pptx="text" style="left:1242px;top:508px" data-anim="zoom" data-anim-trigger="with" data-anim-dur="600">2000</div>
-<div class="t40m" data-pptx="text" style="left:1170px;top:636px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500">вопросов в&nbsp;одном экзамене</div>
-
-<div class="chip" data-pptx="shape" style="left:1170px;top:712px;width:110px;height:60px" data-anim="fade" data-anim-delay="100" data-anim-dur="400"></div>
-<div class="chip-t" data-pptx="text" style="left:1170px;top:712px;width:110px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">PDF</div>
-<div class="chip" data-pptx="shape" style="left:1292px;top:712px;width:132px;height:60px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400"></div>
-<div class="chip-t" data-pptx="text" style="left:1292px;top:712px;width:132px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">DOCX</div>
-<div class="chip" data-pptx="shape" style="left:1436px;top:712px;width:128px;height:60px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400"></div>
-<div class="chip-t" data-pptx="text" style="left:1436px;top:712px;width:128px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">PPTX</div>
-<div class="chip" data-pptx="shape" style="left:1576px;top:712px;width:120px;height:60px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400"></div>
-<div class="chip-t" data-pptx="text" style="left:1576px;top:712px;width:120px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400">фото</div>
-
-<div class="note ink" data-pptx="text" style="left:1170px;top:800px" data-anim="fade" data-anim-delay="80" data-anim-dur="400">тестовые и&nbsp;устные вопросы<br>веб-приложение для&nbsp;телефона<br>и&nbsp;компьютера, бот в&nbsp;Telegram</div>
-
-<div class="note" data-pptx="text" style="left:128px;top:980px" data-anim="fade" data-anim-delay="200" data-anim-dur="500">Наверху&nbsp;— шпаргалка этой защиты: 10&nbsp;разделов; пройденный гаснет</div>
 
 <template data-pptx="notes">Внутри один экзамен на всю подготовку: до двух тысяч вопросов, тестовых и устных, из файлов PDF, Word, PowerPoint или фото.
 

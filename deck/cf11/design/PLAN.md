@@ -1,122 +1,222 @@
-# Meldy · CodingFest-11 — the deck's design plan
+# Meldy · CodingFest-11 — the deck's design plan (v2)
 
-The deck is one argument told in Meldy's own interface language: a warm canvas, white cards, ink type, one blue
-action, the yellow dot. It works twice — an expert reads the PPTX alone, then it runs behind a 7-minute talk —
-so **every slide is complete as a still** (PDF, Normal view, LibreOffice) and motion only adds. Sources of truth:
-`CONTRACT.md` (markup), meldy-notes `10_Project/CodingFest_11_Deck_Script.md` (words, talk),
-`40_Decisions/2026-10-10_deck-direction.md` (B + A + C), `reference/board.html` (the approved look).
+The deck is one argument told in Meldy's own interface language. That language is a warm canvas, white cards, ink
+type, one blue action and the yellow dot. The deck has to work twice. First an expert reads the PPTX alone, then it
+runs behind a 7-minute talk. So **every slide is complete as a still** (PDF, Normal view, LibreOffice), and motion
+only adds.
 
-## 1. Grid and type
+Round 2 moved the deck from «good PowerPoint» to a stage:
+* one hero per slide at a size nothing else on it comes near;
+* two dark stage slides in the app's own dark theme;
+* long, choreographed Morph moments;
+* builds that repeat the product's own mechanics.
 
-- **Slide** 1920 × 1080 px. **Margins** 128 left/right, header band at y 56, bottom margin 56.
-- **12 columns** of 102 px, 40 px gutters: column *k* starts at x = 128 + 142·k; the last ends at 1792.
-  Splits used: 6/6 (128–940 | 980–1792), 7/5 (128–1082 | 1122–1792), 3 × 4 with 88 px arrow gaps (11).
-- **Rows**: header y 56 (22 px squares, centre line 67) · label y 128 · claim y 192 (two lines end at 352) ·
-  evidence y 424–952 (product windows to 1000; one-line claims start the evidence at 304–344) · reading layer y 984.
-- **Type** (Onest static 400/500/600/700, embedded): 240 wordmark · 200/176 big number · 120 number in a card ·
-  **72 claim** (600, −0.03 em, two lines at most, explicit `<br>` so PowerPoint never re-wraps) · 64 the title's line ·
-  56–48 card titles · 48 body · 40 label (caps, +0.12 em, #1F5BC6) and secondary body · 32 reading layer ·
-  28 sources, captions, counter. **Nothing under 28 px** (lint). Claims are 72 px everywhere because the longest
-  line («Перечень вопросов за минуту превращается») measures 1515 px at 72 and would not fit at 80 with slack.
-- **Surfaces**: cards are empty native rounded rectangles (radius 48, windows 40, phone 64) — they morph; their
-  soft shadow is a separate baked layer under them; their content is sibling layers on top. Panels inside cards
-  are canvas #F3F3F0. Colours: the CONTRACT tokens only (lint), alpha variants allowed.
+Sources of truth:
+* `CONTRACT.md` — the markup, the tokens and the scale;
+* meldy-notes `10_Project/CodingFest_11_Deck_Script.md` — the words and the talk;
+* meldy-notes `40_Decisions/2026-10-10_deck-direction.md` — B + A + C, and round 2;
+* `reference/board.html` — the approved look.
+
+## 1. Grid, scale and light
+
+- **Slide** 1920 × 1080 px.
+  * Margins: 128 left and right; the header band at y 56; the bottom margin 56.
+  * 12 columns of 102 px with 40 px gutters; column *k* starts at x = 128 + 142·k.
+  * Rows: header y 56, label y 128, claim y 192 (two lines end at 352; a statement ends at 400), evidence y 424–952,
+    reading layer y 984.
+  * Product devices run from y 392 to 1008; the phone from y 112.
+- **One hero per slide** (Onest static 400/500/600/700, embedded):
+
+  | Element | Size |
+  |---|---|
+  | wordmark «Meldy.» (01, 15) | 300 px |
+  | hero numbers («229 тыс.» on 03, the «0» on 04) | 360–420 px |
+  | the statement on 05 | 96 px |
+  | claims (two lines at most, explicit `<br>`) | 72 px |
+  | the title's line on 01 (makes room for the larger cover card) | 64 px |
+  | steps and lists | 44–48 px |
+  | labels (caps, +0.12 em) | 40 px |
+  | reading layer | 32 px |
+  | sources, counter | 28 px |
+
+  **Nothing under 28 px.** At most about 35 words outside the reading layer, except on the list slides 02, 13 and
+  14. The lint checks all of it.
+- **Light and dark.**
+  * Every slide is the light paper: canvas `#F3F3F0`, white cards, ink `#0B121C`.
+  * Two stage slides, `<main class="slide dark">`, use the app's dark theme token for token: 05 «Новизна» (the
+    manifesto) and 12 «Масштабируемость» (the night field). The tokens are canvas `#0B0F16`, surface `#141A24`,
+    surface-soft `#1B2230`, ink `#F3F3F0`, muted `#A7ADB7`, line `#262E3B`, labels `#8DB2F5`, and the same yellow.
+  * The tokens switch in `deck.css`, so the strip, the corner wordmark, the rules and the panels follow.
+  * Every bake is one flat canvas. A Morph between a light and a dark slide crossfades the two, and the strip and
+    the wordmark change colour with it: the lights go down and come back up.
+- **Surfaces.**
+  * Cards are empty native rounded rectangles: radius 48, devices 36–64.
+  * A card that builds or travels carries its own shadow (`.lift`). The compiler places that shadow as a picture
+    that builds and morphs with the card, so no shadow ever waits alone or stays behind.
+  * The devices on 07–10 are ink bezels (`#0B121C`). The screen is the video inside them, its corners painted ink.
 
 ## 2. The deck-wide system
 
-- **The strip — «шпаргалка этой защиты»** (B). Ten 22 px squares `!!s01…!!s10` and the counter `!!left` on every
-  slide, written by `design/stamp.mjs` from `design/deck.mjs`. Current section yellow, passed an outline, coming ink —
-  the same three states as the cheat sheet's map (named once / erased / remains). 07–10 share square 07. The own
-  slides 11–12 have no current square: a small yellow dot `!!sx` sits in the gap after square 07 («между разделами»),
-  and the counter reads «осталось 3 из 10». Explained once, on 06: «Наверху — шпаргалка этой защиты: 10 разделов;
-  пройденный гаснет». On 15 the squares gather into the wordmark's dot and the counter comes down under it:
-  «Шпаргалка этой защиты пуста: осталось 0 из 10».
-- **The dot** `!!dot` (C) travels the whole deck: 01 the big wordmark's dot → 02–05 the corner wordmark's dot →
-  06 the yellow bullet of block 1 in the contents → 07 the laptop window → 08 the phone → 09 the window of the cheat
-  sheet → 10 the square window of the Telegram chat → 11–14 back home in the corner → 15 the big dot again, the strip
-  collapsing into it. The corner wordmark `!!word` (32 px) leaves with the dot on 06–10 and grows back into the
-  big wordmark on 15.
-- **Cards** pair by position, so slide changes feel like one camera: the right-hand surface `!!c2` runs 01→06
-  (the cover card → the second author → «229 тыс.» → the zero card → the comparison table → «Число и формат») and
-  13→15 (the documentation → the stack → the QR card); `!!c1` is the left-hand one (02→03, 11→14); the big number
-  `!!num` turns «229 тыс.» into «0» (03→04). Every morphing dot is a rounded rectangle with radius = half its size,
-  so it grows into windows without changing preset.
-- **The label** of 07–10 is `!!t07` and does not move or re-animate across the four «Представление блоков проекта».
+- **The strip, «шпаргалка этой защиты»** (B).
+  * Ten 22 px squares `!!s01…!!s10` and the counter `!!left`, written by `design/stamp.mjs` from `design/deck.mjs`.
+  * The current section is yellow, a passed one an outline, a coming one ink (light on the dark slides): the
+    cheat sheet's three states.
+  * **01 has no strip.** The ten squares are *seeds*: invisible 8 px rounds in a row inside the wordmark's dot,
+    already in their colour on 02 at 1 % alpha.
+  * On 02 the strip **unrolls out of the dot**: each seed only moves, grows and comes up to colour, so Morph mixes
+    nothing. The counter fades in, and the reading line explains the strip once: «Наверху — шпаргалка этой защиты:
+    10 обязательных разделов; пройденный гаснет, как строка в Meldy».
+  * The own slides 11–12 show a small yellow dot `!!sx` in the gap after square 07.
+  * On 15 the strip **collapses** back into the dot: the squares fly into it and fade away as seeds. The counter
+    comes down under the wordmark: «Шпаргалка этой защиты пуста: осталось 0 из 10».
+  * The header band (strip, counter, corner) is the **last layer** of every slide, so in a Morph its squares and the
+    dot fly over everything.
+- **The dot** `!!dot` (C) travels the whole deck:
 
-## 3. Motion rules
+  | Slide | What the dot is |
+  |---|---|
+  | 01 | the big wordmark's dot (84 px) |
+  | 02–05 | the corner wordmark's dot |
+  | 06 | the first bullet of the contents, in ink like the others: it came down from the corner |
+  | 07 | the laptop's ink bezel, 1184 × 600 |
+  | 08 | the phone, 424 × 880 |
+  | 09 | the laptop again |
+  | 10 | the chat, 704 × 704 |
+  | 11 | the first step of the path, «Группа»: the chat closes into this ink dot (the corner dot is `!!x11dot`) |
+  | 12 | the corner dot again, flying up from 11 as the lights go down |
+  | 13–14 | the corner dot |
+  | 15 | the big dot, with the strip collapsing into it |
 
-- Transition **Morph** on every slide (01: fade from black). Objects that morph carry no entrance animation (lint).
-- Entrance builds only, in reading order **label → claim → evidence → reading layer**; mostly `after` with 80–200 ms,
-  `with` inside a group; `click` only where the speaker reveals a punchline (03: «229 тыс.»). Effects: fade, rise,
-  zoom for big numbers, wipe for the map rows. No exits, no spins, no bounces, no motion paths.
-- Clips are pure functions of time (`window.__clip = { T, seek }`), rendered frame by frame (`motion/render.mjs`):
-  H.264 High, yuv420p, BT.709 tags, `+faststart`, no audio; posters at 2×.
+  The chain is **ink from 06 to 11**, so the dot never turns olive while it grows into a bezel or shrinks back: the
+  yellow ↔ ink changes happen only on small dots (05→06, 11→12). Every morphing dot has a radius of half its size
+  less half a pixel. It looks like a circle, but the compiler writes a rounded rectangle at both ends of the Morph,
+  never an ellipse. The corner wordmark `!!word` shrinks out of the big one on 02, leaves on 06–10 and grows back on
+  15.
+- **The screens** on 07–10 are `!!clip`: they ride with the bezel and crossfade their content. 07's clip has an
+  entrance: the dot grows into a dark bezel, then the screen turns on.
+- **Titles** are all `!!title` (the compiler's name), so the label crossfades in place from slide to slide. Labels
+  never have an entrance of their own after 01.
+- **Other pairs**: `!!num` turns «229 тыс.» into the «0» (03→04); `!!c1`/`!!c2` name the author cards and the QR
+  card.
+- **No automatic Morph matches.** Built objects that PowerPoint could pair with an object of the previous slide
+  (identical bullets, numbers, arrows, chips) carry unique `!!x…` names. The morph-log shows 0 automatic pairs.
+
+## 3. Motion
+
+**Transitions** (`data-transition-dur`):
+
+| Change | Moment | Duration |
+|---|---|---|
+| → 01 | Fade from black | 1.0 s |
+| 01→02 | **M1** the cheat sheet of this defence is born from the dot | 1.5 s |
+| 02→03 | Morph | 0.9 s |
+| 03→04 | **M2** «229 тыс.» becomes «0» | 1.4 s |
+| 04→05, 05→06 | **M3** lights down, lights up | 1.5 s |
+| 06→07 | **M4** the dot grows into the laptop | 1.5 s |
+| 07→08→09→10→11 | the device chain: laptop → phone → laptop → chat → the first step's dot on 11 | 1.3 s |
+| 11→12, 12→13 | **M5** lights down into the night field, and up | 1.5 s |
+| 13→14 | Morph | 0.9 s |
+| 14→15 | **M6** the strip collapses into the dot (Morph by words: «осталось», «из», «10» travel) | 1.6 s |
+
+**Builds.**
+* Each slide's entrances run as one automatic group of 1.4–2.7 s: the first effect starts it, every other comes
+  «with» it at its beat (`design/preview/timeline.mjs` prints the schedule and flags anything over 3.5 s).
+* Clicks: only 03's punchline («229 тыс.» settles in).
+* Effects: `settle` (fade + 92 → 100 %) for things that land, `rise` for claims and titles, `wipe` from the left for
+  lines being written, rows and strikes, `fade` for small type. Entrance effects only; objects that morph never build.
+
+**The product's mechanics, with native objects:**
+
+| Slide | Build |
+|---|---|
+| 01 | the dot and its hidden squares settle together |
+| 04 | the erased map sweeps in from the left |
+| 05 | rows wipe in one by one, then Meldy's yellow ticks cascade |
+| 06 | the five blocks are written in like cheat-sheet lines |
+| 10 | six copies of one exam settle one after another |
+| 11 | the path's dots settle from one group to a field |
+| 12 | the ladder of stops builds on the clip's stops |
+| 15 | the QR card settles in last |
+
+**Clips** are pure functions of time (`window.__clip = { T, seek }`), rendered frame by frame (`motion/render.mjs`):
+H.264 High, yuv420p, BT.709 tags, `+faststart`, no audio, posters at 2×.
 
 | Clip | Slide | What it shows | Poster | File |
 |---|---|---|---|---|
-| `title-cover` | 01 | The cheat sheet of «Рыночное равновесие»: Monday's answer aloud names the lines (yellow dots), Tuesday's erases them (strike left to right), the counter rolls 6 → 0, then the lines come back. 9.6 s loop. | first frame, lines visible | GIF 300 KB (12.5 fps, 64 colours — what PowerPoint 365 plays in Normal view), MP4 256 KB |
-| `sheet` | 09 | The exam page's cheat sheet in the new look over two days: named once, erased, a forgotten line returning with «не названа 13 окт.»; map and counter follow. 10.4 s loop, dissolves into its first frame. | the end state (all three states visible) | MP4 233 KB |
-| `scale` | 12 | One pull-back on one centre, four orders of magnitude: одна строка → один вопрос → экзамен на 400 вопросов → группа из 25 человек → около 229 тыс. студентов вузов (a dot = a group of 25). The labelled ladder highlights each stop. Plays once and stays on its last frame. | the last frame, all stops labelled | MP4 978 KB (x264 zones: fewer bits while the camera moves) |
-| `telegram` | 10 | The app's own Telegram tip clip from the harness (the bot's day card, «Начать», a question, «Верно.»), trimmed to the sharp chat, corners rounded onto the window, loop by crossfade. | the day card with «Начать: 20 вопросов» (JPEG, 222 KB) | MP4 252 KB |
-| `ph-07`, `ph-08` | 07, 08 | **Placeholders** — a calm frame «Ролик с сайта: …» in the faint colour, dashed — until the live site is recorded (`media/product/`). | the same | MP4 ≈ 17 KB each |
+| `title-cover` | 01 | The cheat sheet of «Рыночное равновесие» answers itself. Monday names the lines (yellow dots), Tuesday erases them (strike left to right), the counter rolls 6 → 0, the lines come back. 9.6 s loop. **The GIF carries its own card and shadow** (720 × 896 card in an 832 × 984 frame, 1:1), so it settles in. | first frame | GIF 388 KB (10 fps, 64 colours) |
+| `sheet` | 09 | The exam page's cheat sheet over two days: named once, erased, a forgotten line returning. 10.4 s loop. | the end state | MP4 ≈ 270 KB, 1152 × 568 |
+| `scale` | 12 | The night field, one pull-back: a line → its question → an exam of 400 → a group of 25 → 9 160 dots, one per group, «ваша группа» in yellow. 11 s, plays once, holds. Fades in with its first frame in the show; its poster is its last frame. | the field | MP4 ≈ 1.05 MB (x264 zones) |
+| `telegram` | 10 | The app's own Telegram tip clip from the harness: the day card, «Начать», a question, «Верно.», the menu button «Открыть Meldy» (release 43). | the day card | MP4 ≈ 274 KB, 672 × 672 |
+| `ph-07`, `ph-08` | 07, 08 | **Placeholders** until the live site is recorded (`media/product/`). | the same | MP4 ≈ 15 KB |
 
 ## 4. The slides
 
-Eye order = what the eye takes first, second, third in the still. Build = the entrance order in the show.
+Eye order is what the eye takes first, second and third in the still.
 
-| # | Label (title placeholder) | Claim / headline | Eye order and evidence | Build | Morph names | Criterion |
-|---|---|---|---|---|---|---|
-| 01 | Титульный | «Meldy.» · «ИИ не отвечает за студента — он его спрашивает» | wordmark → the line → the moving cheat-sheet card (GIF) → nomination «Образование, культура», small QR «Пример экзамена без регистрации», «Нажмите F5…» | label · line · lead · nomination · QR · F5 hint | `!!word` `!!dot` `!!c2` (card) | 5 visual design · 7 presentation |
-| 02 | Автор проекта | — (the authors are the content) | two author cards (placeholders «[Фамилия Имя Отчество]», «учащийся группы [группа]») → institution, full name → region, district, town | label · names · institution · region | `!!c1` `!!c2` | completeness (Приложение 2) |
-| 03 | Актуальность | «Экзамены по билетам — норма, а к сотням вопросов готовятся без плана и проверки» | «№ 319» (Минобразования, 13.10.2023) → «229 тыс.» students (gs.by, 2026), each with its source | label · claim · № 319 · *click* 229 тыс. | `!!c1` `!!c2` `!!num` | 3 value / need |
-| 04 | Цель, задачи | «Цель: к утру экзамена в шпаргалке не остаётся строк» | the product's own cheat-sheet card at zero («0 строк осталось», all squares erased) → four tasks | label · claim · card · tasks 1–4 | `!!c2`, `!!num` («229 тыс.» → «0») | 1 completeness · 3 |
-| 05 | Новизна и инновационность | «ИИ не отвечает за студента: он спрашивает и сверяет ответ с его лекциями» | the comparison by type of service (no brands): five features, Meldy the only column of ✓; «частично» explained in the reading line | label · claim · header · five rows · note | `!!c2` | 2 innovation · 3 novelty |
-| 06 | Содержание | «Один экзамен: перечень вопросов, лекции, план до даты и шпаргалка» | five blocks as cheat-sheet lines with the slide that shows each; the first bullet is the yellow dot → «Число и формат»: до 2000 вопросов, PDF/DOCX/PPTX/фото, tests and oral, web + Telegram bot → the strip explained | label · claim · blocks · card · note | `!!dot` (bullet), `!!c2` | 1 completeness (число и формат) |
-| 07 | Представление блоков проекта | «Перечень вопросов за минуту превращается в план до даты экзамена» | the laptop window (recording to come) → four steps that say what it shows | label · claim · window clip · steps | `!!t07`, `!!dot` (dot → window) | 4 technical · 5 design |
-| 08 | Представление блоков проекта | «Ответ вслух сверяется с лекциями, о пропущенном Meldy переспросит» | the phone (recording to come) → three steps → «Оценок нет…» | claim · phone clip · steps · note | `!!t07`, `!!dot` (window → phone) | 2 complexity · 3 |
-| 09 | Представление блоков проекта | «Строка исчезает, только когда её назвали в два разных дня» | the sheet clip in the window → the legend in the map's own squares | claim · clip · legend | `!!t07`, `!!dot` | 2 · 3 · 5 |
-| 10 | Представление блоков проекта | «Одна ссылка — вся группа; план на день — в Telegram» | the Telegram chat → «Пригласить группу» → six copies of one exam (same grid, own progress) → the daily plan | claim · clip · group · Telegram | `!!t07`, `!!dot` | 1 adoption · 6 spread |
-| 11 | Тестирование и продвижение | «Пилот: [N] студентов, [M] дней» (placeholders, dashed) | Продвижение: group → department (teacher's report) → colleges and universities (licence) · Проверка: [pilot result] placeholder, the open example | label · claim · steps · Проверка | `!!c1–3`, `!!dot` back in the corner, `!!sx` | 1 testing and promotion |
-| 12 | Масштабируемость | «Тот же цикл подходит для любого экзамена и любого числа студентов» | the pull-back clip, poster = all five stops → why it is cheap to grow (tests without AI) and the source | label · claim · clip · note | `!!c1` | 6 scalability |
-| 13 | Используемые источники | «Литература и электронные ресурсы» | normative and statistics → research on testing and spacing (Roediger & Karpicke 2006; Cepeda et al. 2008; Dunlosky et al. 2013) → documentation; access date a placeholder | label · claim · lists | `!!c1` `!!c2` | 7 presentation |
-| 14 | Технические требования | «Браузер на телефоне или компьютере, без установки» | minimum requirements → the stack by layer (interface, server, database, models and bot) → site and bot | label · claim · cards · note | `!!c1` `!!c2` | 4 technical quality |
-| 15 | Заключение | «Meldy.» · «Шпаргалка этой защиты пуста: осталось 0 из 10» | the big wordmark (the strip has collapsed into its dot) → recommendations → monetisation (100 / 1000 units a day, licence) → the large QR, its address, the blue pill «Открыть пример» | label · lists · QR card | `!!word` `!!dot` `!!left` `!!s01–10` (gather) `!!c2` | 1 monetisation · 7 |
+| # | Label | Hero | Eye order | Build (after the transition) |
+|---|---|---|---|---|
+| 01 | Титульный | «Meldy.» 300 px | wordmark → «ИИ не отвечает за студента — он его спрашивает» → the cover card (GIF) → «Тренажёр экзамена по вопросам кафедры» → nomination, QR, «CodingFest-11», F5 hint | label · wordmark rises · dot and squares settle · thesis · tagline · card settles · nomination and QR · hint (2.6 s) |
+| 02 | Автор проекта | two author cards | initials avatars → names → roles → institution → region → the strip, explained | counter · cards · avatars, names · institution · region · reading line (2.4 s) |
+| 03 | Актуальность | «229 тыс.» | claim → the № 319 card (the attestation rules of higher education, by full name) → on a click «229 тыс.» | claim · card · № 319 · title; *click* 229 тыс. (1.4 + 0.9 s) |
+| 04 | Цель, задачи | «0» 420 px | «0 строк осталось» → the erased map → four tasks | caption · map sweeps · tasks 1–4 (2.0 s) |
+| 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade · reading line (2.85 s) |
+| 06 | Содержание | the five blocks | the blocks as cheat-sheet lines, with the slide of each → «Число и формат» | claim · lines written in · card · chips · note (2.3 s) |
+| 07 | Представление блоков проекта | the laptop | claim → the recording → four steps | the screen turns on · claim · steps (1.6 s) |
+| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | the screen rides in with the bezel · claim · steps · note (2.0 s) |
+| 09 | Представление блоков проекта | the laptop with the sheet | claim → the clip → the legend in the map's squares | claim · legend (1.75 s) |
+| 10 | Представление блоков проекта | the chat | claim → the chat → «Пригласить группу» → six copies → Telegram | claim · group · copies cascade · Telegram (2.35 s) |
+| 11 | Тестирование и продвижение | the path | «Пилот: [N] студентов, [M] дней» → group → department → colleges and universities → the open site | claim · result · three steps · site (2.45 s) |
+| 12 | Масштабируемость (dark) | the night field | claim → the field, «ваша группа» → the ladder 1 → 1 → 400 → 25 → ≈ 229 тыс. | the lights are down; the claim rises; 300 ms later the clip fades in and plays; each rung on its stop; «ваша группа» when the field holds (10.6 s, by design) |
+| 13 | Используемые источники | — | three groups of sources, typography only | claim · rules wipe, entries fade (2.1 s) |
+| 14 | Технические требования | — | the requirements → the stack by layer | claim · two columns · reading line (2.1 s) |
+| 15 | Заключение | «Meldy.» 300 px | the wordmark with the strip collapsed into its dot → «пуста: 0 из 10» → recommendations → monetisation → the QR card | lists written in · QR card settles last (2.3 s) |
 
-## 5. Placeholders (must be filled or replaced before the file is sent)
+## 5. Placeholders (to fill or replace before the file is sent)
 
-Names and group on 02 · pilot numbers and result on 11 · the gs.by address and the access dates on 13 ·
-the recordings of 07 and 08 (and the real recording for 10, if it replaces the tip clip) · in the notes:
-«[Имена называет докладчик.]» (02), «[Результат пилота одной фразой.]» (11), «[меньше копейки — сверить 21.10]» (12),
-the conditional last sentence of 15. Placeholders are faint, in brackets, and framed with a dashed outline.
+* 02: names, initials and groups come from `deck/cf11/private/fill.json` (git-ignored): `author1.name`,
+  `author1.role`, `author1.initials`, the same for `author2`.
+* 11: the pilot's numbers and result.
+* 13: the BELTA note's address and the access date.
+* The recordings of 07 and 08 (and 09 and 10, if the live recordings replace the clips).
+* In the notes: «[Имена называет докладчик.]» (02), «[Результат пилота одной фразой.]» (11), «[меньше копейки —
+  сверить 21.10]» (12), the conditional last sentence of 15.
 
-## 6. Notes for the compiler (assumptions this markup makes)
+Placeholders in the sources are faint, in brackets and framed with a dashed outline. The private fill replaces its
+own text at build time.
 
-- **Layering**: the baked background is under every native object, so nothing baked is drawn above a marked shape
-  (lint checks it). Decorations that sit on cards are native shapes (05's table rules and Meldy's column) or
-  pictures (the dashed placeholder frames — a dashed outline is not a native shape here).
-- **Cards** carry no border; their shadow is the unmarked `.shadow` layer under them (baked, at the end position).
-- **Video**: `data-loop` on the looping clips; `scale` has none (plays once and stays on its last frame).
-  Each video has an entrance `fade` after the Morph, so it appears inside its window once the window has settled.
-- **Inline runs** differ only in colour and weight; line breaks are `<br>` everywhere a claim or entry wraps.
-- **Non-breaking spaces** are U+00A0 in the text (`&nbsp;`); the mandatory names keep plain spaces.
-- **The finale**: on 15 all ten squares are yellow circles of the dot's size at the dot's place (`data-gather`).
-- **Transition timing** (not in the contract yet): Morph 0.9–1.0 s on 02–15 (PowerPoint's default 2 s floats),
-  a 0.6 s fade on 01.
+## 6. Notes for the compiler (what this markup relies on)
+
+- `settle`, `data-anim-dir`, `data-morph`, `data-fill`, bleed cropping and the Morph lint come from the compiler of
+  round 2.
+- `data-play`: `with` (the compiler's default since round 2) starts a clip with its entrance, or with the slide
+  when it has none, so «with» builds at the clip's moments run alongside it (12's ladder; checked frame by frame in
+  `12-in.mp4`).
+- Cards that build or move carry `box-shadow` on the marked shape (`.lift`). The shadow becomes the shape's over-layer
+  picture and builds and morphs with it.
+- The bake of every slide is a flat canvas (`shoot.mjs --bg`); everything visible is a native object or a picture.
 
 ## 7. Tools
 
 ```
-node deck/cf11/design/stamp.mjs                      # write the header band into every slide
-node deck/cf11/design/preview/shoot.mjs [NN…] [--build] [--bg]   # stills, contact sheet, build-ups, bakes
-node deck/cf11/design/preview/lint.mjs               # the contract and typography checks
-node deck/cf11/motion/render.mjs title-cover --gif --gif-fps 12.5 --gif-colors 64
+node deck/cf11/design/stamp.mjs                      # the header band (strip, counter, corner) into every slide
+node deck/cf11/design/preview/shoot.mjs [NN…] [--build] [--bg] [--morph]   # stills, contact sheet, build strips, bakes, Morph maps
+node deck/cf11/design/preview/lint.mjs               # the contract, the scale, tokens per slide, typography
+node deck/cf11/design/preview/timeline.mjs [NN…]     # each slide's build as PowerPoint schedules it
+deck/cf11/tools/make.sh                              # the PPTX, checks, LibreOffice renders, comparison
+deck/cf11/tools/preview/preview.sh                   # the motion preview: deck.mp4, keyframe sheets, morph-log.txt
+node deck/cf11/motion/render.mjs title-cover --gif --gif-fps 10 --gif-colors 64 --no-mp4
 node deck/cf11/motion/render.mjs sheet
-node deck/cf11/motion/render.mjs scale --fps 25 --crf 24 --tune animation --zones "27,61,b=0.45/82,123,b=0.45/145,178,b=0.45/200,247,b=0.45"
-node deck/cf11/motion/render.mjs ph-07 ; node deck/cf11/motion/render.mjs ph-08
+node deck/cf11/motion/render.mjs scale --fps 25 --crf 24 --tune animation --zones "22,55,b=0.45/75,113,b=0.45/132,165,b=0.45/185,242,b=0.45"
+node deck/cf11/motion/render.mjs ph-07 --fps 10 ; node deck/cf11/motion/render.mjs ph-08 --fps 10
 node deck/cf11/motion/telegram.mjs                   # needs the app harness (Vite on 127.0.0.1:5199)
-python3 -I deck/cf11/motion/loopmask.py <frames> <out> <w> <h> --radius 24 --xfade 15   # fit a recording to a window
+python3 -I deck/cf11/motion/loopmask.py <frames> <out> <w> <h> --radius 22 --bg '#0b121c' --xfade 15   # fit a recording to a screen
 ```
 
-A real recording replaces a placeholder by changing `data-src`/`data-poster` on its `<img data-pptx="video">`
-(07: 1080 × 544 inside the window, corners radius 24 on white; 08: 360 × 792, radius 44; 10: 640 × 640, radius 24) —
-`loopmask.py` crops, rounds the corners onto white and makes the loop seamless.
+A real recording replaces a placeholder by changing `data-src` and `data-poster` on its `<img data-pptx="video">`.
+The screens are:
+
+| Slide | Screen | Radius, corners in ink |
+|---|---|---|
+| 07, 09 | 1152 × 568 | 22 |
+| 08 | 392 × 848 | 50 |
+| 10 | 672 × 672 | 24 |

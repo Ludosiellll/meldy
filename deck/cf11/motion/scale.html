@@ -2,76 +2,61 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>scale — одна строка → 229 тыс. студентов</title>
+<title>scale — одна строка → 229 тыс. студентов (ночное поле)</title>
 <link rel="stylesheet" href="clip.css">
 <style>
-/* Slide 12's card (1616 × 480): one continuous pull-back with five labelled stops — a line of the cheat sheet,
-   its question, an exam of 400 questions, a group of 25 copies, about 229 thousand students (each dot a group
-   of 25). The camera only moves out, on one centre: the yellow mark is always the same thing, one level up.
-   One shot (no loop): it stops on the last frame, which is also the poster. */
-.stage { width: 1616px; height: 480px; background: #ffffff; }
-.panel { left: 480px; top: 0; width: 1136px; height: 480px; border-radius: 28px; background: var(--canvas); overflow: hidden; }
+/* Slide 12 (dark stage): the clip's box is 1360 × 584 at x 560, y 384 of the slide, running off its right edge.
+   One continuous pull-back on the night canvas of the app's dark theme: a line of the cheat sheet → its question →
+   an exam of 400 questions → a group of 25 students (25 copies of the exam) → the field: 9 160 dots, one per group
+   of 25, ≈ 229 thousand students. The yellow mark is always the same thing, one level up; at the end it is «your
+   group». No text in the clip but the line and its question: the stops are named by live labels on the slide (the
+   ladder), which build in time with the stops below (STOPS_AT). One shot: it holds its last frame, which is the
+   poster. In the slideshow the clip fades in with its first frame, so the poster never jumps to it. */
+html, body { background: #0b0f16; }
+.stage { width: 1360px; height: 584px; background: #0b0f16; }
 canvas { left: 0; top: 0; }
-.rung { left: 24px; height: 40px; }
-.rung .m { left: 0; top: 13px; width: 14px; height: 14px; border-radius: 7px; }
-.rung .t { left: 36px; top: 0; font-size: 30px; line-height: 40px; white-space: nowrap; }
-.foot { left: 24px; top: 424px; font-size: 24px; line-height: 32px; color: var(--muted); white-space: nowrap; }
 .preload { left: -9999px; top: 0; }
 </style>
 </head>
 <body>
 <div class="stage" id="stage">
-  <div class="panel"><canvas id="cv"></canvas></div>
-  <div id="ladder"></div>
-  <div class="foot" id="foot">точка&nbsp;— группа из&nbsp;25 человек</div>
+  <canvas id="cv"></canvas>
   <div class="preload"><span style="font-weight:400">Аа</span><span style="font-weight:600">Аа</span></div>
 </div>
 <script src="clip.js"></script>
 <script>
 (() => {
-  const { seg, mix, el, E, clamp, hash } = window.M;
-  const T = 11400;
-  const W = 1136, H = 480;
-  const STOPS = [
-    { label: ['одна строка'] },
-    { label: ['один вопрос'] },
-    { label: ['экзамен на 400 вопросов'] },
-    { label: ['группа из 25 человек'] },
-    { label: ['около 229 тыс.', 'студентов вузов'] },
-  ];
-  // The ladder of stops on the left: the current one in ink with the yellow mark, passed ones muted.
-  const ladder = document.getElementById('ladder');
-  const rungs = STOPS.map((s, k) => {
-    const r = el(ladder, 'rung');
-    r.style.top = `${40 + k * 72}px`;
-    const m = el(r, 'm'); const t = el(r, 't');
-    t.innerHTML = s.label.join('<br>');
-    return { m, t };
-  });
-  const foot = document.getElementById('foot');
+  const { seg, mix, E, clamp, hash } = window.M;
+  const T = 11000;
+  const W = 1360, H = 584;
+  // The dark theme (frontend/src/index.css .dark).
+  const C = { canvas: '#0b0f16', surface: '#141a24', line: '#262e3b', ink: '243,243,240', muted: '167,173,183', yellow: '#f4c45b' };
 
   // ---- the world (units = screen px at the last stop) ----
-  const COLS = 161, ROWS = 57, CELL = 6.6;            // 161 × 57 = 9177 groups × 25 ≈ 229 thousand students
+  // 146 × 63 cells = 9198; the last row stops 38 short: exactly 9160 groups × 25 = 229 000 students.
+  const COLS = 146, ROWS = 63, N = 9160;
+  const CELL = Math.min(W / COLS, H / ROWS);
   const GX0 = (W - COLS * CELL) / 2, GY0 = (H - ROWS * CELL) / 2;
-  const FC = 80, FR = 28;                              // the focal group: the middle of the field
+  const exists = (gc, gr) => gr * COLS + gc < N;
+  const FC = 50, FR = 30;                              // «your group»: left of the middle, where the label fits
   const groupX = (c) => GX0 + c * CELL, groupY = (r) => GY0 + r * CELL;
-  const CC = CELL / 5, CS = CC * 0.82;                 // a copy of the exam inside its group (5 × 5)
-  const TC = CS / 20, TS = TC * 0.78;                  // a question inside a copy (20 × 20)
-  const FCX = 2, FCY = 2, FTX = 9, FTY = 9;            // the focal copy and the focal question
+  const CC = CELL / 5, CS = CC * 0.82;                 // a copy of the exam inside its group (5 × 5 students)
+  const TC = CS / 20, TS = TC * 0.78;                  // a question inside a copy (20 × 20 = 400)
+  const FCX = 2, FCY = 2, FTX = 9, FTY = 9;            // your copy and the question on screen
   const copyX = (gc, i) => groupX(gc) + (CELL - 5 * CC) / 2 + i * CC + (CC - CS) / 2;
   const copyY = (gr, j) => groupY(gr) + (CELL - 5 * CC) / 2 + j * CC + (CC - CS) / 2;
   const tileX = (cx, i) => cx + i * TC + (TC - TS) / 2;
   const tileY = (cy, j) => cy + j * TC + (TC - TS) / 2;
   const fcx = copyX(FC, FCX), fcy = copyY(FR, FCY);
   const ftx = tileX(fcx, FTX), fty = tileY(fcy, FTY);
-  // The question's card around the focal question: 2 : 1, its first line the line of stop 1.
+  // The question's card around the question: 2 : 1, its first line the line of stop 1.
   const CARD_W = TS * 2.2, CARD_H = TS * 1.1;
   const cardX = ftx + TS / 2 - CARD_W / 2, cardY = fty + TS / 2 - CARD_H / 2;
-  const LINES = ['спрос равен предложению', 'цена выше равновесной → излишек', 'цена ниже равновесной → дефицит', 'сдвиг кривой меняет цену и объём'];
+  const LINES = ['спрос растёт → цена растёт', 'цена выше равновесной → излишек', 'цена ниже равновесной → дефицит', 'потолок цен → дефицит'];
   const lineY = (k) => cardY + CARD_H * (0.42 + k * 0.145);
 
   // Stops: scale (px per unit) and the point the camera holds.
-  const S = [16000, 7400, 330, 56, 1];
+  const S = [15000, 7000, 300, 52, 1];
   const P = [
     [cardX + CARD_W * 0.5, lineY(0)], // replaced by the centre of the line's words once the font is in (below)
     [cardX + CARD_W / 2, cardY + CARD_H / 2],
@@ -80,12 +65,14 @@ canvas { left: 0; top: 0; }
     [W / 2, H / 2],
   ];
   // Dwell, then move out: [start of the move, end of the move] from stop k to k + 1.
-  const MOVES = [[1100, 2400], [3300, 4900], [5800, 7100], [8000, 9300]];
+  const MOVES = [[900, 2200], [3000, 4500], [5300, 6600], [7400, 9000]];
+  // When each stop is reached (the slide's ladder builds in at these times, data-anim-delay on 12-scale.html).
+  const STOPS_AT = [0, 2200, 4500, 6600, 9000];
 
   function camera(t) {
     let k = 0;
     while (k < MOVES.length && t >= MOVES[k][1]) k += 1;
-    if (k === MOVES.length) return { s: S[4], c: P[4], stop: 4, p: 1 };
+    if (k === MOVES.length) return { s: S[4], c: P[4], stop: 4 };
     const [a, b] = MOVES[k];
     const p = t <= a ? 0 : E.inOut3(clamp((t - a) / (b - a)));
     const z = mix(Math.log(S[k]), Math.log(S[k + 1]), p);
@@ -93,49 +80,53 @@ canvas { left: 0; top: 0; }
     // The held point moves in step with the zoom (in log space), so the motion has no swing.
     const q = (Math.log(S[k]) - z) / (Math.log(S[k]) - Math.log(S[k + 1]) || 1);
     const c = [mix(P[k][0], P[k + 1][0], q), mix(P[k][1], P[k + 1][1], q)];
-    return { s, c, stop: p > 0.5 ? k + 1 : k, p };
+    return { s, c, stop: p > 0.5 ? k + 1 : k };
   }
 
   const cv = document.getElementById('cv');
   const dpr = window.devicePixelRatio || 1;
   cv.width = W * dpr; cv.height = H * dpr; cv.style.width = `${W}px`; cv.style.height = `${H}px`;
   const g = cv.getContext('2d');
-  const INK = '11,18,28', YEL = '#f4c45b', FAINT = '138,143,151';
   const sm = (v, a, b) => { const x = clamp((v - a) / (b - a)); return x * x * (3 - 2 * x); };
   // A copy's progress, as the app's map shows it, in the order of the questions: the first ones erased.
   const erased = (gc, gr, i, j, ti, tj) => tj * 20 + ti < 60 + Math.floor(150 * hash(gc * 7 + i, gr * 3 + j));
-
   function rr(x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2)); }
+  // The label's patch, in cells: from 2 cells right of your group, 23 cells long, 5 rows high.
+  const hole = (gc, gr) => (gc >= FC + 2 && gc <= FC + 24 && gr >= FR - 2 && gr <= FR + 2 ? 1 : 0);
 
   function draw(t) {
-    // (t is the clip's time: the field's contrast below depends on it, not on the zoom)
     const { s, c, stop } = camera(t);
     const X = (wx) => (wx - c[0]) * s + W / 2, Y = (wy) => (wy - c[1]) * s + H / 2;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, W, H);
-    // Visible world rectangle.
+    g.fillStyle = C.canvas;
+    g.fillRect(0, 0, W, H);
     const vx0 = c[0] - W / 2 / s, vx1 = c[0] + W / 2 / s, vy0 = c[1] - H / 2 / s, vy1 = c[1] + H / 2 / s;
     const gsz = CELL * s, csz = CS * s, tsz = TS * s;
     // Level of detail: a mark is never drawn smaller than about 4 px, so nothing turns into grain.
-    const aDot = 1 - sm(gsz, 30, 80);               // groups drawn as dots
-    const aCopy = sm(gsz, 30, 80) * (1 - sm(csz, 110, 200)); // a group as its 25 copies
-    const aTile = sm(csz, 110, 200) * (1 - sm(tsz, 26, 90)); // a copy as its 400 questions
-    const aCard = sm(tsz, 26, 90);                  // the focal question as its card
-    const dimG = 1 - 0.72 * sm(gsz, 120, 300);      // other groups recede once we are inside one
-    const dimC = 1 - 0.72 * sm(csz, 160, 320);      // other copies recede once we are inside one
-    const dimT = 1 - sm(tsz, 60, 150);              // other questions leave once the card is open
-    const fieldUp = mix(0.3, 1, seg(t, 9300, 9900, E.inOut3));
+    const aDot = 1 - sm(gsz, 30, 80);                        // groups drawn as dots
+    const aCopy = sm(gsz, 30, 80) * (1 - sm(csz, 110, 200));  // a group as its 25 copies
+    const aTile = sm(csz, 110, 200) * (1 - sm(tsz, 26, 90));  // a copy as its 400 questions
+    const aCard = sm(tsz, 26, 90);                           // the question as its card
+    const dimG = 1 - 0.75 * sm(gsz, 120, 300);               // other groups recede once we are inside one
+    const dimC = 1 - 0.75 * sm(csz, 160, 320);               // other copies recede once we are inside one
+    const dimT = 1 - sm(tsz, 30, 70);                        // other questions come in only once they are small
+    // While the camera travels out to the field, its dots stay quiet; they come up once it holds.
+    const fieldUp = mix(0.35, 1, seg(t, 9000, 9700, E.inOut3));
+    // A clear patch for the slide's live label «ваша группа», right of your group, as a map clears a place name.
+    const holeOn = seg(t, 9300, 9900, E.inOut3);
     const gc0 = Math.max(0, Math.floor((vx0 - GX0) / CELL) - 1), gc1 = Math.min(COLS - 1, Math.ceil((vx1 - GX0) / CELL) + 1);
     const gr0 = Math.max(0, Math.floor((vy0 - GY0) / CELL) - 1), gr1 = Math.min(ROWS - 1, Math.ceil((vy1 - GY0) / CELL) + 1);
     for (let gr = gr0; gr <= gr1; gr += 1) {
       for (let gc = gc0; gc <= gc1; gc += 1) {
+        if (!exists(gc, gr)) continue;
         const focalG = gc === FC && gr === FR;
         const ga = focalG ? 1 : Math.min(dimG, fieldUp);
         if (aDot > 0.001 && !focalG) {
-          g.globalAlpha = aDot * 0.9 * fieldUp;
-          g.fillStyle = `rgb(${INK})`;
+          // a group: a muted dot, a little brighter here and there so the field reads as people, not a screen
+          g.globalAlpha = aDot * fieldUp * (0.5 + 0.25 * hash(gc, gr)) * (1 - hole(gc, gr) * holeOn);
+          g.fillStyle = `rgb(${C.muted})`;
           g.beginPath();
-          g.arc(X(groupX(gc) + CELL / 2), Y(groupY(gr) + CELL / 2), Math.max(0.6, 0.31 * gsz), 0, Math.PI * 2);
+          g.arc(X(groupX(gc) + CELL / 2), Y(groupY(gr) + CELL / 2), Math.max(0.6, 0.23 * gsz), 0, Math.PI * 2);
           g.fill();
         }
         if (aCopy > 0.001 || aTile > 0.001 || aCard > 0.001) {
@@ -146,8 +137,8 @@ canvas { left: 0; top: 0; }
               const focalC = focalG && i === FCX && j === FCY;
               const ca = ga * (focalC ? 1 : (focalG ? dimC : 1));
               if (aCopy > 0.001) {
-                g.globalAlpha = aCopy * ca * (focalC ? 1 : 0.9);
-                g.fillStyle = focalC ? YEL : `rgb(${INK})`;
+                g.globalAlpha = aCopy * ca * (focalC ? 1 : 0.8);
+                g.fillStyle = focalC ? C.yellow : `rgb(${C.ink})`;
                 rr(X(cx), Y(cy), csz, csz, csz * 0.16);
                 g.fill();
               }
@@ -157,15 +148,15 @@ canvas { left: 0; top: 0; }
                     const tx = tileX(cx, ti), ty = tileY(cy, tj);
                     if (tx > vx1 || tx + TS < vx0 || ty > vy1 || ty + TS < vy0) continue;
                     const focalT = focalC && ti === FTX && tj === FTY;
-                    const ta = ca * (focalT ? 1 : dimT) * (focalT ? aTile : aTile + aCard * 0);
+                    const ta = ca * (focalT ? 1 : dimT) * aTile;
                     if (ta < 0.002) continue;
                     const sx = X(tx), sy = Y(ty);
                     g.globalAlpha = ta;
-                    if (focalT) { g.fillStyle = YEL; rr(sx, sy, tsz, tsz, tsz * 0.2); g.fill(); }
+                    if (focalT) { g.fillStyle = C.yellow; rr(sx, sy, tsz, tsz, tsz * 0.2); g.fill(); }
                     else if (erased(gc, gr, i, j, ti, tj)) {
-                      g.strokeStyle = `rgba(${FAINT},.55)`; g.lineWidth = Math.max(0.6, Math.min(2, tsz * 0.12));
+                      g.strokeStyle = `rgba(${C.muted},.5)`; g.lineWidth = Math.max(0.6, Math.min(2, tsz * 0.12));
                       rr(sx + g.lineWidth / 2, sy + g.lineWidth / 2, tsz - g.lineWidth, tsz - g.lineWidth, tsz * 0.2); g.stroke();
-                    } else { g.fillStyle = `rgb(${INK})`; rr(sx, sy, tsz, tsz, tsz * 0.2); g.fill(); }
+                    } else { g.fillStyle = `rgb(${C.ink})`; rr(sx, sy, tsz, tsz, tsz * 0.2); g.fill(); }
                   }
                 }
               }
@@ -174,32 +165,41 @@ canvas { left: 0; top: 0; }
         }
       }
     }
+    // Your group in the field: the yellow dot, three times a group's size, with a ring of the canvas around it.
     if (aDot > 0.001) {
-      const fx = X(groupX(FC) + CELL / 2), fy = Y(groupY(FR) + CELL / 2), d = 0.31 * gsz * mix(1, 3, sm(-Math.log(s), -1.2, 0));
+      const fx = X(groupX(FC) + CELL / 2), fy = Y(groupY(FR) + CELL / 2);
+      const d = 0.21 * gsz * mix(1, 2.6, sm(-Math.log(s), -1.2, 0));
       g.globalAlpha = aDot;
-      g.fillStyle = '#f3f3f0'; g.beginPath(); g.arc(fx, fy, d + 4, 0, Math.PI * 2); g.fill();
-      g.fillStyle = YEL; g.beginPath(); g.arc(fx, fy, d, 0, Math.PI * 2); g.fill();
+      g.fillStyle = C.canvas; g.beginPath(); g.arc(fx, fy, d + 5, 0, Math.PI * 2); g.fill();
+      g.fillStyle = C.yellow; g.beginPath(); g.arc(fx, fy, d, 0, Math.PI * 2); g.fill();
+      // and a thin ring that settles in when the field holds
+      const ring = seg(t, 9300, 10100, E.out3);
+      if (ring > 0) {
+        g.globalAlpha = aDot * ring;
+        g.strokeStyle = C.yellow; g.lineWidth = 2;
+        g.beginPath(); g.arc(fx, fy, d + 12 + 10 * (1 - ring), 0, Math.PI * 2); g.stroke();
+      }
     }
-    // The focal question opens into its card: four lines, the first one the line we started from.
+    // The question opens into its card: four lines, the first one the line we started from.
     if (aCard > 0.001) {
       const x = X(cardX), y = Y(cardY), w = CARD_W * s, h = CARD_H * s;
       g.globalAlpha = aCard;
-      g.fillStyle = '#ffffff';
-      g.shadowColor = 'rgba(11,18,28,.10)'; g.shadowBlur = 24; g.shadowOffsetY = 8;
+      g.fillStyle = C.surface;
       rr(x, y, w, h, Math.min(28, w * 0.05)); g.fill();
-      g.shadowColor = 'transparent'; g.shadowBlur = 0; g.shadowOffsetY = 0;
+      g.strokeStyle = C.line; g.lineWidth = 2; g.stroke();
       const u = h / 100; // card units
-      const near = sm(s, 9000, 15000); // at the last zoom-in, only the first line stays bright
-      g.fillStyle = `rgb(${INK})`;
-      g.globalAlpha = aCard * (1 - 0.9 * near);
+      const near = sm(s, 8500, 14000); // at the closest zoom, only the first line stays bright
+      g.fillStyle = `rgb(${C.ink})`;
+      g.globalAlpha = aCard * (1 - 0.88 * near);
       g.font = `600 ${(9 * u).toFixed(2)}px Onest`;
       g.textBaseline = 'alphabetic';
       g.fillText('Рыночное равновесие', x + 7 * u, y + 21 * u);
       LINES.forEach((line, k) => {
         const ly = Y(lineY(k));
-        g.globalAlpha = aCard * (k === 0 ? 1 : 1 - 0.9 * near);
-        g.fillStyle = `rgb(${INK})`;
+        g.globalAlpha = aCard * (k === 0 ? 1 : 1 - 0.88 * near);
+        g.fillStyle = k === 0 ? C.yellow : `rgb(${C.ink})`;
         g.beginPath(); g.arc(x + 9 * u, ly - 2.6 * u, 1.5 * u, 0, Math.PI * 2); g.fill();
+        g.fillStyle = `rgb(${C.ink})`;
         g.font = `400 ${(7.6 * u).toFixed(2)}px Onest`;
         g.fillText(line, x + 15 * u, ly);
       });
@@ -208,19 +208,10 @@ canvas { left: 0; top: 0; }
     return stop;
   }
 
-  function seek(t) {
-    const stop = draw(t);
-    rungs.forEach((r, k) => {
-      const state = k === stop ? 'now' : k < stop ? 'done' : 'next';
-      r.m.style.background = state === 'now' ? '#f4c45b' : state === 'done' ? '#0b121c' : 'transparent';
-      r.m.style.boxShadow = state === 'next' ? 'inset 0 0 0 2px rgba(138,143,151,.55)' : 'none';
-      r.m.style.transform = `scale(${state === 'done' ? 0.72 : 1})`;
-      r.t.style.color = state === 'now' ? '#0b121c' : state === 'done' ? '#4b515b' : '#8a8f97';
-      r.t.style.fontWeight = state === 'now' ? '600' : '400';
-    });
-    foot.style.opacity = String(seg(t, 9400, 9900));
-  }
-  window.__clip = { T, seek, width: 1616, height: 480, poster: 11400, loop: false };
+  function seek(t) { draw(t); }
+  // Where «your group» ends up, in the clip's pixels (the slide puts its live label «ваша группа» next to it).
+  window.__scale = { focal: [groupX(FC) + CELL / 2, groupY(FR) + CELL / 2], STOPS_AT, MOVES, T };
+  window.__clip = { T, seek, width: W, height: H, poster: T, loop: false };
   document.fonts.ready.then(() => {
     // Stop 1 holds the centre of the line's words: x + 15u to the end of the text, in world units.
     const U = 1000, u = (CARD_H * U) / 100;
