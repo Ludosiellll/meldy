@@ -1097,6 +1097,277 @@ def sanitize_podcast_visuals(items: Any, line_count: int, source_text: str | Non
 
 from typing import List, Dict
 
+
+# Video hosts: «Ссылка» reads the text of a page, and a video page has none — what was scraped from
+# YouTube was its chrome («Sign in to confirm you're not a bot», subscribers, chapters) and still cost
+# a lecture (live QA 2026-10-11). main.analyze_url refuses these links before any charge or fetch.
+_VIDEO_HOSTS = ("youtube.com", "youtube-nocookie.com", "youtu.be", "rutube.ru", "vkvideo.ru", "vimeo.com", "tiktok.com")
+# Hosts where only some pages are videos: VK and OK clips and videos, Dzen videos and shorts.
+_VIDEO_PATHS = {
+    "vk.com": ("/video", "/clip"),
+    "vk.ru": ("/video", "/clip"),
+    "ok.ru": ("/video",),
+    "dzen.ru": ("/video", "/shorts"),
+    "zen.yandex.ru": ("/video", "/shorts"),
+}
+
+
+def _host_matches(hostname: str, domain: str) -> bool:
+    return hostname == domain or hostname.endswith("." + domain)
+
+
+def is_video_link(url: str) -> bool:
+    """A link to a video page (YouTube, Rutube, VK Video, Dzen video…), with or without the scheme."""
+    text = (url or "").strip()
+    if not re.match(r"^[a-z][a-z0-9+.-]*://", text, re.IGNORECASE):
+        text = "https://" + text
+    try:
+        parsed = urlparse(text)
+        hostname = (parsed.hostname or "").rstrip(".").lower()
+    except ValueError:
+        return False
+    if not hostname:
+        return False
+    if any(_host_matches(hostname, domain) for domain in _VIDEO_HOSTS):
+        return True
+    path = (parsed.path or "/").lower()
+    for domain, prefixes in _VIDEO_PATHS.items():
+        if _host_matches(hostname, domain):
+            if path.startswith(prefixes):
+                return True
+            # vk.com/wall-1_2?z=video-1_2: a video opened over another page.
+            return re.search(r"(?:^|&)z=(?:video|clip)", parsed.query or "", re.IGNORECASE) is not None
+    return False
+
+
+# The text of a web page (scrape_url) as a lecture. The Jina Reader answers in Markdown: its own header,
+# links as [text](%-encoded address), images, the infobox as a table, «[↑]» back-links and the reference
+# lists. Live QA 2026-10-11: a short Wikipedia article came out as 89 532 characters («около 112 мин» of
+# reading) with %-encoded links in the fragments. clean_page_text keeps the text of links and drops their
+# addresses, images (a formula drawn as an image keeps its TeX as $…$), lines made only of links (menus,
+# breadcrumbs, «see also»), footnote marks, reference lists and reference sections («Примечания»,
+# «Литература», «Ссылки»…); headings, list items and table rows («cell | cell», like DOCX) stay as plain
+# lines, and the paragraphs go into fragment blocks (pack_source_blocks) before anything counts them.
+_REFERENCE_HEADINGS = re.compile(
+    r"^(?:примечания|сноски|комментарии|литература|список литературы|библиография|источники|ссылки|"
+    r"внешние ссылки|см\.? также|notes|references|bibliography|sources|external links|see also|"
+    r"further reading|footnotes)$",
+    re.IGNORECASE,
+)
+_LINK_URL = r"\((?:[^()\s]|\([^()\s]*\))*(?:\s+\"[^\"]*\")?\)"  # (address "title"), one level of ( ) inside
+_BRACKETED = r"\[((?:[^\[\]]|\[[^\[\]]*\])*)\]"  # [text], one level of [ ] inside
+_IMAGE_RE = re.compile(r"!" + _BRACKETED + _LINK_URL)
+_LINKED_IMAGE_RE = re.compile(r"\[\s*!" + _BRACKETED + _LINK_URL + r"\s*\]" + _LINK_URL)
+_LINK_RE = re.compile(_BRACKETED + _LINK_URL)
+_AUTOLINK_RE = re.compile(r"<(?:https?|ftp)://[^>\s]*>")
+_BARE_URL_RE = re.compile(r"\b(?:https?|ftp)://[^\s<>()\[\]]+(?:\([^\s()]*\))?[^\s<>()\[\].,;:!?»\"']*")
+# The text of a footnote link: «[10]», «10», «a», «прим. 3».
+_FOOTNOTE_TEXT_RE = re.compile(r"^(?:\[?\d{1,3}\]?|[a-zа-я]|прим\.?\s*\d{1,3}|note\s*\d{1,3})$", re.IGNORECASE)
+_SYMBOLS_ONLY_RE = re.compile(r"^[\W_]*$")
+_FORMULA_ALT_RE = re.compile(r"^(?:Image\s+\d+:\s*)?\{\\displaystyle\s+(.*)\}\s*$", re.DOTALL)
+_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")
+_KEPT = chr(0)  # a formula or a code span waits here as «KEPT n KEPT» while the line is cleaned
+_KEPT_RE = re.compile(_KEPT + r"(\d+)" + _KEPT)
+# Wikipedia marks the stress in its first line (U+0301 after «е» in «Теорема»): the mark splits a word.
+_STRESS_RE = re.compile("(?<=[А-Яа-яЁё])[" + chr(0x300) + chr(0x301) + "]")
+_ITALIC_RE = re.compile(r"(?<![\w\\*])([*_])(?=\S)([^*_\n]*?\S)\1(?![\w*])")
+_LIST_MARK_RE = re.compile(r"^\s*(?:[*+-]|(\d{1,3})[.)])\s+")
+_HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
+_SETEXT_RE = re.compile(r"^\s{0,3}(?:=+|-+)\s*$")
+_TABLE_SEPARATOR_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$")
+# Signs of an item of a reference list. A strong one is enough: a back-link, an ISBN, a DOI, an archive
+# copy. Weak ones — «— М.:», «486 с.», a publisher, «(англ.)», an author in italics — need a second sign:
+# «t = 5 с.» in a list of a physics lecture is not a reference.
+_REFERENCE_STRONG_RE = re.compile(r"\[↑\]|\bISBN\b|\bdoi\b|Архивная копия|Дата обращения|\bRetrieved\b")
+_REFERENCE_WEAK_RES = (
+    re.compile(r"[—–-]\s*(?:М|СПб|Л|К|Мн|Киев|Минск|Новосибирск|Екатеринбург|Казань)\.?\s*[:,]"),
+    re.compile(r"\b(?:Изд-во|изд\.|Издательство)|\bPress\b|\bPublications?\b"),
+    re.compile(r"\b\d+\s*с\.(?=\s|$|[;,.:)])|\bс\.\s*\d|\bТ\.\s*\d"),
+    re.compile(r"\((?:англ|нем|фр|итал|исп|лат)\.\)"),
+    re.compile(r"_\[?[A-ZА-ЯЁ][\w-]+,?\s+(?:[A-ZА-ЯЁ]\.\s*){1,2}\]?"),
+)
+
+
+def _reference_item(line: str) -> bool:
+    """A list item that reads as a reference (two signs, or one strong sign)."""
+    if _REFERENCE_STRONG_RE.search(line):
+        return True
+    return sum(1 for pattern in _REFERENCE_WEAK_RES if pattern.search(line)) >= 2
+_JINA_HEADER_RE = re.compile(r"^(?:Title|URL Source|Published Time|Warning|Description):", re.IGNORECASE)
+# A pointer to another article («Основная статья: …»), not text of this one.
+_HATNOTE_RE = re.compile(
+    r"^(?:основная статья|основные статьи|главная статья|см\.? также|подробнее|main articles?|see also|"
+    r"further information)\s*:",
+    re.IGNORECASE,
+)
+
+
+def _clean_page_line(line: str, kept: list) -> str:
+    """One line of page Markdown as text. Formulas and code spans go to ``kept`` (restored at the end)."""
+    def keep(value: str) -> str:
+        kept.append(value)
+        return f"{_KEPT}{len(kept) - 1}{_KEPT}"
+
+    def image(match: re.Match) -> str:
+        formula = _FORMULA_ALT_RE.match(match.group(1).strip())
+        return keep("$" + " ".join(formula.group(1).split()) + "$") if formula else " "
+
+    def link(match: re.Match) -> str:
+        text = match.group(1).strip()
+        bare = text.replace("*", "").replace("_", "").strip()
+        if _FOOTNOTE_TEXT_RE.match(bare) or _SYMBOLS_ONLY_RE.match(bare):
+            return ""  # «[[10]](…)», «[↑](…)», «[**➤**](…)»: footnotes and back-links
+        return text
+
+    line = _CODE_SPAN_RE.sub(lambda match: keep(match.group(0)), line)
+    # The Reader drops the space between two links in a row («[теорем](…)[евклидовой](…)»).
+    line = re.sub(r"\)(?=!?\[)", ") ", line)
+    line = _LINKED_IMAGE_RE.sub(" ", line)
+    line = _IMAGE_RE.sub(image, line)
+    for _ in range(2):  # a link inside the text of a link
+        line = _LINK_RE.sub(link, line)
+    line = _AUTOLINK_RE.sub(" ", line)
+    line = _BARE_URL_RE.sub(" ", line)
+    line = re.sub(r"\*\*|__", "", line)
+    line = _ITALIC_RE.sub(r"\2", line)
+    line = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|>~])", r"\1", line)  # Markdown escapes
+    line = _STRESS_RE.sub("", line)
+    # Spaces it also drops: before a dash after a word («Пифагора— одна»), around a formula
+    # («чисел$(x,y,z)$»); and the ones a removed footnote leaves before punctuation.
+    line = re.sub(r"(?<=[^\s\-–—(«„\"'/])—(?=\s)", " —", line)
+    line = re.sub(r"(?<=[^\W_])(?=" + _KEPT + r"\d+" + _KEPT + ")", " ", line)
+    line = re.sub(r"(" + _KEPT + r"\d+" + _KEPT + r")(?=[^\W\d_])", r"\1 ", line)
+    return re.sub(r"\s+(?=[,.;:!?)»])", "", line)
+
+
+def _links_only(line: str) -> bool:
+    """A line of links and images only (a menu, breadcrumbs, «see also», a picture), not a formula."""
+    if "](" not in line:
+        return False
+    if any(_FORMULA_ALT_RE.match(match.group(1).strip()) for match in _IMAGE_RE.finditer(line)):
+        return False
+    rest = _LINK_RE.sub("", _IMAGE_RE.sub("", _LINKED_IMAGE_RE.sub("", line)))
+    return not re.search(r"[^\W_]", _LIST_MARK_RE.sub("", rest).replace("|", ""))
+
+
+def _reference_runs(lines: list) -> set:
+    """Lines of the lists that are reference lists: at least half of their items are references.
+
+    A list runs over items, blank lines and indented lines; a heading or a paragraph ends it."""
+    dropped: set = set()
+    run: list = []
+    items = references = 0
+    in_code = False
+
+    def finish() -> None:
+        nonlocal run, items, references
+        if items >= 2 and references * 2 >= items:
+            dropped.update(run)
+        run, items, references = [], 0, 0
+
+    for index, line in enumerate(lines):
+        if line.strip().startswith("```"):
+            in_code = not in_code
+            finish()
+            continue
+        if in_code:
+            continue
+        if _LIST_MARK_RE.match(line):
+            run.append(index)
+            items += 1
+            references += _reference_item(line)
+        elif not line.strip() or (run and line.startswith((" ", "\t"))):
+            if run:
+                run.append(index)
+        else:
+            finish()
+    finish()
+    return dropped
+
+
+def clean_page_text(text: str) -> str:
+    """Text of a scraped page (Markdown of the Jina Reader or of the local fallback) without the page's
+    chrome, addresses of links, images and reference lists, in fragment blocks (pack_source_blocks)."""
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    kept: list = []
+    title = ""
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").replace(_KEPT, "").split("\n")
+    marker = next((index for index, line in enumerate(lines[:40]) if line.strip() == "Markdown Content:"), None)
+    header = lines[:marker] if marker is not None else []
+    if marker is None:
+        while lines and (not lines[0].strip() or _JINA_HEADER_RE.match(lines[0])):
+            header.append(lines.pop(0))
+    else:
+        lines = lines[marker + 1:]
+    for line in header:
+        if line.lower().startswith("title:"):
+            title = " ".join(_clean_page_line(line.split(":", 1)[1], kept).split())
+
+    paragraphs: list = []
+    current: list = []
+    in_code = False
+    skip_level = 0  # inside a reference section: the level of its heading
+    dropped = _reference_runs(lines)
+
+    def close() -> None:
+        if current:
+            paragraphs.append("\n".join(current))
+            current.clear()
+
+    for index, raw in enumerate(lines):
+        if raw.strip().startswith("```") or in_code:
+            if raw.strip().startswith("```"):
+                in_code = not in_code
+            if not skip_level:
+                current.append(raw.rstrip())
+            continue
+        following = lines[index + 1] if index + 1 < len(lines) else ""
+        heading = _HEADING_RE.match(raw)
+        level, heading_text = (len(heading.group(1)), heading.group(2)) if heading else (0, "")
+        if not heading and raw.strip() and _SETEXT_RE.match(following) and not _LIST_MARK_RE.match(raw):
+            level, heading_text = (1 if following.strip().startswith("=") else 2), raw.strip()
+        if level:
+            if skip_level and level > skip_level:
+                continue
+            name = " ".join(_clean_page_line(heading_text, kept).split()).strip(" :")
+            skip_level = level if _REFERENCE_HEADINGS.match(_KEPT_RE.sub("", name).strip(" .")) else 0
+            close()
+            if not skip_level and name:
+                paragraphs.append(name)
+            continue
+        if _SETEXT_RE.match(raw) and index > 0 and lines[index - 1].strip():
+            continue  # the underline of a setext heading, or a rule
+        if skip_level or index in dropped:
+            continue
+        if not raw.strip():
+            close()
+            continue
+        stripped = raw.strip()
+        if _TABLE_SEPARATOR_RE.match(stripped) or _links_only(stripped) or _HATNOTE_RE.match(stripped):
+            continue
+        item = _LIST_MARK_RE.match(raw)
+        if "[↑]" in stripped or "[^" in stripped or (item and _reference_item(stripped)):
+            continue  # a footnote with its back-link, an item of a reference list
+        cleaned = _clean_page_line(stripped, kept)
+        if stripped.startswith("|"):
+            cells = [" ".join(cell.split()) for cell in cleaned.strip().strip("|").split("|")]
+            cleaned = " | ".join(cell for cell in cells if cell)
+        elif item:
+            mark = _LIST_MARK_RE.match(cleaned)
+            body = cleaned[mark.end():] if mark else cleaned
+            cleaned = (f"{item.group(1)}. " if item.group(1) else "- ") + body
+        else:
+            cleaned = re.sub(r"^(?:>\s?)+", "", cleaned)
+        cleaned = " ".join(cleaned.split())
+        if re.search(r"[^\W_]", _KEPT_RE.sub("x", cleaned)) and not re.fullmatch(r"(?:[-*]|\d{1,3}\.)", cleaned):
+            current.append(cleaned)
+    close()
+    if title and (not paragraphs or paragraphs[0].split("\n", 1)[0].strip(" |") != title):
+        paragraphs.insert(0, title)
+    return _KEPT_RE.sub(lambda match: kept[int(match.group(1))], pack_source_blocks(paragraphs)).strip()
+
+
 def is_safe_public_url(url: str) -> bool:
     """Allow only public HTTP(S) targets; DNS is checked immediately before fetching."""
     try:
@@ -1149,11 +1420,63 @@ async def _get_public_response(client, url: str, max_redirects: int = 3):
     raise ValueError("Сайт перенаправляет запрос слишком много раз.")
 
 
+# Parts of a page that are not its text (the local fallback of scrape_url): navigation, footnote marks,
+# reference lists, the table of contents, edit links, categories.
+_PAGE_CHROME_TAGS = ["script", "style", "noscript", "nav", "footer", "form", "iframe", "header", "aside", "svg", "button", "menu"]
+_PAGE_CHROME_SELECTOR = (
+    "sup.reference, .reference, .mw-references-wrap, ol.references, .reflist, .references, .navbox, "
+    ".mw-editsection, #toc, .toc, .catlinks, .mw-jump-link, [role=navigation], .noprint, .metadata"
+)
+
+
+def _html_page_markdown(html: str) -> str:
+    """Headings, paragraphs, list items, table rows and code of an HTML page as Markdown for
+    clean_page_text. The text of an element keeps its own spaces (get_text(strip=True) glued
+    «теорем» and «евклидовой» into one word); an item made only of links (a menu) is left out."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    for element in soup(_PAGE_CHROME_TAGS):
+        element.decompose()
+    for element in soup.select(_PAGE_CHROME_SELECTOR):
+        element.decompose()
+    body = soup.body if soup.body else soup
+    blocks = []
+    for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "pre", "tr"]):
+        if element.find_parent(["p", "li", "pre", "tr"]) is not None:
+            continue  # its text is in the enclosing element
+        if element.name == "pre":
+            code = element.get_text().strip("\n")
+            if code.strip():
+                blocks.append(f"```\n{code}\n```")
+            continue
+        if element.name == "tr":
+            cells = [" ".join(cell.get_text().split()) for cell in element.find_all(["td", "th"])]
+            if any(cells):
+                blocks.append("| " + " | ".join(cells) + " |")
+            continue
+        text = " ".join(element.get_text().split())
+        if not text:
+            continue
+        links = " ".join(" ".join(link.get_text().split()) for link in element.find_all("a"))
+        if element.name in ("p", "li") and links and " ".join(links.split()) == text:
+            continue  # a menu item or a line of links
+        if element.name.startswith("h"):
+            blocks.append("#" * int(element.name[1]) + " " + text)
+        elif element.name == "li":
+            blocks.append("- " + text)
+        else:
+            blocks.append(text)
+    return "\n\n".join(blocks) or body.get_text(separator="\n", strip=True)
+
+
 async def scrape_url(url: str) -> str:
     """
     Scrapes a web page using a hybrid workflow:
     1. Remote Jina Reader API (r.jina.ai/{url}) for JS-heavy/dynamic pages.
     2. Fallback to local httpx + BeautifulSoup for static HTML.
+    Either way the text goes through clean_page_text: the analysis, its fragments and the reading
+    time count the page's own text, without the addresses of links and the reference lists.
     """
     import httpx
 
@@ -1169,7 +1492,9 @@ async def scrape_url(url: str) -> str:
             if response.status_code == 200 and response.text.strip():
                 text = response.text
                 if "Failed to fetch" not in text and "Error fetching" not in text:
-                    return text
+                    cleaned = clean_page_text(text)
+                    if cleaned.strip():
+                        return cleaned
     except Exception as e:
         print(f"Jina API extraction failed: {e}")
 
@@ -1182,39 +1507,12 @@ async def scrape_url(url: str) -> str:
             response = await _get_public_response(client, url)
             if response.status_code != 200:
                 raise ValueError(f"HTTP error {response.status_code}")
-            
+
             html = response.text
             try:
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(html, "html.parser")
-                
-                # Clean up the HTML
-                for element in soup(["script", "style", "nav", "footer", "form", "iframe", "header", "aside"]):
-                    element.decompose()
-                    
-                body = soup.body if soup.body else soup
-                
-                text_lines = []
-                # Gather headers, paragraphs and list items to keep formatting structure
-                for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]):
-                    el_text = element.get_text(strip=True)
-                    if not el_text:
-                        continue
-                    if element.name in ("h1", "h2", "h3", "h4", "h5", "h6"):
-                        text_lines.append(f"\n\n# {el_text}\n")
-                    elif element.name == "p":
-                        text_lines.append(f"\n{el_text}\n")
-                    elif element.name == "li":
-                        text_lines.append(f"\n* {el_text}")
-                
-                text = "".join(text_lines).strip()
-                
-                if not text:
-                    text = body.get_text(separator="\n", strip=True)
+                text = clean_page_text(_html_page_markdown(html))
             except ImportError:
                 # RegEx based lightweight fallback if beautifulsoup4 is not yet installed in runtime
-                import re
-                # Remove scripts and styles
                 html_clean = re.sub(r'<(script|style|nav|footer|header|form|iframe|aside)[^>]*>([\s\S]*?)<\/\1>', ' ', html, flags=re.IGNORECASE)
                 # Strip other tags
                 text = re.sub(r'<[^>]+>', ' ', html_clean)
@@ -1222,13 +1520,10 @@ async def scrape_url(url: str) -> str:
                 text = text.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
                 # Clean up duplicate newlines/whitespaces
                 text = re.sub(r'\s+', ' ', text).strip()
-                
+
             if not text.strip():
                 raise ValueError("Извлеченный текст пуст")
-                
+
             return text
     except Exception as e:
         raise ValueError(f"Не удалось прочитать веб-страницу: {e}")
-
-
-

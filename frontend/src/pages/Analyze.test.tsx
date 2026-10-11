@@ -983,6 +983,17 @@ describe('scans, photos and presentations', () => {
     expect(screen.queryByText(/Текст распознан/)).toBeNull();
   });
 
+  it('a recording says «из записи» and asks to check terms, numbers and names', async () => {
+    streams = [() => sse([ev({ ...TEXT, transcribed: true }), ev(GROUNDING), ev(start('summarizer')), ev(DONE_SUMMARY), ev(RESULTS)])];
+    renderAnalyze();
+    await chooseFile(new File(['ID3'], 'Лекция_физика_закон_Ома.mp3', { type: 'audio/mpeg' }));
+    fireEvent.click(startButton());
+    await resultsHeading();
+    expect(screen.getByText('Текст распознан из записи — сверьте термины, числа и имена.')).toBeInTheDocument();
+    expect(screen.queryByText(/сверьте формулы и числа/)).toBeNull();
+    expect(analyzeCalls()[0].url).toBe('/api/analyze/media');
+  });
+
   it('a presentation goes to the document analysis', async () => {
     renderAnalyze();
     const deck = await chooseFile(

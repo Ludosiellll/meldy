@@ -19,7 +19,14 @@ from uploads import AI_UNAVAILABLE_DETAIL  # noqa: E402
 
 SUMMARY = json.dumps({"title": "Инфляция", "subject": "Экономика", "content": "Рост цен.", "terms": []}, ensure_ascii=False)
 QUIZ = json.dumps({"quiz": [{"question": "Что?", "options": ["A) Да", "B) Нет"], "correct": "A"}]}, ensure_ascii=False)
-LECTURE = "Инфляция — устойчивый рост общего уровня цен.\n\nЦентральный банк повышает ключевую ставку."
+# Two paragraphs (two source fragments) and more than main.LECTURE_MIN_CHARS letters: a shorter text
+# ends the stream with no_text before any model call.
+LECTURE = (
+    "Инфляция — устойчивый рост общего уровня цен на товары и услуги. Её измеряют индексом потребительских цен: "
+    "он сравнивает стоимость одной и той же корзины товаров в разные годы.\n\n"
+    "Центральный банк повышает ключевую ставку, когда инфляция растёт: кредиты дорожают, спрос снижается, "
+    "и рост цен замедляется."
+)
 
 
 def section_of(prompt: str) -> str:
@@ -226,13 +233,15 @@ def test_oversized_document_is_413_before_streaming(api, monkeypatch):
 
 
 def test_unsupported_format_and_empty_url_are_400(api, monkeypatch):
+    from parser import DOC_LEGACY_DETAIL, MEDIA_FORMAT_DETAIL
+
     response = post_text(api, name="lecture.doc")
-    assert response.status_code == 400 and response.json()["detail"].startswith("Неподдерживаемый формат")
+    assert response.status_code == 400 and response.json() == {"detail": DOC_LEGACY_DETAIL}
     for data in ({"url": ""}, {"url": "   "}, {}):
         response = api.post("/api/analyze/url", data=data)
         assert response.status_code == 400 and response.json() == {"detail": "Укажите корректный URL-адрес."}
     response = api.post("/api/analyze/media", files={"file": ("notes.pdf", io.BytesIO(b"%PDF"), "application/pdf")})
-    assert response.status_code == 400 and response.json()["detail"].startswith("Неподдерживаемый формат медиа")
+    assert response.status_code == 400 and response.json() == {"detail": MEDIA_FORMAT_DETAIL}
     response = api.post("/api/analyze/media", files={"file": ("talk.mp3", io.BytesIO(b""), "audio/mpeg")})
     assert response.status_code == 400 and response.json() == {"detail": "Файл пустой. Выберите другой файл."}
 
@@ -259,7 +268,7 @@ def test_oversized_media_is_413_and_no_temp_file_is_created(api, monkeypatch):
     created = _record_temp_files(monkeypatch)
     transcribed = []
 
-    async def transcribe(path, mime_type=None):
+    async def transcribe(path, mime_type=None, **kwargs):
         transcribed.append(path)
         return LECTURE
 
@@ -276,7 +285,7 @@ def test_media_temp_file_is_removed_after_transcription(api, monkeypatch):
     created = _record_temp_files(monkeypatch)
     seen = {}
 
-    async def transcribe(path, mime_type=None):
+    async def transcribe(path, mime_type=None, **kwargs):
         seen["exists"] = os.path.exists(path)
         seen["mime"] = mime_type
         return LECTURE
@@ -301,7 +310,7 @@ def test_media_transcription_timeout_is_a_readable_error_event(api, monkeypatch)
     monkeypatch.setenv("MEDIA_TRANSCRIBE_TIMEOUT_SECONDS", "0.1")
     created = _record_temp_files(monkeypatch)
 
-    async def transcribe(path, mime_type=None):
+    async def transcribe(path, mime_type=None, **kwargs):
         await asyncio.sleep(10)
         return LECTURE
 
@@ -315,7 +324,7 @@ def test_media_transcription_timeout_is_a_readable_error_event(api, monkeypatch)
 def test_media_provider_quota_is_a_busy_error_event(api, monkeypatch):
     import main
 
-    async def transcribe(path, mime_type=None):
+    async def transcribe(path, mime_type=None, **kwargs):
         raise AIError.busy()
 
     monkeypatch.setattr(main, "transcribe_media_file", transcribe)
@@ -365,8 +374,10 @@ def test_rate_limit_is_per_user_with_a_russian_429(api, monkeypatch):
 def test_document_without_text_is_a_no_text_error(api, monkeypatch):
     calls = answer_with(monkeypatch, {"summarizer": SUMMARY})
     items = frames(post_text(api, text="   \n  ").text)
+    # Meldy recognises scans and photos itself (ocr.py): the message no longer sends anyone to OCR elsewhere.
     assert items == [{"type": "error", "code": "no_text",
-                      "message": "В файле не найден текст. Для сканированного PDF используйте PDF с OCR или DOCX/TXT."}]
+                      "message": "В файле нет текста. Если это скан или фото, загрузите его как PDF или фото — "
+                                 "Meldy распознает текст сам."}]
     assert calls == []
 
 

@@ -34,7 +34,7 @@ from exams_parse import ParseError, parse_question_list
 from lecture_fit import MAX_MATERIAL_IDS, QUESTION_CHARS, FitError, lecture_fit
 from lecture_fit import MAX_QUESTIONS as FIT_MAX_QUESTIONS
 from ocr import OcrError
-from parser import PPT_LEGACY_DETAIL, PPTX_NO_TEXT_DETAIL, extract_text
+from parser import DOC_LEGACY_DETAIL, PPT_LEGACY_DETAIL, PPTX_NO_TEXT_DETAIL, extract_text
 from ratelimit import limiter, user_or_ip_key
 from sse import SSE_HEADERS, sse_event, with_keepalive
 from supabase_rest import SupabaseRest, bearer_token
@@ -158,6 +158,8 @@ async def _read_text(
     extension = _extension(name)
     if extension == "ppt" and "pptx" in allowed:
         raise HTTPException(status_code=415, detail=PPT_LEGACY_DETAIL)
+    if extension == "doc" and "docx" in allowed:
+        raise HTTPException(status_code=415, detail=DOC_LEGACY_DETAIL)
     if extension not in allowed:
         raise HTTPException(status_code=415, detail=format_detail)
     contents = await read_upload_with_limit(upload)

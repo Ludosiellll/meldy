@@ -8,6 +8,9 @@ section is usable) or ``error`` (nothing usable; main.py sends no ``done`` then)
 A model answer counts only after validate_section accepted it. An unusable
 answer is evicted from the BaseAgent cache and asked once more; a section that
 still has nothing usable is reported as ``empty``, never filled with stand-ins.
+An accepted answer then goes through mixed_script.check: Latin look-alikes in
+Russian words are replaced, and a word with a real Latin chunk inside is asked
+once more the same way (a second such answer loses the sentences with it).
 """
 import asyncio
 import json
@@ -15,6 +18,7 @@ import os
 import re
 from typing import Any, AsyncGenerator, Dict, Optional
 
+import mixed_script
 from utils import (
     build_source_chunks,
     build_source_context,
@@ -530,6 +534,17 @@ class CoordinatorAgent:
                 raw = await self.base.run(prompt, text, json_mode=json_mode,
                                           timeout=min(ai_call_timeout_seconds(), left))
                 payload, status = validate_section(name, raw, source_text=text)
+                if status == "ok":
+                    # Latin look-alikes in Russian words are replaced silently; a word with a real
+                    # Latin chunk inside («национаisticских») asks for the section once more, and
+                    # a second such answer loses the sentences with it (mixed_script.py).
+                    payload, broken = mixed_script.check(payload)
+                    if broken and attempt == 0:
+                        BaseAgent.forget(raw)
+                        print(f"Agent {name}: {len(broken)} mixed-script word(s) on attempt 1, asking again")
+                        continue
+                    if broken:
+                        payload, status = validate_section(name, mixed_script.drop_broken(payload), source_text=text)
                 if status == "ok":
                     return "ok", enrich_agent_result(name, payload, source_chunks)
                 # Never keep an unusable answer: the retry (and the next run) must ask again.

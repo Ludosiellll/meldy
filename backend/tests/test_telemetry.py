@@ -312,7 +312,7 @@ def test_a_failed_analysis_stream_is_reported_with_its_route_and_the_users_token
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
     response = api.post(
         "/api/analyze",
-        files={"file": ("lecture.txt", io.BytesIO("Инфляция — рост цен.".encode()), "text/plain")},
+        files={"file": ("lecture.txt", io.BytesIO(("Инфляция — устойчивый рост общего уровня цен. " * 8).encode()), "text/plain")},
         headers={"Authorization": f"Bearer {TOKEN_B}"},
     )
     events = [json.loads(line[len("data: "):]) for line in response.text.splitlines() if line.startswith("data: ")]
