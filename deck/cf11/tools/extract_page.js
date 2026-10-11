@@ -4,9 +4,11 @@
 (() => {
   'use strict';
   const TYPES = new Set(['title', 'text', 'shape', 'image', 'video', 'gif']);
-  const ANIMS = new Set(['fade', 'rise', 'wipe', 'zoom', 'appear']);
+  const ANIMS = new Set(['fade', 'rise', 'wipe', 'zoom', 'appear', 'settle']);
   const TRIGGERS = new Set(['after', 'with', 'click']);
   const TRANSITIONS = new Set(['morph', 'fade', 'none']);
+  const DIRS = new Set(['left', 'right', 'up', 'down']);
+  const MORPH_OPTIONS = new Set(['object', 'word', 'char']);
   const INLINE = new Set(['inline', 'inline-block', 'inline-flex', 'inline-grid', 'inline-table', 'contents', 'ruby', 'ruby-text']);
   const REPLACED = new Set(['img', 'svg', 'canvas', 'video', 'iframe', 'object', 'embed', 'picture', 'math']);
   const SKIP = new Set(['script', 'style', 'template', 'noscript', 'head', 'title', 'link', 'meta']);
@@ -419,6 +421,9 @@
     let transition = (ROOT.dataset.transition || 'morph').trim();
     if (!TRANSITIONS.has(transition)) { warnings.push(`unknown data-transition="${transition}", using morph`); transition = 'morph'; }
     const tdur = ROOT.dataset.transitionDur ? Math.round(num(ROOT.dataset.transitionDur)) : null;
+    let morphOption = (ROOT.dataset.morph || 'object').trim();
+    if (!MORPH_OPTIONS.has(morphOption)) { warnings.push(`unknown data-morph="${morphOption}", using object`); morphOption = 'object'; }
+    if (ROOT.dataset.morph && transition !== 'morph') warnings.push(`data-morph="${morphOption}" without a morph transition has no effect`);
 
     const fontsLoaded = [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family.replace(/["']/g, '')} ${f.weight}`);
     const marked = [...document.querySelectorAll('[data-pptx]')].filter((el) => el.dataset.pptx !== 'notes');
@@ -453,6 +458,14 @@
           durMs: Math.max(1, Math.round(num(el.dataset.animDur || 500))),
           order: el.dataset.animOrder !== undefined ? Math.round(num(el.dataset.animOrder)) : null,
         };
+        if (d.anim && el.dataset.animDir !== undefined) {
+          const dir = el.dataset.animDir.trim();
+          if (eff !== 'wipe') warnings.push(`${label}: data-anim-dir only applies to wipe, ignored`);
+          else if (!DIRS.has(dir)) warnings.push(`${label}: unknown data-anim-dir="${dir}", using left`);
+          else d.anim.dir = dir;
+        }
+      } else if (el.dataset.animDir !== undefined) {
+        warnings.push(`${label}: data-anim-dir without data-anim, ignored`);
       }
       if (type === 'title' || type === 'text') {
         if (type === 'title') titles++;
@@ -510,7 +523,7 @@
     const names = new Map();
     for (const e of elements) if (e.name) names.set(e.name, (names.get(e.name) || 0) + 1);
     for (const [n, c] of names) if (c > 1) warnings.push(`name ${n} is used ${c} times on this slide; Morph needs it unique`);
-    return { lang, transition: { type: transition, durMs: tdur }, notes: notesOf(), elements, warnings, fontsLoaded,
+    return { lang, transition: { type: transition, durMs: tdur, option: morphOption }, notes: notesOf(), elements, warnings, fontsLoaded,
              root: { x: round(rr.left + window.scrollX), y: round(rr.top + window.scrollY), w: round(rr.width), h: round(rr.height) } };
   };
 
@@ -525,6 +538,15 @@
     html.pptx-render [data-pptx-target][data-pptx-mode="under"], html.pptx-render [data-pptx-target][data-pptx-mode="under"] * {
       -webkit-text-fill-color: transparent !important; text-decoration-color: transparent !important;
       text-shadow: none !important; -webkit-text-stroke-color: transparent !important; caret-color: transparent !important; }
+    /* "text": only the glyphs of a live text box (for the motion preview; the PPTX draws them itself) */
+    html.pptx-render [data-pptx-target][data-pptx-mode="text"], html.pptx-render [data-pptx-target][data-pptx-mode="text"] * {
+      background: transparent !important; border-color: transparent !important; box-shadow: none !important;
+      outline-color: transparent !important; text-shadow: none !important; }
+    html.pptx-render [data-pptx-target][data-pptx-mode="text"]::before, html.pptx-render [data-pptx-target][data-pptx-mode="text"]::after,
+    html.pptx-render [data-pptx-target][data-pptx-mode="text"] *::before, html.pptx-render [data-pptx-target][data-pptx-mode="text"] *::after {
+      background: transparent !important; border-color: transparent !important; box-shadow: none !important;
+      -webkit-text-fill-color: transparent !important; }
+    html.pptx-render [data-pptx-target][data-pptx-mode="text"] :is(img, svg, canvas, video, picture, iframe) { visibility: hidden !important; }
   `;
   // hide: '' | 'bg' | 'border' | 'bg border' -- the parts of the element's own box that the native object already draws
   window.__pptxRenderPrep = function prep(id, mode, hide) {
@@ -572,6 +594,24 @@
     for (const el of document.querySelectorAll('[data-pptx-target]')) {
       el.removeAttribute('data-pptx-target'); el.removeAttribute('data-pptx-mode'); el.removeAttribute('data-pptx-hidebox');
     }
+  };
+  // ---------------------------------------------------------------- private fill
+  // data-fill="key": the element's text is replaced by map[key] (deck/cf11/private/fill.json, git-ignored) before
+  // anything is measured or rendered, and the element gets data-filled (CSS can drop placeholder styling with it).
+  window.__pptxFill = function fill(map) {
+    const filled = [], missing = [];
+    for (const el of document.querySelectorAll('[data-fill]')) {
+      const key = (el.dataset.fill || '').trim();
+      const v = map && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined;
+      if (typeof v === 'string' || typeof v === 'number') {
+        el.textContent = String(v);
+        el.setAttribute('data-filled', '');
+        filled.push(key);
+      } else {
+        missing.push(key);
+      }
+    }
+    return { filled, missing };
   };
   window.__pptxAssignIds = function assignIds() {
     [...document.querySelectorAll('[data-pptx]')].filter((el) => el.dataset.pptx !== 'notes')

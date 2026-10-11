@@ -5,9 +5,14 @@ Onest text, native shapes that Morph, pictures, video and entrance animations, t
 
 ```
 slides/NN-*.html ──extract.mjs──▶ out/build/slides.json + img/NN/{bg,ref,eK-*}.png ──imgopt.py (called by extract)
-                 ──build.py────▶ out/meldy-codingfest11.pptx
+  (+ private/fill.json)
+                 ──build.py────▶ out/meldy-codingfest11.pptx + meldy-codingfest11.objects.json
                  ──check_pptx.py, render.sh (LibreOffice 26.8 → PDF → PNG), compare.py, lo_roundtrip.py
+                 ──preview/preview.sh──▶ out/preview/motion/deck.mp4, NN-in.mp4, keyframes/, morph-log.txt
 ```
+
+The motion preview (Morph, Fade, builds, video, as PowerPoint is expected to play the file) is described in
+`preview/README.md`.
 
 ## Run it
 
@@ -32,13 +37,14 @@ It ends with `ALL GREEN` or lists what failed. Step by step:
 
 | Step | Command | Output |
 |---|---|---|
-| extract | `node tools/extract.mjs [--slides DIR] [--out DIR] [--only 03,04] [--no-opt]` | `out/build/slides.json`, `out/build/img/NN/*.png` |
-| build | `python tools/build.py [--build DIR] [--out FILE.pptx] [--embed all\|used\|none] [--deck-rules]` | the PPTX, a size report, warnings |
-| check | `python tools/check_pptx.py FILE.pptx out/build/slides.json [--deck-rules]` | re-opens the file with python-pptx and checks it against the HTML |
+| extract | `node tools/extract.mjs [--slides DIR] [--out DIR] [--only 03,04] [--no-opt] [--fill FILE]` | `out/build/slides.json`, `out/build/img/NN/*.png` (incl. `eK-text.png`, the glyphs of each text box for the preview) |
+| build | `python tools/build.py [--build DIR] [--out FILE.pptx] [--embed all\|used\|none] [--deck-rules]` | the PPTX, `FILE.objects.json` (shape id → element/layer), a size report, warnings; ERRORS (no file) for native objects across the slide edge |
+| check | `python tools/check_pptx.py FILE.pptx out/build/slides.json [--deck-rules]` | re-opens the file with python-pptx and checks it against the HTML; lint warnings for entrance animations on objects that morph in |
 | render | `tools/render.sh FILE.pptx out/render out/build/slides.json` | PDF, `slide-N.png` at 1920 px, `contact-sheet.png`, pdffonts, size, the pptx skill's `validate.py` |
 | compare | `python tools/compare.py out/build out/render` | `out/render/compare/side-NN.png`, `diff-NN.png`, per-text offsets, exit 1 above 2.5 px (plus LibreOffice's run-change spacing drift, listed) |
-| animations | `python tools/lo_roundtrip.py FILE.pptx out/build/slides.json` | how LibreOffice reads every effect, trigger, wipe direction, video play/loop |
-| tests | `python -m pytest deck/cf11/tools/tests` | unit tests (geometry, runs, fonts, EOT, timing XML vs the ISO schema, transitions, crops) and an integration build |
+| animations | `python tools/lo_roundtrip.py FILE.pptx out/build/slides.json` | how LibreOffice reads every effect, trigger, wipe direction, settle, easing, video play/loop |
+| preview | `tools/preview/preview.sh [fixtures] [--only 06,07]` | `out/preview/motion/`: `deck.mp4`, `NN-in.mp4`, `keyframes/NN-in.png`, `morph-log.txt` (not part of `make.sh`: ≈ 3 min) |
+| tests | `python -m pytest deck/cf11/tools/tests` | unit tests (geometry, runs, fonts, EOT, timing XML vs the ISO schema, transitions, crops, bleed, Morph pairing, fill, preview scenes) and an integration build |
 
 `--deck-rules` enforces the contest rules: the 10 mandatory names of Приложение 2 in order («Представление блоков
 проекта» may repeat on consecutive slides, own slides only between the blocks and «Используемые источники»), at
@@ -60,7 +66,14 @@ in desktop PowerPoint, check it, and save (see «Needs real PowerPoint»).
 | `video` | MP4 with its poster, autoplay (`mediacall playFrom`), loop (`repeatCount="indefinite"`), click toggles pause |
 | `data-name="!!x"` | object name `!!x` (Morph pairs); other objects get unique names like `Text 03.07` |
 | `data-anim*` | entrance effect, see below |
+| `data-morph="object\|word\|char"` on `main.slide` | the Morph option (`byObject` default, `byWord`, `byChar`) |
+| `data-fill="key"` | at extract time the element's text becomes `key`'s value from `deck/cf11/private/fill.json` (git-ignored; `private/fill.example.json` shows the form) and the element gets `data-filled`, so CSS can drop placeholder styling. A missing file or key keeps the placeholder and warns once per key. Personal data reaches only the built PPTX (and `out/`, which git ignores) |
 | notes template | speaker notes, one paragraph per blank-line block |
+
+**Slide edge (bleed).** A picture, GIF or layer whose box crosses the slide edge is cropped to the slide (`a:srcRect`,
+the rounded corners on a cut side become square); a video is re-encoded to its visible part (warned). A native shape
+or live text whose box (text: its line boxes) crosses the edge is a build ERROR: PowerPoint's Normal view shows the
+part outside the slide on the pasteboard. The text slack never takes a frame past the edge.
 
 ## Fidelity measures (and why)
 
@@ -99,9 +112,20 @@ Measured on the fixtures (LibreOffice 26.8.1.1): every live text within 1.06 px 
 |---|---|---|---|
 | `appear` | Appear (Появление) | 1 / 0 | set `style.visibility` |
 | `fade` | Fade (Выцветание) | 10 / 0 | set + `animEffect transition="in" filter="fade"` |
-| `rise` | Float In, Up (Всплывание) | 42 / 0 | set + fade + `ppt_x` `#ppt_x→#ppt_x` + `ppt_y` `#ppt_y+.1→#ppt_y` (10 % of the slide height, PowerPoint's own value) |
-| `wipe` | Wipe, From Left (Появление сбоку, слева) | 22 / 8 | set + `animEffect filter="wipe(left)"` |
-| `zoom` | Zoom (Масштабирование, «Subtle» group), Object Center | 53 / 16 | set + `ppt_w`/`ppt_h` 0→full + fade |
+| `rise` | Float In, Up (Всплывание) | 42 / 0 | set + fade + `ppt_x` `#ppt_x→#ppt_x` + `ppt_y` `#ppt_y+.1→#ppt_y` (10 % of the slide height, PowerPoint's own value), the motion decelerating |
+| `wipe` | Wipe (Появление сбоку), `data-anim-dir`: `left` (default) From Left, `right` From Right, `up` From Top, `down` From Bottom | 22 / 8, 2, 1, 4 | set + `animEffect filter="wipe(left\|right\|up\|down)"` |
+| `zoom` | Zoom (Масштабирование, «Subtle» group), Object Center | 53 / 16 | set + `ppt_w`/`ppt_h` 0→full (decelerating) + fade |
+| `settle` | Basic Zoom, In Slightly (Простое увеличение, слегка внутрь) — custom behaviours | 23 / 272 | set + `ppt_w`/`ppt_h` `#ppt_w*0.92→#ppt_w` (decelerating) + fade: the calm entrance, 92 % → 100 % around the centre |
+
+`settle` has no stock preset: PowerPoint's own «In Slightly» scales from 2/3 without a fade (LibreOffice's copy of
+the preset, `sd/xml/effects.xml`). The file keeps its id, so PowerPoint's Animation pane shows «Basic Zoom / In
+Slightly» and plays the behaviours written; choosing another option there regenerates the stock ones.
+**Easing.** PowerPoint writes no `accel`/`decel` for its own Fade, Float In and Zoom (the PowerPoint 2013/2016 samples
+above): they are linear. Its eased presets put `decel="100000"` on the motion or scale behaviour (Rise Up: the
+`ppt_y` anim; Magnify: the `animScale`), and so does the compiler for the motion of `rise` and the scale of `zoom` and
+`settle` (SMIL decelerate 100 % = a quadratic ease-out to a stop); fades stay linear. PowerPoint's «Smooth start/end»
+options are, as far as the samples show, the effect-level `accel`/`decel` (tdf111518: a motion path with 50 %/50 %);
+those stay 0, so the options read 0 while the motion itself decelerates.
 
 Triggers: `click` opens a click group (`clickEffect`), `after` a new sub-group that starts when the previous one ends
 (`afterEffect`), `with` joins the current sub-group (`withEffect`). A first effect that is not `click` starts with the
@@ -116,8 +140,15 @@ Office PowerPoint in LibreOffice's test corpus (`sd/qa/unit/data/pptx/tdf112089.
 `tdf112086.pptx`, `tdf124457.pptx`, `bnc591147.pptx`); wipe direction from `oox/source/ppt/pptfilterhelpers.cxx`
 (`mbDirection` true = default direction, the filter names the side the wipe starts from); Morph and `p14:dur` from
 [MS-PPTX] 2.2.1, 2.6.1.1, 3.1; hyperlink colour and decorative flag from [MS-ODRAWXML] 2.34, 2.35; embedded fonts
-from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p159:morph option="byObject"` in an
-`mc:AlternateContent` with a Fade fallback (1500 ms by default), `fade` = `p:fade` (700 ms), `none` = nothing.
+from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p159:morph option="byObject|byWord|
+byChar"` ([MS-PPTX] 2.6.4.1, from `data-morph`) in an `mc:AlternateContent` with a Fade fallback (1500 ms by
+default), `fade` = `p:fade` (700 ms), `none` = nothing.
+
+**Morph lint** (`check_pptx.py`, warnings only). An object with an entrance animation that morphs in from the
+previous slide by its `!!` name takes no part in the Morph: the old one fades out and this one builds in afterwards.
+This is the design lint's rule, now applied to the file, the compiler's own `!!title` included. Objects that build in
+and look like an object of the previous slide (same shape type and text, same picture) are listed per slide as
+possible automatic matches. Slide 1 is exempt (no previous slide). The pairing rules are in `deckpptx/morph.py`.
 
 ## slides.json
 
@@ -125,7 +156,8 @@ from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p
 { "format": "cf11-slides/1", "slide": {"w": 1920, "h": 1080},
   "slides": [{
     "nn": "01", "file": "01-titulny.html", "lang": "ru",
-    "transition": {"type": "morph|fade|none", "durMs": null},
+    "transition": {"type": "morph|fade|none", "durMs": null, "option": "object|word|char"},
+    "filled": ["author1.name"],                     // data-fill keys that got their private value
     "background": "img/01/bg.opt.png", "backgroundInfo": {"mode": "png8-exact", "bytes": 312},
     "reference": "img/01/ref.png",                 // the HTML as authored, for compare.py
     "notes": ["paragraph", "..."], "warnings": ["..."], "fontsLoaded": ["Onest 600", "..."],
@@ -133,7 +165,7 @@ from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p
       "id": "e15", "type": "title|text|shape|image|video|gif", "domIndex": 14, "name": "!!dot" | null,
       "box": {"x","y","w","h"}, "bbox": {...}, "rot": 0, "scale": 1, "opacity": 1,
       "clip": {...} | null, "clipRadius": {"px", "box"} | null, "href": null, "alt": "aria-label",
-      "anim": {"effect": "fade", "trigger": "after", "delayMs": 0, "durMs": 500, "order": null} | null,
+      "anim": {"effect": "fade", "trigger": "after", "delayMs": 0, "durMs": 500, "order": null, "dir": "left"} | null,
       "style": {"fill": {"rgb": "F4C45B", "alpha": 1} | null, "line": {"w", "color", "dash"} | null,
                 "lineUniform": true, "radii": [[rx, ry] x4], "shadow": false, "bgImage": false},
       "text": {"insets": {"l","t","r","b"}, "wrapNone": false, "lang": "ru",
@@ -146,7 +178,8 @@ from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p
       "src": {"path": "/abs/file.mp4", "poster": "/abs/poster.png", "loop": true, "autoplay": true,
               "fit": "cover", "position": "50% 50%"},
       "render": {"mode": "image|svg|under|over", "png": "img/01/e15-under.opt.png", "rect": {...},
-                 "scale": 2, "format": "png32", "bytes": 1700}
+                 "scale": 2, "format": "png32", "bytes": 1700},
+      "textLayer": {"png": "img/01/e15-text.png", "rect": {...}, "scale": 2}   // title/text: glyphs alone (preview)
     }]
   }]
 }
@@ -156,7 +189,12 @@ from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p
 
 * **Open and save once in desktop PowerPoint** before sending: a code-built file can open in Protected View, and a
   save also re-embeds the fonts natively.
-* **Morph** playback and pairing by `!!name` (LibreOffice has no Morph and shows the Fade fallback).
+* **Morph** playback and pairing by `!!name` (LibreOffice has no Morph and shows the Fade fallback). The motion
+  preview (`preview/README.md`) emulates it from the file; its curve, automatic matching, and the handling of objects
+  that also build in are assumptions listed there.
+* **settle** plays custom behaviours under the «Basic Zoom / In Slightly» id; **easing** is `decel` on behaviour nodes
+  (as PowerPoint's own Rise Up and Magnify write it). The Words/Characters Morph options (`data-morph`) are
+  schema-checked but not seen in PowerPoint.
 * **Timing XML** playback: the effects are byte-for-byte the structures PowerPoint wrote in the sample files, and
   LibreOffice reads every one as intended, but none was played in PowerPoint here; in particular video autoplay +
   loop with entrance effects on the same slide, and the wipe direction.
@@ -207,3 +245,17 @@ from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p
     bits); finite CSS animations are finished (end state), infinite ones paused at 0, videos paused on the poster.
 12. Opacity of an element and its ancestors multiplies into fill/text alpha (rendered pictures already contain it).
 13. Elements that are `display:none`, `visibility:hidden` or zero-sized are skipped with a warning.
+14. `data-anim-dir` names the side a **wipe** starts from, as PowerPoint's «Direction» does: `left` (default),
+    `right`, `up` (= From Top), `down` (= From Bottom). On other effects it is ignored with a warning.
+15. `data-anim="settle"`: fade + 92 % → 100 % around the centre, decelerating, written under «Basic Zoom / In Slightly»
+    (see Entrance animations). The design lint (`design/preview/lint.mjs`) has to accept `settle`, `data-anim-dir`,
+    `data-morph` and `data-fill`.
+16. `data-morph="object|word|char"` on `main.slide` sets the Morph option of the transition *into* that slide.
+17. `data-fill="key"`: the private value replaces the element's whole text (its children too) before anything is
+    measured, and the element gets `data-filled`. Values are plain text. The file lives next to `slides/`
+    (`deck/cf11/private/fill.json`; `extract.mjs --fill` points elsewhere, the fixtures use `fixtures/fill.json`).
+18. The slide edge is enforced on the PPTX objects, not the HTML: pictures and layers are cropped, native shapes and
+    live text outside it fail the build (see Slide edge). Shadows and decoration baked into the background never move
+    with a Morph; they crossfade with the background.
+19. A Morph name on an object that also builds in is a lint warning, not an error. The compiler's own `!!title` and
+    `!!bg` count, so an animated title is reported on every Morph slide.

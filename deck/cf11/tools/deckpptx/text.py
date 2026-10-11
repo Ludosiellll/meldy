@@ -6,7 +6,7 @@ Horizontal fidelity
     side(s) the alignment allows (right for left-aligned text, half each side for centred text, left for
     right-aligned text), so a substituted font up to ~10 % wider still does not wrap. Mixed alignments widen both
     sides and compensate with marL/marR. A text with its own fill/border (a pill) keeps its exact box and gets
-    wrap="none" instead (its box is visible, so it cannot grow).
+    wrap="none" instead (its box is visible, so it cannot grow). The slack stops at the slide edge.
   * Inside a preset geometry the text lives in the preset's text rectangle (roundRect: inset r * 0.29289), so the
     CSS padding is reduced by that inset.
   * Letter spacing: CSS adds it after every character, the last one of a line included; LibreOffice does not add
@@ -41,6 +41,7 @@ A = f'{{{NS_A}}}'
 
 SLACK_FRAC = 0.10
 SLACK_MIN_PX = 24.0
+SLIDE_W, SLIDE_H = 1920.0, 1080.0   # the frame (with its slack) stays on the slide
 CELL_DESCENT_EM = 0.2       # font-independent line model: line = 1.2 em, baseline 1.0 em below the line top
 HLINK_COLOR_EXT = '{A12FA001-AC4F-418D-AE19-62706E023703}'   # [MS-ODRAWXML] 2.35 hlinkClr ("tx" = text colour)
 NS_AHYP = 'http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor'
@@ -222,6 +223,16 @@ def plan_text(el: dict, movable: bool = True) -> TextPlan:
                 marR[i] -= shifts[i]
         x -= extra_l
         w += extra_l + extra_r
+        # the slack never takes the frame past the slide edge (PowerPoint would show the frame's outline on the
+        # pasteboard when it is selected); trimming a side and its margins keeps every line where it was
+        over_l = max(0.0, -x)
+        if over_l:
+            x, w = 0.0, w - over_l
+            marL = [m - over_l for m in marL]
+        over_r = max(0.0, x + w - SLIDE_W)
+        if over_r:
+            w -= over_r
+            marR = [m - over_r for m in marR]
     elif any(shifts):
         # fixed frame (a visible box): apply the first paragraph's shift through the insets
         s = shifts[0]
@@ -263,9 +274,9 @@ def plan_text(el: dict, movable: bool = True) -> TextPlan:
             anchor, ins[1] = 'ctr', 0.0
             ins[3] = (text_bottom - text_top) - block_h - 2 * T
     else:
-        y = min(frame['y'], first_top)
+        y = max(0.0, min(frame['y'], first_top))
         ins[1] = first_top - y
-        h = max(frame['y'] + frame['h'], first_top + block_h) - y
+        h = min(max(frame['y'] + frame['h'], first_top + block_h), SLIDE_H) - y
         ins[3] = 0.0
         anchor = 't'
     clamped = [round(v, 1) for v in ins if v < -0.5]

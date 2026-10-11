@@ -8,6 +8,10 @@ fallback); timing (entrance effects, media play + loop) exactly where the HTML a
 an embedded Onest face with a language; media and picture relationships resolvable; embedded fonts present, EOT
 headers readable and naming the faces the runs use; no hidden slides; core properties without personal data.
 --deck-rules adds the contest rules: 10 mandatory names in order, at most 15 slides, file <= 9.5 MB.
+Lint (warnings, the exit status stays 0): an object with an entrance animation that would morph in from the
+previous slide - by its "!!" name, or by PowerPoint's automatic matching (the same shape with the same text, the same
+picture; deckpptx/morph.py). It takes no part in the Morph: its partner fades out and it builds in afterwards.
+Slide 1 has no previous slide, so its objects may build in although they morph out to slide 2.
 Exit status 1 on any failure.
 """
 from __future__ import annotations
@@ -25,6 +29,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from build import MANDATORY, mandatory_order_problems   # noqa: E402
 from deckpptx.fonts import FACES, parse_eot_header       # noqa: E402
+from deckpptx.morph import Package, pair_slides          # noqa: E402
 
 NS = {'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
       'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
@@ -134,7 +139,10 @@ def main() -> int:
             else:
                 ok = ac is not None and ac.find('mc:Fallback/p:transition/p:fade', NS) is not None
                 if kind == 'morph':
-                    ok = ok and ac.find('mc:Choice/p:transition/p159:morph', NS) is not None
+                    m = ac.find('mc:Choice/p:transition/p159:morph', NS) if ac is not None else None
+                    want_opt = {'object': 'byObject', 'word': 'byWord', 'char': 'byChar'}[
+                        (sd.get('transition') or {}).get('option') or 'object']
+                    ok = ok and m is not None and m.get('option') == want_opt
                 else:
                     ok = ok and ac.find('mc:Choice/p:transition/p:fade', NS) is not None
                 c.ok(ok, f'{tag}: {kind} transition XML missing or wrong')
@@ -202,12 +210,38 @@ def main() -> int:
             c.ok(False, p)
         size = path.stat().st_size
         c.ok(size <= 9_500_000, f'file is {size / 1e6:.2f} MB, budget 9.5 MB')
+    lint = morph_lint(path)
     print(f'{path.name}: {len(slides)} slides, titles: ' + ' | '.join(titles))
     print(f'embedded fonts: ' + ', '.join(f'{k} ({"+".join(sorted(v))})' for k, v in sorted(embedded.items())))
+    for w in lint:
+        print('  ! ' + w)
     for f in c.fails:
         print('  ✗ ' + f)
-    print(f'{c.passes} checks passed, {len(c.fails)} failed')
+    print(f'{c.passes} checks passed, {len(c.fails)} failed, {len(lint)} lint warning(s)')
     return 1 if c.fails else 0
+
+
+def morph_lint(path: Path) -> list[str]:
+    """Entrance animations on objects that would morph in from the previous slide (slide 1 is exempt)."""
+    out = []
+    pkg = Package(path)
+    for prev, cur in zip(pkg.slides, pkg.slides[1:]):
+        if cur.transition.kind != 'morph':
+            continue
+        res = pair_slides(prev.objects, cur.objects, cur.transition.option or 'byObject')
+        for p in res.blocked:
+            if p.how == 'name':
+                out.append(f'slide {cur.index}: {p.b.label()} has an entrance animation but morphs in from slide '
+                           f'{prev.index} ({p.a.label()}) by its name: it takes no part in the Morph - the old one fades '
+                           f'out, this one builds in afterwards. Drop the animation or the name')
+        auto = [p for p in res.blocked if p.how != 'name']
+        if auto:
+            pairs = ', '.join(f'{p.b.name} ~ {p.a.name}' for p in auto[:4]) + (', …' if len(auto) > 4 else '')
+            out.append(f'slide {cur.index}: {len(auto)} object(s) with entrance animations look like objects of slide '
+                       f'{prev.index} that PowerPoint may match automatically (same shape type and text / same picture: '
+                       f'{pairs}); if it pairs them, the Morph of each is lost to its build. Harmless if PowerPoint '
+                       f'leaves animated objects out of the Morph, as the preview assumes')
+    return out
 
 
 if __name__ == '__main__':

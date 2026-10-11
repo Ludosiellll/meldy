@@ -20,7 +20,7 @@
 </style>
 </head>
 <body>
-<main class="slide" data-transition="morph">
+<main class="slide" data-transition="morph" data-morph="word">
   <div class="strip">
     <i class="done" data-pptx="shape" data-name="!!s01"></i><i class="now" data-pptx="shape" data-name="!!s02"></i><i data-pptx="shape" data-name="!!s03"></i><i data-pptx="shape" data-name="!!s04"></i><i data-pptx="shape" data-name="!!s05"></i><i data-pptx="shape" data-name="!!s06"></i><i data-pptx="shape" data-name="!!s07"></i><i data-pptx="shape" data-name="!!s08"></i><i data-pptx="shape" data-name="!!s09"></i><i data-pptx="shape" data-name="!!s10"></i>
   </div>
@@ -29,9 +29,10 @@
   <div class="word" data-pptx="text" data-name="!!word">Meldy</div>
 
   <div class="frame" data-pptx="shape"></div>
-  <div class="people" data-pptx="text" data-anim="wipe" data-anim-trigger="after" data-anim-dur="700">
-    <p class="name">Имя Фамилия<br>Имя Фамилия</p>
-    <p class="role">Учащиеся группы [код] филиала учреждения образования «Белорусский государственный технологический университет» «Бобруйский государственный лесотехнический колледж»</p>
+  <!-- data-fill: the names come from fixtures/fill.json at extract time; author1.group is missing there on purpose -->
+  <div class="people" data-pptx="text" data-anim="wipe" data-anim-dir="up" data-anim-trigger="after" data-anim-dur="700">
+    <p class="name"><span data-fill="author1.name">Имя Фамилия</span><br><span data-fill="author2.name">Имя Фамилия</span></p>
+    <p class="role">Учащиеся группы <span data-fill="author1.group">[код]</span> филиала учреждения образования «Белорусский государственный технологический университет» «Бобруйский государственный лесотехнический колледж»</p>
     <div class="place">Могилёвская область, г.&nbsp;Бобруйск</div>
   </div>
 
