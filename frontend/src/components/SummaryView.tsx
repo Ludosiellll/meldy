@@ -58,9 +58,20 @@ interface TermItem {
   source_ids?: string[];
 }
 
+/**
+ * The glossary as it is read: a term and its definition without the fragment marks the model copied into them
+ * (QA 2026-10-11: «…существованию [S01].» in a definition). The term's fragments are its source_ids.
+ */
 function extractTerms(data: any): TermItem[] {
   const terms = data?.terms || data?.summary_json?.terms || [];
-  return Array.isArray(terms) ? terms.filter((item: any) => item && typeof item.term === 'string') : [];
+  if (!Array.isArray(terms)) return [];
+  return terms
+    .filter((item: any) => item && typeof item.term === 'string')
+    .map((item: any) => ({
+      ...item,
+      term: stripSourceMarkers(item.term).trim(),
+      definition: typeof item.definition === 'string' ? stripSourceMarkers(item.definition).trim() : '',
+    }));
 }
 
 /** Width of the summary itself, not of the window: the summary also sits in narrower pages. */

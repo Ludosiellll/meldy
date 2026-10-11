@@ -25,7 +25,7 @@ import {
   buildConversation,
   conversationMeta,
   conversationOutline,
-  estimateMinutes,
+  estimateSeconds,
   hasModelVisuals,
   mergeVisualsByIndex,
   parseGeneratedLines,
@@ -55,7 +55,9 @@ import type {
 } from './types';
 import './conversation.css';
 import { track } from '../../lib/telemetry';
+import { usePhone } from '../../lib/usePhone';
 import { ty } from '../landing/typo';
+import { stripSourceMarkers } from '../summary/sourceMarkers';
 
 export interface ConversationPlayerProps {
   /** summary_json.podcast как есть (старые реплики тоже подходят). */
@@ -66,7 +68,10 @@ export interface ConversationPlayerProps {
   sources?: ConversationSource[] | null;
   materialId?: string;
   onLinesUpdate?: (lines: PodcastLine[]) => void;
-  /** Прокрутить к плееру после открытия, если кнопка «Слушать» не видна (переход по ссылке на разговор). */
+  /**
+   * Прокрутить к плееру после открытия, если кнопка «Слушать» не видна: переход по ссылке на разговор и вкладка
+   * «Подкаст» на экране результата анализа, где плеер стоял под высокой шапкой ниже первого экрана.
+   */
   revealOnMount?: boolean;
   /**
    * Можно ли менять материал: создавать разговор и добавлять схемы. Чужой
@@ -149,9 +154,9 @@ const CODE_SPAN = /```(?:[^\n`]*\n)?([\s\S]*?)```|(`+)([\s\S]*?)\2/g;
 /** *курсив*, **жирный**, ***оба***: звёздочки снаружи слова, а не внутри (2*3*4 не трогаем). */
 const EMPHASIS = /(^|[^\p{L}\p{N}*])(\*{1,3})(?=[^\s*])([^*\n]*?[^\s*])\2(?![\p{L}\p{N}*])/gu;
 
-/** Разметка вне кода: заголовки, маркеры списка, ссылки, зачёркивание, выделение, лишние `. */
+/** Разметка вне кода: заголовки, маркеры списка, ссылки, зачёркивание, выделение, лишние `, метки фрагментов [S01]. */
 function plainMarkup(segment: string): string {
-  let plain = segment
+  let plain = stripSourceMarkers(segment)
     .replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, '')
     .replace(/^[ \t]*[-*+][ \t]+/gm, '')
     .replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/g, '$1')
@@ -167,9 +172,10 @@ function plainMarkup(segment: string): string {
 
 /**
  * Реплика без markdown: модель иногда пишет `Read Committed`, **жирный**, *курсив*,
- * # заголовки и [ссылки](…). На экране и в озвучке нужен чистый текст — иначе видны
- * обратные кавычки, а голос читает звёздочки или запинается. Код внутри кавычек
- * остаётся как есть (snake_case, **kwargs); сохранённые реплики не меняются.
+ * # заголовки, [ссылки](…) и метки фрагментов [S01]. На экране и в озвучке нужен чистый
+ * текст — иначе видны обратные кавычки, а голос читает звёздочки, «эс ноль один» или
+ * запинается. Код внутри кавычек остаётся как есть (snake_case, **kwargs); сохранённые
+ * реплики не меняются.
  */
 export function plainLineText(text: string): string {
   let plain = '';
@@ -262,6 +268,8 @@ export default function ConversationPlayer({
   const transcriptId = `cv-transcript-${useId().replace(/:/g, '')}`;
   const costId = `${transcriptId}-cost`;
   const viewport = useViewport();
+  // A phone keeps the controls at the bottom of the screen: the subtitle goes over the sheet, where it is read.
+  const phone = usePhone();
   const sheet = sheetMetrics(viewport.width, viewport.height);
   const budget = sheet.height - sheet.padTop - sheet.padBottom;
 
@@ -289,7 +297,7 @@ export default function ConversationPlayer({
     [rawLines, title, terms, flashcards, sources],
   );
   const modelVisuals = useMemo(() => hasModelVisuals(rawLines), [rawLines]);
-  const minutes = useMemo(() => estimateMinutes(conversation), [conversation]);
+  const seconds = useMemo(() => estimateSeconds(conversation), [conversation]);
   const speakers = useMemo(() => {
     const unique: string[] = [];
     conversation.forEach(line => {
@@ -502,7 +510,9 @@ export default function ConversationPlayer({
     setFitStep(step);
   }, [active?.text, viewport.width, viewport.height]);
 
-  // Переход по ссылке на разговор: если лист или кнопка ▶ за краем экрана — прокручиваем к плееру.
+  // Переход по ссылке на разговор и вкладка «Подкаст» результата: если лист или кнопка ▶ за краем экрана —
+  // прокручиваем к плееру. Помещается целиком (за вычетом полей прокрутки под строкой меню) — встаёт нижним краем к
+  // низу окна и строка вкладок над ним часто остаётся видна; не помещается — встаёт верхним краем под строку меню.
   useEffect(() => {
     if (!revealOnMount || revealedRef.current || !total) return;
     if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return;
@@ -513,7 +523,11 @@ export default function ConversationPlayer({
       const viewportHeight = window.innerHeight;
       const playBottom = playRef.current?.getBoundingClientRect().bottom ?? 0;
       const sceneTop = sceneRef.current?.getBoundingClientRect().top ?? 0;
-      if (playBottom > viewportHeight - 8 || sceneTop > viewportHeight * 0.4) root.scrollIntoView({ block: 'start' });
+      if (playBottom <= viewportHeight - 8 && sceneTop <= viewportHeight * 0.4) return;
+      const style = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(root) : null;
+      const room = viewportHeight - (parseFloat(style?.scrollMarginTop ?? '') || 0) - (parseFloat(style?.scrollMarginBottom ?? '') || 0);
+      const fits = root.getBoundingClientRect().height <= room;
+      root.scrollIntoView({ block: fits ? 'end' : 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [revealOnMount, total]);
@@ -862,7 +876,29 @@ export default function ConversationPlayer({
   const canAddVisuals = Boolean(materialId) && canEdit && !modelVisuals;
   const addingVisuals = visualsJob.state === 'working';
   const playLabel = isLoading ? 'Загружаем звук' : isSpeaking ? 'Пауза' : playback === 'paused' ? 'Продолжить' : 'Слушать';
-  const meta = conversationMeta(speakers, total, minutes);
+  const meta = conversationMeta(speakers, total, seconds);
+
+  /* Голос: имя ведущего, справа на той же строке — «Добавить схемы» (она меняет то, что на листе, и не отнимает у него
+     свою строку), ниже реплика. На компьютере он под листом, как субтитры под кадром. На телефоне плеер прилипает к
+     низу экрана, а лист высотой с самое большое изображение уводил реплику под плеер (QA 2026-10-11, 390×844): там
+     голос стоит над листом, сразу под вкладками, и реплику видно без прокрутки. */
+  const voice = (
+    <div className="cv-voice" data-add={canAddVisuals ? '' : undefined} data-first={phone ? '' : undefined}>
+      <section aria-label="Субтитры" className="cv-sub">
+        <p data-speaker={active.speaker || 'Ведущий'} className="cv-who">
+          {active.speaker || 'Ведущий'}
+        </p>
+        <p ref={lineRef} className="cv-line" data-fit={fitStep}>
+          {ty(active.text)}
+        </p>
+      </section>
+      {canAddVisuals && (
+        <button type="button" onClick={addVisuals} disabled={addingVisuals} className="sf-link cv-add">
+          {addingVisuals ? 'Подбираем схемы…' : 'Добавить схемы'}
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <section
@@ -880,6 +916,8 @@ export default function ConversationPlayer({
         {announcement.text}
         {announcement.flip ? NBSP : ''}
       </p>
+
+      {phone ? voice : null}
 
       <div className="cv-stage">
         <section ref={sceneRef} aria-label="Сцена" className="sf-sheet cv-sheet">
@@ -976,23 +1014,7 @@ export default function ConversationPlayer({
 
       {visualsJob.state === 'error' && canAddVisuals && <JobError message={visualsJob.message} onRetry={addVisuals} />}
 
-      {/* Голос под листом: имя ведущего, справа на той же строке — «Добавить схемы» (она меняет то, что
-          на листе, поэтому стоит у его нижнего края и не отнимает у листа свою строку), ниже реплика. */}
-      <div className="cv-voice" data-add={canAddVisuals ? '' : undefined}>
-        <section aria-label="Субтитры" className="cv-sub">
-          <p data-speaker={active.speaker || 'Ведущий'} className="cv-who">
-            {active.speaker || 'Ведущий'}
-          </p>
-          <p ref={lineRef} className="cv-line" data-fit={fitStep}>
-            {ty(active.text)}
-          </p>
-        </section>
-        {canAddVisuals && (
-          <button type="button" onClick={addVisuals} disabled={addingVisuals} className="sf-link cv-add">
-            {addingVisuals ? 'Подбираем схемы…' : 'Добавить схемы'}
-          </button>
-        )}
-      </div>
+      {phone ? null : voice}
 
       <div className="cv-player" role="group" aria-label="Плеер">
         <div className="cv-transport">

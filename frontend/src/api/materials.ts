@@ -10,14 +10,18 @@ export async function getMaterials(userId: string) {
   return data || [];
 }
 
+/**
+ * The lecture, or null when there is no such row (deleted, someone else's closed one, an incomplete link). maybeSingle,
+ * not single: a missing row is an answer, not a 406 with PGRST116 in the console (QA 2026-10-11).
+ */
 export async function getMaterialById(id: string) {
   const { data, error } = await supabase
     .from('materials')
     .select('*')
     .eq('id', id)
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  return data;
+  return data ?? null;
 }
 
 export async function deleteMaterial(id: string) {

@@ -61,7 +61,10 @@
   border-radius: 48px;
   background: linear-gradient(150deg, #f7c9d9 0%, #e98fb0 100%);
   color: var(--cv-on);
+  /* Brought into view (revealOnMount) clear of the sticky top line and, on a phone, of the tab bar. */
+  scroll-margin: calc(var(--sf-bar-h, 76px) + 12px) 0 16px;
 }
+.sf-shell[data-tabs] .cv-show { scroll-margin-bottom: calc(var(--sf-tabs-h, 0px) + 16px); }
 .dark .cv-show {
   --cv-on: #f3f3f0;
   --cv-on-muted: #e7c3d2;
@@ -458,8 +461,14 @@ html[data-stage] .cv-meta { display: none; }
   .cv-line[data-fit='1'] { font-size: 21px; line-height: 29px; }
   .cv-line[data-fit='2'] { font-size: 19px; line-height: 26px; }
 }
+/* Phone: the voice stands over the sheet (ConversationPlayer, data-first), right under the tabs, because the player holds
+   the bottom of the screen and a sheet as tall as the largest picture took the line under it (QA 2026-10-11, 390×844).
+   The pictures stand at the top of the sheet: what the player covers is the sheet's empty end, not a short picture. */
 @media (max-width: 639px) {
   .cv-voice { margin-top: 14px; padding: 0 4px; }
+  .cv-voice[data-first] { margin: 0 0 12px; }
+  .cv-layers { margin-block: 0 auto; }
+  .cv-layer { align-self: start; }
   .cv-voice[data-add] .cv-who { padding-right: 140px; }
   .cv-add.sf-link { top: -12px; right: 4px; padding: 12px 0; font-size: 14px; line-height: 20px; }
   .cv-who { font-size: 15px; line-height: 20px; }

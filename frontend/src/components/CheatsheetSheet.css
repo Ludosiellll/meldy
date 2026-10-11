@@ -1,0 +1,58 @@
+/* «Выжимка» in the Meldy language: the text in a white card with a large radius (like the summary), on the lecture page
+   and on the analysis result alike (CheatsheetSheet.tsx). */
+
+.xp-sheet {
+  max-width: 920px;
+  padding: 44px 56px 52px;
+  border-radius: 48px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  color: var(--sf-ink);
+}
+.xp-sheet-head { margin-bottom: 26px; }
+.xp-sheet-head h2 { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.024em; }
+.xp-sheet-head p { margin: 8px 0 0; font-size: 16px; line-height: 1.45; color: var(--sf-muted); }
+
+.xp-md { max-width: 680px; font-size: 17px; line-height: 1.65; color: var(--sf-ink); }
+.xp-md > :first-child { margin-top: 0; }
+.xp-md h1 { margin: 32px 0 12px; font-size: 26px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; }
+.xp-md h2 {
+  margin: 30px 0 12px;
+  padding-top: 26px;
+  border-top: 1px solid color-mix(in srgb, var(--sf-line) 72%, transparent);
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -.015em;
+}
+.xp-md > h2:first-child { padding-top: 0; border-top: 0; }
+.xp-md h3 { margin: 22px 0 8px; font-size: 18px; line-height: 1.35; font-weight: 600; }
+.xp-md p { margin: 10px 0; }
+.xp-md ul { margin: 10px 0; padding-left: 28px; list-style: none; }
+.xp-md ul > li { position: relative; margin: 6px 0; }
+.xp-md ul > li::before { content: ''; position: absolute; left: -24px; top: .6em; width: 9px; height: 9px; border-radius: 50%; background: var(--m-sky); }
+.xp-md ol { margin: 10px 0; padding-left: 1.5em; list-style: decimal; }
+.xp-md ol > li { margin: 6px 0; padding-left: 4px; }
+.xp-md ol > li::marker { color: var(--sf-accent-fg); font-weight: 600; }
+.xp-md strong { font-weight: 600; }
+.xp-md code { padding: 1px 6px; border-radius: 8px; background: var(--sf-surface-soft); font-size: .9em; }
+.xp-md blockquote {
+  margin: 14px 0;
+  padding: 14px 18px;
+  border-radius: 20px;
+  background: var(--m-yellow-soft);
+  color: var(--sf-ink);
+}
+.xp-md blockquote p { margin: 0; }
+.xp-md hr { margin: 26px 0; border: 0; border-top: 1px solid var(--sf-line); }
+.xp-md table { width: 100%; margin: 14px 0; border-collapse: separate; border-spacing: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 0 0 1px var(--sf-line); font-size: 15px; }
+.xp-md th,
+.xp-md td { padding: 8px 12px; border-bottom: 1px solid var(--sf-line); text-align: left; vertical-align: top; }
+.xp-md th { background: var(--sf-surface-soft); font-weight: 600; }
+.xp-md tr:last-child td { border-bottom: 0; }
+.xp-md .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+@media (max-width: 639px) {
+  .xp-sheet { padding: 30px 22px 34px; border-radius: 36px; }
+  .xp-md { font-size: 16px; }
+}

@@ -15,6 +15,7 @@ import type {
 } from '../types';
 import SummaryView from './SummaryView';
 import { stripSourceMarkers } from './summary/fragmentModel';
+import CheatsheetSheet, { cheatsheetText } from './CheatsheetSheet';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 import toast from 'react-hot-toast';
@@ -66,6 +67,11 @@ function extractCleanContent(data: any): string {
   const jsonTailIdx = raw.search(/\s*[,"]?\s*"terms"\s*:/);
   if (jsonTailIdx > 0) raw = raw.slice(0, jsonTailIdx);
   return raw.trim();
+}
+
+/** A line the model wrote, as the student reads it: without the fragment marks it copied from its input. */
+function modelText(value: unknown): string {
+  return stripSourceMarkers(String(value ?? ''));
 }
 
 function escapeHtml(value: unknown): string {
@@ -155,22 +161,23 @@ export function buildHtmlExport(results: AnalysisResults, displayTitle: string):
   const flashcards = results.flashcards?.flashcards || [];
   const quiz = results.quiz?.quiz || [];
 
+  // The model's fragment marks («[S01]») are references for the screen, not words of the document.
   const flashcardsHtml = flashcards.map((c: Flashcard, i: number) =>
     `<div class="card">
-      <p class="card-q">Карточка ${i+1}: ${escapeHtml(c.question)}</p>
-      <p class="card-a">${escapeHtml(c.answer)}</p>
+      <p class="card-q">Карточка ${i+1}: ${escapeHtml(modelText(c.question))}</p>
+      <p class="card-a">${escapeHtml(modelText(c.answer))}</p>
     </div>`
   ).join('\n');
 
   const quizHtml = quiz.map((q: QuizQuestion, i: number) => {
     const options = (q.options || []).map((o: string) => {
       const isCorrect = o.startsWith(q.correct);
-      return `<li class="${isCorrect ? 'correct' : ''}">${escapeHtml(o)}${isCorrect ? ' ✓' : ''}</li>`;
+      return `<li class="${isCorrect ? 'correct' : ''}">${escapeHtml(modelText(o))}${isCorrect ? ' ✓' : ''}</li>`;
     }).join('\n');
     return `<div class="card">
-      <p class="card-q">${i+1}. ${escapeHtml(q.question)}</p>
+      <p class="card-q">${i+1}. ${escapeHtml(modelText(q.question))}</p>
       <ul class="opt-list">${options}</ul>
-      ${q.explanation ? `<p class="explanation">Пояснение: ${escapeHtml(q.explanation)}</p>` : ''}
+      ${q.explanation ? `<p class="explanation">Пояснение: ${escapeHtml(modelText(q.explanation))}</p>` : ''}
     </div>`;
   }).join('\n');
 
@@ -375,6 +382,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+type GroundedPart = 'summary' | 'flashcards' | 'quiz';
+const GROUNDED_WORDS: Record<GroundedPart, string> = { summary: 'конспект', flashcards: 'карточки', quiz: 'тест' };
+
+/**
+ * «Конспект, карточки и тест опираются на 4 фрагмента лекции»: only the materials the result has (QA 2026-10-11: a lone
+ * конспект was said to carry «карточки и тест» too). «Карточки» are many; a lone конспект or тест «опирается». A number
+ * keeps its word. Empty when there is nothing to name.
+ */
+export function restsOnLine(parts: readonly GroundedPart[], sourceCount: number): string {
+  if (parts.length === 0 || sourceCount <= 0) return '';
+  const words = parts.map(part => GROUNDED_WORDS[part]);
+  const named = words.length > 1 ? `${words.slice(0, -1).join(', ')} и ${words[words.length - 1]}` : words[0];
+  const verb = parts.length === 1 && parts[0] !== 'flashcards' ? 'опирается' : 'опираются';
+  const fragments = `${sourceCount} ${pluralRu(sourceCount, ['фрагмент', 'фрагмента', 'фрагментов'])}`;
+  return `${named.charAt(0).toUpperCase()}${named.slice(1)} ${verb} на ${fragments} лекции`;
+}
+
 function settingsBody(settings?: AnalysisSettings) {
   if (!settings) return undefined;
   return {
@@ -565,8 +589,9 @@ export default function ResultsPanel({
   // В режиме просмотра у результата нет материала, в который можно писать.
   const materialId = preview ? undefined : savedMaterialId;
   const canEdit = ownerCanEdit && !preview;
-  // На странице материала подкаст живёт в своём режиме «Подкаст».
+  // На странице материала подкаст и выжимка живут в своих режимах «Подкаст» и «Выжимка».
   const showConversation = !embedded;
+  const showCheatsheet = !embedded;
   // Раздел, созданный заново, показывается сразу, даже если родитель не обновил результат.
   const [override, setOverride] = useState<AnalysisResults | null>(null);
   useEffect(() => setOverride(null), [results]);
@@ -629,8 +654,8 @@ export default function ResultsPanel({
   const isFailed = (name: SectionName): boolean => resultSectionFailed(view, name, { showConversation, conversationCount });
 
   const tabs = useMemo(
-    () => resultTabs(view, { showConversation, conversationCount }),
-    [view, conversationCount, showConversation],
+    () => resultTabs(view, { showConversation, conversationCount, showCheatsheet }),
+    [view, conversationCount, showConversation, showCheatsheet],
   );
 
   // Первой открывается вкладка с содержимым, а не строка о сбое.
@@ -745,13 +770,14 @@ export default function ResultsPanel({
   const statusLabel = allRequestedOk ? 'Материал обработан' : 'Обработан частично';
   // Строка об обрыве связи нужна, пока какого-то раздела не хватает.
   const showPartialNotice = partial && !allRequestedOk;
-  // У выжимки нет вкладки здесь: о сбое говорит строка под заголовком.
+  // У выжимки, которая не получилась, вкладки нет: о сбое говорит строка под заголовком.
   const cheatsheetFailed = isFailed('cheatsheet');
   const hasText = Boolean(originalText?.trim());
 
   const getContent = () => {
     if (tab === 'summary') return repairMathEscapes(stripSourceMarkers(view.summarizer?.content || (view.summarizer as any)?.raw || ''));
     if (tab === 'flashcards') return JSON.stringify(view.flashcards?.flashcards || view.flashcards, null, 2);
+    if (tab === 'cheatsheet') return cheatsheetText(view.cheatsheet?.content || '');
     if (tab === 'podcast') {
       return conversationLines
         .map(line => line as { speaker?: unknown; text?: unknown })
@@ -780,7 +806,7 @@ export default function ResultsPanel({
   const handleExportAnki = () => {
     try {
       const cards = view.flashcards?.flashcards || view.flashcards || [];
-      const tsv = cards.map((c: any) => `${c.question.replace(/\n/g, ' ')}\t${c.answer.replace(/\n/g, '<br>')}`).join('\n');
+      const tsv = cards.map((c: any) => `${modelText(c.question).replace(/\n/g, ' ')}\t${modelText(c.answer).replace(/\n/g, '<br>')}`).join('\n');
       
       const b = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8' });
       const u = URL.createObjectURL(b);
@@ -821,14 +847,21 @@ export default function ResultsPanel({
   // matching words, not checked: «похожий фрагмент».
   const sourceCount = view.grounding?.source_count ?? 0;
   const citable = view.grounding?.citable_items ?? 0;
+  // Only the materials the result has are named (QA 2026-10-11).
+  const hasSummary = Boolean(view.summarizer?.content || (view.summarizer as any)?.raw);
+  const grounded = (withSummary: boolean): GroundedPart[] => [
+    ...(withSummary && hasSummary ? (['summary'] as const) : []),
+    ...(flashcardCount > 0 ? (['flashcards'] as const) : []),
+    ...(quizCount > 0 ? (['quiz'] as const) : []),
+  ];
   // A number keeps its word, «·» the word before it.
-  const groundingLine = (what: string) =>
-    sourceCount
-      ? `${what} ${sourceCount}\u00a0${pluralRu(sourceCount, ['фрагмент', 'фрагмента', 'фрагментов'])} лекции${
-          citable > 0 ? `\u00a0· у\u00a0${citable}\u00a0${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на\u00a0похожий фрагмент` : ''
-        }`
-      : '';
-  const groundingText = groundingLine('Карточки и тест опираются на');
+  const citableText =
+    citable > 0 ? `у\u00a0${citable}\u00a0${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на\u00a0похожий фрагмент` : '';
+  // The material page names the cards and the test: on «Конспект» the fragments stand by the sections themselves.
+  const pageRestsOn = restsOnLine(grounded(false), sourceCount);
+  const groundingText = pageRestsOn ? `${pageRestsOn}${citableText ? `\u00a0· ${citableText}` : ''}` : '';
+  // The analysis page names everything that rests on the fragments.
+  const resultRestsOn = restsOnLine(grounded(true), sourceCount);
   // The reviewing of these cards is «Повторение» of this lecture: its own cards and those from ticket answers.
   const reviewHref = materialId ? `/review?material=${encodeURIComponent(materialId)}` : undefined;
 
@@ -1007,19 +1040,14 @@ export default function ResultsPanel({
           </div>
 
           {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «похожий фрагмент». */}
-          {!textOnly && sourceCount ? (
+          {!textOnly && resultRestsOn ? (
+            // «·» keeps to the words before it: on a phone the line never starts with it (finding LIB-21).
             <p className="rp-grounding">
               <span>
-                Конспект, карточки и тест опираются на {`${sourceCount}\u00a0${pluralRu(sourceCount, ['фрагмент', 'фрагмента', 'фрагментов'])}`} лекции
+                {resultRestsOn}
+                {citableText ? <span aria-hidden="true">{'\u00a0·'}</span> : null}
               </span>
-              {citable > 0 ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>
-                    {`у\u00a0${citable}\u00a0${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на\u00a0похожий фрагмент`}
-                  </span>
-                </>
-              ) : null}
+              {citableText ? <span>{citableText}</span> : null}
             </p>
           ) : null}
 
@@ -1105,9 +1133,13 @@ export default function ResultsPanel({
                 />
               )
             )}
+            {/* «Выжимка», as the lecture page names and shows it (QA 2026-10-11: it was made and not on this screen). */}
+            {tab === 'cheatsheet' && <CheatsheetSheet text={view.cheatsheet?.content || ''} />}
             {tab === 'podcast' && (
               <>
                 {isFailed('podcast') && <p className="rp-podcast-failed">{sectionFailureSentence('podcast', sections?.podcast)}</p>}
+                {/* Under the analysis page's tall header the player was below the first screen of a laptop (QA 2026-10-11:
+                    1532×734, 1440×900): the tab opens with the player in view. */}
                 <ConversationPlayer
                   lines={conversationLines}
                   title={currentTitle}
@@ -1116,6 +1148,7 @@ export default function ResultsPanel({
                   sources={view.grounding?.sources}
                   materialId={materialId}
                   onLinesUpdate={handleConversationLines}
+                  revealOnMount={!embedded}
                   canEdit={canEdit}
                 />
               </>

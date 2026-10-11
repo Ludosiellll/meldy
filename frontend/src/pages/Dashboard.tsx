@@ -210,7 +210,7 @@ export function cardsMissingFromReview(material: { id: string; flashcards_json?:
   return analysisCards(material.flashcards_json).length > 0;
 }
 
-/** «конспект · 8 карточек · тест · разговор» (only what exists) or «только текст, конспекта нет», as in the Library. */
+/** «конспект · 8 карточек · тест · выжимка · подкаст» (only what exists) or «только текст, конспекта нет», as in the Library. */
 export function lectureMeta(material: Pick<LectureDetail, 'summary_json' | 'flashcards_json' | 'quiz_json'>): string {
   const summary = isRecord(material.summary_json) ? material.summary_json : {};
   if (summary.text_only === true) return 'только текст, конспекта нет';
@@ -220,8 +220,14 @@ export function lectureMeta(material: Pick<LectureDetail, 'summary_json' | 'flas
   if (cards > 0) parts.push(`${cards} ${pluralRu(cards, CARD_FORMS)}`);
   const quiz = isRecord(material.quiz_json) && Array.isArray(material.quiz_json.quiz) ? material.quiz_json.quiz.length : 0;
   if (quiz > 0) parts.push('тест');
+  if (hasCheatsheet(summary)) parts.push('выжимка');
   if (Array.isArray(summary.podcast) && summary.podcast.length > 0) parts.push('подкаст');
   return parts.join(' · ');
+}
+
+/** The lecture has its «Выжимка»: «Лекции» and «Сегодня» name it in the row as the lecture's tab does. */
+function hasCheatsheet(summary: Record<string, unknown>): boolean {
+  return typeof summary.cheatsheet === 'string' && summary.cheatsheet.trim() !== '';
 }
 
 /** «2 окт.», with the year when it is not this year. */
@@ -232,7 +238,7 @@ function shortDate(iso: string, now: Date = new Date()): string {
 }
 
 /**
- * «8 карточек · тест · подкаст · 2 окт.»: a lecture row on a phone, one short line with its date. «конспект» only
+ * «8 карточек · тест · выжимка · подкаст · 2 окт.»: a lecture row on a phone, one short line with its date. «конспект» only
  * when it is all the lecture has (every analysed lecture has one); «только текст» for a lecture kept as text.
  */
 export function lectureMetaShort(
@@ -247,6 +253,7 @@ export function lectureMetaShort(
     if (cards > 0) parts.push(`${cards} ${pluralRu(cards, CARD_FORMS)}`);
     const quiz = isRecord(material.quiz_json) && Array.isArray(material.quiz_json.quiz) ? material.quiz_json.quiz.length : 0;
     if (quiz > 0) parts.push('тест');
+    if (hasCheatsheet(summary)) parts.push('выжимка');
     if (Array.isArray(summary.podcast) && summary.podcast.length > 0) parts.push('подкаст');
     if (parts.length === 0 && typeof summary.content === 'string' && summary.content.trim() !== '') parts.push('конспект');
   }

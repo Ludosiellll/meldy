@@ -133,7 +133,8 @@ describe('ConversationPlayer', () => {
     }
     fireEvent.click(within(transcript).getByRole('button', { name: 'Закрыть текст подкаста' }));
     expect(screen.getByText('Реплика 1 из 4')).toBeInTheDocument();
-    expect(screen.getByText('Макс и Софья обсуждают лекцию · 4 реплики, около минуты')).toBeInTheDocument();
+    // Four short lines: under a minute of speech, said so (not «около минуты», QA 2026-10-11).
+    expect(screen.getByText('Макс и Софья обсуждают лекцию · 4 реплики, меньше минуты')).toBeInTheDocument();
 
     const scene = activeScene();
     expect(within(scene).getByText('О чём подкаст')).toBeInTheDocument();
@@ -1040,6 +1041,116 @@ describe('ConversationPlayer', () => {
     expect(plainLineText('Обычная реплика без разметки.')).toBe('Обычная реплика без разметки.');
     // Nothing would be left: the line stays as it was rather than going blank.
     expect(plainLineText('**')).toBe('**');
+  });
+
+  it('neither shows nor speaks the fragment marks the model copied into a line (QA 2026-10-11)', () => {
+    expect(plainLineText('Клетка — наименьшая единица живого [S01].')).toBe('Клетка — наименьшая единица живого.');
+    expect(plainLineText('Митохондрии дают энергию [S02], [S03], а ядро хранит ДНК [S04, S05].')).toBe(
+      'Митохондрии дают энергию, а ядро хранит ДНК.',
+    );
+    // Inside code a bracket stays.
+    expect(plainLineText('Индекс `a[S1]` в коде')).toBe('Индекс a[S1] в коде');
+    render(<ConversationPlayer lines={[{ speaker: 'Софья', text: 'Мембрана состоит из двойного слоя фосфолипидов [S01].' }]} />);
+    expect(screen.getByRole('region', { name: 'Субтитры' }).textContent).not.toMatch(/\[S0/);
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    expect(lastPlay()[0]).toBe('Мембрана состоит из двойного слоя фосфолипидов.');
+  });
+});
+
+describe('ConversationPlayer on a phone: the line over the sheet (QA 2026-10-11, 390×844)', () => {
+  const PHONE_QUERY = '(max-width: 639px)';
+  const placeOf = () => {
+    const subtitles = screen.getByRole('region', { name: 'Субтитры' });
+    const scene = screen.getByRole('region', { name: 'Сцена' });
+    return subtitles.compareDocumentPosition(scene) & Node.DOCUMENT_POSITION_FOLLOWING ? 'over the sheet' : 'under the sheet';
+  };
+
+  beforeEach(() => {
+    tts.getTTSPlaybackRate.mockReturnValue(1);
+    tts.prefetchTTSInOrder.mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    cleanup();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('puts the subtitle right under the tabs on a phone, where the player at the bottom does not cover it', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query === PHONE_QUERY, media: query, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {} }),
+    });
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    expect(placeOf()).toBe('over the sheet');
+    expect(document.querySelector('.cv-voice')).toHaveAttribute('data-first');
+    // The controls stay last, at the bottom of the screen.
+    const player = screen.getByRole('group', { name: 'Плеер' });
+    expect(screen.getByRole('region', { name: 'Сцена' }).compareDocumentPosition(player) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps it under the sheet on a computer, as subtitles under a picture', () => {
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    expect(placeOf()).toBe('under the sheet');
+    expect(document.querySelector('.cv-voice')).not.toHaveAttribute('data-first');
+  });
+});
+
+describe('ConversationPlayer brought into view (revealOnMount; QA 2026-10-11: ▶ below the first screen of a laptop)', () => {
+  const originalRect = Element.prototype.getBoundingClientRect;
+  const originalHeight = window.innerHeight;
+  let calls: Array<ScrollIntoViewOptions | boolean | undefined>;
+
+  /** The panel at `top`, `height` tall, the ▶ near its bottom and the sheet near its top. */
+  function layOut(top: number, height: number) {
+    Element.prototype.getBoundingClientRect = function rect(this: Element) {
+      const box = (y: number, h: number) => ({ top: y, bottom: y + h, left: 0, right: 900, width: 900, height: h, x: 0, y, toJSON: () => ({}) }) as DOMRect;
+      if (this.classList.contains('cv-show')) return box(top, height);
+      if (this.classList.contains('cv-play')) return box(top + height - 90, 60);
+      if (this.classList.contains('cv-sheet')) return box(top + 22, 300);
+      return box(0, 0);
+    };
+  }
+
+  beforeEach(() => {
+    calls = [];
+    tts.getTTSPlaybackRate.mockReturnValue(1);
+    tts.prefetchTTSInOrder.mockResolvedValue(undefined);
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 734 });
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function scroll(this: HTMLElement, options?: ScrollIntoViewOptions | boolean) {
+      if (this.classList.contains('cv-show')) calls.push(options);
+    });
+  });
+  afterEach(() => {
+    cleanup();
+    Element.prototype.getBoundingClientRect = originalRect;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight });
+  });
+
+  it('lines the whole panel up with the bottom of the window when it fits, so the tabs over it can stay in sight', () => {
+    // 1532×734, the result screen: the podcast panel starts at 508 px and is 495 px tall.
+    layOut(508, 495);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" revealOnMount />);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ block: 'end' });
+  });
+
+  it('starts the panel under the top line when it is taller than the window', () => {
+    layOut(560, 900);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" revealOnMount />);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ block: 'start' });
+  });
+
+  it('leaves the page alone when the player is in sight, and without revealOnMount', () => {
+    layOut(120, 495);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" revealOnMount />);
+    cleanup();
+    layOut(508, 495);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    expect(calls).toHaveLength(0);
   });
 });
 

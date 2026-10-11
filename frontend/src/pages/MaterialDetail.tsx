@@ -10,7 +10,7 @@ import ExpressPrepView from '../components/ExpressPrepView';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { deleteMaterial, getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
-import { parseSections, sectionHasContent } from '../utils/analysisSections';
+import { SECTION_LABELS, parseSections, sectionHasContent } from '../utils/analysisSections';
 import TipCard from '../components/tips/TipCard';
 import { TIPS } from '../components/tips/tips';
 import { useFirstUseTip } from '../components/tips/useFirstUseTip';
@@ -47,8 +47,12 @@ interface LectureTab {
 
 const PANEL_ID = 'material-mode-panel';
 const tabId = (key: string) => `material-mode-${key}`;
-/** Decision 1 of 2026-10-08: the two hosts' audio is «Подкаст»; «Поговорить о лекции» is the tutor. */
-const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: 'Кратко', podcast: 'Подкаст' };
+/**
+ * Decision 1 of 2026-10-08: the two hosts' audio is «Подкаст»; «Поговорить о лекции» is the tutor. The lecture's
+ * выжимка has one name everywhere — the picker, its card, the analysis result's tab, the lecture's row in «Лекции» and
+ * this tab (it was «Кратко» here until QA 2026-10-11).
+ */
+const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: SECTION_LABELS.cheatsheet, podcast: SECTION_LABELS.podcast };
 const NBSP = '\u00a0';
 /**
  * What opening a material means, said plainly: the link shows the title and the summary without an account
@@ -126,7 +130,7 @@ function hasSavedCheatsheet(summary: Record<string, unknown>): boolean {
 
 /**
  * Статусы разделов для панели. Анализ записал их в момент запуска, а выжимку и
- * подкаст могли создать позже в «Кратко» и «Подкасте»: если они сохранены, раздел есть,
+ * подкаст могли создать позже в «Выжимке» и «Подкасте»: если они сохранены, раздел есть,
  * что бы ни было записано тогда. Так панель не пишет о сбое того, что уже создано.
  */
 function panelSections(summary: Record<string, unknown>): SectionStates | undefined {
@@ -328,7 +332,7 @@ export default function MaterialDetail() {
   const [sectionChoice, setSectionChoice] = useState<ResultTab | null>(null);
   // What «Экспорт» offers on the section on screen: ResultsPanel keeps it current, «⋯» reads it when it opens.
   const exportItemsRef = useRef<ResultExportItem[]>([]);
-  // The phone's row fades at an edge while more tabs are hidden past it (320 px, or with «Кратко»).
+  // The phone's row fades at an edge while more tabs are hidden past it (320 px, or with «Выжимка»).
   const phoneRowRef = useRef<HTMLDivElement | null>(null);
   const [rowMore, setRowMore] = useState<'' | 'right' | 'left' | 'both'>('');
   const measureRow = useCallback(() => {
@@ -373,7 +377,7 @@ export default function MaterialDetail() {
       ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
       : 'full'
   );
-  // Ссылки «Повторить за 5 минут» ведут сюда и без выжимки: тогда вкладка «Кратко»
+  // Ссылки «Повторить за 5 минут» ведут сюда и без выжимки: тогда вкладка «Выжимка»
   // остаётся видна, чтобы выжимку можно было создать.
   const [expressRequested] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') !== 'podcast');
   // Ссылка прямо на подкаст: один раз показываем плеер целиком, дальше прокрутку не трогаем.
@@ -407,8 +411,10 @@ export default function MaterialDetail() {
 
   useEffect(() => {
     if (!id) return;
+    // A deleted lecture or an incomplete link reads as no row, not as an error: «Лекция не найдена».
     getMaterialById(id)
       .then(data => {
+        if (!data) return;
         setMaterial(data);
         setSubjectInput(data.subject || '');
         setTitleInput(data.title || '');
@@ -537,10 +543,18 @@ export default function MaterialDetail() {
     writeAssignments(user?.id, next.assignments);
   };
 
-  /** «Удалить лекцию…»: the same question as in «Лекции»; afterwards the list, without it. */
+  /** «Удалить лекцию…»: the same question as in «Лекции», naming what goes with it; afterwards the list, without it. */
   const removeLecture = async () => {
     if (!id || !material) return;
-    if (!(await confirm(deleteLectureConfirm(displayMaterialTitle(material.title))))) return;
+    const summary = material.summary_json && typeof material.summary_json === 'object' ? material.summary_json : {};
+    const has = {
+      summary: summary.text_only !== true && sectionHasContent('summarizer', summary),
+      cards: cardCountOf(material) > 0,
+      quiz: sectionHasContent('quiz', material.quiz_json),
+      cheatsheet: hasSavedCheatsheet(summary),
+      podcast: sectionHasContent('podcast', { podcast: summary.podcast }),
+    };
+    if (!(await confirm(deleteLectureConfirm(displayMaterialTitle(material.title), has)))) return;
     try {
       await deleteMaterial(id);
     } catch (err) {
@@ -628,7 +642,7 @@ export default function MaterialDetail() {
   const summaryJson: Record<string, unknown> =
     material.summary_json && typeof material.summary_json === 'object' ? material.summary_json : {};
   const hasCheatsheet = hasSavedCheatsheet(summaryJson);
-  // Выжимку просили при анализе, а её нет: «Материал» пишет о сбое, «Кратко» предлагает создать.
+  // Выжимку просили при анализе, а её нет: «Материал» пишет о сбое, «Выжимка» предлагает создать.
   const cheatsheetMissing = Boolean(parseSections(summaryJson.sections)?.cheatsheet) && !hasCheatsheet;
   // Менять материал (создавать выжимку и подкаст, открывать доступ) может только автор:
   // назначенные преподавателем и чужие открытые материалы только для чтения.
@@ -664,7 +678,7 @@ export default function MaterialDetail() {
       ? sectionChoice
       : openingResultTab(sectionTabs, panelResults as AnalysisResults, sectionParam);
   // The phone's one row: the sections of «Материал» («Материал» itself when there are none, as for a text-only
-  // lecture), then the page's «Кратко» and «Подкаст».
+  // lecture), then the page's «Выжимка» and «Подкаст».
   const lectureTabs: LectureTab[] = [
     ...(sectionTabs.length > 0
       ? sectionTabs.map(tab => ({ key: tab.id, label: tab.label, count: tab.count, mode: 'full' as Mode, section: tab.id }))

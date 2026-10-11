@@ -91,12 +91,18 @@ describe('UploadZone text tab', () => {
     expect(textarea()).toHaveAttribute('placeholder', 'Вставьте текст лекции, главы или конспекта');
   });
 
-  it('disables start at 299 characters and explains why', () => {
+  it('disables start at 299 characters and explains why, saying the count once (QA 2026-10-11)', () => {
     render(<Harness onUpload={vi.fn()} />);
     fireEvent.change(textarea(), { target: { value: `  ${'б'.repeat(299)}  ` } });
     expect(startButton()).toBeDisabled();
     expect(screen.getByText('Нужно хотя бы 300 символов, сейчас 299')).toBeInTheDocument();
-    expect(screen.getByText(`299 символов`)).toBeInTheDocument();
+    // «…сейчас 299» is the count: no «299 символов» beside or under it.
+    expect(screen.queryByText('299 символов')).toBeNull();
+    expect(document.querySelector('.az-count')).toBeNull();
+
+    // Enough text: the line is the count alone again.
+    fireEvent.change(textarea(), { target: { value: lecture(400) } });
+    expect(document.querySelector('.az-count')?.textContent).toBe('400 символов');
   });
 
   it('disables start above 80 000 characters and asks to split the text', () => {
@@ -276,6 +282,183 @@ describe('UploadZone lecture formats', () => {
     expect(screen.queryByText('Лекция 3.PPT')).toBeNull();
     expect(startButton()).toBeDisabled();
     expect(onUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
+  const VIDEO_NOTE =
+    'Ссылку на видео Meldy пока не открывает. Если запись лекции есть у вас файлом, загрузите её во вкладке «Аудио и видео» (до 15 МБ).';
+  const urlField = () => screen.getByLabelText('Ссылка на статью или учебный материал');
+  /** The note without the no-break spaces of the typesetting. */
+  const plainText = (node: Element | null) => node?.textContent?.replace(/ /g, ' ');
+
+  it.each([
+    'https://www.youtube.com/watch?v=aircAruvnKk',
+    'youtu.be/aircAruvnKk',
+    'https://m.youtube.com/watch?v=aircAruvnKk',
+    'https://music.youtube.com/watch?v=aircAruvnKk',
+    'https://rutube.ru/video/0123456789abcdef/',
+    'https://vk.com/video-12345_67890',
+    'https://vkvideo.ru/video-12345_67890',
+    'https://dzen.ru/video/watch/650000aa0000000000000000',
+  ])('says it before the start and keeps the start waiting: %s', async link => {
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: link } });
+    const note = screen.getByRole('alert');
+    expect(plainText(note)).toBe(VIDEO_NOTE);
+    expect(urlField()).toHaveAttribute('aria-describedby', note.id);
+    expect(startButton()).toBeDisabled();
+    expect(startButton()).toHaveTextContent('Запустить анализ');
+    expect(startButton().getAttribute('aria-describedby')).toContain(note.id);
+    expect(screen.queryByText(/Подойдёт открытая страница/)).toBeNull();
+    fireEvent.click(startButton());
+    await act(async () => undefined);
+    expect(onUpload).not.toHaveBeenCalled();
+  });
+
+  it('opens «Аудио и видео» in one tap, its file picker in focus, and gives the link back when the tab is switched back', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://youtu.be/aircAruvnKk' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть «Аудио и видео»' }));
+    expect(screen.getByRole('tab', { name: 'Аудио и видео' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('upload-file-input')).toHaveAttribute('accept', '.mp4,.mp3,.wav,.mpeg,.m4a');
+    expect(document.activeElement).toBe(document.querySelector('.az-drop'));
+    fireEvent.click(screen.getByRole('tab', { name: 'Ссылка' }));
+    expect(urlField()).toHaveValue('https://youtu.be/aircAruvnKk');
+  });
+
+  it('says nothing about a page with text, and the start goes', async () => {
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://vk.com/wall-1_2' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText(/Подойдёт открытая страница/)).toBeInTheDocument();
+    await waitFor(() => expect(startButton()).toBeEnabled());
+    fireEvent.click(startButton());
+    expect(onUpload).toHaveBeenCalledWith(null, 'https://vk.com/wall-1_2', undefined);
+  });
+
+  it('goes away as the link is cleared', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://youtu.be/aircAruvnKk' } });
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Очистить ссылку' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(startButton()).toHaveTextContent('Вставьте ссылку');
+  });
+});
+
+describe('formats the server does not read are stopped in the picker (live QA 2026-10-11)', () => {
+  const choose = (file: File) => fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [file] } });
+
+  it('an old Word .doc: what to do, at once, and no start', async () => {
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="file" />);
+    choose(new File(['old'], 'История.doc', { type: 'application/msword' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Старый формат Word (.doc) не читается. Сохраните файл как DOCX или PDF и загрузите снова.',
+    );
+    expect(screen.queryByText('История.doc')).toBeNull();
+    expect(startButton()).toBeDisabled();
+    expect(onUpload).not.toHaveBeenCalled();
+  });
+
+  it.each(['voice_note.ogg', 'voice.opus', 'screen.webm', 'IMG_0042.mov'])(
+    'a recording in «Аудио и видео» the server cannot read (%s) is told the recording formats, never JPG or PNG',
+    async name => {
+      const onUpload = vi.fn();
+      render(<Harness onUpload={onUpload} initialTab="media" />);
+      choose(new File(['x'], name, { type: '' }));
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(
+        `Формат .${name.split('.').pop()} не читается. Подойдут записи MP4, MP3, WAV, MPEG и M4A — сохраните запись в одном из этих форматов и загрузите снова.`,
+      );
+      expect(alert.textContent).not.toMatch(/JPG|PNG|jpe?g|png/);
+      expect(startButton()).toBeDisabled();
+      expect(onUpload).not.toHaveBeenCalled();
+    },
+  );
+
+  it('the recording tab names recordings only, and a recording it reads goes', async () => {
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="media" />);
+    expect(Array.from(document.querySelectorAll('.az-format')).map(chip => chip.textContent)).toEqual(['MP4', 'MP3', 'WAV', 'MPEG', 'M4A']);
+    choose(new File(['x'], 'table.xlsx', { type: '' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Подойдут записи MP4, MP3, WAV, MPEG и M4A');
+    const pair = new File(['x'], 'Пара 3.mp3', { type: 'audio/mpeg' });
+    choose(pair);
+    expect(await screen.findByText('Пара 3.mp3')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(startButton());
+    expect(onUpload).toHaveBeenCalledWith(pair, undefined, undefined);
+  });
+
+  it('a dropped spreadsheet on «Файл» is told the document formats', async () => {
+    render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    fireEvent.drop(document.querySelector('.az-panel') as Element, { dataTransfer: { files: [new File(['x'], 'Оценки.xlsx', { type: '' })] } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Формат .xlsx не читается. Подойдут PDF, DOCX, PPTX, HTML, TXT, MD, JPG и PNG — сохраните файл в одном из этих форматов и загрузите снова.',
+    );
+  });
+});
+
+describe('a refused file is in view (QA 2026-10-11: below the first screen of a 1532×734 laptop)', () => {
+  const originalRect = Element.prototype.getBoundingClientRect;
+  const scrolls: Array<{ text: string; options: ScrollIntoViewOptions | boolean | undefined }> = [];
+
+  beforeEach(() => {
+    scrolls.length = 0;
+    // src/test/setup.ts gives HTMLElement a silent scrollIntoView; here it reports what it was asked.
+    vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function scroll(this: HTMLElement, options?: ScrollIntoViewOptions | boolean) {
+      scrolls.push({ text: this.textContent ?? '', options });
+    });
+  });
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = originalRect;
+  });
+
+  const oversized = () => {
+    const pdf = new File(['x'], 'Биология.pdf', { type: 'application/pdf' });
+    Object.defineProperty(pdf, 'size', { value: 16.3 * 1024 * 1024 });
+    return pdf;
+  };
+
+  it('stands over the file panel, not under it', async () => {
+    render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [oversized()] } });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Файл занимает 16,3 МБ. Максимальный размер — 15 МБ.');
+    const drop = document.querySelector('.az-drop') as Element;
+    expect(alert.compareDocumentPosition(drop) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('is brought into view when the screen ends above it, and left alone when it is seen', async () => {
+    // The refusal lies under the bottom of an 800 px window.
+    Element.prototype.getBoundingClientRect = function rect(this: Element) {
+      const top = this.classList.contains('az-file-error') ? 820 : 0;
+      return { top, bottom: top + 60, left: 0, right: 600, width: 600, height: 60, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    };
+    const { unmount } = render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [oversized()] } });
+    await screen.findByRole('alert');
+    await waitFor(() => expect(scrolls).toHaveLength(1));
+    expect(scrolls[0].text).toContain('Файл занимает 16,3 МБ');
+    expect(scrolls[0].options).toMatchObject({ block: 'end' });
+    // The same refusal again (the same file chosen twice) is brought into view again.
+    fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [oversized()] } });
+    await waitFor(() => expect(scrolls).toHaveLength(2));
+    unmount();
+
+    // Seen: nothing moves.
+    Element.prototype.getBoundingClientRect = function rect() {
+      return { top: 300, bottom: 360, left: 0, right: 600, width: 600, height: 60, x: 0, y: 300, toJSON: () => ({}) } as DOMRect;
+    };
+    render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [oversized()] } });
+    await screen.findByRole('alert');
+    await act(async () => undefined);
+    expect(scrolls).toHaveLength(2);
   });
 });
 

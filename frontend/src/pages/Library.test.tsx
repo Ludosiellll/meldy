@@ -42,7 +42,7 @@ function material(id: string, title: string, created: string, extra: Record<stri
 }
 
 function entry(id: string, created: string, extra: Partial<LibraryEntry> = {}): LibraryEntry {
-  return { id, title: id, created_at: created, textOnly: false, summary: true, cards: 0, quiz: false, talk: false, ...extra };
+  return { id, title: id, created_at: created, textOnly: false, summary: true, cards: 0, quiz: false, cheatsheet: false, talk: false, ...extra };
 }
 
 function shelf(id: string, links: Array<[string, string]>, extra: Partial<ExamShelf> = {}): ExamShelf {
@@ -79,6 +79,23 @@ describe('what a lecture row says', () => {
     );
     expect(plain(lectureMeta(toEntry(material('b', 'B', '2026-09-01', { summary_json: { text_only: true } }))!))).toBe('только текст, конспекта нет');
     expect(plain(lectureMeta(entry('c', '2026-09-01', { summary: false })))).toBe('');
+  });
+
+  it('names the выжимка too, in the order of the lecture’s tabs (QA 2026-10-11)', () => {
+    const all = toEntry(
+      material('a', 'A', '2026-09-01', {
+        flashcards_json: { flashcards: [{}, {}, {}, {}, {}, {}] },
+        quiz_json: { quiz: [{}] },
+        summary_json: { content: 'x', cheatsheet: '# Выжимка\n\nГлавное.', podcast: [{}] },
+      }),
+    )!;
+    expect(all.cheatsheet).toBe(true);
+    expect(plain(lectureMeta(all))).toBe('конспект · 6 карточек · тест · выжимка · подкаст');
+    expect(plain(lectureMeta(all, 0, true))).toBe('6 карточек · тест · выжимка · подкаст');
+    // An empty one is not there.
+    expect(toEntry(material('b', 'B', '2026-09-01', { summary_json: { content: 'x', cheatsheet: '  ' } }))!.cheatsheet).toBe(false);
+    // The light entry this device keeps says it as well.
+    expect(toEntry(JSON.parse(JSON.stringify(all)))!.cheatsheet).toBe(true);
   });
 
   it('names the cards from ticket answers apart from the lecture’s own (finding LIB-6)', () => {
@@ -120,13 +137,25 @@ describe('how the lectures are grouped', () => {
   });
 
   it('sections by exam and «Другие материалы»; a lecture in two exams is in both', () => {
-    const layout = libraryLayout([a, b, c], [shelf('e1', [['a', '1'], ['b', '2']]), shelf('e2', [['b', '1']])]);
+    const layout = libraryLayout([a, b, c], [shelf('e1', [['a', '1'], ['c', '2']]), shelf('e2', [['c', '1']])]);
     expect(layout.mode).toBe('sections');
     if (layout.mode !== 'sections') return;
     expect(layout.groups.map((group) => [group.key, group.entries.map((item) => item.id)])).toEqual([
+      ['e1', ['a', 'c']],
+      ['e2', ['c']],
+      ['other', ['b']],
+    ]);
+  });
+
+  it('puts «Другие материалы» first while it holds the newest lecture: a lecture just analysed is at the top (QA 2026-10-11)', () => {
+    const d = entry('d', '2026-10-11T17:20:00Z');
+    const e = entry('e', '2026-10-11T17:25:00Z');
+    const layout = libraryLayout([a, b, c, d, e], [shelf('e1', [['a', '1'], ['b', '2']]), shelf('e2', [['c', '1']])]);
+    if (layout.mode !== 'sections') throw new Error(layout.mode);
+    expect(layout.groups.map((group) => [group.key, group.entries.map((item) => item.id)])).toEqual([
+      ['other', ['e', 'd']],
       ['e1', ['a', 'b']],
-      ['e2', ['b']],
-      ['other', ['c']],
+      ['e2', ['c']],
     ]);
   });
 });
@@ -175,9 +204,10 @@ describe('<Library>', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Действия: Предложение' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Удалить лекцию…' }));
     await waitFor(() => expect(data.deleteMaterial).toHaveBeenCalledWith('m2'));
+    // It names only what the lecture has: this one, its конспект (QA 2026-10-11: «карточками и тестом» for every lecture).
     expect(data.confirm).toHaveBeenCalledWith({
       title: 'Удалить лекцию?',
-      message: '«Предложение» исчезнет из библиотеки вместе с конспектом, карточками и тестом. Это нельзя отменить.',
+      message: '«Предложение» исчезнет из библиотеки вместе с конспектом. Это нельзя отменить.',
       confirmText: 'Удалить',
       cancelText: 'Оставить',
     });
