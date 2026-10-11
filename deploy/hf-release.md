@@ -4,6 +4,12 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-11 — Release 43.5: the end of a session speaks once (from the commit of this entry)
+
+- **The headline holds too:** the live re-check saw «Теперь 5 из 960 — верно в два разных дня» turn into «Теперь 6 из 960» half a second after it appeared (the last answer's server result came after the end screen opened). The headline and the paragraph under it now wait until every answer of the session has come back (at most 1.5 s, in their place, invisible), then appear once with the server's figure and never change; the headline takes focus when it is shown (unless the student has moved focus meanwhile). After 1.5 s without the results, what is known locally, as before. The self-check's end screen has no such race and shows at once.
+- **Cheat sheet:** the scroll's fallback timer is cleared when the scroll ends and touches no window that is gone (it could throw after a test had finished).
+- **Verified before release:** Vitest 268 files / 4414 tests (new: a result inside the hold is shown, a late one changes nothing, focus on the shown headline), `tsc -b`, the build in the Docker layout, the bot's plan copy unchanged.
+
 ## 2026-10-11 — Release 43.4: the example exam for the jury — fair examiner, the strike in view, a lighter first screen (from the commit of this entry)
 
 From a live walk of `/try` as a juror would take it (QR on the slides; phones, laptop, both themes, Slow 4G):
