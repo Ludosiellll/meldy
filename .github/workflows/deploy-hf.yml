@@ -74,13 +74,16 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/constraints.txt
 
+      # The same pinned tree as the image (Dockerfile): the tests see the versions the release will run.
       - name: pytest
         working-directory: backend
         run: |
           set -euo pipefail
-          python -m pip install -q -r requirements.txt pytest==9.1.1 pytest-asyncio==1.4.0
+          python -m pip install -q -r requirements.txt -c constraints.txt pytest==9.1.1 pytest-asyncio==1.4.0
           python -m pytest -q
 
   deploy:
