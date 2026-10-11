@@ -50,7 +50,7 @@ Sources of truth:
   * Every bake is one flat canvas. A Morph between a light and a dark slide crossfades the two, and the strip and
     the wordmark change colour with it: the lights go down and come back up.
 - **Surfaces.**
-  * Cards are empty native rounded rectangles: radius 48, devices 36–64.
+  * Cards are empty native rounded rectangles: radius 48, devices 36–52.
   * A card that builds or travels carries its own shadow (`.lift`). The compiler places that shadow as a picture
     that builds and morphs with the card, so no shadow ever waits alone or stays behind.
   * The devices on 07–10 are ink bezels (`#0B121C`). The screen is the video inside them, its corners painted ink.
@@ -121,6 +121,8 @@ Sources of truth:
 **Builds.**
 * Each slide's entrances run as one automatic group of 1.4–2.7 s: the first effect starts it, every other comes
   «with» it at its beat (`design/preview/timeline.mjs` prints the schedule and flags anything over 3.5 s).
+* The slides with a clip (07–09, 12) are the exception: their steps come in on the clip's own moments, so the build
+  is as long as the story. The clips loop; the steps meet their moments on the first pass, then stay.
 * Clicks: only 03's punchline («229 тыс.» settles in).
 * Effects: `settle` (fade + 92 → 100 %) for things that land, `rise` for claims and titles, `wipe` from the left for
   lines being written, rows and strikes, `fade` for small type. Entrance effects only; objects that morph never build.
@@ -144,10 +146,25 @@ H.264 High, yuv420p, BT.709 tags, `+faststart`, no audio, posters at 2×.
 | Clip | Slide | What it shows | Poster | File |
 |---|---|---|---|---|
 | `title-cover` | 01 | The cheat sheet of «Рыночное равновесие» answers itself. Monday names the lines (yellow dots), Tuesday erases them (strike left to right), the counter rolls 6 → 0, the lines come back. 9.6 s loop. **The GIF carries its own card and shadow** (720 × 896 card in an 832 × 984 frame, 1:1), so it settles in. | first frame | GIF 388 KB (10 fps, 64 colours) |
-| `sheet` | 09 | The exam page's cheat sheet over two days: named once, erased, a forgotten line returning. 10.4 s loop. | the end state | MP4 ≈ 270 KB, 1152 × 568 |
 | `scale` | 12 | The night field, one pull-back: a line → its question → an exam of 400 → a group of 25 → 9 160 dots, one per group, «ваша группа» in yellow. 11 s, plays once, holds. Fades in with its first frame in the show; its poster is its last frame. | the field | MP4 ≈ 1.05 MB (x264 zones) |
 | `telegram` | 10 | The app's own Telegram tip clip from the harness: the day card, «Начать», a question, «Верно.», the menu button «Открыть Meldy» (release 43). | the day card | MP4 ≈ 274 KB, 672 × 672 |
-| `ph-07`, `ph-08` | 07, 08 | **Placeholders** until the live site is recorded (`media/product/`). | the same | MP4 ≈ 15 KB |
+
+**Recordings** of the live site (`tools/record`: a take is a real session in Chromium, `edit.py` cuts it into a
+master, `fit.py` fits the master to a screen). They are committed in `media/product/`, with the masters and their
+moments in `media/product/masters/` (they cannot be regenerated).
+
+| Clip | Slide | What it shows | Poster | File |
+|---|---|---|---|---|
+| `07-exam-plan` | 07 | «Новый экзамен», the file «Программирование на C#.docx», «Нашли 240 вопросов · ключ жирным», 2 ноября and 45 minutes a day, «Сохранить»; the exam's page with «Сегодня 52 вопроса», «План по дням». 19.8 s loop. | the exam's page | MP4 433 KB + JPEG 227 KB, 1152 × 568 |
+| `08-oral-answer` | 08 | On the phone: a ticket of «Базы данных», an answer aloud to question 18, the examiner's question about the missed point, the protocol with the lecture's quotes. 18.9 s loop. | the protocol | MP4 887 KB + JPEG 229 KB, 392 × 848 |
+| `09-sheet-erase` | 09 | The site's example exam «Микроэкономика», where «yesterday's» answers are part of the example: the answer to question 5, the protocol, the sheet strikes three lines out, 47 → 44. 13.8 s loop. | the sheet after the erase | MP4 1.09 MB + JPEG 375 KB, 1152 × 568 |
+
+Honest by construction: a real session, the pointer drawn where it was, waiting cut out (the cuts are visible: the
+timer jumps), nothing sped up. 08's voice is synthetic speech fed to the browser's microphone, and the clip has no
+sound. The talk claims only what the clips show (each slide's notes end with «О записи»).
+
+The drawn clip `motion/sheet.html` is **unused** since the recordings (kept as 09's fallback, not rendered for the
+deck); the placeholders `ph-07`/`ph-08` are gone.
 
 ## 4. The slides
 
@@ -160,10 +177,10 @@ Eye order is what the eye takes first, second and third in the still.
 | 03 | Актуальность | «229 тыс.» | claim → the № 319 card (the attestation rules of higher education, by full name) → on a click «229 тыс.» | claim · card · № 319 · title; *click* 229 тыс. (1.4 + 0.9 s) |
 | 04 | Цель, задачи | «0» 420 px | «0 строк осталось» → the erased map → four tasks | caption · map sweeps · tasks 1–4 (2.0 s) |
 | 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade · reading line (2.85 s) |
-| 06 | Содержание | the five blocks | the blocks as cheat-sheet lines, with the slide of each → «Число и формат» | claim · lines written in · card · chips · note (2.3 s) |
-| 07 | Представление блоков проекта | the laptop | claim → the recording → four steps | the screen turns on · claim · steps (1.6 s) |
-| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | the screen rides in with the bezel · claim · steps · note (2.0 s) |
-| 09 | Представление блоков проекта | the laptop with the sheet | claim → the clip → the legend in the map's squares | claim · legend (1.75 s) |
+| 06 | Содержание | the five blocks | the blocks as cheat-sheet lines, with the slide of each → «Число и формат»: questions from Word, Excel, TXT or PDF; lectures from PDF, DOCX, PPTX or a photo | claim · lines written in · card · the two format lines · note (2.3 s) |
+| 07 | Представление блоков проекта | the laptop | claim → the recording → four steps | the screen turns on · claim · the steps on the clip's moments: file 4.25, found 5.08, date 7.85, plan 16.68 s |
+| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | the screen rides in with the bezel · claim · the steps on the clip's moments: speak 4.03, asked 8.40, protocol 10.63 s · the reading line with the protocol's scroll, 11.93 s |
+| 09 | Представление блоков проекта | the laptop with the sheet | claim → the recording → the legend in the map's squares | claim · the legend as the clip reaches the sheet (8.8, 9.2 s) and the erase (12.0, 12.4 s) |
 | 10 | Представление блоков проекта | the chat | claim → the chat → «Пригласить группу» → six copies → Telegram | claim · group · copies cascade · Telegram (2.35 s) |
 | 11 | Тестирование и продвижение | the path | «Пилот: [N] студентов, [M] дней» → group → department → colleges and universities → the open site | claim · result · three steps · site (2.45 s) |
 | 12 | Масштабируемость (dark) | the night field | claim → the field, «ваша группа» → the ladder 1 → 1 → 400 → 25 → ≈ 229 тыс. | the lights are down; the claim rises; 300 ms later the clip fades in and plays; each rung on its stop; «ваша группа» when the field holds (10.6 s, by design) |
@@ -177,7 +194,6 @@ Eye order is what the eye takes first, second and third in the still.
   `author1.role`, `author1.initials`, the same for `author2`.
 * 11: the pilot's numbers and result.
 * 13: the BELTA note's address and the access date.
-* The recordings of 07 and 08 (and 09 and 10, if the live recordings replace the clips).
 * In the notes: «[Имена называет докладчик.]» (02), «[Результат пилота одной фразой.]» (11), «[меньше копейки —
   сверить 21.10]» (12), the conditional last sentence of 15.
 
@@ -205,18 +221,18 @@ node deck/cf11/design/preview/timeline.mjs [NN…]     # each slide's build as P
 deck/cf11/tools/make.sh                              # the PPTX, checks, LibreOffice renders, comparison
 deck/cf11/tools/preview/preview.sh                   # the motion preview: deck.mp4, keyframe sheets, morph-log.txt
 node deck/cf11/motion/render.mjs title-cover --gif --gif-fps 10 --gif-colors 64 --no-mp4
-node deck/cf11/motion/render.mjs sheet
 node deck/cf11/motion/render.mjs scale --fps 25 --crf 24 --tune animation --zones "22,55,b=0.45/75,113,b=0.45/132,165,b=0.45/185,242,b=0.45"
-node deck/cf11/motion/render.mjs ph-07 --fps 10 ; node deck/cf11/motion/render.mjs ph-08 --fps 10
 node deck/cf11/motion/telegram.mjs                   # needs the app harness (Vite on 127.0.0.1:5199)
-python3 -I deck/cf11/motion/loopmask.py <frames> <out> <w> <h> --radius 22 --bg '#0b121c' --xfade 15   # fit a recording to a screen
+python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/07-master.json --box 1152 568 --radius 22 --bg '#0b121c'
+python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/09-master.json --box 1152 568 --radius 22 --bg '#0b121c'
+python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/08-master.json --box 392 848 --radius 36 --bg '#0b121c'
 ```
 
-A real recording replaces a placeholder by changing `data-src` and `data-poster` on its `<img data-pptx="video">`.
-The screens are:
+`fit.py` renders at ×1.2 of the box (never above the master) and paints the corners in the bezel's ink (`--bg`).
+The masters' json holds each clip's moments (clip seconds); the builds of 07–09 are timed to them. The screens are:
 
 | Slide | Screen | Radius, corners in ink |
 |---|---|---|
 | 07, 09 | 1152 × 568 | 22 |
-| 08 | 392 × 848 | 50 |
+| 08 | 392 × 848 | 36 (the bezel 52: concentric, so the screen's painted corners stay inside it) |
 | 10 | 672 × 672 | 24 |

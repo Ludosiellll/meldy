@@ -4,7 +4,7 @@
                                              [--bg #ffffff] [--name NAME] [--out deck/cf11/media/product] [--crf 26]
 
 --box     the video's box on the 1920 × 1080 slide (the <img data-pptx="video"> width and height), CSS px
---radius  its corner radius on the slide (laptop windows 24, the phone 44; round 2's ink screens: 22 and 50)
+--radius  its corner radius on the slide (laptop windows 24, the phone 44; round 2's ink screens: 22 and 36)
 --bg      the colour outside the rounded corners: the window around the screen on the slide (white cards in round
           1; round 2's devices have ink bezels, so '#0b121c')
 --scale   encoded pixels per slide pixel (default 1.2; never more than the master has: no upscaling)
