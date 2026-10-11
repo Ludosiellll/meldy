@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import Profile, { loadProfileStats } from './Profile';
 import { ContainerApiError } from '../api/containers';
 import { windowStart } from '../lib/learning/studyDays';
-import { PHONE_QUERY } from '../lib/usePhone';
 
 const db = vi.hoisted(() => ({
   queries: [] as Array<{ table: string; calls: Array<[string, unknown[]]> }>,
@@ -42,7 +41,6 @@ vi.mock('../api/social', () => ({
   updateProfile: vi.fn(),
   uploadAvatar: vi.fn(),
 }));
-vi.mock('../utils/push', () => ({ subscribeUserToPush: vi.fn(), checkPushSubscription: async () => false, requestNotificationPermission: vi.fn() }));
 vi.mock('../components/oral/AnswerTextsSetting', () => ({ default: () => null }));
 vi.mock('../components/reminders/DailyReminder', () => ({ default: () => null }));
 vi.mock('../components/telegram/TelegramCard', () => ({ default: () => null }));
@@ -239,39 +237,13 @@ describe('the figures as one line of text (10_Project/Phone_Declutter_2026-10-08
   });
 });
 
-describe('on a phone', () => {
-  beforeEach(() => {
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      value: (media: string) => ({ matches: media === PHONE_QUERY, media, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
-    });
-  });
-  afterEach(() => {
-    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
-  });
-
-  it('keeps a setting’s description to one line (a computer has the whole sentence)', async () => {
+describe('«Уведомления»', () => {
+  it('has no browser push row: its subscriptions lived in a file of the server and every release erased them', async () => {
     db.answer = liveRows(new Date());
     render(<MemoryRouter><Profile /></MemoryRouter>);
-    expect(await screen.findByText('Meldy сообщит, когда пора повторять.')).toBeInTheDocument();
-    expect(screen.queryByText('Meldy сообщит, когда карточки будут готовы к повторению.')).toBeNull();
-  });
-
-  it('makes «Включить» a white pill like «Выбрать время», not the page’s only blue', async () => {
-    db.answer = liveRows(new Date());
-    render(<MemoryRouter><Profile /></MemoryRouter>);
-    const turnOn = await screen.findByRole('button', { name: 'Включить' });
-    expect(turnOn).toHaveClass('ac-btn');
-    expect(turnOn).not.toHaveClass('ac-btn--blue');
-  });
-});
-
-describe('on a computer', () => {
-  it('says the push setting in its whole sentence', async () => {
-    db.answer = liveRows(new Date());
-    render(<MemoryRouter><Profile /></MemoryRouter>);
-    expect(await screen.findByText('Meldy сообщит, когда карточки будут готовы к повторению.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Включить' })).toHaveClass('ac-btn--blue');
+    const card = (await screen.findByRole('heading', { name: 'Уведомления' })).closest('section') as HTMLElement;
+    expect(within(card).queryByText('Напоминания о повторении')).toBeNull();
+    expect(within(card).queryByRole('button', { name: 'Включить' })).toBeNull();
   });
 });
 

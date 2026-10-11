@@ -1,8 +1,7 @@
 import { Fragment, useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, updateProfile, uploadAvatar, UserProfile } from '../api/social';
-import { UserCircle2, GraduationCap, Loader2, Edit3, X, Bell, BellOff, Camera, Star } from 'lucide-react';
-import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
+import { UserCircle2, GraduationCap, Loader2, Edit3, X, Camera, Star } from 'lucide-react';
 import UniversitySelect from '../components/UniversitySelect';
 import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
@@ -15,7 +14,6 @@ import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { pluralRu } from '../components/conversation/visuals';
 import { studyStreak, windowStart, type ExamQuestionDay, type JournalDay, type SessionDay } from '../lib/learning/studyDays';
 import { fetchAnswerDays } from '../api/containers';
-import { usePhone } from '../lib/usePhone';
 import './Profile.css';
 
 /** How far back the streak looks: a longer streak still counts these days. */
@@ -119,7 +117,6 @@ export async function loadProfileStats(userId: string, now: Date = new Date()): 
 export default function Profile() {
   useDocumentTitle('Профиль');
   const { user } = useAuth();
-  const phone = usePhone();
   const userId = user?.id;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -129,10 +126,6 @@ export default function Profile() {
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ full_name: '', university: '', bio: '', avatar_url: '' });
-
-  // Push notifications state
-  const [pushEnabled, setPushEnabled] = useState(false);
-  const [pushLoading, setPushLoading] = useState(true);
 
   // Avatar Upload state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -164,11 +157,6 @@ export default function Profile() {
       }
       setLoading(false);
     });
-
-    checkPushSubscription().then(enabled => {
-      setPushEnabled(enabled);
-      setPushLoading(false);
-    });
   }, [userId]);
 
   const handleSaveProfile = async () => {
@@ -178,29 +166,6 @@ export default function Profile() {
       setProfile(prev => prev ? { ...prev, ...editForm } : null);
       setIsEditing(false);
     }
-  };
-
-  const handleTogglePush = async () => {
-    if (!user) return;
-    setPushLoading(true);
-    try {
-      if (!pushEnabled) {
-        const granted = await requestNotificationPermission();
-        if (!granted) {
-          toast.error('Доступ к уведомлениям запрещён в браузере.');
-          setPushLoading(false);
-          return;
-        }
-        await subscribeUserToPush(user.id);
-        setPushEnabled(true);
-      } else {
-        toast('Отключить уведомления можно в настройках браузера.');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Ошибка настройки уведомлений: ' + (err as Error).message);
-    }
-    setPushLoading(false);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -411,28 +376,10 @@ export default function Profile() {
       <section className="ac-card ac-rise" aria-labelledby="profile-push-title">
         <h2 id="profile-push-title" className="ac-card-h">Уведомления</h2>
         <TelegramCard />
-        {/* First: a calendar event on the student's own device (push subscriptions do not survive a release). */}
+        {/* Reminders come from the Telegram bot and from a calendar event on the student's own device. The browser's push
+            row is gone: its subscriptions lived in a file inside the server's container, so every release erased them
+            while the row still said «Включено». */}
         <DailyReminder variant="profile" />
-        <div className="ac-row">
-          <span className={`ac-row-i ${pushEnabled ? 'ac-row-i--on' : ''}`} aria-hidden="true">
-            {pushEnabled ? <Bell /> : <BellOff />}
-          </span>
-          <div className="ac-row-text">
-            <p className="ac-row-t">Напоминания о повторении</p>
-            {/* A phone keeps a setting's description to one line. */}
-            <p className="ac-row-d">{phone ? 'Meldy сообщит, когда пора повторять.' : 'Meldy сообщит, когда карточки будут готовы к повторению.'}</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleTogglePush}
-            disabled={pushLoading || pushEnabled}
-            // A phone keeps it white, as «Выбрать время» above it: not the page's only blue
-            // (10_Project/Phone_Declutter_2026-10-08).
-            className={`ac-btn ac-row-btn ${pushLoading ? 'ac-btn--quiet' : pushEnabled ? 'ac-btn--ok' : phone ? '' : 'ac-btn--blue'}`}
-          >
-            {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
-          </button>
-        </div>
       </section>
 
       <AnswerTextsSetting />
