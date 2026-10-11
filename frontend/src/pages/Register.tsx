@@ -9,7 +9,7 @@ import AuthReel from '../components/authReel/AuthReel';
 import PasswordRules from '../components/auth/PasswordRules';
 import { freePlanLine } from '../components/landing/freePlan';
 import { track } from '../lib/telemetry';
-import { afterSignIn, emailRedirectTo, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
+import { afterSignIn, cameFromTry, emailRedirectTo, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
 import { detectInAppBrowser } from '../lib/inAppBrowser';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import InAppNote from '../components/InAppNote';
@@ -24,6 +24,11 @@ export const TYPO_NOTE = 'Возможно, опечатка в адресе.';
 export const SIGN_UP_LEDE = 'Сохраните экзамены и продолжайте подготовку с\u00a0любого устройства.';
 /** The panel above the reel: the way from the department's file to the plan of each day (the reel's story). */
 export const SIGN_UP_PANEL_TITLE = 'От файла с\u00a0вопросами\u00a0— до плана на\u00a0каждый день';
+/** The e-mail field in the page's own language (it read «Email», «you@example.com»: jury QA of /try, 2026-10-11). */
+export const EMAIL_LABEL = 'Почта';
+export const EMAIL_PLACEHOLDER = 'student@mail.ru';
+/** Opened from the example (/try): the quiet way back to it, beside the wordmark. */
+export const BACK_TO_TRY = 'Вернуться к примеру';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
@@ -60,6 +65,7 @@ export default function Register() {
   // The page the visitor signs up for (?next=, a safe path of this site only), else «Сегодня» (lib/returnTo). The
   // confirmation letter carries it in its address: the letter is often opened in another browser.
   const returnTo = returnToFromSearch(location.search);
+  const fromTry = cameFromTry(location.state);
   const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
 
   useEffect(() => {
@@ -174,6 +180,12 @@ export default function Register() {
         <button type="button" onClick={() => navigate('/')} className="au-logo">
           Meldy
         </button>
+        {/* Came from the example: one quiet step back to it (the example's answers live in this tab). */}
+        {fromTry ? (
+          <Link to="/try" className="au-link au-bar-back">
+            {BACK_TO_TRY}
+          </Link>
+        ) : null}
       </header>
 
       <main className="au-main">
@@ -241,7 +253,7 @@ export default function Register() {
                   </div>
 
                   <div className="au-field">
-                    <label htmlFor="register-email" className="au-label">Email</label>
+                    <label htmlFor="register-email" className="au-label">{EMAIL_LABEL}</label>
                     <input
                       id="register-email"
                       name="email"
@@ -261,7 +273,7 @@ export default function Register() {
                       aria-invalid={Boolean(emailError)}
                       aria-describedby={emailDescribedBy}
                       className="au-input"
-                      placeholder="you@example.com"
+                      placeholder={EMAIL_PLACEHOLDER}
                       required
                     />
                     {emailError && <p id="register-email-error" role="alert" className="au-hint au-hint--error">{emailError}</p>}

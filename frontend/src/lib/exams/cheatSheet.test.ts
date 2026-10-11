@@ -10,6 +10,7 @@ import {
   erasableNow,
   changeSummary,
   cleanMissing,
+  countsWith,
   lastAnswerSession,
   lineStatus,
   localDayOf,
@@ -536,6 +537,31 @@ describe('after an answer, and the history', () => {
     expect(changes[1].before?.history).toHaveLength(1);
     // The rubbed line not named this time is back in ink: it «вернулась».
     expect(changeSummary(changes)).toEqual({ erased: 1, rubbed: 0, checked: 0, returned: 1, stayed: 0 });
+  });
+
+  it('the counter of a show steps from the sheet before the answer to the one after it, a line at a time (countsWith)', () => {
+    // Jury QA of /try, 2026-10-11: the lines were struck at 1.5 s and the counter moved only at 2.8 s, after the show.
+    const after = buildSheet(questions, events, NOW);
+    const before = sheetWithout(questions, events, 's2', NOW);
+    const changes = sheetChanges(before, after);
+    const essential = new Set(after.blocks.flatMap((block) => block.lines.filter((line) => line.essential).map((line) => line.key)));
+    const lineCounts = ({ total, left, essentialTotal, essentialLeft, rubbed, erased, due, readable }: typeof before.counts) =>
+      ({ total, left, essentialTotal, essentialLeft, rubbed, erased, due, readable });
+    // Nothing drawn yet: the sheet before the answer, whole.
+    expect(countsWith(before.counts, changes, new Set(), essential)).toEqual(before.counts);
+    // The first line struck (rubbed → erased, a main line): one line and one main line fewer left.
+    const one = countsWith(before.counts, changes, new Set([changes[0].key]), essential);
+    expect(lineCounts(one)).toEqual({
+      ...lineCounts(before.counts),
+      left: before.counts.left - 1,
+      essentialLeft: before.counts.essentialLeft - 1,
+      rubbed: before.counts.rubbed - 1,
+      erased: before.counts.erased + 1,
+    });
+    // Every line drawn: the lines' counts are the sheet's after the answer; a question's own (learned) waits for the end.
+    const all = countsWith(before.counts, changes, new Set(changes.map((change) => change.key)), essential);
+    expect(lineCounts(all)).toEqual(lineCounts(after.counts));
+    expect(all.learned).toBe(before.counts.learned);
   });
 
   it('counts each change in the words of the sheet', () => {

@@ -2389,7 +2389,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     const status = document.querySelector('p.sr-only[role="status"]');
     expect(plain(status?.textContent)).toBe('После ответа: 1 строка стёрлась, 1 — наполовину. 1 строка осталась из 2.');
   });
-  it('on a phone, where the count is above the paper, the end of the show says the change in a chip', async () => {
+  it('on a phone, where the count is above the paper, the count rides over the bottom bar as the lines go, then the chip says the change', async () => {
     setPhone();
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(1), before: 'once' }));
@@ -2398,9 +2398,14 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's-old'), answer(1, dayKey(0), true, 's-new')]);
     renderDetail();
     await opened();
+    // From the first struck line on, beside the lines as they go: the count, which takes the line at once (jury QA of
+    // /try, 2026-10-11: struck at 1.5 s, counted at 2.8 s, with the counter out of sight at the top of the card).
     await waitFor(() => expect(document.querySelector('.cs-chip')).not.toBeNull(), { timeout: 6000 });
+    expect(plain(document.querySelector('.cs-chip .cs-chip-t')?.textContent)).toBe('1 строка осталась из 2');
+    expect(document.querySelector('.cs-chip .cs-chip-n')).toBeNull();
+    // The show over: what changed, and what is left.
+    await waitFor(() => expect(plain(document.querySelector('.cs-chip .cs-chip-t')?.textContent)).toBe('После ответа: 1 строка стёрлась, 1 — наполовину.'), { timeout: 6000 });
     const chip = document.querySelector('.cs-chip') as HTMLElement;
-    expect(plain(chip.querySelector('.cs-chip-t')?.textContent)).toBe('После ответа: 1 строка стёрлась, 1 — наполовину.');
     // For the eye only: the status line says it to a screen reader.
     expect(chip).toHaveAttribute('aria-hidden', 'true');
     // Rubbed lines are still there: one of the two is left.

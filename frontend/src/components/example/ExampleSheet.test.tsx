@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { FROM_TRY } from '../../lib/returnTo';
 
 const mocks = vi.hoisted(() => ({ user: null as null | { id: string } }));
 
@@ -180,6 +181,23 @@ describe('the top line of /try (decision 5, PUB-24)', () => {
     const nav = screen.getByRole('navigation', { name: 'Вход и регистрация' });
     expect(within(nav).getByRole('link', { name: 'Войти' })).toBeTruthy();
     expect(within(nav).getByRole('link', { name: 'Создать аккаунт' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
+  });
+
+  it('the call to sign up takes the way back to the example along (the sign-up then offers it)', () => {
+    function StateOf() {
+      const { state } = useLocation();
+      return <p data-testid="state">{JSON.stringify(state)}</p>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/try']}>
+        <Routes>
+          <Route path="/try" element={<TryBar />} />
+          <Route path="/register" element={<StateOf />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('link', { name: 'Начать со своего списка' }));
+    expect(screen.getByTestId('state').textContent).toBe(JSON.stringify(FROM_TRY));
   });
 
   it('a signed-in student: the way to their exams', () => {

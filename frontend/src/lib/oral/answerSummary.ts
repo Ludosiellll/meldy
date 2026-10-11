@@ -32,6 +32,8 @@ export interface AnswerSummary {
   own: number;
   /** K: not named in the answer, named after the examiner's question (any point). */
   afterQuestion: number;
+  /** That point's own status in the answer (missing, partial or wrong), or null: what the plain sentence moves. */
+  afterQuestionFrom: PointStatus | null;
   /** E: points said wrong (any point). */
   errors: number;
   /** Every point by its status, for the plain sentence under the line (oralGrade.countsSentence). */
@@ -57,6 +59,7 @@ export function answerSummary(points: readonly SummaryPoint[], followup: Summary
     total: counted.length,
     own: counted.filter((point) => statusOf(point) === 'covered').length,
     afterQuestion: recovered,
+    afterQuestionFrom: asked && recovered ? statusOf(asked) : null,
     errors: counts.wrong,
     counts,
   };

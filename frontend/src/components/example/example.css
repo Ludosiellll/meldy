@@ -151,8 +151,10 @@
 .sf-page .ex-col > .ex-blk > .ex-stmt.tx-privacy { font-size: 17px; line-height: 25px; letter-spacing: 0; }
 /* A phone's bar: the step the page is about, the random draw as a quiet line under it. */
 .sf-page .tx-cta .ex-cta-alt { margin: 6px 0 0; }
-/* «Вставить ответ примера» under the field of question 5. */
-.sf-page .tx-insert { min-height: 44px; margin-top: 6px; }
+/* «Вставить ответ примера» (question 5): a white pill of its own, not a link beside the blue «Отвечать голосом» — in a
+   hall the microphone is the harder way (jury QA, 2026-10-11). Under the two ways to answer, or under the field. */
+.sf-page .tx-insert { margin-top: 18px; }
+.sf-page .or-said .tx-insert { margin-top: 10px; }
 /* Yesterday's answer of the example, in its own words, on its read-only protocol. */
 .sf-page .tx-kept-said { font-style: italic; }
 .sf-page .tx-quote { font-family: var(--ph-sans); }

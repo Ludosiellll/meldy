@@ -205,8 +205,8 @@ describe('<ProtocolSheet>', () => {
     expect(p3.querySelector('svg[data-mark="cup"]')).not.toBeNull();
     expect(p3.querySelector('.or-pt-m .sr-only')?.textContent).toBe('назван только после вопроса экзаменатора');
     expect(container.querySelector('[data-point="p3"] .or-ppt-st')?.textContent).toContain('пункт\u00a0· назван');
-    // The model's comment on the answer itself stays: what was missing there.
-    expect(p3.textContent).toContain('Назван метод, про градиент по весам не сказано.');
+    // The model's comment on the answer itself stays, said as the answer's: what was missing there.
+    expect(p3.textContent).toContain('В ответе: назван метод, про градиент по весам не сказано.');
     // The line under the sheet: the reply without a doubled full stop, and what it did — the sheet keeps the line.
     expect(container.querySelector('.or-extra')?.textContent).toBe(
       `Дополнительный вопрос: «${followup.question}» — ответ: «${reply.slice(0, -1)}». Пункт назван после вопроса — строку шпаргалки это не стирает.`,
@@ -504,6 +504,83 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
 
     rerender(<ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={null} seed="attempt-1" />);
     expect(container.querySelector('.or-asked')).toBeNull();
+  });
+
+  describe('a point named only after the examiner’s question: every line says so (jury QA, 2026-10-11)', () => {
+    // The answer named p1–p3 and p5; the examiner asked about p4 and the reply named it.
+    const named: Evaluation = {
+      points: [
+        { id: 'p1', status: 'covered', student_quote: 'подбор весов, которые минимизируют функцию потерь', comment: '' },
+        { id: 'p2', status: 'covered', student_quote: 'прямой проход через слои', comment: '' },
+        { id: 'p3', status: 'covered', student_quote: 'обратное распространение', comment: '' },
+        { id: 'p4', status: 'missing', student_quote: '', comment: 'Пункт про скорость обучения полностью отсутствует.' },
+        { id: 'p5', status: 'covered', student_quote: 'Adam подбирает шаг', comment: '' },
+      ],
+      errors: [],
+      verdict: '',
+    };
+    const reply: ProtocolFollowup = {
+      pointId: 'p4',
+      question: 'А что будет, если взять слишком большую скорость обучения?',
+      answer: 'Начнутся колебания, и сеть может не сойтись.',
+      status: 'covered',
+      judgedBy: 'check',
+    };
+    const protocol = (evaluation: Evaluation, followup: ProtocolFollowup) => {
+      // The key words lit up what the answer named, as in the example's run.
+      const points = livePoints(DEMO_RUBRIC, evaluation, new Set(['p1', 'p2', 'p3', 'p5']));
+      return render(
+        <>
+          <ProtocolSheet heading="Вопрос 12 · ответ 11 октября, 13:06" points={points} followup={followup} seed="attempt-1" />
+          <ProtocolResult points={points} followup={followup} />
+        </>,
+      );
+    };
+    const text = (container: HTMLElement, selector: string) => (container.querySelector(selector)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+    it('the header, the point, its comment, the result and the counts', () => {
+      stubReducedMotion(false);
+      const { container } = protocol(named, reply);
+      // The header's link says what happened, not why the examiner asked.
+      expect(screen.getByRole('button', { name: 'Пункт 4 назван только после вопроса экзаменатора.' })).toHaveClass('or-asked-link');
+      const p4 = container.querySelector('[data-point="p4"]') as HTMLElement;
+      expect(text(p4, '.or-ppt-st')).toBe('главный пункт · назван только после вопроса экзаменатора');
+      // The check's comment is the answer's: «…полностью отсутствует» is not the point's last word.
+      expect(text(p4, '.or-ppt-cm')).toBe('В ответе: пункт про скорость обучения полностью отсутствует.');
+      expect(text(p4, '.or-q2')).toBe('Вы:в ответе не прозвучало');
+      expect(text(container, '.or-sum')).toBe('Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
+      expect(text(container, '.or-grade-why')).toBe('Раскрыто 4 пункта из 5, один назван после вопроса экзаменатора.');
+      expect(text(container, '.or-extra')).toBe(
+        'Дополнительный вопрос: «А что будет, если взять слишком большую скорость обучения?» — ответ: «Начнутся колебания, и сеть может не сойтись». Пункт назван после вопроса — строку шпаргалки это не стирает.',
+      );
+      // Nothing on the sheet says it was not named.
+      expect(container.textContent).not.toContain('не назван');
+    });
+
+    it('an error put right on the question stays an error, said as one', () => {
+      stubReducedMotion(false);
+      const wrong: Evaluation = {
+        points: named.points.map((point) => (point.id === 'p4' ? { ...point, status: 'wrong', student_quote: 'шаг не важен', comment: 'Сказано неверно.' } : point)),
+        errors: [{ point_id: 'p4', student_quote: 'шаг не важен', correction: 'Большая скорость ускоряет, но может вызвать осцилляции.' }],
+        verdict: '',
+      };
+      const { container } = protocol(wrong, reply);
+      expect(screen.getByRole('button', { name: 'В пункте 4 ошибка — верно только после вопроса экзаменатора.' })).toBeInTheDocument();
+      const p4 = container.querySelector('[data-point="p4"]') as HTMLElement;
+      expect(text(p4, '.or-ppt-st')).toBe('главный пункт · ошибка, верно — только после вопроса экзаменатора');
+      expect(text(p4, '.or-ppt-cm')).toBe('В ответе: сказано неверно.');
+      expect(text(container, '.or-grade-why')).toBe('Раскрыто 4 пункта из 5, в одном ошибка.');
+    });
+
+    it('a reply that did not name it leaves every line as it was', () => {
+      stubReducedMotion(false);
+      const { container } = protocol(named, { ...reply, status: 'partial' });
+      expect(screen.getByRole('button', { name: 'Пункт 4 не назван — о нём спросил экзаменатор.' })).toBeInTheDocument();
+      const p4 = container.querySelector('[data-point="p4"]') as HTMLElement;
+      expect(text(p4, '.or-ppt-st')).toBe('главный пункт · не назван; после вопроса экзаменатора — упомянут');
+      expect(text(p4, '.or-ppt-cm')).toBe('Пункт про скорость обучения полностью отсутствует.');
+      expect(text(container, '.or-grade-why')).toBe('Раскрыто 4 пункта из 5, один не назван.');
+    });
   });
 
   it('names a lecture on its first quote only', () => {

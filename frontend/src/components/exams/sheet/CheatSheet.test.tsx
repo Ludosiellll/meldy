@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LearningEvent } from '../../../api/learning';
 import { buildSheet, localDayOf, sheetChanges, sheetWithout, type SheetBlock, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
 import { formatShortDay } from '../../../lib/exams/format';
-import CheatSheet, { animFor, changeGroups, isCoverable, writeMs, type CheatSheetProps, type SheetReplay } from './CheatSheet';
+import CheatSheet, { animFor, bottomBarTop, bringIntoView, changeGroups, isCoverable, visibleBand, writeMs, type CheatSheetProps, type SheetReplay } from './CheatSheet';
 import { createDrawnStore, SheetMap } from './SheetMap';
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/\u00a0/g, ' ');
@@ -292,8 +292,9 @@ describe('the cheat sheet', () => {
     expect(container.querySelector('.cs-qm')?.hasAttribute('data-marker')).toBe(false);
     // The missed line's note will appear: its row is there already, empty, so nothing below moves.
     expect(lines()[2].querySelector('.cs-note')?.hasAttribute('data-reserve')).toBe(true);
+    // Nothing to scroll in the test's window (bringIntoView waits only for a scroll it starts): 250 ms, then the marker.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
+      await vi.advanceTimersByTimeAsync(250 + 450 + 10);
     });
     expect(container.querySelector('.cs-qm')?.getAttribute('data-marker')).toBe('draw');
     expect(lines().map((line) => line.dataset.state)).toEqual(['erased', 'rubbed', 'missed']);
@@ -306,6 +307,65 @@ describe('the cheat sheet', () => {
     expect(p.onReplayEnd).toHaveBeenCalledWith(7);
     expect(lines().map((line) => line.dataset.anim)).toEqual([undefined, undefined, undefined]);
     expect(container.querySelector('.cs-qm')?.getAttribute('data-marker')).toBe('still');
+  });
+
+  it('reports each line of a show as it is drawn, so the counter moves with the paper (jury QA, 2026-10-11)', async () => {
+    vi.useFakeTimers();
+    const q1 = question(1);
+    const earlier = [named(q1, 'p1', NOW - 2 * DAY, true, 'old')];
+    const answer = [named(q1, 'p1', NOW - 60_000, true, 'last'), named(q1, 'p2', NOW - 60_000, true, 'last'), named(q1, 'p3', NOW - 60_000, false, 'last')];
+    const after = buildSheet([q1], [...earlier, ...answer], NOW);
+    const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
+    const [erased, rubbed, missed] = changes.map((change) => change.key);
+    const onReplayStep = vi.fn();
+    const p = props(after.blocks, { replay: { token: 21, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false }, onReplayStep });
+    renderSheet(p);
+    // The lines move from 250 + 450 ms on. The erased line is counted when its strike has crossed the words (85 % of
+    // its 560 ms), not when the whole show is over.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700 + 470);
+    });
+    expect(onReplayStep).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(onReplayStep.mock.calls).toEqual([[21, [erased]]]);
+    // The rub (from 300 ms, 600 ms long) and the missed line (from 420 ms, 500 ms) half-way through their movement.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(onReplayStep.mock.calls).toEqual([
+      [21, [erased]],
+      [21, [rubbed]],
+      [21, [missed]],
+    ]);
+    expect(p.onReplayEnd).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(p.onReplayEnd).toHaveBeenCalledWith(21);
+    expect(onReplayStep).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports nothing more once a show is skipped: the counter takes the sheet as it is then', async () => {
+    vi.useFakeTimers();
+    const q1 = question(1);
+    const earlier = [named(q1, 'p1', NOW - 2 * DAY, true, 'old')];
+    const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
+    const after = buildSheet([q1], [...earlier, ...answer], NOW);
+    const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
+    const onReplayStep = vi.fn();
+    const p = props(after.blocks, { replay: { token: 22, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false }, onReplayStep });
+    renderSheet(p);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700 + 100);
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(p.onReplayEnd).toHaveBeenCalledWith(22);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(onReplayStep).not.toHaveBeenCalled();
   });
 
   it('orders the changes by question: the questions answered first, each in the sheet’s order', () => {
@@ -331,13 +391,13 @@ describe('the cheat sheet', () => {
     const second = () => container.querySelector<HTMLElement>('#cs-q-q2 .cs-line')!;
     const marker = (id: string) => container.querySelector(`#cs-q-${id} .cs-qm`)?.getAttribute('data-marker') ?? null;
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
+      await vi.advanceTimersByTimeAsync(250 + 450 + 10);
     });
     expect([first().dataset.state, first().dataset.anim]).toEqual(['rubbed', 'rub']);
     expect(second().dataset.state).toBe('fresh');
     expect([marker('q1'), marker('q2')]).toEqual(['draw', null]);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(600 + 120 + 700 + 300 + 450 + 10);
+      await vi.advanceTimersByTimeAsync(600 + 120 + 300 + 450 + 10);
     });
     expect([second().dataset.state, second().dataset.anim]).toEqual(['rubbed', 'rub']);
     expect([marker('q1'), marker('q2')]).toEqual(['still', 'draw']);
@@ -581,7 +641,7 @@ describe('the cheat sheet', () => {
       ['left', null],
     ]);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
+      await vi.advanceTimersByTimeAsync(250 + 450 + 10);
     });
     // Square by square with the lines, on the paper's own timing.
     expect(squares()).toEqual([
@@ -751,7 +811,7 @@ describe('the cheat sheet', () => {
       const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
       const { container } = renderSheet(props(after.blocks, { replay: { token: 12, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } }));
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
+        await vi.advanceTimersByTimeAsync(250 + 450 + 10);
       });
       const line = container.querySelector<HTMLElement>('#cs-q-q1 .cs-line')!;
       expect([line.dataset.state, line.dataset.anim, line.dataset.from]).toEqual(['erased', 'erase', 'rubbed']);
@@ -784,5 +844,102 @@ describe('the cheat sheet', () => {
     const sheet = buildSheet([question(1)], [], NOW);
     const keys = sheet.blocks[0].lines.map((line: SheetLine) => line.key);
     expect(keys).toEqual([`${RUBRIC_A}:p1`, `${RUBRIC_A}:p2`, `${RUBRIC_A}:p3`]);
+  });
+});
+
+describe('a question brought into view (bringIntoView): the part of the window nothing covers', () => {
+  const box = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 360, width: 360, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+  const saved = {
+    innerHeight: Object.getOwnPropertyDescriptor(window, 'innerHeight'),
+    scrollY: Object.getOwnPropertyDescriptor(window, 'scrollY'),
+    scrollTo: Object.getOwnPropertyDescriptor(window, 'scrollTo'),
+  };
+  let scrollTo: ReturnType<typeof vi.fn>;
+  /** A phone's page: the room's top line (64 px) and, when `bar`, «Тянуть билет» pinned at the bottom from 735 px. */
+  function phonePage(bar = true) {
+    const header = document.createElement('header');
+    header.className = 'sf-room-bar';
+    header.getBoundingClientRect = () => box(0, 64);
+    document.body.append(header);
+    if (bar) {
+      const cta = document.createElement('div');
+      cta.className = 'ex-cta';
+      cta.style.position = 'sticky';
+      cta.getBoundingClientRect = () => box(735, 109);
+      document.body.append(cta);
+    }
+  }
+  function block(top: number, height: number) {
+    const element = document.createElement('article');
+    element.getBoundingClientRect = () => box(top, height);
+    document.body.append(element);
+    return element;
+  }
+
+  beforeEach(() => {
+    scrollTo = vi.fn();
+    Object.defineProperty(window, 'scrollTo', { configurable: true, writable: true, value: scrollTo });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 1754 });
+  });
+  afterEach(() => {
+    document.body.innerHTML = '';
+    for (const [name, descriptor] of Object.entries(saved)) {
+      if (descriptor) Object.defineProperty(window, name, descriptor);
+      else delete (window as unknown as Record<string, unknown>)[name];
+    }
+  });
+
+  it('is under the top line and above a bar pinned at the bottom, less the room kept over the bar', () => {
+    phonePage();
+    expect(bottomBarTop()).toBe(735);
+    expect(visibleBand()).toEqual({ top: 64, bottom: 735 });
+    expect(visibleBand(64)).toEqual({ top: 64, bottom: 671 });
+    // A bar in the page's flow (a window too low for a pinned one) covers nothing.
+    document.querySelector<HTMLElement>('.ex-cta')!.style.position = 'static';
+    expect(bottomBarTop()).toBeNull();
+    expect(visibleBand(64)).toEqual({ top: 64, bottom: 844 });
+  });
+
+  it('jumps a far question into that part at once, its middle in the middle — never a glide the page turns smooth', async () => {
+    phonePage();
+    // Back from the protocol at 1754 px: question 5 far below, the bar and the count's room over the bottom.
+    await bringIntoView(block(1900, 391), true, { cancelled: false }, 64);
+    // The part is 76..659 (12 px of air): 583 px, the 391 px question in its middle from 172 px.
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1754 + 1900 - 172, behavior: 'instant' });
+  });
+
+  it('leaves a question that is in that part already where it is', async () => {
+    phonePage();
+    await bringIntoView(block(200, 391), true, { cancelled: false }, 64);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('takes a question half under the bar out of it — smoothly when it is near, and waits for the scroll', async () => {
+    phonePage();
+    let done = false;
+    const brought = bringIntoView(block(500, 391), true, { cancelled: false }, 64).then(() => {
+      done = true;
+    });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1754 + 500 - 172, behavior: 'smooth' });
+    await Promise.resolve();
+    expect(done).toBe(false);
+    window.dispatchEvent(new Event('scrollend'));
+    await brought;
+    expect(done).toBe(true);
+  });
+
+  it('puts a question taller than that part with its top under the top line; without motion it jumps', async () => {
+    phonePage();
+    await bringIntoView(block(900, 700), false, { cancelled: false }, 64);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1754 + 900 - 76, behavior: 'instant' });
+  });
+
+  it('on a computer (no bar) keeps no room over the bottom', async () => {
+    phonePage(false);
+    await bringIntoView(block(2000, 300), true, { cancelled: false }, 64);
+    // 76..832: 756 px, the 300 px question from 304 px.
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1754 + 2000 - 304, behavior: 'instant' });
   });
 });

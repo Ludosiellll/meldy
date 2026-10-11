@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { daysUntil, formatShortDay } from '../../../lib/exams/format';
 import {
   buildSheet,
   changeSummary,
+  countsWith,
   lastAnswerSession,
   localDayOf,
   quietReason,
@@ -164,8 +165,10 @@ export interface SheetPage {
 }
 
 interface ReplayState extends SheetReplay {
-  /** The counter while the show plays: the sheet before the answer. */
+  /** The counter while the show plays: the sheet before the answer, with the lines drawn so far (`made`). */
   beforeCounts: SheetCounts;
+  /** The lines of the show whose change is drawn already (CheatSheet onReplayStep). */
+  made: ReadonlySet<string>;
   /** «После ответа: …» — and, smaller under it, why named lines stayed as they were (or null). */
   sentence: string;
   note: string | null;
@@ -255,9 +258,10 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
 
   // «Только то, что осталось» turns on by itself when half the lines are erased or the exam is today or
   // tomorrow. Decided once a visit, when the sheet is first there: an answer that crosses the half
-  // does not make the erased lines vanish in the middle of its show.
+  // does not make the erased lines vanish in the middle of its show. A layout effect, as the after-answer
+  // show's below: the switch and the show change in one commit, so the lines the show erased stay drawn.
   const modeDecided = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!ready || modeTouched.current || modeDecided.current || sheet.counts.total === 0) return;
     modeDecided.current = true;
     const days = daysUntil(examDate);
@@ -356,6 +360,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         slow: stage,
         waitForClick: stage,
         beforeCounts: around.before.counts,
+        made: new Set(),
         sentence: changeSentence(summary, day !== localDayOf(data.now) ? day : null),
         note: changeNote(summary, quietReason(around.after, sessions, new Set(changes.map((change) => change.key))), data.now),
       });
@@ -372,8 +377,12 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     [data.questions, data.events, data.now, examDate, sheet],
   );
 
-  // The after-answer flag: the sheet's show instead of the one of «Вопросы» (one controller).
-  useEffect(() => {
+  // The after-answer flag: the sheet's show instead of the one of «Вопросы» (one controller). A layout effect: the show
+  // starts before the first frame, so the paper and the counter are never seen as after the answer and then go back
+  // (the example's /try from its protocol: 44, then 47, then 44), and the question is brought into view before the eye
+  // sees the page at all. A page that takes the flag in an effect of its own (the exam page) starts the show when its
+  // journal is read, as before.
+  useLayoutEffect(() => {
     if (!active || !ready) return;
     const flags = input.peakFlags.current;
     if (!flags || flags.length === 0) return;
@@ -408,16 +417,28 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     },
     [side],
   );
+  // A line of the show is drawn: the counter takes it at once (it waited for the whole show: struck at 1.5 s, counted
+  // at 2.8 s — jury QA of /try, 2026-10-11). On a phone the count rides over the bottom bar from the first line on,
+  // beside the question being played: the counter at the top of the card is out of sight then.
+  const onReplayStep = useCallback(
+    (token: number, keys: readonly string[]) => {
+      if (token !== replaySeq.current) return;
+      setReplay((current) => (current && current.token === token ? { ...current, made: new Set([...current.made, ...keys]) } : current));
+      if (!side) setChip(true);
+    },
+    [side],
+  );
   // Heard once the show is over: what changed, why some named lines stayed, and the count.
   useEffect(() => {
     if (!replay || replayLive) return;
     setAnnouncement([replay.sentence, replay.note, `${counts.left} ${counterLabel({ left: counts.left, total: counts.total })}.`].filter(Boolean).join(' '));
   }, [replay, replayLive, counts.left, counts.total]);
+  // The end of a show stays a while once the show is over (from its first line it is there as long as the show is).
   useEffect(() => {
-    if (!chip) return undefined;
+    if (!chip || replayLive) return undefined;
     const timer = window.setTimeout(() => setChip(false), CHIP_MS);
     return () => window.clearTimeout(timer);
-  }, [chip]);
+  }, [chip, replayLive]);
   const onWaiting = useCallback((show: (() => void) | null) => setWaitingShow(() => show), []);
 
   // ── «История шпаргалки» (spec 6.6) ─────────────────────────────────────────────────────
@@ -562,8 +583,18 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   );
 
   // ── Parts ──────────────────────────────────────────────────────────────────────────────
-  // While an answer is shown the counter (and its details) are the sheet's before the answer.
-  const shownCounts = replay && replayLive ? replay.beforeCounts : counts;
+  // While an answer is shown the counter (and its details) are the sheet's before the answer, with each line taken
+  // as it is drawn; it rolls from the first one on (not from the sheet after the answer back to the one before it).
+  const essentialKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const block of sheet.blocks) for (const line of block.lines) if (line.essential) keys.add(line.key);
+    return keys;
+  }, [sheet.blocks]);
+  const shownCounts = useMemo(
+    () => (replay && replayLive ? countsWith(replay.beforeCounts, replay.changes, replay.made, essentialKeys) : counts),
+    [replay, replayLive, counts, essentialKeys],
+  );
+  const rolling = Boolean(replay) && (!replayLive || (replay?.made.size ?? 0) > 0);
   const writing = data.write.phase === 'running';
   const showWrite = writing || data.toWrite > 0 || data.unwritable > 0 || data.write.phase !== 'idle';
   const firstWrite = data.written === 0 && data.toWrite > 0 && !input.mappingRunning;
@@ -582,7 +613,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       id={variant === 'top' || variant === 'phone' ? undefined : `cs-sum-${examId}`}
       counts={shownCounts}
       left={shownCounts.left}
-      roll={Boolean(replay) && !replayLive}
+      roll={rolling}
       writing={writing}
       shareLine={input.shareLine}
       changeLine={replay && !replayLive ? replay.sentence : null}
@@ -750,11 +781,19 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
           ) : null}
         </div>
       ) : null}
-      {/* The end of a show: for the eye only (the status region tells a screen reader); a tap hides it. */}
+      {/* A show on a phone: the count beside the lines as they go, then what changed. For the eye only (the status
+          region tells a screen reader); a tap hides it. */}
       {chip && replay && !history && !selected ? (
         <div className="cs-chip" aria-hidden="true" onClick={() => setChip(false)} style={{ left: input.frameBox?.left ?? 0, right: input.frameBox?.right ?? 0 }}>
-          <span className="cs-chip-t">{replay.sentence}</span>
-          <span className="cs-chip-n">{`${counts.left} ${counterLabel({ left: counts.left, total: counts.total })}`}</span>
+          {replayLive ? (
+            // The number steps with each strike (the strike is the movement): its words always agree with it.
+            <span className="cs-chip-t">{`${shownCounts.left} ${counterLabel({ left: shownCounts.left, total: shownCounts.total })}`}</span>
+          ) : (
+            <>
+              <span className="cs-chip-t">{replay.sentence}</span>
+              <span className="cs-chip-n">{`${counts.left} ${counterLabel({ left: counts.left, total: counts.total })}`}</span>
+            </>
+          )}
         </div>
       ) : null}
     </>
@@ -794,6 +833,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
       onQuestion={onQuestion}
       onZoomPick={onZoomPick}
       onReplayEnd={onReplayEnd}
+      onReplayStep={onReplayStep}
     />
   ) : journalFailed ? (
     journalError

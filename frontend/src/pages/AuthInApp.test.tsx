@@ -75,9 +75,9 @@ afterEach(() => {
 });
 
 describe.each([
-  ['/login', 'Войти по почте можно и здесь.', 'Войти', 'Войти через Google'],
-  ['/register', 'Зарегистрироваться по почте можно и здесь.', 'Создать аккаунт', 'Продолжить с Google'],
-])('%s inside a messenger', (page, mailLine, submit, google) => {
+  ['/login', 'Войти по почте можно и здесь.', 'Войти', 'Войти через Google', 'Email'],
+  ['/register', 'Зарегистрироваться по почте можно и здесь.', 'Создать аккаунт', 'Продолжить с Google', 'Почта'],
+])('%s inside a messenger', (page, mailLine, submit, google, emailLabel) => {
   it('in Telegram on Android: the /join note, the link with its way back into Chrome, no Google, e-mail stays', async () => {
     setAgent(UA.telegramAndroid);
     const writeText = vi.fn(async () => undefined);
@@ -100,7 +100,7 @@ describe.each([
     // E-mail stays, under the note.
     const button = screen.getByRole('button', { name: submit });
     expect(box.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByLabelText(emailLabel)).toBeInTheDocument();
   });
 
   it('in Telegram on iPhone (a web view without Safari): where to tap, no Chrome link, no Google', () => {

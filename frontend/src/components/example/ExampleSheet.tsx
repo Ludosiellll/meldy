@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import ExamSheet, { type SheetRowView } from '../exams/ExamSheet';
 import { Mark } from '../marks';
-import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../exams/marks';
+import { COVERAGE_MARK, COVERAGE_MARK_SIZE, COVERAGE_PILL_WORDS, PILL_MARK_SCALE, type SheetCoverage } from '../exams/marks';
 import {
   caveatSentence,
   coverageCounts,
@@ -22,10 +22,11 @@ import { useFrame } from '../exams/useFrame';
 import { pluralRu } from '../conversation/visuals';
 import { KIND_LABELS } from '../../lib/exams/format';
 import { splitFragmentHeading } from '../../utils/fragmentText';
-import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, answerableQuestions, exampleExamQuestion } from '../../data/example';
+import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, exampleDrawPool, exampleExamQuestion } from '../../data/example';
 import { parsePeakFlags, type PeakFlag } from '../exams/peak';
 import { useSheetView, type SheetLinks } from '../exams/sheet/useSheetPage';
 import { useAuth } from '../../hooks/useAuth';
+import { FROM_TRY } from '../../lib/returnTo';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import ExampleWhy from './ExampleWhy';
 import TryBar, { CREATE_ACCOUNT_LABEL, CREATE_EXAM_LABEL, ownExamHref, START_OWN_LABEL, useMinWidth } from './TryBar';
@@ -111,10 +112,11 @@ export default function ExampleSheet() {
   const onSheet = view === 'sheet';
   // The guest's answer just given: the sheet plays what it changed, once (the after-answer flag).
   // Taken in an effect, once: a render may run twice (StrictMode) and must not take the flag away.
-  // Declared before the sheet's hook: effects run in order, and the sheet reads the flag in its own.
+  // Declared before the sheet's hook: effects run in order, and the sheet reads the flag in its own — a layout
+  // effect, so the show starts before the page is first seen (useSheetPage).
   const peakFlags = useRef<PeakFlag[] | null>(null);
   const peakTaken = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (peakTaken.current) return;
     peakTaken.current = true;
     peakFlags.current = parsePeakFlags(takeTryPeak());
@@ -124,7 +126,7 @@ export default function ExampleSheet() {
   // their own (PUB-18); until then it is the scripted answer to question 5 (PUB-15).
   const answered = sheetData.events.some((event) => event.session_id !== null && !isSeededSession(event.session_id));
   const ownLink = (
-    <Link className="sf-primary tx-own-go" to={ownExamHref(Boolean(user))}>
+    <Link className="sf-primary tx-own-go" to={ownExamHref(Boolean(user))} state={FROM_TRY}>
       {user ? CREATE_EXAM_LABEL : roomy ? START_OWN_LABEL : CREATE_ACCOUNT_LABEL}
     </Link>
   );
@@ -214,7 +216,12 @@ export default function ExampleSheet() {
   const toggle = (value: SheetFilter) => setFilter((current) => (current === value ? 'all' : value));
 
   const meta = [KIND_LABELS[EXAMPLE_EXAM.kind], layoutPhrase(counts.total, EXAMPLE_EXAM.layout), lecturesPhrase(EXAMPLE_LECTURES.length)].join(' · ');
-  const answerable = answerableQuestions().length;
+  // The draw's pool in the words of the sheet's pills: «есть в лекциях» here is the 9 found in full (the share and the
+  // filter say so), so the 11 a ticket is drawn from are said as 9 and 2, not «11, которые есть в лекциях».
+  const pool = exampleDrawPool();
+  const poolWords = `${pool.total} ${pluralRu(pool.total, ['вопроса', 'вопросов', 'вопросов'])} примера${
+    pool.partial > 0 ? `: ${pool.full} ${COVERAGE_PILL_WORDS.full}, ${pool.partial} — ${COVERAGE_PILL_WORDS.partial}` : `, которые ${COVERAGE_PILL_WORDS.full}`
+  }`;
 
   const summary = (
     <>
@@ -251,7 +258,7 @@ export default function ExampleSheet() {
       <div className="ex-blk">
         <p className="ex-stmt tx-privacy">{glue(EXAMPLE_ANSWERS_NOTE)}</p>
         <p className="ex-fine">
-          {glue(`В своём экзамене вопрос подтверждается, когда дважды, в разные дни, в ответе на него названо достаточно пунктов. Тянуть билет можно из ${answerable} ${pluralRu(answerable, ['вопроса', 'вопросов', 'вопросов'])} примера, которые есть в лекциях.`)}
+          {glue(`В своём экзамене вопрос подтверждается, когда дважды, в разные дни, в ответе на него названо достаточно пунктов. Тянуть билет можно из ${poolWords}.`)}
         </p>
       </div>
     </>

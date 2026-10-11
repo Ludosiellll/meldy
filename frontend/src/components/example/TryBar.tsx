@@ -1,7 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { withReturn } from '../../lib/returnTo';
+import { FROM_TRY, withReturn } from '../../lib/returnTo';
 
 /**
  * The call to sign up (the orchestrator's decision 5, PUB-24): «Начать со своего списка» where there is room,
@@ -92,7 +92,7 @@ export default function TryBar({ where, back, onLeave }: TryBarProps) {
             <Link className="tx-pill tx-login" to="/login" onClick={go('/login')}>
               Войти
             </Link>
-            <Link className="tx-pill" data-blue="" to={start} onClick={go(start)}>
+            <Link className="tx-pill" data-blue="" to={start} state={FROM_TRY} onClick={go(start)}>
               {roomy ? START_OWN_LABEL : CREATE_ACCOUNT_LABEL}
             </Link>
           </>

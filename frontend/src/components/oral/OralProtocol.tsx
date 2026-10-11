@@ -130,6 +130,17 @@ export function namedAfterQuestion(status: PointStatus, followup: Pick<ProtocolF
 }
 
 /**
+ * The check's comment on a point the reply named later, said as the answer's: «В ответе: пункт про … полностью
+ * отсутствует.» (a word in capitals, an abbreviation, keeps them).
+ */
+export function answerComment(comment: string): string {
+  const text = comment.trim();
+  const [first = '', second = ''] = text;
+  const lower = first.toLocaleLowerCase('ru-RU');
+  return `В ответе: ${first !== lower && second === second.toLocaleLowerCase('ru-RU') ? lower + text.slice(first.length) : text}`;
+}
+
+/**
  * The asked point's one status (EX-30: «упомянут», «по ключевым словам не назван» and «пункт назван» on one
  * card read as three verdicts): «назван только после вопроса экзаменатора» when the reply named it;
  * otherwise the answer's own word and what the reply did — «упомянут; после вопроса экзаменатора — не назван»,
@@ -232,9 +243,14 @@ export function keywordNote(live: boolean, status: PointStatus): string | null {
 
 /**
  * The line under the sheet's header that says why the examiner asked, so the asked point is clear
- * above the fold (redesign critique 4, round 2): «Пункт 4 не назван — о нём спросил экзаменатор.»
+ * above the fold (redesign critique 4, round 2): «Пункт 4 не назван — о нём спросил экзаменатор.» Once the reply
+ * named the point it says what happened, as the point's own line does: «Пункт 4 назван только после вопроса
+ * экзаменатора.» (it said «не назван» over a point named after the question: jury QA, 2026-10-11).
  */
-export function askedNote(number: number, status: PointStatus): string {
+export function askedNote(number: number, status: PointStatus, followup: Pick<ProtocolFollowup, 'status'> | null = null): string {
+  if (namedAfterQuestion(status, followup)) {
+    return status === 'wrong' ? `В пункте ${number} ошибка — верно только после вопроса экзаменатора.` : `Пункт ${number} ${AFTER_QUESTION}.`;
+  }
   if (status === 'missing') return `Пункт ${number} не назван — о нём спросил экзаменатор.`;
   if (status === 'wrong') return `В пункте ${number} ошибка — о ней спросил экзаменатор.`;
   if (status === 'partial') return `Пункт ${number} упомянут не полностью — о нём спросил экзаменатор.`;
@@ -304,6 +320,9 @@ function PointRow({
   // on the point the examiner asked about: there the question and the reply decide, and one status says it (EX-30).
   const why = asked ? null : keywordNote(point.live, point.status);
   const showComment = Boolean(point.comment) && point.status !== 'unrated' && (point.status !== 'covered' || why !== null);
+  // The check's comment is about the answer. Under «назван только после вопроса экзаменатора» it says so, or «…полностью
+  // отсутствует» read as the point's last word (jury QA, 2026-10-11).
+  const comment = after ? answerComment(point.comment) : point.comment;
   return (
     // The asked point takes the focus from the line under the sheet's header («Пункт 4 не назван…»).
     <li
@@ -325,7 +344,7 @@ function PointRow({
         <p className="or-ppt-t">{point.title}</p>
         <p className="or-ppt-st">{statusLine}</p>
         {why ? <p className="or-ppt-why">{why}</p> : null}
-        {showComment ? <p className="or-ppt-cm sf-pnote">{point.comment}</p> : null}
+        {showComment ? <p className="or-ppt-cm sf-pnote">{comment}</p> : null}
         {point.corrections.map((correction, index) => (
           <p key={index} className="or-ppt-cm sf-pnote">
             Поправка: {correction}
@@ -448,7 +467,7 @@ export function ProtocolSheet({ heading, points, followup, sheetNote = null, che
       {asked ? (
         <p className="or-asked">
           <button type="button" className="sf-link or-asked-link" onClick={showAsked}>
-            {askedNote(asked.number, asked.status)}
+            {askedNote(asked.number, asked.status, followup)}
           </button>
         </p>
       ) : null}
@@ -543,7 +562,7 @@ export function ProtocolResult({ points, followup, previous, fine, children }: P
         Итог
       </p>
       <p className="or-sum">{line ? summaryText(line) : 'Ни один пункт не оценён.'}</p>
-      {line ? <p className="or-grade-why">{glue(countsSentence(summary.counts))}</p> : null}
+      {line ? <p className="or-grade-why">{glue(countsSentence(summary.counts, summary.afterQuestionFrom))}</p> : null}
       <p className="or-how-row">
         {/* aria-controls only while the panel is there: collapsed, it is not rendered (QA 2026-10-07). */}
         <button

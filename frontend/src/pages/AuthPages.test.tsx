@@ -56,8 +56,8 @@ function renderAt(path: string) {
 
 function fillRegister({ name = 'Алина', email = 'alina@example.com', password = 'Secret123', confirm }: { name?: string; email?: string; password?: string; confirm?: string } = {}) {
   fireEvent.change(screen.getByLabelText('Имя'), { target: { value: name } });
-  fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } });
-  fireEvent.blur(screen.getByLabelText('Email'));
+  fireEvent.change(screen.getByLabelText('Почта'), { target: { value: email } });
+  fireEvent.blur(screen.getByLabelText('Почта'));
   fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: password } });
   fireEvent.change(screen.getByLabelText('Повтор пароля'), { target: { value: confirm ?? password } });
 }
@@ -132,9 +132,9 @@ describe('/register', () => {
     fillRegister({ email: 'alina@gmail.co' });
     const hint = screen.getByText(TYPO_NOTE).closest('p')!;
     expect(hint).toHaveClass('au-hint', 'au-hint--warn');
-    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByLabelText('Почта')).toHaveAttribute('aria-invalid', 'false');
     fireEvent.click(within(hint).getByRole('button', { name: 'Исправить на gmail.com' }));
-    expect(screen.getByLabelText('Email')).toHaveValue('alina@gmail.com');
+    expect(screen.getByLabelText('Почта')).toHaveValue('alina@gmail.com');
     expect(screen.queryByText(TYPO_NOTE)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: SIGN_UP_TITLE }));
     await waitFor(() => expect(auth.signUp).toHaveBeenCalledTimes(1));

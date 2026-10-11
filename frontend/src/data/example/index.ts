@@ -40,6 +40,16 @@ export function answerableQuestions(): ExampleQuestion[] {
   return EXAMPLE_QUESTIONS.filter((question) => question.coverage !== 'none' && question.points.length > 0);
 }
 
+/**
+ * The questions a ticket of the example is drawn from (answerableQuestions), by the sheet's marks: `full` of them «есть в
+ * лекциях», the rest «частично». The sheet's «есть в лекциях» is the full ones only — 9, beside the 11 of the draw.
+ */
+export function exampleDrawPool(): { total: number; full: number; partial: number } {
+  const pool = answerableQuestions();
+  const full = pool.filter((question) => question.coverage === 'full').length;
+  return { total: pool.length, full, partial: pool.length - full };
+}
+
 function material(key: LectureKey) {
   const lecture = lectureOf(key);
   return { material_id: lecture.materialId, material_title: lecture.title };
