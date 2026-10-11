@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { FROM_TRY } from '../../lib/returnTo';
 import { useConfirm } from '../../contexts/ConfirmContext';
 import { SPEECH_ERROR_MESSAGES, SPEECH_UNSUPPORTED_MESSAGE, joinSpeech, useSpeechAnswer } from '../../hooks/useSpeechAnswer';
 import { Mark, seedFrom } from '../marks';
@@ -83,6 +84,9 @@ export const EXAMPLE_PRIVACY_LINE =
 
 /** Leaving an unfinished answer: the tab keeps finished answers (the sheet erases by them), not this one (PUB-3). */
 export const LEAVE_MESSAGE = 'Ответ пропадёт: незаконченный ответ нигде не сохраняется.';
+
+/** The label of the example's own answer, put in by «Вставить ответ примера» and not changed since. */
+export const EXAMPLE_ANSWER_LABEL = 'Ответ примера';
 
 /** Before the answer, above the two ways to answer: what «Готово» leads to (EX-32 for the example; no units here). */
 export const EXAMPLE_NEXT_LINE = 'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из лекций.';
@@ -402,7 +406,8 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       });
       if (!ok) return;
     }
-    navigate(to);
+    // Every way out of the example says where it came from: the sign-up offers the way back.
+    navigate(to, { state: FROM_TRY });
   };
 
   // ── Answering ──
@@ -654,6 +659,8 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
 
   // ── What the screen says ──
   const heading = ticketHeading(null, 0, 1, String(question.number));
+  // «Вставить ответ примера» put the example's own answer in: it is not the guest's (it read «Ваш ответ, 0:01»).
+  const isExampleAnswer = (text: string) => question.id === EXAMPLE_ANSWER_QUESTION && text.trim() !== '' && text.trim() === EXAMPLE_ANSWER_Q5.trim();
   const seedBase = `example:${question.id}`;
   const elapsed = answerTime(state, now);
   // A guest signs up and lands on a new exam, as from the top bar's «Начать со своего списка».
@@ -699,7 +706,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
                 </button>
               </div>
               <p className="tx-grade-back">
-                <Link className="ex-secondary" to={createHref}>
+                <Link className="ex-secondary" to={createHref} state={FROM_TRY}>
                   Создать свой экзамен
                 </Link>
                 <button type="button" className="sf-link" data-muted="" onClick={answerAgain}>
@@ -756,7 +763,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
         <p className="or-next">{glue(EXAMPLE_NEXT_LINE)}</p>
         {answerChoice}
         {question.id === EXAMPLE_ANSWER_QUESTION ? (
-          <button type="button" className="sf-link tx-insert" onClick={insertExample}>
+          <button type="button" className="ex-secondary tx-insert" onClick={insertExample}>
             Вставить ответ примера
           </button>
         ) : null}
@@ -793,7 +800,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
         ) : null}
         {silence ? <p className="or-hint">Говорите — я слушаю.</p> : null}
         {voiceAnswer && question.id === EXAMPLE_ANSWER_QUESTION && !answerText.trim() ? (
-          <button type="button" className="sf-link tx-insert" onClick={insertExample}>
+          <button type="button" className="ex-secondary tx-insert" onClick={insertExample}>
             Вставить ответ примера
           </button>
         ) : null}
@@ -935,7 +942,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     answering && state.mode === 'text' ? (
       <div className="or-said">
         <label className="or-said-label" htmlFor="tx-answer-text">
-          {`Ваш ответ, ${elapsedLabel(elapsed)}`}
+          {isExampleAnswer(state.typed) ? EXAMPLE_ANSWER_LABEL : `Ваш ответ, ${elapsedLabel(elapsed)}`}
         </label>
         <textarea
           id="tx-answer-text"
@@ -957,7 +964,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
         <PasteNotice guard={answerPaste} />
         {/* The example's own answer to the question its sheet asks for (sheet spec 4.3). */}
         {question.id === EXAMPLE_ANSWER_QUESTION && !state.typed.trim() ? (
-          <button type="button" className="sf-link tx-insert" onClick={insertExample}>
+          <button type="button" className="ex-secondary tx-insert" onClick={insertExample}>
             Вставить ответ примера
           </button>
         ) : null}
@@ -966,7 +973,9 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       </div>
     ) : (
       <LiveTranscript
-        label={`Ваш ответ, ${elapsedLabel(state.attempt ? state.attempt.durationSeconds * 1000 : elapsed)}`}
+        label={
+          isExampleAnswer(shownFinal) ? EXAMPLE_ANSWER_LABEL : `Ваш ответ, ${elapsedLabel(state.attempt ? state.attempt.durationSeconds * 1000 : elapsed)}`
+        }
         finalText={shownFinal}
         interimText={shownInterim}
         underlined={answerFinalWords}

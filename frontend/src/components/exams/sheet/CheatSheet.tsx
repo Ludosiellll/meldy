@@ -114,6 +114,11 @@ export interface CheatSheetProps {
   /** «Весь лист на экране»: a click on a question leaves the overview there. */
   onZoomPick: (questionId: string) => void;
   onReplayEnd: (token: number) => void;
+  /**
+   * The lines of a show whose change is now drawn — a strike done, a line back in ink — reported as each one lands, so
+   * the counter moves with the paper, not after the whole show. Every line of the show is reported before its end.
+   */
+  onReplayStep?: (token: number, keys: readonly string[]) => void;
 }
 
 /** How a line moves: written in, named once, erased, back in the list, missed; covered again after «Подсмотреть». */
@@ -203,6 +208,13 @@ const STRIKE_PART = 0.85;
 /** Lines that move in one replay; past them everything changes at once. */
 const MAX_ANIMATED = 12;
 const SCROLL_FALLBACK_MS = 700;
+/** Air between a question brought into view and the bars over the page, px. */
+const VIEW_MARGIN = 12;
+/**
+ * A phone: the count of a show rides over the bottom bar (useSheetPage's chip, one line while the lines move): the
+ * question played stands above it, px.
+ */
+const CHIP_ROOM = 64;
 const MARKER_MS = 450;
 const TICK_AFTER_MS = 150;
 /** Between the questions of one show, and per line under reduced motion (each one changes at once). */
@@ -212,7 +224,8 @@ const REDUCED_LINE_MS = 300;
 const ZOOM_BOTTOM = 20;
 const ZOOM_TOP = 12;
 
-interface Signal {
+/** A show in progress: set once it is over (finished, skipped, replaced). */
+export interface Signal {
   cancelled: boolean;
 }
 
@@ -227,15 +240,28 @@ function sleep(ms: number, signal: Signal): Promise<void> {
 }
 
 /**
- * Scrolls the block to the middle of the window unless it is in view already, and waits for the scroll
- * to end. Farther than a screen and a half it jumps: a smooth scroll over metres of a list is a blur.
+ * Brings the block into the part of the window nothing covers (visibleBand) unless it is there already, and waits
+ * for the scroll to end: its middle in the middle of that part, or its top under the top line when it is taller.
+ * Farther than a screen and a half it jumps: a smooth scroll over metres of a list is a blur. The scroll says which
+ * it is: «auto» would take the page's own smooth scrolling (html { scroll-behavior }) and glide anyway — on a phone
+ * coming back from a protocol the question stood off screen while its lines were struck (jury QA, 2026-10-11).
  */
-async function bringIntoView(element: HTMLElement, smooth: boolean, signal: Signal): Promise<void> {
-  const box = element.getBoundingClientRect();
+export async function bringIntoView(element: HTMLElement, smooth: boolean, signal: Signal, reserve = 0): Promise<void> {
+  if (typeof window.scrollTo !== 'function') return;
   const viewport = window.innerHeight || document.documentElement.clientHeight;
-  if (box.top >= 80 && box.bottom <= viewport - 40) return;
-  const far = Math.abs(box.top + box.height / 2 - viewport / 2) > viewport * 1.5;
-  if (far) smooth = false;
+  const band = visibleBand(reserve);
+  const top = band.top + VIEW_MARGIN;
+  const bottom = Math.max(top, band.bottom - VIEW_MARGIN);
+  const box = element.getBoundingClientRect();
+  if (box.top >= top && box.bottom <= bottom) return;
+  const room = bottom - top;
+  const target = box.height <= room ? top + (room - box.height) / 2 : top;
+  const to = Math.max(0, Math.round(window.scrollY + box.top - target));
+  if (Math.abs(to - window.scrollY) < 2) return;
+  if (!smooth || Math.abs(box.top - target) > viewport * 1.5) {
+    window.scrollTo({ top: to, behavior: 'instant' });
+    return;
+  }
   await new Promise<void>((resolve) => {
     let done = false;
     const finish = () => {
@@ -246,9 +272,35 @@ async function bringIntoView(element: HTMLElement, smooth: boolean, signal: Sign
     };
     window.addEventListener('scrollend', finish, { once: true });
     window.setTimeout(finish, SCROLL_FALLBACK_MS);
-    if (typeof element.scrollIntoView === 'function') element.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
+    window.scrollTo({ top: to, behavior: 'smooth' });
     if (signal.cancelled) finish();
   });
+}
+
+/**
+ * The top of a bar pinned over the bottom of the page (a phone's «Тянуть билет», .ex-cta), px from the window's top;
+ * null when none covers the page (a computer, a window too low for it, the end of a short page).
+ */
+export function bottomBarTop(): number | null {
+  if (typeof document === 'undefined') return null;
+  const viewport = window.innerHeight || document.documentElement.clientHeight;
+  for (const bar of document.querySelectorAll<HTMLElement>('.ex-cta')) {
+    const position = getComputedStyle(bar).position;
+    if (position !== 'sticky' && position !== 'fixed') continue;
+    const box = bar.getBoundingClientRect();
+    if (box.height > 0 && box.top < viewport && box.bottom >= viewport - 2) return Math.max(0, box.top);
+  }
+  return null;
+}
+
+/**
+ * The part of the window the page is not covered in, px from its top: under the top line, above a bar pinned at the
+ * bottom — and `reserve` px above that bar, kept for what rides over it (the count of a show on a phone).
+ */
+export function visibleBand(reserve = 0): { top: number; bottom: number } {
+  const viewport = window.innerHeight || document.documentElement.clientHeight;
+  const bar = bottomBarTop();
+  return { top: topLineBottom(), bottom: bar === null ? viewport : bar - reserve };
 }
 
 /**
@@ -871,8 +923,11 @@ export default function CheatSheet({
   onQuestion,
   onZoomPick,
   onReplayEnd,
+  onReplayStep,
 }: CheatSheetProps) {
   const reduced = usePrefersReducedMotion();
+  const replayStepHandler = useRef(onReplayStep);
+  replayStepHandler.current = onReplayStep;
   const wrapRef = useRef<HTMLElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -1093,9 +1148,19 @@ export default function CheatSheet({
       if (handler) handler(on ? showNowRef.current : null);
       else setAwaitingClick(on);
     };
+    // Each line is reported when its change is drawn: the strike done, the line back in ink (the counter follows).
+    const landings: number[] = [];
+    const land = (keys: readonly string[]) => {
+      if (!signal.cancelled && keys.length > 0) replayStepHandler.current?.(replay.token, keys);
+    };
+    const landLater = (key: string, ms: number) => {
+      if (ms <= 0) land([key]);
+      else landings.push(window.setTimeout(() => land([key]), ms));
+    };
     const finish = () => {
       if (signal.cancelled) return;
       signal.cancelled = true;
+      for (const timer of landings) window.clearTimeout(timer);
       if (clickResolver.current) waiting(false);
       clickResolver.current = null;
       setOverrides(NO_STATUSES);
@@ -1126,10 +1191,12 @@ export default function CheatSheet({
         if (budget <= 0) {
           for (const change of group.changes) remaining.delete(change.key);
           setOverrides(new Map(remaining));
+          land(group.changes.map((change) => change.key));
           continue;
         }
+        // On a phone the count of the show rides over the bottom bar: the question stands above it.
         const element = document.getElementById(`cs-q-${group.questionId}`);
-        if (element) await bringIntoView(element, !reduced, signal);
+        if (element) await bringIntoView(element, !reduced, signal, CHIP_ROOM);
         if (signal.cancelled) return;
         if (index === 0 && replay.waitForClick) {
           await new Promise<void>((resolve) => {
@@ -1152,6 +1219,7 @@ export default function CheatSheet({
             remaining.delete(change.key);
             budget -= 1;
             setOverrides(new Map(remaining));
+            land([change.key]);
             await sleep(REDUCED_LINE_MS * factor, signal);
             if (signal.cancelled) return;
           }
@@ -1164,15 +1232,22 @@ export default function CheatSheet({
         if (signal.cancelled) return;
         const next = new Map<string, Motion>();
         const ends = new Map<string, number>();
+        // When each line's change is drawn: a strike when it has crossed the words (STRIKE_PART of its movement),
+        // any other movement half-way; a line that does not move changes at once.
+        const lands = new Map<string, number>();
         let at = 0;
         for (const change of group.changes) {
           remaining.delete(change.key);
           const anim = animFor(change.from, change.to);
-          if (!anim || budget <= 0) continue;
+          if (!anim || budget <= 0) {
+            lands.set(change.key, 0);
+            continue;
+          }
           budget -= 1;
           const ms = DURATION[anim] * factor;
           next.set(change.key, { anim, delay: at, ms, from: change.from });
           ends.set(change.key, at + ms);
+          lands.set(change.key, at + Math.round(ms * (anim === 'erase' ? STRIKE_PART : 0.5)));
           at += NEXT_AFTER[anim] * factor;
         }
         // The question's tick: drawn 150 ms after its last essential line is erased; or, when a line of it comes
@@ -1192,6 +1267,7 @@ export default function CheatSheet({
         setTicks(tickAt);
         setUnticks(untickAt);
         setPhase('lines');
+        for (const [key, ms] of lands) landLater(key, ms);
         const longest = Math.max(0, ...ends.values(), ...[...tickAt.values()].map((value) => value + 250), ...[...untickAt.values()].map((value) => value + 200));
         await sleep(longest + 120, signal);
         if (signal.cancelled) return;
@@ -1221,6 +1297,7 @@ export default function CheatSheet({
     return () => {
       // Replaced (another answer, the history) or gone with the card: nothing of this show stays drawn.
       signal.cancelled = true;
+      for (const timer of landings) window.clearTimeout(timer);
       const resolve = clickResolver.current;
       clickResolver.current = null;
       if (resolve) {

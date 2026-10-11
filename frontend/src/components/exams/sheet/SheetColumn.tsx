@@ -58,13 +58,16 @@ export function useUnitsLeft(userId: string | null): number | null {
 /**
  * The digits roll from the number on screen to the new one (a roll cut short by the next value goes on
  * from where it stood, so the history's fast frames never jump back); no roll under reduced motion.
+ * A number that does not roll is drawn in the same render: set from an effect it showed the old number
+ * for a frame (the sheet back from an answer: 44, then 47 — the count before the answer — then the show).
  */
 export function RollingNumber({ value, roll }: { value: number; roll: boolean }) {
   const reduced = usePrefersReducedMotion();
   const [shown, setShown] = useState(value);
   const current = useRef(value);
+  const rolls = roll && !reduced && typeof requestAnimationFrame === 'function';
   useEffect(() => {
-    if (!roll || reduced || typeof requestAnimationFrame !== 'function') {
+    if (!rolls) {
       current.current = value;
       setShown(value);
       return undefined;
@@ -82,8 +85,8 @@ export function RollingNumber({ value, roll }: { value: number; roll: boolean })
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [value, roll, reduced]);
-  return <>{shown}</>;
+  }, [value, rolls]);
+  return <>{rolls ? shown : value}</>;
 }
 
 // ── The summary card ───────────────────────────────────────────────────────────────────────

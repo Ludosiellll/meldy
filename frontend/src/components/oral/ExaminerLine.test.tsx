@@ -122,6 +122,95 @@ describe('<ExaminerLine>', () => {
     expect((container.querySelector('.or-examiner') as HTMLElement).style.marginTop).toBe('');
   });
 
+  describe('on a phone: the question and the answer above the answer bar (jury QA of /try, 2026-10-11)', () => {
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 0, width: 0, height, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+    /** A 360×800 phone: the room's top line to 64 px, the follow-up's answer bar pinned from 724 px; the window at `scrollY`. */
+    function phone(block: () => DOMRect, scrollY = 1200) {
+      vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+      vi.stubGlobal('innerHeight', 800);
+      vi.stubGlobal('scrollY', scrollY);
+      const scrollTo = vi.fn();
+      vi.stubGlobal('scrollTo', scrollTo);
+      const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        if (this.classList.contains('sf-room-bar')) return rect(0, 64);
+        if (this.classList.contains('or-acts')) return rect(724, 76);
+        if (this.classList.contains('or-examiner')) return block();
+        return rect(0, 0);
+      });
+      return { scrollTo, spy };
+    }
+    const room = (question = 'Какие крайние случаи ценовой эластичности спроса бывают?') => (
+      <div>
+        <header className="sf-room-bar" />
+        <ExaminerLine question={question} alignTo="p5">
+          <textarea aria-label="Ответ на вопрос экзаменатора" />
+          <div className="or-acts" style={{ position: 'fixed' }}>
+            <button type="button">Готово</button>
+          </div>
+        </ExaminerLine>
+      </div>
+    );
+
+    it('when the question comes, before it is seen: the least scroll that clears the bar', () => {
+      // At 360×800 the question ended at 738 px and the field at 866 px — under the bar from 724 px.
+      const { scrollTo, spy } = phone(() => rect(601, 265));
+      render(room());
+      // The band is 76..712 (12 px of air): the block's end goes up by 866 − 712.
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenCalledWith({ top: 1200 + 866 - 712, behavior: 'instant' });
+      spy.mockRestore();
+    });
+
+    it('a block in the band already is left where it is', () => {
+      const { scrollTo, spy } = phone(() => rect(300, 265));
+      render(room());
+      expect(scrollTo).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('a block taller than the band shows its question first', () => {
+      const { scrollTo, spy } = phone(() => rect(601, 700));
+      render(room());
+      expect(scrollTo).toHaveBeenCalledWith({ top: 1200 + 601 - 76, behavior: 'instant' });
+      spy.mockRestore();
+    });
+
+    it('grown under the eye (the transcript opens), it follows smoothly; scrolled away from, it stays', () => {
+      let observed: (() => void) | null = null;
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(callback: () => void) {
+            observed = callback;
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+      let box = rect(300, 265);
+      let blockHeight = 265;
+      const { scrollTo, spy } = phone(() => box);
+      const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains('or-examiner') ? blockHeight : 0;
+      });
+      render(room());
+      expect(scrollTo).not.toHaveBeenCalled();
+      // The transcript under the question: 120 px more, its end under the bar.
+      blockHeight = 385;
+      box = rect(400, 385);
+      act(() => observed?.());
+      expect(scrollTo).toHaveBeenCalledWith({ top: 1200 + 785 - 712, behavior: 'smooth' });
+      // The student scrolled up to the answer sheet (the block's top below the band): nothing moves when it grows.
+      scrollTo.mockClear();
+      blockHeight = 410;
+      box = rect(760, 410);
+      act(() => observed?.());
+      expect(scrollTo).not.toHaveBeenCalled();
+      spy.mockRestore();
+      height.mockRestore();
+    });
+  });
+
   it('says «Экзаменатор слушает ответ…» while the follow-up is chosen', () => {
     render(<ExaminerThinking />);
     expect(screen.getByRole('status')).toHaveTextContent('Экзаменатор слушает ответ…');

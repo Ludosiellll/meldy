@@ -211,14 +211,23 @@ function counted(n: number, singular: string, pluralForm: string): string {
  * The plain sentence under the result (redesign spec 5.12):
  * «Раскрыто 3 пункта из 5, один упомянут, один не назван.»; with an error
  * «Раскрыто 2 пункта из 5, в одном ошибка, один упомянут, один не назван.»
+ *
+ * `afterQuestion`: the status in the answer of the point the reply to the examiner named (answerSummary
+ * afterQuestionFrom). A point missed or mentioned is said as what it is now — «Раскрыто 4 пункта из 5, один назван
+ * после вопроса экзаменатора.», as its line and the line above say (it read «один не назван» beside «ещё 1 — после
+ * вопроса экзаменатора»: jury QA, 2026-10-11). A point said wrong stays an error: the error was made.
  */
-export function countsSentence(counts: GradeCounts): string {
-  const covered = counts.covered;
-  const head = `${covered === 1 || (covered % 10 === 1 && covered % 100 !== 11) ? 'Раскрыт' : 'Раскрыто'} ${covered} ${plural(covered, 'пункт', 'пункта', 'пунктов')} из ${counts.total}`;
+export function countsSentence(counts: GradeCounts, afterQuestion: PointStatus | null = null): string {
+  const moved = afterQuestion === 'missing' || afterQuestion === 'partial' ? afterQuestion : null;
+  const shown: GradeCounts = { ...counts };
+  if (moved && shown[moved] > 0) shown[moved] -= 1;
+  const covered = shown.covered;
+  const head = `${covered === 1 || (covered % 10 === 1 && covered % 100 !== 11) ? 'Раскрыт' : 'Раскрыто'} ${covered} ${plural(covered, 'пункт', 'пункта', 'пунктов')} из ${shown.total}`;
   const parts = [head];
-  if (counts.wrong > 0) parts.push(`${IN_NUMBER_WORDS[counts.wrong] ?? `в ${counts.wrong}`} ${counts.wrong === 1 ? 'ошибка' : 'ошибки'}`);
-  if (counts.partial > 0) parts.push(counted(counts.partial, 'упомянут', 'упомянуты'));
-  if (counts.missing > 0) parts.push(counted(counts.missing, 'не назван', 'не названы'));
-  if (counts.unrated > 0) parts.push(counted(counts.unrated, 'не оценён', 'не оценены'));
+  if (shown.wrong > 0) parts.push(`${IN_NUMBER_WORDS[shown.wrong] ?? `в ${shown.wrong}`} ${shown.wrong === 1 ? 'ошибка' : 'ошибки'}`);
+  if (moved && shown[moved] < counts[moved]) parts.push('один назван после вопроса экзаменатора');
+  if (shown.partial > 0) parts.push(counted(shown.partial, 'упомянут', 'упомянуты'));
+  if (shown.missing > 0) parts.push(counted(shown.missing, 'не назван', 'не названы'));
+  if (shown.unrated > 0) parts.push(counted(shown.unrated, 'не оценён', 'не оценены'));
   return `${parts.join(', ')}.`;
 }

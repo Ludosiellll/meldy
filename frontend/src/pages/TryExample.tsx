@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useState, type ComponentType } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 import '../components/oral/oral.css';
 import '../components/example/example.css';
 import ExampleSheet from '../components/example/ExampleSheet';
-import ExampleDraw from '../components/example/ExampleDraw';
-import ExampleTicket from '../components/example/ExampleTicket';
+import TryBar from '../components/example/TryBar';
+import { tryDrawPart, tryTicketPart } from '../components/example/tryParts';
+import RouteLoading from '../components/RouteLoading';
+import { useLazyPart, type LazyPart } from '../lib/lazyPart';
 import { track } from '../lib/telemetry';
 
 /**
@@ -17,25 +19,49 @@ import { track } from '../lib/telemetry';
  * the device (src/data/example, components/example) but for one call per answer: the AI check,
  * POST /api/try/evaluate (components/example/tryCheck.ts), with the key words when it is not there.
  * Nothing is saved but in this tab.
+ *
+ * The draw and the answer room are files of their own (components/example/tryParts): the sheet comes first.
  */
 export default function TryExample() {
   const { pathname } = useLocation();
 
   useEffect(() => track('try_opened'), []);
 
-  // Each step starts at its top, as a page of its own would.
-  useEffect(() => {
-    if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+  // Each step starts at its top, as a page of its own would: at once and before the step is seen. Smooth (the page's
+  // html { scroll-behavior }) and after the first frame, the step showed where the last one was scrolled to and then
+  // glided up — over the sheet's own show, which had played question 5 where it stood (jury QA, 2026-10-11). The
+  // sheet's show, started before the first frame too, then brings its question into view (CheatSheet bringIntoView).
+  useLayoutEffect(() => {
+    if (typeof window.scrollTo === 'function') window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [pathname]);
 
   return (
     <div className="tx-shell">
       <Routes>
         <Route index element={<ExampleSheet />} />
-        <Route path="draw" element={<ExampleDraw />} />
-        <Route path="ticket" element={<ExampleTicket />} />
+        {/* Keyed: the draw and the answer are two steps, not one step whose file changes. */}
+        <Route path="draw" element={<TryStep key="draw" part={tryDrawPart} />} />
+        <Route path="ticket" element={<TryStep key="ticket" part={tryTicketPart} />} />
         <Route path="*" element={<Navigate to="/try" replace />} />
       </Routes>
     </div>
+  );
+}
+
+/**
+ * A step of the example that is a file of its own: at once when its file is in (fetched once the sheet was idle,
+ * lib/prefetch.ts), else the step's top line and the page loader until it arrives. It never suspends (lib/lazyPart),
+ * so the sheet is not held back for it. A file that did not load goes to the boundary, as a page's does.
+ */
+function TryStep({ part }: { part: LazyPart<ComponentType> }) {
+  const [failure, setFailure] = useState<{ error: unknown } | null>(null);
+  const Step = useLazyPart(part, true, { onError: (error) => setFailure({ error }) });
+  if (failure) throw failure.error;
+  if (Step) return <Step />;
+  return (
+    <>
+      <TryBar where="Лист примера" back="/try" />
+      <RouteLoading fullScreen={false} />
+    </>
   );
 }

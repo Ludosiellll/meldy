@@ -4,16 +4,23 @@ import DrawStack, { ticketTitle, type DrawnCardQuestion } from '../exams/DrawSta
 import { glue } from '../exams/sheetModel';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import { pluralRu } from '../conversation/visuals';
-import { EXAMPLE_QUESTIONS, answerableQuestions, type ExampleQuestion } from '../../data/example';
+import { COVERAGE_PILL_WORDS } from '../exams/marks';
+import { EXAMPLE_QUESTIONS, exampleDrawPool, type ExampleQuestion } from '../../data/example';
 import { drawExampleQuestion } from './exampleFlow';
 import TryBar from './TryBar';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
-/** «Случайно из 11 вопросов, которые есть в лекциях примера.» — what the card is drawn from. */
+/**
+ * «Случайно из 11 вопросов примера: 9 есть в лекциях, 2 — частично.» — what the card is drawn from, in the words of the
+ * sheet's own pills: «…из 11 вопросов, которые есть в лекциях» stood beside «есть в лекциях 9» (jury QA, 2026-10-11).
+ */
 export function examplePoolLine(): string {
-  const count = answerableQuestions().length;
-  return `Случайно из ${count} ${pluralRu(count, ['вопроса', 'вопросов', 'вопросов'])}, которые есть в лекциях примера.`;
+  const pool = exampleDrawPool();
+  const from = `Случайно из ${pool.total} ${pluralRu(pool.total, ['вопроса', 'вопросов', 'вопросов'])} примера`;
+  return pool.partial > 0
+    ? `${from}: ${pool.full} ${COVERAGE_PILL_WORDS.full}, ${pool.partial} — ${COVERAGE_PILL_WORDS.partial}.`
+    : `${from}, которые ${COVERAGE_PILL_WORDS.full}.`;
 }
 
 /** «Вопроса 12 нет в лекциях примера…» — the question the draw leaves out, and why. */

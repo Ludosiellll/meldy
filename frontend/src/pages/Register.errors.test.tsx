@@ -31,7 +31,7 @@ function renderRegister() {
 
 function submit() {
   fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Алина' } });
-  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'alina@example.com' } });
+  fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'alina@example.com' } });
   fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Secret123' } });
   fireEvent.change(screen.getByLabelText('Повтор пароля'), { target: { value: 'Secret123' } });
   fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
@@ -85,7 +85,7 @@ describe('Register: an empty form never reaches Supabase', () => {
     const alerts = screen.getAllByRole('alert').map((element) => element.textContent);
     expect(alerts).toEqual([EMPTY_FIELD_MESSAGES.name, EMPTY_FIELD_MESSAGES.email, EMPTY_FIELD_MESSAGES.password]);
     expect(screen.getByLabelText('Имя')).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Почта')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText('Пароль')).toHaveAttribute('aria-invalid', 'true');
     // The same classes as the other inline errors of the form (name and e-mail red, the password's hint yellow).
     expect(screen.getByText(EMPTY_FIELD_MESSAGES.name)).toHaveClass('au-hint', 'au-hint--error');
@@ -97,7 +97,7 @@ describe('Register: an empty form never reaches Supabase', () => {
   it('spaces are empty too; a filled field clears its message as it is typed', () => {
     renderRegister();
     fireEvent.change(screen.getByLabelText('Имя'), { target: { value: '   ' } });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'alina@example.com' } });
+    fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'alina@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
     expect(auth.signUp).not.toHaveBeenCalled();
     expect(screen.getAllByRole('alert').map((element) => element.textContent)).toEqual([
@@ -111,7 +111,7 @@ describe('Register: an empty form never reaches Supabase', () => {
   it('the form checks itself (no browser bubbles in another language) and still marks the fields as required', () => {
     renderRegister();
     expect(screen.getByRole('button', { name: 'Создать аккаунт' }).closest('form')).toHaveAttribute('novalidate');
-    for (const label of ['Имя', 'Email', 'Пароль']) expect(screen.getByLabelText(label)).toBeRequired();
+    for (const label of ['Имя', 'Почта', 'Пароль']) expect(screen.getByLabelText(label)).toBeRequired();
   });
 
   it('emptySignUpFields names only the empty ones', () => {

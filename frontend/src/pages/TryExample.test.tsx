@@ -1,7 +1,8 @@
 import { StrictMode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { FROM_TRY } from '../lib/returnTo';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
 
 const mocks = vi.hoisted(() => ({
@@ -24,8 +25,10 @@ import {
   FOLLOWUP_LISTEN_MS,
   FOLLOWUP_WAIT_MS,
   LEAVE_MESSAGE,
+  EXAMPLE_ANSWER_LABEL,
 } from '../components/example/ExampleTicket';
 import { resetExampleDraws } from '../components/example/exampleFlow';
+import { tryDrawPart, tryTicketPart } from '../components/example/tryParts';
 import { EXAMPLE_ANSWER_Q5 } from '../components/example/trySheet';
 import { CHECKED_BY_AI, TRY_CHECK_TIMEOUT_MS, TRY_FOLLOWUP_TIMEOUT_MS } from '../components/example/tryCheck';
 import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
@@ -95,12 +98,23 @@ const ai = (points: Array<[string, string, string?, string?]>, extra: { errors?:
   },
 });
 
+/** The sign-up of the test: its heading, and the router state the way there carried (the way back to /try). */
+function RegisterProbe() {
+  const { state } = useLocation();
+  return (
+    <>
+      <h1>Регистрация</h1>
+      <p data-testid="register-from">{JSON.stringify(state ?? null)}</p>
+    </>
+  );
+}
+
 function renderAt(url: string, options: { strict?: boolean } = {}) {
   const tree = (
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="/try/*" element={<TryExample />} />
-        <Route path="/register" element={<h1>Регистрация</h1>} />
+        <Route path="/register" element={<RegisterProbe />} />
         <Route path="/login" element={<h1>Вход</h1>} />
         <Route path="/exams/new" element={<h1>Новый экзамен</h1>} />
         <Route path="/exams" element={<h1>Экзамены</h1>} />
@@ -137,6 +151,13 @@ const Q1_PARTIAL = 'Закон спроса такой: когда цена ра
 const Q1_FOLLOWUP = 'Это когда покупатели готовы купить определённое количество товара при каждой цене';
 const Q4_FULL =
   'Равновесие — это точка, где пересекаются кривые спроса и предложения. При равновесной цене величина спроса равна величине предложения. Если цена ниже равновесной, возникает дефицит: спрос превышает предложение. Если цена выше, возникает излишек, и продавцы снижают цену. В итоге цена сама приходит к равновесию.';
+
+// The draw and the answer room are files of their own (components/example/tryParts), fetched once the sheet is idle;
+// here they are in from the start, as after that prefetch, so every step shows at once (TryExample.lazy.test.tsx
+// covers a step whose file has not arrived).
+beforeAll(async () => {
+  await Promise.all([tryTicketPart.load(), tryDrawPart.load()]);
+});
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -195,6 +216,10 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByRole('button', { name: '1 вопроса нет ни в одной лекции. Показать его' })).toBeInTheDocument();
     expect(plain(document.querySelector('.ex-figs-now')?.textContent)).toBe('75 %');
     expect(plain(document.querySelector('.ex-share .ex-sub')?.textContent)).toBe('9 из 12 · частично — 2');
+    // «есть в лекциях» is one number on the page: the 9 of the share and of the filter; the draw's 11 are said as 9 and 2
+    // (it read «из 11 вопросов примера, которые есть в лекциях» beside «есть в лекциях 9»: jury QA, 2026-10-11).
+    expect(plain(screen.getByRole('button', { name: /^есть в лекциях/ }).textContent)).toBe('есть в лекциях 9');
+    expect(plain(screen.getByText(/Тянуть билет можно из/).textContent)).toMatch(/Тянуть билет можно из 11 вопросов примера: 9 есть в лекциях, 2 — частично\.$/);
     const sheet = screen.getByRole('article', { name: 'Список вопросов кафедры с пометками' });
     expect(within(sheet).getByRole('heading', { name: 'Вопросы к экзамену по микроэкономике' })).toBeInTheDocument();
     expect(within(sheet).getAllByRole('button')).toHaveLength(12);
@@ -222,7 +247,8 @@ describe('«Попробовать на примере» (/try)', () => {
     const card = screen.getByRole('article', { name: 'Вопрос 1' });
     expect(card).toHaveAttribute('aria-live', 'polite');
     expect(within(card).getByText('Спрос. Закон спроса и кривая спроса.')).toBeInTheDocument();
-    expect(screen.getByText('Случайно из 11 вопросов, которые есть в лекциях примера.')).toBeInTheDocument();
+    // The pool in the sheet's own words: «есть в лекциях» on the sheet is the 9 in full (jury QA, 2026-10-11).
+    expect(screen.getByText('Случайно из 11 вопросов примера: 9 есть в лекциях, 2 — частично.')).toBeInTheDocument();
     expect(plain(screen.getByText(/^Вопроса 12 нет в лекциях примера/).textContent)).toBe(
       'Вопроса 12 нет в лекциях примера: ответ не с чем сверить, поэтому в билеты он не попадает.',
     );
@@ -505,9 +531,13 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(field.value).toBe('');
     expect(screen.getByText(PASTE_REFUSED)).toBeInTheDocument();
     expect(plain(document.querySelector('.or-count-line')?.textContent)).toBe('По ключевым словам: 0 из 5');
-    // The button puts the example's own answer in, and the line about the refused paste goes away.
+    // The button puts the example's own answer in, and the line about the refused paste goes away. The answer is
+    // named as the example's (it read «Ваш ответ, 0:01»: jury QA, 2026-10-11), until the guest changes it.
     fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
-    expect((screen.getByLabelText(/^Ваш ответ/) as HTMLTextAreaElement).value).toBe(EXAMPLE_ANSWER_Q5);
+    expect((screen.getByLabelText(EXAMPLE_ANSWER_LABEL) as HTMLTextAreaElement).value).toBe(EXAMPLE_ANSWER_Q5);
+    fireEvent.change(screen.getByLabelText(EXAMPLE_ANSWER_LABEL), { target: { value: `${EXAMPLE_ANSWER_Q5} И ещё.` } });
+    expect(screen.getByLabelText(/^Ваш ответ, \d+:\d\d$/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/^Ваш ответ/), { target: { value: EXAMPLE_ANSWER_Q5 } });
     expect(plain(document.querySelector('.or-count-line')?.textContent)).toBe('По ключевым словам: 4 из 5');
     expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -549,7 +579,7 @@ describe('«Попробовать на примере» (/try)', () => {
     renderAt('/try/ticket?q=q5', { strict: true });
     // Straight from the ticket: the example's answer goes into a text answer.
     fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
-    expect(screen.getByLabelText(/^Ваш ответ/)).toHaveValue(EXAMPLE_ANSWER_Q5);
+    expect(screen.getByLabelText(EXAMPLE_ANSWER_LABEL)).toHaveValue(EXAMPLE_ANSWER_Q5);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     await toExaminer();
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
@@ -845,16 +875,82 @@ describe('the AI check of the example (/api/try/evaluate)', () => {
       ]);
     renderAt('/try/ticket?q=q5');
     fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
-    expect(screen.getByLabelText(/^Ваш ответ/)).toHaveValue(EXAMPLE_ANSWER_Q5);
+    expect(screen.getByLabelText(EXAMPLE_ANSWER_LABEL)).toHaveValue(EXAMPLE_ANSWER_Q5);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     await toExaminer();
     expect(screen.getByText('«Какие крайние случаи ценовой эластичности спроса бывают?»')).toBeInTheDocument();
+    // Under the examiner's question the answer is still the example's, by its name.
+    expect(screen.getByText(EXAMPLE_ANSWER_LABEL)).toBeInTheDocument();
+    expect(screen.queryByText(/^Ваш ответ/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 5' })).toBeInTheDocument();
     expect(checkLineText()).toBe(CHECKED_BY_AI);
     expect(protocolStatuses()).toEqual(['covered', 'covered', 'covered', 'covered', 'missing']);
     expect(plain(document.querySelector('.or-sheet-change')?.textContent)).toBe('На шпаргалке: 3 строки стёрлись, 1 — наполовину');
     expect(tryRequests.map((request) => request.body)).toEqual([{ question_id: 'q5', transcript: EXAMPLE_ANSWER_Q5 }]);
+  });
+
+  it('the jury’s path (QA 2026-10-11): the example’s answer as a pill, a two-word reply to the examiner counts, and every line of the protocol says so', async () => {
+    const reply = 'Совершенно неэластичный и совершенно эластичный спрос.';
+    tryReply = (body) =>
+      body.point_id
+        ? { status: 200, body: { mode: 'ai', status: 'covered' } }
+        : ai([
+            ['p1', 'covered', 'на сколько процентов изменится спрос, если цена изменится на один процент'],
+            ['p2', 'covered', 'Её считают как отношение процентного изменения спроса к процентному изменению цены'],
+            ['p3', 'covered', 'Если модуль больше единицы, спрос эластичный, если меньше единицы — неэластичный'],
+            ['p4', 'covered', 'Знак у эластичности обычно отрицательный, поэтому сравнивают модуль'],
+            ['p5', 'missing', '', 'Пункт про крайние случаи совершенно эластичного и неэластичного спроса полностью отсутствует.'],
+          ]);
+    vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+    renderAt('/try/ticket?q=q5');
+    // In a hall the microphone is the harder way: the example's answer is a white pill, not a link under the blue one.
+    const insert = screen.getByRole('button', { name: 'Вставить ответ примера' });
+    expect(insert).toHaveClass('ex-secondary');
+    expect(insert).not.toHaveClass('sf-link');
+    expect(screen.getByRole('button', { name: 'Отвечать голосом' })).toHaveClass('sf-primary');
+    fireEvent.click(insert);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await toExaminer();
+    const field = screen.getByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    fireEvent.change(field, { target: { value: reply } });
+    fireEvent.click(within(field.closest('.or-examiner') as HTMLElement).getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 5' })).toBeInTheDocument();
+    // The reply goes with the point's id only: the server knows what the examiner asked (backend try_api.py).
+    expect(tryRequests.map((request) => request.body)).toEqual([
+      { question_id: 'q5', transcript: EXAMPLE_ANSWER_Q5 },
+      { question_id: 'q5', point_id: 'p5', transcript: reply },
+    ]);
+    // One state, said everywhere: point 5 named only after the examiner's question.
+    expect(screen.getByRole('button', { name: 'Пункт 5 назван только после вопроса экзаменатора.' })).toBeInTheDocument();
+    const p5 = document.querySelector('.or-psheet [data-point="p5"]') as HTMLElement;
+    expect(plain(p5.querySelector('.or-ppt-st')?.textContent)).toBe('назван только после вопроса экзаменатора');
+    expect(plain(p5.querySelector('.or-ppt-cm')?.textContent)).toBe(
+      'В ответе: пункт про крайние случаи совершенно эластичного и неэластичного спроса полностью отсутствует.',
+    );
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Сами назвали 3 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора');
+    expect(plain(document.querySelector('.or-grade-why')?.textContent)).toBe('Раскрыто 4 пункта из 5, один назван после вопроса экзаменатора.');
+    for (const part of ['.or-psheet', '.or-grade']) expect(document.querySelector(part)?.textContent).not.toContain('не назван');
+  });
+
+  it('every way from the example to the sign-up carries the way back: the protocol’s «Создать свой экзамен», the top line mid-answer', async () => {
+    renderAt('/try/ticket?q=q5');
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
+    // Mid-answer the top line asks first (the answer would be lost), then goes — with the way back.
+    fireEvent.click(screen.getByRole('link', { name: /Начать со своего списка|Создать аккаунт/ }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Регистрация' })).toBeInTheDocument();
+    expect(mocks.confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('register-from').textContent).toBe(JSON.stringify(FROM_TRY));
+    cleanup();
+    renderAt('/try/ticket?q=q5');
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await toExaminer();
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 5' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Создать свой экзамен' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Регистрация' })).toBeInTheDocument();
+    expect(screen.getByTestId('register-from').textContent).toBe(JSON.stringify(FROM_TRY));
   });
 
   it('«Ответить ещё раз» starts a new check: the answer before it does not come back', async () => {

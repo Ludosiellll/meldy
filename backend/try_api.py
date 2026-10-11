@@ -34,10 +34,11 @@ timeout (TIMEOUT_SECONDS = 8 с), failed (сбой модели, неприго�
 404, ответ длиннее TRANSCRIPT_CHARS — 413.
 
 Ответ на вопрос экзаменатора: тело {"question_id", "point_id", "transcript"} — id пункта из копии примера
-и текст ответа на переспрос (вопрос и ожидаемый ответ клиент не присылает: пример спрашивает о мысли
-пункта, и модель сверяет ответ с ней). Ответ: {"mode": "ai", "status": covered | partial | missing |
-wrong} или те же {"mode": "keywords", "reason": …}; бюджет FOLLOWUP_TIMEOUT_SECONDS = 4,5 с, как у быстрой
-проверки билета. Пустой ответ и «не знаю» — missing без модели; пункт, которого у вопроса нет, — 400.
+и текст ответа на переспрос. Вопрос экзаменатора и то, что на него должно прозвучать, клиент не присылает:
+сервер берёт их из своей копии (followup пункта) и даёт модели, как /api/oral/check настоящего билета.
+Ответ: {"mode": "ai", "status": covered | partial | missing | wrong} или те же {"mode": "keywords",
+"reason": …}; бюджет FOLLOWUP_TIMEOUT_SECONDS = 4,5 с, как у быстрой проверки билета. Пустой ответ и
+«не знаю» — missing без модели; пункт, которого у вопроса нет, — 400.
 
 Счётчики потолков, пределы slowapi и кэш готовых протоколов живут в памяти процесса: Space работает
 одним процессом uvicorn, и для него этого достаточно; перезапуск или сон Space их обнуляет. Сутки
@@ -134,7 +135,20 @@ def parse_example(data: Any) -> dict[str, ExampleQuestion]:
                 raise ValueError(f"example copy: bad quote in {qid}")
             if not isinstance(essential, bool):
                 raise ValueError(f"example copy: bad essential in {qid}")
-            points.append({"id": point["id"], "title": _one_line(title), "essential": essential, "source_quote": _one_line(quote)})
+            followup = point.get("followup")
+            asked = followup.get("question") if isinstance(followup, dict) else None
+            expected = followup.get("expected") if isinstance(followup, dict) else None
+            if not isinstance(asked, str) or not asked.strip() or len(asked) > oral_api.FOLLOWUP_QUESTION_CHARS:
+                raise ValueError(f"example copy: bad follow-up question in {qid}")
+            if not isinstance(expected, str) or not expected.strip() or len(expected) > oral_api.FOLLOWUP_EXPECTED_CHARS:
+                raise ValueError(f"example copy: bad follow-up answer in {qid}")
+            points.append({
+                "id": point["id"],
+                "title": _one_line(title),
+                "essential": essential,
+                "source_quote": _one_line(quote),
+                "followup": {"question": _one_line(asked), "expected": _one_line(expected)},
+            })
         questions[qid] = ExampleQuestion(id=qid, text=_one_line(text), points=tuple(points))
     if not questions:
         raise ValueError("example copy: no questions")
@@ -360,8 +374,11 @@ def _keywords(reason: str) -> dict:
 
 async def _judge_followup(question: ExampleQuestion, points: list[dict], point_id: str, transcript: str, started: float) -> dict:
     """Ответ на вопрос экзаменатора о пункте point_id: статус пункта промптом C по одному пункту, как у
-    /api/oral/check с only, — или «проверьте ключевыми словами» с причиной. Вопроса экзаменатора у копии
-    нет: модель сверяет ответ с мыслью пункта (вопросы примера спрашивают именно о ней)."""
+    /api/oral/check с only, — или «проверьте ключевыми словами» с причиной. Вопрос экзаменатора и то, что на
+    него должно прозвучать, сервер берёт из своей копии (followup пункта), как настоящий билет — из эталона.
+    Без них модель не знала, о чём спросили: ответ словами самого пункта («Совершенно неэластичный и
+    совершенно эластичный спрос.» на «Какие крайние случаи…?») читался как повтор пункта — «не назван»
+    (живая проверка жюри 11.10)."""
     where = f"{question.id}/{point_id}"
     if not oral.words(transcript) or oral.says_dont_know(transcript):
         # «Не знаю» — ответ кнопки: пункт не назван, без модели.
@@ -380,12 +397,20 @@ async def _judge_followup(question: ExampleQuestion, points: list[dict], point_i
         _log(where, "keywords", "day_cap", pool, transcript, started)
         return _keywords("day_cap")
     agent = BaseAgent(api_key="", gemini_api_keys=pool.keys)
+    asked = next(point for point in points if point["id"] == point_id)["followup"]
     meta: dict = {}
     try:
         raw = await asyncio.wait_for(
             oral_api._run_model(
                 oral.build_check_prompt(point_id),
-                oral.build_check_input(question.text, points, transcript, only=point_id),
+                oral.build_check_input(
+                    question.text,
+                    points,
+                    transcript,
+                    only=point_id,
+                    followup_question=asked["question"],
+                    followup_expected=asked["expected"],
+                ),
                 budget=FOLLOWUP_TIMEOUT_SECONDS,
                 agent=agent,
                 thinking="off",

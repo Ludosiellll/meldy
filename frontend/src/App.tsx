@@ -8,6 +8,7 @@ import IdlePrefetch from './components/IdlePrefetch';
 import { ProWindowProvider } from './components/pro/ProWindow';
 import { layoutPart, preloadSignedInScreen } from './lib/prefetch';
 import { useLazyPart } from './lib/lazyPart';
+import { screenFile } from './lib/idle';
 import { joinPath, loginFor, pendingJoin } from './lib/returnTo';
 import { MINI_APP_PATH, useMiniApp } from './lib/telegram/miniApp';
 import TelegramChrome from './components/telegram/TelegramChrome';
@@ -44,7 +45,9 @@ const ExamDetail = lazy(() => import('./pages/ExamDetail'));
 const ExamDraw = lazy(() => import('./pages/ExamDraw'));
 const ExamTicket = lazy(loadExamTicket);
 const ExamReport = lazy(() => import('./pages/ExamReport'));
-const TryExample = lazy(() => import('./pages/TryExample'));
+// The example is opened from phones in a hall: what waits for idle time (the session, the next screens) waits for its
+// sheet's file too (lib/idle.ts screenFile).
+const TryExample = lazy(() => screenFile(import('./pages/TryExample')));
 const Check = lazy(() => import('./pages/Check'));
 const JoinGroup = lazy(() => import('./pages/JoinGroup'));
 // The exam container (meldy-notes 10_Project/Exam_Container_Spec_2026-10-09.md §7): an exam for a whole session.

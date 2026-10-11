@@ -952,13 +952,34 @@ def test_the_followup_reply_is_judged_against_what_the_question_expects():
     prompt = oral.build_check_prompt("p5")
     assert "ДОЛЖНО ПРОЗВУЧАТЬ" in prompt and "если её нет — с мыслью пункта" in prompt
     assert "рассказ о другом, даже со словами пункта" in prompt
-    # The /try example sends neither the question nor the expected answer: no empty lines, the point decides.
+    # A caller without the question or the expected answer: no empty lines, the point decides.
     bare = oral.build_check_input("Вопрос?", points, "ответ", only="p5")
     assert "ВОПРОС ЭКЗАМЕНАТОРА" not in bare and "ДОЛЖНО ПРОЗВУЧАТЬ" not in bare
     assert bare.splitlines()[:2] == ["ВОПРОС БИЛЕТА: Вопрос?", f"ПУНКТ ЭТАЛОНА: p5: {points[0]['title']}"]
     # The whole-answer check never gets these lines.
     whole = oral.build_check_input("Вопрос?", points, "ответ", followup_question="А?", followup_expected="Б.")
     assert "ДОЛЖНО ПРОЗВУЧАТЬ" not in whole and "ВОПРОС ЭКЗАМЕНАТОРА" not in whole
+
+
+def test_the_followup_reply_is_judged_by_what_was_asked_and_not_by_more_than_that():
+    # Jury QA of /try, 2026-10-11: «Какие крайние случаи ценовой эластичности спроса бывают?» — «Совершенно
+    # неэластичный и совершенно эластичный спрос.» was «не назван», the same reply with the definitions «назван». An
+    # answer to what was asked counts, short and in the point's own words too; what should be heard is the sample of a
+    # right answer, and the details the question does not ask for are not required.
+    prompt = oral.build_check_prompt("p5")
+    assert "Суди по тому, о чём ты спросил (строка «ВОПРОС ЭКЗАМЕНАТОРА»; если её нет — ты спрашивал о мысли пункта)" in prompt
+    assert "Это образец верного ответа: подробностей, о которых вопрос не спрашивает, не требуй." in prompt
+    assert '"covered" — студент по существу ответил на вопрос: прозвучало то, о чём спросили (коротко, своими словами или словами самого пункта — тоже считается)' in prompt
+    # Near misses stay out of «covered»: half an answer, general words or the question said back, a mix-up.
+    assert '"partial" — ответил на часть вопроса (например, из двух названо одно) или без сути;' in prompt
+    assert '"missing" — по существу не ответил: «не знаю», повтор вопроса, общие слова или рассказ о другом, даже со словами пункта;' in prompt
+    assert '"wrong" — сказано обратное, перепутано или неверно по сути.' in prompt
+    # Each status on a line of its own, and the four of them only.
+    for status in ('"covered" —', '"partial" —', '"missing" —', '"wrong" —'):
+        assert sum(line.startswith(status) for line in prompt.splitlines()) == 1
+    assert '{"statuses":{"p5":"covered"}}' in prompt
+    # The whole-answer check is not touched: it judges every point by its own thought.
+    assert "ВОПРОС ЭКЗАМЕНАТОРА" not in oral.build_check_prompt() and "образец верного ответа" not in oral.build_check_prompt()
 
 
 def test_the_rubric_asks_for_a_followup_whose_answer_is_the_points_own_thought():

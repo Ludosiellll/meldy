@@ -71,6 +71,16 @@ export function emailRedirectTo(origin: string, returnTo: string | null): string
   return `${origin}${afterSignIn(returnTo)}`;
 }
 
+// ── The example's way back ──────────────────────────────────────────────────────
+
+/** The router state of a page opened from the example (/try): the sign-up offers the way back to the example. */
+export const FROM_TRY = { from: '/try' } as const;
+
+/** Opened from the example: its router state says so (a reload keeps it; an address typed or shared does not). */
+export function cameFromTry(state: unknown): boolean {
+  return typeof state === 'object' && state !== null && (state as { from?: unknown }).from === FROM_TRY.from;
+}
+
 // ── A group link waiting on this device ─────────────────────────────────────────
 
 export const JOIN_PENDING_KEY = 'meldy_join_pending';

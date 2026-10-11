@@ -1,8 +1,9 @@
 /**
  * The example's questions as the server keeps them: backend/try_example.json, read by backend/try_api.py.
- * POST /api/try/evaluate takes only a question's id and the answer, and the server checks the answer
- * against these points — never against points or lecture text sent by a browser, so the open route is
- * no free way to the model.
+ * POST /api/try/evaluate takes only a question's id and the answer (and a point's id for the reply to the
+ * examiner), and the server checks the answer against these points and the reply against the point's own
+ * follow-up — never against points, questions or lecture text sent by a browser, so the open route is no
+ * free way to the model.
  *
  * One source of truth: this file is built from the example's own data (questions.ts, the lecture
  * texts), and serverCopy.test.ts fails when the backend's file differs from it. After a change of the
@@ -17,6 +18,12 @@ export interface ServerExamplePoint {
   essential: boolean;
   /** Word for word from the lecture: what the protocol's model compares the answer with. */
   source_quote: string;
+  /**
+   * The examiner's question about the point and what should be heard in reply: the model judges a reply by what was
+   * asked, as a real ticket's check does (/api/oral/check gets them from the rubric). Without them a short right reply
+   * in the point's own words read as a repeat of the point («не назван»; jury QA, 2026-10-11).
+   */
+  followup: { question: string; expected: string };
 }
 
 export interface ServerExampleQuestion {
@@ -48,7 +55,13 @@ export function exampleServerCopy(): ServerExampleCopy {
           number: question.number,
           text: question.text,
           lecture: question.lecture,
-          points: rubric.points.map((point) => ({ id: point.id, title: point.title, essential: point.essential, source_quote: point.source_quote })),
+          points: rubric.points.map((point) => ({
+            id: point.id,
+            title: point.title,
+            essential: point.essential,
+            source_quote: point.source_quote,
+            followup: { question: point.followup.question, expected: point.followup.expected },
+          })),
         },
       ];
     }),

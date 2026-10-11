@@ -678,6 +678,36 @@ export function sheetChanges(before: Sheet, after: Sheet): LineChange[] {
   return changes;
 }
 
+/**
+ * The counts of a sheet with some of its changes made: the counter while an answer is played, which follows the
+ * lines as each one is struck or comes back (`made`: the keys of the changes made so far; `essential`: the keys of
+ * the main lines). The questions' own counts (learned, without lines) are left as they were.
+ */
+export function countsWith(
+  before: SheetCounts,
+  changes: readonly LineChange[],
+  made: ReadonlySet<string>,
+  essential: ReadonlySet<string> = new Set(),
+): SheetCounts {
+  const counts = { ...before };
+  for (const change of changes) {
+    if (!made.has(change.key)) continue;
+    const step = (state: LineState, by: 1 | -1) => {
+      if (LINE_LEFT.has(state)) {
+        counts.left += by;
+        if (essential.has(change.key)) counts.essentialLeft += by;
+      }
+      if (LINE_READABLE.has(state)) counts.readable += by;
+      if (state === 'rubbed') counts.rubbed += by;
+      if (state === 'erased') counts.erased += by;
+      if (state === 'due') counts.due += by;
+    };
+    step(change.from, -1);
+    step(change.to, 1);
+  }
+  return counts;
+}
+
 /** «2 строки стёрлись, 3 — наполовину, 1 вернулась»: what the changes of an answer did. */
 export interface ChangeSummary {
   /** Erased by the answer (a line erased then and due by now counts here too). */

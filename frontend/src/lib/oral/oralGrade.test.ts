@@ -174,6 +174,19 @@ describe('protocol words', () => {
     expect(countsSentence({ covered: 5, partial: 0, missing: 0, wrong: 0, unrated: 0, total: 5 })).toBe('Раскрыто 5 пунктов из 5.');
   });
 
+  it('says the point the reply to the examiner named as what it is now, not as «не назван» (jury QA, 2026-10-11)', () => {
+    // /try, question 5: four points in the answer, the fifth only after «Какие крайние случаи…?».
+    const q5 = { covered: 4, partial: 0, missing: 1, wrong: 0, unrated: 0, total: 5 };
+    expect(countsSentence(q5)).toBe('Раскрыто 4 пункта из 5, один не назван.');
+    expect(countsSentence(q5, 'missing')).toBe('Раскрыто 4 пункта из 5, один назван после вопроса экзаменатора.');
+    // A mentioned point named after the question; the other missed point stays missed.
+    expect(countsSentence({ covered: 2, partial: 1, missing: 1, wrong: 0, unrated: 0, total: 4 }, 'partial')).toBe(
+      'Раскрыто 2 пункта из 4, один назван после вопроса экзаменатора, один не назван.',
+    );
+    // An error put right on the question is still an error: it was made (the rules of what counts are kept).
+    expect(countsSentence({ covered: 4, partial: 0, missing: 0, wrong: 1, unrated: 0, total: 5 }, 'wrong')).toBe('Раскрыто 4 пункта из 5, в одном ошибка.');
+  });
+
   it('keeps the score and the grade for the save: record_oral_attempt requires them', () => {
     const result = gradeAnswer(
       pointsOf({ p1: 'covered', p2: 'covered', p3: 'covered', p4: 'missing', p5: 'covered' }, ['p1', 'p2', 'p3', 'p4']),

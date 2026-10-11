@@ -130,21 +130,30 @@ def _ts_literal(raw: str) -> str:
 
 
 def frontend_points() -> dict[str, list[dict]]:
-    """Пункты вопросов прямо из frontend/src/data/example/questions.ts (порядок, заголовок, главный, цитата)."""
+    """Пункты вопросов прямо из frontend/src/data/example/questions.ts (порядок, заголовок, главный, цитата, переспрос)."""
     source = (EXAMPLE_DATA / "questions.ts").read_text(encoding="utf-8")
     literal = r"'((?:[^'\\]|\\.)*)'"
     question_re = re.compile(r"\{\s*id:\s*'(q\d+)',\s*number:\s*(\d+),\s*text:\s*" + literal, re.S)
     point_re = re.compile(r"title:\s*" + literal + r",\s*short:\s*" + literal + r",\s*essential:\s*(true|false),\s*quote:\s*" + literal, re.S)
+    followup_re = re.compile(r"followup:\s*\{\s*question:\s*" + literal + r",\s*expected:\s*" + literal, re.S)
     found = list(question_re.finditer(source))
     bounds = [match.start() for match in found] + [len(source)]
     questions = {}
     for index, match in enumerate(found):
         block = source[bounds[index]:bounds[index + 1]]
+        points = list(point_re.finditer(block))
+        followups = list(followup_re.finditer(block))
+        assert len(followups) == len(points), match.group(1)
         questions[match.group(1)] = {
             "text": _ts_literal(match.group(3)),
             "points": [
-                {"title": _ts_literal(point.group(1)), "essential": point.group(3) == "true", "source_quote": _ts_literal(point.group(4))}
-                for point in point_re.finditer(block)
+                {
+                    "title": _ts_literal(point.group(1)),
+                    "essential": point.group(3) == "true",
+                    "source_quote": _ts_literal(point.group(4)),
+                    "followup": {"question": _ts_literal(asked.group(1)), "expected": _ts_literal(asked.group(2))},
+                }
+                for point, asked in zip(points, followups)
             ],
         }
     # Ни один пункт не потерян регулярным выражением: заголовков столько же, сколько найденных пунктов.
@@ -160,9 +169,15 @@ def test_the_example_copy_says_exactly_what_the_frontend_example_says():
     assert list(copy) == answerable == [f"q{n}" for n in range(1, 12)]  # q12 нет ни в одной лекции
     for qid, question in copy.items():
         assert question.text == " ".join(frontend[qid]["text"].split())
-        assert [(p["title"], p["essential"], p["source_quote"]) for p in question.points] == [
-            (" ".join(p["title"].split()), p["essential"], " ".join(p["source_quote"].split())) for p in frontend[qid]["points"]
-        ], f"{qid}: backend/try_example.json drifted — npx vitest run -u src/data/example/serverCopy.test.ts"
+        assert [(p["title"], p["essential"], p["source_quote"], p["followup"]) for p in question.points] == [
+            (
+                " ".join(p["title"].split()),
+                p["essential"],
+                " ".join(p["source_quote"].split()),
+                {"question": " ".join(p["followup"]["question"].split()), "expected": " ".join(p["followup"]["expected"].split())},
+            )
+            for p in frontend[qid]["points"]
+        ], f"{qid}: backend/try_example.json drifted — npx vitest run src/data/example/serverCopy.test.ts -u"
         assert [p["id"] for p in question.points] == [f"p{n}" for n in range(1, len(question.points) + 1)]
 
 
@@ -178,19 +193,44 @@ def test_the_copy_is_what_the_protocol_accepts_from_a_real_ticket():
     for question in raw["questions"]:
         assert set(question) == {"id", "number", "text", "lecture", "points"}
         for point in question["points"]:
-            assert set(point) == {"id", "title", "essential", "source_quote"}  # ни ключевых слов, ни переспросов
+            # Ни ключевых слов, ни коротких строк: пункт, его цитата и переспрос — как в эталоне настоящего билета.
+            assert set(point) == {"id", "title", "essential", "source_quote", "followup"}
+            assert set(point["followup"]) == {"question", "expected"}
     for question in example().values():
         assert 1 <= len(question.points) <= oral.MAX_POINTS
         assert any(point["essential"] for point in question.points)
 
 
+def _copy_point(**changes):
+    """Пункт копии примера, годный во всём, кроме названного."""
+    point = {"id": "p1", "title": "Т", "essential": True, "source_quote": "Ц", "followup": {"question": "Что?", "expected": "Это."}}
+    point.update(changes)
+    return {k: v for k, v in point.items() if v is not None}
+
+
+def _copy_of(point, qid="q1"):
+    return {"v": 1, "questions": [{"id": qid, "text": "Вопрос", "points": [point]}]}
+
+
+def test_a_whole_copy_point_is_taken_with_its_follow_up():
+    (question,) = try_api.parse_example(_copy_of(_copy_point(followup={"question": " Что  это? ", "expected": "Это  то.\n"}))).values()
+    assert question.points[0]["followup"] == {"question": "Что это?", "expected": "Это то."}
+
+
 @pytest.mark.parametrize("broken", [
     {"v": 2, "questions": []},
     {"v": 1, "questions": []},
-    {"v": 1, "questions": [{"id": "q1", "text": "Вопрос", "points": [{"id": "p2", "title": "Т", "essential": True, "source_quote": "Ц"}]}]},
-    {"v": 1, "questions": [{"id": "q1", "text": "Вопрос", "points": [{"id": "p1", "title": "Т" * 201, "essential": True, "source_quote": "Ц"}]}]},
-    {"v": 1, "questions": [{"id": "q1", "text": "Вопрос", "points": [{"id": "p1", "title": "Т", "essential": "да", "source_quote": "Ц"}]}]},
-    {"v": 1, "questions": [{"id": "x1", "text": "Вопрос", "points": [{"id": "p1", "title": "Т", "essential": True, "source_quote": "Ц"}]}]},
+    _copy_of(_copy_point(id="p2")),
+    _copy_of(_copy_point(title="Т" * 201)),
+    _copy_of(_copy_point(essential="да")),
+    _copy_of(_copy_point(), qid="x1"),
+    # Без переспроса ответ на вопрос экзаменатора не с чем сверить: копия не та, что пишет serverCopy.ts.
+    _copy_of(_copy_point(followup=None)),
+    _copy_of(_copy_point(followup="Что?")),
+    _copy_of(_copy_point(followup={"question": "Что?"})),
+    _copy_of(_copy_point(followup={"question": " ", "expected": "Это."})),
+    _copy_of(_copy_point(followup={"question": "Что?" * 60, "expected": "Это."})),
+    _copy_of(_copy_point(followup={"question": "Что?", "expected": "Э" * 401})),
 ])
 def test_a_broken_copy_is_refused(broken):
     with pytest.raises(ValueError):
@@ -466,17 +506,76 @@ def test_a_reply_to_the_examiner_is_judged_by_the_point_as_a_real_ticket_judges_
     assert response.json() == {"mode": "ai", "status": "covered"}
     (call,) = model.calls
     q5 = example()["q5"]
-    # The prompt of /api/oral/check with only: the server's own question and point, the reply in quotes.
+    # The prompt of /api/oral/check with only: the server's own question and point, the examiner's question and what
+    # should be heard in reply from the server's copy (as a real ticket's rubric gives them), the reply in quotes.
     assert call["system"] == oral.build_check_prompt("p3")
-    assert call["text"] == oral.build_check_input(q5.text, list(q5.points), Q5_FOLLOWUP_REPLY, only="p3")
+    asked = q5.points[2]["followup"]
+    assert call["text"] == oral.build_check_input(
+        q5.text, list(q5.points), Q5_FOLLOWUP_REPLY, only="p3", followup_question=asked["question"], followup_expected=asked["expected"]
+    )
     assert f"ПУНКТ ЭТАЛОНА: p3: {q5.points[2]['title']}" in call["text"]
-    assert "ВОПРОС ЭКЗАМЕНАТОРА" not in call["text"]
+    assert "ВОПРОС ЭКЗАМЕНАТОРА: Когда спрос называют эластичным, а когда неэластичным?" in call["text"]
+    assert "ДОЛЖНО ПРОЗВУЧАТЬ: Эластичным — когда модуль эластичности больше единицы, неэластичным — когда меньше." in call["text"]
     # A quick check: no thinking, 200 tokens, the check's 4,5 s, no cache of BaseAgent, the example's key only.
     assert call["temperature"] == 0 and call["max_tokens"] == 200 and call["thinking"] == "off" and call["json_mode"] is True
     assert call["timeout"] == try_api.FOLLOWUP_TIMEOUT_SECONDS == 4.5 and call["use_cache"] is False
     assert call["keys"] == ["try-key-1"] and call["groq"] == ""
     # Inside the same daily cap as the protocol.
     assert try_api.health_view()["calls"] == 1
+
+
+EXTREMES_QUESTION = "Какие крайние случаи ценовой эластичности спроса бывают?"
+
+
+@pytest.mark.parametrize("reply", [
+    "Совершенно неэластичный и совершенно эластичный спрос.",
+    "Совершенно эластичный и совершенно неэластичный спрос",
+])
+def test_the_short_right_reply_about_the_extreme_cases_reaches_the_model_with_what_was_asked(client, model, monkeypatch, reply):
+    # Jury QA, 2026-10-11: both replies were judged «не назван», a reply that also gave the definitions «назван». The
+    # model saw neither the examiner's question nor what should be heard, and read the point's own words as its repeat.
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    model.answer({"statuses": {"p5": "covered"}})
+    assert followup(client, point_id="p5", transcript=reply).json() == {"mode": "ai", "status": "covered"}
+    (call,) = model.calls
+    lines = call["text"].splitlines()
+    assert lines[:4] == [
+        "ВОПРОС БИЛЕТА: Ценовая эластичность спроса и её измерение.",
+        "ПУНКТ ЭТАЛОНА: p5: Крайние случаи: совершенно неэластичный и совершенно эластичный спрос",
+        f"ВОПРОС ЭКЗАМЕНАТОРА: {EXTREMES_QUESTION}",
+        # What the question asks for, by name — not the definitions it does not ask for.
+        "ДОЛЖНО ПРОЗВУЧАТЬ: Совершенно неэластичный и совершенно эластичный спрос.",
+    ]
+    assert "обнуляет" not in call["text"] and "не зависит от цены" not in call["text"]
+    assert reply in call["text"]
+    # The judge is told to take an answer to the question in the point's own words, and not to ask for more.
+    assert "коротко, своими словами или словами самого пункта — тоже считается" in call["system"]
+    assert "подробностей, о которых вопрос не спрашивает, не требуй" in call["system"]
+
+
+@pytest.mark.parametrize("reply,status", [
+    # One of the two cases: half an answer.
+    ("Совершенно неэластичный спрос.", "partial"),
+    # The ordinary kinds, not the extreme ones.
+    ("Эластичный и неэластичный спрос.", "wrong"),
+    # Mixed up: «единичная» is not an extreme case.
+    ("Единичная эластичность и совершенно эластичный спрос.", "partial"),
+    # General words and the examiner's own question said back.
+    ("Ну, бывают разные случаи, когда спрос сильно реагирует.", "missing"),
+    ("Какие крайние случаи ценовой эластичности спроса бывают?", "missing"),
+])
+def test_near_misses_about_the_extreme_cases_get_the_models_verdict_never_named_by_the_server(client, model, monkeypatch, reply, status):
+    # The server names nothing itself: a reply that is not an answer to what was asked keeps the model's verdict, and
+    # the judge gets the rules that keep such replies out of «назван».
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    model.answer({"statuses": {"p5": status}})
+    assert followup(client, point_id="p5", transcript=reply).json() == {"mode": "ai", "status": status}
+    (call,) = model.calls
+    assert f"ВОПРОС ЭКЗАМЕНАТОРА: {EXTREMES_QUESTION}" in call["text"]
+    for rule in ('"partial" — ответил на часть вопроса (например, из двух названо одно)',
+                 '"missing" — по существу не ответил: «не знаю», повтор вопроса, общие слова или рассказ о другом',
+                 '"wrong" — сказано обратное, перепутано или неверно по сути'):
+        assert rule in call["system"]
 
 
 @pytest.mark.parametrize("raw,status", [

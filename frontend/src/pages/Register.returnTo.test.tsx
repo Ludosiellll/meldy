@@ -16,7 +16,8 @@ vi.mock('../lib/supabase', () => ({
 }));
 vi.mock('../components/authReel/AuthReel', () => ({ default: () => null }));
 
-import Register from './Register';
+import Register, { BACK_TO_TRY, EMAIL_LABEL, EMAIL_PLACEHOLDER } from './Register';
+import { FROM_TRY } from '../lib/returnTo';
 
 let where = '';
 function Where() {
@@ -39,7 +40,7 @@ function renderAt(path: string) {
 
 function fillAndSubmit() {
   fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Алина' } });
-  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'alina@example.com' } });
+  fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'alina@example.com' } });
   fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Secret123' } });
   fireEvent.change(screen.getByLabelText('Повтор пароля'), { target: { value: 'Secret123' } });
   fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
@@ -83,5 +84,45 @@ describe('Register: the way back (lib/returnTo)', () => {
     fillAndSubmit();
     await waitFor(() => expect(auth.signUp).toHaveBeenCalledTimes(1));
     expect(auth.signUp.mock.calls[0][0].options.emailRedirectTo).toBe(`${window.location.origin}/dashboard`);
+  });
+});
+
+describe('Register opened from the example (/try): its own words and the way back (jury QA, 2026-10-11)', () => {
+  const fromTry = (state: unknown) =>
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/register', search: '?next=%2Fexams%2Fnew', state }]}>
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route path="/try" element={<h1>Пример</h1>} />
+        </Routes>
+        <Where />
+      </MemoryRouter>,
+    );
+
+  it('names the e-mail field in Russian, with no English placeholder', () => {
+    renderAt('/register');
+    const field = screen.getByLabelText(EMAIL_LABEL);
+    expect(EMAIL_LABEL).toBe('Почта');
+    expect(field).toHaveAttribute('placeholder', EMAIL_PLACEHOLDER);
+    expect(screen.queryByText('Email')).toBeNull();
+    expect(document.body.innerHTML).not.toContain('you@example.com');
+  });
+
+  it('a visitor who came from the example gets a quiet link back to it; anyone else does not', () => {
+    fromTry(FROM_TRY);
+    const back = screen.getByRole('link', { name: BACK_TO_TRY });
+    expect(back).toHaveAttribute('href', '/try');
+    expect(back).toHaveClass('au-link');
+    expect(back.closest('header')).not.toBeNull();
+    fireEvent.click(back);
+    expect(where).toBe('/try');
+    cleanup();
+    for (const state of [null, undefined, { from: '/exams' }, 'try']) {
+      fromTry(state);
+      expect(screen.queryByRole('link', { name: BACK_TO_TRY })).toBeNull();
+      cleanup();
+    }
+    renderAt('/register?next=%2Fexams%2Fnew');
+    expect(screen.queryByRole('link', { name: BACK_TO_TRY })).toBeNull();
   });
 });

@@ -15,6 +15,7 @@
 import { confirmDialogPart } from '../contexts/ConfirmContext';
 import { proWindowPart } from '../components/pro/ProWindow';
 import { guideClipPart, guideSeenHere, isNewAccount } from '../components/guide/clipPart';
+import { tryDrawPart, tryTicketPart } from '../components/example/tryParts';
 import { lazyPart } from './lazyPart';
 import { whenIdleAfterLoad } from './idle';
 import { loadSupabase, signInInAddress, storedAccountCreatedAt } from './supabaseClient';
@@ -171,19 +172,21 @@ export function preloadAfterSignIn(): void {
 
 /** What a visitor is likely to open next from here. */
 function likelyNext(pathname: string, signedIn: boolean): Loader[] {
+  // The example's next steps, whoever opened it: the answer room and the draw (components/example/tryParts).
+  const trySteps: Loader[] = pathname.startsWith('/try') ? [() => tryTicketPart.load(), () => tryDrawPart.load()] : [];
   if (signedIn) {
     // Not «Повторение»: it brings the formula renderer, whose stylesheet declares the formula fonts.
     // Fonts declared on a page that has shown make the browser lay out and paint all its text again,
     // and that late paint would count as the page's largest paint (LCP). It loads when opened.
     const [today, exams, lectures, , progress] = SECTIONS;
-    return [loadLayout, today, exams, lectures, progress, () => confirmDialogPart.load(), () => proWindowPart.load(), () => guideClipPart.load()];
+    return [...trySteps, loadLayout, today, exams, lectures, progress, () => confirmDialogPart.load(), () => proWindowPart.load(), () => guideClipPart.load()];
   }
   if (pathname === '/') return [loadLogin, loadRegister, loadTry];
   // After signing in comes «Сегодня».
   if (pathname === '/login') return [loadRegister, loadLayout, SECTIONS[0]];
   // A new account opens the guide over «Сегодня» first (the mandatory first run).
   if (pathname === '/register') return [loadLogin, loadLayout, SECTIONS[0], () => guideClipPart.load()];
-  if (pathname.startsWith('/try')) return [() => confirmDialogPart.load(), loadRegister, loadLogin];
+  if (pathname.startsWith('/try')) return [...trySteps, () => confirmDialogPart.load(), loadRegister, loadLogin];
   return [];
 }
 

@@ -17,6 +17,48 @@ const ROW_LEAD_PX = 18;
 const WINDOW_GAP_PX = 16;
 /** The block's own top margin in oral.css. */
 const BASE_MARGIN_PX = 28;
+/** A phone: air between the block and the bars over the page, px. */
+const BAR_GAP_PX = 12;
+
+/**
+ * A phone or a tablet: the part of the window the room leaves to the page, px from its top — under the room's top line
+ * (.sf-room-bar) and above the answer bar pinned at the bottom (oral.css: .or-acts is fixed to the window's bottom below
+ * 1024 px). The bar is taken by its height, not where it is drawn: while the examiner's card rises in (a transform),
+ * the bar inside it is fixed to the card, not to the window, and stood 90 px lower.
+ */
+export function roomBand(): { top: number; bottom: number } {
+  const viewport = window.innerHeight || document.documentElement.clientHeight;
+  const topBar = document.querySelector<HTMLElement>('.sf-room-bar');
+  const top = topBar ? Math.max(0, topBar.getBoundingClientRect().bottom) : 0;
+  let bottom = viewport;
+  for (const bar of document.querySelectorAll<HTMLElement>('.or-acts')) {
+    if (getComputedStyle(bar).position !== 'fixed') continue;
+    const height = bar.getBoundingClientRect().height;
+    if (height > 0) bottom = Math.min(bottom, viewport - height);
+  }
+  return { top, bottom };
+}
+
+/**
+ * A phone: brings the examiner's block — the question and the answer under it — into the room's band (roomBand), with the
+ * least scroll; the window alone did not do: at 360×800 the question's last line and the answer field stood under the
+ * bar (jury QA, 2026-10-11). A block taller than the band shows its question when it comes (`question`) and the answer
+ * being given when it grows (`answer`). `onlyWhenSeen`: only while the block's top is in the band (it grew under the
+ * eye, not after the student scrolled away from it).
+ */
+export function revealInRoom(block: HTMLElement, behavior: 'instant' | 'smooth', prefer: 'question' | 'answer', onlyWhenSeen = false): void {
+  if (typeof window.scrollTo !== 'function') return;
+  const band = roomBand();
+  const top = band.top + BAR_GAP_PX;
+  const bottom = band.bottom - BAR_GAP_PX;
+  const box = block.getBoundingClientRect();
+  if (onlyWhenSeen && (box.top < band.top || box.top > band.bottom)) return;
+  let delta: number;
+  if (box.height <= bottom - top) delta = box.top < top ? box.top - top : box.bottom > bottom ? box.bottom - bottom : 0;
+  else delta = prefer === 'question' ? box.top - top : box.bottom - bottom;
+  if (Math.abs(delta) < 2) return;
+  window.scrollTo({ top: Math.max(0, Math.round(window.scrollY + delta)), behavior });
+}
 
 interface ExaminerLineProps {
   /** The follow-up question, shown in full (the voice may fail; the text never does). */
@@ -50,12 +92,12 @@ export default function ExaminerLine({ question, onRepeat, alignTo, children }: 
 
   useLayoutEffect(() => {
     const block = ref.current;
-    if (!block || !alignTo || !/^p[1-6]$/.test(alignTo) || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    if (!block || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const wide = window.matchMedia('(min-width: 1024px)');
-    const place = () => {
-      block.style.marginTop = '';
-      if (!wide.matches) return;
-      const row = document.querySelector<HTMLElement>(`[data-point="${alignTo}"]`);
+    const asked = alignTo && /^p[1-6]$/.test(alignTo) ? alignTo : null;
+    /** A computer: the block moves down to the asked row's height, never further than the window allows. */
+    const placeAtRow = (pointId: string) => {
+      const row = document.querySelector<HTMLElement>(`[data-point="${pointId}"]`);
       if (!row) return;
       const box = block.getBoundingClientRect();
       const top = row.getBoundingClientRect().top - box.top;
@@ -63,8 +105,20 @@ export default function ExaminerLine({ question, onRepeat, alignTo, children }: 
       const delta = Math.max(0, Math.min(top - ROW_LEAD_PX, room - WINDOW_GAP_PX));
       if (delta > 0) block.style.marginTop = `${BASE_MARGIN_PX + delta}px`;
     };
-    place();
-    window.addEventListener('resize', place);
+    const place = (moment: 'shown' | 'grew' | 'resized') => {
+      block.style.marginTop = '';
+      if (!wide.matches) {
+        // A phone: the question and its answer above the answer bar — at once when the question comes, before it is
+        // seen; then, while the student looks at it, when it grows (the transcript opens) or the window does (a keyboard).
+        if (moment === 'shown') revealInRoom(block, 'instant', 'question');
+        else revealInRoom(block, 'smooth', 'answer', true);
+        return;
+      }
+      if (asked) placeAtRow(asked);
+    };
+    place('shown');
+    const onResize = () => place('resized');
+    window.addEventListener('resize', onResize);
     let observer: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
       let height = block.offsetHeight;
@@ -72,12 +126,12 @@ export default function ExaminerLine({ question, onRepeat, alignTo, children }: 
         // Only a change of the block's own height: the margin it sets moves it, never resizes it.
         if (block.offsetHeight === height) return;
         height = block.offsetHeight;
-        place();
+        place('grew');
       });
       observer.observe(block);
     }
     return () => {
-      window.removeEventListener('resize', place);
+      window.removeEventListener('resize', onResize);
       observer?.disconnect();
     };
   }, [alignTo, question]);

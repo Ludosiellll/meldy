@@ -52,6 +52,8 @@
   margin: 0 auto;
   padding: 0 var(--au-g);
 }
+/* The sign-up opened from the example (/try): the quiet way back to it, at the line's right end. */
+.au-bar .au-bar-back { margin-left: auto; }
 .au-logo {
   display: inline-flex;
   align-items: baseline;

@@ -32,6 +32,14 @@ describe('answerSummary: the result of an answer without a grade (Ф1)', () => {
     expect(line(STAGE, { point_id: 'p3', status: 'covered' })).toBe('Сами назвали 2 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
   });
 
+  it('says which status the point named after the question had in the answer (the plain sentence moves it)', () => {
+    expect(answerSummary(STAGE, { point_id: 'p4', status: 'covered' }).afterQuestionFrom).toBe('missing');
+    expect(answerSummary(STAGE, { point_id: 'p3', status: 'covered' }).afterQuestionFrom).toBe('partial');
+    expect(answerSummary(STAGE, { point_id: 'p4', status: 'partial' }).afterQuestionFrom).toBeNull();
+    expect(answerSummary(STAGE, { point_id: 'p1', status: 'covered' }).afterQuestionFrom).toBeNull();
+    expect(answerSummary(STAGE, null).afterQuestionFrom).toBeNull();
+  });
+
   it('counts the errors of every point, the main ones and the others', () => {
     const wrong = STAGE.map((point) => (point.id === 'p5' || point.id === 'p2' ? { ...point, status: 'wrong' } : point));
     expect(line(wrong, { point_id: 'p4', status: 'covered' })).toBe('Сами назвали 1 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора. Ошибки в 2 пунктах');

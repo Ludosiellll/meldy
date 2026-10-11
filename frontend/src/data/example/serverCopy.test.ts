@@ -31,11 +31,28 @@ describe('the example as the server keeps it (backend/try_example.json)', () => 
     }
   });
 
-  it('keeps no key words, follow-ups or short lines: only what the protocol needs', () => {
+  it('keeps no key words or short lines: only what the protocol and the check of a reply to the examiner need', () => {
     const text = serverCopyText();
-    expect(text).not.toMatch(/anchors|followup|short|expected/);
+    expect(text).not.toMatch(/anchors|short|fragments/);
     for (const question of exampleServerCopy().questions) {
-      for (const point of question.points) expect(Object.keys(point).sort()).toEqual(['essential', 'id', 'source_quote', 'title']);
+      for (const point of question.points) {
+        expect(Object.keys(point).sort()).toEqual(['essential', 'followup', 'id', 'source_quote', 'title']);
+        expect(Object.keys(point.followup).sort()).toEqual(['expected', 'question']);
+      }
     }
+  });
+
+  it('gives the server the examiner’s question about each point and what should be heard in reply, as the answer screen asks it', () => {
+    for (const question of exampleServerCopy().questions) {
+      const rubric = exampleRubric(answerableQuestions().find((item) => item.id === question.id)!)!;
+      expect(question.points.map((point) => point.followup)).toEqual(rubric.points.map((point) => point.followup));
+    }
+    // Jury QA, 2026-10-11: «Совершенно неэластичный и совершенно эластичный спрос.» was judged «не назван» — the check
+    // did not know the question, and what should be heard was the two definitions the question does not ask for.
+    const extremes = exampleServerCopy().questions.find((question) => question.id === 'q5')!.points[4];
+    expect(extremes.followup).toEqual({
+      question: 'Какие крайние случаи ценовой эластичности спроса бывают?',
+      expected: 'Совершенно неэластичный и совершенно эластичный спрос.',
+    });
   });
 });

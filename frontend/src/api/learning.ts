@@ -8,7 +8,7 @@
  * client_event_id is unique per user. Errors become LearningSaveError / LearningLoadError with a
  * short Russian message; raw database or network text never reaches the screen.
  */
-import { supabase } from '../lib/supabase';
+import { loadSupabase } from '../lib/supabaseClient';
 import { SELF_RATING_CONFIDENCE, compareEventTime } from '../lib/learning/readiness';
 import type { LearningEvent, LearningKind, SelfRating } from '../types/learning';
 import { localDateKey } from '../utils/streak';
@@ -56,6 +56,13 @@ const PAGE_SIZE = 1000;
 const KEYS_PER_REQUEST = 100;
 /** record_quiz_attempt rejects more than 65 536 bytes of jsonb text; compact JSON stays below this. */
 const QUIZ_PAYLOAD_BUDGET = 56_000;
+
+/**
+ * The Supabase client, fetched with its own file the first time the journal is written or read (lib/supabaseClient).
+ * The example /try draws its sheet with the modules that import this one but never touches the journal: its first
+ * screen carried the client's 56 KB all the same (jury QA, 2026-10-11, Slow 4G).
+ */
+const client = loadSupabase;
 
 /** 'yyyy-MM-dd' in the browser time zone (default: now). */
 export function localDate(d?: Date): string {
@@ -253,6 +260,7 @@ export async function recordQuizAttempt(input: {
 
   let response: { data: unknown; error: unknown };
   try {
+    const supabase = await client();
     response = await supabase.rpc('record_quiz_attempt', { p_attempt: attempt });
   } catch (error) {
     throw saveError(error);
@@ -299,6 +307,7 @@ export async function recordSelfRating(input: {
   };
   const write = async (values: typeof row) => {
     try {
+      const supabase = await client();
       const { error } = await supabase
         .from('learning_events')
         .upsert(values, { onConflict: 'user_id,client_event_id', ignoreDuplicates: true });
@@ -419,6 +428,7 @@ interface SheetPeekRow {
 async function saveSheetPeekRow(row: SheetPeekRow): Promise<void> {
   try {
     // The same client_event_id: a peek sent twice is one row.
+    const supabase = await client();
     const { error } = await supabase.from('learning_events').upsert(row, { onConflict: 'user_id,client_event_id', ignoreDuplicates: true });
     if (error) throw saveError(error);
   } catch (error) {
@@ -466,6 +476,7 @@ function writePendingPeeks(list: PendingPeek[]): void {
 
 async function sessionUserId(): Promise<string | null> {
   try {
+    const supabase = await client();
     const { data } = await supabase.auth.getSession();
     return data.session?.user.id ?? null;
   } catch {
@@ -520,8 +531,8 @@ export async function fetchSheetEvents(questionHashes: string[]): Promise<Learni
   if (hashes.length === 0) return [];
   const parts = await Promise.all(
     chunks(hashes, HASHES_PER_PAYLOAD_REQUEST).map((part) =>
-      readAllPages((from, to) =>
-        supabase
+      readAllPages(async (from, to) =>
+        (await client())
           .from('learning_events')
           .select(EVENT_COLUMNS)
           .in('kind', ['oral_point', 'sheet_peek'])
@@ -553,8 +564,8 @@ export async function fetchQuestionEvents(
 
   const parts = await Promise.all(
     chunks(keys, KEYS_PER_REQUEST).map((part) =>
-      readAllPages((from, to) =>
-        supabase
+      readAllPages(async (from, to) =>
+        (await client())
           .from('learning_events')
           .select(EVENT_COLUMNS)
           .in('item_key', part)
@@ -581,8 +592,8 @@ export async function fetchSessionPoints(sessionIds: string[]): Promise<Learning
   if (ids.length === 0) return [];
   const parts = await Promise.all(
     chunks(ids, KEYS_PER_REQUEST).map((part) =>
-      readAllPages((from, to) =>
-        supabase
+      readAllPages(async (from, to) =>
+        (await client())
           .from('learning_events')
           .select(EVENT_COLUMNS)
           .eq('kind', 'oral_point')
@@ -620,8 +631,8 @@ export async function fetchMaterialEvents(input: {
 
   const parts = await Promise.all(
     idChunks.map((ids) =>
-      readAllPages((from, to) => {
-        let query = supabase.from('learning_events').select(EVENT_COLUMNS).in('kind', kinds);
+      readAllPages(async (from, to) => {
+        let query = (await client()).from('learning_events').select(EVENT_COLUMNS).in('kind', kinds);
         if (ids) query = query.in('material_id', ids);
         if (since) query = query.gte('created_at', since);
         return query.order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to);
