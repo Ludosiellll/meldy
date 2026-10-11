@@ -1289,7 +1289,9 @@ describe('ExamTicket: answering aloud', () => {
     );
     const { container } = await renderPage(ticketUrl());
     await readyToAnswer();
-    await waitFor(() => expect(ttsTexts()).toContain('Не расслышал ответ'));
+    // «Не расслышал ответ» is the last line of the prefetch queue (examinerLines); under a full parallel run the queue
+    // can take longer than waitFor's default second, so this wait gets its own room.
+    await waitFor(() => expect(ttsTexts()).toContain('Не расслышал ответ'), { timeout: 5000 });
     fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
     const rec = recognition();
     expect(rec.starts).toBe(1);
