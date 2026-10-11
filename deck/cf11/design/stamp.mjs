@@ -9,8 +9,15 @@ const START = '<!-- header:start · written by design/stamp.mjs from design/deck
 const END = '<!-- header:end -->';
 
 const html = (s) => s.replace(/\u00a0/g, '&nbsp;');
-/** The title's build step in which the dot settles (01-title.html uses the same order on the dot). */
-const OPENING = { order: 3, dur: 700 };
+/** The entrance of the wordmark's dot (!!dot) on a slide, as attributes for the squares hidden behind it. */
+function dotAnim(source) {
+  const tag = /<div[^>]*data-name="!!dot"[^>]*>/.exec(source);
+  if (!tag) throw new Error('the opening needs the wordmark dot (!!dot) on the slide');
+  const a = (k) => (new RegExp(` ${k}="([^"]*)"`).exec(tag[0]) || [])[1];
+  if (!a('data-anim')) throw new Error('the opening dot has no entrance: the squares hidden behind it need one');
+  return ` data-anim="${a('data-anim')}" data-anim-trigger="with"${a('data-anim-delay') ? ` data-anim-delay="${a('data-anim-delay')}"` : ''}`
+    + `${a('data-anim-dur') ? ` data-anim-dur="${a('data-anim-dur')}"` : ''}${a('data-anim-order') ? ` data-anim-order="${a('data-anim-order')}"` : ''}`;
+}
 
 function header(slide, source) {
   const out = [START];
@@ -21,9 +28,9 @@ function header(slide, source) {
     if (state === 'gather') {
       if (!gather) throw new Error(`${slide.file}: a gathered strip needs data-gather="x,y,size" on .slide`);
       const [, x, y, s] = gather.map(Number);
-      // On the title the squares arrive with the dot they hide behind (the same settle, in the dot's step);
-      // on the finale they morph in from the strip and do not animate.
-      const anim = slide.opening ? ` data-anim="settle"${i > 1 ? ' data-anim-trigger="with"' : ''} data-anim-dur="${OPENING.dur}" data-anim-order="${OPENING.order}"` : '';
+      // On the title the squares arrive with the dot they hide behind: the dot's own entrance, copied onto each
+      // («with», the same delay, duration and step); on the finale they morph in from the strip and do not animate.
+      const anim = slide.opening ? dotAnim(source) : '';
       out.push(`<div class="sq now" data-pptx="shape" data-name="${name}"${anim} style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;border-radius:${s / 2}px"></div>`);
     } else {
       out.push(`<div class="sq ${state}" data-pptx="shape" data-name="${name}" style="left:${STRIP.x + STRIP.step * (i - 1)}px"></div>`);
