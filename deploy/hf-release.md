@@ -4,6 +4,13 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-11 — Release 42.1: the sheet's switches one tap away on a phone (from the commit of this entry)
+
+- **Phone, the exam page's sheet:** a «⋯» at the right of the count opens the app's own menu with «Скрыть строки, стёртые совсем» (only once something is erased), «Спрятать строки» («и проверить, что помните их»), «Показать последний ответ» and «История шпаргалки» (or «Закрыть историю шпаргалки»). A switch keeps the menu open so its new state is visible; the links close it and give focus back to «⋯». The header is no taller and the list starts where it did; nothing is repeated under the card any more. With «Спрятать строки» on, what a tap on a hidden line does is said under the map. Desktop, tablets and /try are unchanged. The shared menu gained switch items and a second line under an item, read as its description.
+- **Words:** on a phone the status card under «Шпаргалка написана не полностью» said «Допишите его» (its question was cut off with the first sentence); it now names what to write: «Допишите 4 вопроса. Это стоит 4 единицы ИИ.»
+- **Tests:** the answer screen's prefetch wait gets 5 s, so a full parallel run no longer times it out.
+- Verified before release: Vitest 257 files, 4264 tests passed in one full run; `tsc -b` and `vite build` in the Docker layout; the menu at 390×844 light and dark and 360×780 (mocked exam page): no page errors, no sideways scroll, focus back on «⋯» after Escape. No backend, database or bot function change.
+
 ## 2026-10-11 — Release 42: the cheat sheet in Meldy's own look, the landing and its reel tell the exam as it is now (from the commit of this entry)
 
 - **The cheat sheet without paper** (owner: «лист бумаги не вписывается в приложение… выглядит иишным», decision `2026-10-10_cheat-sheet-native-look`): on the exam page, /try and the history the sheet is a white card in Onest — questions as headings with a faint number, a main point with an ink dot, a detail with a dash, a line named once with the yellow dot and muted words, an erased line faint and struck through — and a map of the whole sheet's lines next to the count (`SheetMap`). Erasing draws a strike left to right while the words fade; the map changes in step. Mechanics, data and words are unchanged; a line named once is readable now (the self-test hides it). On a phone the switches, «Последний ответ» and «История» sit under the card for now.
