@@ -7,7 +7,7 @@ import { track } from '../../lib/telemetry';
 import { miniAppHaptic } from '../../lib/telegram/miniApp';
 import QuestionCard, { type Answered } from './QuestionCard';
 import { DoubtSheet, KeyFix, RoomBar } from './RoomParts';
-import SessionEnd from './SessionEnd';
+import SessionEnd, { useReplan } from './SessionEnd';
 import * as copy from './copy';
 import {
   comesBackWhen,
@@ -38,7 +38,8 @@ import './room.css';
  *   exam) has «Ключ неверный?» instead, which fixes the key in place (the bot spec's decision 17);
  * - an answer leaves the device when the student moves on (so «Нажали не туда?» can still mark it), through the offline
  *   queue, with its client_event_id, the item's rev, the shown order in file indices, ms, cls, the local day and the
- *   session;
+ *   session; the plan is read again once the session's answers have left (SessionEnd useReplan), so the end screen
+ *   says what the exam page will;
  * - keys on a computer: 1–8 (or А–З) answer, 0 «Не знаю», Enter «Дальше», Backspace «Нажали не туда?».
  */
 interface Pending {
@@ -119,6 +120,9 @@ export default function StudyRun(props: StudyRunProps) {
   const stemRef = useRef<HTMLHeadingElement | null>(null);
   const fileRef = useRef<HTMLButtonElement | null>(null);
   const keyRef = useRef<HTMLDivElement | null>(null);
+  /** The session's answers on their way (the answer queue's promises): the plan is read again once they have left. */
+  const sending = useRef<Promise<unknown>[]>([]);
+  const replan = useReplan(input, onEnded);
 
   const entry = queue[pos] ?? null;
   const base_ = entry ? items.get(entry.id) ?? null : null;
@@ -225,7 +229,7 @@ export default function StudyRun(props: StudyRunProps) {
         clientEventId,
       };
       if (userId) {
-        void enqueueAnswers(userId, [input]).then(merge, () => undefined);
+        sending.current.push(enqueueAnswers(userId, [input]).then(merge, () => undefined));
       }
       return [...recordsNow, record];
     },
@@ -270,9 +274,9 @@ export default function StudyRun(props: StudyRunProps) {
           minutes: Math.max(1, Math.round((at - setup.startedAt) / 60_000)),
         });
       }
-      onEnded();
+      replan.ask(sending.current);
     },
-    [userId, containerId, setup.startedAt, onEnded],
+    [userId, containerId, setup.startedAt, replan.ask],
   );
 
   /** «Дальше»: the answer leaves, the queue takes a retry when the answer was wrong, the next question comes. */
@@ -479,6 +483,7 @@ export default function StudyRun(props: StudyRunProps) {
         base={base}
         plan={plan}
         input={input}
+        fresh={replan.fresh}
         answered={new Set(records.map((r) => r.id))}
         tz={tz}
         today={today}

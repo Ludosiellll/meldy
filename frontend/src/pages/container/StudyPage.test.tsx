@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { AnswerInput, AnswerResult } from '../../types/container';
+import type { AnswerInput, AnswerResult, PlanItem } from '../../types/container';
 import type { ContainerData, Loadable } from '../../lib/containers/hooks';
 
 const mocks = vi.hoisted(() => ({
   state: null as unknown,
+  listeners: new Set<() => void>(),
+  /** One per rendered page: a reading still on its way from an earlier test never reaches this one. */
+  round: 0,
   enqueue: vi.fn(),
   doubtKey: vi.fn(),
   updateItem: vi.fn(),
@@ -15,7 +18,17 @@ const mocks = vi.hoisted(() => ({
   track: vi.fn(),
 }));
 
-vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
+// The exam's data as useContainerData gives it: StudyPage renders again when it changes (a reload brought a reading).
+vi.mock('../../lib/containers/hooks', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const subscribe = (listener: () => void) => {
+    mocks.listeners.add(listener);
+    return () => {
+      mocks.listeners.delete(listener);
+    };
+  };
+  return { useContainerData: () => useSyncExternalStore(subscribe, () => mocks.state) };
+});
 vi.mock('../../lib/containers/plan', async (original) => (await import('../../components/containers/testkit/engine')).planModule(original));
 vi.mock('../../lib/containers/session', async (original) => (await import('../../components/containers/testkit/engine')).sessionModule(original));
 vi.mock('../../lib/containers/answerQueue', () => ({ enqueueAnswers: mocks.enqueue }));
@@ -39,6 +52,13 @@ vi.mock('../../api/learning', async (importOriginal) => ({
 }));
 
 import StudyPage from './StudyPage';
+import { LEFT_WAIT } from '../../components/containers/SessionEnd';
+import { titleText } from '../../components/containers/planLines';
+import { planDay } from '../../lib/containers/plan';
+import { emptyState } from '../../lib/containers/rule';
+import { at, testItems } from '../../lib/containers/__fixtures__/scenarios';
+import { classOf, inputAt, newServer, record } from '../../lib/containers/__fixtures__/server';
+import { sqlStep } from '../../lib/containers/__fixtures__/sqlRule';
 import { saveSession } from '../../components/containers/sessionStore';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
 import {
@@ -50,6 +70,7 @@ import {
   containerData,
   dayPlan,
   dbItems,
+  item,
   subject,
   summary,
 } from '../../components/containers/testkit/fixtures';
@@ -60,8 +81,27 @@ const plain = (text: string | null | undefined) => (text ?? '').split(NB).join('
 const nm = (text: string) => (name: string) => plain(name) === text;
 const page = () => plain(document.body.textContent);
 
-function loaded(data: ContainerData): Loadable<ContainerData> {
-  return { data, loading: false, offline: false, unavailable: false, error: null, reload: vi.fn() };
+/**
+ * The exam on the page. Its reload (StudyPage's, after a session) reads it again, as the network would, a moment later:
+ * `reread` gives what that reading brings, and the page renders it; without `reread` the reading never comes.
+ */
+function loaded(data: ContainerData, reread?: () => ContainerData): Loadable<ContainerData> {
+  const reload = vi.fn(() => {
+    if (reread) {
+      const next = loaded(reread(), reread);
+      const round = mocks.round;
+      window.setTimeout(() => {
+        if (mocks.round === round) act(() => show(next));
+      }, 5);
+    }
+  });
+  return { data, loading: false, offline: false, unavailable: false, error: null, reload };
+}
+
+/** The hook's answer changes: the page renders it. */
+function show(state: Loadable<ContainerData>) {
+  mocks.state = state;
+  for (const listener of [...mocks.listeners]) listener();
 }
 
 /** A plan whose «Базы данных» session takes these questions, in this order. */
@@ -97,13 +137,29 @@ function studyTree(search = `?s=${SUBJECT_DB}`) {
   );
 }
 
-function renderStudy(data: ContainerData, search = `?s=${SUBJECT_DB}`) {
-  mocks.state = loaded(data);
+function renderStudy(data: ContainerData, search = `?s=${SUBJECT_DB}`, reread?: () => ContainerData) {
+  mocks.round += 1;
+  mocks.state = loaded(data, reread);
   Object.defineProperty(window, 'matchMedia', { configurable: true, value: undefined });
   return render(studyTree(search));
 }
 
 const option = (text: string) => screen.getByRole('button', { name: new RegExp(text) });
+/** The end screen's «what is left today», its pill and its links. */
+const leftLine = () => plain(document.querySelector('.ct-end-next')?.textContent);
+const screenNow = () => ({
+  left: leftLine(),
+  pill: plain(document.querySelector('.ct-bar .sf-primary')?.textContent),
+  links: Array.from(document.querySelectorAll('.ct-end-links a, .ct-end-links button')).map((node) => plain(node.textContent)),
+});
+/** The exam read again after a session of «Базы данных»: «Программирование на C#» left — 20 questions, 9 minutes. */
+const csLeft = () =>
+  containerData({
+    plan: dayPlan({
+      sessions: [{ subjectId: SUBJECT_CS, kind: 'answer', ids: Array.from({ length: 20 }, (_, i) => `cs-${i}`), estSec: 540 }],
+      counts: { ...dayPlan().counts, newItems: 0, reviews: 20, estSec: 600, leftSec: 540 },
+    }),
+  });
 const verdict = () => plain(document.querySelector('.ct-bar .ct-verdict')?.textContent);
 const sent = (): AnswerInput[] => mocks.enqueue.mock.calls.flatMap((call) => call[1] as AnswerInput[]);
 
@@ -127,6 +183,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  LEFT_WAIT.ms = 1500;
 });
 
 describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
@@ -393,7 +450,8 @@ describe('keys in doubt (decisions 14, 37)', () => {
 describe('the end of a session (decision 49)', () => {
   it('leads with the figure’s change, one muted paragraph, what is left today, and the next session', async () => {
     serverSays((input) => (input.item_id === 'q-plain' ? 'two_days' : 'miss'));
-    renderStudy(dataWith(['q-plain', 'q-iso']));
+    // What is left is the exam's plan read again after the session: «Базы данных» done, «Программирование на C#» left.
+    renderStudy(dataWith(['q-plain', 'q-iso']), `?s=${SUBJECT_DB}`, csLeft);
     fireEvent.click(option('Третья'));
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     fireEvent.click(option('READ COMMITTED'));
@@ -409,7 +467,7 @@ describe('the end of a session (decision 49)', () => {
     expect(paragraph).toContain('Верно с первого раза — 1 из 2.');
     expect(paragraph).toContain('1 ошибка вернётся завтра.');
     expect(page()).not.toMatch(/засчит/i);
-    expect(page()).toContain('Сегодня осталось 20 вопросов, около 9 минут.');
+    await waitFor(() => expect(leftLine()).toBe('Сегодня осталось 20 вопросов, около 9 минут.'));
     expect(screen.getByRole('link', { name: nm('Дальше: Программирование на C# — 20 вопросов') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_CS}`);
     expect(screen.getByRole('button', { name: 'Напоминать каждый день' })).toBeInTheDocument();
     expect(mocks.track).toHaveBeenCalledWith('container.session_finished', { answered: 2, retries: 1, minutes: 1 });
@@ -468,33 +526,52 @@ describe('the end of a session (decision 49)', () => {
     expect(verdict()).toBe('В файле — SERIALIZABLE. Вернётся через пару вопросов и в понедельник.');
   });
 
-  it('the plan read again after the session does not change the screen being read (M1)', async () => {
-    const view = renderStudy(dataWith(['q-plain']));
-    fireEvent.click(option('Третья'));
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
-    });
-    const screenNow = () => ({
-      left: plain(document.querySelector('.ct-end-next')?.textContent),
-      pill: plain(document.querySelector('.ct-bar .sf-primary')?.textContent),
-      links: Array.from(document.querySelectorAll('.ct-end-links a, .ct-end-links button')).map((node) => plain(node.textContent)),
-    });
-    const first = screenNow();
-    expect(first.left).toBe('Сегодня осталось 20 вопросов, около 9 минут.');
-    expect(first.pill).toBe('Дальше: Программирование на C# — 20 вопросов');
-    // StudyPage's reload (onEnded) brings the plan read again: here one refitted the old way — more questions left,
-    // «Базы данных» first. The end screen keeps what it said when it opened.
-    mocks.state = loaded(
+  it('what is left comes from the plan read once the session’s answers have left: held in its place till then, never changed after (M1, D2)', async () => {
+    // The answer stays on its way until the test lets it go.
+    let arrive: () => void = () => undefined;
+    mocks.enqueue.mockImplementation(
+      (_user: string, answers: AnswerInput[]) =>
+        new Promise((resolve) => {
+          arrive = () => resolve(answers.map((input) => ({ client_event_id: input.client_event_id, item_id: input.item_id, status: 'saved', correct: true, step: 'start', rev: 1, state: null })));
+        }),
+    );
+    // A later reading, refitted the old way: more questions left, «Базы данных» first.
+    const refitted = () =>
       containerData({
         plan: dayPlan({
           sessions: [
             { subjectId: SUBJECT_DB, kind: 'answer', ids: ['q-iso', 'q-code', 'q-multi', 'q-short', 'x1', 'x2', 'x3'], estSec: 420 },
             { subjectId: SUBJECT_CS, kind: 'answer', ids: Array.from({ length: 20 }, (_, i) => `cs-${i}`), estSec: 540 },
           ],
+          counts: { ...dayPlan().counts, newItems: 0, reviews: 27, estSec: 1020, leftSec: 960 },
         }),
-      }),
-    );
-    view.rerender(studyTree());
+      });
+    renderStudy(dataWith(['q-plain']), `?s=${SUBJECT_DB}`, csLeft);
+    const reload = (mocks.state as Loadable<ContainerData>).reload;
+    fireEvent.click(option('Третья'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+    // The answer has not left yet: nothing is read again; what is left keeps its place, unseen and out of reach.
+    expect(reload).not.toHaveBeenCalled();
+    const held = document.querySelector('.ct-end-next') as HTMLElement;
+    expect(held).toHaveAttribute('aria-hidden', 'true');
+    expect(held.style.visibility).toBe('hidden');
+    expect((document.querySelector('.ct-bar-row') as HTMLElement).style.visibility).toBe('hidden');
+    expect(screen.queryByRole('link', { name: (name) => plain(name).startsWith('Дальше:') })).toBeNull();
+    // It has left: the plan is read again, and its numbers appear in the same place.
+    await act(async () => arrive());
+    await waitFor(() => expect(screen.getByRole('link', { name: nm('Дальше: Программирование на C# — 20 вопросов') })).toBeInTheDocument());
+    expect(reload).toHaveBeenCalledTimes(1);
+    const line = document.querySelector('.ct-end-next') as HTMLElement;
+    expect(line).toBe(held);
+    expect(line).not.toHaveAttribute('aria-hidden');
+    expect(line.style.visibility).toBe('');
+    const first = screenNow();
+    expect(first.left).toBe('Сегодня осталось 20 вопросов, около 9 минут.');
+    expect(first.pill).toBe('Дальше: Программирование на C# — 20 вопросов');
+    // A later reading of the plan does not change the screen being read.
+    act(() => show(loaded(refitted())));
     await act(async () => undefined);
     expect(screenNow()).toEqual(first);
   });
@@ -510,12 +587,12 @@ describe('the end of a session (decision 49)', () => {
 
   it('after the first session of a student who came to load a file, «Готово» opens the guide (decision 33)', async () => {
     window.sessionStorage.setItem(GUIDE_LATER_KEY, '1');
-    renderStudy(dataWith(['q-plain']));
+    renderStudy(dataWith(['q-plain']), `?s=${SUBJECT_DB}`, csLeft);
     fireEvent.click(option('Третья'));
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Готово' })[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Готово' }))[0]);
     expect(screen.getByTestId('where').textContent).toBe(`/exams/c/${CONTAINER}`);
     expect(screen.getByTestId('where').dataset.guide).toBe('yes');
   });
@@ -526,6 +603,143 @@ describe('the end of a session (decision 49)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Закончить' }));
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-iso', chosen: 3 }));
     expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('1 вопрос за 1 минуту');
+  });
+});
+
+/**
+ * Account B of the live check of 2026-10-11, through the database's side (lib/containers/__fixtures__/server.ts:
+ * answers through the rule, plan_inputs with the day's start and pace, decoded as the site decodes them; the plan is
+ * the real one): «Программирование на C#», 60 minutes a day; yesterday 17 mistakes and 4 series begun at 18:35, which
+ * count today after 14:35. On Sunday at 10:48 the exam page says «Сегодня 86 вопросов, около 60 минут»: 82 now and
+ * «Ещё 4 вопроса — после 14:35». Each answer takes 8 s.
+ */
+function liveB(o: { questions?: number; mistakes?: number } = {}) {
+  const items = testItems(SUBJECT_CS, o.questions ?? 200);
+  const server = newServer({ subjects: [{ id: SUBJECT_CS, date: '2026-10-30' }], items, budgetMin: 60, firstPlanDay: '2026-10-08' });
+  const mistakes = o.mistakes ?? 17;
+  const yesterday = (entry: PlanItem, hhmm: string, correct: boolean) =>
+    server.states.set(entry.id, sqlStep(emptyState(), { at: at('2026-10-10', hhmm), day: '2026-10-10', correct }, '2026-10-30').state);
+  items.slice(0, mistakes).forEach((entry) => yesterday(entry, '12:00', false));
+  items.slice(mistakes, mistakes + 4).forEach((entry) => yesterday(entry, '18:35', true));
+  const bank = items.map((entry) =>
+    item({ id: entry.id, subject_id: SUBJECT_CS, position: entry.o, file_no: String(entry.o), topic: entry.tp, stem: `Вопрос ${entry.o}`, options: ['Первый ответ', 'Второй ответ'], correct: [0] }),
+  );
+  let clock = at('2026-10-11', '10:48');
+  // The server takes the answers as record_test_answers does.
+  const take = (answers: AnswerInput[]): AnswerResult[] =>
+    answers.map((answer) => {
+      clock += 8000;
+      const correct = answer.chosen === 0;
+      record(server, answer.item_id, { at: clock, correct, ms: 8000, cls: classOf(server.states.get(answer.item_id), false) });
+      return { client_event_id: answer.client_event_id, item_id: answer.item_id, status: 'saved', correct, step: correct ? 'start' : 'miss', rev: 1, state: null } as AnswerResult;
+    });
+  mocks.enqueue.mockImplementation(async (_user: string, answers: AnswerInput[]) => take(answers));
+  /** The exam as a page reads it now. */
+  const read = (): ContainerData => {
+    clock += 1000;
+    return {
+      summary: summary({ day: '2026-10-11', subjects: [subject({ exam_date: '2026-10-30' })] }),
+      planInput: inputAt(server, clock),
+      items: new Map(bank.map((entry) => [entry.id, entry])),
+      oralWithoutPoints: 0,
+    };
+  };
+  /** The exam page's title, as the page reads the exam now (words.ts planTitle). */
+  const pageTitle = () => plain(titleText(planDay(read().planInput)));
+  return { read, pageTitle, take };
+}
+
+/** Right answers in a row, then «Закончить» when the session has not ended by itself. */
+async function answerRight(n: number) {
+  for (let k = 0; k < n; k += 1) {
+    fireEvent.click(option('Первый ответ'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+  }
+  const finish = screen.queryByRole('button', { name: 'Закончить' });
+  if (finish) {
+    await act(async () => {
+      fireEvent.click(finish);
+    });
+  }
+}
+
+/** The end screen has said what is left (no longer held). */
+const spoken = () => waitFor(() => expect(document.querySelector('.ct-end-next')).not.toHaveAttribute('aria-hidden'));
+
+describe('the end of a session says what the exam page says next (usability check 2026-10-11: D2, D3, N1)', () => {
+  it('three sessions of B: the end screen says 79/55, 73/55, 68/50 — the page right after says the same — and each pill opens what it names', async () => {
+    const b = liveB();
+    expect(b.pageTitle()).toBe('Сегодня 86 вопросов, около 60 минут');
+    renderStudy(b.read(), `?s=${SUBJECT_CS}`, b.read);
+    expect(plain(screen.getByRole('banner').textContent)).toContain('1 из 20');
+    const seen: Array<{ end: string; page: string; pill: string; opened: string }> = [];
+    for (const n of [7, 6, 5]) {
+      await answerRight(n);
+      await spoken();
+      const end = leftLine();
+      const title = b.pageTitle();
+      const pill = screen.getByRole('link', { name: (name) => plain(name).startsWith('Ещё') });
+      const label = plain(pill.textContent);
+      // The pill opens the next session: «1 из N», N as it named (D3: «Ещё 13 вопросов» opened 18).
+      fireEvent.click(pill);
+      const opened = plain(screen.getByRole('banner').textContent).replace(/^.*(1 из \d+).*$/, '$1');
+      seen.push({ end, page: title, pill: label, opened });
+    }
+    // Before the fix the end screen counted only the questions ready now — 75, 69, 64 while the page said 79, 73, 68 —
+    // and its pill named the rest of the plan's first session («Ещё 13 вопросов»).
+    expect(seen).toEqual([
+      { end: 'Сегодня осталось 79 вопросов, около 55 минут.', page: 'Сегодня осталось 79 вопросов, около 55 минут', pill: 'Ещё 20 вопросов', opened: '1 из 20' },
+      { end: 'Сегодня осталось 73 вопроса, около 55 минут.', page: 'Сегодня осталось 73 вопроса, около 55 минут', pill: 'Ещё 20 вопросов', opened: '1 из 20' },
+      { end: 'Сегодня осталось 68 вопросов, около 50 минут.', page: 'Сегодня осталось 68 вопросов, около 50 минут', pill: 'Ещё 20 вопросов', opened: '1 из 20' },
+    ]);
+  });
+
+  it('the plan read after the session comes late: the plan as the session ended, its later questions counted — never lower than the page then', async () => {
+    LEFT_WAIT.ms = 30;
+    const b = liveB();
+    // The answers stay on their way (a slow network) until the test lets them go.
+    const waiting: Array<() => void> = [];
+    mocks.enqueue.mockImplementation(
+      (_user: string, answers: AnswerInput[]) => new Promise((resolve) => waiting.push(() => resolve(b.take(answers)))),
+    );
+    renderStudy(b.read(), `?s=${SUBJECT_CS}`, b.read);
+    const reload = (mocks.state as Loadable<ContainerData>).reload;
+    await answerRight(7);
+    await spoken();
+    // 86 − 7 = 79, the 4 of «после 14:35» among them; the minutes the plan had (60), not fewer than the page's.
+    const end = { left: leftLine(), pill: plain(document.querySelector('.ct-bar .sf-primary')?.textContent) };
+    expect(end).toEqual({ left: 'Сегодня осталось 79 вопросов, около 60 минут.', pill: 'Ещё 20 вопросов' });
+    // The exam is read again anyway (for the next session), and once more when the answers have left.
+    expect(reload).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      for (const go of waiting.splice(0)) go();
+    });
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
+    expect(b.pageTitle()).toBe('Сегодня осталось 79 вопросов, около 55 минут');
+    expect({ left: leftLine(), pill: plain(document.querySelector('.ct-bar .sf-primary')?.textContent) }).toEqual(end);
+  });
+
+  it('everything ready answered, questions later today: the plan’s «Ещё 4 вопроса — после 14:35.», not the line from before the session', async () => {
+    const b = liveB({ questions: 7, mistakes: 3 });
+    expect(b.pageTitle()).toBe('Сегодня 7 вопросов, около 3 минут');
+    renderStudy(b.read(), `?s=${SUBJECT_CS}`, b.read);
+    await answerRight(3);
+    await spoken();
+    // Before the fix: «Сегодня около 3 минут: 7 знакомых», the pre-session plan's line.
+    expect(leftLine()).toBe('Ещё 4 вопроса — после 14:35.');
+    expect(b.pageTitle()).toBe('Сегодня осталось 4 вопроса, около 2 минут');
+    expect(plain(document.querySelector('.ct-bar .sf-primary')?.textContent)).toBe('Готово');
+  });
+
+  it('a session read late with nothing ready left: the plan’s later line too, from the plan as the session ended', async () => {
+    LEFT_WAIT.ms = 30;
+    const b = liveB({ questions: 7, mistakes: 3 });
+    renderStudy(b.read(), `?s=${SUBJECT_CS}`);
+    await answerRight(3);
+    await spoken();
+    expect(leftLine()).toBe('Ещё 4 вопроса — после 14:35.');
   });
 });
 
@@ -640,6 +854,8 @@ describe('an oral self-check (decisions 19, 51)', () => {
     expect(page()).toContain('Пунктов пока нет: к предмету не добавлены лекции.');
     fireEvent.click(screen.getByRole('button', { name: 'Плаваю' }));
     await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 вопроса за 1 минуту'));
+    // Each rating was saved before the next question: the plan is read again as the session ends.
+    await waitFor(() => expect((mocks.state as Loadable<ContainerData>).reload).toHaveBeenCalledTimes(1));
     expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('«Знаю» — 1 · «плаваю» — 1 · «не знаю» — 0.');
     // Both questions were rated: nothing of this session is offered again today, the pill is «Готово».
     expect(screen.queryByRole('link', { name: (name) => plain(name).startsWith('Ещё 1 вопрос') })).toBeNull();

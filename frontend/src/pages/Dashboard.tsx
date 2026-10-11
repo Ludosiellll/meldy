@@ -1696,8 +1696,10 @@ function containerState(item: TodayContainer, today: string): ContainerState {
  * today — the oral exam today's pick leads with (pickExam, exams inside containers left out), and every container
  * whose plan has work (or whose exam is today). It holds the one blue button, except on an exam's own day (no plan
  * then). With nothing to do anywhere, the nearest container whose day is done (or has nothing) still leads, without
- * the blue. The others with something today, a finished day, or an unread plan are quiet rows; a container after its
- * date is not on «Сегодня». Ties: the newer exam first, as in pickExam.
+ * the blue. The others with something today, a finished day, a day with nothing to do, or an unread plan are quiet
+ * rows (containerRowMeta: a day off says «сегодня выходной» — usability check 2026-10-11, D1: on its day off an exam
+ * left the page while another one had work); a container after its date, or without a question, is not on «Сегодня».
+ * Ties: the newer exam first, as in pickExam.
  */
 export function todayLayout(input: { oral: { examDate: string | null; createdAt: string } | null; containers: TodayContainer[]; today: string }): TodayLayout {
   interface Candidate {
@@ -1724,7 +1726,7 @@ export function todayLayout(input: { oral: { examDate: string | null; createdAt:
   const today = [...(oral ? [oral] : []), ...all.filter((candidate) => candidate.state === 'study' || candidate.state === 'exam_today')].sort(byDate);
   const quietMain = all.filter((candidate) => candidate.state === 'done' || candidate.state === 'nothing' || candidate.state === 'empty').sort(byDate);
   const main = today[0] ?? quietMain[0] ?? null;
-  const rows = [...today, ...all.filter((candidate) => candidate.state === 'done' || candidate.state === 'failed')]
+  const rows = [...today, ...all.filter((candidate) => candidate.state === 'done' || candidate.state === 'nothing' || candidate.state === 'failed')]
     .filter((candidate, index, list) => candidate !== main && list.indexOf(candidate) === index)
     .sort(byDate);
   return { main: main?.entry ?? null, mainLeads: Boolean(main && main.leads && today[0] === main), rows: rows.map((row) => row.entry) };
@@ -1745,7 +1747,8 @@ export function aboutMinutes(seconds: number): string {
 
 /**
  * «12 января · сегодня около 20 минут», «… · на сегодня всё», «… · сегодня выходной» (a day off with nothing answered;
- * answered anyway, the day is done), «… · сегодня экзамен», or the size before a plan.
+ * answered anyway, the day is done), «… · сегодня экзамен», or the size: before a plan, and on a study day with nothing
+ * to do and nothing done.
  */
 export function containerRowMeta(item: TodayContainer, today: string, now: Date = new Date()): string {
   const { day } = containerDays(item.container, today);

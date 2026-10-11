@@ -569,6 +569,18 @@ describe('«Сегодня» with exam containers: who leads', () => {
     expect(blues()).toHaveLength(1);
   });
 
+  it('an exam on its day off is a quiet row «… · сегодня выходной» while another one has work (D1)', async () => {
+    db.tables.exams = () => ({ data: [] });
+    // The nearer exam is the one on its day off: the other, with work, still leads.
+    withContainers([WINTER(), ACCR()], { 'c-1': dayPlan('nothing', { lines: [{ key: 'day_off', n: [2], day: '2026-10-05' }] }), 'c-2': dayPlan('study') });
+    await renderPage();
+    expect(await screen.findByTestId('today-card')).toHaveAttribute('data-id', 'c-2');
+    const row = within(screen.getByRole('region', { name: 'Другие экзамены' })).getByRole('link', { name: /Аккредитация/ });
+    expect(plainText(row.textContent)).toBe('Аккредитация10 октября · сегодня выходной');
+    expect(row).toHaveAttribute('href', '/exams/c/c-1');
+    expect(blues()).toHaveLength(1);
+  });
+
   it('on a phone: the same order, one blue, the rows as one card', async () => {
     seededExam();
     withContainers([ACCR()], { 'c-1': dayPlan('study') });
@@ -818,6 +830,24 @@ describe('who leads «Сегодня», as a rule', () => {
     expect(ids(todayLayout({ oral: null, containers: [entry(ACCR(), { status: 'loading' })], today }))).toEqual({ main: 'c-1', leads: true, rows: [] });
     const empty = container('c-3', 'Пустой', '2026-10-20', { items: 0, subjects: [subjectOf(1, { keyed: 0 })] });
     expect(ids(todayLayout({ oral: null, containers: [entry(empty, { status: 'loading' })], today }))).toEqual({ main: 'c-3', leads: false, rows: [] });
+  });
+
+  it('an exam with nothing today — its day off or not — is a quiet row beside the one that leads, never its card (D1)', () => {
+    const dayOff: TodayContainer['plan'] = { status: 'ready', plan: dayPlan('nothing', { lines: [{ key: 'day_off', n: [2], day: '2026-10-05' }] }), offline: false };
+    const now = new Date(2026, 9, 3, 12);
+    // Usability check 2026-10-11, D1: «Зимняя сессия» on its day off had no row while another exam had work.
+    const winterOff = entry(WINTER(), dayOff);
+    expect(ids(todayLayout({ oral: null, containers: [entry(ACCR(), ready('study')), winterOff], today }))).toEqual({ main: 'c-1', leads: true, rows: ['c-2'] });
+    expect(containerRowMeta(winterOff, today, now)).toBe('12 января 2027 · сегодня выходной');
+    // The nearer date does not make the day off the card: the exam with work leads.
+    expect(ids(todayLayout({ oral: null, containers: [entry(ACCR(), dayOff), entry(WINTER(), ready('study'))], today }))).toEqual({ main: 'c-2', leads: true, rows: ['c-1'] });
+    // The oral exam leads: the day off is a row beside it.
+    const oral = { examDate: '2026-10-05', createdAt: '2026-09-30T09:30:00Z' };
+    expect(ids(todayLayout({ oral, containers: [entry(ACCR(), dayOff)], today }))).toEqual({ main: 'oral', leads: true, rows: ['c-1'] });
+    // A study day with nothing to do and nothing done: a row too, with the exam's size.
+    expect(ids(todayLayout({ oral: null, containers: [entry(ACCR(), ready('nothing')), entry(WINTER(), ready('study'))], today }))).toEqual({ main: 'c-2', leads: true, rows: ['c-1'] });
+    // Nothing to do anywhere: the nearest still leads, without the blue; the others are rows.
+    expect(ids(todayLayout({ oral: null, containers: [entry(ACCR(), dayOff), entry(WINTER(), dayOff)], today }))).toEqual({ main: 'c-1', leads: false, rows: ['c-2'] });
   });
 
   it('words a row and the minutes', () => {
