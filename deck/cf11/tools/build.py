@@ -379,7 +379,8 @@ class SlideBuilder:
             spr.find(f'{A}xfrm').set('rot', str(angle(e['rot'])))
         eff = self.animate(e, Target(spid), [])
         self.media.append(Media(spid=spid, dur_ms=info['durMs'], loop=e['src'].get('loop', False),
-                                autoplay=e['src'].get('autoplay', True), shown_by=eff))
+                                autoplay=e['src'].get('autoplay', True), shown_by=eff,
+                                play=e['src'].get('play') or 'with'))
         if e.get('href'):
             self.warn(f'{e["id"]}: data-href on a video is ignored (a click on a video toggles playback)')
 

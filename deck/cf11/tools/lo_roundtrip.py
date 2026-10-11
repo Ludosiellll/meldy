@@ -5,7 +5,9 @@
 LibreOffice maps PowerPoint's preset ids, subtypes and behaviour XML onto its own named effects
 (oox/source/ppt/commontimenodecontext.cxx); reading them back is an independent check that the timing XML says
 what the HTML asked for: effect, direction (wipe from the left = barWipe leftToRight, not reversed), trigger
-(on-click / with-previous / after-previous), the layer pictures moving with their element, and video playback.
+(on-click / with-previous / after-previous), the layer pictures moving with their element, and video playback:
+the play command next to the video's entrance (data-play="with", or at the slide start without an entrance) or
+after the builds of its click group (data-play="after"), and the loop.
 """
 from __future__ import annotations
 
@@ -60,12 +62,20 @@ def effects_per_page(odp: Path) -> list[list[dict]]:
             vals = {a.get(SMIL + 'attributeName'): a.get(SMIL + 'values') for a in node.findall('anim:animate', NS)}
             decel = {a.get(SMIL + 'attributeName'): a.get(SMIL + 'decelerate') for a in node.findall('anim:animate', NS)}
             cmd = node.find('anim:command', NS)
+            tgt = next((c.get(SMIL + 'targetElement') for c in node if c.get(SMIL + 'targetElement')), None)
+            sub = node.getparent()
+            grp = sub.getparent() if sub is not None else None
+            sibs = [c for c in grp if isinstance(c.tag, str)] if grp is not None else []
+            grps = [c for c in grp.getparent() if isinstance(c.tag, str)] if grp is not None and grp.getparent() is not None else []
             seq.append({'class': pc, 'id': node.get(PRES + 'preset-id'), 'sub': node.get(PRES + 'preset-sub-type'),
                         'node': node.get(PRES + 'node-type'),
                         'filter': filt is not None and (filt.get(SMIL + 'type'), filt.get(SMIL + 'subtype'),
                                                         filt.get(SMIL + 'direction', 'forward')),
                         'y': vals.get('y'), 'width': vals.get('width'), 'decel': decel,
-                        'command': cmd is not None and cmd.get('{%s}command' % NS['anim'])})
+                        'command': cmd is not None and cmd.get('{%s}command' % NS['anim']),
+                        'target': tgt, 'begin': node.get(SMIL + 'begin'), 'parent': sub,
+                        'sub_index': sibs.index(sub) if sub in sibs else None, 'sub_count': len(sibs),
+                        'group_index': grps.index(grp) if grp in grps else None})
         audio = [a for a in page.iter('{%s}audio' % NS['anim'])]
         pages.append({'effects': seq, 'media_repeat': [a.get(SMIL + 'repeatCount') for a in audio]})
     return pages
@@ -83,6 +93,26 @@ def expected(slide: dict) -> list[tuple]:
         if r and r['mode'] in ('under', 'over'):
             out.append((a['effect'], 'with-previous', a.get('dir') or 'left'))
     return out
+
+
+def play_problems(video: dict, play: dict, effects: list[dict]) -> list[str]:
+    """Where LibreOffice puts a video's play command: with its entrance (or the slide start) or after the builds."""
+    mode = video['src'].get('play', 'with')
+    entr = [x for x in effects if x['class'] == 'entrance' and x['target'] == play['target']]
+    if mode == 'with' and entr:
+        e = entr[0]
+        if not (e['parent'] is play['parent'] and e['begin'] == play['begin'] and play['node'] == 'with-previous'):
+            return [f'play (with) is not next to its entrance: {play["node"]} begin {play["begin"]}, entrance '
+                    f'begin {e["begin"]}, same sub-group {e["parent"] is play["parent"]}']
+    elif mode == 'with':
+        if not (play['group_index'] == 0 and play['sub_index'] == 0 and play['begin'] in ('0s', None)):
+            return [f'play (with, no entrance) is not at the slide start: group {play["group_index"]} '
+                    f'sub-group {play["sub_index"]} begin {play["begin"]}']
+    else:
+        siblings = [x for x in effects if x['parent'] is play['parent']]
+        if any(x['class'] != 'media-call' for x in siblings) or play['sub_index'] != play['sub_count'] - 1:
+            return ['play (after) is not the last sub-group of its click group']
+    return []
 
 
 def main() -> int:
@@ -114,6 +144,8 @@ def main() -> int:
         auto = [v for v in vids if v['src'].get('autoplay', True)]
         if len(plays) != len(auto):
             problems.append(f'{len(plays)} media play commands, {len(auto)} autoplay videos')
+        for v, p in zip(auto, plays):
+            problems += play_problems(v, p, page['effects'])
         loops = [v for v in vids if v['src'].get('loop')]
         if loops and 'indefinite' not in page['media_repeat']:
             problems.append('looping video not read as repeatCount=indefinite')

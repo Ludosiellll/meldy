@@ -122,13 +122,46 @@ def test_media_autoplay_loop_and_pause_toggle():
     assert xp(t, '//p:cTn[@nodeType="interactiveSeq"]//p:cmd/@cmd') == ['togglePause']
 
 
-def test_media_plays_after_the_effects_of_its_group():
+def test_play_after_waits_for_the_effects_of_its_group():
     e = [eff(2, 'wipe', 'after', dur=700), eff(3, 'fade', 'click')]
-    t = build_timing(e, [Media(spid=7, dur_ms=5000)])
+    t = build_timing(e, [Media(spid=7, dur_ms=5000, play='after')])
     g0 = xp(t, '//p:cTn[@nodeType="mainSeq"]/p:childTnLst/p:par')[0]
     subs = xp(g0, './p:cTn/p:childTnLst/p:par/p:cTn')
     assert [xp(s, './p:stCondLst/p:cond/@delay')[0] for s in subs] == ['0', '700']
     assert xp(subs[-1], './/p:cTn/@presetClass') == ['mediacall']
+
+
+def test_play_with_starts_with_the_slide_next_to_its_first_effects():
+    e = [eff(2, 'wipe', 'after', dur=700), eff(3, 'fade', 'click')]
+    t = build_timing(e, [Media(spid=7, dur_ms=5000)])
+    g0 = xp(t, '//p:cTn[@nodeType="mainSeq"]/p:childTnLst/p:par')[0]
+    subs = xp(g0, './p:cTn/p:childTnLst/p:par/p:cTn')
+    assert len(subs) == 1
+    kids = xp(subs[0], './p:childTnLst/p:par/p:cTn')
+    assert [(k.get('presetClass'), k.get('nodeType'), xp(k, './p:stCondLst/p:cond/@delay')[0]) for k in kids] == [
+        ('entr', 'afterEffect', '0'), ('mediacall', 'withEffect', '0')]
+
+
+def test_play_with_joins_its_entrance_and_does_not_hold_back_later_builds():
+    vid = eff(7, 'fade', 'click', delay=150, dur=400, text=False)
+    e = [eff(2, 'fade', 'after'), vid, eff(3, 'fade', 'with', delay=1200), eff(4, 'fade', 'with', delay=2600),
+         eff(5, 'fade', 'after', dur=300)]
+    t = build_timing(e, [Media(spid=7, dur_ms=9000, loop=True, shown_by=vid)])
+    g1 = xp(t, '//p:cTn[@nodeType="mainSeq"]/p:childTnLst/p:par')[1]          # the click group of the video
+    subs = xp(g1, './p:cTn/p:childTnLst/p:par/p:cTn')
+    first = [(k.get('presetClass'), k.get('nodeType'), xp(k, './p:stCondLst/p:cond/@delay')[0],
+              xp(k, './/p:spTgt/@spid')[0]) for k in xp(subs[0], './p:childTnLst/p:par/p:cTn')]
+    assert first == [('entr', 'clickEffect', '150', '7'), ('mediacall', 'withEffect', '150', '7'),
+                     ('entr', 'withEffect', '1200', '3'), ('entr', 'withEffect', '2600', '4')]
+    assert xp(subs[1], './p:stCondLst/p:cond/@delay') == ['3100']       # 2600 + 500, not the 9 s clip
+    assert xp(t, '//p:cmd[@cmd="playFrom(0.0)"]/p:cBhvr/p:cTn/@dur') == ['9000']   # the command lasts the clip
+
+
+def test_play_with_and_no_auto_group_gets_a_slide_start_group():
+    t = build_timing([eff(2, 'fade', 'click')], [Media(spid=7, dur_ms=2000)])
+    groups = xp(t, '//p:cTn[@nodeType="mainSeq"]/p:childTnLst/p:par')
+    assert len(groups) == 2 and xp(groups[0], './p:cTn/p:stCondLst/p:cond[@evt="onBegin"]')
+    assert xp(groups[0], './/p:cTn[@presetClass="mediacall"]/@nodeType') == ['afterEffect']
 
 
 def test_video_revealed_on_click_plays_in_that_group():

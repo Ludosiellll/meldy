@@ -40,11 +40,11 @@ def test_click_script_and_default_gap(scenes):
     assert clicks and all(round(x['start'] - y['end']) == 1200 for x, y in zip(g2[1:], g2) if not x['auto'])
 
 
-def test_video_plays_after_the_builds_of_its_group_and_loops(scenes):
+def test_video_without_entrance_plays_from_the_slide_start_and_loops(scenes):
     _, sc, _ = scenes
     m = sc['02']['media']
     assert len(m) == 1 and m[0]['loop'] is True
-    assert m[0]['play'] == pytest.approx(sc['02']['groups'][0]['end'])
+    assert m[0]['play'] == pytest.approx(sc['02']['groups'][0]['start']) == pytest.approx(1500)   # data-play="with"
     video = [o for o in sc['02']['cur'] if o.get('video')][0]
     assert video['video']['n'] > 10 and video['img']['src'].endswith('.png')        # frames + the poster
 
