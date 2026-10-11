@@ -11,7 +11,8 @@ jump.
 
 Writes, in the masters folder (default: $MELDY_MASTERS, else <takes>/../masters):
   <clip>-master.mp4   the clip at the full window of the recording (laptop 1440 × 900, phone 780 × 1688), 30 fps,
-                      RGB H.264 at CRF 8 (visually lossless), the pointer or the touch drawn in
+                      H.264 4:4:4, full range, BT.709, CRF 18 (45–49 dB PSNR against the frames: a high-quality
+                      intermediate, small enough to commit), the pointer or the touch drawn in
   <clip>-master.json  its size, the kept stretches and the moments in clip seconds, the camera keys, the poster
   <clip>-poster.png   the poster's still, re-rendered by Chromium at 2× (laptop) or 3× (phone)
 fit.py fits a master into a slide's window of any size through motion/loopmask.py.
