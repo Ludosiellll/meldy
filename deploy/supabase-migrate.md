@@ -14,3 +14,4 @@ failed checks, never row data.
 - 2026-10-10 — apply: supabase/migrations/20261010120006_telegram_bot_voice.sql; check: supabase/tests/telegram_bot.sql, supabase/tests/containers.sql, supabase/tests/ai_quota_server.sql
 - 2026-10-10 — apply: supabase/migrations/20261010120007_oral_plan_inputs.sql; check: supabase/tests/telegram_bot.sql, supabase/tests/containers.sql, supabase/tests/cheat_sheet.sql
 - 2026-10-10 — apply: supabase/migrations/20261010130000_containers_frozen_pace.sql; check: supabase/tests/containers.sql, supabase/tests/telegram_bot.sql
+- 2026-10-11 — apply: supabase/migrations/20261010150000_telegram_webapp.sql; check: supabase/tests/telegram_bot.sql, supabase/tests/containers.sql
