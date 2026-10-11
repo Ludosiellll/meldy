@@ -95,6 +95,25 @@ class SlideBuilder:
         _, rid = self.slide.part.get_or_add_image_part(str(path))
         return rid
 
+    def optimized(self, path: Path) -> Path:
+        """Smaller copy of a PNG placed from a file (poster, screenshot): PNG8 when it shows no banding."""
+        path = Path(path)
+        if path.suffix.lower() != '.png':
+            return path
+        import hashlib
+
+        from imgopt import best_png
+        st = path.stat()
+        key = hashlib.sha1(f'{path.resolve()}|{st.st_mtime_ns}|{st.st_size}'.encode()).hexdigest()[:12]
+        out = self.dir / 'opt' / f'{path.stem}-{key}.png'
+        if not out.exists():
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with Image.open(path) as im:
+                has_alpha = im.mode in ('RGBA', 'LA', 'PA') or 'transparency' in im.info
+                data, _, _ = best_png(im.convert('RGBA' if has_alpha else 'RGB'))
+            out.write_bytes(data if len(data) < st.st_size else path.read_bytes())
+        return out
+
     def svg(self, path: Path) -> str:
         pkg = self.prs.part.package
         part = Part(pkg.next_image_partname('svg'), 'image/svg+xml', pkg, Path(path).read_bytes())
@@ -215,7 +234,7 @@ class SlideBuilder:
             with Image.open(src) as im:
                 natural = im.size
             frame, crop, geom = self.media_frame(e, natural)
-            rid = self.image(src)
+            rid = self.image(self.optimized(src) if e['type'] == 'image' else src)   # a GIF stays as authored
             self.add(pic_el(spid, name, rid, frame, descr=e.get('alt'), hlink_rid=href, rot=e.get('rot', 0),
                             crop=crop, geom=geom, alpha=e.get('opacity', 1.0)))
         self.animate(e, Target(spid), [])
@@ -248,7 +267,7 @@ class SlideBuilder:
                       f'Render the clip at {round(frame["w"])}x{round(frame["h"])} (or that aspect) to avoid it')
             crop = None
         mv = self.slide.shapes.add_movie(str(src), emu(frame['x']), emu(frame['y']), emu(frame['w']), emu(frame['h']),
-                                         poster_frame_image=str(poster), mime_type='video/mp4')
+                                         poster_frame_image=str(self.optimized(Path(poster))), mime_type='video/mp4')
         pic = mv._element
         spid = int(pic.find(f'{P}nvPicPr/{P}cNvPr').get('id'))
         c = pic.find(f'{P}nvPicPr/{P}cNvPr')

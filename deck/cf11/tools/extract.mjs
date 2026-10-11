@@ -106,7 +106,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const files = fs.readdirSync(args.slides).filter((f) => /^\d{2}-.+\.html$/.test(f)).sort()
     .filter((f) => !args.only || args.only.has(f.slice(0, 2)));
-  if (!files.length) throw new Error(`no NN-*.html slides in ${args.slides}`);
+  if (!files.length) throw Object.assign(new Error(`no NN-*.html slides in ${args.slides} (nothing to extract yet)`), { friendly: true });
   fs.mkdirSync(args.out, { recursive: true });
   const imgRoot = path.join(args.out, 'img');
   if (!args.only) fs.rmSync(imgRoot, { recursive: true, force: true });
@@ -207,4 +207,4 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e.stack || String(e)); process.exit(1); });
+main().catch((e) => { console.error(e.friendly ? e.message : (e.stack || String(e))); process.exit(1); });

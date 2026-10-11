@@ -19,12 +19,16 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageFilter
 
-# Banding check thresholds (0..255 per channel), measured after a light blur so that dithering noise and
-# anti-aliased edges are judged the way the eye sees them at viewing distance.
+# Banding check (0..255 per channel). Errors are measured after a light blur (dither noise and anti-aliasing are
+# judged the way the eye sees them) and split by the local detail of the original: banding and colour shifts show
+# in smooth areas (fills, soft shadows, gradients), so those must stay almost exact; on detailed pixels
+# (anti-aliased glyph and shape edges, UI hairlines) a few levels of error are invisible.
 BLUR_RADIUS = 1.5
-MAX_BLURRED_P999 = 2.0      # 99.9th percentile of the blurred error
-MAX_BLURRED_MAX = 6.0       # worst blurred pixel
-MAX_RAW_MEAN = 1.5          # mean un-blurred error
+DETAIL_WINDOW = 5           # px, max-min of the luminance in this window decides "smooth" vs "detail"
+SMOOTH_DETAIL = 6           # levels: below this a pixel is smooth
+MAX_SMOOTH_P9999 = 2.5      # smooth pixels: 99.99th percentile of the blurred error
+MAX_DETAIL_P99 = 12.0       # detailed pixels: 99th percentile of the blurred error
+MAX_RAW_MEAN = 1.5          # mean un-blurred error over the whole picture
 
 
 def png_bytes(img: Image.Image) -> bytes:
@@ -48,10 +52,46 @@ def banding_ok(orig: Image.Image, cand: Image.Image) -> tuple[bool, dict]:
     ob = _as_float(o.filter(ImageFilter.GaussianBlur(BLUR_RADIUS)))
     cb = _as_float(c.filter(ImageFilter.GaussianBlur(BLUR_RADIUS)))
     blurred = np.abs(ob - cb).max(axis=2)
-    stats = {'raw_mean': round(float(raw.mean()), 3), 'blur_p999': round(float(np.percentile(blurred, 99.9)), 3),
-             'blur_max': round(float(blurred.max()), 3)}
-    ok = stats['blur_p999'] <= MAX_BLURRED_P999 and stats['blur_max'] <= MAX_BLURRED_MAX and stats['raw_mean'] <= MAX_RAW_MEAN
+    lum = o.convert('L') if mode == 'RGB' else Image.fromarray(np.uint8(_as_float(o)[..., :3].mean(axis=2)))
+    detail = (np.asarray(lum.filter(ImageFilter.MaxFilter(DETAIL_WINDOW)), dtype=np.int16)
+              - np.asarray(lum.filter(ImageFilter.MinFilter(DETAIL_WINDOW)), dtype=np.int16))
+    if mode == 'RGBA':                     # an alpha edge is detail too
+        alpha = o.getchannel('A')
+        detail = np.maximum(detail, np.asarray(alpha.filter(ImageFilter.MaxFilter(DETAIL_WINDOW)), dtype=np.int16)
+                            - np.asarray(alpha.filter(ImageFilter.MinFilter(DETAIL_WINDOW)), dtype=np.int16))
+    smooth = detail < SMOOTH_DETAIL
+    sm = blurred[smooth] if smooth.any() else np.zeros(1)
+    de = blurred[~smooth] if (~smooth).any() else np.zeros(1)
+    stats = {'raw_mean': round(float(raw.mean()), 3),
+             'smooth_p9999': round(float(np.percentile(sm, 99.99)), 2),
+             'detail_p99': round(float(np.percentile(de, 99)), 2),
+             'smooth_share': round(float(smooth.mean()), 3)}
+    ok = (stats['smooth_p9999'] <= MAX_SMOOTH_P9999 and stats['detail_p99'] <= MAX_DETAIL_P99
+          and stats['raw_mean'] <= MAX_RAW_MEAN)
     return ok, stats
+
+
+def anchored_palette(img: Image.Image, max_anchor: int = 96, min_share: float = 0.0004) -> Image.Image:
+    """256-colour palette for an RGB picture: its frequent exact colours (flat UI areas keep their exact brand
+    colour) plus median-cut colours for the rest (anti-aliasing, shadows)."""
+    w, h = img.size
+    colors = img.getcolors(maxcolors=w * h) or []
+    colors.sort(reverse=True)
+    anchors = [c for n, c in colors if n >= min_share * w * h][:max_anchor]
+    mc = img.quantize(256, method=Image.Quantize.MEDIANCUT).getpalette()[:768]
+    pal = list(anchors)
+    A = np.array(anchors, dtype=np.int32).reshape(-1, 3)
+    for i in range(0, len(mc), 3):
+        if len(pal) >= 256:
+            break
+        c = tuple(mc[i:i + 3])
+        if len(A) and int(np.abs(A - np.array(c)).max(axis=1).min()) <= 3:
+            continue
+        pal.append(c)
+    flat = [v for c in pal for v in c]
+    p = Image.new('P', (1, 1))
+    p.putpalette(flat + [0] * (768 - len(flat)))
+    return p
 
 
 def exact_palette(img: Image.Image) -> Image.Image | None:
@@ -87,16 +127,23 @@ def best_png(img: Image.Image) -> tuple[bytes, str, dict]:
         b = png_bytes(exact)
         return (b, 'png8-exact', {}) if len(b) < len(full) else (full, label_full, {})
     cands = []
-    methods = [Image.Quantize.FASTOCTREE] if img.mode == 'RGBA' else [Image.Quantize.MEDIANCUT, Image.Quantize.FASTOCTREE]
-    for method in methods:
-        for dither in (Image.Dither.NONE, Image.Dither.FLOYDSTEINBERG):
-            try:
-                q = img.quantize(colors=256, method=method, dither=dither)
-            except ValueError:
-                continue
-            ok, stats = banding_ok(img, q)
-            if ok:
-                cands.append((png_bytes(q), f"png8-{'dither' if dither else 'flat'}", stats))
+    trials = []
+    if img.mode == 'RGBA':
+        trials.append(('octree', lambda: img.quantize(colors=256, method=Image.Quantize.FASTOCTREE)))
+    else:
+        pal = anchored_palette(img)
+        # Pillow only dithers when it maps onto a given palette, hence the two-step quantisation
+        trials.append(('anchored', lambda: img.quantize(palette=pal, dither=Image.Dither.NONE)))
+        trials.append(('anchored-dither', lambda: img.quantize(palette=pal, dither=Image.Dither.FLOYDSTEINBERG)))
+        trials.append(('mediancut', lambda: img.quantize(colors=256, method=Image.Quantize.MEDIANCUT)))
+    for label, make in trials:
+        try:
+            q = make()
+        except ValueError:
+            continue
+        ok, stats = banding_ok(img, q)
+        if ok:
+            cands.append((png_bytes(q), f'png8-{label}', stats))
     cands.sort(key=lambda c: len(c[0]))
     if cands and len(cands[0][0]) < len(full):
         return cands[0]

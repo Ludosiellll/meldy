@@ -17,6 +17,9 @@
   .tab { position: absolute; left: 1180px; top: 660px; width: 612px; height: 120px; border-radius: 32px 32px 0 0; background: var(--ink); }
   .oval { position: absolute; left: 1180px; top: 812px; width: 300px; height: 160px; border-radius: 50%; background: var(--named); }
   .area { position: absolute; left: 1520px; top: 840px; font-size: 48px; line-height: 1.2; font-weight: 500; white-space: nowrap; }
+  .just { position: absolute; left: 128px; top: 800px; width: 860px; font-size: 28px; line-height: 1.4; text-align: justify; color: var(--muted); }
+  .scaled { position: absolute; left: 1180px; top: 990px; font-size: 40px; line-height: 1.2; font-weight: 600; white-space: nowrap;
+            transform: scale(.8); transform-origin: 0 0; color: var(--blue); }
 </style>
 </head>
 <body>
@@ -42,6 +45,8 @@
   <div class="tab" data-pptx="shape"></div>
   <div class="oval" data-pptx="shape"></div>
   <div class="area" data-pptx="text">2000 м<sup>2</sup></div>
+  <p class="just" data-pptx="text">Выравнивание по ширине: Chromium растягивает пробелы в каждой строке, кроме последней, а компилятор переносит эти пробелы в PPTX явно, поэтому строки выглядят одинаково в любом просмотрщике.</p>
+  <div class="scaled" data-pptx="text">Текст в масштабе 0,8</div>
 
   <template data-pptx="notes">ЯДРО 1:00–1:25. Наша цель простая и проверяемая: к утру экзамена в шпаргалке студента не остаётся строк.
 

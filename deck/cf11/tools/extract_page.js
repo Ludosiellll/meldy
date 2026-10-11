@@ -101,16 +101,17 @@
   }
 
   // ---------------------------------------------------------------- box styles
-  function parseRadius(v, w, h) {
+  function parseRadius(v, w, h, scale = 1) {
     const parts = String(v).trim().split(/\s+/);
-    const res = (p, ref) => (p.endsWith('%') ? num(p) / 100 * ref : num(p));
+    const res = (p, ref) => (p.endsWith('%') ? num(p) / 100 * ref : num(p) * scale);
     const rx = res(parts[0], w), ry = res(parts[1] || parts[0], h);
     return [rx, ry];
   }
-  function boxStyle(el, w, h) {
+  function boxStyle(el, w, h, scale = 1) {
+    // w, h: the element box on the slide (after transforms); CSS lengths are scaled to it
     const cs = getComputedStyle(el);
     const sides = ['Top', 'Right', 'Bottom', 'Left'].map((s) => ({
-      w: num(cs[`border${s}Width`]), style: cs[`border${s}Style`], color: parseColor(cs[`border${s}Color`]),
+      w: num(cs[`border${s}Width`]) * scale, style: cs[`border${s}Style`], color: parseColor(cs[`border${s}Color`]),
     }));
     const vis = sides.filter((s) => s.w > 0 && s.style !== 'none' && s.style !== 'hidden' && s.color);
     let line = null, lineUniform = true;
@@ -119,7 +120,7 @@
       lineUniform = vis.length === 4 && sides.every((s) => Math.abs(s.w - a.w) < 0.01 && s.style === a.style && sameColor(s.color, a.color));
       if (lineUniform) line = { w: round(a.w), color: a.color, dash: a.style };
     }
-    const radii = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map((c) => parseRadius(cs[`border${c}Radius`], w, h));
+    const radii = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map((c) => parseRadius(cs[`border${c}Radius`], w, h, scale));
     // CSS 3 "overlapping curves": scale every radius down by the same factor
     let f = 1;
     const sumX1 = radii[0][0] + radii[1][0], sumX2 = radii[3][0] + radii[2][0];
@@ -252,7 +253,12 @@
     return { x: r.left - ORIGIN.x + l, y: r.top - ORIGIN.y + t, w: r.width - l - rr, h: r.height - t - b, ins: { l, t, r: rr, b } };
   }
 
-  function collectText(el, lang, warnings, label) {
+  function spaceWidth(st) {
+    mctx.font = `${st.italic ? 'italic' : 'normal'} ${st.weight} ${st.sizePx}px ${st.family}`;
+    return mctx.measureText(' ').width + st.letterSpacingPx;
+  }
+
+  function collectText(el, lang, warnings, label, scale = 1) {
     const tokens = [];
     const range = document.createRange();
     let replaced = 0;
@@ -285,6 +291,9 @@
           if (REPLACED.has(ln)) { replaced++; continue; }
           const pt = pseudoText(c);
           if (pt.length) warnings.push(`${label}: generated text ${pt.join(', ')} is not carried as live text (it stays in the under-layer picture only if it is not a glyph)`);
+          if (cs.display === 'list-item' && cs.listStyleType !== 'none') {
+            warnings.push(`${label}: list markers (${cs.listStyleType}) are not live text; write "•"/"—" in the text or draw them with ::before`);
+          }
           if (INLINE.has(cs.display)) walk(c, block);
           else { tokens.push({ kind: 'block' }); walk(c, c); tokens.push({ kind: 'block' }); }
         }
@@ -310,7 +319,7 @@
       const lines = [];
       let L = null;
       for (const t of chars) {
-        const base = t.rect.top + t.st.asc;
+        const base = t.rect.top + t.st.asc * scale;   // rects are on the slide (transformed), metrics are CSS px
         const newLine = !L || (base > L.baseline + 0.45 * Math.max(L.maxSize, t.st.sizePx) && t.rect.left < L.right - 0.5);
         if (newLine) { L = { chars: [], baseline: base, maxSize: 0, left: t.rect.left, right: t.rect.right, hasBase: t.st.vAlign === 'baseline' }; lines.push(L); }
         if (!L.hasBase && t.st.vAlign === 'baseline') { L.baseline = base; L.hasBase = true; }
@@ -320,6 +329,8 @@
         L.right = Math.max(L.right, t.rect.right);
       }
       // runs per line; drop white space at soft line ends and starts
+      const block0 = chars[0].block;
+      const justify = alignOf(getComputedStyle(block0)) === 'just';
       const outLines = [];
       lines.forEach((ln, li) => {
         let cs = ln.chars;
@@ -331,7 +342,9 @@
         // inline padding/border/margin or a nested object. It becomes extra spacing after that character.
         cs.forEach((t, k) => {
           const nx = cs[k + 1];
-          const g = nx ? nx.rect.left - t.rect.right : 0;
+          let g = nx ? nx.rect.left - t.rect.right : 0;
+          // justified lines: Chromium widens the spaces; carry the widening explicitly (the paragraph becomes 'l')
+          if (justify && t.ch === ' ' && li < lines.length - 1) g += t.rect.width - spaceWidth(t.st) * scale;
           t.extra = Math.abs(g) > 0.75 ? round(g, 2) : 0;
         });
         const runs = [];
@@ -346,14 +359,16 @@
           baseline: round(ln.baseline - ORIGIN.y),
           left: round((visible.length ? Math.min(...visible.map((t) => t.rect.left)) : ln.left) - ORIGIN.x),
           right: round((visible.length ? Math.max(...visible.map((t) => t.rect.right)) : ln.right) - ORIGIN.x),
-          maxSizePx: ln.maxSize,
+          maxSizePx: round(ln.maxSize * scale, 3),
           runs: runs.map((r) => {
             const s = r.st;
-            const shift = s.vAlign !== 'baseline' ? round((ln.baseline - (r.top + s.asc)) / s.sizePx, 3) : 0;
+            const shift = s.vAlign !== 'baseline' ? round((ln.baseline - (r.top + s.asc * scale)) / (s.sizePx * scale), 3) : 0;
             return {
-              text: r.text, raw: r.raw, family: s.family, weight: s.weight, italic: s.italic, sizePx: s.sizePx,
-              color: s.color, letterSpacingPx: round(s.letterSpacingPx + (r.extra || 0), 3), underline: s.underline,
-              strike: s.strike, transform: s.transform, baselineShift: shift, href: s.href, ascPx: s.asc, descPx: s.desc,
+              text: r.text, raw: r.raw, family: s.family, weight: s.weight, italic: s.italic,
+              sizePx: round(s.sizePx * scale, 3), color: s.color,
+              letterSpacingPx: round(s.letterSpacingPx * scale + (r.extra || 0), 3), underline: s.underline,
+              strike: s.strike, transform: s.transform, baselineShift: shift, href: s.href,
+              ascPx: round(s.asc * scale, 3), descPx: round(s.desc * scale, 3),
               ...(r.extra ? { gapPx: r.extra } : {}),
             };
           }),
@@ -364,9 +379,9 @@
       const bBox = contentBox(block);
       const lh = bcs.lineHeight === 'normal' ? null : round(num(bcs.lineHeight));
       out.push({
-        align: alignOf(bcs),
-        lineHeightPx: lh,
-        indentPx: round(num(bcs.textIndent)),
+        align: justify ? 'l' : alignOf(bcs),          // justified lines carry their widened spaces explicitly
+        lineHeightPx: lh === null ? null : round(lh * scale, 3),
+        indentPx: round(num(bcs.textIndent) * scale),
         marLPx: round(Math.max(0, bBox.x - elBox.x)),
         marRPx: round(Math.max(0, (elBox.x + elBox.w) - (bBox.x + bBox.w))),
         lines: outLines,
@@ -441,11 +456,13 @@
       }
       if (type === 'title' || type === 'text') {
         if (type === 'title') titles++;
-        d.style = boxStyle(el, g.box.w, g.box.h);
-        const t = collectText(el, lang, warnings, label);
+        d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
+        if (g.rot) warnings.push(`${label}: rotated text cannot be measured line by line; mark it data-pptx="image" if it looks off`);
+        const sc = g.scale || 1;
+        const t = collectText(el, lang, warnings, label, sc);
         const cb = contentBox(el);
-        d.text = { ...t, insets: { l: round(cb.ins.l), t: round(cb.ins.t), r: round(cb.ins.r), b: round(cb.ins.b) }, lang,
-          wrapNone: /^(nowrap|pre)$/.test(cs.whiteSpace) };
+        d.text = { ...t, insets: { l: round(cb.ins.l * sc), t: round(cb.ins.t * sc), r: round(cb.ins.r * sc), b: round(cb.ins.b * sc) },
+          lang, wrapNone: /^(nowrap|pre)$/.test(cs.whiteSpace) };
         if (!t.paragraphs.length) warnings.push(`${label}: no visible text`);
         const ownExtra = d.style.bgImage || d.style.shadow || d.style.outline || !d.style.lineUniform || pseudoPaints(el);
         if (ownExtra || descendantsPaint(el, false) || t.replacedChildren) d.render = { mode: 'under' };
@@ -453,7 +470,7 @@
         const families = new Set(t.paragraphs.flatMap((p) => p.lines.flatMap((l) => l.runs.map((r) => r.family))));
         for (const f of families) if (!/onest/i.test(f)) warnings.push(`${label}: font-family ${f} is not Onest`);
       } else if (type === 'shape') {
-        d.style = boxStyle(el, g.box.w, g.box.h);
+        d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
         if (!d.style.fill && !d.style.line && !d.style.hasBorder) warnings.push(`${label}: shape has neither fill nor border`);
         const ownExtra = d.style.bgImage || d.style.shadow || d.style.outline || !d.style.lineUniform || pseudoPaints(el) || d.style.clipPath;
         if (ownExtra || descendantsPaint(el, true)) d.render = { mode: 'over' };
@@ -461,7 +478,7 @@
         const src = el.dataset.src;
         if (src) {
           d.src = { url: fileOf(src), fit: el.localName === 'img' ? cs.objectFit : 'cover', position: cs.objectPosition };
-          d.style = boxStyle(el, g.box.w, g.box.h);
+          d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
           if (/\.svg(\?|#|$)/i.test(src)) d.render = { mode: 'svg' };
         } else {
           d.render = { mode: 'image' };
@@ -477,7 +494,7 @@
           fit: (el.localName === 'img' || el.localName === 'video') ? cs.objectFit : 'cover',
           position: cs.objectPosition,
         };
-        d.style = boxStyle(el, g.box.w, g.box.h);
+        d.style = boxStyle(el, g.box.w, g.box.h, g.scale || 1);
         if (type === 'video' && !d.src.poster) warnings.push(`${label}: no data-poster; the build takes frame 0`);
       }
       // clipping by an overflow ancestor
