@@ -105,8 +105,10 @@
       x.mk.style.left = `${x.detail ? 1 + (18 - w) / 2 : 4}px`;
       x.mk.style.top = `${29 - h / 2}px`;
       x.mk.style.borderRadius = `${h / 2}px`;
-      x.mk.style.background = css(lerp(x.detail ? RGB.muted : RGB.ink, RGB.named, n));
-      x.mk.style.transform = `scale(${1 - seg(e, 0, 0.55)})`;
+      // The colour flips at the bottom of a small dip (a pop), so no muddy in-between hue is ever drawn.
+      const pop = Math.sin(Math.PI * clamp(n));
+      x.mk.style.background = css(n >= 0.5 ? RGB.named : x.detail ? RGB.muted : RGB.ink);
+      x.mk.style.transform = `scale(${((1 - 0.6 * pop) * (1 - seg(e, 0, 0.55))).toFixed(3)})`;
       // The words: muted once named, faint once erased; back to ink on the rewind.
       x.tx.style.color = css(lerp(lerp(RGB.ink, RGB.muted, n), RGB.faint, e));
       // The strike is drawn left to right as the line is erased, and retracts right to left on the rewind.
@@ -115,13 +117,15 @@
       // The map: one square per line — ink, yellow once named, an empty outline once erased.
       const sq = squares[i];
       if (e >= 0.5) {
+        sq.style.transform = 'none';
         sq.style.background = 'transparent';
         sq.style.boxShadow = `inset 0 0 0 2px rgba(138,143,151,${(0.55 * clamp((e - 0.5) * 2)).toFixed(3)})`;
         sq.style.opacity = '1';
       } else {
-        sq.style.background = css(lerp(RGB.ink, RGB.named, n));
+        sq.style.background = css(n >= 0.5 ? RGB.named : RGB.ink);
         sq.style.boxShadow = 'none';
         sq.style.opacity = String(1 - e * 2);
+        sq.style.transform = `scale(${(1 - 0.4 * Math.sin(Math.PI * clamp(n))).toFixed(3)})`;
       }
     });
     // The count, with the new value rolling in (down from below when it drops, from above on the rewind).

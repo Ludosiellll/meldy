@@ -67,8 +67,8 @@ export function squareState(slide, i) {
 
 /** The counter's words. */
 export function counterText(slide) {
-  if (slide.finale) return 'Шпаргалка этой защиты пуста: осталось 0 из 10';
-  return `осталось ${10 - passed(slide)} из 10`;
+  if (slide.finale) return 'Шпаргалка этой защиты пуста: осталось 0 из\u00a010';
+  return `осталось ${10 - passed(slide)} из\u00a010`;
 }
 
 /** Load Playwright from a local install or from the global node_modules next to this Node. */

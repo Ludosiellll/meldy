@@ -100,6 +100,41 @@ for (const slide of SLIDES) {
   }
 }
 
+// --morph: for each slide change, where every named object comes from and goes to, drawn over the new slide.
+if (args.includes('--morph')) {
+  fs.mkdirSync(path.join(OUT, 'morph'), { recursive: true });
+  const boxes = async () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-name]')].map((el) => {
+    const r = el.getBoundingClientRect();
+    return [el.dataset.name, [r.left, r.top, r.width, r.height]];
+  })));
+  let prev = null;
+  for (const slide of SLIDES) {
+    if (!fs.existsSync(path.join(SLIDES_DIR, slide.file))) { prev = null; continue; }
+    await open(slide);
+    const cur = await boxes();
+    if (prev && (!want.size || want.has(slide.n))) {
+      const svg = [];
+      for (const [name, b] of Object.entries(cur)) {
+        if (/^!!s\d\d$/.test(name)) continue;
+        const a = prev[name];
+        if (a) {
+          svg.push(`<rect x="${a[0]}" y="${a[1]}" width="${a[2]}" height="${a[3]}" fill="none" stroke="#c0c" stroke-width="3" stroke-dasharray="10 8"/>`);
+          svg.push(`<line x1="${a[0] + a[2] / 2}" y1="${a[1] + a[3] / 2}" x2="${b[0] + b[2] / 2}" y2="${b[1] + b[3] / 2}" stroke="#c0c" stroke-width="4" marker-end="url(#h)"/>`);
+          svg.push(`<text x="${b[0] + 8}" y="${b[1] + 26}" font: 600 22px sans-serif fill="#c0c" style="font:600 22px sans-serif">${name}</text>`);
+        } else svg.push(`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" fill="none" stroke="#0a0" stroke-width="3"/>`);
+      }
+      for (const [name, a] of Object.entries(prev)) if (!cur[name] && !/^!!s\d\d$/.test(name)) svg.push(`<rect x="${a[0]}" y="${a[1]}" width="${a[2]}" height="${a[3]}" fill="none" stroke="#e33" stroke-width="3" stroke-dasharray="4 6"/>`);
+      await page.evaluate((inner) => {
+        const d = document.createElement('div');
+        d.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" style="position:absolute;left:0;top:0;z-index:99"><defs><marker id="h" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c0c"/></marker></defs>${inner}</svg>`;
+        document.querySelector('.slide').appendChild(d.firstChild);
+      }, svg.join(''));
+      await page.screenshot({ path: path.join(OUT, 'morph', `${String(slide.n).padStart(2, '0')}.png`) });
+    }
+    prev = cur;
+  }
+}
+
 if (doSheet && !want.size) {
   const cells = SLIDES.filter((s) => fs.existsSync(path.join(OUT, `${String(s.n).padStart(2, '0')}.png`))).map((s) => {
     const nn = String(s.n).padStart(2, '0');

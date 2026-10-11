@@ -105,8 +105,11 @@
   });
   const paint = (s, state, p = 1) => {
     // state: [ink|named|gone] blend described by fill colour and outline alpha
-    if (state.gone > 0.5) { s.style.background = 'transparent'; s.style.boxShadow = `inset 0 0 0 2px rgba(138,143,151,${(0.55 * clamp((state.gone - 0.5) * 2)).toFixed(3)})`; s.style.opacity = '1'; }
-    else { s.style.background = css(lerp(RGB.ink, RGB.named, state.named)); s.style.boxShadow = 'none'; s.style.opacity = String(1 - state.gone * 2); }
+    if (state.gone > 0.5) { s.style.transform = 'none'; s.style.background = 'transparent'; s.style.boxShadow = `inset 0 0 0 2px rgba(138,143,151,${(0.55 * clamp((state.gone - 0.5) * 2)).toFixed(3)})`; s.style.opacity = '1'; }
+    else {
+      s.style.background = css(state.named >= 0.5 ? RGB.named : RGB.ink); s.style.boxShadow = 'none'; s.style.opacity = String(1 - state.gone * 2);
+      s.style.transform = `scale(${(1 - 0.4 * Math.sin(Math.PI * clamp(state.named))).toFixed(3)})`;
+    }
   };
   const wave = document.getElementById('wave');
   const bars = Array.from({ length: 12 }, (_, j) => { const b = document.createElement('i'); b.style.left = `${j * 8}px`; wave.appendChild(b); return b; });
@@ -139,8 +142,9 @@
       x.mk.style.width = `${w}px`; x.mk.style.height = `${h}px`;
       x.mk.style.left = `${detail ? 4 + (14 - w) / 2 : 6}px`; x.mk.style.top = `${20 - h / 2}px`;
       x.mk.style.borderRadius = `${h / 2}px`;
-      x.mk.style.background = css(lerp(detail ? RGB.muted : RGB.ink, RGB.named, s.named));
-      x.mk.style.transform = `scale(${1 - seg(s.gone, 0, 0.55)})`;
+      const pop = Math.sin(Math.PI * clamp(s.named));
+      x.mk.style.background = css(s.named >= 0.5 ? RGB.named : detail ? RGB.muted : RGB.ink);
+      x.mk.style.transform = `scale(${((1 - 0.6 * pop) * (1 - seg(s.gone, 0, 0.55))).toFixed(3)})`;
       x.tx.style.color = css(lerp(lerp(RGB.ink, RGB.muted, s.named), RGB.faint, s.gone));
       x.st.style.opacity = s.strike > 0 ? '1' : '0';
       x.st.style.transform = `scaleX(${s.strike})`;

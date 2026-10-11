@@ -77,12 +77,12 @@ template { display: none; }
 .sq.now { background: var(--yellow); }
 .sq.done { background: transparent; border: 2px solid var(--outline); }
 /* Between two sections (an own slide): a small yellow dot in the gap. */
-.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); }
+.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); }
 .left { top: 52px; left: 488px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; }
 .left.fin { font-size: 40px; line-height: 52px; }
 /* The corner wordmark: «Meldy» live text, its dot a separate shape (!!dot). */
 .mark { top: 46px; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
-.mark-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--yellow); }
+.mark-dot { width: 10px; height: 10px; border-radius: 5px; background: var(--yellow); }
 .runner { top: 52px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; text-align: right; }
 
 /* ------------------------------------------------------------------ text */
@@ -112,7 +112,8 @@ template { display: none; }
 /* The wordmark on the title and the conclusion. */
 .word { font-size: 240px; line-height: 240px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
 .word.w200 { font-size: 200px; line-height: 200px; }
-.word-dot { border-radius: 50%; background: var(--yellow); }
+/* The radius is set on each dot to half its size: a circle drawn as a rounded rectangle, so it morphs into windows. */
+.word-dot { background: var(--yellow); }
 
 /* ------------------------------------------------------------------ surfaces */
 /* A card is an empty shape (it morphs between slides); its contents are siblings drawn on top.
