@@ -26,9 +26,9 @@ const meldyReelPart = lazyPart(() => import('../components/reel/MeldyReel').then
 /**
  * One face on every entry (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07): the same
  * promise as the page title, the link preview, the manifest and the README — «Meldy — тренажёр
- * устного экзамена по билетам кафедры. ИИ не отвечает за студента — он его спрашивает».
+ * экзамена по вопросам кафедры. ИИ не отвечает за студента — он его спрашивает».
  */
-export const EYEBROW = 'Тренажёр устного экзамена по билетам кафедры';
+export const EYEBROW = 'Тренажёр экзамена по вопросам кафедры';
 export const HEADLINE = 'ИИ не отвечает за вас — он вас спрашивает';
 /**
  * The exam as it is now (decision 2026-10-09, the universal exam): one file or one per subject, a plan by days to the
@@ -564,7 +564,7 @@ function Footer() {
       <a className="hm-logo" href="#" aria-label="Meldy, наверх">
         Meldy
       </a>
-      <span>Тренажёр устного экзамена по билетам кафедры · © {new Date().getFullYear()}</span>
+      <span>Тренажёр экзамена по вопросам кафедры · © {new Date().getFullYear()}</span>
       <a href="#">Наверх</a>
       <p className="hm-foot-note">{ty(TELEMETRY_NOTE)}</p>
     </footer>

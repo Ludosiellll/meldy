@@ -93,7 +93,7 @@ describe('Landing page', () => {
   it('opens on the promise: what Meldy is, the headline with its hand-drawn line, and the exam as it is now', () => {
     renderLanding();
     expect(plain(document.querySelector('.hm-eyebrow')?.textContent)).toBe(EYEBROW);
-    expect(EYEBROW).toBe('Тренажёр устного экзамена по билетам кафедры');
+    expect(EYEBROW).toBe('Тренажёр экзамена по вопросам кафедры');
     const h1 = screen.getByRole('heading', { level: 1 });
     expect(plain(h1.textContent)).toBe(HEADLINE);
     expect(HEADLINE).toBe('ИИ не отвечает за вас — он вас спрашивает');

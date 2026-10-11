@@ -39,9 +39,9 @@ export default defineConfig({
       // and come first, so a platform that picks by size takes them; the SVGs stay (the service worker
       // shows /pwa-192x192.svg on notifications, and manifest icons are precached).
       manifest: {
-        name: 'Meldy — тренажёр устного экзамена',
+        name: 'Meldy — тренажёр экзамена',
         short_name: 'Meldy',
-        description: 'Тренажёр устного экзамена по билетам кафедры. ИИ не отвечает за студента — он его спрашивает.',
+        description: 'Тренажёр экзамена по вопросам кафедры. ИИ не отвечает за студента — он его спрашивает.',
         lang: 'ru',
         theme_color: '#f3f3f0',
         background_color: '#f3f3f0',

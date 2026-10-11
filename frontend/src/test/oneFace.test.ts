@@ -14,7 +14,7 @@ import { EYEBROW } from '../pages/Landing';
  * One face on every entry: the page title, the link preview, the manifest and the README say what
  * the landing says (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07, «Одно лицо на всех входах»).
  */
-const TITLE = 'Meldy — тренажёр устного экзамена по билетам кафедры';
+const TITLE = 'Meldy — тренажёр экзамена по вопросам кафедры';
 const PROMISE = 'ИИ не отвечает за студента — он его спрашивает';
 const SITE = 'https://ludosiel-studyforge.hf.space/';
 const OLD = /Конспекты, карточки и тесты|помощник для учёбы|засчит/i;
@@ -102,15 +102,15 @@ describe('index.html', () => {
     expect(indexHtml).toContain('<link rel="icon" href="/pwa-192x192.png" sizes="192x192" type="image/png" />');
     expect(indexHtml).toContain('<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />');
     expect(pngSize('apple-touch-icon.png')).toEqual([180, 180]);
-    expect(indexHtml).toMatch(/<noscript>[\s\S]*Meldy — тренажёр устного экзамена по билетам кафедры[\s\S]*<\/noscript>/);
+    expect(indexHtml).toMatch(/<noscript>[\s\S]*Meldy — тренажёр экзамена по вопросам кафедры[\s\S]*<\/noscript>/);
   });
 });
 
 describe('the PWA manifest (vite.config.ts)', () => {
   it('says the promise and lists the PNG icons first, the maskable one among them', () => {
-    expect(viteConfigSource).toContain("name: 'Meldy — тренажёр устного экзамена'");
+    expect(viteConfigSource).toContain("name: 'Meldy — тренажёр экзамена'");
     expect(viteConfigSource).toContain("short_name: 'Meldy'");
-    expect(viteConfigSource).toContain(`description: 'Тренажёр устного экзамена по билетам кафедры. ${PROMISE}.'`);
+    expect(viteConfigSource).toContain(`description: 'Тренажёр экзамена по вопросам кафедры. ${PROMISE}.'`);
     expect(viteConfigSource).toContain("display: 'standalone'");
     expect(viteConfigSource).not.toMatch(OLD);
     const icons = [...viteConfigSource.matchAll(/src: '([^']+)',\s*sizes: '([^']+)',\s*type: '([^']+)'(?:,\s*purpose: '([^']+)')?/g)].map(([, src, sizes, type, purpose]) => ({
