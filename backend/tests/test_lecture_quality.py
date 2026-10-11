@@ -1,17 +1,20 @@
 """«Разобрать лекцию»: what the live QA run of 2026-10-11 found, item by item.
 
 1. A link to a video page is refused before any charge or fetch (utils.is_video_link, main.analyze_url).
-2. A recording goes to Groq's most accurate Whisper in Russian with the topic of its file name, Gemini is the
-   fallback with transcript settings, and the text of a recording is marked (transcribed: true).
+2. A recording goes to Groq's turbo Whisper in Russian with no prompt (the recheck of release 44 found its
+   large-v3 with a file-name prompt worse), Whisper's made-up lines go (subtitle credits, a loop at the end),
+   Gemini is the fallback with transcript settings, and the text of a recording is marked (transcribed: true).
 3. Russian words with Latin letters inside, in every generated lecture material (mixed_script.py).
-4. The material prompts take formulas, dates and numbers from the lecture only.
+4. The material prompts take formulas, dates and numbers from the lecture only; the конспект retells each
+   section of the lecture shorter, between «Ключевые тезисы» and «Выводы».
 5. A web page comes without the addresses of its links, images and reference lists (utils.clean_page_text).
 6. PDF text is read by the position of its letters (parser._PdfPage): no spaces inside words, sections kept.
 7. A near-empty text ends the stream with a clear no_text error and no model call (the units: test_quota).
 8. .doc, voice notes and phone videos are refused with what to do instead (parser.unsupported_format_detail).
 
-The QA inputs (a Chromium-printed PDF of a biology lecture, the QA strings) are used as they were found;
-the web page is a synthetic Reader answer of the same shape. Models and providers are fakes.
+The QA inputs (a Chromium-printed PDF of a biology lecture, Whisper's transcripts of one MP3 of a physics
+lecture, the QA strings) are used as they were found; the web page is a synthetic Reader answer of the same
+shape. Models and providers are fakes.
 """
 import asyncio
 import io
@@ -139,11 +142,47 @@ def test_a_video_link_is_refused_before_any_charge_or_fetch(api, monkeypatch):
 # ── 2. Recordings ──────────────────────────────────────────────────────────────────
 
 
-def test_the_topic_of_a_recording_comes_from_a_file_name_that_says_something():
-    assert media_parser.recording_topic("Лекция_физика_закон_Ома.mp3") == "Лекция физика закон Ома"
-    assert media_parser.recording_topic("/tmp/x/Лекция 5. Инфляция.m4a") == "Лекция 5. Инфляция"
-    for name in ("Запись 12.m4a", "audio_2026-10-11.mp3", "IMG_2041.mp4", "", None):
-        assert media_parser.recording_topic(name) == ""
+# Whisper's text of one synthetic MP3 of a physics lecture (2:50), live on 2026-10-11, with the share of the lecture's
+# words it kept in order: the turbo model without a language or a prompt in the morning, release 44's large-v3 with
+# a Russian prompt naming the topic of the file name in the evening.
+QA_RECORDINGS = {
+    "morning": "ohm_whisper_morning.txt",  # 84.6 %: one ~10 s passage skipped, nothing invented
+    "run1": "ohm_whisper_r44_run1.txt",  # 32.0 %: stopped at 45 s with the prompt twice and a subtitle credit
+    "run2": "ohm_whisper_r44_run2.txt",  # 76.1 %: invented sentences where the turbo skipped
+    "run3": "ohm_whisper_r44_run3.txt",  # 75.2 %: the same
+}
+QA_MADE_UP_TAIL = ". . Лекция физика закон Ома. Лекция физика закон Ома. Субтитры создавал DimaTorzok"
+
+
+def qa_recording(name: str) -> str:
+    return (FIXTURES / QA_RECORDINGS[name]).read_text(encoding="utf-8").strip()
+
+
+def fake_gemini(monkeypatch, text: str) -> list:
+    """genai.Client of media_parser: the upload is ready at once and every model answers ``text``; the calls."""
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+    monkeypatch.delenv("GEMINI_MODELS", raising=False)
+    calls = []
+
+    class FakeFiles:
+        def upload(self, file=None, config=None):
+            return SimpleNamespace(name="files/1", state=SimpleNamespace(name="ACTIVE"))
+
+        def delete(self, name=None):
+            pass
+
+    class FakeClient:
+        def __init__(self, api_key=None, **kwargs):
+            self.files = FakeFiles()
+
+            async def generate_content(model=None, contents=None, config=None):
+                calls.append({"model": model, "prompt": contents[1]})
+                return SimpleNamespace(text=text)
+
+            self.aio = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+
+    monkeypatch.setattr(media_parser.genai, "Client", FakeClient)
+    return calls
 
 
 class _Busy(Exception):
@@ -180,34 +219,141 @@ def groq(monkeypatch):
     return FakeGroq
 
 
-def test_a_lecture_recording_goes_to_the_most_accurate_whisper_in_russian_with_its_topic(groq, tmp_path):
+def test_a_lecture_recording_goes_to_the_turbo_whisper_in_russian_without_a_prompt(groq, tmp_path):
     path = tmp_path / "upload.mp3"
     path.write_bytes(b"ID3 audio")
-    text = asyncio.run(media_parser.transcribe_media_file(str(path), "audio/mpeg", topic="Лекция физика закон Ома"))
-    assert text == FakeGroq.text
+    assert asyncio.run(media_parser.transcribe_media_file(str(path), "audio/mpeg")) == FakeGroq.text
     [call] = groq.calls
-    assert call["model"] == "whisper-large-v3" and call["language"] == "ru" and call["temperature"] == 0
-    assert call["prompt"] == "Запись лекции на русском языке. Тема: Лекция физика закон Ома."
+    assert call["model"] == "whisper-large-v3-turbo" and call["language"] == "ru" and call["temperature"] == 0
+    # Release 44's «Запись лекции на русском языке. Тема: Лекция физика закон Ома.» came back as text (run1).
+    assert "prompt" not in call
     assert call["mime"] == "audio/mpeg" and call["name"] == "upload.mp3"
+    assert media_parser.lecture_transcription_models() == ["whisper-large-v3-turbo"]
 
 
-def test_whisper_falls_back_to_the_turbo_model_when_the_first_one_is_busy(groq, tmp_path):
+def test_a_busy_turbo_goes_to_gemini_not_to_large_v3(groq, monkeypatch, tmp_path):
+    groq.fail = {"whisper-large-v3-turbo"}
+    gemini = fake_gemini(monkeypatch, "Сегодня мы разберём закон Ома.")
+    path = tmp_path / "upload.mp3"
+    path.write_bytes(b"ID3 audio")
+    assert asyncio.run(media_parser.transcribe_media_file(str(path), "audio/mpeg")) == "Сегодня мы разберём закон Ома."
+    assert [call["model"] for call in groq.calls] == ["whisper-large-v3-turbo"]
+    assert len(gemini) == 1 and gemini[0]["prompt"] == media_parser.MEDIA_TRANSCRIPTION_PROMPT
+
+
+def test_large_v3_is_asked_only_when_named_and_then_the_turbo_follows_it(groq, monkeypatch, tmp_path):
+    monkeypatch.setenv("GROQ_LECTURE_TRANSCRIPTION_MODEL", "whisper-large-v3")
     groq.fail = {"whisper-large-v3"}
     path = tmp_path / "upload.mp4"
     path.write_bytes(b"video")
-    # A video lecture (MP4) goes to Whisper too, not straight to Gemini; no topic — the plain prompt.
+    # A video lecture (MP4) goes to Whisper too, not straight to Gemini.
     assert asyncio.run(media_parser.transcribe_media_file(str(path), "video/mp4")) == FakeGroq.text
     assert [call["model"] for call in groq.calls] == ["whisper-large-v3", "whisper-large-v3-turbo"]
-    assert {call["prompt"] for call in groq.calls} == {"Запись лекции на русском языке."}
-    assert media_parser.lecture_transcription_models() == ["whisper-large-v3", "whisper-large-v3-turbo"]
+    assert all("prompt" not in call and call["language"] == "ru" for call in groq.calls)
 
 
 def test_the_lecture_model_can_be_set_apart_from_the_spoken_answers_model(groq, monkeypatch):
-    monkeypatch.setenv("GROQ_LECTURE_TRANSCRIPTION_MODEL", "lecture-model")
     monkeypatch.setenv("GROQ_TRANSCRIPTION_MODEL", "answers-model")
+    assert media_parser.lecture_transcription_models() == ["whisper-large-v3-turbo", "answers-model"]
+    monkeypatch.setenv("GROQ_LECTURE_TRANSCRIPTION_MODEL", "lecture-model")
     assert media_parser.lecture_transcription_models() == ["lecture-model", "answers-model"]
     monkeypatch.setenv("GROQ_TRANSCRIPTION_MODEL", "lecture-model")
     assert media_parser.lecture_transcription_models() == ["lecture-model"]
+
+
+# Whisper's made-up lines.
+
+
+def test_the_45_second_run_loses_its_subtitle_credit_the_stray_dots_and_the_repeat():
+    run1 = qa_recording("run1")
+    assert run1.endswith("площади поперечного сечения. " + QA_MADE_UP_TAIL)
+    # A loop keeps one copy: Whisper usually repeats a sentence that was said. This one was release 44's prompt,
+    # which is not sent any more.
+    expected = run1[: run1.index(QA_MADE_UP_TAIL)] + "Лекция физика закон Ома."
+    assert media_parser.clean_whisper_transcript(run1) == expected
+
+
+@pytest.mark.parametrize("name", ["morning", "run2", "run3"])
+def test_real_whisper_transcripts_stay_as_they_were(name):
+    # Units («1 В», «1 А. Для…»), letters with a dot («Г. «Соединение проводников» И.»), commas where a piece
+    # ended: nothing of these is a made-up line of a known shape. Invented speech stays too: the cleanup cannot
+    # know it, so the model that wrote it is not asked by default.
+    text = qa_recording(name)
+    assert media_parser.clean_whisper_transcript(text) == text
+    if name == "run2":
+        assert "мы поистине придерживаемся высокого депрессанта" in text
+
+
+@pytest.mark.parametrize("credit", [
+    "Субтитры создавал DimaTorzok",
+    "Субтитры сделал DimaTorzok.",
+    "Субтитры делал DimaTorzok",
+    "Субтитры создавала Анна Иванова.",
+    "Субтитры сделала Анна Иванова.",
+    "Редактор субтитров А.Семкин Корректор А.Егорова",
+    "Редактор субтитров А. Синецкая.",
+    "Корректор А. Егорова.",
+    "Продолжение следует...",
+    "Продолжение следует…",
+])
+def test_subtitle_credits_go_wherever_they_stand(credit):
+    before, after = "Сегодня мы разберём закон Ома.", "Сила тока равна напряжению, делённому на сопротивление."
+    sentence = credit if credit[-1] in ".…" else credit + "."
+    clean = media_parser.clean_whisper_transcript
+    assert clean(credit) == ""
+    assert clean(f"{before} {sentence} {after}") == f"{before} {after}"
+    assert clean(f"{before} {after} {credit}") == f"{before} {after}"
+
+
+def test_a_credit_glued_to_a_sentence_goes_and_the_sentence_stays():
+    clean = media_parser.clean_whisper_transcript
+    last = "При параллельном соединении общее сопротивление меньше любого из них"
+    assert clean(f"{last} Субтитры создавал DimaTorzok") == last
+    assert clean(f"{last} Продолжение следует...") == last
+    assert clean("Субтитры сделал DimaTorzok Сегодня мы разберём закон Ома.") == "Сегодня мы разберём закон Ома."
+    assert clean("Субтитры: DimaTorzok") == ""
+
+
+def test_thanks_alone_at_the_very_end_and_a_loop_at_the_end_go():
+    clean = media_parser.clean_whisper_transcript
+    body = "Итак, запомним главное. При параллельном соединении общее сопротивление меньше любого из них."
+    assert clean(body + " Спасибо за внимание!") == body
+    assert clean(body + " Спасибо за просмотр.") == body
+    assert clean(body + " При параллельном соединении общее сопротивление меньше любого из них." * 3) == body
+    assert clean(body + " Спасибо за внимание." * 2 + " Субтитры сделал DimaTorzok") == body
+    # A paragraph break after a dropped line stays; a line break ends a sentence.
+    assert clean("Первый абзац.\nПродолжение следует...\n\nВторой абзац.") == "Первый абзац.\n\nВторой абзац."
+    assert clean("Первый абзац.\n\nСубтитры сделал DimaTorzok\n\nВторой абзац") == "Первый абзац.\n\nВторой абзац"
+    assert clean("") == "" and clean("  \n ") == "" and clean(None) == ""
+
+
+@pytest.mark.parametrize("text", [
+    "Субтитры делали вручную, кадр за кадром. Это занимало недели.",
+    "Корректор — это специалист, который исправляет ошибки в тексте.",
+    "Редактор и корректор проверяют текст перед печатью.",
+    "Продолжение следует из второго закона Ньютона.",
+    "Спасибо за внимание, а теперь перейдём к задачам.",
+    "Спасибо за внимание. А теперь перейдём к задачам.",
+    "Всем спасибо за внимание.",
+    "Запомните. Запомните. Сила тока равна напряжению, делённому на сопротивление.",
+    "Первый абзац лекции.\n\nВторой абзац лекции.",
+])
+def test_sentences_about_subtitles_thanks_inside_and_repeats_inside_stay(text):
+    assert media_parser.clean_whisper_transcript(text) == text
+
+
+def test_whisper_text_is_cleaned_and_a_text_of_made_up_lines_only_goes_to_gemini(groq, monkeypatch, tmp_path):
+    path = tmp_path / "upload.mp3"
+    path.write_bytes(b"ID3 audio")
+    monkeypatch.setattr(FakeGroq, "text", qa_recording("run1"))
+    cleaned = asyncio.run(media_parser.transcribe_media_file(str(path), "audio/mpeg"))
+    assert cleaned == media_parser.clean_whisper_transcript(qa_recording("run1")) and "DimaTorzok" not in cleaned
+
+    # Whisper heard nothing it could write: Gemini is asked, as when Whisper answers nothing.
+    monkeypatch.setattr(FakeGroq, "text", "Продолжение следует... Субтитры сделал DimaTorzok")
+    gemini = fake_gemini(monkeypatch, "Сегодня мы разберём закон Ома.")
+    assert asyncio.run(media_parser.transcribe_media_file(str(path), "audio/mpeg")) == "Сегодня мы разберём закон Ома."
+    assert len(gemini) == 1
 
 
 def test_gemini_transcribes_a_recording_with_transcript_settings_when_groq_has_no_key(monkeypatch, tmp_path):
@@ -278,13 +424,13 @@ def test_a_model_that_refuses_the_transcript_settings_is_asked_without_them(monk
     assert len(configs) == 2 and configs[0] is not None and configs[1] is None
 
 
-def test_the_text_of_a_recording_is_marked_and_the_topic_reaches_the_transcription(api, monkeypatch):
+def test_the_text_of_a_recording_is_marked_and_its_file_name_is_not_a_prompt(api, monkeypatch):
     import main
 
     seen = {}
 
-    async def transcribe(path, mime_type=None, *, topic=""):
-        seen.update(mime=mime_type, topic=topic)
+    async def transcribe(path, mime_type=None, **kwargs):
+        seen.update(mime=mime_type, kwargs=kwargs)
         return LECTURE
 
     monkeypatch.setattr(main, "transcribe_media_file", transcribe)
@@ -298,7 +444,8 @@ def test_the_text_of_a_recording_is_marked_and_the_topic_reaches_the_transcripti
     items = [item for item in frames(response.text) if item != "KA"]
     extracted = next(item for item in items if item["type"] == "text_extracted")
     assert extracted["transcribed"] is True and "ocr" not in extracted
-    assert seen == {"mime": "audio/mpeg", "topic": "Лекция физика закон Ома"}
+    # «Лекция_физика_закон_Ома.mp3» no longer reaches Whisper: release 44 put it in the prompt and got it back.
+    assert seen == {"mime": "audio/mpeg", "kwargs": {}}
     assert kinds(items)[-1] == "done"
 
 
@@ -445,6 +592,35 @@ def test_the_notes_prompt_takes_facts_from_the_lecture_and_keeps_its_sections(de
     keeps_sections = "Не сливай разные разделы в один" in prompt
     assert keeps_sections is (detail != "brief")
     assert "3-4 абзаца" not in prompt and "5-6 абзацев" not in prompt
+
+
+@pytest.mark.parametrize("detail", ["medium", "detailed"])
+def test_the_notes_retell_each_section_shorter_between_key_points_and_conclusions(detail):
+    # After release 44 the medium notes of the QA biology PDF repeated 322 of its words in order and had neither
+    # «Ключевые тезисы» nor «Выводы»: «keep the sections» had become «copy the sections».
+    prompt = build_summarizer_prompt(detail)
+    heads = ["## Ключевые тезисы", "## <название раздела лекции>", "## Выводы"]
+    assert [prompt.index(head) for head in heads] == sorted(prompt.index(head) for head in heads)
+    assert "в том же порядке" in prompt and "Не сливай разные разделы в один и не пропускай их" in prompt
+    assert "пересказ раздела своими словами" in prompt
+    assert "Конспект — это пересказ, а не копия лекции: не переписывай предложения лекции подряд" in prompt
+    shorter = {"medium": ("примерно втрое короче самого раздела", "примерно треть объёма лекции"),
+               "detailed": ("примерно вдвое короче самого раздела", "не больше половины объёма лекции")}[detail]
+    assert all(part in prompt for part in shorter)
+    assert "Точно, как в лекции, передавай только определения, формулы, даты, числа и имена" in prompt
+    assert SOURCE_FACTS_RULE in prompt
+    assert ("## Рекомендации по изучению" in prompt) is (detail == "detailed")
+    # What SummaryView renders: content («## » headings are its parts) and terms («Термины», not a part of content).
+    for key in ('"title"', '"subject"', '"content"', '"terms"', '"term"', '"definition"'):
+        assert key in prompt
+    assert "в поле terms, отдельный раздел «Термины» в content не нужен" in prompt
+
+
+def test_the_brief_notes_and_unknown_levels_keep_their_prompts():
+    brief = build_summarizer_prompt("brief")
+    assert "краткий конспект: заголовок + 3-5 ключевых тезисов + 1 абзац выводов" in brief
+    assert "## Ключевые тезисы" not in brief and "своими словами" not in brief
+    assert build_summarizer_prompt("unknown") == build_summarizer_prompt("medium") == build_summarizer_prompt()
 
 
 def test_no_material_prompt_pushes_formulas_and_every_analysis_prompt_is_grounded():

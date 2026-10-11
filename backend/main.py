@@ -707,7 +707,7 @@ async def analyze(
 
 
 # extract_youtube_transcript stays unwired: YouTube asks servers to «Sign in to confirm you're not a bot» (VIDEO_LINK_DETAIL).
-from media_parser import MediaProcessingTimeout, extract_youtube_transcript, recording_topic, transcribe_media_file
+from media_parser import MediaProcessingTimeout, extract_youtube_transcript, transcribe_media_file
 
 
 async def event_stream_media(
@@ -757,7 +757,7 @@ async def event_stream_media(
                     tmp.write(content)
                 try:
                     text = await asyncio.wait_for(
-                        transcribe_media_file(tmp_path, photo or content_type, topic=recording_topic(filename)),
+                        transcribe_media_file(tmp_path, photo or content_type),
                         timeout=media_transcribe_timeout_seconds(),
                     )
                 except (asyncio.TimeoutError, MediaProcessingTimeout):
