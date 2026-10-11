@@ -587,7 +587,8 @@ function writeSheet(input: ExamStatusInput): ExamStatus {
     flag: 'Шпаргалка',
     title: marked('Шпаргалка написана ', 'не полностью'),
     text: `У ${ofQuestions(sheet.toWrite)} ещё нет пунктов ответа. Допишите ${sheet.toWrite === 1 ? 'его' : 'их'}.${price}${tail}`,
-    brief: `Допишите ${sheet.toWrite === 1 ? 'его' : 'их'}.${price}${tail}`,
+    // The phone shows the brief under the title alone: it names what to write, not «его» after «Шпаргалка».
+    brief: `Допишите ${questions(sheet.toWrite)}.${price}${tail}`,
     action: { kind: 'write', label, count },
     blocked,
   };

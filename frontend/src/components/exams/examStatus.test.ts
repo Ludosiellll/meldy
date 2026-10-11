@@ -269,6 +269,10 @@ describe('examStatus: the cheat sheet and the answers', () => {
     const status = examStatus(input({ coverage: MAPPED, sheet: { written: 10, toWrite: 4, units: 4, lines: { left: 30, total: 30 } } }));
     expect(title(status)).toBe('Шпаргалка написана не полностью');
     expect(status.text).toBe('У 4 вопросов ещё нет пунктов ответа. Допишите их. Это стоит 4 единицы ИИ.');
+    // The phone's brief stands under the title alone, so it names the questions instead of «его»/«их».
+    expect(status.brief).toBe('Допишите 4 вопроса. Это стоит 4 единицы ИИ.');
+    const one = examStatus(input({ coverage: MAPPED, sheet: { written: 10, toWrite: 1, units: 1, lines: { left: 30, total: 30 } } }));
+    expect(one.brief).toBe('Допишите 1 вопрос. Это стоит 1 единицу ИИ.');
     expect(status.action).toEqual({ kind: 'write', label: 'Дописать шпаргалку', count: null });
     expect(examStatus(input({ coverage: MAPPED, sheet: { written: 10, toWrite: 4, units: 4 }, answers: { answered: 3 } })).key).toBe('answering');
   });
