@@ -9,14 +9,15 @@
    Monday: an answer aloud names every line once (yellow dots). Tuesday: the second answer erases them — a strike
    drawn left to right, the counter rolls to 0. Then the lines come back and the loop starts again.
    Vertical rhythm: tag 32 · question 112 · lines 180 + 58·i · count baseline 652 · voice 688–748. */
-/* The GIF carries its own card: the white card (r40) on the slide's canvas with the deck's shadow, so the card can
-   settle in on the title without a baked shadow showing first. Frame 736 × 888: the card at (56, 16), 624 × 776;
-   the margins hold the whole shadow down to half a level (σ = 40 px: ~51 px past the sides, ~91 px below), so the
-   GIF's edge never shows on the slide's canvas. */
+/* The GIF carries its own card: the white card on the slide's canvas with the deck's shadow, so the card can settle
+   in on the title without a baked shadow showing first. The 624 × 776 layout below is drawn at ×1.1538 (a third more
+   area): the card is 720 × 896 at (56, 16) of an 832 × 984 frame; the shadow is the deck's own at that size (its
+   values are divided by the scale), and the margins hold it down to half a level at the sides (σ = 40 px). The
+   frame's bottom is the slide's bottom edge, so the last 20 px of the shadow's tail fall outside the slide. */
 html, body { background: var(--canvas); }
-.frame { position: relative; width: 736px; height: 888px; overflow: hidden; background: var(--canvas); }
-.frame > .stage { position: absolute; left: 56px; top: 16px; border-radius: 40px;
-  box-shadow: 0 1px 3px rgba(11, 18, 28, .05), 0 40px 80px -48px rgba(11, 18, 28, .30); }
+.frame { position: relative; width: 832px; height: 984px; overflow: hidden; background: var(--canvas); }
+.frame > .stage { position: absolute; left: 56px; top: 16px; border-radius: 40px; transform: scale(1.153846); transform-origin: 0 0;
+  box-shadow: 0 .867px 2.6px rgba(11, 18, 28, .05), 0 34.667px 69.333px -41.6px rgba(11, 18, 28, .30); }
 .stage { width: 624px; height: 776px; }
 .date { left: 348px; top: 32px; width: 244px; height: 48px; border-radius: 24px; background: var(--tint); overflow: hidden; }
 .date div { left: 0; right: 0; top: 0; height: 48px; line-height: 48px; text-align: center; font-size: 28px; color: var(--muted); white-space: nowrap; }
@@ -159,7 +160,8 @@ html, body { background: var(--canvas); }
     const from = t >= 3400 && t < 5730 ? 3400 : t >= 700 && t < 2780 ? 700 : null;
     time.textContent = from == null ? '0:00' : `0:${String(clamp(Math.floor((t - from) / 130), 0, 14)).padStart(2, '0')}`;
     bars.forEach((b, j) => {
-      const k = Math.abs(Math.sin(t / 90 + j * 1.7) * 0.55 + Math.sin(t / 41 + j * 0.9) * 0.45);
+      const tw = Math.floor(t / 200) * 200; // the bars move five times a second: calmer, and a lighter GIF
+      const k = Math.abs(Math.sin(tw / 90 + j * 1.7) * 0.55 + Math.sin(tw / 41 + j * 0.9) * 0.45);
       const hgt = 6 + 30 * k * v;
       b.style.height = `${hgt.toFixed(1)}px`;
       b.style.top = `${(20 - hgt / 2).toFixed(1)}px`;
@@ -176,7 +178,7 @@ html, body { background: var(--canvas); }
     }
   }
   seek(0);
-  window.__clip = { T, seek, width: 736, height: 888, poster: 0, loop: true };
+  window.__clip = { T, seek, width: 832, height: 984, poster: 0, loop: true };
 })();
 </script>
 </body>

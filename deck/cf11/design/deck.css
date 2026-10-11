@@ -112,6 +112,8 @@ template { display: none; }
 .label { left: 128px; top: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-fg); white-space: nowrap; }
 .claim { left: 128px; top: 192px; font-size: 72px; line-height: 80px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
 .claim.t64 { font-size: 64px; line-height: 72px; }
+/* The title's line under the wordmark (01): the claim's weight, a step smaller so the cover card can be large. */
+.thesis { font-size: 64px; line-height: 72px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
 /* A manifesto's statement (05): the claim at stage size. */
 .statement { left: 128px; top: 192px; font-size: 96px; line-height: 104px; font-weight: 600; letter-spacing: -.035em; white-space: nowrap; }
 .lead { font-size: 40px; line-height: 52px; color: var(--muted); white-space: nowrap; }
