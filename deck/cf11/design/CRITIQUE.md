@@ -114,3 +114,39 @@ After the fixes:
 * `tools/make.sh`: ALL GREEN, 3.23 MB.
 * The motion preview was re-rendered and the keyframes read again.
 * The open items: R3.6, R3.7.
+
+## Round 4 — the live recordings in the device chain (06→11), native shadows
+
+Read on 2026-10-11 from the stills of 06–11, the recordings frame by frame against their masters' moments, and the
+motion preview after the compiler's native shadows: `07-in.mp4` … `11-in.mp4` (frames every 0.3 s through each
+transition, then at every step), the keyframe sheets and `morph-log.txt`. R3.7 is closed: 07–09 show the live site.
+
+### Stills and words
+
+| # | Finding | Status |
+|---|---|---|
+| R4.1 | 08: the screen's square corners (an opaque video, its corners painted ink) stuck out of the phone's bezel at radius 64: a 4 px notch at each corner. | **fixed** — the bezel is 52 and the clip is re-fitted with a 36 px screen radius: concentric, the painted corners stay inside the bezel. |
+| R4.2 | 06: the chips «PDF, DOCX, PPTX, фото» mixed the two imports. | **fixed** — two lines: «вопросы — Word, Excel, TXT или PDF», «лекции — PDF, DOCX, PPTX или фото». |
+| R4.3 | 07: the notes said «перетаскивает файл»; the clip chooses it with «Выбрать файлы». | **fixed** — «загружает». |
+| R4.4 | 08: «как на экзамене» names a separate mode (no live marks) that the clip does not show, and the steps ran in another order than the clip. | **fixed** — «вслух; Meldy записывает сказанное текстом»; Переспрос before Названо и пропущено. |
+| R4.5 | 07–09: nothing told the speaker how the clips were made. | **fixed** — each slide's notes end with «О записи»: the live site, waiting cut out, nothing sped up; 08's voice synthetic and without sound; 09 the site's example, where «yesterday» is part of the example. |
+| R4.6 | 09: the legend's «Забыта — строка вернулась» is the product's rule (the cheat sheet's «returned» state, also on the landing page), but the clip does not show a line coming back. | **kept** — it is the key of the rule the claim states; the clip's own key («осталось · названо один раз · стёрто») matches the other three. |
+
+### A motion designer (06→11: the device chain with the real clips riding as `!!clip`)
+
+| # | Finding | Status |
+|---|---|---|
+| M4.1 | 06→07: the ink bullet grows into the laptop over the fading list; the bezel lands dark and the screen turns on 150 ms later, the recording playing from its first frame. The shadow now grows with the bezel as its own native shadow. | **checked** — 07-in at 0.4, 0.75, 1.1, 1.45, 1.8 s. |
+| M4.2 | Every morphing dot (the seeds, the corner dot, 06's first bullet, 11's «Группа» dot, the big dot) was written as an ellipse: the compiler makes an ellipse of a radius within half a pixel of the half, so 06→07 and 10→11 (and 01→02, 14→15) morphed an ellipse into a rounded rectangle, against the plan. | **fixed** — half the size less one pixel: every pair is a rounded rectangle at both ends (morph-log: no geometry change in the deck). |
+| M4.3 | 07→08, 08→09, 09→10: a screen that rides in shows its poster during the Morph, and the video takes over from its first frame when the slide lands. The posters (the protocol; the sheet after the erase, 44; the day card) were not the first frames (the exam page; the example's start, 47; a question mid-chat): a jump at every landing, and on 09 the counter went back from 44 to 47. | **fixed** — those loops begin on their posters' moments (`fit.py --start`, `loopmask.py --start`): 08 at 16.2 s (the tap on the missed point and the examiner's question come first, the story from 2.7 s), 09 at 13.2 s (the story from 0.63 s, out of the loop's own dissolve), 10 on its poster frame. 08's steps re-timed to 6.73 / 11.10 / 13.33 s, the reading line 14.63; 09's legend to 9.43 / 9.83 / 12.63 / 13.03. |
+| M4.4 | The screens change shape along the chain (1152 × 568 → 392 × 848 → 1152 × 568 → 672 × 672): mid-Morph the two crossfading pictures are stretched for about half a second. | **kept** — both ends are right and the content is mid-crossfade; a fixed-shape screen would need a mask that Morph does not carry. |
+| M4.5 | The native shadow travels and scales with the bezel through laptop → phone → laptop → chat and goes as the chat closes into the «Группа» dot. | **checked** — morph-log («shadow appears» 06→07, kept to 10, «shadow goes» 10→11); in LibreOffice the device shadows are within p99 2–3 grey levels of the HTML. |
+| M4.6 | 10→11: the screen fades out in place while the bezel closes into the dot, so for about 0.3 s the bezel's edge shows beside the fading screen. | **kept** — a partner for the clip on 11 would have to be a hidden video; under half a second. |
+| M4.7 | The steps wait for the clip's moments: 07's first at 4.25 s (the file), 08's at 6.73 s (the voice), 09's legend at 9.43 s (the sheet). The claim carries the first seconds alone. | **kept** — by design: the words land with what the screen shows. The stills and the PDF show every step. |
+
+After the fixes:
+* `node design/preview/lint.mjs`: no errors; `timeline.mjs`: no warnings.
+* `tools/make.sh`: ALL GREEN, 5.95 MB (1416 checks; the ten native shadows within p99 4 grey levels of the HTML).
+* The motion preview re-rendered: morph-log with 0 automatic pairs and 0 geometry changes; 08, 09 and 10 land on
+  their posters without a jump (frames at 1.2 and 1.35 s of each).
+* Open: R3.6 (the pilot's numbers, the BELTA note's address; the names come from the private fill).

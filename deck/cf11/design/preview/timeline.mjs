@@ -35,7 +35,8 @@ for (const slide of SLIDES) {
       what: (el.dataset.name ? el.dataset.name + ' ' : '') + (el.dataset.pptx === 'text' || el.dataset.pptx === 'title' ? `«${el.innerText.replace(/\s+/g, ' ').slice(0, 28)}»` : el.dataset.pptx),
     }));
     effects.sort((a, b) => a.order - b.order || a.i - b.i);
-    return { effects, transition: root.dataset.transition || 'morph', tdur: root.dataset.transitionDur || null, morph: root.dataset.morph || 'object' };
+    return { effects, transition: root.dataset.transition || 'morph', tdur: root.dataset.transitionDur || null, morph: root.dataset.morph || 'object',
+      video: Boolean(document.querySelector('[data-pptx="video"]')) };
   });
   // schedule
   const groups = [];
@@ -60,7 +61,8 @@ for (const slide of SLIDES) {
       start += longest;
     }
     console.log(`    = ${start} ms`);
-    if (!g.click && start > 3500 && !/12-scale/.test(slide.file)) warns.push(`${nn} automatic build ${start} ms`);
+    // a slide with a clip times its steps to the clip's moments (07–09, 12): its build is as long as the story
+    if (!g.click && start > 3500 && !R.video) warns.push(`${nn} automatic build ${start} ms`);
   });
 }
 await browser.close();

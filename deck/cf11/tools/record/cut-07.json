@@ -1,0 +1,23 @@
+{
+  "clip": "07",
+  "take": "07-e",
+  "pointer": "mouse",
+  "fps": 30,
+  "segments": [
+    { "from": "new-0.2", "to": "@4.0" },
+    { "from": "@4.2", "to": "@7.42", "hold": 0.4 },
+    { "from": "@7.75", "to": "dated+0.5" },
+    { "from": "minutes-0.05", "to": "minuted+0.4" },
+    { "from": "save-0.05", "to": "@17.95" },
+    { "from": "@19.28", "to": "@20.95" },
+    { "from": "plan-0.05", "to": "@24.6", "hold": 0.9 }
+  ],
+  "loop": { "dissolve": 0.5 },
+  "camera": [
+    { "at": "new-0.2", "top": 0, "bottom": 650 },
+    { "at": "@5.78", "top": 165, "bottom": 890 },
+    { "at": "@19.28", "top": 0, "bottom": 650 }
+  ],
+  "poster": { "still": "poster", "camera": { "top": 0, "bottom": 650 } },
+  "window": { "name": "07-exam-plan", "box": [1080, 544], "radius": 24 }
+}

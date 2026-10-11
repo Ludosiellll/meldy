@@ -17,7 +17,7 @@
  *                claim    y 192  (72/80, two lines end at y 352; a statement 96/104 ends at y 400)
  *                evidence y 424 – 952 (product windows may run from 392 to 1016)
  *                reading  y 984  (28–32 px, ends by y 1024)
- *   radii        cards 48, inner panels 24–32, windows 40, phone 64, pills 999
+ *   radii        cards 48, inner panels 24–32, windows 40, phone 52, pills 999
  *
  * SCALE: one hero per slide, at a size nothing else on the slide comes near (Onest, static 400/500/600/700;
  * nothing below 28 px)
@@ -100,12 +100,12 @@ template { display: none; }
 .sq.now { background: var(--yellow); }
 .sq.done { background: transparent; border: 2px solid var(--outline); }
 /* Between two sections (an own slide): a small yellow dot in the gap. */
-.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 3.5px; background: var(--yellow); }
+.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 3px; background: var(--yellow); }
 .left { top: 52px; left: 488px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; }
 .left.fin { font-size: 40px; line-height: 52px; }
 /* The corner wordmark: «Meldy» live text, its dot a separate shape (!!dot). */
 .mark { top: 46px; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
-.mark-dot { width: 10px; height: 10px; border-radius: 4.5px; background: var(--yellow); }
+.mark-dot { width: 10px; height: 10px; border-radius: 4px; background: var(--yellow); }
 .runner { top: 52px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; text-align: right; }
 
 /* ------------------------------------------------------------------ text */
@@ -145,16 +145,18 @@ template { display: none; }
 
 /* The wordmark on the title and the conclusion. */
 .word { font-size: 300px; line-height: 300px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
-/* The radius is set on each dot to half its size less half a pixel: it looks like a circle, but the compiler writes
-   a rounded rectangle (a full half would make an ellipse), so Morph only interpolates the corner as it opens into a
-   device: the same preset at both ends. */
+/* The radius is set on each morphing dot to half its size less one pixel: it looks like a circle, but the compiler
+   writes a rounded rectangle (it makes an ellipse of a radius within half a pixel of the half), so Morph only
+   interpolates the corner as the dot opens into a device or a strip square: the same preset at both ends. */
 .word-dot { background: var(--yellow); }
 
 /* ------------------------------------------------------------------ surfaces */
 /* A card is an empty shape (it morphs between slides); its contents are siblings drawn on top.
    A card that stays put may have its shadow as a separate unmarked .shadow element, baked into the background;
-   a card that moves or builds in carries its own (.lift): the compiler places that shadow as a picture that
-   travels and builds with the card. */
+   a card that moves or builds in carries its own (.lift): the compiler writes it as the card's native PowerPoint
+   shadow (one layer, the deck's 0 40px 80px -48px; the 5 % contact layer is dropped), so it travels, scales and
+   builds with the card. data-shadow="bake" bakes it into the card's layer picture instead: for a small box with a
+   strong negative spread, which LibreOffice draws as a hard band. */
 .card { background: var(--surface); border-radius: 48px; }
 .card.r40 { border-radius: 40px; }
 .card.r32 { border-radius: 32px; }

@@ -20,7 +20,7 @@ function seed(slide, i, gx, gy, gs) {
   const state = squareState(neighbour, i);
   const x = gx + gs / 2 - (SEED.step * 9 + SEED.size) / 2 + SEED.step * (i - 1);
   const y = gy + gs / 2 - SEED.size / 2;
-  return `left:${x}px;top:${y}px;width:${SEED.size}px;height:${SEED.size}px;border-radius:${SEED.size / 2 - 0.5}px;${SEED_COLOUR[state]}`;
+  return `left:${x}px;top:${y}px;width:${SEED.size}px;height:${SEED.size}px;border-radius:${SEED.size / 2 - 1}px;${SEED_COLOUR[state]}`;
 }
 
 function header(slide, source) {
