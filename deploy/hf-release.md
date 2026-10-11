@@ -4,6 +4,14 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-11 — Release 43.1: the end of a session says what the exam page says; a day off stays on «Сегодня» (from the commit of this entry)
+
+- **End of a session (live check, day 2: D2 and N1):** «Сегодня осталось N вопросов, около M минут» is now the exam page's own count. The plan is read again once the session's answers have left the device, and the end screen takes its numbers from that reading (the same `planDay` on the same `plan_inputs`), so questions that count later today («Ещё 4 вопроса — после 14:35») are counted as on the page. Live, the screen had said 75 and the page then 79. The line and the pill appear once — held in place, invisible, for at most 1.5 s — and never change under the finger; without that reading (offline, slow network) they come from the plan as the session ended, less its answers, never fewer than the page will show.
+- **Nothing ready now, more later today:** the end screen says the plan's own «Ещё 4 вопроса — после 14:35.» instead of the line from before the session.
+- **The pill names what it opens (D3):** «Ещё 13 вопросов» opened 18; every variant now counts the very session its link builds.
+- **«Сегодня» (D1):** an exam on its day off, or with nothing to do today, is a quiet row («… · сегодня выходной») beside the exam that leads, instead of leaving the page.
+- **Verified before release:** Vitest 264 files / 4368 tests (new tests replay the live day: 86/60 → 79/55 → 73/55 → 68/50, «Ещё 20 вопросов» opens «1 из 20»), `tsc -b`, the build in the Docker layout, the bot's plan copy unchanged (`scripts/sync_bot_plan.mjs --check`). Not verified before release: the live backend — checked right after.
+
 ## 2026-10-11 — Release 43: Meldy inside Telegram — «Открыть Meldy» opens today's session, signed in through Telegram (from the commit of this entry)
 
 - **The Mini App (`/tg`):** the bot's menu button «Открыть Meldy», and «Открыть занятие» under the day's card and under the record after a batch, open Meldy inside Telegram. A student whose Telegram is linked is signed in through Telegram (the bot's function checks the launch data's signature with the bot's token and mints a one-time sign-in) and lands on «Сегодня», or straight on the exam's session of today when the button names the exam. Inside Telegram the page takes Telegram's colours and safe areas, and links to other sites open outside.
