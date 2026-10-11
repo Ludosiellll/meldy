@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { AnswerInput, AnswerResult, PlanItem } from '../../types/container';
+import type { AnswerInput, AnswerResult, AnswerState, PlanInput, PlanItem } from '../../types/container';
 import type { ContainerData, Loadable } from '../../lib/containers/hooks';
 
 const mocks = vi.hoisted(() => ({
@@ -53,7 +53,7 @@ vi.mock('../../api/learning', async (importOriginal) => ({
 
 import StudyPage from './StudyPage';
 import { LEFT_WAIT } from '../../components/containers/SessionEnd';
-import { titleText } from '../../components/containers/planLines';
+import { firstCountText, titleText } from '../../components/containers/planLines';
 import { planDay } from '../../lib/containers/plan';
 import { emptyState } from '../../lib/containers/rule';
 import { at, testItems } from '../../lib/containers/__fixtures__/scenarios';
@@ -625,13 +625,20 @@ function liveB(o: { questions?: number; mistakes?: number } = {}) {
     item({ id: entry.id, subject_id: SUBJECT_CS, position: entry.o, file_no: String(entry.o), topic: entry.tp, stem: `Вопрос ${entry.o}`, options: ['Первый ответ', 'Второй ответ'], correct: [0] }),
   );
   let clock = at('2026-10-11', '10:48');
-  // The server takes the answers as record_test_answers does.
+  const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
+  // The server takes the answers as record_test_answers does, and says each one's state.
   const take = (answers: AnswerInput[]): AnswerResult[] =>
     answers.map((answer) => {
       clock += 8000;
       const correct = answer.chosen === 0;
       record(server, answer.item_id, { at: clock, correct, ms: 8000, cls: classOf(server.states.get(answer.item_id), false) });
-      return { client_event_id: answer.client_event_id, item_id: answer.item_id, status: 'saved', correct, step: correct ? 'start' : 'miss', rev: 1, state: null } as AnswerResult;
+      const u = server.states.get(answer.item_id) ?? emptyState();
+      const state: AnswerState = {
+        item_rev: 1, seen: u.seen, right: u.seen - u.wrong, wrong: u.wrong, last_result: correct ? 'right' : 'wrong', first_seen_day: u.firstDay,
+        last_answer_day: u.lastDay, streak_at: iso(u.seriesAt), streak_day: u.seriesDay, two_days_at: iso(u.twoDaysAt), two_days_day: null,
+        named_at: iso(u.namedAt), checks: u.checks, peek_day: u.peekDay, was_two_days: u.wasTwoDays, clean_ok_at: iso(u.cleanOkAt),
+      };
+      return { client_event_id: answer.client_event_id, item_id: answer.item_id, status: 'saved', correct, step: correct ? 'start' : 'miss', rev: 1, state };
     });
   mocks.enqueue.mockImplementation(async (_user: string, answers: AnswerInput[]) => take(answers));
   /** The exam as a page reads it now. */
@@ -731,6 +738,64 @@ describe('the end of a session says what the exam page says next (usability chec
     expect(leftLine()).toBe('Ещё 4 вопроса — после 14:35.');
     expect(b.pageTitle()).toBe('Сегодня осталось 4 вопроса, около 2 минут');
     expect(plain(document.querySelector('.ct-bar .sf-primary')?.textContent)).toBe('Готово');
+  });
+
+  it('figure 0 and confirmations later today: the end screen says when the first questions count as the page then does — «сегодня после 14:35», not «завтра после 6:50»', async () => {
+    const b = liveB();
+    renderStudy(b.read(), `?s=${SUBJECT_CS}`, b.read);
+    await answerRight(7);
+    // The page right after: its figure line (FigureBlock), the plan's first count — the 4 confirmations after 14:35.
+    const pageFirst = plain(firstCountText(planDay(b.read().planInput)));
+    expect(pageFirst).toBe('Первые войдут в счёт сегодня после 14:35 — если снова ответите верно');
+    // Before the fix: «… Первые войдут в счёт завтра после 6:50 — если снова ответите верно.», from this session's
+    // answers alone (each counts from tomorrow), though the plan's confirmations count earlier.
+    await waitFor(() => expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(`Верно с первого раза — 7 из 7. ${pageFirst}.`));
+  });
+
+  it('the first count is held with what is left until the plan read after the session comes, and never changes after', async () => {
+    const b = liveB();
+    // The answers stay on their way until the test lets them go.
+    const waiting: Array<() => void> = [];
+    mocks.enqueue.mockImplementation(
+      (_user: string, answers: AnswerInput[]) => new Promise((resolve) => waiting.push(() => resolve(b.take(answers)))),
+    );
+    renderStudy(b.read(), `?s=${SUBJECT_CS}`, b.read);
+    await answerRight(7);
+    const paragraph = () => plain(document.querySelector('.ct-end-p')?.textContent);
+    // Not said yet: the end of the paragraph and all below it are held (the reminder too, so nothing seen moves).
+    const held = document.querySelector('.ct-end-p span');
+    expect(held === null || held.getAttribute('aria-hidden') === 'true').toBe(true);
+    expect(screen.queryByRole('button', { name: 'Напоминать каждый день' })).toBeNull();
+    await act(async () => {
+      for (const go of waiting.splice(0)) go();
+    });
+    await spoken();
+    expect(paragraph()).toBe('Верно с первого раза — 7 из 7. Первые войдут в счёт сегодня после 14:35 — если снова ответите верно.');
+    expect(document.querySelector('.ct-end-p span')).not.toHaveAttribute('aria-hidden');
+    expect(screen.getByRole('button', { name: 'Напоминать каждый день' })).toBeInTheDocument();
+    // A later reading (here one whose first count is tomorrow) does not change it.
+    const said = paragraph();
+    const later = b.read();
+    const tomorrow = dayPlan({
+      day: '2026-10-11',
+      figure: { inPlan: 200, twoDays: 0, seen: 28, errors: 10, selfKnow: 0 },
+      firstCountDay: '2026-10-12',
+      lines: [{ key: 'first_count', n: [1], day: '2026-10-12' }],
+    });
+    act(() => show(loaded({ ...later, planInput: { ...later.planInput, __plan: tomorrow } as PlanInput })));
+    await act(async () => undefined);
+    expect(paragraph()).toBe(said);
+  });
+
+  it('the plan read after the session comes late: the first count from the session’s own answers, as before', async () => {
+    LEFT_WAIT.ms = 30;
+    const b = liveB();
+    renderStudy(b.read(), `?s=${SUBJECT_CS}`);
+    await answerRight(7);
+    await spoken();
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(
+      'Верно с первого раза — 7 из 7. Первые войдут в счёт завтра после 6:50 — если снова ответите верно.',
+    );
   });
 
   it('a session read late with nothing ready left: the plan’s later line too, from the plan as the session ended', async () => {
