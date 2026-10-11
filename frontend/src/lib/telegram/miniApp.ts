@@ -1,11 +1,18 @@
 /**
- * Meldy as a Telegram Mini App (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5): the one place the
- * site touches Telegram's script.
+ * Meldy as a Telegram Mini App (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5 and «Проверка
+ * безопасности 2026-10-11»): the one place the site touches Telegram's script.
  *
- * telegram-web-app.js loads only in a Mini App session: on /tg, or in a tab /tg already marked (sessionStorage
- * `meldy_tg`). Telegram's own reload of the WebView lands on the page the student is on, and the script then restores
- * the launch data from its own sessionStorage (`__telegram__initParams`), so the session goes on there. Outside
- * Telegram nothing loads and nothing changes: /tg in a browser finds no initData and leaves for «Сегодня».
+ * The Mini App is on only inside a real Telegram client (hasTelegramBridge): the native or desktop client's
+ * TelegramWebviewProxy, Windows' external.notify, or Telegram Web's frame — the channels telegram-web-app.js itself
+ * talks through. The launch data (initData) comes in the address's fragment, which anyone can write: a link to /tg with
+ * someone's own fresh initData, opened in a plain browser tab, has no bridge, so it stays the site («Сегодня» or the
+ * sign-in page), with no Telegram sign-in, no Telegram mode and no Telegram theme. Platform and version are never
+ * asked: they come from the fragment too.
+ *
+ * telegram-web-app.js loads only then, and only in a Mini App session: on /tg, or in a tab /tg already marked
+ * (sessionStorage `meldy_tg`). Telegram's own reload of the WebView lands on the page the student is on, and the
+ * script then restores the launch data from its own sessionStorage (`__telegram__initParams`), so the session goes on
+ * there.
  *
  * In the session (`status: 'on'`): ready() and expand(), vertical swipes off (Bot API 7.7+, the page scrolls), the
  * header, background and bottom bar in Meldy's canvas, the class `tg-mode` on <html> (styles/telegram.css: safe areas,
@@ -35,7 +42,7 @@ export type Scheme = 'light' | 'dark';
 /** The part of Telegram.WebApp the site uses (https://core.telegram.org/bots/webapps). */
 export interface TelegramWebApp {
   initData: string;
-  initDataUnsafe?: { start_param?: string; user?: { id?: number } };
+  initDataUnsafe?: { start_param?: string; user?: { id?: number; first_name?: string } };
   version?: string;
   platform?: string;
   colorScheme?: Scheme;
@@ -56,6 +63,8 @@ export interface TelegramWebApp {
 declare global {
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp };
+    /** Set by Telegram's native and desktop clients around their WebView (never by the page or its address). */
+    TelegramWebviewProxy?: unknown;
   }
 }
 
@@ -108,6 +117,22 @@ function writeSession(key: string, value: string | null): void {
     else window.sessionStorage.setItem(key, value);
   } catch {
     // Without storage a reload of the Mini App opens as the site; the next launch from Telegram starts it again.
+  }
+}
+
+/**
+ * A real Telegram client around this page: the channels telegram-web-app.js itself uses to reach the client — the
+ * native and desktop clients' `TelegramWebviewProxy`, Windows' `external.notify`, Telegram Web's frame (nginx.conf's
+ * frame-ancestors lets only https://web.telegram.org frame the site). None of them can be set by the address.
+ */
+export function hasTelegramBridge(): boolean {
+  try {
+    if (window.TelegramWebviewProxy !== undefined) return true;
+    const external: unknown = (window as unknown as { external?: unknown }).external;
+    if (external !== null && typeof external === 'object' && 'notify' in external) return true;
+    return window.parent !== window;
+  } catch {
+    return false;
   }
 }
 
@@ -226,10 +251,16 @@ function start(webApp: TelegramWebApp): void {
 
 /**
  * Called once as the app starts (main.tsx). Off the Mini App path and outside a marked tab it does nothing at all.
+ * Without a Telegram client around the page it is the site at once (`outside`): Telegram's script is not even loaded.
  * Resolves with the state it reached.
  */
 export async function bootMiniApp(pathname: string = window.location.pathname): Promise<MiniAppState> {
   if (state.status !== 'off' || !shouldLoadTelegram(pathname)) return state;
+  if (!hasTelegramBridge()) {
+    writeSession(SESSION_FLAG, null);
+    set({ status: 'outside' });
+    return state;
+  }
   set({ status: 'loading' });
   const webApp = await loadTelegramScript();
   if (!webApp || typeof webApp.initData !== 'string' || webApp.initData === '') {
@@ -241,11 +272,16 @@ export async function bootMiniApp(pathname: string = window.location.pathname): 
   return state;
 }
 
-/** The launch's signed data (for the server only) and the exam a direct link names (`startapp=<id>`), when any. */
-export function launchData(): { initData: string; startParam: string | null } | null {
+/**
+ * The launch's signed data (for the server only), the exam a direct link names (`startapp=<id>`) and the Telegram first
+ * name to greet with (shown as text only), when any.
+ */
+export function launchData(): { initData: string; startParam: string | null; firstName: string | null } | null {
   if (state.status !== 'on') return null;
-  const start = state.webApp.initDataUnsafe?.start_param;
-  return { initData: state.webApp.initData, startParam: typeof start === 'string' && start ? start : null };
+  const unsafe = state.webApp.initDataUnsafe;
+  const start = unsafe?.start_param;
+  const name = typeof unsafe?.user?.first_name === 'string' ? unsafe.user.first_name.replace(/\s+/g, ' ').trim().slice(0, 64) : '';
+  return { initData: state.webApp.initData, startParam: typeof start === 'string' && start ? start : null, firstName: name || null };
 }
 
 /** Haptics on an answer (Bot API 6.1+); nothing outside Telegram. */

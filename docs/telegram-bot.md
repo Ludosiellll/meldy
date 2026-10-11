@@ -38,7 +38,7 @@
 | Регион функции | `eu-central-1` (Франкфурт): константа `FUNCTION_REGION` в коде функции, её же `/setup` пишет в `bot.config.function_region`. База остаётся в `eu-north-1` (Стокгольм) | агент: выкладка функции и `/setup` |
 | Карточка Telegram в профиле сайта | `frontend/src/components/telegram/TelegramCard.tsx` | выпуск сайта, `deploy/hf-release.md` |
 | Мини-приложение (сайт внутри Telegram) | сайт: `/tg` — `frontend/src/pages/TelegramMiniApp.tsx`, `frontend/src/lib/telegram/miniApp.ts`, CSP в `nginx.conf`; функция: `supabase/functions/_shared/bot/webapp.ts` | выпуск сайта и функции |
-| Использованные `initData` | `bot.webapp_uses` (только `sha256(hash)`, 2 часа), `bot_webapp_session`, `bot_webapp_link` — миграция `20261010150000_telegram_webapp.sql` | агент, `deploy/supabase-migrate.md` |
+| Использованные `initData` | `bot.webapp_uses` (только `sha256(hash)`, 2 часа) и `bot_webapp_session` — миграция `20261010150000_telegram_webapp.sql` | агент, `deploy/supabase-migrate.md` |
 | Копия плана контейнера | `supabase/functions/_shared/plan/*` и `SOURCE_HASH` из `frontend/src/lib/containers/*` | `scripts/sync_bot_plan.mjs` |
 
 Адрес функции — `https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram`. Маршруты (§6.1):
@@ -50,8 +50,7 @@
 | `POST /telegram/setup` | агент после выкладки | без входа, не чаще раза в минуту |
 | `GET /telegram/status` | кто угодно | без входа и без секретов |
 | `GET /telegram/file?t=` | сайт (этап 4) | одноразовый билет |
-| `POST /telegram/webapp/session` | мини-приложение `/tg` | `initData` с подписью от токена бота, не старше часа, один раз; CORS — только сайт |
-| `POST /telegram/webapp/link` | мини-приложение `/tg` после входа по почте | JWT пользователя и такой же `initData` |
+| `POST /telegram/webapp/session` | мини-приложение `/tg`, только внутри клиента Telegram | `initData` с подписью от токена бота, не старше часа, один раз; CORS — только сайт. Ничего не привязывает |
 
 Функция ходит в базу только через `/rest/v1/rpc/bot_*` с секретным ключом (роль `service_role`). `SUPABASE_DB_URL`,
 который Supabase тоже даёт функции, бот не использует, и тест это проверяет.
@@ -250,13 +249,18 @@ curl -sS -X POST 'https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram
 
 Сайт открывается внутри Telegram: кнопка меню «Открыть Meldy» ведёт на `/tg` → «Сегодня», кнопка «Открыть занятие»
 в карточке дня и в итоге занятия — на `/tg?c=<экзамен>` → занятие этого экзамена поверх «Сегодня». Вход — по данным
-Telegram (`initData`): привязанный студент входит сразу, неподключённый один раз входит по почте и паролю, и Telegram
-привязывается без кода. Спецификация: `meldy-notes/10_Project/Telegram_Mini_App_Spec_2026-10-10.md`.
+Telegram (`initData`): привязанный студент входит сразу. Неподключённому мини-приложение говорит, как подключить
+Telegram: в браузере, в профиле, «Подключить Telegram» (код `/start L…` в боте). Само оно ничего не привязывает: данные
+запуска приходят в адресе, и любой может вложить свои в ссылку на `/tg` (проверка безопасности 2026-10-11). По той же
+причине режим мини-приложения включается только внутри клиента Telegram (его мост: `TelegramWebviewProxy`,
+`external.notify` или рамка Telegram Web); в обычной вкладке браузера `/tg` — просто сайт. Если в WebView уже открыт
+другой аккаунт Meldy, приложение спрашивает, прежде чем его сменить. Спецификация:
+`meldy-notes/10_Project/Telegram_Mini_App_Spec_2026-10-10.md`.
 
 **Порядок выпуска:**
 1. Миграция `20261010150000_telegram_webapp.sql` — строкой в `deploy/supabase-migrate.md`, проверка
    `supabase/tests/telegram_bot.sql` (пакет WA).
-2. Выпуск сайта (`deploy/hf-release.md`): страница `/tg`, CSP в `nginx.conf`, путь `/sb/` для двух новых POST. До
+2. Выпуск сайта (`deploy/hf-release.md`): страница `/tg`, CSP в `nginx.conf`, путь `/sb/` для нового POST. До
    функции: иначе кнопки откроют сайт, где `/tg` ещё нет.
 3. Функция `telegram` — строкой в `deploy/supabase-functions.md` (`verify_jwt: false`, как всегда).
 4. `/setup` ставит кнопку меню «Открыть Meldy».
@@ -270,15 +274,19 @@ Telegram (`initData`): привязанный студент входит сра
 - Прямая ссылка `t.me/Meldyteach_bot/<имя>?startapp=<id экзамена>`: /newapp, адрес `<сайт>/tg`. Порядок вопросов
   BotFather не сверен с документацией.
 
-**Журнал:** `route` — `webapp`; `kind` — `session`, `link`, а при сбое Auth или Telegram — `magic_link`, `user`,
-`link_m2`, `link_m6`; `outcome` — `linked`, `same`, `unlinked`, `replayed`, `stale`, `invalid`, `slow_down`,
-`signed_out`, `linked_elsewhere`, `unavailable` и другие. `initData`, токены, JWT, почта и id в журнал не пишутся.
+**Журнал:** `route` — `webapp`; `kind` — `session`, а при сбое Auth — `magic_link`; `outcome` — `linked`, `same`,
+`other` (в WebView другой аккаунт), `unlinked`, `replayed`, `stale`, `invalid`, `slow_down`, `unavailable` и другие.
+`initData`, токены, JWT, почта и id в журнал не пишутся.
 
 **Живая проверка** (Android, iPhone, Telegram Desktop, Telegram Web):
 - [ ] Кнопка меню «Открыть Meldy» открывает «Сегодня» уже со входом; повторное открытие не создаёт новую сессию.
 - [ ] «Открыть занятие» из карточки и из итога открывает занятие; ответ — с вибро; «Назад» Telegram ведёт на «Сегодня».
 - [ ] Тема Meldy следует теме Telegram, в том числе после её смены при открытом приложении.
-- [ ] Неподключённый Telegram: вход по почте → в чате M2; повторное открытие входит сразу.
+- [ ] Неподключённый Telegram: экран «…этот Telegram ещё не подключён к Meldy» и «Открыть профиль в браузере»; после
+  «Подключить Telegram» в профиле повторное открытие входит сразу.
+- [ ] В WebView открыт другой аккаунт Meldy: вопрос «В Meldy уже открыт другой аккаунт», без смены до ответа.
+- [ ] Ссылка `/tg#tgWebAppData=…` в обычном браузере открывает сайт как обычно: без входа через Telegram, без режима
+  Telegram, «Выйти» на месте.
 - [ ] В Telegram Web «Перезагрузить» оставляет на той же странице со входом.
 - [ ] В журнале функции нет `initData` и токенов.
 

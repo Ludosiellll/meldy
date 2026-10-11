@@ -56,7 +56,7 @@ vi.mock('./contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () =
 
 import App from './App';
 import { bootMiniApp } from './lib/telegram/miniApp';
-import { startMiniApp, stopMiniApp } from './test/telegramWebApp';
+import { fakeInitData, fakeWebApp, putTelegramBridge, startMiniApp, stopMiniApp } from './test/telegramWebApp';
 
 function openAt(path: string) {
   window.history.pushState({}, '', path);
@@ -405,6 +405,7 @@ describe('Meldy as a Telegram Mini App (/tg)', () => {
   it('while Telegram\'s script loads it waits; a visit that is not Telegram\'s goes to the site\'s sign-in', async () => {
     auth.value = { user: null, loading: false };
     window.sessionStorage.setItem('meldy_tg', '1');
+    putTelegramBridge();
     const booting = bootMiniApp('/exams');
     openAt('/exams');
     expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
@@ -423,6 +424,18 @@ describe('Meldy as a Telegram Mini App (/tg)', () => {
     expect(screen.queryByRole('heading', { name: 'Загрузка вопросов' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть сайт в браузере' }));
     expect(webApp.openLink).toHaveBeenCalledWith(`${window.location.origin}/exams/import?from=c:abc`);
+  });
+
+  it('a link with someone\'s launch data in a plain browser tab: the site as it is — «Выйти», the sign-in page, no Telegram', async () => {
+    // Signed out: a private page goes to the site's own sign-in, not to /tg.
+    auth.value = { user: null, loading: false };
+    window.sessionStorage.setItem('meldy_tg', '1');
+    await startMiniApp(fakeWebApp(), '/exams', { bridge: false });
+    expect(window.sessionStorage.getItem('meldy_tg')).toBeNull();
+    openAt(`/exams#tgWebAppData=${encodeURIComponent(fakeInitData())}`);
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(document.documentElement.classList.contains('tg-mode')).toBe(false);
+    expect(document.head.querySelector('script[src*="telegram.org"]')).toBeNull();
   });
 
   it('outside Telegram nothing of it shows: no script, no class, the import page as it is', async () => {

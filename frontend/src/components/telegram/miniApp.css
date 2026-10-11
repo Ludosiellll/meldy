@@ -1,4 +1,4 @@
-/* /tg (pages/TelegramMiniApp.tsx): one card on the canvas with the sign-in page's form (.au-* in styles/legacy.css).
+/* /tg (pages/TelegramMiniApp.tsx): one card on the canvas in the sign-in page's look (.au-* in styles/legacy.css).
    The height follows Telegram's stable viewport (--tg-viewport-stable-height, set by telegram-web-app.js). */
 .au.tg-app {
   grid-template-rows: minmax(0, 1fr);
@@ -14,19 +14,20 @@
 }
 .au-card.tg-app-card { justify-content: flex-start; }
 .tg-app-wait { margin: 0; font-size: 17px; line-height: 1.45; color: var(--sf-muted); }
-.au-foot.tg-app-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 4px 16px;
-  text-align: left;
-}
-.tg-app-google { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
-.tg-app-note { margin: 0 0 12px; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
-.tg-app-out { width: 100%; justify-content: center; }
 .tg-app-acts { display: grid; justify-items: start; gap: 12px; margin-top: 24px; }
-.tg-app-acts .au-submit { width: 100%; }
+/* A long label («Открыть профиль в браузере») wraps inside the card instead of pushing the pill past its edge. */
+.tg-app-acts .au-submit {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: clamp(46px, 6.4dvh, 56px);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: left;
+  text-wrap: balance;
+}
 
 /* /exams/import inside Telegram (components/telegram/MiniAppImportNote.tsx): files are added on the site. */
 .sf-page.tg-note { max-width: calc(560px + 2 * var(--sf-g)); padding-top: 56px; }

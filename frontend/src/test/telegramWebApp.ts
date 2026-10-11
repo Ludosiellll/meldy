@@ -1,7 +1,8 @@
 /**
  * A stand-in for Telegram's `window.Telegram.WebApp` in tests (lib/telegram/miniApp.ts): the methods the site calls are
  * spies, `emit` fires Telegram's events, `pressBack` presses Telegram's «Назад». The initData is made up and unsigned:
- * the page passes it on and never reads it (the bot's function checks the signature).
+ * the page passes it on and never reads it (the bot's function checks the signature). `startMiniApp` also puts the
+ * native client's `TelegramWebviewProxy` around the page, as Telegram does (the Mini App starts only with it).
  */
 import { vi, type Mock } from 'vitest';
 import { bootMiniApp, resetMiniAppForTests, type TelegramWebApp } from '../lib/telegram/miniApp';
@@ -104,8 +105,17 @@ export function fakeWebApp(
   return webApp;
 }
 
-/** The page as Telegram opens it: Telegram.WebApp is there, and the Mini App starts (no script is fetched). */
-export async function startMiniApp(webApp: FakeWebApp = fakeWebApp(), pathname = '/tg'): Promise<FakeWebApp> {
+/** A native Telegram client around the page (what hasTelegramBridge looks for). */
+export function putTelegramBridge(): void {
+  window.TelegramWebviewProxy = { postEvent: () => undefined };
+}
+
+/**
+ * The page as Telegram opens it: the client's bridge and Telegram.WebApp are there, and the Mini App starts (no script
+ * is fetched). `bridge: false` is the same address in a plain browser tab.
+ */
+export async function startMiniApp(webApp: FakeWebApp = fakeWebApp(), pathname = '/tg', options: { bridge?: boolean } = {}): Promise<FakeWebApp> {
+  if (options.bridge !== false) putTelegramBridge();
   window.Telegram = { WebApp: webApp };
   await bootMiniApp(pathname);
   return webApp;
@@ -115,6 +125,7 @@ export async function startMiniApp(webApp: FakeWebApp = fakeWebApp(), pathname =
 export function stopMiniApp(): void {
   resetMiniAppForTests();
   delete window.Telegram;
+  delete window.TelegramWebviewProxy;
   try {
     window.sessionStorage.removeItem('meldy_tg');
     window.sessionStorage.removeItem('meldy_tg_signed');

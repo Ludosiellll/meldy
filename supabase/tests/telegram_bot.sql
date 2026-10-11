@@ -103,8 +103,7 @@ bot_fns(pkg, sig) AS (VALUES
   -- T11 (20261010120007):
   , ('T11', 'bot_oral_inputs(bigint)')
   -- WA (20261010150000_telegram_webapp.sql):
-  , ('WA', 'bot_webapp_session(bigint,text,timestamptz,timestamptz)'),
-  ('WA', 'bot_webapp_link(bigint,uuid,text,timestamptz,text,text,timestamptz)')
+  , ('WA', 'bot_webapp_session(bigint,text,timestamptz,timestamptz)')
 ),
 site_fns(pkg, sig) AS (VALUES
   ('T1', 'telegram_link_start(text)'), ('T1', 'telegram_link_state()'), ('T1', 'telegram_settings(boolean,time,text)'),
@@ -563,9 +562,12 @@ checks (ord, name, ok) AS (
          EXISTS (SELECT 1 FROM cons WHERE tbl = 'webapp_uses' AND contype = 'f'
                     AND def = 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE')
   UNION ALL
-  SELECT 93, 'webapp_functions_one_signature_each',
+  -- One sign-in function and no in-page link: a valid initData can be anyone's launch put into someone else's
+  -- browser, so the Mini App links nothing (Telegram_Mini_App_Spec_2026-10-10, «Проверка безопасности 2026-10-11»).
+  SELECT 93, 'webapp_session_only_no_link',
          (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p
-           WHERE p.pronamespace = 'public'::regnamespace AND p.proname IN ('bot_webapp_session', 'bot_webapp_link')) = 2
+           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'bot_webapp_session') = 1
+         AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.proname = 'bot_webapp_link')
 ),
 -- Per package: its own checks (its range) that fail and, for an applied package other than T1, the checks over every
 -- listed object that one of its own objects fails.

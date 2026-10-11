@@ -3,7 +3,7 @@
  *
  * Routes: `POST /telegram` (the webhook: HMAC header → ledger → dispatch), `POST /telegram/tick` (HMAC header → 202,
  * the work in `waitUntil`), `POST /telegram/setup`, `GET /telegram/status`, `/telegram/file` for the file package, and
- * `POST /telegram/webapp/session` and `/webapp/link` for the Mini App (webapp.ts).
+ * `POST /telegram/webapp/session` for the Mini App's sign-in (webapp.ts; it links nothing: linking is /start L<code>).
  * Updates: `message`, `callback_query`, `my_chat_member`; `edited_message` and channel posts are ignored.
  *
  * Other packages plug in through `Ports` (one import line each in supabase/functions/telegram/index.ts):
@@ -147,8 +147,8 @@ export interface VoicePort {
   text(ctx: Ctx, msg: TgMessage, who: Who): Promise<boolean>;
 }
 
-/** The Mini App's sign-in (webapp.ts): `POST /telegram/webapp/session` and `POST /telegram/webapp/link`. */
-export type WebAppAction = 'session' | 'link';
+/** The Mini App's sign-in (webapp.ts): `POST /telegram/webapp/session`. */
+export type WebAppAction = 'session';
 export interface WebAppPort {
   http(req: Request, ctx: Ctx, action: WebAppAction): Promise<Response>;
 }
@@ -406,7 +406,7 @@ export interface AppDeps {
   random?: () => number;
 }
 
-export type Route = 'webhook' | 'tick' | 'setup' | 'status' | 'file' | 'webapp_session' | 'webapp_link' | null;
+export type Route = 'webhook' | 'tick' | 'setup' | 'status' | 'file' | 'webapp_session' | null;
 
 /** `/telegram`, `/functions/v1/telegram/tick`, `/telegram/setup/`, `/telegram/webapp/session` → the route. */
 export function routeOf(url: string): Route {
@@ -416,10 +416,9 @@ export function routeOf(url: string): Route {
   } catch {
     return null;
   }
-  const m = /(?:^|\/)telegram(?:\/(tick|setup|status|file|webapp\/session|webapp\/link))?$/.exec(path);
+  const m = /(?:^|\/)telegram(?:\/(tick|setup|status|file|webapp\/session))?$/.exec(path);
   if (!m) return null;
   if (m[1] === 'webapp/session') return 'webapp_session';
-  if (m[1] === 'webapp/link') return 'webapp_link';
   return (m[1] as Route) ?? 'webhook';
 }
 
@@ -498,13 +497,12 @@ export function createApp(deps: AppDeps): (req: Request) => Promise<Response> {
         case 'setup': return await setup(req);
         case 'status': return await status(req);
         case 'file': return await ports.files.http(req, ctx); // T9: GET /telegram/file?t=
-        // The Mini App (webapp.ts): the site's /tg page signs in and links Telegram.
+        // The Mini App (webapp.ts): the site's /tg page signs in a linked Telegram.
         case 'webapp_session': return await ports.webapp.http(req, ctx, 'session');
-        case 'webapp_link': return await ports.webapp.http(req, ctx, 'link');
         default: return new Response('Not found', { status: 404 });
       }
     } catch (error) {
-      const logRoute: LogRoute = route === 'webapp_session' || route === 'webapp_link' ? 'webapp' : route ?? 'http';
+      const logRoute: LogRoute = route === 'webapp_session' ? 'webapp' : route ?? 'http';
       log({ route: logRoute, outcome: 'failed', error_name: errorName(error) });
       return empty(500);
     }

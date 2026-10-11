@@ -2,10 +2,10 @@
 
 Часть операторов в России не пропускает *.supabase.co. Браузер сначала идёт напрямую, а если
 адрес недоступен, — сюда (frontend/src/lib/supabaseRoute.ts). Проксируются только auth/v1,
-rest/v1 и storage/v1 одного проекта и три пути функции telegram: GET functions/v1/telegram/file
+rest/v1 и storage/v1 одного проекта и два пути функции telegram: GET functions/v1/telegram/file
 (файл, пересланный боту, по одноразовому токену: frontend/src/lib/telegram/fileTicket.ts) и POST
-functions/v1/telegram/webapp/session и /webapp/link (вход в мини-приложении Telegram:
-frontend/src/api/telegramMiniApp.ts); заголовки запроса и ответа — по списку, тело — как есть.
+functions/v1/telegram/webapp/session (вход в мини-приложении Telegram: frontend/src/api/telegramMiniApp.ts;
+привязки Telegram там нет); заголовки запроса и ответа — по списку, тело — как есть.
 Права те же, что при прямом запросе: anon-ключ и токен пользователя из его же заголовков, RLS
 решает в базе. Ключи, токены и тела в журнал не пишутся.
 
@@ -40,7 +40,7 @@ FILE_PATH = "functions/v1/telegram/file"
 FILE_METHODS = ("GET", "HEAD")
 # The Mini App's sign-in (POST only, Telegram_Mini_App_Spec_2026-10-10): Telegram's signed initData → a one-time
 # sign-in, and the link of an account signed in inside Telegram. The function checks the signature itself.
-WEBAPP_PATHS = ("functions/v1/telegram/webapp/session", "functions/v1/telegram/webapp/link")
+WEBAPP_PATHS = ("functions/v1/telegram/webapp/session",)
 WEBAPP_METHODS = ("POST",)
 METHODS = ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"]
 REQUEST_HEADERS = (

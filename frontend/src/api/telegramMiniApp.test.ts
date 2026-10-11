@@ -13,7 +13,8 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
-import { miniAppLink, miniAppSession, signInWithTelegram } from './telegramMiniApp';
+import * as client from './telegramMiniApp';
+import { miniAppSession, signInWithTelegram } from './telegramMiniApp';
 
 const INIT = 'query_id=AAH&user=%7B%22id%22%3A4242%7D&auth_date=1760100000&hash=' + 'c'.repeat(64);
 const ME = 'f4881273-7331-4c39-96d7-f2ce4a31a1c0';
@@ -50,6 +51,15 @@ describe('POST /telegram/webapp/session', () => {
     }
   });
 
+  it('another account signed in here: the sign-in and the linked account\'s e-mail, for the page to ask', async () => {
+    answer({ status: 'linked', token_hash: TOKEN, email: ' other@example.com ' });
+    expect(await miniAppSession(INIT, ME)).toEqual({ status: 'other', tokenHash: TOKEN, email: 'other@example.com' });
+    // Without an account here there is nothing to ask; a broken e-mail is no e-mail.
+    expect(await miniAppSession(INIT, null)).toEqual({ status: 'linked', tokenHash: TOKEN });
+    answer({ status: 'linked', token_hash: TOKEN, email: 'not an e-mail' });
+    expect(await miniAppSession(INIT, ME)).toEqual({ status: 'linked', tokenHash: TOKEN });
+  });
+
   it('anything else is «unavailable»: a linked answer without a sign-in, an unknown status, no body', async () => {
     for (const data of [{ status: 'linked' }, { status: 'linked', token_hash: '' }, { status: 'opened' }, null, 'linked', [1]]) {
       answer(data);
@@ -71,24 +81,9 @@ describe('POST /telegram/webapp/session', () => {
   });
 });
 
-describe('POST /telegram/webapp/link', () => {
-  it('sends the launch and the browser\'s time zone; the client adds the session\'s JWT', async () => {
-    answer({ status: 'linked' });
-    expect(await miniAppLink(INIT, 'Europe/Minsk')).toBe('linked');
-    expect(mocks.invoke).toHaveBeenCalledWith('telegram/webapp/link', { body: { init_data: INIT, tz: 'Europe/Minsk' }, region: FunctionRegion.EuCentral1 });
-  });
-
-  it('reads every status it knows and nothing else', async () => {
-    for (const status of ['linked', 'linked_elsewhere', 'replayed', 'stale', 'invalid', 'signed_out', 'slow_down', 'unavailable'] as const) {
-      answer({ status });
-      expect(await miniAppLink(INIT, 'UTC')).toBe(status);
-    }
-    answer({ status: 'unlinked' });
-    expect(await miniAppLink(INIT, 'UTC')).toBe('unavailable');
-    failure(new FunctionsHttpError(new Response('{}', { status: 429 })));
-    expect(await miniAppLink(INIT, 'UTC')).toBe('slow_down');
-    failure(new FunctionsFetchError(new TypeError('offline')));
-    expect(await miniAppLink(INIT, 'UTC')).toBe('network');
+describe('no linking from the Mini App', () => {
+  it('the client has no way to link a Telegram (security review 2026-10-11)', () => {
+    expect(Object.keys(client).sort()).toEqual(['miniAppSession', 'signInWithTelegram']);
   });
 });
 

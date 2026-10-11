@@ -1,8 +1,8 @@
-// The Mini App's sign-in (webapp.ts; meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §3, §4, §7):
-// Telegram's initData check against a reference HMAC written here with node:crypto from the docs' recipe (valid,
-// tampered, stale, from the future, replayed, another bot's), both routes through createApp with a fake database that
-// keeps bot_webapp_session / bot_webapp_link's rules, the Auth admin client's requests, CORS, the limits, and the
-// rule that no token, initData, JWT, e-mail or id reaches a log line or an error.
+// The Mini App's sign-in (webapp.ts; meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §3, §4, §7 and
+// «Проверка безопасности 2026-10-11»): Telegram's initData check against a reference HMAC written here with node:crypto
+// from the docs' recipe (valid, tampered, stale, from the future, replayed, another bot's), the route through createApp
+// with a fake database that keeps bot_webapp_session's rules, no link route any more, the Auth admin client's requests,
+// CORS, the limits, and the rule that no token, initData, JWT, e-mail or id reaches a log line or an error.
 import assert from 'node:assert/strict';
 import { createHash, createHmac } from 'node:crypto';
 import { test } from 'node:test';
@@ -20,9 +20,8 @@ import { AUTUMN, NOW, TG, USER, wireOf } from './fixtures/scenario.ts';
 const SITE = 'https://ludosiel-studyforge.hf.space';
 const OTHER_USER = 'd1d2d3d4-0000-4000-8000-000000000002';
 const OTHER_TG = 700200;
+/** The site's Supabase client sends the session's JWT with every call; the route never reads it. */
 const JWT_OK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0.c2lnbmF0dXJlLW9r';
-const JWT_OTHER = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJvdGhlciJ9.c2lnbmF0dXJlLW90';
-const JWT_SIGNED_OUT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJnb25lIn0.c2lnbmF0dXJlLWdv';
 const EMAIL = 'student@example.test';
 const HASHED = 'b'.repeat(56);
 const HOUR = 3_600_000;
@@ -143,13 +142,12 @@ test('the order of the fields and «+» for a space do not change the check or t
 
 // ─────────────────────────────────────────── the routes, with a fake database ───────────────────────────────────────────
 
-interface Use { tg: number; userId: string | null; at: number }
+interface Use { tg: number; at: number }
 
-/** bot_webapp_session / bot_webapp_link as the migration has them (20261010150000_telegram_webapp.sql). */
+/** bot_webapp_session as the migration has it (20261010150000_telegram_webapp.sql). */
 function installWebappDb(fdb: ReturnType<typeof fakeDb>, now: () => number, emails: Map<string, string>) {
   const uses = new Map<string, Use>();
   const active = (tg: number) => fdb.links.find((l) => l.unlinkedAt === null && l.tgUserId === tg) ?? null;
-  const activeOfUser = (user: string) => fdb.links.find((l) => l.unlinkedAt === null && l.userId === user) ?? null;
   const count = (purpose: string, pick: (u: Use) => boolean) =>
     [...uses.entries()].filter(([k, u]) => k.endsWith(`|${purpose}`) && pick(u) && u.at > now() - HOUR).length;
   fdb.on('bot_webapp_session', (args) => {
@@ -160,57 +158,26 @@ function installWebappDb(fdb: ReturnType<typeof fakeDb>, now: () => number, emai
     if (count('session', (u) => u.tg === tg) >= 30) return { status: 'slow_down' };
     const key = `${hash}|session`;
     if (uses.has(key)) return { status: 'replayed' };
-    uses.set(key, { tg, userId: null, at: now() });
+    uses.set(key, { tg, at: now() });
     const link = active(tg);
     if (!link) return { status: 'unlinked' };
     const email = emails.get(link.userId);
     return email ? { status: 'linked', user_id: link.userId, email } : { status: 'no_email' };
-  });
-  fdb.on('bot_webapp_link', (args) => {
-    const tg = Number(args.p_tg_user_id);
-    const user = String(args.p_user_id);
-    const key = `${String(args.p_init_hash)}|link`;
-    if (count('link', (u) => u.tg === tg) >= 10 || count('link', (u) => u.userId === user) >= 10) return { status: 'slow_down' };
-    const earlier = uses.get(key);
-    if (earlier) {
-      const same = active(tg);
-      return earlier.userId === user && same && same.userId === user ? { status: 'linked', again: true, replaced_chat_id: null } : { status: 'replayed' };
-    }
-    uses.set(key, { tg, userId: user, at: now() });
-    const theirs = active(tg);
-    if (theirs && theirs.userId !== user) return { status: 'linked_elsewhere' };
-    if (theirs) return { status: 'linked', again: true, replaced_chat_id: null };
-    const mine = activeOfUser(user);
-    let replaced: number | null = null;
-    if (mine) {
-      mine.unlinkedAt = now();
-      replaced = mine.chatId;
-    }
-    fdb.addLink({ userId: user, tgUserId: tg, tz: typeof args.p_tz === 'string' ? args.p_tz : 'Europe/Minsk' });
-    return { status: 'linked', again: false, replaced_chat_id: replaced };
   });
   return uses;
 }
 
 function fakeAuth() {
   const minted: string[] = [];
-  const checked: string[] = [];
-  const failures: { mint: Error | null; user: Error | null } = { mint: null, user: null };
-  const tokens = new Map<string, string>([[JWT_OK, USER], [JWT_OTHER, OTHER_USER]]);
+  const failures: { mint: Error | null } = { mint: null };
   const auth: AuthAdmin = {
     async magicLinkHash(email) {
       if (failures.mint) throw failures.mint;
       minted.push(email);
       return HASHED;
     },
-    async userOfToken(jwt) {
-      checked.push(jwt);
-      if (failures.user) throw failures.user;
-      const id = tokens.get(jwt);
-      return id ? { id } : null;
-    },
   };
-  return { auth, minted, checked, failures };
+  return { auth, minted, failures };
 }
 
 function webHarness(options: { token?: string; auth?: 'none' } = {}) {
@@ -226,7 +193,7 @@ function webHarness(options: { token?: string; auth?: 'none' } = {}) {
     token: TEST_TOKEN, fetch: tg.fetch, db: fdb.db, functionUrl: TEST_FUNCTION_URL, waitUntil: () => undefined, now,
     ports: { webapp }, sleep: async () => undefined, random: () => 0.5,
   });
-  async function call(action: 'session' | 'link', body: unknown, headers: Record<string, string | null> = {}): Promise<{ status: number; json: Record<string, unknown>; text: string }> {
+  async function call(action: string, body: unknown, headers: Record<string, string | null> = {}): Promise<{ status: number; json: Record<string, unknown>; text: string }> {
     const h: Record<string, string> = { 'content-type': 'application/json', origin: SITE, 'x-forwarded-for': '203.0.113.7' };
     for (const [k, v] of Object.entries(headers)) {
       if (v === null) delete h[k];
@@ -250,12 +217,25 @@ function webHarness(options: { token?: string; auth?: 'none' } = {}) {
   return { app, call, tg, fdb, fa, uses, emails, linked, advance: (ms: number) => { t += ms; }, get now() { return t; } };
 }
 
-test('routes: /telegram/webapp/session and /webapp/link, nothing else under webapp', () => {
+test('routes: /telegram/webapp/session only, nothing else under webapp (no link route)', () => {
   assert.equal(routeOf(`${TEST_FUNCTION_URL}/webapp/session`), 'webapp_session');
-  assert.equal(routeOf(`${TEST_FUNCTION_URL}/webapp/link/`), 'webapp_link');
   assert.equal(routeOf('https://x.supabase.co/telegram/webapp/session?forceFunctionRegion=eu-central-1'), 'webapp_session');
+  assert.equal(routeOf(`${TEST_FUNCTION_URL}/webapp/link`), null);
+  assert.equal(routeOf(`${TEST_FUNCTION_URL}/webapp/link/`), null);
   assert.equal(routeOf(`${TEST_FUNCTION_URL}/webapp`), null);
   assert.equal(routeOf(`${TEST_FUNCTION_URL}/webapp/other`), null);
+});
+
+test('no linking from the Mini App: POST /webapp/link with a valid initData and a JWT is 404, nothing asked', async () => {
+  // A valid initData is anyone's own launch put into someone else's browser (a link to /tg with it in the address):
+  // a link from it would give that Telegram the account signed in there (security review 2026-10-11).
+  const h = webHarness();
+  const r = await h.call('link', { init_data: launch(), tz: 'Europe/Moscow' }, { authorization: `Bearer ${JWT_OK}` });
+  assert.equal(r.status, 404);
+  assert.equal(h.fdb.of('bot_webapp_session').length, 0);
+  assert.equal(h.fdb.of('bot_webapp_link').length, 0);
+  assert.deepEqual(h.fa.minted, []);
+  assert.equal(h.fdb.links.length, 0);
 });
 
 test('session, unlinked Telegram: «unlinked», one use stored by sha256(hash), no sign-in minted', async () => {
@@ -287,11 +267,24 @@ test('session, linked and already signed in as that account here: nothing is min
   h.linked();
   const same = await h.call('session', { init_data: launch({ secondsAgo: 9 }), have: USER.toUpperCase() });
   assert.deepEqual(same.json, { status: 'linked', same: true });
+  assert.equal(h.fa.minted.length, 0);
+});
+
+test('session, linked while another account is signed in here: the sign-in and the linked account\'s e-mail, for the site to ask', async () => {
+  const h = webHarness();
+  h.linked();
+  const start = LOGS.length;
   const other = await h.call('session', { init_data: launch({ secondsAgo: 8 }), have: OTHER_USER });
-  assert.deepEqual(other.json, { status: 'linked', token_hash: HASHED });
+  assert.deepEqual(other.json, { status: 'linked', token_hash: HASHED, email: EMAIL });
+  assert.ok(!other.text.includes(USER) && !other.text.includes(String(TG)));
+  assert.ok(LOGS.slice(start).some((line) => line.includes('"outcome":"other"')));
+  assert.ok(LOGS.slice(start).every((line) => !line.includes(EMAIL)));
+  // Without an account here (or with no id), no e-mail: only the sign-in.
   const junk = await h.call('session', { init_data: launch({ secondsAgo: 7 }), have: 'not-a-uuid' });
   assert.deepEqual(junk.json, { status: 'linked', token_hash: HASHED });
-  assert.equal(h.fa.minted.length, 2);
+  const none = await h.call('session', { init_data: launch({ secondsAgo: 6 }) });
+  assert.deepEqual(none.json, { status: 'linked', token_hash: HASHED });
+  assert.equal(h.fa.minted.length, 3);
 });
 
 test('session, replayed: the same initData a second time — even reordered — gets «replayed» and no second token', async () => {
@@ -324,7 +317,7 @@ test('session: stale, from the future and tampered data never reach the database
 test('session: the database\'s brake (slow_down), an account without e-mail, Auth down', async () => {
   const h = webHarness();
   h.linked();
-  for (let i = 0; i < 30; i += 1) h.uses.set(`${String(i).padStart(64, '0')}|session`, { tg: TG, userId: null, at: h.now - 60_000 });
+  for (let i = 0; i < 30; i += 1) h.uses.set(`${String(i).padStart(64, '0')}|session`, { tg: TG, at: h.now - 60_000 });
   assert.deepEqual((await h.call('session', { init_data: launch() })).json, { status: 'slow_down' });
 
   const e = webHarness();
@@ -338,76 +331,6 @@ test('session: the database\'s brake (slow_down), an account without e-mail, Aut
   const start = LOGS.length;
   assert.deepEqual((await a.call('session', { init_data: launch() })).json, { status: 'unavailable' });
   assert.ok(LOGS.slice(start).some((line) => line.includes('"kind":"magic_link"') && line.includes('AuthError')));
-});
-
-test('link: a signed-in account and a valid initData → linked, the zone from the browser, M2 in the chat', async () => {
-  const h = webHarness();
-  h.fdb.setUser(USER, { wire: wireOf([AUTUMN], NOW), exams: [{ id: AUTUMN.id, createdAt: '2026-10-01T10:00:00Z' }] });
-  const r = await h.call('link', { init_data: launch(), tz: 'Europe/Moscow' }, { authorization: `Bearer ${JWT_OK}` });
-  assert.deepEqual([r.status, r.json], [200, { status: 'linked' }]);
-  assert.deepEqual(h.fa.checked, [JWT_OK]);
-  const row = h.fdb.links.find((l) => l.unlinkedAt === null && l.tgUserId === TG);
-  assert.ok(row);
-  assert.equal(row.userId, USER);
-  assert.equal(row.chatId, TG);
-  assert.equal(row.tz, 'Europe/Moscow');
-  const args = h.fdb.of('bot_webapp_link')[0].args as Record<string, unknown>;
-  assert.deepEqual([args.p_user_id, args.p_lang, args.p_tz], [USER, 'ru', 'Europe/Moscow']);
-  const sent = h.tg.of('sendMessage');
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].params.chat_id, TG);
-  assert.ok(String(sent[0].params.text).replace(/\u00a0/g, ' ').startsWith('<b>Telegram подключён к Meldy.</b>'));
-  assert.equal(sent[0].params.protect_content, true);
-});
-
-test('link: Telegram does not let the bot write first → linked, no message; the account\'s old Telegram gets M6', async () => {
-  const h = webHarness();
-  h.linked(USER, OTHER_TG);
-  const quiet = launch({ user: userJson(TG, { allows_write_to_pm: false }) });
-  const r = await h.call('link', { init_data: quiet }, { authorization: `Bearer ${JWT_OK}` });
-  assert.equal(r.json.status, 'linked');
-  const sent = h.tg.of('sendMessage');
-  assert.deepEqual(sent.map((c) => c.params.chat_id), [OTHER_TG]);
-  assert.ok(String(sent[0].params.text).replace(/\u00a0/g, ' ').includes('Meldy подключили к другому Telegram'));
-  assert.ok(h.fdb.links.find((l) => l.tgUserId === OTHER_TG)!.unlinkedAt !== null);
-});
-
-test('link: no JWT, a broken one, a signed-out one → «signed_out» before the database', async () => {
-  const h = webHarness();
-  assert.deepEqual((await h.call('link', { init_data: launch() })).json, { status: 'signed_out' });
-  assert.deepEqual((await h.call('link', { init_data: launch() }, { authorization: 'Bearer not-a-jwt' })).json, { status: 'signed_out' });
-  assert.deepEqual((await h.call('link', { init_data: launch() }, { authorization: `Bearer ${JWT_SIGNED_OUT}` })).json, { status: 'signed_out' });
-  assert.equal(h.fdb.of('bot_webapp_link').length, 0);
-  h.fa.failures.user = new AuthError(0, 'network');
-  assert.deepEqual((await h.call('link', { init_data: launch() }, { authorization: `Bearer ${JWT_OK}` })).json, { status: 'unavailable' });
-});
-
-test('link: a Telegram already linked to another account is not taken over («linked_elsewhere»)', async () => {
-  const h = webHarness();
-  h.linked(OTHER_USER, TG);
-  const r = await h.call('link', { init_data: launch() }, { authorization: `Bearer ${JWT_OK}` });
-  assert.deepEqual(r.json, { status: 'linked_elsewhere' });
-  assert.equal(h.fdb.links.filter((l) => l.unlinkedAt === null && l.tgUserId === TG)[0].userId, OTHER_USER);
-  assert.equal(h.tg.of('sendMessage').length, 0);
-});
-
-test('link, replayed: the same pair again is «linked» without a second M2; another account with that initData is refused', async () => {
-  const h = webHarness();
-  const data = launch();
-  assert.equal((await h.call('link', { init_data: data }, { authorization: `Bearer ${JWT_OK}` })).json.status, 'linked');
-  assert.equal((await h.call('link', { init_data: data }, { authorization: `Bearer ${JWT_OK}` })).json.status, 'linked');
-  assert.deepEqual((await h.call('link', { init_data: data }, { authorization: `Bearer ${JWT_OTHER}` })).json, { status: 'replayed' });
-  assert.equal(h.tg.of('sendMessage').length, 1);
-  assert.equal(h.fdb.links.filter((l) => l.unlinkedAt === null && l.tgUserId === TG)[0].userId, USER);
-});
-
-test('link: stale and tampered initData are refused before Auth is asked', async () => {
-  const h = webHarness();
-  assert.deepEqual((await h.call('link', { init_data: launch({ secondsAgo: 4000 }) }, { authorization: `Bearer ${JWT_OK}` })).json, { status: 'stale' });
-  const tampered = new URLSearchParams(launch());
-  tampered.set('auth_date', String(Math.floor(NOW / 1000)));
-  assert.deepEqual((await h.call('link', { init_data: tampered.toString() }, { authorization: `Bearer ${JWT_OK}` })).json, { status: 'invalid' });
-  assert.deepEqual(h.fa.checked, []);
 });
 
 test('the site only: CORS for its origin, a preflight, 403 for another origin before anything, no Origin served', async () => {
@@ -479,23 +402,19 @@ test('no secret, initData, JWT, e-mail or id in a log line or an error, whatever
   const h = webHarness();
   h.linked(OTHER_USER, OTHER_TG);
   const data = launch();
-  texts.push((await h.call('session', { init_data: data })).text);
-  texts.push((await h.call('session', { init_data: data })).text);
-  texts.push((await h.call('link', { init_data: data }, { authorization: `Bearer ${JWT_OK}` })).text);
+  const jwt = { authorization: `Bearer ${JWT_OK}` };
+  texts.push((await h.call('session', { init_data: data }, jwt)).text);
+  texts.push((await h.call('session', { init_data: data }, jwt)).text);
   h.fa.failures.mint = new AuthError(500);
-  texts.push((await h.call('session', { init_data: launch({ id: OTHER_TG, secondsAgo: 2 }) })).text);
-  // A third Telegram for the other account: M2 to it and M6 to its old chat both fail on the network (the token is in
-  // the URL of such an error).
-  h.tg.fail('sendMessage', { kind: 'network' }, { kind: 'network' });
-  texts.push((await h.call('link', { init_data: launch({ id: 700300, secondsAgo: 4 }) }, { authorization: `Bearer ${JWT_OTHER}` })).text);
-  h.fdb.fail('bot_webapp_link', new DbError('bot_webapp_link', 0, 'timeout'));
-  texts.push((await h.call('link', { init_data: launch({ secondsAgo: 6 }) }, { authorization: `Bearer ${JWT_OK}` })).text);
+  texts.push((await h.call('session', { init_data: launch({ id: OTHER_TG, secondsAgo: 2 }), have: USER }, jwt)).text);
+  h.fdb.fail('bot_webapp_session', new DbError('bot_webapp_session', 0, 'timeout'));
+  texts.push((await h.call('session', { init_data: launch({ id: 700300, secondsAgo: 4 }) }, jwt)).text);
+  texts.push((await h.call('link', { init_data: launch({ secondsAgo: 6 }) }, jwt)).text);
   const logs = LOGS.slice(start);
-  assert.ok(logs.some((line) => line.includes('"kind":"link_m2"') && line.includes('TelegramError')), logs.join('\n'));
-  assert.ok(logs.some((line) => line.includes('"kind":"link_m6"')));
+  assert.ok(logs.some((line) => line.includes('"kind":"magic_link"') && line.includes('AuthError')), logs.join('\n'));
   assert.ok(logs.some((line) => line.includes('DbError')));
-  assert.ok(logs.every((line) => JSON.parse(line).route === 'webapp'));
-  const secrets = [TEST_TOKEN.split(':')[1], data, hashOf(data), JWT_OK, JWT_OTHER, EMAIL, 'other@example.test', USER, OTHER_USER, String(TG), String(OTHER_TG),
+  assert.ok(logs.every((line) => ['webapp', 'http'].includes(JSON.parse(line).route)), logs.join('\n'));
+  const secrets = [TEST_TOKEN.split(':')[1], data, hashOf(data), JWT_OK, EMAIL, 'other@example.test', USER, OTHER_USER, String(TG), String(OTHER_TG),
     '700300', HASHED, encodeURIComponent(userJson()), 'api.telegram.org'];
   for (const text of [...logs, ...texts]) for (const secret of secrets) assert.ok(!text.includes(secret), `${secret.slice(0, 12)}… in ${text}`);
 });
@@ -547,18 +466,9 @@ test('Auth: generate_link failures are AuthError with a status and no URL, key o
   }
 });
 
-test('Auth: the user of a JWT — 200 an account, 401/403 none, an anonymous one none, 500 an error', async () => {
-  const key = 'sb_secret_abcdefghijklmnopqrstuv_12345678';
-  const f = authFetch([{ status: 200, body: { id: USER.toUpperCase(), email: EMAIL } }, { status: 401 }, { status: 403, body: { code: 'session_not_found' } },
-    { status: 200, body: { id: USER, is_anonymous: true } }, { status: 500 }]);
-  const auth = createAuthAdmin({ url: 'https://abc.supabase.co', key, fetch: f.fetch });
-  assert.deepEqual(await auth.userOfToken(JWT_OK), { id: USER });
-  assert.equal(f.requests[0].url, 'https://abc.supabase.co/auth/v1/user');
-  assert.equal(f.requests[0].method, 'GET');
-  assert.equal(f.requests[0].headers.authorization, `Bearer ${JWT_OK}`);
-  assert.equal(f.requests[0].headers.apikey, key);
-  assert.equal(await auth.userOfToken(JWT_OK), null);
-  assert.equal(await auth.userOfToken(JWT_OK), null);
-  assert.equal(await auth.userOfToken(JWT_OK), null);
-  await assert.rejects(() => auth.userOfToken(JWT_OK), AuthError);
+test('Auth: the admin client has no way to check a user\'s JWT (the Mini App links nothing)', () => {
+  const f = authFetch([]);
+  const auth = createAuthAdmin({ url: 'https://abc.supabase.co', key: 'sb_secret_abcdefghijklmnopqrstuv_12345678', fetch: f.fetch });
+  assert.deepEqual(Object.keys(auth), ['magicLinkHash']);
+  assert.equal(f.requests.length, 0);
 });

@@ -1,14 +1,19 @@
 /**
  * Meldy as a Telegram Mini App: the sign-in behind the site's /tg page (meldy-notes
- * 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §2–§4). Two routes of the `telegram` function, called by the site:
+ * 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §2–§4, «Проверка безопасности 2026-10-11»). One route of the
+ * `telegram` function, called by the site:
  *
  * - `POST /telegram/webapp/session` `{init_data, have?}`: a valid initData → `bot_webapp_session` (one use per initData,
  *   the brake, the link of this Telegram user) → linked: a one-time sign-in from the Auth admin API (`generate_link`,
  *   type magiclink). Only its `hashed_token` leaves, for the site's `verifyOtp({type: 'magiclink', token_hash})`. With
- *   `have` = the account already signed in in this WebView and linked to this Telegram, nothing is minted (`same`).
- * - `POST /telegram/webapp/link` `{init_data, tz?}` + `Authorization: Bearer <the user's JWT>`: the student signed in by
- *   e-mail inside the Mini App. The JWT is checked by Auth (`GET /auth/v1/user`), the initData as below →
- *   `bot_webapp_link` → the bot says M2 in the chat (when Telegram lets it write first) and M6 to a chat the account left.
+ *   `have` = the account already signed in in this WebView and linked to this Telegram, nothing is minted (`same`);
+ *   with another account there, the answer also names the linked account's e-mail, so the site asks before it switches.
+ *
+ * There is no linking here. A valid initData proves only that its Telegram user opened the Mini App: anyone can put
+ * their own fresh initData into someone else's browser (a link to /tg with it in the address). Linking the account
+ * signed in there to that Telegram would hand the Telegram a way into the account. A Telegram is linked only by the
+ * bot's /start L<code> from the profile (bot_link_claim): the code comes from the account, the /start from the user's
+ * own Telegram client.
  *
  * initData (Telegram.WebApp.initData, a query string) is checked as Telegram's Mini Apps docs say («Validating data
  * received via the Mini App»): the data-check-string is every received field but `hash` — `signature` stays in, only
@@ -19,20 +24,19 @@
  *
  * Expected outcomes answer 200 with `{status}`; protocol problems answer 400 / 403 / 405 / 413 / 429 / 503 with
  * `{error}`. CORS for the site's origin only; a request without an Origin (the site's /sb/ way) is served. Never
- * logged, stored or returned: the bot token, initData, its hash, the JWT, the e-mail, the sign-in token, any id.
+ * logged or stored: the bot token, initData, its hash, the e-mail, the sign-in token, any id. Returned: the sign-in
+ * token's hash, and next to it the linked account's e-mail when another account is signed in in the WebView.
  */
-import { planNow } from './card.ts';
 import { DbError } from './db.ts';
-import { m2, m6 } from './link.ts';
 import { errorName, log } from './log.ts';
 import type { Ctx, WebAppAction, WebAppPort } from './router.ts';
 import { sameSecret } from './secrets.ts';
-import { send, TelegramError, type FetchLike } from './tg.ts';
+import type { FetchLike } from './tg.ts';
 import * as W from './words.ts';
 
 /** Telegram's initData is a few hundred bytes; more is not Telegram's. */
 export const INIT_DATA_MAX = 4096;
-/** The request body (initData and two short fields). */
+/** The request body (initData and a short field). */
 export const BODY_MAX = 8192;
 /** initData older than this is refused (the task: «about 1 hour»). */
 export const MAX_AGE_SEC = 3600;
@@ -49,10 +53,8 @@ export const PER_TELEGRAM_PER_MINUTE = 20;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HASH = /^[0-9a-f]{64}$/;
-const JWT = /^[A-Za-z0-9_-]{2,2048}\.[A-Za-z0-9_-]{2,8192}\.[A-Za-z0-9_-]{2,2048}$/;
 /** GoTrue's hashed token: hex today; any URL-safe word up to 256 characters is taken. */
 const HASHED_TOKEN = /^[A-Za-z0-9_-]{16,256}$/;
-const TZ = /^[A-Za-z0-9_+/-]{1,64}$/;
 const LANG = /^[A-Za-z0-9-]{2,16}$/;
 const START_PARAM = /^[A-Za-z0-9_-]{1,512}$/;
 
@@ -178,8 +180,6 @@ export class AuthError extends Error {
 export interface AuthAdmin {
   /** `POST /auth/v1/admin/generate_link` `{type: 'magiclink', email}` → its `hashed_token` only. */
   magicLinkHash(email: string): Promise<string>;
-  /** `GET /auth/v1/user` with the user's JWT → the account, or null when the token is no signed-in account. */
-  userOfToken(jwt: string): Promise<{ id: string } | null>;
 }
 
 const isTimeout = (error: unknown) => {
@@ -190,15 +190,14 @@ const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object'
 
 /**
  * Supabase Auth with the function's service key. The new secret key (`sb_secret_…`) goes on `apikey` only; the legacy
- * service_role JWT also on `Authorization: Bearer` for the admin call (Supabase docs, «Understanding API keys»). The
- * user check sends the user's own JWT as the bearer, so Auth answers for that user.
+ * service_role JWT also on `Authorization: Bearer` for the admin call (Supabase docs, «Understanding API keys»).
  */
 export function createAuthAdmin(options: { url: string; key: string; fetch: FetchLike; timeoutMs?: number }): AuthAdmin {
   const base = `${options.url.replace(/\/+$/, '')}/auth/v1`;
   const legacy = !options.key.startsWith('sb_');
   const timeoutMs = options.timeoutMs ?? 10_000;
 
-  async function call(path: 'admin/generate_link' | 'user', init: RequestInit): Promise<{ status: number; body: unknown }> {
+  async function call(path: 'admin/generate_link', init: RequestInit): Promise<{ status: number; body: unknown }> {
     let res: Response;
     try {
       res = await options.fetch(`${base}/${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
@@ -224,14 +223,6 @@ export function createAuthAdmin(options: { url: string; key: string; fetch: Fetc
       if (typeof token !== 'string' || !HASHED_TOKEN.test(token)) throw new AuthError(r.status, 'bad_response');
       return token;
     },
-    async userOfToken(jwt) {
-      const r = await call('user', { method: 'GET', headers: { apikey: options.key, Authorization: `Bearer ${jwt}`, Accept: 'application/json' } });
-      if (r.status === 401 || r.status === 403 || r.status === 404) return null;
-      if (r.status !== 200) throw new AuthError(r.status);
-      const user = obj(r.body);
-      if (typeof user.id !== 'string' || !UUID.test(user.id) || user.is_anonymous === true) return null;
-      return { id: user.id.toLowerCase() };
-    },
   };
 }
 
@@ -253,26 +244,10 @@ export function toSessionAnswer(raw: unknown): SessionAnswer {
   throw new TypeError('bot_webapp_session: unknown answer');
 }
 
-export type LinkAnswer =
-  | { status: 'linked'; again: boolean; replacedChatId: number | null }
-  | { status: 'linked_elsewhere' | 'replayed' | 'slow_down' };
-
-/** bot_webapp_link → LinkAnswer; an unknown shape throws. */
-export function toLinkAnswer(raw: unknown): LinkAnswer {
-  const r = obj(raw);
-  if (r.status === 'linked') {
-    const replaced = typeof r.replaced_chat_id === 'number' && Number.isSafeInteger(r.replaced_chat_id) ? r.replaced_chat_id : null;
-    return { status: 'linked', again: r.again === true, replacedChatId: replaced };
-  }
-  if (r.status === 'linked_elsewhere' || r.status === 'replayed' || r.status === 'slow_down') return { status: r.status };
-  throw new TypeError('bot_webapp_link: unknown answer');
-}
-
 // ─────────────────────────────────────────── the routes ───────────────────────────────────────────
 
 /** What the site reads (200). */
 export type SessionStatus = 'linked' | 'unlinked' | 'stale' | 'invalid' | 'replayed' | 'slow_down' | 'unavailable';
-export type LinkStatus = 'linked' | 'linked_elsewhere' | 'replayed' | 'stale' | 'invalid' | 'signed_out' | 'slow_down' | 'unavailable';
 
 /** At most `limit` calls per key within `windowMs` (in memory, per function instance: best effort). */
 export function windowLimiter(limit: (key: string) => number, windowMs: number, now: () => number): (key: string) => boolean {
@@ -310,32 +285,13 @@ export interface WebAppDeps {
   now?: () => number;
 }
 
-type Outcome = SessionStatus | LinkStatus | 'same' | 'preflight' | 'forbidden_origin' | 'bad_method' | 'bad_request' | 'too_big'
+type Outcome = SessionStatus | 'same' | 'other' | 'preflight' | 'forbidden_origin' | 'bad_method' | 'bad_request' | 'too_big'
   | 'rate_limited' | 'not_configured' | 'failed';
 
 export function createWebApp(deps: WebAppDeps): WebAppPort {
   const clock = deps.now ?? (() => Date.now());
   const allowed = windowLimiter((key) => (key === '' ? UNKNOWN_ADDRESS_PER_MINUTE : PER_ADDRESS_PER_MINUTE), 60_000, clock);
   const allowedUser = windowLimiter(() => PER_TELEGRAM_PER_MINUTE, 60_000, clock);
-
-  /** The bot's own M2 after a link from the Mini App (and M6 to the chat the account left). Never fails the request. */
-  async function tellChat(ctx: Ctx, tgUserId: number, mayWrite: boolean, replacedChatId: number | null): Promise<void> {
-    if (mayWrite) {
-      try {
-        const today = await ctx.db.today(tgUserId);
-        const lead = today ? planNow(today).exam : null;
-        const out = m2(lead ? { title: lead.title, date: lead.date } : null, today?.link.remindAt ?? 20 * 60);
-        // A private chat's id is the user's id.
-        await send(ctx.tg, { chatId: tgUserId, text: out.text, keyboard: out.keyboard });
-      } catch (error) {
-        log({ route: 'webapp', kind: 'link_m2', outcome: 'failed', error_name: errorName(error), tg_code: tgCode(error) });
-      }
-    }
-    if (replacedChatId !== null && replacedChatId !== tgUserId) {
-      await send(ctx.tg, { chatId: replacedChatId, text: m6().text }).catch((error: unknown) =>
-        log({ route: 'webapp', kind: 'link_m6', outcome: 'failed', error_name: errorName(error), tg_code: tgCode(error) }));
-    }
-  }
 
   async function session(ctx: Ctx, body: Record<string, unknown>, token: string, auth: AuthAdmin): Promise<{ outcome: Outcome; json: Record<string, unknown> }> {
     const check = await checkInitData(body.init_data, token, ctx.now());
@@ -359,35 +315,10 @@ export function createWebApp(deps: WebAppDeps): WebAppPort {
       log({ route: 'webapp', kind: 'magic_link', outcome: 'failed', error_name: errorName(error), tg_code: error instanceof AuthError ? error.status : undefined });
       return { outcome: 'unavailable', json: { status: 'unavailable' } };
     }
+    // Another account is signed in in this WebView: the site names the linked one and switches only when asked. The
+    // e-mail goes only to the holder of this Telegram's fresh initData, who could sign in to that account anyway.
+    if (have !== null) return { outcome: 'other', json: { status: 'linked', token_hash: tokenHash, email: answer.email } };
     return { outcome: 'linked', json: { status: 'linked', token_hash: tokenHash } };
-  }
-
-  async function link(ctx: Ctx, req: Request, body: Record<string, unknown>, token: string, auth: AuthAdmin): Promise<{ outcome: Outcome; json: Record<string, unknown> }> {
-    const check = await checkInitData(body.init_data, token, ctx.now());
-    if (!check.ok) {
-      const status: LinkStatus = check.reason === 'stale' || check.reason === 'future' ? 'stale' : 'invalid';
-      return { outcome: status, json: { status } };
-    }
-    if (!allowedUser(String(check.data.user.id))) return { outcome: 'slow_down', json: { status: 'slow_down' } };
-    const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.get('authorization') ?? '')?.[1] ?? '';
-    if (!JWT.test(bearer)) return { outcome: 'signed_out', json: { status: 'signed_out' } };
-    let account: { id: string } | null;
-    try {
-      account = await auth.userOfToken(bearer);
-    } catch (error) {
-      log({ route: 'webapp', kind: 'user', outcome: 'failed', error_name: errorName(error), tg_code: error instanceof AuthError ? error.status : undefined });
-      return { outcome: 'unavailable', json: { status: 'unavailable' } };
-    }
-    if (!account) return { outcome: 'signed_out', json: { status: 'signed_out' } };
-    const data = check.data;
-    const tz = typeof body.tz === 'string' && TZ.test(body.tz) ? body.tz : null;
-    const answer = toLinkAnswer(await ctx.db.rpc('bot_webapp_link', {
-      p_tg_user_id: data.user.id, p_user_id: account.id, p_init_hash: await replayKey(data.hash),
-      p_auth_date: new Date(data.authDate * 1000).toISOString(), p_lang: data.user.languageCode, p_tz: tz,
-    }));
-    if (answer.status !== 'linked') return { outcome: answer.status, json: { status: answer.status } };
-    if (!answer.again) await tellChat(ctx, data.user.id, data.user.allowsWriteToPm, answer.replacedChatId);
-    return { outcome: 'linked', json: { status: 'linked' } };
   }
 
   async function http(req: Request, ctx: Ctx, action: WebAppAction): Promise<Response> {
@@ -446,7 +377,7 @@ export function createWebApp(deps: WebAppDeps): WebAppPort {
       } catch {
         return fail(400, 'bad_request', 'bad_request');
       }
-      const result = action === 'session' ? await session(ctx, body, token, deps.auth) : await link(ctx, req, body, token, deps.auth);
+      const result = await session(ctx, body, token, deps.auth);
       note(result.outcome);
       return Response.json(result.json, { status: 200, headers: base });
     } catch (error) {
@@ -455,9 +386,4 @@ export function createWebApp(deps: WebAppDeps): WebAppPort {
   }
 
   return { http };
-}
-
-/** Telegram's error code of a failed send, when it is one (for the log line). */
-function tgCode(error: unknown): number | undefined {
-  return error instanceof TelegramError ? error.code : undefined;
 }

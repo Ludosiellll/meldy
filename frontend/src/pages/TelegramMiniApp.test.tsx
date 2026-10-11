@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { LAUNCH_HASH, fakeInitData, fakeWebApp, startMiniApp, stopMiniApp, type FakeWebApp } from '../test/telegramWebApp';
+import {
+  LAUNCH_HASH, fakeInitData, fakeWebApp, putTelegramBridge, startMiniApp, stopMiniApp, type FakeWebApp,
+} from '../test/telegramWebApp';
 
 type User = { id: string; email: string };
 
@@ -26,10 +28,7 @@ const auth = vi.hoisted(() => {
 
 const mocks = vi.hoisted(() => ({
   miniAppSession: vi.fn(),
-  miniAppLink: vi.fn(),
   signInWithTelegram: vi.fn(),
-  signInWithPassword: vi.fn(),
-  signOut: vi.fn(),
   container: { loading: false, data: null } as { loading: boolean; data: unknown },
   plan: null as unknown,
   startTarget: vi.fn(),
@@ -47,17 +46,8 @@ vi.mock('../hooks/useAuth', async () => {
     },
   };
 });
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      signInWithPassword: (...args: unknown[]) => mocks.signInWithPassword(...args),
-      signOut: (...args: unknown[]) => mocks.signOut(...args),
-    },
-  },
-}));
 vi.mock('../api/telegramMiniApp', () => ({
   miniAppSession: (...args: unknown[]) => mocks.miniAppSession(...args),
-  miniAppLink: (...args: unknown[]) => mocks.miniAppLink(...args),
   signInWithTelegram: (...args: unknown[]) => mocks.signInWithTelegram(...args),
 }));
 vi.mock('../lib/containers/hooks', () => ({ useContainerData: () => mocks.container }));
@@ -105,6 +95,12 @@ function renderAt(path = '/tg') {
 }
 
 const where = () => screen.getByTestId('where').textContent;
+/** Inputs or a «Подключить» of any kind: the page has no way to link a Telegram. */
+const noLinking = () => {
+  expect(screen.queryAllByRole('textbox')).toEqual([]);
+  expect(document.querySelector('input[type="password"]')).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Подключить/ })).toBeNull();
+};
 let webApp: FakeWebApp;
 
 beforeEach(async () => {
@@ -112,18 +108,9 @@ beforeEach(async () => {
   auth.loading = false;
   auth.set(null);
   mocks.miniAppSession.mockReset().mockResolvedValue({ status: 'unlinked' });
-  mocks.miniAppLink.mockReset().mockResolvedValue('linked');
   mocks.signInWithTelegram.mockReset().mockImplementation(async () => {
     auth.set(ALINA);
     return true;
-  });
-  mocks.signInWithPassword.mockReset().mockImplementation(async ({ email }: { email: string }) => {
-    auth.set({ ...ALINA, email });
-    return { data: {}, error: null };
-  });
-  mocks.signOut.mockReset().mockImplementation(async () => {
-    auth.set(null);
-    return { error: null };
   });
   mocks.container = { loading: false, data: null };
   mocks.plan = null;
@@ -137,6 +124,7 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup();
   stopMiniApp();
+  window.history.replaceState(null, '', '/');
 });
 
 describe('the exam a launch names', () => {
@@ -153,7 +141,21 @@ describe('the exam a launch names', () => {
 });
 
 describe('outside Telegram', () => {
-  it('a browser on /tg goes to «Сегодня» and nothing is asked of the server', async () => {
+  it('a link to /tg with someone\'s initData in the address, in a plain browser tab: «Сегодня», no sign-in, no Telegram mode', async () => {
+    stopMiniApp();
+    // The attack of the security review (2026-10-11): the attacker's own fresh launch, the victim's browser, signed in.
+    auth.set(OTHER);
+    window.history.replaceState(null, '', `/tg#tgWebAppData=${encodeURIComponent(fakeInitData())}&tgWebAppVersion=8.0`);
+    window.Telegram = { WebApp: fakeWebApp() };
+    renderAt();
+    await waitFor(() => expect(where()).toBe('/dashboard'));
+    expect(mocks.miniAppSession).not.toHaveBeenCalled();
+    expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
+    expect(document.documentElement.classList.contains('tg-mode')).toBe(false);
+    expect(auth.user()).toEqual(OTHER);
+  });
+
+  it('a Telegram client without initData goes to «Сегодня» and nothing is asked of the server', async () => {
     stopMiniApp();
     await startMiniApp(fakeWebApp({ initData: '' }));
     renderAt();
@@ -163,6 +165,7 @@ describe('outside Telegram', () => {
 
   it('a page that got here before main.tsx booted the Mini App boots it itself', async () => {
     stopMiniApp();
+    putTelegramBridge();
     window.Telegram = { WebApp: webApp };
     renderAt();
     await waitFor(() => expect(mocks.miniAppSession).toHaveBeenCalledWith(fakeInitData(), null));
@@ -228,137 +231,115 @@ describe('a linked Telegram', () => {
     expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
   });
 
-  it('a reload of a launch this tab already signed in with goes straight on', async () => {
+  it('never signs in twice in one launch: a reload of a launch this tab already used goes straight on', async () => {
     auth.set(ALINA);
     window.sessionStorage.setItem('meldy_tg_signed', LAUNCH_HASH);
     renderAt();
     await waitFor(() => expect(where()).toBe('/dashboard'));
     expect(mocks.miniAppSession).not.toHaveBeenCalled();
+    expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
   });
 
-  it('a sign-in Auth refuses is a problem with «Повторить»', async () => {
+  it('a sign-in Auth refuses spent the launch: no «Повторить», only the site', async () => {
     mocks.miniAppSession.mockResolvedValue({ status: 'linked', tokenHash: TOKEN });
     mocks.signInWithTelegram.mockResolvedValue(false);
     renderAt();
     expect(await screen.findByRole('heading', { name: WORDS.problems.unavailable.title })).toBeInTheDocument();
-    mocks.signInWithTelegram.mockImplementation(async () => {
-      auth.set(ALINA);
-      return true;
-    });
-    fireEvent.click(screen.getByRole('button', { name: WORDS.retry }));
-    await waitFor(() => expect(where()).toBe('/dashboard'));
-    expect(mocks.miniAppSession).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: WORDS.retry })).toBeNull();
+    expect(screen.getByRole('button', { name: WORDS.openSite })).toBeInTheDocument();
   });
 });
 
-describe('a Telegram not linked yet', () => {
-  const fill = (email: string, password: string) => {
-    fireEvent.change(screen.getByLabelText(WORDS.email), { target: { value: email } });
-    fireEvent.change(screen.getByLabelText(WORDS.password), { target: { value: password } });
-    fireEvent.click(screen.getByRole('button', { name: WORDS.submit }));
-  };
+describe('another Meldy account is open in this WebView (no silent switch)', () => {
+  const OTHER_ANSWER = { status: 'other', tokenHash: TOKEN, email: ALINA.email };
 
-  it('signs in by e-mail and password, then links this Telegram in one call: no code', async () => {
-    renderAt();
-    expect(await screen.findByRole('heading', { name: WORDS.formTitle })).toBeInTheDocument();
-    expect(document.title).toContain('Вход через Telegram');
-    expect(screen.queryByRole('button', { name: /Google/ })).toBeNull();
-    fill('  alina@example.com ', 'secret-1');
-    await waitFor(() => expect(where()).toBe('/dashboard'));
-    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: 'alina@example.com', password: 'secret-1' });
-    expect(mocks.track).toHaveBeenCalledWith('login_done', { method: 'email' });
-    expect(mocks.miniAppLink).toHaveBeenCalledTimes(1);
-    expect(mocks.miniAppLink.mock.calls[0][0]).toBe(fakeInitData());
-    expect(typeof mocks.miniAppLink.mock.calls[0][1]).toBe('string');
-    expect(window.sessionStorage.getItem('meldy_tg_signed')).toBe(LAUNCH_HASH);
-  });
-
-  it('says what is wrong with the form, and wrong credentials in words', async () => {
-    renderAt();
-    await screen.findByRole('heading', { name: WORDS.formTitle });
-    fill('', '');
-    expect(await screen.findByText(WORDS.emailMissing)).toBeInTheDocument();
-    fill('alina@', 'secret-1');
-    expect(await screen.findByText(/Проверьте адрес/)).toBeInTheDocument();
-    fill('alina@example.com', '');
-    expect(await screen.findByText(WORDS.passwordMissing)).toBeInTheDocument();
-    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
-    mocks.signInWithPassword.mockResolvedValue({ data: {}, error: { message: 'Invalid login credentials' } });
-    fill('alina@example.com', 'wrong');
-    expect(await screen.findByText(WORDS.badCredentials)).toBeInTheDocument();
-    mocks.signInWithPassword.mockResolvedValue({ data: {}, error: { message: 'Email not confirmed' } });
-    fill('alina@example.com', 'secret-1');
-    expect(await screen.findByText(WORDS.notConfirmed)).toBeInTheDocument();
-    mocks.signInWithPassword.mockRejectedValue(new Error('offline'));
-    fill('alina@example.com', 'secret-1');
-    expect(await screen.findByText(WORDS.signInFailed)).toBeInTheDocument();
-    expect(mocks.miniAppLink).not.toHaveBeenCalled();
-  });
-
-  it('opens the site\'s pages in the browser: the password, a new account, the profile for Google', async () => {
-    renderAt();
-    await screen.findByRole('heading', { name: WORDS.formTitle });
-    fireEvent.click(screen.getByRole('button', { name: WORDS.forgot }));
-    fireEvent.click(screen.getByRole('button', { name: WORDS.register }));
-    fireEvent.click(screen.getByRole('button', { name: WORDS.googleButton }));
-    expect(webApp.openLink.mock.calls.map(([url]) => url)).toEqual([
-      `${window.location.origin}/forgot-password`,
-      `${window.location.origin}/register`,
-      `${window.location.origin}/profile#telegram`,
-    ]);
-    expect(screen.getByText(WORDS.googleNote)).toBeInTheDocument();
-  });
-
-  it('a reload of the sign-in form goes back to it: the server already spent this launch on «not linked»', async () => {
-    renderAt();
-    await screen.findByRole('heading', { name: WORDS.formTitle });
-    expect(window.sessionStorage.getItem('meldy_tg_unlinked')).toBe(LAUNCH_HASH);
-    cleanup();
-    renderAt();
-    expect(await screen.findByRole('heading', { name: WORDS.formTitle })).toBeInTheDocument();
-    expect(mocks.miniAppSession).toHaveBeenCalledTimes(1);
-    // Signed in meanwhile (another tab of the WebView): the question before linking.
-    cleanup();
+  it('asks first, naming the account of this Telegram; «Открыть аккаунт Telegram» signs in to it', async () => {
     auth.set(OTHER);
+    mocks.miniAppSession.mockResolvedValue(OTHER_ANSWER);
     renderAt();
-    expect(await screen.findByRole('heading', { name: WORDS.confirmTitle })).toBeInTheDocument();
-    expect(mocks.miniAppSession).toHaveBeenCalledTimes(1);
-  });
-
-  it('signed in here already: asks before linking, or signs out for another account', async () => {
-    auth.set(OTHER);
-    renderAt();
-    expect(await screen.findByRole('heading', { name: WORDS.confirmTitle })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: WORDS.otherTitle })).toBeInTheDocument();
     expect(mocks.miniAppSession).toHaveBeenCalledWith(fakeInitData(), OTHER.id);
-    expect(screen.getByText(WORDS.confirmLede(OTHER.email))).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: WORDS.otherAccount }));
-    expect(await screen.findByRole('heading', { name: WORDS.formTitle })).toBeInTheDocument();
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(screen.getByText(WORDS.otherText(ALINA.email, OTHER.email))).toBeInTheDocument();
+    expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
+    expect(auth.user()).toEqual(OTHER);
+    fireEvent.click(screen.getByRole('button', { name: WORDS.openOther }));
+    await waitFor(() => expect(where()).toBe('/dashboard'));
+    expect(mocks.signInWithTelegram).toHaveBeenCalledWith(TOKEN);
+    expect(auth.user()).toEqual(ALINA);
+    expect(mocks.track).toHaveBeenCalledWith('login_done', { method: 'telegram' });
   });
 
-  it('«Подключить» links the account signed in here', async () => {
+  it('«Остаться в текущем» keeps the account that is open, and a reload does not ask again', async () => {
+    auth.set(OTHER);
+    mocks.miniAppSession.mockResolvedValue(OTHER_ANSWER);
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: WORDS.stay }));
+    await waitFor(() => expect(where()).toBe('/dashboard'));
+    expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
+    expect(auth.user()).toEqual(OTHER);
+    cleanup();
+    renderAt();
+    await waitFor(() => expect(where()).toBe('/dashboard'));
+    expect(mocks.miniAppSession).toHaveBeenCalledTimes(1);
+    expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
+  });
+
+  it('a reload while it asks keeps the account that is open (the safe answer)', async () => {
+    auth.set(OTHER);
+    mocks.miniAppSession.mockResolvedValue(OTHER_ANSWER);
+    renderAt();
+    await screen.findByRole('heading', { name: WORDS.otherTitle });
+    cleanup();
+    renderAt();
+    await waitFor(() => expect(where()).toBe('/dashboard'));
+    expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
+    expect(auth.user()).toEqual(OTHER);
+  });
+
+  it('a switch Auth refuses: the account that was open stays, no «Повторить»', async () => {
+    auth.set(OTHER);
+    mocks.miniAppSession.mockResolvedValue(OTHER_ANSWER);
+    mocks.signInWithTelegram.mockResolvedValue(false);
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: WORDS.openOther }));
+    expect(await screen.findByRole('heading', { name: WORDS.problems.unavailable.title })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: WORDS.retry })).toBeNull();
+    expect(auth.user()).toEqual(OTHER);
+  });
+});
+
+describe('a Telegram not linked yet: how to link it on the site, and nothing here links it', () => {
+  it('greets by the Telegram name and sends to the profile in the browser', async () => {
+    stopMiniApp();
+    const named = fakeWebApp();
+    named.initDataUnsafe = { user: { id: 4242, first_name: 'Алина' } };
+    webApp = await startMiniApp(named);
+    renderAt();
+    expect(await screen.findByRole('heading', { name: WORDS.unlinkedTitle('Алина') })).toBeInTheDocument();
+    expect(screen.getByText(WORDS.unlinkedText)).toBeInTheDocument();
+    noLinking();
+    fireEvent.click(screen.getByRole('button', { name: WORDS.openProfile }));
+    expect(webApp.openLink).toHaveBeenCalledWith(`${window.location.origin}/profile#telegram`);
+    expect(window.sessionStorage.getItem('meldy_tg_unlinked')).toBe(LAUNCH_HASH);
+  });
+
+  it('without a name, the same words; signed in here, the same screen: the account is not offered to this Telegram', async () => {
     auth.set(OTHER);
     renderAt();
-    fireEvent.click(await screen.findByRole('button', { name: WORDS.confirm }));
-    await waitFor(() => expect(where()).toBe('/dashboard'));
-    expect(mocks.miniAppLink).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('heading', { name: WORDS.unlinkedTitle(null) })).toBeInTheDocument();
+    expect(mocks.miniAppSession).toHaveBeenCalledWith(fakeInitData(), OTHER.id);
+    noLinking();
+    expect(screen.queryByText(OTHER.email)).toBeNull();
+    expect(mocks.signInWithTelegram).not.toHaveBeenCalled();
   });
 
-  it('a Telegram linked to another account is said so; a lost session asks to sign in again', async () => {
-    mocks.miniAppLink.mockResolvedValue('linked_elsewhere');
+  it('a reload shows it again without asking the server once more', async () => {
     renderAt();
-    await screen.findByRole('heading', { name: WORDS.formTitle });
-    fill('alina@example.com', 'secret-1');
-    expect(await screen.findByRole('heading', { name: WORDS.problems.linked_elsewhere.title })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: WORDS.retry })).toBeNull();
+    await screen.findByRole('heading', { name: WORDS.unlinkedTitle(null) });
     cleanup();
-    auth.set(null);
-    mocks.miniAppLink.mockResolvedValue('signed_out');
     renderAt();
-    await screen.findByRole('heading', { name: WORDS.formTitle });
-    fill('alina@example.com', 'secret-1');
-    expect(await screen.findByText(WORDS.signedOut)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: WORDS.formTitle })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: WORDS.unlinkedTitle(null) })).toBeInTheDocument();
+    expect(mocks.miniAppSession).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -377,6 +358,14 @@ describe('what the server refused', () => {
     expect(Boolean(screen.queryByRole('button', { name: WORDS.retry }))).toBe(retry);
     fireEvent.click(screen.getByRole('button', { name: WORDS.openSite }));
     expect(webApp.openLink).toHaveBeenCalledWith(`${window.location.origin}/dashboard`);
+  });
+
+  it('«Повторить» after no answer asks once more and goes on', async () => {
+    mocks.miniAppSession.mockResolvedValueOnce({ status: 'network' }).mockResolvedValueOnce({ status: 'linked', tokenHash: TOKEN });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: WORDS.retry }));
+    await waitFor(() => expect(where()).toBe('/dashboard'));
+    expect(mocks.miniAppSession).toHaveBeenCalledTimes(2);
   });
 });
 

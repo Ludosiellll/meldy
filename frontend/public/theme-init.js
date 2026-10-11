@@ -9,6 +9,8 @@
  * Telegram: по цвету фона из параметров запуска (tgWebAppThemeParams после # в адресе) или из того,
  * что скрипт Telegram сохранил во вкладке. Тогда на <html> ещё и data-tg-theme: ThemeProvider держит
  * эту тему, пока скрипт Telegram не загрузится (lib/telegram/miniApp.ts, components/telegram/TelegramChrome).
+ * Только если вокруг страницы настоящий клиент Telegram (его каналы, как в hasTelegramBridge): адрес с
+ * параметрами Telegram, открытый в обычной вкладке браузера, тему сайта не меняет.
  */
 (function () {
   function readSession(key) {
@@ -65,9 +67,22 @@
     return null;
   }
 
+  // Клиент Telegram вокруг страницы: его каналы, которые адрес задать не может (lib/telegram/miniApp.ts).
+  function telegramBridge() {
+    try {
+      if (window.TelegramWebviewProxy !== undefined) return true;
+      var external = window.external;
+      if (external && typeof external === 'object' && 'notify' in external) return true;
+      return window.parent !== window;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // null вне мини-приложения или когда цвет фона Telegram неизвестен.
   function telegramDark() {
     if (window.location.pathname !== '/tg' && readSession('meldy_tg') !== '1') return null;
+    if (!telegramBridge()) return null;
     // Как в скрипте Telegram: сохранённые им параметры (с последней смены темы) важнее параметров запуска.
     var stored = parseJson(readSession('__telegram__themeParams'));
     var bg = stored && stored.bg_color;

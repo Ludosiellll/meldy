@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MINI_APP_PATH, SCRIPT_TIMEOUT_MS, SESSION_FLAG, SIGNED_FLAG, TELEGRAM_SCRIPT, UNLINKED_FLAG,
-  bootMiniApp, isMiniApp, launchData, launchKey, loadTelegramScript, markSignedThisLaunch, markUnlinkedThisLaunch, miniAppHaptic,
-  miniAppState, openOutside, shouldLoadTelegram, signedThisLaunch, unlinkedThisLaunch,
+  bootMiniApp, hasTelegramBridge, isMiniApp, launchData, launchKey, loadTelegramScript, markSignedThisLaunch, markUnlinkedThisLaunch,
+  miniAppHaptic, miniAppState, openOutside, shouldLoadTelegram, signedThisLaunch, unlinkedThisLaunch,
 } from './miniApp';
 import { THEME_CANVAS } from '../../contexts/ThemeProvider';
-import { LAUNCH_HASH, fakeInitData, fakeWebApp, startMiniApp, stopMiniApp } from '../../test/telegramWebApp';
+import { LAUNCH_HASH, fakeInitData, fakeWebApp, putTelegramBridge, startMiniApp, stopMiniApp } from '../../test/telegramWebApp';
 
 const scripts = () => Array.from(document.head.querySelectorAll('script')).filter((script) => script.src.includes('telegram.org'));
 
@@ -17,6 +17,72 @@ afterEach(() => {
   stopMiniApp();
   for (const script of scripts()) script.remove();
   vi.useRealTimers();
+  window.history.replaceState(null, '', '/');
+});
+
+/** Someone's own fresh launch, put into the address of a plain browser tab (the security review of 2026-10-11). */
+const craftedLink = () => `/tg#tgWebAppData=${encodeURIComponent(fakeInitData())}&tgWebAppVersion=8.0&tgWebAppPlatform=ios`;
+
+describe('only inside a real Telegram client (hasTelegramBridge)', () => {
+  it('a plain browser tab has no bridge, whatever its address says', () => {
+    window.history.replaceState(null, '', craftedLink());
+    expect(hasTelegramBridge()).toBe(false);
+  });
+
+  it('initData in the address but no Telegram client: outside at once — no script, no mark, no class, no launch data', async () => {
+    window.history.replaceState(null, '', craftedLink());
+    // Even with Telegram.WebApp and its initData on the page, as if the script had read the address.
+    window.Telegram = { WebApp: fakeWebApp() };
+    const state = await bootMiniApp('/tg');
+    expect(state).toEqual({ status: 'outside' });
+    expect(scripts()).toEqual([]);
+    expect(isMiniApp()).toBe(false);
+    expect(launchData()).toBeNull();
+    expect(document.documentElement.classList.contains('tg-mode')).toBe(false);
+    expect(window.sessionStorage.getItem(SESSION_FLAG)).toBeNull();
+    expect(window.Telegram.WebApp?.ready).not.toHaveBeenCalled();
+  });
+
+  it('a tab marked earlier is no exception: without the client it is the site', async () => {
+    window.sessionStorage.setItem(SESSION_FLAG, '1');
+    window.Telegram = { WebApp: fakeWebApp() };
+    expect(await bootMiniApp('/exams/c/x/study')).toEqual({ status: 'outside' });
+    expect(window.sessionStorage.getItem(SESSION_FLAG)).toBeNull();
+  });
+
+  it('the native and desktop clients: TelegramWebviewProxy', async () => {
+    const webApp = await startMiniApp();
+    expect(hasTelegramBridge()).toBe(true);
+    expect(isMiniApp()).toBe(true);
+    expect(webApp.ready).toHaveBeenCalled();
+  });
+
+  it('the Windows client: external.notify', async () => {
+    const before = Object.getOwnPropertyDescriptor(window, 'external');
+    Object.defineProperty(window, 'external', { configurable: true, value: { notify: () => undefined } });
+    try {
+      expect(hasTelegramBridge()).toBe(true);
+      window.Telegram = { WebApp: fakeWebApp() };
+      expect(await bootMiniApp('/tg')).toMatchObject({ status: 'on' });
+    } finally {
+      if (before) Object.defineProperty(window, 'external', before);
+      else delete (window as unknown as { external?: unknown }).external;
+    }
+  });
+
+  it('Telegram Web: the page in a frame (only web.telegram.org may frame it: nginx.conf)', async () => {
+    const before = Object.getOwnPropertyDescriptor(window, 'parent');
+    Object.defineProperty(window, 'parent', { configurable: true, get: () => ({}) });
+    try {
+      expect(hasTelegramBridge()).toBe(true);
+      window.Telegram = { WebApp: fakeWebApp() };
+      expect(await bootMiniApp('/tg')).toMatchObject({ status: 'on' });
+    } finally {
+      if (before) Object.defineProperty(window, 'parent', before);
+      else delete (window as unknown as { parent?: unknown }).parent;
+    }
+    expect(window.parent).toBe(window);
+  });
 });
 
 describe('where Telegram\'s script belongs', () => {
@@ -94,7 +160,7 @@ describe('starting inside Telegram', () => {
     expect(webApp.setBackgroundColor).toHaveBeenLastCalledWith(THEME_CANVAS.dark);
   });
 
-  it('a page without initData (a browser on /tg) is outside: no mark, no class', async () => {
+  it('a Telegram client without initData is outside: no mark, no class', async () => {
     window.sessionStorage.setItem(SESSION_FLAG, '1');
     const webApp = await startMiniApp(fakeWebApp({ initData: '' }));
     expect(miniAppState()).toEqual({ status: 'outside' });
@@ -123,6 +189,10 @@ describe('starting inside Telegram', () => {
 });
 
 describe('loading the script', () => {
+  beforeEach(() => {
+    putTelegramBridge();
+  });
+
   it('adds the one official script and starts when it has loaded', async () => {
     const booting = bootMiniApp('/tg');
     expect(miniAppState()).toEqual({ status: 'loading' });
@@ -153,10 +223,15 @@ describe('loading the script', () => {
 });
 
 describe('the launch', () => {
-  it('gives its initData and the direct link\'s start_param', async () => {
+  it('gives its initData, the direct link\'s start_param and the Telegram first name', async () => {
     expect(launchData()).toBeNull();
-    await startMiniApp(fakeWebApp({ startParam: 'f4881273-7331-4c39-96d7-f2ce4a31a1c0' }));
-    expect(launchData()).toEqual({ initData: fakeInitData(), startParam: 'f4881273-7331-4c39-96d7-f2ce4a31a1c0' });
+    const webApp = fakeWebApp({ startParam: 'f4881273-7331-4c39-96d7-f2ce4a31a1c0' });
+    webApp.initDataUnsafe = { ...webApp.initDataUnsafe, user: { id: 4242, first_name: '  Алина \n Ивановна  ' } };
+    await startMiniApp(webApp);
+    expect(launchData()).toEqual({ initData: fakeInitData(), startParam: 'f4881273-7331-4c39-96d7-f2ce4a31a1c0', firstName: 'Алина Ивановна' });
+    stopMiniApp();
+    await startMiniApp(fakeWebApp());
+    expect(launchData()?.firstName).toBeNull();
   });
 
   it('is known by its hash, and the tab remembers the one it signed in with', () => {

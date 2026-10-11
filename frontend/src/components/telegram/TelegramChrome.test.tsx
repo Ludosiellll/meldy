@@ -4,7 +4,7 @@ import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from '../../contexts/ThemeProvider';
 import { bootMiniApp } from '../../lib/telegram/miniApp';
 import TelegramChrome, { isMiniAppHome } from './TelegramChrome';
-import { fakeWebApp, startMiniApp, stopMiniApp, type FakeWebApp } from '../../test/telegramWebApp';
+import { fakeInitData, fakeWebApp, putTelegramBridge, startMiniApp, stopMiniApp, type FakeWebApp } from '../../test/telegramWebApp';
 
 const KEY = 'studyforge-theme';
 let go: ((to: string) => void) | null = null;
@@ -54,6 +54,19 @@ afterEach(() => {
 });
 
 describe('outside Telegram', () => {
+  it('a link with Telegram\'s launch data in a plain browser tab changes nothing: the student\'s theme, no «Назад»', async () => {
+    const webApp = fakeWebApp({ colorScheme: 'dark' });
+    window.Telegram = { WebApp: webApp };
+    await act(async () => {
+      await startMiniApp(webApp, '/tg', { bridge: false });
+    });
+    renderAt(`/tg#tgWebAppData=${encodeURIComponent(fakeInitData())}`);
+    expect(html().classList.contains('light')).toBe(true);
+    expect(html().classList.contains('tg-mode')).toBe(false);
+    expect(webApp.BackButton.show).not.toHaveBeenCalled();
+    expect(webApp.setHeaderColor).not.toHaveBeenCalled();
+  });
+
   it('does nothing: the student\'s theme, no Telegram, no class', () => {
     renderAt('/exams/c/x/study');
     expect(html().classList.contains('light')).toBe(true);
@@ -83,6 +96,7 @@ describe('inside Telegram', () => {
 
   it('holds the theme theme-init.js read until Telegram\'s script answers; the student\'s own when it is not Telegram', async () => {
     html().setAttribute('data-tg-theme', 'dark');
+    putTelegramBridge();
     const booting = bootMiniApp('/tg');
     renderAt('/tg');
     expect(html().classList.contains('dark')).toBe(true);

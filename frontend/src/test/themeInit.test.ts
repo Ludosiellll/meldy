@@ -53,6 +53,7 @@ afterEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   window.history.replaceState(null, '', '/');
+  delete window.TelegramWebviewProxy;
 });
 
 describe('public/theme-init.js', () => {
@@ -123,6 +124,11 @@ describe('public/theme-init.js', () => {
 });
 
 describe('public/theme-init.js inside Telegram (the Mini App)', () => {
+  // A native Telegram client around the page (lib/telegram/miniApp.ts hasTelegramBridge); a plain tab has none.
+  beforeEach(() => {
+    window.TelegramWebviewProxy = { postEvent: () => undefined };
+  });
+
   /** Telegram's launch address: the theme as URL-encoded JSON after #, with the signed data and the version. */
   const launchAt = (path: string, theme: Record<string, string>) =>
     window.history.replaceState(
@@ -165,6 +171,18 @@ describe('public/theme-init.js inside Telegram (the Mini App)', () => {
     runThemeInit();
     expect(tgTheme()).toBe('dark');
     expect(html().contains('dark')).toBe(true);
+  });
+
+  it('Telegram\'s parameters in the address of a plain browser tab mean nothing: the site\'s own theme', () => {
+    delete window.TelegramWebviewProxy;
+    window.localStorage.setItem('studyforge-theme', 'light');
+    launchAt('/tg', TG_DARK);
+    window.sessionStorage.setItem('meldy_tg', '1');
+    window.sessionStorage.setItem('__telegram__themeParams', JSON.stringify(TG_DARK));
+    runThemeInit();
+    expect(html().contains('light')).toBe(true);
+    expect(tgTheme()).toBeNull();
+    expect(themeInitSource).toContain('TelegramWebviewProxy');
   });
 
   it('elsewhere Telegram\'s parameters mean nothing: the site\'s own theme', () => {

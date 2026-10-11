@@ -1,8 +1,7 @@
 // The `telegram` Edge Function of @Meldyteach_bot (spec Telegram_Bot_Spec_2026-10-09 §6.1). Deploy with
 // verify_jwt = false: Telegram and pg_net call it without a Supabase JWT; the webhook and the tick check their own
 // HMAC headers (derived from TELEGRAM_BOT_TOKEN), /setup takes no input, /status shows no secret. The Mini App's
-// /webapp/session and /webapp/link (Telegram_Mini_App_Spec_2026-10-10) check Telegram's initData signature and, for
-// the link, the user's JWT with Supabase Auth themselves.
+// /webapp/session (Telegram_Mini_App_Spec_2026-10-10) checks Telegram's initData signature itself.
 //
 // Deno glue only: the routes, the dispatch, the tick and every message are in ../_shared/bot/ (plain TS, tested with
 // `node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts`).

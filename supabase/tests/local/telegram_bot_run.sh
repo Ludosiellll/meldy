@@ -526,7 +526,7 @@ if stage T11 20261010120007; then
 fi
 [ $VOICE_AFTER_T11 = 0 ] || voice_tests "T10 after T11"
 
-# ── package WA (20261010150000_telegram_webapp.sql, the Mini App's sign-in: bot_webapp_session, bot_webapp_link) ──────
+# ── package WA (20261010150000_telegram_webapp.sql, the Mini App's sign-in: bot_webapp_session; no link) ──────────────
 echo "9b. WA: the Mini App's sign-in"
 if stage WA 20261010150000; then
   sql_test "WA: telegram_webapp.sql" t_main "$HERE/telegram_webapp.sql" 'TELEGRAM WEBAPP CHECKS PASSED'
