@@ -35,7 +35,8 @@ async function open(slide) {
   if (bad.length) console.log(`  fonts not loaded: ${bad.join(', ')}`);
 }
 
-/** The build order of a slide: groups of elements that appear together, as PowerPoint plays them. */
+/** The build of a slide as PowerPoint plays it (the compiler's schedule, as in timeline.mjs): the elements that
+ *  start at the same moment form one frame of the strip; a click starts a new clock. */
 async function steps() {
   return page.evaluate(() => {
     const els = [...document.querySelectorAll('[data-anim]')].map((el, i) => ({
@@ -44,16 +45,29 @@ async function steps() {
       trigger: el.dataset.animTrigger || 'after',
       anim: el.dataset.anim,
       delay: Number(el.dataset.animDelay || 0),
+      dur: Number(el.dataset.animDur || 500),
     }));
     els.sort((a, b) => a.order - b.order || a.i - b.i);
-    const groups = [];
+    // absolute starts: click groups restart the clock; «after» opens a sub-group when the previous one ends
+    let click = -1, subStart = 0, subLen = 0;
     for (const e of els) {
-      if (e.trigger === 'with' && groups.length) groups[groups.length - 1].push(e);
-      else groups.push([e]);
+      if (e.trigger === 'click' || click < 0) { click += 1; subStart = 0; subLen = 0; }
+      else if (e.trigger !== 'with') { subStart += subLen; subLen = 0; }
+      e.click = click;
+      e.start = subStart + e.delay;
+      subLen = Math.max(subLen, e.delay + e.dur);
     }
     els.forEach((e, k) => e.el.setAttribute('data-step-id', String(k)));
-    const idx = new Map(els.map((e, k) => [e.el, k]));
-    return groups.map((g) => ({ ids: g.map((e) => idx.get(e.el)), label: g.map((e) => `${e.trigger === 'click' ? '⏵click ' : ''}${e.anim}${e.delay ? ` +${e.delay}` : ''}`).join(' · ') }));
+    const groups = new Map();
+    els.forEach((e, k) => {
+      const key = `${e.click}:${String(e.start).padStart(6, '0')}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ ...e, k });
+    });
+    return [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, g]) => ({
+      ids: g.map((e) => e.k),
+      label: `${key.startsWith('0:') ? '' : '⏵click '}${g[0].start} ms: ${[...new Set(g.map((e) => e.anim))].join(', ')} ×${g.length}`,
+    }));
   });
 }
 
