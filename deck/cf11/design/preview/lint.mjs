@@ -285,7 +285,8 @@ const chains = [...names.entries()].map(([n, r]) => `${n.padEnd(8)} ${r.kind.pad
 
 await browser.close();
 console.log('Morph names (name, kind, slides):');
-console.log(chains.filter((c) => !/^!!s\d\d/.test(c)).map((c) => `  ${c}`).join('\n'));
+console.log(chains.filter((c) => !/^!!s\d\d/.test(c) && !/^!!x\d/.test(c)).map((c) => `  ${c}`).join('\n'));
+console.log(`  !!x…    ${chains.filter((c) => /^!!x\d/.test(c)).length} built objects named only so that PowerPoint cannot match them automatically`);
 console.log(`  !!s01…!!s10 shape on every slide`);
 if (warns.length) { console.log(`\n${warns.length} warning(s):`); console.log(warns.map((w) => `  ${w}`).join('\n')); }
 if (errors.length) { console.log(`\n${errors.length} error(s):`); console.log(errors.map((e) => `  ${e}`).join('\n')); process.exit(1); }

@@ -31,7 +31,7 @@ function header(slide, source) {
       // On the title the squares arrive with the dot they hide behind: the dot's own entrance, copied onto each
       // («with», the same delay, duration and step); on the finale they morph in from the strip and do not animate.
       const anim = slide.opening ? dotAnim(source) : '';
-      out.push(`<div class="sq now" data-pptx="shape" data-name="${name}"${anim} style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;border-radius:${s / 2}px"></div>`);
+      out.push(`<div class="sq now" data-pptx="shape" data-name="${name}"${anim} style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;border-radius:${s / 2 - 0.5}px"></div>`);
     } else {
       out.push(`<div class="sq ${state}" data-pptx="shape" data-name="${name}" style="left:${STRIP.x + STRIP.step * (i - 1)}px"></div>`);
     }
