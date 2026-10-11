@@ -37,7 +37,7 @@ Sources of truth:
   | steps and lists | 44–48 px |
   | labels (caps, +0.12 em) | 40 px |
   | reading layer | 32 px |
-  | sources, counter | 28 px |
+  | sources | 28 px |
 
   **Nothing under 28 px.** At most about 35 words outside the reading layer, except on the list slides 02, 13 and
   14. The lint checks all of it.
@@ -60,18 +60,18 @@ Sources of truth:
 ## 2. The deck-wide system
 
 - **The strip, «шпаргалка этой защиты»** (B).
-  * Ten 22 px squares `!!s01…!!s10` and the counter `!!left`, written by `design/stamp.mjs` from `design/deck.mjs`.
+  * Ten 22 px squares `!!s01…!!s10`, written by `design/stamp.mjs` from `design/deck.mjs`. No counter (the owner,
+    draft 3): the squares say it.
   * The current section is yellow, a passed one an outline, a coming one ink (light on the dark slides): the
     cheat sheet's three states.
   * **01 has no strip.** The ten squares are *seeds*: invisible 8 px rounds in a row inside the wordmark's dot,
     already in their colour on 02 at 1 % alpha.
   * On 02 the strip **unrolls out of the dot**: each seed only moves, grows and comes up to colour, so Morph mixes
-    nothing. The counter fades in, and the reading line explains the strip once: «Наверху — шпаргалка этой защиты:
-    10 обязательных разделов; пройденный гаснет, как строка в Meldy».
+    nothing. The speaker explains it once (02's notes); no line on the slide.
   * The own slides 11–12 show a small yellow dot `!!sx` in the gap after square 07.
-  * On 15 the strip **collapses** back into the dot: the squares fly into it and fade away as seeds. The counter
-    comes down under the wordmark: «Шпаргалка этой защиты пуста: осталось 0 из 10».
-  * The header band (strip, counter, corner) is the **last layer** of every slide, so in a Morph its squares and the
+  * On 15 the strip **collapses** back into the dot: the squares fly into it and fade away as seeds. Then one line
+    builds in under the wordmark: «Шпаргалка этой защиты пуста».
+  * The header band (strip, corner) is the **last layer** of every slide, so in a Morph its squares and the
     dot fly over everything.
 - **The dot** `!!dot` (C) travels the whole deck:
 
@@ -84,8 +84,8 @@ Sources of truth:
   | 08 | the phone, 424 × 880 |
   | 09 | the laptop again |
   | 10 | the chat, 704 × 704 |
-  | 11 | the first step of the path, «Группа»: the chat closes into this ink dot (the corner dot is `!!x11dot`) |
-  | 12 | the corner dot again, flying up from 11 as the lights go down |
+  | 11 | — the chain ends on 10: the chat fades out while its «Пригласить группу» button travels into 11's path (`!!pill`); the corner dot is `!!x11dot` |
+  | 12 | the corner dot again, coming up as the lights go down |
   | 13–14 | the corner dot |
   | 15 | the big dot, with the strip collapsing into it |
 
@@ -99,7 +99,7 @@ Sources of truth:
 - **Titles** are all `!!title` (the compiler's name), so the label crossfades in place from slide to slide. Labels
   never have an entrance of their own after 01.
 - **Other pairs**: `!!num` turns «229 тыс.» into the «0» (03→04); `!!c1`/`!!c2` name the author cards and the QR
-  card.
+  card; `!!pill`/`!!pillt` carry the «Пригласить группу» button from 10 into 11's path.
 - **No automatic Morph matches.** Built objects that PowerPoint could pair with an object of the previous slide
   (identical bullets, numbers, arrows, chips) carry unique `!!x…` names. The morph-log shows 0 automatic pairs.
 
@@ -118,7 +118,7 @@ Sources of truth:
 | 07→08→09→10→11 | the device chain: laptop → phone → laptop → chat → the first step's dot on 11 | 1.3 s |
 | 11→12, 12→13 | **M5** lights down into the night field, and up | 1.5 s |
 | 13→14 | Morph | 0.9 s |
-| 14→15 | **M6** the strip collapses into the dot (Morph by words: «осталось», «из», «10» travel) | 1.6 s |
+| 14→15 | **M6** the strip collapses into the dot, then «Шпаргалка этой защиты пуста» builds in | 1.6 s |
 
 **Builds.**
 * Each slide's entrances run as one automatic group of 1.4–2.7 s: the first effect starts it, every other comes
@@ -179,29 +179,29 @@ Eye order is what the eye takes first, second and third in the still.
 
 | # | Label | Hero | Eye order | Build (after the transition) |
 |---|---|---|---|---|
-| 01 | Титульный | «Meldy.» 300 px | wordmark → «ИИ не отвечает за студента — он его спрашивает» → the cover card (GIF) → «Тренажёр экзамена по вопросам кафедры» → nomination, QR, «CodingFest-11», F5 hint | label · wordmark rises · dot and squares settle · thesis · tagline · card settles · nomination and QR · hint (2.6 s) |
-| 02 | Автор проекта | two author cards | initials avatars → names → roles → institution → region → the strip, explained | counter · cards · avatars, names · institution · region · reading line (2.4 s) |
+| 01 | Титульный | «Meldy.» 300 px | wordmark → «ИИ не отвечает за студента — он его спрашивает» → the cover card (GIF) → «Тренажёр экзамена по вопросам кафедры» → nomination, QR, «CodingFest-11» | label · wordmark rises · dot and squares settle · thesis · tagline · card settles · nomination and QR (2.25 s); «F5» is a note to the presenter |
+| 02 | Автор проекта | two author cards | initials avatars → names → roles → institution → region | cards · avatars, names · institution · region (2.0 s); the strip is explained in the notes |
 | 03 | Актуальность | «229 тыс.» | claim → the № 319 card (the attestation rules of higher education, by full name) → on a click «229 тыс.» | claim · card · № 319 · title; *click* 229 тыс. (1.4 + 0.9 s) |
 | 04 | Цель, задачи | «0» 420 px | «0 строк осталось» → the erased map → four tasks | caption · map sweeps · tasks 1–4 (2.0 s) |
-| 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade · reading line (2.85 s) |
+| 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade (2.8 s); what «частично» means and the review's date are in the notes |
 | 06 | Содержание | the five blocks | the blocks as cheat-sheet lines, with the slide of each → «Число и формат»: questions from Word, Excel, TXT or PDF; lectures from PDF, DOCX, PPTX or a photo | claim · lines written in · card · the two format lines · note (2.3 s) |
-| 07 | Представление блоков проекта | the laptop | claim → the recording → four steps | the screen turns on · claim · the steps on the clip's moments: file 4.25, found 5.08, date 7.85, plan 16.68 s |
-| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | the screen rides in with the bezel · claim · the steps on the clip's moments: speak 6.73, asked 11.10, protocol 13.33 s · the reading line with the protocol's scroll, 14.63 s |
-| 09 | Представление блоков проекта | the laptop with the sheet | claim → the recording → the legend in the map's squares | claim · the legend as the clip reaches the sheet (9.43, 9.83 s) and the erase (12.63, 13.03 s) |
+| 07 | Представление блоков проекта | the laptop | claim → the recording → what it shows, large: «Нашли 240 вопросов и ключ — жирным в файле», «2 ноября, 45 минут в день», «Сегодня 52 вопроса, около 45 минут» | the screen turns on · claim · each moment as the clip reaches it (found 5.08, date 7.85, today 15.12 s; re-timed when the re-cut clips land) |
+| 08 | Представление блоков проекта | the phone | claim → the recording → what it shows, large: the answer becomes text, the examiner's question «Почему при использовании многоверсионности читатели не ждут писателей?», «Сами назвали 3 из 3 главных пунктов», the lecture's quote | the screen rides in with the bezel · claim · each moment as the clip reaches it (speak 6.73, asked 11.10, protocol 13.33, quote 16.5 s) · the reading line (17.2 s) |
+| 09 | Представление блоков проекта | the laptop with the sheet | claim → the recording → «47 → 44», «3 строки стёрты: названы в разные дни» → the sheet's own key (осталось · названо один раз · стёрто) | claim · the key as the clip reaches the sheet (9.43 s) · the counter and the erased lines with the erase (12.63 s) |
 | 10 | Представление блоков проекта | the chat | claim → the chat → «Пригласить группу» → six copies → Telegram | claim · group · copies cascade · Telegram (2.35 s) |
-| 11 | Тестирование и продвижение | the path | «Пилот: [N] студентов, [M] дней» → group → department → colleges and universities → the open site | claim · result · three steps · site (2.45 s) |
+| 11 | Тестирование и продвижение | «6 492» 240 px | claim (every release: autotests and a live check on a phone and a computer) → «6 492» → its parts (4 357 site · 1 817 server · 318 bot) → release № 43 and the open example → the promotion path: Группа (the «Пригласить группу» button, from 10) → Кафедра → Колледжи и вузы | claim · the number settles · its parts · the release · the path, step by step (2.0 s) |
 | 12 | Масштабируемость (dark) | the night field | claim → the field, «ваша группа» → the ladder 1 → 1 → 400 → 25 → ≈ 229 тыс. | the lights are down; the claim rises; 300 ms later the clip fades in and plays; each rung on its stop; «ваша группа» when the field holds (10.6 s, by design) |
-| 13 | Используемые источники | — | three groups of sources, typography only | claim · rules wipe, entries fade (2.1 s) |
+| 13 | Используемые источники | — | the formal list (normative documents and statistics; research), typography only → «Документация» as tiles: each resource's own mark in ink (simple-icons; Groq a wordmark), its name, its short address | claim · entries fade · tiles one by one (2.1 s) |
 | 14 | Технические требования | — | the requirements → the stack by layer | claim · two columns · reading line (2.1 s) |
-| 15 | Заключение | «Meldy.» 300 px | the wordmark with the strip collapsed into its dot → «пуста: 0 из 10» → recommendations → monetisation → the QR card | lists written in · QR card settles last (2.3 s) |
+| 15 | Заключение | «Meldy.» 300 px | the wordmark with the strip collapsed into its dot → «Шпаргалка этой защиты пуста» → recommendations → monetisation → the QR card | the line · lists written in · QR card settles last (2.9 s) |
 
 ## 5. Placeholders (to fill or replace before the file is sent)
 
 * 02: names, initials and groups come from `deck/cf11/private/fill.json` (git-ignored): `author1.name`,
   `author1.role`, `author1.initials`, the same for `author2`.
-* 11: the pilot's numbers and result.
+* 11: the pilot — only if real numbers arrive by 21.10; nothing on the slide or in the notes until then.
 * 13: the BELTA note's address and the access date.
-* In the notes: «[Имена называет докладчик.]» (02), «[Результат пилота одной фразой.]» (11), «[меньше копейки —
+* In the notes: «[Имена называет докладчик.]» (02), «[меньше копейки —
   сверить 21.10]» (12), the conditional last sentence of 15.
 
 Placeholders in the sources are faint, in brackets and framed with a dashed outline. The private fill replaces its
@@ -223,7 +223,7 @@ own text at build time.
 ## 7. Tools
 
 ```
-node deck/cf11/design/stamp.mjs                      # the header band (strip, counter, corner) into every slide
+node deck/cf11/design/stamp.mjs                      # the header band (strip, corner; 15's line) into every slide
 node deck/cf11/design/preview/shoot.mjs [NN…] [--build] [--bg] [--morph]   # stills, contact sheet, build strips, bakes, Morph maps
 node deck/cf11/design/preview/lint.mjs               # the contract, the scale, tokens per slide, typography
 node deck/cf11/design/preview/timeline.mjs [NN…]     # each slide's build as PowerPoint schedules it

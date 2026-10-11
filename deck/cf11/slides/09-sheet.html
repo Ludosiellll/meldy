@@ -5,15 +5,14 @@
 <title>09 · Представление блоков проекта: шпаргалка — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <style>
-/* Device: the bezel is a native ink shape (!!dot, it morphs along 06 → 11), the screen a video inside it. */
+/* Device: the bezel is a native ink shape (!!dot, it morphs along 06 → 10), the screen a video inside it. */
 .dev { background: #0b121c; }
-.step-n { left: 128px; }
-.step-t { left: 184px; }
-.step-d { left: 184px; font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; }
-/* The legend uses the map's own squares: ink — the line is still there, yellow — named once, an outline — erased. */
-.lg-sq { left: 132px; width: 32px; height: 32px; border-radius: 8px; }
-.lg-t { left: 192px; font-size: 44px; line-height: 52px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
-.lg-d { left: 192px; font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; }
+/* What the clip shows, in its own words: the counter, the erase, and the sheet's own key in its squares. */
+.mo-c { left: 128px; font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.mo { left: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.count { left: 120px; font-size: 120px; line-height: 120px; font-weight: 600; letter-spacing: -.04em; white-space: nowrap; }
+.lg-sq { left: 128px; width: 28px; height: 28px; border-radius: 7px; }
+.lg-t { left: 176px; font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -26,23 +25,21 @@
      exam /try: question 5 was answered «yesterday» (the example seeds it); today's answer names its lines again
      and the sheet strikes them out (tools/record take-09, cut-09). The loop begins on the poster's moment (13.2 s:
      the sheet after the erase), so the screen that rode in under Morph does not jump when the video starts; the
-     story starts at 0.63 s. The legend comes in when the clip reaches the sheet (9.26 s) and the erase (the counter
-     47 → 44 at about 12.6 s). -->
+     story starts at 0.63 s. The sheet's own key («осталось · названо один раз · стёрто») comes in when the clip reaches
+     the sheet (9.43 s); the counter and the erased lines with the erase (47 → 44 at about 12.6 s). -->
 <div class="dev lift" data-pptx="shape" data-name="!!dot" style="left:608px;top:392px;width:1184px;height:600px;border-radius:36px"></div>
 <img data-pptx="video" data-name="!!clip" data-src="../media/product/09-sheet-erase.mp4" data-poster="../media/product/09-sheet-erase.jpg" data-loop src="../media/product/09-sheet-erase.jpg" aria-label="Запись сайта, пример экзамена «Микроэкономика», где по условию вчера уже отвечали на вопросы 1, 5 и 9: «Ответить на вопрос 5», «Вставить ответ примера», «Готово»; протокол: «Ответ проверил ИИ по пунктам из лекций примера», «На шпаргалке: 3 строки стёрлись, 1 — наполовину»; на шпаргалке у вопроса 5 три строки, названные вчера и сегодня, зачёркнуты («стёрта совсем: назван в разные дни»), их квадраты на карте пустеют, счётчик 47 → 44" alt="" style="left:624px;top:408px;width:1152px;height:568px">
 
-<div class="lg-sq" data-pptx="shape" style="top:446px;background:#0b121c" data-anim-trigger="with" data-anim-delay="9430" data-anim="settle" data-anim-dur="400" data-anim-order="3"></div>
-<div class="lg-t" data-pptx="text" style="top:436px" data-anim-trigger="with" data-anim-delay="9430" data-anim="rise" data-anim-dur="500" data-anim-order="3">Строка осталась</div>
-<div class="lg-d" data-pptx="text" style="top:492px" data-anim-trigger="with" data-anim-delay="9580" data-anim="fade" data-anim-dur="500" data-anim-order="3">пункт ещё не&nbsp;назван</div>
-<div class="lg-sq" data-pptx="shape" style="top:582px;background:#e9b13c" data-anim-trigger="with" data-anim-delay="9830" data-anim="settle" data-anim-dur="400" data-anim-order="4"></div>
-<div class="lg-t" data-pptx="text" style="top:572px" data-anim-trigger="with" data-anim-delay="9830" data-anim="rise" data-anim-dur="500" data-anim-order="4">Названа один раз</div>
-<div class="lg-d" data-pptx="text" style="top:628px" data-anim-trigger="with" data-anim-delay="9980" data-anim="fade" data-anim-dur="500" data-anim-order="4">точка жёлтая</div>
-<div class="lg-sq" data-pptx="shape" style="top:718px;border:3px solid rgba(138,143,151,.55)" data-anim-trigger="with" data-anim-delay="12630" data-anim="settle" data-anim-dur="400" data-anim-order="5"></div>
-<div class="lg-t" data-pptx="text" style="top:708px" data-anim-trigger="with" data-anim-delay="12630" data-anim="rise" data-anim-dur="500" data-anim-order="5">Названа снова</div>
-<div class="lg-d" data-pptx="text" style="top:764px" data-anim-trigger="with" data-anim-delay="12780" data-anim="fade" data-anim-dur="500" data-anim-order="5">в&nbsp;другой день&nbsp;— стёрта</div>
-<div class="lg-sq" data-pptx="shape" style="top:854px;background:#0b121c" data-anim-trigger="with" data-anim-delay="13030" data-anim="settle" data-anim-dur="400" data-anim-order="6"></div>
-<div class="lg-t" data-pptx="text" style="top:844px" data-anim-trigger="with" data-anim-delay="13030" data-anim="rise" data-anim-dur="500" data-anim-order="6">Забыта</div>
-<div class="lg-d" data-pptx="text" style="top:900px" data-anim-trigger="with" data-anim-delay="13180" data-anim="fade" data-anim-dur="500" data-anim-order="6">строка вернулась</div>
+<div class="mo-c" data-pptx="text" style="top:420px" data-anim="fade" data-anim-trigger="with" data-anim-delay="12630" data-anim-dur="400" data-anim-order="4">Строк на&nbsp;шпаргалке</div>
+<div class="count" data-pptx="text" style="top:458px" data-anim="settle" data-anim-trigger="with" data-anim-delay="12730" data-anim-dur="600" data-anim-order="4"><span class="faint">47&nbsp;→</span> 44</div>
+<div class="mo-c" data-pptx="text" style="top:612px" data-anim="fade" data-anim-trigger="with" data-anim-delay="12930" data-anim-dur="400" data-anim-order="4">После ответа</div>
+<div class="mo" data-pptx="text" style="top:652px" data-anim="rise" data-anim-trigger="with" data-anim-delay="13030" data-anim-dur="500" data-anim-order="4">3&nbsp;строки стёрты:<br>названы в&nbsp;разные дни</div>
+<div class="lg-sq" data-pptx="shape" style="top:800px;background:#0b121c" data-anim="settle" data-anim-trigger="with" data-anim-delay="9430" data-anim-dur="400" data-anim-order="3"></div>
+<div class="lg-t" data-pptx="text" style="top:796px" data-anim="fade" data-anim-trigger="with" data-anim-delay="9430" data-anim-dur="400" data-anim-order="3">осталось</div>
+<div class="lg-sq" data-pptx="shape" style="top:852px;background:#e9b13c" data-anim="settle" data-anim-trigger="with" data-anim-delay="9580" data-anim-dur="400" data-anim-order="3"></div>
+<div class="lg-t" data-pptx="text" style="top:848px" data-anim="fade" data-anim-trigger="with" data-anim-delay="9580" data-anim-dur="400" data-anim-order="3">названо один раз</div>
+<div class="lg-sq" data-pptx="shape" style="top:904px;border:3px solid rgba(138,143,151,.55)" data-anim="settle" data-anim-trigger="with" data-anim-delay="9730" data-anim-dur="400" data-anim-order="3"></div>
+<div class="lg-t" data-pptx="text" style="top:900px" data-anim="fade" data-anim-trigger="with" data-anim-delay="9730" data-anim-dur="400" data-anim-order="3">стёрто</div>
 
 <!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
@@ -56,7 +53,6 @@
 <div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
 <div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
 <div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="left" data-pptx="text" data-name="!!left">осталось 4 из&nbsp;10</div>
 <!-- header:end -->
 
 <template data-pptx="notes">Шпаргалка показывает, что осталось выучить. У каждого вопроса есть строки — главные пункты ответа.

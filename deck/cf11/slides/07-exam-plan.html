@@ -7,9 +7,9 @@
 <style>
 /* Device: the bezel is a native ink shape (!!dot, it morphs along 06 → 11), the screen a video inside it. */
 .dev { background: #0b121c; }
-.step-n { left: 128px; }
-.step-t { left: 184px; }
-.step-d { left: 184px; font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; }
+/* What the clip shows, in its own words: a small label, then the moment itself, large. */
+.mo-c { left: 128px; font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.mo { left: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -20,23 +20,17 @@
 
 <!-- The laptop: the dot of 06 has grown into its ink bezel (!!dot, Morph); then the screen comes on: the
      recording of the live site (tools/record take-07, cut-07; fitted from the master to this screen by
-     tools/record/fit.py). The clip starts with its entrance (data-play «with»); the steps come in on its
-     moments (clip seconds + the entrance's 150 ms): file 4.10, found 4.93, date 7.70, plan 16.53. -->
+     tools/record/fit.py). The clip starts with its entrance (data-play «with»); what it shows comes in on its
+     moments (clip seconds + the entrance's 150 ms): found 4.93, date 7.70, today 14.97. -->
 <div class="dev lift" data-pptx="shape" data-name="!!dot" style="left:608px;top:392px;width:1184px;height:600px;border-radius:36px"></div>
 <img data-pptx="video" data-name="!!clip" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="1" data-src="../media/product/07-exam-plan.mp4" data-poster="../media/product/07-exam-plan.jpg" data-loop src="../media/product/07-exam-plan.jpg" aria-label="Запись сайта на ноутбуке: «Новый экзамен», файл «Программирование на C#.docx», «Нашли 240 вопросов · ключ жирным», дата 2 ноября и 45 минут в день, «Сохранить»; страница экзамена: «Сегодня 52 вопроса, около 45 минут» и «План по дням»" alt="" style="left:624px;top:408px;width:1152px;height:568px">
 
-<div class="step-n" data-pptx="text" data-name="!!x0701" style="top:436px" data-anim="fade" data-anim-trigger="with" data-anim-delay="4250" data-anim-dur="400" data-anim-order="3">1</div>
-<div class="step-t" data-pptx="text" style="top:436px" data-anim="rise" data-anim-trigger="with" data-anim-delay="4250" data-anim-dur="500" data-anim-order="3">Файл с&nbsp;вопросами</div>
-<div class="step-d" data-pptx="text" style="top:492px" data-anim="fade" data-anim-trigger="with" data-anim-delay="4400" data-anim-dur="500" data-anim-order="3">Word, Excel, TXT или PDF</div>
-<div class="step-n" data-pptx="text" style="top:572px" data-anim="fade" data-anim-trigger="with" data-anim-delay="5080" data-anim-dur="400" data-anim-order="3">2</div>
-<div class="step-t" data-pptx="text" style="top:572px" data-anim="rise" data-anim-trigger="with" data-anim-delay="5080" data-anim-dur="500" data-anim-order="3">Вопросы и&nbsp;ключ</div>
-<div class="step-d" data-pptx="text" style="top:628px" data-anim="fade" data-anim-trigger="with" data-anim-delay="5230" data-anim-dur="500" data-anim-order="3">ключ&nbsp;— жирным шрифтом</div>
-<div class="step-n" data-pptx="text" style="top:708px" data-anim="fade" data-anim-trigger="with" data-anim-delay="7850" data-anim-dur="400" data-anim-order="3">3</div>
-<div class="step-t" data-pptx="text" style="top:708px" data-anim="rise" data-anim-trigger="with" data-anim-delay="7850" data-anim-dur="500" data-anim-order="3">Дата и&nbsp;минуты</div>
-<div class="step-d" data-pptx="text" style="top:764px" data-anim="fade" data-anim-trigger="with" data-anim-delay="8000" data-anim-dur="500" data-anim-order="3">2&nbsp;ноября, по&nbsp;45&nbsp;минут</div>
-<div class="step-n" data-pptx="text" style="top:844px" data-anim="fade" data-anim-trigger="with" data-anim-delay="16680" data-anim-dur="400" data-anim-order="3">4</div>
-<div class="step-t" data-pptx="text" data-name="!!x0702" style="top:844px" data-anim="rise" data-anim-trigger="with" data-anim-delay="16680" data-anim-dur="500" data-anim-order="3">План по&nbsp;дням</div>
-<div class="step-d" data-pptx="text" style="top:900px" data-anim="fade" data-anim-trigger="with" data-anim-delay="16830" data-anim-dur="500" data-anim-order="3">на&nbsp;сегодня 52&nbsp;вопроса</div>
+<div class="mo-c" data-pptx="text" style="top:420px" data-anim="fade" data-anim-trigger="with" data-anim-delay="5080" data-anim-dur="400" data-anim-order="3">Файл с&nbsp;вопросами</div>
+<div class="mo" data-pptx="text" style="top:460px" data-anim="rise" data-anim-trigger="with" data-anim-delay="5180" data-anim-dur="500" data-anim-order="3">Нашли 240&nbsp;вопросов<br>и&nbsp;ключ&nbsp;— жирным<br>в&nbsp;файле</div>
+<div class="mo-c" data-pptx="text" style="top:644px" data-anim="fade" data-anim-trigger="with" data-anim-delay="7850" data-anim-dur="400" data-anim-order="3">Дата и&nbsp;время</div>
+<div class="mo" data-pptx="text" style="top:684px" data-anim="rise" data-anim-trigger="with" data-anim-delay="7950" data-anim-dur="500" data-anim-order="3">2&nbsp;ноября,<br>45&nbsp;минут в&nbsp;день</div>
+<div class="mo-c" data-pptx="text" style="top:820px" data-anim="fade" data-anim-trigger="with" data-anim-delay="15120" data-anim-dur="400" data-anim-order="3">План по&nbsp;дням</div>
+<div class="mo" data-pptx="text" style="top:860px" data-anim="rise" data-anim-trigger="with" data-anim-delay="15220" data-anim-dur="500" data-anim-order="3">Сегодня 52&nbsp;вопроса,<br>около 45&nbsp;минут</div>
 
 <!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
@@ -50,7 +44,6 @@
 <div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
 <div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
 <div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="left" data-pptx="text" data-name="!!left">осталось 4 из&nbsp;10</div>
 <!-- header:end -->
 
 <template data-pptx="notes">Как это выглядит. Студент загружает файл с вопросами. Meldy находит вопросы и, если у них есть варианты, берёт ключ прямо из файла — по жирному шрифту или пометке.
