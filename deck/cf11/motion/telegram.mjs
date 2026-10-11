@@ -5,7 +5,7 @@
 //   node deck/cf11/motion/telegram.mjs [--from 2550] [--to 8400] [--poster 3900] [--size 640]
 //
 // Writes media/gen/telegram.mp4 (640 × 640, the chat sharp: the day's card, «Начать», a question, «Верно.»),
-// looping through a short crossfade, and media/gen/telegram.png (the poster: the day's card with «Начать»).
+// looping through a short crossfade, and media/gen/telegram.jpg (the poster: the day's card with «Начать»).
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -67,7 +67,8 @@ fs.mkdirSync(pdir, { recursive: true });
 fs.copyFileSync(posterRaw, path.join(pdir, 'f0000.png'));
 const pout = path.join(GEN, 'frames', 'telegram-poster-out');
 execFileSync('python3', ['-I', path.join(HERE, 'loopmask.py'), pdir, pout, String(SIZE * 2), String(SIZE * 2), '--radius', String(RADIUS * 2)], { stdio: 'inherit' });
-fs.copyFileSync(path.join(pout, 'f0000.png'), path.join(GEN, 'telegram.png'));
+// Telegram's wallpaper makes a heavy PNG: the poster is a JPEG of high quality (≈ a third of the size).
+execFileSync('python3', ['-I', '-c', 'import sys; from PIL import Image; Image.open(sys.argv[1]).convert("RGB").save(sys.argv[2], quality=90, subsampling=0)', path.join(pout, 'f0000.png'), path.join(GEN, 'telegram.jpg')]);
 
 const mp4 = path.join(GEN, 'telegram.mp4');
 execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-framerate', String(FPS), '-i', path.join(out, 'f%04d.png'),
@@ -75,4 +76,4 @@ execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-framerate'
   '-c:v', 'libx264', '-preset', 'slow', '-crf', '24', '-profile:v', 'high', '-level:v', '4.0',
   '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
   '-movflags', '+faststart', '-an', mp4]);
-console.log(`  telegram.mp4 ${(fs.statSync(mp4).size / 1024).toFixed(0)} KB, telegram.png (poster at ${POSTER} ms, 2×)`);
+console.log(`  telegram.mp4 ${(fs.statSync(mp4).size / 1024).toFixed(0)} KB, telegram.jpg ${(fs.statSync(path.join(GEN, 'telegram.jpg')).size / 1024).toFixed(0)} KB (poster at ${POSTER} ms, 2×)`);
