@@ -100,12 +100,12 @@ template { display: none; }
 .sq.now { background: var(--yellow); }
 .sq.done { background: transparent; border: 2px solid var(--outline); }
 /* Between two sections (an own slide): a small yellow dot in the gap. */
-.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 3.5px; background: var(--yellow); }
+.sq-gap { top: 63px; width: 8px; height: 8px; border-radius: 3px; background: var(--yellow); }
 .left { top: 52px; left: 488px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; }
 .left.fin { font-size: 40px; line-height: 52px; }
 /* The corner wordmark: «Meldy» live text, its dot a separate shape (!!dot). */
 .mark { top: 46px; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
-.mark-dot { width: 10px; height: 10px; border-radius: 4.5px; background: var(--yellow); }
+.mark-dot { width: 10px; height: 10px; border-radius: 4px; background: var(--yellow); }
 .runner { top: 52px; font-size: 28px; line-height: 30px; color: var(--muted); white-space: nowrap; text-align: right; }
 
 /* ------------------------------------------------------------------ text */
@@ -145,9 +145,9 @@ template { display: none; }
 
 /* The wordmark on the title and the conclusion. */
 .word { font-size: 300px; line-height: 300px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
-/* The radius is set on each dot to half its size less half a pixel: it looks like a circle, but the compiler writes
-   a rounded rectangle (a full half would make an ellipse), so Morph only interpolates the corner as it opens into a
-   device: the same preset at both ends. */
+/* The radius is set on each morphing dot to half its size less one pixel: it looks like a circle, but the compiler
+   writes a rounded rectangle (it makes an ellipse of a radius within half a pixel of the half), so Morph only
+   interpolates the corner as the dot opens into a device or a strip square: the same preset at both ends. */
 .word-dot { background: var(--yellow); }
 
 /* ------------------------------------------------------------------ surfaces */

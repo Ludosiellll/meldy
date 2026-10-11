@@ -60,7 +60,10 @@ await box.screenshot({ path: posterRaw });
 await browser.close();
 console.log(`telegram: ${n} frames ${FROM}–${TO} ms (+${XFADE} for the loop)`);
 
-execFileSync('python3', ['-I', path.join(HERE, 'loopmask.py'), raw, out, String(SIZE), String(SIZE), '--radius', String(RADIUS), '--bg', BG, '--xfade', String(XFADE)], { stdio: 'inherit' });
+// The loop begins on the poster's moment: the screen rides into slide 10 under Morph showing the poster, and the video
+// takes over from its first frame when the slide lands, so the two must be the same picture.
+const START = Math.round((POSTER - FROM) * FPS / 1000);
+execFileSync('python3', ['-I', path.join(HERE, 'loopmask.py'), raw, out, String(SIZE), String(SIZE), '--radius', String(RADIUS), '--bg', BG, '--xfade', String(XFADE), '--start', String(START)], { stdio: 'inherit' });
 // The poster at 2×, with the same corners.
 const pdir = path.join(GEN, 'frames', 'telegram-poster');
 fs.rmSync(pdir, { recursive: true, force: true });

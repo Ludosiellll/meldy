@@ -91,9 +91,9 @@ Sources of truth:
 
   The chain is **ink from 06 to 11**, so the dot never turns olive while it grows into a bezel or shrinks back: the
   yellow ↔ ink changes happen only on small dots (05→06, 11→12). Every morphing dot has a radius of half its size
-  less half a pixel. It looks like a circle, but the compiler writes a rounded rectangle at both ends of the Morph,
-  never an ellipse. The corner wordmark `!!word` shrinks out of the big one on 02, leaves on 06–10 and grows back on
-  15.
+  less one pixel. It looks like a circle, but the compiler writes a rounded rectangle at both ends of the Morph,
+  never an ellipse (a radius within half a pixel of the half becomes an ellipse). The corner wordmark `!!word`
+  shrinks out of the big one on 02, leaves on 06–10 and grows back on 15.
 - **The screens** on 07–10 are `!!clip`: they ride with the bezel and crossfade their content. 07's clip has an
   entrance: the dot grows into a dark bezel, then the screen turns on.
 - **Titles** are all `!!title` (the compiler's name), so the label crossfades in place from slide to slide. Labels
@@ -149,7 +149,7 @@ H.264 High, yuv420p, BT.709 tags, `+faststart`, no audio, posters at 2×.
 |---|---|---|---|---|
 | `title-cover` | 01 | The cheat sheet of «Рыночное равновесие» answers itself. Monday names the lines (yellow dots), Tuesday erases them (strike left to right), the counter rolls 6 → 0, the lines come back. 9.6 s loop. **The GIF carries its own card and shadow** (720 × 896 card in an 832 × 984 frame, 1:1), so it settles in. | first frame | GIF 388 KB (10 fps, 64 colours) |
 | `scale` | 12 | The night field, one pull-back: a line → its question → an exam of 400 → a group of 25 → 9 160 dots, one per group, «ваша группа» in yellow. 11 s, plays once, holds. Fades in with its first frame in the show; its poster is its last frame. | the field | MP4 ≈ 1.05 MB (x264 zones) |
-| `telegram` | 10 | The app's own Telegram tip clip from the harness: the day card, «Начать», a question, «Верно.», the menu button «Открыть Meldy» (release 43). | the day card | MP4 ≈ 274 KB, 672 × 672 |
+| `telegram` | 10 | The app's own Telegram tip clip from the harness: the day card, «Начать», a question, «Верно.», the menu button «Открыть Meldy» (release 43). The loop begins on the poster's moment. | the day card | MP4 ≈ 280 KB, 672 × 672 |
 
 **Recordings** of the live site (`tools/record`: a take is a real session in Chromium, `edit.py` cuts it into a
 master, `fit.py` fits the master to a screen). They are committed in `media/product/`, with the masters and their
@@ -158,12 +158,17 @@ moments in `media/product/masters/` (they cannot be regenerated).
 | Clip | Slide | What it shows | Poster | File |
 |---|---|---|---|---|
 | `07-exam-plan` | 07 | «Новый экзамен», the file «Программирование на C#.docx», «Нашли 240 вопросов · ключ жирным», 2 ноября and 45 minutes a day, «Сохранить»; the exam's page with «Сегодня 52 вопроса», «План по дням». 19.8 s loop. | the exam's page | MP4 433 KB + JPEG 227 KB, 1152 × 568 |
-| `08-oral-answer` | 08 | On the phone: a ticket of «Базы данных», an answer aloud to question 18, the examiner's question about the missed point, the protocol with the lecture's quotes. 18.9 s loop. | the protocol | MP4 887 KB + JPEG 229 KB, 392 × 848 |
-| `09-sheet-erase` | 09 | The site's example exam «Микроэкономика», where «yesterday's» answers are part of the example: the answer to question 5, the protocol, the sheet strikes three lines out, 47 → 44. 13.8 s loop. | the sheet after the erase | MP4 1.09 MB + JPEG 375 KB, 1152 × 568 |
+| `08-oral-answer` | 08 | On the phone: a ticket of «Базы данных», an answer aloud to question 18, the examiner's question about the missed point, the protocol with the lecture's quotes. 18.9 s loop, begun on the poster's moment (16.2 s): the tap on the missed point first, the story from 2.7 s. | the protocol | MP4 903 KB + JPEG 223 KB, 392 × 848 |
+| `09-sheet-erase` | 09 | The site's example exam «Микроэкономика», where «yesterday's» answers are part of the example: the answer to question 5, the protocol, the sheet strikes three lines out, 47 → 44. 13.8 s loop, begun on the poster's moment (13.2 s): the story from 0.63 s. | the sheet after the erase | MP4 1.16 MB + JPEG 366 KB, 1152 × 568 |
 
 Honest by construction: a real session, the pointer drawn where it was, waiting cut out (the cuts are visible: the
 timer jumps), nothing sped up. 08's voice is synthetic speech fed to the browser's microphone, and the clip has no
 sound. The talk claims only what the clips show (each slide's notes end with «О записи»).
+
+A screen that rides into its slide under Morph (08, 09, 10) shows its poster during the transition, and the video
+takes over from its first frame when the slide lands. So those loops begin on their posters' moments
+(`fit.py --start`, `loopmask.py --start`): no jump when the clip starts. 07's screen fades in with the clip
+playing, and 12's clip fades in on its first frame.
 
 The drawn clip `motion/sheet.html` is **unused** since the recordings (kept as 09's fallback, not rendered for the
 deck); the placeholders `ph-07`/`ph-08` are gone.
@@ -181,8 +186,8 @@ Eye order is what the eye takes first, second and third in the still.
 | 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade · reading line (2.85 s) |
 | 06 | Содержание | the five blocks | the blocks as cheat-sheet lines, with the slide of each → «Число и формат»: questions from Word, Excel, TXT or PDF; lectures from PDF, DOCX, PPTX or a photo | claim · lines written in · card · the two format lines · note (2.3 s) |
 | 07 | Представление блоков проекта | the laptop | claim → the recording → four steps | the screen turns on · claim · the steps on the clip's moments: file 4.25, found 5.08, date 7.85, plan 16.68 s |
-| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | the screen rides in with the bezel · claim · the steps on the clip's moments: speak 4.03, asked 8.40, protocol 10.63 s · the reading line with the protocol's scroll, 11.93 s |
-| 09 | Представление блоков проекта | the laptop with the sheet | claim → the recording → the legend in the map's squares | claim · the legend as the clip reaches the sheet (8.8, 9.2 s) and the erase (12.0, 12.4 s) |
+| 08 | Представление блоков проекта | the phone | claim → the recording → three steps with details | the screen rides in with the bezel · claim · the steps on the clip's moments: speak 6.73, asked 11.10, protocol 13.33 s · the reading line with the protocol's scroll, 14.63 s |
+| 09 | Представление блоков проекта | the laptop with the sheet | claim → the recording → the legend in the map's squares | claim · the legend as the clip reaches the sheet (9.43, 9.83 s) and the erase (12.63, 13.03 s) |
 | 10 | Представление блоков проекта | the chat | claim → the chat → «Пригласить группу» → six copies → Telegram | claim · group · copies cascade · Telegram (2.35 s) |
 | 11 | Тестирование и продвижение | the path | «Пилот: [N] студентов, [M] дней» → group → department → colleges and universities → the open site | claim · result · three steps · site (2.45 s) |
 | 12 | Масштабируемость (dark) | the night field | claim → the field, «ваша группа» → the ladder 1 → 1 → 400 → 25 → ≈ 229 тыс. | the lights are down; the claim rises; 300 ms later the clip fades in and plays; each rung on its stop; «ваша группа» when the field holds (10.6 s, by design) |
@@ -228,8 +233,8 @@ node deck/cf11/motion/render.mjs title-cover --gif --gif-fps 10 --gif-colors 64 
 node deck/cf11/motion/render.mjs scale --fps 25 --crf 24 --tune animation --zones "22,55,b=0.45/75,113,b=0.45/132,165,b=0.45/185,242,b=0.45"
 node deck/cf11/motion/telegram.mjs                   # needs the app harness (Vite on 127.0.0.1:5199)
 python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/07-master.json --box 1152 568 --radius 22 --bg '#0b121c'
-python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/09-master.json --box 1152 568 --radius 22 --bg '#0b121c'
-python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/08-master.json --box 392 848 --radius 36 --bg '#0b121c'
+python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/09-master.json --box 1152 568 --radius 22 --bg '#0b121c' --start 13.2
+python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/08-master.json --box 392 848 --radius 36 --bg '#0b121c' --start 16.2
 ```
 
 `fit.py` renders at ×1.2 of the box (never above the master) and paints the corners in the bezel's ink (`--bg`).

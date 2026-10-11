@@ -1,13 +1,18 @@
 """Fit a clip's master into a slide's window, through motion/loopmask.py, in one command.
 
     python3 -I deck/cf11/tools/record/fit.py <masters>/<clip>-master.json --box W H [--radius R] [--scale 1.2]
-                                             [--bg #ffffff] [--name NAME] [--out deck/cf11/media/product] [--crf 26]
+                                             [--bg #ffffff] [--start S] [--name NAME] [--out deck/cf11/media/product]
+                                             [--crf 26]
 
 --box     the video's box on the 1920 × 1080 slide (the <img data-pptx="video"> width and height), CSS px
 --radius  its corner radius on the slide (laptop windows 24, the phone 44; round 2's ink screens: 22 and 36)
 --bg      the colour outside the rounded corners: the window around the screen on the slide (white cards in round
           1; round 2's devices have ink bezels, so '#0b121c')
 --scale   encoded pixels per slide pixel (default 1.2; never more than the master has: no upscaling)
+--start   the clip second the encoded loop begins on (default 0). A screen that rides into its slide under Morph
+          shows its poster during the transition and plays from the clip's first frame when the slide lands; begun
+          on the poster's moment, the loop does not jump there. The master's moments before S then come (T - S) s
+          later on the first pass (T: the clip's length); the stretch after S plays first.
 
 The camera: the master is the whole window of the recording; the master's camera keys say which band of it matters
 at each moment ({clip: s, top: y, bottom: y} in the recording's CSS px; `ease`: seconds of a smooth move, 0 = a cut).
@@ -80,6 +85,7 @@ def main():
     out_dir = Path(arg('out', str(HERE.parent.parent / 'media' / 'product')))
     crf = arg('crf', '26')
     bg = arg('bg', '#ffffff')
+    start_s = float(arg('start', 0))
     W, H = meta['size']
     s = meta['capture_scale']
     aspect = box[0] / box[1]
@@ -116,7 +122,11 @@ def main():
             im.crop((round(x0), round(y0), round(x0 + band_w), round(y0 + band_h))).save(crop_dir / f'f{n:04d}.png', compress_level=1)
             n += 1
         dec.wait()
-        subprocess.run(['python3', '-I', str(LOOPMASK), str(crop_dir), str(fit_dir), str(px_w), str(px_h), '--radius', str(r_px), '--bg', bg, '--xfade', '0'], check=True)
+        start_f = round(start_s * meta['fps']) % n
+        subprocess.run(['python3', '-I', str(LOOPMASK), str(crop_dir), str(fit_dir), str(px_w), str(px_h), '--radius', str(r_px), '--bg', bg, '--xfade', '0',
+                        '--start', str(start_f)], check=True)
+        if start_f:
+            print(f'  begins at {start_f / meta["fps"]:.3f} s: the moments before it come {(n - start_f) / meta["fps"]:.3f} s later on the first pass')
         out_dir.mkdir(parents=True, exist_ok=True)
         mp4 = out_dir / f'{name}.mp4'
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-framerate', str(meta['fps']), '-i', str(fit_dir / 'f%04d.png'),
