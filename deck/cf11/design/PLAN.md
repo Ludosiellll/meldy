@@ -162,8 +162,7 @@ moments in `media/product/masters/` (they cannot be regenerated).
 
 | Clip | Slide | What it shows | Poster | File |
 |---|---|---|---|---|
-| `lecture-placeholder` | 07 | **PLACEHOLDER** until `lecture-materials` lands: a still of the live site's «Разобрать лекцию» (step 1 «Что разобрать», the four tabs with «Аудио и видео» chosen, MP4 · MP3 · WAV · MPEG · M4A, «до 15 МБ»), captured by the recording agent on 2026-10-11, as a 6 s static clip. | the still | MP4 33 KB + JPEG 138 KB (an upscale), 1152 × 568 |
-| `lecture-materials` | 07 | (coming) A lecture video («Рыночное равновесие», our text, synthetic voice) → «Аудио и видео» → the five materials ticked → конспект, карточки, тест, выжимка, подкаст. Its moments come in `lecture-moments.json`. | — | 1152 × 568, the same screen as 08 |
+| `lecture-materials` | 07 | Our lecture «Рыночное равновесие» (text and slides ours, synthetic voice; a 3-minute video, 2 MB) on the live site: «Разобрать лекцию» and its four tabs → «Аудио и видео» (MP4 · MP3 · WAV · MPEG · M4A, до 15 МБ) → the file chosen → «Что сделать из лекции», all five ticked → «Запустить анализ», the real «Завершено 4 из 5» card → конспект and «Термины», a card turned over, a test question with its «Пояснение», the выжимка («Кратко»), the podcast with ▶. The wait is cut (22.4 s from the press to all five in this take); moments in `lecture-moments.json`. 30.0 s loop, begun on its poster (frame 0); the master's top line (the account's avatar and limit) is masked. | «Разобрать лекцию» and its four tabs | MP4 1.16 MB + JPEG 249 KB, 1152 × 568 |
 | `07-exam-plan` | 08 | «Новый экзамен», the file «Программирование на C#.docx», «Нашли 240 вопросов · ключ жирным», 2 ноября and 45 minutes a day, «Сохранить»; the exam's page with «Сегодня 52 вопроса», «План по дням». 19.8 s loop. | the exam's page | MP4 433 KB + JPEG 227 KB, 1152 × 568 |
 | `08-oral-answer` | 09 | On the phone: a ticket of «Базы данных», an answer aloud to question 18, the examiner's question about the missed point, the protocol with the lecture's quotes. 18.9 s loop, begun on the poster's moment (16.2 s): the tap on the missed point first, the story from 2.7 s. | the protocol | MP4 903 KB + JPEG 223 KB, 392 × 848 |
 | `09-sheet-erase` | 10 | The site's example exam «Микроэкономика», where «yesterday's» answers are part of the example: the answer to question 5, the protocol, the sheet strikes three lines out, 47 → 44. 13.8 s loop, begun on the poster's moment (13.2 s): the story from 0.63 s. | the sheet after the erase | MP4 1.16 MB + JPEG 366 KB, 1152 × 568 |
@@ -180,8 +179,8 @@ video takes over from its first frame when the slide lands. So those loops begin
 (`fit.py --start`, `loopmask.py --start`): no jump when the clip starts. 08's loop has begun on its poster since
 the re-cut (its first frame is the poster: mean difference 2.7 grey levels), so it lost its entrance in round 7 and
 its steps are timed in plain clip seconds. 07's screen fades in with the clip playing from its first frame, so
-`lecture-materials` needs no `--start`; its poster is only the still (PDF, Normal view, LibreOffice), so it should be
-the most telling moment: the five materials ticked, or the finished lecture.
+`lecture-materials` begins on its poster (frame 0, «Разобрать лекцию» and its four tabs): the still the PDF and
+LibreOffice show.
 
 The drawn clip `motion/sheet.html` is **unused** since the recordings (kept as 09's fallback, not rendered for the
 deck); the placeholders `ph-07`/`ph-08` are gone.
@@ -198,12 +197,12 @@ Eye order is what the eye takes first, second and third in the still.
 | 04 | Цель, задачи | «0» 420 px | «0 строк осталось» → the erased map → five tasks, the lectures first («Лекции → конспект, карточки, тест», «Экзамен из перечня», «План по дням», «Проверка ответов», «Видно, что осталось») | caption · map sweeps · tasks 1–5 (2.1 s) |
 | 05 | Новизна (dark) | the statement | statement → the table, Meldy's column raised with yellow ticks | the lights are down; the statement rises · header · five rows · ticks cascade (2.8 s); what «частично» means and the review's date are in the notes |
 | 06 | Содержание | the two halves, the lecture first | claim («Meldy делает из лекций конспект, карточки и тест, а из перечня вопросов — экзамен») → the format line (web app for a phone and a computer, bot in Telegram) → «Лекция» (left, «слайд 7»): the four tabs of «Разобрать лекцию» with the app's icons; PDF, DOCX, PPTX, photo, MP4, MP3, a link to a page; a tree into the five materials of «Что сделать из лекции», in the app's words; its sixth, blue line: the answer aloud, checked against the lectures (slide 9) → «Экзамен» (right): Word, Excel, TXT, PDF; up to 2000 questions, test and oral; the five blocks as cheat-sheet lines with the slides of each (8; 8; 8 и 11; 9 и 10; 11) | claim · format line · the lecture's head and tabs · its tree drawn down, its lines written in as it passes · the exam's head and chips · its lines written in (2.74 s) |
-| 07 | Представление блоков проекта | the laptop | claim («Лекция — файл, фото, ссылка или видео — становится конспектом, карточками и тестом») → the recording (PLACEHOLDER: the live «Разобрать лекцию» with «Аудио и видео» chosen) → what it shows, large: «Аудио и видео» — «Запись лекции — файлом до 15 МБ»; «Что сделать из лекции» — «Конспект, карточки, тест, выжимка, подкаст»; then, in the answer aloud's blue, «Ответ вслух» — «Из этих же лекций — пункты ответа и цитаты для проверки, слайд 9» | the screen turns on · claim · each moment as the clip reaches it (PLACEHOLDER moments 2.0, 6.0, 12.0 s + the entrance's 150 ms; set from `lecture-moments.json`) |
+| 07 | Представление блоков проекта | the laptop | claim («Лекция — файл, фото, ссылка или видео — становится конспектом, карточками и тестом») → the recording (its first frame: «Разобрать лекцию» and the four tabs) → what it shows, large: «Аудио и видео» — «Запись лекции — файлом до 15 МБ»; «Что сделать из лекции» — «Конспект, карточки, тест, выжимка, подкаст»; then, in the answer aloud's blue, «Ответ вслух» — «Из этих же лекций — пункты ответа и цитаты для проверки, слайд 9» | the screen turns on · claim · each moment as the clip reaches it (clip seconds + the entrance's 150 ms: «Аудио и видео» pressed 3.10, the file 5.78, the list 7.27, all five ticked 9.70, the results 14.10 with the exam's link; 14.85 s) |
 | 08 | Представление блоков проекта | the laptop (07's frame) | claim → the recording → what it shows, large: «Нашли 240 вопросов и ключ — жирным в файле», «2 ноября, 45 минут в день», «Сегодня 52 вопроса, около 45 минут» | the screen crossfades in place · claim · each moment as the clip reaches it (found 9.0, date 13.5 and 15.4, 45 minutes 19.2, plan 22.3 s: clip seconds, no entrance since round 7) |
 | 09 | Представление блоков проекта | the phone | claim → the recording → what it shows, large: the answer becomes text, the examiner's question «В чём разница между неповторяющимся и фантомным чтением?», «Сами назвали 2 из 3 главных пунктов», the lecture's quote | the screen rides in with the bezel · claim · each moment as the clip reaches it (speak 8.8, asked 17.4, protocol 19.6, quote 23.0 s) · the reading line (23.7 s) |
 | 10 | Представление блоков проекта | the laptop with the sheet | claim → the recording → «47 → 44», «3 строки стёрты: названы в разные дни» → the sheet's own key (осталось · названо один раз · стёрто) | claim · the key as the clip reaches the sheet (2.2 s; «стёрто» 18.2 s) · the counter and the erased lines with the erase (20.0 s) |
 | 11 | Представление блоков проекта | the chat | claim → the chat → «Пригласить группу» → six copies → Telegram | claim · group · copies cascade · Telegram (2.35 s) |
-| 12 | Тестирование, продвижение и масштабируемость (dark) | «6 566» 180 px | claim («Каждый выпуск проверяют автотесты, потом — живой сайт») → «6 566 автотестов» and its parts (4 415 сайт · Vitest, 1 832 сервер · pytest, 319 бот) → «≈ 229 тыс.» студентов вузов — 9 160 групп по 25, «Тестовые вопросы проверяются без ИИ и ничего не стоят», the source → the path: Группа («Пригласить группу», from 11) → Кафедра (отчёт для преподавателя) → Колледжи и вузы (лицензия для учреждения) → the reading line: release № 43, the open example | the lights are down; the claim rises · the number settles · its parts · the scale · the path left to right · the reading line (2.75 s) |
+| 12 | Тестирование, продвижение и масштабируемость (dark) | «6 566» 180 px | claim («Каждый выпуск автоматически проходит все автотесты, потом — проверка живого сайта»: the release gate, `.github/workflows/deploy-hf.yml`) → «6 566 автотестов перед каждым выпуском» and its parts (4 415 сайт · Vitest, 1 832 сервер · pytest, 319 бот) → «≈ 229 тыс.» студентов вузов — 9 160 групп по 25, «Тестовые вопросы проверяются без ИИ и ничего не стоят», the source → the path: Группа («Пригласить группу», from 11) → Кафедра (отчёт для преподавателя) → Колледжи и вузы (лицензия для учреждения) → the reading line: release № 43, the open example | the lights are down; the claim rises · the number settles · its parts · the scale · the path left to right · the reading line (2.75 s) |
 | 13 | Используемые источники | — | the formal list (normative documents and statistics; research), typography only → «Документация» as tiles: each resource's own mark in ink (simple-icons; Groq a wordmark), its name, its short address | claim · entries fade · tiles one by one (2.1 s) |
 | 14 | Технические требования | — | the requirements → the stack by layer | claim · two columns · reading line (2.1 s) |
 | 15 | Заключение | «Meldy.» 300 px | the wordmark with the strip collapsed into its dot → «Шпаргалка этой защиты пуста» → recommendations (students: the whole semester — конспект, карточки, тест; before the session — the exam; teachers: the exam for the whole group) → monetisation → the QR card | the line · lists written in · QR card settles last (3.0 s) |
@@ -212,17 +211,10 @@ Eye order is what the eye takes first, second and third in the still.
 
 * 02: names, initials and groups come from `deck/cf11/private/fill.json` (git-ignored): `author1.name`,
   `author1.role`, `author1.initials`, the same for `author2`.
-* 07: the recording. Until `lecture-materials.mp4` lands the screen is `lecture-placeholder` (a still of the live page as
-  a static clip); the swap is one edit in `07-lectures.html` («lecture-placeholder» → «lecture-materials» in the
-  video's line, and its aria-label), then the placeholder files go. The three moments (2.0, 6.0, 12.0 s) are
-  placeholders to set from `lecture-moments.json`, and the captions are to be checked against what the clip shows;
-  the notes' «О записи» is marked «[сверить с роликом…]».
-* 12: the test counts are recounted on the freeze day (6 566 = 4 415 + 1 832 + 319, the full runs of 2026-10-11);
-  «перед каждым выпуском» only once a CI gate runs all three suites. The pilot — only if real numbers arrive by 21.10;
-  nothing on the slide or in the notes until then.
+* 12: the test counts are recounted on the freeze day (6 566 = 4 415 + 1 832 + 319, the full runs of 2026-10-11).
+  The pilot — only if real numbers arrive by 21.10; nothing on the slide or in the notes until then.
 * 13: the BELTA note's address and the access date.
-* In the notes: «[Имена называет докладчик.]» (02), «[сверить с роликом, когда он будет готов]» (07), the conditional
-  last sentence of 15.
+* In the notes: «[Имена называет докладчик.]» (02), the conditional last sentence of 15.
 
 Placeholders in the sources are faint, in brackets and framed with a dashed outline. The private fill replaces its
 own text at build time.
@@ -252,7 +244,7 @@ deck/cf11/tools/preview/preview.sh                   # the motion preview: deck.
 node deck/cf11/motion/render.mjs title-cover --gif --gif-fps 10 --gif-colors 64 --no-mp4
 node deck/cf11/motion/render.mjs scale --fps 25 --crf 24 --tune animation --zones "22,55,b=0.45/75,113,b=0.45/132,165,b=0.45/185,242,b=0.45"   # unused since round 7
 node deck/cf11/motion/telegram.mjs                   # needs the app harness (Vite on 127.0.0.1:5199)
-# 07: the lecture recording arrives as media/product/lecture-materials.mp4 + .jpg (1152 × 568, radius 22, corners in ink)
+python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/lecture-master.json --box 1152 568 --radius 22 --bg '#0b121c'
 python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/07-master.json --box 1152 568 --radius 22 --bg '#0b121c'
 python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/09-master.json --box 1152 568 --radius 22 --bg '#0b121c' --start 13.2
 python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/08-master.json --box 392 848 --radius 36 --bg '#0b121c' --start 16.2

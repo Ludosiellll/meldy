@@ -266,3 +266,20 @@ After the fixes:
   p99 4 grey levels). The dropped night field took about 1.4 MB with it.
 * morph-log: 0 automatic pairs, 0 geometry changes on all fourteen changes.
 * Open: S7.3 (07's recording and its moments), R3.6 (the pilot's numbers, the BELTA note's address).
+
+### Round 7, second pass — the recording and the release gate
+
+| # | Change | Status |
+|---|---|---|
+| C7.1 | 07: the recording replaces the placeholder (`lecture-materials`, 30.0 s, its poster is frame 0: «Разобрать лекцию» and the four tabs); the placeholder files are gone. The captions land on the clip's moments, in clip seconds + the entrance's 150 ms: «Аудио и видео» 3.25 s (pressed 3.10), «Запись лекции — файлом до 15 МБ» 5.93 (the file chosen 5.78, «До 15 МБ…» under it), «Что сделать из лекции» 7.42 (the list 7.27), «Конспект, карточки, тест, выжимка, подкаст» 9.85 (all five ticked 9.70), «Ответ вслух — Из этих же лекций…» 14.25 / 14.35 (the results 14.10). | **done** |
+| C7.2 | A fourth caption for the results («… — в одной лекции») was offered. | **kept out** — the column holds three blocks at 40 px; the five names already land as they are ticked, and the exam's link lands with the results. |
+| C7.3 | 07's notes: «О записи» is the coordinator's text (the live site and a test account, our lecture, the 22 s wait cut, nothing sped up); the talk adds «трёхминутное видео Meldy разобрал за 22 секунды», and «Если спросят» that only short lectures were measured (another take of the same video: 34 s). No time on the slide. | **done** |
+| C7.4 | 12: the release gate exists (`.github/workflows/deploy-hf.yml`: the deploy job needs the test job — Vitest, the bot's tests, the frontend build in the Docker layout, pytest — and a smoke check follows). The proposed claim «Перед каждым выпуском автоматически проходят все автотесты, потом — проверка живого сайта» runs to 1704 px on its first line at 72 px (the column is 1664), so it reads «Каждый выпуск автоматически проходит все автотесты, потом — проверка живого сайта» (the same facts, 1387 / 1593 px); the number's caption is «автотестов перед каждым выпуском»; the notes say the same and add, if asked, what the gate runs. | **done** |
+| C7.5 | 08's media: the fitted clip `07-exam-plan.mp4` (47 frames, every 0.5 s) and its poster show no avatar, initials or e-mail: the camera never frames the page's top line. The committed master (`masters/07-master.mp4`, `07-poster.png`) still holds the account's avatar initial; it is not in the PPTX. The new lecture clip is clean too (60 frames; its master masks the top line). | **checked** |
+
+After the second pass:
+* `node design/preview/lint.mjs`: no errors, no warnings; `timeline.mjs`: no warnings (07 follows its clip: 14.85 s).
+* `tools/make.sh`: ALL GREEN, 5.51 MB (the 30 s clip, 1.16 MB, replaced the 33 KB placeholder; 1453 checks; validate.py
+  passed; worst text offset 1.89 px).
+* The preview of 06–08: each of 07's captions lands with its moment in the playing clip (frames at 5.2, 7.9, 9.4, 11.8 and
+  16.3 s of `07-in.mp4`); 07→08 crossfades the screen in place; morph-log: 0 automatic pairs, 0 geometry changes.
