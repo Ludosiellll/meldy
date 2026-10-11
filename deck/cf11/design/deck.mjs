@@ -49,8 +49,8 @@ export const SLIDES = [
   { n: 15, file: '15-conclusion.html', title: 'Заключение', section: 10, corner: 'none', finale: true },
 ];
 
-/** Geometry of the header band (CONTRACT.md): squares at x 128 + 34·i, y 56, 22 px; the counter at x 488. */
-export const STRIP = { x: 128, y: 56, size: 22, step: 34, counterX: 488 };
+/** Geometry of the header band (CONTRACT.md): squares at x 128 + 34·i, y 56, 22 px. */
+export const STRIP = { x: 128, y: 56, size: 22, step: 34 };
 /** The corner wordmark: «Meldy» 32 px, its 10 px dot ends at the right margin, both on the counter's baseline. */
 export const MARK = { right: 1792, dot: 10, gap: 3, textTop: 46, dotTop: 66 };
 export const MARK_TEXT_WIDTH = 87; // «Meldy» in Onest 600 32 px −0.045em, measured (preview/lint checks it)
@@ -70,11 +70,9 @@ export function squareState(slide, i) {
   return i <= passed(slide) ? 'done' : 'next';
 }
 
-/** The counter's words (null: no counter on this slide). */
+/** The line under the wordmark on the finale (null elsewhere: the strip carries no counter, the squares say it). */
 export function counterText(slide) {
-  if (slide.opening) return null;
-  if (slide.finale) return 'Шпаргалка этой защиты пуста: осталось 0 из\u00a010';
-  return `осталось ${10 - passed(slide)} из\u00a010`;
+  return slide.finale ? 'Шпаргалка этой защиты пуста' : null;
 }
 
 /** Load Playwright from a local install or from the global node_modules next to this Node. */

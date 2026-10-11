@@ -68,7 +68,8 @@ Keep text live wherever it carries meaning (titles, claims, numbers, sources); b
 ## The deck-wide parts
 
 - **The strip** («шпаргалка этой защиты»): 10 squares at the top-left of every slide (x 128, y 56, 22 px squares, 12 px
-  gap), one per mandatory section, named `!!s01`…`!!s10`, plus a live counter «осталось N из 10» named `!!left`.
+  gap), one per mandatory section, named `!!s01`…`!!s10`. No counter: the squares say it. On «Заключение» one line
+  under the dot says the strip is empty («Шпаргалка этой защиты пуста»).
   The current section's square is yellow `#F4C45B`; passed ones are an empty outline (`#8A8F97` at 55%, 2 px); coming
   ones ink. «Представление блоков проекта» keeps one square for all its slides. On «Заключение» the squares gather and
   become the yellow dot of the wordmark «Meldy.» (`!!dot`).

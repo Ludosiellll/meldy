@@ -232,11 +232,14 @@ for (const slide of SLIDES) {
     }
     if (sq.anim && !slide.opening) err(slide.n, `${name} must not be animated (it morphs)`);
   }
-  const left = slideNames.get('!!left');
-  if (counterText(slide) == null) { if (left) err(slide.n, 'no counter on this slide: the strip is still gathered in the dot'); }
-  else if (!left) err(slide.n, 'counter !!left missing');
-  else if (left.text.trim() !== counterText(slide)) err(slide.n, `counter «${left.text.trim()}» ≠ «${counterText(slide)}»`);
-  if (slide.corner === 'mark' && (!slideNames.get('!!word') || !slideNames.get('!!dot'))) err(slide.n, 'the corner wordmark or its dot is missing');
+  // No counter: the squares say it. Only the finale has a line under its dot (class «left fin»).
+  const lefts = R.marked.filter((m) => String(m.cls).split(/\s+/).includes('left'));
+  if (slideNames.get('!!left')) err(slide.n, 'no counter !!left: the strip has no counter');
+  if (counterText(slide) == null) { if (lefts.length) err(slide.n, 'no counter on this slide'); }
+  else if (lefts.length !== 1) err(slide.n, `the finale's line «${counterText(slide)}» missing`);
+  else if (lefts[0].text.trim() !== counterText(slide)) err(slide.n, `finale line «${lefts[0].text.trim()}» ≠ «${counterText(slide)}»`);
+  const cornerDot = slide.dotAway ? `!!x${String(slide.n).padStart(2, '0')}dot` : '!!dot';
+  if (slide.corner === 'mark' && (!slideNames.get('!!word') || !slideNames.get(cornerDot))) err(slide.n, 'the corner wordmark or its dot is missing');
 
   // ---- type size, colours
   for (const t of R.texts) if (!t.media && t.size < 28 - 0.01) err(slide.n, `text under 28 px (${t.size}px): «${t.t.slice(0, 40)}»`);

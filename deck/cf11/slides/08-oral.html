@@ -7,9 +7,9 @@
 <style>
 /* Device: the bezel is a native ink shape (!!dot, it morphs along 06 → 11), the screen a video inside it. */
 .dev { background: #0b121c; }
-.step-n { left: 128px; }
-.step-t { left: 184px; }
-.step-d { left: 184px; font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; }
+/* What the clip shows, in its own words: a small label, then the moment itself, large. */
+.mo-c { left: 128px; font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.mo { left: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -23,22 +23,21 @@
      speech fed to the browser's microphone, the clip has no sound, waiting is cut out (the timer jumps) and
      nothing is sped up. The loop begins on the poster's moment (16.2 s: the protocol), so the screen that rode in
      under Morph does not jump when the video starts: the tap on the missed point and the examiner's question
-     first, then the story from its start at 2.7 s. The steps follow it: speak 6.73, asked 11.10, protocol 13.33,
-     the reading line with the protocol's scroll at 14.63. -->
+     first, then the story from its start at 2.7 s. What it shows comes in on its moments: speak 6.73, asked 11.10,
+     protocol 13.33, the lecture's quote when the protocol scrolls to it (16.5); the reading line after it. -->
 <div class="dev lift" data-pptx="shape" data-name="!!dot" style="left:1368px;top:112px;width:424px;height:880px;border-radius:52px"></div>
 <img data-pptx="video" data-name="!!clip" data-src="../media/product/08-oral-answer.mp4" data-poster="../media/product/08-oral-answer.jpg" data-loop src="../media/product/08-oral-answer.jpg" aria-label="Запись сайта на телефоне: экзамен «Базы данных», «Тянуть билет из 2 вопросов», билет — вопросы 18 и 19; ответ на вопрос 18 голосом, сказанное появляется текстом, «По ключевым словам: 3 из 4»; экзаменатор спрашивает о пропущенном пункте: «Почему при использовании многоверсионности читатели не ждут писателей?»; протокол: «Сами назвали 3 из 3 главных пунктов», у пункта — слова из ответа и цитата из лекции; «Пункт 4 не назван — о нём спросил экзаменатор» и цитата из лекции к нему" alt="" style="left:1384px;top:128px;width:392px;height:848px">
 
-<div class="step-n" data-pptx="text" data-name="!!x0801" style="top:448px;font-size:48px;line-height:56px" data-anim="fade" data-anim-trigger="with" data-anim-delay="6730" data-anim-dur="400" data-anim-order="3">1</div>
-<div class="step-t" data-pptx="text" style="top:448px;font-size:48px;line-height:56px" data-anim="rise" data-anim-trigger="with" data-anim-delay="6730" data-anim-dur="500" data-anim-order="3">Ответ голосом</div>
-<div class="step-d" data-pptx="text" style="top:508px" data-anim="fade" data-anim-trigger="with" data-anim-delay="6880" data-anim-dur="500" data-anim-order="3">вслух; Meldy записывает сказанное текстом</div>
-<div class="step-n" data-pptx="text" data-name="!!x0802" style="top:604px;font-size:48px;line-height:56px" data-anim="fade" data-anim-trigger="with" data-anim-delay="11100" data-anim-dur="400" data-anim-order="3">2</div>
-<div class="step-t" data-pptx="text" style="top:604px;font-size:48px;line-height:56px" data-anim="rise" data-anim-trigger="with" data-anim-delay="11100" data-anim-dur="500" data-anim-order="3">Переспрос</div>
-<div class="step-d" data-pptx="text" style="top:664px" data-anim="fade" data-anim-trigger="with" data-anim-delay="11250" data-anim-dur="500" data-anim-order="3">о&nbsp;пропущенном пункте, как экзаменатор</div>
-<div class="step-n" data-pptx="text" data-name="!!x0803" style="top:760px;font-size:48px;line-height:56px" data-anim="fade" data-anim-trigger="with" data-anim-delay="13330" data-anim-dur="400" data-anim-order="3">3</div>
-<div class="step-t" data-pptx="text" style="top:760px;font-size:48px;line-height:56px" data-anim="rise" data-anim-trigger="with" data-anim-delay="13330" data-anim-dur="500" data-anim-order="3">Названо и&nbsp;пропущено</div>
-<div class="step-d" data-pptx="text" style="top:820px" data-anim="fade" data-anim-trigger="with" data-anim-delay="13480" data-anim-dur="500" data-anim-order="3">к&nbsp;каждому пункту&nbsp;— цитата из&nbsp;лекции</div>
+<div class="mo-c" data-pptx="text" style="top:400px" data-anim="fade" data-anim-trigger="with" data-anim-delay="6730" data-anim-dur="400" data-anim-order="3">Ответ голосом</div>
+<div class="mo" data-pptx="text" style="top:440px" data-anim="rise" data-anim-trigger="with" data-anim-delay="6830" data-anim-dur="500" data-anim-order="3">сказанное появляется текстом</div>
+<div class="mo-c" data-pptx="text" style="top:516px" data-anim="fade" data-anim-trigger="with" data-anim-delay="11100" data-anim-dur="400" data-anim-order="3">Переспрос экзаменатора</div>
+<div class="mo" data-pptx="text" style="top:556px" data-anim="rise" data-anim-trigger="with" data-anim-delay="11200" data-anim-dur="500" data-anim-order="3">«Почему при&nbsp;использовании многоверсионности<br>читатели не&nbsp;ждут писателей?»</div>
+<div class="mo-c" data-pptx="text" style="top:680px" data-anim="fade" data-anim-trigger="with" data-anim-delay="13330" data-anim-dur="400" data-anim-order="3">Протокол</div>
+<div class="mo" data-pptx="text" style="top:720px" data-anim="rise" data-anim-trigger="with" data-anim-delay="13430" data-anim-dur="500" data-anim-order="3">Сами назвали 3&nbsp;из&nbsp;3&nbsp;главных пунктов</div>
+<div class="mo-c" data-pptx="text" style="top:796px" data-anim="fade" data-anim-trigger="with" data-anim-delay="16500" data-anim-dur="400" data-anim-order="3">Цитата из&nbsp;лекции к&nbsp;пункту</div>
+<div class="mo" data-pptx="text" style="top:836px" data-anim="rise" data-anim-trigger="with" data-anim-delay="16600" data-anim-dur="500" data-anim-order="3">«При параллельном выполнении без&nbsp;должной<br>изоляции возникают аномалии»</div>
 
-<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim="fade" data-anim-trigger="with" data-anim-delay="14630" data-anim-dur="600" data-anim-order="3">Оценок нет&nbsp;— только что названо и&nbsp;что нет. ИИ&nbsp;проверяет по&nbsp;материалу преподавателя</div>
+<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim="fade" data-anim-trigger="with" data-anim-delay="17200" data-anim-dur="600" data-anim-order="3">Оценок нет&nbsp;— только что названо и&nbsp;что нет. ИИ&nbsp;проверяет по&nbsp;материалу преподавателя</div>
 
 <!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
 <!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
@@ -52,7 +51,6 @@
 <div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
 <div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
 <div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="left" data-pptx="text" data-name="!!left">осталось 4 из&nbsp;10</div>
 <!-- header:end -->
 
 <template data-pptx="notes">Устные вопросы — главное. Студент отвечает голосом, а Meldy записывает сказанное текстом и сверяет ответ с его же лекциями. Если пункт пропущен, Meldy переспрашивает, как экзаменатор.

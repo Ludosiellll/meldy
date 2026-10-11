@@ -14,11 +14,12 @@
 <!-- The finale: the ten squares of the strip gather into the wordmark's dot (data-gather = its box), and the
      counter comes down under the wordmark (data-counter-at). The window that closed into the corner on 11 is
      back as this dot. -->
-<main class="slide" data-gather="928,346,84" data-counter-at="128,512" data-morph="word" data-transition-dur="1600">
+<main class="slide" data-gather="928,346,84" data-counter-at="128,512" data-transition-dur="1600">
 
 <div class="label" data-pptx="title">Заключение</div>
 <!-- The finale: the corner wordmark grows back to the title's size, the strip collapses into its dot (data-gather:
-     the ten squares, round, behind the dot) and the counter comes down under it, emptied (data-counter-at). -->
+     the ten squares, round, behind the dot), and the line under it says so (data-counter-at): it builds in first,
+     the lists after it. -->
 <div class="word" data-pptx="text" data-name="!!word" style="left:112px;top:180px">Meldy</div>
 <div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:928px;top:346px;width:84px;height:84px;border-radius:41px"></div>
 
@@ -60,7 +61,7 @@
 <div class="sq seed" data-pptx="shape" data-name="!!s08" style="left:986px;top:384px;width:8px;height:8px;border-radius:3px;background:transparent;border:2px solid rgba(138,143,151,.01)"></div>
 <div class="sq seed" data-pptx="shape" data-name="!!s09" style="left:994px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(244,196,91,.01)"></div>
 <div class="sq seed" data-pptx="shape" data-name="!!s10" style="left:1002px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="left fin" data-pptx="text" data-name="!!left" style="left:128px;top:512px">Шпаргалка этой защиты пуста: осталось 0 из&nbsp;10</div>
+<div class="left fin" data-pptx="text" style="left:128px;top:512px" data-anim="fade" data-anim-dur="600" data-anim-order="0">Шпаргалка этой защиты пуста</div>
 <!-- header:end -->
 
 <template data-pptx="notes">Мы рекомендуем Meldy студентам перед сессией и преподавателям, которые хотят видеть, как группа готовится.

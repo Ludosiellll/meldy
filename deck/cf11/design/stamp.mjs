@@ -1,4 +1,5 @@
-// Writes the header band (the strip of ten sections, the counter, the corner wordmark) into every slide,
+// Writes the header band (the strip of ten sections, the corner wordmark; on the finale the line under the big dot)
+// into every slide,
 // between <!-- header:start --> and <!-- header:end -->, from the table in deck.mjs.
 // Usage: node deck/cf11/design/stamp.mjs        (rewrites the slides in place; prints what changed)
 import fs from 'node:fs';
@@ -43,16 +44,11 @@ function header(slide, source) {
     out.push(`<div class="sq-gap" data-pptx="shape" data-name="!!sx" style="left:${gapX}px"></div>`);
   }
   const at = /data-counter-at="(\d+),(\d+)"/.exec(source);
-  if (counterText(slide) == null) {
-    // no counter yet: it fades in on 02, when the squares have burst out into the strip
-  } else if (slide.finale) {
+  if (slide.finale) {
+    // The finale's line: once the strip has collapsed into the dot, it says so. It pairs with nothing (the strip
+    // has no counter), so it builds in first, before the slide's lists.
     if (!at) throw new Error(`${slide.file}: the finale needs data-counter-at="x,y" on .slide`);
-    out.push(`<div class="left fin" data-pptx="text" data-name="!!left" style="left:${at[1]}px;top:${at[2]}px">${html(counterText(slide))}</div>`);
-  } else {
-    // The first counter of the deck fades in as the first step, once the squares have burst out into the strip.
-    const prev = SLIDES[SLIDES.indexOf(slide) - 1];
-    const first = prev && counterText(prev) == null ? ' data-anim="fade" data-anim-dur="600" data-anim-order="0"' : '';
-    out.push(`<div class="left" data-pptx="text" data-name="!!left"${first}>${html(counterText(slide))}</div>`);
+    out.push(`<div class="left fin" data-pptx="text" style="left:${at[1]}px;top:${at[2]}px" data-anim="fade" data-anim-dur="600" data-anim-order="0">${html(counterText(slide))}</div>`);
   }
   if (slide.corner === 'mark') {
     const dotLeft = MARK.right - MARK.dot;

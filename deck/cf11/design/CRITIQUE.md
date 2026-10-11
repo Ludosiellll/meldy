@@ -150,3 +150,42 @@ After the fixes:
 * The motion preview re-rendered: morph-log with 0 automatic pairs and 0 geometry changes; 08, 09 and 10 land on
   their posters without a jump (frames at 1.2 and 1.35 s of each).
 * Open: R3.6 (the pilot's numbers, the BELTA note's address; the names come from the private fill).
+
+## Round 5 — the owner's notes on draft 3
+
+The owner looked at draft 3 (the PPTX and the preview); the direction stays. Their notes, and what changed:
+
+| # | Note | Status |
+|---|---|---|
+| O5.1 | «Мне не нравятся эти надписи "осталось 8 из 10"». | **fixed** — no counter on any slide; the ten squares stay. 15 keeps one line under the dot, «Шпаргалка этой защиты пуста», which builds in after the strip has collapsed (no partner on 14, so 15 morphs by object again). |
+| O5.2 | «Не нравится снизу надпись в начале» (02's strip line, 05's comparison note). | **fixed** — both lines and 01's F5 hint are gone from the slides; their content is in the notes (02: the strip; 05: by type, no brands, the 04.10.2026 review, what «частично» means; 01: F5 for the presenter). 03's and 12's sources and 08's and 14's content lines stay. |
+| O5.3 | «11-ый слайд хер пойми что происходит». | **fixed** — redesigned with real facts only: the claim (every release: autotests and a live check on a phone and a computer), «6 492» with its parts (4 357 site, 1 817 server, 318 bot), release № 43 and the open example; the promotion path in plain words with arrows. The «Пригласить группу» button travels in from 10. No placeholders. |
+| O5.4 | 13: pictures of the resources, as last year? | **fixed** — the formal list stays on the left, calmer (no rules); «Документация» is seven tiles: each resource's own mark in ink (simple-icons 16.34.0, CC0; Groq has none, so its tile is a wordmark in Onest), its name, its short address (the full one is the link). |
+| O5.5 | 07–09 «резко и непонятно». | **prepared** — the clips are being re-cut at the same boxes. The lists next to them now carry the clips' own concrete moments in large type under small labels (07: «Нашли 240 вопросов и ключ — жирным в файле», «2 ноября, 45 минут в день», «Сегодня 52 вопроса, около 45 минут»; 08: the examiner's question, «Сами назвали 3 из 3 главных пунктов», the lecture's quote; 09: «47 → 44», «3 строки стёрты: названы в разные дни», and the sheet's own key). Timings wait for the new clips. |
+
+### Self-critique: 01, 02, 05, 11, 13, 15
+
+| # | Finding | Status |
+|---|---|---|
+| S5.1 | 01: without the hint the bottom edge is quiet. The cover card's «6 строк осталось» is the product's own sheet, not the deck's counter. | **kept** — it is what the product shows; the GIF's counter rolls to 0. |
+| S5.2 | 02: the strip unrolls without a word on the slide; a reader of the PDF alone may not know what the squares are. | **kept** — the owner's call; the speaker says it once (notes), and 15's «Шпаргалка этой защиты пуста» closes it. |
+| S5.3 | 05: a reader of the PDF alone loses «по типам сервисов, без брендов» and the date of the review. | **kept** — the column heads are types of service already («Чат-боты», «Карточки», «Конспекты по файлам»); the rest is in the notes. |
+| S5.4 | 11: the department's report «какие вопросы группа знает хуже» is a next step: the product's «Отчёт для преподавателя» today is one student's questions and what the lectures cover, not a group's weak questions. | **watch** — it stands under «Продвижение» (the path ahead) and the notes say «дальше»; no product button is drawn for it, only for the group, which works today. |
+| S5.5 | 11: «6 492 автотеста» is true today; the number moves with every release. | **watch** — re-count before the defence (the notes give the parts). |
+| S5.6 | 13: the left list is still dense (five entries, 28 px), and its caps headings are loud next to the calm tiles. | **kept** — the jury requires the formal list; the rules are gone. The BELTA address and the access date are still open (R3.6). |
+| S5.7 | 15: «Лицензия для колледжа» while 11 now says «лицензия для учреждения». | **open** — one wording for both, the coordinator's call. |
+
+### Motion (the preview after round 5)
+
+| # | Finding | Status |
+|---|---|---|
+| M5.1 | 01→02: the strip unrolls out of the dot with nothing else in the band; the cards build after. | **checked** — 02-in at 0.4–3.5 s. |
+| M5.2 | 10→11: the chat and its screen fade while the «Пригласить группу» button travels into 11's path; 11 lands on the button alone, then the claim, the number and the path build (2.0 s). | **checked** — 11-in at 0.33–3.5 s; morph-log pairs `!!pill`, `!!pillt`. |
+| M5.3 | 14→15, by object now: the strip collapses into the dot and the wordmark grows; «Шпаргалка этой защиты пуста» builds first, then the lists, the QR card last. | **checked** — 15-in at 0.5–4.6 s. |
+| M5.4 | 07–09: the large lines come in as the clips reach them (07 at 5.08, 7.85, 15.12 s; 08 at 6.73, 11.10, 13.33 s; 09 at 9.43 and 12.63 s). 08's lecture quote came before the protocol scrolled to it. | **fixed** — 08's quote at 16.5 s, the reading line at 17.2 s. All of it is re-timed when the re-cut clips land. |
+| M5.5 | 12→13: the tiles come in one by one, 80 ms apart, after the formal list. | **checked** — 13-in at 2.4–4.5 s. |
+
+After the fixes:
+* `node design/preview/lint.mjs`: no errors, no warnings; `timeline.mjs`: no warnings.
+* `tools/make.sh`: ALL GREEN, 5.96 MB (1387 checks; the ten native shadows within p99 4 grey levels).
+* morph-log: 0 automatic pairs, 0 geometry changes.
