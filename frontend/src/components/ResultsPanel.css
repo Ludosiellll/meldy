@@ -36,6 +36,9 @@
 .rp-tabsrow .sf-sectabs button:not([aria-current='page']) { box-shadow: inset 0 0 0 1px var(--sf-line); }
 .rp-body { min-height: 260px; padding-top: 26px; }
 .rp-body[data-single] { padding-top: 28px; }
+/* «Выжимка» keeps the width of the other tabs' cards here (QA 2026-10-11, 1532×734: its card ended 56 px short of
+   them); the lecture page, where it stands alone, keeps the sheet's own 920 px (CheatsheetSheet.css). */
+.rp-body .xp-sheet { max-width: none; }
 
 /* «Экспорт» on the analysis page: a white pill with an icon. */
 .rp-export-pill {
@@ -178,16 +181,18 @@
 .rp-result-notes { display: grid; gap: 6px; margin-top: 14px; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 .rp-result-notes p { margin: 0; }
 
+/* A phone: a pill that does not fit goes to the next line, so every section is in sight and a tap away. With
+   «Выжимка» the row of five was 508 px in 358 at 390 px and «Подкаст» was reachable only by a sideways scroll that
+   nothing showed (QA 2026-10-11); at 320 px the first three used to scroll away the same way (finding LIB-28). */
 @media (max-width: 639px) {
   .rp-tabsrow { gap: 6px 16px; margin-top: 16px; }
+  .rp-tabsrow .sf-sectabs { flex-wrap: wrap; row-gap: 8px; overflow: visible; }
   .rp-tabsrow .sf-sectabs button { padding: 0 14px; }
   .rp-result-acts { width: 100%; }
   .rp-result-acts .sf-primary { flex: 1 1 auto; }
 }
-/* 320 px: «Конспект», «Карточки 6» and «Тест 5» used to scroll out of the row with nothing to show it
-   (finding LIB-28); the pills get tighter, and a pill that still does not fit goes to the next line. */
+/* 320 px: the pills get tighter. */
 @media (max-width: 374px) {
-  .rp-tabsrow .sf-sectabs { flex-wrap: wrap; overflow: visible; }
   .rp-tabsrow .sf-sectabs button { padding: 0 11px; font-size: 14.5px; }
 }
 @media (prefers-reduced-motion: reduce) {

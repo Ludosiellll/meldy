@@ -737,6 +737,32 @@ describe('section statuses saved with the material', () => {
   });
 });
 
+describe('«Текст распознан…» on the lecture page, as on the result screen (QA 2026-10-11)', () => {
+  it('says the text came from a recording over the lecture’s sections', async () => {
+    state.material = makeMaterial({ recognized: 'recording' });
+    renderPage('/library/m1');
+    expect(await screen.findByText('Текст распознан из записи — сверьте термины, числа и имена.')).toBeInTheDocument();
+    expect(screen.getByText('Конспект про энтропию')).toBeInTheDocument();
+  });
+
+  it('says the same for a photo and a scan, each in its own words', async () => {
+    state.material = makeMaterial({ recognized: 'photo' });
+    const { unmount } = renderPage('/library/m1');
+    expect(await screen.findByText('Текст распознан с фото — сверьте формулы и числа с оригиналом.')).toBeInTheDocument();
+    unmount();
+    state.material = makeMaterial({ recognized: 'scan' });
+    renderPage('/library/m1');
+    expect(await screen.findByText('Текст распознан со скана — сверьте формулы и числа с оригиналом.')).toBeInTheDocument();
+  });
+
+  it('says nothing for a typed text, a file with text or a lecture saved before it was remembered', async () => {
+    state.material = makeMaterial();
+    renderPage('/library/m1');
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    expect(screen.queryByText(/Текст распознан/)).toBeNull();
+  });
+});
+
 describe('text-only materials and review link', () => {
   it('shows the text-only notice', async () => {
     state.material = {
@@ -1048,6 +1074,14 @@ describe('the lecture on a phone', () => {
     expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toBeInTheDocument();
     const review = screen.getAllByRole('link', { name: 'Повторить карточки' });
     expect(review[review.length - 1]).toHaveClass('md-bottom-go');
+  });
+
+  it('keeps «Текст распознан из записи…» over the sections of a recorded lecture (QA 2026-10-11)', async () => {
+    state.material = { ...lectureWithEverything(), summary_json: { ...lectureWithEverything().summary_json, recognized: 'recording' } };
+    renderPage('/library/m1');
+    expect(await screen.findByText('Текст распознан из записи — сверьте термины, числа и имена.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Карточки 6' }));
+    expect(screen.getByText('Текст распознан из записи — сверьте термины, числа и имена.')).toBeInTheDocument();
   });
 
   it('follows the tabs pattern across the sections and the podcast: one tab stop, arrows, Home and End', async () => {

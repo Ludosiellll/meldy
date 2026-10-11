@@ -280,8 +280,9 @@ export default function UploadZone({
   let startLabel = 'Запустить анализ';
   if (busy) startLabel = 'Запускаем…';
   else if (!isReady && !limited) {
-    // A video link is there, and the line under it says why the start waits.
-    if (tab === 'url') startLabel = videoLink ? 'Запустить анализ' : 'Вставьте ссылку';
+    // A video link: the button says why it waits, as the other waiting starts do (QA 2026-10-11: it said «Запустить
+    // анализ» and did nothing); the line under the link says what to do instead.
+    if (tab === 'url') startLabel = videoLink ? 'Ссылку на видео не открыть' : 'Вставьте ссылку';
     else if (tab === 'text') startLabel = trimmedLength === 0 ? 'Вставьте текст' : 'Запустить анализ';
     else startLabel = 'Сначала выберите файл';
   }

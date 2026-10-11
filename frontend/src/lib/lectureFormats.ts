@@ -20,6 +20,21 @@ export const OCR_PHOTO_NOTICE = 'Текст распознан с фото — �
 /** Текст из записи лекции (text_extracted с transcribed: true): речь распознаётся с ошибками в терминах и именах. */
 export const TRANSCRIPT_NOTICE = 'Текст распознан из записи — сверьте термины, числа и имена.';
 
+/**
+ * Как получен текст лекции, если его распознали: скан PDF, фото страницы или запись. Анализ запоминает это в
+ * summary_json.recognized, и строка «Текст распознан…» стоит и на экране результата, и на странице лекции
+ * (QA 2026-10-11: строка о записи была только на экране результата).
+ */
+export type RecognizedSource = 'scan' | 'photo' | 'recording';
+
+/** Строка о распознанном тексте или null (текст файла, вставленный текст, страница по ссылке, старая лекция). */
+export function recognizedNotice(source: unknown): string | null {
+  if (source === 'scan') return OCR_NOTICE;
+  if (source === 'photo') return OCR_PHOTO_NOTICE;
+  if (source === 'recording') return TRANSCRIPT_NOTICE;
+  return null;
+}
+
 export function isLegacyPpt(fileName: string): boolean {
   return /\.ppt$/i.test(fileName.trim());
 }

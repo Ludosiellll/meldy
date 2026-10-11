@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { splitFragmentHeading } from '../utils/fragmentText';
+import MathText from './summary/MathText';
 import './SourceReferences.css';
 
 interface SourceReferencesProps {
@@ -58,15 +59,20 @@ export default function SourceReferences({ ids, sources = [], compact = false }:
             return (
               <p key={`${id}-${index}`} className="srf-slip">
                 <span className="srf-n">Фрагмент {fragmentNumber(id)}.</span>
+                {/* Formulas of a page from the web ($…$) are drawn, not shown as LaTeX (QA 2026-10-11). */}
                 {parts?.heading ? (
                   <>
                     <span className="srf-heading" data-fragment-heading="">
-                      {parts.heading}
+                      <MathText text={parts.heading} />
                     </span>
-                    <span className="block">{parts.body}</span>
+                    <span className="block">
+                      <MathText text={parts.body} />
+                    </span>
                   </>
+                ) : text ? (
+                  <MathText text={text} />
                 ) : (
-                  text || 'Текст фрагмента недоступен.'
+                  'Текст фрагмента недоступен.'
                 )}
               </p>
             );

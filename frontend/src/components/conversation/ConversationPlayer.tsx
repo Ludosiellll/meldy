@@ -18,6 +18,7 @@ import {
   setTTSPlaybackRate,
   stopTTS,
   type PlayTTSOptions,
+  type TTSFailureCause,
 } from '../../utils/tts';
 import ConversationVisual from './ConversationVisual';
 import {
@@ -101,23 +102,27 @@ export const WAIT_NOTE_MS = 600;
 /** Не пошёл и за столько — говорим, что звук ещё грузится, а реплику уже можно читать. */
 export const SLOW_NOTE_MS = 6000;
 
-type WaitNote = 'wait' | 'slow';
+/**
+ * Что сказать, пока звук не пошёл: 'wait' и 'slow' — по времени; 'server' и 'network' — после неудачной попытки,
+ * перед следующей (PlayTTSOptions.onRetry).
+ */
+type WaitNote = 'wait' | 'slow' | TTSFailureCause;
 
 /**
- * «Медленный интернет» — только когда браузер сам так говорит (navigator.connection в Chrome):
- * звук часто задерживает синтез на сервере, а не связь, и винить в этом интернет нечестно.
+ * Интернет винится, только когда браузер сам говорит, что связи нет (navigator.onLine). Оценке navigator.connection
+ * верить нельзя: Chrome строит её по тому, как долго отвечают запросы, и медленные ответы /api/tts сами превращают
+ * быструю связь в «3g» — экран результата писал «Медленный интернет», пока сервер озвучки отвечал 502
+ * (QA 2026-10-11). Ответ сервера с ошибкой — это сервер, и строка так и говорит.
  */
-function slowConnection(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const connection = (navigator as Navigator & { connection?: { effectiveType?: string } }).connection;
-  return /^(slow-2g|2g|3g)$/.test(connection?.effectiveType ?? '');
+function offline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
 
 export function waitMessage(note: WaitNote): string {
   if (note === 'wait') return 'Готовим голос…';
-  return slowConnection()
-    ? 'Медленный интернет: звук ещё загружается. Реплика уже на экране — её можно читать.'
-    : 'Звук загружается дольше обычного. Реплика уже на экране — её можно читать.';
+  if (note === 'server') return 'Сервер озвучки ответил с ошибкой, пробуем ещё раз.';
+  if (note === 'network') return offline() ? 'Нет связи с интернетом, пробуем ещё раз.' : 'Звук не дошёл, пробуем ещё раз.';
+  return 'Звук загружается дольше обычного. Реплика уже на экране — её можно читать.';
 }
 
 /** Звук скольких первых реплик готовим, как только плеер на экране: первое ▶ звучит сразу. */
@@ -129,6 +134,30 @@ const WARM_LINES = 2;
  * сохраняется, чтобы повтор и новый визит звучали сразу, без сервера.
  */
 const HOST_VOICE: PlayTTSOptions = { fallback: 'none', persist: true };
+
+/**
+ * Реплики так, как их озвучит плеер: текст без разметки (plainLineText) и голос ведущего (assignVoices). По этим
+ * текстам и голосам звук лежит в кэше, поэтому подготовить его заранее можно только с ними.
+ */
+export function conversationVoiceLines(rawLines: readonly unknown[]): Array<{ text: string; role: HostVoice }> {
+  const lines = buildConversation(rawLines).map(line => ({ speaker: line.speaker, text: plainLineText(line.text) }));
+  const speakers: string[] = [];
+  lines.forEach(line => {
+    if (line.speaker && !speakers.includes(line.speaker)) speakers.push(line.speaker);
+  });
+  const voices = assignVoices(speakers);
+  return lines.map(line => ({ text: line.text, role: voices.get(line.speaker) || 'female' }));
+}
+
+/**
+ * Звук первых реплик подкаста — заранее, пока на экране другая вкладка (экран результата анализа). Сразу после
+ * анализа реплики новые, их голоса нет ни в одном кэше, и первое ▶ ждало синтеза с нуля: 7–17 секунд тишины
+ * (QA 2026-10-11). Тот же запрос, что делает плеер, когда он на экране: по одной реплике, с сохранением.
+ */
+export function warmConversationVoice(rawLines: readonly unknown[]): void {
+  const first = conversationVoiceLines(rawLines).slice(0, WARM_LINES);
+  if (first.length) void Promise.resolve(prefetchTTSInOrder(first, { persist: true })).catch(() => undefined);
+}
 
 /** На сколько реплик вперёд готовим звук: по одной, когда текущая уже зазвучала. */
 const PREFETCH_AHEAD = 3;
@@ -361,11 +390,15 @@ export default function ConversationPlayer({
     setWaitNote(null);
   };
 
-  /** Пока звук реплики не пошёл: через 600 мс «Готовим голос…», через 6 с — что её уже можно читать. */
+  /**
+   * Пока звук реплики не пошёл: через 600 мс «Готовим голос…», через 6 с — что её уже можно читать. Строка о
+   * неудачной попытке (сервер ответил ошибкой, ответа не было) остаётся до звука: часы её не заменяют.
+   */
   const armWaitNote = (run: number) => {
     clearWaitNote();
     const show = (note: WaitNote) => () => {
-      if (run === runRef.current) setWaitNote(note);
+      if (run !== runRef.current) return;
+      setWaitNote(previous => (previous === 'server' || previous === 'network' ? previous : note));
     };
     waitTimersRef.current = [setTimeout(show('wait'), WAIT_NOTE_MS), setTimeout(show('slow'), SLOW_NOTE_MS)];
   };
@@ -602,7 +635,13 @@ export default function ConversationPlayer({
           setPlayback('playing');
           prefetchAhead(index);
         },
-        HOST_VOICE,
+        {
+          ...HOST_VOICE,
+          // Попытка не удалась, будет ещё одна: строка говорит, чья это неудача — сервера, а не интернета.
+          onRetry: cause => {
+            if (run === runRef.current) setWaitNote(cause);
+          },
+        },
       ),
     ).catch(() => undefined);
   };

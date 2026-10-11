@@ -736,6 +736,130 @@ describe('tts', () => {
     });
   });
 
+  describe('the line the student waits for goes first (QA 2026-10-11: the first ▶ after an analysis)', () => {
+    const HOST = { fallback: 'none' } as const;
+    const asked = () => fetchMock.mock.calls.map(call => JSON.parse(String((call[1] as RequestInit).body)).text as string);
+    const answer = (status: number, headers: Record<string, string> = {}) =>
+      status === 200
+        ? { ok: true, status, headers: new Headers(headers), blob: async () => new Blob(['mp3']) }
+        : { ok: false, status, headers: new Headers(headers), blob: async () => new Blob() };
+
+    it('starts no read-ahead request while the played line is loading, and goes on once it is in', async () => {
+      const release: Array<() => void> = [];
+      fetchMock.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            release.push(() => resolve(answer(200)));
+          }),
+      );
+      const tts = await loadTts();
+      const onStart = vi.fn();
+      void tts.playTTS('Первая реплика', 'male', undefined, vi.fn(), onStart, HOST);
+      await vi.waitFor(() => expect(release).toHaveLength(1));
+      // The player moved on and plans the next lines while the first is still loading: they wait.
+      const ahead = tts.prefetchTTSInOrder([
+        { text: 'Вторая реплика', role: 'female' },
+        { text: 'Третья реплика', role: 'male' },
+      ]);
+      await flush();
+      await flush();
+      expect(asked()).toEqual(['Первая реплика']);
+
+      release.shift()?.();
+      await vi.waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
+      await vi.waitFor(() => expect(asked()).toEqual(['Первая реплика', 'Вторая реплика']));
+      release.shift()?.();
+      await vi.waitFor(() => expect(asked()).toEqual(['Первая реплика', 'Вторая реплика', 'Третья реплика']));
+      release.shift()?.();
+      await ahead;
+    });
+
+    it('waits through the played line\'s retries too, then reads ahead', async () => {
+      vi.useFakeTimers();
+      let calls = 0;
+      fetchMock.mockImplementation(async () => {
+        calls += 1;
+        return calls === 1 ? answer(502) : answer(200);
+      });
+      const tts = await loadTts();
+      void tts.playTTS('Первая реплика', 'male', undefined, vi.fn(), vi.fn(), HOST);
+      await vi.advanceTimersByTimeAsync(0);
+      void tts.prefetchTTSInOrder([{ text: 'Вторая реплика', role: 'female' }]);
+      // The 502, the second try a second later: nothing for the second line in between.
+      await vi.advanceTimersByTimeAsync(999);
+      expect(asked()).toEqual(['Первая реплика']);
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(asked()).toEqual(['Первая реплика', 'Первая реплика', 'Вторая реплика']);
+    });
+
+    it('ends the read-ahead at a line the server has just failed on; a later plan asks for it again', async () => {
+      const status: Record<string, number> = { 'Вторая реплика': 502 };
+      fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+        const { text } = JSON.parse(String(init.body));
+        // Retry-After: 1, as /api/tts sends with its 502 (the server has already tried three times).
+        return answer(status[text] ?? 200, status[text] ? { 'Retry-After': '1' } : {});
+      });
+      const tts = await loadTts();
+      await tts.prefetchTTSInOrder([
+        { text: 'Вторая реплика', role: 'female' },
+        { text: 'Третья реплика', role: 'male' },
+        { text: 'Четвёртая реплика', role: 'female' },
+      ]);
+      // The second line failed: the third and the fourth are not asked of a server that is failing right now.
+      expect(asked()).toEqual(['Вторая реплика']);
+
+      // A second later (Retry-After) the next plan asks for the failed line again, and goes on when it comes.
+      delete status['Вторая реплика'];
+      await new Promise(resolve => setTimeout(resolve, 1050));
+      await tts.prefetchTTSInOrder([
+        { text: 'Вторая реплика', role: 'female' },
+        { text: 'Третья реплика', role: 'male' },
+      ]);
+      expect(asked()).toEqual(['Вторая реплика', 'Вторая реплика', 'Третья реплика']);
+    });
+
+    it('tells the player whose failure a retry follows: the server\'s for a 502, nobody\'s answer for a dropped request', async () => {
+      vi.useFakeTimers();
+      const outcomes: Array<() => Promise<unknown>> = [
+        async () => answer(502),
+        async () => {
+          throw new TypeError('Failed to fetch');
+        },
+        async () => answer(200),
+      ];
+      fetchMock.mockImplementation(() => (outcomes.shift() ?? (async () => answer(200)))());
+      const tts = await loadTts();
+      const onRetry = vi.fn();
+      const onStart = vi.fn();
+      void tts.playTTS('Макс спрашивает', 'male', undefined, vi.fn(), onStart, { ...HOST, onRetry });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      expect(onRetry).toHaveBeenLastCalledWith('server');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(onRetry).toHaveBeenCalledTimes(2);
+      expect(onRetry).toHaveBeenLastCalledWith('network');
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(FakeAudio.instances).toHaveLength(1);
+      FakeAudio.instances[0].emit('playing');
+      expect(onStart).toHaveBeenCalledTimes(1);
+      // No retry after the sound came.
+      expect(onRetry).toHaveBeenCalledTimes(2);
+    });
+
+    it('says nothing about retries of a line that was stopped', async () => {
+      vi.useFakeTimers();
+      fetchMock.mockImplementation(async () => answer(502));
+      const tts = await loadTts();
+      const onRetry = vi.fn();
+      void tts.playTTS('Остановленная', 'male', undefined, vi.fn(), vi.fn(), { ...HOST, onRetry });
+      tts.stopTTS();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(onRetry).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('gives up when sound does not start in eight seconds', async () => {
     vi.useFakeTimers();
     fetchMock.mockImplementation(() => new Promise(() => undefined));

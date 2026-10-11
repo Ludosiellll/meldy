@@ -141,6 +141,32 @@ def test_when_every_attempt_fails_the_answer_is_an_honest_502_and_nothing_is_cac
     assert tts.post().status_code == 200
 
 
+def test_the_502_says_the_browser_may_ask_again_in_a_second(tts):
+    # Every attempt of the request has already failed: the player should not keep the line silent for a minute
+    # (frontend utils/tts.ts remembers a failure for Retry-After seconds). QA 2026-10-11: the first ▶ after an analysis.
+    tts.script("error")
+    response = tts.post()
+    assert response.status_code == 502
+    assert response.headers["retry-after"] == "1"
+    assert response.json() == FAILURE
+
+
+def test_the_log_says_how_long_each_attempt_took(tts, capsys):
+    tts.script("error", "ok")
+    assert tts.post().status_code == 200
+    log = capsys.readouterr().out
+    # The failed attempt, with its time, voice and length; then the clip that came on the second attempt.
+    assert "Edge-TTS attempt 1/3 failed after " in log
+    assert "ru-RU-SvetlanaNeural, 18 chars" in log
+    assert "RuntimeError" in log
+    assert "Edge-TTS: ru-RU-SvetlanaNeural, 18 chars in " in log and "(attempt 2/3" in log
+
+    # A clip on the first attempt, in time, adds nothing to the log.
+    tts.script("ok")
+    assert tts.post("Другая реплика.").status_code == 200
+    assert "Edge-TTS" not in capsys.readouterr().out
+
+
 def test_attempts_are_spaced_by_the_backoff(tts, monkeypatch):
     assert tts.main.TTS_ATTEMPTS == 3
     monkeypatch.setattr(tts.main, "TTS_RETRY_DELAYS", (0.1, 0.2))

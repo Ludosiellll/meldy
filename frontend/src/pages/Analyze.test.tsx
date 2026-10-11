@@ -961,9 +961,10 @@ describe('scans, photos and presentations', () => {
     await resultsHeading();
     expect(screen.getByText(SCAN_NOTICE)).toBeInTheDocument();
     expect(analyzeCalls()[0].url).toBe('/api/analyze');
-    // The recognised text is what is saved, like any other text; the analysis is charged as usual.
+    // The recognised text is what is saved, like any other text; the analysis is charged as usual. The material
+    // remembers how its text was got, so the lecture page says it too.
     await waitFor(() => expect(s.inserts).toHaveLength(1));
-    expect(s.inserts[0]).toMatchObject({ original_text: TEXT.text });
+    expect(s.inserts[0]).toMatchObject({ original_text: TEXT.text, summary_json: { recognized: 'scan' } });
   });
 
   it('a photo of a page says «с фото»; an ordinary text says nothing about recognition', async () => {
@@ -974,6 +975,8 @@ describe('scans, photos and presentations', () => {
     await resultsHeading();
     expect(screen.getByText('Текст распознан с фото — сверьте формулы и числа с оригиналом.')).toBeInTheDocument();
     expect(analyzeCalls()[0].url).toBe('/api/analyze/media');
+    await waitFor(() => expect(s.inserts).toHaveLength(1));
+    expect((s.inserts[0].summary_json as Record<string, unknown>).recognized).toBe('photo');
     cleanup();
 
     renderAnalyze();
@@ -981,6 +984,8 @@ describe('scans, photos and presentations', () => {
     fireEvent.click(startButton());
     await resultsHeading();
     expect(screen.queryByText(/Текст распознан/)).toBeNull();
+    await waitFor(() => expect(s.inserts).toHaveLength(2));
+    expect(s.inserts[1].summary_json as Record<string, unknown>).not.toHaveProperty('recognized');
   });
 
   it('a recording says «из записи» and asks to check terms, numbers and names', async () => {
@@ -992,6 +997,9 @@ describe('scans, photos and presentations', () => {
     expect(screen.getByText('Текст распознан из записи — сверьте термины, числа и имена.')).toBeInTheDocument();
     expect(screen.queryByText(/сверьте формулы и числа/)).toBeNull();
     expect(analyzeCalls()[0].url).toBe('/api/analyze/media');
+    // The lecture page shows the same line from what the material remembers (QA 2026-10-11: only the result had it).
+    await waitFor(() => expect(s.inserts).toHaveLength(1));
+    expect((s.inserts[0].summary_json as Record<string, unknown>).recognized).toBe('recording');
   });
 
   it('a presentation goes to the document analysis', async () => {

@@ -38,6 +38,27 @@ describe('SourceReferences: a lecture heading on its own line (jury memo 12)', (
     open(['S09']);
     expect(screen.getByText('Текст фрагмента недоступен.')).toBeInTheDocument();
   });
+
+  it('draws the formulas of a page from the web instead of showing LaTeX (QA 2026-10-11)', () => {
+    render(
+      <SourceReferences
+        ids={['S03']}
+        sources={[{ id: 'S03', text: 'Теорема Пифагора\nСумма квадратов катетов: $a^{2}+b^{2}=c^{2}$, при этом $\\triangle ABC$ прямоугольный.' }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Ближайшие фрагменты лекции/ }));
+    const fragment = screen.getByText(/Фрагмент 3\./).closest('p') as HTMLElement;
+    expect(fragment.querySelectorAll('.katex')).toHaveLength(2);
+    expect(screen.getByText('Теорема Пифагора')).toHaveAttribute('data-fragment-heading');
+    const body = fragment.querySelector('.block') as HTMLElement;
+    const plain = Array.from(body.childNodes)
+      .filter(node => node.nodeType === Node.TEXT_NODE)
+      .map(node => node.textContent)
+      .join('');
+    // The comma after the short formula stays on its line, with the formula.
+    expect(plain).toBe('Сумма квадратов катетов:  при этом  прямоугольный.');
+    expect(body.querySelector('.sv-math-run')?.textContent?.endsWith(',')).toBe(true);
+  });
 });
 
 describe('SourceReferences: the button names its panel only while the panel is there', () => {

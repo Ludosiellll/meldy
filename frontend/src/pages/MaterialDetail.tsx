@@ -27,6 +27,7 @@ import {
   type LibraryFolder,
 } from '../components/LectureFolders';
 import { followupCardsOf } from '../lib/followupCards';
+import { recognizedNotice } from '../lib/lectureFormats';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
 import { openingResultTab, resultTabs, type ResultExportItem, type ResultTab } from '../components/resultSections';
@@ -596,6 +597,9 @@ export default function MaterialDetail() {
   }, [material]);
   // The sections as ResultsPanel shows them (no podcast: the page has its own «Подкаст»).
   const sectionTabs = useMemo(() => (panelResults ? resultTabs(panelResults) : []), [panelResults]);
+  // «Текст распознан из записи…» (or from a scan, a photo) stands over the lecture's sections here as on the result
+  // screen: the analysis saved how the text was got (summary_json.recognized; QA 2026-10-11: it was on the result only).
+  const recognized = recognizedNotice(material?.summary_json?.recognized);
 
   if (loading) {
     return (
@@ -950,6 +954,7 @@ export default function MaterialDetail() {
             embedded
             initialTab={sectionParam}
             followupCards={followups}
+            notices={recognized ? <p>{recognized}</p> : undefined}
             pageTabs={phone ? { section, onSection: setSectionChoice, exportItems: exportItemsRef } : undefined}
           />
         ) : (
