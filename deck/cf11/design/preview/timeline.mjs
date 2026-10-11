@@ -61,7 +61,7 @@ for (const slide of SLIDES) {
       start += longest;
     }
     console.log(`    = ${start} ms`);
-    // a slide with a clip times its steps to the clip's moments (07–09, 12): its build is as long as the story
+    // a slide with a clip times its steps to the clip's moments (07–10): its build is as long as the story
     if (!g.click && start > 3500 && !R.video) warns.push(`${nn} automatic build ${start} ms`);
   });
 }

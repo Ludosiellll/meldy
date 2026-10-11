@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>12 · Тестирование, продвижение и масштабируемость — Meldy · CodingFest-11</title>
+<link rel="stylesheet" href="../design/deck.css">
+<style>
+/* The jury's own criteria, one zone each, on the dark stage: testing (one big number, its parts), scale (the
+   students of 03 in groups, and what costs nothing), and promotion as one path from a group to colleges and
+   universities, its steps on the grid (128, 554, 980: the last under the scale column). The release and the open
+   example are the reading line. The «Пригласить группу» button travels in from slide 11 (!!pill) and lands under
+   «Группа» as that step's action. Round 7: old 11 and 12 merged, the night field dropped. */
+.n180 { font-size: 180px; line-height: 180px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
+.n110 { font-size: 110px; line-height: 110px; font-weight: 600; letter-spacing: -.04em; white-space: nowrap; }
+.part-n { top: 678px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.part-t { top: 726px; font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
+.st-t { top: 836px; font-size: 48px; line-height: 56px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.st-d { top: 900px; font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
+.arw { top: 844px; width: 40px; font-size: 40px; line-height: 40px; color: var(--faint); text-align: center; }
+</style>
+</head>
+<body>
+<main class="slide dark" data-transition-dur="1500">
+
+<div class="label" data-pptx="title">Тестирование, продвижение и масштабируемость</div>
+<!-- The lights go down first (the transition), then the claim rises in the dark. -->
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="0">Каждый выпуск проверяют автотесты,<br>потом&nbsp;— живой сайт</div>
+
+<!-- Testing: how many automated tests there are (the full runs of 2026-10-11, recounted on the freeze day). Not «before
+     every release»: no CI runs all three suites yet, so the number stands alone and the claim says only what is true. -->
+<div class="cap" data-pptx="text" style="left:128px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="400" data-anim-order="1">Тестирование</div>
+<div class="n180" data-pptx="text" style="left:120px;top:436px" data-anim="settle" data-anim-trigger="with" data-anim-delay="400" data-anim-dur="700" data-anim-order="1">6&nbsp;566</div>
+<div class="t40" data-pptx="text" style="left:128px;top:612px" data-anim="fade" data-anim-trigger="with" data-anim-delay="650" data-anim-dur="500" data-anim-order="1">автотестов</div>
+<div class="part-n" data-pptx="text" style="left:128px" data-anim="fade" data-anim-trigger="with" data-anim-delay="850" data-anim-dur="500" data-anim-order="1">4&nbsp;415</div>
+<div class="part-t" data-pptx="text" style="left:128px" data-anim="fade" data-anim-trigger="with" data-anim-delay="850" data-anim-dur="500" data-anim-order="1">сайт · Vitest</div>
+<div class="part-n" data-pptx="text" style="left:348px" data-anim="fade" data-anim-trigger="with" data-anim-delay="950" data-anim-dur="500" data-anim-order="1">1&nbsp;832</div>
+<div class="part-t" data-pptx="text" style="left:348px" data-anim="fade" data-anim-trigger="with" data-anim-delay="950" data-anim-dur="500" data-anim-order="1">сервер · pytest</div>
+<div class="part-n" data-pptx="text" style="left:592px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1050" data-anim-dur="500" data-anim-order="1">319</div>
+<div class="part-t" data-pptx="text" style="left:592px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1050" data-anim-dur="500" data-anim-order="1">бот</div>
+
+<!-- Scale: the students of 03, in groups of 25; test questions are checked without AI and cost nothing. -->
+<div class="cap" data-pptx="text" style="left:980px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-delay="500" data-anim-dur="400" data-anim-order="1">Масштабируемость</div>
+<div class="n110" data-pptx="text" style="left:974px;top:448px" data-anim="settle" data-anim-trigger="with" data-anim-delay="700" data-anim-dur="700" data-anim-order="1">≈&nbsp;229&nbsp;тыс.</div>
+<div class="note" data-pptx="text" style="left:980px;top:562px" data-anim="fade" data-anim-trigger="with" data-anim-delay="900" data-anim-dur="500" data-anim-order="1">студентов вузов&nbsp;— 9&nbsp;160&nbsp;групп по&nbsp;25</div>
+<div class="note ink" data-pptx="text" style="left:980px;top:628px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1050" data-anim-dur="500" data-anim-order="1">Тестовые вопросы проверяются<br>без&nbsp;ИИ и&nbsp;ничего не&nbsp;стоят</div>
+<div class="src" data-pptx="text" style="left:980px;top:726px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1200" data-anim-dur="500" data-anim-order="1">Число студентов: Минобразования, БЕЛТА, 2026</div>
+
+<!-- Promotion, one path left to right: the group (the button that does it today, from slide 11, under it), the
+     department, colleges and universities. -->
+<div class="cap" data-pptx="text" style="left:128px;top:802px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1250" data-anim-dur="400" data-anim-order="2">Продвижение</div>
+<div class="st-t" data-pptx="text" style="left:128px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1300" data-anim-dur="500" data-anim-order="2">Группа</div>
+<div class="chip" data-pptx="shape" data-name="!!pill" style="left:128px;top:898px;width:300px;height:52px"></div>
+<div class="chip-text" data-pptx="text" data-name="!!pillt" style="left:128px;top:906px;width:300px;font-size:28px;line-height:36px;text-align:center">Пригласить группу</div>
+<div class="arw" data-pptx="text" data-name="!!x1201" style="left:403px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1450" data-anim-dur="350" data-anim-order="2">→</div>
+<div class="st-t" data-pptx="text" style="left:554px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1550" data-anim-dur="500" data-anim-order="2">Кафедра</div>
+<div class="st-d" data-pptx="text" style="left:554px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1650" data-anim-dur="500" data-anim-order="2">отчёт для&nbsp;преподавателя</div>
+<div class="arw" data-pptx="text" data-name="!!x1202" style="left:850px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1800" data-anim-dur="350" data-anim-order="2">→</div>
+<div class="st-t" data-pptx="text" style="left:980px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1900" data-anim-dur="500" data-anim-order="2">Колледжи и&nbsp;вузы</div>
+<div class="st-d" data-pptx="text" style="left:980px" data-anim="fade" data-anim-trigger="with" data-anim-delay="2000" data-anim-dur="500" data-anim-order="2">лицензия для&nbsp;учреждения</div>
+
+<!-- The reading line: the live release and the open example. -->
+<div class="src" data-pptx="text" data-href="https://ludosiel-studyforge.hf.space/try" style="left:128px;top:984px" data-anim="fade" data-anim-trigger="with" data-anim-delay="2150" data-anim-dur="500" data-anim-order="2"><span class="muted">Сейчас на&nbsp;сайте выпуск №&nbsp;43</span> · пример без&nbsp;регистрации: <span class="blue">ludosiel-studyforge.hf.space/try</span></div>
+
+<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
+<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
+<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
+<div class="sq-gap" data-pptx="shape" data-name="!!sx" style="left:356px"></div>
+<div class="mark" data-pptx="text" data-name="!!word" style="left:1692px;width:89px">Meldy</div>
+<div class="mark-dot" data-pptx="shape" data-name="!!x12dot" style="left:1782px;top:66px"></div>
+<!-- header:end -->
+
+<template data-pptx="notes">Как мы проверяем: каждый выпуск проверяют автотесты, потом — живой сайт. Всего автотестов 6 566 — у сайта, сервера и бота. Сейчас на сайте выпуск № 43, пример экзамена открыт без регистрации.
+
+Масштаб: тестовые вопросы проверяются без ИИ и ничего не стоят, а ИИ у каждого аккаунта ограничен дневным лимитом.
+
+Продвижение — снизу вверх: группа по одной ссылке, потом кафедра — отчёт для преподавателя, потом колледжи и вузы — лицензия для учреждения.
+
+Если спросят: 6 566 = 4 415 сайт (Vitest) + 1 832 сервер (pytest) + 319 бот, полные прогоны 11.10.2026, пересчитаем в день заморозки. Лимит ИИ — 100 единиц в день бесплатно и 1000 в PRO; разбор лекции стоит 20 единиц, проверка ответа вслух — 4. Около 229 тысяч студентов вузов — это 9 160 групп по 25 человек. Следующий шаг для кафедры — сводка по всей группе.</template>
+</main>
+</body>
+</html>

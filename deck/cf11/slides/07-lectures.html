@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>07 · Представление блоков проекта: лекции — Meldy · CodingFest-11</title>
+<link rel="stylesheet" href="../design/deck.css">
+<style>
+/* Device: the bezel is a native ink shape (!!dot, it morphs along 06 → 11), the screen a video inside it. 07 and 08
+   share the laptop's frame (the same box), so on 07 → 08 only the screen's content changes. */
+.dev { background: #0b121c; }
+/* What the clip shows, in the app's own words: a small label, then the moment itself, large. */
+.mo-c { left: 128px; font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.mo { left: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main class="slide" data-transition-dur="1500">
+
+<div class="label" data-pptx="title">Представление блоков проекта</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Лекция&nbsp;— файл, фото, ссылка или видео&nbsp;—<br>становится конспектом, карточками и&nbsp;тестом</div>
+
+<!-- The laptop: the first material's bullet of 06 has grown into its ink bezel (!!dot, Morph); then the screen comes
+     on. PLACEHOLDER until the recording lands: a still of the live site's «Разобрать лекцию» («Аудио и видео»
+     chosen, the formats up to 15 MB) as a 6 s static clip, lecture-placeholder.mp4/.jpg. The swap is one edit:
+     «lecture-placeholder» → «lecture-materials» in this <img> (data-src, data-poster, src) and its aria-label, then
+     the placeholder files go. The recording (a lecture video → «Аудио и видео» → the five materials ticked →
+     конспект, карточки, тест, выжимка, подкаст) starts with its entrance (data-play «with»); what it shows comes in
+     on its moments, clip seconds + the entrance's 150 ms. PLACEHOLDER moments, to be set from lecture-moments.json:
+     the media tab 2.0, the five materials ticked 6.0, the lecture's materials ready 12.0 (the link to the exam, the
+     third block, comes with them: the same lectures give the answer's points and quotes, slide 9). -->
+<div class="dev lift" data-pptx="shape" data-name="!!dot" style="left:608px;top:392px;width:1184px;height:600px;border-radius:36px"></div>
+<img data-pptx="video" data-name="!!clip" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="1" data-src="../media/product/lecture-placeholder.mp4" data-poster="../media/product/lecture-placeholder.jpg" data-loop src="../media/product/lecture-placeholder.jpg" aria-label="Живой сайт на ноутбуке, «Разобрать лекцию»: шаг 1 «Что разобрать», вкладки «Файл», «Текст», «Ссылка» и выбранная «Аудио и видео»; «Перетащите файл сюда», форматы MP4, MP3, WAV, MPEG, M4A — до 15 МБ" alt="" style="left:624px;top:408px;width:1152px;height:568px">
+
+<div class="mo-c" data-pptx="text" style="top:420px" data-anim="fade" data-anim-trigger="with" data-anim-delay="2150" data-anim-dur="400" data-anim-order="3">Аудио и&nbsp;видео</div>
+<div class="mo" data-pptx="text" style="top:460px" data-anim="rise" data-anim-trigger="with" data-anim-delay="2250" data-anim-dur="500" data-anim-order="3">Запись лекции&nbsp;—<br>файлом до&nbsp;15&nbsp;МБ</div>
+<div class="mo-c" data-pptx="text" style="top:604px" data-anim="fade" data-anim-trigger="with" data-anim-delay="6150" data-anim-dur="400" data-anim-order="3">Что сделать из&nbsp;лекции</div>
+<div class="mo" data-pptx="text" style="top:644px" data-anim="rise" data-anim-trigger="with" data-anim-delay="6250" data-anim-dur="500" data-anim-order="3">Конспект, карточки,<br>тест, выжимка, подкаст</div>
+<!-- The link to the exam, in the answer aloud's blue (06's sixth branch): these lectures are what an oral answer is
+     checked against. -->
+<div class="mo-c" data-pptx="text" style="top:788px" data-anim="fade" data-anim-trigger="with" data-anim-delay="12150" data-anim-dur="400" data-anim-order="3">Ответ вслух</div>
+<div class="mo blue" data-pptx="text" style="top:828px" data-anim="rise" data-anim-trigger="with" data-anim-delay="12250" data-anim-dur="500" data-anim-order="3">Из&nbsp;этих же лекций&nbsp;—<br>пункты ответа и&nbsp;цитаты<br>для&nbsp;проверки, слайд 9</div>
+
+<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
+<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
+<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
+<div class="sq done" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
+<div class="sq now" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
+<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
+<!-- header:end -->
+
+<template data-pptx="notes">Начнём с лекций — с ними студент работает весь семестр. Лекцию загружают файлом или фото, текстом, ссылкой на страницу или записью до 15 мегабайт.
+
+Дальше студент выбирает, что сделать. По умолчанию отмечены конспект, карточки для повторения по дням и тест с объяснением ошибок; можно добавить выжимку на одну страницу и подкаст, где два ведущих обсуждают лекцию.
+
+Из этих же лекций Meldy берёт пункты ответа и цитаты, когда проверяет ответ вслух.
+
+О записи: [сверить с роликом, когда он будет готов] это живой сайт. Лекция в ролике — наша: текст «Рыночное равновесие», голос синтезирован; в ролике отмечены все пять материалов. Ожидание, пока Meldy готовит материалы, вырезано мягким переходом, ничего не ускорено.
+
+Если спросят: запись — файлом MP4, MP3, WAV, MPEG или M4A до 15 МБ. Это примерно 15–30 минут звука, видео той же длины весит больше; запись целой пары обычно больше лимита — её делят на части. Файл — PDF, DOCX, PPTX, HTML, TXT, MD, JPG или PNG. Ссылку на YouTube Meldy не открывает; со страницы по ссылке берёт основной текст без меню и рекламы. Сканы и фото страниц распознаёт Google Gemini, на телефоне конспект можно сфотографировать.</template>
+</main>
+</body>
+</html>

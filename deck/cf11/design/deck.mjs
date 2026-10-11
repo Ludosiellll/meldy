@@ -25,11 +25,12 @@ export const SECTIONS = [
 /**
  * The 15 slides. `section` is the mandatory section (1–10) the slide belongs to; an own slide has none and
  * sits between `after` and the next one. `corner`: what the top right shows — the wordmark with its dot
- * (the dot is at home), the contest's name (the title), or nothing (the dot is out: 06–10; 15 has the big one).
+ * (the dot is at home), the contest's name (the title), or nothing (the dot is out: 06–11; 15 has the big one).
  * `dark`: a stage slide in the app's dark theme (05, 12). `opening`: the strip is not out yet — its ten squares are
  * seeds hidden in the wordmark's dot and unroll out of it into the strip on 02 (no counter on 01); on the `finale`
- * they fly back into the dot. `dotAway`: the chain's dot (!!dot) is elsewhere on the slide (11: the first step of the
- * path, which the chat of 10 closes into), so the corner wordmark's dot gets a name that pairs with nothing.
+ * they fly back into the dot. `dotAway`: the chain's dot (!!dot) is not in the corner (12: the chat of 11 fades out
+ * while its «Пригласить группу» button travels into the path), so the corner wordmark's dot gets a name that pairs
+ * with nothing.
  */
 export const SLIDES = [
   { n: 1, file: '01-title.html', title: 'Титульный', section: 1, corner: 'runner', opening: true },
@@ -38,12 +39,12 @@ export const SLIDES = [
   { n: 4, file: '04-goal.html', title: 'Цель, задачи', section: 4, corner: 'mark' },
   { n: 5, file: '05-novelty.html', title: 'Новизна и инновационность', section: 5, corner: 'mark', dark: true },
   { n: 6, file: '06-contents.html', title: 'Содержание', section: 6, corner: 'none' },
-  { n: 7, file: '07-exam-plan.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 8, file: '08-oral.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 9, file: '09-sheet.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 10, file: '10-group.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 11, file: '11-testing.html', title: 'Тестирование и продвижение', section: null, after: 7, corner: 'mark', dotAway: true },
-  { n: 12, file: '12-scale.html', title: 'Масштабируемость', section: null, after: 7, corner: 'mark', dark: true },
+  { n: 7, file: '07-lectures.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
+  { n: 8, file: '08-exam-plan.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
+  { n: 9, file: '09-oral.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
+  { n: 10, file: '10-sheet.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
+  { n: 11, file: '11-group.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
+  { n: 12, file: '12-testing-scale.html', title: 'Тестирование, продвижение и масштабируемость', section: null, after: 7, corner: 'mark', dotAway: true, dark: true },
   { n: 13, file: '13-sources.html', title: 'Используемые источники', section: 8, corner: 'mark' },
   { n: 14, file: '14-tech.html', title: 'Технические требования', section: 9, corner: 'mark' },
   { n: 15, file: '15-conclusion.html', title: 'Заключение', section: 10, corner: 'none', finale: true },

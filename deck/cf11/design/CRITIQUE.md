@@ -206,3 +206,63 @@ lecture toolkit: 06 had one line, «лекции — PDF, DOCX, PPTX или фо
 | M6.2 | The build: the heads and chips settle, the exam's lines are written in, the lecture's spine is drawn down (900 ms) and each branch shoots out as its front passes, the line written in after it; one automatic group of 2.8 s, 58 effects. | **checked** — `06-in.mp4` at 1.5–4.5 s. |
 | E6.1 | «сверка с лекциями, с цитатами»: two «с» (cf. 3.4); «… компьютера и бот в Telegram»: two «и». | **fixed** — «сверка с лекциями и цитаты»; «Веб-приложение для телефона и компьютера, бот в Telegram». |
 | T6.1 | The notes for 06 grew from about 45 to about 175 words (the script gave 06 twenty seconds). | **fixed** — the spoken part is about 60 words (about 30 s at 110 words a minute; the script gives 06 2:00–2:30 and the whole talk still ends at 7:00); the formats, 15 MB, «no YouTube links» and Gemini moved to an «Если спросят» line in the notes. |
+
+## Round 7 — the lectures first, and one slide for the jury's criteria
+
+The owner, 2026-10-11, after my advice to keep the lectures on 06 only: «как будто бы нужно показать, даже если это у
+других сервисов есть, но там на это не смотрят, это очень важно, это даже важнее чем экзамен как будто». Still 15
+slides, the ten names exact: the lectures get 06's left half and a product slide of their own (07); the exam's four
+slides move to 08–11; the old 11 and 12 become one 12.
+
+| # | Change | Status |
+|---|---|---|
+| O7.1 | 06 lecture-first: «Meldy делает из лекций конспект, карточки и тест, а из перечня вопросов — экзамен»; «Лекция» left with «слайд 7» by its head, the blue answer aloud → «слайд 9»; «Экзамен» right, its blocks on 8, 8, 8 и 11, 9 и 10, 11. The 05→06 dot lands on «Конспект»'s bullet. «главное на одну страницу» lost «перед экзаменом» so the lecture's half ends at x 968, 94 px before the exam's bullets. | **done** |
+| O7.2 | New 07 «Представление блоков проекта» — the lectures, in 08's laptop frame: «Лекция — файл, фото, ссылка или видео — становится конспектом, карточками и тестом»; the captions «Аудио и видео — Запись лекции — файлом до 15 МБ», «Что сделать из лекции — Конспект, карточки, тест, выжимка, подкаст». | **done, placeholder clip** — a still of the live «Разобрать лекцию» (the recording agent's capture, «Аудио и видео» chosen) as a 6 s static clip, `lecture-placeholder`; placeholder moments 2.0 / 6.0 / 12.0 s. The swap to `lecture-materials` is one edit (PLAN §5). |
+| O7.3 | Old 07–10 → 08–11 with history (`git mv`): titles, comments, the strip (07–11 share square 07), 11's built names `!!x11…`. 08's screen now rides in from 07 under Morph, so it lost its entrance (objects that morph never build) and its steps moved 150 ms earlier (plain clip seconds; its first frame is its poster, mean difference 2.7 grey levels); 07→08 is a 1.3 s change in place. | **done** |
+| O7.4 | Old 11 + 12 → 12 «Тестирование, продвижение и масштабируемость» (dark): testing and scale on top, the promotion path below on the grid (128, 554, 980), the «Пригласить группу» pill under «Группа» (it morphs straight down from 11). The night field, its ladder and «ваша группа» are dropped; the file is 1.4 MB lighter (4.29 MB). | **done** |
+| O7.5 | 04: a fifth task first, «Лекции → конспект, карточки, тест»; the «0», its caption and the map moved 56 px right to stay clear of it. | **done** |
+| O7.6 | 15: «студентам — весь семестр: конспект, карточки, тест», «студентам — перед сессией: экзамен по перечню», «преподавателям — раздать экзамен всей группе»; monetisation unchanged; both caps about 30 px under the text above them. | **done** |
+| O7.7 | Notes: 06 (56 words), 07 (69), 12 (66) written; 04, 08, 15 adjusted. The talk is 766 words, 6:58 at 110 words a minute (about 7:03 with the numbers said in full). | **done** |
+
+### Fact review (the coordinator's corrections in this round)
+
+| # | Finding | Status |
+|---|---|---|
+| F7.1 | «ИИ работает только на устных ответах» is false now that lectures have a slide: the lecture analysis, the exam's mapping and the answer's points run on AI too. | **fixed** — gone from slides and notes; 12 says «Тестовые вопросы проверяются без ИИ и ничего не стоят», the notes give the per-account daily limit (100 units free, 1000 PRO; a lecture 20, an oral answer 4: `frontend/src/lib/plans.ts`). |
+| F7.2 | The old 12's note «одна проверка стоит нам [меньше копейки — сверить 21.10]» contradicts `plans.ts`: an oral answer is 4 units, a unit ≈ 0,1 ₽ of model costs by the calculation of 2026-10-04. | **fixed** — removed with «бесплатный тариф выдерживает рост», which rested on F7.1; no cost is claimed. |
+| F7.3 | The test counts are the full runs of 2026-10-11: 4 415 сайт · Vitest + 1 832 сервер · pytest + 319 бот = 6 566. | **fixed** — recount on the freeze day (PLAN §5). |
+| F7.4 | «… автотестов перед каждым выпуском» is false today: no CI runs the suites, and before a release only some are run by hand. | **fixed** — «6 566 автотестов» stands alone; the claim is «Каждый выпуск проверяют автотесты, потом — живой сайт»; no «на телефоне и компьютере» for every release, in the notes either. |
+| F7.5 | 07 must not read as a generic notes app, and the student picks the materials. | **fixed** — 07's third block, in the answer aloud's blue: «Ответ вслух — Из этих же лекций — пункты ответа и цитаты для проверки, слайд 9»; the notes say конспект, карточки, тест are ticked by default and выжимка, подкаст are opt-in (`types/index.ts` DEFAULT_SETTINGS); 06's notes say «то, что выберет студент». |
+| F7.6 | A video comes only as a file (MP4, MP3, WAV, MPEG, M4A up to 15 MB); nothing may suggest a phone video of any length works. | **fixed** — 07's claim lost «Любая»; its caption says «файлом до 15 МБ»; the notes add that a video weighs more than its sound and a whole pair is split. |
+
+### Self-critique
+
+| # | Finding | Status |
+|---|---|---|
+| S7.1 | 06: the halves share their baselines, so a fast eye could run from a lecture's description into an exam line. | **kept** — 94 px and the exam's bullets separate them; both ink heads at y 448 announce two columns (still read). |
+| S7.2 | 07: the blue three-line block is the loudest thing in the left column. | **kept** — it is the slide's link to the exam and wears 06's answer-aloud blue; it comes in last. |
+| S7.3 | 07: the placeholder poster is a 2.25× upscale of a 1024 px capture, soft at full screen; the captions name what the clip is planned to show. | **open** — the real clip and `lecture-moments.json` replace both. |
+| S7.4 | 12: two numbers, 6 566 (180 px) and ≈ 229 тыс. (110 px). | **kept** — one hero, the claim's proof; 229 тыс. is 03's number in a smaller size, with its source. |
+| S7.5 | 12: the claim speaks for testing only. | **kept** — the label names the three criteria and each zone has its cap; a claim that covers three turns into a list. |
+| S7.6 | 12 lost round 2's night field, the scale's «wow». | **kept** — the owner's merge; calm over cram. `motion/scale.html` stays as an unused source. |
+| S7.7 | The recordings keep their first slide numbers (`07-exam-plan` is on 08). | **kept** — they are names of takes, and the recording tools use them; PLAN says so. |
+
+### Motion (the preview of 04, 06, 07, 08, 12, 13, 15; the morph-log of all fourteen changes)
+
+| # | Finding | Status |
+|---|---|---|
+| M7.1 | 05→06: the corner dot flies to «Конспект»'s bullet (192, 670) as the lights come up and lands alone; then the lecture builds and the exam follows it. | **checked** — 06-in keyframes, 06's build strip. |
+| M7.2 | 06→07: the bullet grows into the laptop over the fading list, for a moment covering the first letters of «Конспект»; the bezel lands dark and the screen turns on 150 ms later. | **kept** — as round 6 with the exam's bullet (M6.1); under a quarter of a second. |
+| M7.3 | 07→08: the bezel holds still (morph-log: «no change») and only the screen crossfades, the lecture page into the exam's poster; 07's left column fades and 08 builds its own. | **checked** — 08-in keyframes. |
+| M7.4 | 11→12: the lights go down, the chat fades, the «Пригласить группу» pill travels down to its place under «Группа» and dims with the room; the corner wordmark fades in. | **checked** — 12-in keyframes. |
+| M7.5 | 12: «Группа» rose from 108 px below, through the pill that is already there (12-in at 3.0 s). | **fixed** — the path is written left to right: each step wipes in after its arrow. |
+| M7.6 | 12→13: the lights come up; the wordmark holds, and the corner dot fades in in place (12's is `!!x12dot`). | **checked** — 13-in keyframes. |
+| M7.7 | 03→04 lands the «0» 56 px further right; 14→15 is unchanged. | **checked** — 04-in, 15-in. |
+
+After the fixes:
+* `node design/preview/lint.mjs`: no errors, no warnings; `timeline.mjs`: no warnings (04 2.1 s, 06 2.74 s, 12 2.65 s,
+  15 3.0 s; 07 and 08 follow their clips, 12.75 s and 22.9 s).
+* `tools/make.sh`: ALL GREEN, 4.29 MB (1453 checks; validate.py passed; worst text offset 1.89 px; the native shadows within
+  p99 4 grey levels). The dropped night field took about 1.4 MB with it.
+* morph-log: 0 automatic pairs, 0 geometry changes on all fourteen changes.
+* Open: S7.3 (07's recording and its moments), R3.6 (the pilot's numbers, the BELTA note's address).

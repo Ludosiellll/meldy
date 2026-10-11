@@ -11,7 +11,8 @@ slide texts and the talk: meldy-notes `10_Project/CodingFest_11_Deck_Script.md`;
 - 16:9, **15 slides at most**, the 10 mandatory names of Приложение 2 verbatim, in this order: «Титульный», «Автор
   проекта», «Актуальность», «Цель, задачи», «Новизна и инновационность», «Содержание», «Представление блоков проекта»
   (may span several slides), «Используемые источники», «Технические требования», «Заключение». Own slides
-  («Тестирование и продвижение», «Масштабируемость») sit between the blocks and «Используемые источники».
+  (one since round 7: «Тестирование, продвижение и масштабируемость») sit between the blocks and «Используемые
+  источники».
 - **No hidden slides** in the submitted file. File **≤ 9.5 MB** (decimal), Latin file name, a PDF copy next to it.
 - **The static frame is the master copy.** Normal view, the PDF and LibreOffice show every object at its final place;
   animations only add (entrance effects only, no exits, no motion paths that end elsewhere). Nothing essential lives
@@ -19,10 +20,11 @@ slide texts and the talk: meldy-notes `10_Project/CodingFest_11_Deck_Script.md`;
 - Onest only (static TTFs in `design/fonts/`, embedded in the PPTX). Meldy tokens only: canvas `#F3F3F0`, surface
   `#FFFFFF`, ink `#0B121C`, muted `#4B515B`, faint `#8A8F97`, line `#E3E3DD`, blue `#2869DD` (pill) / `#1F5BC6` (labels),
   blue-soft `#E8EFFC` (an avatar's round), yellow dot `#F4C45B`, named-once `#E9B13C`, pink tag `#F5B6CD`.
-  **Dark stage slides** (05 «Новизна», 12 «Масштабируемость»; `<main class="slide dark">`) use the app's own dark
-  theme (`frontend/src/index.css` `.dark`) instead: canvas `#0B0F16`, surface `#141A24`, surface-soft `#1B2230`, ink
-  `#F3F3F0`, muted `#A7ADB7`, line `#262E3B`, labels `#8DB2F5`, yellow `#F4C45B`; Morph into and out of them is the
-  lights going down and up. No gradients, glow, glass, particles, emoji, generated pictures, paper or handwriting.
+  **Dark stage slides** (05 «Новизна», 12 «Тестирование, продвижение и масштабируемость»; `<main class="slide dark">`)
+  use the app's own dark theme (`frontend/src/index.css` `.dark`) instead: canvas `#0B0F16`, surface `#141A24`,
+  surface-soft `#1B2230`, ink `#F3F3F0`, muted `#A7ADB7`, line `#262E3B`, labels `#8DB2F5`, yellow `#F4C45B`; Morph
+  into and out of them is the lights going down and up. No gradients, glow, glass, particles, emoji, generated
+  pictures, paper or handwriting.
 - Type on a 1920×1080 slide: mandatory label 40–48 px (20–24 pt) caps 600 blue; claim 72–80 px (36–40 pt) 600, two
   lines at most; a manifesto's statement (05) 96–112 px; the wordmark on 01 and 15 280–320 px; hero numbers 360–440 px;
   steps and lists 44–48 px; sources and «как считается» 28–32 px (14–16 pt); nothing under 28 px. One hero per slide;
