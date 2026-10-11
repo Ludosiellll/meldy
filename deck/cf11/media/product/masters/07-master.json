@@ -1,0 +1,134 @@
+{
+ "clip": "07",
+ "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/07-e",
+ "size": [
+  1440,
+  900
+ ],
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "capture_scale": 1.0,
+ "device_scale": 2,
+ "fps": 30,
+ "frames": 594,
+ "seconds": 19.8,
+ "dissolve_frames": 15,
+ "stretches": [
+  {
+   "from": "new-0.2",
+   "to": "@4.0",
+   "clip_from": 0.0,
+   "clip_to": 2.567,
+   "take_from": 1.437,
+   "take_to": 4.0,
+   "hold": 0
+  },
+  {
+   "from": "@4.2",
+   "to": "@7.42",
+   "clip_from": 2.567,
+   "clip_to": 6.2,
+   "take_from": 4.2,
+   "take_to": 7.42,
+   "hold": 0.4
+  },
+  {
+   "from": "@7.75",
+   "to": "dated+0.5",
+   "clip_from": 6.2,
+   "clip_to": 9.067,
+   "take_from": 7.75,
+   "take_to": 10.614,
+   "hold": 0
+  },
+  {
+   "from": "minutes-0.05",
+   "to": "minuted+0.4",
+   "clip_from": 9.067,
+   "clip_to": 11.867,
+   "take_from": 11.377,
+   "take_to": 14.193,
+   "hold": 0
+  },
+  {
+   "from": "save-0.05",
+   "to": "@17.95",
+   "clip_from": 11.867,
+   "clip_to": 14.833,
+   "take_from": 14.97,
+   "take_to": 17.95,
+   "hold": 0
+  },
+  {
+   "from": "@19.28",
+   "to": "@20.95",
+   "clip_from": 14.833,
+   "clip_to": 16.5,
+   "take_from": 19.28,
+   "take_to": 20.95,
+   "hold": 0
+  },
+  {
+   "from": "plan-0.05",
+   "to": "@24.6",
+   "clip_from": 16.5,
+   "clip_to": 19.8,
+   "take_from": 22.191,
+   "take_to": 24.6,
+   "hold": 0.9
+  }
+ ],
+ "moments": {
+  "new": 0.2,
+  "import": 2.267,
+  "chooser": 3.633,
+  "file": 4.1,
+  "found": 4.933,
+  "date": 7.7,
+  "dated": 8.567,
+  "hint": 8.567,
+  "minutes": 9.1,
+  "minuted": 11.467,
+  "save": 11.9,
+  "saving": 13.2,
+  "today": 14.967,
+  "plan": 16.533,
+  "planned": 17.733
+ },
+ "camera": [
+  {
+   "top": 0,
+   "bottom": 650,
+   "clip": 0.0
+  },
+  {
+   "top": 165,
+   "bottom": 890,
+   "clip": 4.133
+  },
+  {
+   "top": 0,
+   "bottom": 650,
+   "clip": 14.833
+  }
+ ],
+ "window": {
+  "name": "07-exam-plan",
+  "box": [
+   1080,
+   544
+  ],
+  "radius": 24
+ },
+ "poster": {
+  "file": "07-poster.png",
+  "still": "poster",
+  "scale": 2.0,
+  "camera": {
+   "top": 0,
+   "bottom": 650
+  }
+ }
+}

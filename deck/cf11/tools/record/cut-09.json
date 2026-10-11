@@ -1,0 +1,19 @@
+{
+  "clip": "09",
+  "take": "09-d",
+  "pointer": "mouse",
+  "fps": 30,
+  "segments": [
+    { "from": "answer-0.2", "to": "@2.85" },
+    { "from": "@2.85", "to": "@5.3" },
+    { "from": "@6.65", "to": "done+0.25" },
+    { "from": "sent", "to": "@13.05" },
+    { "from": "back", "to": "@18.65", "hold": 1.6 }
+  ],
+  "loop": { "dissolve": 0.5 },
+  "camera": [
+    { "at": "answer-0.2", "top": 0, "bottom": 650 }
+  ],
+  "poster": { "still": "after", "camera": { "top": 0, "bottom": 650 } },
+  "window": { "name": "09-sheet-erase", "box": [1080, 544], "radius": 24 }
+}

@@ -1,0 +1,100 @@
+{
+ "clip": "09",
+ "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/09-d",
+ "size": [
+  1440,
+  900
+ ],
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "capture_scale": 1.0,
+ "device_scale": 2,
+ "fps": 30,
+ "frames": 415,
+ "seconds": 13.833,
+ "dissolve_frames": 15,
+ "stretches": [
+  {
+   "from": "answer-0.2",
+   "to": "@2.85",
+   "clip_from": 0.0,
+   "clip_to": 2.067,
+   "take_from": 0.772,
+   "take_to": 2.85,
+   "hold": 0
+  },
+  {
+   "from": "@2.85",
+   "to": "@5.3",
+   "clip_from": 2.067,
+   "clip_to": 4.533,
+   "take_from": 2.85,
+   "take_to": 5.3,
+   "hold": 0
+  },
+  {
+   "from": "@6.65",
+   "to": "done+0.25",
+   "clip_from": 4.533,
+   "clip_to": 6.167,
+   "take_from": 6.65,
+   "take_to": 8.286,
+   "hold": 0
+  },
+  {
+   "from": "sent",
+   "to": "@13.05",
+   "clip_from": 6.167,
+   "clip_to": 7.467,
+   "take_from": 11.765,
+   "take_to": 13.05,
+   "hold": 0
+  },
+  {
+   "from": "back",
+   "to": "@18.65",
+   "clip_from": 7.467,
+   "clip_to": 13.833,
+   "take_from": 13.877,
+   "take_to": 18.65,
+   "hold": 1.6
+  }
+ ],
+ "moments": {
+  "answer": 0.2,
+  "ticket": 1.533,
+  "pasted": 3.067,
+  "done": 5.933,
+  "followup": 5.933,
+  "sent": 6.167,
+  "protocol": 6.233,
+  "back": 7.467,
+  "sheet2": 8.633
+ },
+ "camera": [
+  {
+   "top": 0,
+   "bottom": 650,
+   "clip": 0.0
+  }
+ ],
+ "window": {
+  "name": "09-sheet-erase",
+  "box": [
+   1080,
+   544
+  ],
+  "radius": 24
+ },
+ "poster": {
+  "file": "09-poster.png",
+  "still": "after",
+  "scale": 2.0,
+  "camera": {
+   "top": 0,
+   "bottom": 650
+  }
+ }
+}
