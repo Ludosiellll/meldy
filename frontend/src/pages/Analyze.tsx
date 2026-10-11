@@ -16,7 +16,7 @@ import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, nextL
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
-import { OCR_NOTICE, OCR_PHOTO_NOTICE, TRANSCRIPT_NOTICE, lectureFormatOf } from '../lib/lectureFormats';
+import { lectureFormatOf, recognizedNotice, type RecognizedSource } from '../lib/lectureFormats';
 import { secondsBucket, track } from '../lib/telemetry';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import {
@@ -50,6 +50,8 @@ interface SaveContext {
   extractedText: string;
   sourceName: string;
   demo: boolean;
+  /** Текст распознан со скана, с фото или из записи: материал помнит это для строки на странице лекции. */
+  recognized: RecognizedSource | null;
 }
 
 interface SaveInfo {
@@ -168,6 +170,8 @@ export default function Analyze() {
   // Текст этого запуска распознан со скана или фото (text_extracted с ocr: true) или из записи (transcribed: true):
   // строка над результатом.
   const [ocrNotice, setOcrNotice] = useState<string | null>(null);
+  // То же для сохранения: материал помнит, как получен его текст (summary_json.recognized).
+  const recognizedRef = useRef<RecognizedSource | null>(null);
   const [save, setSave] = useState<SaveInfo>(IDLE_SAVE);
   const [saveBusy, setSaveBusy] = useState(false);
 
@@ -240,6 +244,7 @@ export default function Analyze() {
         extractedText: context.extractedText,
         sourceName: context.sourceName,
         demoTextId: context.demo ? DEMO_TEXT_ID : null,
+        recognized: context.recognized,
       });
       const { data: inserted, error } = await supabase.from('materials').insert(row).select('id').single();
       const materialId = (inserted as { id?: string } | null)?.id;
@@ -309,10 +314,11 @@ export default function Analyze() {
       track('lecture_upload', { format: event.ocr === true && format === 'pdf' ? 'scan' : format, ocr: event.ocr === true });
       if (event.ocr === true) {
         const photo = lastRequestRef.current?.file?.type.startsWith('image/') ?? false;
-        setOcrNotice(photo ? OCR_PHOTO_NOTICE : OCR_NOTICE);
+        recognizedRef.current = photo ? 'photo' : 'scan';
       } else if (event.transcribed === true) {
-        setOcrNotice(TRANSCRIPT_NOTICE);
+        recognizedRef.current = 'recording';
       }
+      if (recognizedRef.current) setOcrNotice(recognizedNotice(recognizedRef.current));
       setState(prev => ({ ...prev, phase: 'analyzing', textLength: length ?? prev.textLength }));
     } else if (event.type === 'agent_start' && isSectionName(event.agent)) {
       setState(prev => ({
@@ -373,6 +379,7 @@ export default function Analyze() {
     setStarting(false);
     setStatusNote(undefined);
     setOcrNotice(null);
+    recognizedRef.current = null;
     setState(prev => ({
       phase: 'extracting',
       agents: initAgents.filter(agent => requested.includes(agent.id as SectionName)),
@@ -404,6 +411,7 @@ export default function Analyze() {
         extractedText: outcome.extractedText,
         sourceName: request.sourceName,
         demo,
+        recognized: recognizedRef.current,
       };
       lastSaveRef.current = { runId, context };
       setState(prev => ({

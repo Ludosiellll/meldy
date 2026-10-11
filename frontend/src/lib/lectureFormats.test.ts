@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   DOC_LEGACY_MESSAGE,
+  OCR_NOTICE,
+  OCR_PHOTO_NOTICE,
   PPT_LEGACY_MESSAGE,
+  TRANSCRIPT_NOTICE,
   VIDEO_LINK_MESSAGE,
   formatsList,
   isVideoLink,
   lectureFormatOf,
+  recognizedNotice,
   unreadableFileMessage,
 } from './lectureFormats';
 
@@ -130,5 +134,15 @@ describe('lectureFormatOf', () => {
     expect(lectureFormatOf(null, 'https://example.org')).toBe('url');
     expect(lectureFormatOf(new File(['x'], 'a.pdf', { type: 'application/pdf' }))).toBe('pdf');
     expect(lectureFormatOf(new File(['x'], 'a.ogg', { type: '' }))).toBe('other');
+  });
+});
+
+describe('recognizedNotice (one line for the result screen and the lecture page, QA 2026-10-11)', () => {
+  it('names how the text was got, and says nothing for a text that was not recognised', () => {
+    expect(recognizedNotice('recording')).toBe(TRANSCRIPT_NOTICE);
+    expect(TRANSCRIPT_NOTICE).toBe('Текст распознан из записи — сверьте термины, числа и имена.');
+    expect(recognizedNotice('photo')).toBe(OCR_PHOTO_NOTICE);
+    expect(recognizedNotice('scan')).toBe(OCR_NOTICE);
+    for (const other of [undefined, null, '', 'pdf', 1, {}]) expect(recognizedNotice(other)).toBeNull();
   });
 });

@@ -4,29 +4,40 @@ import { normalizeForMatch, wordStem } from '../conversation/visuals';
 import { splitFragmentHeading } from '../../utils/fragmentText';
 import { usePhone } from '../../lib/usePhone';
 import { fragmentNumber, fragmentWord, underlineStems, type SourceFragment } from './fragmentModel';
+import MathText, { MathPiece, shortenPieces, splitMath, type TextPiece } from './MathText';
 
 /** Longer fragments open with «Показать целиком». */
 const SLIP_LIMIT = 560;
 /** Pencil underlines per slip: more turns the slip into a colouring book. */
 const MAX_MARKS = 10;
 
-/** The fragment text with the words that share a stem with the section underlined by pencil. */
-function MarkedText({ text, stems, seedKey }: { text: string; stems: Set<string>; seedKey: string }) {
-  if (stems.size === 0) return <>{text}</>;
-  const parts = text.split(/([\p{L}\p{N}]+)/u);
+/**
+ * The fragment text with the words that share a stem with the section underlined by pencil, and its formulas
+ * ($…$ from a web page) drawn as the конспект draws them (QA 2026-10-11: the panel showed «$\triangle ABC$»).
+ */
+function MarkedText({ pieces, stems, seedKey }: { pieces: TextPiece[]; stems: Set<string>; seedKey: string }) {
   let count = 0;
   return (
     <>
-      {parts.map((part, index) => {
-        if (index % 2 === 1 && part.length >= 4 && count < MAX_MARKS && stems.has(wordStem(normalizeForMatch(part)))) {
-          count += 1;
-          return (
-            <PencilUnder key={index} seed={seedFrom(seedKey, count)}>
-              {part}
-            </PencilUnder>
-          );
-        }
-        return <Fragment key={index}>{part}</Fragment>;
+      {pieces.map((piece, pieceIndex) => {
+        if (piece.kind === 'math') return <MathPiece key={pieceIndex} piece={piece} />;
+        if (stems.size === 0) return <Fragment key={pieceIndex}>{piece.value}</Fragment>;
+        const parts = piece.value.split(/([\p{L}\p{N}]+)/u);
+        return (
+          <Fragment key={pieceIndex}>
+            {parts.map((part, index) => {
+              if (index % 2 === 1 && part.length >= 4 && count < MAX_MARKS && stems.has(wordStem(normalizeForMatch(part)))) {
+                count += 1;
+                return (
+                  <PencilUnder key={index} seed={seedFrom(seedKey, count)}>
+                    {part}
+                  </PencilUnder>
+                );
+              }
+              return <Fragment key={index}>{part}</Fragment>;
+            })}
+          </Fragment>
+        );
       })}
     </>
   );
@@ -48,8 +59,10 @@ export function FragmentSlip({ id, text, stems, caption, onClose, className = ''
   useEffect(() => setWhole(false), [id]);
   const parts = text ? splitFragmentHeading(text) : null;
   const body = parts?.body ?? '';
+  const pieces = useMemo(() => splitMath(body), [body]);
   const long = body.length > SLIP_LIMIT;
-  const shown = long && !whole ? `${body.slice(0, SLIP_LIMIT).replace(/\s+\S*$/, '')}…` : body;
+  // A long fragment is cut at a word, never inside a formula.
+  const shown = long && !whole ? shortenPieces(pieces, SLIP_LIMIT) : pieces;
   const marks = useMemo(() => underlineStems(text ?? '', stems), [text, stems]);
 
   return (
@@ -58,8 +71,12 @@ export function FragmentSlip({ id, text, stems, caption, onClose, className = ''
       <blockquote className="sf-slip sv-slip">
         {text ? (
           <>
-            {parts?.heading && <span className="sv-slip-head">{parts.heading}</span>}
-            <MarkedText text={shown} stems={marks} seedKey={`${id}:${stems.length}`} />
+            {parts?.heading && (
+              <span className="sv-slip-head">
+                <MathText text={parts.heading} />
+              </span>
+            )}
+            <MarkedText pieces={shown} stems={marks} seedKey={`${id}:${stems.length}`} />
           </>
         ) : (
           'Текст фрагмента недоступен.'

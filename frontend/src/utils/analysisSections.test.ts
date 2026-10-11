@@ -160,6 +160,14 @@ describe('material row', () => {
     expect((row.summary_json as Record<string, unknown>).receipt).toBe('r1.payload.signature');
   });
 
+  it('remembers a recognised text (scan, photo, recording) for the lecture page, and nothing for a plain one', () => {
+    const results = displayResults({ summarizer: summary, flashcards: cards, quiz }, { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' } });
+    const recorded = buildMaterialRow({ userId: 'u1', results, extractedText: 'Текст', sourceName: 'Лекция.mp3', recognized: 'recording' });
+    expect((recorded.summary_json as Record<string, unknown>).recognized).toBe('recording');
+    const typed = buildMaterialRow({ userId: 'u1', results, extractedText: 'Текст', sourceName: 'Лекция.txt', recognized: null });
+    expect(typed.summary_json).not.toHaveProperty('recognized');
+  });
+
   it('falls back to the source name for the title and has no demo keys for a normal run', () => {
     const results = displayResults(
       { flashcards: cards, summarizer: undefined as never, quiz: undefined as never },

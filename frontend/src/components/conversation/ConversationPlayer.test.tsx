@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ConversationPlayer, {
+  conversationVoiceLines,
   nextSpeed,
   plainLineText,
   sheetMetrics,
@@ -9,6 +10,7 @@ import ConversationPlayer, {
   speedLabel,
   WAIT_NOTE_MS,
   waitMessage,
+  warmConversationVoice,
 } from './ConversationPlayer';
 import { resetJobsForTests } from './jobs';
 
@@ -86,10 +88,20 @@ function activeScene(): HTMLElement {
   return layer;
 }
 
-type PlayCall = [string, string, () => void, (error: unknown) => void, () => void, { fallback?: string; persist?: boolean }];
+type PlayCall = [
+  string,
+  string,
+  () => void,
+  (error: unknown) => void,
+  () => void,
+  { fallback?: string; persist?: boolean; onRetry?: (cause: 'server' | 'network') => void },
+];
 const lastPlay = () => tts.playTTS.mock.calls[tts.playTTS.mock.calls.length - 1] as PlayCall;
-/** The hosts speak only with the server voice (never the browser's) and their clips are kept for a replay. */
-const HOST_VOICE = { fallback: 'none', persist: true };
+/**
+ * The hosts speak only with the server voice (never the browser's) and their clips are kept for a replay; the options
+ * also carry onRetry, which tells the status line whose failure a retry follows.
+ */
+const HOST_VOICE = expect.objectContaining({ fallback: 'none', persist: true });
 
 /** «Текст разговора» — ссылка в строке плеера; расшифровка открывается панелью поверх листа. */
 function openTranscript(): HTMLElement {
@@ -379,15 +391,81 @@ describe('ConversationPlayer', () => {
     }
   });
 
-  it('blames the internet only when the browser itself says the connection is slow', () => {
+  it('blames the internet only when the browser is offline, never a slow or failing server (QA 2026-10-11)', () => {
     expect(waitMessage('wait')).toBe('Готовим голос…');
     expect(waitMessage('slow')).toBe('Звук загружается дольше обычного. Реплика уже на экране — её можно читать.');
+    // Chrome builds its connection estimate from how long requests take, the slow /api/tts answers included:
+    // «3g» there is no reason to say the internet is slow.
     Object.defineProperty(navigator, 'connection', { value: { effectiveType: '3g' }, configurable: true });
     try {
-      expect(waitMessage('slow')).toBe('Медленный интернет: звук ещё загружается. Реплика уже на экране — её можно читать.');
+      expect(waitMessage('slow')).toBe('Звук загружается дольше обычного. Реплика уже на экране — её можно читать.');
+      // The server answered 502: the line says so.
+      expect(waitMessage('server')).toBe('Сервер озвучки ответил с ошибкой, пробуем ещё раз.');
+      // No answer at all: the connection is named only when the browser knows it is gone.
+      expect(waitMessage('network')).toBe('Звук не дошёл, пробуем ещё раз.');
+      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+      expect(waitMessage('network')).toBe('Нет связи с интернетом, пробуем ещё раз.');
+      expect(waitMessage('server')).toBe('Сервер озвучки ответил с ошибкой, пробуем ещё раз.');
     } finally {
       Reflect.deleteProperty(navigator, 'connection');
+      Reflect.deleteProperty(navigator, 'onLine');
     }
+  });
+
+  it('says the server failed, not the internet, as soon as a retry follows a 502, and keeps it until the sound', () => {
+    vi.useFakeTimers();
+    try {
+      render(<ConversationPlayer lines={modelLines} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+      act(() => vi.advanceTimersByTime(WAIT_NOTE_MS));
+      expect(screen.getByRole('status')).toHaveTextContent('Готовим голос…');
+
+      // The speech module got a 502 and is about to try again.
+      act(() => lastPlay()[5].onRetry?.('server'));
+      const serverLine = 'Сервер озвучки ответил с ошибкой, пробуем ещё раз.';
+      expect(screen.getByRole('status')).toHaveTextContent(serverLine);
+      // The 6 s note does not replace it with a guess.
+      act(() => vi.advanceTimersByTime(SLOW_NOTE_MS));
+      expect(screen.getByRole('status')).toHaveTextContent(serverLine);
+      expect(screen.getByRole('status')).not.toHaveTextContent(/интернет/);
+
+      // The retry brings the sound: the line goes away.
+      act(() => lastPlay()[4]());
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+      // A retry of a line that is no longer current says nothing.
+      const stale = lastPlay()[5].onRetry;
+      fireEvent.click(screen.getByRole('button', { name: 'Следующая реплика' }));
+      act(() => stale?.('server'));
+      expect(screen.queryByText(serverLine)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('prepares from outside exactly what the player prepares itself: the same texts and voices (the result screen)', () => {
+    const lines = [
+      { speaker: 'Max', text: 'Hi! **Today** we talk about `entropy`.' },
+      { speaker: 'Sofia', text: 'Let us start with the definition [S01].' },
+      { speaker: 'Max', text: 'And then the numbers.' },
+    ];
+    expect(conversationVoiceLines(lines)).toEqual([
+      { text: 'Hi! Today we talk about entropy.', role: 'male' },
+      { text: 'Let us start with the definition.', role: 'female' },
+      { text: 'And then the numbers.', role: 'male' },
+    ]);
+    // The result screen asks for the first two before its «Подкаст» tab is opened…
+    warmConversationVoice(lines);
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
+    const early = tts.prefetchTTSInOrder.mock.calls[0];
+    expect(early).toEqual([conversationVoiceLines(lines).slice(0, 2), { persist: true }]);
+    // …and the player, once on screen, asks for the very same clips: the first ▶ finds them ready.
+    render(<ConversationPlayer lines={lines} />);
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(2);
+    expect(tts.prefetchTTSInOrder.mock.calls[1]).toEqual(early);
+    // Nothing to prepare, nothing asked.
+    warmConversationVoice([]);
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(2);
   });
 
   it('prepares the sound of the first two lines once the player is on screen, once per conversation', () => {
@@ -1269,11 +1347,12 @@ describe('ConversationPlayer with the real speech module', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
-    // ▶ shares the warm-up's request for Max's line and then tries twice more (after 1 s, after 3 more s);
-    // the warm-up asked for Sofia's line once. The browser voice never speaks.
+    // ▶ asks for Max's line and then tries twice more (after 1 s, after 3 more s). The line the student waits for
+    // goes first: the warm-up does not ask for Sofia's line beside Max's retries, nor right after the server failed
+    // on his (QA 2026-10-11: that second request ran next to the first line's retry). The browser voice never speaks.
     const asked = (text: string) => ttsRequests().filter(request => request === text).length;
     expect(asked(lines[0].text)).toBe(3);
-    expect(asked(lines[1].text)).toBe(1);
+    expect(asked(lines[1].text)).toBe(0);
     expect(synth.speak).not.toHaveBeenCalled();
     expect(FakeAudio.instances).toHaveLength(0);
     const status = screen.getByRole('status');
@@ -1294,7 +1373,7 @@ describe('ConversationPlayer with the real speech module', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(asked(lines[1].text)).toBe(2);
+    expect(asked(lines[1].text)).toBe(1);
     expect(ttsRequests()[ttsRequests().length - 1]).toBe(lines[1].text);
     expect(synth.speak).not.toHaveBeenCalled();
     actual.stopTTS();

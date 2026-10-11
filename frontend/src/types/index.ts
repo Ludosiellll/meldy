@@ -119,6 +119,8 @@ export interface SummaryInfo {
   /** summary_json.origin = 'demo' и demo_text_id — результат анализа встроенного демо-текста. */
   origin?: string;
   demo_text_id?: string;
+  /** summary_json.recognized: текст распознан со скана, с фото или из записи (lib/lectureFormats recognizedNotice). */
+  recognized?: 'scan' | 'photo' | 'recording';
 }
 
 export interface CheatsheetInfo {

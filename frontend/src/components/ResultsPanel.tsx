@@ -38,7 +38,7 @@ import { openingResultTab, resultSectionFailed, resultTabs, type ResultExportIte
 import { charactersLabel } from '../utils/pastedText';
 import { pluralRu } from './conversation/visuals';
 import { repairMathEscapes } from '../lib/mathEscapes';
-import ConversationPlayer from './conversation/ConversationPlayer';
+import ConversationPlayer, { warmConversationVoice } from './conversation/ConversationPlayer';
 import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
 import './ResultsPanel.css';
 
@@ -647,6 +647,16 @@ export default function ResultsPanel({
   const conversationCount = conversationLines.filter(
     line => typeof line === 'object' && line !== null && typeof (line as { text?: unknown }).text === 'string',
   ).length;
+  // Right after an analysis the podcast's lines are new: no cache has their voice, and the first ▶ on «Подкаст»
+  // waited for a cold synthesis, 7–17 s of silence (QA 2026-10-11). The voice of its first lines is asked for as soon
+  // as the result is on screen, while the student reads the first tab — one line at a time, kept for the player.
+  const conversationLinesRef = useRef(conversationLines);
+  conversationLinesRef.current = conversationLines;
+  const conversationKey = useMemo(() => JSON.stringify(conversationLines), [conversationLines]);
+  useEffect(() => {
+    if (embedded || conversationCount === 0) return;
+    warmConversationVoice(conversationLinesRef.current);
+  }, [embedded, conversationKey, conversationCount]);
   const exerciseCount = flashcardCount + quizCount;
   const readingMinutes = textLength ? Math.max(1, Math.round(textLength / 800)) : null;
 

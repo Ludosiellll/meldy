@@ -51,7 +51,8 @@ function Harness({
 }
 
 const textarea = () => screen.getByLabelText('Текст лекции или конспекта') as HTMLTextAreaElement;
-const startButton = () => screen.getByRole('button', { name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Вставьте ссылку|Запускаем/ });
+const startButton = () =>
+  screen.getByRole('button', { name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Вставьте ссылку|Ссылку на видео не открыть|Запускаем/ });
 const lecture = (length: number) => `Лекция 3. Эластичность спроса\n${'а'.repeat(Math.max(0, length - 30))}`;
 
 afterEach(cleanup);
@@ -309,7 +310,8 @@ describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
     expect(plainText(note)).toBe(VIDEO_NOTE);
     expect(urlField()).toHaveAttribute('aria-describedby', note.id);
     expect(startButton()).toBeDisabled();
-    expect(startButton()).toHaveTextContent('Запустить анализ');
+    // The waiting start says why, as «Вставьте ссылку» and «Сначала выберите файл» do (QA 2026-10-11).
+    expect(startButton()).toHaveTextContent('Ссылку на видео не открыть');
     expect(startButton().getAttribute('aria-describedby')).toContain(note.id);
     expect(screen.queryByText(/Подойдёт открытая страница/)).toBeNull();
     fireEvent.click(startButton());

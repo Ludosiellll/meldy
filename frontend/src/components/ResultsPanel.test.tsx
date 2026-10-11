@@ -338,6 +338,57 @@ describe('«Подкаст» on the result screen opens with its player in view 
   });
 });
 
+describe('the podcast voice is prepared while the result is read (QA 2026-10-11: 7–17 s of silence after the first ▶)', () => {
+  const lines = [
+    { speaker: 'Макс', text: 'Заранее: что такое **энтропия**?' },
+    { speaker: 'Софья', text: 'Заранее: мера беспорядка системы.' },
+    { speaker: 'Макс', text: 'Заранее: а третья реплика ждёт плеера.' },
+  ];
+  const withPodcast = (): AnalysisResults => ({
+    ...partialResults(),
+    quiz,
+    podcast: { podcast: lines },
+    sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' }, podcast: { status: 'ok' } },
+  });
+  const voiceAsked = () =>
+    fetchMock.mock.calls
+      .filter(([url]) => url === '/api/tts')
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)) as { text: string; role: string });
+
+  beforeEach(() => {
+    let clips = 0;
+    Object.defineProperty(URL, 'createObjectURL', { value: () => `blob:early-${(clips += 1)}`, configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: () => undefined, configurable: true, writable: true });
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/tts' ? { ok: true, status: 200, headers: new Headers(), blob: async () => new Blob(['mp3']) } : jsonResponse(404, {}),
+    );
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+  });
+
+  it('asks for the first two lines on the analysis page before «Подкаст» is opened, in the voices the player uses', async () => {
+    renderPanel({ results: withPodcast() });
+    // The result opens on «Конспект»; the podcast's player is not on screen.
+    expect(screen.queryByRole('button', { name: 'Слушать' })).toBeNull();
+    await waitFor(() =>
+      expect(voiceAsked()).toEqual([
+        { text: 'Заранее: что такое энтропия?', role: 'male' },
+        { text: 'Заранее: мера беспорядка системы.', role: 'female' },
+      ]),
+    );
+  });
+
+  it('asks for nothing on the lecture page, where «Подкаст» is the page’s own mode', async () => {
+    renderPanel({ results: withPodcast(), embedded: true });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 30));
+    });
+    expect(voiceAsked()).toEqual([]);
+  });
+});
+
 describe('opening tab', () => {
   const full = (): AnalysisResults => ({ ...partialResults(), quiz, sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' } } });
 

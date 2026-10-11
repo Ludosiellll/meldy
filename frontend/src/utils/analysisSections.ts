@@ -14,6 +14,7 @@ import type {
   SectionStates,
   SectionStatus,
 } from '../types';
+import type { RecognizedSource } from '../lib/lectureFormats';
 import { getResultDisplayTitle } from './resultPresentation';
 
 export const SECTION_NAMES: readonly SectionName[] = ['summarizer', 'flashcards', 'quiz', 'cheatsheet', 'podcast'];
@@ -344,6 +345,8 @@ export interface MaterialRowInput {
   sourceName: string;
   /** Для демо-текста: summary_json.origin = 'demo' и этот demo_text_id. */
   demoTextId?: string | null;
+  /** Текст распознан со скана, с фото или из записи: summary_json.recognized (строка о нём на странице лекции). */
+  recognized?: RecognizedSource | null;
 }
 
 /**
@@ -379,6 +382,7 @@ export function buildMaterialRow(input: MaterialRowInput): Record<string, unknow
     summaryJson.origin = 'demo';
     summaryJson.demo_text_id = input.demoTextId;
   }
+  if (input.recognized) summaryJson.recognized = input.recognized;
 
   return {
     user_id: input.userId,

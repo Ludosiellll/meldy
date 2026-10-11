@@ -1403,6 +1403,11 @@ TTS_ATTEMPT_SECONDS = _tts_env_number("TTS_ATTEMPT_TIMEOUT_SECONDS", 15.0)
 TTS_TIMEOUT_SECONDS = _tts_env_number("TTS_TIMEOUT_SECONDS", 40.0)
 TTS_CONCURRENCY = int(_tts_env_number("TTS_CONCURRENCY", 3))
 TTS_FAILURE_DETAIL = "Не удалось озвучить текст"
+# The 502 comes after every attempt of the request has failed, so the client may ask again at once: the browser's
+# player remembers a failed line for Retry-After seconds instead of a minute (frontend utils/tts.ts retryDelay).
+TTS_FAILURE_HEADERS = {"Retry-After": "1"}
+# A synthesis slower than this is logged with its time: the logs then show where the first ▶ waits (QA 2026-10-11).
+TTS_SLOW_LOG_SECONDS = 3.0
 # Voice, rate and text fully determine the clip, so the browser may keep it for a day.
 TTS_SUCCESS_HEADERS = {"Cache-Control": "private, max-age=86400"}
 TTS_MEMORY_MAX_CLIPS = 300
@@ -1544,22 +1549,29 @@ async def _tts_attempt(text: str, voice_id: str, timeout: float) -> bytes:
 async def _synthesize_with_retries(text: str, voice_id: str) -> Optional[bytes]:
     """The clip, or None when every attempt failed (an error, the time limit or no audio)."""
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + TTS_TIMEOUT_SECONDS
+    started = loop.time()
+    deadline = started + TTS_TIMEOUT_SECONDS
     # A long text gets a longer attempt: about a second per 40 characters.
     attempt_seconds = max(TTS_ATTEMPT_SECONDS, len(text) / 40)
     for attempt in range(1, TTS_ATTEMPTS + 1):
         remaining = deadline - loop.time()
         if remaining <= 0:
             break
+        attempt_started = loop.time()
         try:
             # The outer limit also covers the wait for a free edge-tts slot.
             audio = await asyncio.wait_for(_tts_attempt(text, voice_id, min(attempt_seconds, remaining)), timeout=remaining)
         except Exception as e:
-            print(f"Edge-TTS attempt {attempt}/{TTS_ATTEMPTS} failed: {type(e).__name__}: {e}")
+            took = loop.time() - attempt_started
+            print(f"Edge-TTS attempt {attempt}/{TTS_ATTEMPTS} failed after {took:.1f}s ({voice_id}, {len(text)} chars): {type(e).__name__}: {e}")
         else:
+            took = loop.time() - attempt_started
             if audio:
+                total = loop.time() - started
+                if attempt > 1 or total >= TTS_SLOW_LOG_SECONDS:
+                    print(f"Edge-TTS: {voice_id}, {len(text)} chars in {total:.1f}s (attempt {attempt}/{TTS_ATTEMPTS}, this one {took:.1f}s)")
                 return audio
-            print(f"Edge-TTS attempt {attempt}/{TTS_ATTEMPTS} failed: empty audio")
+            print(f"Edge-TTS attempt {attempt}/{TTS_ATTEMPTS} failed after {took:.1f}s ({voice_id}, {len(text)} chars): empty audio")
         if attempt < TTS_ATTEMPTS:
             delay = TTS_RETRY_DELAYS[min(attempt, len(TTS_RETRY_DELAYS)) - 1]
             if loop.time() + delay >= deadline:
@@ -1619,7 +1631,7 @@ async def text_to_speech(request: Request, req: TTSRequest):
     if audio is None:
         audio = await _tts_shared_clip(key, text, voice_id)
     if not audio:
-        raise HTTPException(status_code=502, detail=TTS_FAILURE_DETAIL)
+        raise HTTPException(status_code=502, detail=TTS_FAILURE_DETAIL, headers=dict(TTS_FAILURE_HEADERS))
 
     return Response(content=audio, media_type="audio/mpeg", headers=dict(TTS_SUCCESS_HEADERS))
 

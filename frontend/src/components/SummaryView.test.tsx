@@ -147,6 +147,31 @@ describe('<SummaryView> formulas (finding LIB-2)', () => {
     expect(shown).not.toContain('ext');
     expect(section.textContent).not.toContain(TAB);
   });
+
+  it('draws the formulas of a fragment from a web page in its slip, pencil marks kept (QA 2026-10-11)', () => {
+    const sources = [
+      {
+        id: 'S01',
+        text: 'Доказательство подобием\nДля треугольника $\\triangle ABC$ с прямым углом проводится высота $CH$, и треугольники подобны: ${\\frac {a}{c}}={\\frac {|HB|}{a}}$.',
+      },
+    ];
+    const content = ['## Подобие треугольников', '', 'Высота делит треугольник на подобные треугольники [S01].'].join('\n');
+    render(<SummaryView data={{ content, terms: [], source_ids: ['S01'] } as never} sources={sources} />);
+    const section = screen.getByRole('heading', { level: 2, name: 'Подобие треугольников' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: 'Фрагмент лекции 1' }));
+    const slip = section.querySelector('.sv-slip') as HTMLElement;
+    expect(slip.querySelectorAll('.sv-math .katex')).toHaveLength(3);
+    const visible = Array.from(slip.childNodes)
+      .filter(node => !(node instanceof HTMLElement && (node.classList.contains('sv-math') || node.classList.contains('sv-math-run'))))
+      .map(node => node.textContent)
+      .join('');
+    expect(visible).not.toMatch(/\$|\\triangle|\\frac/);
+    // The words the section shares are still underlined by pencil, outside the formulas.
+    expect(slip.textContent).toContain('с прямым углом проводится высота');
+    const marked = Array.from(slip.querySelectorAll('.sf-under')).map(mark => mark.textContent);
+    expect(marked).toContain('треугольника');
+    expect(Array.from(slip.querySelectorAll('.sv-math .sf-under'))).toHaveLength(0);
+  });
 });
 
 describe('<SummaryView> on a wide page', () => {

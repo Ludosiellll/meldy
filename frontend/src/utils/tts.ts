@@ -85,7 +85,11 @@ const armWatchdog = () => {
 // голос не меняет никогда: она не смотрит на паузу сервера и временные
 // неудачи, делает до трёх попыток с паузами и только потом сообщает об ошибке.
 // Фоновая предзагрузка (prefetchTTSInOrder) идёт по одной реплике и сервер,
-// который только что отказал, не дёргает.
+// который только что отказал, не дёргает: реплика, на которой сервер сейчас
+// отказал, заканчивает очередь. Пока грузится реплика, которую ждут (playTTS),
+// очередь новых запросов не начинает: сначала звук текущей реплики, потом
+// остальные (QA 2026-10-11: на экране результата предзагрузка второй реплики
+// шла рядом с повтором первой, и первое ▶ молчало 14–17 секунд).
 //
 // Сохранённая озвучка (persist, контракт §6.9): реплики лежат в Cache API
 // 'meldy-tts-v1' под ключом /__tts/<роль>/<sha256(текст)> и переживают
@@ -106,7 +110,22 @@ const PERSIST_LIMIT = 300;
 const prefetchCache = new Map<string, string>();
 /** Звук тех же реплик, что в prefetchCache: его можно сохранить, не скачивая заново. */
 const clipBlobs = new Map<string, Blob>();
-const failedLines = new Map<string, { until: number; byPlayback: boolean }>();
+
+/**
+ * Почему звук не пришёл: 'server' — сервер ответил, но ошибкой (502, 429, пустой звук); 'network' — ответа не было
+ * вовсе (нет связи, обрыв, FETCH_TIMEOUT_MS). Экран по этому решает, кого назвать: сервер, а не интернет.
+ */
+export type TTSFailureCause = 'server' | 'network';
+
+interface LineFailure {
+  until: number;
+  byPlayback: boolean;
+  cause: TTSFailureCause;
+  /** Номер неудачи по порядку (failureCount): так видно, что неудача случилась только что, а не раньше. */
+  seq: number;
+}
+const failedLines = new Map<string, LineFailure>();
+let failureCount = 0;
 const prefetchPending = new Map<string, Promise<string | null>>();
 const memoryPersisted = new Map<string, Blob>();
 /** Реплики, которые точно сохранены (прочитаны из хранилища или записаны туда): их не проверяем снова. */
@@ -291,8 +310,9 @@ const retryDelay = (response: Response | null): number => {
   return LINE_RETRY_MS;
 };
 
-const rememberFailure = (key: string, delay: number, byPlayback: boolean) => {
-  failedLines.set(key, { until: Date.now() + delay, byPlayback });
+const rememberFailure = (key: string, delay: number, byPlayback: boolean, cause: TTSFailureCause) => {
+  failureCount += 1;
+  failedLines.set(key, { until: Date.now() + delay, byPlayback, cause, seq: failureCount });
   if (delay === Infinity) return;
   serverFailuresInRow += 1;
   if (serverFailuresInRow >= SERVER_PAUSE_AFTER) serverPausedUntil = Date.now() + SERVER_PAUSE_MS;
@@ -300,6 +320,29 @@ const rememberFailure = (key: string, delay: number, byPlayback: boolean) => {
 
 /** Сервер уже ответил, что этот текст не озвучит никогда (400, 413, 422). */
 const failedForGood = (key: string): boolean => failedLines.get(key)?.until === Infinity;
+
+/** Реплика не получила звук из-за временной неудачи, случившейся после неудачи номер `since`. */
+const failedSince = (key: string, since: number): boolean => {
+  const failure = failedLines.get(key);
+  return Boolean(failure && failure.seq > since && failure.until !== Infinity);
+};
+
+// ── Сначала реплика, которую ждут ───────────────────────────────────────────
+/** Сколько загрузок звука для playTTS идёт сейчас (вместе с их повторами). */
+let foregroundLoads = 0;
+let foregroundWaiters: Array<() => void> = [];
+
+/** Ждать, пока не грузится ни одна реплика, которую играют: фоновая очередь не отнимает у неё сервер. */
+const foregroundIdle = (): Promise<void> =>
+  foregroundLoads === 0 ? Promise.resolve() : new Promise(resolve => foregroundWaiters.push(resolve));
+
+const endForegroundLoad = () => {
+  foregroundLoads = Math.max(0, foregroundLoads - 1);
+  if (foregroundLoads > 0) return;
+  const waiters = foregroundWaiters;
+  foregroundWaiters = [];
+  waiters.forEach(resolve => resolve());
+};
 
 const skipServer = (key: string, mode: LoadMode): boolean => {
   const now = Date.now();
@@ -339,12 +382,12 @@ const loadClip = (text: string, role: VoiceRole, mode: LoadMode): Promise<string
           ...(controller ? { signal: controller.signal } : {}),
         });
         if (!resp.ok) {
-          rememberFailure(key, retryDelay(resp), byPlayback);
+          rememberFailure(key, retryDelay(resp), byPlayback, 'server');
           return null;
         }
         const blob = await resp.blob();
         if (blob.size === 0) {
-          rememberFailure(key, LINE_RETRY_MS, byPlayback);
+          rememberFailure(key, LINE_RETRY_MS, byPlayback, 'server');
           return null;
         }
         failedLines.delete(key);
@@ -354,7 +397,8 @@ const loadClip = (text: string, role: VoiceRole, mode: LoadMode): Promise<string
         if (timer !== null) clearTimeout(timer);
       }
     } catch {
-      rememberFailure(key, LINE_RETRY_MS, byPlayback);
+      // Ни ответа, ни звука: нет связи, обрыв или FETCH_TIMEOUT_MS.
+      rememberFailure(key, LINE_RETRY_MS, byPlayback, 'network');
       return null;
     } finally {
       prefetchPending.delete(key);
@@ -405,10 +449,13 @@ let inOrderTail: Promise<unknown> = Promise.resolve();
 
 /**
  * Предзагрузка нескольких реплик вперёд строго по одной: следующая реплика
- * запрашивается, когда предыдущая готова (или не удалась), так что сервер не
- * получает пачку запросов разом. Новый вызов заменяет прежний список: начатая
- * загрузка доживает, остальные прежние реплики уже не запрашиваются (пустой
- * список просто останавливает очередь). persist — как у prefetchTTS.
+ * запрашивается, когда предыдущая готова, так что сервер не получает пачку
+ * запросов разом. Реплика, на которой сервер сейчас отказал (502, 429, нет
+ * ответа), заканчивает очередь: остальные спросит плеер, когда до них дойдёт.
+ * Пока грузится реплика, которую играют (playTTS), очередь ждёт и нового
+ * запроса не начинает. Новый вызов заменяет прежний список: начатая загрузка
+ * доживает, остальные прежние реплики уже не запрашиваются (пустой список
+ * просто останавливает очередь). persist — как у prefetchTTS.
  */
 export const prefetchTTSInOrder = (
   lines: ReadonlyArray<{ text: string; role: VoiceRole }>,
@@ -419,7 +466,11 @@ export const prefetchTTSInOrder = (
   const work = async () => {
     for (const line of plan) {
       if (run !== inOrderRun) return;
-      await prefetchTTS(line.text, line.role, { persist: options.persist });
+      await foregroundIdle();
+      if (run !== inOrderRun) return;
+      const before = failureCount;
+      const url = await prefetchTTS(line.text, line.role, { persist: options.persist });
+      if (!url && failedSince(prefetchKey(line.text, line.role), before)) return;
     }
   };
   const next = inOrderTail.then(work, work);
@@ -474,14 +525,21 @@ const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms
 /**
  * Звук для реплики без запасного голоса: попытка и ещё STRICT_RETRY_DELAYS_MS.length
  * с паузами. Без оглядки на паузу сервера и прошлые временные неудачи; текст,
- * который сервер не озвучит никогда, второй раз не просим.
+ * который сервер не озвучит никогда, второй раз не просим. Перед каждым повтором
+ * onRetry узнаёт, почему звук не пришёл.
  */
-const loadInsisting = async (text: string, role: VoiceRole, isCurrent: () => boolean): Promise<string | null> => {
+const loadInsisting = async (
+  text: string,
+  role: VoiceRole,
+  isCurrent: () => boolean,
+  onRetry?: (cause: TTSFailureCause) => void,
+): Promise<string | null> => {
   const key = prefetchKey(text, role);
   for (let attempt = 0; ; attempt += 1) {
     const url = await loadClip(text, role, 'insist');
     if (url || !isCurrent()) return url;
     if (attempt >= STRICT_RETRY_DELAYS_MS.length || failedForGood(key)) return null;
+    onRetry?.(failedLines.get(key)?.cause ?? 'network');
     await wait(STRICT_RETRY_DELAYS_MS[attempt]);
     if (!isCurrent()) return null;
   }
@@ -498,6 +556,11 @@ export interface PlayTTSOptions {
   fallback?: 'browser' | 'none';
   /** Сохранить звук надолго (как prefetchTTS с persist): повтор и новый визит — без сервера. */
   persist?: boolean;
+  /**
+   * Только с fallback: 'none'. Звук этой попытки не пришёл, следующая будет после паузы: 'server' — сервер
+   * ответил ошибкой (тогда винить интернет нечестно), 'network' — ответа не было вовсе.
+   */
+  onRetry?: (cause: TTSFailureCause) => void;
 }
 
 /**
@@ -563,7 +626,18 @@ export const playTTS = async (
   currentRun = run;
   armWatchdog();
 
-  const url = insist ? await loadInsisting(text, role, isCurrent) : await loadClip(text, role, 'play');
+  // Пока звук этой реплики грузится (с повторами), фоновая очередь новых запросов не начинает.
+  foregroundLoads += 1;
+  let url: string | null;
+  try {
+    url = insist
+      ? await loadInsisting(text, role, isCurrent, cause => {
+          if (isCurrent()) options.onRetry?.(cause);
+        })
+      : await loadClip(text, role, 'play');
+  } finally {
+    endForegroundLoad();
+  }
   if (!isCurrent()) return;
   if (!url) {
     if (insist) run.fail(new TTSUnavailableError('server'));
