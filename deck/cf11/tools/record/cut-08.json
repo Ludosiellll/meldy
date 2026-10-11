@@ -1,22 +1,16 @@
 {
   "clip": "08",
-  "take": "08-d",
-  "pointer": "touch",
+  "take": "08-i",
   "fps": 30,
+  "fade": 0.45,
   "segments": [
-    { "from": "@0.3", "to": "@1.2" },
-    { "from": "@3.55", "to": "@5.72" },
-    { "from": "@7.3", "to": "@9.3" },
-    { "from": "@17.0", "to": "@18.3" },
-    { "from": "@43.9", "to": "@45.45" },
-    { "from": "@47.35", "to": "@49.8" },
-    { "from": "@51.25", "to": "@52.75" },
-    { "from": "@53.45", "to": "@55.33" },
-    { "from": "@55.7", "to": "@58.3" },
-    { "from": "@59.95", "to": "@62.2", "hold": 0.3 }
+    { "from": "@1.0", "to": "@14.9" },
+    { "from": "@16.3", "to": "@17.4", "fade": 0.4 },
+    { "from": "asked+0.3", "to": "@24.5" },
+    { "from": "@25.5", "to": "@31.2", "fade": 0.4 }
   ],
-  "loop": { "dissolve": 0.5 },
-  "camera": [],
-  "poster": { "still": "points" },
-  "window": { "name": "08-oral-answer", "box": [360, 792], "radius": 44 }
+  "loop": { "fade": 0.5 },
+  "camera": { "keys": [] },
+  "poster": { "at": "points+0.6", "still": "points" },
+  "window": { "name": "08-oral-answer", "box": [392, 848], "radius": 36, "bg": "#0b121c" }
 }

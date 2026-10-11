@@ -1,21 +1,24 @@
-"""Turn a take of the live site into a clip's master: the cut, the hand drawn where it really was, the loop's end.
+"""Turn a take of the live site into a clip's master: the cut, the crossfades, the loop's seam, the camera's beats.
 
     python3 -I deck/cf11/tools/record/edit.py deck/cf11/tools/record/cut-07.json [--takes DIR] [--masters DIR]
 
-A take (rec.cjs) is the page's own frames as Chromium painted them (each with its wall-clock time) and a log of the
-hand: pointer moves, presses, taps, named moments. The cut file names the stretches of the take to keep, by those
-moments (`"found-0.4"` = 0.4 s before the moment «found»); everything between them is cut — waits for the server, the
-system's file window. Inside a kept stretch time runs as it ran: nothing is sped up. A stretch may end on a held
-frame (`hold`, seconds). The last `loop.dissolve` seconds dissolve into the first frame, so the clip loops without a
-jump.
+A take (rec.cjs) is the page's own frames as Chromium painted them (each with its wall-clock time) and a log: the
+presses and taps, the rectangle each beat shows (Take.box), named moments. The cut file names the stretches of the
+take to keep, by those moments ("found-0.4" = 0.4 s before the moment «found», "@12.5" = 12.5 s into the take).
+What lies between two stretches is waiting — the server, the system's file window — and is cut; the next stretch
+comes in through a crossfade (`fade`, default 0.45 s), so a cut never jumps. Inside a stretch time runs as it ran:
+nothing is sped up. Where the page itself swaps for another (a link), the old page dissolves into the new one
+(`swaps`: the moments after which that happens). The last `loop.fade` seconds dissolve into the first frame.
 
-Writes, in the masters folder (default: $MELDY_MASTERS, else <takes>/../masters):
-  <clip>-master.mp4   the clip at the full window of the recording (laptop 1440 × 900, phone 780 × 1688), 30 fps,
-                      H.264 4:4:4, full range, BT.709, CRF 18 (45–49 dB PSNR against the frames: a high-quality
-                      intermediate, small enough to commit), the pointer or the touch drawn in
-  <clip>-master.json  its size, the kept stretches and the moments in clip seconds, the camera keys, the poster
-  <clip>-poster.png   the poster's still, re-rendered by Chromium at 2× (laptop) or 3× (phone)
-fit.py fits a master into a slide's window of any size through motion/loopmask.py.
+The camera is not applied here: the master keeps the whole window, and its json says which rectangle of the page
+each beat shows (`camera.keys`: from the take's logged boxes, in CSS px) and when the camera moves there. fit.py
+frames it for a screen of any size and draws a ring where the hand pressed (`clicks`).
+
+Writes, in the masters folder (default $MELDY_MASTERS, else <takes>/../masters):
+  <clip>-master.mp4   the whole window at the recording's device pixels (laptop 1024 × 800 CSS at 1.75 → 1792 × 1400,
+                      phone 390 × 844 at 2 → 780 × 1688), 30 fps, H.264 4:4:4, full range, BT.709, CRF 18
+  <clip>-master.json  the stretches; the moments, presses and camera beats in clip seconds; the poster
+  <clip>-poster.png   the poster's still: the page re-rendered by Chromium at 3×
 """
 import bisect
 import json
@@ -26,7 +29,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops
 
 DEFAULT_TAKES = '/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes'
 
@@ -37,152 +40,10 @@ def arg(name, default=None):
     return default
 
 
-# ───────────────────────────── the hand ─────────────────────────────
+def smooth(x):
+    x = min(1.0, max(0.0, x))
+    return x * x * (3 - 2 * x)
 
-ARROW = [(0, 0), (0, 16.6), (4.2, 12.7), (6.9, 19.0), (9.7, 17.9), (7.0, 11.8), (12.4, 11.8)]
-
-
-def arrow_sprite(height):
-    """The pointer as a computer draws it: black, a white edge, a soft shadow. Returns (RGBA, offset of the tip)."""
-    k = 8  # supersampling
-    unit = height / 20.5
-    pad = 6
-    size = (int((14 * unit + 2 * pad) * k), int((21 * unit + 2 * pad) * k))
-    pts = [((x * unit + pad) * k, (y * unit + pad) * k) for x, y in ARROW]
-    shadow = Image.new('L', size, 0)
-    ImageDraw.Draw(shadow).polygon([(x + 1.0 * unit * k, y + 1.5 * unit * k) for x, y in pts], fill=80)
-    shadow = shadow.filter(ImageFilter.GaussianBlur(1.5 * unit * k))
-    zero = Image.new('L', size, 0)
-    out = Image.merge('RGBA', (zero, zero, zero, shadow))
-    body = Image.new('RGBA', size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(body)
-    d.polygon(pts, fill=(255, 255, 255, 255), outline=(255, 255, 255, 255), width=max(1, int(2.4 * unit * k)))
-    d.polygon(pts, fill=(11, 18, 28, 255))
-    out = Image.alpha_composite(out, body)
-    return out.resize((size[0] // k, size[1] // k), Image.LANCZOS), pad
-
-
-class Hand:
-    """Where the pointer (or a finger) was at any moment of the take, and what it was doing."""
-
-    def __init__(self, events, kind, scale):
-        self.kind = kind
-        self.scale = scale
-        self.moves = sorted((e['t'], e['x'], e['y']) for e in events if e['kind'] in ('pointer', 'move', 'down', 'up', 'tap'))
-        self.times = [m[0] for m in self.moves]
-        self.downs = [(e['t'], e['x'], e['y']) for e in events if e['kind'] == 'down']
-        self.ups = sorted(e['t'] for e in events if e['kind'] == 'up')
-        self.taps = [(e['t'], e['x'], e['y']) for e in events if e['kind'] == 'tap']
-        # Drags: each a list of (t, x, y) from the touch's start to its end.
-        self.drags = []
-        for e in sorted((e for e in events if e['kind'] in ('touchstart', 'touchmove', 'touchend')), key=lambda e: e['t']):
-            if e['kind'] == 'touchstart':
-                self.drags.append([(e['t'], e['x'], e['y'])])
-            elif self.drags:
-                self.drags[-1].append((e['t'], e['x'], e['y']))
-        self.switches = sorted((e['t'], e['kind'] == 'show') for e in events if e['kind'] in ('hide', 'show'))
-        self.home = (self.moves[0][1], self.moves[0][2]) if self.moves else None
-        if kind == 'mouse':
-            self.sprite, self.pad = arrow_sprite(26 * scale)
-            w, h = self.sprite.size
-            self.sprite_down = self.sprite.resize((round(w * 0.9), round(h * 0.9)), Image.LANCZOS)
-
-    def at(self, t):
-        """The hand's place at t: between two logged steps of one movement (< 0.1 s apart), on the line between them."""
-        i = bisect.bisect_right(self.times, t) - 1
-        if i < 0:
-            return self.home
-        t0, x0, y0 = self.moves[i]
-        if i + 1 < len(self.moves):
-            t1, x1, y1 = self.moves[i + 1]
-            if 0 < t1 - t0 < 0.1:
-                p = (t - t0) / (t1 - t0)
-                return x0 + (x1 - x0) * p, y0 + (y1 - y0) * p
-        return x0, y0
-
-    def shown(self, t):
-        """How much of the pointer shows at t (0…1): it fades out in 0.2 s when hidden and back in when shown."""
-        level, since, state = 1.0, None, True
-        for ts, show in self.switches:
-            if ts <= t:
-                state, since = show, ts
-        if since is None:
-            return 1.0
-        p = min(1.0, (t - since) / 0.2)
-        return p if state else 1.0 - p
-
-    def pressed(self, t):
-        for td, _, _ in self.downs:
-            tu = next((u for u in self.ups if u >= td), td + 0.1)
-            if td <= t <= tu:
-                return True
-        return False
-
-    def draw(self, frame, t):
-        """The hand at take time t, drawn onto an RGB frame."""
-        return self._mouse(frame, t) if self.kind == 'mouse' else self._touch(frame, t)
-
-    def _mouse(self, frame, t):
-        s = self.scale
-        layer = None
-        for td, x, y in self.downs:  # the ring of a press: grows and fades in 0.42 s
-            age = t - td
-            if 0 <= age <= 0.42:
-                layer = layer or Image.new('RGBA', frame.size, (0, 0, 0, 0))
-                p = age / 0.42
-                e = 1 - (1 - p) ** 3
-                r = (9 + 17 * e) * s
-                a = int(255 * 0.34 * (1 - p))
-                ImageDraw.Draw(layer).ellipse((x * s - r, y * s - r, x * s + r, y * s + r), fill=(11, 18, 28, int(a * 0.35)),
-                                              outline=(11, 18, 28, a), width=max(1, round(2.2 * s)))
-        if layer is not None:
-            frame = Image.alpha_composite(frame.convert('RGBA'), layer).convert('RGB')
-        pos = self.at(t)
-        level = self.shown(t)
-        if pos is None or level <= 0:
-            return frame
-        down = self.pressed(t)
-        sprite = self.sprite_down if down else self.sprite
-        if level < 1:
-            sprite = sprite.copy()
-            sprite.putalpha(sprite.getchannel('A').point(lambda a: int(a * level)))
-        pad = self.pad * (0.9 if down else 1)
-        frame.paste(sprite, (round(pos[0] * s - pad), round(pos[1] * s - pad)), sprite)
-        return frame
-
-    def _touch(self, frame, t):
-        s = self.scale
-        layer = None
-        for tt, x, y in self.taps:  # a fingertip: comes in 0.09 s, stays, fades by 0.55 s
-            age = t - tt
-            if -0.02 <= age <= 0.55:
-                layer = layer or Image.new('RGBA', frame.size, (0, 0, 0, 0))
-                if age < 0.09:
-                    grow, alpha = 0.82 + 0.18 * max(0.0, age) / 0.09, 1.0
-                elif age < 0.24:
-                    grow, alpha = 1.0, 1.0
-                else:
-                    p = (age - 0.24) / 0.31
-                    grow, alpha = 1.0 + 0.12 * p, 1 - p
-                r = 21 * s * grow
-                ImageDraw.Draw(layer).ellipse((x * s - r, y * s - r, x * s + r, y * s + r), fill=(11, 18, 28, int(255 * 0.17 * alpha)),
-                                              outline=(255, 255, 255, int(255 * 0.85 * alpha)), width=max(1, round(1.6 * s)))
-        for steps in self.drags:  # a fingertip: lands, follows the drag as logged, lifts
-            t0, t1 = steps[0][0], steps[-1][0]
-            if t0 - 0.06 <= t <= t1 + 0.25:
-                layer = layer or Image.new('RGBA', frame.size, (0, 0, 0, 0))
-                k = max(0, bisect.bisect_right([st[0] for st in steps], t) - 1)
-                _, x, y = steps[k]
-                alpha = 1.0 if t0 <= t <= t1 else (max(0.0, (t - t0 + 0.06) / 0.06) if t < t0 else max(0.0, 1 - (t - t1) / 0.25))
-                r = 21 * s
-                ImageDraw.Draw(layer).ellipse((x * s - r, y * s - r, x * s + r, y * s + r), fill=(11, 18, 28, int(255 * 0.17 * alpha)),
-                                              outline=(255, 255, 255, int(255 * 0.85 * alpha)), width=max(1, round(1.6 * s)))
-        if layer is not None:
-            frame = Image.alpha_composite(frame.convert('RGBA'), layer).convert('RGB')
-        return frame
-
-
-# ───────────────────────────── the cut ─────────────────────────────
 
 def moment(spec, marks):
     """«found-0.4» → the take time 0.4 s before the moment «found»; «@20.4» → 20.4 s after the take's first frame."""
@@ -205,19 +66,19 @@ def main():
     masters = Path(arg('masters', os.environ.get('MELDY_MASTERS', str(takes.parent / 'masters'))))
     masters.mkdir(parents=True, exist_ok=True)
     take = json.loads((take_dir / 'take.json').read_text())
+
     # The screencast's stamps can come a frame out of order: the page's frames in the order they were painted.
-    # A still (Chromium re-rendering the page at 2× or 3× for the poster) can leak a frame drawn at that scale into
-    # the screencast; the frames sent while it was taken and 0.3 s after are dropped (the page stood still then).
-    # A leak is a run of frames far from the page as it was before the still that ends with the page back as it
-    # was: a transient. A level meter that keeps moving, or a scroll that starts right after, is not one.
+    # A still (Chromium re-rendering the page at 3× for the poster) can leak a frame drawn at that scale into the
+    # screencast. A leak is a run of frames far from the page as it was before the still that ends with the page
+    # back as it was: a transient. Such runs are dropped (the page stood still then).
     leaks = [(e['t'], e.get('t_end', e['t'] + 0.35) + 0.3) for e in take['events'] if e['kind'] == 'still']
     every = sorted(take['frames'], key=lambda f: f['t'])
 
     def small(f):
-        return Image.open(take_dir / 'raw' / f['file']).convert('L').reduce(4)
+        return Image.open(take_dir / 'raw' / f['file']).convert('L').reduce(8)
 
-    def far(ref, f):
-        diff = ImageChops.difference(ref, small(f)).point(lambda v: 255 if v > 32 else 0)
+    def far(ref, img):
+        diff = ImageChops.difference(ref, img).point(lambda v: 255 if v > 32 else 0)
         return diff.histogram()[255] / (ref.size[0] * ref.size[1])
 
     bad = set()
@@ -229,7 +90,7 @@ def main():
         ref = small(before[-1])
         run = []
         for f in inside:
-            d = far(ref, f)
+            d = far(ref, small(f))
             if d > 0.12:
                 run.append(f['file'])
             else:
@@ -239,49 +100,66 @@ def main():
                 if d >= 0.03:
                     break
     frames = [f for f in every if f['file'] not in bad]
-    dropped = len(bad)
     times = [f['t'] for f in frames]
     t_first = frames[0]['t']
     marks = {'@': t_first}
+    boxes = {}
     for e in take['events']:
         if e['kind'] == 'mark':
             marks.setdefault(e['name'], e['t'])
         elif e['kind'] == 'still':
             marks.setdefault(f"still_{e['name']}", e['t'])
+        elif e['kind'] == 'box':
+            boxes[e['name']] = e['rect']
     fps = cut.get('fps', 30)
     W, H = Image.open(take_dir / 'raw' / frames[0]['file']).size
     scale = W / take['viewport']['width']
-    hand = Hand(take['events'], cut.get('pointer', 'mouse'), scale)
 
-    # The timeline: the take time of each output frame; where each kept stretch begins in the clip.
-    plan, stretches = [], []
-    for seg in cut['segments']:
+    def frame_file(t):
+        return frames[max(0, bisect.bisect_right(times, t) - 1)]['file']
+
+    # The timeline: the take time of each output frame, the stretch it belongs to, where each stretch begins.
+    plan, owner, stretches = [], [], []
+    default_fade = cut.get('fade', 0.45)
+    for i, seg in enumerate(cut['segments']):
         a, b = moment(seg['from'], marks), moment(seg['to'], marks)
         if b <= a:
             raise SystemExit(f'segment {seg} runs backwards')
-        start = len(plan) / fps
-        plan += [a + k / fps for k in range(round((b - a) * fps))]
+        start = len(plan)
+        n = round((b - a) * fps)
+        plan += [a + k / fps for k in range(n)]
         plan += [b] * round(seg.get('hold', 0) * fps)
-        stretches.append({'from': seg['from'], 'to': seg['to'], 'clip_from': round(start, 3), 'clip_to': round(len(plan) / fps, 3),
-                          'take_from': round(a - t_first, 3), 'take_to': round(b - t_first, 3), 'hold': seg.get('hold', 0)})
-    dissolve = round(cut.get('loop', {}).get('dissolve', 0.5) * fps)
+        owner += [i] * (len(plan) - start)
+        stretches.append({'from': seg['from'], 'to': seg['to'], 'clip_from': round(start / fps, 3), 'clip_to': round(len(plan) / fps, 3),
+                          'take_from': round(a - t_first, 3), 'take_to': round(b - t_first, 3), 'hold': seg.get('hold', 0),
+                          'fade': 0 if i == 0 else seg.get('fade', default_fade), 'start': start})
     total = len(plan)
-    print(f"{cut['clip']}: {total} frames = {total / fps:.2f} s at {fps} fps, {W}×{H}; the last {dissolve} dissolve into the first; {dropped} frame(s) of stills dropped")
-    # Each cut: invisible when the page looks the same on both sides of it (beyond JPEG noise) and the hand has not moved.
-    for i in range(1, len(stretches)):
-        a = moment(cut['segments'][i - 1]['to'], marks)
-        b = moment(cut['segments'][i]['from'], marks)
-        fa = frames[max(0, bisect.bisect_right(times, a) - 1)]['file']
-        fb = frames[max(0, bisect.bisect_right(times, b) - 1)]['file']
-        box = None
-        if fa != fb:
-            da = Image.open(take_dir / 'raw' / fa).convert('L')
-            db = Image.open(take_dir / 'raw' / fb).convert('L')
-            box = ImageChops.difference(da, db).point(lambda v: 255 if v > 24 else 0).getbbox()
-        pa, pb = hand.at(a), hand.at(b)
-        moved = pa is not None and pb is not None and abs(pa[0] - pb[0]) + abs(pa[1] - pb[1]) > 1
-        kind = 'invisible' if box is None and not moved else 'a cut (' + ', '.join(filter(None, [f'page changes in {box}' if box else '', 'the hand moves' if moved else ''])) + ')'
-        print(f'  cut {i}: take {a - t_first:.2f} → {b - t_first:.2f} s: {kind}')
+
+    # Page swaps inside a stretch: the first frame after the moment that stays far from the page before it (two
+    # frames running: a hover or a press changes a few per cent, a new page 8 % and more, the backgrounds alike).
+    swap_fade = cut.get('swap_fade', 0.45)
+    threshold = cut.get('swap_threshold', 0.08)
+    swaps = []
+    for spec in cut.get('swaps', []):
+        t = moment(spec, marks)
+        pre = frames[max(0, bisect.bisect_right(times, t) - 1)]
+        ref = small(pre)
+        hit = None
+        after = [f for f in frames if t < f['t'] <= t + 8]
+        for i, f in enumerate(after):
+            if far(ref, small(f)) > threshold and (i + 1 >= len(after) or far(ref, small(after[i + 1])) > threshold):
+                hit = f
+                break
+        if hit is None:
+            print(f'  swap after «{spec}»: no page change found within 8 s')
+            continue
+        # The page as it was just before the swap (the last frame before the far one).
+        k = frames.index(hit)
+        swaps.append({'spec': spec, 't': hit['t'], 'pre': frames[k - 1]['file'] if k > 0 else hit['file']})
+        print(f'  swap after «{spec}»: at take {hit["t"] - t_first:.2f} s')
+
+    loop_fade = round(cut.get('loop', {}).get('fade', 0.5) * fps)
+    print(f"{cut['clip']}: {total} frames = {total / fps:.2f} s at {fps} fps, {W}×{H}; {len(bad)} still frame(s) dropped")
 
     def clip_time(spec):
         """A moment of the take → its second in the clip (the nearest kept frame)."""
@@ -289,8 +167,8 @@ def main():
         k = min(range(total), key=lambda i: abs(plan[i] - tm))
         return round(k / fps, 3)
 
-    # The master: H.264 4:4:4, full range, BT.709, CRF 18 — visually lossless for these pages (PSNR ≈ 46–49 dB
-    # against an RGB CRF 8 encode) and small enough to keep in the repository next to the clips.
+    # The master: H.264 4:4:4, full range, BT.709, CRF 18 — visually lossless for these pages and small enough to keep
+    # in the repository next to the clips.
     out = masters / f'{cut["clip"]}-master.mp4'
     enc = subprocess.Popen(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}',
                             '-r', str(fps), '-i', '-', '-vf', 'scale=out_color_matrix=bt709:out_range=pc,format=yuv444p',
@@ -299,50 +177,103 @@ def main():
                             '-movflags', '+faststart', str(out)], stdin=subprocess.PIPE)
     cache = {}
 
-    def frame_at(t):
-        f = frames[max(0, bisect.bisect_right(times, t) - 1)]['file']
-        if f not in cache:
-            cache.clear()
-            cache[f] = Image.open(take_dir / 'raw' / f).convert('RGB')
-        return cache[f].copy()
+    def load(name):
+        if name not in cache:
+            if len(cache) > 6:
+                cache.pop(next(iter(cache)))
+            cache[name] = Image.open(take_dir / 'raw' / name).convert('RGB')
+        return cache[name]
 
     first = None
-    for k, t in enumerate(plan):
-        im = hand.draw(frame_at(t), t)
+    for k in range(total):
+        t = plan[k]
+        im = load(frame_file(t))
+        seg = stretches[owner[k]]
+        # A cut: the stretch before dissolves into this one (its last frame held while this one already runs).
+        n_fade = round(seg['fade'] * fps)
+        if n_fade and k - seg['start'] < n_fade:
+            old = load(frame_file(plan[seg['start'] - 1]))
+            im = Image.blend(old, im, smooth((k - seg['start'] + 1) / (n_fade + 1)))
+        # A page swap inside the stretch: the page before it dissolves into the new one.
+        for sw in swaps:
+            age = t - sw['t']
+            if 0 <= age < swap_fade and plan[seg['start']] <= sw['t']:
+                im = Image.blend(load(sw['pre']), im, smooth((age + 1 / fps) / (swap_fade + 1 / fps)))
         if k == 0:
             first = im.copy()
-        if dissolve and k >= total - dissolve:
-            im = Image.blend(im, first, (k - (total - dissolve) + 1) / (dissolve + 1))
+        if loop_fade and k >= total - loop_fade:
+            im = Image.blend(im, first, smooth((k - (total - loop_fade) + 1) / (loop_fade + 1)))
         enc.stdin.write(im.tobytes())
     enc.stdin.close()
     if enc.wait() != 0:
         raise SystemExit('ffmpeg failed')
 
-    camera = []
-    for key in cut.get('camera', []):
-        k = dict(key)
-        if 'at' in k:
-            k['clip'] = clip_time(k.pop('at')) if not isinstance(k['at'], (int, float)) else k.pop('at')
-        camera.append(k)
-    camera.sort(key=lambda k: k['clip'])
-    kept = [(s['take_from'] + t_first, s['take_to'] + t_first) for s in stretches]
-    moments = {name: clip_time(name) for name in marks if name != '@' and any(a - 0.5 / fps <= marks[name] <= b + 0.5 / fps for a, b in kept)}
+    kept = [(s['take_from'] + t_first, s['take_to'] + t_first, s['start']) for s in stretches]
+
+    def clip_of(t):
+        """A take time inside a kept stretch → its clip second; None when it was cut."""
+        for a, b, start in kept:
+            if a - 0.5 / fps <= t <= b + 0.5 / fps:
+                return round((start + (t - a) * fps) / fps, 3)
+        return None
+
+    # The presses (a mouse's down, a finger's tap) the clip shows: fit.py draws a ring there.
+    clicks = []
+    for e in take['events']:
+        if e['kind'] in ('down', 'tap'):
+            c = clip_of(e['t'])
+            if c is not None:
+                clicks.append({'clip': c, 'x': round(e['x'], 1), 'y': round(e['y'], 1)})
+
+    # The camera's beats: the rectangle (CSS px) a beat shows, from the boxes the take logged.
+    cam = cut.get('camera', {})
+
+    def rect_of(spec):
+        if isinstance(spec, list) and len(spec) == 4 and all(isinstance(v, (int, float)) for v in spec):
+            return spec
+        names = [spec] if isinstance(spec, str) else spec
+        missing = [n for n in names if n not in boxes]
+        if missing:
+            raise SystemExit(f'no box {missing} in the take (it has: {", ".join(boxes)})')
+        rs = [boxes[n] for n in names]
+        return [min(r[0] for r in rs), min(r[1] for r in rs), max(r[2] for r in rs), max(r[3] for r in rs)]
+
+    keys = []
+    for key in cam.get('keys', []):
+        k = {'clip': clip_time(key['at']) if not isinstance(key['at'], (int, float)) else key['at'], 'rect': rect_of(key['box'])}
+        for field in ('move', 'pad', 'min_w', 'hop', 'anchor'):
+            if field in key:
+                k[field] = key[field]
+        k['beat'] = key.get('beat', key['box'] if isinstance(key['box'], str) else '+'.join(key['box']) if isinstance(key['box'], list) and isinstance(key['box'][0], str) else 'rect')
+        keys.append(k)
+    keys.sort(key=lambda k: k['clip'])
+
+    moments = {name: clip_of(marks[name]) for name in marks if name != '@' and clip_of(marks[name]) is not None}
     meta = {
         'clip': cut['clip'], 'take': str(take_dir), 'size': [W, H], 'viewport': take['viewport'], 'capture_scale': scale,
-        'device_scale': take.get('dpr'), 'fps': fps, 'frames': total, 'seconds': round(total / fps, 3), 'dissolve_frames': dissolve,
-        'stretches': stretches, 'moments': moments, 'camera': camera, 'window': cut.get('window', {}),
+        'device_scale': take.get('dpr'), 'fps': fps, 'frames': total, 'seconds': round(total / fps, 3), 'loop_fade_frames': loop_fade,
+        'stretches': [{k: v for k, v in s.items() if k != 'start'} for s in stretches],
+        'swaps': [{'after': s['spec'], 'clip': clip_of(s['t'])} for s in swaps],
+        'moments': moments, 'clicks': clicks,
+        'camera': {'min_w': cam.get('min_w', 640), 'pad': cam.get('pad', 16), 'move': cam.get('move', 0.9), 'y_min': cam.get('y_min', 0), 'keys': keys},
+        'window': cut.get('window', {}),
     }
     poster = cut.get('poster')
     if poster:
         src = take_dir / 'stills' / f"{poster['still']}.png"
         dst = masters / f'{cut["clip"]}-poster.png'
         shutil.copyfile(src, dst)
-        pk = dict(poster.get('camera', {}))
-        meta['poster'] = {'file': dst.name, 'still': poster['still'], 'scale': Image.open(src).size[0] / take['viewport']['width'], 'camera': pk}
+        meta['poster'] = {'clip': clip_time(poster['at']), 'file': dst.name, 'still': poster['still'],
+                          'scale': Image.open(src).size[0] / take['viewport']['width']}
     (masters / f'{cut["clip"]}-master.json').write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'  {out} ({out.stat().st_size / 1e6:.1f} MB)')
     for s in stretches:
-        print(f'  clip {s["clip_from"]:6.2f}–{s["clip_to"]:6.2f} s  ←  take {s["take_from"]:6.2f}–{s["take_to"]:6.2f} s  ({s["from"]} → {s["to"]})')
+        print(f'  clip {s["clip_from"]:6.2f}–{s["clip_to"]:6.2f} s  ←  take {s["take_from"]:6.2f}–{s["take_to"]:6.2f} s  ({s["from"]} → {s["to"]}{", fade " + str(s["fade"]) if s["fade"] else ""})')
+    for k in keys:
+        print(f'  camera {k["clip"]:6.2f} s → {k["beat"]} {[round(v) for v in k["rect"]]}')
+    print('  moments: ' + ', '.join(f'{n} {t:.2f}' for n, t in moments.items()))
+    if poster:
+        print(f'  poster at {meta["poster"]["clip"]:.2f} s ({poster["still"]})')
 
 
 if __name__ == '__main__':

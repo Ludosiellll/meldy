@@ -1,8 +1,9 @@
 'use strict';
 // Recording the live site for the deck's product slides (07–09): a take is one real session in Chromium, captured
 // frame by frame through the DevTools screencast (every frame the page paints, at the device's pixels, with its time),
-// plus a log of what the hand did (pointer path, presses, taps, key presses) and named moments. edit.py turns a take
-// into a clip: cuts, the window's crop, the pointer drawn where it really was, the loop seam.
+// plus a log of what the hand did (pointer path, presses, taps, key presses), named moments and the rectangle each beat
+// shows (Take.box). edit.py turns a take into a master (the cuts as crossfades, the loop's seam, the camera's beats);
+// fit.py frames it for a slide's screen (eased pans and zooms, a ring where the hand pressed, no pointer drawn).
 //
 // Sign-in goes only through the usability helpers (ulib.cjs: they read the test account from files and never print
 // it). Set MELDY_ULIB to their path. Nothing here prints, logs or writes a password, token, cookie or e-mail: errors go
@@ -34,7 +35,7 @@ async function launch(extraArgs = []) {
   });
 }
 
-/** A context like ulib.newContext(), with the device scale the deck wants (laptop 2, phone 3). */
+/** A context like ulib.newContext(), with the device scale the take wants (laptop 1.75, phone 2: forced by launch). */
 async function context(browser, { w, h, dpr, phone = false, init = [] }) {
   const ctx = await browser.newContext({
     viewport: { width: w, height: h },
@@ -188,25 +189,56 @@ class Take {
   }
 
   /**
-   * A finger drags the page: touches (x, y0), slides to (x, y1) easing out, lifts. Real touch events (the page
-   * scrolls by itself, as under a finger). Every step is logged for the fingertip drawn in edit.py.
+   * A finger drags the page: touches (x, y0), slides to (x, y1), lifts. Real touch events (the page scrolls by
+   * itself, as under a finger). `ease: 'inout'` starts and ends slowly and `rest` keeps the finger still before it
+   * lifts, so the page stops where the finger stops (no fling). Every step is logged.
    */
-  async drag(x, y0, y1, { ms = 650 } = {}) {
+  async drag(x, y0, y1, { ms = 650, ease = 'out', rest = 60 } = {}) {
     const steps = Math.max(6, Math.round(ms / 16));
     this.events.push({ kind: 'touchstart', x, y: y0, t: now() });
     await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y0 }] });
     const t0 = Date.now();
     for (let i = 1; i <= steps; i += 1) {
       const p = i / steps;
-      const y = y0 + (y1 - y0) * (1 - (1 - p) * (1 - p));
+      const e = ease === 'inout' ? (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2) : 1 - (1 - p) * (1 - p);
+      const y = y0 + (y1 - y0) * e;
       await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
       this.events.push({ kind: 'touchmove', x, y, t: now() });
       const wait = t0 + (ms * i) / steps - Date.now();
       if (wait > 0) await sleep(wait);
     }
-    await sleep(60);
+    // The finger rests where it stopped (a few still moves: the page's velocity falls to nothing), then lifts.
+    for (let i = 0; i < Math.max(1, Math.round(rest / 40)); i += 1) {
+      await sleep(40);
+      await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y1 }] });
+    }
     await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     this.events.push({ kind: 'touchend', x, y: y1, t: now() });
+  }
+
+  /**
+   * The rectangle a beat shows, in the window's CSS px at this moment, logged for the camera: edit.py and fit.py
+   * frame each beat on what the page really drew there. Several targets give the rectangle around them all; a
+   * target is a locator or a plain {x, y, width, height}.
+   */
+  async box(name, ...targets) {
+    let rect = null;
+    for (const target of targets.flat()) {
+      let r = null;
+      if (target && typeof target.boundingBox === 'function') r = await target.boundingBox({ timeout: 3000 }).catch(() => null);
+      else if (target && typeof target.x === 'number') r = { x: target.x, y: target.y, width: target.width ?? target.w, height: target.height ?? target.h };
+      if (!r) continue;
+      const one = [r.x, r.y, r.x + r.width, r.y + r.height];
+      rect = rect ? [Math.min(rect[0], one[0]), Math.min(rect[1], one[1]), Math.max(rect[2], one[2]), Math.max(rect[3], one[3])] : one;
+    }
+    if (!rect) {
+      console.log(`  · box ${name}: nothing to measure`);
+      return null;
+    }
+    rect = rect.map((v) => Math.round(v * 10) / 10);
+    this.events.push({ kind: 'box', name, rect, t: now() });
+    console.log(`  · box ${name} [${rect.join(', ')}]`);
+    return rect;
   }
 
   /** Types like a person: a short pause per character, a little longer after a space. */
@@ -224,6 +256,26 @@ class Take {
   }
 }
 
+/**
+ * The card around an element: its nearest ancestor drawn as a card (rounded, painted, wider than 160 px), as
+ * {x, y, width, height} in the window's CSS px — or null. For Take.box(): a beat is framed on the card it lives in.
+ */
+async function cardOf(locator) {
+  const el = locator.first();
+  if (!(await el.count())) return null;
+  return el.evaluate((node) => {
+    for (let e = node; e && e !== document.body; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      const r = e.getBoundingClientRect();
+      const radius = parseFloat(cs.borderTopLeftRadius) || 0;
+      const bg = cs.backgroundColor;
+      const painted = (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') || cs.boxShadow !== 'none' || cs.borderTopWidth !== '0px';
+      if (radius >= 10 && painted && r.width > 160) return { x: r.x, y: r.y, width: r.width, height: r.height };
+    }
+    return null;
+  }).catch(() => null);
+}
+
 /** Waits for the network to go quiet (realtime keeps sockets open: a timeout is fine), then a pause. */
 async function settle(page, ms = 600) {
   try { await page.waitForLoadState('networkidle', { timeout: 8000 }); } catch { /* realtime */ }
@@ -235,4 +287,4 @@ function fail(e) {
   process.exitCode = 1;
 }
 
-module.exports = { u, launch, context, Take, settle, sleep, fail, now };
+module.exports = { u, launch, context, Take, settle, sleep, fail, now, cardOf };
