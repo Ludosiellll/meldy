@@ -36,7 +36,7 @@ It ends with `ALL GREEN` or lists what failed. Step by step:
 | build | `python tools/build.py [--build DIR] [--out FILE.pptx] [--embed all\|used\|none] [--deck-rules]` | the PPTX, a size report, warnings |
 | check | `python tools/check_pptx.py FILE.pptx out/build/slides.json [--deck-rules]` | re-opens the file with python-pptx and checks it against the HTML |
 | render | `tools/render.sh FILE.pptx out/render out/build/slides.json` | PDF, `slide-N.png` at 1920 px, `contact-sheet.png`, pdffonts, size, the pptx skill's `validate.py` |
-| compare | `python tools/compare.py out/build out/render` | `out/render/compare/side-NN.png`, `diff-NN.png`, per-text offsets, exit 1 above 2.5 px |
+| compare | `python tools/compare.py out/build out/render` | `out/render/compare/side-NN.png`, `diff-NN.png`, per-text offsets, exit 1 above 2.5 px (plus LibreOffice's run-change spacing drift, listed) |
 | animations | `python tools/lo_roundtrip.py FILE.pptx out/build/slides.json` | how LibreOffice reads every effect, trigger, wipe direction, video play/loop |
 | tests | `python -m pytest deck/cf11/tools/tests` | unit tests (geometry, runs, fonts, EOT, timing XML vs the ISO schema, transitions, crops) and an integration build |
 
@@ -76,6 +76,12 @@ in desktop PowerPoint, check it, and save (see «Needs real PowerPoint»).
   character before it; justified lines carry their widened spaces explicitly (the paragraph becomes left-aligned).
 * **Letter spacing at line end**: CSS keeps the spacing after the last character, LibreOffice drops it; right-aligned
   and centred lines are shifted by that amount through the margins.
+* **Letter spacing at a run change** (not compensable): LibreOffice also drops *negative* spacing after the last
+  character of a run whose attributes differ from the next one (editeng `impedit3.cxx` adds kerning behind a portion
+  only when it is positive, "#i9050"). In LibreOffice and its PDF a condensed line with a word in another colour is
+  therefore |spacing| px wider per change (measured: −2.16 px → +2.1 px, −10 px → +10.1 px per change; runs with
+  equal attributes are merged and unaffected; `research/calibrate_spacing.py`). No run markup makes LibreOffice and
+  a CSS-like renderer agree, so the file follows the HTML; `compare.py` allows that drift and lists the elements.
 * **Layers**: what a native object cannot draw is rendered at 2× and placed next to it: the *over-layer* of a shape
   (its unmarked children, shadow, background image) above it, the *under-layer* of a text (highlight marks, inline
   decorations) below it. A layer animates with its element. Marked descendants are never part of a layer.
@@ -159,6 +165,9 @@ from LibreOffice's `vcl/source/font/EOTConverter.cxx`. Transitions: `morph` = `p
   shows a substitute font, install Onest (design/fonts) on the PC, open and save with «Embed fonts».
 * **Exact line spacing**: the first-line placement follows LibreOffice's PowerPoint emulation (1.2 em line,
   0.2 em descent); PowerPoint itself was not measured. Expect at most a few px.
+* **Letter spacing**: PowerPoint is expected to add `spc` after every character, as CSS does (unverified). The
+  line-end shift above is calibrated on LibreOffice, so in PowerPoint a right-aligned line may sit up to |spacing|
+  (a centred one half of it) off; at a colour change inside a condensed line the file follows CSS.
 * **Hyperlink colour**: inline links carry `ahyp:hlinkClr val="tx"` (keep the text colour) under the extension URI
   `{A12FA001-AC4F-418D-AE19-62706E023703}` from memory; if PowerPoint ignores it, the theme hyperlink colour (set
   to the label blue) applies. PowerPoint and LibreOffice underline run hyperlinks; `data-href` on a whole element is

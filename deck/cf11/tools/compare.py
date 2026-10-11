@@ -6,6 +6,13 @@ For every slide: side-by-side (HTML | PPTX in LibreOffice) and a difference imag
 visibly, and for every live text element the offset between the two renders, found by searching the shift
 (+-12 px) that best aligns the element's region (sub-pixel by a parabola fit). Exit status 1 when a text element
 is off by more than --max-shift px.
+
+One LibreOffice-only drift is allowed for: editeng applies a portion's letter spacing behind its last character
+only when the spacing is positive (impedit3.cxx, "#i9050# Do Kerning also behind portions"), so condensed
+(negative) spacing is lost at every attribute change inside a line, e.g. one word in another colour: the rest of the
+line moves right by |spacing| per change (research/calibrate_spacing.py). PowerPoint, like CSS, is expected to keep
+it, and no run markup makes both agree, so the file follows the HTML; such an element may be off by up to that
+drift on top of --max-shift and is listed.
 """
 from __future__ import annotations
 
@@ -23,6 +30,23 @@ SEARCH = 12
 
 def gray(img: Image.Image) -> np.ndarray:
     return np.asarray(img.convert('L'), dtype=np.float32)
+
+
+RUN_ATTRS = ('weight', 'italic', 'sizePx', 'color', 'letterSpacingPx', 'underline', 'strike', 'baselineShift', 'href')
+
+
+def lo_spacing_drift(el: dict) -> float:
+    """px by which LibreOffice draws the worst line of a text element wider than the HTML: the sum of |spacing| of
+    the runs that end inside the line with negative letter spacing before a run with other attributes."""
+    worst = 0.0
+    for p in el['text']['paragraphs']:
+        for ln in p['lines']:
+            runs = ln['runs']
+            lost = sum(-(a.get('letterSpacingPx') or 0.0) for a, b in zip(runs, runs[1:])
+                       if (a.get('letterSpacingPx') or 0.0) < 0
+                       and tuple(a.get(k) for k in RUN_ATTRS) != tuple(b.get(k) for k in RUN_ATTRS))
+            worst = max(worst, lost)
+    return round(worst, 2)
 
 
 def best_shift(ref: np.ndarray, out: np.ndarray, box: tuple[int, int, int, int]) -> tuple[float, float, float]:
@@ -66,7 +90,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     doc = json.loads((build / 'slides.json').read_text(encoding='utf-8'))
     font = ImageFont.truetype(str(FONT), 22) if FONT.exists() else ImageFont.load_default()
-    report, worst = [], 0.0
+    report, worst, worst_raw, drifted = [], 0.0, 0.0, []
     print(f"{'slide':<6}{'diff>32':>9}{'mean':>7}   text elements: offset (render - HTML) px")
     for i, s in enumerate(doc['slides'], start=1):
         rpath = renders / f'slide-{i}.png'
@@ -90,9 +114,14 @@ def main() -> int:
             b = e['bbox']
             box = (int(b['x']) - 4, int(b['y']) - 4, int(b['x'] + b['w']) + 4, int(b['y'] + b['h']) + 4)
             dx, dy, res = best_shift(rg, og, box)
-            texts.append({'id': e['id'], 'name': e.get('name'), 'dx': round(dx, 2), 'dy': round(dy, 2), 'residual': round(res, 3),
+            drift = lo_spacing_drift(e)
+            texts.append({'id': e['id'], 'name': e.get('name'), 'dx': round(dx, 2), 'dy': round(dy, 2),
+                          'residual': round(res, 3), 'loSpacingDrift': drift,
                           'sample': ''.join(r['text'] for r in e['text']['paragraphs'][0]['lines'][0]['runs'])[:28]})
-            worst = max(worst, abs(dx), abs(dy))
+            worst_raw = max(worst_raw, abs(dx), abs(dy))
+            worst = max(worst, max(0.0, abs(dx) - drift), abs(dy))
+            if drift:
+                drifted.append(f"{s['nn']} {e['id']} dx {dx:+.1f} (allowed {a.max_shift + drift:.1f})")
         report.append({'slide': s['nn'], 'diffFrac': round(frac, 4), 'meanAbs': round(mean, 2), 'texts': texts})
         print(f"{s['nn']:<6}{frac * 100:8.2f}%{mean:7.2f}   " +
               '  '.join(f"{t['id']}({t['dx']:+.1f},{t['dy']:+.1f})" for t in texts))
@@ -110,7 +139,11 @@ def main() -> int:
         rgb = np.stack([np.maximum(base, heat), base, base], axis=2)
         Image.fromarray(rgb).save(out_dir / f"diff-{s['nn']}.png")
     (out_dir / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
-    print(f'worst text offset {worst:.2f} px (limit {a.max_shift}); images and report.json in {out_dir}')
+    if drifted:
+        print('LibreOffice-only drift (negative letter spacing lost at run changes; PowerPoint is expected to keep '
+              'it): ' + '; '.join(drifted))
+    print(f'worst text offset {worst:.2f} px beyond that drift (limit {a.max_shift}; raw worst {worst_raw:.2f} px); '
+          f'images and report.json in {out_dir}')
     return 0 if worst <= a.max_shift else 1
 
 
