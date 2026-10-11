@@ -28,7 +28,9 @@
   --cs-half: #f4c45b;
   --cs-faint: #6b7383;
   --cs-bar: rgba(243, 243, 240, .1);
-  --cs-mark: rgba(244, 196, 91, .3);
+  /* Opaque, the logo dot's hue and saturation (41°, 88 %) at 30 % lightness: the yellow at .3 over the dark card read
+     olive (#574d35). The title's ink over it keeps 4.7:1, the band 3.4:1 against the card. */
+  --cs-mark: #906509;
   --cs-half-o: .7;
   --cs-gone-o: .42;
 }
