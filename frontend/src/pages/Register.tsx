@@ -24,9 +24,12 @@ export const TYPO_NOTE = 'Возможно, опечатка в адресе.';
 export const SIGN_UP_LEDE = 'Сохраните экзамены и продолжайте подготовку с\u00a0любого устройства.';
 /** The panel above the reel: the way from the department's file to the plan of each day (the reel's story). */
 export const SIGN_UP_PANEL_TITLE = 'От файла с\u00a0вопросами\u00a0— до плана на\u00a0каждый день';
-/** The e-mail field in the page's own language (it read «Email», «you@example.com»: jury QA of /try, 2026-10-11). */
+/**
+ * The e-mail field in the page's own language (it read «Email», «you@example.com»: jury QA of /try, 2026-10-11); the
+ * placeholder keeps a reserved example domain (RFC 2606), so it never names somebody's real mailbox.
+ */
 export const EMAIL_LABEL = 'Почта';
-export const EMAIL_PLACEHOLDER = 'student@mail.ru';
+export const EMAIL_PLACEHOLDER = 'student@example.com';
 /** Opened from the example (/try): the quiet way back to it, beside the wordmark. */
 export const BACK_TO_TRY = 'Вернуться к примеру';
 
