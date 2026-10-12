@@ -19,6 +19,7 @@ import CheatsheetSheet, { cheatsheetText } from './CheatsheetSheet';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 import toast from 'react-hot-toast';
+import { notifyAIUsageChanged } from '../api/limits';
 import { updateMaterialTitle } from '../api/materials';
 import { syncFlashcards } from '../api/flashcards';
 import { httpErrorFromResponse, StreamError, STREAM_MESSAGES } from '../api/sseStream';
@@ -753,6 +754,10 @@ export default function ResultsPanel({
     setSectionErrors(prev => ({ ...prev, [section]: undefined }));
     try {
       const { result, grounding } = await requestSection(section, originalText, targetId, analysisSettings, recognized);
+      // Сервер уже списал раздел (починка анализа бесплатна): кольцо лимита перечитывает остаток, даже если сохранение
+      // ниже не удастся или панель уже показывает другой материал (перепроверка 44.3: 900 → 893 на сервере, 900 на
+      // странице до перезагрузки).
+      notifyAIUsageChanged();
       const nextSections: SectionStates = { ...(view.sections ?? {}), [section]: { status: 'ok' } };
       const missingGrounding = !view.grounding && grounding ? grounding : undefined;
       await persistSection(targetId, section, result, nextSections, missingGrounding);

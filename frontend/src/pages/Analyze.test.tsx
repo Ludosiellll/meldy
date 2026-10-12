@@ -312,7 +312,7 @@ describe('stream outcomes', () => {
     expect(await screen.findByText('Страница материала')).toBeInTheDocument();
   });
 
-  it('agent_done(summarizer) then a cut connection: partial results saved and charged once, «Создать тест заново» never charges', async () => {
+  it('agent_done(summarizer) then a cut connection: partial results saved and charged once, «Создать … заново» only reads the limit again', async () => {
     streams = [() => sse([ev(TEXT), ev(GROUNDING), ev(start('summarizer')), ev(start('flashcards')), ev(start('quiz')), ev(DONE_SUMMARY)], 'error')];
     renderAnalyze();
     await chooseFile();
@@ -344,7 +344,9 @@ describe('stream outcomes', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Карточки/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Создать карточки заново' }));
     await waitFor(() => expect(s.sync).toHaveBeenCalledWith('user-1', 'mat-1', cards.flashcards));
-    expect(s.increment).toHaveBeenCalledTimes(1);
+    // Each section made again makes the ring read the limit (the server decides the charge: a repair of the analysis is
+    // free there); the run itself was refreshed once.
+    expect(s.increment).toHaveBeenCalledTimes(3);
     expect(s.inserts).toHaveLength(1);
   });
 

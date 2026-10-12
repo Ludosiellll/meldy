@@ -9,6 +9,7 @@ const db = vi.hoisted(() => ({
   updateError: null as null | { message: string },
   sync: vi.fn(),
   increment: vi.fn(),
+  notify: vi.fn(),
   verify: vi.fn(),
   quizProps: null as null | Record<string, unknown>,
   toastSuccess: vi.fn(),
@@ -34,7 +35,12 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 vi.mock('../api/flashcards', () => ({ syncFlashcards: (...args: unknown[]) => db.sync(...args) }));
-vi.mock('../api/limits', () => ({ incrementAIUsage: (...args: unknown[]) => db.increment(...args), checkAILimit: vi.fn() }));
+vi.mock('../api/limits', () => ({
+  incrementAIUsage: (...args: unknown[]) => db.increment(...args),
+  checkAILimit: vi.fn(),
+  // «Создать … заново»: the server charged (or repaired) the section, the ring reads the limit again.
+  notifyAIUsageChanged: (...args: unknown[]) => db.notify(...args),
+}));
 vi.mock('../hooks/useEnergyConfirm', () => ({ useEnergyConfirm: () => ({ verifyEnergy: (...args: unknown[]) => db.verify(...args) }) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
 vi.mock('../api/materials', () => ({ updateMaterialTitle: vi.fn() }));
@@ -89,6 +95,7 @@ beforeEach(() => {
   db.updateError = null;
   db.sync = vi.fn(async () => ({ inserted: 1, skipped: 0 }));
   db.increment = vi.fn();
+  db.notify = vi.fn();
   db.verify = vi.fn(async () => true);
   db.quizProps = null;
   db.toastSuccess = vi.fn();
@@ -452,6 +459,8 @@ describe('a section that arrives after the panel closed', () => {
     expect(onResultsChange).toHaveBeenCalledWith(expect.objectContaining({ quiz }), 'quiz');
     expect(db.updates[0]).toEqual({ quiz_json: quiz });
     expect(db.toastSuccess).not.toHaveBeenCalled();
+    // The server answered, so it charged (or repaired) the section: the ring reads the limit again all the same.
+    expect(db.notify).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -559,6 +568,7 @@ describe('«Создать … заново»', () => {
     expect(await screen.findByText('Модель вернула непригодный тест. Попробуйте ещё раз.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Создать тест заново' })).toBeEnabled();
     expect(db.updates).toHaveLength(0);
+    expect(db.notify).not.toHaveBeenCalled(); // a refused section is not charged
   });
 
   it('a 502 HTML page gives a readable message, not parser text', async () => {
@@ -591,6 +601,8 @@ describe('«Создать … заново»', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
     expect(await screen.findByText('Раздел создан, но сохранить его не удалось. Попробуйте ещё раз.')).toBeInTheDocument();
     expect(screen.queryByText('Тест на экране')).not.toBeInTheDocument();
+    // The server made the section before the save failed: the ring reads what it charged.
+    expect(db.notify).toHaveBeenCalledTimes(1);
   });
 
   it('is disabled until the material is saved and while a section is being created', async () => {
