@@ -16,3 +16,4 @@ failed checks, never row data.
 - 2026-10-10 — apply: supabase/migrations/20261010130000_containers_frozen_pace.sql; check: supabase/tests/containers.sql, supabase/tests/telegram_bot.sql
 - 2026-10-11 — apply: supabase/migrations/20261010150000_telegram_webapp.sql; check: supabase/tests/telegram_bot.sql, supabase/tests/containers.sql
 - 2026-10-11 — apply: supabase/migrations/20261011100000_containers_not_found_null.sql; check: supabase/tests/containers_not_found.sql, supabase/tests/containers.sql
+- 2026-10-12 — apply: supabase/migrations/20261012100000_telegram_bot_monitor.sql; check: supabase/tests/telegram_bot.sql, supabase/tests/containers.sql
