@@ -4,6 +4,26 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.8: what the fact recheck of 44.7 found (from the commit of this entry)
+
+- **Lecture materials** (`1e6c087`). The recheck of 44.7 (three lectures, all five materials, against their scripts):
+  cards, quiz and Выжимка had no problem in 128 statements (cards 3 → 0), and the old distortions (the vacuole, the
+  ATP merge, «миллиардов клеток», «неминуемо») did not come back; the remaining ones sat in the конспект's theses and
+  «Выводы» and in the podcast's last lines, the history lecture lost dates and names, and 3 of 5 explanations of the
+  recording's test opened with a credit.
+  - **The retell rule** no longer says «убирай лишние предложения»: dates, numbers and names are kept by name; time and
+    order of events only from the lecture.
+  - **«Выводы»** retell the lecture's own conclusions, not «что следует из лекции в целом»; the theses have no
+    generalisations beyond the lecture.
+  - **The podcast's last line** keeps to the lecture's thoughts, with no new facts, dates or generalisations.
+  - **More credit forms go** from the start of a sentence: «В тексте лекции отмечается, что…», «Лекция гласит, что…»,
+    «В источнике указано, что…», «Согласно источнику, …».
+- **One-time cost:** the prompts change every cache key again.
+- **Verified before release:** pytest 2013 (backend only changed since 44.7, whose gate passed Vitest 277/4552, the
+  bot 337 and the Docker-layout build). The release gate runs them all again on this commit.
+- **Live checks after release:** three lectures × three runs each (text variants, so no cache), audited against the
+  scripts as before.
+
 ## 2026-10-12 — Release 44.7: long recordings in pieces, materials that keep the lecture's qualifiers (from the commit of this entry)
 
 - **Recordings in pieces** (`b5a7435`, `1258d1a`):
