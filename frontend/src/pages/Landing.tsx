@@ -1,5 +1,5 @@
 import { useEffect, useMemo, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import '@fontsource-variable/onest/wght.css';
 import { useAuth } from '../hooks/useAuth';
 import HeroSheet, { SHEET_REPLAY_EVENT } from '../components/home/HeroSheet';
@@ -515,6 +515,11 @@ function MethodSection() {
 
 /** The final call's words: what to start with, and the example first for those who want to look. */
 export const FINAL_LEAD = 'Один общий файл или по файлу на предмет — Word, Excel или TXT. Лекции нужны для устных вопросов. Хотите сначала посмотреть — откройте готовый пример, без регистрации.';
+/**
+ * Under the final call's buttons: what Meldy makes of a lecture, on the example's first lecture (/try/lecture). It names
+ * no materials: the page keeps to the exam, not to the old «конспекты, карточки и тесты» or the podcast's hosts.
+ */
+export const LECTURE_EXAMPLE_LINE = 'Что Meldy делает из лекции — пример разбора';
 
 function FinalCall() {
   const navigate = useNavigate();
@@ -553,6 +558,9 @@ function FinalCall() {
             {TRY_LABEL}
           </Pill>
         </div>
+        <p className="hm-final-also">
+          <Link to="/try/lecture">{ty(LECTURE_EXAMPLE_LINE)}</Link>
+        </p>
       </div>
     </section>
   );

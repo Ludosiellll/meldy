@@ -85,6 +85,8 @@ Meldy сам записывает, какими экранами и функци
   `client_limit`, `offline` или `too_long`. Ответ «не знаю» события не шлёт.
 - `try_answer_paste_refused` — в примере не вставлен готовый текст, как в настоящем билете (см.
   `answer_paste_refused`).
+- `try_lecture_opened` — открыт пример разбора лекции `/try/lecture` (что Meldy сделал из лекции примера экзамена).
+  `try_opened` вкладка шлёт, когда пример открыт с любого адреса `/try/…`, этого тоже.
 - `signup_view` — открыта страница регистрации.
 - `signup_done` — регистрация по почте прошла; `method`: `email`, `confirmed`: вошёл сразу или ждёт письма.
 - `login_done` — вход; `method`: `email`, `oauth` или `telegram` (мини-приложение `/tg`: вход по данным Telegram без

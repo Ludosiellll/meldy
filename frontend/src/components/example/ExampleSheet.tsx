@@ -22,7 +22,7 @@ import { useFrame } from '../exams/useFrame';
 import { pluralRu } from '../conversation/visuals';
 import { KIND_LABELS } from '../../lib/exams/format';
 import { splitFragmentHeading } from '../../utils/fragmentText';
-import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, exampleDrawPool, exampleExamQuestion } from '../../data/example';
+import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, exampleDrawPool, exampleExamQuestion, lectureOf } from '../../data/example';
 import { parsePeakFlags, type PeakFlag } from '../exams/peak';
 import { useSheetView, type SheetLinks } from '../exams/sheet/useSheetPage';
 import { useAuth } from '../../hooks/useAuth';
@@ -31,6 +31,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import ExampleWhy from './ExampleWhy';
 import TryBar, { CREATE_ACCOUNT_LABEL, CREATE_EXAM_LABEL, ownExamHref, START_OWN_LABEL, useMinWidth } from './TryBar';
 import { EXAMPLE_ANSWER_QUESTION, TRY_VIEW_KEY, findTryAnswer, isSeededSession, takeTryPeak, useTrySheetData } from './trySheet';
+import { tryLecturePart } from './tryParts';
 
 /** The honest note of the example (the owner's brief, word for word). */
 export const EXAMPLE_NOTE = 'Пример: три лекции и список вопросов уже сверены. В своём экзамене это сделает Meldy по вашим лекциям.';
@@ -42,6 +43,9 @@ export const EXAMPLE_NOTE = 'Пример: три лекции и список �
  */
 export const EXAMPLE_ANSWERS_NOTE =
   'Для проверки текст ответа отправляется на сервер Meldy и в ИИ-сервис Google Gemini. Meldy его не сохраняет: ваши ответы примера помнит только эта вкладка.';
+
+/** The way to what Meldy made of the first lecture (/try/lecture), under the lectures' lead. */
+export const LECTURE_RESULT_LINK = `Что Meldy сделал из лекции «${lectureOf('M1').title}»`;
 
 /** The example's scripted moment (PUB-15): question 5 was answered yesterday, so naming its points again erases them. */
 export const ANSWER_Q5_LABEL = 'Ответить на вопрос 5';
@@ -489,6 +493,7 @@ function ExampleLectures() {
           Лекции примера
         </h2>
         <p className="tx-sub">{glue('Все цитаты из лекций взяты из этих текстов слово в слово. Откройте лекцию, чтобы прочитать её фрагменты.')}</p>
+        <LectureResultLink />
       </div>
       <div className="tx-lecture-list">
         {EXAMPLE_LECTURES.map((lecture) => (
@@ -513,5 +518,26 @@ function ExampleLectures() {
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * The way to «Разбор лекции» (/try/lecture). Its file is a few times the sheet's, so it is not fetched ahead with the
+ * sheet: only once the link is pointed at, touched or focused — a moment before it is opened.
+ */
+function LectureResultLink() {
+  const fetchNow = () => {
+    void tryLecturePart.load().catch(() => undefined);
+  };
+  return (
+    <p className="tx-lecture-go">
+      <Link className="sf-link" to="/try/lecture" onPointerEnter={fetchNow} onFocus={fetchNow} onTouchStart={fetchNow}>
+        {/* One run of text: the arrow follows the last word on its line, held to it. */}
+        <span>
+          {glue(LECTURE_RESULT_LINK)}
+          <span aria-hidden="true">{'\u00a0→'}</span>
+        </span>
+      </Link>
+    </p>
   );
 }

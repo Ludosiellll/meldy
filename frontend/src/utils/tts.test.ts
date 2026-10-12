@@ -860,6 +860,113 @@ describe('tts', () => {
     });
   });
 
+  describe('ready files of the lines (setTTSVoiceFiles: the /try/lecture example, open without an account)', () => {
+    const FILES = [
+      { text: 'Макс спрашивает', role: 'male', src: '/example/lecture/podcast/01.mp3' },
+      { text: 'Софья объясняет', role: 'female', src: '/example/lecture/podcast/02.mp3' },
+    ] as const;
+    const HOST = { fallback: 'none', persist: true } as const;
+    const urls = () => fetchMock.mock.calls.map(call => String(call[0]));
+    let openCache: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      openCache = vi.fn(async () => ({ match: vi.fn(), put: vi.fn(), keys: vi.fn(async () => []), delete: vi.fn() }));
+      vi.stubGlobal('caches', { open: openCache });
+    });
+
+    it("plays a host's line from its file: the server is not asked and nothing goes to the Cache API", async () => {
+      const tts = await loadTts();
+      tts.setTTSVoiceFiles(FILES);
+      const onStart = vi.fn();
+      await tts.playTTS('Макс спрашивает', 'male', undefined, vi.fn(), onStart, HOST);
+      expect(urls()).toEqual(['/example/lecture/podcast/01.mp3']);
+      // A plain request of the site's file: no method, no body.
+      expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('method');
+      expect(FakeAudio.instances[0].src).toBe('blob:audio-1');
+      FakeAudio.instances[0].emit('playing');
+      expect(onStart).toHaveBeenCalledTimes(1);
+      await flush();
+      expect(openCache).not.toHaveBeenCalled();
+    });
+
+    it('readies the lines ahead from their files, one by one, and plays them without asking again', async () => {
+      const tts = await loadTts();
+      tts.setTTSVoiceFiles(FILES);
+      await tts.prefetchTTSInOrder(
+        FILES.map(file => ({ text: file.text, role: file.role })),
+        { persist: true },
+      );
+      expect(urls()).toEqual(['/example/lecture/podcast/01.mp3', '/example/lecture/podcast/02.mp3']);
+      expect(await tts.isTTSReady('Софья объясняет', 'female')).toBe(true);
+      await tts.playTTS('Софья объясняет', 'female', undefined, vi.fn(), vi.fn(), HOST);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(openCache).not.toHaveBeenCalled();
+    });
+
+    it('gives a line without a file no voice and asks nobody for it', async () => {
+      vi.useFakeTimers();
+      const tts = await loadTts();
+      tts.setTTSVoiceFiles(FILES);
+      expect(await tts.prefetchTTS('Чужая реплика', 'male', { persist: true })).toBeNull();
+      const onError = vi.fn();
+      void tts.playTTS('Чужая реплика', 'male', undefined, onError, vi.fn(), HOST);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError.mock.calls[0][0].reason).toBe('server');
+      expect(fetchMock).not.toHaveBeenCalled();
+      const synth = window.speechSynthesis as unknown as ReturnType<typeof makeSynth>;
+      expect(synth.speak).not.toHaveBeenCalled();
+    });
+
+    it('gives the voice back to the server once the files are taken away, and forgets their clips', async () => {
+      const tts = await loadTts();
+      tts.setTTSVoiceFiles(FILES);
+      expect(await tts.prefetchTTS('Макс спрашивает', 'male')).toBe('blob:audio-1');
+      tts.setTTSVoiceFiles(null);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:audio-1');
+      expect(await tts.prefetchTTS('Макс спрашивает', 'male')).toBe('blob:audio-2');
+      expect(urls()).toEqual(['/example/lecture/podcast/01.mp3', '/api/tts']);
+      expect(JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body))).toEqual({ text: 'Макс спрашивает', role: 'male' });
+    });
+
+    it('does not keep a file that arrives after the page took its files away', async () => {
+      let release: () => void = () => undefined;
+      fetchMock.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            release = () => resolve({ ok: true, status: 200, blob: async () => new Blob(['mp3']) });
+          }),
+      );
+      const tts = await loadTts();
+      tts.setTTSVoiceFiles(FILES);
+      const late = tts.prefetchTTS('Софья объясняет', 'female');
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      tts.setTTSVoiceFiles(null);
+      release();
+      expect(await late).toBeNull();
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+    });
+
+    it('stops the read-ahead planned for the other source when the files change', async () => {
+      const tts = await loadTts();
+      let release: () => void = () => undefined;
+      fetchMock.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            release = () => resolve({ ok: true, status: 200, blob: async () => new Blob(['mp3']) });
+          }),
+      );
+      tts.setTTSVoiceFiles(FILES);
+      const ahead = tts.prefetchTTSInOrder(FILES.map(file => ({ text: file.text, role: file.role })), { persist: true });
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      // The page goes: the second line is not asked of the server.
+      tts.setTTSVoiceFiles(null);
+      release();
+      await ahead;
+      expect(urls()).toEqual(['/example/lecture/podcast/01.mp3']);
+    });
+  });
+
   it('gives up when sound does not start in eight seconds', async () => {
     vi.useFakeTimers();
     fetchMock.mockImplementation(() => new Promise(() => undefined));

@@ -5,8 +5,8 @@ import '../components/exams/exams.css';
 import '../components/oral/oral.css';
 import '../components/example/example.css';
 import ExampleSheet from '../components/example/ExampleSheet';
-import TryBar from '../components/example/TryBar';
-import { tryDrawPart, tryTicketPart } from '../components/example/tryParts';
+import TryBar, { TRY_LECTURE_WHERE } from '../components/example/TryBar';
+import { tryDrawPart, tryLecturePart, tryTicketPart } from '../components/example/tryParts';
 import RouteLoading from '../components/RouteLoading';
 import { useLazyPart, type LazyPart } from '../lib/lazyPart';
 import { track } from '../lib/telemetry';
@@ -15,12 +15,14 @@ import { track } from '../lib/telemetry';
  * «Попробовать на примере» (/try): a ready example exam that anyone can try in one click, with no
  * account — the lectures and the department's list already checked (/try), «Тянуть билет»
  * (/try/draw), the answer by voice or in writing with the examiner's follow-up and the protocol
- * (/try/ticket?q=…). Public: outside PrivateRoute, and a signed-in student can open it too. It runs on
- * the device (src/data/example, components/example) but for one call per answer: the AI check,
+ * (/try/ticket?q=…), and what Meldy made of the example's first lecture — the result screen of one real analysis,
+ * kept as it was (/try/lecture, data/exampleLecture). Public: outside PrivateRoute, and a signed-in student can open
+ * it too. It runs on the device (src/data/example, components/example) but for one call per answer: the AI check,
  * POST /api/try/evaluate (components/example/tryCheck.ts), with the key words when it is not there.
  * Nothing is saved but in this tab.
  *
- * The draw and the answer room are files of their own (components/example/tryParts): the sheet comes first.
+ * The draw, the answer room and the lecture's result are files of their own (components/example/tryParts): the sheet
+ * comes first.
  */
 export default function TryExample() {
   const { pathname } = useLocation();
@@ -42,6 +44,7 @@ export default function TryExample() {
         {/* Keyed: the draw and the answer are two steps, not one step whose file changes. */}
         <Route path="draw" element={<TryStep key="draw" part={tryDrawPart} />} />
         <Route path="ticket" element={<TryStep key="ticket" part={tryTicketPart} />} />
+        <Route path="lecture" element={<TryStep key="lecture" part={tryLecturePart} where={TRY_LECTURE_WHERE} />} />
         <Route path="*" element={<Navigate to="/try" replace />} />
       </Routes>
     </div>
@@ -50,17 +53,18 @@ export default function TryExample() {
 
 /**
  * A step of the example that is a file of its own: at once when its file is in (fetched once the sheet was idle,
- * lib/prefetch.ts), else the step's top line and the page loader until it arrives. It never suspends (lib/lazyPart),
- * so the sheet is not held back for it. A file that did not load goes to the boundary, as a page's does.
+ * lib/prefetch.ts, or, for the lecture's result, once its link was pointed at), else the step's top line and the page
+ * loader until it arrives. It never suspends (lib/lazyPart), so the sheet is not held back for it. A file that did not
+ * load goes to the boundary, as a page's does.
  */
-function TryStep({ part }: { part: LazyPart<ComponentType> }) {
+function TryStep({ part, where = 'Лист примера' }: { part: LazyPart<ComponentType>; where?: string }) {
   const [failure, setFailure] = useState<{ error: unknown } | null>(null);
   const Step = useLazyPart(part, true, { onError: (error) => setFailure({ error }) });
   if (failure) throw failure.error;
   if (Step) return <Step />;
   return (
     <>
-      <TryBar where="Лист примера" back="/try" />
+      <TryBar where={where} back="/try" />
       <RouteLoading fullScreen={false} />
     </>
   );

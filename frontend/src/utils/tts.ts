@@ -97,6 +97,13 @@ const armWatchdog = () => {
 // Cache API — в памяти до закрытия вкладки. Сохраняемые предзагрузки идут по
 // одной, в порядке вызова. Готовая реплика (в памяти или сохранённая) играет
 // без запроса к серверу; звук, который не играет, выбрасывается отовсюду.
+//
+// Готовые файлы (setTTSVoiceFiles): пример результата анализа (/try/lecture)
+// открыт без аккаунта, а /api/tts просит вход. Его подкаст приходит с озвучкой
+// каждой реплики файлом, один раз полученной у того же сервера. Пока файлы
+// заданы, звук реплики — её файл (обычный запрос файла), сервер не
+// спрашивается никогда, у реплики без файла звука нет, и в Cache API ничего не
+// кладётся: файлы и так лежат на сайте.
 
 export const PREFETCH_LIMIT = 10;
 export const TTS_PERSIST_CACHE = 'meldy-tts-v1';
@@ -141,6 +148,17 @@ let serverPausedUntil = 0;
 type LoadMode = 'prefetch' | 'play' | 'insist';
 
 const prefetchKey = (text: string, role: VoiceRole) => `${role}\u0000${text}`;
+
+/** Реплика с готовым файлом своего звука: текст и голос — как их озвучивает плеер. */
+export interface TTSVoiceFile {
+  text: string;
+  role: VoiceRole;
+  /** Адрес файла на сайте: /example/lecture/podcast/01.mp3. */
+  src: string;
+}
+
+/** Готовые файлы реплик по ключу prefetchKey; null — звук с сервера. */
+let voiceFiles: Map<string, string> | null = null;
 
 const evictPrefetched = () => {
   while (prefetchCache.size > PREFETCH_LIMIT) {
@@ -291,6 +309,8 @@ const dropClip = (key: string, text: string, role: VoiceRole) => {
   clipBlobs.delete(key);
   persistedKeys.delete(key);
   if (url && url !== currentAudioUrl) URL.revokeObjectURL(url);
+  // Готовый файл в Cache API не попадал.
+  if (voiceFiles?.has(key)) return;
   void inPersistQueue(async () => {
     persistedKeys.delete(key);
     memoryPersisted.delete(key);
@@ -357,7 +377,7 @@ const skipServer = (key: string, mode: LoadMode): boolean => {
   return mode !== 'insist' && serverPausedUntil > now;
 };
 
-/** Один запрос звука: из памяти, из сохранённого или с сервера. Ошибки тихие: null. */
+/** Один запрос звука: из памяти, из сохранённого, с сервера или из готового файла. Ошибки тихие: null. */
 const loadClip = (text: string, role: VoiceRole, mode: LoadMode): Promise<string | null> => {
   const key = prefetchKey(text, role);
   const cached = prefetchCache.get(key);
@@ -365,6 +385,11 @@ const loadClip = (text: string, role: VoiceRole, mode: LoadMode): Promise<string
   const pending = prefetchPending.get(key);
   if (pending) return pending;
   if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return Promise.resolve(null);
+  // Готовые файлы: файл этой реплики или ничего, но не сервер.
+  if (voiceFiles) {
+    const file = voiceFiles.get(key);
+    return file ? loadFile(key, file) : Promise.resolve(null);
+  }
 
   const byPlayback = mode !== 'prefetch';
   const request = (async () => {
@@ -409,19 +434,45 @@ const loadClip = (text: string, role: VoiceRole, mode: LoadMode): Promise<string
 };
 
 /**
+ * Звук реплики из её готового файла (setTTSVoiceFiles): обычный запрос файла сайта, без памяти о неудачах сервера и
+ * без Cache API. Файл, пришедший, когда страница уже сменила файлы (или вернула звук серверу), не запоминается.
+ */
+const loadFile = (key: string, src: string): Promise<string | null> => {
+  const request = (async () => {
+    if (typeof fetch !== 'function') return null;
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS) : null;
+    try {
+      const resp = await fetch(src, controller ? { signal: controller.signal } : undefined);
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      if (blob.size === 0 || voiceFiles?.get(key) !== src) return null;
+      return rememberClip(key, blob);
+    } catch {
+      return null;
+    } finally {
+      if (timer !== null) clearTimeout(timer);
+      prefetchPending.delete(key);
+    }
+  })();
+  prefetchPending.set(key, request);
+  return request;
+};
+
+/**
  * Загружает озвучку реплики с сервера (или берёт из кэша). Возвращает object URL
  * или null, если сервер не смог озвучить текст. Ошибки тихие. forPlayback —
  * реплику играют прямо сейчас: неудачная предзагрузка не мешает попробовать ещё раз.
  * persist — сохранить звук надолго (Cache API, иначе память вкладки); такие
  * предзагрузки идут по одной в порядке вызова, а уже сохранённая реплика сервер
- * не трогает.
+ * не трогает. Готовые файлы (setTTSVoiceFiles) не сохраняются: они и так на сайте.
  */
 export const prefetchTTS = (
   text: string,
   role: VoiceRole,
   options: { forPlayback?: boolean; persist?: boolean } = {},
 ): Promise<string | null> => {
-  if (options.persist) return queuePersisted(text, role);
+  if (options.persist && !voiceFiles) return queuePersisted(text, role);
   return loadClip(text, role, options.forPlayback ? 'play' : 'prefetch');
 };
 
@@ -493,6 +544,28 @@ export const forgetTTSFailures = () => {
   failedLines.clear();
   serverFailuresInRow = 0;
   serverPausedUntil = 0;
+};
+
+/**
+ * Готовые файлы реплик (пример /try/lecture): пока они заданы, звук берётся только из них. null — снова с сервера; звук
+ * прежних файлов забывается, и та же реплика настоящей лекции спросит сервер. Задаёт и снимает их страница, которая
+ * показывает такой подкаст, раньше, чем её экран попросит звук (ResultsPanel и плеер готовят первые реплики сразу).
+ */
+export const setTTSVoiceFiles = (files: ReadonlyArray<TTSVoiceFile> | null): void => {
+  const previous = voiceFiles;
+  voiceFiles = files ? new Map(files.map(file => [prefetchKey(file.text, file.role), file.src])) : null;
+  // Очередь предзагрузки, собранная для прежнего источника звука, у нового его не просит.
+  inOrderRun += 1;
+  if (previous) {
+    for (const [key, src] of previous) {
+      if (voiceFiles?.get(key) === src) continue;
+      const url = prefetchCache.get(key);
+      prefetchCache.delete(key);
+      clipBlobs.delete(key);
+      if (url && url !== currentAudioUrl) URL.revokeObjectURL(url);
+    }
+  }
+  forgetTTSFailures();
 };
 
 /** true, когда звук реально идёт (а не загружается и не стоит на паузе). */
@@ -644,7 +717,7 @@ export const playTTS = async (
     else fallBack();
     return;
   }
-  if (options.persist) keepClip(key, text, role);
+  if (options.persist && !voiceFiles) keepClip(key, text, role);
   if (run.loading) {
     // Звук готов: теперь ждём, что он зазвучит, не дольше START_TIMEOUT_MS.
     run.loading = false;

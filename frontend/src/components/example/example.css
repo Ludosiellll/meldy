@@ -180,6 +180,11 @@
 .sf-page .tx-h2 { margin: 0; font-size: clamp(30px, 3vw, 40px); line-height: 1.08; font-weight: 500; letter-spacing: -.03em; }
 .sf-page .tx-sub { margin: 10px 0 0; max-width: 36em; font-size: 17px; line-height: 25px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .tx-lecture-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 22px; }
+/* What Meldy made of the first lecture (/try/lecture): a row link under the lead — ink, no underline, the arrow after
+   its last word (the diary line of «Повторение»). */
+.sf-page .tx-lecture-go { margin: 10px 0 0; }
+.sf-page .tx-lecture-go .sf-link { text-decoration-line: none; text-wrap: pretty; }
+.sf-page .tx-lecture-go .sf-link:hover { text-decoration-line: underline; }
 .sf-page .tx-lecture { border-radius: 32px; background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
 .sf-page .tx-lecture > summary {
   display: flex;

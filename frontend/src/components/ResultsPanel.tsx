@@ -549,7 +549,8 @@ export default function ResultsPanel({
   pageTabs,
 }: {
   results: AnalysisResults;
-  onReset: () => void;
+  /** «Новый анализ» на странице анализа; без него кнопки нет (пример результата /try/lecture). */
+  onReset?: () => void;
   textLength?: number;
   analysisDuration?: number;
   sourceFileName?: string;
@@ -1057,9 +1058,11 @@ export default function ResultsPanel({
                   </button>
                   {exportMenu}
                 </div>
-                <button type="button" onClick={onReset} className="sf-primary">
-                  Новый анализ
-                </button>
+                {onReset ? (
+                  <button type="button" onClick={onReset} className="sf-primary">
+                    Новый анализ
+                  </button>
+                ) : null}
               </div>
             )}
           </div>

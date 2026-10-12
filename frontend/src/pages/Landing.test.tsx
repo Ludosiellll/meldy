@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import Landing, { EXAM_TITLE_H, EYEBROW, FINAL_LEAD, HEADLINE, LEAD, METHOD, RESULT_NOTE, RESULT_SAMPLE, RESULT_TITLE, SIGN_UP_SHORT, START_LABEL, STEPS, TRY_LABEL } from './Landing';
+import Landing, { EXAM_TITLE_H, EYEBROW, FINAL_LEAD, HEADLINE, LECTURE_EXAMPLE_LINE, LEAD, METHOD, RESULT_NOTE, RESULT_SAMPLE, RESULT_TITLE, SIGN_UP_SHORT, START_LABEL, STEPS, TRY_LABEL } from './Landing';
 import { REEL_EVENT } from '../components/home/reelJump';
 import { SHEET_EXAMPLE, SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
 import { freePlanLine } from '../components/landing/freePlan';
@@ -49,6 +49,7 @@ function renderLanding() {
         <Route path="/register" element={<p>Страница регистрации</p>} />
         <Route path="/login" element={<p>Страница входа</p>} />
         <Route path="/try" element={<TryStub />} />
+        <Route path="/try/lecture" element={<p>Разбор лекции примера</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -307,6 +308,17 @@ describe('Landing page', () => {
     expect(buttons.map((button) => plain(button.textContent))).toEqual([START_LABEL, TRY_LABEL]);
     fireEvent.click(buttons[1]);
     expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
+  });
+
+  it('leads from the final call, in one plain line, to what Meldy made of the example’s lecture', () => {
+    renderLanding();
+    const final = document.getElementById('start')!;
+    const line = within(final).getByRole('link');
+    expect(plain(line.textContent)).toBe(plain(LECTURE_EXAMPLE_LINE));
+    expect(LECTURE_EXAMPLE_LINE).toBe('Что Meldy делает из лекции — пример разбора');
+    expect(line).toHaveAttribute('href', '/try/lecture');
+    fireEvent.click(line);
+    expect(screen.getByText('Разбор лекции примера')).toBeInTheDocument();
   });
 
   it('signs in from the navbar', () => {
