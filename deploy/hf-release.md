@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.3: what the live re-check of 44.2 found (from the commit of this entry)
+
+- **Remarks about the source in the forms 44.2 missed** (`34b1504`, `f44ad89`):
+  - **Bracket remarks.** «вольтметром (в тексте — вольтметром)» and «1 вольт (в тексте — 1 Вт)» now go. A bracket with a dash or a colon is removed only when its 1–3 words echo the word just before it. Quotes like «(в тексте — «буря мглою небо кроет»)» and expansions like «НДС (в расшифровке — налог на добавленную стоимость)» stay.
+  - **«текст» → «лекция».** Fixed phrases that stand on their own are rewritten with case and capitals kept: «согласно тексту?» → «согласно лекции?», «в тексте указано…» → «в лекции указано…». They stay when a genitive or an agreeing word follows: «согласно тексту закона», «в тексте романа», «согласно тексту, приведённому выше».
+  - **Prompts.** Every lecture prompt now calls the source «лекция».
+- **Materials made after the analysis know a recording** (`34b1504`): a section made again, the Выжимка, the podcast and its pictures now send the lecture's `summary_json.recognized`, and a recording's prompts get the recording rule there too.
+- **A cached answer costs nothing on every lecture route** (`d931aa7`): 44.2 covered the analysis routes; now also `/api/analyze/section`, quick-prep, podcast generate and visuals. Units go back before the response is sent when no real model call was made.
+- **Screens:**
+  - **Laptop status line** (`30a51e7`): at 1532×734 the podcast player's status line, cut 14 px by the window's bottom edge, now brings the page up by exactly that much, as on a phone.
+  - **Lecture page while it loads** (`9fc6198`): the placeholder now stands in the lecture's own boxes. A fresh `/library/:id` load scored a layout shift of 0.447 at 1532×734 and 0.142 at 390×844; locally it now scores 0.0004 and 0.
+- **Verified before release:** pytest 1956 (Python 3.12, pinned tree), bot 319 and its plan copy, Vitest 275 files / 4518 tests, the build in the Docker layout. The release gate runs them again on this commit.
+- **One-time cost:** the new prompt rule changes every cache key, so the first request for each material after release is a real, charged call.
+- **Live checks after release:**
+  - a recorded lecture's конспект and test without «(в тексте — …)» and «согласно тексту»;
+  - a repeated Выжимка or «Создать заново» with the meter unchanged;
+  - the laptop's «Повторить» in view;
+  - a fresh lecture page below 0.1.
+
 ## 2026-10-12 — Release 44.2: what the live re-check of 44.1 found, on a pinned server (from the commit of this entry)
 
 - **Lecture materials** (`5c21a9a`):
