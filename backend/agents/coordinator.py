@@ -9,12 +9,13 @@ A model answer counts only after validate_section accepted it. An unusable
 answer is evicted from the BaseAgent cache and asked once more; a section that
 still has nothing usable is reported as ``empty``, never filled with stand-ins.
 An accepted answer then goes through mixed_script.check: Latin look-alikes in
-Russian words are replaced, remarks in brackets about the source text go and
-«согласно тексту» becomes «согласно лекции»; a word with a real Latin chunk
-inside, letters of a script the lecture does not use («Чем植物 клетки») or a
-remark inside a sentence are asked once more the same way (a second such answer
-loses the sentences with them). The check runs on a cached answer too: the cache
-keeps the model's raw text, not checked material.
+Russian words are replaced, remarks in brackets about the source text go,
+«согласно тексту» becomes «согласно лекции» and a sentence that starts by
+crediting the lecture («Согласно лекции, …») states the fact itself; a word
+with a real Latin chunk inside, letters of a script the lecture does not use
+(«Чем植物 клетки») or a remark inside a sentence are asked once more the same
+way (a second such answer loses the sentences with them). The check runs on a
+cached answer too: the cache keeps the model's raw text, not checked material.
 
 Every section prompt calls the source a lecture, and a lecture that came from a
 recording (``recording``) has the RECORDING_RULE in them too: its text is speech

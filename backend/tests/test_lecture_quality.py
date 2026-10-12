@@ -864,23 +864,25 @@ def test_a_named_quotation_a_symbol_or_an_explanation_in_brackets_stays():
 
 
 def test_the_source_is_called_a_lecture_in_the_fixed_phrases_of_the_materials():
+    # Since the recheck of 44.3 a question loses «согласно лекции» before its «?», and a sentence that starts by
+    # crediting the source states the fact itself: «Согласно тексту, X» → «Согласно лекции, X» → «X».
     for question in QA_QUESTIONS:
-        assert mixed_script.fix_text(question) == (question.replace("согласно тексту?", "согласно лекции?"), [])
+        assert mixed_script.fix_text(question) == (question.replace(" согласно тексту?", "?"), [])
     renamed = [
-        ("Согласно тексту, клетка — единица живого.", "Согласно лекции, клетка — единица живого."),
+        ("Согласно тексту, клетка — единица живого.", "Клетка — единица живого."),
         ("Что, согласно тексту, является единицей живого?", "Что, согласно лекции, является единицей живого?"),
         ("По тексту, ток в цепи постоянный.", "По лекции, ток в цепи постоянный."),
         ("Вопросы по тексту", "Вопросы по лекции"),
-        ("В тексте указано, что мембрана двойная.", "В лекции указано, что мембрана двойная."),
+        ("В тексте указано, что мембрана двойная.", "Мембрана двойная."),
         ("В тексте сказано о двух видах соединения.", "В лекции сказано о двух видах соединения."),
         ("В тексте говорится о мембране.", "В лекции говорится о мембране."),
         ("Об этом в тексте упоминается дважды.", "Об этом в лекции упоминается дважды."),
         ("В тексте упоминалось, что ток постоянный.", "В лекции упоминалось, что ток постоянный."),
-        ("В тексте отмечено, что ток постоянный.", "В лекции отмечено, что ток постоянный."),
-        ("Как сказано в тексте, ток постоянный.", "Как сказано в лекции, ток постоянный."),
+        ("В тексте отмечено, что ток постоянный.", "Ток постоянный."),
+        ("Как сказано в тексте, ток постоянный.", "Ток постоянный."),
         ("Ток постоянный, как указано в тексте.", "Ток постоянный, как указано в лекции."),
         ("Из текста следует, что ток растёт.", "Из лекции следует, что ток растёт."),
-        ("СОГЛАСНО ТЕКСТУ, ток растёт.", "СОГЛАСНО ЛЕКЦИИ, ток растёт."),
+        ("СОГЛАСНО ТЕКСТУ, ток растёт.", "Ток растёт."),
     ]
     for text, fixed in renamed:
         assert mixed_script.fix_text(text) == (fixed, []), text
@@ -915,7 +917,7 @@ def test_the_notes_and_the_test_of_the_recheck_come_clean_without_a_second_answe
     results = _results(_post_sections(api, ["summarizer", "quiz"]))
     assert results["summarizer"]["content"] == QA_FORM_REMARK_FIXED
     assert [item["question"] for item in results["quiz"]["quiz"]] == [
-        question.replace("согласно тексту?", "согласно лекции?") for question in QA_QUESTIONS
+        question.replace(" согласно тексту?", "?") for question in QA_QUESTIONS
     ]
     assert sorted(calls) == ["quiz", "summarizer"]  # silently: nothing is asked again
 
@@ -927,7 +929,149 @@ def test_the_notes_and_the_test_of_the_recheck_come_clean_without_a_second_answe
 
     monkeypatch.setattr(BaseAgent, "run", run)
     response = api.post("/api/quick-prep", json={"context": LECTURE})
-    assert response.json()["cheatsheet"] == "# Выжимка\n\nНапряжение измеряют вольтметром. Согласно лекции, ток постоянный."
+    assert response.json()["cheatsheet"] == "# Выжимка\n\nНапряжение измеряют вольтметром. Ток постоянный."
+
+
+# The recheck of release 44.3 (2026-10-12): the materials of the recorded physics lecture and of the biology PDF
+# credited the lecture in nearly every explanation of the test, 12 and 17 times (44.2: none).
+QA_CREDITS = [
+    ("Согласно лекции, закон Ома связывает силу тока, напряжение и сопротивление участка цепи.",
+     "Закон Ома связывает силу тока, напряжение и сопротивление участка цепи."),
+    ("В лекции отмечается, что сопротивление зависит от материала проводника, его длины и площади сечения.",
+     "Сопротивление зависит от материала проводника, его длины и площади сечения."),
+    ("В лекции указано, что шероховатая ЭПС несёт рибосомы и участвует в синтезе белков.",
+     "Шероховатая ЭПС несёт рибосомы и участвует в синтезе белков."),
+    ("Как объясняется в лекции, закон Ома выполняется не для всех элементов.", "Закон Ома выполняется не для всех элементов."),
+    ("Лекция говорит, что клетка — это наименьшая единица живого.", "Клетка — это наименьшая единица живого."),
+    ("Понимание того, как устроена клетка, помогает. Согласно лекции, с чего начинается клеточная теория?",
+     "Понимание того, как устроена клетка, помогает. С чего начинается клеточная теория?"),
+    ("Как формулируется закон Ома для участка цепи согласно лекции?", "Как формулируется закон Ома для участка цепи?"),
+    ("Каково основное строение плазматической мембраны согласно лекции?", "Каково основное строение плазматической мембраны?"),
+]
+
+
+def test_a_sentence_that_credits_the_lecture_first_states_the_fact_itself():
+    for text, fixed in QA_CREDITS:
+        assert mixed_script.fix_text(text) == (fixed, []), text
+    cases = [
+        ("В лекции сказано, что ток постоянный.", "Ток постоянный."),
+        ("В лекции говорится, что ток постоянный.", "Ток постоянный."),
+        ("В лекции подчёркивается, что ток постоянный.", "Ток постоянный."),
+        ("В лекции подчеркивается, что ток постоянный.", "Ток постоянный."),
+        ("В лекции утверждается, что ток постоянный.", "Ток постоянный."),
+        ("В лекции отмечено, что ток постоянный.", "Ток постоянный."),
+        ("Как указано в лекции, ток постоянный.", "Ток постоянный."),
+        ("Как отмечено в лекции, ток постоянный.", "Ток постоянный."),
+        ("Как говорится в лекции, ток постоянный.", "Ток постоянный."),
+        # Case: the attribution in any case, a capital that is already there, a term whose case is its meaning.
+        ("СОГЛАСНО ЛЕКЦИИ, ток растёт.", "Ток растёт."),
+        ("Согласно лекции, Ом открыл закон в 1827 году.", "Ом открыл закон в 1827 году."),
+        ("Согласно лекции, pH крови — 7,4.", "pH крови — 7,4."),
+        ("Согласно лекции, мА — тысячная доля ампера.", "мА — тысячная доля ампера."),
+        ("Согласно лекции, «каждая клетка — от клетки».", "«Каждая клетка — от клетки»."),
+        ("Согласно лекции, $I = U/R$ — закон Ома.", "$I = U/R$ — закон Ома."),
+        # Punctuation and layout: after «!», «»» and a list marker, a comma without a space.
+        ("Вот главное! Согласно лекции, ток растёт.", "Вот главное! Ток растёт."),
+        ("Вирхов сказал: «Клетка — от клетки». Как сказано в лекции, это основа теории.",
+         "Вирхов сказал: «Клетка — от клетки». Это основа теории."),
+        ("- Согласно лекции, ток растёт.\n- В лекции указано, что напряжение падает.\n1. Как указано в лекции, R растёт.",
+         "- Ток растёт.\n- Напряжение падает.\n1. R растёт."),
+        ("Согласно лекции,ток растёт.", "Ток растёт."),
+        # A question loses «согласно лекции» or «по лекции» before its «?», with the comma or the dash before it.
+        ("Как зависит ток от напряжения, согласно лекции?", "Как зависит ток от напряжения?"),
+        ("Какие органоиды есть в клетке по лекции?", "Какие органоиды есть в клетке?"),
+        ("Что такое ток — согласно лекции?", "Что такое ток?"),
+        ("ЧТО ТАКОЕ ТОК СОГЛАСНО ЛЕКЦИИ?", "ЧТО ТАКОЕ ТОК?"),
+    ]
+    for text, fixed in cases:
+        assert mixed_script.fix_text(text) == (fixed, []), text
+
+
+def test_the_lecture_named_inside_a_sentence_stays():
+    # Only a credit that opens a sentence, or ends a question, says nothing: these say what the lecture holds.
+    kept = [
+        "Что, согласно лекции, является единицей живого?",
+        "Ток постоянный, как указано в лекции.",
+        "Ток постоянный, т. е. согласно лекции, он не меняется.",
+        "т. е. согласно лекции, ток постоянный.",
+        "Согласно лекции профессора Иванова, ток постоянный.",
+        "Согласно лекциям, ток постоянный.",
+        "Как указано в лекции 3, ток постоянный.",
+        "По лекции, ток в цепи постоянный.",
+        "В лекции сказано о двух видах соединения.",
+        "В лекции указано три причины войны.",
+        "В лекции рассматривается закон Ома.",
+        "Из лекции следует, что ток растёт.",
+        "Какие вопросы задают по лекции чаще всего?",
+        "Согласно тексту закона, срок давности — три года.",
+        "Формула $Согласно\\ лекции, x$ и код `Согласно лекции, x` остаются как есть.",
+    ]
+    for text in kept:
+        assert mixed_script.fix_text(text) == (text, []), text
+
+
+def test_every_material_quick_prep_and_the_podcast_lose_the_credit(api, monkeypatch):
+    """The clean-up stands where «тексту» becomes «лекции» (mixed_script.check): the five sections of the analysis, the
+    Выжимка and the podcast made later, and nothing is asked again for it."""
+    from agents.base import BaseAgent
+    from test_analyze_stream import section_of
+
+    answers = {
+        "summarizer": _summary("Согласно лекции, инфляция — устойчивый рост цен."),
+        "flashcards": json.dumps({"flashcards": [{"question": "Что такое инфляция согласно лекции?",
+                                                  "answer": "Согласно лекции, это устойчивый рост цен."}]},
+                                 ensure_ascii=False),
+        "quiz": json.dumps({"quiz": [{"question": "Что повышает ЦБ, когда инфляция растёт, согласно лекции?",
+                                      "options": ["A) Ключевую ставку", "B) Налоги"], "correct": "A",
+                                      "explanation": "В лекции указано, что ЦБ повышает ключевую ставку."}]},
+                           ensure_ascii=False),
+        "cheatsheet": json.dumps({"cheatsheet": "# Выжимка\n\nКак сказано в лекции, инфляция — рост цен."}, ensure_ascii=False),
+        "podcast": _podcast("Что такое инфляция по лекции?", "Лекция говорит, что это рост цен."),
+    }
+    calls = []
+
+    async def section(self, system_prompt, user_text, **kwargs):
+        # The Выжимка's prompt says «выжимок» (section_of looks for «шпаргалок»).
+        name = "cheatsheet" if "создания выжимок" in system_prompt else section_of(system_prompt)
+        calls.append(name)
+        return answers[name]
+
+    monkeypatch.setattr(BaseAgent, "run", section)
+    results = _results(_post_sections(api, ["summarizer", "flashcards", "quiz", "cheatsheet", "podcast"]))
+    assert results["summarizer"]["content"] == "Инфляция — устойчивый рост цен."
+    card = results["flashcards"]["flashcards"][0]
+    assert (card["question"], card["answer"]) == ("Что такое инфляция?", "Это устойчивый рост цен.")
+    question = results["quiz"]["quiz"][0]
+    assert question["question"] == "Что повышает ЦБ, когда инфляция растёт?"
+    assert question["explanation"] == "ЦБ повышает ключевую ставку."
+    assert results["cheatsheet"]["content"] == "# Выжимка\n\nИнфляция — рост цен."
+    assert [line["text"] for line in results["podcast"]["podcast"]] == ["Что такое инфляция?", "Это рост цен."]
+    assert sorted(calls) == ["cheatsheet", "flashcards", "podcast", "quiz", "summarizer"]
+
+    async def run(self, system_prompt, user_text, **kwargs):
+        if '"key_points"' in system_prompt:
+            return _prep("# Выжимка\n\nВ лекции подчёркивается, что ставка сдерживает цены.")
+        return _podcast("Как ЦБ сдерживает цены согласно лекции?", "Согласно лекции, он повышает ставку.")
+
+    monkeypatch.setattr(BaseAgent, "run", run)
+    assert api.post("/api/quick-prep", json={"context": LECTURE}).json()["cheatsheet"] == "# Выжимка\n\nСтавка сдерживает цены."
+    lines = api.post("/api/podcast/generate", json={"context": LECTURE}).json()["podcast"]
+    assert [line["text"] for line in lines] == ["Как ЦБ сдерживает цены?", "Он повышает ставку."]
+
+
+def test_an_answer_from_the_cache_loses_the_credit_too(api, monkeypatch):
+    """An answer the cache keeps from before (the model's raw text) is cleaned on its way out as well."""
+    from agents import base as ai_base
+
+    calls = _model_answers(monkeypatch, [_prep("# Выжимка\n\nСогласно лекции, инфляция — рост цен.")])
+    try:
+        for _ in range(2):
+            response = api.post("/api/quick-prep", json={"context": LECTURE})
+            assert response.json()["cheatsheet"] == "# Выжимка\n\nИнфляция — рост цен."
+        assert len(calls) == 1  # the second answer came from the cache
+    finally:
+        ai_base._GENAI_CLIENTS.clear()
+        ai_base._MODEL_SKIP.clear()
 
 
 # ── 4. Prompts: formulas, dates and numbers from the lecture only ─────────────────
@@ -1046,10 +1190,14 @@ LATER_MATERIALS = {
 
 
 def test_every_lecture_material_prompt_calls_its_source_a_lecture(api, monkeypatch):
-    """The recheck of release 44.2: «…согласно тексту?» in the tests of a recording and of a PDF alike."""
+    """The recheck of release 44.2: «…согласно тексту?» in the tests of a recording and of a PDF alike. The recheck of
+    44.3: with «в лекции», «согласно лекции» given as the words to use, nearly every explanation of the test credited the
+    lecture; the rule names no phrase now."""
     from agents.base import LECTURE_WORD_RULE, RECORDING_RULE, BaseAgent, source_rules
 
-    assert "«в лекции», «согласно лекции», а не «в тексте», «согласно тексту»" in LECTURE_WORD_RULE
+    assert "называй его лекцией — никогда не текстом" in LECTURE_WORD_RULE
+    assert "Не начинай ответы, пояснения и карточки со ссылки на лекцию: сразу пиши сами факты." in LECTURE_WORD_RULE
+    assert "согласно" not in LECTURE_WORD_RULE.lower() and "«" not in LECTURE_WORD_RULE
     assert source_rules() == LECTURE_WORD_RULE and source_rules(True) == LECTURE_WORD_RULE + RECORDING_RULE
     for recording in (False, True):
         prompts = build_prompts(normalize_settings(), build_source_chunks(LECTURE), recording=recording)
