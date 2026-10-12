@@ -10,6 +10,7 @@ import ExpressPrepView from '../components/ExpressPrepView';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { deleteMaterial, getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
+import { notifyAIUsageChanged } from '../api/limits';
 import { SECTION_LABELS, parseSections, sectionHasContent } from '../utils/analysisSections';
 import TipCard from '../components/tips/TipCard';
 import { TIPS } from '../components/tips/tips';
@@ -740,6 +741,14 @@ export default function MaterialDetail() {
     });
   };
 
+  // «Создать … заново» saved its section, and the server charged it (free only as a repair of the analysis): the ring
+  // reads the limit again, as after «Создать выжимку» and «Создать подкаст» (recheck of 44.3: 900 → 893 on the server,
+  // 900 on the page until a reload).
+  const sectionRecreated = (next: AnalysisResults, changed: CoreSectionName) => {
+    updateMaterialFields(recreatedFields(material.id, next, changed));
+    notifyAIUsageChanged();
+  };
+
   const lectureTitle = displayMaterialTitle(material.title);
   const metaLine = materialMeta({ subject: material.subject, isPublic: Boolean(material.is_public), own: canEdit, createdAt: material.created_at, short: phone });
   const reviewHref = `/review?material=${encodeURIComponent(material.id)}`;
@@ -959,7 +968,7 @@ export default function MaterialDetail() {
             materialId={material.id}
             originalText={material.original_text || ''}
             canEdit={canEdit}
-            onResultsChange={(next, changed) => updateMaterialFields(recreatedFields(material.id, next, changed))}
+            onResultsChange={sectionRecreated}
             recognized={recognizedSource(summaryJson.recognized)}
             embedded
             initialTab={sectionParam}

@@ -604,9 +604,51 @@ describe('section statuses saved with the material', () => {
     expect(state.material.quiz_json).toEqual(quizPayload);
     expect((state.material.summary_json.sections as Record<string, unknown>).quiz).toEqual({ status: 'ok' });
     expect(state.material.summary_json.content).toBe('Конспект про энтропию');
-    expect(state.increment).not.toHaveBeenCalled();
+    // The server decides what it cost (a repair is free); the page reads the limit again either way.
+    expect(state.increment).toHaveBeenCalledTimes(1);
     const body = JSON.parse(String((globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(call => call[0] === '/api/analyze/section')?.[1]?.body));
     expect(body).toMatchObject({ section: 'quiz', text: state.material.original_text });
+  });
+
+  it('«Создать тест заново» reads the limit again once the section is saved, as the Выжимка and the podcast do (recheck of 44.3)', async () => {
+    state.material = {
+      ...makeMaterial({ sections: { summarizer: { status: 'ok' }, quiz: { status: 'failed', message: 'Модель не ответила' } } }),
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    // The server charges with the answer: nothing to read before it.
+    expect(state.increment).not.toHaveBeenCalled();
+    await act(async () => pending['/api/analyze/section'][0].resolve(jsonResponse({ section: 'quiz', status: 'ok', result: quizPayload })));
+    expect(await screen.findByText(/Убывает ли энтропия изолированной системы\?/)).toBeInTheDocument();
+    await waitFor(() => expect(state.increment).toHaveBeenCalledTimes(1));
+    expect(state.material.quiz_json).toEqual(quizPayload);
+  });
+
+  it('a section the server could not make reads nothing again: its units went back', async () => {
+    state.material = {
+      ...makeMaterial({ sections: { summarizer: { status: 'ok' }, quiz: { status: 'failed', message: 'Модель не ответила' } } }),
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    const failure = JSON.stringify({ code: 'ai_failed', detail: 'Не удалось создать раздел.' });
+    await act(async () =>
+      pending['/api/analyze/section'][0].resolve({
+        ok: false,
+        status: 502,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => failure,
+        json: async () => JSON.parse(failure),
+      } as unknown as Response),
+    );
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(state.writes).toHaveLength(0);
+    expect(state.increment).not.toHaveBeenCalled();
   });
 
   it('a legacy material without sections shows no failure lines', async () => {
@@ -733,7 +775,7 @@ describe('section statuses saved with the material', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
     expect(await screen.findByText('Что такое энтропия?', { selector: 'section[aria-label="Субтитры"] p' })).toBeInTheDocument();
     expect(screen.queryByText('Подкаста по этой лекции ещё нет')).not.toBeInTheDocument();
-    expect(state.increment).toHaveBeenCalledTimes(1);
+    expect(state.increment).toHaveBeenCalledTimes(2); // the podcast and the test each read the limit again
   });
 });
 
