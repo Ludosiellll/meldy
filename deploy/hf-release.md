@@ -4,6 +4,28 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.2: what the live re-check of 44.1 found, on a pinned server (from the commit of this entry)
+
+- **Lecture materials** (`5c21a9a`):
+  - **Other scripts.** Letters of other scripts inside Russian text, such as podcast line 15 «Чем植物 клетки…», are caught like a broken Latin word: the material is asked again once, then the sentences that still have them go. This covers all five materials, quick-prep and the podcast routes, answers from the server's cache included. Greek letters, formulas, code and any script the lecture itself uses are left alone.
+  - **Recordings.** A recorded lecture's prompts now say its text is speech recognition: write names and terms correctly when sure, and never mention the text or the recording. A bracket remark like «(в тексте упомянут как Вт метр)» is removed.
+  - **Mnemonics.** The Выжимка gives a mnemonic only when it really helps.
+- **A repeated analysis served from the cache costs nothing** (`d4729e5`):
+  - The re-check saw 4.2 s and −20 units for a cached re-analysis. When no real model or transcription call was made, the units now go back before the results are sent.
+  - A recording is transcribed again each time, so it is still charged.
+  - A scan keeps the units of its page recognition.
+- **Phone screens** (`a9c921b`):
+  - At the top of the page, the podcast player's status line and «Повторить» now stand above the bottom bar: 686–776 against the bar at 782 on a 390×844 phone, where they were at 770–860.
+  - The lecture page's tabs wrap into two rows instead of scrolling sideways, so «Подкаст» is no longer cut off.
+- **Also in this release:**
+  - **Pinned server** (`2759062`): `requirements.txt` with `==`, `backend/constraints.txt` with the whole tree 44.1 was built with, and both base images by digest.
+  - **No browser push row in «Профиль»** (`3cfa6af`): its subscriptions lived in a file every release erased.
+- **Verified before release:** pytest 1940 (Python 3.12, pinned tree), bot 319 and its plan copy, Vitest 275 files / 4509 tests, the build in the Docker layout. The release gate runs them again on this commit.
+- **Live checks after release:**
+  - a cached re-analysis on account B with the meter unchanged;
+  - the phone screens;
+  - a recorded lecture's конспект without remarks about the source.
+
 ## 2026-10-11 — Release 44.1: what the live re-check of 44 found (from the commit of this entry)
 
 - **Recordings back to the measured-best setup** (`edf8859`): release 44's Whisper large-v3 with a topic prompt from the file name scored 32–76 % of the source words on the QA MP3 (84.6 % before 44), invented sentences and once ended with «Лекция физика закон Ома… Субтитры создавал DimaTorzok». Now `whisper-large-v3-turbo` first, no prompt, Russian kept; known Russian Whisper credit lines and end loops are cleaned; an empty result goes on to Gemini.
