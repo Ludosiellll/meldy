@@ -1593,14 +1593,9 @@ def _tts_slots() -> asyncio.Semaphore:
 
 
 async def _synthesize_edge_tts(text: str, voice_id: str) -> bytes:
-    import edge_tts
+    import edge_voice  # on whichever of Microsoft's two hosts takes the stream (see its doc)
 
-    communicate = edge_tts.Communicate(text, voice_id, rate=TTS_RATE)
-    chunks: list[bytes] = []
-    async for chunk in communicate.stream():
-        if chunk.get("type") == "audio" and chunk.get("data"):
-            chunks.append(chunk["data"])
-    return b"".join(chunks)
+    return await edge_voice.synthesize(text, voice_id, rate=TTS_RATE)
 
 
 async def _tts_attempt(text: str, voice_id: str, timeout: float) -> bytes:

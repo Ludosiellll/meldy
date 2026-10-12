@@ -149,15 +149,10 @@ async def check_groq() -> dict[str, Any]:
 
 
 async def synthesize(text: str, voice: str) -> bytes:
-    """The clip of ``text`` straight from edge-tts (no cache: the check must reach the service)."""
-    import edge_tts
+    """The clip of ``text`` from edge-tts on the host /api/tts uses (no cache: the check must reach the service)."""
+    import edge_voice
 
-    communicate = edge_tts.Communicate(text, voice)
-    chunks: list[bytes] = []
-    async for chunk in communicate.stream():
-        if chunk.get("type") == "audio" and chunk.get("data"):
-            chunks.append(chunk["data"])
-    return b"".join(chunks)
+    return await edge_voice.synthesize(text, voice)
 
 
 def _tts_code(exc: BaseException) -> str:
