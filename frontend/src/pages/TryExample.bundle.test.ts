@@ -76,7 +76,26 @@ describe('the first screen of /try (jury QA, 2026-10-11: Slow 4G)', () => {
     expect(room.filter((module) => graph.modules.has(module))).toEqual([]);
   });
 
+  it('does not carry the lecture’s result (/try/lecture): the result screen, its data and its voice come with their own file', async () => {
+    const lecture = [
+      'components/example/ExampleLecture.tsx',
+      'components/ResultsPanel.tsx',
+      'components/conversation/ConversationPlayer.tsx',
+      'data/exampleLecture/index.ts',
+      'data/exampleLecture/results.json',
+    ];
+    // Neither /try's first screen nor the app's first file, which holds the way to it (lib/prefetch.ts → tryParts).
+    for (const start of ['pages/TryExample.tsx', 'lib/prefetch.ts']) {
+      const graph = await staticClosure(start);
+      expect(graph.modules.has('components/example/tryParts.ts')).toBe(true);
+      expect(lecture.filter((module) => graph.modules.has(module))).toEqual([]);
+    }
+  });
+
   it('the check sees what it looks for: a screen with an account reaches the client, the room reaches its parts', async () => {
+    const result = await staticClosure('components/example/ExampleLecture.tsx');
+    expect(result.modules.has('components/ResultsPanel.tsx')).toBe(true);
+    expect(result.modules.has('data/exampleLecture/results.json')).toBe(true);
     const detail = await staticClosure('pages/ExamDetail.tsx');
     expect(detail.modules.has('lib/supabase.ts')).toBe(true);
     expect(detail.packages.has('@supabase/supabase-js')).toBe(true);

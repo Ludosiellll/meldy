@@ -11,6 +11,11 @@ export const START_OWN_LABEL = 'Начать со своего списка';
 export const CREATE_ACCOUNT_LABEL = 'Создать аккаунт';
 /** A signed-in student goes straight to a new exam. */
 export const CREATE_EXAM_LABEL = 'Создать свой экзамен';
+/**
+ * The where-line of the lecture's result (/try/lecture), while its file comes and after: the page is often opened from
+ * the landing, before the sheet, so its way back names the exam example.
+ */
+export const TRY_LECTURE_WHERE = 'Пример экзамена';
 
 /** Own exam: a guest signs up and lands on a new exam (the list of questions comes first); a student goes there. */
 export function ownExamHref(signedIn: boolean): string {

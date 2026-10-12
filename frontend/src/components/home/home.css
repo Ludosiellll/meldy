@@ -1613,6 +1613,34 @@
   box-shadow: none;
 }
 
+/* The lecture's example (/try/lecture): one plain line under the buttons. */
+.hm-final-also {
+  position: relative;
+  max-width: 580px;
+  margin: 22px 0 0 4px;
+  font-size: 17px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.hm-final-also a {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(255, 255, 255, 0.55);
+  text-underline-offset: 5px;
+}
+
+.hm-final-also a:hover {
+  text-decoration-color: #fff;
+}
+
+.hm-final-also a:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .hm-final .hm-pill--white .hm-dot {
   background: #0b121c;
   color: #fff;

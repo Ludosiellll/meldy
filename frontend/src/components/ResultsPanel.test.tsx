@@ -118,6 +118,17 @@ describe('header', () => {
     expect(screen.queryByText(/Остальные результаты доступны/)).not.toBeInTheDocument();
   });
 
+  it('offers «Новый анализ» on the analysis page only: a result shown without a way to analyse again has none', () => {
+    const onReset = vi.fn();
+    renderPanel({ onReset });
+    fireEvent.click(screen.getByRole('button', { name: 'Новый анализ' }));
+    expect(onReset).toHaveBeenCalledTimes(1);
+    cleanup();
+    renderPanel({ onReset: undefined, preview: true });
+    expect(screen.queryByRole('button', { name: 'Новый анализ' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Экспорт' })).toBeInTheDocument();
+  });
+
   it('shows the interrupted-stream line for partial results', () => {
     renderPanel({ partial: true });
     expect(screen.getByText('Связь прервалась. Показаны разделы, которые успели прийти.')).toBeInTheDocument();

@@ -1,0 +1,4 @@
+/* «Разбор лекции» of the example (/try/lecture): the analysis page's frame and result screen (pages/Analyze.css .az,
+   components/ResultsPanel.css) under the example's top line; above the result, the note of what it is. The language
+   is notes 10_Project/Design_Language_2026-10-04. */
+.sf-page .tl-note { width: fit-content; max-width: 100%; margin: 0 0 4px; box-sizing: border-box; }

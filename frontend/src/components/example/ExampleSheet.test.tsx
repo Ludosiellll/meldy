@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({ user: null as null | { id: string } }));
 
 vi.mock('../../lib/supabase', () => ({ supabase: {} }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: mocks.user, session: null, loading: false, signOut: vi.fn() }) }));
+// The lecture's result is a file of its own: here only whether the sheet asks for it.
+const lecturePart = vi.hoisted(() => ({ load: vi.fn(async () => () => null) }));
+vi.mock('./tryParts', async (importOriginal) => ({ ...(await importOriginal<typeof import('./tryParts')>()), tryLecturePart: lecturePart }));
 
 import ExampleSheet, { EXAMPLE_ANSWERS_NOTE } from './ExampleSheet';
 import ExampleDraw from './ExampleDraw';
@@ -152,6 +155,19 @@ describe('the example’s sheet (/try)', () => {
     const after = document.querySelector('.ex-cta') as HTMLElement;
     expect(within(after).getByRole('link', { name: 'Создать аккаунт' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
     expect(within(after).getByRole('button', { name: 'Тянуть ещё билет' })).toBeTruthy();
+  });
+
+  it('leads from the lectures to what Meldy made of the first one, and fetches that page when the link is pointed at', () => {
+    renderAt('/try');
+    const lectures = screen.getByRole('region', { name: 'Лекции примера' });
+    const link = within(lectures).getByRole('link', { name: /^Что\sMeldy\sсделал\sиз\sлекции\s«Спрос\sи\sпредложение»$/ });
+    expect(link).toHaveAttribute('href', '/try/lecture');
+    // Under the section's lead, before the lectures themselves.
+    expect(link.closest('.tx-lectures-head')).not.toBeNull();
+    // Not fetched with the sheet; pointing at the link does.
+    expect(lecturePart.load).not.toHaveBeenCalled();
+    fireEvent.pointerEnter(link);
+    expect(lecturePart.load).toHaveBeenCalledTimes(1);
   });
 
   it('the draw names its tab', () => {

@@ -14,7 +14,7 @@ const files = vi.hoisted(() => {
     });
     return { promise, resolve, reject, asked: 0 };
   };
-  return { ticket: deferred(), draw: deferred() };
+  return { ticket: deferred(), draw: deferred(), lecture: deferred() };
 });
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
@@ -27,7 +27,7 @@ vi.mock('../components/example/tryParts', async () => {
       file.asked += 1;
       return file.promise as Promise<ComponentType>;
     });
-  return { tryTicketPart: held(files.ticket), tryDrawPart: held(files.draw) };
+  return { tryTicketPart: held(files.ticket), tryDrawPart: held(files.draw), tryLecturePart: held(files.lecture) };
 });
 
 import TryExample from './TryExample';
@@ -66,6 +66,24 @@ describe('the example’s draw and answer room are files of their own (jury QA, 
     expect(document.querySelector('.cs-paper')).not.toBeNull();
     expect(files.ticket.asked).toBe(0);
     expect(files.draw.asked).toBe(0);
+    // The lecture's result neither: its link is on the sheet, its file comes when the link is pointed at or opened.
+    expect(screen.getByRole('link', { name: /^Что\sMeldy\sсделал\sиз\sлекции\s«Спрос\sи\sпредложение»$/ })).toHaveAttribute('href', '/try/lecture');
+    expect(files.lecture.asked).toBe(0);
+  });
+
+  it('the lecture’s result keeps its top line and the loader while its file comes, the way back named for the exam example', async () => {
+    renderAt('/try/lecture');
+    expect(files.lecture.asked).toBe(1);
+    expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Пример экзамена' })).toHaveAttribute('href', '/try');
+    const { default: ExampleLecture } = await import('../components/example/ExampleLecture');
+    await act(async () => {
+      files.lecture.resolve(ExampleLecture);
+      await files.lecture.promise;
+    });
+    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Пример экзамена' })).toHaveAttribute('href', '/try');
+    expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
   });
 
   it('a step whose file is still on its way keeps the top line and the page loader, then shows at once when it arrives', async () => {
