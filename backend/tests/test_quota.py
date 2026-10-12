@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import exams_api  # noqa: E402
 import exams_map  # noqa: E402
+import mixed_script  # noqa: E402
 import oral_api  # noqa: E402
 import quota  # noqa: E402
 import receipts  # noqa: E402
@@ -140,6 +141,8 @@ def api(server, monkeypatch):
             item = queue.pop(0) if len(queue) > 1 else queue[0]
             if isinstance(item, BaseException):
                 raise item
+            # An answer of the model, not of the cache: a real call, as BaseAgent counts it (agents.base.CallCount).
+            base.note_real_call()
             return item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)
 
         monkeypatch.setattr(BaseAgent, "run", fake_run)
@@ -767,6 +770,58 @@ def test_a_recording_is_transcribed_each_time_so_its_analysis_is_charged_from_th
         assert sse_types(response)[-2:] == ["results", "done"]
     assert asked == ["summarizer"] and len(transcribed) == 2
     assert api.server.rpc("refund_ai_units") == [] and api.server.used == 2 * AI_COSTS["lecture"]
+
+
+# The lecture materials made outside the analysis stream (the live recheck of release 44.2 found them charged for an
+# answer from the cache): a request, a request about another lecture and the model's answer to both.
+TWO_LINES = {"podcast": [{"speaker": "Макс", "text": "Что такое инфляция?"}, {"speaker": "Софья", "text": "Рост цен."}]}
+QUESTION_VISUAL = {"visuals": [{"index": 0, "visual": {"type": "question", "question": "Что такое инфляция?",
+                                                        "answer": "Устойчивый рост цен."}}]}
+LATER_MATERIALS = [
+    ("/api/quick-prep", {"context": "Лекция про инфляцию и ставку."}, {"context": "Лекция про ВВП."}, "cheatsheet",
+     CHEATSHEET),
+    ("/api/podcast/generate", {"context": "Инфляция — устойчивый рост цен.", "title": "Инфляция"},
+     {"context": "ВВП — стоимость товаров и услуг.", "title": "ВВП"}, "conversation", TWO_LINES),
+    ("/api/podcast/visuals", {"lines": [PODCAST_LINE], "context": "Инфляция — рост цен."},
+     {"lines": [PODCAST_LINE], "context": "Инфляция — устойчивый рост цен."}, "visuals", QUESTION_VISUAL),
+    ("/api/analyze/section", {"section": "quiz", "text": CACHED_LECTURE},
+     {"section": "quiz", "text": CACHED_LECTURE + "Её сдерживает ключевая ставка."}, "analysisSection",
+     json.loads(SECTION_ANSWERS["quiz"])),
+]
+
+
+@pytest.mark.parametrize("path,body,other,kind,answer", LATER_MATERIALS, ids=[row[0] for row in LATER_MATERIALS])
+def test_a_material_made_after_the_analysis_from_the_cache_costs_nothing_and_a_real_call_is_charged(
+    api, clean_agent, monkeypatch, path, body, other, kind, answer
+):
+    calls = install_gemini(monkeypatch, lambda model: json.dumps(answer, ensure_ascii=False))
+    price = AI_COSTS[kind]
+    assert api.post(path, json=body).status_code == 200
+    assert len(calls) == 1 and api.server.used == price and api.server.rpc("refund_ai_units") == []
+
+    # The same request again: the answer comes from the server's cache and the units go back before the response.
+    assert api.post(path, json=body).status_code == 200
+    assert len(calls) == 1
+    (refund,) = api.server.rpc("refund_ai_units")
+    assert (refund["p_kind"], refund["p_units"]) == (kind, price) and api.server.used == price
+
+    # Another lecture: a real call, charged.
+    assert api.post(path, json=other).status_code == 200
+    assert len(calls) == 2 and api.server.used == 2 * price and len(api.server.rpc("refund_ai_units")) == 1
+
+
+def test_a_cached_answer_asked_again_for_a_broken_word_is_a_real_call_and_charged(api, clean_agent, monkeypatch):
+    """The check asks the model again for a cached answer with a broken word (mixed_script): that answer is paid."""
+    answers = [{**CHEATSHEET, "cheatsheet": "Инфляция — рост цен. Был рост национаisticских настроений."}]
+    calls = install_gemini(monkeypatch, lambda model: json.dumps(answers[-1], ensure_ascii=False))
+    with monkeypatch.context() as old_check:
+        old_check.setattr(mixed_script, "_word", lambda word: (word, False))  # a check that let it through
+        assert api.post("/api/quick-prep", json={"context": "Лекция про инфляцию."}).status_code == 200
+    answers.append(CHEATSHEET)
+    response = api.post("/api/quick-prep", json={"context": "Лекция про инфляцию."})
+    assert response.status_code == 200 and response.json()["cheatsheet"] == CHEATSHEET["cheatsheet"]
+    assert len(calls) == 2 and api.server.rpc("refund_ai_units") == []
+    assert api.server.used == 2 * AI_COSTS["cheatsheet"]
 
 
 def test_a_scan_whose_analysis_came_from_the_cache_keeps_only_its_recognition(analyze, gemini):

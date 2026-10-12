@@ -597,6 +597,26 @@ async def _guarded(
                 charge.refund_soon()
 
 
+@contextlib.asynccontextmanager
+async def _paid_by_real_calls(charge: "quota.Charge", label: str):
+    """quota.refund_on_failure for a lecture material outside the analysis stream (/api/analyze/section,
+    /api/quick-prep, /api/podcast/generate and /visuals), and the stream's rule (_guarded): nothing paid, nothing
+    charged. An answer that came from the server's cache, with no real model call in the block (agents.base.CallCount),
+    gives its units back before the response goes out, so the limit the page reads after it is already right; a block
+    with a real call keeps them. Release 44.2 did it for the three analysis routes only (live recheck of 44.2)."""
+    calls = ai_base.count_calls()
+    async with quota.refund_on_failure(charge, keep=False):
+        yield charge
+    if calls.real:
+        charge.keep()
+        return
+    if charge.units:
+        print(f"{label}: the answer came from the cache, the units go back")
+    # In the background, as the stream does: a client gone meanwhile does not stop the refund.
+    charge.refund_unpaid_soon()
+    await charge.wait_refund()
+
+
 def _from_recording(recognized: Any) -> bool:
     """The lecture's text came from a recording: summary_json.recognized, which the page sends with a material it asks
     for after the analysis (a section «заново», the Выжимка, the podcast and its pictures). Its prompts then say what
@@ -997,8 +1017,9 @@ async def analyze_section(request: Request, req: AnalyzeSectionRequest):
     Free only as a repair: the caller's own material whose analysis left this section without
     content, by the analysis's signed receipt — then its saved text is used, not the text sent.
     Anything else costs AI_COSTS["analysisSection"]: free sections over a free text-only import were
-    a whole analysis without the daily limit (2026-10-05). The text is chunked exactly like the
-    analysis, so the S-ids match the saved material; a recorded lecture's prompt says so (_from_recording).
+    a whole analysis without the daily limit (2026-10-05) — unless the answer came from the server's
+    cache (_paid_by_real_calls). The text is chunked exactly like the analysis, so the S-ids match the
+    saved material; a recorded lecture's prompt says so (_from_recording).
     """
     if req.section not in CORE_SECTIONS:
         raise HTTPException(status_code=400, detail="Этот раздел нельзя создать отдельно.")
@@ -1011,12 +1032,13 @@ async def analyze_section(request: Request, req: AnalyzeSectionRequest):
     text = repair_text if repair_text is not None else req.text
     units = 0 if repair_text is not None else AI_COSTS["analysisSection"]
     charge = await quota.charge(request, "analysisSection", units)
-    async with quota.refund_on_failure(charge):
+    async with _paid_by_real_calls(charge, "Section"):
         coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
-        return await coordinator.run_section(
+        section = await coordinator.run_section(
             req.section, text, req.settings if isinstance(req.settings, dict) else None,
             recording=_from_recording(req.recognized),
         )
+    return section
 
 
 # --- Model diagnostics (owner only) ------------------------------------------------------
@@ -1340,7 +1362,8 @@ QUICK_PREP_FAILURE_DETAIL = "Не удалось создать выжимку. 
 async def quick_prep(request: Request, req: QuickPrepRequest):
     """Cheatsheet for a material. A failure is an error status, never a stand-in
     text: the client saves whatever comes back as the user's cheatsheet and
-    charges energy for it."""
+    charges energy for it. An answer from the server's cache costs nothing
+    (_paid_by_real_calls)."""
     context = (req.context or "").strip()[:15000]
     if not context:
         raise HTTPException(status_code=400, detail="Недостаточно текста для выжимки.")
@@ -1367,7 +1390,7 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
         return parsed if isinstance(cheatsheet, str) and cheatsheet.strip() else None
 
     charge = await quota.charge(request, "cheatsheet", AI_COSTS["cheatsheet"])
-    async with quota.refund_on_failure(charge):
+    async with _paid_by_real_calls(charge, "Quick prep"):
         parsed, raw = await _checked_answer(ask, usable, context)
         if parsed is None:
             _forget_cached_response(raw)
@@ -1776,7 +1799,8 @@ def _first_list(parsed: _Any, key: str) -> list:
 @app.post("/api/podcast/generate")
 @limiter.limit("5/minute", key_func=user_or_ip_key)
 async def podcast_generate(request: Request, req: PodcastGenerateRequest):
-    """Create a conversation with visuals for a material that has none yet."""
+    """Create a conversation with visuals for a material that has none yet (free when the answer came from the
+    server's cache: _paid_by_real_calls)."""
     context = (req.context or "").strip()
     if not context:
         raise HTTPException(status_code=400, detail="Нет текста материала для разговора.")
@@ -1800,7 +1824,7 @@ async def podcast_generate(request: Request, req: PodcastGenerateRequest):
 
     user_text = "\n\n".join(parts)
     charge = await quota.charge(request, "conversation", AI_COSTS["conversation"])
-    async with quota.refund_on_failure(charge):
+    async with _paid_by_real_calls(charge, "Podcast"):
         # Charts and timelines survive only if their numbers and dates are in the material.
         lines, raw = await _checked_answer(
             lambda: _run_podcast_model(system_prompt, user_text),
@@ -1818,7 +1842,8 @@ async def podcast_generate(request: Request, req: PodcastGenerateRequest):
 @app.post("/api/podcast/visuals")
 @limiter.limit("10/minute", key_func=user_or_ip_key)
 async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
-    """Suggest visuals for the lines of an existing (legacy) conversation."""
+    """Suggest visuals for the lines of an existing (legacy) conversation (free when the answer came from the server's
+    cache: _paid_by_real_calls)."""
     if len(req.lines) > PODCAST_VISUALS_MAX_LINES:
         raise HTTPException(status_code=413, detail="Слишком много реплик: максимум 40.")
     context = (req.context or "").strip()
@@ -1854,7 +1879,7 @@ async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
 
     system_prompt = build_podcast_visuals_prompt() + source_rules(_from_recording(req.recognized))
     charge = await quota.charge(request, "visuals", AI_COSTS["visuals"])
-    async with quota.refund_on_failure(charge):
+    async with _paid_by_real_calls(charge, "Podcast visuals"):
         # The pictures draw on the lines and the material: what the model was given.
         visuals, raw = await _checked_answer(lambda: _run_podcast_model(system_prompt, user_text), usable, user_text)
         if not visuals:

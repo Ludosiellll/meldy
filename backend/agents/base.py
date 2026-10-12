@@ -1327,7 +1327,8 @@ class CallCount:
     """The real (not cached) answers the work of a task got: every answer of BaseAgent that a provider gave, and a
     transcription or a recognition the work notes itself (note_real_call). The analysis stream (main._guarded) gives
     its units back when there were none: a repeated analysis came back from the cache in 4.2 s and took 20 units
-    (live recheck of release 44.1, 2026-10-11)."""
+    (live recheck of release 44.1, 2026-10-11). So do the lecture materials made outside the stream
+    (main._paid_by_real_calls; the live recheck of release 44.2)."""
 
     def __init__(self) -> None:
         self.real = 0
