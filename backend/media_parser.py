@@ -233,10 +233,13 @@ async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None) -> 
 GROQ_AUDIO_CONCURRENCY_DEFAULT = 4
 GROQ_AUDIO_RPM_DEFAULT = 20
 GROQ_AUDIO_WINDOW_SECONDS = 60.0
-# A 429 waits for Groq's retry-after, at most 30 s (10 s when it gives none), and is tried again while the deadline
-# allows; any other failure is tried once more after a second, and then the piece goes to Gemini.
+# A 429 asking for at most 30 s is waited for (10 s when Groq names no time) and the piece tried again, at most
+# twice. One asking for longer (the hourly audio allowance used up, say) sends the piece to Gemini at once, and
+# Groq rests: every piece of this and later recordings goes to Gemini until that time is up. Any other failure is
+# tried once more after a second. Then the piece goes to Gemini; no wait runs past the deadline.
 GROQ_BUSY_WAIT_MAX_SECONDS = 30.0
 GROQ_BUSY_WAIT_SECONDS = 10.0
+GROQ_BUSY_RETRIES = 2
 GROQ_PIECE_RETRY_SECONDS = 1.0
 # The deadline of a caller that gives none; the analysis stream passes its own (main.py, MEDIA_TRANSCRIBE_TIMEOUT_SECONDS).
 PIECES_BUDGET_SECONDS = 480.0
@@ -248,6 +251,19 @@ _PIECE_END_RE = re.compile(r"спасибо(?:\s+за\s+(?:внимание|пр
 
 # When this process started the pieces' requests to Groq (time.monotonic()), the last GROQ_AUDIO_WINDOW_SECONDS.
 _groq_audio_starts: deque = deque()
+# Until when (time.monotonic()) Groq rests after a 429 that asked for more than GROQ_BUSY_WAIT_MAX_SECONDS.
+_groq_rests_until = 0.0
+
+
+class _GroqResting(Exception):
+    """Groq rests after a long 429: the piece goes to Gemini."""
+
+
+def _rest_groq(now: float, seconds: float) -> None:
+    global _groq_rests_until
+    if now >= _groq_rests_until:
+        print(f"Lecture pieces: Groq asks to wait {seconds:.0f} s (429); the pieces go to Gemini until then")
+    _groq_rests_until = max(_groq_rests_until, now + seconds)
 
 
 def _positive_int_env(name: str, default: int) -> int:
@@ -260,10 +276,13 @@ def _positive_int_env(name: str, default: int) -> int:
 
 async def _groq_audio_turn(clock, sleep, deadline: float) -> None:
     """Waits until the process has started fewer than GROQ_AUDIO_RPM pieces' requests in the last 60 s and counts one
-    more; MediaProcessingTimeout when that is not before the deadline."""
+    more; _GroqResting while Groq rests (also after the wait), MediaProcessingTimeout when the turn is not before the
+    deadline."""
     limit = _positive_int_env("GROQ_AUDIO_RPM", GROQ_AUDIO_RPM_DEFAULT)
     while True:
         now = clock()
+        if now < _groq_rests_until:
+            raise _GroqResting()
         while _groq_audio_starts and _groq_audio_starts[0] <= now - GROQ_AUDIO_WINDOW_SECONDS:
             _groq_audio_starts.popleft()
         if len(_groq_audio_starts) < limit:
@@ -287,40 +306,49 @@ def _without_closing_thanks(text: str) -> str:
     return text
 
 
-async def _piece_text(client, path: str, last: bool, clock, sleep, deadline: float) -> str:
-    """The text of one piece: Whisper (429: wait and try again; another failure: once more after a second), then
-    Gemini with the piece's bytes inline. Cleaned as a whole transcript is, and without closing thanks unless it is
-    the last piece."""
-    retried = False
+async def _groq_piece_text(client, path: str, clock, sleep, deadline: float) -> Optional[str]:
+    """Whisper's text of one piece, or None when it is Gemini's: Groq rests or asks for a long wait (which makes it
+    rest), the piece's retries are used up, or the next wait would not end before the deadline (above)."""
+    busy_retries, retried = 0, False
     while True:
         try:
-            text = await _groq_text(client, path, "audio/flac", lambda: _groq_audio_turn(clock, sleep, deadline))
-            break
+            return await _groq_text(client, path, "audio/wav", lambda: _groq_audio_turn(clock, sleep, deadline))
         except MediaProcessingTimeout:
             raise
+        except _GroqResting:
+            return None
         except Exception as exc:
             kind = classify_error(exc)
             if kind == "rate_limited":
                 retry_after = _retry_after_seconds(exc)
-                wait = GROQ_BUSY_WAIT_SECONDS if retry_after is None else min(retry_after, GROQ_BUSY_WAIT_MAX_SECONDS)
-                if clock() + wait >= deadline:
-                    raise AIError.busy() from None
+                if retry_after is not None and retry_after > GROQ_BUSY_WAIT_MAX_SECONDS:
+                    _rest_groq(clock(), retry_after)
+                    return None
+                wait = GROQ_BUSY_WAIT_SECONDS if retry_after is None else retry_after
+                busy_retries += 1
+                again = busy_retries <= GROQ_BUSY_RETRIES
+            else:
+                wait, again, retried = GROQ_PIECE_RETRY_SECONDS, not retried, True
+            if not again or clock() + wait >= deadline:
+                print(f"Lecture pieces: Groq failed on a piece ({kind}); Gemini transcribes it")
+                return None
+            if kind == "rate_limited":
                 print(f"Lecture pieces: Groq is busy (429), a piece waits {wait:.0f} s")
-                await sleep(wait)
-                continue
-            if not retried:
-                retried = True
-                await sleep(GROQ_PIECE_RETRY_SECONDS)
-                continue
-            print(f"Lecture pieces: Groq failed on a piece twice ({kind}); Gemini transcribes it")
-            if clock() >= deadline:
-                raise MediaProcessingTimeout() from None
-            with open(path, "rb") as piece_file:
-                data = piece_file.read()
-            text = await _transcribe_with_gemini(
-                None, "audio/flac", inline=types.Part.from_bytes(data=data, mime_type="audio/flac")
-            )
-            break
+            await sleep(wait)
+
+
+async def _piece_text(client, path: str, last: bool, clock, sleep, deadline: float) -> str:
+    """The text of one piece: Whisper (_groq_piece_text), else Gemini with the piece's bytes inline. Cleaned as a
+    whole transcript is, and without closing thanks unless it is the last piece."""
+    text = await _groq_piece_text(client, path, clock, sleep, deadline)
+    if text is None:
+        if clock() >= deadline:
+            raise MediaProcessingTimeout()
+        with open(path, "rb") as piece_file:
+            data = piece_file.read()
+        text = await _transcribe_with_gemini(
+            None, "audio/wav", inline=types.Part.from_bytes(data=data, mime_type="audio/wav")
+        )
     text = clean_whisper_transcript(text)
     return text if last else _without_closing_thanks(text)
 

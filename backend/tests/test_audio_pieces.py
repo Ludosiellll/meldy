@@ -8,6 +8,7 @@ import asyncio
 import os
 import subprocess
 import sys
+import wave
 from pathlib import Path
 
 import pytest
@@ -66,16 +67,19 @@ def run(coroutine):
     return asyncio.run(coroutine)
 
 
-def flac_seconds(path) -> float:
-    """The length a FLAC piece says it has (its STREAMINFO), read here without the module's helpers."""
-    with open(path, "rb") as handle:
-        head = handle.read(42)
-    assert head[:4] == b"fLaC"
-    info = head[8:42]
-    rate = (info[10] << 12) | (info[11] << 4) | (info[12] >> 4)
-    samples = int.from_bytes(info[13:18], "big") & ((1 << 36) - 1)
-    assert rate == 16000 and samples > 0
-    return samples / rate
+def wav_seconds(path) -> float:
+    """The length a WAV piece's header gives, once the header is checked: 16-bit mono 16 kHz PCM, and a data chunk
+    whose size is the header's frame count and runs to the end of the file."""
+    with wave.open(str(path)) as handle:
+        assert (handle.getnchannels(), handle.getsampwidth(), handle.getframerate()) == (1, 2, 16000)
+        frames = handle.getnframes()
+    blob = Path(path).read_bytes()
+    position = 12  # after «RIFF», the size and «WAVE»: the chunks, each padded to an even size
+    while blob[position:position + 4] != b"data":
+        size = int.from_bytes(blob[position + 4:position + 8], "little")
+        position += 8 + size + size % 2
+    assert int.from_bytes(blob[position + 4:position + 8], "little") == frames * 2 == len(blob) - position - 8
+    return frames / 16000
 
 
 def assert_pieces(actual, expected, tolerance=0.05):
@@ -242,20 +246,21 @@ def test_a_run_that_takes_too_long_is_stopped(recordings, monkeypatch):
 
 
 @needs_ffmpeg
-def test_one_decode_cuts_the_pieces_where_the_plan_says(recordings, tmp_path):
+def test_one_decode_cuts_the_pieces_where_the_plan_says(recordings, tmp_path, capsys):
     exe = audio_pieces.ffmpeg_exe()
     duration, pauses = run(audio_pieces.find_pauses(exe, str(recordings["lecture"])))
     plan = plan_pieces(duration, pauses)
     files = run(audio_pieces.cut_pieces(exe, str(recordings["lecture"]), plan, str(tmp_path)))
-    assert [os.path.basename(file) for file in files] == ["piece0000.flac", "piece0001.flac", "piece0002.flac", "piece0003.flac"]
+    assert [os.path.basename(file) for file in files] == ["piece0000.wav", "piece0001.wav", "piece0002.wav", "piece0003.wav"]
+    assert "one piece at a time" not in capsys.readouterr().out  # the segment muxer's pieces were kept
 
-    # The segment muxer's own list: each boundary within one FLAC frame (72 ms) after the planned cut.
+    # The segment muxer's own list: each boundary at most 0.15 s after the planned cut (one MP3 frame, 36 ms, here).
     rows = [line.rsplit(",", 2) for line in (tmp_path / "pieces.csv").read_text().splitlines()]
     starts = [float(start) for _, start, _ in rows]
     assert all(0 <= start - piece.start <= audio_pieces.BOUNDARY_TOLERANCE_SECONDS for start, piece in zip(starts, plan))
 
-    # Each piece says its own length (the muxer left «unknown» in all but the last, which had the whole recording's)...
-    lengths = [flac_seconds(file) for file in files]
+    # Each piece's header gives its own length, as planned, and the pieces add up to the recording...
+    lengths = [wav_seconds(file) for file in files]
     assert_pieces(lengths, [piece.end - piece.start for piece in plan], tolerance=audio_pieces.BOUNDARY_TOLERANCE_SECONDS)
     assert sum(lengths) == pytest.approx(duration, abs=0.01)
     # ...and holds that much audio (ffmpeg reports the decoded length to 10 ms).
@@ -276,7 +281,7 @@ def test_pieces_are_cut_one_at_a_time_when_the_segments_are_off_the_plan(recordi
     monkeypatch.setattr(audio_pieces, "BOUNDARY_TOLERANCE_SECONDS", -1.0)  # no segment boundary is good enough
     files = run(audio_pieces.cut_pieces(exe, str(recordings["lecture"]), LECTURE_PLAN, str(tmp_path)))
     assert "cutting one piece at a time" in capsys.readouterr().out
-    lengths = [flac_seconds(file) for file in files]
+    lengths = [wav_seconds(file) for file in files]
     assert_pieces(lengths, [piece.end - piece.start for piece in LECTURE_PLAN], tolerance=0.01)
     decoded, _ = run(audio_pieces.find_pauses(exe, files[-1]))
     assert decoded == pytest.approx(lengths[-1], abs=0.011)

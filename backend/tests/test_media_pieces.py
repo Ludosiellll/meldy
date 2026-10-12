@@ -24,7 +24,7 @@ from agents.base import AIError  # noqa: E402
 from test_analyze_stream import LECTURE, SUMMARY, answer_with, frames, kinds  # noqa: E402
 from test_audio_pieces import LECTURE as LECTURE_LAYOUT, make_recording, needs_ffmpeg  # noqa: E402
 
-PIECE_NAMES = [f"piece{index:04d}.flac" for index in range(5)]
+PIECE_NAMES = [f"piece{index:04d}.wav" for index in range(5)]
 
 
 class FakeTime:
@@ -56,10 +56,12 @@ class GroqError(Exception):
 def groq(monkeypatch):
     """groq.AsyncGroq: each request is recorded (its file's name, type and bytes, and the fake clock when one is
     set); it answers ``texts[name]`` or «Текст <name>.» after ``hold[name]`` turns of the loop (1 by default);
-    ``fail[name]`` lists what the next requests for that file raise, in turn."""
+    ``fail[name]`` lists what the next requests for that file raise, in turn; ``slow[name]`` seconds pass on
+    ``time`` (a FakeTime) during its next request."""
     import groq as groq_module
 
-    state = SimpleNamespace(calls=[], clients=[], finished=[], texts={}, fail={}, hold={}, running=0, most=0, clock=None)
+    state = SimpleNamespace(calls=[], clients=[], finished=[], texts={}, fail={}, hold={}, slow={}, running=0, most=0,
+                            clock=None, time=None)
 
     class FakeAsyncGroq:
         def __init__(self, api_key=None, **kwargs):
@@ -76,6 +78,8 @@ def groq(monkeypatch):
             try:
                 for _ in range(state.hold.get(name, 1)):
                     await asyncio.sleep(0)
+                if name in state.slow:
+                    state.time.now += state.slow.pop(name)
                 if state.fail.get(name):
                     raise state.fail[name].pop(0)
                 state.finished.append(name)
@@ -89,6 +93,7 @@ def groq(monkeypatch):
                  "GROQ_AUDIO_CONCURRENCY", "AUDIO_MAX_PIECES"):
         monkeypatch.delenv(name, raising=False)
     media_parser._groq_audio_starts.clear()
+    monkeypatch.setattr(media_parser, "_groq_rests_until", 0.0)
     yield state
     media_parser._groq_audio_starts.clear()
 
@@ -108,8 +113,8 @@ def cut(monkeypatch):
         state.plans.append(pieces)
         files = []
         for index, piece in enumerate(pieces):
-            files.append(os.path.join(directory, f"piece{index:04d}.flac"))
-            Path(files[-1]).write_bytes(f"fLaC {piece.start:g}-{piece.end:g}".encode())
+            files.append(os.path.join(directory, f"piece{index:04d}.wav"))
+            Path(files[-1]).write_bytes(f"RIFF {piece.start:g}-{piece.end:g}".encode())
         return files
 
     monkeypatch.setattr(audio_pieces, "ffmpeg_exe", lambda: "ffmpeg")
@@ -158,24 +163,24 @@ def fake_gemini(monkeypatch, answer):
 
 def test_pieces_go_to_whisper_as_the_whole_file_did_and_come_back_in_order(groq, cut, recording):
     groq.texts = {
-        "piece0000.flac": "Первая часть. Спасибо.",  # a cut's «Спасибо.» (live 2026-10-12)
-        "piece0001.flac": "Вторая часть.",
-        "piece0002.flac": "Третья часть. Продолжение следует...",
-        "piece0003.flac": "Субтитры сделал DimaTorzok",  # nothing but a made-up line
-        "piece0004.flac": "Последняя часть. Спасибо.",  # the lecturer's own, at the very end
+        "piece0000.wav": "Первая часть. Спасибо.",  # a cut's «Спасибо.» (live 2026-10-12)
+        "piece0001.wav": "Вторая часть.",
+        "piece0002.wav": "Третья часть. Продолжение следует...",
+        "piece0003.wav": "Субтитры сделал DimaTorzok",  # nothing but a made-up line
+        "piece0004.wav": "Последняя часть. Спасибо.",  # the lecturer's own, at the very end
     }
-    groq.hold = {"piece0000.flac": 30}  # the first piece answers last
+    groq.hold = {"piece0000.wav": 30}  # the first piece answers last
     progress = []
     text = in_pieces(recording, FakeTime(), progress=lambda done, total: progress.append((done, total)))
 
     # A paragraph where the cut pause lasted 1.5 s or more (also across the empty piece), a space elsewhere.
     assert text == "Первая часть.\n\nВторая часть. Третья часть.\n\nПоследняя часть. Спасибо."
-    assert groq.finished[-1] == "piece0000.flac"
+    assert groq.finished[-1] == "piece0000.wav"
     assert sorted(call["name"] for call in groq.calls) == PIECE_NAMES
     for call in groq.calls:
         assert call["model"] == "whisper-large-v3-turbo" and call["language"] == "ru" and call["temperature"] == 0
-        assert call["response_format"] == "text" and "prompt" not in call and call["mime"] == "audio/flac"
-    assert {call["data"] for call in groq.calls} == {b"fLaC 0-20", b"fLaC 20-45", b"fLaC 45-75", b"fLaC 75-100", b"fLaC 100-130"}
+        assert call["response_format"] == "text" and "prompt" not in call and call["mime"] == "audio/wav"
+    assert {call["data"] for call in groq.calls} == {b"RIFF 0-20", b"RIFF 20-45", b"RIFF 45-75", b"RIFF 75-100", b"RIFF 100-130"}
     # The SDK does not retry on its own: its requests would escape the pace.
     assert groq.clients == [{"max_retries": 0}]
     # Seconds of the recording done after each piece, whatever the order.
@@ -212,30 +217,96 @@ def test_the_process_starts_at_most_groq_audio_rpm_requests_in_any_minute(groq, 
     assert min(clock.sleeps) > 0
 
 
-def test_a_busy_groq_is_waited_for_as_long_as_it_asks_but_at_most_30_seconds(groq, cut, recording, capsys):
+def groq_calls_for(groq, name):
+    return sum(1 for call in groq.calls if call["name"] == name)
+
+
+def test_a_429_naming_no_time_is_waited_for_10_seconds_at_most_twice_then_gemini(groq, cut, recording, monkeypatch, capsys):
     groq.fail = {
-        "piece0001.flac": [GroqError(429, "7")],
-        "piece0002.flac": [GroqError(429)],  # no retry-after: 10 s
-        "piece0003.flac": [GroqError(429, "120"), GroqError(429, "2")],
+        "piece0001.wav": [GroqError(429), GroqError(429)],  # answers on the third try
+        "piece0002.wav": [GroqError(429)] * 3,  # still busy after two waits
     }
+    gemini = fake_gemini(monkeypatch, "Текст от Gemini.")
     clock = FakeTime()
     text = in_pieces(recording, clock)
-    assert sorted(clock.sleeps) == [2.0, 7.0, 10.0, 30.0]
-    assert len(groq.calls) == 9 and text.count("Текст piece") == 5
-    assert "Groq is busy (429), a piece waits 30 s" in capsys.readouterr().out
+    assert clock.sleeps == [10.0] * 4
+    assert groq_calls_for(groq, "piece0001.wav") == 3 and groq_calls_for(groq, "piece0002.wav") == 3
+    assert [call["data"] for call in gemini] == [b"RIFF 45-75"]
+    assert text == "Текст piece0000.wav.\n\nТекст piece0001.wav. Текст от Gemini. Текст piece0003.wav.\n\nТекст piece0004.wav."
+    log = capsys.readouterr().out
+    assert log.count("Groq is busy (429), a piece waits 10 s") == 4
+    assert "Groq failed on a piece (rate_limited); Gemini transcribes it" in log and "rests" not in log
+
+
+def test_a_429_asking_for_at_most_30_seconds_is_waited_for_at_most_twice_then_gemini(groq, cut, recording, monkeypatch):
+    groq.fail = {
+        "piece0001.wav": [GroqError(429, "7")],
+        "piece0002.wav": [GroqError(429, "30"), GroqError(429, "2"), GroqError(429, "2")],
+    }
+    gemini = fake_gemini(monkeypatch, "Текст от Gemini.")
+    clock = FakeTime()
+    text = in_pieces(recording, clock)
+    assert sorted(clock.sleeps) == [2.0, 7.0, 30.0]
+    assert groq_calls_for(groq, "piece0001.wav") == 2 and groq_calls_for(groq, "piece0002.wav") == 3
+    assert [call["data"] for call in gemini] == [b"RIFF 45-75"] and "Текст piece0001.wav." in text
+    assert media_parser._groq_rests_until == 0.0  # 30 s is no long wait: Groq does not rest
+
+
+def test_a_429_asking_for_longer_sends_the_piece_to_gemini_and_groq_rests_until_then(groq, cut, recording, monkeypatch, capsys):
+    monkeypatch.setenv("GROQ_AUDIO_CONCURRENCY", "1")  # the pieces one after another
+    groq.fail = {"piece0000.wav": [GroqError(429, "600")]}  # the hourly audio allowance used up, say
+    gemini = fake_gemini(monkeypatch, "Текст от Gemini.")
+    clock = FakeTime()
+    text = in_pieces(recording, clock)
+    # The first piece went to Gemini at once and the others skipped Groq: one request in all, no wait.
+    assert [call["name"] for call in groq.calls] == ["piece0000.wav"] and clock.sleeps == []
+    assert len(gemini) == 5 and text.count("Текст от Gemini.") == 5
+    assert capsys.readouterr().out.count("Lecture pieces: Groq asks to wait 600 s (429)") == 1
+
+    # A later recording while Groq rests goes straight to Gemini, and the log does not repeat itself.
+    clock.now += 599
+    in_pieces(recording, clock)
+    assert len(groq.calls) == 1 and len(gemini) == 10
+    assert "Groq asks to wait" not in capsys.readouterr().out
+
+    # Once the time is up, Groq again.
+    clock.now += 1
+    text = in_pieces(recording, clock)
+    assert len(groq.calls) == 6 and len(gemini) == 10 and text.count("Текст piece") == 5
+    capsys.readouterr()
+
+    # Two pieces in flight both hear a long 429: one rest, the longer time, one line in the log.
+    monkeypatch.setenv("GROQ_AUDIO_CONCURRENCY", "2")
+    groq.fail = {"piece0000.wav": [GroqError(429, "900")], "piece0001.wav": [GroqError(429, "300")]}
+    in_pieces(recording, clock)
+    assert len(groq.calls) == 8 and len(gemini) == 15
+    assert media_parser._groq_rests_until == clock.now + 900
+    assert capsys.readouterr().out.count("Groq asks to wait") == 1
+
+
+def test_a_piece_waiting_for_its_turn_goes_to_gemini_when_groq_starts_resting_meanwhile(groq, cut, recording, monkeypatch):
+    # One request a minute: the second piece waits for its turn while the first one hears «come back in 10 minutes».
+    monkeypatch.setenv("GROQ_AUDIO_RPM", "1")
+    monkeypatch.setenv("GROQ_AUDIO_CONCURRENCY", "2")
+    groq.fail = {"piece0000.wav": [GroqError(429, "600")]}
+    gemini = fake_gemini(monkeypatch, "Текст от Gemini.")
+    clock = FakeTime()
+    in_pieces(recording, clock)
+    assert [call["name"] for call in groq.calls] == ["piece0000.wav"]
+    assert clock.sleeps == [60.0] and len(gemini) == 5
 
 
 def test_a_piece_groq_fails_twice_goes_to_gemini_with_its_bytes_inline(groq, cut, recording, monkeypatch):
-    groq.fail = {"piece0002.flac": [GroqError(500), GroqError(503)]}
+    groq.fail = {"piece0002.wav": [GroqError(500), GroqError(503)]}
     gemini = fake_gemini(monkeypatch, "Текст от Gemini.")
     clock = FakeTime()
     text = in_pieces(recording, clock)
     assert clock.sleeps == [1.0]  # one more try after a second
     assert text == (
-        "Текст piece0000.flac.\n\nТекст piece0001.flac. Текст от Gemini. Текст piece0003.flac.\n\nТекст piece0004.flac."
+        "Текст piece0000.wav.\n\nТекст piece0001.wav. Текст от Gemini. Текст piece0003.wav.\n\nТекст piece0004.wav."
     )
     [call] = gemini
-    assert call["mime"] == "audio/flac" and call["data"] == b"fLaC 45-75"
+    assert call["mime"] == "audio/wav" and call["data"] == b"RIFF 45-75"
     assert call["prompt"] == media_parser.MEDIA_TRANSCRIPTION_PROMPT and call["model"] == "gemini-model"
     assert call["config"].temperature == media_parser.MEDIA_TRANSCRIPTION_TEMPERATURE
 
@@ -243,14 +314,14 @@ def test_a_piece_groq_fails_twice_goes_to_gemini_with_its_bytes_inline(groq, cut
 def test_a_piece_gemini_cannot_transcribe_either_fails_the_whole_transcription(groq, cut, recording, monkeypatch):
     from google.genai import errors as genai_errors
 
-    groq.fail = {"piece0002.flac": [GroqError(500), GroqError(500)]}
+    groq.fail = {"piece0002.wav": [GroqError(500), GroqError(500)]}
     fake_gemini(monkeypatch, genai_errors.ClientError(429, {"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}}))
     with pytest.raises(AIError) as info:
         in_pieces(recording, FakeTime())
     assert info.value.status_code == 429
     assert not os.path.exists(cut.directories[-1])
 
-    groq.fail = {"piece0002.flac": [GroqError(500), GroqError(500)]}
+    groq.fail = {"piece0002.wav": [GroqError(500), GroqError(500)]}
     fake_gemini(monkeypatch, RuntimeError("down"))
     with pytest.raises(ValueError):
         in_pieces(recording, FakeTime())
@@ -266,14 +337,24 @@ def test_the_pieces_stop_at_the_deadline(groq, cut, recording, monkeypatch):
     assert len(groq.calls) == 2 and not os.path.exists(cut.directories[-1])
     assert clock.sleeps == []  # it does not wait for a turn past the deadline
 
-    # A 429 whose wait would cross the deadline: Groq is busy, as the page says.
+    # A wait for Groq that would not end before the deadline is not begun: the piece goes to Gemini.
     monkeypatch.delenv("GROQ_AUDIO_RPM")
     media_parser._groq_audio_starts.clear()
-    groq.fail = {"piece0000.flac": [GroqError(429, "30")]}
+    gemini = fake_gemini(monkeypatch, "Текст от Gemini.")
+    groq.fail = {"piece0000.wav": [GroqError(429, "30")]}
     clock = FakeTime()
-    with pytest.raises(AIError) as info:
+    assert in_pieces(recording, clock, deadline=clock.now + 20).startswith("Текст от Gemini.\n\nТекст piece0001.wav.")
+    groq.fail = {"piece0000.wav": [GroqError(500)]}
+    clock = FakeTime()
+    assert in_pieces(recording, clock, deadline=clock.now + 0.5).startswith("Текст от Gemini.")
+    assert clock.sleeps == [] and [call["data"] for call in gemini] == [b"RIFF 0-20"] * 2
+    # A request that fails after the deadline: Gemini is not asked either, the transcription took too long.
+    groq.fail, groq.calls = {"piece0000.wav": [GroqError(500)]}, []
+    clock = FakeTime()
+    groq.time, groq.slow = clock, {"piece0000.wav": 30.0}
+    with pytest.raises(media_parser.MediaProcessingTimeout):
         in_pieces(recording, clock, deadline=clock.now + 20)
-    assert info.value.status_code == 429 and not os.path.exists(cut.directories[-1])
+    assert groq_calls_for(groq, "piece0000.wav") == 1 and len(gemini) == 2 and not os.path.exists(cut.directories[-1])
 
 
 def test_without_a_groq_key_or_ffmpeg_or_for_a_short_recording_nothing_is_cut(groq, cut, recording, monkeypatch, capsys):
@@ -322,7 +403,7 @@ def test_a_recording_ffmpeg_cannot_read_goes_whole_and_the_log_names_no_file(gro
 
 
 @needs_ffmpeg
-def test_a_long_recording_goes_to_whisper_in_flac_pieces_cut_at_its_pauses(groq, tmp_path, monkeypatch):
+def test_a_long_recording_goes_to_whisper_in_wav_pieces_cut_at_its_pauses(groq, tmp_path, monkeypatch):
     path = make_recording(tmp_path / "lecture.mp3", LECTURE_LAYOUT)
     temporary = tmp_path / "tmp"
     temporary.mkdir()
@@ -333,10 +414,10 @@ def test_a_long_recording_goes_to_whisper_in_flac_pieces_cut_at_its_pauses(groq,
         deadline=time.monotonic() + 60,
     ))
     # Cut at 17 s (a 2 s pause), 40.4 s (0.8 s) and 70.4 s (no pause in the window): test_audio_pieces.LECTURE_PLAN.
-    assert text == "Текст piece0000.flac.\n\nТекст piece0001.flac. Текст piece0002.flac. Текст piece0003.flac."
+    assert text == "Текст piece0000.wav.\n\nТекст piece0001.wav. Текст piece0002.wav. Текст piece0003.wav."
     assert sorted(call["name"] for call in groq.calls) == PIECE_NAMES[:4]
     for call in groq.calls:
-        assert call["mime"] == "audio/flac" and call["data"][:4] == b"fLaC" and "prompt" not in call
+        assert call["mime"] == "audio/wav" and call["data"][:4] == b"RIFF" and "prompt" not in call
         assert call["model"] == "whisper-large-v3-turbo" and call["language"] == "ru" and call["temperature"] == 0
     assert len(progress) == 4 and progress[-1][0] == pytest.approx(95.0, abs=0.05)
     assert all(total == pytest.approx(95.0, abs=0.05) for _, total in progress)

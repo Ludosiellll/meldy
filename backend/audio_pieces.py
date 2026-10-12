@@ -2,9 +2,10 @@
 
 Whisper skips passages of a long recording and none of a piece that fits one 30 s window (the live measurements
 are at the top of media_parser.py). ffmpeg finds the pauses (silencedetect), plan_pieces chooses the cuts, and one
-more ffmpeg run writes the pieces as mono 16 kHz FLAC, the audio Whisper works with. ffmpeg is the static build
-that comes with the imageio-ffmpeg package. Nothing here talks to a provider, and no file name or ffmpeg log is
-printed: the log names the file and may carry its tags.
+more ffmpeg run writes the pieces as mono 16 kHz WAV (16-bit PCM), the audio Whisper works with: about 960 KB for
+30 s, far below Groq's 25 MB and Gemini's 20 MB inline. ffmpeg is the static build that comes with the
+imageio-ffmpeg package. Nothing here talks to a provider, and no file name or ffmpeg log is printed: the log names
+the file and may carry its tags.
 """
 from __future__ import annotations
 
@@ -38,10 +39,9 @@ SECONDS_PER_PAUSE = 45.0
 RELATIVE_SILENCE_DB = 6.0
 RELATIVE_SILENCE_LIMITS_DB = (-60.0, -20.0)
 
-SAMPLE_RATE = 16000
-_FLAC = ("-ac", "1", "-ar", str(SAMPLE_RATE), "-c:a", "flac")
-# The segment muxer cuts at the first FLAC frame (1152 samples, 72 ms at 16 kHz) after a planned time; farther
-# off than this, the pieces are cut one at a time instead.
+_WAV = ("-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le")
+# The segment muxer cuts at the first packet at or after a planned time: up to 31 ms later in the tests' MP3, 19 ms
+# in an AAC m4a, 8 ms in the 19:25 one (2026-10-12). Farther off than this, the pieces are cut one at a time.
 BOUNDARY_TOLERANCE_SECONDS = 0.15
 # ffmpeg decoded the tests' 95 s MP3 in under 0.15 s (about 900 times real time); a run still going after two
 # minutes is stuck, and the whole file goes instead.
@@ -195,74 +195,37 @@ def plan_pieces(duration: float, pauses: list[tuple[float, float]], limit: int |
     return pieces
 
 
-# STREAMINFO, the first metadata block of a FLAC file, starts at byte 8 (after «fLaC» and the block's header); the
-# number of samples is its 36 bits from byte 13 (the low half of 13, then 14-17), the MD5 of the audio bytes 18-33.
-_STREAMINFO = 8
-_SAMPLES_MASK = (1 << 36) - 1
-
-
-def _streaminfo(path: str) -> bytearray:
-    with open(path, "rb") as handle:
-        head = bytearray(handle.read(_STREAMINFO + 34))
-    if len(head) < _STREAMINFO + 34 or head[:4] != b"fLaC" or head[4] & 0x7F != 0:
-        raise FfmpegError("wrote a piece that is not FLAC")
-    return head
-
-
-def flac_samples(path: str) -> int:
-    """The number of samples a FLAC file says it holds (0: not said)."""
-    return int.from_bytes(_streaminfo(path)[_STREAMINFO + 13:_STREAMINFO + 18], "big") & _SAMPLES_MASK
-
-
-def _set_flac_samples(path: str, samples: int) -> None:
-    head = _streaminfo(path)
-    field = (int.from_bytes(head[_STREAMINFO + 13:_STREAMINFO + 18], "big") & ~_SAMPLES_MASK) | samples
-    head[_STREAMINFO + 13:_STREAMINFO + 18] = field.to_bytes(5, "big")
-    head[_STREAMINFO + 18:_STREAMINFO + 34] = bytes(16)  # no MD5: FLAC's «not computed»
-    with open(path, "r+b") as handle:
-        handle.write(head)
-
-
-def _segment_samples(listing: str, pieces: list[Piece], last_file: str) -> list[int] | None:
-    """The samples of each piece the segment muxer wrote, by its list of pieces, or None when a boundary is more than
-    BOUNDARY_TOLERANCE_SECONDS off the plan or the pieces do not add up to the recording the encoder counted."""
+def _segments_match(listing: str, pieces: list[Piece]) -> bool:
+    """Whether the segment muxer's list of what it wrote has the planned pieces, each starting within
+    BOUNDARY_TOLERANCE_SECONDS of the plan."""
     try:
         with open(listing, encoding="utf-8") as handle:
             rows = [line.rsplit(",", 2) for line in handle.read().splitlines() if line.strip()]
-        bounds = [(float(start), float(end)) for _, start, end in rows]
+        starts = [float(start) for _, start, _ in rows]
     except (OSError, ValueError):
-        return None
-    if len(bounds) != len(pieces):
-        return None
-    if any(abs(start - piece.start) > BOUNDARY_TOLERANCE_SECONDS for (start, _), piece in zip(bounds, pieces)):
-        return None
-    samples = [round(end * SAMPLE_RATE) - round(start * SAMPLE_RATE) for start, end in bounds]
-    return samples if sum(samples) == flac_samples(last_file) else None
+        return False
+    return len(starts) == len(pieces) and all(
+        abs(start - piece.start) <= BOUNDARY_TOLERANCE_SECONDS for start, piece in zip(starts, pieces)
+    )
 
 
 async def cut_pieces(exe: str, path: str, pieces: list[Piece], directory: str) -> list[str]:
-    """The pieces as mono 16 kHz FLAC files in ``directory``, in order: one decode with the segment muxer, or one run
-    per piece when its boundaries come out more than BOUNDARY_TOLERANCE_SECONDS off the plan.
-
-    The segment muxer leaves each piece the FLAC header the encoder began with («length unknown»), and the last one
-    the length and MD5 of the whole recording, which the encoder writes at its end: each piece gets its own length
-    from the muxer's list (measured 2026-10-12 on ffmpeg 7.0.2)."""
-    files = [os.path.join(directory, f"piece{index:04d}.flac") for index in range(len(pieces))]
+    """The pieces as mono 16 kHz WAV files in ``directory``, in order: one decode with the segment muxer, or one run
+    per piece when its boundaries come out more than BOUNDARY_TOLERANCE_SECONDS off the plan. Every WAV piece gets
+    its own header with its own length: PCM has nothing to fix afterwards."""
+    files = [os.path.join(directory, f"piece{index:04d}.wav") for index in range(len(pieces))]
     listing = os.path.join(directory, "pieces.csv")
     await _ffmpeg(
-        exe, "-vn", "-i", path, *_FLAC,
+        exe, "-vn", "-i", path, *_WAV,
         "-f", "segment", "-segment_times", ",".join(f"{piece.end:.3f}" for piece in pieces[:-1]),
         "-segment_list", listing, "-segment_list_type", "csv", "-reset_timestamps", "1",
-        os.path.join(directory, "piece%04d.flac"),
+        os.path.join(directory, "piece%04d.wav"),
     )
-    samples = _segment_samples(listing, pieces, files[-1])
-    if samples is not None:
-        for file, count in zip(files, samples):
-            _set_flac_samples(file, count)
+    if _segments_match(listing, pieces):
         return files
     print("Lecture pieces: the segment boundaries are off the plan; cutting one piece at a time")
     for index, piece in enumerate(pieces):
         # Input seeking is exact for audio; the last piece runs to the end of the recording.
         span = ("-ss", f"{piece.start:.3f}") + (("-to", f"{piece.end:.3f}") if index + 1 < len(pieces) else ())
-        await _ffmpeg(exe, *span, "-vn", "-i", path, *_FLAC, files[index])
+        await _ffmpeg(exe, *span, "-vn", "-i", path, *_WAV, files[index])
     return files
