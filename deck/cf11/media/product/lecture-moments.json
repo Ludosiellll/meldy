@@ -3,6 +3,7 @@
   "poster": "lecture-materials.jpg",
   "seconds": 30.0,
   "screen": { "box": [1152, 568], "radius": 22, "bg": "#0b121c", "same_as": "slide 07's laptop screen" },
+  "take": "release 44.1 (live site), take t3: device scale 1.5, «Сложность теста» «Средний» (set off the clip, see tools/record/take-lecture.cjs --quiz-difficulty)",
   "loop": "The clip begins on its poster's frame (frame 0 = lecture-materials.jpg: «Разобрать лекцию» and its four tabs) and loops every 30.0 s; from 29.1 s the camera eases back to the first framing and the last 0.5 s dissolve into frame 0.",
   "moments": {
     "tabs": 0.0,
@@ -10,10 +11,13 @@
     "ticked": 9.7,
     "start": 11.04,
     "konspekt": 14.1,
-    "kartochki": 18.23,
-    "test": 20.53,
-    "vyzhimka": 24.43,
-    "podcast": 26.53
+    "theses": 15.57,
+    "section": 17.1,
+    "terms": 18.6,
+    "kartochki": 19.93,
+    "test": 21.73,
+    "vyzhimka": 24.93,
+    "podcast": 26.43
   },
   "beats": [
     {
@@ -26,42 +30,43 @@
     },
     {
       "beat": "ticked", "label": "Что сделать из лекции — все пять", "from": 7.27, "to": 10.37,
-      "detail": "Конспект, Карточки, Тест are on by default; Выжимка ticked at 7.49, Подкаст at 9.70 (all five from 9.70)."
+      "detail": "Конспект, Карточки, Тест are on by default; Выжимка ticked at 7.63, Подкаст at 9.70 (all five from 9.70)."
     },
     {
       "beat": "start", "label": "Запустить анализ", "from": 10.37, "to": 14.1,
-      "detail": "Pressed at 11.04; the progress card at 11.96 («Читаем текст…», then «Распознаём текст файла. Это может занять несколько минут.» from 12.67); the wait is cut at 13.37; 13.37–14.10 the card as it was just before the results: «Готовим конспект, карточки, тест, выжимку и подкаст · Завершено 4 из 5»."
+      "detail": "Pressed at 11.04 («Запускаем…»); the progress card from 12.25 («Читаем текст…», then «Распознаём текст файла. Это может занять несколько минут.» from 13.2); the wait is cut at 13.37; 13.37–14.10 the card as it was just before the results, live: «Готовим конспект, карточки, тест, выжимку и подкаст · Завершено 4 из 5», Подкаст turning «Готово» at 13.44."
     },
     {
-      "beat": "konspekt", "label": "Конспект: разделы и термины", "from": 14.1, "to": 18.23,
-      "detail": "The results fade in 13.4–14.2: «Материал обработан», «Рыночное равновесие: спрос, предложение и цены», tabs «Конспект · Карточки 6 · Тест 5 · Подкаст 12», the first section «Введение в рыночное равновесие»; «Термины» (5) from 16.33."
+      "beat": "konspekt", "label": "Конспект: ключевые тезисы, раздел, термины", "from": 14.1, "to": 19.93,
+      "detail": "The results come in 14.10–14.6: «Материал обработан», «Рыночное равновесие, спрос и предложение», «Текст распознан из записи — сверьте термины, числа и имена.», tabs «Конспект · Карточки 6 · Тест 5 · Выжимка · Подкаст 12»; «Ключевые тезисы» (three) from 15.57; the section «Рыночное равновесие и закон спроса и предложения» from 17.10; «Термины» (2) from 18.60."
     },
     {
-      "beat": "kartochki", "label": "Карточки", "from": 18.23, "to": 20.53,
-      "detail": "Card 1 «Как формируется равновесная цена на рынке и кто её устанавливает?» pressed at 18.73, its answer open from 18.84."
+      "beat": "kartochki", "label": "Карточки", "from": 19.93, "to": 21.73,
+      "detail": "Card 1 «Как законы спроса и предложения влияют на направление кривых на графике?» pressed at 20.39, its answer open from 20.5."
     },
     {
-      "beat": "test", "label": "Тест: ответ и пояснение", "from": 20.53, "to": 24.43,
-      "detail": "«Проверочный тест», question 1 «Что гласит закон спроса?» answered at 21.12 (answering the other four questions and «Проверить ответы» are cut); from 22.43 the right answer marked and «Пояснение: Закон спроса гласит: чем выше цена, тем меньше величина спроса.»"
+      "beat": "test", "label": "Тест: ответ и пояснение", "from": 21.73, "to": 24.93,
+      "detail": "«Проверочный тест», question 1 «Как закон спроса описывает зависимость между ценой товара и величиной спроса?» answered (Б) at 22.41 (answering the other four questions and «Проверить ответы» are cut); from 23.33 the right answer marked and «Пояснение: Закон спроса гласит, что чем выше цена, тем меньше величина спроса, поэтому кривая спроса на графике идет вниз.»"
     },
     {
-      "beat": "vyzhimka", "label": "Выжимка (вкладка «Кратко»)", "from": 24.43, "to": 26.53,
-      "detail": "The lecture's page («Открыть лекцию» and the page load are cut): «Кратко» pressed at 24.90, the выжимка from 25.07 («Выжимка · Главное из материала для быстрого повторения · Суть в 3 словах»)."
+      "beat": "vyzhimka", "label": "Выжимка (вкладка экрана результата)", "from": 24.93, "to": 26.43,
+      "detail": "«Выжимка» pressed in the result's tabs at 25.30, the выжимка from 25.5 («Выжимка · Главное из материала для быстрого повторения · Суть в 3 словах: Спрос, предложение, равновесие. · Ключевые понятия»)."
     },
     {
-      "beat": "podcast", "label": "Подкаст", "from": 26.53, "to": 30.0,
-      "detail": "«Подкаст» (the tab press is cut): the scene «О чём подкаст · Рыночное равновесие» with its terms list (Равновесная цена, Отклонение цены вверх/вниз, Потолок цен), Макс's first line as subtitles; ▶ pressed at 27.79; the speech loading (about 22 s) is cut; playing (⏸, «Реплика 1 из 12») from 28.20. No sound in the deck."
+      "beat": "podcast", "label": "Подкаст", "from": 26.43, "to": 30.0,
+      "detail": "«Подкаст» (the tab press is cut): the scene «О чём подкаст · Рыночное равновесие · Разбираем спрос, предложение и рыночные цены» with its outline (Равновесная цена · реплика 2, Отклонение от равновесия · реплика 6, Эластичность спроса · реплика 8), Макс's first line as subtitles; ▶ pressed at 27.87; the speech loading (about 0.2 s: the first lines are prepared on the result screen) is cut at 27.97; playing (⏸, «Реплика 1 из 12») from 28.1. No sound in the deck."
     }
   ],
-  "presses": [3.1, 5.25, 7.49, 9.7, 11.04, 18.73, 21.12, 24.9, 27.79],
+  "presses": [3.1, 5.25, 7.63, 9.7, 11.04, 20.39, 22.41, 25.3, 27.87],
   "cuts": [
-    "4.0: the hand's travel to the drop area (identical frames)",
+    "4.43: the hand's travel to the drop area (the page still)",
     "5.73: the system's file window",
     "7.27: the scroll to «Что подготовить», «Изменить», the scroll to the list",
-    "10.37: a pause before «Запустить анализ»",
-    "13.37: the analysis (22.4 s from the press to all five materials in this take)",
-    "16.33, 18.23, 20.53, 24.43, 26.53: scrolls, tab presses, «Открыть лекцию»",
-    "22.43: answering questions 2–5 and «Проверить ответы»",
-    "28.20: the podcast's speech loading (about 22 s)"
+    "10.37: a pause before «Запустить анализ» and, off the clip, «Сложность теста» set to «Средний»",
+    "13.37: the analysis (9.1 s from the press to all five materials in this take; 6.2 s of it cut)",
+    "15.57, 17.10, 18.60: scrolls through the конспект (its other sections and «Выводы» are not shown)",
+    "19.93, 21.73, 24.93, 26.43: scrolls and tab presses",
+    "23.33: answering questions 2–5 and «Проверить ответы»",
+    "27.97: the podcast's speech loading (about 0.2 s)"
   ]
 }

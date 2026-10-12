@@ -1,158 +1,168 @@
 {
  "clip": "lecture",
- "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/lec-b",
+ "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/07-r8/t3",
  "size": [
-  1792,
-  1400
+  1536,
+  1200
  ],
  "viewport": {
   "width": 1024,
   "height": 800
  },
- "capture_scale": 1.75,
- "device_scale": 1.75,
+ "capture_scale": 1.5,
+ "device_scale": 1.5,
  "fps": 30,
  "frames": 900,
  "seconds": 30.0,
  "loop_fade_frames": 15,
  "stretches": [
   {
-   "from": "@2.9",
-   "to": "@6.9",
+   "from": "@2.315",
+   "to": "@6.748",
    "clip_from": 0.0,
-   "clip_to": 4.0,
-   "take_from": 2.9,
-   "take_to": 6.9,
+   "clip_to": 4.433,
+   "take_from": 2.315,
+   "take_to": 6.748,
    "hold": 0,
    "fade": 0
   },
   {
-   "from": "@8.95",
-   "to": "@10.7",
-   "clip_from": 4.0,
+   "from": "@8.75",
+   "to": "@10.05",
+   "clip_from": 4.433,
    "clip_to": 5.733,
-   "take_from": 8.95,
-   "take_to": 10.7,
+   "take_from": 8.75,
+   "take_to": 10.05,
    "hold": 0,
    "fade": 0.4
   },
   {
    "from": "chosen-0.05",
-   "to": "chosen+1.5",
+   "to": "chosen+1.483",
    "clip_from": 5.733,
    "clip_to": 7.267,
-   "take_from": 11.041,
-   "take_to": 12.591,
+   "take_from": 10.275,
+   "take_to": 11.808,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@25.05",
-   "to": "@28.15",
+   "from": "@22.713",
+   "to": "@25.813",
    "clip_from": 7.267,
    "clip_to": 10.367,
-   "take_from": 25.05,
-   "take_to": 28.15,
+   "take_from": 22.713,
+   "take_to": 25.813,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@33.6",
-   "to": "@36.6",
+   "from": "@37.422",
+   "to": "@40.422",
    "clip_from": 10.367,
    "clip_to": 13.367,
-   "take_from": 33.6,
-   "take_to": 36.6,
+   "take_from": 37.422,
+   "take_to": 40.422,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@56.845",
-   "to": "@56.88",
+   "from": "@46.6",
+   "to": "@48.8",
    "clip_from": 13.367,
-   "clip_to": 14.1,
-   "take_from": 56.845,
-   "take_to": 56.88,
-   "hold": 0.7,
-   "fade": 0.4
-  },
-  {
-   "from": "@56.88",
-   "to": "@59.12",
-   "clip_from": 14.1,
-   "clip_to": 16.333,
-   "take_from": 56.88,
-   "take_to": 59.12,
-   "hold": 0,
-   "fade": 0.3
-  },
-  {
-   "from": "terms+0.05",
-   "to": "terms+1.95",
-   "clip_from": 16.333,
-   "clip_to": 18.233,
-   "take_from": 64.018,
-   "take_to": 65.918,
+   "clip_to": 15.567,
+   "take_from": 46.6,
+   "take_to": 48.8,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@72.45",
-   "to": "@74.75",
-   "clip_from": 18.233,
-   "clip_to": 20.533,
-   "take_from": 72.45,
-   "take_to": 74.75,
+   "from": "@53.2",
+   "to": "@54.733",
+   "clip_from": 15.567,
+   "clip_to": 17.1,
+   "take_from": 53.2,
+   "take_to": 54.733,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@79.65",
-   "to": "@81.55",
-   "clip_from": 20.533,
-   "clip_to": 22.433,
-   "take_from": 79.65,
-   "take_to": 81.55,
+   "from": "@57.35",
+   "to": "@58.85",
+   "clip_from": 17.1,
+   "clip_to": 18.6,
+   "take_from": 57.35,
+   "take_to": 58.85,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "explained+0.15",
-   "to": "explained+2.15",
-   "clip_from": 22.433,
-   "clip_to": 24.433,
-   "take_from": 98.63,
-   "take_to": 100.63,
+   "from": "@69.95",
+   "to": "@71.283",
+   "clip_from": 18.6,
+   "clip_to": 19.933,
+   "take_from": 69.95,
+   "take_to": 71.283,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@109.0",
-   "to": "@111.1",
-   "clip_from": 24.433,
-   "clip_to": 26.533,
-   "take_from": 109.0,
-   "take_to": 111.1,
+   "from": "@79.1",
+   "to": "@80.9",
+   "clip_from": 19.933,
+   "clip_to": 21.733,
+   "take_from": 79.1,
+   "take_to": 80.9,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@119.35",
-   "to": "@121.0",
-   "clip_from": 26.533,
-   "clip_to": 28.2,
-   "take_from": 119.35,
-   "take_to": 121.0,
+   "from": "@86.5",
+   "to": "@88.1",
+   "clip_from": 21.733,
+   "clip_to": 23.333,
+   "take_from": 86.5,
+   "take_to": 88.1,
    "hold": 0,
    "fade": 0.4
   },
   {
-   "from": "@143.0",
-   "to": "@144.8",
-   "clip_from": 28.2,
+   "from": "@105.35",
+   "to": "@106.95",
+   "clip_from": 23.333,
+   "clip_to": 24.933,
+   "take_from": 105.35,
+   "take_to": 106.95,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@111.4",
+   "to": "@112.9",
+   "clip_from": 24.933,
+   "clip_to": 26.433,
+   "take_from": 111.4,
+   "take_to": 112.9,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@119.25",
+   "to": "@120.783",
+   "clip_from": 26.433,
+   "clip_to": 27.967,
+   "take_from": 119.25,
+   "take_to": 120.783,
+   "hold": 0,
+   "fade": 0.4
+  },
+  {
+   "from": "@121.15",
+   "to": "@123.183",
+   "clip_from": 27.967,
    "clip_to": 30.0,
-   "take_from": 143.0,
-   "take_to": 144.8,
+   "take_from": 121.15,
+   "take_to": 123.183,
    "hold": 0,
    "fade": 0.4
   }
@@ -160,68 +170,81 @@
  "swaps": [
   {
    "after": "pressed",
-   "clip": 11.964
+   "clip": 12.25
+  },
+  {
+   "after": "results-in",
+   "clip": 14.216
   }
  ],
  "moments": {
-  "tabs": 0.335,
-  "tab": 3.206,
-  "chooser": 5.358,
+  "tabs": 0.876,
+  "tab": 3.2,
+  "chooser": 5.347,
   "chosen": 5.783,
-  "tick-podcast": 8.241,
-  "pressed": 11.164,
-  "progress": 11.973,
-  "results": 13.399,
-  "flipped": 18.84,
-  "answered": 21.215,
-  "brief": 25.065,
-  "play": 26.747
+  "tick-podcast": 8.387,
+  "pressed": 11.137,
+  "progress": 12.439,
+  "wait": 12.711,
+  "done-podcast": 13.437,
+  "done-test": 14.046,
+  "results-in": 14.101,
+  "results": 14.186,
+  "theses": 15.667,
+  "section-1": 17.408,
+  "section": 17.408,
+  "terms": 18.946,
+  "flipped": 20.501,
+  "answered": 22.508,
+  "explained": 23.636,
+  "brief": 25.411,
+  "play": 26.777
  },
  "clicks": [
   {
-   "clip": 3.103,
+   "clip": 3.1,
    "x": 853.8,
    "y": 316.9
   },
   {
-   "clip": 5.253,
-   "x": 512.0,
+   "clip": 5.247,
+   "x": 512,
    "y": 528.3
   },
   {
-   "clip": 7.485,
+   "clip": 7.633,
    "x": 222.7,
-   "y": 537.9
+   "y": 538.0
   },
   {
-   "clip": 9.701,
+   "clip": 9.699,
    "x": 512.0,
-   "y": 537.9
+   "y": 538.0
   },
   {
-   "clip": 11.043,
-   "x": 512.0,
-   "y": 185.7
+   "clip": 11.039,
+   "x": 512,
+   "y": 185.8
   },
   {
-   "clip": 18.733,
+   "clip": 20.395,
    "x": 358.5,
-   "y": 305.5
+   "y": 306.2
   },
   {
-   "clip": 21.117,
+   "clip": 22.409,
    "x": 329.6,
-   "y": 372.3
+   "y": 433
   },
   {
-   "clip": 24.901,
-   "x": 218.3,
-   "y": 285.8
+   "clip": 25.301,
+   "x": 400.7,
+   "y": 142.2
   },
   {
-   "clip": 27.786,
-   "x": 158.0,
-   "y": 650.1
+   "clip": 27.872,
+   "x": 142,
+   "y": 754.2
   }
  ],
  "camera": {
@@ -245,12 +268,12 @@
     "rect": [
      380,
      246,
-     980,
+     1000,
      344
     ],
     "move": 1.2,
     "pad": 0,
-    "min_w": 600,
+    "min_w": 680,
     "anchor": "top",
     "beat": "tabs"
    },
@@ -260,7 +283,7 @@
      76,
      282,
      948,
-     698
+     725
     ],
     "move": 0.8,
     "pad": 0,
@@ -282,29 +305,30 @@
    {
     "clip": 7.267,
     "rect": [
-     84,
-     279.7,
-     940,
-     623.7
+     77,
+     219,
+     947,
+     640
     ],
     "move": 0.5,
+    "pad": 0,
+    "anchor": "top",
     "beat": "ticks"
    },
    {
     "clip": 10.367,
     "rect": [
      76,
-     129,
+     140,
      948,
-     400
+     625
     ],
     "move": 0.45,
     "pad": 0,
-    "anchor": "top",
     "beat": "start-press"
    },
    {
-    "clip": 12.267,
+    "clip": 12.2,
     "rect": [
      152,
      84,
@@ -317,85 +341,110 @@
     "beat": "progress"
    },
    {
-    "clip": 14.233,
+    "clip": 14.2,
     "rect": [
-     24,
-     124,
+     12,
+     84,
      1000,
-     600
+     560
     ],
     "move": 0.6,
+    "pad": 0,
+    "anchor": "top",
     "beat": "results"
    },
    {
-    "clip": 16.333,
+    "clip": 15.567,
     "rect": [
-     64,
-     128,
-     960,
-     400
+     60,
+     186,
+     964,
+     536
     ],
     "move": 0.5,
     "pad": 0,
-    "anchor": "top",
+    "beat": "theses"
+   },
+   {
+    "clip": 17.1,
+    "rect": [
+     60,
+     140,
+     964,
+     575
+    ],
+    "move": 0.5,
+    "pad": 0,
+    "beat": "section"
+   },
+   {
+    "clip": 18.6,
+    "rect": [
+     60,
+     205,
+     964,
+     560
+    ],
+    "move": 0.5,
+    "pad": 0,
     "beat": "terms"
    },
    {
-    "clip": 18.233,
+    "clip": 19.933,
     "rect": [
      8,
-     180,
+     118,
      1016,
-     400
-    ],
-    "move": 0.5,
-    "pad": 0,
-    "anchor": "top",
-    "beat": "card"
-   },
-   {
-    "clip": 20.533,
-    "rect": [
-     24,
-     189.5,
-     1000,
-     652.3
-    ],
-    "move": 0.5,
-    "beat": "quiz"
-   },
-   {
-    "clip": 22.433,
-    "rect": [
-     40,
-     335,
-     984,
      600
     ],
     "move": 0.5,
     "pad": 0,
-    "anchor": "top",
+    "beat": "card"
+   },
+   {
+    "clip": 21.733,
+    "rect": [
+     8,
+     185,
+     1016,
+     650
+    ],
+    "move": 0.5,
+    "pad": 0,
+    "beat": "quiz"
+   },
+   {
+    "clip": 23.333,
+    "rect": [
+     20,
+     390,
+     960,
+     790
+    ],
+    "move": 0.5,
+    "pad": 0,
     "beat": "explain"
    },
    {
-    "clip": 24.433,
+    "clip": 24.933,
     "rect": [
-     40,
-     120,
-     984,
-     570
+     16,
+     101,
+     1000,
+     582
     ],
     "move": 0.5,
-    "pad": 12,
+    "pad": 0,
+    "anchor": "top",
     "beat": "brief"
    },
    {
-    "clip": 26.533,
+    "clip": 26.433,
     "rect": [
-     40,
-     179,
-     984,
-     684
+     0,
+     290,
+     1024,
+     795
     ],
     "move": 0.5,
     "pad": 0,
