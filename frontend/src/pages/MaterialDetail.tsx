@@ -667,8 +667,10 @@ export default function MaterialDetail() {
   const canEdit = Boolean(user?.id) && material.user_id === user?.id;
   const cardCount = cardCountOf(material);
   const canTalk = canTalkAbout(material, user?.id);
-  // «Подкаст» доступен всегда: если его ещё нет, там можно его создать.
-  const showExpress = hasCheatsheet || expressRequested || cheatsheetMissing;
+  // «Подкаст» доступен всегда: если его ещё нет, там можно его создать. «Выжимка» у автора — тоже: лекция, разобранная
+  // без выжимки, создаёт её здесь тем же запросом /api/quick-prep (перепроверка 44.3: создать её было негде, только по
+  // адресу ?mode=express, а ссылок на него нет). У чужой лекции вкладка есть, только когда выжимка есть или её ждут.
+  const showExpress = hasCheatsheet || canEdit || expressRequested || cheatsheetMissing;
   const modes: Mode[] = ['full', ...(showExpress ? (['express'] as const) : []), 'podcast'];
 
   const selectMode = (next: Mode) => {

@@ -576,6 +576,50 @@ describe('«Выжимка»: one name for the tab and its card, as in the picke
   });
 });
 
+describe('«Выжимка» of a lecture analysed without it (recheck of 44.3: only ?mode=express could make it)', () => {
+  it('is a tab of the author’s lecture that makes it with the same request quick-prep has everywhere', async () => {
+    // «Выжимка» unticked in the analysis: no cheat sheet, and the analysis did not ask for one.
+    state.material = makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' } } });
+    renderPage('/library/m1');
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Материал', 'Выжимка', 'Подкаст']);
+    expect(screen.queryByText(/Выжимка не получилась/)).toBeNull(); // nothing failed: it was not asked for
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Выжимка' }));
+    expect(await screen.findByRole('heading', { name: 'Выжимка ещё не создана' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать выжимку' }));
+    await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
+    // The server charges it as it charges quick-prep, and an answer from its cache costs nothing.
+    const call = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(item => item[0] === '/api/quick-prep');
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ context: state.material.original_text });
+    await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Главное' })));
+    expect(await screen.findByRole('heading', { name: 'Главное' })).toBeInTheDocument();
+    expect(state.material.summary_json.cheatsheet).toBe('# Главное');
+    expect(state.increment).toHaveBeenCalledTimes(1); // the ring reads what the server charged
+  });
+
+  it('is on the phone’s row too, before «Подкаст»', async () => {
+    installPhone();
+    try {
+      state.material = makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' } } });
+      renderPage('/library/m1');
+      const row = await screen.findByRole('tablist', { name: 'Разделы лекции' });
+      expect(within(row).getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Конспект', 'Выжимка', 'Подкаст']);
+      fireEvent.click(within(row).getByRole('tab', { name: 'Выжимка' }));
+      expect(await screen.findByRole('button', { name: 'Создать выжимку' })).toBeInTheDocument();
+    } finally {
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
+  it('is no tab of someone else’s lecture without one: only its author can make it', async () => {
+    state.material = makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' } } }, 'teacher-1');
+    renderPage('/library/m1');
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Материал', 'Подкаст']);
+  });
+});
+
 describe('section statuses saved with the material', () => {
   const quizPayload = {
     quiz: [{ id: 1, question: 'Убывает ли энтропия изолированной системы?', options: ['A) Нет', 'B) Да'], correct: 'A', explanation: 'Не убывает.', source_ids: [] }],
@@ -1217,10 +1261,11 @@ describe('the lecture on a phone', () => {
     delete (window as { matchMedia?: unknown }).matchMedia;
   });
 
-  it('has one row of tabs, «Конспект · Карточки 6 · Тест 5 · Подкаст», no «Экспорт» link and a short meta line', async () => {
+  it('has one row of tabs, «Конспект · Карточки 6 · Тест 5 · Выжимка · Подкаст», no «Экспорт» link and a short meta line', async () => {
     renderPage('/library/m1');
     const row = await screen.findByRole('tablist', { name: 'Разделы лекции' });
-    expect(within(row).getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Конспект', 'Карточки 6', 'Тест 5', 'Подкаст']);
+    // «Выжимка» is the author's tab even before it is made, as «Подкаст» is (recheck of 44.3).
+    expect(within(row).getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Конспект', 'Карточки 6', 'Тест 5', 'Выжимка', 'Подкаст']);
     expect(screen.getAllByRole('tablist')).toHaveLength(1);
     expect(screen.queryByRole('navigation', { name: 'Разделы результата' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Экспорт' })).toBeNull();
@@ -1260,7 +1305,7 @@ describe('the lecture on a phone', () => {
     const podcast = screen.getByRole('tab', { name: 'Подкаст' });
     expect(podcast).toHaveFocus();
     expect(podcast).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getAllByRole('tab').map(tab => tab.getAttribute('tabindex'))).toEqual(['-1', '-1', '-1', '0']);
+    expect(screen.getAllByRole('tab').map(tab => tab.getAttribute('tabindex'))).toEqual(['-1', '-1', '-1', '-1', '0']);
     expect(await screen.findByText('Подкаста по этой лекции ещё нет')).toBeInTheDocument();
     // On «Подкаст» the player holds the bottom of the screen.
     expect(document.querySelector('.md-bottom')).toBeNull();
@@ -1351,7 +1396,7 @@ describe('the lecture on a phone', () => {
     state.material = { ...makeMaterial({ content: '', terms: [], text_only: true }), flashcards_json: { flashcards: [] }, quiz_json: { quiz: [] } };
     renderPage('/library/m1');
     expect(await screen.findByText('Только текст, конспекта нет. Материал участвует в сверке экзаменов с лекциями.')).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Материал', 'Подкаст']);
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Материал', 'Выжимка', 'Подкаст']);
     // Nothing to export from a text: no «⋯» items for it.
     fireEvent.click(screen.getByRole('button', { name: 'Действия с лекцией' }));
     expect(screen.queryByRole('menuitem', { name: 'Экспорт…' })).toBeNull();
