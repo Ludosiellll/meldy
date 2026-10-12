@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.4: the voices are back (from the commit of this entry)
+
+- **What broke.** From about 02:51 UTC every new line from `/api/tts` answered 502. The podcast and the lecture conversation had no voice for new lines: lines saved earlier still played, and the podcast kept the line on screen with «Звук не загрузился». The examiner on a ticket switched to the browser's own voice. `/api/health/deep` reported `tts` `network`. Microsoft is moving Edge's read-aloud voices to a new host region by region (edge-tts issue #490, since 2026-10-10). Where the move has happened, the old host refuses the stream with 403, and edge-tts 7.2.8 knows only the old host.
+- **The fix** (`1101dfb`, `backend/edge_voice.py`):
+  - a stream goes to `api.msedgeservices.com` first, with the same client token;
+  - a host that refuses or cannot be reached hands this stream and the following ones to the other host, so either host can go away without a release;
+  - an error in the middle of a stream keeps the host, and the usual three attempts handle it.
+- **Checked from the container against the real service:** the old host refused with 403, and both Russian voices came from the new host in 1.4–1.8 s.
+- **Verified before release:** pytest 1971, including 15 new tests for the host choice. The release gate runs every check again on this commit.
+- **Live checks after release:**
+  - `/api/health/deep` shows `tts` ok;
+  - a new podcast line and the examiner's question play.
+
 ## 2026-10-12 — Release 44.3: what the live re-check of 44.2 found (from the commit of this entry)
 
 - **Remarks about the source in the forms 44.2 missed** (`34b1504`, `f44ad89`):
