@@ -50,6 +50,8 @@ const RPC_ALLOWED = new Set([
   'bot_oral_inputs',
   // The Mini App (webapp.ts, migration 20261010150000_telegram_webapp.sql).
   'bot_webapp_session',
+  // The outage monitor (monitor.ts, migration 20261012100000_telegram_bot_monitor.sql).
+  'bot_monitor_state', 'bot_monitor_claim', 'bot_monitor_save',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {
