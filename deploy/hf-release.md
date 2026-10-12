@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.11: the second reading of the конспект is off again (from the commit of this entry)
+
+- **The live check of 44.10** (cell, Ohm, WW1 × 3 runs; every change in `checks` read against the lecture): the check
+  took 0.7–2.1 s (once 16.6 s) and the whole analysis stayed at 7.5–9.4 s, but its 11 fixes were one useful
+  (Germany's «новые территории» → «место под солнцем»), two harmless, three that removed facts the lecture states
+  (the mitochondria's own ribosomes, «все организмы состоят из клеток» twice) and two that copied speech-recognition
+  errors of the Ohm transcript into the конспект («1 вулт», «обратное сопротивлением»). It missed «моментально
+  перерос», «сербского национализма, усиленного…» and a merged cause.
+- **Off by default** (`AI_NOTES_CHECK` unset): the конспект is again what the model wrote after the usual checks.
+  The code stays; `AI_NOTES_CHECK=on` brings the check back.
+- **Verified before release:** pytest 2034. The release gate runs every check again on this commit.
+- **Live check after release:** one analysis — no `checks` in the results, the конспект arrives with the other sections.
+
 ## 2026-10-12 — Release 44.10: the конспект is read against the lecture once more (from the commit of this entry)
 
 - **The recheck of 44.9** (the history lecture three times): its three narrow rules held 3/3 — years in digits in the
