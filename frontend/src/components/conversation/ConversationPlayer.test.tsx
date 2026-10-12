@@ -1199,6 +1199,85 @@ describe('ConversationPlayer on a phone: the line over the sheet (QA 2026-10-11,
   });
 });
 
+describe('ConversationPlayer on a phone: the line holds the room of the tallest one (live check of 44.5, 390×844)', () => {
+  const PHONE_QUERY = '(max-width: 639px)';
+  // 20, 142 and 209 characters: one row, five rows at the first step (four at the smaller ones), seven rows (six).
+  const short = 'А как устроен спрос?';
+  const medium = 'Цена растёт. '.repeat(11).trim();
+  const long = 'Спрос и предложение. '.repeat(10).trim();
+  const lines = [
+    { speaker: 'Макс', text: short },
+    { speaker: 'Софья', text: long },
+    { speaker: 'Макс', text: medium },
+  ];
+  let style: HTMLStyleElement;
+
+  /**
+   * A line box as a phone lays it out (conversation.css): 30 characters to a 27 px row at the first step, 36 to a 24 px
+   * row at the smaller ones, never lower than its min-height (four rows, 108 px, unless the player reserves more).
+   */
+  function layOutLines() {
+    return vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      if (!this.classList.contains('cv-line')) return 0;
+      const first = (this.getAttribute('data-fit') ?? '0') === '0';
+      const rows = Math.ceil((this.textContent ?? '').length / (first ? 30 : 36));
+      return Math.max(rows * (first ? 27 : 24), parseFloat(getComputedStyle(this).minHeight) || 0);
+    });
+  }
+
+  const shownLine = () => document.querySelector<HTMLElement>('.cv-line:not([data-probe])');
+
+  beforeEach(() => {
+    tts.getTTSPlaybackRate.mockReturnValue(1);
+    tts.prefetchTTSInOrder.mockResolvedValue(undefined);
+    style = document.createElement('style');
+    style.textContent = '.cv-line { min-height: 108px; }';
+    document.head.appendChild(style);
+  });
+  afterEach(() => {
+    cleanup();
+    style.remove();
+    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('gives every line the height of the tallest, so the sheet and the player under it do not move between lines', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query === PHONE_QUERY, media: query, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {} }),
+    });
+    const spy = layOutLines();
+    try {
+      render(<ConversationPlayer lines={lines} title="Спрос и предложение" />);
+      const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
+      const seen: Array<[string | null, string | undefined]> = [];
+      for (let index = 0; index < lines.length; index += 1) {
+        if (index) fireEvent.keyDown(player, { key: 'ArrowRight' });
+        seen.push([shownLine()?.getAttribute('data-fit') ?? null, shownLine()?.style.minHeight]);
+      }
+      // The long line at a smaller step takes six rows of 24 px: the room of all three. A line steps down only when it
+      // does not fit that room, so the medium one keeps the first step (it took the smaller one in four rows).
+      expect(seen).toEqual([['0', '144px'], ['1', '144px'], ['0', '144px']]);
+      // The copy the lines are measured in says nothing and keeps no words.
+      const probe = document.querySelector('.cv-line[data-probe]');
+      expect(probe).toHaveAttribute('aria-hidden', 'true');
+      expect(probe).toBeEmptyDOMElement();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('reserves nothing on a computer, where the line stands under the sheet', () => {
+    const spy = layOutLines();
+    try {
+      render(<ConversationPlayer lines={lines} title="Спрос и предложение" />);
+      expect(document.querySelector('.cv-line[data-probe]')).toBeNull();
+      expect(shownLine()?.style.minHeight).toBe('');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe('ConversationPlayer on a phone: its status line in sight above the bottom bar (recheck of 44.1, 390×844)', () => {
   const PHONE_QUERY = '(max-width: 639px)';
   const originalRect = Element.prototype.getBoundingClientRect;
