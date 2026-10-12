@@ -4,6 +4,34 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.5: what the live re-check of 44.3 found, and a lecture example without an account (from the commit of this entry)
+
+- **Lecture materials:**
+  - **One more remark form** (`99a14f0`): «вольтметр (в тексте назван вольтметром)» now goes.
+    - **Removed:** a bracket that opens with «в тексте», «в записи», «в расшифровке» or «в лекции», continues with назван / упомянут / указан / записан / обозначен, and ends in 1–3 words that echo the word before it.
+    - **Kept:** «Сила тока (в лекции обозначена I)» and quotes.
+  - **The facts, not «согласно лекции»** (`9c5f7f4`, `4b11561`, `c520eef`). 44.3's prompt rule offered «согласно лекции» as the phrase to use, so the materials credited the lecture in nearly every quiz explanation: 12 and 17 times in two lectures.
+    - **Prompt:** the rule now asks for the facts themselves.
+    - **Removed:** a credit that opens a sentence («Согласно лекции, X», «В лекции указано / отмечено / говорится / объясняется, что X», «Как указано в лекции, X», «Лекция говорит, что X» → «X»), and «согласно лекции» before a question mark.
+    - **Kept:** «по лекции?» («Есть вопросы по лекции?») and credits inside a sentence.
+- **Lecture page:**
+  - **The ring after «Создать … заново»** (`9c0b045`, `7a716d7`): the ring re-reads the limit as soon as the server answers, on the lecture page and on the analysis screen, even if saving then fails.
+  - **«Создать выжимку» on a phone** (`78aa330`): the button sat under the sticky «Повторить карточки» bar, so a tap waited for it; the re-check counted 11 s, while the server answered in about 1 s. While the Выжимка tab offers the button, the bar steps aside, as it does on «Подкаст».
+  - **A Выжимка later** (`42018f2`): the author's lecture always has the «Выжимка» tab. Without a Выжимка, the tab says «Выжимка ещё не создана» and offers «Создать выжимку».
+  - **The placeholder while a lecture loads** (`56b4d85`): on a phone it keeps the tab rows. When this device's «Лекции» list already has the lecture, it also keeps the exact tabs and the «Текст распознан…» line. Locally the first card's jump went from 46, 104 and 34 px to 0.
+- **A lecture example without an account** (`cdf8709`, `7ddfaf8`, `b3ebc55`): `/try/lecture` shows what Meldy made of the example exam's lecture «Спрос и предложение».
+  - **What it shows:** one real analysis from 12.10 on the result screen itself: the конспект, 6 cards, a 5-question test, the Выжимка, and a 16-line podcast whose voice plays from files beside the page.
+  - **No server calls:** no model, no `/api/tts`, no Supabase; only the telemetry of opening the page.
+  - **Ways in:** «Лекции примера» on `/try`, and a line under the landing's final buttons.
+  - **Edits:** the frozen analysis went through 44.5's clean-up (23 strings), and three questions were edited by hand. Six podcast lines were voiced again, all listed in `frontend/src/data/exampleLecture/CHANGES.md`.
+- **Verified before release:** pytest 1977 (Python 3.12, pinned tree), bot 319 and its plan copy, Vitest 277 files / 4549 tests, the build in the Docker layout. The release gate runs them again on this commit.
+- **One-time cost:** the new prompt rule changes every cache key, so the first request for each material after release is a real, charged call.
+- **Live checks after release:**
+  - `/try/lecture` on a phone and a laptop: five tabs; the podcast plays from its files; no calls to `/api/tts` or a model;
+  - a new lecture's materials have no credit at the start of a sentence;
+  - «Создать тест заново» moves the ring at once;
+  - a lecture without a Выжимка has the tab with «Создать выжимку».
+
 ## 2026-10-12 — Release 44.4: the voices are back (from the commit of this entry)
 
 - **What broke.** From about 02:51 UTC every new line from `/api/tts` answered 502. The podcast and the lecture conversation had no voice for new lines: lines saved earlier still played, and the podcast kept the line on screen with «Звук не загрузился». The examiner on a ticket switched to the browser's own voice. `/api/health/deep` reported `tts` `network`. Microsoft is moving Edge's read-aloud voices to a new host region by region (edge-tts issue #490, since 2026-10-10). Where the move has happened, the old host refuses the stream with 403, and edge-tts 7.2.8 knows only the old host.
