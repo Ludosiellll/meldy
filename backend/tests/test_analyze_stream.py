@@ -29,7 +29,13 @@ LECTURE = (
 )
 
 
+# The second reading of the конспект (notes_check) finds nothing to fix unless a test gives it an answer.
+NO_FIXES = '{"fixes": []}'
+
+
 def section_of(prompt: str) -> str:
+    if prompt.startswith("Ты — внимательный проверяющий"):
+        return "notes_check"
     if "обучающих карточек" in prompt:
         return "flashcards"
     if "проверочных тестов" in prompt:
@@ -87,6 +93,8 @@ def answer_with(monkeypatch, answers):
 
     async def run(self, system_prompt, user_text, **kwargs):
         name = section_of(system_prompt)
+        if name == "notes_check" and name not in answers:
+            return NO_FIXES
         calls.append(name)
         answer = answers[name]
         if callable(answer):

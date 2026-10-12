@@ -20,6 +20,12 @@ cached answer too: the cache keeps the model's raw text, not checked material.
 Every section prompt calls the source a lecture, and a lecture that came from a
 recording (``recording``) has the RECORDING_RULE in them too: its text is speech
 recognition and may misspell names and terms (agents.base.source_rules).
+
+The конспект is read against the lecture once more before it goes out
+(notes_check.py): a sentence that says something other than the lecture, or more
+than it, gets the smallest fix; a failed check leaves the конспект as it was. The
+results event then carries ``checks`` — what was changed and why (the page does not
+read it). Within the section's deadline: the check gets what is left of it.
 """
 import asyncio
 import json
@@ -28,6 +34,7 @@ import re
 from typing import Any, AsyncGenerator, Dict, Optional
 
 import mixed_script
+import notes_check
 from utils import (
     build_source_chunks,
     build_source_context,
@@ -105,6 +112,10 @@ def agent_timeout_seconds() -> float:
     except ValueError:
         return 150.0
     return value if value > 0 else 150.0
+
+
+# The time the конспект's section keeps for itself after its check (notes_check.verify_summary gets the rest).
+NOTES_CHECK_RESERVE_SECONDS = 2.0
 
 
 def agent_stagger_seconds() -> float:
@@ -525,16 +536,22 @@ def _count_citable(results: dict) -> int:
 class CoordinatorAgent:
     def __init__(self, api_key: str):
         self.base = BaseAgent(api_key)
+        # What the second reading of the конспект changed (notes_check), for the results event.
+        self.checks: dict[str, dict] = {}
 
-    async def _run_agent(self, name: str, prompt: str, text: str, source_chunks: list) -> tuple[str, Any]:
+    async def _run_agent(
+        self, name: str, prompt: str, text: str, source_chunks: list, *, recording: bool = False
+    ) -> tuple[str, Any]:
         """(status, payload): ok | empty | busy | failed | timeout, within the per-section deadline.
 
         A heavy call: the section first waits for its place in the process-wide line
         (heavy_slot, AI_HEAVY_CONCURRENCY); its deadline starts once it has one."""
         async with heavy_slot():
-            return await self._run_agent_now(name, prompt, text, source_chunks)
+            return await self._run_agent_now(name, prompt, text, source_chunks, recording=recording)
 
-    async def _run_agent_now(self, name: str, prompt: str, text: str, source_chunks: list) -> tuple[str, Any]:
+    async def _run_agent_now(
+        self, name: str, prompt: str, text: str, source_chunks: list, *, recording: bool = False
+    ) -> tuple[str, Any]:
         loop = asyncio.get_running_loop()
         deadline_seconds = agent_timeout_seconds()
         deadline = loop.time() + deadline_seconds
@@ -564,6 +581,13 @@ class CoordinatorAgent:
                             name, mixed_script.drop_broken(payload, scripts), source_text=text
                         )
                 if status == "ok":
+                    if name == "summarizer":
+                        # The конспект is read against the lecture once more before it goes out (notes_check);
+                        # a failed check leaves it as it was.
+                        payload, self.checks[name] = await notes_check.verify_summary(
+                            self.base, payload, text, recording=recording, scripts=scripts,
+                            budget=deadline - loop.time() - NOTES_CHECK_RESERVE_SECONDS,
+                        )
                     return "ok", enrich_agent_result(name, payload, source_chunks)
                 # Never keep an unusable answer: the retry (and the next run) must ask again.
                 BaseAgent.forget(raw)
@@ -613,7 +637,7 @@ class CoordinatorAgent:
         async def staggered(name: str, delay: float) -> tuple[str, str, Any]:
             if delay > 0:
                 await asyncio.sleep(delay)
-            status, payload = await self._run_agent(name, prompts[name], text, source_chunks)
+            status, payload = await self._run_agent(name, prompts[name], text, source_chunks, recording=recording)
             return name, status, payload
 
         tasks = [asyncio.ensure_future(staggered(name, index * stagger)) for index, name in enumerate(requested)]
@@ -661,7 +685,7 @@ class CoordinatorAgent:
                 sections[name] = {"status": status, "message": message}
                 warnings.append({"agent": name, "message": message})
 
-        yield {
+        event = {
             "type": "results",
             **results,
             "warnings": warnings,
@@ -672,6 +696,9 @@ class CoordinatorAgent:
                 "sources": source_chunks,
             },
         }
+        if self.checks:
+            event["checks"] = dict(self.checks)
+        yield event
 
     async def run_section(
         self, name: str, text: str, settings: Optional[dict] = None, *, recording: bool = False
@@ -686,7 +713,7 @@ class CoordinatorAgent:
             raise ValueError(f"unknown section {name!r}")
         source_chunks = build_source_chunks(text)
         prompts = build_prompts(normalize_settings(settings), source_chunks, recording=recording)
-        status, payload = await self._run_agent(name, prompts[name], text, source_chunks)
+        status, payload = await self._run_agent(name, prompts[name], text, source_chunks, recording=recording)
         if status == "ok":
             return {
                 "section": name,

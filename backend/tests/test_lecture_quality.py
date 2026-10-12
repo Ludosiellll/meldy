@@ -1040,7 +1040,7 @@ def test_every_material_quick_prep_and_the_podcast_lose_the_credit(api, monkeypa
     """The clean-up stands where «тексту» becomes «лекции» (mixed_script.check): the five sections of the analysis, the
     Выжимка and the podcast made later, and nothing is asked again for it."""
     from agents.base import BaseAgent
-    from test_analyze_stream import section_of
+    from test_analyze_stream import NO_FIXES, section_of
 
     answers = {
         "summarizer": _summary("Согласно лекции, инфляция — устойчивый рост цен."),
@@ -1059,6 +1059,8 @@ def test_every_material_quick_prep_and_the_podcast_lose_the_credit(api, monkeypa
     async def section(self, system_prompt, user_text, **kwargs):
         # The Выжимка's prompt says «выжимок» (section_of looks for «шпаргалок»).
         name = "cheatsheet" if "создания выжимок" in system_prompt else section_of(system_prompt)
+        if name == "notes_check":
+            return NO_FIXES
         calls.append(name)
         return answers[name]
 
