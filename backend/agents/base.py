@@ -119,13 +119,29 @@ LECTURE_WORD_RULE = (
 )
 
 
+# The fact audit of 2026-10-12 (942 statements of 11 material sets, scratchpad/fact-audit/report.md): numbers, dates,
+# formulas and quiz keys were all right, and 8 of the 17 problems — all 3 that would teach a false fact — came from
+# shortening that widened a claim: «крупная центральная вакуоль» became «вакуоли» (plant cells only), «одни вещества
+# проходят свободно, другие … с затратой АТФ» became a membrane that spends ATP, the total resistance of a section became
+# the resistance of a conductor «зависит от типа соединения», «грозил втянуть» became «неминуемо втягивало». The model did
+# not invent these, so the facts rule did not stop them; this rule asks to drop sentences, not qualifiers.
+RETELL_RULE = (
+    "\n\nПЕРЕСКАЗ БЕЗ ИСКАЖЕНИЙ:\nКогда пересказываешь или сокращаешь лекцию, убирай лишние предложения, а не "
+    "уточнения. Сохраняй слова, которые сужают утверждение: «некоторые», «одни … другие», «крупная», «общее», "
+    "«обычно», «может», «грозил», «готовы и могут». Не сливай два утверждения лекции в одно более общее и не делай "
+    "утверждение сильнее, чем в лекции: «может» не становится «всегда», «грозил» — «неизбежно», а общее "
+    "сопротивление участка — сопротивлением проводника. Причины, следствия и время событий бери только из лекции. "
+    "В сравнении называй только те отличия, что названы в лекции, с теми же оговорками."
+)
+
+
 def source_rules(recording: bool = False) -> str:
     """What the prompt of a lecture material says about its source: a lecture; for a recording, speech recognition too.
 
     Every place that builds such a prompt adds it: the analysis sections (coordinator.build_prompts, also for
     /api/analyze/section), /api/quick-prep and /api/podcast/generate and /visuals. ``recording``: the lecture's text came
     from a recording (summary_json.recognized == "recording", the stream's text_extracted.transcribed)."""
-    return LECTURE_WORD_RULE + (RECORDING_RULE if recording else "")
+    return LECTURE_WORD_RULE + RETELL_RULE + (RECORDING_RULE if recording else "")
 
 
 # The medium and detailed конспект: «Ключевые тезисы», then the lecture's sections in its order, each retold
@@ -197,15 +213,19 @@ def build_summarizer_prompt(detail: str = "medium") -> str:
 Пиши на языке исходного текста."""
 
 
+# The fact audit of 2026-10-12: 10 of the 19 additions not in the lecture were card answers — «развёрнутый ответ (2-4
+# предложения)» asked for more than a lecture says about a point, and a history card turned «грозил втянуть» into
+# «неминуемо втягивало». An answer is now 1–3 sentences of what the lecture says.
 def build_flashcards_prompt(count: int = 6) -> str:
     return f"""Ты — эксперт по созданию обучающих карточек.
 На основе предоставленного текста создай ровно {count} карточек «вопрос-ответ» для запоминания ключевых концепций.
 
 Требования:
-1. Каждая карточка: чёткий вопрос → развёрнутый ответ (2-4 предложения)
+1. Каждая карточка: чёткий вопрос → ответ в 1–3 предложения
 2. Покрывай ключевые концепции текста
 3. Карточки разного уровня сложности: примерно треть лёгкие, треть средние, треть сложные
 4. Формулируй вопросы так, чтобы ответ требовал понимания, а не простого копирования
+5. В ответе — только то, что сказано в лекции: без причин, примеров и подробностей, которых в ней нет. Вопрос «почему» задавай, только если лекция называет причину
 
 Верни результат ТОЛЬКО в формате JSON (без markdown-обёрток):
 {{"flashcards": [{{"id": 1, "question": "...", "answer": "..."}}]}}
@@ -310,6 +330,8 @@ _PODCAST_VISUAL_GUIDE = """ИЛЛЮСТРАЦИИ (поле "visual"):
 10. Иллюстрация первой реплики ([0]) — только "scene": "title" — короткое название темы (до 40 символов), "caption" — одна короткая фраза (до 90 символов) о том, о чём и зачем этот разговор. Подпись — не вопрос и не список вопросов."""
 
 
+# The fact audit of 2026-10-12: the opener of two podcasts of the cell lecture said «Мы состоим из миллиардов клеток» —
+# not in the lecture, and short by four orders of magnitude. The hook brings no numbers of its own.
 def build_podcast_prompt() -> str:
     return """Ты — автор коротких учебных разговоров. Преврати материал в живой диалог двух ведущих, который помогает понять и запомнить тему.
 
@@ -320,7 +342,7 @@ def build_podcast_prompt() -> str:
 ПРАВИЛА РАЗГОВОРА:
 1. Всего от 10 до 16 реплик. Ведущие чередуются, первым говорит Макс.
 2. Каждая реплика — не больше 45 слов. Живая разговорная речь, без канцелярита, без рекламных интонаций и без приветствий.
-3. Первая реплика (Макс) сразу о теме: без приветствия, без обращения к Софье по имени и без пустых фраз вроде «звучит немного сложно» или «давай разберёмся». Она начинается с короткой зацепки — почему эта тема важна, по материалу и без новых фактов, — и заканчивается вопросом по теме.
+3. Первая реплика (Макс) сразу о теме: без приветствия, без обращения к Софье по имени и без пустых фраз вроде «звучит немного сложно» или «давай разберёмся». Она начинается с короткой зацепки — почему эта тема важна, по материалу, без новых фактов и чисел, — и заканчивается вопросом по теме.
 4. Опирайся только на исходный материал. Не добавляй факты, числа, даты, имена и формулы, которых в нём нет. Бытовой пример допустим только как пояснение, а не как новый факт.
 5. Иди по главным идеям материала по порядку: о чём тема, как это устроено, почему это важно, где часто ошибаются.
 6. Последняя реплика — короткий итог: одна-две мысли, которые стоит запомнить.

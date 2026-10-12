@@ -739,7 +739,9 @@ def test_a_remark_in_brackets_about_the_source_goes_and_ordinary_text_stays():
     card = "Напряжение измеряется вольтметром (в тексте указан как Вт метр), который подключается параллельно."
     assert mixed_script.fix_text(card) == ("Напряжение измеряется вольтметром, который подключается параллельно.", [])
     for remark in ("(в расшифровке — «Вт метр»)", "(в записи — «Вт метр»)", "(в записи лекции: «закон ОМО»)",
-                   "(в тексте лекции ошибочно написано «Вирхоф»)", "(В записи назван как «Вт метр»)"):
+                   "(в тексте лекции ошибочно написано «Вирхоф»)", "(В записи назван как «Вт метр»)",
+                   # A card of the recheck of 44.3 (the fact audit of 2026-10-12): the lecture blamed for Whisper's slip.
+                   "(в лекции ошибочно назван «Вт метром»)", "(в лекции неверно указан как Вт)"):
         text = f"Прибор {remark} подключают параллельно."
         assert mixed_script.fix_text(text) == ("Прибор подключают параллельно.", []), remark
     ordinary = [
@@ -752,6 +754,8 @@ def test_a_remark_in_brackets_about_the_source_goes_and_ordinary_text_stays():
         "Олицетворение (в тексте — «буря мглою небо кроет») оживляет природу.",
         "Верный ответ — B (в тексте лекции указано, что мембрана двойная).",
         "Симфония (в записи — оркестр Караяна) звучит долго.",
+        "В лекции названы три причины войны.",
+        "Ошибку (в лекции её называют систематической) легко не заметить.",
     ]
     for text in ordinary:
         assert mixed_script.fix_text(text) == (text, []), text
@@ -761,6 +765,9 @@ def test_a_remark_inside_a_sentence_is_asked_again_then_loses_its_sentence(api, 
     remark = "Напряжение измеряют прибором, который в тексте упомянут как «Вт метр». Его включают параллельно."
     assert mixed_script.fix_text(remark)[1] == ["в тексте упомянут как"]
     assert mixed_script.drop_text(remark) == "Его включают параллельно."
+    blamed = "Напряжение измеряют прибором, который в лекции ошибочно назван «Вт метром». Его включают параллельно."
+    assert mixed_script.fix_text(blamed)[1] == ["в лекции ошибочно назван"]
+    assert mixed_script.drop_text(blamed) == "Его включают параллельно."
     fixed = "Вольтметр включают параллельно."
     calls = answer_with(monkeypatch, {"summarizer": _answers(_summary(remark), _summary(fixed))})
     assert _results(_post_sections(api, ["summarizer"]))["summarizer"]["content"] == fixed
@@ -1210,12 +1217,13 @@ def test_every_lecture_material_prompt_calls_its_source_a_lecture(api, monkeypat
     """The recheck of release 44.2: «…согласно тексту?» in the tests of a recording and of a PDF alike. The recheck of
     44.3: with «в лекции», «согласно лекции» given as the words to use, nearly every explanation of the test credited the
     lecture; the rule names no phrase now."""
-    from agents.base import LECTURE_WORD_RULE, RECORDING_RULE, BaseAgent, source_rules
+    from agents.base import LECTURE_WORD_RULE, RECORDING_RULE, RETELL_RULE, BaseAgent, source_rules
 
     assert "называй его лекцией — никогда не текстом" in LECTURE_WORD_RULE
     assert "Не начинай ответы, пояснения и карточки со ссылки на лекцию: сразу пиши сами факты." in LECTURE_WORD_RULE
     assert "согласно" not in LECTURE_WORD_RULE.lower() and "«" not in LECTURE_WORD_RULE
-    assert source_rules() == LECTURE_WORD_RULE and source_rules(True) == LECTURE_WORD_RULE + RECORDING_RULE
+    assert source_rules() == LECTURE_WORD_RULE + RETELL_RULE
+    assert source_rules(True) == LECTURE_WORD_RULE + RETELL_RULE + RECORDING_RULE
     for recording in (False, True):
         prompts = build_prompts(normalize_settings(), build_source_chunks(LECTURE), recording=recording)
         for name, prompt in prompts.items():
@@ -1230,6 +1238,27 @@ def test_every_lecture_material_prompt_calls_its_source_a_lecture(api, monkeypat
         monkeypatch.setattr(BaseAgent, "run", run)
         assert api.post(path, json=body).status_code == 200, path
     assert len(asked) == 4 and all(prompt.count(LECTURE_WORD_RULE) == 1 for prompt in asked)
+    assert all(prompt.count(RETELL_RULE) == 1 for prompt in asked)
+
+
+def test_a_retold_material_keeps_the_lectures_qualifiers():
+    """The fact audit of 2026-10-12: every claim that would have taught a student something false came from shortening
+    that dropped a qualifier («крупная центральная вакуоль» → «вакуоли», «общее сопротивление» → «сопротивление
+    проводника», «грозил» → «неминуемо»). Every lecture material prompt asks to drop sentences, not qualifiers; a card
+    answers with what the lecture says, and the podcast's hook brings no numbers."""
+    from agents.base import RETELL_RULE, build_flashcards_prompt, build_podcast_prompt
+
+    for words in ("убирай лишние предложения, а не уточнения", "«одни … другие»", "«может» не становится «всегда»",
+                  "Не сливай два утверждения лекции в одно более общее", "Причины, следствия и время событий"):
+        assert words in RETELL_RULE, words
+    for recording in (False, True):
+        prompts = build_prompts(normalize_settings(), build_source_chunks(LECTURE), recording=recording)
+        for name, prompt in prompts.items():
+            assert prompt.count(RETELL_RULE) == 1 and prompt.index(RETELL_RULE) < prompt.index(GROUNDING_INSTRUCTION), name
+    cards = build_flashcards_prompt(6)
+    assert "ответ в 1–3 предложения" in cards and "2-4 предложения" not in cards
+    assert "Вопрос «почему» задавай, только если лекция называет причину" in cards
+    assert "без новых фактов и чисел" in build_podcast_prompt()
 
 
 @pytest.mark.parametrize("path", list(LATER_MATERIALS))
