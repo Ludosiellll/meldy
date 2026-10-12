@@ -575,22 +575,23 @@ export default function ConversationPlayer({
 
   // На телефоне строка под плеером (что с голосом, «Повторить») — его нижняя строка, а к низу экрана над нижним меню
   // плеер прилипает, только когда страница до него прокручена. Вверху страницы он стоит в начале своей панели и
-  // растёт вниз: строка уходила под нижнее меню (QA 2026-10-11, 390×844: строка на 770–860, меню с 782). Когда она
-  // появляется, страница поднимается ровно на то, что скрыто, — если сам плеер на экране; страницу, которую читают
-  // в другом месте, не трогаем. На компьютере строку ничто не закрывает.
+  // растёт вниз: строка уходила под нижнее меню (QA 2026-10-11, 390×844: строка на 770–860, меню с 782). На компьютере
+  // её режет нижний край окна: вкладка «Подкаст» ставит плеер к низу окна, и строка вставала на 702–748 при окне в 734
+  // (перепроверка 44.2, 1532×734: «Повторить» торчал на 14 px). Когда строка появляется, страница поднимается ровно на
+  // то, что скрыто, — если сам плеер на экране; страницу, которую читают в другом месте, не трогаем.
   const playerNote = audioProblem ?? waitNote;
   useEffect(() => {
-    if (!playerNote || !phone || typeof window === 'undefined' || typeof window.scrollBy !== 'function') return;
+    if (!playerNote || typeof window === 'undefined' || typeof window.scrollBy !== 'function') return;
     const player = playerRef.current;
     if (!player) return;
     const box = player.getBoundingClientRect();
-    // Где плеер прилипает: над нижним меню (bottom липкого плеера) или у края экрана.
+    // Где кончается видное: над нижним меню (bottom липкого плеера телефона) или у нижнего края окна.
     const stick = typeof window.getComputedStyle === 'function' ? parseFloat(window.getComputedStyle(player).bottom) : 0;
     const edge = window.innerHeight - (Number.isFinite(stick) ? stick : 0);
     const hidden = Math.ceil(box.bottom - edge);
     if (hidden <= 0 || box.top >= edge) return;
     window.scrollBy({ top: hidden, behavior: reduceMotion ? 'auto' : 'smooth' });
-  }, [playerNote, phone, reduceMotion]);
+  }, [playerNote, reduceMotion]);
 
   const voiceAt = (index: number): HostVoice => {
     const line = linesRef.current[index];
