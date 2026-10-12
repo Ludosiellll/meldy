@@ -819,6 +819,50 @@ def test_a_quotation_or_an_explanation_after_the_dash_stays():
         assert mixed_script.fix_text(text) == (text, []), text
 
 
+# The recheck of release 44.3 (2026-10-12): the конспект of the recorded physics lecture, a bracket with a participle
+# and neither a dash nor «как».
+QA_NAMED_REMARK = "…для измерения напряжения — вольтметр (в тексте назван вольтметром), подключаемый параллельно."
+QA_NAMED_REMARK_FIXED = "…для измерения напряжения — вольтметр, подключаемый параллельно."
+
+
+def test_a_bracket_that_names_the_sources_form_of_the_word_before_it_goes(api, monkeypatch):
+    assert mixed_script.fix_text(QA_NAMED_REMARK) == (QA_NAMED_REMARK_FIXED, [])
+    remarks = [
+        ("Нужен амперметр (в записи упомянут амперметром), его включают последовательно.",
+         "Нужен амперметр, его включают последовательно."),
+        ("Нужен вольтметр (в расшифровке записан Вт метром).", "Нужен вольтметр."),
+        ("Нихром (в записи назван нехромом) плохо проводит ток.", "Нихром плохо проводит ток."),
+        ("Нужен вольтметр (в лекции обозначен вольтметр).", "Нужен вольтметр."),
+        ("Нужны вольтметры (в тексте лекции названы вольтметрами).", "Нужны вольтметры."),
+        ("Нужен вольтметр (в тексте указан: «вольтметром»).", "Нужен вольтметр."),
+        ("Закон Ома (В ТЕКСТЕ НАЗВАН законом ОМО) связывает ток и напряжение.", "Закон Ома связывает ток и напряжение."),
+    ]
+    for text, fixed in remarks:
+        assert mixed_script.fix_text(text) == (fixed, []), text
+    # The конспект of the analysis comes clean at once: nothing is asked again.
+    calls = answer_with(monkeypatch, {"summarizer": _summary(QA_NAMED_REMARK)})
+    assert _results(_post_sections(api, ["summarizer"]))["summarizer"]["content"] == QA_NAMED_REMARK_FIXED
+    assert calls == ["summarizer"]
+
+
+def test_a_named_quotation_a_symbol_or_an_explanation_in_brackets_stays():
+    # The words after the participle are not a form of the word before the bracket: they say something of their own.
+    kept = [
+        "Олицетворение (в тексте назван «буря мглою небо кроет») оживляет природу.",  # a quotation, four words
+        "Эпитет (в тексте назван «золотая осень») придаёт образу цвет.",
+        "Главный герой (в тексте назван «Незнакомцем») появляется в начале.",
+        "Сила тока (в лекции обозначена I) измеряется в амперах.",  # the symbol is the point
+        "Напряжение (в лекции обозначено буквой U) измеряют вольтметром.",
+        "Учёный (в лекции назван Георгом Омом) открыл закон.",
+        "Клетка (в лекции названа единицей живого) делится.",
+        "Верный ответ — B (в тексте лекции указано, что мембрана двойная).",
+        "Нужен вольтметр (в записи упомянут амперметр).",  # another device, not this one's form
+        "Учёные участвовали в расшифровке генома (в лекции названы три группы).",
+    ]
+    for text in kept:
+        assert mixed_script.fix_text(text) == (text, []), text
+
+
 def test_the_source_is_called_a_lecture_in_the_fixed_phrases_of_the_materials():
     for question in QA_QUESTIONS:
         assert mixed_script.fix_text(question) == (question.replace("согласно тексту?", "согласно лекции?"), [])
