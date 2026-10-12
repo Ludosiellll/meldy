@@ -173,11 +173,11 @@ describe('/try/lecture: what Meldy made of the example’s first lecture, with n
     fireEvent.click(tab(/^Карточки/));
     const cards = document.querySelectorAll('.fc-card');
     expect(cards).toHaveLength(6);
-    const question = within(cards[0] as HTMLElement).getByRole('button', { name: /Как согласно лекции формируется цена/ });
+    const question = within(cards[0] as HTMLElement).getByRole('button', { name: /Как формируется цена на рынке/ });
     expect(question).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(question);
     expect(question).toHaveAttribute('aria-expanded', 'true');
-    expect(plain(cards[0].textContent)).toContain('Согласно лекции, рынок сводит вместе покупателей и продавцов.');
+    expect(plain(cards[0].textContent)).toContain('Рынок сводит вместе покупателей и продавцов.');
     expect(screen.getByText('Ответы здесь не сохраняются и не двигают повторение.')).toBeInTheDocument();
 
     // «Тест»: five questions; answered, it is checked here with an explanation under each, and nothing is recorded.
