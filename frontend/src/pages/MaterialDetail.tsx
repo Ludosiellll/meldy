@@ -755,8 +755,12 @@ export default function MaterialDetail() {
   const talkHref = `/library/${encodeURIComponent(material.id)}/talk`;
   // Below 1024 px the tab bar steps aside on a lecture (Layout.hidesBottomNav: a detail page keeps its one action
   // at the bottom), so the lecture's own action stays there while the page scrolls (finding LIB-31). On «Подкаст»
-  // the player's controls hold the bottom of the screen instead.
-  const bottomAction = cardCount > 0 && mode !== 'podcast';
+  // the player's controls hold the bottom of the screen instead, and on «Выжимка» not made yet its «Создать выжимку»:
+  // the bar lay over that button on a phone (360×800: its top at 734 px, the bar's at 720 px). The recheck of 44.3
+  // timed 11–12 s from the click to the Выжимка; the click itself waited ~8 s for the covered button, the request and
+  // the answer from the cache took about a second after it.
+  const offersCheatsheet = mode === 'express' && !hasCheatsheet && canEdit;
+  const bottomAction = cardCount > 0 && mode !== 'podcast' && !offersCheatsheet;
 
   return (
     <div className="sf-page md-page" data-tab={mode === 'podcast' ? 'talk' : undefined} data-bottom={bottomAction ? '' : undefined}>

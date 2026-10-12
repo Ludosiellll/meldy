@@ -879,6 +879,39 @@ describe('text-only materials and review link', () => {
     expect(screen.getAllByRole('link', { name: 'Повторить карточки' })).toHaveLength(1);
     expect(container.querySelector('.md-bottom')).toBeNull();
   });
+
+  it('gives the bottom of the screen to «Создать выжимку» until the Выжимка is made (recheck of 44.3)', async () => {
+    state.material = {
+      ...makeMaterial(),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
+    const { container } = renderPage('/library/m1?mode=express');
+    const create = await screen.findByRole('button', { name: 'Создать выжимку' });
+    const page = container.querySelector('.md-page') as HTMLElement;
+    // On a 360×800 phone the bar lay over the button: the click waited for it, not for the server.
+    expect(page).not.toHaveAttribute('data-bottom');
+    expect(container.querySelector('.md-bottom')).toBeNull();
+
+    fireEvent.click(create);
+    await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
+    expect(container.querySelector('.md-bottom')).toBeNull(); // «Составляем выжимку…» keeps its place too
+    await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Главное' })));
+    expect(await screen.findByRole('heading', { name: 'Главное' })).toBeInTheDocument();
+    // The Выжимка is made: «Повторить карточки» is the lecture's action at the bottom again.
+    expect(page).toHaveAttribute('data-bottom');
+    expect(container.querySelector('.md-bottom')).not.toBeNull();
+  });
+
+  it('keeps the bar on someone else’s lecture, whose «Выжимка» offers no button', async () => {
+    state.material = {
+      ...makeMaterial({}, 'teacher-1'),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
+    const { container } = renderPage('/library/m1?mode=express');
+    expect(await screen.findByText('Выжимку может создать только автор материала.')).toBeInTheDocument();
+    expect(container.querySelector('.md-page')).toHaveAttribute('data-bottom');
+    expect(container.querySelector('.md-bottom')).not.toBeNull();
+  });
 });
 
 describe('«Поговорить о лекции»', () => {
