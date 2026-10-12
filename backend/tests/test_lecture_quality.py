@@ -1289,6 +1289,12 @@ def test_a_retold_material_keeps_the_lectures_qualifiers():
     notes = build_summarizer_prompt("medium")
     assert "выводы самой лекции" in notes and "что следует из лекции в целом" not in notes
     assert "без обобщений сверх лекции" in notes
+    # The nine-run recheck of 44.8: a term without its lecture's change, a true wrong option, years spelled out.
+    assert "Определение термина сохраняет оговорки лекции" in notes
+    from agents.base import build_quiz_prompt
+
+    assert "Неверный вариант неверен по сути" in build_quiz_prompt(5)
+    assert "Годы, даты и числа пиши цифрами" in build_podcast_prompt()
 
 
 @pytest.mark.parametrize("path", list(LATER_MATERIALS))
