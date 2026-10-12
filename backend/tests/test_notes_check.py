@@ -43,6 +43,9 @@ CONTENT = (
     f"Война шла с 1914 по 1918 год и завершилась поражением Германии. {ARMISTICE}"
 )
 
+# What the analysis gives without the check: «неизбежно» goes, the lecture never says it (overstatement.py).
+SOFTENED = CONTENT.replace("неизбежно ", "")
+
 FIXED_DECLARATIONS = "1 августа войну России объявила Германия, 3 августа — Франции, а 4 августа вступила Великобритания."
 FIXED_ALLIANCES = "**Система военных союзов**: устройство, при котором любой локальный конфликт грозил втянуть в войну всю Европу."
 FIXED_ARMISTICE = ("Компьенское перемирие было подписано 11 ноября 1918 года, а война привела к распаду Российской, "
@@ -340,7 +343,7 @@ def test_a_failed_check_does_not_fail_the_analysis(api, monkeypatch):
     answers_with_check(monkeypatch, broken)
     results = next(item for item in frames(post_lecture(api).text) if item != "KA" and item["type"] == "results")
     assert results["sections"]["summarizer"] == {"status": "ok"}
-    assert results["summarizer"]["content"] == CONTENT
+    assert results["summarizer"]["content"] == SOFTENED
     assert results["checks"]["summarizer"]["status"] == "failed"
 
 
@@ -348,7 +351,7 @@ def test_by_default_the_analysis_asks_no_check_and_sends_no_report(api, monkeypa
     monkeypatch.delenv("AI_NOTES_CHECK")
     calls = answers_with_check(monkeypatch, three_fixes)
     results = next(item for item in frames(post_lecture(api).text) if item != "KA" and item["type"] == "results")
-    assert results["summarizer"]["content"] == CONTENT and "checks" not in results
+    assert results["summarizer"]["content"] == SOFTENED and "checks" not in results
     assert calls == ["summarizer"]
 
 

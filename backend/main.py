@@ -39,6 +39,7 @@ from uploads import AI_UNAVAILABLE_DETAIL, ai_configured, max_upload_bytes, read
 
 from parser import PPTX_NO_TEXT_DETAIL, extract_text, unsupported_format_detail
 import mixed_script
+import overstatement
 import ocr
 from ocr import OcrError
 from agents import base as ai_base
@@ -1377,7 +1378,8 @@ async def _checked_answer(ask, usable, source: str = "") -> tuple[Any, Any]:
     words are replaced and remarks in brackets about the source go; a word with a real Latin chunk
     inside, letters of a script ``source`` (the lecture) does not use or a remark inside a sentence ask
     the model once more, and a second such answer loses the sentences with them (``usable`` runs again
-    on what is left). An answer from the BaseAgent cache is checked the same way.
+    on what is left). An answer from the BaseAgent cache is checked the same way. Adverbs that make a
+    claim stronger than the lecture's go too, when ``source`` never uses them (overstatement.soften).
     """
     scripts = mixed_script.scripts_of(source)
     payload: Any = None
@@ -1389,11 +1391,12 @@ async def _checked_answer(ask, usable, source: str = "") -> tuple[Any, Any]:
             return None, raw
         payload, broken = mixed_script.check(payload, scripts)
         if not broken:
-            return payload, raw
+            return overstatement.soften(payload, source)[0], raw
         if attempt == 0:
             _forget_cached_response(raw)
             print(f"{len(broken)} broken word(s) in a model answer, asking again")
-    return usable(mixed_script.drop_broken(payload, scripts)), raw
+    payload = usable(mixed_script.drop_broken(payload, scripts))
+    return (overstatement.soften(payload, source)[0] if payload is not None else None), raw
 
 
 class QuickPrepRequest(BaseModel):

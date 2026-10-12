@@ -8,8 +8,9 @@ section is usable) or ``error`` (nothing usable; main.py sends no ``done`` then)
 A model answer counts only after validate_section accepted it. An unusable
 answer is evicted from the BaseAgent cache and asked once more; a section that
 still has nothing usable is reported as ``empty``, never filled with stand-ins.
-An accepted answer then goes through mixed_script.check: Latin look-alikes in
-Russian words are replaced, remarks in brackets about the source text go,
+An accepted answer then goes through mixed_script.check (and overstatement.soften:
+«неизбежно», «моментально», «сразу» go when the lecture never uses them): Latin
+look-alikes in Russian words are replaced, remarks in brackets about the source text go,
 «согласно тексту» becomes «согласно лекции» and a sentence that starts by
 crediting the lecture («Согласно лекции, …») states the fact itself; a word
 with a real Latin chunk inside, letters of a script the lecture does not use
@@ -37,6 +38,7 @@ from typing import Any, AsyncGenerator, Dict, Optional
 
 import mixed_script
 import notes_check
+import overstatement
 from utils import (
     build_source_chunks,
     build_source_context,
@@ -583,6 +585,11 @@ class CoordinatorAgent:
                             name, mixed_script.drop_broken(payload, scripts), source_text=text
                         )
                 if status == "ok":
+                    # «неизбежно», «моментально», «сразу» that the lecture never says make a claim stronger than
+                    # the lecture's (overstatement.py): they go from every section.
+                    payload, softened = overstatement.soften(payload, text)
+                    if softened:
+                        print(f"Agent {name}: {len(softened)} overstating word(s) taken out")
                     if name == "summarizer" and notes_check.enabled():
                         # The конспект is read against the lecture once more before it goes out (notes_check);
                         # a failed check leaves it as it was.
