@@ -96,6 +96,7 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 import MaterialDetail, { materialMeta } from './MaterialDetail';
+import { toEntry } from './Library';
 import { PHONE_QUERY } from '../lib/usePhone';
 import ResultsPanel from '../components/ResultsPanel';
 import { resetJobsForTests } from '../components/conversation/jobs';
@@ -1093,17 +1094,74 @@ describe('while the lecture loads (recheck of 44.2: a layout shift of 0.447 on a
     expect(screen.queryByText('Загружаем лекцию…')).toBeNull();
   });
 
-  it('on a phone stands in the phone’s rows: its actions and its row of tabs', async () => {
+  it('on a phone stands in the phone’s rows: its actions and its strip of tabs, the usual five for a lecture it does not know', async () => {
     installPhone();
-    const api = await import('../api/materials');
-    vi.mocked(api.getMaterialById).mockImplementationOnce(() => new Promise(() => undefined));
-    renderPage('/library/m1');
-    const page = document.querySelector('.md-page') as HTMLElement;
-    expect(page.querySelector('.md-skel-tabs')).toBeNull();
-    expect(page.querySelectorAll('.md-acts .md-skel-pill')).toHaveLength(1);
-    expect(page.querySelector('.md-ptabs.md-skel-ptabs')).not.toBeNull();
-    expect(page.querySelector('.md-skel-sections')).toBeNull();
-    delete (window as { matchMedia?: unknown }).matchMedia;
+    try {
+      const api = await import('../api/materials');
+      vi.mocked(api.getMaterialById).mockImplementationOnce(() => new Promise(() => undefined));
+      renderPage('/library/m1');
+      const page = document.querySelector('.md-page') as HTMLElement;
+      expect(page.querySelector('.md-skel-tabs')).toBeNull();
+      expect(page.querySelectorAll('.md-acts .md-skel-pill')).toHaveLength(1);
+      // The recheck of 44.3: the strip wraps (4 + 1 at 390 px, 3 + 2 at 360) and the placeholder held one row. The
+      // lecture's own strip, its labels in the tabs' font, wraps the same; it is inert: no tab, nothing to focus.
+      const strip = page.querySelector('.md-ptabs.md-skel-ptabs') as HTMLElement;
+      expect([...strip.querySelectorAll('.md-ptab')].map(tab => tab.textContent)).toEqual(['Конспект', 'Карточки', 'Тест', 'Выжимка', 'Подкаст']);
+      expect(strip).toHaveAttribute('data-many');
+      expect(strip).toHaveAttribute('aria-hidden', 'true');
+      expect(strip.querySelectorAll('button, a, [role], [tabindex]')).toHaveLength(0);
+      expect(page.querySelector('.md-skel-sections')).toBeNull();
+      // Whether its text was recognised is not known before it loads: no «Текст распознан…» is held.
+      expect(page.querySelector('.rp-notes')).toBeNull();
+    } finally {
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
+  it('draws the tabs and «Текст распознан…» the lecture will have when the list of «Лекции» on this device has it', async () => {
+    installPhone();
+    const recorded = { ...lectureWithEverything(), summary_json: { ...lectureWithEverything().summary_json, recognized: 'recording' } };
+    // The list «Лекции» keeps on this device once it was opened here (Library.toEntry).
+    window.localStorage.setItem('library_entries_user-1', JSON.stringify({ v: 2, items: [toEntry(recorded)] }));
+    try {
+      const api = await import('../api/materials');
+      let deliver: (row: Material) => void = () => undefined;
+      vi.mocked(api.getMaterialById).mockImplementationOnce(() => new Promise(resolve => (deliver = row => resolve(clone(row) as never))));
+      renderPage('/library/m1');
+      const page = document.querySelector('.md-page') as HTMLElement;
+      const held = [...page.querySelectorAll('.md-skel-ptabs .md-ptab')].map(tab => tab.textContent);
+      expect(held).toEqual(['Конспект', 'Карточки 6', 'Тест 5', 'Выжимка', 'Подкаст']);
+      const notice = 'Текст распознан из записи — сверьте термины, числа и имена.';
+      expect(page.querySelector('.md-panel > header.rp-head .rp-notes')).toHaveTextContent(notice);
+
+      await act(async () => deliver(recorded));
+      const row = await screen.findByRole('tablist', { name: 'Разделы лекции' });
+      // The same labels in the same order, and the same line over the sections.
+      expect(within(row).getAllByRole('tab').map(tab => tab.textContent)).toEqual(held);
+      expect(await screen.findByText(notice)).toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('library_entries_user-1');
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
+  it('on a computer holds the line over the sections and brings the sections closer under it, as the lecture does', async () => {
+    const scanned = makeMaterial({ recognized: 'scan' });
+    window.localStorage.setItem('library_entries_user-1', JSON.stringify({ v: 2, items: [toEntry(scanned)] }));
+    try {
+      const api = await import('../api/materials');
+      vi.mocked(api.getMaterialById).mockImplementationOnce(() => new Promise(() => undefined));
+      renderPage('/library/m1');
+      const panel = document.querySelector('.md-panel') as HTMLElement;
+      const head = panel.querySelector(':scope > header.rp-head') as HTMLElement;
+      expect(head).toHaveTextContent('Текст распознан со скана — сверьте формулы и числа с оригиналом.');
+      // ResultsPanel's .rp-tabsrow[data-tight]: 12 px under the line instead of 22.
+      const sections = panel.querySelector('.md-skel-sections') as HTMLElement;
+      expect(sections).toHaveAttribute('data-tight');
+      expect(head.compareDocumentPosition(sections) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      window.localStorage.removeItem('library_entries_user-1');
+    }
   });
 });
 

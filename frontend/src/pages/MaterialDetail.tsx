@@ -19,6 +19,7 @@ import {
   FolderItems,
   deleteLectureConfirm,
   forgetLecture,
+  listedLecture,
   readAssignments,
   readFolders,
   withFolder,
@@ -26,6 +27,7 @@ import {
   writeAssignments,
   writeFolders,
   type LibraryFolder,
+  type ListedLecture,
 } from '../components/LectureFolders';
 import { followupCardsOf } from '../lib/followupCards';
 import { recognizedNotice, recognizedSource } from '../lib/lectureFormats';
@@ -110,6 +112,25 @@ function useMediaQuery(query: string): boolean {
     return () => list.removeEventListener?.('change', update);
   }, [query]);
   return matches;
+}
+
+/**
+ * The phone's tabs while the lecture loads, as the lecture will draw them (the recheck of 44.3: the row of tabs wraps,
+ * 4 + 1 at 390 px and 3 + 2 at 360, and the placeholder held one row): from the Library's list of this device when it
+ * has the lecture — its sections, then «Выжимка» and «Подкаст», which the author's lecture always has —, else the usual
+ * five.
+ */
+function loadingTabs(listed: ListedLecture | null): Array<{ label: string; count?: number }> {
+  const own = [{ label: MODE_LABELS.express }, { label: MODE_LABELS.podcast }];
+  if (!listed) return [{ label: SECTION_LABELS.summarizer }, { label: SECTION_LABELS.flashcards }, { label: SECTION_LABELS.quiz }, ...own];
+  const sections = listed.textOnly
+    ? []
+    : [
+        ...(listed.summary ? [{ label: SECTION_LABELS.summarizer }] : []),
+        ...(listed.cards > 0 ? [{ label: SECTION_LABELS.flashcards, count: listed.cards }] : []),
+        ...(listed.quiz ? [{ label: SECTION_LABELS.quiz, count: listed.questions }] : []),
+      ];
+  return [...(sections.length > 0 ? sections : [{ label: MODE_LABELS.full }]), ...own];
 }
 
 /** The lecture's cards: an array (older materials) or `{ flashcards: [...] }`. */
@@ -570,6 +591,8 @@ export default function MaterialDetail() {
   // «Текст распознан из записи…» (or from a scan, a photo) stands over the lecture's sections here as on the result
   // screen: the analysis saved how the text was got (summary_json.recognized; QA 2026-10-11: it was on the result only).
   const recognized = recognizedNotice(material?.summary_json?.recognized);
+  // What the Library's list of this device says about the lecture: the placeholder's tabs and its «Текст распознан…».
+  const listed = useMemo(() => (loading ? listedLecture(user?.id, id) : null), [loading, user?.id, id]);
 
   if (loading) {
     // The lecture's own boxes while it loads, so nothing moves when it comes (recheck of 44.2: a fresh /library/:id
@@ -578,7 +601,14 @@ export default function MaterialDetail() {
     // modes and the actions (a phone: the actions and its row of tabs), the row of the sections and the first card
     // with the margin beside it. The shapes show after 300 ms (spec 4.6), their place is held from the start. The key
     // keeps these boxes apart from the lecture's: they go and the lecture's come, none of them moves.
+    // The recheck of 44.3 found two boxes missing: the phone's row of tabs wraps into two rows, and a recognised
+    // lecture says «Текст распознан…» over its sections (the card came 46 px lower at 390, 104 px for a recording, 34 px
+    // at 1532). The phone's row is the lecture's own strip with its labels, each a bar of its width; the line is kept
+    // only when the Library's list of this device says the text was recognised — a lecture it does not have (a link
+    // opened on another device, someone else's lecture) gets no line until it loads.
     const words = loadingLine ? 'Загружаем лекцию…' : NBSP;
+    const tabs = loadingTabs(listed);
+    const notice = recognizedNotice(listed?.recognized);
     return (
       <div key="loading" className="sf-page md-page md-loading" aria-busy="true" data-show={loadingLine ? '' : undefined}>
         <header className="md-head">
@@ -604,15 +634,30 @@ export default function MaterialDetail() {
           </div>
         </div>
         {phone ? (
-          <div className="md-ptabs md-skel-ptabs" aria-hidden="true">
-            <i className="md-skel" />
-            <i className="md-skel" />
-            <i className="md-skel" />
+          <div className="md-ptabs md-skel-ptabs" aria-hidden="true" data-many={tabs.length > 4 ? '' : undefined}>
+            {tabs.map(tab => (
+              <span key={tab.label} className="md-skel md-ptab">
+                {tab.label}
+                {tab.count ? (
+                  <>
+                    {' '}
+                    <span className="md-ptab-n">{tab.count}</span>
+                  </>
+                ) : null}
+              </span>
+            ))}
           </div>
         ) : null}
         <div className="md-panel md-skel-panel" aria-hidden="true">
+          {notice ? (
+            <header className="rp-head">
+              <div className="rp-notes">
+                <p>{notice}</p>
+              </div>
+            </header>
+          ) : null}
           {phone ? null : (
-            <div className="md-skel-sections">
+            <div className="md-skel-sections" data-tight={notice ? '' : undefined}>
               <i className="md-skel" />
               <i className="md-skel" />
               <i className="md-skel" />
