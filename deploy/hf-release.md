@@ -4,6 +4,23 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.10: the конспект is read against the lecture once more (from the commit of this entry)
+
+- **The recheck of 44.9** (the history lecture three times): its three narrow rules held 3/3 — years in digits in the
+  podcast, 45 wrong quiz options all false, «Тройственный союз» with the 1915 switch. The конспект still made the
+  serious ones, three in 221 statements, each in a new form: «3 августа — Франция» (France declares war on Russia),
+  «неизбежно втягивал» for «грозил втянуть», the armistice «привело к крушению» four empires.
+- **A second reading of the конспект** (`83c8f5a`, `notes_check.py`): one more model call gets the numbered sentences
+  of the конспект and the term definitions, then the lecture, and returns the smallest fix for a sentence that says
+  something other than the lecture or more than it. A fix is applied only when it stays the same sentence; a checker
+  that wants to change more than a third of the конспект changes nothing; busy, timeout or an unreadable answer leave
+  the конспект as it was. The results event carries what was changed as `checks` (the page does not read it).
+- **Cost:** one call per analysis (and per «Создать заново» of the конспект), cached with the конспект; the конспект
+  arrives a few seconds later than before. `AI_NOTES_CHECK=off` turns it off.
+- **Verified before release:** pytest 2033. The release gate runs every check again on this commit.
+- **Live check after release:** three lectures × three runs; every change in `checks` read against the lecture, the
+  checked конспект counted again.
+
 ## 2026-10-12 — Release 44.9: three narrow rules from the nine-run recheck of 44.8 (from the commit of this entry)
 
 - **The recheck of 44.8** (three lectures × three runs, all five materials, against their scripts): 2.5 problems per
