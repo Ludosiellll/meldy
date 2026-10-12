@@ -4,7 +4,8 @@
 # supabase/rollback/20261010120000_telegram_bot_down.sql), then the later packages in the live order, each on top of
 # the ones before: T5 (20261010120003, the session in chat), T7 (20261010120004, the group chat), T9 (20261010120005,
 # the files), T10 (20261010120006, voice behind a flag), the slot of T11 (20261010120007), applied only when its
-# file is here, and WA (20261010150000, the Mini App's sign-in, step 9b).
+# file is here, WA (20261010150000, the Mini App's sign-in, step 9b) and MON (20261012100000, the site's outage
+# monitor, step 9c: its test telegram_bot_monitor.sql and two claims of one slot at once).
 #   1. the base (the repo's local baselines, the live migrations they rehearse, the exam container's migrations, stubs
 #      of the schemas cron and net when pg_cron / pg_net are not installed here, dblink when available) → catalog
 #      fingerprint → the contract on the base never raises;
@@ -23,9 +24,9 @@
 #      exists only while they run), T1's behaviour and claims with it;
 #   10. everything applied: contract_ok with every check, the container's contract, T1's rollback refuses (and leaves
 #      everything) while a later package's objects remain;
-#   11. the rollbacks in reverse (T11 → T10 → T9 → T7 → T5 → T1), each twice: after each the catalog equals the one
-#      before that package, the contract still reads; after T1's the base (pg_cron's grants to postgres stay), the tick
-#      unscheduled, the container's contract ok;
+#   11. the rollbacks in reverse (MON → WA → T11 → T10 → T9 → T7 → T5 → T1), each twice: after each the catalog equals
+#      the one before that package, the contract still reads; after T1's the base (pg_cron's grants to postgres stay),
+#      the tick unscheduled, the container's contract ok;
 #   12. everything applied again: after each package the catalog equals its first apply; contract_ok.
 # Usage: supabase/tests/local/telegram_bot_run.sh
 # Env (all optional): TELEGRAM_PG_PORT (54381); TELEGRAM_WORK (scratch dir, default ${TMPDIR:-/tmp}/meldy-telegram);
@@ -531,6 +532,36 @@ echo "9b. WA: the Mini App's sign-in"
 if stage WA 20261010150000; then
   sql_test "WA: telegram_webapp.sql" t_main "$HERE/telegram_webapp.sql" 'TELEGRAM WEBAPP CHECKS PASSED'
   t1_tests "with WA" t_main
+fi
+
+# ── package MON (20261012100000_telegram_bot_monitor.sql, the site's outage monitor: bot.monitor and bot_monitor_*; off
+#    until bot.config.monitor_chat_id is set) ─────────────────────────────────────────────────────────────────────────
+# Two claims of one slot at once (two service-role sessions, as two ticks): A holds the row 1.5 s, B waits for it, then
+# finds the slot taken. On a throwaway copy of t_main, where the switch is set.
+monitor_race() {
+  local pa ra rb a b t0 t1
+  "${PSQL[@]}" -d postgres -c "drop database if exists t_mon" -c "create database t_mon template t_main" >/dev/null 2>&1 \
+    || { bad "MON: two claims of one slot at once" "no copy of t_main"; return; }
+  "${PSQL[@]}" -d t_mon -c "update bot.config set monitor_chat_id = 700777 where id = 1" >/dev/null \
+    || { bad "MON: two claims of one slot at once" "the switch not set"; return; }
+  { echo "$SVC"; echo "begin;"; echo "select public.bot_monitor_claim('2026-10-12 03:00+00', null, '2026-10-12 03:00:05+00') ->> 'health';"
+    echo "select pg_sleep(1.5); commit;"; } > "$OUT/mon_a.sql"
+  { echo "$SVC"; echo "select public.bot_monitor_claim('2026-10-12 03:00+00', null, '2026-10-12 03:00:06+00') ->> 'health';"; } > "$OUT/mon_b.sql"
+  "${PSQL[@]}" -d t_mon -f "$OUT/mon_a.sql" > "$OUT/mon_a.out" 2>&1 & pa=$!
+  sleep 0.5
+  t0=$(date +%s.%N); "${PSQL[@]}" -d t_mon -f "$OUT/mon_b.sql" > "$OUT/mon_b.out" 2>&1; rb=$?; t1=$(date +%s.%N)
+  wait $pa; ra=$?
+  a=$(grep -E '^(true|false)$' "$OUT/mon_a.out"); b=$(grep -E '^(true|false)$' "$OUT/mon_b.out")
+  if [ $ra = 0 ] && [ $rb = 0 ] && [ "$a" = true ] && [ "$b" = false ] && awk "BEGIN { exit !($t1 - $t0 > 0.5) }"; then
+    ok "MON: two claims of one slot at once" "A $a, B $b (B waited $(awk "BEGIN { printf \"%.1f\", $t1 - $t0 }") s on A's row)"
+  else bad "MON: two claims of one slot at once" "A=$a B=$b $(cat "$OUT/mon_a.out" "$OUT/mon_b.out" | grep -m1 ERROR)"; fi
+  "${PSQL[@]}" -d postgres -c "drop database if exists t_mon" >/dev/null 2>&1
+}
+echo "9c. MON: the outage monitor"
+if stage MON 20261012100000; then
+  sql_test "MON: telegram_bot_monitor.sql" t_main "$HERE/telegram_bot_monitor.sql" 'TELEGRAM BOT MONITOR CHECKS PASSED'
+  monitor_race
+  t1_tests "with MON" t_main
 fi
 
 echo "10. everything applied (T1 ${DONE[*]})"

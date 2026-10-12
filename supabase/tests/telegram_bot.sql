@@ -32,7 +32,8 @@
 --     message_id).
 -- Later packages add a row to packages, their names to the lists below and their own checks in their range: T5 30–49
 -- (20261010120003), T7 50–59 (20261010120004), T10 60–69 (20261010120006), T9 70–79 (20261010120005), T11 80–89
--- (20261010120007, bot_oral_inputs), WA 90–99 (20261010150000, the Mini App's sign-in). The only functions a client without a session may run are
+-- (20261010120007, bot_oral_inputs), WA 90–99 (20261010150000, the Mini App's sign-in), MON 100–109 (20261012100000,
+-- the site's outage monitor: bot.monitor, bot_monitor_*). The only functions a client without a session may run are
 -- T10's two entry points for the Space (public.bridge_voice_take(text), bridge_voice_refund(text): anon and the service
 -- role with a single-use 64-hex ticket, checks 60 and 65); every bot_* stays the service role's. Local rehearsal of all
 -- of it: supabase/tests/local/telegram_bot_run.sh.
@@ -48,6 +49,8 @@ packages(pkg, migration, first_check, last_check) AS (VALUES
   , ('T11', '20261010120007', 80, 89)
   -- WA (20261010150000_telegram_webapp.sql, the Mini App's sign-in):
   , ('WA', '20261010150000', 90, 99)
+  -- MON (20261012100000_telegram_bot_monitor.sql, the site's outage monitor):
+  , ('MON', '20261012100000', 100, 109)
 ),
 -- ── the lists (one line per object; later packages append theirs) ──────────────────────────────────────────────────────
 bot_tables(pkg, name) AS (VALUES
@@ -64,6 +67,8 @@ bot_tables(pkg, name) AS (VALUES
   -- T11 slot (20261010120007): its tables of schema bot, if any
   -- WA (20261010150000_telegram_webapp.sql):
   , ('WA', 'webapp_uses')
+  -- MON (20261012100000_telegram_bot_monitor.sql):
+  , ('MON', 'monitor')
 ),
 bot_fns(pkg, sig) AS (VALUES
   ('T1', 'bot_setup(text,bigint,text,text,text)'), ('T1', 'bot_update_begin(bigint,timestamptz)'),
@@ -104,6 +109,9 @@ bot_fns(pkg, sig) AS (VALUES
   , ('T11', 'bot_oral_inputs(bigint)')
   -- WA (20261010150000_telegram_webapp.sql):
   , ('WA', 'bot_webapp_session(bigint,text,timestamptz,timestamptz)')
+  -- MON (20261012100000_telegram_bot_monitor.sql):
+  , ('MON', 'bot_monitor_state(timestamptz)'), ('MON', 'bot_monitor_claim(timestamptz,timestamptz,timestamptz)'),
+  ('MON', 'bot_monitor_save(jsonb)')
 ),
 site_fns(pkg, sig) AS (VALUES
   ('T1', 'telegram_link_start(text)'), ('T1', 'telegram_link_state()'), ('T1', 'telegram_settings(boolean,time,text)'),
@@ -255,7 +263,11 @@ counts AS (
     CASE WHEN (SELECT oid FROM rels WHERE name = 'links') IS NOT NULL THEN
       ((pg_catalog.xpath('/row/n/text()', pg_catalog.query_to_xml(
         'select count(*) as n from bot.links where unlinked_at is null', false, true, '')))[1])::text::bigint
-    END AS active_links
+    END AS active_links,
+    CASE WHEN (SELECT oid FROM rels WHERE name = 'monitor') IS NOT NULL THEN
+      ((pg_catalog.xpath('/row/n/text()', pg_catalog.query_to_xml(
+        'select count(*) as n from bot.monitor', false, true, '')))[1])::text::bigint
+    END AS monitor_rows
 ),
 checks (ord, name, ok) AS (
   -- ── T1: 1–29 ──
@@ -568,6 +580,36 @@ checks (ord, name, ok) AS (
          (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p
            WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'bot_webapp_session') = 1
          AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.proname = 'bot_webapp_link')
+  -- ── MON: 100–109 (20261012100000_telegram_bot_monitor.sql: the site's outage monitor, the tick's step «monitor») ──
+  UNION ALL
+  SELECT 100, 'monitor_one_row',
+         EXISTS (SELECT 1 FROM cons WHERE tbl = 'monitor' AND contype = 'c' AND def = 'CHECK ((id = 1))')
+         AND coalesce((SELECT monitor_rows FROM counts), 0) = 1
+  UNION ALL
+  -- The switch: off while bot.config.monitor_chat_id is null (both columns nullable); the site is https and a host only.
+  SELECT 101, 'monitor_switch_in_config',
+         (SELECT pg_catalog.string_agg(a.attname::text || ':' || pg_catalog.format_type(a.atttypid, a.atttypmod) || ':'
+                                       || (NOT a.attnotnull)::text, ' ' ORDER BY a.attname::text COLLATE "C")
+            FROM pg_catalog.pg_attribute a
+           WHERE a.attrelid = pg_catalog.to_regclass('bot.config') AND a.attname IN ('monitor_chat_id', 'monitor_site')
+             AND NOT a.attisdropped)
+         = 'monitor_chat_id:bigint:true monitor_site:text:true'
+         AND EXISTS (SELECT 1 FROM cons WHERE tbl = 'config' AND contype = 'c' AND def LIKE '%monitor_site ~ ''^https://%')
+  UNION ALL
+  -- Its state holds no text column: codes and times in checks (≤ 4 KB, bot_monitor_save refuses anything else).
+  SELECT 102, 'monitor_state_codes_only',
+         (SELECT pg_catalog.array_agg(a.attname::text ORDER BY a.attname::text COLLATE "C") FROM pg_catalog.pg_attribute a
+           WHERE a.attrelid = pg_catalog.to_regclass('bot.monitor') AND a.attnum > 0 AND NOT a.attisdropped)
+         = ARRAY['checks', 'deep_slot', 'health_slot', 'id', 'updated_at']
+         AND EXISTS (SELECT 1 FROM cons WHERE tbl = 'monitor' AND contype = 'c' AND def LIKE '%octet_length((checks)::text) <= 4096%')
+  UNION ALL
+  -- The tick reads it every minute: the read is STABLE; one signature each.
+  SELECT 103, 'monitor_functions',
+         coalesce((SELECT p.provolatile = 's' FROM pg_catalog.pg_proc p
+                    WHERE p.oid = pg_catalog.to_regprocedure('public.bot_monitor_state(timestamptz)')), false)
+         AND (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p
+               WHERE p.pronamespace = 'public'::regnamespace
+                 AND p.proname IN ('bot_monitor_state', 'bot_monitor_claim', 'bot_monitor_save')) = 3
 ),
 -- Per package: its own checks (its range) that fail and, for an applied package other than T1, the checks over every
 -- listed object that one of its own objects fails.
