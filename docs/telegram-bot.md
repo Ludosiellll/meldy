@@ -24,6 +24,8 @@
   В @BotFather ничего менять не нужно: режим приватности включён, группы разрешены, inline выключен (§5).
 - **По желанию:** в @BotFather можно включить Main Mini App (раздел «Мини-приложение»). Кнопке меню и кнопкам
   «Открыть занятие» это не нужно.
+- **По желанию:** монитор сайта пишет вам в Telegram, когда сайт или сервис (озвучка, Gemini, Groq, Supabase) не
+  работает и когда снова работает. Включается одной строкой SQL (раздел «Монитор сайта»).
 
 ## Из чего состоит бот
 
@@ -39,6 +41,7 @@
 | Карточка Telegram в профиле сайта | `frontend/src/components/telegram/TelegramCard.tsx` | выпуск сайта, `deploy/hf-release.md` |
 | Мини-приложение (сайт внутри Telegram) | сайт: `/tg` — `frontend/src/pages/TelegramMiniApp.tsx`, `frontend/src/lib/telegram/miniApp.ts`, CSP в `nginx.conf`; функция: `supabase/functions/_shared/bot/webapp.ts` | выпуск сайта и функции |
 | Использованные `initData` | `bot.webapp_uses` (только `sha256(hash)`, 2 часа) и `bot_webapp_session` — миграция `20261010150000_telegram_webapp.sql` | агент, `deploy/supabase-migrate.md` |
+| Монитор сайта | шаг тика «monitor» — `supabase/functions/_shared/bot/monitor.ts`; `bot.monitor`, `bot_monitor_*` и переключатель `bot.config.monitor_chat_id` — миграция `20261012100000_telegram_bot_monitor.sql` | агент; включает владелец (раздел «Монитор сайта») |
 | Копия плана контейнера | `supabase/functions/_shared/plan/*` и `SOURCE_HASH` из `frontend/src/lib/containers/*` | `scripts/sync_bot_plan.mjs` |
 
 Адрес функции — `https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram`. Маршруты (§6.1):
@@ -289,6 +292,45 @@ Telegram: в браузере, в профиле, «Подключить Telegra
   Telegram, «Выйти» на месте.
 - [ ] В Telegram Web «Перезагрузить» оставляет на той же странице со входом.
 - [ ] В журнале функции нет `initData` и токенов.
+
+## Монитор сайта (2026-10-12)
+
+Тик бота проверяет сайт и пишет владельцу в Telegram, когда что-то не работает и когда снова работает. Код —
+`supabase/functions/_shared/bot/monitor.ts` (шаг тика «monitor», после остальных шагов), база — миграция
+`20261012100000_telegram_bot_monitor.sql`. Пока `bot.config.monitor_chat_id` пуст, монитор выключен: ничего не
+проверяет и не пишет.
+
+Что проверяется:
+- каждые 5 минут (в экономном режиме тика — раз в 15 минут): `/api/health` — ответ 200 за 15 с; `/try` — ответ 200, и в
+  странице есть сборка `index-*.js`;
+- каждые 30 минут: `/api/health/deep` — ответ 200 за 20 с; по нему — `tts`, `gemini`, `groq` и `supabase` с их кодами.
+
+Сообщение о сбое приходит после двух неудачных проверок подряд, пока сбой длится — не чаще раза в 6 часов. Когда
+проверка снова проходит, приходит одно сообщение с длительностью перерыва. Время в UTC. Сообщение о сбое — со звуком,
+о восстановлении — без звука. Сообщение, которое не ушло, монитор повторит при следующей проверке. Примеры:
+«Meldy: сайт не отвечает (/api/health: 503) с 02:51 UTC.», «Meldy: не работает озвучка (tts: network) с 02:51 UTC.»,
+«Meldy: озвучка снова работает, перерыв 47 мин.» Токенов, ключей, адресов и текстов ошибок провайдеров в сообщениях нет.
+
+**Включить** (владелец в SQL Editor или агент с его согласия). Сначала откройте бота в Telegram и нажмите «Старт»: бот не
+может написать первым. Чат берётся из привязки вашего Telegram к Meldy:
+
+```sql
+update bot.config
+   set monitor_chat_id = (select l.chat_id from bot.links l join auth.users u on u.id = l.user_id
+                           where u.email = '<ваша почта>' and l.unlinked_at is null)
+ where id = 1;
+select monitor_chat_id is not null as monitor_on from bot.config;
+```
+
+Без привязки: `update bot.config set monitor_chat_id = <id вашего Telegram> where id = 1;` (в личном чате id чата равен
+id пользователя). Выключить: `update bot.config set monitor_chat_id = null where id = 1;`. Проверять другой адрес:
+`update bot.config set monitor_site = 'https://<хост>' where id = 1;` (только https и имя хоста; пусто —
+`https://ludosiel-studyforge.hf.space`). Состояние проверок: `select checks, health_slot, deep_slot from bot.monitor;`.
+
+В числах тика (`/status` → `last_tick`, журнал функции): `monitor_checked` и `monitor_failed` — проверки за прогон,
+`monitor_sent` — сообщение ушло, `monitor_unsent` — не ушло (повторится), `monitor_late` — проверке не хватило времени
+тика (её возьмёт следующий тик), `monitor_missing` — миграция монитора не применена, `monitor_error` — сбой самого
+монитора (имя ошибки — в журнале). Остальные шаги тика от монитора не зависят.
 
 ## Смена токена
 

@@ -11,7 +11,8 @@
  *   in a private chat;
  * - `group` (T8): `/start@bot G<code>` in a group, `/start g<id>` in private, `g|…` presses, `my_chat_member` and
  *   `migrate_to_chat_id` of groups, and the tick's steps 1, 2 and 4;
- * - `files` (T9): a document in a private chat and the `/telegram/file` route; `voice` (T10): a voice message.
+ * - `files` (T9): a document in a private chat and the `/telegram/file` route; `voice` (T10): a voice message;
+ * - `monitor` (monitor.ts): the tick's step «monitor», the site's outage monitor, after the other steps.
  */
 import { decode, type Callback, type GoMode } from './codec.ts';
 import { dayCard, examList } from './card.ts';
@@ -153,12 +154,21 @@ export interface WebAppPort {
   http(req: Request, ctx: Ctx, action: WebAppAction): Promise<Response>;
 }
 
+/**
+ * The outage monitor (monitor.ts): the tick's step «monitor», after the others and before the beat. Off until
+ * bot.config.monitor_chat_id is set. `tools` as for the group's steps.
+ */
+export interface MonitorPort {
+  tick(ctx: Ctx, tools: TickTools): Promise<StepStats>;
+}
+
 export interface Ports {
   session: SessionPort;
   group: GroupPort;
   files: FilesPort;
   voice: VoicePort;
   webapp: WebAppPort;
+  monitor: MonitorPort;
 }
 
 /** Until T6 is merged: presses only stop the spinner. */
@@ -222,7 +232,10 @@ export const webappStub: WebAppPort = {
   },
 };
 
-export const STUBS: Ports = { session: sessionStub, group: groupStub, files: filesStub, voice: voiceStub, webapp: webappStub };
+/** Without the monitor's port the step does nothing. */
+export const monitorStub: MonitorPort = { tick: noStats };
+
+export const STUBS: Ports = { session: sessionStub, group: groupStub, files: filesStub, voice: voiceStub, webapp: webappStub, monitor: monitorStub };
 
 // ─────────────────────────────────────────── updates ───────────────────────────────────────────
 

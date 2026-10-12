@@ -11,6 +11,7 @@ import { group } from '../_shared/bot/group.ts';
 import { session } from '../_shared/bot/session.ts';
 import { createVoice } from '../_shared/bot/voice.ts';
 import { createAuthAdmin, createWebApp } from '../_shared/bot/webapp.ts';
+import { createMonitor } from '../_shared/bot/monitor.ts';
 import { readEnv } from '../_shared/bot/env.ts';
 import { log } from '../_shared/bot/log.ts';
 import { createApp, type Ports } from '../_shared/bot/router.ts';
@@ -33,6 +34,8 @@ const ports: Ports = {
     token: () => env.token,
     auth: env.supabaseUrl && env.serviceKey ? createAuthAdmin({ url: env.supabaseUrl, key: env.serviceKey, fetch: http }) : null,
   }),
+  // The site's outage monitor (the tick's step «monitor»): off until bot.config.monitor_chat_id is set.
+  monitor: createMonitor({ fetch: http }),
 };
 const app = env.token && env.supabaseUrl && env.serviceKey
   ? createApp({

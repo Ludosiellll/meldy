@@ -366,6 +366,14 @@ test('the flush of pending answers (T5) runs when the function exists; a failing
   assert.deepEqual(h.portCalls.filter((c) => c.port === 'group').map((c) => c.fn), ['closePosts', 'sendPosts', 'counters', 'closePosts', 'sendPosts', 'counters']);
 });
 
+test('the monitor step (monitor.ts) comes after the other steps, once a tick, in the beat\'s numbers', async () => {
+  const h = harness({ now: AT_2001 });
+  const stats = await tickNow(h);
+  assert.deepEqual(h.portCalls.map((c) => `${c.port}.${c.fn}`), ['group.closePosts', 'group.sendPosts', 'group.counters', 'monitor.tick']);
+  assert.equal(stats.monitor_error, undefined);
+  assert.equal(h.fdb.beats.length, 1);
+});
+
 test('the tick never marks a user as seen (no bot_whoami / bot_settings / bot_today / bot_card_sent)', async () => {
   const h = harness({ now: AT_2001 });
   students(h, 2);
