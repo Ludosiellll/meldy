@@ -4,6 +4,20 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.9: three narrow rules from the nine-run recheck of 44.8 (from the commit of this entry)
+
+- **The recheck of 44.8** (three lectures × three runs, all five materials, against their scripts): 2.5 problems per
+  100 statements (44.7: 4.0, 44.5: 2.8), one serious in 723; no resistance-from-connection claim, no «распалось
+  сразу», no credits, no «неминуемо» in any run; cards and quiz keys clean.
+- **Three narrow rules** (`4309bbd`), for what still repeated (all minor):
+  - the podcast writes years, dates and numbers in digits (it garbled spelled-out years in 2 of 3 history runs);
+  - a wrong quiz option is false in fact, not only absent from the lecture;
+  - a term's definition keeps the lecture's exceptions and changes over time with their dates.
+- **One-time cost:** the prompts change every cache key again.
+- **Verified before release:** pytest 2013. The release gate runs every check again on this commit.
+- **Live check after release:** the history lecture three more times: the podcast's years, the quiz's wrong options,
+  the term definitions.
+
 ## 2026-10-12 — Release 44.8: what the fact recheck of 44.7 found (from the commit of this entry)
 
 - **Lecture materials** (`1e6c087`). The recheck of 44.7 (three lectures, all five materials, against their scripts):
