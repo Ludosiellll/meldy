@@ -771,6 +771,118 @@ def test_a_remark_inside_a_sentence_is_asked_again_then_loses_its_sentence(api, 
     assert content == "Для измерения напряжения нужен вольтметр." and calls == ["summarizer"]
 
 
+# The recheck of release 44.2 (2026-10-12): the конспект of the recorded physics lecture (logs/M1-390D-konspekt.txt)
+# and two test questions, of the same recording (M2-1532-test.txt) and of the biology PDF (B1-360L-test.txt).
+QA_FORM_REMARK = (
+    "Для измерения силы тока используется амперметр, который включается в цепь последовательно. Напряжение измеряют "
+    "вольтметром (в тексте — вольтметром), подключая его параллельно участку цепи."
+)
+QA_FORM_REMARK_FIXED = (
+    "Для измерения силы тока используется амперметр, который включается в цепь последовательно. Напряжение измеряют "
+    "вольтметром, подключая его параллельно участку цепи."
+)
+QA_QUESTIONS = (
+    "Как зависит сопротивление проводника от его геометрических размеров согласно тексту?",
+    "Чем отличаются запасные вещества и клеточные структуры растительной и животной клеток согласно тексту?",
+)
+
+
+def test_a_bracket_with_a_dash_or_colon_that_gives_the_sources_form_of_the_word_goes():
+    assert mixed_script.fix_text(QA_FORM_REMARK) == (QA_FORM_REMARK_FIXED, [])
+    remarks = [
+        ("Напряжение измеряют вольтметром (в тексте — Вт метром).", "Напряжение измеряют вольтметром."),
+        ("Нужен вольтметр (в тексте: «Вт метр»).", "Нужен вольтметр."),
+        ("Нужен вольтметр (в записи — Вт метр).", "Нужен вольтметр."),
+        ("Нужен вольтметр (в записи: Вт метр), его включают параллельно.", "Нужен вольтметр, его включают параллельно."),
+        ("Нужен вольтметр (в расшифровке Вт метр).", "Нужен вольтметр."),
+        ("Нужен вольтметр (в расшифровке записи — вт метр).", "Нужен вольтметр."),
+        ("Закон Ома (в тексте лекции: закон ОМО) связывает ток и напряжение.", "Закон Ома связывает ток и напряжение."),
+        ("Напряжение в 1 вольт (в тексте – 1 Вт) невелико.", "Напряжение в 1 вольт невелико."),
+        ("Нихром (в записи — нехом) плохо проводит ток.", "Нихром плохо проводит ток."),
+    ]
+    for text, fixed in remarks:
+        assert mixed_script.fix_text(text) == (fixed, []), text
+
+
+def test_a_quotation_or_an_explanation_after_the_dash_stays():
+    # Only the source's form of the word before the bracket goes: here the bracket says something of its own.
+    kept = [
+        "Олицетворение (в тексте — «буря мглою небо кроет») оживляет природу.",  # a lecture on literature quotes
+        "Эпитет (в тексте: «золотая осень») придаёт образу цвет.",
+        "НДС (в расшифровке — налог на добавленную стоимость) платит покупатель.",  # an abbreviation spelled out
+        "Симфония (в записи — оркестр Караяна) звучит долго.",  # the recording a music lecture is about
+        "Статья 15 (в тексте: «Конституция имеет высшую юридическую силу») открывает главу.",
+        "Закон Ома (в тексте — формула I = U/R) связывает ток и напряжение.",
+        "Скобки (в записи формулы знак минус опускают) нужны.",
+    ]
+    for text in kept:
+        assert mixed_script.fix_text(text) == (text, []), text
+
+
+def test_the_source_is_called_a_lecture_in_the_fixed_phrases_of_the_materials():
+    for question in QA_QUESTIONS:
+        assert mixed_script.fix_text(question) == (question.replace("согласно тексту?", "согласно лекции?"), [])
+    renamed = [
+        ("Согласно тексту, клетка — единица живого.", "Согласно лекции, клетка — единица живого."),
+        ("Что, согласно тексту, является единицей живого?", "Что, согласно лекции, является единицей живого?"),
+        ("По тексту, ток в цепи постоянный.", "По лекции, ток в цепи постоянный."),
+        ("Вопросы по тексту", "Вопросы по лекции"),
+        ("В тексте указано, что мембрана двойная.", "В лекции указано, что мембрана двойная."),
+        ("В тексте сказано о двух видах соединения.", "В лекции сказано о двух видах соединения."),
+        ("В тексте говорится о мембране.", "В лекции говорится о мембране."),
+        ("Об этом в тексте упоминается дважды.", "Об этом в лекции упоминается дважды."),
+        ("В тексте упоминалось, что ток постоянный.", "В лекции упоминалось, что ток постоянный."),
+        ("В тексте отмечено, что ток постоянный.", "В лекции отмечено, что ток постоянный."),
+        ("Как сказано в тексте, ток постоянный.", "Как сказано в лекции, ток постоянный."),
+        ("Ток постоянный, как указано в тексте.", "Ток постоянный, как указано в лекции."),
+        ("Из текста следует, что ток растёт.", "Из лекции следует, что ток растёт."),
+        ("СОГЛАСНО ТЕКСТУ, ток растёт.", "СОГЛАСНО ЛЕКЦИИ, ток растёт."),
+    ]
+    for text, fixed in renamed:
+        assert mixed_script.fix_text(text) == (fixed, []), text
+
+
+def test_the_text_of_a_law_or_a_novel_stays():
+    # A genitive noun after «тексте»/«тексту» names whose text it is: lectures on law and literature need it.
+    kept = [
+        "Согласно тексту закона, срок давности — три года.",
+        "Согласно тексту Конституции, власть принадлежит народу.",
+        "Согласно тексту правил, срок подачи — три дня.",
+        "Найдите по тексту песни все рифмы.",
+        "В тексте романа указано, что герою двадцать лет.",
+        "Как указано в тексте договора, срок — один год.",
+        "Из текста закона следует, что срок — три года.",
+        "Корректор исправляет ошибки в тексте.",
+        "Формула $согласно тексту$ и код `по тексту` остаются как есть.",
+    ]
+    for text in kept:
+        assert mixed_script.fix_text(text) == (text, []), text
+    # «как» after the verb: a remark about the source, asked again (release 44.2), not renamed.
+    assert mixed_script.fix_text("В тексте указано как «Вт метр».")[1] == ["В тексте указано как"]
+
+
+def test_the_notes_and_the_test_of_the_recheck_come_clean_without_a_second_answer(api, monkeypatch):
+    quiz = json.dumps({"quiz": [{"question": question, "options": ["A) Да", "B) Нет"], "correct": "A"}
+                                for question in QA_QUESTIONS]}, ensure_ascii=False)
+    calls = answer_with(monkeypatch, {"summarizer": _summary(QA_FORM_REMARK), "quiz": quiz})
+    results = _results(_post_sections(api, ["summarizer", "quiz"]))
+    assert results["summarizer"]["content"] == QA_FORM_REMARK_FIXED
+    assert [item["question"] for item in results["quiz"]["quiz"]] == [
+        question.replace("согласно тексту?", "согласно лекции?") for question in QA_QUESTIONS
+    ]
+    assert sorted(calls) == ["quiz", "summarizer"]  # silently: nothing is asked again
+
+    # The Выжимка made later on the lecture page goes through the same check.
+    from agents.base import BaseAgent
+
+    async def run(self, system_prompt, user_text, **kwargs):
+        return _prep("# Выжимка\n\nНапряжение измеряют вольтметром (в тексте — вольтметром). Согласно тексту, ток постоянный.")
+
+    monkeypatch.setattr(BaseAgent, "run", run)
+    response = api.post("/api/quick-prep", json={"context": LECTURE})
+    assert response.json()["cheatsheet"] == "# Выжимка\n\nНапряжение измеряют вольтметром. Согласно лекции, ток постоянный."
+
+
 # ── 4. Prompts: formulas, dates and numbers from the lecture only ─────────────────
 
 PUSHES = ("ОБЯЗАТЕЛЬНО выписывай", "виджеты-симуляторы", "интерактивные парсеры", "v = s/t", "p = m/V",
@@ -870,6 +982,82 @@ def test_the_prompts_of_a_recorded_lecture_say_its_text_is_speech_recognition(ap
              data={"enabled_agents": json.dumps(["summarizer"])})
     _post_sections(api, ["summarizer"])
     assert len(asked) == 2 and RECORDING_RULE in asked[0] and RECORDING_RULE not in asked[1]
+
+
+# The materials a lecture gets after its analysis: «Создать заново» (/api/analyze/section), the Выжимка (/api/quick-prep)
+# and the podcast with its pictures, made on the lecture page. A request and a model answer for each.
+LATER_MATERIALS = {
+    "/api/analyze/section": ({"section": "summarizer", "text": LECTURE}, SUMMARY),
+    "/api/quick-prep": ({"context": LECTURE}, _prep("# Выжимка\n\nИнфляция — рост цен.")),
+    "/api/podcast/generate": ({"context": LECTURE, "title": "Инфляция"}, _podcast("Почему растут цены?", "Из-за спроса.")),
+    "/api/podcast/visuals": (
+        {"lines": [{"speaker": "Макс", "text": "Почему растут цены?"}], "context": LECTURE},
+        json.dumps({"visuals": [{"index": 0, "visual": {"type": "question", "question": "Что такое инфляция?",
+                                                         "answer": "Устойчивый рост цен."}}]}, ensure_ascii=False),
+    ),
+}
+
+
+def test_every_lecture_material_prompt_calls_its_source_a_lecture(api, monkeypatch):
+    """The recheck of release 44.2: «…согласно тексту?» in the tests of a recording and of a PDF alike."""
+    from agents.base import LECTURE_WORD_RULE, RECORDING_RULE, BaseAgent, source_rules
+
+    assert "«в лекции», «согласно лекции», а не «в тексте», «согласно тексту»" in LECTURE_WORD_RULE
+    assert source_rules() == LECTURE_WORD_RULE and source_rules(True) == LECTURE_WORD_RULE + RECORDING_RULE
+    for recording in (False, True):
+        prompts = build_prompts(normalize_settings(), build_source_chunks(LECTURE), recording=recording)
+        for name, prompt in prompts.items():
+            assert prompt.count(LECTURE_WORD_RULE) == 1 and prompt.index(LECTURE_WORD_RULE) < prompt.index(GROUNDING_INSTRUCTION), name
+
+    asked = []
+    for path, (body, answer) in LATER_MATERIALS.items():
+        async def run(self, system_prompt, user_text, answer=answer, **kwargs):
+            asked.append(system_prompt)
+            return answer
+
+        monkeypatch.setattr(BaseAgent, "run", run)
+        assert api.post(path, json=body).status_code == 200, path
+    assert len(asked) == 4 and all(prompt.count(LECTURE_WORD_RULE) == 1 for prompt in asked)
+
+
+@pytest.mark.parametrize("path", list(LATER_MATERIALS))
+def test_a_recorded_lectures_materials_made_after_the_analysis_say_its_text_is_speech_recognition(api, monkeypatch, path):
+    """The page sends the lecture's summary_json.recognized; only «recording» brings the rule, as the analysis does."""
+    from agents.base import RECORDING_RULE, BaseAgent
+
+    body, answer = LATER_MATERIALS[path]
+    asked = []
+
+    async def run(self, system_prompt, user_text, **kwargs):
+        asked.append(system_prompt)
+        return answer
+
+    monkeypatch.setattr(BaseAgent, "run", run)
+    for recognized in ("recording", None, "scan", "photo", "Recording"):
+        response = api.post(path, json={**body, "recognized": recognized})
+        assert response.status_code == 200, (recognized, response.text)
+    assert api.post(path, json=body).status_code == 200  # an older page sends nothing
+    assert [RECORDING_RULE in prompt for prompt in asked] == [True, False, False, False, False, False]
+
+
+def test_a_section_made_again_for_a_recording_has_the_rule_as_in_its_analysis(monkeypatch):
+    from agents.base import RECORDING_RULE, BaseAgent
+    from agents.coordinator import CoordinatorAgent
+
+    asked = []
+
+    async def run(self, system_prompt, user_text, **kwargs):
+        asked.append(system_prompt)
+        return SUMMARY
+
+    monkeypatch.setattr(BaseAgent, "run", run)
+    coordinator = CoordinatorAgent(api_key="")
+    recorded = asyncio.run(coordinator.run_section("summarizer", LECTURE, recording=True))
+    written = asyncio.run(coordinator.run_section("summarizer", LECTURE))
+    assert recorded["status"] == written["status"] == "ok"
+    assert RECORDING_RULE in asked[0] and RECORDING_RULE not in asked[1]
+    expected = build_prompts(normalize_settings(), build_source_chunks(LECTURE), recording=True)["summarizer"]
+    assert asked[0] == expected
 
 
 def test_no_material_prompt_pushes_formulas_and_every_analysis_prompt_is_grounded():

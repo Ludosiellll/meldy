@@ -27,7 +27,7 @@ import {
   type LibraryFolder,
 } from '../components/LectureFolders';
 import { followupCardsOf } from '../lib/followupCards';
-import { recognizedNotice } from '../lib/lectureFormats';
+import { recognizedNotice, recognizedSource } from '../lib/lectureFormats';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
 import { openingResultTab, resultTabs, type ResultExportItem, type ResultTab } from '../components/resultSections';
@@ -916,6 +916,7 @@ export default function MaterialDetail() {
             originalText={material.original_text || ''}
             canEdit={canEdit}
             onResultsChange={(next, changed) => updateMaterialFields(recreatedFields(material.id, next, changed))}
+            recognized={recognizedSource(summaryJson.recognized)}
             embedded
             initialTab={sectionParam}
             followupCards={followups}

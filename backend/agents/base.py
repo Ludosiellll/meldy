@@ -97,14 +97,32 @@ SOURCE_FACTS_RULE = (
 
 # The text of a recording is speech recognition: it misspells names and terms («Вт метр» for «вольтметр», «закон
 # ОМО»), and the конспект of the live recheck of release 44.1 told the reader so: «вольтметр (в тексте упомянут как
-# Вт метр)» (2026-10-11). Every section prompt of a recorded lecture says what its text is (coordinator.build_prompts);
-# mixed_script.check strips such a remark when it comes all the same.
+# Вт метр)» (2026-10-11). Every material prompt of a recorded lecture says what its text is (source_rules): the analysis
+# and, since the recheck of release 44.2, the materials made after it on the lecture page too, which pass
+# summary_json.recognized. mixed_script.check strips such a remark when it comes all the same.
 RECORDING_RULE = (
     "\n\nТЕКСТ ИЗ ЗАПИСИ:\nТекст лекции получен распознаванием речи из записи, поэтому в нём могут быть ошибки в "
     "именах, терминах и отдельных словах. Если уверен, какое слово имелось в виду, пиши его правильно — это и значит "
     "передавать имена и термины точно. Никогда не упоминай текст, запись или её распознавание и не пиши пояснений "
     "вроде «в тексте упомянут как…»: пиши так, будто сам слушал лекцию."
 )
+
+# The tests of the live recheck of release 44.2 asked «…от его геометрических размеров согласно тексту?» (a recording)
+# and «…клеток согласно тексту?» (the biology PDF): the student reads a lecture, not «текст». Every lecture material's
+# prompt says so, whatever the source; mixed_script rewrites the fixed phrases that come all the same.
+LECTURE_WORD_RULE = (
+    "\n\nИСТОЧНИК — ЛЕКЦИЯ:\nНазывай источник лекцией, а не текстом: «в лекции», «согласно лекции», а не «в тексте», "
+    "«согласно тексту»."
+)
+
+
+def source_rules(recording: bool = False) -> str:
+    """What the prompt of a lecture material says about its source: a lecture; for a recording, speech recognition too.
+
+    Every place that builds such a prompt adds it: the analysis sections (coordinator.build_prompts, also for
+    /api/analyze/section), /api/quick-prep and /api/podcast/generate and /visuals. ``recording``: the lecture's text came
+    from a recording (summary_json.recognized == "recording", the stream's text_extracted.transcribed)."""
+    return LECTURE_WORD_RULE + (RECORDING_RULE if recording else "")
 
 
 # The medium and detailed конспект: «Ключевые тезисы», then the lecture's sections in its order, each retold

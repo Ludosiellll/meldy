@@ -476,6 +476,21 @@ describe('«Создать … заново»', () => {
     expect(screen.getByText('Материал обработан')).toBeInTheDocument();
   });
 
+  it('sends how the lecture was got: a recording gets its section as its analysis did (recheck of 44.2)', async () => {
+    renderPanel({ recognized: 'recording' });
+    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    expect(await screen.findByText('Тест на экране')).toBeInTheDocument();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/analyze/section');
+    expect(JSON.parse(String(init.body))).toEqual({
+      section: 'quiz',
+      text: 'Энтропия — мера беспорядка системы.',
+      material_id: 'm1',
+      recognized: 'recording',
+    });
+  });
+
   it('recreates cards, saves them and adds them to review', async () => {
     const newCards = { flashcards: [{ id: 1, question: 'Где энтропия не убывает?', answer: 'В изолированной системе', source_ids: ['S01'] }] };
     fetchMock.mockImplementation(async () => jsonResponse(200, { section: 'flashcards', status: 'ok', result: newCards, grounding: { source_count: 1, sources: [] } }));

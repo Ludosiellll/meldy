@@ -510,7 +510,8 @@ async def _analysis_events(
     yield {"type": "text_extracted", "length": len(text), "text": text, **(extracted or {})}
     coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
     terminal = None
-    # The text of a recording is speech recognition: the prompts say so (agents/base.py RECORDING_RULE).
+    # The text of a recording is speech recognition: the prompts say so (agents/base.py source_rules). The page keeps
+    # it as summary_json.recognized and sends it with the materials it asks for later (_from_recording).
     recording = bool((extracted or {}).get("transcribed"))
     async for event in coordinator.process(
         text, enabled_agents=_parse_enabled_agents(enabled_agents), recording=recording, **settings
@@ -594,6 +595,14 @@ async def _guarded(
                 charge.keep_share(delivered, len(counted))
             else:
                 charge.refund_soon()
+
+
+def _from_recording(recognized: Any) -> bool:
+    """The lecture's text came from a recording: summary_json.recognized, which the page sends with a material it asks
+    for after the analysis (a section «заново», the Выжимка, the podcast and its pictures). Its prompts then say what
+    the text is (agents.base.source_rules), as the analysis's do; any other value («scan», «photo», none) changes
+    nothing."""
+    return recognized == "recording"
 
 
 def _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type) -> dict:
@@ -930,6 +939,8 @@ class AnalyzeSectionRequest(BaseModel):
     settings: Optional[dict] = None
     # The saved material the section is for: a repair of a paid analysis is free (see below).
     material_id: Optional[str] = None
+    # How the lecture's text was got: summary_json.recognized ("recording", "scan", "photo"), see _from_recording.
+    recognized: Optional[str] = None
 
 
 ANALYZE_SECTION_MAX_CHARS = 300000
@@ -987,7 +998,7 @@ async def analyze_section(request: Request, req: AnalyzeSectionRequest):
     content, by the analysis's signed receipt — then its saved text is used, not the text sent.
     Anything else costs AI_COSTS["analysisSection"]: free sections over a free text-only import were
     a whole analysis without the daily limit (2026-10-05). The text is chunked exactly like the
-    analysis, so the S-ids match the saved material.
+    analysis, so the S-ids match the saved material; a recorded lecture's prompt says so (_from_recording).
     """
     if req.section not in CORE_SECTIONS:
         raise HTTPException(status_code=400, detail="Этот раздел нельзя создать отдельно.")
@@ -1002,7 +1013,10 @@ async def analyze_section(request: Request, req: AnalyzeSectionRequest):
     charge = await quota.charge(request, "analysisSection", units)
     async with quota.refund_on_failure(charge):
         coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
-        return await coordinator.run_section(req.section, text, req.settings if isinstance(req.settings, dict) else None)
+        return await coordinator.run_section(
+            req.section, text, req.settings if isinstance(req.settings, dict) else None,
+            recording=_from_recording(req.recognized),
+        )
 
 
 # --- Model diagnostics (owner only) ------------------------------------------------------
@@ -1282,7 +1296,7 @@ def validate_mistakes_practice(raw, allowed_mistake_ids: set) -> Optional[list]:
     return practice
 
 
-from agents.base import build_quick_prep_prompt, build_mistakes_practice_prompt
+from agents.base import build_quick_prep_prompt, build_mistakes_practice_prompt, source_rules
 
 
 async def _checked_answer(ask, usable, source: str = "") -> tuple[Any, Any]:
@@ -1314,6 +1328,8 @@ async def _checked_answer(ask, usable, source: str = "") -> tuple[Any, Any]:
 
 class QuickPrepRequest(BaseModel):
     context: str
+    # summary_json.recognized of the lecture: a recording's prompt says what its text is (_from_recording).
+    recognized: Optional[str] = None
 
 
 QUICK_PREP_FAILURE_DETAIL = "Не удалось создать выжимку. Попробуйте ещё раз."
@@ -1329,10 +1345,11 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
     if not context:
         raise HTTPException(status_code=400, detail="Недостаточно текста для выжимки.")
     agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_quick_prep_prompt() + source_rules(_from_recording(req.recognized))
 
     async def ask() -> tuple[Any, Any]:
         try:
-            raw = await agent.run(build_quick_prep_prompt(), context)
+            raw = await agent.run(system_prompt, context)
         except Exception as exc:
             status = getattr(exc, "status_code", None)
             print(f"Quick prep model call failed (status={status}): {type(exc).__name__}: {exc}")
@@ -1691,12 +1708,15 @@ class PodcastGenerateRequest(BaseModel):
     context: str
     title: Optional[str] = None
     terms: Optional[List[_Any]] = None
+    # summary_json.recognized of the lecture (_from_recording).
+    recognized: Optional[str] = None
 
 
 class PodcastVisualsRequest(BaseModel):
     lines: List[_Any]
     context: Optional[str] = None
     terms: Optional[List[_Any]] = None
+    recognized: Optional[str] = None
 
 
 def _podcast_plain(value: _Any, limit: int) -> str:
@@ -1764,7 +1784,10 @@ async def podcast_generate(request: Request, req: PodcastGenerateRequest):
         raise HTTPException(status_code=413, detail="Материал слишком длинный для разговора: максимум 20 000 символов.")
 
     source_chunks = build_source_chunks(context)
-    system_prompt = build_podcast_prompt() + PODCAST_GROUNDING_INSTRUCTION + build_source_context(source_chunks)
+    system_prompt = (
+        build_podcast_prompt() + source_rules(_from_recording(req.recognized)) + PODCAST_GROUNDING_INSTRUCTION
+        + build_source_context(source_chunks)
+    )
 
     parts = []
     title = _podcast_plain(req.title, PODCAST_TITLE_MAX)
@@ -1829,12 +1852,11 @@ async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
         items = sanitize_podcast_visuals(_first_list(parsed, "visuals"), len(req.lines), source_text=context or None)
         return [item for item in items if item["index"] in usable_indices] or None
 
+    system_prompt = build_podcast_visuals_prompt() + source_rules(_from_recording(req.recognized))
     charge = await quota.charge(request, "visuals", AI_COSTS["visuals"])
     async with quota.refund_on_failure(charge):
         # The pictures draw on the lines and the material: what the model was given.
-        visuals, raw = await _checked_answer(
-            lambda: _run_podcast_model(build_podcast_visuals_prompt(), user_text), usable, user_text
-        )
+        visuals, raw = await _checked_answer(lambda: _run_podcast_model(system_prompt, user_text), usable, user_text)
         if not visuals:
             _forget_cached_response(raw)
             raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)

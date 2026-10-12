@@ -5,6 +5,7 @@ import { Pause, Play, SkipBack, SkipForward, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEnergyConfirm } from '../../hooks/useEnergyConfirm';
 import { notifyAIUsageChanged } from '../../api/limits';
+import type { RecognizedSource } from '../../lib/lectureFormats';
 import { AI_COSTS } from '../../lib/plans';
 import {
   forgetTTSFailures,
@@ -68,6 +69,11 @@ export interface ConversationPlayerProps {
   flashcards?: ConversationFlashcard[] | null;
   sources?: ConversationSource[] | null;
   materialId?: string;
+  /**
+   * Как получен текст лекции (summary_json.recognized): уходит с «Создать подкаст» и «Добавить схемы», и подкаст лекции
+   * из записи сервер просит у модели, как её анализ (lib/lectureFormats recognizedSource).
+   */
+  recognized?: RecognizedSource;
   onLinesUpdate?: (lines: PodcastLine[]) => void;
   /**
    * Прокрутить к плееру после открытия, если кнопка «Слушать» не видна: переход по ссылке на разговор и вкладка
@@ -287,6 +293,7 @@ export default function ConversationPlayer({
   flashcards,
   sources,
   materialId,
+  recognized,
   onLinesUpdate,
   revealOnMount = false,
   canEdit = true,
@@ -826,6 +833,7 @@ export default function ConversationPlayer({
           context,
           title: materialTitle,
           terms: conversationTerms(snapshot, fallbackTerms),
+          recognized,
         });
         const generated = parseGeneratedLines(payload);
         if (!generated.length) throw new ConversationError('Не получилось составить подкаст. Попробуйте ещё раз.');
@@ -869,6 +877,7 @@ export default function ConversationPlayer({
           }),
           context: conversationContext(snapshot, VISUALS_CONTEXT_LIMIT),
           terms: conversationTerms(snapshot, fallbackTerms),
+          recognized,
         });
         const { lines: merged, added } = mergeVisualsByIndex(base, payload);
         if (!added) throw new ConversationError('Не получилось подобрать схемы. Попробуйте ещё раз.');

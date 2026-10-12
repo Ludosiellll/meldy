@@ -709,6 +709,33 @@ describe('ConversationPlayer', () => {
     await waitFor(() => expect(within(activeScene()).getByText('План')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /Добавить схемы/ })).not.toBeInTheDocument();
   });
+
+  it('sends how the lecture was got, so a recording gets its podcast and pictures as its analysis did (recheck of 44.2)', async () => {
+    const user = userEvent.setup();
+    db.snapshot = { summary_json: { content: 'Конспект', podcast: legacyLines }, original_text: 'Текст записи лекции.' };
+    fetchMock.mockImplementation((url: string) =>
+      fetchResponse(
+        url === '/api/podcast/generate'
+          ? { podcast: [{ speaker: 'Макс', text: 'Начинаем.' }] }
+          : { visuals: [{ index: 0, visual: { type: 'steps', title: 'План', items: ['Один', 'Два'] } }] },
+      ),
+    );
+    const sent = (index: number) => JSON.parse((fetchMock.mock.calls[index][1] as RequestInit).body as string);
+
+    render(<ConversationPlayer lines={[]} title="Тема" materialId="material-1" recognized="recording" />);
+    await user.click(screen.getByRole('button', { name: 'Создать подкаст' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(sent(0)).toEqual({ context: 'Текст записи лекции.', title: 'Тема', terms: [], recognized: 'recording' });
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Подкаст готов'));
+    cleanup();
+    resetJobsForTests();
+
+    render(<ConversationPlayer lines={legacyLines} title="Тема" materialId="material-1" recognized="recording" />);
+    await user.click(screen.getByRole('button', { name: /Добавить схемы/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/podcast/visuals');
+    expect(sent(1)).toMatchObject({ context: 'Текст записи лекции.', recognized: 'recording' });
+  });
   it('tells screen readers about the line the user moved to', () => {
     render(<ConversationPlayer lines={modelLines} />);
     const player = screen.getByRole('region', { name: 'Подкаст по лекции' });

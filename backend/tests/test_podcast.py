@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.base import BaseAgent, build_podcast_prompt, build_podcast_visuals_prompt  # noqa: E402
+from agents.base import BaseAgent, build_podcast_prompt, build_podcast_visuals_prompt, source_rules  # noqa: E402
 from utils import (  # noqa: E402
     VISUAL_ICONS,
     VISUAL_TYPES,
@@ -513,7 +513,7 @@ def test_visuals_returns_only_valid_items_for_existing_lines(api):
         {"index": 2, "visual": VALID_VISUALS["question"]},
     ]}
     call = api.calls[-1]
-    assert call["system"] == build_podcast_visuals_prompt()
+    assert call["system"] == build_podcast_visuals_prompt() + source_rules()
     assert "[0] Макс: Что такое фотосинтез?" in call["user"]
     assert "[2] Софья: Это процесс в хлоропластах." in call["user"]
     assert "[1]" not in call["user"]

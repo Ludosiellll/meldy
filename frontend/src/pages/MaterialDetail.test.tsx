@@ -763,6 +763,43 @@ describe('«Текст распознан…» on the lecture page, as on the re
   });
 });
 
+describe('a recorded lecture asks for what it gets later as its analysis did (recheck of 44.2)', () => {
+  const bodyOf = (url: string) =>
+    JSON.parse(String((globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(call => call[0] === url)?.[1]?.body));
+
+  it('sends summary_json.recognized with the Выжимка, the podcast and a section made again', async () => {
+    state.material = {
+      ...makeMaterial({ recognized: 'recording', podcast: [], sections: { summarizer: { status: 'ok' }, quiz: { status: 'failed' } } }),
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    expect(bodyOf('/api/analyze/section')).toMatchObject({ section: 'quiz', recognized: 'recording' });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать подкаст' }));
+    await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
+    expect(bodyOf('/api/podcast/generate')).toMatchObject({ recognized: 'recording' });
+    await act(async () => pending['/api/podcast/generate'][0].resolve(jsonResponse(generated)));
+    await waitFor(() => expect(savedPodcast()).toHaveLength(2));
+    cleanup();
+
+    renderPage('/library/m1?mode=express');
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
+    await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
+    expect(bodyOf('/api/quick-prep')).toEqual({ context: state.material.original_text, recognized: 'recording' });
+  });
+
+  it('sends nothing more for a lecture whose text was not recognised', async () => {
+    renderPage('/library/m1?mode=express');
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
+    await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
+    expect(bodyOf('/api/quick-prep')).toEqual({ context: state.material.original_text });
+  });
+});
+
 describe('text-only materials and review link', () => {
   it('shows the text-only notice', async () => {
     state.material = {

@@ -1002,6 +1002,24 @@ describe('scans, photos and presentations', () => {
     expect((s.inserts[0].summary_json as Record<string, unknown>).recognized).toBe('recording');
   });
 
+  it('a recording’s section made again on the result screen is asked for as its analysis was (recheck of 44.2)', async () => {
+    streams = [
+      () => sse([ev({ ...TEXT, transcribed: true }), ev(GROUNDING), ev(start('summarizer')), ev(start('quiz')), ev(DONE_SUMMARY)], 'error'),
+    ];
+    renderAnalyze();
+    await chooseFile(new File(['ID3'], 'Лекция_физика_закон_Ома.mp3', { type: 'audio/mpeg' }));
+    fireEvent.click(startButton());
+    expect(await screen.findByText('Обработан частично', undefined, { timeout: 3000 })).toBeInTheDocument();
+    await waitFor(() => expect(s.inserts).toHaveLength(1));
+
+    sectionResponse = () => new Response(JSON.stringify({ section: 'quiz', status: 'ok', result: quiz }), { status: 200 });
+    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    expect(await screen.findByText('Тест на экране')).toBeInTheDocument();
+    const sectionCall = calls.find(call => call.url === '/api/analyze/section');
+    expect(JSON.parse(String(sectionCall?.init?.body))).toMatchObject({ section: 'quiz', recognized: 'recording' });
+  });
+
   it('a presentation goes to the document analysis', async () => {
     renderAnalyze();
     const deck = await chooseFile(
