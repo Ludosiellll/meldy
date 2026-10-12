@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.12: overstating adverbs go when the lecture never says them (from the commit of this entry)
+
+- **Lecture materials** (`668e54c`, `overstatement.py`). Every fact recheck found the same overstatement: «грозил
+  втянуть» retold as «неизбежно втягивал» (44.9) or «неминуемо втягивало» (44.5), «моментально» / «мгновенно
+  перерос» (44.10, 44.7), four empires that fell «сразу» (44.5, 44.7); three of them would teach a false fact.
+  «неизбежно», «неминуемо», «неотвратимо», «непременно», «мгновенно», «моментально», «немедленно», «тотчас», «сразу
+  (же)» now go from every section of the analysis and from the Выжимка and podcast made later, when the lecture never
+  uses the word in any form. The word stays after «не»/«ни», in formulas and code, in quiz options, and when the
+  lecture text is missing.
+- **No model call, no cost.** The cached answers go through it too.
+- **Verified before release:** pytest 2041. The release gate runs every check again on this commit.
+- **Live check after release:** the three lectures once more: every section arrives, the adverbs the lecture lacks are gone.
+
 ## 2026-10-12 — Release 44.11: the second reading of the конспект is off again (from the commit of this entry)
 
 - **The live check of 44.10** (cell, Ohm, WW1 × 3 runs; every change in `checks` read against the lecture): the check
