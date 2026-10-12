@@ -447,8 +447,10 @@ def test_the_text_of_a_recording_is_marked_and_its_file_name_is_not_a_prompt(api
     items = [item for item in frames(response.text) if item != "KA"]
     extracted = next(item for item in items if item["type"] == "text_extracted")
     assert extracted["transcribed"] is True and "ocr" not in extracted
-    # «Лекция_физика_закон_Ома.mp3» no longer reaches Whisper: release 44 put it in the prompt and got it back.
-    assert seen == {"mime": "audio/mpeg", "kwargs": {}}
+    # «Лекция_физика_закон_Ома.mp3» no longer reaches Whisper: release 44 put it in the prompt and got it back. Only
+    # the progress callback and the deadline of a recording in pieces go along (test_media_pieces.py).
+    assert seen["mime"] == "audio/mpeg" and sorted(seen["kwargs"]) == ["deadline", "progress"]
+    assert isinstance(seen["kwargs"]["deadline"], float) and callable(seen["kwargs"]["progress"])
     assert kinds(items)[-1] == "done"
 
 

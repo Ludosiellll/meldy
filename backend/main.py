@@ -428,11 +428,45 @@ RECORDING_TYPES = {".mp4": "video/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav
 
 
 def media_transcribe_timeout_seconds() -> float:
+    """MEDIA_TRANSCRIBE_TIMEOUT_SECONDS, 480 by default: a long recording goes to Groq in pieces, at most 20 requests
+    a minute (media_parser.py), and the page waits up to 10 minutes for a media analysis (analyzeStream.ts
+    mediaTotalMs), which leaves the sections two."""
     try:
-        value = float(os.getenv("MEDIA_TRANSCRIBE_TIMEOUT_SECONDS", "240") or 240)
+        value = float(os.getenv("MEDIA_TRANSCRIBE_TIMEOUT_SECONDS", "480") or 480)
     except ValueError:
-        return 240.0
-    return value if value > 0 else 240.0
+        return 480.0
+    return value if value > 0 else 480.0
+
+
+# While a recording is transcribed in pieces, the page hears how far it got (Analyze.tsx shows a status of up to
+# 160 characters with Cyrillic), at most every 5 s and only when the minute count changes.
+RECORDING_PROGRESS_MESSAGE = "Распознаём запись: {done} из {total} мин"
+RECORDING_PROGRESS_SECONDS = 5.0
+
+
+async def _transcription_progress(task: asyncio.Future, updates: asyncio.Queue) -> AsyncGenerator[dict, None]:
+    """Status events while ``task`` (a recording's transcription) runs, from the (seconds done, seconds in all) put on
+    ``updates`` after each piece: whole minutes done of the recording's minutes. Ends when the task does."""
+    shown, shown_at = 0, None
+    while not task.done():
+        getter = asyncio.ensure_future(updates.get())
+        try:
+            finished, _ = await asyncio.wait({task, getter}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            if not getter.done():
+                getter.cancel()
+        latest = getter.result() if getter in finished else None
+        while not updates.empty():
+            latest = updates.get_nowait()
+        if latest is None:
+            continue
+        done_seconds, total_seconds = latest
+        minutes = int(done_seconds // 60)
+        now = time.monotonic()
+        if minutes != shown and (shown_at is None or now - shown_at >= RECORDING_PROGRESS_SECONDS):
+            shown, shown_at = minutes, now
+            total = max(1, round(total_seconds / 60))
+            yield {"type": "status", "message": RECORDING_PROGRESS_MESSAGE.format(done=minutes, total=total)}
 
 
 def _require_ai_configured() -> None:
@@ -801,11 +835,20 @@ async def event_stream_media(
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename or "")[1].lower()) as tmp:
                     tmp_path = tmp.name
                     tmp.write(content)
+                budget = media_transcribe_timeout_seconds()
+                updates: asyncio.Queue = asyncio.Queue()
+                transcription = asyncio.ensure_future(asyncio.wait_for(
+                    transcribe_media_file(
+                        tmp_path, photo or content_type,
+                        progress=lambda done, total: updates.put_nowait((done, total)),
+                        deadline=time.monotonic() + budget,
+                    ),
+                    timeout=budget,
+                ))
                 try:
-                    text = await asyncio.wait_for(
-                        transcribe_media_file(tmp_path, photo or content_type),
-                        timeout=media_transcribe_timeout_seconds(),
-                    )
+                    async for status in _transcription_progress(transcription, updates):
+                        yield status
+                    text = transcription.result()
                 except (asyncio.TimeoutError, MediaProcessingTimeout):
                     yield {"type": "error", "code": "timeout", "message": MEDIA_TIMEOUT_MESSAGE}
                     return
@@ -814,6 +857,11 @@ async def event_stream_media(
                         raise
                     yield {"type": "error", "code": "busy", "message": MEDIA_BUSY_MESSAGE}
                     return
+                finally:
+                    # A client gone mid-transcription: the pieces stop (and remove their files) before the upload goes.
+                    if not transcription.done():
+                        transcription.cancel()
+                        await asyncio.gather(transcription, return_exceptions=True)
             finally:
                 if tmp_path and os.path.exists(tmp_path):
                     os.remove(tmp_path)
