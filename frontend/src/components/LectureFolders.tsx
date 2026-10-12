@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { recognizedSource, type RecognizedSource } from '../lib/lectureFormats';
 import './LectureFolders.css';
 
 /**
@@ -94,6 +95,38 @@ export function forgetLecture(userId: string | null | undefined, materialId: str
   if (isRecord(cached) && Array.isArray(cached.items)) {
     writeJson(libraryCacheKey(userId), { ...cached, items: cached.items.filter((item) => !(isRecord(item) && item.id === materialId)) });
   }
+}
+
+/** A lecture as the Library's list of this device has it (Library.toEntry): what the lecture page knows before it loads. */
+export interface ListedLecture {
+  textOnly: boolean;
+  summary: boolean;
+  cards: number;
+  quiz: boolean;
+  /** The test's questions; a list kept before they were noted has none. */
+  questions?: number;
+  /** How the text was got (summary_json.recognized). */
+  recognized?: RecognizedSource;
+}
+
+/**
+ * The lecture in the Library's list of this device, or null (the list was not opened here, or the lecture is someone
+ * else's): the lecture page's placeholder draws the same tabs and «Текст распознан…» from it.
+ */
+export function listedLecture(userId: string | null | undefined, materialId: string | null | undefined): ListedLecture | null {
+  if (!userId || !materialId) return null;
+  const cached = readJson<unknown>(libraryCacheKey(userId), null);
+  const items: unknown[] = isRecord(cached) && Array.isArray(cached.items) ? cached.items : [];
+  const item = items.find((entry) => isRecord(entry) && entry.id === materialId);
+  if (!isRecord(item) || typeof item.textOnly !== 'boolean') return null;
+  return {
+    textOnly: item.textOnly,
+    summary: item.summary === true,
+    cards: typeof item.cards === 'number' ? item.cards : 0,
+    quiz: item.quiz === true,
+    questions: typeof item.questions === 'number' ? item.questions : undefined,
+    recognized: recognizedSource(item.recognized),
+  };
 }
 
 /** What a lecture has, for the confirm of its deletion. */

@@ -109,10 +109,13 @@ RECORDING_RULE = (
 
 # The tests of the live recheck of release 44.2 asked «…от его геометрических размеров согласно тексту?» (a recording)
 # and «…клеток согласно тексту?» (the biology PDF): the student reads a lecture, not «текст». Every lecture material's
-# prompt says so, whatever the source; mixed_script rewrites the fixed phrases that come all the same.
+# prompt says so, whatever the source; mixed_script rewrites the fixed phrases that come all the same. Release 44.3's
+# rule gave «в лекции», «согласно лекции» as the words to use, and the recheck of 44.3 found the lecture credited in
+# nearly every explanation of the test (12 and 17 times in two lectures, none in 44.2): the rule names no phrase now and
+# asks for the facts themselves; mixed_script drops a «Согласно лекции, …» at the start of a sentence all the same.
 LECTURE_WORD_RULE = (
-    "\n\nИСТОЧНИК — ЛЕКЦИЯ:\nНазывай источник лекцией, а не текстом: «в лекции», «согласно лекции», а не «в тексте», "
-    "«согласно тексту»."
+    "\n\nИСТОЧНИК — ЛЕКЦИЯ:\nЕсли ссылка на источник действительно нужна, называй его лекцией — никогда не текстом. "
+    "Не начинай ответы, пояснения и карточки со ссылки на лекцию: сразу пиши сами факты."
 )
 
 

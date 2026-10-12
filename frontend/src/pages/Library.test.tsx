@@ -98,6 +98,23 @@ describe('what a lecture row says', () => {
     expect(toEntry(JSON.parse(JSON.stringify(all)))!.cheatsheet).toBe(true);
   });
 
+  it('keeps the test’s questions and how the text was got, for the lecture page’s placeholder (recheck of 44.3)', () => {
+    const recorded = toEntry(
+      material('a', 'A', '2026-09-01', { quiz_json: { quiz: [{}, {}, {}, {}, {}] }, summary_json: { content: 'x', recognized: 'recording' } }),
+    )!;
+    expect(recorded.questions).toBe(5);
+    expect(recorded.recognized).toBe('recording');
+    // Through the list this device keeps, and the row says what it said before.
+    const kept = toEntry(JSON.parse(JSON.stringify(recorded)))!;
+    expect([kept.questions, kept.recognized]).toEqual([5, 'recording']);
+    expect(plain(lectureMeta(kept))).toBe('конспект · тест');
+    // A typed text has no recognition; an entry this device kept before has neither.
+    expect(toEntry(material('b', 'B', '2026-09-01'))!.recognized).toBeUndefined();
+    const older = toEntry(entry('c', '2026-09-01', { quiz: true }))!;
+    expect([older.questions, older.recognized]).toEqual([undefined, undefined]);
+    expect(toEntry({ ...entry('d', '2026-09-01'), recognized: 'voice' })!.recognized).toBeUndefined();
+  });
+
   it('names the cards from ticket answers apart from the lecture’s own (finding LIB-6)', () => {
     expect(plain(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }), 4))).toBe('конспект · 6 карточек · ещё 4 из ответов на билеты · тест');
     expect(plain(lectureMeta(entry('b', '2026-09-01', { cards: 6 }), 0))).toBe('конспект · 6 карточек');

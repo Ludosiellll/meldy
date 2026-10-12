@@ -14,6 +14,7 @@ import { glue } from '../lib/oral/format';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
 import { orderExamLectures } from '../lib/lectureOrder';
+import { recognizedSource, type RecognizedSource } from '../lib/lectureFormats';
 import { cardsLine as cardCountLine, followupCardsByLecture } from '../lib/followupCards';
 import {
   DEFAULT_FOLDER_IDS,
@@ -60,6 +61,12 @@ export interface LibraryEntry {
   /** The lecture has its «Выжимка» (summary_json.cheatsheet). */
   cheatsheet: boolean;
   talk: boolean;
+  /**
+   * The test's questions and how the text was got (summary_json.recognized): the lecture page's placeholder draws
+   * «Тест 5» and keeps the room of «Текст распознан…» before the lecture loads (LectureFolders.listedLecture).
+   */
+  questions?: number;
+  recognized?: RecognizedSource;
 }
 
 type Folder = LibraryFolder;
@@ -97,6 +104,8 @@ export function toEntry(raw: unknown): LibraryEntry | null {
       quiz: raw.quiz === true,
       cheatsheet: raw.cheatsheet === true,
       talk: raw.talk === true,
+      questions: typeof raw.questions === 'number' ? raw.questions : undefined,
+      recognized: recognizedSource(raw.recognized),
     };
   }
   const summary = isRecord(raw.summary_json) ? raw.summary_json : {};
@@ -112,6 +121,8 @@ export function toEntry(raw: unknown): LibraryEntry | null {
     quiz: quiz > 0,
     cheatsheet: typeof summary.cheatsheet === 'string' && summary.cheatsheet.trim() !== '',
     talk: Array.isArray(summary.podcast) && summary.podcast.length > 0,
+    questions: quiz,
+    recognized: recognizedSource(summary.recognized),
   };
 }
 
