@@ -4,6 +4,42 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.7: long recordings in pieces, materials that keep the lecture's qualifiers (from the commit of this entry)
+
+- **Recordings in pieces** (`b5a7435`, `1258d1a`):
+  - **Why:** Whisper skips passages of a long recording, the same ones run after run. Measured on the live
+    transcription (Groq whisper-large-v3-turbo, language ru, no prompt):
+    - a 2:50 MP3: whole 84–85 % of the script's words, the same 25-word passage lost in 3 runs; in pieces of
+      15–30 s cut at pauses 92–93 %, nothing lost;
+    - a 19:25 m4a with room noise and long pauses: whole (release 44.6) 86.4 %, four passages lost (91 words); in
+      pieces of 15–30 s 91.9 %, nothing lost; 60 s pieces still lost two.
+  - **What:** a recording longer than 32 s is cut by ffmpeg (from `imageio-ffmpeg==0.6.0`, a static build) at the
+    longest pause in the second half of each 30 s window into mono 16 kHz WAV pieces; they go to Whisper at most 4
+    at a time and 20 a minute (Groq's free plan); a long «busy» sends a piece to Gemini instead of waiting. The page
+    shows «Распознаём запись: N из M мин». A shorter recording, a missing ffmpeg or a file ffmpeg cannot read go
+    whole, as before.
+  - **Time budget:** the transcription may take up to 8 min (MEDIA_TRANSCRIBE_TIMEOUT_SECONDS 240 → 480); the page
+    waits up to 10.
+  - **New variables (all optional):** GROQ_AUDIO_RPM (20), GROQ_AUDIO_CONCURRENCY (4), AUDIO_MAX_PIECES (120),
+    FFMPEG_BINARY.
+- **Lecture materials keep the lecture's qualifiers** (`097c6bc`), after a fact audit of 942 statements of 11
+  material sets (numbers, dates, formulas and all 70 quiz keys right; 8 of 17 problems, and all 3 that would teach
+  something false, came from shortening that widened a claim):
+  - every material prompt: drop sentences, not qualifiers; never merge two claims into a wider one or make one
+    stronger; causes, effects and timing only from the lecture;
+  - cards: 1–3 sentences of what the lecture says; «почему» only when the lecture gives the reason;
+  - the podcast's hook brings no numbers of its own;
+  - «(в лекции ошибочно назван «Вт метром»)» goes like the other source remarks;
+  - the /try lecture example: «готовы и могут купить» in the конспект and the Выжимка, as in the lecture.
+- **One-time cost:** the prompts change every cache key, so the first request for each material after release is a
+  real, charged call.
+- **Verified before release:** pytest 2012, bot 337 and its plan copy, Vitest 277 files / 4552 tests, the build in the Docker
+  layout. The release gate runs them again on this commit.
+- **Live checks after release:**
+  - the 19:25 m4a again: recall, lost passages, time, the progress statuses;
+  - the cell PDF, the Ohm MP3 and the WW1 DOCX with all five materials, audited against their scripts as before;
+  - the /try lecture example shows the new definition.
+
 ## 2026-10-12 — Release 44.6: what the live re-check of 44.5 found (from the commit of this entry)
 
 - **Lecture materials** (`53addce`):
