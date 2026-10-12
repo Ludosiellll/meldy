@@ -84,6 +84,21 @@ describe('the podcast player on a phone sticks above the bottom bar, not under i
   });
 });
 
+describe('the podcast’s line on a phone holds the room of the tallest line (live check of 44.5: the sheet moved 36 px at 390×844)', () => {
+  it('measures the lines in a copy of the line inside the subtitle, out of the flow and out of sight', async () => {
+    const phone = rules((await nodeFs()).readFileSync(`${SRC}components/conversation/conversation.css`, 'utf8'))
+      .filter(rule => rule.media === '@media (max-width: 639px)');
+    expect(phone.find(rule => rule.selector === '.cv-sub')?.body).toMatch(/position:\s*relative/);
+    const probe = phone.find(rule => rule.selector === '.cv-line[data-probe]')?.body;
+    expect(probe).toMatch(/position:\s*absolute/);
+    // As wide as the line it stands for.
+    expect(probe).toMatch(/left:\s*0;\s*right:\s*0/);
+    expect(probe).toMatch(/visibility:\s*hidden/);
+    // The least room: the four rows a phone gives a line.
+    expect(phone.find(rule => rule.selector === '.cv-line')?.body).toMatch(/min-height:\s*108px/);
+  });
+});
+
 describe('«Выжимка» on the result screen as wide as the other tabs (QA 2026-10-11: 56 px narrower at 1532×734)', () => {
   it('lifts the sheet’s own 920 px inside the result panel only', async () => {
     const css = await resultsCss();

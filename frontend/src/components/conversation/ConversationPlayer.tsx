@@ -359,6 +359,7 @@ export default function ConversationPlayer({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [announcement, setAnnouncement] = useState({ text: '', flip: false });
   const [fitStep, setFitStep] = useState(0);
+  const [lineRoom, setLineRoom] = useState(0);
   const [waitNote, setWaitNote] = useState<WaitNote | null>(null);
 
   const runRef = useRef(0);
@@ -379,6 +380,7 @@ export default function ConversationPlayer({
   const sceneRef = useRef<HTMLElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const lineRef = useRef<HTMLParagraphElement | null>(null);
+  const probeRef = useRef<HTMLParagraphElement | null>(null);
   const playRef = useRef<HTMLButtonElement | null>(null);
   const textLinkRef = useRef<HTMLButtonElement | null>(null);
   const revealedRef = useRef(false);
@@ -536,6 +538,36 @@ export default function ConversationPlayer({
     };
   }, [total, active?.visualFrom]);
 
+  // На телефоне голос стоит над листом, и строка, которая росла под длинную реплику, сдвигала лист и плеер на каждой
+  // смене реплики (живая проверка 44.5, 390×844: лист прыгал на 36 px, сдвиг 0,029 без касания). Там строка держит
+  // место самой высокой реплики разговора на самой мелкой ступени: каждую по очереди меряет невидимая копия строки той же
+  // ширины и тем же шрифтом (data-probe). Реплика мельчает, только если не входит в это место, — не мельче, чем раньше.
+  useLayoutEffect(() => {
+    const probe = probeRef.current;
+    if (!probe || typeof getComputedStyle !== 'function') {
+      setLineRoom(0);
+      return;
+    }
+    const measure = () => {
+      let room = parseFloat(getComputedStyle(probe).minHeight) || 0;
+      for (const line of linesRef.current) {
+        probe.textContent = ty(line.text);
+        room = Math.max(room, probe.scrollHeight);
+      }
+      probe.textContent = '';
+      setLineRoom(room);
+    };
+    measure();
+    // Шрифт, догруженный после мерки, меняет длину строк.
+    let alive = true;
+    void document.fonts?.ready.then(() => {
+      if (alive) measure();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [phone, textsKey, viewport.width]);
+
   // Длинная реплика набирается на ступень мельче, чтобы субтитр уместился в отведённые строки
   // и плеер не уехал за край окна проектора.
   useLayoutEffect(() => {
@@ -549,7 +581,7 @@ export default function ConversationPlayer({
       element.setAttribute('data-fit', String(step));
     }
     setFitStep(step);
-  }, [active?.text, viewport.width, viewport.height]);
+  }, [active?.text, viewport.width, viewport.height, lineRoom]);
 
   // Переход по ссылке на разговор и вкладка «Подкаст» результата: если лист или кнопка ▶ за краем экрана —
   // прокручиваем к плееру. Помещается целиком (за вычетом полей прокрутки под строкой меню) — встаёт нижним краем к
@@ -957,9 +989,11 @@ export default function ConversationPlayer({
         <p data-speaker={active.speaker || 'Ведущий'} className="cv-who">
           {active.speaker || 'Ведущий'}
         </p>
-        <p ref={lineRef} className="cv-line" data-fit={fitStep}>
+        <p ref={lineRef} className="cv-line" data-fit={fitStep} style={lineRoom ? { minHeight: lineRoom } : undefined}>
           {ty(active.text)}
         </p>
+        {/* Телефон: копия строки, в которой меряется место самой высокой реплики; пустая, пока не меряют. */}
+        {phone && <p ref={probeRef} aria-hidden="true" className="cv-line" data-fit="2" data-probe="" />}
       </section>
       {canAddVisuals && (
         <button type="button" onClick={addVisuals} disabled={addingVisuals} className="sf-link cv-add">

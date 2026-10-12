@@ -475,6 +475,11 @@ html[data-stage] .cv-meta { display: none; }
   .cv-line { min-height: 108px; margin-top: 2px; font-size: 19px; line-height: 27px; }
   .cv-line[data-fit='1'],
   .cv-line[data-fit='2'] { font-size: 17px; line-height: 24px; }
+  /* The line holds the room of the conversation's tallest line (ConversationPlayer sets it), measured in a copy of the
+     line with its width and face, out of sight and out of the flow (data-probe): the sheet and the player under it
+     stay put from line to line (live check of 44.5, 390×844: the sheet moved 36 px at every change of line). */
+  .cv-sub { position: relative; }
+  .cv-line[data-probe] { position: absolute; top: 0; left: 0; right: 0; visibility: hidden; pointer-events: none; }
 }
 
 /* ---------------------------------------------------------------- the player: one line */
