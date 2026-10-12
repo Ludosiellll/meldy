@@ -21,11 +21,13 @@ Every section prompt calls the source a lecture, and a lecture that came from a
 recording (``recording``) has the RECORDING_RULE in them too: its text is speech
 recognition and may misspell names and terms (agents.base.source_rules).
 
-The конспект is read against the lecture once more before it goes out
-(notes_check.py): a sentence that says something other than the lecture, or more
-than it, gets the smallest fix; a failed check leaves the конспект as it was. The
-results event then carries ``checks`` — what was changed and why (the page does not
-read it). Within the section's deadline: the check gets what is left of it.
+With AI_NOTES_CHECK on, the конспект is read against the lecture once more before
+it goes out (notes_check.py): a sentence that says something other than the lecture,
+or more than it, gets the smallest fix; a failed check leaves the конспект as it
+was. The results event then carries ``checks`` — what was changed and why (the page
+does not read it). Within the section's deadline: the check gets what is left of
+it. Off by default since release 44.11: the live check of 44.10 found the checker
+removing facts the lecture states (notes_check.py).
 """
 import asyncio
 import json
@@ -581,7 +583,7 @@ class CoordinatorAgent:
                             name, mixed_script.drop_broken(payload, scripts), source_text=text
                         )
                 if status == "ok":
-                    if name == "summarizer":
+                    if name == "summarizer" and notes_check.enabled():
                         # The конспект is read against the lecture once more before it goes out (notes_check);
                         # a failed check leaves it as it was.
                         payload, self.checks[name] = await notes_check.verify_summary(

@@ -49,6 +49,12 @@ FIXED_ARMISTICE = ("Компьенское перемирие было подп�
                    "Германской, Австро-Венгерской и Османской империй.")
 
 
+@pytest.fixture(autouse=True)
+def check_on(monkeypatch):
+    """Off by default since release 44.11; these tests are about the check itself."""
+    monkeypatch.setenv("AI_NOTES_CHECK", "on")
+
+
 def summary(content=CONTENT, terms=None):
     return {"title": "Причины войны", "subject": "История", "content": content, "terms": terms or []}
 
@@ -257,6 +263,8 @@ def test_the_check_can_be_off_short_of_time_or_too_long_and_then_asks_nothing(mo
     monkeypatch.setenv("AI_NOTES_CHECK", "off")
     assert verify(agent, summary())[1]["status"] == "skipped"
     monkeypatch.delenv("AI_NOTES_CHECK")
+    assert verify(agent, summary())[1]["status"] == "skipped"  # off unless asked for (release 44.11)
+    monkeypatch.setenv("AI_NOTES_CHECK", "on")
     assert verify(agent, summary(), budget=1.0)[1]["status"] == "no_time"
     assert verify(agent, summary(), lecture="а" * (notes_check.MAX_LECTURE_CHARS + 1))[1]["status"] == "skipped"
     report = verify(agent, summary(content="## Только заголовок"))[1]
@@ -334,6 +342,14 @@ def test_a_failed_check_does_not_fail_the_analysis(api, monkeypatch):
     assert results["sections"]["summarizer"] == {"status": "ok"}
     assert results["summarizer"]["content"] == CONTENT
     assert results["checks"]["summarizer"]["status"] == "failed"
+
+
+def test_by_default_the_analysis_asks_no_check_and_sends_no_report(api, monkeypatch):
+    monkeypatch.delenv("AI_NOTES_CHECK")
+    calls = answers_with_check(monkeypatch, three_fixes)
+    results = next(item for item in frames(post_lecture(api).text) if item != "KA" and item["type"] == "results")
+    assert results["summarizer"]["content"] == CONTENT and "checks" not in results
+    assert calls == ["summarizer"]
 
 
 def test_the_notes_made_again_on_the_lecture_page_are_checked_too(api, monkeypatch):

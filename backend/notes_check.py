@@ -14,6 +14,13 @@ lecture nor the sentence has, not much longer. A checker that wants to change mo
 misread something, and then nothing is applied. Any failure — busy, timeout, an answer without the list — leaves the
 конспект as it was: the check can bring the конспект closer to the lecture, it never costs the student the material.
 The report (what was changed and why) goes to the stream's results event as ``checks``; the page does not read it.
+
+Off unless AI_NOTES_CHECK is on (since release 44.11). The live check of 44.10 (nine runs of three lectures, Gemini
+3.5 Flash-Lite as the checker): 11 fixes — one useful («получить новые территории» → «место под солнцем»), two
+harmless, three removed what the lecture does say (the mitochondria's own ribosomes; «все организмы состоят из
+клеток» twice), two copied speech-recognition errors of a transcript into the конспект («1 вулт», «обратное
+сопротивлением»); it missed «моментально перерос», «сербского национализма, усиленного…» and a merged cause. A checker
+that removes true facts is worse than none.
 """
 import asyncio
 import difflib
@@ -43,8 +50,8 @@ _OFF_VALUES = ("0", "false", "no", "off")
 
 
 def enabled() -> bool:
-    """AI_NOTES_CHECK: on unless 0/false/no/off."""
-    return (os.getenv("AI_NOTES_CHECK", "1") or "1").strip().lower() not in _OFF_VALUES
+    """AI_NOTES_CHECK: off unless set to something other than 0/false/no/off (see the module's note)."""
+    return (os.getenv("AI_NOTES_CHECK", "0") or "0").strip().lower() not in _OFF_VALUES
 
 
 def timeout_seconds() -> float:
