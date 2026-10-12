@@ -1243,6 +1243,25 @@ def test_every_lecture_material_prompt_calls_its_source_a_lecture(api, monkeypat
     assert all(prompt.count(RETELL_RULE) == 1 for prompt in asked)
 
 
+def test_the_credit_forms_of_the_recheck_of_44_7_go_from_the_start_of_a_sentence():
+    """The recheck of release 44.7 (12.10): 3 of 5 explanations of the recorded lecture's test opened with a credit in
+    a form the clean-up did not know."""
+    cases = [
+        ("В тексте лекции отмечается, что у лампы накаливания при нагреве нити сопротивление растет.",
+         "У лампы накаливания при нагреве нити сопротивление растет."),
+        ("Лекция гласит, что при параллельном соединении одинаково напряжение.",
+         "При параллельном соединении одинаково напряжение."),
+        ("В источнике указано, что для измерения силы тока используют амперметр.",
+         "Для измерения силы тока используют амперметр."),
+        ("Верно Б. Согласно источнику, сопротивление зависит от длины.", "Верно Б. Сопротивление зависит от длины."),
+        ("Как отмечается в тексте лекции, нихром нагревается сильнее.", "Нихром нагревается сильнее."),
+    ]
+    for text, fixed in cases:
+        assert mixed_script.fix_text(text)[0] == fixed, text
+    for kept in ("Лекция гласит о двух законах.", "Источник тока даёт напряжение.", "В источнике тока есть ЭДС."):
+        assert mixed_script.fix_text(kept)[0] == kept, kept
+
+
 def test_a_retold_material_keeps_the_lectures_qualifiers():
     """The fact audit of 2026-10-12: every claim that would have taught a student something false came from shortening
     that dropped a qualifier («крупная центральная вакуоль» → «вакуоли», «общее сопротивление» → «сопротивление
@@ -1250,9 +1269,12 @@ def test_a_retold_material_keeps_the_lectures_qualifiers():
     answers with what the lecture says, and the podcast's hook brings no numbers."""
     from agents.base import RETELL_RULE, build_flashcards_prompt, build_podcast_prompt
 
-    for words in ("убирай лишние предложения, а не уточнения", "«одни … другие»", "«может» не становится «всегда»",
-                  "Не сливай два утверждения лекции в одно более общее", "Причины, следствия и время событий"):
+    for words in ("не расширяй и не усиливай её утверждения", "«одни … другие»", "«может» не становится «всегда»",
+                  "Не сливай два утверждения лекции в одно более общее", "Причины, следствия, время и порядок событий",
+                  "сохраняй даты, числа и имена из лекции"):
         assert words in RETELL_RULE, words
+    # The recheck of 44.7: «убирай лишние предложения» cost the history lecture its dates.
+    assert "убирай" not in RETELL_RULE
     for recording in (False, True):
         prompts = build_prompts(normalize_settings(), build_source_chunks(LECTURE), recording=recording)
         for name, prompt in prompts.items():
@@ -1261,6 +1283,12 @@ def test_a_retold_material_keeps_the_lectures_qualifiers():
     assert "ответ в 1–3 предложения" in cards and "2-4 предложения" not in cards
     assert "Вопрос «почему» задавай, только если лекция называет причину" in cards
     assert "без новых фактов и чисел" in build_podcast_prompt()
+    assert "одна-две мысли из самой лекции" in build_podcast_prompt()
+    from agents.base import build_summarizer_prompt
+
+    notes = build_summarizer_prompt("medium")
+    assert "выводы самой лекции" in notes and "что следует из лекции в целом" not in notes
+    assert "без обобщений сверх лекции" in notes
 
 
 @pytest.mark.parametrize("path", list(LATER_MATERIALS))
