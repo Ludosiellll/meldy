@@ -1,28 +1,39 @@
 'use strict';
 // The «Лекции» slide, the laptop: «Разобрать лекцию» → the four ways in → «Аудио и видео» → the lecture video →
 // «Что сделать из лекции», all five ticked → «Запустить анализ» → (the wait: cut in the clip) → the results the analysis
-// lands on: «Конспект» (the sections, «Термины»), «Карточки» (one card turned over), «Тест» (the first question
-// answered, the check and its «Пояснение»); then «Открыть лекцию», the lecture's page: «Кратко» (the выжимка) and
-// «Подкаст» (the player: its scene and subtitles; the deck has no sound).
+// lands on, all on the result screen (release 44.1): «Конспект», a retelling (its «Ключевые тезисы», each section of the
+// lecture held in turn, then «Термины»), «Карточки» (one card turned over), «Тест» (one question answered, the check and
+// its «Пояснение»), «Выжимка» (a tab of its own) and «Подкаст» (the player: its scene and subtitles, ▶, the second
+// line; the deck has no sound). Outside the clip, «Открыть лекцию» gives the saved lecture's id. The card and the
+// question are the first ones whose text has no slip (slipOf: the model speaking about «the text», another alphabet
+// inside a word), so the clip can show them; the sections are all held so the cut can choose one.
 //
 //   MELDY_ULIB=<ulib.cjs> node deck/cf11/tools/record/take-lecture.cjs <take dir> [--file <lecture.mp4>]
-//                                                                     [--input mp4|mp3|m4a|pdf]
-// (--input m4a needs --file: make.py writes the MP4, an MP3 and the slides' PDF.)
+//                                                                     [--input mp4|mp3|m4a|pdf] [--dry] [--dpr 1.5]
+//                                                                     [--quiz-difficulty easy|medium|hard|mixed]
+// (--input m4a needs --file: make.py writes the MP4, an MP3 and the slides' PDF. --dry rehearses the beats up to
+// «Запустить анализ» and does not press it: nothing is spent, nothing is saved. --quiz-difficulty sets «Сложность
+// теста» off the clip, before the press: the server answers a text it has seen with the materials it made for it, so
+// only another setting gets a new test.)
 //
 // The lecture is our own (tools/record/lecture: the text, the slides, a synthetic voice; make.py builds the video,
 // and the same lecture as an MP3 and as a PDF of its slides should the video path fail). The take uploads it as
 // «Рыночное равновесие (лекция).mp4» and leaves the lecture in the library of test account A (its id goes to
 // <take dir>/material.json). It measures what the deck may say about time: from the press on «Запустить анализ» to
 // each material's «Готово» in the progress card (watched in the page), to the results, to the lecture being saved; and
-// the AI units the analysis spent (the limit's ring in the top line, before and after).
+// the AI units the analysis spent (the limit's ring in the top line, before and after). The analysis' own answer (its
+// «results» event) goes to <take dir>/materials.json, to read the materials the clip shows against the lecture.
 //
 // The window: 1024 × 800 CSS px, the site's desktop layout at its narrowest (as 07 and 09), rendered at device scale
-// 1.75 (frames 1792 × 1400; stills at 3×). Calm: each beat held for real, the hand at a person's pace, each beat's
-// rectangle logged for the camera (Take.box). No pointer is drawn in the clip, only a ring where it presses. The top
-// line (the limit, the avatar) is never framed: the camera keeps below it (cut-lecture.json, camera.y_min), and the
-// master and its poster paint it over (cut-lecture.json, mask). While the
-// analysis runs, the screencast is paused (the spinners would paint a frame every 16 ms for minutes) and resumed when
-// the results are in; the progress card's own log keeps the timings meanwhile.
+// 1.5 (frames 1536 × 1200; stills at 3×). At 1.75 this machine paints the site's scrolls and transitions at 15–20
+// frames a second (screencast gaps of 50–100 ms, with the CPU idle), at 1.5 the result screen at 30 (the upload page's
+// coloured panels stay near 20 at any scale); the screen on the slide is 1152 px wide, so the beats framed 770 CSS px
+// and wider are still drawn from more pixels than they show. Calm: each beat held for real, the hand at a person's
+// pace, each beat's rectangle logged for the camera (Take.box). No pointer is drawn in the clip, only a ring where it
+// presses. The top line (the limit, the avatar) is never framed: the camera keeps below it (cut-lecture.json,
+// camera.y_min), and the master and its poster paint it over (cut-lecture.json, mask). The first 15 s after the press
+// are recorded as they come (the rows of the progress card turn «Готово»); a longer analysis pauses the screencast
+// (its spinners would paint a frame every 16 ms for minutes) until the results, and the card's own log keeps the times.
 // The lecture page's first-use tip («Поговорить о лекции») is put away on this device, as if dismissed before.
 const fs = require('fs');
 const path = require('path');
@@ -30,6 +41,9 @@ const R = require('./rec.cjs');
 
 const DIR = path.resolve(process.argv[2] || 'take-lecture');
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i < 0 ? d : process.argv[i + 1]; };
+const DRY = process.argv.includes('--dry');
+const QUIZ_DIFFICULTY = arg('quiz-difficulty', null);
+if (QUIZ_DIFFICULTY && !['easy', 'medium', 'hard', 'mixed'].includes(QUIZ_DIFFICULTY)) throw new Error('--quiz-difficulty is easy, medium, hard or mixed');
 const INPUT = arg('input', 'mp4');
 const KINDS = {
   mp4: { tab: 'Аудио и видео', mime: 'video/mp4', file: 'lecture/lecture.mp4' },
@@ -41,11 +55,12 @@ if (!KINDS[INPUT]) throw new Error(`--input is one of ${Object.keys(KINDS).join(
 const KIND = KINDS[INPUT];
 const FILE = path.resolve(arg('file', path.join(__dirname, KIND.file)));
 const FILE_NAME = `Рыночное равновесие (лекция).${INPUT}`;
-const W = 1024, H = 800, DPR = 1.75;
+const W = 1024, H = 800, DPR = Number(arg('dpr', 1.5));
 const TOP = 84; // the top line ends at 76 CSS px: what the camera frames starts below it
 
 // Text out of the page goes through ulib's redact() and loses anything shaped like an e-mail address.
 const clean = (t) => R.u.redact(String(t || '')).replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '<e-mail>');
+const flat = (t, n = 400) => clean(t).replace(/\n+/g, ' / ').slice(0, n);
 const units = (label) => {
   const m = /осталось\s+(\d+)\s+из\s+(\d+)/.exec(label || '');
   return m ? { left: Number(m[1]), of: Number(m[2]), pro: /PRO/.test(label) } : null;
@@ -154,8 +169,8 @@ const WATCH = () => {
   scan();
 };
 
-/** The right option of each question, from the analysis' own answer (its quiz, read off the stream). */
-function quizKey(sse) {
+/** The analysis' «results» event, read off its stream (the last one wins). */
+function resultsOf(sse) {
   let results = null;
   for (const line of String(sse).split('\n')) {
     if (!line.startsWith('data:')) continue;
@@ -164,6 +179,12 @@ function quizKey(sse) {
       if (ev && ev.type === 'results') results = ev;
     } catch { /* a keepalive or a partial line */ }
   }
+  return results;
+}
+
+/** The right option of each question, from the analysis' own answer (its quiz, read off the stream). */
+function quizKey(sse) {
+  const results = resultsOf(sse);
   const quiz = results && results.quiz && Array.isArray(results.quiz.quiz) ? results.quiz.quiz : null;
   if (!quiz) return null;
   const norm = (s) => String(s || '').replace(/\[S\d+\]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -185,6 +206,27 @@ function quizKey(sse) {
   });
 }
 
+/**
+ * What would make a line of the materials wrong to show: the model speaking about its input («Согласно тексту…», «в
+ * тексте упомянут как…», «В лекции сказано…») or a letter of another alphabet inside a word. Null when none is found
+ * (the facts are read by a person: materials.json).
+ */
+function slipOf(...texts) {
+  const t = texts.map((x) => String(x || '')).join(' \n ');
+  const remark = /(текст|упомина|упомян|лекци|лектор|согласно|говорится|сказано|указано|отмечается|по словам)/i.exec(t);
+  if (remark) return `remark «${remark[1]}»`;
+  if (/[А-Яа-яЁё][A-Za-z]|[A-Za-z][А-Яа-яЁё]/.test(t)) return 'mixed alphabets in a word';
+  if (/[\u0370-\u03FF\u0590-\u06FF\u3040-\u30FF\u4E00-\u9FFF]/.test(t)) return 'a letter of another script';
+  return null;
+}
+
+/** The first item of a list the clip can show without a slip (its index), else 0; and what was found in each. */
+function firstClean(items, fields) {
+  const slips = (items || []).map((it) => slipOf(...fields(it)));
+  const k = slips.findIndex((s) => s === null);
+  return { index: k < 0 ? 0 : k, slips };
+}
+
 /** One beat after the analysis: a failure is logged and the take goes on (the analysis cannot be had again for free). */
 async function beat(result, name, fn) {
   try {
@@ -199,7 +241,7 @@ async function beat(result, name, fn) {
 (async () => {
   if (!fs.existsSync(FILE)) throw new Error(`no lecture file at ${FILE}: build it with lecture/make.py`);
   const browser = await R.launch([`--force-device-scale-factor=${DPR}`, '--autoplay-policy=no-user-gesture-required']);
-  const result = { input: INPUT, file: path.basename(FILE), fileName: FILE_NAME, bytes: fs.statSync(FILE).size };
+  const result = { input: INPUT, file: path.basename(FILE), fileName: FILE_NAME, bytes: fs.statSync(FILE).size, dry: DRY };
   let take = null;
   try {
     const ctx = await R.context(browser, {
@@ -292,6 +334,25 @@ async function beat(result, name, fn) {
     await take.still('grid');
     await R.sleep(900);
 
+    // --quiz-difficulty (off the clip): «Сложность теста» under the list. The server keeps the model's answers for a
+    // text it has already seen, so another take of the same recording gets the very same materials; another difficulty
+    // asks the model for a new test and leaves the other four as they were.
+    if (QUIZ_DIFFICULTY) {
+      const group = page.locator('.ac-set').filter({ hasText: 'Сложность теста' }).first();
+      const label = { easy: 'Лёгкий', medium: 'Средний', hard: 'Сложный', mixed: 'Смешанный' }[QUIZ_DIFFICULTY];
+      const btn = group.getByRole('button', { name: label, exact: true }).first();
+      take.mark('difficulty');
+      await take.move(560, 520, { ms: 400 });
+      await bring(take, group, 420, { ms: 900 });
+      await take.click(btn, { ms: 600 });
+      await R.sleep(500);
+      result.quizDifficulty = (await btn.getAttribute('aria-pressed')) === 'true' ? QUIZ_DIFFICULTY : `not set (${QUIZ_DIFFICULTY})`;
+      await take.move(560, 520, { ms: 400 });
+      await bring(take, page.locator('.ac-settings-h').first(), 280, { ms: 900 });
+      take.mark('difficulty-done');
+      await R.sleep(800);
+    }
+
     // «Запустить анализ» (just above the list): the press starts the clock.
     const start = page.locator('button.az-start').first();
     if ((await start.innerText()).trim() !== 'Запустить анализ' || !(await start.isEnabled())) {
@@ -304,6 +365,13 @@ async function beat(result, name, fn) {
     const p = await take.aim(start);
     await take.move(p.x, p.y, { ms: 750 });
     await R.sleep(140);
+    if (DRY) {
+      // The rehearsal ends here: the hand rests on «Запустить анализ» and does not press it.
+      take.mark('dry-end');
+      await R.sleep(1500);
+      result.unitsAfter = await meter(page);
+      return;
+    }
     take.events.push({ kind: 'down', x: p.x, y: p.y, t: R.now() });
     await page.mouse.down();
     await R.sleep(90);
@@ -323,13 +391,15 @@ async function beat(result, name, fn) {
       await R.sleep(300);
     }
     await take.box('progress', card);
-    await R.sleep(2600);
     take.mark('wait');
-    await pause(take);
 
-    // The wait (cut in the clip). The page keeps its own log of the rows; the results or an error end it.
+    // The wait (cut in the clip). The page keeps its own log of the rows; the results or an error end it. Release 44.1
+    // makes the five materials of a three-minute recording in about ten seconds: the first 15 s from the press are
+    // recorded as they come (the rows turn «Готово» one by one, the card gives way to the results); a longer wait is
+    // not (the screencast pauses until the results).
     const t0 = Date.now();
     let outcome = null;
+    let paused = false;
     while (Date.now() - t0 < 11 * 60 * 1000) {
       outcome = await page.evaluate(() => {
         if (document.querySelector('#analysis-error-heading')) return 'error';
@@ -337,200 +407,257 @@ async function beat(result, name, fn) {
         return null;
       }).catch(() => null);
       if (outcome) break;
-      await R.sleep(150);
+      if (!paused && Date.now() - pressedAt > 15000) {
+        take.mark('pause');
+        await pause(take);
+        paused = true;
+      }
+      await R.sleep(100);
     }
     const log = await page.evaluate(() => window.__ag || []);
     result.timeline = log.map(([t, ...e]) => [Math.round((t - pressedAt) / 100) / 10, ...e.map((x) => clean(x).slice(0, 160))]);
+    result.pausedForTheWait = paused;
     console.log('  progress log (s from the press):');
     for (const row of result.timeline) console.log('   ', JSON.stringify(row));
+    // The card's moments as the take's own marks (the page's clock is the take's): «done-Конспект» …, «results-in».
+    const NAMES = { 'Конспект': 'konspekt', 'Карточки': 'kartochki', 'Тест': 'test', 'Выжимка': 'vyzhimka', 'Подкаст': 'podcast' };
+    for (const [t, kind, name, status] of log) {
+      if (kind === 'row' && status === 'done' && NAMES[name]) take.events.push({ kind: 'mark', name: `done-${NAMES[name]}`, t: t / 1000 });
+      if (kind === 'results') take.events.push({ kind: 'mark', name: 'results-in', t: t / 1000 });
+    }
     if (outcome !== 'results') {
-      await resume(take);
+      if (paused) await resume(take);
       await R.sleep(1500);
       result.error = outcome === 'error' ? clean(await page.locator('.az-fail').first().innerText()).replace(/\n+/g, ' / ') : 'no results within 11 minutes';
       await take.box('error', page.locator('.az-fail').first());
       await R.sleep(1500);
       throw new Error(`the analysis did not finish: ${result.error}`);
     }
-    // The results are in: the window at its top, the screencast back on.
+    // The results are in: the window at its top, the screencast on.
     await page.evaluate(() => window.scrollTo(0, 0));
-    await resume(take);
+    if (paused) await resume(take);
     take.mark('results');
     await R.sleep(1200);
     const head = page.locator('.rp-result-head').first();
     const tabsRow = page.locator('.rp-tabsrow').first();
     result.title = clean(await page.locator('h1.rp-title').first().innerText().catch(() => ''));
-    result.resultHead = clean(await head.innerText()).replace(/\n+/g, ' / ').slice(0, 400);
+    result.resultHead = flat(await head.innerText());
     result.tabs = clean(await tabsRow.innerText().catch(() => '')).replace(/\n+/g, ' ');
     await take.box('results', head, tabsRow);
-    await R.sleep(1600);
+    await take.box('results-top', head, tabsRow, page.locator('.sv-sec').first());
+    // What the analysis made, as its own answer says it (to read against the lecture); it holds no account data.
+    const answer = resultsOf(await page.evaluate(() => window.__sse || ''));
+    if (answer) fs.writeFileSync(path.join(DIR, 'materials.json'), clean(JSON.stringify(answer, null, 1)));
+    await R.sleep(2000);
 
-    // «Конспект»: its sections, then «Термины».
+    // «Конспект», a retelling: «Ключевые тезисы», then the lecture's sections in its order, «Выводы»; «Термины» last.
+    // Each section of the lecture is held in turn, so the clip can show one the model retold without a slip.
     await beat(result, 'summary', async () => {
-    const firstSec = page.locator('.sv-sec').first();
-    await take.box('summary', tabsRow, firstSec);
-    take.mark('summary');
-    result.sections = await page.locator('.sv-sec h2.sv-h2').allInnerTexts().catch(() => []);
-    await R.sleep(1800);
-    const terms = page.locator('section.sv-terms').first();
-    const outlineTerms = page.locator('nav.sv-outline').getByText(/^Термины/).first();
-    if (await outlineTerms.isVisible().catch(() => false)) {
-      take.mark('outline');
-      await take.click(outlineTerms, { ms: 700 });
-      await R.sleep(1100);
-    } else {
+      const secs = page.locator('.sv-sec:not(.sv-terms)');
+      result.sections = await page.locator('.sv-sec h2.sv-h2').allInnerTexts().catch(() => []);
+      const theses = secs.first();
+      result.theses = flat(await theses.innerText(), 900);
       await take.move(520, 560, { ms: 450 });
-      await bring(take, terms, 150, { ms: 1100 });
-    }
-    take.mark('terms');
-    result.terms = (await page.locator('.sv-term dt, .sv-term .sv-term-t, .sv-term').allInnerTexts().catch(() => [])).map((t) => clean(t).split('\n')[0]).slice(0, 14);
-    await take.box('terms', terms);
-    await R.sleep(2600);
+      await bring(take, tabsRow, 96, { ms: 1000 });
+      take.mark('theses');
+      await take.box('theses', tabsRow, theses);
+      await take.box('theses-only', theses);
+      await R.sleep(2600);
+      // The sections of the lecture: after the theses, before «Выводы».
+      const n = await secs.count();
+      result.sectionTexts = [];
+      for (let i = 1; i < n - 1; i += 1) {
+        const sec = secs.nth(i);
+        result.sectionTexts.push(flat(await sec.innerText(), 900));
+        await bring(take, sec, 110, { ms: 1000 });
+        take.mark(`section-${i}`);
+        if (i === 1) take.mark('section');
+        await take.box(`section-${i}`, sec);
+        await R.sleep(2400);
+      }
+      // «Термины», where the конспект keeps them.
+      const terms = page.locator('section.sv-terms').first();
+      if (await terms.count()) {
+        await bring(take, terms, 110, { ms: 1100 });
+        take.mark('terms');
+        result.terms = (await page.locator('.sv-term').allInnerTexts().catch(() => [])).map((t) => flat(t, 300)).slice(0, 14);
+        await take.box('terms', terms);
+        await R.sleep(2600);
+      }
     });
 
-    // «Карточки»: one card turned over.
+    // «Карточки»: one card turned over (the first one without a slip).
     await beat(result, 'cards', async () => {
-    await take.move(520, 400, { ms: 450 });
-    await bring(take, tabsRow, 120, { ms: 900 });
-    const cardsTab = tabsRow.getByRole('button', { name: /Карточки/ }).first();
-    take.mark('cards-tab');
-    await take.click(cardsTab, { ms: 700 });
-    const card1 = page.locator('li.fc-card').first();
-    await card1.waitFor({ timeout: 15000 });
-    await R.sleep(500);
-    await take.box('cards', tabsRow, card1);
-    take.mark('cards');
-    await R.sleep(1200);
-    take.mark('flip');
-    await take.click(card1.locator('.fc-q').first(), { ms: 700, fx: 0.35 });
-    await card1.locator('.fc-answer').first().waitFor({ timeout: 10000 });
-    take.mark('flipped');
-    await R.sleep(700);
-    result.card = clean(await card1.innerText()).replace(/\n+/g, ' / ').slice(0, 300);
-    await take.box('card', tabsRow, card1);
-    await R.sleep(2200);
+      await take.move(520, 400, { ms: 450 });
+      await bring(take, tabsRow, 120, { ms: 900 });
+      const cardsTab = tabsRow.getByRole('button', { name: /Карточки/ }).first();
+      take.mark('cards-tab');
+      await take.click(cardsTab, { ms: 700 });
+      const pickCard = firstClean(answer && answer.flashcards && answer.flashcards.flashcards, (c) => [c.question, c.answer]);
+      result.cardPick = pickCard;
+      const card1 = page.locator('li.fc-card').nth(pickCard.index);
+      await card1.waitFor({ timeout: 15000 });
+      await R.sleep(500);
+      if (pickCard.index > 0) await bring(take, card1, 200, { ms: 900 });
+      await take.box('cards', tabsRow, card1);
+      take.mark('cards');
+      await R.sleep(1200);
+      take.mark('flip');
+      await take.click(card1.locator('.fc-q').first(), { ms: 700, fx: 0.35 });
+      await card1.locator('.fc-answer').first().waitFor({ timeout: 10000 });
+      take.mark('flipped');
+      await R.sleep(700);
+      result.card = flat(await card1.innerText(), 500);
+      await take.box('card', tabsRow, card1);
+      await take.box('card-only', card1);
+      await R.sleep(2200);
     });
 
-    // «Тест»: the first question answered; the rest are answered too (cut), «Проверить ответы», its «Пояснение».
+    // «Тест»: one question answered — the first whose question, options and «Пояснение» have no slip; the rest are
+    // answered too (cut), «Проверить ответы», then that question again with its «Пояснение».
     await beat(result, 'quiz', async () => {
-    await bring(take, tabsRow, 120, { ms: 700 });
-    const quizTab = tabsRow.getByRole('button', { name: /Тест/ }).first();
-    take.mark('quiz-tab');
-    await take.click(quizTab, { ms: 700 });
-    const q1 = page.locator('li.qz-card').first();
-    await q1.waitFor({ timeout: 15000 });
-    await R.sleep(500);
-    const key = quizKey(await page.evaluate(() => window.__sse || ''));
-    const nq = await page.locator('li.qz-card').count();
-    const domQs = await page.locator('li.qz-card p.qz-q').allInnerTexts();
-    const pick = (i) => {
-      const norm = (s) => String(s).replace(/^\d+\.\s*/, '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 80);
-      const k = key && (key.find((q) => q.question && q.question === norm(domQs[i])) || key[i]);
-      return k && k.index !== null ? k.index : 0;
-    };
-    result.quizKeyRead = Boolean(key);
-    await take.box('quiz', page.locator('.qz-head').first(), q1);
-    take.mark('quiz');
-    await R.sleep(1200);
-    take.mark('answer');
-    await take.click(q1.locator('button.qz-opt').nth(pick(0)), { ms: 750, fx: 0.3 });
-    take.mark('answered');
-    await R.sleep(1600);
-    for (let i = 1; i < nq; i += 1) {
-      const qi = page.locator('li.qz-card').nth(i);
-      const b = await qi.boundingBox();
-      if (b && b.y + b.height > H - 40) await bring(take, qi, 160, { ms: 600 });
-      await take.click(qi.locator('button.qz-opt').nth(pick(i)), { ms: 550, fx: 0.3 });
-      await R.sleep(350);
-    }
-    const check = page.getByRole('button', { name: 'Проверить ответы' }).first();
-    await check.waitFor({ timeout: 10000 });
-    const cb = await check.boundingBox();
-    if (cb && cb.y + cb.height > H - 20) await bring(take, check, 500, { ms: 600 });
-    take.mark('check');
-    await take.click(check, { ms: 650 });
-    const resultBox = page.locator('section.qz-result').first();
-    await resultBox.waitFor({ timeout: 10000 });
-    await R.sleep(400);
-    await take.move(520, 420, { ms: 400 });
-    await bring(take, page.locator('.qz-head').first(), 110, { ms: 1000 });
-    take.mark('explained');
-    result.quizScore = clean(await resultBox.innerText()).replace(/\n+/g, ' / ').slice(0, 200);
-    result.explain1 = clean(await q1.locator('.qz-explain').first().innerText().catch(() => '')).slice(0, 300);
-    await take.box('explain', resultBox, q1);
-    await R.sleep(2800);
+      await bring(take, tabsRow, 120, { ms: 700 });
+      const quizTab = tabsRow.getByRole('button', { name: /Тест/ }).first();
+      take.mark('quiz-tab');
+      await take.click(quizTab, { ms: 700 });
+      const q1 = page.locator('li.qz-card').first();
+      await q1.waitFor({ timeout: 15000 });
+      await R.sleep(500);
+      const key = quizKey(await page.evaluate(() => window.__sse || ''));
+      const nq = await page.locator('li.qz-card').count();
+      const domQs = await page.locator('li.qz-card p.qz-q').allInnerTexts();
+      const pick = (i) => {
+        const norm = (s) => String(s).replace(/^\d+\.\s*/, '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 80);
+        const k = key && (key.find((q) => q.question && q.question === norm(domQs[i])) || key[i]);
+        return k && k.index !== null ? k.index : 0;
+      };
+      result.quizKeyRead = Boolean(key);
+      const pickQ = firstClean(answer && answer.quiz && answer.quiz.quiz, (q) => [q.question, ...(q.options || []), q.explanation]);
+      result.quizPick = pickQ;
+      const qk = page.locator('li.qz-card').nth(pickQ.index);
+      result.quizShown = flat(await qk.innerText(), 500);
+      if (pickQ.index > 0) {
+        await take.move(520, 420, { ms: 400 });
+        await bring(take, qk, 150, { ms: 900 });
+        await take.box('quiz', qk);
+      } else {
+        await take.box('quiz', page.locator('.qz-head').first(), qk);
+      }
+      take.mark('quiz');
+      await R.sleep(1200);
+      take.mark('answer');
+      await take.click(qk.locator('button.qz-opt').nth(pick(pickQ.index)), { ms: 750, fx: 0.3 });
+      take.mark('answered');
+      await R.sleep(1600);
+      for (let i = 0; i < nq; i += 1) {
+        if (i === pickQ.index) continue;
+        const qi = page.locator('li.qz-card').nth(i);
+        const b = await qi.boundingBox();
+        if (b && (b.y + b.height > H - 40 || b.y < TOP)) await bring(take, qi, 160, { ms: 600 });
+        await take.click(qi.locator('button.qz-opt').nth(pick(i)), { ms: 550, fx: 0.3 });
+        await R.sleep(350);
+      }
+      const check = page.getByRole('button', { name: 'Проверить ответы' }).first();
+      await check.waitFor({ timeout: 10000 });
+      const cb = await check.boundingBox();
+      if (cb && cb.y + cb.height > H - 20) await bring(take, check, 500, { ms: 600 });
+      take.mark('check');
+      await take.click(check, { ms: 650 });
+      const resultBox = page.locator('section.qz-result').first();
+      await resultBox.waitFor({ timeout: 10000 });
+      await R.sleep(400);
+      await take.move(520, 420, { ms: 400 });
+      if (pickQ.index > 0) await bring(take, qk, 150, { ms: 1000 });
+      else await bring(take, page.locator('.qz-head').first(), 110, { ms: 1000 });
+      take.mark('explained');
+      result.quizScore = flat(await resultBox.innerText(), 200);
+      result.explainShown = clean(await qk.locator('.qz-explain').first().innerText().catch(() => '')).slice(0, 400);
+      if (pickQ.index === 0) await take.box('explain', resultBox, qk);
+      await take.box('explain-q', qk);
+      await R.sleep(2800);
     });
 
-    // «Открыть лекцию» (under the results): the lecture's page.
+    // «Выжимка»: a tab of the result screen now (release 44.1), the one page to repeat before the exam.
+    await beat(result, 'brief', async () => {
+      await take.move(520, 420, { ms: 400 });
+      await bring(take, tabsRow, 120, { ms: 1000 });
+      const briefTab = tabsRow.getByRole('button', { name: /Выжимка/ }).first();
+      take.mark('brief-tab');
+      await take.click(briefTab, { ms: 700 });
+      const sheet = page.locator('article.xp-sheet').first();
+      await sheet.waitFor({ timeout: 15000 });
+      take.mark('brief');
+      await R.sleep(500);
+      result.brief = flat(await sheet.innerText(), 1200);
+      await take.box('brief', tabsRow, sheet);
+      await take.box('brief-head', tabsRow, page.locator('.xp-sheet-head').first());
+      await R.sleep(2800);
+    });
+
+    // «Подкаст»: the player on the result screen (it brings itself into view), its scene and subtitles; ▶ (no sound in
+    // the deck). Its first lines' speech is prepared while the other tabs are read.
+    await beat(result, 'podcast', async () => {
+      const podcastTab = tabsRow.getByRole('button', { name: /Подкаст/ }).first();
+      take.mark('podcast-tab');
+      await take.click(podcastTab, { ms: 700 });
+      const player = page.locator('section.cv-show[aria-label="Подкаст по лекции"]').first();
+      await player.waitFor({ timeout: 15000 });
+      take.mark('podcast');
+      await R.sleep(1500); // the page scrolls the player into view by itself, smoothly
+      result.podcastMeta = clean(await page.locator('.cv-meta').first().innerText().catch(() => ''));
+      const stage = page.locator('.cv-stage').first();
+      const voice = page.locator('.cv-voice').first();
+      const controls = page.locator('.cv-player').first();
+      const pb = await controls.boundingBox();
+      const sb = await stage.boundingBox();
+      if ((pb && pb.y + pb.height > H - 8) || (sb && sb.y < TOP)) {
+        // The player whole in the window: the scene, the subtitles, ▶.
+        await take.move(520, 560, { ms: 450 });
+        await bring(take, page.locator('.cv-meta').first(), 96, { ms: 900 });
+      }
+      take.mark('player');
+      await take.box('podcast', tabsRow, stage);
+      await take.box('player', stage, voice, controls);
+      await take.box('scene', stage);
+      await take.box('voice', voice, controls);
+      result.subtitle1 = flat(await page.locator('.cv-line').first().innerText().catch(() => ''), 300);
+      result.scene1 = flat(await stage.innerText().catch(() => ''), 400);
+      await R.sleep(1500);
+      const play = page.locator('button.cv-play').first();
+      take.mark('play');
+      const playAt = Date.now();
+      await take.click(play, { ms: 700 });
+      await page.locator('button.cv-play[aria-label="Пауза"]').first().waitFor({ timeout: 30000 }).catch(() => {});
+      take.mark('playing');
+      result.playingAfter = Math.round((Date.now() - playAt) / 100) / 10;
+      result.playing = await play.getAttribute('aria-label');
+      await R.sleep(1800);
+      await page.locator('.cv-pos').filter({ hasText: /Реплика 2 из/ }).first().waitFor({ timeout: 40000 }).catch(() => {});
+      take.mark('line2');
+      result.line2After = Math.round((Date.now() - playAt) / 100) / 10;
+      await R.sleep(2400);
+      result.subtitle2 = flat(await page.locator('.cv-line').first().innerText().catch(() => ''), 300);
+      result.scene2 = flat(await stage.innerText().catch(() => ''), 400);
+      await take.still('podcast');
+      await R.sleep(2200);
+      take.mark('end');
+      await play.click().catch(() => {}); // pause, so nothing keeps playing
+      await R.sleep(300);
+    });
+
+    // Outside the clip: «Открыть лекцию» (under the results) opens the saved lecture; its id is the take's.
+    await take.stop();
     const open = page.locator('.az-after button').filter({ hasText: 'Открыть лекцию' }).first();
     await open.waitFor({ timeout: 60000 });
     const savedAt = (await page.evaluate(() => (window.__ag || []).find((e) => e[1] === 'saved')).catch(() => null)) || null;
     result.savedAt = savedAt ? Math.round((savedAt[0] - pressedAt) / 100) / 10 : null;
-    await take.move(520, 600, { ms: 400 });
-    await bring(take, open, 560, { ms: 1200 });
-    take.mark('open');
-    await take.click(open, { ms: 700 });
+    await open.scrollIntoViewIfNeeded();
+    await open.click();
     await page.waitForURL(/\/library\/[0-9a-f-]{36}$/, { timeout: 30000 });
     result.materialId = (page.url().match(/\/library\/([0-9a-f-]{36})/) || [])[1];
     fs.writeFileSync(path.join(DIR, 'material.json'), JSON.stringify({ id: result.materialId }));
-    const modes = page.getByRole('tablist', { name: 'Режим' }).first();
-    await modes.waitFor({ timeout: 30000 });
-    take.mark('lecture');
-    await R.sleep(900);
-    result.lectureHead = clean(await page.locator('header.md-head').first().innerText()).replace(/\n+/g, ' / ');
-    result.modes = await modes.getByRole('tab').allInnerTexts();
-    await take.box('lecture', page.locator('header.md-head').first(), page.locator('.md-toolbar').first());
-    await R.sleep(1600);
-
-    // «Кратко»: the выжимка.
-    await beat(result, 'brief', async () => {
-    const brief = modes.getByRole('tab', { name: 'Кратко' }).first();
-    take.mark('brief-tab');
-    await take.click(brief, { ms: 700 });
-    const sheet = page.locator('article.xp-sheet').first();
-    await sheet.waitFor({ timeout: 15000 });
-    take.mark('brief');
-    await R.sleep(500);
-    result.brief = clean(await sheet.innerText()).replace(/\n+/g, ' / ').slice(0, 400);
-    await take.box('brief', page.locator('.md-toolbar').first(), sheet);
-    await R.sleep(2600);
-    });
-
-    // «Подкаст»: the player, its scene and subtitles; ▶ (no sound in the deck).
-    await beat(result, 'podcast', async () => {
-    const podcast = modes.getByRole('tab', { name: 'Подкаст' }).first();
-    take.mark('podcast-tab');
-    await take.click(podcast, { ms: 700 });
-    const player = page.locator('section[aria-label="Подкаст по лекции"]').first();
-    await player.waitFor({ timeout: 15000 });
-    take.mark('podcast');
-    await R.sleep(700);
-    result.podcastMeta = clean(await page.locator('.cv-meta').first().innerText().catch(() => ''));
-    await take.box('podcast', page.locator('.md-toolbar').first(), page.locator('.cv-stage').first());
-    await R.sleep(1500);
-    // The player whole in the window: the scene, the subtitles, ▶.
-    await take.move(520, 560, { ms: 450 });
-    await bring(take, page.locator('.cv-meta').first(), 96, { ms: 900 });
-    take.mark('player');
-    await take.box('player', page.locator('.cv-stage').first(), page.locator('.cv-voice').first(), page.locator('.cv-player').first());
-    await take.box('scene', page.locator('.cv-stage').first());
-    await take.box('voice', page.locator('.cv-voice').first(), page.locator('.cv-player').first());
-    await R.sleep(1300);
-    const play = page.locator('button.cv-play').first();
-    take.mark('play');
-    await take.click(play, { ms: 700 });
-    await page.locator('button.cv-play[aria-label="Пауза"]').first().waitFor({ timeout: 20000 }).catch(() => {});
-    take.mark('playing');
-    result.playing = await play.getAttribute('aria-label');
-    await page.locator('.cv-pos').filter({ hasText: /Реплика 2 из/ }).first().waitFor({ timeout: 20000 }).catch(() => {});
-    take.mark('line2');
-    await R.sleep(2600);
-    result.subtitle = clean(await page.locator('.cv-line').first().innerText().catch(() => '')).slice(0, 200);
-    await take.still('podcast');
-    await R.sleep(2200);
-    take.mark('end');
-    await play.click().catch(() => {}); // pause, so nothing keeps playing
-    await R.sleep(300);
-    });
+    await page.getByRole('tablist', { name: 'Режим' }).first().waitFor({ timeout: 30000 }).catch(() => {});
+    result.lectureHead = flat(await page.locator('header.md-head').first().innerText().catch(() => ''), 300);
 
     result.unitsAfter = await meter(page);
     const at = (name, kind = 'row') => {
@@ -549,7 +676,7 @@ async function beat(result, name, fn) {
     if (take) await take.stop();
     fs.mkdirSync(DIR, { recursive: true });
     fs.writeFileSync(path.join(DIR, 'result.json'), JSON.stringify(result, null, 1));
-    console.log(JSON.stringify(result, null, 1).slice(0, 6000));
+    console.log(JSON.stringify(result, null, 1).slice(0, 8000));
     await browser.close();
   }
 })();
