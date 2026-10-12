@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-12 — Release 44.6: what the live re-check of 44.5 found (from the commit of this entry)
+
+- **Lecture materials** (`53addce`):
+  - **Sentence-initial credits.** A sentence that opens with «По лекции, X» or «Из лекции следует, что X» now states the fact alone, as «Согласно лекции, X» already did.
+  - **A credit with a phrase about the lecture stays.** In «Согласно лекции, прочитанной профессором, …» the credit is kept. 44.5 removed it and left a sentence that began with the participle. No live material had this form.
+  - **«в тексте» → «в лекции» in more verbs.** «в тексте называют / называется / описывается / приводится…» now becomes «в лекции …». A test made again had asked «Какой регион в тексте называют…?».
+- **The lecture example** (`0526d55`): the last four credits found by the live check are gone. Card 3 was edited by hand. Podcast line 8 was voiced again. `CHANGES.md` records it all.
+- **The podcast on a phone** (`e336e51`): the line now keeps the room of the conversation's tallest line, so the scene and the player no longer move when the line changes.
+  - Over 45 s of playback, the layout shift fell from 0.14 to 0 at 390×844 and from 0.18 to 0 at 360×800.
+  - Computers are unchanged.
+- **Outage monitor** (`b46d8e7`): a step of the bot's minute tick.
+  - **What it checks:** `/api/health` and `/try` every 5 minutes, `/api/health/deep` every 30.
+  - **Status:** it went live through the migration and function workflows (`23f07a0`, `523c6a4`) and is off until the owner's chat is set. It does not touch the Space.
+- **Verified before release:** pytest 1977 (Python 3.12, pinned tree), bot 337 and its plan copy, Vitest 277 files / 4552 tests, the build in the Docker layout. The release gate runs them again on this commit.
+- **Live checks after release:**
+  - the `/try/lecture` podcast on a 390 px phone: no layout shift between lines;
+  - the example has no credits left;
+  - a new lecture's materials still have no credits.
+
 ## 2026-10-12 — Release 44.5: what the live re-check of 44.3 found, and a lecture example without an account (from the commit of this entry)
 
 - **Lecture materials:**
