@@ -603,6 +603,7 @@ export default function Analyze() {
               partial={state.partial}
               onResultsChange={next => handleResultsChange(shownRunId, next)}
               analysisSettings={state.isDemo ? DEMO_SETTINGS : lastRequest?.settings}
+              recognized={lastSaveRef.current?.context.recognized ?? undefined}
               notices={hasNotices ? notices : undefined}
             />
             <div className="az-after">

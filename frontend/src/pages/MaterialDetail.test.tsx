@@ -763,6 +763,43 @@ describe('«Текст распознан…» on the lecture page, as on the re
   });
 });
 
+describe('a recorded lecture asks for what it gets later as its analysis did (recheck of 44.2)', () => {
+  const bodyOf = (url: string) =>
+    JSON.parse(String((globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(call => call[0] === url)?.[1]?.body));
+
+  it('sends summary_json.recognized with the Выжимка, the podcast and a section made again', async () => {
+    state.material = {
+      ...makeMaterial({ recognized: 'recording', podcast: [], sections: { summarizer: { status: 'ok' }, quiz: { status: 'failed' } } }),
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    expect(bodyOf('/api/analyze/section')).toMatchObject({ section: 'quiz', recognized: 'recording' });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать подкаст' }));
+    await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
+    expect(bodyOf('/api/podcast/generate')).toMatchObject({ recognized: 'recording' });
+    await act(async () => pending['/api/podcast/generate'][0].resolve(jsonResponse(generated)));
+    await waitFor(() => expect(savedPodcast()).toHaveLength(2));
+    cleanup();
+
+    renderPage('/library/m1?mode=express');
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
+    await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
+    expect(bodyOf('/api/quick-prep')).toEqual({ context: state.material.original_text, recognized: 'recording' });
+  });
+
+  it('sends nothing more for a lecture whose text was not recognised', async () => {
+    renderPage('/library/m1?mode=express');
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
+    await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
+    expect(bodyOf('/api/quick-prep')).toEqual({ context: state.material.original_text });
+  });
+});
+
 describe('text-only materials and review link', () => {
   it('shows the text-only notice', async () => {
     state.material = {
@@ -899,6 +936,55 @@ describe('the browser tab and the meta line', () => {
     await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
     const meta = document.querySelector('.md-meta') as HTMLElement;
     expect(meta.textContent).toMatch(/^Физика · только для меня · 1 октября, \d{1,2}:00$/);
+  });
+});
+
+describe('while the lecture loads (recheck of 44.2: a layout shift of 0.447 on a fresh /library/:id)', () => {
+  it('stands in the lecture’s own boxes, says «Загружаем лекцию…» after 300 ms and gives way without reusing them', async () => {
+    const api = await import('../api/materials');
+    let deliver: (row: Material) => void = () => undefined;
+    vi.mocked(api.getMaterialById).mockImplementationOnce(
+      () => new Promise(resolve => (deliver = row => resolve(clone(row) as never))),
+    );
+    renderPage('/library/m1');
+    const page = document.querySelector('.md-page') as HTMLElement;
+    expect(page).toHaveClass('md-loading');
+    expect(page).toHaveAttribute('aria-busy', 'true');
+    // The header, the row of the modes and the actions, the row of the sections and the first card, in the page's
+    // own classes: the same CSS gives them the lecture's places.
+    const head = page.querySelector('header.md-head') as HTMLElement;
+    expect(within(head).getByRole('link', { name: 'Лекции' })).toHaveAttribute('href', '/library');
+    expect(head.querySelectorAll('.md-title .md-skel-line')).toHaveLength(2);
+    for (const box of ['.md-toolbar .md-skel-tabs', '.md-toolbar .md-toolbar-meta', '.md-acts .md-skel-pill', '.md-panel .md-skel-sections', '.md-panel .md-skel-card']) {
+      expect(page.querySelector(box), box).not.toBeNull();
+    }
+    // Nothing shows for the first 300 ms (spec 4.6), then the words, under the title and in the row of a low window.
+    expect(page).not.toHaveAttribute('data-show');
+    expect(screen.queryByText('Загружаем лекцию…', { selector: '.md-meta' })).toBeNull();
+    await waitFor(() => expect(page).toHaveAttribute('data-show'));
+    expect(screen.getByText('Загружаем лекцию…', { selector: '.md-meta' })).toHaveAttribute('aria-live', 'polite');
+    expect(screen.getByText('Загружаем лекцию…', { selector: '.md-toolbar-meta' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+
+    await act(async () => deliver(makeMaterial()));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Энтропия' })).toBeInTheDocument();
+    // New boxes, not the placeholder's moved: nothing of it is left.
+    expect(page.isConnected).toBe(false);
+    expect(document.querySelector('.md-loading, .md-skel')).toBeNull();
+    expect(screen.queryByText('Загружаем лекцию…')).toBeNull();
+  });
+
+  it('on a phone stands in the phone’s rows: its actions and its row of tabs', async () => {
+    installPhone();
+    const api = await import('../api/materials');
+    vi.mocked(api.getMaterialById).mockImplementationOnce(() => new Promise(() => undefined));
+    renderPage('/library/m1');
+    const page = document.querySelector('.md-page') as HTMLElement;
+    expect(page.querySelector('.md-skel-tabs')).toBeNull();
+    expect(page.querySelectorAll('.md-acts .md-skel-pill')).toHaveLength(1);
+    expect(page.querySelector('.md-ptabs.md-skel-ptabs')).not.toBeNull();
+    expect(page.querySelector('.md-skel-sections')).toBeNull();
+    delete (window as { matchMedia?: unknown }).matchMedia;
   });
 });
 

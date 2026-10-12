@@ -170,29 +170,59 @@ html[data-stage] .md-crumb { display: none; }
 }
 
 /* ---------------------------------------------------------------- loading and not found */
-.md-skeleton { display: grid; gap: 22px; margin-top: 24px; }
-.md-skeleton i {
+/* While the lecture loads the page stands in its own boxes (MaterialDetail): the header with the crumb, a line of the
+   title and the meta line, the row of the modes and the actions, the row of the sections (a phone: its row of tabs)
+   and the first card with the margin beside it, at the lecture's own widths and heights. The old placeholder — a line
+   of words, then bars of its own sizes — moved the whole page when the lecture came: a layout shift of 0.447 at
+   1532×734 on a fresh /library/:id (recheck of 44.2). The shapes show after 300 ms ([data-show], spec 4.6); their
+   place is held from the start. */
+.md-skel {
   display: block;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--sf-surface-soft) 0%, color-mix(in srgb, var(--sf-line) 70%, var(--sf-surface-soft)) 50%, var(--sf-surface-soft) 100%);
   background-size: 300% 100%;
   animation: md-shimmer 1.6s ease-in-out infinite;
 }
-.md-skeleton .md-skel-title { width: min(620px, 80%); height: 48px; border-radius: 18px; }
-.md-skeleton .md-skel-tabs { width: 280px; height: 56px; }
-.md-skel-card {
+.md-loading:not([data-show]) :is(.md-skel, .md-skel-card, .md-skel-margin) { visibility: hidden; }
+/* A line of the title: the title's own line height (1.1, 1.14 on a phone) with the bar in its middle; a phone's
+   titles take two lines. */
+.md-skel-line { box-sizing: border-box; width: min(620px, 72%); height: 1.1em; padding: .19em 0; background-clip: content-box; }
+.md-skel-line + .md-skel-line { display: none; }
+.md-skel-tabs { width: 362px; max-width: 100%; height: 52px; }
+.md-skel-acts .md-skel-pill { width: 246px; height: 52px; }
+.md-skel-acts .md-skel-round { width: 52px; height: 52px; }
+.md-skel-ptabs .md-skel { box-sizing: border-box; width: 84px; height: 46px; padding: 15px 0; background-clip: content-box; }
+.md-skel-ptabs .md-skel:first-child { width: 96px; }
+/* The row of the sections (ResultsPanel's .rp-tabsrow) and the card under it (.rp-body). */
+.md-skel-sections { display: flex; gap: 8px; margin-top: 22px; }
+.md-skel-sections .md-skel { width: 104px; height: 44px; }
+.md-skel-sections .md-skel:nth-child(2) { width: 118px; }
+.md-skel-sections .md-skel:last-child { width: 84px; }
+.md-skel-panel { container-type: inline-size; }
+.md-skel-doc { padding-top: 26px; }
+/* The card and the margin of the summary (summary.css .sv-doc[data-card]): the margin once the summary is 980 px wide
+   (SummaryView MARGIN_FROM). */
+.md-skel-card,
+.md-skel-margin {
   display: grid;
-  gap: 16px;
-  max-width: 880px;
-  padding: 44px 56px;
-  border-radius: 48px;
+  gap: 18px;
+  align-content: start;
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line);
 }
-.md-skel-card i { height: 14px; }
-.md-skel-card i:first-child { width: 46%; height: 26px; }
-.md-skel-card i:nth-child(3) { width: 92%; }
-.md-skel-card i:last-child { width: 64%; }
+.md-skel-card { min-height: 420px; padding: 44px 56px; border-radius: 48px; }
+.md-skel-card .md-skel { height: 14px; }
+.md-skel-card .md-skel:first-child { width: min(440px, 70%); height: 34px; }
+.md-skel-card .md-skel:nth-child(2) { width: 46%; height: 30px; margin-top: 10px; }
+.md-skel-card .md-skel:nth-child(4) { width: 92%; }
+.md-skel-card .md-skel:last-child { width: 64%; }
+.md-skel-margin { display: none; padding: 26px 34px; border-radius: 32px; }
+.md-skel-margin .md-skel { width: 72%; height: 14px; }
+.md-skel-margin .md-skel:nth-child(2) { width: 58%; }
+@container (min-width: 980px) {
+  .md-skel-doc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); column-gap: 28px; align-items: start; }
+  .md-skel-margin { display: grid; }
+}
 @keyframes md-shimmer {
   from { background-position: 100% 0; }
   to { background-position: 0 0; }
@@ -246,6 +276,9 @@ html[data-stage] .md-crumb { display: none; }
   :where(.md-page) .md-acts .md-pill.sf-secondary { min-height: 48px; padding: 4px 4px 4px 20px; }
   :where(.md-page) .md-acts .md-dot { width: 36px; height: 36px; }
   :where(.md-page) .md-round.sf-more { width: 48px; height: 48px; }
+  .md-skel-tabs { height: 48px; }
+  .md-skel-acts .md-skel-pill { width: 240px; height: 48px; }
+  .md-skel-acts .md-skel-round { width: 48px; height: 48px; }
 }
 /* ---------------------------------------------------------------- the tabs of a phone */
 /* 10_Project/Phone_Declutter_2026-10-08, «Лекция»: «Конспект · Карточки 6 · Тест 5 · Подкаст» as quiet words on a
@@ -322,6 +355,11 @@ html[data-stage] .md-crumb { display: none; }
   .md-panel > .cv,
   .md-panel > .xp-sheet,
   .md-panel > .xp-empty { margin-top: 16px; }
+  .md-skel-line { width: 100%; height: 1.14em; }
+  .md-skel-line + .md-skel-line { display: block; width: 62%; }
+  .md-skel-acts .md-skel-pill { flex: 1 1 auto; width: auto; height: 48px; }
+  .md-skel-acts .md-skel-round { flex: none; width: 48px; height: 48px; }
+  .md-skel-doc { padding-top: 16px; }
   .md-skel-card { padding: 30px 22px; border-radius: 36px; }
   :where(.md-page) .md-state.sf-state { margin-top: 32px; padding: 28px 22px 30px; border-radius: 32px; }
 }
@@ -339,5 +377,5 @@ html[data-stage] .md-crumb { display: none; }
   .md-crumb:hover svg,
   .md-pill:hover .md-dot,
   .md-pill-back:hover .md-dot { transform: none; }
-  .md-skeleton i { animation: none; }
+  .md-skel { animation: none; }
 }

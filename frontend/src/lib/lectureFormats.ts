@@ -27,6 +27,15 @@ export const TRANSCRIPT_NOTICE = 'Текст распознан из запис�
  */
 export type RecognizedSource = 'scan' | 'photo' | 'recording';
 
+/**
+ * summary_json.recognized для запроса материала после анализа: «Создать … заново», выжимка, подкаст и его схемы.
+ * По «recording» сервер пишет в промпте, что текст лекции распознан из записи, как при анализе (main._from_recording;
+ * перепроверка 44.2: этих материалов правило не касалось). Чужое значение или его нет — undefined, поле не уходит.
+ */
+export function recognizedSource(source: unknown): RecognizedSource | undefined {
+  return source === 'scan' || source === 'photo' || source === 'recording' ? source : undefined;
+}
+
 /** Строка о распознанном тексте или null (текст файла, вставленный текст, страница по ссылке, старая лекция). */
 export function recognizedNotice(source: unknown): string | null {
   if (source === 'scan') return OCR_NOTICE;

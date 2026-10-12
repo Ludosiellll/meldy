@@ -38,6 +38,7 @@ import { openingResultTab, resultSectionFailed, resultTabs, type ResultExportIte
 import { charactersLabel } from '../utils/pastedText';
 import { pluralRu } from './conversation/visuals';
 import { repairMathEscapes } from '../lib/mathEscapes';
+import type { RecognizedSource } from '../lib/lectureFormats';
 import ConversationPlayer, { warmConversationVoice } from './conversation/ConversationPlayer';
 import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
 import './ResultsPanel.css';
@@ -413,9 +414,16 @@ function settingsBody(settings?: AnalysisSettings) {
 /**
  * POST /api/analyze/section: один раздел по исходному тексту. Раздел, который не получился в анализе
  * своего материала, сервер создаёт бесплатно по сохранённому тексту (по material_id); иначе — по цене
- * AI_COSTS.analysisSection (lib/plans.ts).
+ * AI_COSTS.analysisSection (lib/plans.ts). recognized — как получен текст (summary_json.recognized): раздел
+ * лекции из записи сервер просит у модели, как её анализ.
  */
-async function requestSection(section: CoreSection, text: string, materialId: string, settings?: AnalysisSettings) {
+async function requestSection(
+  section: CoreSection,
+  text: string,
+  materialId: string,
+  settings?: AnalysisSettings,
+  recognized?: RecognizedSource,
+) {
   let response: Response;
   try {
     response = await fetch('/api/analyze/section', {
@@ -426,6 +434,7 @@ async function requestSection(section: CoreSection, text: string, materialId: st
         text: text.slice(0, SECTION_TEXT_LIMIT),
         material_id: materialId,
         settings: settingsBody(settings),
+        recognized,
       }),
     });
   } catch {
@@ -533,6 +542,7 @@ export default function ResultsPanel({
   partial = false,
   onResultsChange,
   analysisSettings,
+  recognized,
   notices,
   initialTab,
   followupCards = 0,
@@ -567,6 +577,11 @@ export default function ResultsPanel({
   onResultsChange?: (results: AnalysisResults, section: CoreSectionName) => void;
   /** Настройки запуска для повторного запроса раздела (если известны). */
   analysisSettings?: AnalysisSettings;
+  /**
+   * Как получен текст лекции (summary_json.recognized): уходит с «Создать … заново» и с запросами подкаста, чтобы
+   * материалы лекции из записи сервер просил у модели, как её анализ (перепроверка 44.2).
+   */
+  recognized?: RecognizedSource;
   /** Строки о сохранении под заголовком (их показывает страница анализа). */
   notices?: ReactNode;
   /** Вкладка, с которой открыть панель (ссылки из «Прогресса»), если в ней есть содержимое. */
@@ -736,7 +751,7 @@ export default function ResultsPanel({
     setRunning(section);
     setSectionErrors(prev => ({ ...prev, [section]: undefined }));
     try {
-      const { result, grounding } = await requestSection(section, originalText, targetId, analysisSettings);
+      const { result, grounding } = await requestSection(section, originalText, targetId, analysisSettings, recognized);
       const nextSections: SectionStates = { ...(view.sections ?? {}), [section]: { status: 'ok' } };
       const missingGrounding = !view.grounding && grounding ? grounding : undefined;
       await persistSection(targetId, section, result, nextSections, missingGrounding);
@@ -1157,6 +1172,7 @@ export default function ResultsPanel({
                   flashcards={view.flashcards?.flashcards}
                   sources={view.grounding?.sources}
                   materialId={materialId}
+                  recognized={recognized}
                   onLinesUpdate={handleConversationLines}
                   revealOnMount={!embedded}
                   canEdit={canEdit}

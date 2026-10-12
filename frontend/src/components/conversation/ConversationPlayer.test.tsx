@@ -709,6 +709,33 @@ describe('ConversationPlayer', () => {
     await waitFor(() => expect(within(activeScene()).getByText('План')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /Добавить схемы/ })).not.toBeInTheDocument();
   });
+
+  it('sends how the lecture was got, so a recording gets its podcast and pictures as its analysis did (recheck of 44.2)', async () => {
+    const user = userEvent.setup();
+    db.snapshot = { summary_json: { content: 'Конспект', podcast: legacyLines }, original_text: 'Текст записи лекции.' };
+    fetchMock.mockImplementation((url: string) =>
+      fetchResponse(
+        url === '/api/podcast/generate'
+          ? { podcast: [{ speaker: 'Макс', text: 'Начинаем.' }] }
+          : { visuals: [{ index: 0, visual: { type: 'steps', title: 'План', items: ['Один', 'Два'] } }] },
+      ),
+    );
+    const sent = (index: number) => JSON.parse((fetchMock.mock.calls[index][1] as RequestInit).body as string);
+
+    render(<ConversationPlayer lines={[]} title="Тема" materialId="material-1" recognized="recording" />);
+    await user.click(screen.getByRole('button', { name: 'Создать подкаст' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(sent(0)).toEqual({ context: 'Текст записи лекции.', title: 'Тема', terms: [], recognized: 'recording' });
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Подкаст готов'));
+    cleanup();
+    resetJobsForTests();
+
+    render(<ConversationPlayer lines={legacyLines} title="Тема" materialId="material-1" recognized="recording" />);
+    await user.click(screen.getByRole('button', { name: /Добавить схемы/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/podcast/visuals');
+    expect(sent(1)).toMatchObject({ context: 'Текст записи лекции.', recognized: 'recording' });
+  });
   it('tells screen readers about the line the user moved to', () => {
     render(<ConversationPlayer lines={modelLines} />);
     const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
@@ -1245,7 +1272,7 @@ describe('ConversationPlayer on a phone: its status line in sight above the bott
     expect(scrolls).toEqual([{ top: 84, behavior: 'smooth' }]);
   });
 
-  it('leaves the page alone when nothing is hidden, when the player is out of sight, and on a computer', () => {
+  it('leaves the page alone when nothing is hidden and when the player is out of sight', () => {
     asPhone();
     // Stuck above the bar already (the page was scrolled to it): the line grows the player upwards.
     layOut(546);
@@ -1256,11 +1283,85 @@ describe('ConversationPlayer on a phone: its status line in sight above the bott
     layOut(800);
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
     failTheVoice();
+    expect(scrolls).toEqual([]);
+  });
+});
+
+describe('ConversationPlayer on a computer: its status line in sight above the window’s edge (recheck of 44.2, 1532×734)', () => {
+  const originalRect = Element.prototype.getBoundingClientRect;
+  const originalHeight = window.innerHeight;
+  let scrolls: ScrollToOptions[];
+
+  /**
+   * The laptop of the recheck right after «Подкаст» brought the player to the bottom of the window: the player at
+   * 638–694; with the line of a retry it ends at 726, with «Звук не загрузился…» and «Повторить» at 748, under the
+   * window's edge at 734. The player is not sticky there: no `bottom` of its own.
+   */
+  function layOut(top = 638) {
+    Element.prototype.getBoundingClientRect = function rect(this: Element) {
+      const box = (y: number, h: number) => ({ top: y, bottom: y + h, left: 306, right: 1226, width: 920, height: h, x: 306, y, toJSON: () => ({}) }) as DOMRect;
+      if (this.classList.contains('cv-player')) {
+        const status = this.querySelector('.cv-status');
+        return box(top, !status ? 56 : status.querySelector('button') ? 110 : 88);
+      }
+      return box(0, 0);
+    };
+  }
+
+  function play() {
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+  }
+
+  function failTheVoice() {
+    act(() => lastPlay()[3]({ code: 'unavailable', reason: 'server' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
+  }
+
+  beforeEach(() => {
+    scrolls = [];
+    vi.clearAllMocks();
+    tts.getTTSPlaybackRate.mockReturnValue(1);
+    tts.prefetchTTSInOrder.mockResolvedValue(undefined);
+    tts.playTTS.mockResolvedValue(undefined);
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 734 });
+    vi.spyOn(window, 'scrollBy').mockImplementation(((options: ScrollToOptions) => {
+      scrolls.push(options);
+    }) as typeof window.scrollBy);
+  });
+  afterEach(() => {
     cleanup();
-    delete (window as unknown as { matchMedia?: unknown }).matchMedia;
-    layOut(630);
+    Element.prototype.getBoundingClientRect = originalRect;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight });
+  });
+
+  it('moves the page up by exactly what the edge cuts off, so «Повторить» is in sight', () => {
+    layOut();
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    play();
+    // The line of a retry ends at 726: in sight, the page stays.
+    act(() => lastPlay()[5].onRetry?.('server'));
+    expect(screen.getByRole('status')).toHaveTextContent('Сервер озвучки ответил с ошибкой, пробуем ещё раз.');
+    expect(scrolls).toEqual([]);
     failTheVoice();
+    // 748 − 734.
+    expect(scrolls).toEqual([{ top: 14, behavior: 'smooth' }]);
+  });
+
+  it('leaves the page alone when nothing is hidden and when the player is out of sight', () => {
+    // Higher on the page: the whole player with its line is in the window.
+    layOut(300);
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    play();
+    failTheVoice();
+    cleanup();
+    // Below the window (the student scrolled up to the sheet) and above it (scrolled down past it).
+    for (const top of [760, -200]) {
+      layOut(top);
+      render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+      play();
+      failTheVoice();
+      cleanup();
+    }
     expect(scrolls).toEqual([]);
   });
 });

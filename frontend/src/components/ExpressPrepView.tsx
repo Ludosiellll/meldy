@@ -1,6 +1,7 @@
 import { AlertCircle, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { notifyAIUsageChanged } from '../api/limits';
+import { recognizedSource } from '../lib/lectureFormats';
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
@@ -59,6 +60,8 @@ export default function ExpressPrepView({
     flashcards ?? (Array.isArray(summaryJson?.flashcards?.flashcards) ? summaryJson.flashcards.flashcards : undefined);
   const sources = Array.isArray(summaryJson?.grounding?.sources) ? summaryJson.grounding.sources : undefined;
   const title: string = materialTitle || summaryJson?.title || '';
+  // Выжимку и подкаст лекции из записи сервер просит у модели, как её анализ: текст — распознанная речь.
+  const recognized = recognizedSource(summaryJson?.recognized);
 
   const handleCreateCheatsheet = () => {
     if (!materialId || !canEdit) return;
@@ -73,7 +76,7 @@ export default function ExpressPrepView({
         if (!context.trim()) throw new ConversationError('Недостаточно текста для выжимки.');
         if (userId && !(await verifyEnergy(userId, AI_COSTS.cheatsheet, 'Создание выжимки'))) return;
         begin();
-        const payload = (await postJson('/api/quick-prep', { context })) as { cheatsheet?: unknown } | null;
+        const payload = (await postJson('/api/quick-prep', { context, recognized })) as { cheatsheet?: unknown } | null;
         const next = typeof payload?.cheatsheet === 'string' ? payload.cheatsheet.trim() : '';
         if (!next) throw new ConversationError(CHEATSHEET_FAILED);
         // Меняется только cheatsheet: разговор, сохранённый за это время, остаётся.
@@ -101,6 +104,7 @@ export default function ExpressPrepView({
         flashcards={cards}
         sources={sources}
         materialId={materialId}
+        recognized={recognized}
         onLinesUpdate={handleLinesUpdate}
         revealOnMount={revealPlayer}
         canEdit={canEdit}

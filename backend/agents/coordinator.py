@@ -9,15 +9,16 @@ A model answer counts only after validate_section accepted it. An unusable
 answer is evicted from the BaseAgent cache and asked once more; a section that
 still has nothing usable is reported as ``empty``, never filled with stand-ins.
 An accepted answer then goes through mixed_script.check: Latin look-alikes in
-Russian words are replaced and remarks in brackets about the source text go; a
-word with a real Latin chunk inside, letters of a script the lecture does not
-use («Чем植物 клетки») or a remark inside a sentence are asked once more the same
-way (a second such answer loses the sentences with them). The check runs on a
-cached answer too: the cache keeps the model's raw text, not checked material.
+Russian words are replaced, remarks in brackets about the source text go and
+«согласно тексту» becomes «согласно лекции»; a word with a real Latin chunk
+inside, letters of a script the lecture does not use («Чем植物 клетки») or a
+remark inside a sentence are asked once more the same way (a second such answer
+loses the sentences with them). The check runs on a cached answer too: the cache
+keeps the model's raw text, not checked material.
 
-A lecture that came from a recording (``recording``) has the RECORDING_RULE in
-every section prompt: its text is speech recognition and may misspell names and
-terms.
+Every section prompt calls the source a lecture, and a lecture that came from a
+recording (``recording``) has the RECORDING_RULE in them too: its text is speech
+recognition and may misspell names and terms (agents.base.source_rules).
 """
 import asyncio
 import json
@@ -33,7 +34,6 @@ from utils import (
     sanitize_podcast_payload,
 )
 from .base import (
-    RECORDING_RULE,
     AIError,
     BaseAgent,
     ai_call_timeout_seconds,
@@ -45,6 +45,7 @@ from .base import (
     build_summarizer_prompt,
     heavy_slot,
     parse_model_json,
+    source_rules,
     split_outer_fence,
 )
 
@@ -139,8 +140,9 @@ def normalize_settings(settings: Optional[dict] = None, **overrides: Any) -> dic
 
 
 def build_prompts(settings: dict, source_chunks: list, *, recording: bool = False) -> dict:
-    """The prompt of every section with the grounding block; a recorded lecture's ones say what its text is."""
-    grounding = (RECORDING_RULE if recording else "") + GROUNDING_INSTRUCTION + build_source_context(source_chunks)
+    """The prompt of every section with the grounding block; each calls its source a lecture, and a recorded lecture's
+    ones say what its text is (source_rules)."""
+    grounding = source_rules(recording) + GROUNDING_INSTRUCTION + build_source_context(source_chunks)
     prompts = {
         "summarizer": build_summarizer_prompt(settings["summary_detail"]),
         "flashcards": build_flashcards_prompt(settings["flashcard_count"]),
@@ -670,16 +672,19 @@ class CoordinatorAgent:
             },
         }
 
-    async def run_section(self, name: str, text: str, settings: Optional[dict] = None) -> dict:
+    async def run_section(
+        self, name: str, text: str, settings: Optional[dict] = None, *, recording: bool = False
+    ) -> dict:
         """One core section for an already analysed text (the «Досоздать» button).
 
         Same prompts, grounding block (same S-ids as the saved material), validation and
-        eviction as process(). Raises AIError: 429 busy, 504 timeout, 502 failed or empty.
+        eviction as process(); ``recording``: the lecture came from a recording, as in process().
+        Raises AIError: 429 busy, 504 timeout, 502 failed or empty.
         """
         if name not in CORE_SECTIONS:
             raise ValueError(f"unknown section {name!r}")
         source_chunks = build_source_chunks(text)
-        prompts = build_prompts(normalize_settings(settings), source_chunks)
+        prompts = build_prompts(normalize_settings(settings), source_chunks, recording=recording)
         status, payload = await self._run_agent(name, prompts[name], text, source_chunks)
         if status == "ok":
             return {

@@ -31,6 +31,17 @@
 «назван», «написан», «указан» или «записан» и «как» после них; «в расшифровке» и «в записи» с «как» или кавычкой.
 «В тексте Конституции указано…», «в расшифровке генома» и «в записи формулы» не трогаются.
 
+Перепроверка выпуска 44.2 нашла ещё две формы. Конспект записи: «Напряжение измеряют вольтметром (в тексте —
+вольтметром)». Скобка с «в тексте», «в записи» или «в расшифровке» и тире или двоеточием («в расшифровке» — и без них)
+тоже убирается, если в ней 1–3 слова, похожие на слово прямо перед ней: это то, как слово записано в источнике
+(``_SOURCE_FORM_RE``). Цитата или пояснение остаются: «Олицетворение (в тексте — «буря мглою небо кроет»)», «НДС
+(в расшифровке — налог на добавленную стоимость)». И вопросы теста — по записи и по PDF о клетке: «…клеток согласно
+тексту?». Студент читает лекцию, а не «текст»: «согласно тексту», «по тексту», «в тексте указано (сказано, говорится,
+упоминается, упоминалось, отмечено)», «как сказано (указано) в тексте» и «из текста следует» молча становятся
+«согласно лекции», «в лекции указано»… (``_LECTURE_PHRASES``). Только там, где слово стоит само по себе: за ним знак
+препинания, конец строки или служебное слово, а не существительное в родительном падеже — «согласно тексту закона»
+и «в тексте романа» в лекциях по праву и литературе остаются.
+
 Не трогаются: латинские слова и термины (SQL, Python, LaTeX), латинский термин с русским
 окончанием до трёх букв («в Pythonе», «Excelем»), формулы ($…$, $$…$$, \\(…\\), \\[…\\]) и код
 (`…`, ```…```), а также поля, где текста для читателя нет (id, source_ids, correct, latex…).
@@ -40,6 +51,7 @@ from __future__ import annotations
 
 import bisect
 import re
+from difflib import SequenceMatcher
 from typing import Any, Callable, Optional
 
 # Латинская буква → русская, которая выглядит так же.
@@ -127,6 +139,41 @@ _REMARK_RE = re.compile(
     rf"|\bв\s+(?:расшифровке|транскрипции)\s+(?:записи|лекции)\b",
     re.IGNORECASE,
 )
+# Слово источника после тире или двоеточия: «вольтметром (в тексте — вольтметром)», «(в записи: «Вт метр»)»,
+# «(в расшифровке Вт метр)». Убирается, только если это форма слова перед скобкой (_is_source_form).
+_SOURCE_FORM_RE = re.compile(
+    rf"[ \t]*\(\s*(?:{_IN_TEXT}|{_IN_RECORDING})(?:\s*[—–:-]\s*|(?<=расшифровке)\s+|(?<=транскрипции)\s+)"
+    rf"(?P<form>[^()\n]+?)\s*\)",
+    re.IGNORECASE,
+)
+_LETTERS_RE = re.compile(r"[^\W\d_]+")
+# Форма слова из источника — 1–3 слова, похожие на слова прямо перед скобкой: «Вт метр» и «вольтметр» — 0,8, «Вт» и
+# «вольт» — 0,57; «оркестр Караяна» и «Симфония» — 0,18, «налог на добавленную стоимость» — четыре слова.
+_SOURCE_FORM_WORDS = 3
+_SOURCE_FORM_LOOKBACK = 6
+_SOURCE_FORM_LIKENESS = 0.55
+
+# «согласно тексту», «по тексту», «в тексте указано…», «как сказано в тексте», «из текста следует» → «… лекции …».
+# Слово стоит само по себе: за ним знак препинания, конец строки или служебное слово, но не «закона», «романа». Слово
+# после запятой, согласованное с «текстом», оставляет оборот как есть: «согласно тексту, приведённому выше», «в тексте,
+# который…» с «лекцией» потеряли бы согласование.
+_STANDS_ALONE = (
+    r"(?![ \t]*,[ \t]*(?:котор[а-яё]*|[а-яё]+(?:ому|ему|ом|ем))\b)"
+    r"(?=[ \t]*(?:[,.;:!?…)\]»\"—–]|-\s|\n|$)"
+    r"|\s+(?:и|а|но|или|что|чтобы|как|когда|если|где|ли|же|не|ни|это|в|во|на|о|об|при|с|со|к|у|от|до|для|за|из|по|про"
+    r"|после|перед|над|под|между)\b)"
+)
+_LECTURE_VERBS = r"(?:указано|сказано|говорится|упоминается|упоминалось|отмечено)"
+_LECTURE_PHRASES = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        rf"(?P<pre>\b(?:согласно|по)\s+)(?P<noun>тексту)\b{_STANDS_ALONE}",
+        # «в тексте указано как «Вт метр»» — оговорка (_REMARK_RE), не переименование.
+        rf"(?P<pre>\bв\s+)(?P<noun>тексте)(?=\s+{_LECTURE_VERBS}\b(?!\s+как\b))",
+        rf"(?P<pre>\bкак\s+(?:сказано|указано)\s+в\s+)(?P<noun>тексте)\b{_STANDS_ALONE}",
+        r"(?P<pre>\bиз\s+)(?P<noun>текста)(?=\s+следует\b)",
+    )
+)
 
 NO_SCRIPTS: frozenset[str] = frozenset()
 
@@ -160,6 +207,45 @@ def _foreign(run: str, allowed: frozenset[str]) -> bool:
     return any(char.isalpha() and _script(char) not in allowed for char in run)
 
 
+def _letter_words(text: str) -> list[str]:
+    return _LETTERS_RE.findall(text.lower().replace("ё", "е"))
+
+
+def _is_source_form(form: str, before: str) -> bool:
+    """В скобке — то, как в источнике записано слово перед ней: 1–3 слова, похожие на одно-два последних слова."""
+    words = _letter_words(form)
+    joined = "".join(words)
+    if not 1 <= len(words) <= _SOURCE_FORM_WORDS or len(joined) < 2:
+        return False
+    tail = _letter_words(before)[-_SOURCE_FORM_LOOKBACK:]
+    for size in range(1, len(words) + 2):
+        for start in range(len(tail) - size + 1):
+            if SequenceMatcher(None, joined, "".join(tail[start:start + size])).ratio() >= _SOURCE_FORM_LIKENESS:
+                return True
+    return False
+
+
+def _drop_source_form(match: re.Match) -> str:
+    return "" if _is_source_form(match.group("form"), match.string[:match.start()]) else match.group(0)
+
+
+def _lecture_noun(match: re.Match) -> str:
+    """«тексту», «тексте», «текста» → «лекции» (тот же падеж), с той же заглавной."""
+    noun = match.group("noun")
+    word = "лекции"
+    if noun.isupper():
+        word = word.upper()
+    elif noun[0].isupper():
+        word = word.capitalize()
+    return match.group("pre") + word
+
+
+def _name_the_lecture(text: str) -> str:
+    for phrase in _LECTURE_PHRASES:
+        text = phrase.sub(_lecture_noun, text)
+    return text
+
+
 def _word(word: str) -> tuple[str, bool]:
     """(слово после замены двойников, испорчено ли оно)."""
     latin = [char for char in word if _is_latin(char)]
@@ -178,9 +264,11 @@ def _word(word: str) -> tuple[str, bool]:
 
 
 def _scan(text: str, on_broken: Callable[[str], None], allowed: frozenset[str] = NO_SCRIPTS) -> str:
-    """Текст с заменёнными двойниками и без скобок-оговорок; о каждом испорченном слове сообщает on_broken."""
+    """Текст с заменёнными двойниками, без скобок-оговорок и с «лекцией» вместо «текста» в устойчивых оборотах;
+    о каждом испорченном слове сообщает on_broken."""
     def words(segment: str) -> str:
         segment = _REMARK_IN_BRACKETS_RE.sub("", segment)
+        segment = _SOURCE_FORM_RE.sub(_drop_source_form, segment)
         for remark in _REMARK_RE.finditer(segment):
             on_broken(remark.group(0))
 
@@ -195,7 +283,7 @@ def _scan(text: str, on_broken: Callable[[str], None], allowed: frozenset[str] =
                 on_broken(fixed)
             return fixed
 
-        return _WORD_RE.sub(replace, segment)
+        return _name_the_lecture(_WORD_RE.sub(replace, segment))
 
     parts: list[str] = []
     position = 0
@@ -208,7 +296,8 @@ def _scan(text: str, on_broken: Callable[[str], None], allowed: frozenset[str] =
 
 
 def fix_text(text: str, allowed: frozenset[str] = NO_SCRIPTS) -> tuple[str, list[str]]:
-    """(текст с заменёнными двойниками и без скобок-оговорок, испорченные слова по порядку, без повторов).
+    """(текст с заменёнными двойниками, без скобок-оговорок и с «лекцией» вместо «текста», испорченные слова по порядку,
+    без повторов).
 
     ``allowed`` — письменности лекции (``scripts_of``): их буквы не испорченные."""
     broken: list[str] = []
@@ -238,7 +327,8 @@ def _walk(value: Any, key: Any, on_text: Callable[[str], str]) -> Any:
 
 
 def check(payload: Any, allowed: frozenset[str] = NO_SCRIPTS) -> tuple[Any, list[str]]:
-    """(материал с заменёнными двойниками и без скобок-оговорок, испорченные слова) для строки, списка или словаря.
+    """(материал с заменёнными двойниками, без скобок-оговорок и с «лекцией» вместо «текста», испорченные слова) для
+    строки, списка или словаря.
 
     ``allowed`` — письменности лекции (``scripts_of``)."""
     broken: list[str] = []

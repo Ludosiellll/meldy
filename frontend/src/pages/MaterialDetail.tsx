@@ -27,7 +27,7 @@ import {
   type LibraryFolder,
 } from '../components/LectureFolders';
 import { followupCardsOf } from '../lib/followupCards';
-import { recognizedNotice } from '../lib/lectureFormats';
+import { recognizedNotice, recognizedSource } from '../lib/lectureFormats';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
 import { openingResultTab, resultTabs, type ResultExportItem, type ResultTab } from '../components/resultSections';
@@ -571,24 +571,68 @@ export default function MaterialDetail() {
   const recognized = recognizedNotice(material?.summary_json?.recognized);
 
   if (loading) {
+    // The lecture's own boxes while it loads, so nothing moves when it comes (recheck of 44.2: a fresh /library/:id
+    // scored a layout shift of 0.447 at 1532×734 as «Загружаем лекцию…» gave way to the lecture, 0 from «Лекции»).
+    // The header — the crumb, a line of the title, the meta line, which says «Загружаем лекцию…» —, the row of the
+    // modes and the actions (a phone: the actions and its row of tabs), the row of the sections and the first card
+    // with the margin beside it. The shapes show after 300 ms (spec 4.6), their place is held from the start. The key
+    // keeps these boxes apart from the lecture's: they go and the lecture's come, none of them moves.
+    const words = loadingLine ? 'Загружаем лекцию…' : NBSP;
     return (
-      <div className="sf-page md-page">
-        <p className="sf-lede sf-loading-line" aria-live="polite">
-          {loadingLine ? 'Загружаем лекцию…' : ' '}
-        </p>
-        {loadingLine ? (
-          // The shape of the page while the lecture loads: a title, the tabs and the white sheet.
-          <div className="md-skeleton" aria-hidden="true">
-            <i className="md-skel-title" />
-            <i className="md-skel-tabs" />
-            <div className="md-skel-card">
-              <i />
-              <i />
-              <i />
-              <i />
-            </div>
+      <div key="loading" className="sf-page md-page md-loading" aria-busy="true" data-show={loadingLine ? '' : undefined}>
+        <header className="md-head">
+          <Link to="/library" className="sf-crumb md-crumb">
+            <ArrowLeft aria-hidden="true" strokeWidth={2} />
+            Лекции
+          </Link>
+          <p className="sf-h1 sf-h1-serif md-title" aria-hidden="true">
+            <i className="md-skel md-skel-line" />
+            <i className="md-skel md-skel-line" />
+          </p>
+          <p className="sf-lede md-meta" aria-live="polite">
+            {words}
+          </p>
+        </header>
+        <div className="md-toolbar" aria-hidden="true">
+          {phone ? null : <i className="md-skel md-skel-tabs" />}
+          <p className="md-toolbar-meta">{words}</p>
+          <div className="sf-head-actions md-acts md-skel-acts">
+            <i className="md-skel md-skel-pill" />
+            {phone ? null : <i className="md-skel md-skel-pill" />}
+            <i className="md-skel md-skel-round" />
+          </div>
+        </div>
+        {phone ? (
+          <div className="md-ptabs md-skel-ptabs" aria-hidden="true">
+            <i className="md-skel" />
+            <i className="md-skel" />
+            <i className="md-skel" />
           </div>
         ) : null}
+        <div className="md-panel md-skel-panel" aria-hidden="true">
+          {phone ? null : (
+            <div className="md-skel-sections">
+              <i className="md-skel" />
+              <i className="md-skel" />
+              <i className="md-skel" />
+            </div>
+          )}
+          <div className="md-skel-doc">
+            <div className="md-skel-card">
+              <i className="md-skel" />
+              <i className="md-skel" />
+              <i className="md-skel" />
+              <i className="md-skel" />
+              <i className="md-skel" />
+            </div>
+            <div className="md-skel-margin">
+              <i className="md-skel" />
+              <i className="md-skel" />
+              <i className="md-skel" />
+              <i className="md-skel" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -916,6 +960,7 @@ export default function MaterialDetail() {
             originalText={material.original_text || ''}
             canEdit={canEdit}
             onResultsChange={(next, changed) => updateMaterialFields(recreatedFields(material.id, next, changed))}
+            recognized={recognizedSource(summaryJson.recognized)}
             embedded
             initialTab={sectionParam}
             followupCards={followups}
