@@ -339,6 +339,25 @@ export default function ImportPage() {
     [entries, read, update],
   );
 
+  // One key file for several variants (owner, 2026-10-14: the key to «Вариант 1–3» is one table «№ | В1 | В2 | В3»): once
+  // a test file has taken its section, the same key file goes to the other files of this import that have no key of their
+  // own and whose variant it holds. Each takes its own section (the importer never takes another variant's); a file the
+  // student already gave a key keeps it, and a file it was given to once is not given it again.
+  const sharedKey = useRef(new Set<string>());
+  useEffect(() => {
+    const donor = entries.find((entry) => entry.keyFile && entry.status === 'done' && typeof entry.result?.key_file?.used === 'number');
+    const keyFile = donor?.keyFile;
+    if (!donor || !keyFile) return;
+    const variants = new Set((donor.result?.key_file?.sections ?? []).map((section) => section.variant).filter((v): v is number => typeof v === 'number'));
+    for (const entry of entries) {
+      if (entry.id === donor.id || entry.keyFile || entry.keyText.trim() || entry.status !== 'done' || !entry.result) continue;
+      const variant = entry.result.variant;
+      if (typeof variant !== 'number' || !variants.has(variant) || entry.result.stats.with_key > 0 || sharedKey.current.has(entry.id)) continue;
+      sharedKey.current.add(entry.id);
+      reread(entry.id, { keyFile, keySection: null });
+    }
+  }, [entries, reread]);
+
   // ───────────────────────────── what the files make ─────────────────────────────
 
   const files: ImportFile[] = useMemo(

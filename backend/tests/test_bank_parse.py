@@ -1425,6 +1425,49 @@ def test_a_plain_text_key_file_is_one_section_for_any_test():
     assert [i["correct"] for i in result["items"]] == [[1], [1], [4]] and result["key_file"]["used"] == 0
 
 
+def plain_table(rows: list[list[str]]) -> str:
+    grid = "<w:gridCol/>" * max(len(row) for row in rows)
+    body = "".join("<w:tr>" + "".join(xml_cell(xml_paragraph(text) if text else "") for text in row) + "</w:tr>" for row in rows)
+    return f"<w:tbl><w:tblPr/><w:tblGrid>{grid}</w:tblGrid>{body}</w:tbl>"
+
+
+# Ключ к вариантам 1–3 одной таблицей, как у владельца (2026-10-14): «№ | В1 | В2 | В3», две группы в строке.
+VARIANT_COLUMNS_KEY = xml_paragraph("Ключ ответов", bold=True) + plain_table([
+    ["№", "В1", "В2", "В3", "№", "В1", "В2", "В3"],
+    ["1", "А", "Б", "В", "3", "А", "Б", "Д"],
+    ["2", "Г", "Б", "А", "", "", "", ""],
+])
+
+
+def test_a_key_table_with_a_column_per_variant_gives_each_variant_its_own_column():
+    sections = bank_parse.read_key_file(docx_with_body(VARIANT_COLUMNS_KEY), "Ключ_1-3.docx")
+    assert [(s["title"], s["variant"], s["keys"]) for s in sections] == [
+        ("Вариант 1", 1, {"1": "А", "3": "А", "2": "Г"}),
+        ("Вариант 2", 2, {"1": "Б", "3": "Б", "2": "Б"}),
+        ("Вариант 3", 3, {"1": "В", "3": "Д", "2": "А"})]
+    questions = [(q, opts, -1) for q, opts, _ in STEM_QUESTIONS]
+    # before the fix every variant got the first column («1 | А» read as a pair): variant 2 must get «Б, Б, Б»
+    second = parse_bank_file(docx_with_body(xml_paragraph("Вариант 2", bold=True) + stem_table(questions)), "Вариант 2.docx",
+                             key_file=sections)
+    assert second["key_file"]["used"] == 1 and [i["correct"] for i in second["items"]] == [[1], [1], [1]]
+    third = parse_bank_file(docx_with_body(xml_paragraph("Вариант 3", bold=True) + stem_table(questions)), "Вариант 3.docx",
+                            key_file=sections)
+    assert third["key_file"]["used"] == 2 and [i["correct"] for i in third["items"]] == [[2], [0], [4]]
+    # a test without a variant number is not given any column silently
+    unnamed = parse_bank_file(docx_with_body(stem_table(questions)), "bank.docx", key_file=sections)
+    assert unnamed["key_file"]["used"] is None and unnamed["stats"]["with_key"] == 0
+    assert unnamed["warnings"][0]["code"] == "key_file_variant"
+
+
+def test_variant_column_headers_in_other_words_and_one_column_tables_stay_pairs():
+    sections = bank_parse.read_key_file(docx_with_body(plain_table([
+        ["Номер вопроса", "Вариант 1", "Вар. 2"], ["1", "а", "б"], ["2", "в", "г"]])), "key.docx")
+    assert [(s["variant"], s["keys"]) for s in sections] == [(1, {"1": "а", "2": "в"}), (2, {"1": "б", "2": "г"})]
+    # «№ | Ответ» is an ordinary key table: one section, read as pairs
+    plain = bank_parse.read_key_file(docx_with_body(plain_table([["№", "Ответ"], ["1", "б"], ["2", "а"]])), "key.docx")
+    assert [(s["variant"], s["keys"]) for s in plain] == [(None, {"1": "б", "2": "а"})]
+
+
 def test_a_key_file_without_pairs_is_refused():
     with pytest.raises(bank_parse.BankError) as caught:
         bank_parse.read_key_file(docx_with_body(xml_paragraph("Ответы будут позже")), "key.docx")

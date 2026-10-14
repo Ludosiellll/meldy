@@ -4,6 +4,20 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.19: a key file with a column per variant (from the commit of this entry)
+
+- **The owner's files:** «Вариант 1/2/3» (160 questions each, no marks) and their key as one table
+  «№ | В1 | В2 | В3 | № | В1 | …». The key-file reader took each row as pairs «номер | ответ», so every variant got the
+  first column (В1): variants 2 and 3 would have saved 110 and 113 wrong answers of 160 without a word. Found before
+  anyone imported with it (no `key_text` items in the database).
+- **Fix (`backend/bank_parse.py` `variant_columns`):** a table whose header has «№» followed by variant labels («В1»,
+  «Вар. 2», «Вариант 3», «1 вар.») gives one key section per variant; each test takes the section of its own variant
+  (as with «КЛЮЧ ОТВЕТОВ — ВАРИАНТ 4» headings), and a test without a variant number gets none silently. On the
+  owner's files: variant 1, 2, 3 → 160/160 each, equal to their own column, no conflicts.
+- **One key for several variants on the import page:** once a test file has taken its section of a key file, the same
+  key file goes to the other files of this import that have no key and whose variant it holds — each its own section.
+  A file with its own key (bold, a pasted list, another key file) keeps it.
+
 ## 2026-10-14 — Release 44.18: «Как можно быстрее» and a whole variant in «Как на экзамене» (from the commit of this entry)
 
 - **The owner's question:** «можешь добавить вариант "выучить побыстрее" а не по дате, чтобы учить как можно быстрее?».

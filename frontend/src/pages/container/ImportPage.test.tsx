@@ -420,6 +420,34 @@ describe('ImportPage: one door for every file', () => {
     await waitFor(() => expect(screen.queryByText(IMPORT.noKeyTitle)).not.toBeInTheDocument());
   });
 
+  it('one key file for «Вариант 1–3» (one table «№ | В1 | В2 | В3»): given to one variant, it goes to the others, each its own column', async () => {
+    const sections = [1, 2, 3].map((variant) => ({ title: `Вариант ${variant}`, variant, count: 160 }));
+    const variantOf = (file?: File) => Number(/(\d)/.exec(file?.name ?? '')?.[1] ?? 0);
+    api.parseBank.mockImplementation(async ({ file, keyFile }: { file?: File; keyFile?: File }) => {
+      const variant = variantOf(file);
+      const base = bank([item(1, { correct: [], evidence: '', flags: ['no_key'] }), item(2, { correct: [], evidence: '', flags: ['no_key'] })], null);
+      if (!keyFile) return { ...base, variant, stats: { ...base.stats, with_key: 0, no_key: 2 } };
+      const keyed = bank([item(1, { evidence: 'key_text' }), item(2, { evidence: 'key_text' })], null);
+      return { ...keyed, variant, key_file: { sections, used: variant - 1 }, stats: { ...keyed.stats, with_key: 2 } };
+    });
+    renderAt();
+    upload(['Вариант 1.docx', 'Вариант 2.docx', 'Вариант 3.docx']);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: IMPORT.noKeyFile }).length).toBeGreaterThan(0));
+    const pick = screen.getAllByRole('button', { name: IMPORT.noKeyFile })[0];
+    fireEvent.change(pick.nextElementSibling as HTMLInputElement, { target: { files: [new File(['ключ'], 'Ключ 1-3.docx')] } });
+    await waitFor(() => {
+      const withKey = api.parseBank.mock.calls
+        .map(([args]) => args as { file?: File; keyFile?: File })
+        .filter((args) => args.keyFile?.name === 'Ключ 1-3.docx')
+        .map((args) => args.file?.name)
+        .sort();
+      expect(withKey).toEqual(['Вариант 1.docx', 'Вариант 2.docx', 'Вариант 3.docx']);
+    });
+    await waitFor(() => expect(screen.queryByRole('button', { name: IMPORT.noKeyFile })).not.toBeInTheDocument());
+    // each file was sent once with the key: not again and again
+    expect(api.parseBank.mock.calls.filter(([args]) => (args as { keyFile?: File }).keyFile).length).toBe(3);
+  });
+
   it('«Это устные вопросы» reads the file again as an oral list', async () => {
     api.parseBank.mockImplementation(async ({ format }: { format: string }) =>
       format === 'open' ? OPEN : bank([item(1, { correct: [], evidence: '', flags: ['no_key'] })], 'ОС'),

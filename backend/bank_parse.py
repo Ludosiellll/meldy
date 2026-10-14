@@ -2478,11 +2478,68 @@ def parse_key_text(text: str) -> dict[str, str]:
 # ── Ключ отдельным файлом (владелец, 2026-10-14: «ключи в другом файле, а тест в другом») ─────────
 
 
+# Ключ таблицей «№ | В1 | В2 | В3 | № | В1 | …» (владелец, 2026-10-14: ключ к вариантам 1–3 одним файлом): над столбцами
+# ответов — номер варианта («В1», «Вар. 2», «Вариант 3», «1 вар.»), слева — столбец номеров вопросов.
+VARIANT_COLUMN_RE = re.compile(r"(?:в(?:ар(?:иант)?)?\.?\s*(?:№\s*)?(\d{1,3})|(\d{1,3})\s*-?\s*(?:й\s+)?вар(?:иант)?\.?)", re.I)
+NUMBER_COLUMN_RE = re.compile(r"(?:№|n|no\.?|номер|вопрос|задание)(?:\s*(?:вопроса|задания|п\s*/\s*п))?\.?", re.I)
+
+
+def variant_columns(rows: list[list[Cell]]) -> Optional[list[dict]]:
+    """Таблица ключа со столбцом на вариант → разделы [{"title", "variant", "keys"}] (два варианта и больше), иначе None.
+
+    Строка-шапка (одна из первых трёх): «№» и за ним подписи вариантов, группами слева направо; ниже — строки «1 | В | А |
+    А | 41 | А | Г | Б». Столбец берётся по месту в сетке таблицы (объединённые ячейки сдвигают его), ответ — короткий
+    («б», «а, в»), иначе пропускается. Без этого такая таблица читалась парами «номер | ответ» — ключ первого варианта
+    молча доставался всем."""
+
+    def placed(row: list[Cell]) -> list[tuple[int, str]]:
+        out, at = [], 0
+        for cell in row:
+            out.append((at, "" if cell.continuation else " ".join(cell.text.split())))
+            at += max(1, cell.span)
+        return out
+
+    for h, header in enumerate(rows[:3]):
+        cells = placed(header)
+        groups: list[tuple[int, dict[int, int]]] = []
+        i = 0
+        while i < len(cells):
+            if NUMBER_COLUMN_RE.fullmatch(cells[i][1]):
+                columns: dict[int, int] = {}
+                j = i + 1
+                while j < len(cells) and (match := VARIANT_COLUMN_RE.fullmatch(cells[j][1])):
+                    columns[cells[j][0]] = int(match.group(1) or match.group(2))
+                    j += 1
+                if len(columns) >= 2 and len(set(columns.values())) == len(columns):
+                    groups.append((cells[i][0], columns))
+                i = j
+            else:
+                i += 1
+        variants = sorted({v for _, columns in groups for v in columns.values()})
+        if len(variants) < 2:
+            continue
+        keys: dict[int, dict[str, str]] = {v: {} for v in variants}
+        for row in rows[h + 1:]:
+            at = dict(placed(row))
+            for number_at, columns in groups:
+                number = at.get(number_at, "")
+                if not NUMBER_CELL_RE.fullmatch(number):
+                    continue
+                for column, variant in columns.items():
+                    value = at.get(column, "")
+                    if value and short_key(value):
+                        keys[variant][number.rstrip(".")] = value
+        sections = [{"title": f"Вариант {v}", "variant": v, "keys": keys[v]} for v in variants if keys[v]]
+        return sections if len(sections) >= 2 else None
+    return None
+
+
 def key_sections(blocks: list[Block]) -> list[dict]:
     """Файл ключа → разделы по вариантам: [{"title", "variant", "keys": {номер: ответ}}].
 
     Заголовок с «вариант N» («КЛЮЧ ОТВЕТОВ — ВАРИАНТ 4») начинает раздел; пары берутся из таблиц («1 | А | 2 | Г»,
-    «№ | 1 | 2» над «Ответ | б | а») и строк («1 – А, 2 – Г»). Ключ без заголовков — один раздел без варианта.
+    «№ | 1 | 2» над «Ответ | б | а») и строк («1 – А, 2 – Г»). Таблица со столбцом на вариант («№ | В1 | В2 | В3») —
+    раздел на каждый вариант (variant_columns). Ключ без заголовков — один раздел без варианта.
     """
     sections: list[dict] = []
 
@@ -2506,6 +2563,10 @@ def key_sections(blocks: list[Block]) -> list[dict]:
 
     for block in blocks:
         if isinstance(block, Table):
+            by_variant = variant_columns(block.rows)
+            if by_variant:
+                sections.extend(by_variant)
+                continue
             across = horizontal_keys(block.rows)
             if across:
                 add(across.items())
