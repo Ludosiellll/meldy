@@ -295,6 +295,11 @@ def code_in_lines(text: str) -> bool:
 OPEN_LINE_RE = re.compile(r"^(?:\[(.+)\]|=\s*(?:\{[^}]*\}\s*)?(.+))$")
 PAIR_LINE_RE = re.compile(r"^(.*?\S)?\s*=\s*(\S.*)$")
 MD_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+# «86.17. Вопрос»: номер вопроса и оставшийся от другого списка номер (строка вопроса на всю ширину таблицы)
+DOUBLE_NUMBER_RE = re.compile(r"^(\d{1,4})\.\s?(\d{1,4})\.\s*(?=\S)(.*)$", re.S)
+# «Вариант 1», «ТЕСТОВЫЙ ВАРИАНТ 4», «Вариант № 2.» — заголовок всего файла; в файле ключей — «КЛЮЧ … — ВАРИАНТ 4».
+VARIANT_HEADING_RE = re.compile(r"^(?:тестовый\s+)?вариант\s*(?:№\s*)?\d{1,3}\s*[.:]?$", re.I)
+VARIANT_RE = re.compile(r"(?<![а-яё])вариант\s*(?:№\s*)?(\d{1,3})(?!\d)", re.I)
 QUESTION_NUMBER_RE = re.compile(r"^(?:вопрос|задание)\s*(?:№\s*)?\d{1,4}\s*[.:]?$", re.I)  # «Вопрос 12» над вопросом
 # «1.2. Что такое алгоритм?» — номер внутри темы: метка «1.2», место в нумерации 2. Только строка-вопрос (знак в конце):
 # «3.5 кг», «10.0.0.1  255.0.0.0» — не вопрос.
@@ -391,8 +396,17 @@ def subject_title(text: str) -> Optional[str]:
     return None
 
 
+def variant_number(text: str) -> Optional[int]:
+    """Номер варианта теста из заголовка «Вариант 1», «ТЕСТОВЫЙ ВАРИАНТ 4», «Ключ ответов — вариант 5»."""
+    match = VARIANT_RE.search(" ".join(text.split()))
+    return int(match.group(1)) if match else None
+
+
 def heading_kind(text: str, default: str) -> str:
-    """Вид заголовка: «discipline» (предмет), «topic» («Тема 1», «Раздел 2») или default."""
+    """Вид заголовка: «discipline» (предмет), «topic» («Тема 1», «Раздел 2»), «variant» («Вариант 4» — не тема:
+    так подписан весь файл) или default."""
+    if VARIANT_HEADING_RE.match(" ".join(text.split())):
+        return "variant"
     if subject_title(text) is not None:
         return "discipline"
     if TOPIC_RE.match(text):
@@ -806,11 +820,14 @@ class Reader:
         self.plus_minus = False  # абзацы файла MyTestX: варианты — строки «+ …» / «- …» (paragraphs)
         self.keyless = False  # в абзацах ни ключа, ни отметок: строки без подписи под вопросом — его текст (paragraphs)
         self.has_tables = False  # в документе есть таблицы (ключ таблицей может стоять после абзацев): keyless не ставится
+        self.variant: Optional[int] = None  # «Вариант 4» в заголовке файла: по нему берётся раздел файла ключей
 
     def heading(self, text: str, default: str, level: Optional[int] = None) -> None:
         title = " ".join(text.split())
         if title:
             kind = heading_kind(title, default)
+            if kind == "variant" and self.variant is None:
+                self.variant = variant_number(title)
             self.headings.append(Heading(seq=self.seq, text=title[:MAX_TITLE_CHARS], kind=kind, level=level))
 
     def skip(self, text: str) -> None:
@@ -858,6 +875,8 @@ class Reader:
         if across:  # «№ | 1 | 2 | 3» над «Ответ | б | а | в»
             self.key_lists += 1
             self.keys.update(across)
+            return
+        if self._stem_rows(rows, title):
             return
         first = [cell.text for cell in rows[0][1] if cell.text]
         roles = None
@@ -952,6 +971,70 @@ class Reader:
             key_cell = cell_at(key_col)
             if key_cell is not None and key_cell.text:
                 current.explicit, current.explicit_from = key_cell.text, "key_column"
+
+    @staticmethod
+    def _live(cells: list[Cell]) -> list[tuple[int, Cell]]:
+        return [(c, cell) for c, cell in enumerate(cells)
+                if (cell.text or any(p.images for p in cell.paras)) and not cell.continuation]
+
+    @classmethod
+    def _stem(cls, cells: list[Cell], expected: Optional[int] = None) -> Optional[tuple[str, int, str]]:
+        """Строка вопроса на всю ширину таблицы: одна живая ячейка шире столбца, первый абзац — «N.Вопрос».
+        «86.17. Вопрос» — вопрос 86 со старым номером 17 из другого списка (так в файле владельца): номером берётся
+        тот, что продолжает нумерацию (expected), иначе первый."""
+        live = cls._live(cells)
+        if len(live) != 1 or live[0][1].span < 2 or not live[0][1].paras:
+            return None
+        text = live[0][1].paras[0].text.strip()
+        double = DOUBLE_NUMBER_RE.match(text)
+        if double:
+            first, second = int(double.group(1)), int(double.group(2))
+            if expected is None or expected in (first, second):
+                number = second if expected == second and expected != first else first
+                return str(number), number, double.group(3)
+        return question_number(text)
+
+    @classmethod
+    def _option_row(cls, cells: list[Cell]) -> bool:
+        """Ряд вариантов под строкой вопроса: две и больше ячеек по одному столбцу, первая — не номер."""
+        live = cls._live(cells)
+        return len(live) >= 2 and all(cell.span == 1 for _, cell in live) \
+            and not NUMBER_CELL_RE.fullmatch(live[0][1].text.strip())
+
+    def _stem_rows(self, rows: list[tuple[int, list[Cell]]], title: str) -> bool:
+        """Файлы колледжа «Вариант 4» (владелец, 2026-10-14): строка «1.Вопрос» объединена на всю ширину, под ней ряд
+        ячеек «А)…», «Б)…». Без этого прохода строка вопроса читалась заголовком темы, а ряд вариантов — вопросом.
+        Узнаётся по парам «строка вопроса → ряд вариантов»: не меньше двух, и вместе они занимают большую часть строк."""
+        pairs = sum(1 for (_, a), (_, b) in zip(rows, rows[1:]) if self._stem(a) and self._option_row(b))
+        if pairs < 2 or pairs * 2 < len(rows) * 0.6:
+            return False
+        current: Optional[Item] = None
+        expected: Optional[int] = None
+        for row_number, cells in rows:
+            stem = self._stem(cells, expected)
+            if stem is not None:
+                label, number, first = stem
+                expected = number + 1
+                cell = self._live(cells)[0][1]
+                rest = [p.text.strip() for p in cell.paras[1:] if p.text.strip()]
+                current = self.new_item(label, "\n".join([first.strip(), *rest]), f"{title}, строка {row_number}")
+                current.images += sum(p.images for p in cell.paras)
+                current.formulas += sum(p.formulas for p in cell.paras)
+                current.mono = _mono_inside(cell.paras[0].runs) or any(_mono_any(p.runs) for p in cell.paras[1:])
+                continue
+            live = self._live(cells)
+            if len(live) == 1 and live[0][1].span > 1:  # строка на всю ширину без номера — тема
+                self.heading(live[0][1].text, "section")
+                current = None
+                continue
+            if current is None or not live:
+                continue
+            for _, cell in live:  # варианты; ряд может продолжаться на следующей строке
+                option = make_option(_cell_para(cell))
+                option.label = option.label or _column_label(len(current.options))
+                current.options.append(option)
+            self.layouts["table_stem_rows"] += 1
+        return True
 
     @staticmethod
     def header_roles(row: list[Cell]) -> dict:
@@ -2299,6 +2382,7 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
         "method": "rules",
         "layout": reader.layouts.most_common(1)[0][0] if reader.layouts else "none",
         "layouts_seen": dict(reader.layouts),
+        "variant": reader.variant,
         "confidence": round(clean / len(items), 2) if items else 0.0,
         "key_source": dict(Counter(item.evidence for item in items if item.evidence)),
         "format_signal": signal,

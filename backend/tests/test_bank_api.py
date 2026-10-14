@@ -197,7 +197,7 @@ def test_key_mode_key_text_and_format_are_passed_to_the_parser(api):
     assert_error(as_test, 422, "no_items", bank_parse.NO_TEST_ITEMS_DETAIL)
 
 
-RESPONSE_KEYS = {"method", "layout", "layouts_seen", "confidence", "key_source", "format_signal", "format_signals",
+RESPONSE_KEYS = {"method", "layout", "layouts_seen", "variant", "confidence", "key_source", "format_signal", "format_signals",
                  "mark_share", "marker", "markers", "subjects", "topics", "skipped", "warnings", "items", "stats"}
 ITEM_KEYS = {"position", "label", "subject", "topic", "kind", "text", "options", "correct", "order", "pairs", "answer",
              "evidence", "flags", "code", "where", "marks"}

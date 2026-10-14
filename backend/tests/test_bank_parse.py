@@ -1298,3 +1298,65 @@ def test_sql_and_shell_under_a_question_in_text_flag_code():
                              "2. Что делает команда?\nchmod 755 deploy.sh\nа) **права**\nб) удаляет\n"
                              "3. Choose the right form:\nWhere is the station?\nа) **is**\nб) are\n")
     assert [item["code"] for item in result["items"]] == [True, True, False]
+
+
+# ── Строка вопроса на всю ширину, под ней варианты по ячейкам (владелец, 2026-10-14) ─────────
+
+
+def stem_table(questions: list[tuple[str, list[str], int]], width: int = 5, bold_stem: bool = False) -> str:
+    """Таблица файлов колледжа «Вариант 4»: строка «N.Вопрос» объединена на всю ширину, под ней строка из width
+    ячеек «А)…», «Б)…»; верный вариант — жирный (correct = -1: без ключа)."""
+    rows = []
+    for number, (question, options, correct) in enumerate(questions, start=1):
+        stem = "".join(xml_paragraph(line, bold=bold_stem) for line in [f"{number}.{question.splitlines()[0]}",
+                                                                       *question.splitlines()[1:]])
+        rows.append("<w:tr>" + xml_cell(stem, f'<w:gridSpan w:val="{width}"/>') + "</w:tr>")
+        rows.append("<w:tr>" + "".join(xml_cell(xml_paragraph(f"{'АБВГДЕ'[k]}){option}", bold=k == correct))
+                                       for k, option in enumerate(options)) + "</w:tr>")
+    grid = "<w:gridCol/>" * width
+    return f"<w:tbl><w:tblPr/><w:tblGrid>{grid}</w:tblGrid>" + "".join(rows) + "</w:tbl>"
+
+
+STEM_QUESTIONS = [
+    ("Что такое Session в ASP.NET?", ["Серверное состояние пользователя", "Клиентский файл cookie", "База данных",
+                                       "HTML-тег", "Тип CSS"], 0),
+    ("Дан алгоритм в виде блок-схемы.\nНайти А, В, С, D, если изначально:\nА=0, В=0, C=5, D=10;",
+     ["0, 0, 5, 0", "0, 0, 5, 10", "5, 5, 10, 10", "0, 0, 0, 5", "5, 0, 0, 5"], 3),
+    ("Что возвращает метод Read() класса XmlReader?", ["true или false", "Строку", "Число", "XmlNode", "Ничего"], 0),
+]
+
+
+def test_a_question_row_across_the_table_takes_the_option_cells_below_it():
+    body = xml_paragraph("ТЕСТОВЫЙ ВАРИАНТ 4", bold=True) + stem_table(STEM_QUESTIONS)
+    result = parse_bank_file(docx_with_body(body), "variant4.docx")
+    items = result["items"]
+    assert [(i["label"], i["text"], i["options"], i["correct"]) for i in items] == [
+        (str(n), q, opts, [c]) for n, (q, opts, c) in enumerate(STEM_QUESTIONS, start=1)]
+    assert result["topics"] == [] and result["key_source"] == {"bold": 3} and result["layout"] == "table_stem_rows"
+    assert all(not set(i["flags"]) & bank_parse.PROBLEM_FLAGS for i in items)
+
+
+def test_a_bold_question_row_without_marked_options_is_a_bank_without_a_key():
+    questions = [(q, opts, -1) for q, opts, _ in STEM_QUESTIONS]
+    result = parse_bank_file(docx_with_body(xml_paragraph("Вариант 1", bold=True) + stem_table(questions, bold_stem=True)),
+                             "variant1.docx")
+    assert [(i["text"], i["options"], i["correct"]) for i in result["items"]] == [(q, opts, []) for q, opts, _ in questions]
+    assert result["stats"]["no_key"] == 3 and result["topics"] == []
+
+
+def test_a_numbered_topic_row_above_ordinary_question_rows_stays_a_topic():
+    # «1. Введение» на всю ширину над строками «№ | вопрос | вариант» — тема, а не вопрос (под ней нет ряда вариантов)
+    def row(cells, merged=False):
+        if merged:
+            return "<w:tr>" + xml_cell(xml_paragraph(cells, bold=True), '<w:gridSpan w:val="3"/>') + "</w:tr>"
+        return "<w:tr>" + "".join(xml_cell(xml_paragraph(text) if text else "") for text in cells) + "</w:tr>"
+
+    rows = [row(("№", "Вопрос", "Варианты ответов")), row("1. Введение в предмет", merged=True)]
+    for number in (1, 2):
+        rows.append(row((str(number), f"Вопрос номер {number}?", "верный")))
+        rows.append(row(("", "", "неверный")))
+    table = "<w:tbl><w:tblPr/><w:tblGrid><w:gridCol/><w:gridCol/><w:gridCol/></w:tblGrid>" + "".join(rows) + "</w:tbl>"
+    result = parse_bank_file(docx_with_body(table), "bank.docx", key_mode="first_option")
+    assert [t["title"] for t in result["topics"]] == ["1. Введение в предмет"]
+    assert [(i["text"], i["options"]) for i in result["items"]] == [
+        ("Вопрос номер 1?", ["верный", "неверный"]), ("Вопрос номер 2?", ["верный", "неверный"])]
