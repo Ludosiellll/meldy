@@ -4,6 +4,22 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.13: «Все вопросы» — the choice after 90 minutes (from the commit of this entry)
+
+- **The owner's case:** three subjects, 1120 questions, a test in three days. At 90 minutes the plan saw «около 150 из
+  1120» and the line ended there. Now «Время в день» has one more choice, «Все вопросы» (`minutes_per_day` 300, the
+  database's top value, no migration): the day has no minutes cap, every new question is spread evenly over the days
+  before the final window (561 a day here), a day goes mistakes → new → the second check of what was answered right,
+  and the final window has no extra pass. The line under the choice says the count, the new ones a day and the hours a
+  day («около 7,5 часа в день»); «Даже при 90 минутах…» now ends with «Чтобы увидеть все, выберите «Все вопросы».»
+- **Everywhere the plan is:** the exam's «Настройки» (each member of a group chooses for themselves), the import form,
+  «План по дням», the end of a занятие (never «cut by minutes»), and the Telegram bot (the same plan code, synced:
+  «Сегодня около 5,5 часа: 276 новых и 267 знакомых»). Times from 3 hours read in hours everywhere.
+- **Verified before release:** vitest 4563 (new: the three-day simulation of 1120 questions — all seen by the 15th,
+  per subject mistakes → new → second check, the 16th exactly what is not yet counted), tsc -b, the bot's node tests
+  343. The release gate runs every check again on this commit.
+- **Live check after release:** «Настройки» of a QA exam: the choice, its line, the save; the exam page's card in hours.
+
 ## 2026-10-12 — Release 44.12: overstating adverbs go when the lecture never says them (from the commit of this entry)
 
 - **Lecture materials** (`668e54c`, `overstatement.py`). Every fact recheck found the same overstatement: «грозил
