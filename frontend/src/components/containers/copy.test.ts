@@ -172,13 +172,21 @@ describe('copy.ts: the words of the exam screens', () => {
   it('an oral subject’s row says it is oral, in the word «Настройки» uses (usability check 2026-10-10, m7)', () => {
     const plain = (text: string) => text.split(copy.NBSP).join(' ');
     // The QA's row read «0 из 16 · сегодня 16», like a subject with variants.
-    expect(plain(copy.subjectRowOral({ twoDays: 0, inPlan: 16, questions: 20, today: 16, dateText: null }))).toBe('устный · 0 из 16 · сегодня 16');
-    expect(plain(copy.subjectRowOral({ twoDays: 3, inPlan: 16, questions: 20, today: 0, dateText: '25 октября' }))).toBe('устный · 25 октября · 3 из 16');
+    expect(plain(copy.subjectRowOral({ twoDays: 0, seen: 0, inPlan: 16, questions: 20, today: 16, dateText: null }))).toBe('устный · 16 вопросов · сегодня 16');
+    expect(plain(copy.subjectRowOral({ twoDays: 3, seen: 9, inPlan: 16, questions: 20, today: 0, dateText: '25 октября' }))).toBe('устный · 25 октября · видели 9 из 16 · в счёте 3');
     // none in the plan yet: «устных» says it
-    expect(plain(copy.subjectRowOral({ twoDays: 0, inPlan: 0, questions: 60, today: 0, dateText: null }))).toBe('60 устных · нужны лекции');
+    expect(plain(copy.subjectRowOral({ twoDays: 0, seen: 0, inPlan: 0, questions: 60, today: 0, dateText: null }))).toBe('60 устных · нужны лекции');
     expect(copy.ORAL_ROW).toBe(SETTINGS.oralRow);
     // a subject with variants stays as it was
     expect(plain(copy.subjectRowTest({ twoDays: 0, keyed: 14, seen: 0, today: 7, dateText: null, passed: false }))).toBe('14 вопросов · сегодня 7');
+  });
+
+  it('a row names what its numbers count: «0 из 373» after 40 answers read as «nothing seen» (the owner, 2026-10-14)', () => {
+    const plain = (text: string) => text.split(copy.NBSP).join(' ');
+    expect(plain(copy.subjectRowTest({ twoDays: 0, keyed: 373, seen: 40, today: 147, dateText: null, passed: false }))).toBe('видели 40 из 373 · сегодня 147');
+    expect(plain(copy.subjectRowTest({ twoDays: 12, keyed: 373, seen: 200, today: 90, dateText: null, passed: false }))).toBe('видели 200 из 373 · в счёте 12 · сегодня 90');
+    expect(plain(copy.topicRow({ twoDays: 0, keyed: 27, seen: 0, errors: 0 }))).toBe('не начинали');
+    expect(plain(copy.topicRow({ twoDays: 2, keyed: 27, seen: 10, errors: 3 }))).toBe('видели 10 из 27 · в счёте 2 · ошибок 3');
   });
 
   it('«Сегодня»: the date and the exam’s one size, or the date alone while the size is not known (m6)', () => {

@@ -76,8 +76,8 @@ describe('the example exam of the landing and the sign-in reels', () => {
   it('writes each subject\'s row as the exam page does', () => {
     for (const subject of SUBJECTS) {
       const row = subject.oral
-        ? copy.subjectRowOral({ twoDays: subject.twoDays, inPlan: subject.questions, questions: subject.questions, today: subject.today, dateText: null })
-        : copy.subjectRowTest({ twoDays: subject.twoDays, keyed: subject.questions, seen: 1, today: subject.today, dateText: null, passed: false });
+        ? copy.subjectRowOral({ twoDays: subject.twoDays, seen: subject.seen, inPlan: subject.questions, questions: subject.questions, today: subject.today, dateText: null })
+        : copy.subjectRowTest({ twoDays: subject.twoDays, keyed: subject.questions, seen: subject.seen, today: subject.today, dateText: null, passed: false });
       expect(subjectRow(subject)).toBe(row);
     }
     expect(ORAL_SHEET_ROW).toBe(copy.oralSheetRow(12));

@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.15: a subject's row names its numbers (from the commit of this entry)
+
+- **The owner's report:** after 40 answers in ТРПО the exam page's row read «0 из 373 · сегодня 147». The 0 was the
+  questions in the count (right on two different days; the first count tomorrow), but bare it read as «nothing seen».
+  The rows of the exam page (with variants and oral) and of a subject's topics now say «видели 40 из 373 · сегодня 147»,
+  and «· в счёте 12» once a question counts; a row not started still says «373 вопроса». Each part keeps together on a
+  phone: the line wraps only after « · ». The landing's example exam reads the same (its 410 seen split per subject).
+- **Verified before release:** vitest 4564 (the full run, then the one topic-row test it caught, updated), tsc -b; the landing rows at 1440, 390 and 320 px.
+
 ## 2026-10-14 — Release 44.14: the link preview under a new address (from the commit of this entry)
 
 - **The owner's report:** an invite link (`/g/<code>`) sent in Telegram showed the old paper cheat sheet. The site has

@@ -24,6 +24,8 @@ export interface ExampleSubject {
   questions: number;
   /** Answered right on two different days. */
   twoDays: number;
+  /** Seen at least once. */
+  seen: number;
   /** Today's questions of the subject. */
   today: number;
   /** How the file marks the key (import's KEY_WORDS); none for an oral subject. */
@@ -32,18 +34,18 @@ export interface ExampleSubject {
 }
 
 export const SUBJECTS: readonly ExampleSubject[] = [
-  { title: 'Программирование на C#', questions: 240, twoDays: 61, today: 24, key: 'ключ жирным' },
-  { title: 'Базы данных', questions: 240, twoDays: 40, today: 22, key: 'ключ жирным' },
-  { title: 'Компьютерные сети', questions: 240, twoDays: 22, today: 23, key: 'ключ подчёркиванием' },
-  { title: 'Операционные системы', questions: 228, twoDays: 17, today: 17, key: 'ключ жирным' },
-  { title: 'Микроэкономика', questions: 12, twoDays: 3, today: 4, oral: true },
+  { title: 'Программирование на C#', questions: 240, twoDays: 61, seen: 150, today: 24, key: 'ключ жирным' },
+  { title: 'Базы данных', questions: 240, twoDays: 40, seen: 120, today: 22, key: 'ключ жирным' },
+  { title: 'Компьютерные сети', questions: 240, twoDays: 22, seen: 80, today: 23, key: 'ключ подчёркиванием' },
+  { title: 'Операционные системы', questions: 228, twoDays: 17, seen: 52, today: 17, key: 'ключ жирным' },
+  { title: 'Микроэкономика', questions: 12, twoDays: 3, seen: 8, today: 4, oral: true },
 ];
 
 export const QUESTIONS = SUBJECTS.reduce((sum, subject) => sum + subject.questions, 0);
 export const TWO_DAYS = SUBJECTS.reduce((sum, subject) => sum + subject.twoDays, 0);
 export const TODAY_QUESTIONS = TODAY.newItems + TODAY.reviews + TODAY.oral;
 /** Seen at least once, and wrong in the last answer (the figure's small line). */
-export const SEEN = 410;
+export const SEEN = SUBJECTS.reduce((sum, subject) => sum + subject.seen, 0);
 export const ERRORS = 37;
 
 const NB = ' ';
@@ -88,9 +90,8 @@ export const FIGURE = { big: String(TWO_DAYS), of: `из ${QUESTIONS}`, label: '
 
 /** A subject's row on the exam page (copy.subjectRowTest / copy.subjectRowOral, one date for the whole exam). */
 export function subjectRow(subject: ExampleSubject): string {
-  return subject.oral
-    ? `устный${NB}· ${subject.twoDays}${NB}из${NB}${subject.questions}${NB}· сегодня ${subject.today}`
-    : `${subject.twoDays}${NB}из${NB}${subject.questions}${NB}· сегодня ${subject.today}`;
+  const parts = [`видели ${subject.seen} из ${subject.questions}`, `в счёте ${subject.twoDays}`, `сегодня ${subject.today}`];
+  return (subject.oral ? ['устный', ...parts] : parts).map((part) => part.replace(/ /g, NB)).join(`${NB}· `);
 }
 
 /** The oral subject's sheet, as its row on the exam page names it (copy.oralSheetRow). */

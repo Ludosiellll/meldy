@@ -272,8 +272,8 @@ describe('Landing page', () => {
     const text = ownText(container);
     expect(text).toMatch(/шпаргалк/i);
     expect(text).not.toMatch(/засчит/i);
-    // A grade «5 · отлично», not a count «3 из 12 · сегодня 4».
-    expect(text).not.toMatch(/отлично|удовлетвор|оценка [2-5]|(^|[^\d])[2-5] · /i);
+    // A grade «5 · отлично», not a count «3 из 12 · сегодня 4» or «в счёте 3 · сегодня 4».
+    expect(text).not.toMatch(/отлично|удовлетвор|оценка [2-5]|(?<!\d|счёте\s)[2-5] · /i);
     expect(text).not.toMatch(/двух ведущих|Макс и Софья|подкаст/i);
     expect(text).not.toMatch(/Конспекты, карточки и тесты|помощник для учёбы/i);
   });

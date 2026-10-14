@@ -122,7 +122,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     expect(plain(figure.textContent)).toContain('из 240 верно');
     const topics = screen.getByRole('list', { name: 'Темы' });
     const rows = within(topics).getAllByRole('button');
-    expect(rows.map((row) => plain(row.textContent))).toEqual(['3.1 Модель данных30 из 120 · ошибок 5', '3.2 Индексы10 из 120 · ошибок 4']);
+    expect(rows.map((row) => plain(row.textContent))).toEqual(['3.1 Модель данныхвидели 90 из 120 · в счёте 30 · ошибок 5', '3.2 Индексывидели 60 из 120 · в счёте 10 · ошибок 4']);
   });
 
   it('a topic opens its sheet with «Начать N вопросов по теме»', () => {

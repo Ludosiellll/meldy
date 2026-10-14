@@ -107,16 +107,27 @@ export function howCounted(dueDays: readonly number[]): string[] {
 }
 
 // Subject and topic rows (rows of one card, phone rule 8).
+/**
+ * «видели 40 из 373», then «в счёте 12» once a question counts. A bare «0 из 373» after 40 answers read as «nothing
+ * seen» (the owner, 2026-10-14): the row names both numbers, as the figure's small line does.
+ */
+function progress(seen: number, total: number, twoDays: number): string[] {
+  const shown = [`видели ${Math.min(seen, total)} из ${total}`];
+  if (twoDays > 0) shown.push(`в счёте ${twoDays}`);
+  return shown;
+}
+/** A row's parts never break inside («сегодня / 22» on a phone): the line wraps only after « · ». */
+const rowLine = (parts: string[]) => parts.map((part) => part.replace(/ /g, NBSP)).join(SEP);
 export function subjectRowTest(p: { twoDays: number; keyed: number; seen: number; today: number; dateText: string | null; passed: boolean }): string {
   const parts: string[] = [];
   if (p.dateText) parts.push(p.passed ? `экзамен прошёл ${p.dateText}` : p.dateText);
-  parts.push(p.seen > 0 ? `${p.twoDays} из ${p.keyed}` : q(p.keyed));
+  parts.push(...(p.seen > 0 ? progress(p.seen, p.keyed, p.twoDays) : [q(p.keyed)]));
   if (p.today > 0 && !p.passed) parts.push(`сегодня ${p.today}`);
-  return glue(parts.join(SEP));
+  return rowLine(parts);
 }
 /** «Устный» as «Настройки» marks an oral subject: the row of an oral part says it first (usability check 2026-10-10, m7). */
 export const ORAL_ROW = 'устный';
-export function subjectRowOral(p: { twoDays: number; inPlan: number; questions: number; today: number; dateText: string | null }): string {
+export function subjectRowOral(p: { twoDays: number; seen: number; inPlan: number; questions: number; today: number; dateText: string | null }): string {
   const parts: string[] = [];
   if (p.inPlan === 0) {
     if (p.dateText) parts.push(p.dateText);
@@ -124,15 +135,15 @@ export function subjectRowOral(p: { twoDays: number; inPlan: number; questions: 
   } else {
     parts.push(ORAL_ROW);
     if (p.dateText) parts.push(p.dateText);
-    parts.push(`${p.twoDays} из ${p.inPlan}`);
+    parts.push(...(p.seen > 0 ? progress(p.seen, p.inPlan, p.twoDays) : [q(p.inPlan)]));
     if (p.today > 0) parts.push(`сегодня ${p.today}`);
   }
-  return glue(parts.join(SEP));
+  return rowLine(parts);
 }
 export const subjectRowEmpty = 'вопросов пока нет';
 export function topicRow(p: { twoDays: number; keyed: number; seen: number; errors: number }): string {
   if (p.seen === 0) return 'не начинали';
-  return glue([`${p.twoDays} из ${p.keyed}`, ...(p.errors > 0 ? [`ошибок ${p.errors}`] : [])].join(SEP));
+  return rowLine([...progress(p.seen, p.keyed, p.twoDays), ...(p.errors > 0 ? [`ошибок ${p.errors}`] : [])]);
 }
 export const oralSheetRow = (n: number) => glue(`Шпаргалка к ${n} ${pl(n, 'устному вопросу', 'устным вопросам', 'устным вопросам')}`);
 export const TOPICS_LABEL = 'Темы';

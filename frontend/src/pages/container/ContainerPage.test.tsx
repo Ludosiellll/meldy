@@ -138,7 +138,7 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     const links = within(rows).getAllByRole('link');
     expect(links).toHaveLength(4);
     expect(plain(links[0].textContent)).toContain('Программирование на C#');
-    expect(plain(links[0].textContent)).toContain('61 из 240 · сегодня 25');
+    expect(plain(links[0].textContent)).toContain('видели 180 из 240 · в счёте 61 · сегодня 25');
     expect(links[0].getAttribute('href')).toBe(`/exams/c/${CONTAINER}/s/${SUBJECT_CS}`);
     // The order of the page: the card before the figure before the rows.
     expect(card.compareDocumentPosition(figure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -383,7 +383,7 @@ describe('the states of the exam page (§3.3 table)', () => {
     it('the oral subject’s row says «устный», as «Настройки» does (m7)', () => {
       renderPage(loaded(qaData()));
       const row = document.querySelector<HTMLAnchorElement>(`a.ct-row[href="/exams/${ORAL_EXAM}?from=c:${CONTAINER}"]`);
-      expect(plain(row?.textContent)).toBe('Гражданское правоустный · 0 из 16 · сегодня 16');
+      expect(plain(row?.textContent)).toBe('Гражданское правоустный · видели 1 из 16 · сегодня 16');
       expect(page()).toContain('Ещё 4 устных войдут в план, когда к предмету будут лекции.');
       // the exam's one size: 960 with variants and 20 oral
       expect(page()).toContain('980 вопросов');

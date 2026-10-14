@@ -300,7 +300,7 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
       return {
         key: subject.id,
         title: subject.title,
-        meta: copy.subjectRowOral({ twoDays: f.twoDays, inPlan, questions: oralCount(subject), today: share?.items ?? 0, dateText: ownDate }),
+        meta: copy.subjectRowOral({ twoDays: f.twoDays, seen: f.seen, inPlan, questions: oralCount(subject), today: share?.items ?? 0, dateText: ownDate }),
         to: examId ? `/exams/${examId}?from=c:${containerId}` : `/exams/c/${containerId}/s/${subject.id}`,
       };
     }
