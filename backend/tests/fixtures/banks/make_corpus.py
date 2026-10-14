@@ -423,7 +423,7 @@ def docx_messy(path):
     add('11', 'Какое исключение возникает при делении целого числа на ноль?',
         ['DivideByZeroException', 'ArithmeticOverflowException в режиме checked при переполнении', 'NullReferenceException', 'FormatException'], [0], wrap=1)
     save(doc, path)
-    flags = {'4': ['partial_mark', 'no_key'], '5': ['has_image'], '7': ['key_conflict'], '10': ['duplicate']}
+    flags = {'4': ['partial_mark', 'no_key'], '7': ['key_conflict'], '10': ['duplicate']}  # №5: картинка переносится (2026-10-14)
     return items, flags
 
 
@@ -772,7 +772,7 @@ def main():
     items4 = docx_options_in_cell(f'{out}/04_options_in_cell_red.docx', CSHARP, 'red', formula_item='2', image_item='6')
     in_cell_topics = [(f'{n}. {title.split(". ", 1)[-1]}. I категория:', None) for n, (title, _) in enumerate(CSHARP, start=1)]
     emit('04_options_in_cell_red.docx', in_cell_topics, items4, layout='table_options_in_cell', key='color',
-         flags={'2': ['has_formula'], '6': ['has_image']},
+         flags={'2': ['has_formula']},  # №6: картинка переносится в вопрос (2026-10-14), флага has_image нет
          notes='Options «1. …;» as paragraphs of one cell, key in red. Trailing «;» and «.» are cut from options. Topic headings above each table.')
     emit('05_key_column_inline.docx', HISTORY, docx_key_column(f'{out}/05_key_column_inline.docx', HISTORY, bad_key_item='5'),
          layout='table_options_in_cell', key='key_column', flags={'5': ['no_key', 'key_invalid']},

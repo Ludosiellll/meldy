@@ -152,7 +152,7 @@ def test_pasted_text_returns_the_preview_and_nothing_is_written_or_charged(api, 
         "position": 1, "label": "1", "subject": 1, "topic": 1, "kind": "single",
         "text": "Какой оператор вычитает и сразу присваивает результат?", "options": ["+=", "-=", "=-"], "correct": [1],
         "order": [], "pairs": [], "answer": None, "evidence": "bold", "flags": [], "code": True, "where": "строка 3",
-        "marks": {"bold": [0, 1, 0]},
+        "marks": {"bold": [0, 1, 0]}, "images": None,
     }
     assert second["options"] == ["сворачивает блок кода", "удаляет код"] and second["correct"] == [0]
     assert third["kind"] == "open" and third["options"] == [] and third["correct"] == [] and third["flags"] == []
@@ -214,10 +214,10 @@ def test_a_key_file_beside_the_questions_supplies_the_key_and_its_errors_say_key
     assert api.post(PATH, files={"file": questions}, data={"key_section": "один"}).status_code == 400
 
 
-RESPONSE_KEYS = {"method", "layout", "layouts_seen", "variant", "confidence", "key_source", "format_signal", "format_signals",
+RESPONSE_KEYS = {"method", "layout", "layouts_seen", "variant", "pictures", "confidence", "key_source", "format_signal", "format_signals",
                  "mark_share", "marker", "markers", "subjects", "topics", "skipped", "warnings", "items", "stats"}
 ITEM_KEYS = {"position", "label", "subject", "topic", "kind", "text", "options", "correct", "order", "pairs", "answer",
-             "evidence", "flags", "code", "where", "marks"}
+             "evidence", "flags", "code", "where", "marks", "images"}
 
 
 def test_synthetic_banks_come_back_whole_and_in_the_same_shape(api):

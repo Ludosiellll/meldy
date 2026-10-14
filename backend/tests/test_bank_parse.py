@@ -8,6 +8,7 @@
 key_mode, пределы, безопасность разбора файлов, ошибки, найденные на синтетических банках, и скорость (банк на
 240 вопросов — меньше 0,5 с, сессия 4 × 240 — меньше 1,5 с). Файлы колледжа сюда не кладутся.
 """
+import base64
 import io
 import json
 import sys
@@ -1428,3 +1429,103 @@ def test_a_key_file_without_pairs_is_refused():
     with pytest.raises(bank_parse.BankError) as caught:
         bank_parse.read_key_file(docx_with_body(xml_paragraph("Ответы будут позже")), "key.docx")
     assert caught.value.code == "no_keys" and caught.value.status == 422
+
+
+# ── Картинки вопросов (владелец, 2026-10-14: «картинки он не ест, а если вопрос является картинкой?») ──────────
+
+
+def png(color: tuple[int, int, int], size: int = 4) -> bytes:
+    """Маленький PNG одного цвета (разный цвет — разная картинка)."""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    raw = b"".join(b"\x00" + bytes(color) * size for _ in range(size))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def picture_bank(pictures: dict[int, tuple[int, int, int]], option_picture: bool = False) -> bytes:
+    """Нумерованные вопросы абзацами; у вопроса n из pictures под текстом — картинка своего цвета."""
+    def build(doc):
+        for n in (1, 2, 3):
+            doc.add_paragraph(f"{n}. Что означает выделенная стрелка?")
+            if n in pictures:
+                doc.add_picture(io.BytesIO(png(pictures[n])))
+            doc.add_paragraph("а) ").add_run("Вход").bold = True
+            if option_picture and n == 1:
+                doc.add_paragraph("б) ").add_run().add_picture(io.BytesIO(png((0, 0, 0))))
+            else:
+                doc.add_paragraph("б) Выход")
+    return docx_bytes(build)
+
+
+def test_pictures_go_with_their_questions_and_make_same_text_questions_different():
+    result = parse_bank_file(picture_bank({1: (255, 0, 0), 2: (0, 0, 255), 3: (255, 0, 0)}), "bank.docx")
+    items = result["items"]
+    red, blue = items[0]["images"]["stem"], items[1]["images"]["stem"]
+    assert len(red) == len(blue) == 1 and red != blue and items[2]["images"]["stem"] == red
+    assert items[0]["images"]["options"] == [[], []]
+    assert set(result["pictures"]) == {red[0], blue[0]}
+    assert result["pictures"][red[0]]["type"] == "image/png"
+    assert base64.b64decode(result["pictures"][red[0]]["data"]) == png((255, 0, 0))
+    # одинаковый текст: разные картинки — разные вопросы, та же картинка — повтор; перенесённая картинка — не «has_image»
+    assert [("duplicate" in i["flags"], "has_image" in i["flags"]) for i in items] == [(False, False), (False, False), (True, False)]
+
+
+def test_a_picture_in_an_option_belongs_to_that_option():
+    result = parse_bank_file(picture_bank({}, option_picture=True), "bank.docx")
+    first = result["items"][0]
+    assert first["options"] == ["Вход", ""] and first["images"]["stem"] == [] and len(first["images"]["options"][1]) == 1
+    assert "empty_option" not in first["flags"] and result["items"][1]["images"] is None
+
+
+def test_a_picture_the_browser_cannot_show_keeps_the_question_for_the_check(monkeypatch):
+    monkeypatch.setattr(bank_docx, "PICTURE_TYPES", {"image/jpeg": "jpg"})  # PNG — как EMF: не переносится
+    result = parse_bank_file(picture_bank({1: (255, 0, 0)}), "bank.docx")
+    assert result["items"][0]["images"] is None and "has_image" in result["items"][0]["flags"]
+    assert result["pictures"] == {}
+
+
+def test_pictures_over_the_byte_limit_stay_behind_with_the_flag(monkeypatch):
+    monkeypatch.setattr(bank_parse, "MAX_PICTURES_BYTES", len(png((255, 0, 0))) + 10)
+    result = parse_bank_file(picture_bank({1: (255, 0, 0), 2: (0, 0, 255), 3: (255, 0, 0)}), "bank.docx")
+    first, second, third = result["items"]
+    assert first["images"] and third["images"] == first["images"]  # та же картинка не считается дважды
+    assert second["images"] is None and "has_image" in second["flags"] and len(result["pictures"]) == 1
+
+
+def test_the_owner_s_variant_carries_its_twenty_pictures():
+    owner = Path("/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/in-docx4/f2.docx")
+    if not owner.exists():
+        pytest.skip("the owner's file is not in this checkout")
+    result = parse_bank_file(owner.read_bytes(), "variant4.docx")
+    assert sum(1 for i in result["items"] if i["images"]) == 20 and len(result["pictures"]) == 16
+    assert not any("has_image" in i["flags"] for i in result["items"])
+
+
+def test_a_question_that_is_only_a_picture_and_an_option_that_is_a_picture():
+    """«Вариант 4»: «2.» и схема в строке вопроса, под ней ряд «А)…»; вариант «Г)» — только картинка."""
+    def build(doc):
+        doc.add_paragraph("ТЕСТОВЫЙ ВАРИАНТ 4")
+        table = doc.add_table(rows=4, cols=5)
+        for row, number in ((0, 1), (2, 2)):
+            stem = table.rows[row].cells[0].merge(table.rows[row].cells[4])
+            stem.paragraphs[0].text = f"{number}."
+            stem.add_paragraph().add_run().add_picture(io.BytesIO(png((10 * number, 0, 0))))
+            for k, letter in enumerate("АБВГД"):
+                cell = table.rows[row + 1].cells[k]
+                if number == 2 and letter == "Г":
+                    cell.paragraphs[0].text = "Г)"
+                    cell.add_paragraph().add_run().add_picture(io.BytesIO(png((0, 200, 0))))
+                else:
+                    cell.paragraphs[0].add_run(f"{letter}) ответ {k + 1}").bold = k == 0
+    result = parse_bank_file(docx_bytes(build), "variant4.docx")
+    first, second = result["items"]
+    assert [first["label"], first["text"], len(first["images"]["stem"])] == ["1", "", 1]
+    assert first["options"] == ["ответ 1", "ответ 2", "ответ 3", "ответ 4", "ответ 5"] and first["correct"] == [0]
+    assert second["options"][3] == "" and len(second["images"]["options"][3]) == 1
+    assert not any({"has_image", "empty_option", "duplicate"} & set(i["flags"]) for i in result["items"])
+    assert len(result["pictures"]) == 3

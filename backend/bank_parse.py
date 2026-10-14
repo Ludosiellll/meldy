@@ -53,6 +53,7 @@ lxml, без новых зависимостей), текст — text_blocks (�
 from __future__ import annotations
 
 import io
+import base64
 import re
 import zipfile
 from collections import Counter
@@ -145,6 +146,8 @@ KEY_FILE_NO_KEYS_DETAIL = "В файле ключа не нашли пар «н�
 KEY_FILE_CHOOSE_WARNING = "В файле ключа несколько вариантов: {variants}. Выберите вариант этого теста."
 KEY_FILE_OTHER_WARNING = "В файле ключа нет варианта {variant}, есть: {variants}. Выберите нужный."
 MAX_KEY_SECTIONS = 30
+# Картинки вопросов в ответе разбора (base64): до 12 МБ на файл; вопросы после предела — с флагом has_image, как раньше.
+MAX_PICTURES_BYTES = 12 * 1024 * 1024
 
 
 class BankError(Exception):
@@ -300,6 +303,10 @@ def code_in_lines(text: str) -> bool:
 OPEN_LINE_RE = re.compile(r"^(?:\[(.+)\]|=\s*(?:\{[^}]*\}\s*)?(.+))$")
 PAIR_LINE_RE = re.compile(r"^(.*?\S)?\s*=\s*(\S.*)$")
 MD_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+# Вариант-картинка: в строке одна подпись «Б)» / «в.», а сам вариант — картинка после неё
+LONE_LABEL_RE = re.compile(r"^\(?([а-иА-ИсСa-hA-H])\s*[).]$")
+# «17.» и картинка: вопрос — сама картинка (владелец: «а если вопрос является картинкой?»)
+NUMBER_ONLY_RE = re.compile(r"^(\d{1,4})\s*[.)]?$")
 # «86.17. Вопрос»: номер вопроса и оставшийся от другого списка номер (строка вопроса на всю ширину таблицы)
 DOUBLE_NUMBER_RE = re.compile(r"^(\d{1,4})\.\s?(\d{1,4})\.\s*(?=\S)(.*)$", re.S)
 # «Вариант 1», «ТЕСТОВЫЙ ВАРИАНТ 4», «Вариант № 2.» — заголовок всего файла; в файле ключей — «КЛЮЧ … — ВАРИАНТ 4».
@@ -524,7 +531,7 @@ class Option:
     text: str
     label: str = ""
     runs: list[Run] = field(default_factory=list)
-    images: int = 0
+    images: list[str] = field(default_factory=list)  # id картинок (bank_docx), "" — картинка, которая не переносится
     formulas: int = 0
     checkbox: Optional[bool] = None
     prefix: str = ""  # подпись, срезанная с начала текста («3) »): вернётся, если подписи вариантов не по порядку
@@ -566,7 +573,7 @@ class Item:
     kind: str = "single"
     flags: list[str] = field(default_factory=list)
     where: str = ""
-    images: int = 0
+    images: list[str] = field(default_factory=list)  # картинки вопроса: id или "" (не переносится)
     formulas: int = 0
     label_style: str = "rus"
     weights: list[float] = field(default_factory=list)  # GIFT
@@ -643,12 +650,15 @@ def make_option(para: Para) -> Option:
     label = para.label.rstrip(".)") if para.label else ""
     prefix, prefix_runs = "", []
     match = OPTION_LABEL_RE.match(raw) if not label else None
+    lone = LONE_LABEL_RE.match(raw) if not label and not match and para.images else None
     if match:
         label = match.group(1) or match.group(2)
         prefix, prefix_runs = raw[:match.end()], trim_runs(runs, match.end())
         raw, runs = raw[match.end():], strip_runs(runs, match.end())
+    elif lone:  # «Б)» и картинка: вариант без текста
+        label, prefix, prefix_runs, raw, runs = lone.group(1), raw, list(runs), "", []
     # «- » остаётся до разбора маркеров: в MyTestX «- » — неверный вариант, в остальных файлах — пункт списка.
-    return Option(text=raw.strip(), label=label, runs=runs, images=para.images, formulas=para.formulas,
+    return Option(text=raw.strip(), label=label, runs=runs, images=list(para.images), formulas=para.formulas,
                   checkbox=para.checkbox, prefix=prefix, prefix_runs=prefix_runs)
 
 
@@ -719,7 +729,7 @@ def _cell_para(cell: Cell) -> Para:
             runs.append(Run(text="\n"))
         runs.extend(para.runs)
     checkbox = next((p.checkbox for p in cell.paras if p.checkbox is not None), None)
-    return Para(runs=runs, shade=cell.shade, images=sum(p.images for p in cell.paras),
+    return Para(runs=runs, shade=cell.shade, images=[key for p in cell.paras for key in p.images],
                 formulas=sum(p.formulas for p in cell.paras), checkbox=checkbox)
 
 
@@ -826,6 +836,7 @@ class Reader:
         self.keyless = False  # в абзацах ни ключа, ни отметок: строки без подписи под вопросом — его текст (paragraphs)
         self.has_tables = False  # в документе есть таблицы (ключ таблицей может стоять после абзацев): keyless не ставится
         self.variant: Optional[int] = None  # «Вариант 4» в заголовке файла: по нему берётся раздел файла ключей
+        self.pictures: dict[str, tuple[str, bytes]] = {}  # картинки DOCX: id → (тип, байты) (bank_docx.read_docx)
 
     def heading(self, text: str, default: str, level: Optional[int] = None) -> None:
         title = " ".join(text.split())
@@ -934,7 +945,7 @@ class Reader:
                 text = question_cell.text if question_cell else ""
                 current = self.new_item(number, text, f"{title}, строка {row_number}")
                 if question_cell:
-                    current.images += sum(p.images for p in question_cell.paras)
+                    current.images += [key for p in question_cell.paras for key in p.images]
                     current.formulas += sum(p.formulas for p in question_cell.paras)
                     stem_paras = question_cell.paras[:1] if q_col == opt_col else question_cell.paras
                     current.mono = bool(stem_paras) and (_mono_inside(stem_paras[0].runs)
@@ -991,6 +1002,9 @@ class Reader:
         if len(live) != 1 or live[0][1].span < 2 or not live[0][1].paras:
             return None
         text = live[0][1].paras[0].text.strip()
+        bare = NUMBER_ONLY_RE.match(text)
+        if bare and any(p.images for p in live[0][1].paras):
+            return bare.group(1), int(bare.group(1)), ""
         double = DOUBLE_NUMBER_RE.match(text)
         if double:
             first, second = int(double.group(1)), int(double.group(2))
@@ -1023,7 +1037,7 @@ class Reader:
                 cell = self._live(cells)[0][1]
                 rest = [p.text.strip() for p in cell.paras[1:] if p.text.strip()]
                 current = self.new_item(label, "\n".join([first.strip(), *rest]), f"{title}, строка {row_number}")
-                current.images += sum(p.images for p in cell.paras)
+                current.images += [key for p in cell.paras for key in p.images]
                 current.formulas += sum(p.formulas for p in cell.paras)
                 current.mono = _mono_inside(cell.paras[0].runs) or any(_mono_any(p.runs) for p in cell.paras[1:])
                 continue
@@ -1113,7 +1127,8 @@ class Reader:
         """Строка без подписи после вариантов — перенос последнего варианта: у вариантов есть буквы (подпись последнего
         из текста — на своём месте: «в)» третьим) или это файл «+»/«-» и последний вариант отмечен."""
         if not item.options or para.label or (para.level or 0) or OPTION_LABEL_RE.match(text) or BULLET_RE.match(text) \
-                or PLUSMINUS_RE.match(text) or (GLUED_MARK_RE.match(text) and not _mono(para.runs)):
+                or PLUSMINUS_RE.match(text) or (GLUED_MARK_RE.match(text) and not _mono(para.runs)) \
+                or (para.images and LONE_LABEL_RE.match(text)):
             return False
         if self.plus_minus and PLUSMINUS_RE.match(item.options[-1].text):
             return True
@@ -1319,6 +1334,8 @@ class Reader:
         «[ответ]» / «= ответ». Код (моноширинный) маркером «#», «*» и «[…]» не бывает: «#include», «[Serializable]»."""
         text = line.text
         if OPTION_LABEL_RE.match(text) or PLUSMINUS_RE.match(text) or BULLET_RE.match(text) or (line.para.level or 0) >= 1:
+            return True
+        if line.para.images and LONE_LABEL_RE.match(text):  # «Б)» и картинка
             return True
         return not _mono(line.para.runs) and bool(GLUED_MARK_RE.match(text) or OPEN_LINE_RE.match(text))
 
@@ -2099,6 +2116,7 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
     if format_mode == "open":
         for item in items:
             _open_up(item)
+    _cap_pictures(reader, items)
     file_keys = dict(reader.keys)
     for item in items:
         restore_unordered_labels(item)
@@ -2207,15 +2225,17 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
         texts = [same_text(o.text, code=_mono(o.runs)) for o in item.options if o.text]
         if len(set(texts)) < len(texts):
             item.flag("same_options")
-        if item.images or any(o.images for o in item.options):
-            item.flag("has_image")
+        if "" in item.images or any("" in o.images for o in item.options):
+            item.flag("has_image")  # картинка, которую не перенести (EMF/WMF, слишком большая): вопрос ждёт проверки
         if item.formulas or any(o.formulas for o in item.options):
             item.flag("has_formula")
         if len(item.text) > MAX_QUESTION_CHARS or any(len(o.text) > MAX_OPTION_CHARS for o in item.options[:MAX_OPTIONS_OUT]):
             item.flag("too_long")
     seen: set = set()
     for item in items:
-        key = (same_text(item.text), tuple(sorted(same_text(o.text, code=_mono(o.runs)) for o in item.options)))
+        # одинаковый текст с разными картинками — разные вопросы («Что означает выделенная стрелка?» ×3)
+        key = (same_text(item.text), tuple(sorted(same_text(o.text, code=_mono(o.runs)) for o in item.options)),
+               tuple(item.images), tuple(sorted(tuple(o.images) for o in item.options)))
         if key in seen:
             item.flag("duplicate")
         else:
@@ -2237,6 +2257,31 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
         elif not any(item.explicit_from == "key_text" for item in items):
             warnings.append({"code": "key_text_unused", "message": KEY_TEXT_NO_MATCH_WARNING})
     return _result(reader, items, signal, table, markers, gaps, warnings, subjects, topics)
+
+
+def _cap_pictures(reader: Reader, items: list[Item]) -> None:
+    """Картинки сверх MAX_PICTURES_BYTES (по порядку вопросов; одна картинка считается один раз) не переносятся:
+    их место становится "", и вопрос получит has_image, как файл без переноса картинок."""
+    total = 0
+    kept: set[str] = set()
+    for item in items:
+        for holder in (item, *item.options):
+            for k, key in enumerate(holder.images):
+                if not key or key in kept:
+                    continue
+                size = len(reader.pictures.get(key, ("", b""))[1])
+                if not size or total + size > MAX_PICTURES_BYTES:
+                    holder.images[k] = ""
+                    continue
+                total += size
+                kept.add(key)
+
+
+def _item_images(item: Item, options: list[Option]) -> Optional[dict]:
+    """Перенесённые картинки вопроса: {"stem": [id…], "options": [[id…] по вариантам]} или None."""
+    stem = [key for key in item.images if key]
+    by_option = [[key for key in o.images if key] for o in options]
+    return {"stem": stem, "options": by_option} if stem or any(by_option) else None
 
 
 def _restart_title(roles: list[str]) -> Optional[int]:
@@ -2380,7 +2425,10 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
                          or any(CODE_RE.search(o.text) or any(r.mono for r in o.runs) for o in item.options)),
             "where": item.where,
             "marks": {s: [_mark_value(*o.mark_counts(s)) for o in options] for s in signals},
+            "images": _item_images(item, options),
         })
+    used = {key for entry in out_items if entry["images"]
+            for key in [*entry["images"]["stem"], *(k for keys in entry["images"]["options"] for k in keys)]}
     clean = sum(1 for item in items if not set(item.flags) & PROBLEM_FLAGS)
     marker = "+".join(name for symbol, name in MARKER_NAMES if symbol in markers) or None
     return {
@@ -2400,6 +2448,9 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
         "skipped": list(reader.skipped),
         "warnings": warnings,
         "items": out_items,
+        # картинки вопросов (владелец, 2026-10-14): id (sha256) → тип и base64; клиент кладёт их в хранилище при сохранении
+        "pictures": {key: {"type": reader.pictures[key][0], "data": base64.b64encode(reader.pictures[key][1]).decode("ascii")}
+                     for key in sorted(used)},
         "stats": {
             "items": len(items),
             "with_key": sum(1 for item in items if item.correct or item.order or item.answer or item.pairs),
@@ -2508,9 +2559,10 @@ def _heading_above_table(item: Item) -> bool:
 
 def parse_blocks(blocks: list[Block], *, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None,
                  line_word: str = "абзац", format_mode: str = "auto", key_file: Optional[list[dict]] = None,
-                 key_section: Optional[int] = None) -> dict:
-    """Блоки документа (абзацы и таблицы по порядку) → словарь предпросмотра (finish)."""
+                 key_section: Optional[int] = None, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> dict:
+    """Блоки документа (абзацы и таблицы по порядку) → словарь предпросмотра (finish). pictures — картинки DOCX."""
     reader = Reader(line_word=line_word, open_mode=format_mode == "open", test_mode=format_mode == "test")
+    reader.pictures = pictures or {}
     reader.has_tables = any(isinstance(block, Table) for block in blocks)
     run: list[Para] = []
     start = 0
@@ -2737,8 +2789,9 @@ def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str
     return _checked(result, format_mode)
 
 
-def _file_blocks(contents: bytes, name: str) -> tuple[Optional[str], list[Block]]:
-    """Файл → (текст TXT/MD, []) или (None, блоки DOCX/XLSX). Ошибки — те же BankError, что у банка."""
+def _file_blocks(contents: bytes, name: str, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> tuple[Optional[str], list[Block]]:
+    """Файл → (текст TXT/MD, []) или (None, блоки DOCX/XLSX); картинки DOCX — в pictures, если он передан.
+    Ошибки — те же BankError, что у банка."""
     extension = check_file_name(name)
     if not contents:
         raise BankError(422, "empty_file", EMPTY_FILE_DETAIL)
@@ -2752,7 +2805,7 @@ def _file_blocks(contents: bytes, name: str) -> tuple[Optional[str], list[Block]
             print(f"Bank text decoding failed: {type(exc).__name__}")
             raise BankError(422, "unreadable", UNREADABLE_DETAIL) from None
     try:
-        blocks: list[Block] = read_docx(contents) if kind == "docx" else list(read_xlsx(contents))
+        blocks: list[Block] = read_docx(contents, pictures) if kind == "docx" else list(read_xlsx(contents))
     except ArchiveTooLarge:
         raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL) from None
     except Exception as exc:  # повреждённый файл: текст исключения пользователю не показываем
@@ -2782,10 +2835,11 @@ def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_t
     415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items.
     key_file — разделы файла ключа (read_key_file), key_section — раздел, выбранный пользователем."""
     _check_modes(key_mode, format_mode)
-    text, blocks = _file_blocks(contents, name)
+    pictures: dict[str, tuple[str, bytes]] = {}
+    text, blocks = _file_blocks(contents, name, pictures)
     if text is not None:
         return parse_bank_text(text, key_mode=key_mode, key_text=key_text, format_mode=format_mode,
                                key_file=key_file, key_section=key_section)
     result = parse_blocks(blocks, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode,
-                          key_file=key_file, key_section=key_section)
+                          key_file=key_file, key_section=key_section, pictures=pictures)
     return _checked(result, format_mode)

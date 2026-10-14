@@ -18,6 +18,7 @@ XML разбирает парсер python-docx без подстановки с
 
 from __future__ import annotations
 
+import hashlib
 import io
 import re
 import zipfile
@@ -53,6 +54,12 @@ _M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 _MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 _W14_NS = "http://schemas.microsoft.com/office/word/2010/wordml"
 _V_NS = "urn:schemas-microsoft-com:vml"
+_A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+# Картинки, которые переносятся в вопрос (владелец, 2026-10-14: «картинки он не ест»): то, что браузер показывает сам.
+# EMF/WMF (рисунки Word), TIFF — нет: такой вопрос остаётся с флагом has_image, как раньше.
+PICTURE_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp", "image/bmp": "bmp"}
+MAX_PICTURE_BYTES = 3 * 1024 * 1024
 
 MONO_FONTS = ("courier", "consolas", "mono", "menlo", "lucida console", "source code", "fira code", "jetbrains")
 _OFF = ("0", "false", "off", "none")
@@ -98,7 +105,7 @@ class Para:
     fmt: Optional[str] = None
     style: str = ""
     shade: Optional[str] = None  # заливка абзаца или его ячейки
-    images: int = 0
+    images: list[str] = field(default_factory=list)  # картинки по порядку: id из pictures читателя, "" — не переносится
     formulas: int = 0
     checkbox: Optional[bool] = None  # флажок в абзаце: символ ☑/☐ или элемент управления
     outline: Optional[int] = None  # уровень заголовка Word (1 — «Заголовок 1»), None — обычный текст
@@ -322,6 +329,29 @@ class RichDocxReader(docx_text._DocxReader):
     def __init__(self, doc) -> None:
         super().__init__(doc)
         self._styles = _Styles(doc)
+        # картинки абзацев: sha256 содержимого → (тип, байты); одинаковая картинка в разных вопросах — одна
+        self.pictures: dict[str, tuple[str, bytes]] = {}
+
+    def _picture(self, element) -> str:
+        """Картинка элемента (w:drawing, w:pict, w:object, mc:AlternateContent) → её id или "" (не переносится:
+        тип не из PICTURE_TYPES, больше MAX_PICTURE_BYTES, ссылки нет)."""
+        blip = element.find(f".//{{{_A_NS}}}blip")
+        rid = blip.get(f"{{{_R_NS}}}embed") if blip is not None else None
+        if rid is None:
+            data = element.find(f".//{{{_V_NS}}}imagedata")
+            rid = data.get(f"{{{_R_NS}}}id") if data is not None else None
+        if not rid:
+            return ""
+        try:
+            part = self._doc.part.related_parts[rid]
+            kind, blob = part.content_type, part.blob
+        except (KeyError, AttributeError):
+            return ""
+        if kind not in PICTURE_TYPES or not blob or len(blob) > MAX_PICTURE_BYTES:
+            return ""
+        key = hashlib.sha256(blob).hexdigest()
+        self.pictures[key] = (kind, blob)
+        return key
 
     def blocks(self) -> list[Block]:
         out: list[Block] = []
@@ -457,10 +487,10 @@ class RichDocxReader(docx_text._DocxReader):
                     if para.checkbox is None:
                         para.checkbox = False
             elif tag in (_w("drawing"), _w("pict"), _w("object")):
-                para.images += 1
+                para.images.append(self._picture(child))
             elif tag == f"{{{_MC_NS}}}AlternateContent":
                 if child.find(f".//{{{_W_NS}}}drawing") is not None or child.find(f".//{{{_V_NS}}}imagedata") is not None:
-                    para.images += 1
+                    para.images.append(self._picture(child))
         text = "".join(parts)
         if not text:
             return
@@ -478,9 +508,14 @@ class RichDocxReader(docx_text._DocxReader):
         ))
 
 
-def read_docx(contents: bytes) -> list[Block]:
-    """Блоки DOCX. Ошибки: ArchiveTooLarge (пределы распаковки), прочие — повреждённый или не тот файл."""
+def read_docx(contents: bytes, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> list[Block]:
+    """Блоки DOCX. Ошибки: ArchiveTooLarge (пределы распаковки), прочие — повреждённый или не тот файл.
+    pictures — словарь, куда сложить картинки абзацев (id → (тип, байты)); без него они не возвращаются."""
     check_archive(contents)
     from docx import Document
 
-    return RichDocxReader(Document(io.BytesIO(contents))).blocks()
+    reader = RichDocxReader(Document(io.BytesIO(contents)))
+    blocks = reader.blocks()
+    if pictures is not None:
+        pictures.update(reader.pictures)
+    return blocks
