@@ -363,6 +363,18 @@ describe('ImportPage: one door for every file', () => {
     expect(saved[2]).toMatchObject({ correct: [1], key_source: 'manual' });
   });
 
+  it('a picture that came with a Word mark over it that did not: the queue says the mark is missing, not the picture', async () => {
+    const pic = 'c'.repeat(64);
+    const items = [item(1, { correct: [], evidence: '', flags: ['no_key', 'has_image'], images: { stem: [pic], options: [] } }), item(2)];
+    api.parseBank.mockResolvedValue({ ...bank(items, 'DFD'), pictures: { [pic]: { type: 'image/png', data: 'iVBORw0KGgo=' } } });
+    renderAt();
+    upload(['DFD.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sвопроса/ });
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить' }));
+    expect(await screen.findByText(QUEUE.imageMark)).toBeInTheDocument();
+    expect(screen.queryByText(QUEUE.image)).not.toBeInTheDocument();
+  });
+
   it('a file without keys asks one question: paste the key, mark as you go, or read as oral (decision 34)', async () => {
     const noKey = bank([item(1, { correct: [], evidence: '', flags: ['no_key'] }), item(2, { correct: [], evidence: '', flags: ['no_key'] })], 'ОС');
     api.parseBank.mockImplementation(async ({ format, keyText }: { format: string; keyText?: string }) => {

@@ -62,7 +62,7 @@ function viewOf(item: DraftItem, problem: Problem): View {
   const keyInstruction = multiple ? QUEUE.pickKeys : QUEUE.pickKey;
   switch (problem) {
     case 'image':
-      return { reason: QUEUE.image, tapMode: 'none', instruction: null, actions: [{ key: 'image', label: QUEUE.imageOk, fix: { imageOk: true } }, drop], dropped };
+      return { reason: item.images && (item.images.stem.length > 0 || item.images.fileOptions.some((list) => list.length > 0)) ? QUEUE.imageMark : QUEUE.image, tapMode: 'none', instruction: null, actions: [{ key: 'image', label: QUEUE.imageOk, fix: { imageOk: true } }, drop], dropped };
     case 'no_options':
       return { reason: QUEUE.noOptions, tapMode: 'none', instruction: null, actions: [{ key: 'oral', label: QUEUE.keepOral, fix: { oral: true } }, drop], dropped };
     case 'few_options':

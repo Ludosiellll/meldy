@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.20: «пометка не перенеслась» instead of «картинка не перенеслась» (from the commit of this entry)
+
+- **The owner's screenshot (Ключи → Проверить, «Вариант 2 · № 117»):** the picture is shown, yet the line said «Картинка
+  из файла не перенеслась». In those 13 questions (IDEF0 «выделенная стрелка», DFD «этот блок») the picture did come; what
+  did not is a Word shape drawn over it — a red ring round the asked arrow, a filled box over the block's label (without
+  it the label gives the answer away). Such a question still stays out of sessions until the author decides; the line now
+  says so: «Картинка перенеслась, а пометка поверх неё (стрелка, рамка, заливка из Word) — нет.» (import check queue and
+  «Ключи»).
+
 ## 2026-10-14 — Release 44.19: a key file with a column per variant (from the commit of this entry)
 
 - **The owner's files:** «Вариант 1/2/3» (160 questions each, no marks) and their key as one table

@@ -209,7 +209,10 @@ export default function KeysPage() {
         reasonLines.push(KEYS.majority(lettersText(doubt.top_wrong)));
       }
     } else if (!keyed) {
-      reasonLines.push(item.flags.includes('has_image') ? QUEUE.image : item.flags.includes('several_marked') ? QUEUE.several([]) : QUEUE.noKey);
+      const pictured = Boolean(item.images?.stem?.length || item.images?.options?.some((list) => list.length > 0));
+      reasonLines.push(
+        item.flags.includes('has_image') ? (pictured ? QUEUE.imageMark : QUEUE.image) : item.flags.includes('several_marked') ? QUEUE.several([]) : QUEUE.noKey,
+      );
     }
     const current = item.kind === 'short' ? [] : item.correct;
     const keyLine = item.kind === 'short' ? (item.answers.length ? KEYS.currentShort(item.answers.join('; ')) : KEYS.noKeyNow) : keyed ? KEYS.current(lettersText(item.correct)) : KEYS.noKeyNow;

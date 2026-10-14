@@ -370,6 +370,8 @@ export const QUEUE = {
   duplicate: (a: string, b: string) => `№ ${a} и № ${b} одинаковые.`,
   duplicateSame: 'Такой же вопрос в файле уже есть.',
   image: 'Картинка из файла не перенеслась — без неё вопрос не пойдёт в занятия.',
+  // A picture that came, with a Word shape over it that did not (a red ring round an arrow, a box over a label).
+  imageMark: 'Картинка перенеслась, а пометка поверх неё (стрелка, рамка, заливка из Word) — нет. Без неё вопрос не пойдёт в занятия.',
   tooLong: 'Текст длиннее предела: сохранится его начало.',
   keepOral: 'Оставить устным',
   keepOne: 'Оставить один',
