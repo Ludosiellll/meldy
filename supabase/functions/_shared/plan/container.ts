@@ -527,6 +527,14 @@ export interface BankParseResult {
   warnings: Array<{ code: string; message: string }>;
   items: BankItem[];
   stats: BankParseStats;
+  /** «Вариант 4» / «ТЕСТОВЫЙ ВАРИАНТ 4» above the questions: picks the section of a key kept in another file. */
+  variant?: number | null;
+  /** The key file sent beside the questions: its sections (one per variant) and the one taken (null — none fits). */
+  key_file?: BankKeyFile | null;
+}
+export interface BankKeyFile {
+  sections: Array<{ title: string; variant: number | null; count: number }>;
+  used: number | null;
 }
 export interface BankParseError {
   detail: string;

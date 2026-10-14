@@ -21,6 +21,10 @@ is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api
   over is the next release.
 - **Verified before release:** pytest 2048 (the two audio-cut tests fail in this container on the base commit too: its
   ffmpeg), vitest 4566, tsc -b; the owner's four files through the importer.
+- **Second run:** the first gate (run 84) stopped on «The bot's plan copy is stale: container.ts» (the parse result's
+  new types); the copy is synced (`node scripts/sync_bot_plan.mjs`, bot tests 343). The importer can now also carry the
+  pictures of a DOCX, but only when the page asks with `pictures=1`; this release's page does not, so a question with a
+  picture is still held for the check («has_image») until the pictures release.
 
 ## 2026-10-14 — Release 44.15: a subject's row names its numbers (from the commit of this entry)
 

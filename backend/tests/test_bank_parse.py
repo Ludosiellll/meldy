@@ -1463,7 +1463,7 @@ def picture_bank(pictures: dict[int, tuple[int, int, int]], option_picture: bool
 
 
 def test_pictures_go_with_their_questions_and_make_same_text_questions_different():
-    result = parse_bank_file(picture_bank({1: (255, 0, 0), 2: (0, 0, 255), 3: (255, 0, 0)}), "bank.docx")
+    result = parse_bank_file(picture_bank({1: (255, 0, 0), 2: (0, 0, 255), 3: (255, 0, 0)}), "bank.docx", with_pictures=True)
     items = result["items"]
     red, blue = items[0]["images"]["stem"], items[1]["images"]["stem"]
     assert len(red) == len(blue) == 1 and red != blue and items[2]["images"]["stem"] == red
@@ -1476,7 +1476,7 @@ def test_pictures_go_with_their_questions_and_make_same_text_questions_different
 
 
 def test_a_picture_in_an_option_belongs_to_that_option():
-    result = parse_bank_file(picture_bank({}, option_picture=True), "bank.docx")
+    result = parse_bank_file(picture_bank({}, option_picture=True), "bank.docx", with_pictures=True)
     first = result["items"][0]
     assert first["options"] == ["Вход", ""] and first["images"]["stem"] == [] and len(first["images"]["options"][1]) == 1
     assert "empty_option" not in first["flags"] and result["items"][1]["images"] is None
@@ -1484,14 +1484,14 @@ def test_a_picture_in_an_option_belongs_to_that_option():
 
 def test_a_picture_the_browser_cannot_show_keeps_the_question_for_the_check(monkeypatch):
     monkeypatch.setattr(bank_docx, "PICTURE_TYPES", {"image/jpeg": "jpg"})  # PNG — как EMF: не переносится
-    result = parse_bank_file(picture_bank({1: (255, 0, 0)}), "bank.docx")
+    result = parse_bank_file(picture_bank({1: (255, 0, 0)}), "bank.docx", with_pictures=True)
     assert result["items"][0]["images"] is None and "has_image" in result["items"][0]["flags"]
     assert result["pictures"] == {}
 
 
 def test_pictures_over_the_byte_limit_stay_behind_with_the_flag(monkeypatch):
     monkeypatch.setattr(bank_parse, "MAX_PICTURES_BYTES", len(png((255, 0, 0))) + 10)
-    result = parse_bank_file(picture_bank({1: (255, 0, 0), 2: (0, 0, 255), 3: (255, 0, 0)}), "bank.docx")
+    result = parse_bank_file(picture_bank({1: (255, 0, 0), 2: (0, 0, 255), 3: (255, 0, 0)}), "bank.docx", with_pictures=True)
     first, second, third = result["items"]
     assert first["images"] and third["images"] == first["images"]  # та же картинка не считается дважды
     assert second["images"] is None and "has_image" in second["flags"] and len(result["pictures"]) == 1
@@ -1501,7 +1501,7 @@ def test_the_owner_s_variant_carries_its_twenty_pictures():
     owner = Path("/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/in-docx4/f2.docx")
     if not owner.exists():
         pytest.skip("the owner's file is not in this checkout")
-    result = parse_bank_file(owner.read_bytes(), "variant4.docx")
+    result = parse_bank_file(owner.read_bytes(), "variant4.docx", with_pictures=True)
     assert sum(1 for i in result["items"] if i["images"]) == 20 and len(result["pictures"]) == 16
     assert not any("has_image" in i["flags"] for i in result["items"])
 
@@ -1522,10 +1522,16 @@ def test_a_question_that_is_only_a_picture_and_an_option_that_is_a_picture():
                     cell.add_paragraph().add_run().add_picture(io.BytesIO(png((0, 200, 0))))
                 else:
                     cell.paragraphs[0].add_run(f"{letter}) ответ {k + 1}").bold = k == 0
-    result = parse_bank_file(docx_bytes(build), "variant4.docx")
+    result = parse_bank_file(docx_bytes(build), "variant4.docx", with_pictures=True)
     first, second = result["items"]
     assert [first["label"], first["text"], len(first["images"]["stem"])] == ["1", "", 1]
     assert first["options"] == ["ответ 1", "ответ 2", "ответ 3", "ответ 4", "ответ 5"] and first["correct"] == [0]
     assert second["options"][3] == "" and len(second["images"]["options"][3]) == 1
     assert not any({"has_image", "empty_option", "duplicate"} & set(i["flags"]) for i in result["items"])
     assert len(result["pictures"]) == 3
+
+
+def test_without_the_request_pictures_stay_a_flag_as_before():
+    """Страница, закэшированная до переноса картинок, не просит их: вопрос с картинкой — has_image, как раньше."""
+    result = parse_bank_file(picture_bank({1: (255, 0, 0)}), "bank.docx")
+    assert result["items"][0]["images"] is None and "has_image" in result["items"][0]["flags"] and result["pictures"] == {}

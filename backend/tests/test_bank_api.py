@@ -214,6 +214,26 @@ def test_a_key_file_beside_the_questions_supplies_the_key_and_its_errors_say_key
     assert api.post(PATH, files={"file": questions}, data={"key_section": "один"}).status_code == 400
 
 
+
+def test_pictures_come_only_when_the_page_asks_for_them(api):
+    """pictures=1 — страница, которая сохраняет картинки; без него (закэшированная старая страница) — флаг has_image."""
+    import io as _io
+    from docx import Document as _Document
+    import test_bank_parse as tbp
+    doc = _Document()
+    doc.add_paragraph("1. Что на схеме?")
+    doc.add_picture(_io.BytesIO(tbp.png((255, 0, 0))))
+    doc.add_paragraph("а) ").add_run("Блок-схема").bold = True
+    doc.add_paragraph("б) Таблица")
+    buffer = _io.BytesIO()
+    doc.save(buffer)
+    file = {"file": ("bank.docx", buffer.getvalue(), DOCX)}
+    old = api.post(PATH, files=file).json()
+    assert old["pictures"] == {} and "has_image" in old["items"][0]["flags"]
+    new = api.post(PATH, files=file, data={"pictures": "1"}).json()
+    assert len(new["pictures"]) == 1 and new["items"][0]["images"]["stem"] and "has_image" not in new["items"][0]["flags"]
+
+
 RESPONSE_KEYS = {"method", "layout", "layouts_seen", "variant", "pictures", "confidence", "key_source", "format_signal", "format_signals",
                  "mark_share", "marker", "markers", "subjects", "topics", "skipped", "warnings", "items", "stats"}
 ITEM_KEYS = {"position", "label", "subject", "topic", "kind", "text", "options", "correct", "order", "pairs", "answer",

@@ -2830,12 +2830,15 @@ def read_key_file(contents: bytes, name: str) -> list[dict]:
 
 
 def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_text: Optional[str] = None,
-                    format_mode: str = "auto", key_file: Optional[list[dict]] = None, key_section: Optional[int] = None) -> dict:
+                    format_mode: str = "auto", key_file: Optional[list[dict]] = None, key_section: Optional[int] = None,
+                    with_pictures: bool = False) -> dict:
     """Файл банка (DOCX, TXT, MD, XLSX) → предпросмотр. Ошибки — BankError с кодом для клиента:
     415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items.
-    key_file — разделы файла ключа (read_key_file), key_section — раздел, выбранный пользователем."""
+    key_file — разделы файла ключа (read_key_file), key_section — раздел, выбранный пользователем.
+    with_pictures — картинки DOCX переносятся (их просит клиент, который умеет их сохранить: страница, закэшированная до
+    этого, сохранила бы вопрос без картинки и без флага has_image); без него картинки — только флаг, как раньше."""
     _check_modes(key_mode, format_mode)
-    pictures: dict[str, tuple[str, bytes]] = {}
+    pictures: Optional[dict[str, tuple[str, bytes]]] = {} if with_pictures else None
     text, blocks = _file_blocks(contents, name, pictures)
     if text is not None:
         return parse_bank_text(text, key_mode=key_mode, key_text=key_text, format_mode=format_mode,

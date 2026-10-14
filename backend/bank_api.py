@@ -8,7 +8,8 @@ main.py, как у /api/exams/parse (без неё — 401); лимит — 10 �
 Форма (multipart): file (DOCX, TXT, MD, XLSX до MAX_UPLOAD_BYTES, по умолчанию 15 МБ) или text;
 необязательно key_mode (auto | first_option | none), key_text (ключ строками «1 – б»), key_file (ключ отдельным
 файлом: DOCX, XLSX, TXT, MD; берётся раздел варианта теста), key_section (номер раздела файла ключа, выбранный
-пользователем) и format (auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
+пользователем), pictures=1 (картинки DOCX переносятся: так просит страница, которая их сохраняет) и format
+(auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
 ключ, флаги, marks, статистика. Ошибки — {"detail": "<по-русски>", "code": "<код>"}: 415 old_doc /
 unsupported, 413 too_many / too_much_text / file_too_big, 422 empty_file / unreadable / no_items,
 400 bad_form / both_inputs / no_input / key_text_too_long.
@@ -136,7 +137,8 @@ async def _parse(request: Request) -> dict:
             if exc.status_code == 413:
                 raise BankError(413, "file_too_big", str(exc.detail)) from None
             raise
-        return await asyncio.to_thread(functools.partial(parse_bank_file, contents, name, **options))
+        with_pictures = (_optional_text(form.get("pictures")) or "").strip() == "1"
+        return await asyncio.to_thread(functools.partial(parse_bank_file, contents, name, with_pictures=with_pictures, **options))
     return await asyncio.to_thread(functools.partial(parse_bank_text, text_value, **options))
 
 

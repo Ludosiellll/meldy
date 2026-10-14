@@ -701,6 +701,9 @@
   "flags": {
    "2": [
     "has_formula"
+   ],
+   "6": [
+    "has_image"
    ]
   },
   "notes": "Options «1. …;» as paragraphs of one cell, key in red. Trailing «;» and «.» are cut from options. Topic headings above each table."
@@ -2088,6 +2091,9 @@
    "4": [
     "partial_mark",
     "no_key"
+   ],
+   "5": [
+    "has_image"
    ],
    "7": [
     "key_conflict"
