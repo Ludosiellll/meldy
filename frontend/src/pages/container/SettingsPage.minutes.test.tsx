@@ -27,7 +27,12 @@ vi.mock('../../api/containers', () => ({
   removeMember: vi.fn(),
 }));
 vi.mock('../../lib/containers/bankCache', () => ({ forgetBank: vi.fn() }));
-vi.mock('../../lib/containers/plan', () => ({ feasibility: api.feasibility, windowDays: api.windowDays }));
+// The rest of the plan module stays real («Все вопросы»: ALL_QUESTIONS_MIN, allQuestions, planDay).
+vi.mock('../../lib/containers/plan', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/containers/plan')>()),
+  feasibility: api.feasibility,
+  windowDays: api.windowDays,
+}));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainerData: () => ({
     data: api.state.summary ? { summary: api.state.summary, planInput: api.state.plan, items: new Map(), oralWithoutPoints: 0 } : null,

@@ -7,6 +7,7 @@
  *
  * Numbers and their words are glued with a no-break space (`nb`), so «240 / вопросов» never breaks on a phone.
  */
+import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 
 export const NBSP = '\u00a0';
 
@@ -162,7 +163,8 @@ export const IMPORT = {
   subjectDate: (title: string) => `Дата: ${title}`,
   noDate: 'Дату можно не указывать: тогда по 15 новых вопросов в день на предмет.',
   minutes: 'Время в день',
-  minuteOption: (n: number) => `${n}${NBSP}минут`,
+  // «Все вопросы» (lib/containers/plan.ts ALL_QUESTIONS_MIN, minutes_per_day 300): no minutes cap, every question shown.
+  minuteOption: (n: number) => (n >= ALL_QUESTIONS_MIN ? 'Все вопросы' : `${n}${NBSP}минут`),
 
   save: 'Сохранить',
   saveAdd: (n: number) => `Добавить ${subjects(n)}`,

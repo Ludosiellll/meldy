@@ -6,7 +6,7 @@
  * The strings are plain text: builders glue and escape them (html.ts). Comments stay in English: a test reads the
  * Russian strings for forbidden words.
  */
-import { dayText, glue, plural } from '../plan/words.ts';
+import { dayText, durationGen, glue, plural } from '../plan/words.ts';
 import { weekday } from '../plan/time.ts';
 import type { LocalDay } from '../plan/container.ts';
 
@@ -79,7 +79,8 @@ export function dateWhen(date: LocalDay, daysLeft: number): string {
   return `${dayText(date)}, через ${glue(daysLeft, 'день', 'дня', 'дней')}`;
 }
 export const examLine = (title: string, when: string | null) => `${title} · ${when ?? NO_DATE}`;
-export const aboutMinutes = (minutes: number) => `около ${glue(Math.max(1, minutes), 'минуты', 'минут', 'минут')}`;
+/** «около 45 минут»; from 3 hours in hours, as the site says it («Все вопросы»: «около 7,5 часа»). */
+export const aboutMinutes = (minutes: number) => `около ${durationGen(Math.max(1, minutes))}`;
 export const alsoToday = (title: string, minutes: number) => `Ещё сегодня: «${title}» — ${aboutMinutes(minutes)}.`;
 export const keysFixed = (n: number) =>
   `Автор исправил ключ в ${glue(n, 'вопросе', 'вопросах', 'вопросах')} — ${plural(n, 'он начнётся', 'они начнутся', 'они начнутся')} заново.`;

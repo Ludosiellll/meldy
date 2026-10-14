@@ -49,7 +49,12 @@ vi.mock('../../api/exams', () => ({
   parseQuestionList: api.parseQuestionList,
   examErrorMessage: (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback),
 }));
-vi.mock('../../lib/containers/plan', () => ({ feasibility: api.feasibility, windowDays: api.windowDays }));
+// The rest of the plan module stays real («Все вопросы»: ALL_QUESTIONS_MIN, allQuestions, planDay).
+vi.mock('../../lib/containers/plan', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/containers/plan')>()),
+  feasibility: api.feasibility,
+  windowDays: api.windowDays,
+}));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainersOverview: () => ({ data: api.overview.data, loading: false, offline: false, unavailable: false, error: null, reload: () => undefined }),
   useContainerData: (id: string) => ({

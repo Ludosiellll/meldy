@@ -6,6 +6,7 @@
  *
  * Numbers and the word after them are glued with a no-break space (`glue`), so «90 вопросов» never breaks.
  */
+import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 
 export const NBSP = String.fromCharCode(0xa0);
 
@@ -177,7 +178,8 @@ export const CLOSE = 'Закрыть';
 export const END_EXIT = 'Закрыть';
 
 // «План по дням».
-export const daysMinutesRow = (minutes: number) => glue(`Время в день: ${minNom(minutes)}`);
+export const daysMinutesRow = (minutes: number) =>
+  glue(minutes >= ALL_QUESTIONS_MIN ? 'Время в день: все вопросы' : `Время в день: ${minNom(minutes)}`);
 const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 /**
  * «Дни занятий: Пн–Пт», «Дни занятий: Пн, Ср, Пт, Сб» — the student's days of the week (`study_weekdays`, Monday = 1 …

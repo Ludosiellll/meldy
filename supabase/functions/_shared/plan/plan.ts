@@ -30,6 +30,16 @@ import {
 import { shownMinutes } from './words.ts';
 
 export const BUDGET_OPTIONS: readonly number[] = [30, 45, 60, 90];
+/**
+ * «Все вопросы», the choice after 90 minutes (the owner, 2026-10-14: «пройти все 1120 вопросов» before a test in three
+ * days): `minutes_per_day` at the database's top value, 300. The day then has no minutes cap. Every new question is
+ * spread evenly over the days before the final window, a day goes mistakes → new → the second check of the ones answered
+ * right, and there is no extra final pass: a question is shown, a mistake comes back until it is answered right, and one
+ * answered right is checked once more on another day. Fewer repeats than the minutes plan, so the screens say the hours.
+ */
+export const ALL_QUESTIONS_MIN = 300;
+/** «Все вопросы»: mistakes, the new ones, then the second check of what was answered right. */
+export const CLASS_ORDER_ALL: readonly Cls[] = ['relearn', 'new_floor', 'confirm', 'confirm_ai', 'start_ai', 'check', 'final', 'new_fill'];
 export const NEW_PER_DAY_MAX = 100;
 export const NO_DATE_NEW_PER_DAY = 15;
 export const WINDOW_MAX_DAYS = 4;
@@ -113,6 +123,17 @@ export function windowStart(date: LocalDay, w: number, mask = EVERY_DAY): LocalD
 
 function ceil5(minutes: number): number { return Math.max(0, Math.ceil(minutes / 5 - EPS) * 5); }
 
+/** The minutes a day are «Все вопросы» (ALL_QUESTIONS_MIN). */
+export function allQuestions(budgetMin: unknown): boolean {
+  const n = Number(budgetMin);
+  return Number.isFinite(n) && n >= ALL_QUESTIONS_MIN;
+}
+
+/** A day's budget in seconds: the minutes a day, or no cap on «Все вопросы». */
+export function budgetSeconds(budgetMin: unknown): number {
+  return allQuestions(budgetMin) ? Infinity : Math.max(0, Number(budgetMin) || 0) * 60;
+}
+
 // ───────────────────────────────────────────── the scan ─────────────────────────────────────────────
 
 type Phase = 'study' | 'window' | 'exam_today' | 'after';
@@ -178,6 +199,7 @@ interface Scan {
   subjectFigure: Map<string, Fig>;
   mapped: Set<string>;
   hasOral: boolean;
+  all: boolean; // «Все вопросы»
 }
 
 function newFig(): Fig { return { inPlan: 0, twoDays: 0, seen: 0, errors: 0, selfKnow: 0 }; }
@@ -459,7 +481,7 @@ function scan(input: PlanInput, paces: PlanInput['pace'] | undefined = input.pac
   for (const name of Object.keys(buckets) as Bucket[]) buckets[name].sort(cmpKey);
 
   return { input, tz, now, today, at, frozen, mask, off: !isStudyDay(today, mask), lateUntil, subjects, byId, buckets, waiting, dueLater,
-    answeredToday, lastStudyDay, figure, subjectFigure, mapped, hasOral };
+    answeredToday, lastStudyDay, figure, subjectFigure, mapped, hasOral, all: allQuestions(input.budgetMin) };
 }
 
 /**
@@ -506,6 +528,8 @@ function setFloors(sc: Scan): void {
     s.cap = s.floor;
     if (sc.today <= lastNew) fillable.push(s);
   }
+  // «Все вопросы»: the new ones are exactly the even spread (the floor), and the final window has no extra pass.
+  if (sc.all) return;
   const totalFillable = fillable.reduce((sum, s) => sum + s.unseen.length, 0);
   for (const s of fillable) {
     const share = totalFillable > 0 ? Math.ceil((capLeft * s.unseen.length) / totalFillable) : 0;
@@ -555,19 +579,20 @@ interface Fill {
 
 function fillDay(sc: Scan): Fill {
   const input = sc.input;
-  const budget = Math.max(0, Number(input.budgetMin) || 0) * 60;
+  const budget = budgetSeconds(input.budgetMin);
   const active = activeSubjects(sc);
   const doneEst = active.reduce((sum, s) => sum + s.doneEst, 0);
   const doneSec = Math.max(0, Number(input.today ? input.today.doneSec : 0) || 0);
   const charge = Math.max(doneSec, doneEst);
   const remaining = Math.max(0, budget - charge);
-  const shares = fairShares(budget, active);
+  const shares = sc.all ? null : fairShares(budget, active); // «Все вопросы»: no cap to share
   const used = new Map<Subj, number>();
   for (const s of active) used.set(s, s.doneEst);
   const unitsLeft = input.ai ? Math.max(0, input.ai.left) : null;
   const mapped = new Set(sc.mapped);
   const f: Fill = { taken: new Map(), list: [], spent: 0, unitsPoints: 0, unitsChecks: 0, aiBlocked: false, remaining, charge };
   let seq = 0;
+  const order = sc.all ? CLASS_ORDER_ALL : CLASS_ORDER;
 
   const take = (c: Cand, sharePass: boolean): boolean => {
     if (f.taken.has(c.item.id)) return true;
@@ -595,7 +620,7 @@ function fillDay(sc: Scan): Fill {
     f.unitsPoints += points;
     f.unitsChecks += checks;
     if (batch !== null) mapped.add(batch);
-    const t: Taken = { cand: c, cost, seq: seq++, rank: CLASS_ORDER.indexOf(c.cls), units: points + checks };
+    const t: Taken = { cand: c, cost, seq: seq++, rank: order.indexOf(c.cls), units: points + checks };
     f.taken.set(c.item.id, t);
     f.list.push(t);
     return true;
@@ -618,7 +643,7 @@ function fillDay(sc: Scan): Fill {
   };
 
   const pass = (sharePass: boolean) => {
-    for (const cls of CLASS_ORDER) {
+    for (const cls of order) {
       if (isNewCls(cls)) { takeNew(cls, sharePass); continue; }
       if (cls === 'final') {
         for (const c of sc.buckets.final) {
@@ -693,7 +718,7 @@ function frozenFill(input: PlanInput, sc: Scan): Fill | null {
     if (t) charged += t.cost;
     else if (s) charged += estSeconds(item, isSeen(item.u ?? EMPTY) ? 'confirm' : 'new_floor', s.pace);
   }
-  const budget = Math.max(0, Number(input.budgetMin) || 0) * 60;
+  const budget = budgetSeconds(input.budgetMin);
   const doneSec = Math.max(0, Number(input.today ? input.today.doneSec : 0) || 0);
   // The target in the order it was taken; free study comes off its end.
   const kept: Taken[] = [];
@@ -908,7 +933,8 @@ export function planDay(input: PlanInput): DayPlan {
       // own answers from before the exam was made (usability check 2026-10-10, m5: a new exam said «2 дня без занятий»).
       const firstDay = isLocalDay(input.firstPlanDay) ? input.firstPlanDay : null;
       const gap = studyDaysBetween(laterDay(addDays(sc.lastStudyDay, 1), firstDay) as LocalDay, today, sc.mask);
-      if (gap >= 1) {
+      // «Все вопросы» says no «те же N минут»: the missed questions just spread over the days left.
+      if (gap >= 1 && !sc.all) {
         const missed = studyDayBefore(today, sc.mask);
         const skip: PlanLine = { key: 'skip', n: [gap, Math.round(Number(input.budgetMin) || 0)] };
         if (missed !== addDays(today, -1)) skip.day = missed;
@@ -977,6 +1003,7 @@ export function planDay(input: PlanInput): DayPlan {
 // ───────────────────────────────────────────── feasibility ─────────────────────────────────────────────
 
 function feasibilityOf(sc: Scan): { neededMin: number; option: 30 | 45 | 60 | 90 | null; seenByDateEst: number; total: number } {
+  if (sc.all) return allFeasibility(sc);
   const input = sc.input;
   const budgetSec = Math.max(0, Number(input.budgetMin) || 0) * 60;
   const active = activeSubjects(sc);
@@ -1021,6 +1048,35 @@ function feasibilityOf(sc: Scan): { neededMin: number; option: 30 | 45 | 60 | 90
     if (seenByDateEst < total && seenByDateEst >= 100) seenByDateEst = Math.floor(seenByDateEst / 10) * 10;
   }
   return { neededMin, option, seenByDateEst, total };
+}
+
+/**
+ * «Все вопросы»: everything is seen by the last day before the window, and the minutes a study day take on average —
+ * each new question once plus one more answer on another day (the second check, or the mistake again), the questions
+ * already started once, spread over the study days left. No option: the minutes are not the student's choice here.
+ */
+function allFeasibility(sc: Scan): { neededMin: number; option: null; seenByDateEst: number; total: number } {
+  let perDay = 0;
+  let total = 0;
+  for (const s of activeSubjects(sc)) {
+    const p = s.pace;
+    const extra = p.tWrong + RETRY_FACTOR * p.tRetry;
+    const pRev = (p.pWrong.confirm + p.pWrong.check) / 2;
+    const tNewP = (item: PlanItem) => p.tNew * (item.slow ? SLOW_NEW_FACTOR : 1) + p.pWrong.new * extra;
+    const tRevP = (item: PlanItem) => p.tRev * (item.slow ? SLOW_REV_FACTOR : 1) + pRev * extra;
+    let work = 0;
+    for (const item of s.unseen) work += item.f === 'o' ? 2.5 * p.tSC + 2 * p.tAC : tNewP(item) + tRevP(item);
+    work += s.backlogOral.length * (p.tSC + 1.5 * p.tAC);
+    for (const item of s.backlogTest) work += tRevP(item);
+    total += s.inPlan;
+    if (s.date === null) {
+      const wAvg = s.unseen.length > 0 ? work / s.unseen.length : 0;
+      perDay += Math.min(NO_DATE_NEW_PER_DAY, s.unseen.length) * wAvg;
+      continue;
+    }
+    perDay += work / Math.max(1, studyDaysBetween(sc.today, s.date, sc.mask));
+  }
+  return { neededMin: ceil5(perDay / 60), option: null, seenByDateEst: total, total };
 }
 
 /**
@@ -1114,7 +1170,8 @@ export function daysAhead(input: PlanInput, plan: DayPlan = planDay(input)): Day
   if (dated.length === 0) return [];
   const feas = feasibilityOf(sc);
   const budget = Math.round(Number(input.budgetMin) || 0);
-  const perDay = feas.neededMin > 0 ? Math.min(budget, feas.neededMin) : null; // null: familiar questions only
+  // null: familiar questions only; «Все вопросы»: the minutes the plan needs, not a cap
+  const perDay = feas.neededMin > 0 ? (sc.all ? feas.neededMin : Math.min(budget, feas.neededMin)) : null;
   // Today as the card has it: the day's minutes while it holds work (or held it), no row when it holds nothing.
   const ownDay = plan && plan.day === sc.today;
   const todayMin = ownDay && (plan.state === 'study' || plan.state === 'done') ? Math.max(1, shownMinutes(plan.counts.estSec)) : null;

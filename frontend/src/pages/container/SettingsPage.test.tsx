@@ -34,7 +34,12 @@ vi.mock('../../api/containers', () => ({
   removeMember: api.removeMember,
 }));
 vi.mock('../../lib/containers/bankCache', () => ({ forgetBank: api.forgetBank }));
-vi.mock('../../lib/containers/plan', () => ({ feasibility: api.feasibility, windowDays: api.windowDays }));
+// The rest of the plan module stays real («Все вопросы»: ALL_QUESTIONS_MIN, allQuestions, planDay).
+vi.mock('../../lib/containers/plan', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/containers/plan')>()),
+  feasibility: api.feasibility,
+  windowDays: api.windowDays,
+}));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainerData: () => ({
     data: api.state.summary ? { summary: api.state.summary, planInput: api.state.plan, items: new Map(), oralWithoutPoints: 0 } : null,
@@ -190,6 +195,16 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
     fireEvent.click(await screen.findByRole('option', { name: /^90\sминут$/ }));
     expect(screen.getByText(/^Даже при 90\sминутах в день к 12\sянваря вы увидите около 810 из 960\./)).toBeInTheDocument();
+  });
+
+  it('«Все вопросы» after 90 (the owner, 2026-10-14): the line says the new ones and the time a day; the save sends 300', async () => {
+    api.feasibility.mockImplementation((input: PlanInput) => ({ neededMin: 120, option: null, seenByDateEst: input.budgetMin === 90 ? 812 : 455 }));
+    renderAt();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Все вопросы' }));
+    expect(screen.getByText(/^Все 960\sвопросов — к \d+\s\S+: около \d+ новых в\sдень, около 120\sминут в\sдень\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 300, study_weekdays: 127 }));
   });
 
   it('renames and removes a subject; the last subject is removed only with the exam', async () => {

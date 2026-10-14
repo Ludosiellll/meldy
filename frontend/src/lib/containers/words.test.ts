@@ -63,6 +63,8 @@ const SAMPLES: Record<LineKey, Array<DayPlan['lines'][number]>> = {
     { key: 'day_off' }],
   pace_faster: [{ key: 'pace_faster', n: [45] }],
   pace_slower: [{ key: 'pace_slower', n: [80] }],
+  all: [{ key: 'all', n: [1120, 560, 455, 1120], day: '2026-10-15' }, { key: 'all', n: [1120, 560, 455, 1124] },
+    { key: 'all', n: [480, 0, 50, 480] }],
 };
 
 describe('plural and glue', () => {
@@ -143,7 +145,8 @@ describe('lineText', () => {
     expect(t({ key: 'oral_no_lectures', n: [60] })).toBe('Ещё 60 устных войдут в план, когда к предмету будут лекции.'); // #35
     expect(t({ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }))
       .toBe('При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут.');
-    expect(t({ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' })).toBe('Даже при 90 минутах в день к 28 октября вы увидите около 820 из 960.');
+    expect(t({ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' }))
+      .toBe('Даже при 90 минутах в день к 28 октября вы увидите около 820 из 960. Чтобы увидеть все, выберите «Все вопросы».');
     // the plan card's note is one line from day 1 (m9); «Время в день» says it in full
     expect(t({ key: 'window_ahead', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет.');
     expect(t({ key: 'window_detail', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
@@ -181,7 +184,8 @@ describe('lineText', () => {
     expect(t({ key: 'need', n: [50, 20, 54], day: '2026-10-21' })).toBe('Чтобы увидеть все 50 вопросов в плане к 21 октября, нужно около 20 минут в день.');
     expect(t({ key: 'short', n: [30, 40, 50, 35, 54], day: '2026-10-21' }))
       .toBe('При 30 минутах к 21 октября вы увидите около 40 из 50 в плане. Чтобы увидеть все, нужно около 35 минут.');
-    expect(t({ key: 'short_max', n: [90, 700, 900, 960], day: '2026-10-28' })).toBe('Даже при 90 минутах в день к 28 октября вы увидите около 700 из 900 в плане.');
+    expect(t({ key: 'short_max', n: [90, 700, 900, 960], day: '2026-10-28' }))
+      .toBe('Даже при 90 минутах в день к 28 октября вы увидите около 700 из 900 в плане. Чтобы увидеть все, выберите «Все вопросы».');
     // every question in the plan, or no size given (the plan's own lines, the bot): the words as before
     expect(t({ key: 'need', n: [960, 70, 960], day: '2026-10-28' })).toBe(t({ key: 'need', n: [960, 70], day: '2026-10-28' }));
     expect(t({ key: 'short', n: [45, 700, 960, 75, 960], day: '2026-10-28' })).toBe(t({ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }));
@@ -279,6 +283,27 @@ describe('start label', () => {
     expect(ru(startLabel(20, null, { done: 12, of: 20 }))).toBe('Продолжить: ещё 8 вопросов');
     expect(ru(startLabel(3, null, null, 'ai_check'))).toBe('Ответить вслух: 3 вопроса');
     expect(ru(startLabel(1, 1, null))).toBe('Начать: 1 вопрос, около 1 минуты');
+  });
+});
+
+describe('«Все вопросы» (the choice after 90 minutes, 2026-10-14)', () => {
+  const t = (line: DayPlan['lines'][number]) => ru(lineText(line));
+
+  it('says the count, the new ones a day and the hours a day', () => {
+    expect(t({ key: 'all', n: [1120, 560, 455, 1120], day: '2026-10-15' }))
+      .toBe('Все 1120 вопросов — к 15 октября: около 560 новых в день, около 7,5 часа в день.');
+    expect(t({ key: 'all', n: [1120, 560, 420, 1124] })).toBe('Все 1120 вопросов в плане: около 560 новых в день, около 7 часов в день.');
+    expect(t({ key: 'all', n: [480, 0, 50, 480] })).toBe('Новых вопросов не осталось: ошибки и вторая проверка, около 50 минут в день.');
+  });
+
+  it('reads 3 hours and more in hours, to the half hour; below that in minutes', () => {
+    expect(ru(dayRowText({ from: '2026-10-15', to: '2026-10-15', kind: 'study', minutes: 455 }))).toBe('15 октября — около 7,5 часа');
+    expect(ru(dayRowText({ from: '2026-10-14', to: '2026-10-15', kind: 'study', minutes: 180 }))).toBe('14–15 октября — около 3 часов в день');
+    expect(ru(dayRowText({ from: '2026-10-14', to: '2026-10-15', kind: 'study', minutes: 175 }))).toBe('14–15 октября — около 175 минут в день');
+    expect(t({ key: 'done', n: [560, 430] })).toBe('На сегодня всё: 560 вопросов за 7 часов.');
+    expect(t({ key: 'done', n: [560, 455] })).toBe('На сегодня всё: 560 вопросов за 7,5 часа.');
+    expect(t({ key: 'short', n: [45, 150, 1120, 610], day: '2026-10-17' }))
+      .toBe('При 45 минутах к 17 октября вы увидите около 150 из 1120. Чтобы увидеть все, нужно около 10 часов.');
   });
 });
 

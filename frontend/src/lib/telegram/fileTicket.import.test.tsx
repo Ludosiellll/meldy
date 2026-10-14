@@ -39,7 +39,8 @@ vi.mock('../../api/exams', () => ({
   parseQuestionList: api.parseQuestionList,
   examErrorMessage: (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback),
 }));
-vi.mock('../containers/plan', () => ({
+vi.mock('../containers/plan', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../containers/plan')>()),
   feasibility: () => ({ neededMin: 45, option: 45, seenByDateEst: 10_000 }),
   windowDays: () => 4,
 }));

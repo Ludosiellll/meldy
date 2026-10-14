@@ -1,5 +1,5 @@
 import type { DayPlan, LocalDay, PlanInput } from '../../types/container';
-import { NO_DATE_NEW_PER_DAY, feasibility } from '../../lib/containers/plan';
+import { NO_DATE_NEW_PER_DAY, allQuestions, feasibility } from '../../lib/containers/plan';
 import { figureLines, lineText, planDetail, planLine, planTitle, startLabel } from '../../lib/containers/words';
 import { dayDiff } from './model';
 import { glue, q } from './copy';
@@ -170,6 +170,7 @@ export interface PaceNote {
 export function paceNote(p: { input: PlanInput | null; plan: DayPlan | null; budget: number; firstPlanDay: LocalDay }): PaceNote | null {
   const { input, plan, budget, firstPlanDay } = p;
   if (!input || !plan || plan.state !== 'study' || !input.pace || plan.figure.seen < 20) return null;
+  if (allQuestions(budget)) return null; // «Все вопросы»: no minutes to suggest
   let fit: ReturnType<typeof feasibility>;
   try {
     fit = feasibility(input);

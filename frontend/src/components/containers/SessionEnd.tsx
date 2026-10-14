@@ -7,6 +7,7 @@ import { Mark } from './ui';
 import { RoomBar } from './RoomParts';
 import { firstCountText, planText, safeStart, text as lineWords } from './planLines';
 import { sessionOpens } from './studySetup';
+import { budgetSeconds } from '../../lib/containers/plan';
 import * as copy from './copy';
 import {
   comesBackWhen,
@@ -59,7 +60,7 @@ interface Said extends LeftToday {
 
 /** The frozen day is already cut by the real minutes (spent beyond the plan's estimates): fewer answered may leave as many. */
 function cutByMinutes(plan: DayPlan, input: PlanInput | null): boolean {
-  const budget = Math.max(0, Number(input?.budgetMin) || 0) * 60;
+  const budget = budgetSeconds(input?.budgetMin); // «Все вопросы»: no cap, never cut by minutes
   return plan.counts.doneSec > 0 && plan.counts.leftSec >= budget - plan.counts.doneSec;
 }
 

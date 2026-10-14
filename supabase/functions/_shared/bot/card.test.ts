@@ -263,3 +263,13 @@ test('the oral seam: planInputOf passes today.oral (empty until T11) into the co
   assert.match(visibleText(dayCard(fresh, 'reminder', SITE).out.text).replace(/\u00a0/g, ' '), /устн/);
   assert.throws(() => planInputOf({ ...today, wire: null }, CID));
 });
+
+test('«Все вопросы» (minutes_per_day 300, the owner, 2026-10-14): a member\'s card says the day in hours, never «300 минут»', () => {
+  // A member of a group exam, three days before the test, on the choice after 90 minutes.
+  const card = dayCard(todayOf([{ ...AUTUMN, role: 'member', minutes: 300, date: '2026-10-19', firstPlanDay: DAY }]), 'reminder', SITE);
+  lintCard('all_questions', card);
+  const text = visibleText(card.out.text).replace(/ /g, ' ');
+  assert.match(text, /около \d+(,5)? час/);
+  assert.doesNotMatch(text, /300 минут/);
+  assert.equal(card.send, true);
+});

@@ -12,6 +12,7 @@ import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import type { BankParseResult, PlanItem, TestItem, Uuid } from '../../types/container';
 import { dayText, errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
+import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
 import KeySource from '../../components/containers/import/KeySource';
@@ -75,7 +76,8 @@ const IMPORT_PATH = /^\/exams\/(?:import|new)\/?$/;
 if (typeof window !== 'undefined' && IMPORT_PATH.test(window.location.pathname)) deferGuideOnce();
 
 const CONTAINER_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const MINUTE_OPTIONS = [30, 45, 60, 90] as const;
+/** 30–90 minutes, then «Все вопросы» (no minutes cap). */
+const MINUTE_OPTIONS = [30, 45, 60, 90, ALL_QUESTIONS_MIN] as const;
 const READ_AT_ONCE = 2;
 
 interface Entry {

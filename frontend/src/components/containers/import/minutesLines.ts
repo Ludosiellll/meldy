@@ -6,6 +6,8 @@
  * - They fall short: «При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут.»
  *   (`short`), or at 90 minutes, when even they are not enough, `short_max`. Like planDay: short_max only when the
  *   chosen minutes are 90, so the line never names minutes the student did not choose.
+ * - «Все вопросы» (plan.ts ALL_QUESTIONS_MIN): «Все 1120 вопросов — к 15 октября: около 560 новых в день, около 7,5 часа в
+ *   день.» (`all`): the new ones of today's even spread and the hours a study day takes on average.
  * - One date for the whole exam: the final days without new questions in full (`window_detail`; the plan card's
  *   `window_ahead` says it in one line), under «Подробнее». Days and minutes are the study days' (settings.study_weekdays).
  *
@@ -15,7 +17,7 @@
  * says what it counts: «Чтобы увидеть все 50 вопросов в плане к 21 октября…» (usability check 2026-10-10, m6: «все 50»
  * under an exam of 54). No date, nothing to see, or an estimate that fails: no line.
  */
-import { feasibility, windowDays } from '../../../lib/containers/plan';
+import { allQuestions, feasibility, planDay, windowDays } from '../../../lib/containers/plan';
 import { localDay, studyDayBefore, studyMask } from '../../../lib/containers/time';
 import { lineText } from '../../../lib/containers/words';
 import type { PlanInput } from '../../../types/container';
@@ -25,7 +27,7 @@ export interface MinutesLines {
   line: string;
   /** The final days without new questions, when the exam has one date. */
   window: string | null;
-  /** The smallest of 30 / 45 / 60 / 90 minutes that is enough, or null when even 90 is not. */
+  /** The smallest of 30 / 45 / 60 / 90 minutes that is enough, or null when even 90 is not (or on «Все вопросы»). */
   option: 30 | 45 | 60 | 90 | null;
   /** The chosen minutes fall short. */
   short: boolean;
@@ -51,30 +53,39 @@ export function minutesLines(input: PlanInput | null, minutes: number): MinutesL
     const at = feasibility({ ...input, budgetMin: minutes });
     const needed = ceil5(at.neededMin);
     if (needed <= 0) return null;
+    const size = typeof input.examQuestions === 'number' && Number.isFinite(input.examQuestions) ? Math.max(0, input.examQuestions) : total;
+    const oneDate = ahead.every((subject) => subject.date === last);
+    const windowLine = (): string | null => {
+      // The final days are the student's last study days before the date, as the plan counts them (plan.ts windowDays,
+      // windowStart): the first of them is the W-th study day back.
+      if (!oneDate) return null;
+      const mask = studyMask(input.studyWeekdays);
+      const days = windowDays(input.firstPlanDay, last, mask);
+      let from = last;
+      for (let k = 0; k < days; k += 1) from = studyDayBefore(from, mask);
+      return days > 0 ? lineText({ key: 'window_detail', n: [days], day: from }) : null;
+    };
+
+    // «Все вопросы»: what a day holds — the new ones of today's spread and the hours a study day takes on average.
+    if (allQuestions(minutes)) {
+      const plan = planDay({ ...input, budgetMin: minutes });
+      const day = oneDate && plan.coverage.lastNewDay ? plan.coverage.lastNewDay : undefined;
+      const line = lineText({ key: 'all', n: [total, plan.coverage.floor, needed, size], ...(day ? { day } : {}) });
+      return { line, window: windowLine(), option: null, short: false };
+    }
     // Short only when the minutes are below the need and the estimate falls below the count; «около» rounds the
     // estimate down to tens only then, so 476 of 476 never reads as «около 470 из 476».
     const reach = Math.min(total, Math.max(0, at.seenByDateEst));
     const short = needed > minutes && reach < total;
     const seen = about(reach);
-    // The exam's size (words.ts: «в плане» when it is more than the count).
-    const size = typeof input.examQuestions === 'number' && Number.isFinite(input.examQuestions) ? Math.max(0, input.examQuestions) : total;
+    // The exam's size (words.ts: «в плане» when it is more than the count): `size` above.
     const line = !short
       ? lineText({ key: 'need', n: [total, needed, size], day: last })
       : needed > 90 && minutes >= 90
         ? lineText({ key: 'short_max', n: [minutes, seen, total, size], day: last })
         : lineText({ key: 'short', n: [minutes, seen, total, needed, size], day: last });
 
-    // The final days are the student's last study days before the date, as the plan counts them (plan.ts windowDays,
-    // windowStart): the first of them is the W-th study day back.
-    let window: string | null = null;
-    if (ahead.every((subject) => subject.date === last)) {
-      const mask = studyMask(input.studyWeekdays);
-      const days = windowDays(input.firstPlanDay, last, mask);
-      let from = last;
-      for (let k = 0; k < days; k += 1) from = studyDayBefore(from, mask);
-      if (days > 0) window = lineText({ key: 'window_detail', n: [days], day: from });
-    }
-    return { line, window, option: at.option, short };
+    return { line, window: windowLine(), option: at.option, short };
   } catch {
     return null;
   }

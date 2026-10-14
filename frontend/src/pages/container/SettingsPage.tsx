@@ -19,6 +19,7 @@ import PaperSelect from '../../components/ui/PaperSelect';
 import InviteExam from '../../components/containers/group/InviteExam';
 import MembersList from '../../components/containers/group/MembersList';
 import { errorText, GONE, IMPORT, INVITE, MEMBERS, nb, SETTINGS } from '../../components/containers/copyImport';
+import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import { TO_EXAMS } from '../../components/containers/copy';
 import { minutesLines } from '../../components/containers/import/minutesLines';
 import { useFocusAfter } from '../../components/containers/useFocusAfter';
@@ -43,7 +44,8 @@ import './SettingsPage.css';
  * closes; a refusal is said in an alert (usability check m9).
  */
 
-const MINUTE_OPTIONS = [30, 45, 60, 90] as const;
+/** 30–90 minutes, then «Все вопросы» (no minutes cap). */
+const MINUTE_OPTIONS = [30, 45, 60, 90, ALL_QUESTIONS_MIN] as const;
 
 const oralOnly = (subject: SummarySubject) => subject.keyed + subject.no_key === 0 && Boolean(subject.oral);
 
