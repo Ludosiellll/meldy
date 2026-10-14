@@ -76,6 +76,7 @@ import {
   isContainersUnavailable,
   isGone,
   isOffline,
+  itemImages,
   joinByCode,
   normalizeCode,
   oralSync,
@@ -328,6 +329,20 @@ describe('reads', () => {
   });
 });
 
+describe('the pictures of an item (test_items.images)', () => {
+  const C = '11111111-2222-4333-8444-555555555555';
+  it('reads the stem’s and the options’ paths; {} and empty lists are no pictures', () => {
+    expect(itemImages({ stem: [`${C}/${'a'.repeat(64)}.png`], options: [[], [`${C}/${'b'.repeat(64)}.jpg`]] })).toEqual({
+      stem: [`${C}/${'a'.repeat(64)}.png`],
+      options: [[], [`${C}/${'b'.repeat(64)}.jpg`]],
+    });
+    expect(itemImages({})).toBeNull();
+    expect(itemImages({ stem: [], options: [[], []] })).toBeNull();
+    expect(itemImages(null)).toBeNull();
+    expect(itemImages({ stem: [42, ''], options: 'x' })).toBeNull();
+  });
+});
+
 describe('items by keyset pages', () => {
   it('asks one subject’s page after a position: its columns, position order, 500 rows', async () => {
     serveItems({ [S1]: 12 });
@@ -568,6 +583,9 @@ describe('backend calls', () => {
     expect(form.get('key_mode')).toBe('none');
     expect(form.get('key_text')).toBe('1 – б');
     expect(form.get('format')).toBe('test');
+    // A file's pictures come with the parse: this page saves them (owner, 2026-10-14).
+    expect(form.get('pictures')).toBe('1');
+    expect(result.pictures).toEqual({});
   });
 
   it('parse-bank: a key kept in another file goes as key_file, the chosen section as key_section (owner, 2026-10-14)', async () => {

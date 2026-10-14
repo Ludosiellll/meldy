@@ -15,7 +15,7 @@
  * - Open questions are not added: the oral part of a subject is its own exam, changed on its own page.
  */
 import type { ItemInput, SummarySubject, TestItem } from '../../../types/container';
-import { activeSubjects, itemInputs, shortNorm, TOPIC_CAP, type DraftItem, type DraftSubject } from './importModel';
+import { activeSubjects, itemInputs, shortNorm, TOPIC_CAP, type DraftItem, type DraftSubject, type PicturePlace } from './importModel';
 
 /** One subject of the file, its oral parts joined: what can update the exam's subject. */
 export interface UpdateSource {
@@ -79,8 +79,20 @@ function keyOf(kind: string, options: readonly string[], correct: readonly numbe
     .join(SEP_OPTIONS);
 }
 
-const draftIdentity = (item: DraftItem) => identity(item.text, item.kind, item.options);
-const savedIdentity = (item: TestItem) => identity(item.stem, item.kind, item.options);
+/**
+ * The pictures of a question as the comparison sees them: the hashes (a draft names a picture by its sha256, a saved
+ * question by «<container>/<sha256>.<ext>»), so the same words under other pictures are another question.
+ */
+function pictureIdentity(images: Partial<{ stem: string[]; options: string[][] }> | null | undefined): string {
+  if (!images) return '';
+  const hash = (name: string) => name.replace(/^.*\//, '').replace(/[.].*$/, '');
+  const stem = (images.stem ?? []).map(hash).join(',');
+  const options = (images.options ?? []).map((list) => list.map(hash).join(',')).filter(Boolean).sort().join(';');
+  return stem || options ? `${SEP}${stem}${SEP}${options}` : '';
+}
+
+const draftIdentity = (item: DraftItem) => identity(item.text, item.kind, item.options) + pictureIdentity(item.images);
+const savedIdentity = (item: TestItem) => identity(item.stem, item.kind, item.options) + pictureIdentity(item.images);
 
 /** The file's subjects (their parts of a long oral list joined), each a possible source of the update. */
 export function updateSources(subjects: readonly DraftSubject[]): UpdateSource[] {
@@ -193,6 +205,6 @@ export function planUpdate(source: UpdateSource | null, saved: readonly TestItem
 }
 
 /** The new questions as container_items_add takes them, with the subject's topic numbers. */
-export function updateItemInputs(plan: UpdatePlan, importId: string): ItemInput[] {
-  return itemInputs({ test: plan.add.map((item) => ({ ...item, topic: plan.topicOf[item.uid] ?? null })) }, importId);
+export function updateItemInputs(plan: UpdatePlan, importId: string, place?: PicturePlace): ItemInput[] {
+  return itemInputs({ test: plan.add.map((item) => ({ ...item, topic: plan.topicOf[item.uid] ?? null })) }, importId, place);
 }

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { IMPORT, QUEUE } from '../copyImport';
+import { filePictures } from '../ItemPictures';
 import KeyQuestion, { QueueBar, type KeyAction, type TapMode } from '../keys/KeyQuestion';
+import type { BankPicture } from '../../../types/container';
 import type { DraftItem, DraftSubject, ItemFix, Problem } from './importModel';
 
 /**
@@ -17,6 +19,8 @@ interface Props {
   onIndex: (index: number) => void;
   onFix: (uid: string, fix: ItemFix) => void;
   onDone: () => void;
+  /** The files' pictures (by id), shown as the file has them. */
+  pictures?: Record<string, BankPicture>;
 }
 
 interface Located {
@@ -123,7 +127,7 @@ function viewOf(item: DraftItem, problem: Problem): View {
   }
 }
 
-export default function ImportQueue({ subjects, uids, index, onIndex, onFix, onDone }: Props) {
+export default function ImportQueue({ subjects, uids, index, onIndex, onFix, onDone, pictures }: Props) {
   const fixedRef = useRef(new Set<string>());
   const current = index < uids.length ? locate(subjects, uids[index]) : null;
   const problems = current ? problemsOf(current) : [];
@@ -204,6 +208,14 @@ export default function ImportQueue({ subjects, uids, index, onIndex, onFix, onD
         }}
         onSaveKeys={(keys) => apply({ correct: keys, kind: 'multiple' })}
         actions={actions}
+        pictures={
+          item.images
+            ? {
+                stem: filePictures(item.images.stem, pictures),
+                options: item.rawOptions.map((_, at) => filePictures(item.images?.fileOptions[at], pictures)),
+              }
+            : null
+        }
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { forwardRef, type CSSProperties, type ReactNode, type Ref } from 'react';
-import type { TestItem } from '../../types/container';
+import { isPictureWord, type TestItem } from '../../types/container';
 import * as copy from './copy';
+import ItemPictures, { storedPictures } from './ItemPictures';
 import { leadingSpaces, stemParts } from './stemCode';
 import './room.css';
 
@@ -69,11 +70,27 @@ function Check() {
   );
 }
 
+/** An option's words and pictures; words that only stand for its picture are for screen readers. */
+function OptionWords({ text, paths }: { text: string; paths: string[] | undefined }) {
+  const sources = storedPictures(paths);
+  if (sources.length === 0) return <>{text}</>;
+  return (
+    <>
+      <ItemPictures sources={sources} kind="option" />
+      {isPictureWord(text) ? <span className="sr-only">{text}</span> : <span className="ct-opt-words">{text}</span>}
+    </>
+  );
+}
+
 const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function QuestionCard(props, ref) {
   const { item, order, context, mode, answered, ticked, picked, text, textInvalid, hint, onPick, onText, onSubmitText, stemRef, fileRef } = props;
   // The flag of the import, and lines that clearly read as code even without it (stemCode.ts, usability check m1).
   const stem = stemParts(item.stem, item.code);
   const multiple = item.kind === 'multiple';
+  // Pictures (owner, 2026-10-14): under the words; a stem or an option that is only a picture keeps its stand-in words
+  // («Вопрос на картинке», «Рисунок Б») for screen readers only.
+  const stemPictures = storedPictures(item.images?.stem);
+  const pictureStem = stemPictures.length > 0 && isPictureWord(item.stem);
   const learn = mode === 'learn';
 
   let body: ReactNode;
@@ -145,7 +162,7 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
               {multiple ? <Check /> : null}
               <span className="ct-opt-l">{letter}</span>
               <span className="ct-opt-t">
-                {item.options[fileIndex]}
+                <OptionWords text={item.options[fileIndex]} paths={item.images?.options?.[fileIndex]} />
                 {tag ? <span className="ct-opt-tag">{tag}</span> : null}
               </span>
             </button>
@@ -158,7 +175,7 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
   return (
     <div ref={ref} className="ct-q">
       <p className="ct-ctx">{context}</p>
-      {stem.before ? (
+      {stem.before && !pictureStem ? (
         <h1 className="ct-stem" ref={stemRef} tabIndex={-1}>
           {stem.before}
         </h1>
@@ -167,6 +184,7 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
           {item.stem.split('\n')[0]}
         </h1>
       )}
+      <ItemPictures sources={stemPictures} kind="stem" />
       {stem.code ? <CodeBlock code={stem.code} /> : null}
       {stem.after ? <p className="ct-stem-after">{stem.after}</p> : null}
       {multiple && (!answered || !learn) ? <p className="ct-hint">{copy.MULTIPLE_HINT}</p> : null}

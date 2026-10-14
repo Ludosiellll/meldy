@@ -7,6 +7,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import KeyQuestion, { QueueBar, type KeyAction, type TapMode } from '../../components/containers/keys/KeyQuestion';
+import { storedPictures } from '../../components/containers/ItemPictures';
 import { errorText, GONE, KEYS, lettersText, nb, QUEUE } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
 import type { DoubtRow, ItemPatch, TestItem, Uuid } from '../../types/container';
@@ -231,6 +232,11 @@ export default function KeysPage() {
         }
         stem={item.stem}
         code={item.code}
+        pictures={
+          item.images
+            ? { stem: storedPictures(item.images.stem), options: item.options.map((_, at) => storedPictures(item.images?.options?.[at])) }
+            : null
+        }
         options={item.options}
         kind={item.kind}
         answers={item.answers}

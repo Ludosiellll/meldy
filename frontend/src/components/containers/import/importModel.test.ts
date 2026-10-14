@@ -200,6 +200,68 @@ describe('deriveSubjects: decisions 5, 6 and 7', () => {
   });
 });
 
+describe('deriveSubjects: pictures carried from the file (owner, 2026-10-14)', () => {
+  const A = 'a'.repeat(64);
+  const B = 'b'.repeat(64);
+  const C = 'c'.repeat(64);
+  const D = 'd'.repeat(64);
+  const CONTAINER = '11111111-2222-4333-8444-555555555555';
+  const path = (id: string) => `${CONTAINER}/${id}.png`;
+
+  it('a question that is only a picture is saved under «Вопрос на картинке»; picture options under «Рисунок Б»', () => {
+    const items = [
+      item(1, { text: '', options: ['', '', 'текст', ''], correct: [1], images: { stem: [A], options: [[B], [C], [], [D]] } }),
+      item(2),
+    ];
+    const [subject] = deriveSubjects([file(bank(items))]);
+    const [picture] = subject.test;
+    expect(picture.text).toBe('Вопрос на картинке');
+    expect(picture.blocked).toBe(false);
+    expect(picture.options).toEqual(['Рисунок А', 'Рисунок Б', 'текст', 'Рисунок Г']);
+    expect(picture.problems).toEqual([]);
+    expect(picture.images).toEqual({ stem: [A], options: [[B], [C], [], [D]], fileOptions: [[B], [C], [], [D]] });
+
+    const [input] = itemInputs(subject, 'imp', path);
+    expect(input).toMatchObject({ stem: 'Вопрос на картинке', correct: [1], key_source: 'bold' });
+    expect(input.images).toEqual({ stem: [path(A)], options: [[path(B)], [path(C)], [], [path(D)]] });
+    expect(input.flags).not.toContain('has_image');
+    expect(itemInputs(subject, 'imp', path)[1].images).toBeUndefined();
+  });
+
+  it('a dropped option takes its picture along: the pictures follow the saved options', () => {
+    const items = [item(1, { options: ['один', 'два', 'три', 'два'], flags: ['same_options'], images: { stem: [], options: [[A], [B], [C], [D]] } })];
+    const fixes: ImportEdits = { ...NO_EDITS, items: { 'f1:1': { drop: [3] } } };
+    const [subject] = deriveSubjects([file(bank(items))], fixes);
+    expect(subject.test[0].options).toEqual(['один', 'два', 'три']);
+    expect(subject.test[0].images?.options).toEqual([[A], [B], [C]]);
+    expect(subject.test[0].images?.fileOptions).toEqual([[A], [B], [C], [D]]);
+  });
+
+  it('a picture that did not reach storage is a lost image: the question is saved without its key and with has_image', () => {
+    const items = [item(1, { images: { stem: [A, B], options: [[], [], [], []] } })];
+    const [subject] = deriveSubjects([file(bank(items))]);
+    const [input] = itemInputs(subject, 'imp', (id) => (id === A ? path(A) : null));
+    expect(input.images).toEqual({ stem: [path(A)], options: [[], [], [], []] });
+    expect(input).toMatchObject({ correct: [], key_source: 'none' });
+    expect(input.flags).toContain('has_image');
+  });
+
+  it('the same words under other pictures are not twins (IDEF0: «Что означает выделенная стрелка?» ×3)', () => {
+    const arrow = { text: 'Что означает выделенная стрелка?', options: ['вход', 'выход', 'управление', 'механизм'] };
+    const items = [item(1, { ...arrow, images: { stem: [A], options: [] } }), item(2, { ...arrow, images: { stem: [B], options: [] } }), item(3, arrow), item(4, arrow)];
+    const [subject] = deriveSubjects([file(bank(items))]);
+    expect(subject.test.map((entry) => entry.twin)).toEqual([null, null, null, '3']);
+  });
+
+  it('caps the pictures at what the database keeps: 8 under a stem, 4 in an option', () => {
+    const many = Array.from({ length: 10 }, (_, index) => String(index).repeat(64));
+    const items = [item(1, { images: { stem: many, options: [many, [], [], []] } })];
+    const [subject] = deriveSubjects([file(bank(items))]);
+    expect(subject.test[0].images?.stem).toHaveLength(8);
+    expect(subject.test[0].images?.options[0]).toHaveLength(4);
+  });
+});
+
 describe('deriveSubjects: keys and problems', () => {
   it('a checkbox in the file is a marker; «Все перечисленные» keeps the order', () => {
     const items = [
@@ -319,6 +381,19 @@ describe('helpers', () => {
     expect(subjectFromFileName('Микроэкономика.pdf')).toBe('Микроэкономика');
     expect(subjectFromFileName('тесты_2026.docx')).toBeNull();
     expect(subjectFromFileName('ОС_итог.xlsx')).toBe('ОС');
+    // A numbered part keeps its number (owner, 2026-10-14: six variants of one test).
+    expect(subjectFromFileName('Вариант_1.docx')).toBe('Вариант 1');
+    expect(subjectFromFileName('тест вариант №3.docx')).toBe('Вариант №3');
+    expect(subjectFromFileName('Билет 12.txt')).toBe('Билет 12');
+  });
+
+  it('names a one-subject file by its «Вариант N» when the file name does not say it', () => {
+    const one = (name: string, variant: number | null) =>
+      deriveSubjects([file(bank([item(1), item(2)], { variant }), { name })])[0].title;
+    expect(one('ТРПО.docx', 4)).toBe('ТРПО, вариант 4');
+    expect(one('Вариант 4.docx', 4)).toBe('Вариант 4');
+    expect(one('тесты_2026.docx', 1)).toBe('Вариант 1');
+    expect(one('ТРПО.docx', null)).toBe('ТРПО');
   });
 
   it('reads short answers only when they are short or marked as such', () => {

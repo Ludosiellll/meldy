@@ -290,6 +290,8 @@ export const SESSION_EMPTY = 'На сегодня здесь всё.';
 export const ERRORS_EMPTY = 'Ошибок сейчас нет.';
 export const BACK_TO_EXAM = 'Вернуться к экзамену';
 export const OPTION_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З'] as const;
+export const PICTURE_FAILED = 'Картинка не загрузилась.';
+export const PICTURE_RETRY = 'Загрузить ещё раз';
 
 // «Ключ неверный?» in place (the author, a solo student too; decision 14) and «Сомневаюсь в ключе» (a member; the bot
 // spec's decision 17 — after an answer the author has only «Ключ неверный?»). The *_OWN lines stay for the sheet's

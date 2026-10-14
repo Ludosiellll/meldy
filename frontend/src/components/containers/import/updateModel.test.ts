@@ -179,6 +179,26 @@ describe('«Обновить из файла»: what a newer file brings to a su
     expect(bestSource(sources, [], 'история беларуси')?.title).toBe('История Беларуси');
   });
 
+  it('a question is the same with the same pictures; the same words under another picture are new (owner, 2026-10-14)', () => {
+    const sha = (char: string) => char.repeat(64);
+    const first = SAVED[0];
+    const saved: TestItem[] = [
+      { ...first, images: { stem: [`${first.container_id}/${sha('a')}.png`], options: [] } },
+      ...SAVED.slice(1),
+    ];
+    const [source] = sourcesOf(
+      bank([
+        again(first, { images: { stem: [sha('a')], options: [] } }),
+        again(first, { position: 20, label: '20', images: { stem: [sha('b')], options: [] } }),
+      ]),
+    );
+    const plan = planUpdate(source, saved, SUBJECT);
+    expect(plan.same).toBe(1);
+    expect(plan.add.map((entry) => entry.label)).toEqual(['20']);
+    const [input] = updateItemInputs(plan, 'imp-next', (id) => `${first.container_id}/${id}.png`);
+    expect(input.images).toEqual({ stem: [`${first.container_id}/${sha('b')}.png`], options: [[], [], [], []] });
+  });
+
   it('compares text without case, «ё», spaces, quotes or the closing punctuation', () => {
     expect(sameText('  Что  вернёт «выражение»?  ')).toBe(sameText('что вернет выражение'));
     expect(sameText('A B.')).toBe('a b');

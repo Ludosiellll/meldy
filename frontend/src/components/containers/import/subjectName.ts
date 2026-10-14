@@ -8,6 +8,8 @@
 const LEADING = /^(?:банк\p{L}*|тест\p{L}*|вопрос\p{L}*|задани\p{L}*|по|к)\s+/iu;
 const TRAILING = /\s+(?:(?:19|20)\d{2}(?:[-–/.](?:19|20)?\d{2})?|v\d+|в\d+|итог\p{L}*|финал\p{L}*|final|копия|copy|\(\d+\)|\d+)$/iu;
 
+const NUMBERED = /(?:^|\s)(?:вариант|variant|билет|часть|модуль|раздел|блок)\s*№?\s*\d+$/iu;
+
 export function subjectFromFileName(fileName: string): string | null {
   let name = fileName.trim();
   // The extension: «.docx», «.txt» …; a name without one keeps its last word.
@@ -19,6 +21,8 @@ export function subjectFromFileName(fileName: string): string | null {
     name = next;
   }
   for (let guard = 0; guard < 8; guard += 1) {
+    // «Вариант 1», «Билет 12», «Часть 2»: the number is the name (owner, 2026-10-14: six variants of one test).
+    if (NUMBERED.test(name)) break;
     const next = name.replace(TRAILING, '').trim();
     if (next === name) break;
     name = next;

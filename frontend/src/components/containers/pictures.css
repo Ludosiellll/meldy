@@ -1,0 +1,40 @@
+/* Pictures of a question and of its options (ItemPictures.tsx). A picture sits on white in both themes: diagrams
+   are drawn in black on a transparent page. Under a stem it is as wide as the column allows and never taller than
+   about half the screen; in an option it is a small card above the option's words. */
+.ct-pics { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; margin: 14px 0 0; }
+.ct-pics[data-kind='option'] { margin: 0 0 6px; }
+.ct-pics[data-kind='option']:last-child { margin-bottom: 0; }
+.ct-pic {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 8px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+}
+.ct-pic img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: min(56vh, 520px);
+  object-fit: contain;
+  border-radius: 10px;
+  user-select: none;
+}
+.ct-pic[data-kind='option'] { padding: 6px; border-radius: 12px; }
+.ct-pic[data-kind='option'] img { max-height: 200px; border-radius: 8px; }
+.ct-pic[data-wait] { width: min(100%, 360px); height: 180px; background: var(--sf-surface-soft); }
+.ct-pic[data-kind='option'][data-wait] { width: 160px; height: 100px; }
+.ct-pic[data-failed] {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--sf-muted);
+}
+.ct-opt-words { display: block; }
+@media (forced-colors: active) {
+  .ct-pic { border: 1px solid CanvasText; }
+}

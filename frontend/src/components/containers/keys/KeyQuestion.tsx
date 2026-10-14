@@ -1,5 +1,7 @@
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
+import { isPictureWord } from '../../../types/container';
 import { letter, nb, QUEUE } from '../copyImport';
+import ItemPictures, { type PictureSource } from '../ItemPictures';
 import { leadingSpaces, stemParts } from '../stemCode';
 import './keys.css';
 
@@ -45,14 +47,24 @@ interface Props {
   /** Under the question: a line after a change, a doubt's notes. */
   children?: ReactNode;
   headingId?: string;
+  /** The question's pictures: the stem's and each option's (in the order of `options`). */
+  pictures?: { stem: PictureSource[]; options: PictureSource[][] } | null;
 }
 
 /**
  * The question's own lines: the words, then the code as typed, each line wrapping under its own indentation (as in a
  * «занятие», stemCode.ts: lines that clearly read as code are code even without the import's flag).
  */
-function Stem({ text, code }: { text: string; code: boolean }) {
+function Stem({ text, code, pictures }: { text: string; code: boolean; pictures: PictureSource[] }) {
   const parts = stemParts(text, code);
+  if (pictures.length > 0 && !parts.code) {
+    return (
+      <div className="kq-stem">
+        {isPictureWord(text) ? <span className="sr-only">{text}</span> : <p className="kq-stem-lead">{text}</p>}
+        <ItemPictures sources={pictures} kind="stem" />
+      </div>
+    );
+  }
   if (!parts.code) return <p className="kq-stem">{text}</p>;
   return (
     <div className="kq-stem">
@@ -65,6 +77,7 @@ function Stem({ text, code }: { text: string; code: boolean }) {
         ))}
       </div>
       {parts.after ? <p className="kq-stem-lead">{parts.after}</p> : null}
+      <ItemPictures sources={pictures} kind="stem" />
     </div>
   );
 }
@@ -89,6 +102,7 @@ export default function KeyQuestion({
   busy = false,
   children,
   headingId,
+  pictures = null,
 }: Props) {
   const fallbackId = useId();
   const contextId = headingId ?? fallbackId;
@@ -109,7 +123,7 @@ export default function KeyQuestion({
         {nb(context)}
       </p>
       {reason ? <div className="kq-reason">{reason}</div> : null}
-      <Stem text={stem} code={code} />
+      <Stem text={stem} code={code} pictures={pictures?.stem ?? []} />
 
       {kind === 'short' ? (
         <div className="kq-short">
@@ -149,7 +163,8 @@ export default function KeyQuestion({
               const isDropped = droppedSet.has(index);
               const isKey = tapMode === 'keys' ? ticked.includes(index) : current.includes(index);
               const isMarked = marked.includes(index) && !isKey;
-              const label = option.trim() === '' ? QUEUE.emptyText : option;
+              const optionPictures = pictures?.options[index] ?? [];
+              const label = option.trim() === '' && optionPictures.length === 0 ? QUEUE.emptyText : option;
               const words = isDropped ? QUEUE.tagDropped : isKey ? QUEUE.tagKey : isMarked ? QUEUE.tagMarked : null;
               return (
                 <li key={index}>
@@ -175,7 +190,8 @@ export default function KeyQuestion({
                     </span>
                     <span className="kq-text">
                       <span className="kq-sr">{`${letter(index)}. `}</span>
-                      {label}
+                      <ItemPictures sources={optionPictures} kind="option" />
+                      {optionPictures.length > 0 && (label.trim() === '' || isPictureWord(label)) ? <span className="sr-only">{label}</span> : label}
                     </span>
                     {words ? <span className="kq-tag">{words}</span> : null}
                   </button>

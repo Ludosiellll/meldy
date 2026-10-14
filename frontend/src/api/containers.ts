@@ -20,7 +20,7 @@ import {
   TEST_ITEM_COLUMNS,
   type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerRpc,
   type ContainerSettings, type ContainerSummary, type ContainersOverview, type CreateSubjectInput, type DayKey,
-  type DoubtRow, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkPreview,
+  type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkPreview,
   type MemberRow, type MockRunInput, type MockRunResult, type OralSyncResponse, type PlanInputsWire,
   type RecordAnswersResponse, type TestItem, type Uuid,
 } from '../types/container';
@@ -259,7 +259,16 @@ export function normalizeItem(raw: unknown): TestItem | null {
     flags: strings(raw.flags),
     rev: Math.max(1, int(raw.rev, 1)),
     updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : '',
+    images: itemImages(raw.images),
   };
+}
+
+/** test_items.images ({} — none) → ItemImages, or null when it names no picture. */
+export function itemImages(raw: unknown): ItemImages | null {
+  if (!isRecord(raw)) return null;
+  const stem = strings(raw.stem).filter(Boolean);
+  const options = list(raw.options).map((entry) => strings(entry).filter(Boolean));
+  return stem.length > 0 || options.some((entry) => entry.length > 0) ? { stem, options } : null;
 }
 
 function normalizeRecord(raw: unknown): RecordAnswersResponse {
@@ -682,6 +691,8 @@ export async function parseBank(input: ParseBankInput): Promise<BankParseResult>
   if (input.keyFile) form.append('key_file', input.keyFile, input.keyFile.name);
   if (input.keyFile && typeof input.keySection === 'number') form.append('key_section', String(input.keySection));
   if (input.format) form.append('format', input.format);
+  // The page saves the pictures of a DOCX (saveImport.ts); without this the importer only flags them (has_image).
+  if (input.file) form.append('pictures', '1');
   const raw = await backend('/api/exams/parse-bank', { method: 'POST', body: form, signal: input.signal });
   if (!isRecord(raw) || !Array.isArray(raw.items) || !Array.isArray(raw.subjects)) throw badShape('parse-bank');
   return {
@@ -689,5 +700,6 @@ export async function parseBank(input: ParseBankInput): Promise<BankParseResult>
     topics: list(raw.topics),
     skipped: strings(raw.skipped),
     warnings: list(raw.warnings).filter(isRecord),
+    pictures: isRecord(raw.pictures) ? (raw.pictures as BankParseResult['pictures']) : {},
   } as BankParseResult;
 }

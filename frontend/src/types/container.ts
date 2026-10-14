@@ -180,9 +180,25 @@ export interface TestItem {
   flags: string[];
   rev: number;
   updated_at: string;
+  /** The question's pictures in the private bucket test-item-images (null — none). */
+  images?: ItemImages | null;
 }
+/**
+ * Pictures of a question (owner, 2026-10-14: «а если вопрос является картинкой, что делать?»): storage paths
+ * «<container id>/<sha256>.<ext>» of the bucket test-item-images, the stem's and each option's (file order).
+ */
+export interface ItemImages {
+  stem?: string[]; // the row keeps {} when there are none
+  options?: string[][];
+}
+/** The words saved in place of a stem or an option that is only a picture (the database keeps 1.. characters). */
+export const PICTURE_STEM = 'Вопрос на картинке';
+export const pictureOption = (letter: string) => `Рисунок ${letter}`;
+/** Words that only stand for a picture: the pages show the picture and keep the words for screen readers. */
+export const isPictureWord = (text: string) => text.trim() === PICTURE_STEM || /^Рисунок [А-Я0-9]{1,2}$/.test(text.trim());
+export const PICTURE_LIMITS = { stem: 8, option: 4 } as const; // meldy_images_ok: paths per stem and per option
 export const TEST_ITEM_COLUMNS =
-  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at';
+  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at, images';
 
 // record_test_answers(p_answers) / container_mock_finish(p_run)
 /** The plan class an answer belongs to (for the student's own pace and miss rates). */
@@ -284,6 +300,7 @@ export interface ItemInput {
   code?: boolean;
   keep_order?: boolean;
   flags?: string[];
+  images?: ItemImages;
 }
 export interface ItemsAdded {
   subject_id: Uuid;
@@ -496,6 +513,13 @@ export interface BankItem {
   code: boolean;
   where: string;
   marks: Record<string, number[]>; // per formatting signal: the marked share of each option, 0..1
+  /** Pictures carried from a DOCX (asked with pictures=1): ids into BankParseResult.pictures; null — none. */
+  images?: { stem: string[]; options: string[][] } | null;
+}
+/** A picture of the file: its MIME type and bytes in base64. */
+export interface BankPicture {
+  type: string;
+  data: string;
 }
 /** stats of a parse: counts over items; gaps are missing file numbers [from, to] inside a subject. */
 export interface BankParseStats {
@@ -531,6 +555,8 @@ export interface BankParseResult {
   variant?: number | null;
   /** The key file sent beside the questions: its sections (one per variant) and the one taken (null — none fits). */
   key_file?: BankKeyFile | null;
+  /** The pictures the items name (id = sha256 of the bytes); {} without pictures=1 or without pictures. */
+  pictures?: Record<string, BankPicture>;
 }
 export interface BankKeyFile {
   sections: Array<{ title: string; variant: number | null; count: number }>;

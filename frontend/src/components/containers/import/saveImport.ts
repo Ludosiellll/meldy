@@ -9,13 +9,17 @@
  *   exam first when the student adds to it: decision 22) or container_subject_add for each one (?from=c:<id>), then
  *   the questions with variants in batches (addItems), then the minutes a day.
  * - «Обновить из файла» (saveUpdate): the subject's new topics, if any, then its new questions (updateModel.ts).
+ * - Pictures (owner, 2026-10-14): before a subject's questions, the pictures they show go into the container's folder of
+ *   the bucket test-item-images (api/itemPictures.ts), a few at a time; a picture storage refuses is saved as lost
+ *   (importModel.ts itemInputs), a network failure stops the save like any other step.
  */
 import { addItems, addSubject, containerError, createContainer, saveSettings } from '../../../api/containers';
 import { createExam, type ExamDraft } from '../../../api/exams';
-import type { CreateSubjectInput, ItemInput } from '../../../types/container';
+import { picturePath, uploadPicture } from '../../../api/itemPictures';
+import type { BankPicture, CreateSubjectInput, ItemInput } from '../../../types/container';
 import { rememberContainerTitle } from '../../../lib/containers/titleCache';
 import { supabase } from '../../../lib/supabase';
-import { type DraftSubject, isSingleOralList, itemInputs } from './importModel';
+import { type DraftSubject, isSingleOralList, itemInputs, pictureIds, type PicturePlace } from './importModel';
 
 export type SaveTarget =
   | { kind: 'new' }
@@ -31,6 +35,8 @@ export interface SaveInput {
   minutes: number | null;
   subjects: DraftSubject[];
   importIds: Record<string, string>;
+  /** The files' pictures by id (sha256: the same picture in two files is one). */
+  pictures?: Record<string, BankPicture>;
 }
 
 export interface SaveState {
@@ -43,6 +49,8 @@ export interface SaveState {
   topicsDone: boolean;
   /** Some questions may be saved already (a batch went out): the preview no longer changes. */
   itemsStarted: boolean;
+  /** Pictures put into storage: id → path, null when storage refused it. */
+  pictures: Record<string, string | null>;
 }
 
 export const freshSaveState = (): SaveState => ({
@@ -53,6 +61,7 @@ export const freshSaveState = (): SaveState => ({
   settingsDone: false,
   topicsDone: false,
   itemsStarted: false,
+  pictures: {},
 });
 
 /** Something is in the database already: a retry goes on from there, so the preview stays as it was saved. */
@@ -94,6 +103,33 @@ export function oralDraft(subject: DraftSubject, title: string, date: string | n
     tickets: [],
     materialIds: [],
   };
+}
+
+const PICTURES_AT_ONCE = 3;
+
+/**
+ * Puts the pictures `ids` into the container's folder (those not there yet) and returns where each one is. A picture
+ * the file did not bring or of a type the bucket does not take has no place; a network failure throws.
+ */
+export async function putPictures(
+  containerId: string,
+  ids: string[],
+  pictures: Record<string, BankPicture>,
+  state: Pick<SaveState, 'pictures'>,
+): Promise<PicturePlace> {
+  const waiting = ids.filter((id) => !(id in state.pictures));
+  let next = 0;
+  const worker = async () => {
+    while (next < waiting.length) {
+      const id = waiting[next];
+      next += 1;
+      const picture = pictures[id];
+      const path = picture ? picturePath(containerId, id, picture.type) : null;
+      state.pictures[id] = path && picture && (await uploadPicture(path, picture)) === 'kept' ? path : null;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PICTURES_AT_ONCE, waiting.length) }, worker));
+  return (id) => state.pictures[id] ?? null;
 }
 
 function subjectInput(input: SaveInput, state: SaveState, subject: DraftSubject): CreateSubjectInput {
@@ -162,9 +198,10 @@ export async function saveImport(input: SaveInput, state: SaveState, onProgress?
     if (subject.test.length === 0 || state.itemsDone[subject.key]) continue;
     const subjectId = state.subjectIds[subject.key];
     if (!subjectId) throw new Error('subject not created');
+    const place = await putPictures(containerId, pictureIds(subject), input.pictures ?? {}, state);
     state.itemsStarted = true;
     const before = done;
-    await addItems(subjectId, itemInputs(subject, input.importIds[subject.fileId] ?? 'imp'), (batchDone) =>
+    await addItems(subjectId, itemInputs(subject, input.importIds[subject.fileId] ?? 'imp', place), (batchDone) =>
       onProgress?.({ done: before + batchDone, total }),
     );
     done = before + subject.test.length;
@@ -190,8 +227,13 @@ export interface UpdateInput {
   subjectId: string;
   /** The subject's topic titles after the update, when the file brings new topics (null: unchanged). */
   topics: string[] | null;
-  /** The new questions only (updateModel.ts): refs make a resent batch insert nothing twice. */
-  items: ItemInput[];
+  /**
+   * The new questions only (updateModel.ts): refs make a resent batch insert nothing twice. A function gets where the
+   * pictures were put.
+   */
+  items: ItemInput[] | ((place: PicturePlace) => ItemInput[]);
+  /** The pictures the new questions show: the container (its folder), their ids, the files' pictures. */
+  pictures?: { containerId: string; ids: string[]; data: Record<string, BankPicture> };
 }
 
 /**
@@ -215,10 +257,15 @@ export async function saveUpdate(input: UpdateInput, state: SaveState, onProgres
     await writeTopics(input.subjectId, input.topics);
     state.topicsDone = true;
   }
-  if (input.items.length === 0 || state.itemsDone[input.subjectId]) return;
+  if (state.itemsDone[input.subjectId]) return;
+  const pictures = input.pictures;
+  const place: PicturePlace =
+    pictures && pictures.ids.length > 0 ? await putPictures(pictures.containerId, pictures.ids, pictures.data, state) : () => null;
+  const items = typeof input.items === 'function' ? input.items(place) : input.items;
+  if (items.length === 0) return;
   state.itemsStarted = true;
-  onProgress?.({ done: 0, total: input.items.length });
-  await addItems(input.subjectId, input.items, (done, total) => onProgress?.({ done, total }));
+  onProgress?.({ done: 0, total: items.length });
+  await addItems(input.subjectId, items, (done, total) => onProgress?.({ done, total }));
   state.itemsDone[input.subjectId] = true;
-  onProgress?.({ done: input.items.length, total: input.items.length });
+  onProgress?.({ done: items.length, total: items.length });
 }

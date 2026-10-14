@@ -4,6 +4,34 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.17: pictures of questions and options (from the commit of this entry)
+
+- **The owner's question:** «картинки он не ест, а если вопрос является картинкой, что делать?». The import page now asks
+  the importer for a DOCX's pictures (`pictures=1`, only with a file) and saves them with the questions: before a
+  subject's questions, each picture goes once into the container's folder of the private bucket `test-item-images`
+  (`<container>/<sha256>.<ext>`), then the questions carry their paths (`test_items.images`, migration 20261014120000,
+  applied live earlier today). A question that is only a picture is saved as «Вопрос на картинке», an option that is only
+  a picture as «Рисунок Б» (the database keeps text); the pages show the picture and keep those words for screen readers.
+- **Where they show:** the study card (under the stem; small cards inside the options), «Ключи», and the import page's
+  check queue (the file's own pictures before saving). A picture sits on white in both themes (diagrams are black lines on
+  a transparent page). A picture that does not load says «Картинка не загрузилась.» with «Загрузить ещё раз».
+- **When a picture does not reach storage:** a network failure stops the save like any other step (the next try puts
+  only what is missing); a picture storage refuses is a lost image as before — the question is saved without its key and
+  with has_image, so no session asks it unseen. Pictures Word draws as shapes (the IDEF0 diagrams of «Вариант 1») and
+  EMF/WMF are still not carried: those questions stay in the check as before.
+- **The same words under another picture** («Что означает выделенная стрелка?» ×3) are different questions for the
+  repeat check and for «Обновить из файла».
+- **Telegram:** the bot writes text only, so it does not ask a question with pictures (private sessions and «Вопрос
+  дня»); those are studied on the site and in the Mini App. Migration 20261014150000_bot_skips_pictures, rehearsed locally
+  (`supabase/tests/local/bot_skips_pictures_run.sh`: every bot package, the migration twice, behaviour, rollback byte for
+  byte, the bot's contract) and applied live through the Supabase connector (the migration workflow's access token is
+  refused: «Invalid access token», the owner renews it); the live bodies matched the repository before and after.
+- **Variant names** (the owner: «экзамен где будет 6 вариантов»): a file «Вариант_1.docx» no longer loses its number
+  (it was «Вариант» for all six); a one-subject file whose name has no number but whose questions sit under «ТЕСТОВЫЙ
+  ВАРИАНТ 4» is named «…, вариант 4».
+- **Verified before release:** vitest (full run), tsc -b, bot tests 343 after the plan copy sync; the owner's files on
+  the live importer (44.16): variant 4 + its key 160/160 keyed, f4 240 questions with 25 pictures carried.
+
 ## 2026-10-14 — Release 44.16: college test files with the question across the table; the key in another file (from the commit of this entry)
 
 - **The owner's files:** «ТЕСТОВЫЙ ВАРИАНТ 4» and «Вариант 1» keep each question in one cell merged across the table and

@@ -8,6 +8,10 @@
  *   not saved, one preview line.
  * - lost images (decision 7): an image question the author did not confirm is saved WITHOUT a key, so no session
  *   offers it (plan_inputs plans every keyed item), and keeps the flag has_image for the pages to name it.
+ * - carried pictures (owner, 2026-10-14): a DOCX's pictures come with the parse (BankItem.images, ids of
+ *   BankParseResult.pictures) and are saved with the question; a stem or an option that is only a picture is saved
+ *   under PICTURE_STEM / «Рисунок Б» (the file's letter), since the database keeps text. A picture that does not reach
+ *   storage on saving is a lost image again (itemInputs).
  * - more than 150 open questions in one subject (decision 5 + the design table): parts «X, часть 1», «X, часть 2» …
  *   of at most 150 oral questions each; the questions with variants stay with part 1.
  * - topics: at most 99 per subject (spec §3), the tail goes into the 99th; oral sections at most 20 (the oral editor).
@@ -17,7 +21,10 @@
  * - ItemInput: file_no = the file's number, topic per subject, key_source from the evidence (a checkbox → 'marker'),
  *   keep_order for «Все перечисленные» / «Ни один…», ref = `<import id>:<position>`.
  */
-import type { BankItem, BankParseResult, ItemInput, ItemKind, KeySource, PlanInput, PlanItem } from '../../../types/container';
+import {
+  PICTURE_LIMITS, PICTURE_STEM, pictureOption,
+  type BankItem, type BankParseResult, type ItemInput, type ItemKind, type KeySource, type PlanInput, type PlanItem,
+} from '../../../types/container';
 import { subjectFromFileName } from './subjectName';
 
 export const ORAL_CAP = 150;
@@ -34,6 +41,7 @@ const OPTIONS_BYTES = 8192;
 const ORAL_MIN_CHARS = 3;
 const ORAL_MAX_CHARS = 1000;
 const LABEL_CHARS = 16;
+const FILE_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф'];
 const FLAGS_MAX = 16;
 const SHORT_FORMS_MAX = 10;
 const SHORT_FORM_CHARS = 200;
@@ -132,6 +140,16 @@ export interface DraftItem {
   imageLost: boolean;
   blocked: boolean;
   twin: string | null;
+  /** The question's pictures (ids into the file's pictures): the stem's and each SAVED option's; null — none. */
+  images: DraftImages | null;
+}
+
+export interface DraftImages {
+  stem: string[];
+  /** In the order of the saved options. */
+  options: string[][];
+  /** In the file's order (the problem queue shows the file's options). */
+  fileOptions: string[][];
 }
 
 export interface DraftOral {
@@ -274,7 +292,10 @@ interface ItemContext {
 export function draftItem(item: BankItem, context: ItemContext): DraftItem {
   const { fix, signal } = context;
   const uid = `${context.fileId}:${item.position}`;
-  const text = item.text.trim().slice(0, STEM_CHARS);
+  const pictures = item.images ?? null;
+  const stemPictures = (pictures?.stem ?? []).slice(0, PICTURE_LIMITS.stem);
+  const optionPictures = (index: number) => (pictures?.options[index] ?? []).slice(0, PICTURE_LIMITS.option);
+  const text = item.text.trim().slice(0, STEM_CHARS) || (stemPictures.length > 0 ? PICTURE_STEM : '');
   const hasImage = item.flags.includes('has_image');
   const imageLost = hasImage && !fix.imageOk;
   const problems: Problem[] = [];
@@ -288,6 +309,7 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
     topic: null,
     topicTitle: null,
     twin: context.twin,
+    images: stemPictures.length > 0 ? { stem: stemPictures, options: [], fileOptions: [] } : null,
   };
   const unresolvedDuplicate = item.flags.includes('duplicate') && !fix.keepBoth;
   const unresolvedLong = item.flags.includes('too_long') && !fix.accept;
@@ -326,6 +348,11 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
   const options: string[] = [];
   rawOptions.forEach((option, index) => {
     if (drop.has(index)) return;
+    if (!option && optionPictures(index).length > 0) {
+      optionMap.push(index);
+      options.push(pictureOption(FILE_LETTERS[index] ?? String(index + 1)));
+      return;
+    }
     if (!option) {
       // An option that was a picture keeps its place under a word; an empty one is left out when saved.
       if (hasImage) {
@@ -345,7 +372,13 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
   const several = kindBase === 'single' && correct.length > 1;
   const marked = item.flags.includes('several_marked') || several ? rawCorrect : [];
 
-  const emptyLeft = rawOptions.some((option, index) => !option && !drop.has(index) && !hasImage);
+  const emptyLeft = rawOptions.some((option, index) => !option && !drop.has(index) && !hasImage && optionPictures(index).length === 0);
+  const savedPictures = optionMap.map((index) => optionPictures(index));
+  const filePictures = rawOptions.map((_, index) => optionPictures(index));
+  const images: DraftImages | null =
+    stemPictures.length > 0 || filePictures.some((list) => list.length > 0)
+      ? { stem: stemPictures, options: savedPictures, fileOptions: filePictures }
+      : null;
   const sameUnresolved = item.flags.includes('same_options') && !fix.accept && drop.size === 0;
   const tooFew = options.length < OPTIONS_MIN;
   const tooMany = options.length > OPTIONS_MAX;
@@ -407,6 +440,7 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
     problems: sortProblems(problems),
     imageLost,
     blocked,
+    images,
   };
 }
 
@@ -478,11 +512,13 @@ export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits 
     const groups = groupsOf(file, merged);
     const topicTitle = new Map(result.topics.map((topic) => [topic.index, topic.title]));
     const knownSubjects = new Set(groups.flatMap((group) => group.indices));
-    // Twins: the first question with the same text and options in the file.
+    // Twins: the first question with the same text, options and pictures in the file (the same words under other
+    // pictures — «Что означает выделенная стрелка?» ×3 — are different questions).
     const firstOf = new Map<string, string>();
     const twinOf = new Map<number, string>();
     for (const item of result.items) {
-      const key = `${sameKey(item.text)}|${[...item.options].map(sameKey).sort().join('|')}`;
+      const pictures = item.images ? `|${item.images.stem.join(',')}|${item.images.options.map((list) => list.join(',')).sort().join(';')}` : '';
+      const key = `${sameKey(item.text)}|${[...item.options].map(sameKey).sort().join('|')}${pictures}`;
       const first = firstOf.get(key);
       if (first !== undefined) twinOf.set(item.position, first);
       else firstOf.set(key, item.label || String(item.position));
@@ -503,8 +539,14 @@ export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits 
         titleFrom = 'heading';
       } else {
         const fromName = groups.length === 1 && file.source !== 'paste' ? subjectFromFileName(file.name) : null;
-        if (fromName) {
+        // «ТЕСТОВЫЙ ВАРИАНТ 4» above the questions names a one-subject file whose name does not («Тест.docx»).
+        const variant = groups.length === 1 && typeof result.variant === 'number' ? `Вариант ${result.variant}` : null;
+        const named = (text: string) => new RegExp(`(^|\\D)${result.variant}(\\D|$)`).test(text);
+        if (fromName && !(variant && !named(fromName))) {
           title = fromName;
+          titleFrom = 'file';
+        } else if (variant) {
+          title = fromName && /^вариант$/iu.test(fromName) ? variant : fromName ? `${fromName}, ${variant.toLocaleLowerCase('ru-RU')}` : variant;
           titleFrom = 'file';
         } else {
           untitled += 1;
@@ -738,8 +780,24 @@ export function spotCheck(subjects: readonly DraftSubject[]): Array<{ subject: s
 
 // ─────────────────────────────────────────────── saving ───────────────────────────────────────────────
 
-/** The items of one subject as container_items_add takes them (types/container.ts ItemInput). */
-export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string): ItemInput[] {
+/** Where a picture of the file was put (its storage path), or null when it did not get there. */
+export type PicturePlace = (id: string) => string | null;
+
+/** The ids of the pictures the subject's questions show (each once). */
+export function pictureIds(subject: Pick<DraftSubject, 'test'>): string[] {
+  const ids = new Set<string>();
+  for (const item of subject.test) {
+    for (const id of item.images?.stem ?? []) ids.add(id);
+    for (const list of item.images?.options ?? []) for (const id of list) ids.add(id);
+  }
+  return Array.from(ids);
+}
+
+/**
+ * The items of one subject as container_items_add takes them (types/container.ts ItemInput). A picture that has no
+ * place is lost: the question is saved without a key and with has_image (decision 7), so no session asks it unseen.
+ */
+export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string, place: PicturePlace = () => null): ItemInput[] {
   return subject.test.map((item) => {
     const input: ItemInput = {
       ref: `${importId}:${item.position}`,
@@ -755,9 +813,22 @@ export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string
       flags: item.flags,
     };
     if (item.kind === 'short') input.answers = item.answers;
+    if (item.images) {
+      const stem = item.images.stem.map(place);
+      const options = item.images.options.map((list) => list.map(place));
+      const kept = { stem: stem.filter(isPath), options: options.map((list) => list.filter(isPath)) };
+      if (kept.stem.length > 0 || kept.options.some((list) => list.length > 0)) input.images = kept;
+      if (stem.includes(null) || options.some((list) => list.includes(null))) {
+        input.correct = [];
+        input.key_source = 'none';
+        input.flags = cleanFlags(item.flags, { image: true });
+      }
+    }
     return input;
   });
 }
+
+const isPath = (value: string | null): value is string => value !== null;
 
 /** A ref prefix: letters, digits and «-» only (the database's ref is [A-Za-z0-9_:.-]{1,80}). */
 export function newImportId(now: number = Date.now(), random: () => number = Math.random): string {

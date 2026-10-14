@@ -10,7 +10,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
-import type { BankParseResult, PlanItem, TestItem, Uuid } from '../../types/container';
+import type { BankParseResult, BankPicture, PlanItem, TestItem, Uuid } from '../../types/container';
 import { dayText, errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
@@ -30,6 +30,7 @@ import {
   ITEMS_CAP,
   newImportId,
   NO_EDITS,
+  pictureIds,
   queueOf,
   spotCheck,
   SUBJECTS_CAP,
@@ -120,6 +121,11 @@ function viewOf(hash: string): View {
     return { kind: 'key', fileId, paste: flag === 'paste' };
   }
   return { kind: 'main' };
+}
+
+/** The pictures of every file read (ids are hashes: one picture in two files is one). */
+function filePictures(files: readonly ImportFile[]): Record<string, BankPicture> {
+  return Object.assign({}, ...files.map((file) => file.result.pictures ?? {}));
 }
 
 function localDay(now: Date = new Date()): string {
@@ -553,8 +559,15 @@ export default function ImportPage() {
     const importId = files.find((file) => file.id === source?.fileId)?.importId ?? 'imp';
     setSaving({ status: 'saving', error: null, progress: null });
     try {
-      await saveUpdate({ subjectId: updateId, topics: updatePlan.topics, items: updateItemInputs(updatePlan, importId) }, saveState.current, (progress) =>
-        setSaving((current) => ({ ...current, progress })),
+      await saveUpdate(
+        {
+          subjectId: updateId,
+          topics: updatePlan.topics,
+          items: (place) => updateItemInputs(updatePlan, importId, place),
+          pictures: fromId ? { containerId: fromId, ids: pictureIds({ test: updatePlan.add }), data: filePictures(files) } : undefined,
+        },
+        saveState.current,
+        (progress) => setSaving((current) => ({ ...current, progress })),
       );
       track('container.updated', {
         added: updatePlan.add.length,
@@ -602,6 +615,7 @@ export default function ImportPage() {
           minutes: showMinutes ? minutes : null,
           subjects: active,
           importIds: Object.fromEntries(files.map((file) => [file.id, file.importId])),
+          pictures: filePictures(files),
         },
         saveState.current,
         (progress) => setSaving((current) => ({ ...current, progress })),
@@ -774,6 +788,7 @@ export default function ImportPage() {
           onIndex={(index) => setQueue((current) => (current ? { ...current, index } : current))}
           onFix={setItemFix}
           onDone={closeView}
+          pictures={filePictures(files)}
         />
       </div>
     );
