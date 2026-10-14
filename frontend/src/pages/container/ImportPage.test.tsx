@@ -227,8 +227,24 @@ describe('ImportPage: one door for every file', () => {
     expect(items[0]).toMatchObject({ file_no: '1', topic: 1, key_source: 'bold', kind: 'single' });
     expect(items[0].ref).toMatch(/^imp-[a-z0-9]+-[a-z0-9]+:1$/);
     expect(api.addItems.mock.calls[1][1]).toHaveLength(6);
-    expect(api.saveSettings).toHaveBeenCalledWith('c-1', { minutes_per_day: 60, study_weekdays: 127 });
+    expect(api.saveSettings).toHaveBeenCalledWith('c-1', { minutes_per_day: 60, study_weekdays: 127, tempo: 'date' });
     expect(api.createExam).not.toHaveBeenCalled();
+  });
+
+  it('«Как можно быстрее» needs no date: the line says when all are seen, the «по 15 в день» note goes, the tempo is saved', async () => {
+    api.parseBank.mockResolvedValue(TWO);
+    renderAt();
+    upload(['Тесты_две_дисциплины.docx']);
+    expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 18\sвопросов/ })).toBeInTheDocument();
+    expect(screen.getByText(/Без даты|Дату можно не указывать/)).toBeInTheDocument();
+    expect(screen.queryByText(/вы увидите/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Новые вопросы' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Как можно быстрее' }));
+    expect(screen.getByText(/^При 60\sминутах в\sдень все 18\sвопросов вы увидите (сегодня|завтра)\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Дату можно не указывать/)).not.toBeInTheDocument();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    expect(api.saveSettings).toHaveBeenCalledWith('c-1', { minutes_per_day: 60, study_weekdays: 127, tempo: 'fast' });
   });
 
   it('makes a single oral list today’s oral exam and goes on to its lectures (decision 21)', async () => {

@@ -4,6 +4,27 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.18: «Как можно быстрее» and a whole variant in «Как на экзамене» (from the commit of this entry)
+
+- **The owner's question:** «можешь добавить вариант "выучить побыстрее" а не по дате, чтобы учить как можно быстрее?».
+  «Время в день» (the exam's «Настройки» and the import form) gets a second choice under it, «Новые вопросы»:
+  «Равномерно до даты» (as before) or «Как можно быстрее». Fast: every new question as soon as it fits — the minutes a
+  day are the only bound (no even spread to the date, no 15 a day without one); mistakes and the second check on
+  another day still come first, so nothing counts sooner than the rule allows. No date is needed: the line under the
+  minutes says «При 60 минутах в день все 960 вопросов вы увидите к 9 ноября — за 27 дней занятий.» (on «Все вопросы»:
+  «Все 960 вопросов — сегодня: около 16 часов. На следующий день — повтор …»). The forecast counts each question's
+  answers as the minutes estimate does (a mistake comes back more than once); a simulated learner sees six variants of
+  160 within two days of it. The «Без даты — по 15 новых в день» note is not shown in fast mode.
+- **Where it is kept:** `container_plans.tempo` ('date' | 'fast', default 'date'; each member has their own, like the
+  minutes), handed out in `settings` by `plan_inputs_for` and `container_summary_for`. Migration 20261014170000_plan_tempo,
+  rehearsed locally (`supabase/tests/local/plan_tempo_run.sh`: twice, behaviour, the containers contract and behaviour,
+  rollback byte for byte) and applied live through the Supabase connector; the live bodies matched the repository before
+  (67e108db…) and after (9f2f64b6…). The bot computes with the same plan copy (synced), so its sessions follow the tempo.
+- **«Как на экзамене» for a whole variant** (the owner: «почему нельзя 160 вопросов сделать?»): the setup offered at
+  most 100 questions; now 120, 150, 200 and the subject's whole count up to 200 — the database's own bound
+  (`test_mock_runs.items`, `container_mock_finish`). Times add 150, 180 and 240 minutes (a minute a question by default).
+  An exam itself holds up to 2000 questions; 6 × 160 = 960 was always fine.
+
 ## 2026-10-14 — Release 44.17: pictures of questions and options (from the commit of this entry)
 
 - **The owner's question:** «картинки он не ест, а если вопрос является картинкой, что делать?». The import page now asks

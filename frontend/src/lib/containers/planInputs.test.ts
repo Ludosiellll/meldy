@@ -67,6 +67,13 @@ describe('decodePlanInputs against contracts/container/plan_inputs.json', () => 
     expect(noSettings.budgetMin).toBe(60);
   });
 
+  it('gives the tempo (settings.tempo): «Как можно быстрее» only when it says so, else «Равномерно до даты»', () => {
+    const withTempo = (tempo: unknown) =>
+      decodePlanInputs({ ...wire, containers: [{ ...wire.containers[0], settings: { minutes_per_day: 60, study_weekdays: 127, tempo } as never }] }, options()).tempo;
+    expect(withTempo('fast')).toBe('fast');
+    for (const other of ['date', undefined, null, 'FAST', 1]) expect(withTempo(other)).toBe('date');
+  });
+
   it('turns item tuples into test plan items: subject id, topic, order, slow', () => {
     const input = decodePlanInputs(wire, options());
     expect(input.items).toHaveLength(18);

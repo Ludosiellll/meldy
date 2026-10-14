@@ -9,8 +9,11 @@ afterEach(cleanup);
  * scroll and most sizes and times could not be tapped; now each list stands in the window, so every choice is there.
  */
 describe('«Как на экзамене» setup', () => {
-  it('offers every size up to the questions with a key, and the subject’s whole count under 100', () => {
-    expect(mockCounts(240)).toEqual([10, 20, 30, 40, 50, 60, 80, 100]);
+  it('offers every size up to the questions with a key, and the subject’s whole count up to the database’s 200', () => {
+    expect(mockCounts(240)).toEqual([10, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200]);
+    // a whole variant of 160 (owner, 2026-10-14: «почему нельзя 160 вопросов сделать?»)
+    expect(mockCounts(160)).toEqual([10, 20, 30, 40, 50, 60, 80, 100, 120, 150, 160]);
+    expect(mockCounts(200)).toEqual([10, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200]);
     expect(mockCounts(57)).toEqual([10, 20, 30, 40, 50, 57]);
     expect(defaultCount(240)).toBe(40);
     expect(defaultCount(25)).toBe(25);
@@ -18,26 +21,26 @@ describe('«Как на экзамене» setup', () => {
 
   it('every size and every time can be chosen, the last ones too, and «Начать» takes them', () => {
     const onStart = vi.fn();
-    render(<MockSetup keyed={240} last={null} onClose={() => undefined} onStart={onStart} />);
+    render(<MockSetup keyed={160} last={null} onClose={() => undefined} onStart={onStart} />);
     const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
     const count = within(sheet).getByRole('combobox', { name: 'Вопросов' });
     fireEvent.click(count);
     const sizes = within(sheet).getAllByRole('option');
-    expect(sizes.map((option) => option.textContent)).toEqual(['10', '20', '30', '40', '50', '60', '80', '100']);
+    expect(sizes.map((option) => option.textContent)).toEqual(['10', '20', '30', '40', '50', '60', '80', '100', '120', '150', '160']);
     fireEvent.click(sizes[sizes.length - 1]);
-    expect(count).toHaveTextContent('100');
+    expect(count).toHaveTextContent('160');
 
-    // A minute a question by default: 100 questions → 120 minutes; «без времени» is the last choice.
+    // A minute a question by default: 160 questions → 180 minutes; «без времени» is the last choice.
     const minutes = within(sheet).getByRole('combobox', { name: 'Минут' });
-    expect(minutes).toHaveTextContent('120');
+    expect(minutes).toHaveTextContent('180');
     fireEvent.click(minutes);
     const times = within(sheet).getAllByRole('option');
-    expect(times.map((option) => option.textContent)).toEqual(['10', '15', '20', '30', '40', '45', '60', '80', '90', '120', 'без времени']);
+    expect(times.map((option) => option.textContent)).toEqual(['10', '15', '20', '30', '40', '45', '60', '80', '90', '120', '150', '180', '240', 'без времени']);
     fireEvent.click(times[times.length - 1]);
     expect(minutes).toHaveTextContent('без времени');
 
     fireEvent.click(within(sheet).getByRole('button', { name: 'Начать' }));
-    expect(onStart).toHaveBeenCalledWith(100, 0);
+    expect(onStart).toHaveBeenCalledWith(160, 0);
   });
 
   it('from the keyboard: the list of times opens, End reaches «без времени», Enter takes it, Escape keeps the sheet', () => {

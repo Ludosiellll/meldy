@@ -16,7 +16,7 @@
 import { addItems, addSubject, containerError, createContainer, saveSettings } from '../../../api/containers';
 import { createExam, type ExamDraft } from '../../../api/exams';
 import { picturePath, uploadPicture } from '../../../api/itemPictures';
-import type { BankPicture, CreateSubjectInput, ItemInput } from '../../../types/container';
+import type { BankPicture, CreateSubjectInput, ItemInput, Tempo } from '../../../types/container';
 import { rememberContainerTitle } from '../../../lib/containers/titleCache';
 import { supabase } from '../../../lib/supabase';
 import { type DraftSubject, isSingleOralList, itemInputs, pictureIds, type PicturePlace } from './importModel';
@@ -33,6 +33,8 @@ export interface SaveInput {
   date: string | null;
   perSubject: boolean;
   minutes: number | null;
+  /** «Новые вопросы»: «Равномерно до даты» or «Как можно быстрее» (saved with the minutes). */
+  tempo?: Tempo;
   subjects: DraftSubject[];
   importIds: Record<string, string>;
   /** The files' pictures by id (sha256: the same picture in two files is one). */
@@ -211,7 +213,7 @@ export async function saveImport(input: SaveInput, state: SaveState, onProgress?
 
   if (target.kind !== 'container' && input.minutes && !state.settingsDone) {
     try {
-      await saveSettings(containerId, { minutes_per_day: input.minutes, study_weekdays: 127 });
+      await saveSettings(containerId, { minutes_per_day: input.minutes, study_weekdays: 127, tempo: input.tempo ?? 'date' });
     } catch {
       // The plan then takes the default (60 minutes); «Настройки» change it any time.
     }

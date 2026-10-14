@@ -18,7 +18,11 @@ function shuffle<T>(list: T[], random: () => number): T[] {
   return out;
 }
 
-export function drawMock(input: PlanInput | null, bank: ReadonlyMap<string, TestItem>, subjectId: string, count: number, seed: string): string[] {
+/** The most questions one «Как на экзамене» holds: the database's own bound (test_mock_runs.items, container_mock_finish). */
+export const MOCK_MAX = 200;
+
+export function drawMock(input: PlanInput | null, bank: ReadonlyMap<string, TestItem>, subjectId: string, wanted: number, seed: string): string[] {
+  const count = Math.min(MOCK_MAX, Math.max(0, Math.floor(wanted)));
   const candidates = testItemsOf(input, subjectId).filter((item) => bank.has(item.id));
   const seen = candidates.filter((item) => item.u && item.u.seen > 0);
   const unseen = candidates.filter((item) => !item.u || item.u.seen === 0);

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlanInput } from '../../../types/container';
 
-const plan = vi.hoisted(() => ({ feasibility: vi.fn(), windowDays: vi.fn(), planDay: vi.fn() }));
+const plan = vi.hoisted(() => ({ feasibility: vi.fn(), windowDays: vi.fn(), planDay: vi.fn(), fastForecast: vi.fn() }));
 vi.mock('../../../lib/containers/plan', () => ({
-  feasibility: plan.feasibility, windowDays: plan.windowDays, planDay: plan.planDay,
+  feasibility: plan.feasibility, windowDays: plan.windowDays, planDay: plan.planDay, fastForecast: plan.fastForecast,
   allQuestions: (minutes: unknown) => Number(minutes) >= 300,
 }));
 
@@ -132,5 +132,34 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
       throw new Error('bad input');
     });
     expect(minutesLines(ONE_DATE, 45)).toBeNull();
+  });
+});
+
+describe('minutesLines: «Как можно быстрее»', () => {
+  const NO_DATE = input([{ id: 'a', title: 'Вариант 1', date: null }, { id: 'b', title: 'Вариант 2', date: null }], { a: 160, b: 160 });
+
+  it('without a date: the day all are seen at these minutes and the study days it takes', () => {
+    plan.fastForecast.mockReturnValue({ total: 320, unseen: 320, lastDay: '2026-10-18', days: 9, minutes: 60 });
+    const lines = minutesLines(NO_DATE, 60, 'fast');
+    expect(lines?.line.replace(/\u00a0/g, ' ')).toBe('При 60 минутах в день все 320 вопросов вы увидите к 18 октября — за 9 дней занятий.');
+    expect(lines).toMatchObject({ window: null, option: null, short: false });
+    expect(plan.fastForecast).toHaveBeenCalledWith(expect.objectContaining({ budgetMin: 60 }));
+    expect(plan.feasibility).not.toHaveBeenCalled();
+    // «Равномерно до даты» has nothing to say without a date
+    expect(minutesLines(NO_DATE, 60)).toBeNull();
+  });
+
+  it('on «Все вопросы»: today, and how long the day takes', () => {
+    plan.fastForecast.mockReturnValue({ total: 320, unseen: 320, lastDay: '2026-10-10', days: 1, minutes: 330 });
+    expect(minutesLines(NO_DATE, 300, 'fast')?.line.replace(/\u00a0/g, ' ')).toBe(
+      'Все 320 вопросов — сегодня: около 5,5 часа. На следующий день — повтор тех, на которые ответили верно.',
+    );
+  });
+
+  it('nothing new or an estimate that fails: no line', () => {
+    plan.fastForecast.mockReturnValue(null);
+    expect(minutesLines(NO_DATE, 60, 'fast')).toBeNull();
+    plan.fastForecast.mockImplementation(() => { throw new Error('broken'); });
+    expect(minutesLines(NO_DATE, 60, 'fast')).toBeNull();
   });
 });

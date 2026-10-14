@@ -200,6 +200,7 @@ interface Scan {
   mapped: Set<string>;
   hasOral: boolean;
   all: boolean; // «Все вопросы»
+  fast: boolean; // «Как можно быстрее» (input.tempo 'fast')
 }
 
 function newFig(): Fig { return { inPlan: 0, twoDays: 0, seen: 0, errors: 0, selfKnow: 0 }; }
@@ -481,7 +482,7 @@ function scan(input: PlanInput, paces: PlanInput['pace'] | undefined = input.pac
   for (const name of Object.keys(buckets) as Bucket[]) buckets[name].sort(cmpKey);
 
   return { input, tz, now, today, at, frozen, mask, off: !isStudyDay(today, mask), lateUntil, subjects, byId, buckets, waiting, dueLater,
-    answeredToday, lastStudyDay, figure, subjectFigure, mapped, hasOral, all: allQuestions(input.budgetMin) };
+    answeredToday, lastStudyDay, figure, subjectFigure, mapped, hasOral, all: allQuestions(input.budgetMin), fast: input.tempo === 'fast' };
 }
 
 /**
@@ -517,6 +518,9 @@ function setFloors(sc: Scan): void {
   const fillable: Subj[] = [];
   for (const s of active) {
     const n = s.unseen.length;
+    // «Как можно быстрее»: every new question as soon as it fits — the minutes a day (none on «Все вопросы») are the
+    // only bound: no even spread to the date, no 15 a day without one.
+    if (sc.fast) { s.floor = n; s.cap = n; continue; }
     if (s.date === null) {
       s.floor = Math.min(n, Math.max(0, NO_DATE_NEW_PER_DAY - s.newDone));
       s.cap = s.floor;
@@ -955,7 +959,7 @@ export function planDay(input: PlanInput): DayPlan {
       if (feas.neededMin > 90 && budgetMin >= 90) lines.push({ key: 'short_max', n: [budgetMin, feas.seenByDateEst, feas.total], day: lastDate });
       else lines.push({ key: 'short', n: [budgetMin, feas.seenByDateEst, feas.total, feas.neededMin], day: lastDate });
     }
-    if (active.some((s) => s.date === null)) lines.push({ key: 'no_date', n: [NO_DATE_NEW_PER_DAY] });
+    if (!sc.fast && active.some((s) => s.date === null)) lines.push({ key: 'no_date', n: [NO_DATE_NEW_PER_DAY] });
     if (oral > 0) lines.push({ key: 'oral', n: [selfChecks, aiChecks, fill.unitsPoints + fill.unitsChecks] });
     if (fill.aiBlocked && input.ai) lines.push({ key: 'ai_limit', time: clockText(input.ai.resetsAt, tz) });
     if (fc) lines.push(fc.time === null ? { key: 'first_count', n: [offsetDay(today, fc.day)], day: fc.day }
@@ -1079,6 +1083,59 @@ function allFeasibility(sc: Scan): { neededMin: number; option: null; seenByDate
   return { neededMin: ceil5(perDay / 60), option: null, seenByDateEst: total, total };
 }
 
+/** What «Как можно быстрее» promises: when every question has been seen, and today's minutes on «Все вопросы». */
+export interface FastForecast {
+  /** The questions in the plan (the subjects whose date is ahead or have none). */
+  total: number;
+  /** Not seen yet. */
+  unseen: number;
+  /** The study day the last new question comes up (today on «Все вопросы»). */
+  lastDay: LocalDay;
+  /** Study days to that day, today among them. */
+  days: number;
+  /** «Все вопросы»: today's minutes (each new question once and what is open); otherwise the minutes a day. */
+  minutes: number;
+}
+
+function fastOf(sc: Scan): FastForecast | null {
+  let firstPass = 0;
+  let newCost = 0;
+  let backlog = 0;
+  let unseen = 0;
+  let total = 0;
+  for (const s of activeSubjects(sc)) {
+    const p = s.pace;
+    const extra = p.tWrong + RETRY_FACTOR * p.tRetry;
+    const pRev = (p.pWrong.confirm + p.pWrong.check) / 2;
+    // the answers a question takes until it counts, as feasibility has them: a mistake comes back more than once
+    const k = Math.min(3, Math.max(2, 1.6 + 4 * pRev));
+    const tNewP = (item: PlanItem) => p.tNew * (item.slow ? SLOW_NEW_FACTOR : 1) + p.pWrong.new * extra;
+    const tRevP = (item: PlanItem) => p.tRev * (item.slow ? SLOW_REV_FACTOR : 1) + pRev * extra;
+    for (const item of s.unseen) {
+      const first = item.f === 'o' ? p.tSC + p.tAC : tNewP(item);
+      firstPass += first;
+      newCost += item.f === 'o' ? 2.5 * p.tSC + 2 * p.tAC : first + k * tRevP(item);
+    }
+    backlog += s.backlogOral.length * (p.tSC + 1.5 * p.tAC);
+    for (const item of s.backlogTest) backlog += tRevP(item);
+    unseen += s.unseen.length;
+    total += s.inPlan;
+  }
+  if (unseen === 0) return null;
+  const first = studyDayFrom(sc.today, sc.mask);
+  if (sc.all) return { total, unseen, lastDay: first, days: 1, minutes: ceil5((firstPass + backlog) / 60) };
+  const budget = Math.max(1, Number(sc.input.budgetMin) || 0) * 60;
+  const days = Math.max(1, Math.ceil((newCost + backlog) / budget - EPS));
+  let day = first;
+  for (let k = 1; k < days; k += 1) day = studyDayFrom(addDays(day, 1), sc.mask);
+  return { total, unseen, lastDay: day, days, minutes: Math.round(budget / 60) };
+}
+
+/** «Как можно быстрее» (input.tempo 'fast'): when everything is seen at these minutes a day; null when nothing is new. */
+export function fastForecast(input: PlanInput): FastForecast | null {
+  return fastOf(scan({ ...input, tempo: 'fast' }));
+}
+
 /**
  * Minutes a study day needed to see everything by the date at the student's pace, the smallest fitting option, and how
  * many they would see at the current budget.
@@ -1172,6 +1229,8 @@ export function daysAhead(input: PlanInput, plan: DayPlan = planDay(input)): Day
   const budget = Math.round(Number(input.budgetMin) || 0);
   // null: familiar questions only; «Все вопросы»: the minutes the plan needs, not a cap
   const perDay = feas.neededMin > 0 ? (sc.all ? feas.neededMin : Math.min(budget, feas.neededMin)) : null;
+  // «Как можно быстрее»: the minutes a day until the last new question, then familiar questions only.
+  const fast = sc.fast ? fastOf(sc) : null;
   // Today as the card has it: the day's minutes while it holds work (or held it), no row when it holds nothing.
   const ownDay = plan && plan.day === sc.today;
   const todayMin = ownDay && (plan.state === 'study' || plan.state === 'done') ? Math.max(1, shownMinutes(plan.counts.estSec)) : null;
@@ -1188,7 +1247,8 @@ export function daysAhead(input: PlanInput, plan: DayPlan = planDay(input)): Day
     if (day === sc.today && todayEmpty) continue;
     const takesNew = open.some((s) => s.date === null || (s.lastNewDay !== null && day <= s.lastNewDay));
     const kind: DayRow['kind'] = takesNew ? 'study' : 'window';
-    const minutes = kind !== 'study' ? null : day === sc.today && todayMin !== null ? todayMin : perDay;
+    const minutes = kind !== 'study' ? null : day === sc.today && todayMin !== null ? todayMin
+      : sc.fast ? (fast && day <= fast.lastDay ? fast.minutes : null) : perDay;
     const ids = open.map((s) => s.id);
     const prev = rows[rows.length - 1];
     const next = prev ? studyDaysBetween(addDays(prev.to, 1), day, sc.mask) === 0 : false; // only days off between

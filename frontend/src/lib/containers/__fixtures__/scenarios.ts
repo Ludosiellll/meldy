@@ -3,7 +3,7 @@
  * and sessions, with the database's rule mirrored by ./sqlRule.ts. Not a model of learning: it checks the plan's
  * mechanics (the frozen day, the budget, the figure moving from day 2), never predicts results.
  */
-import type { DayPlan, LocalDay, OralMeta, PlanInput, PlanItem, UnitState } from '../../../types/container.ts';
+import type { DayPlan, LocalDay, OralMeta, PlanInput, PlanItem, Tempo, UnitState } from '../../../types/container.ts';
 import { planDay } from '../plan.ts';
 import { emptyState, inFigure, isSeen } from '../rule.ts';
 import { afterAnswer, buildSession, prng } from '../session.ts';
@@ -55,6 +55,8 @@ export interface InputOptions {
   ai?: { left: number; resetsAt: number } | null;
   /** The days of the week (Monday = 1 … Sunday = 64); left out: every day, as before the setting. */
   studyWeekdays?: number;
+  /** «Как можно быстрее» ('fast'); left out: «Равномерно до даты», as before the setting. */
+  tempo?: Tempo;
 }
 
 export function makeInput(o: InputOptions): PlanInput {
@@ -72,6 +74,7 @@ export function makeInput(o: InputOptions): PlanInput {
     pace: null,
     ai: o.ai ?? null,
     ...(o.studyWeekdays === undefined ? {} : { studyWeekdays: o.studyWeekdays }),
+    ...(o.tempo === undefined ? {} : { tempo: o.tempo }),
   };
 }
 
@@ -104,15 +107,18 @@ export interface Sim {
   dateOf: Map<string, LocalDay | null>;
   /** The days of the week of the settings (undefined: every day, the input without the field). */
   studyWeekdays?: number;
+  /** The tempo of the settings (undefined: the input without the field, «Равномерно до даты»). */
+  tempo?: Tempo;
 }
 
-export function newSim(o: { subjects: Array<{ id: string; date: LocalDay | null }>; items: PlanItem[]; budgetMin: number; firstPlanDay: LocalDay; seed: string; learner?: Learner; tz?: string; studyWeekdays?: number }): Sim {
+export function newSim(o: { subjects: Array<{ id: string; date: LocalDay | null }>; items: PlanItem[]; budgetMin: number; firstPlanDay: LocalDay; seed: string; learner?: Learner; tz?: string; studyWeekdays?: number; tempo?: Tempo }): Sim {
   const dateOf = new Map<string, LocalDay | null>();
   for (const item of o.items) dateOf.set(item.id, o.subjects.find((s) => s.id === item.s)?.date ?? null);
   return {
     tz: o.tz ?? TZ, subjects: o.subjects.map((s) => ({ id: s.id, title: s.id, date: s.date })), budgetMin: o.budgetMin,
     firstPlanDay: o.firstPlanDay, seed: o.seed, learner: o.learner ?? STEADY, items: o.items,
     states: new Map(), days: new Map(), dateOf, ...(o.studyWeekdays === undefined ? {} : { studyWeekdays: o.studyWeekdays }),
+    ...(o.tempo === undefined ? {} : { tempo: o.tempo }),
   };
 }
 
@@ -140,6 +146,7 @@ export function simInput(sim: Sim, now: number): PlanInput {
     pace: null,
     ai: null,
     ...(sim.studyWeekdays === undefined ? {} : { studyWeekdays: sim.studyWeekdays }),
+    ...(sim.tempo === undefined ? {} : { tempo: sim.tempo }),
   };
 }
 

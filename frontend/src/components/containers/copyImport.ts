@@ -166,6 +166,9 @@ export const IMPORT = {
   minutes: 'Время в день',
   // «Все вопросы» (lib/containers/plan.ts ALL_QUESTIONS_MIN, minutes_per_day 300): no minutes cap, every question shown.
   minuteOption: (n: number) => (n >= ALL_QUESTIONS_MIN ? 'Все вопросы' : `${n}${NBSP}минут`),
+  // «Как можно быстрее» (owner, 2026-10-14): the new questions spread evenly to the date, or as soon as they fit.
+  tempo: 'Новые вопросы',
+  tempoOption: (tempo: 'date' | 'fast') => (tempo === 'fast' ? 'Как можно быстрее' : 'Равномерно до даты'),
 
   save: 'Сохранить',
   saveAdd: (n: number) => `Добавить ${subjects(n)}`,

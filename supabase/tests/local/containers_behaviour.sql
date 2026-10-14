@@ -820,7 +820,9 @@ begin
   perform pg_temp.keep('plan_owner', 'plan_inputs', r);
   if r -> 'containers' -> 0 ->> 'role' <> 'owner' or (r -> 'ai' ->> 'left')::int <> 88 or r -> 'states' <> '[]'::jsonb
      or r -> 'containers' -> 0 -> 'today' -> 'first_at' <> 'null'::jsonb or (r -> 'containers' -> 0 -> 'today' ->> 'done_s')::int <> 0
-     or r -> 'containers' -> 0 -> 'settings' <> '{"minutes_per_day": 60, "study_weekdays": 127}'::jsonb then
+     -- the tempo («Как можно быстрее», 20261014170000) is 'date' until chosen; before that migration there is none
+     or (r -> 'containers' -> 0 -> 'settings') - 'tempo' <> '{"minutes_per_day": 60, "study_weekdays": 127}'::jsonb
+     or coalesce(r -> 'containers' -> 0 -> 'settings' ->> 'tempo', 'date') <> 'date' then
     raise exception 'FAILED: owner plan inputs %', r; end if;
   -- remove D: {removed: 1}; a second time changes nobody
   r := public.container_member_remove(pg_temp.c('c')::uuid, 'dddddddd-0000-0000-0000-000000000004');

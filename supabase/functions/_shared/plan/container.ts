@@ -25,7 +25,15 @@ export type KeySource =
 export interface ContainerSettings {
   minutes_per_day: number; // 10..300 (the UI offers 30 / 45 / 60 / 90)
   study_weekdays: number; // bit mask, Monday = 1 … Sunday = 64; 127 = every day
+  /** The new questions: spread to the date ('date', the default) or as soon as they fit ('fast'). Absent: unchanged. */
+  tempo?: Tempo;
 }
+/**
+ * The tempo of the new questions (owner, 2026-10-14: «выучить побыстрее, а не по дате»): 'date' spreads them evenly to
+ * the date (15 a day per subject without one); 'fast' gives them as soon as they fit — as many as the minutes a day
+ * allow, all at once on «Все вопросы». Each student chooses their own, like the minutes.
+ */
+export type Tempo = 'date' | 'fast';
 
 // ───────────────────────────────────────────── 1. Database shapes ─────────────────────────────────────────────
 
@@ -451,6 +459,8 @@ export interface PlanInput {
    * every day. Absent or out of 1..127 → every day. Days to a date count only these; another day has no plan.
    */
   studyWeekdays?: number;
+  /** settings.tempo; absent → 'date'. */
+  tempo?: Tempo;
   firstPlanDay: LocalDay;
   subjects: Array<{ id: string; title: string; date: LocalDay | null }>;
   items: PlanItem[]; // in plan only, ≤ 2000 test + ≤ 20 × 150 oral

@@ -20,7 +20,7 @@ export const SKIP_NOTE = 'Если пропустите день, его воп�
 export const LINE_KEYS = [
   'later', 'first_count', 'skip', 'short', 'short_max', 'need', 'window_ahead', 'window_detail', 'window_in', 'exam_today',
   'exam_errors', 'after', 'no_date', 'first_day', 'more_new', 'ai_limit', 'oral', 'oral_no_lectures', 'done', 'nothing',
-  'day_off', 'pace_faster', 'pace_slower', 'all',
+  'day_off', 'pace_faster', 'pace_slower', 'all', 'fast_all', 'fast_days',
 ] as const;
 export type LineKey = typeof LINE_KEYS[number];
 type Line = DayPlan['lines'][number];
@@ -166,6 +166,18 @@ export function lineText(line: Line): string {
       if (perDay <= 0) return `Новых вопросов не осталось: ошибки и вторая проверка, ${time}.`;
       const by = line.day ? ` — к ${dayText(line.day)}` : '';
       return `Все ${questions(nth(line, 0))}${inPlan(line, 0, 3)}${by}: около ${perDay} новых в${NBSP}день, ${time}.`;
+    }
+    // «Как можно быстрее» under «Время в день» (plan.ts fastForecast). On «Все вопросы»: n = [count, minutes, the exam's
+    // size, days to that day] — everything on the first study day; with minutes: n = [minutes, count, study days, the
+    // exam's size, days to that day], `day` the day the last new question comes up.
+    case 'fast_all': {
+      const when = relDay(nth(line, 3), line.day);
+      return `Все ${questions(nth(line, 0))}${inPlan(line, 0, 2)} — ${when}: около ${durationGen(nth(line, 1))}. `
+        + 'На следующий день — повтор тех, на которые ответили верно.';
+    }
+    case 'fast_days': {
+      const when = nth(line, 2) <= 1 ? relDay(nth(line, 4), line.day) : `к ${dayText(line.day ?? '')} — за ${days(nth(line, 2))} занятий`;
+      return `При ${minutesPrep(nth(line, 0))} в${NBSP}день все ${questions(nth(line, 1))}${inPlan(line, 1, 3)} вы увидите ${when}.`;
     }
     case 'window_ahead':
       // The plan card's note: one line on a phone from day 1 (usability check, m9). What those days hold is the row

@@ -65,6 +65,10 @@ const SAMPLES: Record<LineKey, Array<DayPlan['lines'][number]>> = {
   pace_slower: [{ key: 'pace_slower', n: [80] }],
   all: [{ key: 'all', n: [1120, 560, 455, 1120], day: '2026-10-15' }, { key: 'all', n: [1120, 560, 455, 1124] },
     { key: 'all', n: [480, 0, 50, 480] }],
+  fast_all: [{ key: 'fast_all', n: [960, 970, 960, 0], day: '2026-10-14' }, { key: 'fast_all', n: [160, 140, 164, 1], day: '2026-10-15' },
+    { key: 'fast_all', n: [960, 60, 960, 3], day: '2026-10-17' }],
+  fast_days: [{ key: 'fast_days', n: [60, 960, 9, 960, 9], day: '2026-10-23' }, { key: 'fast_days', n: [90, 40, 1, 44, 0], day: '2026-10-14' },
+    { key: 'fast_days', n: [45, 160, 2, 160, 2], day: '2026-10-16' }],
 };
 
 describe('plural and glue', () => {
@@ -325,5 +329,24 @@ describe('«План по дням» rows', () => {
     expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-12', kind: 'study', minutes: null, oral: true }))).toBe('11–12 октября — только знакомые, с устными');
     expect(ru(dayRowText({ from: '2026-10-21', to: '2026-10-21', kind: 'exam', minutes: null, oral: true }))).toBe('21 октября — экзамен');
     expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-17', kind: 'study', minutes: 20, oral: false }))).toBe('11–17 октября — около 20 минут в день');
+  });
+});
+
+describe('«Как можно быстрее» (owner, 2026-10-14: «выучить побыстрее, а не по дате»)', () => {
+  const t = (line: DayPlan['lines'][number]) => ru(lineText(line));
+
+  it('on «Все вопросы»: the day everything is seen and how long it takes', () => {
+    expect(t({ key: 'fast_all', n: [960, 970, 960, 0], day: '2026-10-14' }))
+      .toBe('Все 960 вопросов — сегодня: около 16 часов. На следующий день — повтор тех, на которые ответили верно.');
+    expect(t({ key: 'fast_all', n: [160, 140, 164, 1], day: '2026-10-15' }))
+      .toBe('Все 160 вопросов в плане — завтра: около 140 минут. На следующий день — повтор тех, на которые ответили верно.');
+  });
+
+  it('with minutes: the day all are seen and how many study days it takes', () => {
+    expect(t({ key: 'fast_days', n: [60, 960, 9, 960, 9], day: '2026-10-23' }))
+      .toBe('При 60 минутах в день все 960 вопросов вы увидите к 23 октября — за 9 дней занятий.');
+    expect(t({ key: 'fast_days', n: [90, 40, 1, 44, 0], day: '2026-10-14' })).toBe('При 90 минутах в день все 40 вопросов в плане вы увидите сегодня.');
+    expect(t({ key: 'fast_days', n: [45, 160, 2, 160, 2], day: '2026-10-16' }))
+      .toBe('При 45 минутах в день все 160 вопросов вы увидите к 16 октября — за 2 дня занятий.');
   });
 });

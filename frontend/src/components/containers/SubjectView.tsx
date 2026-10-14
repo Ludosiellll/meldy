@@ -83,7 +83,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   const cardNotes: ReactNode[] = [];
   if (offline) cardNotes.push(<NoteLine key="offline" text={copy.OFFLINE_PAGE} />);
   cardNotes.push(...noteLines(lines, targets));
-  if (day.noDate && !lines.some((line) => line.action === 'date')) cardNotes.push(<NoteLine key="nodate" text={noDateText()} action={linkFor('date', targets)} />);
+  if (day.noDate && summary.settings.tempo !== 'fast' && !lines.some((line) => line.action === 'date')) cardNotes.push(<NoteLine key="nodate" text={noDateText()} action={linkFor('date', targets)} />);
 
   const start = startTarget({ containerId, summary, plan, saved, subjectId: subject.id, wide, back });
   const share = plan ? (solo ? plan : subjectPlan(plan, subject.id, planInput)) : null;
@@ -290,7 +290,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
           plan={plan}
           subjects={summary.subjects}
           minutes={summary.settings.minutes_per_day}
-          noDate={day.noDate}
+          noDate={day.noDate && summary.settings.tempo !== 'fast'}
           settingsHref={hrefs.settings}
           minutesHref={hrefs.minutes}
           onClose={() => setDaysOpen(false)}

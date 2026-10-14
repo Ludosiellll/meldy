@@ -168,6 +168,7 @@ export function decodePlanInputs(wire: PlanInputsWire, options: DecodeOptions): 
     containerId: container.id,
     budgetMin: container.settings?.minutes_per_day ?? 60,
     studyWeekdays: weekdaysOf(container.settings?.study_weekdays),
+    tempo: container.settings?.tempo === 'fast' ? 'fast' : 'date',
     firstPlanDay: container.first_plan_day,
     subjects,
     items: [...items, ...options.oral.filter((item) => item && ownIds.has(item.s))],

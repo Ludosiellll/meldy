@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import PaperSelect from '../ui/PaperSelect';
 import { dayText } from '../../lib/containers/words';
+import { MOCK_MAX } from './mockModel';
 import { Sheet } from './ui';
 import * as copy from './copy';
 
@@ -9,12 +10,13 @@ import * as copy from './copy';
  * «Завершить»; итог покажем после.», the last try's result («Прошлая попытка 15 октября: 31 из 40.») and «Начать».
  * A minute a question by default, as the teacher critique measured; «без времени» is there too.
  */
-const COUNTS = [10, 20, 30, 40, 50, 60, 80, 100];
-const MINUTES = [10, 15, 20, 30, 40, 45, 60, 80, 90, 120];
+const COUNTS = [10, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200];
+const MINUTES = [10, 15, 20, 30, 40, 45, 60, 80, 90, 120, 150, 180, 240];
 
+/** The counts on offer, and the whole subject (a variant of 160, owner 2026-10-14) up to the database's 200. */
 export function mockCounts(keyed: number): number[] {
-  const fit = COUNTS.filter((n) => n <= keyed);
-  if (keyed > 0 && (fit.length === 0 || fit[fit.length - 1] !== keyed) && keyed < 100) fit.push(keyed);
+  const fit = COUNTS.filter((n) => n <= Math.min(keyed, MOCK_MAX));
+  if (keyed > 0 && keyed <= MOCK_MAX) fit.push(keyed);
   return Array.from(new Set(fit)).sort((a, b) => a - b);
 }
 

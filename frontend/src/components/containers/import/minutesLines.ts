@@ -11,16 +11,20 @@
  * - One date for the whole exam: the final days without new questions in full (`window_detail`; the plan card's
  *   `window_ahead` says it in one line), under «Подробнее». Days and minutes are the study days' (settings.study_weekdays).
  *
+ * - «Как можно быстрее» (tempo 'fast', plan.ts fastForecast): no date needed. On «Все вопросы» — «Все 960 вопросов —
+ *   сегодня: около 16 часов. На следующий день — повтор…» (`fast_all`); with minutes — «При 60 минутах в день все 960
+ *   вопросов вы увидите к 23 октября — за 9 дней занятий.» (`fast_days`).
+ *
  * The date is the last one ahead among the subjects with questions in the plan; the count is the questions of the
  * subjects whose date is still ahead (or have none), as the plan counts them. When the exam holds more questions than
  * that (`input.examQuestions`: oral ones waiting for lectures, ones without a key, a subject after its date), the line
  * says what it counts: «Чтобы увидеть все 50 вопросов в плане к 21 октября…» (usability check 2026-10-10, m6: «все 50»
  * under an exam of 54). No date, nothing to see, or an estimate that fails: no line.
  */
-import { allQuestions, feasibility, planDay, windowDays } from '../../../lib/containers/plan';
-import { localDay, studyDayBefore, studyMask } from '../../../lib/containers/time';
+import { allQuestions, fastForecast, feasibility, planDay, windowDays } from '../../../lib/containers/plan';
+import { daysBetween, localDay, studyDayBefore, studyMask } from '../../../lib/containers/time';
 import { lineText } from '../../../lib/containers/words';
-import type { PlanInput } from '../../../types/container';
+import type { PlanInput, Tempo } from '../../../types/container';
 
 export interface MinutesLines {
   /** `need`, `short` or `short_max`. */
@@ -37,10 +41,20 @@ const ceil5 = (n: number) => Math.max(0, Math.ceil(n / 5) * 5);
 /** «около 700»: a forecast to the tens (the estimate is ±10 %, Concept 2 §3.6). */
 const about = (n: number) => (n >= 100 ? Math.floor(n / 10) * 10 : Math.max(0, Math.round(n)));
 
-export function minutesLines(input: PlanInput | null, minutes: number): MinutesLines | null {
+export function minutesLines(input: PlanInput | null, minutes: number, tempo: Tempo = 'date'): MinutesLines | null {
   if (!input) return null;
   try {
     const today = localDay(input.now, input.tz);
+    if (tempo === 'fast') {
+      const fast = fastForecast({ ...input, budgetMin: minutes });
+      if (!fast) return null;
+      const size = typeof input.examQuestions === 'number' && Number.isFinite(input.examQuestions) ? Math.max(0, input.examQuestions) : fast.total;
+      const offset = daysBetween(today, fast.lastDay);
+      const line = allQuestions(minutes)
+        ? lineText({ key: 'fast_all', n: [fast.total, fast.minutes, size, offset], day: fast.lastDay })
+        : lineText({ key: 'fast_days', n: [fast.minutes, fast.total, fast.days, size, offset], day: fast.lastDay });
+      return { line, window: null, option: null, short: false };
+    }
     const inPlan = new Set(input.items.map((item) => item.s));
     const ahead = input.subjects.filter((subject) => inPlan.has(subject.id) && (subject.date === null || subject.date > today));
     const dates = ahead.map((subject) => subject.date).filter((date): date is string => Boolean(date));

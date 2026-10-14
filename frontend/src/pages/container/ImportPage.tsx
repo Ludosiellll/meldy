@@ -10,7 +10,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
-import type { BankParseResult, BankPicture, PlanItem, TestItem, Uuid } from '../../types/container';
+import type { BankParseResult, BankPicture, PlanItem, Tempo, TestItem, Uuid } from '../../types/container';
 import { dayText, errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
@@ -80,6 +80,7 @@ if (typeof window !== 'undefined' && IMPORT_PATH.test(window.location.pathname))
 const CONTAINER_ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** 30–90 minutes, then «Все вопросы» (no minutes cap). */
 const MINUTE_OPTIONS = [30, 45, 60, 90, ALL_QUESTIONS_MIN] as const;
+const TEMPO_OPTIONS: readonly Tempo[] = ['date', 'fast'];
 const READ_AT_ONCE = 2;
 
 interface Entry {
@@ -108,6 +109,7 @@ interface FormState {
   dateTouched: boolean;
   perSubject: boolean;
   minutes: number | null;
+  tempo: Tempo;
 }
 
 type View = { kind: 'main' } | { kind: 'subject'; key: string } | { kind: 'check' } | { kind: 'key'; fileId: string; paste: boolean };
@@ -186,6 +188,7 @@ export default function ImportPage() {
     dateTouched: false,
     perSubject: false,
     minutes: null,
+    tempo: 'date',
   });
   const [nameTried, setNameTried] = useState(false);
   const [spotOpen, setSpotOpen] = useState(false);
@@ -459,7 +462,8 @@ export default function ImportPage() {
   // when not: questions without a key, oral ones waiting for lectures — usability check 2026-10-10, m6).
   const examSize = active.reduce((sum, subject) => sum + subject.test.length + subject.oral.length, 0) + (oldExam?.questions ?? 0);
   const draftInput = useMemo(() => {
-    if (!showMinutes || (totals.test === 0 && !oldItems?.length) || !anyDate) return null;
+    // «Как можно быстрее» needs no date; «Равномерно до даты» without one has no line (minutesLines says nothing).
+    if (!showMinutes || (totals.test === 0 && !oldItems?.length)) return null;
     try {
       const extra =
         oldExam && oldItems && oldItems.length > 0
@@ -469,15 +473,15 @@ export default function ImportPage() {
     } catch {
       return null;
     }
-  }, [showMinutes, totals.test, anyDate, subjects, today, date, perSubject, oldExam, oldItems, examSize]);
+  }, [showMinutes, totals.test, subjects, today, date, perSubject, oldExam, oldItems, examSize]);
   const base = useMemo(() => minutesLines(draftInput, 60), [draftInput]);
   // Without a date 60 minutes; with one, the smallest option that is enough (90 when none is).
   const defaultMinutes = !base ? 60 : base.option ?? 90;
   const minutes = form.minutes ?? defaultMinutes;
   // The line waits for the joining oral exam's questions: without them it would count too few.
   const lines = useMemo(
-    () => (targetKind === 'old' && !Array.isArray(oldItems) ? null : minutesLines(draftInput, minutes)),
-    [targetKind, oldItems, draftInput, minutes],
+    () => (targetKind === 'old' && !Array.isArray(oldItems) ? null : minutesLines(draftInput, minutes, form.tempo)),
+    [targetKind, oldItems, draftInput, minutes, form.tempo],
   );
 
   // ───────────────────────────── views (the address's #… so «назад» closes them) ─────────────────────────────
@@ -613,6 +617,7 @@ export default function ImportPage() {
           date: date || null,
           perSubject,
           minutes: showMinutes ? minutes : null,
+          tempo: form.tempo,
           subjects: active,
           importIds: Object.fromEntries(files.map((file) => [file.id, file.importId])),
           pictures: filePictures(files),
@@ -1127,7 +1132,7 @@ export default function ImportPage() {
           {perSubject ? IMPORT.oneDate : IMPORT.dates}
         </button>
       ) : null}
-      {!anyDate && !asOralExam ? <p className="im-hint" data-muted="">{nb(IMPORT.noDate)}</p> : null}
+      {!anyDate && !asOralExam && form.tempo !== 'fast' ? <p className="im-hint" data-muted="">{nb(IMPORT.noDate)}</p> : null}
     </div>
   ) : null;
 
@@ -1141,6 +1146,14 @@ export default function ImportPage() {
         value={minutes}
         options={MINUTE_OPTIONS.map((value) => ({ value, label: IMPORT.minuteOption(value) }))}
         onChange={(value) => setForm((current) => ({ ...current, minutes: value }))}
+        disabled={locked}
+      />
+      <span className="im-label im-tempo-label">{IMPORT.tempo}</span>
+      <PaperSelect
+        ariaLabel={IMPORT.tempo}
+        value={form.tempo}
+        options={TEMPO_OPTIONS.map((value) => ({ value, label: IMPORT.tempoOption(value) }))}
+        onChange={(value) => setForm((current) => ({ ...current, tempo: value }))}
         disabled={locked}
       />
       {lines ? (

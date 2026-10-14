@@ -223,7 +223,8 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
     };
     planNotes.push({ kind: 'pace', node: <PaceLine key="pace" note={paceShown} containerId={containerId} settings={summary.settings} onTold={told} reload={reload} /> });
   }
-  if (day.noDate && !hasLine('date')) planNotes.push({ kind: 'no_date', node: <NoteLine key="nodate" text={noDateText()} action={linkFor('date', targets)} /> });
+  // «Как можно быстрее» needs no date: the «по 15 новых в день» note is not about this plan.
+  if (day.noDate && summary.settings.tempo !== 'fast' && !hasLine('date')) planNotes.push({ kind: 'no_date', node: <NoteLine key="nodate" text={noDateText()} action={linkFor('date', targets)} /> });
   const shownNotes = cardNotes(planNotes, phone);
 
   const start = startTarget({ containerId, summary, plan, saved, wide });
@@ -398,7 +399,7 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
           plan={plan}
           subjects={summary.subjects}
           minutes={summary.settings.minutes_per_day}
-          noDate={day.noDate}
+          noDate={day.noDate && summary.settings.tempo !== 'fast'}
           settingsHref={hrefs.settings}
           minutesHref={hrefs.minutes}
           onClose={() => setDaysOpen(false)}

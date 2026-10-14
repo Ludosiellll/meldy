@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/containers/session', async (original) => (await import('./testkit/engine')).sessionModule(original));
 
-import { clock, drawMock, isAnswered, mockAnswers, scoreMock } from './mockModel';
+import { MOCK_MAX, clock, drawMock, isAnswered, mockAnswers, scoreMock } from './mockModel';
 import { SUBJECT_DB, dbItems, item, planInput, planItemsFor, unit } from './testkit/fixtures';
 
 describe('«Как на экзамене» without React', () => {
@@ -22,6 +22,17 @@ describe('«Как на экзамене» without React', () => {
     expect(ten).toHaveLength(10);
     expect(Object.keys(seen).every((id) => ten.includes(id))).toBe(true);
     expect(new Set(ten).size).toBe(10);
+  });
+
+  it('a whole variant of 160 in one try; never more than the database’s 200 (owner, 2026-10-14)', () => {
+    const many = Array.from({ length: 240 }, (_, i) => item({ id: `v${i}`, position: i + 1, topic: (i % 8) + 1 }));
+    const all = new Map(many.map((entry) => [entry.id, entry]));
+    const input = planInput({ items: planItemsFor(many, {}) });
+    const variant = drawMock(input, all, SUBJECT_DB, 160, 'seed-160');
+    expect(variant).toHaveLength(160);
+    expect(new Set(variant).size).toBe(160);
+    expect(drawMock(input, all, SUBJECT_DB, 500, 'seed-500')).toHaveLength(MOCK_MAX);
+    expect(MOCK_MAX).toBe(200);
   });
 
   it('scores on the device: unanswered questions are errors', () => {

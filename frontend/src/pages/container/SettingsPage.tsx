@@ -24,7 +24,7 @@ import { TO_EXAMS } from '../../components/containers/copy';
 import { minutesLines } from '../../components/containers/import/minutesLines';
 import { useFocusAfter } from '../../components/containers/useFocusAfter';
 import { cleanDays, dayCount, dayOn, toggleDay } from '../../components/containers/weekdays';
-import type { ContainerSummary, PlanInput, SummarySubject, Uuid } from '../../types/container';
+import type { ContainerSummary, PlanInput, SummarySubject, Tempo, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './SettingsPage.css';
@@ -46,6 +46,7 @@ import './SettingsPage.css';
 
 /** 30–90 minutes, then «Все вопросы» (no minutes cap). */
 const MINUTE_OPTIONS = [30, 45, 60, 90, ALL_QUESTIONS_MIN] as const;
+const TEMPO_OPTIONS: readonly Tempo[] = ['date', 'fast'];
 
 const oralOnly = (subject: SummarySubject) => subject.keyed + subject.no_key === 0 && Boolean(subject.oral);
 
@@ -71,11 +72,12 @@ export default function SettingsPage() {
   const [subjectDates, setSubjectDates] = useState<Record<string, string>>({});
   const [minutes, setMinutes] = useState(60);
   const [weekdays, setWeekdays] = useState(127);
+  const [tempo, setTempo] = useState<Tempo>('date');
   const [lastDayTried, setLastDayTried] = useState(false);
   const [filled, setFilled] = useState<string | null>(null);
   useEffect(() => {
     if (!summary) return;
-    const stamp = `${summary.id}:${summary.title}:${summary.exam_date}:${summary.settings.minutes_per_day}:${summary.settings.study_weekdays}:${summary.subjects.map((subject) => `${subject.id}=${subject.exam_date}`).join(',')}`;
+    const stamp = `${summary.id}:${summary.title}:${summary.exam_date}:${summary.settings.minutes_per_day}:${summary.settings.study_weekdays}:${summary.settings.tempo ?? 'date'}:${summary.subjects.map((subject) => `${subject.id}=${subject.exam_date}`).join(',')}`;
     if (filled === stamp) return;
     setFilled(stamp);
     rememberContainerTitle(summary.id, summary.title);
@@ -87,6 +89,7 @@ export default function SettingsPage() {
     setSubjectDates(Object.fromEntries(summary.subjects.map((subject) => [subject.id, subject.exam_date ?? ''])));
     setMinutes(summary.settings.minutes_per_day);
     setWeekdays(cleanDays(summary.settings.study_weekdays));
+    setTempo(summary.settings.tempo === 'fast' ? 'fast' : 'date');
   }, [summary, filled]);
 
   const [saving, setSaving] = useState(false);
@@ -106,7 +109,8 @@ export default function SettingsPage() {
         (owner && changedSubjects.length > 0) ||
         (owner && ownDates.length > 0) ||
         minutes !== summary.settings.minutes_per_day ||
-        weekdays !== cleanDays(summary.settings.study_weekdays)),
+        weekdays !== cleanDays(summary.settings.study_weekdays) ||
+        tempo !== (summary.settings.tempo === 'fast' ? 'fast' : 'date')),
   );
 
   // ── the minutes and the plan's line under them, for the dates and the days of the week as the form has them now ──
@@ -125,7 +129,7 @@ export default function SettingsPage() {
       }),
     };
   }, [planInput, summary, perSubject, subjectDates, date, weekdays]);
-  const lines = useMemo(() => minutesLines(liveInput, minutes), [liveInput, minutes]);
+  const lines = useMemo(() => minutesLines(liveInput, minutes, tempo), [liveInput, minutes, tempo]);
   const [moreOpen, setMoreOpen] = useState(false);
 
   const focusAfter = useFocusAfter();
@@ -205,9 +209,11 @@ export default function SettingsPage() {
       }
       // The minutes and the days are one row of the user's own (container_plans): saved together.
       const daysChanged = weekdays !== cleanDays(summary.settings.study_weekdays);
-      if (minutes !== summary.settings.minutes_per_day || daysChanged) {
-        await saveSettings(containerId, { minutes_per_day: minutes, study_weekdays: weekdays });
+      const tempoChanged = tempo !== (summary.settings.tempo === 'fast' ? 'fast' : 'date');
+      if (minutes !== summary.settings.minutes_per_day || daysChanged || tempoChanged) {
+        await saveSettings(containerId, { minutes_per_day: minutes, study_weekdays: weekdays, tempo });
         if (minutes !== summary.settings.minutes_per_day) track('container.minutes_set', { minutes });
+        if (tempoChanged) track('container.tempo_set', { tempo });
         if (daysChanged) track('container.days_set', { days: dayCount(weekdays) });
       }
       if (owner) rememberContainerTitle(containerId, title.trim());
@@ -367,6 +373,14 @@ export default function SettingsPage() {
         value={minutes}
         options={MINUTE_OPTIONS.map((value) => ({ value, label: IMPORT.minuteOption(value) }))}
         onChange={(value) => setMinutes(value)}
+        disabled={saving}
+      />
+      <span className="im-label im-tempo-label">{IMPORT.tempo}</span>
+      <PaperSelect
+        ariaLabel={IMPORT.tempo}
+        value={tempo}
+        options={TEMPO_OPTIONS.map((value) => ({ value, label: IMPORT.tempoOption(value) }))}
+        onChange={(value) => setTempo(value)}
         disabled={saving}
       />
       {lines ? (
@@ -529,7 +543,7 @@ export default function SettingsPage() {
                 {perSubject ? SETTINGS.oneDate : SETTINGS.dates}
               </button>
             ) : null}
-            {!anyDate ? <p className="im-hint" data-muted="">{nb(SETTINGS.noDate)}</p> : null}
+            {!anyDate && tempo !== 'fast' ? <p className="im-hint" data-muted="">{nb(SETTINGS.noDate)}</p> : null}
           </div>
           {minutesField}
           {daysField}

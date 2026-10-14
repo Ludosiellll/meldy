@@ -127,7 +127,7 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     fireEvent.click(await screen.findByRole('option', { name: /^90\sминут$/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() => expect(api.updateContainer).toHaveBeenCalledWith(ID, { title: 'Зимняя сессия 2027', exam_date: '2027-01-14' }));
-    expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 90, study_weekdays: 127 });
+    expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 90, study_weekdays: 127, tempo: 'date' });
     expect(await screen.findByText(SETTINGS.saved)).toBeInTheDocument();
     expect(api.reload).toHaveBeenCalled();
   });
@@ -204,7 +204,28 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     fireEvent.click(await screen.findByRole('option', { name: 'Все вопросы' }));
     expect(screen.getByText(/^Все 960\sвопросов — к \d+\s\S+: около \d+ новых в\sдень, около 120\sминут в\sдень\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 300, study_weekdays: 127 }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 300, study_weekdays: 127, tempo: 'date' }));
+  });
+
+  it('«Как можно быстрее» (the owner, 2026-10-14): the line says the day all are seen; the save sends the tempo', async () => {
+    renderAt();
+    expect(screen.getByRole('combobox', { name: 'Новые вопросы' })).toHaveTextContent('Равномерно до даты');
+    fireEvent.click(screen.getByRole('combobox', { name: 'Новые вопросы' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Как можно быстрее' }));
+    expect(screen.getByText(/^При \d+\sминутах в\sдень все 960\sвопросов вы увидите (сегодня|завтра|к \d+\s\S+ — за \d+\s\S+ занятий)\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, expect.objectContaining({ tempo: 'fast' })));
+  });
+
+  it('a saved «Как можно быстрее» comes back chosen, and nothing to save until it changes', async () => {
+    api.state.summary = { ...SUMMARY, settings: { ...SUMMARY.settings, tempo: 'fast' } };
+    renderAt();
+    expect(screen.getByRole('combobox', { name: 'Новые вопросы' })).toHaveTextContent('Как можно быстрее');
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Новые вопросы' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Равномерно до даты' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, expect.objectContaining({ tempo: 'date' })));
   });
 
   it('renames and removes a subject; the last subject is removed only with the exam', async () => {
@@ -365,7 +386,7 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     expect(days.getByRole('button', { name: 'суббота' })).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     // Monday … Friday: 1 + 2 + 4 + 8 + 16; the minutes stay as they were.
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 45, study_weekdays: 31 }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 45, study_weekdays: 31, tempo: 'date' }));
     expect(api.updateContainer).not.toHaveBeenCalled();
   });
 
@@ -413,7 +434,7 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     renderAt();
     fireEvent.click(within(screen.getByRole('group', { name: SETTINGS.days })).getByRole('button', { name: 'понедельник' }));
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 45, study_weekdays: 126 }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 45, study_weekdays: 126, tempo: 'date' }));
   });
 
   it('opens «Пригласить группу» from ?invite=1 and links «Добавить предмет» to the import page', () => {

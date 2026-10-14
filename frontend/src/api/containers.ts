@@ -524,6 +524,7 @@ export async function saveSettings(containerId: Uuid, settings: ContainerSetting
           container_id: containerId,
           minutes_per_day: settings.minutes_per_day,
           study_weekdays: settings.study_weekdays,
+          ...(settings.tempo ? { tempo: settings.tempo } : {}),
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,container_id' },
