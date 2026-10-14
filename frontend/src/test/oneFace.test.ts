@@ -3,7 +3,7 @@ import indexHtml from '../../index.html?raw';
 import viteConfigSource from '../../vite.config.ts?raw';
 import readme from '../../../README.md?raw';
 import readmeHf from '../../../README_HF.md?raw';
-import ogImage from '../../public/og-image.jpg?inline';
+import ogImage from '../../public/og-image-2.jpg?inline';
 import icon192 from '../../public/pwa-192x192.png?inline';
 import icon512 from '../../public/pwa-512x512.png?inline';
 import iconMaskable from '../../public/pwa-maskable-512x512.png?inline';
@@ -86,7 +86,7 @@ describe('index.html', () => {
     expect(meta('property', 'og:site_name')).toBe('Meldy');
     expect(meta('property', 'og:locale')).toBe('ru_RU');
     expect(meta('property', 'og:url')).toBe(SITE);
-    expect(meta('property', 'og:image')).toBe(`${SITE}og-image.jpg`);
+    expect(meta('property', 'og:image')).toBe(`${SITE}og-image-2.jpg`);
     expect(meta('property', 'og:image:type')).toBe('image/jpeg');
     expect(meta('property', 'og:image:width')).toBe('1200');
     expect(meta('property', 'og:image:height')).toBe('630');

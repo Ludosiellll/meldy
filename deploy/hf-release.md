@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.14: the link preview under a new address (from the commit of this entry)
+
+- **The owner's report:** an invite link (`/g/<code>`) sent in Telegram showed the old paper cheat sheet. The site has
+  served the new picture (list + map of lines) since 2026-10-10, but Telegram keeps a preview picture by its address,
+  and the address `og-image.jpg` never changed. The picture is now `og-image-2.jpg` (the same file, renamed), so every
+  new preview fetches it; `render.mjs` names the file in one place and says why a new look takes a new name.
+- **Already sent previews** keep the old picture in Telegram's cache: a new invite link, or the old one refreshed
+  through @WebpageBot, shows the new one.
+
 ## 2026-10-14 — Release 44.13: «Все вопросы» — the choice after 90 minutes (from the commit of this entry)
 
 - **The owner's case:** three subjects, 1120 questions, a test in three days. At 90 minutes the plan saw «около 150 из

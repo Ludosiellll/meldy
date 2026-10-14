@@ -2,7 +2,7 @@
 /**
  * Renders the pictures a newcomer meets before signing in, from sources kept in the repository:
  *
- *   og.html               → public/og-image.jpg            the link preview (og:image), 1200 × 630, JPEG
+ *   og.html               → public/og-image-2.jpg          the link preview (og:image), 1200 × 630, JPEG
  *   public/pwa-512x512.svg → public/pwa-192x192.png         icon, 192 × 192
  *                          → public/pwa-512x512.png         icon, 512 × 512
  *                          → public/pwa-maskable-512x512.png  maskable icon: full-bleed blue, the mark
@@ -18,6 +18,10 @@
  * «Your push was rejected because it contains binary files», og-image.png at 143 KB). The preview is
  * therefore a JPEG, the highest quality that stays under OG_MAX_BYTES; a palette PNG turned the yellow
  * dot beige.
+ *
+ * Telegram keeps a link preview's picture by its address, for weeks: after 2026-10-10 the invite links still showed
+ * the paper sheet of og-image.jpg. A new look of the preview therefore takes a new file name (OG_FILE here and
+ * og:image in index.html), never the old one overwritten.
  */
 import { execSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
@@ -29,6 +33,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 /** Under the Space's 100 KB limit for binary files pushed without Xet, with room to spare. */
 const OG_MAX_BYTES = 95 * 1024;
 const publicDir = resolve(here, '../../public');
+/** The preview's file in public/; a new look takes a new name (see above). */
+const OG_FILE = 'og-image-2.jpg';
 
 async function loadPlaywright() {
   try {
@@ -67,17 +73,17 @@ try {
 
   await page.goto(pathToFileURL(join(here, 'og.html')).href, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
-  const og = join(publicDir, 'og-image.jpg');
+  const og = join(publicDir, OG_FILE);
   let written = 0;
   for (const quality of [92, 90, 88, 86, 84, 82, 80, 78, 75]) {
     await page.locator('.og').screenshot({ path: og, type: 'jpeg', quality });
     written = statSync(og).size;
     if (written <= OG_MAX_BYTES) {
-      console.log(`og-image.jpg  ${Math.round(written / 1024)} KB (quality ${quality})`);
+      console.log(`${OG_FILE}  ${Math.round(written / 1024)} KB (quality ${quality})`);
       break;
     }
   }
-  if (written > OG_MAX_BYTES) throw new Error(`og-image.jpg is ${written} bytes even at quality 75`);
+  if (written > OG_MAX_BYTES) throw new Error(`${OG_FILE} is ${written} bytes even at quality 75`);
 
   for (const icon of ICONS) {
     await page.setViewportSize({ width: icon.size, height: icon.size });
