@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-14 — Release 44.16: college test files with the question across the table; the key in another file (from the commit of this entry)
+
+- **The owner's files:** «ТЕСТОВЫЙ ВАРИАНТ 4» and «Вариант 1» keep each question in one cell merged across the table and
+  the five options in the cells of the next row. Meldy read the merged row as a topic and the options row as a question:
+  160 «questions» of one option, no key. The importer now reads that layout (`table_stem_rows`): variant 4 — 160
+  questions × 5 options, the bold key on all 160; variant 1 — 160 × 5 (that file marks no answers). A stale second number
+  («86.17. Какое свойство…») takes the one that continues the numbering; «Вариант N» above the table is not a topic.
+- **The key in another file** («КЛЮЧ ОТВЕТОВ — ВАРИАНТ 4 / 5 / 6», tables «1 | А | 2 | Г…»): «Ключ в другом файле» next to
+  «Вставить ключ списком», and «Ключ отдельным файлом» in «Как в файле отмечен ответ?». The key file (DOCX, XLSX, TXT, MD)
+  goes with the questions; Meldy takes the section of the test's own variant. It stands above the file's marks like a
+  typed key, so a disagreement with the bold is flagged for the check. When no section fits (variant 1 against a key of 4,
+  5, 6), nothing is taken silently: «В файле ключа нет варианта 1, есть: 4, 5, 6. Выберите нужный.» and a button per
+  section. The owner's pair: variant 4 + its key — all 160 answers agree with the bold in the file.
+- **Pictures** in these files still stay out of the sessions until checked (20 questions in each variant): carrying them
+  over is the next release.
+- **Verified before release:** pytest 2048 (the two audio-cut tests fail in this container on the base commit too: its
+  ffmpeg), vitest 4566, tsc -b; the owner's four files through the importer.
+
 ## 2026-10-14 — Release 44.15: a subject's row names its numbers (from the commit of this entry)
 
 - **The owner's report:** after 40 answers in ТРПО the exam page's row read «0 из 373 · сегодня 147». The 0 was the

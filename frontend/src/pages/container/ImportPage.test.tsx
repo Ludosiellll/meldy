@@ -371,6 +371,39 @@ describe('ImportPage: one door for every file', () => {
     expect(await screen.findByText('Ключ подошёл к 2 из 2.')).toBeInTheDocument();
   });
 
+  it('«Ключ в другом файле»: the key file goes with the questions; when no variant fits, the student picks one (owner, 2026-10-14)', async () => {
+    const noKey = bank([item(1, { correct: [], evidence: '', flags: ['no_key'] }), item(2, { correct: [], evidence: '', flags: ['no_key'] })], 'ТРПО');
+    const sections = [
+      { title: 'КЛЮЧ ОТВЕТОВ — ВАРИАНТ 4', variant: 4, count: 160 },
+      { title: 'КЛЮЧ ОТВЕТОВ — ВАРИАНТ 5', variant: 5, count: 160 },
+    ];
+    api.parseBank.mockImplementation(async ({ keyFile, keySection }: { keyFile?: File; keySection?: number | null }) => {
+      if (!keyFile) return noKey;
+      if (typeof keySection !== 'number') {
+        return {
+          ...noKey,
+          key_file: { sections, used: null },
+          warnings: [{ code: 'key_file_variant', message: 'В файле ключа нет варианта 1, есть: 4, 5. Выберите нужный.' }],
+        };
+      }
+      return { ...bank([item(1, { evidence: 'key_text' }), item(2, { evidence: 'key_text' })], 'ТРПО'), key_file: { sections, used: keySection } };
+    });
+    renderAt();
+    upload(['Вариант 1.docx']);
+    await screen.findByText(IMPORT.noKeyTitle);
+    const pick = screen.getByRole('button', { name: IMPORT.noKeyFile });
+    const input = pick.nextElementSibling as HTMLInputElement;
+    expect(input.accept).toContain('.docx');
+    fireEvent.change(input, { target: { files: [new File(['ключ'], 'Ключ 4 5 6.docx')] } });
+    await waitFor(() => expect(api.parseBank).toHaveBeenLastCalledWith(expect.objectContaining({ keySection: null })));
+    expect((api.parseBank.mock.lastCall?.[0] as { keyFile: File }).keyFile.name).toBe('Ключ 4 5 6.docx');
+    expect(await screen.findByText('В файле ключа нет варианта 1, есть: 4, 5. Выберите нужный.')).toBeInTheDocument();
+    expect(screen.getByText(IMPORT.keyFileChoose)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: nm('Вариант 5 · 160 ответов') }));
+    await waitFor(() => expect(api.parseBank).toHaveBeenLastCalledWith(expect.objectContaining({ keySection: 1 })));
+    await waitFor(() => expect(screen.queryByText(IMPORT.noKeyTitle)).not.toBeInTheDocument());
+  });
+
   it('«Это устные вопросы» reads the file again as an oral list', async () => {
     api.parseBank.mockImplementation(async ({ format }: { format: string }) =>
       format === 'open' ? OPEN : bank([item(1, { correct: [], evidence: '', flags: ['no_key'] })], 'ОС'),

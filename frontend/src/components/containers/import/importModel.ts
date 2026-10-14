@@ -53,6 +53,8 @@ export interface ImportFile {
   source: FileSource;
   format: FileFormat;
   keyText: string;
+  /** The key kept in another file, by name (null — none was added). */
+  keyFileName?: string | null;
   result: BankParseResult;
 }
 

@@ -116,6 +116,8 @@ export interface ReadInput {
   text?: string;
   format: FileFormat;
   keyText?: string;
+  keyFile?: File | null;
+  keySection?: number | null;
 }
 
 /** Reads one file (or pasted text) into an importer result; throws ReadError with the Russian line. */
@@ -137,6 +139,8 @@ export async function readBank(input: ReadInput): Promise<{ result: BankParseRes
       text: input.file ? undefined : input.text,
       format: input.format,
       keyText: input.keyText?.trim() ? input.keyText : undefined,
+      keyFile: input.keyFile ?? undefined,
+      keySection: input.keySection ?? null,
     });
     return { result, pdf: false };
   } catch (error) {

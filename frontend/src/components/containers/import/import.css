@@ -271,6 +271,11 @@
 .sf-page .im-radio input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--sf-accent); }
 .sf-page .im-radio:has(input:checked) { background: var(--sf-accent-soft); }
 .sf-page .im-keytext { display: grid; gap: 8px; margin-top: 26px; }
+/* «Ключ отдельным файлом» (KeyFile.tsx): above the typed key; the variant choice as small buttons. */
+.sf-page .im-keyfile { display: grid; gap: 8px; margin-top: 26px; }
+.sf-page .im-keyfile .im-subject-from { margin: 0; }
+.sf-page .im-keyfile-choose { display: grid; gap: 6px; margin-top: 8px; }
+.sf-page .im-keyfile-choose .im-nokey-acts { gap: 8px 10px; }
 .sf-page .im-keytext-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 4px; }
 
 /* «Обновить из файла»: the counts as rows of one card, then the questions whose key differs, by number. */

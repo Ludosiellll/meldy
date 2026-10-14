@@ -6,8 +6,9 @@ main.py, как у /api/exams/parse (без неё — 401); лимит — 10 �
 лимита не тратит, в базу ничего не пишет (ни SupabaseRest, ни quota здесь не вызываются). Сохраняет клиент.
 
 Форма (multipart): file (DOCX, TXT, MD, XLSX до MAX_UPLOAD_BYTES, по умолчанию 15 МБ) или text;
-необязательно key_mode (auto | first_option | none), key_text (ключ строками «1 – б») и format
-(auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
+необязательно key_mode (auto | first_option | none), key_text (ключ строками «1 – б»), key_file (ключ отдельным
+файлом: DOCX, XLSX, TXT, MD; берётся раздел варианта теста), key_section (номер раздела файла ключа, выбранный
+пользователем) и format (auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
 ключ, флаги, marks, статистика. Ошибки — {"detail": "<по-русски>", "code": "<код>"}: 415 old_doc /
 unsupported, 413 too_many / too_much_text / file_too_big, 422 empty_file / unreadable / no_items,
 400 bad_form / both_inputs / no_input / key_text_too_long.
@@ -34,6 +35,7 @@ from bank_parse import (
     check_file_name,
     parse_bank_file,
     parse_bank_text,
+    read_key_file,
 )
 from ratelimit import limiter, user_or_ip_key
 from uploads import read_upload_with_limit
@@ -104,6 +106,16 @@ async def _parse(request: Request) -> dict:
         raise BankError(400, "bad_form", BAD_FORM_DETAIL)
     if key_text is not None and len(key_text) > MAX_KEY_TEXT_CHARS:
         raise BankError(400, "key_text_too_long", KEY_TEXT_TOO_LONG_DETAIL)
+    key_upload = form.get("key_file")
+    if key_upload is not None and not _is_upload(key_upload):
+        if isinstance(key_upload, str) and not key_upload.strip():
+            key_upload = None
+        else:
+            raise BankError(400, "bad_form", BAD_FORM_DETAIL)
+    section_text = (_optional_text(form.get("key_section")) or "").strip()
+    if section_text and not section_text.isdecimal():
+        raise BankError(400, "bad_form", BAD_FORM_DETAIL)
+    key_section = int(section_text) if section_text else None
     has_text = bool(text_value and text_value.strip())
     has_file = upload is not None
     if has_text and has_file:
@@ -112,6 +124,9 @@ async def _parse(request: Request) -> dict:
         raise BankError(400, "no_input", NO_INPUT_DETAIL)
     # Разбор — чистый CPU (до 2 000 000 знаков): в потоке-исполнителе он не держит цикл событий.
     options = {"key_mode": key_mode, "key_text": key_text, "format_mode": format_mode}
+    if key_upload is not None:
+        options["key_file"] = await _key_file(key_upload)
+        options["key_section"] = key_section
     if has_file:
         name = _file_name(upload)
         check_file_name(name)  # .doc и PDF — 415 сразу, не дожидаясь чтения файла
@@ -123,6 +138,24 @@ async def _parse(request: Request) -> dict:
             raise
         return await asyncio.to_thread(functools.partial(parse_bank_file, contents, name, **options))
     return await asyncio.to_thread(functools.partial(parse_bank_text, text_value, **options))
+
+
+async def _key_file(upload: Any) -> list[dict]:
+    """Файл ключа → разделы read_key_file. Его ошибки — с кодом key_file_* и словами «Файл ключа: …», чтобы клиент
+    не принял их за ошибку файла с вопросами."""
+    try:
+        name = _file_name(upload)
+        check_file_name(name)
+        try:
+            contents = await read_upload_with_limit(upload)
+        except HTTPException as exc:
+            if exc.status_code == 413:
+                raise BankError(413, "file_too_big", str(exc.detail)) from None
+            raise
+        return await asyncio.to_thread(read_key_file, contents, name)
+    except BankError as exc:
+        code = exc.code if exc.code.startswith("key_file") or exc.code == "no_keys" else f"key_file_{exc.code}"
+        raise BankError(exc.status, code, f"Файл ключа: {exc.detail[:1].lower()}{exc.detail[1:]}") from None
 
 
 @router.post(BANK_PATH)

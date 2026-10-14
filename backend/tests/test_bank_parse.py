@@ -1360,3 +1360,71 @@ def test_a_numbered_topic_row_above_ordinary_question_rows_stays_a_topic():
     assert [t["title"] for t in result["topics"]] == ["1. Введение в предмет"]
     assert [(i["text"], i["options"]) for i in result["items"]] == [
         ("Вопрос номер 1?", ["верный", "неверный"]), ("Вопрос номер 2?", ["верный", "неверный"])]
+
+
+# ── Ключ отдельным файлом (владелец, 2026-10-14) ─────────────────────────────────
+
+
+def key_table(pairs: list[tuple[int, str]], per_row: int = 4) -> str:
+    """Таблица ключа как в файле владельца: «1 | А | 2 | Г | 3 | А | 4 | А» — по per_row пар в строке."""
+    rows = []
+    for start in range(0, len(pairs), per_row):
+        cells = "".join(xml_cell(xml_paragraph(str(n))) + xml_cell(xml_paragraph(letter))
+                        for n, letter in pairs[start:start + per_row])
+        rows.append(f"<w:tr>{cells}</w:tr>")
+    grid = "<w:gridCol/>" * (per_row * 2)
+    return f"<w:tbl><w:tblPr/><w:tblGrid>{grid}</w:tblGrid>" + "".join(rows) + "</w:tbl>"
+
+
+KEY_FILE_BODY = (xml_paragraph("КЛЮЧ ОТВЕТОВ — ВАРИАНТ 4", bold=True) + xml_paragraph("Правильные ответы по номерам вопросов")
+                 + key_table([(1, "А"), (2, "Г"), (3, "А")])
+                 + xml_paragraph("КЛЮЧ ОТВЕТОВ — ВАРИАНТ 5", bold=True) + key_table([(1, "Б"), (2, "Б"), (3, "Д")]))
+
+
+def test_a_key_file_reads_one_section_per_variant():
+    sections = bank_parse.read_key_file(docx_with_body(KEY_FILE_BODY), "Ключ_4_5.docx")
+    assert [(s["title"], s["variant"], s["keys"]) for s in sections] == [
+        ("КЛЮЧ ОТВЕТОВ — ВАРИАНТ 4", 4, {"1": "А", "2": "Г", "3": "А"}),
+        ("КЛЮЧ ОТВЕТОВ — ВАРИАНТ 5", 5, {"1": "Б", "2": "Б", "3": "Д"})]
+
+
+def test_the_key_of_the_test_s_own_variant_is_used_and_checked_against_the_marks():
+    sections = bank_parse.read_key_file(docx_with_body(KEY_FILE_BODY), "Ключ_4_5.docx")
+    test = docx_with_body(xml_paragraph("ТЕСТОВЫЙ ВАРИАНТ 4", bold=True) + stem_table(STEM_QUESTIONS))
+    result = parse_bank_file(test, "variant4.docx", key_file=sections)
+    assert result["variant"] == 4 and result["key_file"]["used"] == 0
+    assert [s["count"] for s in result["key_file"]["sections"]] == [3, 3]
+    # вопрос 1: А и в ключе, и жирным; 2: Г — тоже; 3: ключ А, жирным А — без расхождений
+    assert [i["correct"] for i in result["items"]] == [[0], [3], [0]] and result["key_source"] == {"key_text": 3}
+    assert not any("key_conflict" in i["flags"] for i in result["items"]) and result["warnings"] == []
+    # вариант 5 к тесту варианта 4 — только если его выбрали: ответы ключа старше жирного, расхождения видны
+    chosen = parse_bank_file(test, "variant4.docx", key_file=sections, key_section=1)
+    assert chosen["key_file"]["used"] == 1 and [i["correct"] for i in chosen["items"]] == [[1], [1], [4]]
+    assert all("key_conflict" in i["flags"] for i in chosen["items"])
+
+
+def test_a_key_file_without_the_test_s_variant_is_not_applied_and_says_so():
+    sections = bank_parse.read_key_file(docx_with_body(KEY_FILE_BODY), "Ключ_4_5.docx")
+    questions = [(q, opts, -1) for q, opts, _ in STEM_QUESTIONS]
+    test = docx_with_body(xml_paragraph("Вариант 1", bold=True) + stem_table(questions))
+    result = parse_bank_file(test, "variant1.docx", key_file=sections)
+    assert result["key_file"]["used"] is None and result["stats"]["with_key"] == 0
+    assert result["warnings"] == [{"code": "key_file_variant",
+                                   "message": "В файле ключа нет варианта 1, есть: 4, 5. Выберите нужный."}]
+    unnamed = parse_bank_file(docx_with_body(stem_table(questions)), "bank.docx", key_file=sections)
+    assert unnamed["key_file"]["used"] is None
+    assert unnamed["warnings"][0]["message"] == "В файле ключа несколько вариантов: 4, 5. Выберите вариант этого теста."
+
+
+def test_a_plain_text_key_file_is_one_section_for_any_test():
+    sections = bank_parse.read_key_file("1 – Б\n2 – Б\n3 – Д\n".encode(), "key.txt")
+    assert [(s["variant"], s["keys"]) for s in sections] == [(None, {"1": "Б", "2": "Б", "3": "Д"})]
+    questions = [(q, opts, -1) for q, opts, _ in STEM_QUESTIONS]
+    result = parse_bank_file(docx_with_body(stem_table(questions)), "bank.docx", key_file=sections)
+    assert [i["correct"] for i in result["items"]] == [[1], [1], [4]] and result["key_file"]["used"] == 0
+
+
+def test_a_key_file_without_pairs_is_refused():
+    with pytest.raises(bank_parse.BankError) as caught:
+        bank_parse.read_key_file(docx_with_body(xml_paragraph("Ответы будут позже")), "key.docx")
+    assert caught.value.code == "no_keys" and caught.value.status == 422

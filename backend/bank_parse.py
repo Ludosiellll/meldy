@@ -89,6 +89,7 @@ __all__ = [
     "parse_bank_text",
     "parse_blocks",
     "parse_key_text",
+    "read_key_file",
     "read_gift",
     "read_xlsx",
     "subject_title",
@@ -140,6 +141,10 @@ TOPICS_MERGED_WARNING = "В файле {count} тем — больше 300. Во
 SUBJECTS_RESTART_WARNING = "Похоже, в файле несколько предметов. Разделить?"
 KEY_TEXT_NO_PAIRS_WARNING = "В ключе не нашли пар «номер – ответ», например «1 – б»."
 KEY_TEXT_NO_MATCH_WARNING = "Номера в ключе не совпали с номерами вопросов в файле."
+KEY_FILE_NO_KEYS_DETAIL = "В файле ключа не нашли пар «номер — ответ»: нужна таблица «1 | А» или строки «1 – А»."
+KEY_FILE_CHOOSE_WARNING = "В файле ключа несколько вариантов: {variants}. Выберите вариант этого теста."
+KEY_FILE_OTHER_WARNING = "В файле ключа нет варианта {variant}, есть: {variants}. Выберите нужный."
+MAX_KEY_SECTIONS = 30
 
 
 class BankError(Exception):
@@ -2419,13 +2424,91 @@ def parse_key_text(text: str) -> dict[str, str]:
     return reader.keys
 
 
+# ── Ключ отдельным файлом (владелец, 2026-10-14: «ключи в другом файле, а тест в другом») ─────────
+
+
+def key_sections(blocks: list[Block]) -> list[dict]:
+    """Файл ключа → разделы по вариантам: [{"title", "variant", "keys": {номер: ответ}}].
+
+    Заголовок с «вариант N» («КЛЮЧ ОТВЕТОВ — ВАРИАНТ 4») начинает раздел; пары берутся из таблиц («1 | А | 2 | Г»,
+    «№ | 1 | 2» над «Ответ | б | а») и строк («1 – А, 2 – Г»). Ключ без заголовков — один раздел без варианта.
+    """
+    sections: list[dict] = []
+
+    def start(title: str, variant: Optional[int]) -> None:
+        sections.append({"title": title[:MAX_TITLE_CHARS], "variant": variant, "keys": {}})
+
+    def add(pairs) -> None:
+        if not sections:
+            start("", None)
+        for number, value in pairs:
+            sections[-1]["keys"][str(number).rstrip(".")] = value
+
+    def line(text: str) -> None:
+        variant = variant_number(text) if len(text) <= MAX_TITLE_CHARS else None
+        if variant is not None and not key_pairs(text):
+            start(text, variant)
+            text = text.split(":", 1)[1] if ":" in text else ""  # «Ключ к варианту 4: 1-А 2-Б»
+        pairs = key_list_pairs(text.strip(), continued=True) if text.strip() else None
+        if pairs:
+            add(pairs)
+
+    for block in blocks:
+        if isinstance(block, Table):
+            across = horizontal_keys(block.rows)
+            if across:
+                add(across.items())
+                continue
+            for row in block.rows:
+                texts = [" ".join(cell.text.split()) for cell in row if not cell.continuation]
+                live = [text for text in texts if text]
+                if len(live) == 1:
+                    line(live[0])
+                    continue
+                c = 0
+                while c < len(texts):  # «1 | А | 2 | Г»: пары ячеек слева направо
+                    if NUMBER_CELL_RE.fullmatch(texts[c]) and c + 1 < len(texts) and short_key(texts[c + 1]):
+                        add([(texts[c], texts[c + 1])])
+                        c += 2
+                        continue
+                    if texts[c]:
+                        line(texts[c])
+                    c += 1
+        else:
+            text = " ".join(para_text(block).split())
+            if text:
+                line(text)
+    return [section for section in sections if section["keys"]][:MAX_KEY_SECTIONS]
+
+
+def pick_key_section(sections: list[dict], variant: Optional[int], chosen: Optional[int]) -> tuple[Optional[int], Optional[dict]]:
+    """Какой раздел файла ключа взять → (его номер в списке или None, предупреждение или None).
+
+    Выбор пользователя (chosen) — всегда; иначе раздел с вариантом теста; иначе единственный раздел, если варианты не
+    спорят (у раздела или у теста номера нет). Чужой вариант молча не берётся: неверный ключ хуже, чем никакого."""
+    if not sections:
+        return None, None
+    if chosen is not None and 0 <= chosen < len(sections):
+        return chosen, None
+    numbers = [section["variant"] for section in sections]
+    if variant is not None and variant in numbers:
+        return numbers.index(variant), None
+    if len(sections) == 1 and (variant is None or numbers[0] is None):
+        return 0, None
+    listed = ", ".join(str(n) for n in numbers if n is not None) or str(len(sections))
+    if variant is not None:
+        return None, {"code": "key_file_variant", "message": KEY_FILE_OTHER_WARNING.format(variant=variant, variants=listed)}
+    return None, {"code": "key_file_variant", "message": KEY_FILE_CHOOSE_WARNING.format(variants=listed)}
+
+
 def _heading_above_table(item: Item) -> bool:
     """Строка без вариантов прямо над таблицей — её заголовок, если не похожа на вопрос («?») и не длинная."""
     return not item.options and not item.answer and not item.text.rstrip().endswith("?") and len(item.text) <= 150
 
 
 def parse_blocks(blocks: list[Block], *, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None,
-                 line_word: str = "абзац", format_mode: str = "auto") -> dict:
+                 line_word: str = "абзац", format_mode: str = "auto", key_file: Optional[list[dict]] = None,
+                 key_section: Optional[int] = None) -> dict:
     """Блоки документа (абзацы и таблицы по порядку) → словарь предпросмотра (finish)."""
     reader = Reader(line_word=line_word, open_mode=format_mode == "open", test_mode=format_mode == "test")
     reader.has_tables = any(isinstance(block, Table) for block in blocks)
@@ -2452,7 +2535,28 @@ def parse_blocks(blocks: list[Block], *, key_mode: str = "auto", user_keys: Opti
             run.append(block)
     if run:
         reader.paragraphs(run, start)
-    return finish(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode)
+    return _finish_with_key_file(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode,
+                                 key_file=key_file, key_section=key_section)
+
+
+def _finish_with_key_file(reader: Reader, *, key_mode: str, user_keys: Optional[dict[str, str]], format_mode: str,
+                          key_file: Optional[list[dict]], key_section: Optional[int]) -> dict:
+    """finish, а ключ из файла ключа (раздел варианта этого теста) — как ключ списком: старше отметок файла,
+    несогласие с ними — key_conflict. Строки, вставленные руками, старше файла ключа."""
+    if key_file is None:
+        return finish(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode)
+    used, warning = pick_key_section(key_file, reader.variant, key_section)
+    keys = dict(key_file[used]["keys"]) if used is not None else None
+    if keys is not None and user_keys:
+        keys.update(user_keys)
+    result = finish(reader, key_mode=key_mode, user_keys=keys if keys is not None else user_keys, format_mode=format_mode)
+    if warning:
+        result["warnings"].append(warning)
+    result["key_file"] = {
+        "sections": [{"title": s["title"], "variant": s["variant"], "count": len(s["keys"])} for s in key_file],
+        "used": used,
+    }
+    return result
 
 
 def tsv_table(text: str) -> Optional[Table]:
@@ -2616,7 +2720,8 @@ def _checked(result: dict, format_mode: str) -> dict:
     return result
 
 
-def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str] = None, format_mode: str = "auto") -> dict:
+def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str] = None, format_mode: str = "auto",
+                    key_file: Optional[list[dict]] = None, key_section: Optional[int] = None) -> dict:
     """Вставленный текст (или текст TXT/MD) → предпросмотр банка. Ошибки — BankError."""
     _check_modes(key_mode, format_mode)
     text = clean_text(text or "")
@@ -2627,15 +2732,13 @@ def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str
         return _checked(finish(read_gift(text), key_mode=key_mode, user_keys=user_keys, format_mode=format_mode), format_mode)
     table = tsv_table(text)
     blocks: list[Block] = [table] if table is not None else list(text_blocks(text))
-    result = parse_blocks(blocks, key_mode=key_mode, user_keys=user_keys, line_word="строка", format_mode=format_mode)
+    result = parse_blocks(blocks, key_mode=key_mode, user_keys=user_keys, line_word="строка", format_mode=format_mode,
+                          key_file=key_file, key_section=key_section)
     return _checked(result, format_mode)
 
 
-def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_text: Optional[str] = None,
-                    format_mode: str = "auto") -> dict:
-    """Файл банка (DOCX, TXT, MD, XLSX) → предпросмотр. Ошибки — BankError с кодом для клиента:
-    415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items."""
-    _check_modes(key_mode, format_mode)
+def _file_blocks(contents: bytes, name: str) -> tuple[Optional[str], list[Block]]:
+    """Файл → (текст TXT/MD, []) или (None, блоки DOCX/XLSX). Ошибки — те же BankError, что у банка."""
     extension = check_file_name(name)
     if not contents:
         raise BankError(422, "empty_file", EMPTY_FILE_DETAIL)
@@ -2644,11 +2747,10 @@ def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_t
         if len(contents) > TEXT_BYTES_PER_CHAR * MAX_TOTAL_CHARS:
             raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL)  # заведомо длиннее: не раскодируем
         try:
-            text = decode_text(contents)
+            return decode_text(contents), []
         except Exception as exc:  # кодировку не угадать: текст исключения пользователю не показываем
             print(f"Bank text decoding failed: {type(exc).__name__}")
             raise BankError(422, "unreadable", UNREADABLE_DETAIL) from None
-        return parse_bank_text(text, key_mode=key_mode, key_text=key_text, format_mode=format_mode)
     try:
         blocks: list[Block] = read_docx(contents) if kind == "docx" else list(read_xlsx(contents))
     except ArchiveTooLarge:
@@ -2658,5 +2760,32 @@ def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_t
         raise BankError(422, "unreadable", UNREADABLE_DETAIL) from None
     if _block_chars(blocks) > MAX_TOTAL_CHARS:
         raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL)
-    result = parse_blocks(blocks, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode)
+    return None, blocks
+
+
+def read_key_file(contents: bytes, name: str) -> list[dict]:
+    """Файл ключа (DOCX, XLSX, TXT, MD) → разделы key_sections. Без пар — BankError 422 no_keys."""
+    text, blocks = _file_blocks(contents, name)
+    if text is not None:
+        text = clean_text(text)
+        table = tsv_table(text)
+        blocks = [table] if table is not None else list(text_blocks(text))
+    sections = key_sections(blocks)
+    if not sections:
+        raise BankError(422, "no_keys", KEY_FILE_NO_KEYS_DETAIL)
+    return sections
+
+
+def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_text: Optional[str] = None,
+                    format_mode: str = "auto", key_file: Optional[list[dict]] = None, key_section: Optional[int] = None) -> dict:
+    """Файл банка (DOCX, TXT, MD, XLSX) → предпросмотр. Ошибки — BankError с кодом для клиента:
+    415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items.
+    key_file — разделы файла ключа (read_key_file), key_section — раздел, выбранный пользователем."""
+    _check_modes(key_mode, format_mode)
+    text, blocks = _file_blocks(contents, name)
+    if text is not None:
+        return parse_bank_text(text, key_mode=key_mode, key_text=key_text, format_mode=format_mode,
+                               key_file=key_file, key_section=key_section)
+    result = parse_blocks(blocks, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode,
+                          key_file=key_file, key_section=key_section)
     return _checked(result, format_mode)

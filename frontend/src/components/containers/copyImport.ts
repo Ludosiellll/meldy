@@ -138,6 +138,7 @@ export const IMPORT = {
   noKeyTitle: 'Ответы в файле не отмечены.',
   noKeyIn: (title: string) => `«${title}»: ответы в файле не отмечены.`,
   noKeyPaste: 'Вставить ключ списком',
+  noKeyFile: 'Ключ в другом файле',
   noKeyLater: 'Отмечать по ходу',
   noKeyOral: 'Это устные вопросы',
   pdfNote: 'В PDF не видно выделения, поэтому ключ не найти. Если есть этот файл в Word, загрузите его.',
@@ -214,6 +215,17 @@ export const IMPORT = {
   keyListEmpty: 'Вставьте ключ: номер вопроса и букву ответа.',
   keyListResult: (keyed: number, total: number) => `Ключ подошёл к ${keyed} из ${total}.`,
   keyClose: 'Готово',
+  // a key kept in another file (owner, 2026-10-14): one section per variant, the test's own variant is taken
+  keyFileLabel: 'Ключ отдельным файлом',
+  keyFileHint: 'Word, Excel или TXT: таблица «1 | А» или строки «1 – А». Если в файле несколько вариантов, Meldy возьмёт тот, что указан в файле с вопросами.',
+  keyFilePick: 'Выбрать файл ключа',
+  keyFileOther: 'Другой файл',
+  keyFileRemove: 'Убрать',
+  keyFileUsed: (title: string, keyed: number, total: number) =>
+    title ? `Взяли «${title}»: ключ подошёл к ${keyed} из ${total}.` : `Ключ подошёл к ${keyed} из ${total}.`,
+  keyFileChoose: 'Какой вариант взять?',
+  keyFileSection: (variant: number | null, index: number, count: number) =>
+    `${variant !== null ? `Вариант ${variant}` : `Часть ${index + 1}`} · ${count} ${plural(count, 'ответ', 'ответа', 'ответов')}`,
 
   // «Обновить из файла» (?from=c:<id>&subject=<id>): a newer file of one subject. New questions are added; the ones
   // already there stay as they are, keys included (a key changes only in «Ключи»).

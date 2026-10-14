@@ -570,6 +570,21 @@ describe('backend calls', () => {
     expect(form.get('format')).toBe('test');
   });
 
+  it('parse-bank: a key kept in another file goes as key_file, the chosen section as key_section (owner, 2026-10-14)', async () => {
+    fetchMock.mockResolvedValue(json(parseBankJson));
+    const file = new File(['x'], 'Вариант 4.docx');
+    const keyFile = new File(['1 – А'], 'Ключ 4 5 6.docx');
+    await parseBank({ file, keyFile, keySection: 0 });
+    const form = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as FormData;
+    expect((form.get('key_file') as File).name).toBe('Ключ 4 5 6.docx');
+    expect(form.get('key_section')).toBe('0');
+    fetchMock.mockResolvedValue(json(parseBankJson));
+    await parseBank({ file, keyFile, keySection: null });
+    const second = (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as FormData;
+    expect(second.get('key_file')).not.toBeNull();
+    expect(second.get('key_section')).toBeNull();
+  });
+
   it('parse-bank: pasted text without options sends only the text', async () => {
     fetchMock.mockResolvedValue(json(parseBankJson));
     await parseBank({ text: '1. Вопрос' });

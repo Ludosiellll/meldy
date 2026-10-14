@@ -197,6 +197,23 @@ def test_key_mode_key_text_and_format_are_passed_to_the_parser(api):
     assert_error(as_test, 422, "no_items", bank_parse.NO_TEST_ITEMS_DETAIL)
 
 
+
+def test_a_key_file_beside_the_questions_supplies_the_key_and_its_errors_say_key_file(api):
+    """Ключ отдельным файлом (владелец, 2026-10-14): «16_key.txt» рядом с «16_questions_only.docx»."""
+    questions = ("16_questions_only.docx", (FIXTURES / "16_questions_only.docx").read_bytes(), DOCX)
+    key = ("Ключ.txt", (FIXTURES / "16_key.txt").read_bytes(), "text/plain")
+    keyed = api.post(PATH, files={"file": questions, "key_file": key}).json()
+    assert keyed["key_source"] == {"key_text": 12} and keyed["key_file"] == {
+        "sections": [{"title": "", "variant": None, "count": 12}], "used": 0}
+    chosen = api.post(PATH, files={"file": questions, "key_file": key}, data={"key_section": "0"}).json()
+    assert chosen["key_file"]["used"] == 0
+    empty = api.post(PATH, files={"file": questions, "key_file": ("Ключ.txt", "ответы позже".encode(), "text/plain")})
+    assert_error(empty, 422, "no_keys", "Файл ключа: в файле ключа не нашли пар «номер — ответ»: нужна таблица «1 | А» или строки «1 – А».")
+    old = api.post(PATH, files={"file": questions, "key_file": ("Ключ.doc", b"\xd0\xcf\x11\xe0", "application/msword")})
+    assert old.status_code == 415 and old.json()["code"] == "key_file_old_doc"
+    assert api.post(PATH, files={"file": questions}, data={"key_section": "один"}).status_code == 400
+
+
 RESPONSE_KEYS = {"method", "layout", "layouts_seen", "variant", "confidence", "key_source", "format_signal", "format_signals",
                  "mark_share", "marker", "markers", "subjects", "topics", "skipped", "warnings", "items", "stats"}
 ITEM_KEYS = {"position", "label", "subject", "topic", "kind", "text", "options", "correct", "order", "pairs", "answer",

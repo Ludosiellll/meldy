@@ -660,6 +660,10 @@ export interface ParseBankInput {
   text?: string;
   keyMode?: 'auto' | 'first_option' | 'none';
   keyText?: string;
+  /** The key kept in another file (owner, 2026-10-14): the importer takes the section of the test's variant. */
+  keyFile?: File;
+  /** The section of the key file the student chose (its index in `key_file.sections`). */
+  keySection?: number | null;
   format?: 'auto' | 'test' | 'open';
   /** Stops the upload (the import page's «Отмена»): the call then throws ContainerApiError 'aborted'. */
   signal?: AbortSignal;
@@ -667,7 +671,7 @@ export interface ParseBankInput {
 
 /**
  * POST /api/exams/parse-bank as multipart form data (the browser sets the boundary; never urlencoded): `file` or `text`,
- * and `key_mode`, `key_text`, `format` when given. Throws ContainerApiError with the server's Russian `detail` and `code`.
+ * and `key_mode`, `key_text`, `key_file` (with `key_section`), `format` when given. Throws ContainerApiError with the server's Russian `detail` and `code`.
  */
 export async function parseBank(input: ParseBankInput): Promise<BankParseResult> {
   const form = new FormData();
@@ -675,6 +679,8 @@ export async function parseBank(input: ParseBankInput): Promise<BankParseResult>
   else form.append('text', input.text ?? '');
   if (input.keyMode) form.append('key_mode', input.keyMode);
   if (input.keyText) form.append('key_text', input.keyText);
+  if (input.keyFile) form.append('key_file', input.keyFile, input.keyFile.name);
+  if (input.keyFile && typeof input.keySection === 'number') form.append('key_section', String(input.keySection));
   if (input.format) form.append('format', input.format);
   const raw = await backend('/api/exams/parse-bank', { method: 'POST', body: form, signal: input.signal });
   if (!isRecord(raw) || !Array.isArray(raw.items) || !Array.isArray(raw.subjects)) throw badShape('parse-bank');

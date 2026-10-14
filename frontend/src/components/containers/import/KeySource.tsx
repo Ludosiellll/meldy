@@ -2,12 +2,14 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { IMPORT, KEY_WORDS, nb, SIGNAL_WORDS } from '../copyImport';
 import { signalCounts, type ImportFile, type KeySignal } from './importModel';
+import KeyFile from './KeyFile';
 
 /**
  * «Как в файле отмечен ответ?» for one file (Concept 1 §3.2, «Отмечен по-другому?»): the way Meldy found, another
  * mark of the file (counted from its `format_signals`; switching re-reads nothing — the importer sent every option's
  * marks), «Первый вариант всегда верный», «Ответы в файле не отмечены». Below, «Ключ отдельным списком» (spec
- * decision 34, student critique В4): the key sent apart («1 – б, 2 – а…») goes back to the importer as key_text.
+ * decision 34, student critique В4): the key sent apart («1 – б, 2 – а…») goes back to the importer as key_text; or
+ * «Ключ отдельным файлом» (KeyFile.tsx): the key file goes with the questions, its section of this test's variant.
  */
 
 interface Props {
@@ -17,10 +19,12 @@ interface Props {
   focusKeyText: boolean;
   onSignal: (signal: KeySignal) => void;
   onKeyText: (text: string) => void;
+  onKeyFile: (file: File | null) => void;
+  onKeySection: (index: number) => void;
   onClose: () => void;
 }
 
-export default function KeySource({ file, signal, busy, focusKeyText, onSignal, onKeyText, onClose }: Props) {
+export default function KeySource({ file, signal, busy, focusKeyText, onSignal, onKeyText, onKeyFile, onKeySection, onClose }: Props) {
   const groupId = useId();
   const keyId = useId();
   const keyRef = useRef<HTMLTextAreaElement>(null);
@@ -70,6 +74,8 @@ export default function KeySource({ file, signal, busy, focusKeyText, onSignal, 
           </label>
         ))}
       </div>
+
+      <KeyFile file={file} busy={busy} onKeyFile={onKeyFile} onSection={onKeySection} />
 
       <div className="im-keytext">
         <label className="im-label" htmlFor={keyId}>

@@ -16,6 +16,7 @@ import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
 import KeySource from '../../components/containers/import/KeySource';
+import { KeyFileButton, KeyFileSections } from '../../components/containers/import/KeyFile';
 import ReadingList, { type ReadingRow } from '../../components/containers/import/ReadingList';
 import SubjectDetail from '../../components/containers/import/SubjectDetail';
 import SubjectRows from '../../components/containers/import/SubjectRows';
@@ -88,6 +89,8 @@ interface Entry {
   source: FileSource;
   format: FileFormat;
   keyText: string;
+  keyFile: File | null;
+  keySection: number | null;
   importId: string;
   status: 'reading' | 'done' | 'failed';
   result: BankParseResult | null;
@@ -240,6 +243,8 @@ export default function ImportPage() {
             text: entry.text ?? undefined,
             format: entry.format,
             keyText: entry.keyText,
+            keyFile: entry.keyFile,
+            keySection: entry.keySection,
           });
           forgetEdits(entry.id);
           update(entry.id, { status: 'done', result, pdf, error: null, errorCode: null });
@@ -272,6 +277,8 @@ export default function ImportPage() {
         source: 'file',
         format: 'auto',
         keyText: '',
+        keyFile: null,
+        keySection: null,
         importId: newImportId(),
         status: 'reading',
         result: null,
@@ -297,6 +304,8 @@ export default function ImportPage() {
         source: 'paste',
         format: 'auto',
         keyText: '',
+        keyFile: null,
+        keySection: null,
         importId: newImportId(),
         status: 'reading',
         result: null,
@@ -311,7 +320,7 @@ export default function ImportPage() {
   );
 
   const reread = useCallback(
-    (fileId: string, patch: { format?: FileFormat; keyText?: string }) => {
+    (fileId: string, patch: { format?: FileFormat; keyText?: string; keyFile?: File | null; keySection?: number | null }) => {
       const entry = entries.find((item) => item.id === fileId);
       if (!entry) return;
       const next: Entry = { ...entry, ...patch, status: 'reading', error: null, errorCode: null };
@@ -334,6 +343,7 @@ export default function ImportPage() {
           source: entry.pdf ? 'pdf' : entry.source,
           format: entry.format,
           keyText: entry.keyText,
+          keyFileName: entry.keyFile ? entry.keyFile.name : null,
           result: entry.result!,
         })),
     [entries],
@@ -779,6 +789,8 @@ export default function ImportPage() {
           focusKeyText={view.paste}
           onSignal={(signal: KeySignal) => setFileEdit(keyFile.id, { signal })}
           onKeyText={(text) => reread(keyFile.id, { keyText: text })}
+          onKeyFile={(chosen) => reread(keyFile.id, { keyFile: chosen, keySection: null })}
+          onKeySection={(index) => reread(keyFile.id, { keySection: index })}
           onClose={closeView}
         />
         {keyEntry.error ? (
@@ -867,6 +879,7 @@ export default function ImportPage() {
           <button type="button" className="sf-link" disabled={locked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
             {IMPORT.noKeyPaste}
           </button>
+          <KeyFileButton label={IMPORT.noKeyFile} busy={locked} onFile={(chosen) => reread(subject.fileId, { keyFile: chosen, keySection: null })} />
           <button type="button" className="sf-link" disabled={locked} onClick={() => setFileEdit(subject.fileId, { noKeyLater: true })}>
             {IMPORT.noKeyLater}
           </button>
@@ -874,6 +887,12 @@ export default function ImportPage() {
             {IMPORT.noKeyOral}
           </button>
         </p>
+        {(() => {
+          const withKeyFile = files.find((entry) => entry.id === subject.fileId);
+          return withKeyFile ? (
+            <KeyFileSections file={withKeyFile} busy={locked} onSection={(index) => reread(subject.fileId, { keySection: index })} />
+          ) : null;
+        })()}
       </div>
     ));
   const problemsLine = (list: ReadonlyArray<{ uid: string }>) =>
