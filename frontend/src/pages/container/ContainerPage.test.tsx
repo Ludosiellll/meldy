@@ -157,7 +157,7 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     const menu = screen.getByRole('menu');
     expect(within(menu).getAllByRole('menuitem').map((node) => plain(node.textContent))).toEqual([
       'Пригласить группу',
-      'Ключи · 4 ждут',
+      'Вопросы и ключи · 4 ждут',
       'Время в день',
       'Добавить предмет',
       'Настройки',
@@ -202,7 +202,7 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
   it('shows the author «Ключи · 7 ждут» when keys or doubts wait, and the laptop’s row of the same actions', () => {
     const base = summary({ owner: { members: 3, doubts_open: 3, links: [] } });
     renderPage(loaded(containerData({ summary: base })));
-    expect(screen.getByRole('link', { name: nm('Ключи · 7 ждут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
+    expect(screen.getByRole('link', { name: nm('Вопросы и ключи · 7 ждут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
     expect(screen.getByRole('link', { name: 'Пригласить группу' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings?invite=1`);
     expect(screen.getByRole('link', { name: 'Добавить предмет' }).getAttribute('href')).toBe(`/exams/import?from=c:${CONTAINER}`);
     expect(page()).toContain('Сомневаются в ключе: 3 вопроса.');
@@ -483,7 +483,7 @@ describe('a one-subject exam is its subject page (decision 44)', () => {
     expect(screen.getByRole('list', { name: 'Темы' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => plain(node.textContent));
-    expect(items).toEqual(['Пригласить группу', 'Ключи', 'Время в день', 'Добавить предмет', 'Настройки', 'Удалить']);
+    expect(items).toEqual(['Пригласить группу', 'Вопросы и ключи', 'Время в день', 'Добавить предмет', 'Настройки', 'Удалить']);
   });
 });
 

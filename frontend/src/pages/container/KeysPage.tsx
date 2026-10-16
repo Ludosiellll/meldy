@@ -1,33 +1,47 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { deleteItem, fetchDoubts, keepKey, updateItem } from '../../api/containers';
+import { addItems, deleteItem, fetchDoubts, keepKey, updateItem } from '../../api/containers';
 import { useContainerData } from '../../lib/containers/hooks';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import KeyQuestion, { QueueBar, type KeyAction, type TapMode } from '../../components/containers/keys/KeyQuestion';
+import QuestionEditor from '../../components/containers/keys/QuestionEditor';
+import { inputOf, nextFileNo, patchOf, searchItems, type Draft } from '../../components/containers/keys/editorModel';
+import { newId } from '../../components/containers/sessionStore';
 import { storedPictures } from '../../components/containers/ItemPictures';
 import { errorText, GONE, KEYS, lettersText, nb, QUEUE } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
-import type { DoubtRow, ItemPatch, TestItem, Uuid } from '../../types/container';
+import type { DoubtRow, ItemPatch, SummarySubject, TestItem, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import './KeysPage.css';
 
 /**
- * /exams/c/:id/keys — the author's keys (spec decision 14, §16 #44; Concept 1 §3.11 with the design critique I8):
+ * /exams/c/:id/keys — «Вопросы и ключи», the author's keys (spec decision 14, §16 #44; Concept 1 §3.11 with the design critique I8):
  * rows of one card — «Без ключа», «Сомневаются в ключе» (a solo author: «Отложены вами»), «Ключ поставили вы» — the
  * queue «Проверить N вопросов» in the bar, and «Найти вопрос по номеру из файла», which opens the question as the
  * number matches. ?s=<subjectId>&no=<file number> opens one question (the Telegram bot links here).
  *
  * A key is changed by a tap on another option: the database raises the question's rev, so its count starts again for
  * everyone (decision 15); «Ключ верный» keeps the file's key and returns the doubted question to everyone's sessions.
+ *
+ * The editor (spec 2026-10-16 part 1): «Изменить» opens the question's text, options, key and pictures in place of its
+ * card (also in a queue); «Добавить вопрос» adds one to the chosen subject with the next number; the find field takes a
+ * number from the file or words from the question.
  */
 
 type ListKind = 'check' | 'nokey' | 'doubts' | 'manual';
 const LISTS: readonly ListKind[] = ['check', 'nokey', 'doubts', 'manual'];
 
 const isKeyed = (item: TestItem) => item.correct.length > 0 || item.answers.length > 0;
+
+/** Words, not a number from the file: two letters in a row («3а» is a number). */
+const isWords = (raw: string) => /\p{L}{2,}/u.test(raw);
+const WORDS_PAGE = 30;
+
+/** A subject of test questions (an oral one keeps its questions in its own editor). */
+const takesItems = (subject: SummarySubject) => !(subject.oral && subject.oral.questions > 0 && subject.kinds.single + subject.kinds.multiple + subject.kinds.short === 0);
 
 function cleanNumber(raw: string): string {
   return raw.replace(/^№\s*/, '').replace(/\s+/g, '').trim();
@@ -142,8 +156,17 @@ export default function KeysPage() {
   useEffect(() => {
     if (!subjectId && subjects.length > 0) setSubjectId(subjects[0].id);
   }, [subjectId, subjects]);
-  const wanted = cleanNumber(number);
+  const chosenSubject = subjects.find((subject) => subject.id === subjectId) ?? null;
+  const newNumber = useMemo(() => nextFileNo(items, subjectId), [items, subjectId]);
+  const byWords = isWords(number);
+  const wanted = byWords ? '' : cleanNumber(number);
   const matches = wanted ? sorted.filter((item) => item.subject_id === subjectId && cleanNumber(item.file_no) === wanted) : [];
+  const [wordsShown, setWordsShown] = useState(WORDS_PAGE);
+  useEffect(() => setWordsShown(WORDS_PAGE), [number, subjectId]);
+  const wordHits = useMemo(
+    () => (byWords ? searchItems(sorted.filter((item) => item.subject_id === subjectId), number) : []),
+    [byWords, sorted, subjectId, number],
+  );
   const found = matches[0] ?? null;
   const resultRef = useRef<HTMLDivElement>(null);
   const linked = Boolean(search.get('no'));
@@ -156,6 +179,9 @@ export default function KeysPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, { text: string; error?: boolean }>>({});
   const [askDelete, setAskDelete] = useState<string | null>(null);
+  /** The question open in the editor: its id, or 'new' for one being added to the chosen subject. */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const say = (itemId: string, text: string, error = false) => setNotes((current) => ({ ...current, [itemId]: { text, error } }));
   const run = async (item: TestItem, work: () => Promise<void>) => {
@@ -189,12 +215,82 @@ export default function KeysPage() {
       say(item.id, KEYS.removed);
     });
 
+  const openEditor = (id: string) => {
+    setEditError(null);
+    setEditing(id);
+  };
+  /** The editor's draft saved: only what changed (editorModel.patchOf); the card then shows the question as saved. */
+  const saveEdit = async (item: TestItem, draft: Draft) => {
+    const patch = patchOf(item, draft);
+    if (!patch) {
+      setEditing(null);
+      return;
+    }
+    setBusy(item.id);
+    setEditError(null);
+    try {
+      const result = await updateItem(item.id, patch);
+      const local: Partial<TestItem> = { rev: result.rev };
+      if (patch.stem !== undefined) local.stem = patch.stem;
+      if (patch.options !== undefined) local.options = patch.options;
+      if (patch.correct !== undefined) local.correct = patch.correct;
+      if (patch.answers !== undefined) local.answers = patch.answers;
+      if (patch.kind !== undefined) local.kind = patch.kind;
+      if (patch.code !== undefined) local.code = patch.code;
+      if (patch.keep_order !== undefined) local.keep_order = patch.keep_order;
+      if (patch.images !== undefined) local.images = patch.images;
+      if (patch.correct !== undefined || patch.answers !== undefined) local.key_source = 'manual';
+      setPatched((current) => ({ ...current, [item.id]: { ...current[item.id], ...local } }));
+      if (result.doubts_resolved > 0) setDoubts((rows) => rows.filter((row) => row.item_id !== item.id));
+      setEditing(null);
+      say(item.id, result.rev_changed ? KEYS.editedReset(group) : KEYS.edited);
+    } catch (error) {
+      setEditError(errorText(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const [adding, setAdding] = useState(false);
+  /** A new question in the chosen subject, numbered after its last one; it then opens by that number. */
+  const saveNew = async (draft: Draft, fileNo: string) => {
+    if (!subjectId) return;
+    setAdding(true);
+    setEditError(null);
+    try {
+      const [added] = await addItems(subjectId as Uuid, [inputOf(draft, fileNo, `man:${newId()}`)]);
+      const id = added?.items?.[0]?.id;
+      setEditing(null);
+      setNumber(fileNo);
+      if (id) say(id, KEYS.added(fileNo));
+      data.reload();
+    } catch (error) {
+      setEditError(errorText(error));
+    } finally {
+      setAdding(false);
+    }
+  };
+
   /** One question: its line, its options in the file's order with the key marked, and what the author can do. */
   const renderQuestion = (item: TestItem, extraActions: KeyAction[] = []) => {
     const doubt = doubtOf.get(item.id) ?? null;
     const subjectName = subjectTitle.get(item.subject_id) ?? '';
     const summarySubject = subjects.find((subject) => subject.id === item.subject_id);
     const topic = item.topic && summarySubject ? summarySubject.topic_titles[item.topic - 1] ?? null : null;
+    if (owner && editing === item.id) {
+      return (
+        <QuestionEditor
+          key={`edit-${item.id}`}
+          containerId={containerId}
+          item={item}
+          context={QUEUE.context(subjectName, item.file_no, topic)}
+          group={group}
+          busy={busy === item.id}
+          error={editError}
+          onSave={(draft) => void saveEdit(item, draft)}
+          onCancel={() => setEditing(null)}
+        />
+      );
+    }
     const keyed = isKeyed(item);
     const multiple = item.kind === 'multiple';
     const tapMode: TapMode = item.kind === 'short' ? 'none' : multiple ? 'keys' : 'key';
@@ -217,7 +313,7 @@ export default function KeysPage() {
     const current = item.kind === 'short' ? [] : item.correct;
     const keyLine = item.kind === 'short' ? (item.answers.length ? KEYS.currentShort(item.answers.join('; ')) : KEYS.noKeyNow) : keyed ? KEYS.current(lettersText(item.correct)) : KEYS.noKeyNow;
     const note = notes[item.id];
-    const actions: KeyAction[] = [];
+    const actions: KeyAction[] = [{ key: 'edit', label: KEYS.edit, onClick: () => openEditor(item.id) }];
     if (doubt && keyed) actions.push({ key: 'keep', label: KEYS.keep, onClick: () => void keep(item) });
     actions.push({ key: 'delete', label: QUEUE.remove, muted: true, onClick: () => setAskDelete(item.id) });
     return (
@@ -437,15 +533,19 @@ export default function KeysPage() {
               />
             ) : null}
             <label className="ky-no">
-              <span aria-hidden="true">№</span>
+              <svg className="ky-no-icon" viewBox="0 0 20 20" aria-hidden="true">
+                <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                <path d="M13 13l4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
               <input
                 className="ky-no-input"
-                inputMode="decimal"
+                type="search"
+                enterKeyHint="search"
                 autoComplete="off"
                 aria-label={KEYS.findNumber}
                 placeholder={KEYS.findPlaceholder}
                 value={number}
-                maxLength={16}
+                maxLength={120}
                 onChange={(event) => {
                   setNumber(event.target.value);
                   if (search.get('no')) {
@@ -458,6 +558,28 @@ export default function KeysPage() {
               />
             </label>
           </div>
+          {chosenSubject && takesItems(chosenSubject) && editing !== 'new' ? (
+            <p className="ky-add">
+              <button type="button" className="sf-link" onClick={() => openEditor('new')}>
+                {KEYS.add}
+              </button>
+            </p>
+          ) : null}
+          {editing === 'new' && chosenSubject ? (
+            <div className="ky-found">
+              <QuestionEditor
+                key={`new-${chosenSubject.id}`}
+                containerId={containerId}
+                item={null}
+                context={KEYS.addContext(chosenSubject.title, newNumber)}
+                group={group}
+                busy={adding}
+                error={editError}
+                onSave={(draft) => void saveNew(draft, newNumber)}
+                onCancel={() => setEditing(null)}
+              />
+            </div>
+          ) : null}
           <div ref={resultRef} className="ky-found" aria-live="polite">
             {wanted && !found ? <p className="ky-lede">{nb(KEYS.notFound(subjectTitle.get(subjectId) ?? '', wanted))}</p> : null}
             {found ? (
@@ -465,6 +587,21 @@ export default function KeysPage() {
                 {matches.length > 1 ? <p className="ky-lede">{KEYS.twice(matches.length)}</p> : null}
                 {renderQuestion(found)}
               </>
+            ) : null}
+            {byWords ? (
+              wordHits.length === 0 ? (
+                <p className="ky-lede">{nb(KEYS.notFoundWords(subjectTitle.get(subjectId) ?? ''))}</p>
+              ) : (
+                <>
+                  <p className="ky-lede">{nb(KEYS.foundWords(wordHits.length, Math.min(wordsShown, wordHits.length)))}</p>
+                  <div className="ky-hits">{wordHits.slice(0, wordsShown).map((item) => renderQuestion(item))}</div>
+                  {wordHits.length > wordsShown ? (
+                    <button type="button" className="sf-link ky-more" onClick={() => setWordsShown((n) => n + WORDS_PAGE)}>
+                      {KEYS.more}
+                    </button>
+                  ) : null}
+                </>
+              )
             ) : null}
           </div>
         </section>

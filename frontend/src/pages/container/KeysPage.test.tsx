@@ -8,6 +8,7 @@ import type { ContainerSummary, DoubtRow, TestItem } from '../../types/container
 
 const api = vi.hoisted(() => ({
   updateItem: vi.fn(),
+  addItems: vi.fn(),
   keepKey: vi.fn(),
   deleteItem: vi.fn(),
   fetchDoubts: vi.fn(),
@@ -17,6 +18,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('../../api/containers', () => ({
   updateItem: api.updateItem,
+  addItems: api.addItems,
   keepKey: api.keepKey,
   deleteItem: api.deleteItem,
   fetchDoubts: api.fetchDoubts,
@@ -34,7 +36,7 @@ vi.mock('../../lib/containers/hooks', () => ({
 }));
 
 import KeysPage from './KeysPage';
-import { GONE, KEYS, QUEUE } from '../../components/containers/copyImport';
+import { EDITOR, GONE, KEYS, QUEUE } from '../../components/containers/copyImport';
 
 const SUMMARY = summaryJson as unknown as ContainerSummary;
 const BASE_ITEMS = itemsJson as unknown as TestItem[];
@@ -86,13 +88,14 @@ beforeEach(() => {
   api.deleteItem.mockReset().mockResolvedValue(undefined);
   api.fetchDoubts.mockReset().mockResolvedValue(doubtsJson as unknown as DoubtRow[]);
   api.reload.mockReset();
+  api.addItems.mockReset().mockResolvedValue([{ subject_id: SUBJECT_1, added: 1, in_container: 9, items: [{ ref: 'man:x', id: 'new-item', position: 9 }] }]);
 });
 afterEach(() => cleanup());
 
 describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
   it('lists what waits as rows of one card and puts «Проверить N вопросов» in the bar', async () => {
     renderAt();
-    expect(screen.getByRole('heading', { level: 1, name: 'Ключи' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: KEYS.title })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Без ключа\s*1\sвопрос не идёт в занятия/ })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /Сомневаются в ключе\s*2\sвопроса/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ключ поставили вы\s*1\sвопрос/ })).toBeInTheDocument();
@@ -149,9 +152,9 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     const card = await screen.findByRole('article');
     expect(within(card).getByText(/Основы программирования · №\s7/)).toBeInTheDocument();
     expect(within(card).getByText('Ключ сейчас: Б.')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Номер в файле'), { target: { value: '999' } });
+    fireEvent.change(screen.getByLabelText(KEYS.findNumber), { target: { value: '999' } });
     expect(screen.getByText(/В «Основы программирования» нет №\s999\./)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Номер в файле'), { target: { value: '№ 12' } });
+    fireEvent.change(screen.getByLabelText(KEYS.findNumber), { target: { value: '№ 12' } });
     expect(await screen.findByText(/№\s12 · Тема 3\. Строки/)).toBeInTheDocument();
   });
 
@@ -162,6 +165,55 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(within(card).getByText(/Удалить №\s7\? Ответы по нему пропадут у всех участников\./)).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: 'Удалить' }));
     await waitFor(() => expect(api.deleteItem).toHaveBeenCalledWith(BASE_ITEMS[6].id));
+  });
+
+  it('edits a question in place: only the changed words go, the card shows them', async () => {
+    api.updateItem.mockImplementationOnce(async (id: string) => ({ id, rev: 1, rev_changed: false, doubts_resolved: 0 }));
+    renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}&no=7`);
+    const card = await screen.findByRole('article');
+    fireEvent.click(within(card).getByRole('button', { name: KEYS.edit }));
+    const editor = screen.getByRole('form', { name: EDITOR.label });
+    fireEvent.change(within(editor).getByLabelText(EDITOR.stem), { target: { value: 'Новая формулировка вопроса' } });
+    fireEvent.click(within(editor).getByRole('button', { name: EDITOR.save }));
+    await waitFor(() => expect(api.updateItem).toHaveBeenCalledWith(BASE_ITEMS[6].id, { stem: 'Новая формулировка вопроса' }));
+    expect(await screen.findByText('Новая формулировка вопроса')).toBeInTheDocument();
+    expect(screen.getByText(KEYS.edited)).toBeInTheDocument();
+    expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
+  });
+
+  it('closes the editor without a request when nothing changed', async () => {
+    renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}&no=7`);
+    fireEvent.click(within(await screen.findByRole('article')).getByRole('button', { name: KEYS.edit }));
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.cancel }));
+    expect(api.updateItem).not.toHaveBeenCalled();
+    expect(screen.getByRole('article')).toBeInTheDocument();
+  });
+
+  it('adds a question to the chosen subject with the next number', async () => {
+    renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}`);
+    fireEvent.click(await screen.findByRole('button', { name: KEYS.add }));
+    const editor = screen.getByRole('form', { name: EDITOR.label });
+    fireEvent.change(within(editor).getByLabelText(EDITOR.stem), { target: { value: 'Что такое шлюз в BPMN?' } });
+    fireEvent.change(within(editor).getByLabelText(EDITOR.option('А')), { target: { value: 'Ромб ветвления' } });
+    fireEvent.change(within(editor).getByLabelText(EDITOR.option('Б')), { target: { value: 'Стрелка' } });
+    fireEvent.click(within(editor).getByLabelText(EDITOR.right('А')));
+    fireEvent.click(within(editor).getByRole('button', { name: EDITOR.add }));
+    await waitFor(() => expect(api.addItems).toHaveBeenCalledTimes(1));
+    const [subject, inputs] = api.addItems.mock.calls[0] as [string, Array<Record<string, unknown>>];
+    expect(subject).toBe(SUBJECT_1);
+    const numbers = BASE_ITEMS.filter((item) => item.subject_id === SUBJECT_1).map((item) => Number(item.file_no)).filter(Number.isFinite);
+    expect(inputs[0]).toMatchObject({ stem: 'Что такое шлюз в BPMN?', options: ['Ромб ветвления', 'Стрелка'], correct: [0], key_source: 'manual', file_no: String(Math.max(...numbers) + 1) });
+    expect(String(inputs[0].ref)).toMatch(/^man:/);
+    expect(api.reload).toHaveBeenCalled();
+  });
+
+  it('finds questions by words in the chosen subject', async () => {
+    renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_2}`);
+    fireEvent.change(await screen.findByLabelText(KEYS.findNumber), { target: { value: 'грюнвальдская' } });
+    expect(await screen.findByText('Какие события относятся к истории ВКЛ?')).toBeInTheDocument();
+    expect(screen.getByText(/Нашлось 1\sвопрос/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(KEYS.findNumber), { target: { value: 'несуществующие слова' } });
+    expect(screen.getByText(/нет вопроса с этими словами/)).toBeInTheDocument();
   });
 
   it('shows a member that keys belong to the author', () => {

@@ -150,7 +150,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     renderPage(loaded(dbData()), SUBJECT_DB, true);
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: предмет' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
-    expect(items.map((node) => node.textContent)).toEqual(['Ключи', 'Обновить из файла', 'Настройки', 'Убрать предмет']);
+    expect(items.map((node) => node.textContent)).toEqual(['Вопросы и ключи', 'Обновить из файла', 'Настройки', 'Убрать предмет']);
     expect(items[0].getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys?s=${SUBJECT_DB}`);
     fireEvent.click(items[3]);
     await waitFor(() => expect(mocks.deleteSubject).toHaveBeenCalledWith(SUBJECT_DB));

@@ -21,7 +21,7 @@ const ITEM: TestItem = {
   options: ['Вход', 'Управление', 'Выход'],
   correct: [0],
   answers: [],
-  key_source: 'file',
+  key_source: 'bold',
   code: false,
   keep_order: false,
   flags: [],
