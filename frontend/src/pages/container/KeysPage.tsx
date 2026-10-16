@@ -607,7 +607,8 @@ export default function KeysPage() {
         </section>
       </div>
 
-      {check.length > 0 ? (
+      {/* While a question is open in the editor the bar would cover its «Сохранить» on a phone (live check 45). */}
+      {check.length > 0 && editing === null ? (
         <div className="ex-cta ky-cta" data-row={frame.side ? '' : undefined}>
           <button type="button" className="sf-primary" onClick={() => openList('check')}>
             {nb(KEYS.check(check.length))}

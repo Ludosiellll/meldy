@@ -181,6 +181,15 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
   });
 
+  it('hides «Проверить N вопросов» while the editor is open', async () => {
+    renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}&no=7`);
+    expect(screen.getByRole('button', { name: /^Проверить 3\sвопроса/ })).toBeInTheDocument();
+    fireEvent.click(within(await screen.findByRole('article')).getByRole('button', { name: KEYS.edit }));
+    expect(screen.queryByRole('button', { name: /^Проверить 3\sвопроса/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.cancel }));
+    expect(screen.getByRole('button', { name: /^Проверить 3\sвопроса/ })).toBeInTheDocument();
+  });
+
   it('closes the editor without a request when nothing changed', async () => {
     renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}&no=7`);
     fireEvent.click(within(await screen.findByRole('article')).getByRole('button', { name: KEYS.edit }));
