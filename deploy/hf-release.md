@@ -4,6 +4,21 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-16 — Release 45: the author edits questions — «Вопросы и ключи» (from the commit of this entry)
+
+- **The owner, 16.10:** «не хватает возможности самому менять вопросы, редактировать, картинки вставлять». Spec:
+  meldy-notes `10_Project/Quiz_and_Editor_Spec_2026-10-16.md`, part 1; plan `docs/superpowers/plans/2026-10-16-question-editor.md`.
+- **«Ключи» is now «Вопросы и ключи».** Every question has «Изменить»: the text (ticked as code — shown as typed), the
+  pictures of the question and of each option (a file or Ctrl+V into the field; a photo over 3 MB or 2000 px is redrawn
+  as JPEG first), the options (add up to 8, remove down to 2; the key moves with them), «верный» ticks (two or more
+  make a question with several answers), «Не перемешивать варианты», or the accepted forms of a short answer. Only what
+  changed is sent; a typo keeps everyone's count, a new key or option count restarts the question — said before saving.
+- **«Добавить вопрос»** in the chosen subject, numbered after its last one; **the find field takes words** too («грюнвальд
+  битва»: every word, any case, ё = е; 30 at a time).
+- **Database (applied 16.10 before this release):** `20261016100000_item_update_images` — `container_item_update` takes
+  `images`; the table CHECK keeps every path in the exam's folder; more option picture lists than options → 22023.
+  Rehearsed locally (16/16), live body checked by md5 before and after, contract `supabase/tests/item_update_images.sql` ok.
+
 ## 2026-10-14 — Release 44.20: «пометка не перенеслась» instead of «картинка не перенеслась» (from the commit of this entry)
 
 - **The owner's screenshot (Ключи → Проверить, «Вариант 2 · № 117»):** the picture is shown, yet the line said «Картинка
