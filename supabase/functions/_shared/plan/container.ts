@@ -316,7 +316,7 @@ export interface ItemsAdded {
   in_container: number; // ≤ 2000
   items: Array<{ ref: string; id: Uuid; position: number }>;
 }
-export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order'>>;
+export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order' | 'images'>>;
 export interface ItemUpdated {
   id: Uuid;
   rev: number;
