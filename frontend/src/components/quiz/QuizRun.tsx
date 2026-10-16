@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TestItem } from '../../types/container';
 import type { QuizAnswerInput, QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
 import { finishQuiz, quizResult, sendAnswers } from '../../api/quizzes';
-import { clockOffset, clockText, secondsLeft } from '../../lib/quizzes/quizModel';
-import { optionOrder, pinnedLast } from '../../lib/containers/session';
+import { clockOffset, clockText, quizOrder, secondsLeft } from '../../lib/quizzes/quizModel';
 import { track } from '../../lib/telemetry';
 import QuestionCard from '../containers/QuestionCard';
 import { RoomBar } from '../containers/RoomParts';
@@ -92,20 +91,8 @@ export function asTestItem(item: QuizAttemptItem, index: number): TestItem {
   };
 }
 
-/** File indices in the order shown: shuffled per attempt and question when the author asked, else the file's order. */
-export function quizOrder(item: QuizAttemptItem, attemptId: string, shuffle: boolean): number[] {
-  if (item.kind === 'short') return [];
-  const options = Array.isArray(item.options) ? item.options : [];
-  const files = options.map((_, index) => index);
-  if (!shuffle) return files;
-  try {
-    const order = optionOrder(options.length, Boolean(item.keep_order), pinnedLast(options), `${attemptId}:${item.id}`);
-    if (order.length === files.length && new Set(order).size === order.length) return order;
-  } catch {
-    // The file's order.
-  }
-  return files;
-}
+/** The option order lives in the model now (the review uses it too); kept here for the page's imports. */
+export { quizOrder };
 
 function fromServer(answer: { chosen: number[] | null; text: string | null }): QuizAnswer {
   if (Array.isArray(answer.chosen) && answer.chosen.length > 0) return [...answer.chosen];

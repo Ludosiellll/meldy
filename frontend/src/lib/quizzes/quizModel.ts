@@ -4,8 +4,9 @@
  * the summary line, the questions hardest first and the table for Excel.
  */
 import type { TestItem } from '../../types/container';
-import type { QuizAttemptRow, QuizGrading, QuizItemStat, QuizMark, QuizRow, QuizSettings } from '../../types/quiz';
+import type { QuizAttemptItem, QuizAttemptRow, QuizGrading, QuizItemStat, QuizMark, QuizRow, QuizSettings } from '../../types/quiz';
 import { QUIZ } from '../../components/quiz/copyQuiz';
+import { optionOrder, pinnedLast } from '../containers/session';
 
 export const TIME_OPTIONS: readonly (number | null)[] = [null, 5, 10, 15, 20, 30, 40, 45, 60, 90, 120, 180, 240];
 export const ATTEMPT_OPTIONS: readonly (number | null)[] = [1, 2, 3, 5, null];
@@ -92,6 +93,25 @@ export function clockText(seconds: number): string {
   const hours = Math.floor(s / 3600);
   const minutes = Math.floor((s % 3600) / 60);
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(s % 60)}` : `${pad(minutes)}:${pad(s % 60)}`;
+}
+
+/**
+ * The order an attempt shows a question's options in (file indexes by place). Not stored: derived from the attempt and
+ * the question, so the attempt (QuizRun) and its review (QuizResult) agree — a reload or a later look gives the same
+ * letters. A short answer has none; without shuffling, or when a question keeps its order, the file's order.
+ */
+export function quizOrder(item: Pick<QuizAttemptItem, 'id' | 'kind' | 'options'> & { keep_order?: boolean }, attemptId: string, shuffle: boolean): number[] {
+  if (item.kind === 'short') return [];
+  const options = Array.isArray(item.options) ? item.options : [];
+  const files = options.map((_, index) => index);
+  if (!shuffle) return files;
+  try {
+    const order = optionOrder(options.length, Boolean(item.keep_order), pinnedLast(options), `${attemptId}:${item.id}`);
+    if (order.length === files.length && new Set(order).size === order.length) return order;
+  } catch {
+    // The file's order.
+  }
+  return files;
 }
 
 export type PersonStatus = 'writing' | 'done' | 'time' | 'closed';

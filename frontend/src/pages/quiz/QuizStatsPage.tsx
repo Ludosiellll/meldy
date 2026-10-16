@@ -147,11 +147,15 @@ export default function QuizStatsPage() {
   const rows = useMemo(() => (results && quiz ? peopleRows(results.attempts, quiz.grading) : []), [results, quiz]);
   const totals = useMemo(() => summaryOf(rows, quiz?.pass_percent ?? null), [rows, quiz?.pass_percent]);
 
-  // ── the note a page left (created, saved) ──
+  // ── the note a page left (created, saved): shown once; the history entry forgets it, so a reload does not repeat it ──
   const [note] = useState<string | null>(() => {
     const value = (location.state as { quizNote?: unknown } | null)?.quizNote;
     return value === 'created' ? QA_STATS.created : value === 'saved' ? QA_STATS.saved : null;
   });
+  useEffect(() => {
+    if ((location.state as { quizNote?: unknown } | null)?.quizNote === undefined) return;
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.state, location.pathname, location.search, navigate]);
 
   // ── the link ──
   const linkRef = useRef<HTMLInputElement>(null);
@@ -317,6 +321,7 @@ export default function QuizStatsPage() {
   }
 
   const nobody = totals.writing === 0 && totals.done === 0;
+  const onlyOwn = nobody && rows.length > 0 && rows.every((row) => row.own);
   const tabId = (which: Tab) => `${ids}-${which}`;
 
   return (
@@ -382,7 +387,7 @@ export default function QuizStatsPage() {
       </section>
 
       <p className="qa-summary" aria-live="polite">
-        {nobody ? QA_STATS.nobody : nb(QA_STATS.summary(totals.writing, totals.done, totals.avgPercent, totals.passed))}
+        {onlyOwn ? QA_STATS.onlyOwn : nobody ? QA_STATS.nobody : nb(QA_STATS.summary(totals.writing, totals.done, totals.avgPercent, totals.passed))}
       </p>
       {staleSince !== null ? (
         <p className="qa-line" data-muted="" role="status">

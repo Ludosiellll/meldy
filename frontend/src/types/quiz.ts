@@ -178,7 +178,7 @@ export interface QuizAnswerInput {
   text?: string | null;
 }
 
-/** A question of the review (quiz_result carries no keep_order). */
+/** A question of the review (keep_order: since 20261016140000_quiz_result_order). */
 export interface QuizResultItem extends Omit<QuizAttemptItem, 'keep_order'> {
   keep_order?: boolean;
   chosen: number[] | null;
@@ -202,6 +202,8 @@ export interface QuizResult {
   percent: number;
   pass_percent: number | null;
   passed: boolean | null;
+  /** With each item's keep_order: the review orders the options as the attempt did (quizOrder). Missing before 46.1. */
+  shuffle_options?: boolean;
   review_now: 'score' | 'mistakes' | 'answers';
   /** When the right answers open (review «mistakes_then_answers» before the quiz closes). */
   answers_after: string | null;

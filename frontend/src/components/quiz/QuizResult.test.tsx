@@ -7,6 +7,8 @@ vi.mock('../../api/itemPictures', () => ({ pictureUrl: api.pictureUrl, pictureDa
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn(), storage: { from: vi.fn() } } }));
 
 import QuizResultView from './QuizResult';
+import { quizOrder } from '../../lib/quizzes/quizModel';
+import { OPTION_LETTERS } from '../containers/copy';
 
 const NB = String.fromCharCode(0xa0);
 const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
@@ -174,5 +176,32 @@ describe('QuizResult: another try', () => {
     const button = screen.getByRole('button', { name: (name) => plain(name) === label });
     fireEvent.click(button);
     expect(onRetry).toHaveBeenCalled();
+  });
+});
+
+describe('the options stand as the attempt showed them (release 46.1)', () => {
+  const item: QuizResultItem = {
+    id: 'i9', kind: 'single', stem: 'Какой паттерн?', options: ['MVC', 'MVP', 'MVVM', 'Во всех трёх', 'Ни в одном'],
+    code: false, keep_order: false, images: null, chosen: [4], text: null, right: false, key: null, forms: null,
+  };
+  const rowsOf = () => within(screen.getByRole('list', { name: 'Варианты ответа' })).getAllByRole('listitem').map((li) => plain(li.textContent));
+
+  it('shuffled: the same order and letters as during the attempt, the chosen one under its letter', () => {
+    const order = quizOrder(item, 'att-1', true);
+    expect(order).not.toEqual([0, 1, 2, 3, 4]);
+    renderResult(result({ review_now: 'mistakes', shuffle_options: true, correct: 0, total: 1, percent: 0, items: [item] }));
+    const rows = rowsOf();
+    order.forEach((file, place) => expect(rows[place].startsWith(`${OPTION_LETTERS[place]}${item.options[file]}`)).toBe(true));
+    const mine = order.indexOf(4);
+    expect(rows[mine]).toContain('Ни в одном');
+    expect(rows[mine]).toContain('Ваш ответ');
+  });
+
+  it('a question that keeps its order, or a quiz without shuffling, or an older server: the file’s order', () => {
+    renderResult(result({ review_now: 'mistakes', shuffle_options: true, items: [{ ...item, keep_order: true }] }));
+    expect(rowsOf().map((row) => row.slice(1, 4))).toEqual(['MVC', 'MVP', 'MVV', 'Во ', 'Ни ']);
+    cleanup();
+    renderResult(result({ review_now: 'mistakes', items: [item] }));
+    expect(rowsOf()[0].startsWith('АMVC')).toBe(true);
   });
 });

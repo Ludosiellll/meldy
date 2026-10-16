@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { isPictureWord } from '../../types/container';
 import type { QuizResult, QuizResultItem } from '../../types/quiz';
-import { dateTimeText, percentOf } from '../../lib/quizzes/quizModel';
+import { dateTimeText, percentOf, quizOrder } from '../../lib/quizzes/quizModel';
 import { CodeBlock } from '../containers/QuestionCard';
 import ItemPictures, { storedPictures } from '../containers/ItemPictures';
 import { RoomBar } from '../containers/RoomParts';
@@ -17,8 +17,9 @@ import './quizTake.css';
  * one, then as much as the author's setting shows now — nothing more («score»), the questions answered wrong with the
  * person's answer («mistakes»), or those with the right answers too («answers»; there «Показать все вопросы» opens the
  * rest of the attempt). The server lists every counted question in the attempt's order with `right`, so a question
- * keeps its number. Before the quiz closes, «mistakes then answers» says when the right answers open. The options stand in the file's order with the file's letters (the
- * attempt's own order is not kept). Pictures come from the private bucket (storage paths, ItemPictures).
+ * keeps its number. Before the quiz closes, «mistakes then answers» says when the right answers open. The options stand
+ * in the attempt's order with the attempt's letters (quizOrder from the attempt id, shuffle_options and keep_order), so
+ * «я выбрал В» reads the same here. Pictures come from the private bucket (storage paths, ItemPictures).
  */
 
 function OptionWords({ text, paths }: { text: string; paths: string[] | undefined }) {
@@ -32,7 +33,7 @@ function OptionWords({ text, paths }: { text: string; paths: string[] | undefine
   );
 }
 
-function ReviewItem({ item, no, showKey }: { item: QuizResultItem; no: number; showKey: boolean }) {
+function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: number; showKey: boolean; order: readonly number[] }) {
   const stem = stemParts(item.stem, item.code);
   const stemPictures = storedPictures(item.images?.stem);
   const pictureStem = stemPictures.length > 0 && isPictureWord(item.stem);
@@ -55,14 +56,15 @@ function ReviewItem({ item, no, showKey }: { item: QuizResultItem; no: number; s
         </div>
       ) : (
         <ul className="ct-opts qt-opts" aria-label="Варианты ответа">
-          {options.map((text, index) => {
+          {order.map((index, place) => {
+            const text = options[index] ?? '';
             const mine = chosen.includes(index);
             const right = key.includes(index);
             const state = right ? 'file' : mine ? (showKey ? 'wrong' : 'mine') : undefined;
             const tag = mine && right ? RESULT.tagMineRight : right ? RESULT.tagRight : mine ? RESULT.tagMine : null;
             return (
               <li key={index} className="ct-opt qt-opt" data-state={state}>
-                <span className="ct-opt-l">{OPTION_LETTERS[index] ?? String(index + 1)}</span>
+                <span className="ct-opt-l">{OPTION_LETTERS[place] ?? String(place + 1)}</span>
                 <span className="ct-opt-t">
                   <OptionWords text={text} paths={item.images?.options?.[index]} />
                   {tag ? <span className="ct-opt-tag">{tag}</span> : null}
@@ -140,7 +142,7 @@ export default function QuizResultView({ result, onRetry, onClose }: QuizResultP
             {listed.length > 0 ? (
               <ol className="qt-rlist">
                 {listed.map(({ item, no }) => (
-                  <ReviewItem key={item.id} item={item} no={no} showKey={showKey} />
+                  <ReviewItem key={item.id} item={item} no={no} showKey={showKey} order={quizOrder(item, result.attempt_id, result.shuffle_options === true)} />
                 ))}
               </ol>
             ) : null}

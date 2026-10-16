@@ -121,6 +121,34 @@ describe('QuizStatsPage: the head (spec 2026-10-16 §2.3)', () => {
     expect(page()).toContain('Пишут сейчас: 1 · Сдали: 1 · Средний результат: 67 % · Прошли порог: 1 из 1');
   });
 
+  it('with the author’s own try only, says so instead of «никто не писал»', async () => {
+    api.quizResults.mockImplementation(async () => {
+      const all = results();
+      return { ...all, attempts: all.attempts.filter((a) => a.own), items: [] };
+    });
+    renderPage();
+    expect(await screen.findByText(QA_STATS.onlyOwn)).toBeInTheDocument();
+    expect(screen.queryByText(QA_STATS.nobody)).not.toBeInTheDocument();
+  });
+
+  it('the «создана» note shows once: the history entry forgets it, a reload does not repeat it', async () => {
+    let seen: unknown = 'unset';
+    function State() {
+      seen = useLocation().state;
+      return null;
+    }
+    render(
+      <MemoryRouter initialEntries={[{ pathname: `/exams/c/${EXAM}/quizzes/${QUIZ_ID}`, state: { quizNote: 'created' } }]}>
+        <Routes>
+          <Route path="/exams/c/:id/quizzes/:quizId" element={<><QuizStatsPage /><State /></>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(QA_STATS.created)).toBeInTheDocument();
+    await waitFor(() => expect(seen).toBeNull());
+    expect(screen.getByText(QA_STATS.created)).toBeInTheDocument();
+  });
+
   it('«Закрыть сейчас» after asking; the state says «Закрыта»', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: QA_STATS.close }));
@@ -165,7 +193,7 @@ describe('«Участники»', () => {
     const writing = rows.find((row) => row.startsWith('Борисова Анна'));
     expect(writing).toContain('пишет — 2 из 3, осталось 08:41');
     const done = rows.find((row) => row.startsWith('Иванов Иван'));
-    expect(done).toContain(`сдал(а) ${hhmm('2026-10-16T11:58:00Z')}`);
+    expect(done).toContain(`сдано ${hhmm('2026-10-16T11:58:00Z')}`);
     expect(done).toContain('2 из 3 · 67 %');
     expect(done).toContain('8 мин');
     expect(done).toContain('попытка 2 из 3');

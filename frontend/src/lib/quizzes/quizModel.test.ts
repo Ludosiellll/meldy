@@ -9,6 +9,7 @@ import {
   defaultSettings,
   peopleRows,
   questionRows,
+  quizOrder,
   secondsLeft,
   settingsProblems,
   summaryOf,
@@ -160,5 +161,21 @@ describe('csvOf', () => {
     expect(lines[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог;Вариант 1 № 3;Вариант 1 № 7');
     expect(lines[1].startsWith('"Иванов; Иван";1;')).toBe(true);
     expect(lines[1].endsWith(';1;2;50;нет;0;1')).toBe(true);
+  });
+});
+
+describe('quizOrder', () => {
+  const item = { id: 'i1', kind: 'single' as const, options: ['a', 'b', 'c', 'd', 'e'], keep_order: false };
+  it('is the same for the same attempt and question, a permutation, and differs between attempts', () => {
+    const one = quizOrder(item, 'att-1', true);
+    expect(quizOrder(item, 'att-1', true)).toEqual(one);
+    expect([...one].sort()).toEqual([0, 1, 2, 3, 4]);
+    const others = ['att-2', 'att-3', 'att-4', 'att-5'].map((id) => quizOrder(item, id, true).join());
+    expect(others.some((order) => order !== one.join())).toBe(true);
+  });
+  it('keeps the file’s order without shuffling, for a question that keeps it, and gives none to a short answer', () => {
+    expect(quizOrder(item, 'att-1', false)).toEqual([0, 1, 2, 3, 4]);
+    expect(quizOrder({ ...item, keep_order: true }, 'att-1', true)).toEqual([0, 1, 2, 3, 4]);
+    expect(quizOrder({ ...item, kind: 'short', options: [] }, 'att-1', true)).toEqual([]);
   });
 });

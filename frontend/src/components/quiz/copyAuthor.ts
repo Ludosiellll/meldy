@@ -142,6 +142,7 @@ export const QA_STATS = {
       .filter(Boolean)
       .join(' · '),
   nobody: 'Пока никто не писал. Пришлите ссылку участникам: результаты появятся здесь сами.',
+  onlyOwn: 'Пока писали только вы — ваши попытки в итоги не идут. Пришлите ссылку участникам: их результаты появятся здесь сами.',
   tabs: 'Результаты',
   tabPeople: 'Участники',
   tabQuestions: 'Вопросы',
@@ -160,7 +161,7 @@ export const QA_PEOPLE = {
   sortOption: (key: 'name' | 'result' | 'time') => ({ name: 'по имени', result: 'по результату', time: 'по времени' })[key],
   head: { name: 'Имя', status: 'Сейчас', result: 'Результат', minutes: 'Время', attempts: 'Попытки' },
   writing: (answered: number, total: number, left: string | null) => `пишет — ${answered} из ${total}${left ? `, осталось ${left}` : ''}`,
-  done: (time: string) => `сдал(а) ${time}`,
+  done: (time: string) => `сдано ${time}`,
   time: 'время вышло',
   closed: 'закрыта',
   result: (correct: number, total: number, percent: number | null) => `${correct} из ${total}${percent === null ? '' : ` · ${percent} %`}`,
@@ -203,7 +204,7 @@ export const QA_QUESTIONS = {
   wrongTexts: 'Частые неверные ответы',
   wrongText: (text: string, n: number) => `«${text}» — ${n}`,
   edit: 'Изменить',
-  empty: 'Вопросы появятся здесь, когда кто-нибудь начнёт писать.',
+  empty: 'Вопросы появятся здесь, когда участники начнут писать. Ваши собственные попытки сюда не идут.',
 } as const;
 
 /** P0002 of a quiz function: the quiz, not the exam, is gone. */
