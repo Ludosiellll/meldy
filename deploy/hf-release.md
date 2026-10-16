@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-16 — Release 46.1: the review in the attempt's order; the author's page says what it means (from the commit of this entry)
+
+- **From the release 46 live check (account B as author and participant).** The review listed a question's options in the
+  file's order, so «Ни в одном» picked as А showed up as Д. The order is not stored — the attempt derives it from the
+  attempt and the question — so the review now derives the same one (`quizOrder` moves to `lib/quizzes/quizModel.ts` and
+  serves both) and shows the same letters.
+- **Database (applied 16.10 before this release):** `20261016140000_quiz_result_order` — `quiz_result` also gives the
+  quiz's `shuffle_options` and each question's `keep_order`; nothing else changes, the key stays behind the review.
+  Rehearsed with `quizzes_run.sh` (32/32, its own rollback included), contract `supabase/tests/quiz_result_order.sql` ok live.
+- **The author's page:** with only the author's own try it said «Пока никто не писал» above that very row — now «Пока
+  писали только вы — ваши попытки в итоги не идут…»; «Контрольная создана» no longer comes back after a reload; «сдал(а)»
+  is «сдано»; the empty «Вопросы» tab says the author's own tries do not count there.
+
 ## 2026-10-16 — Release 46: «Контрольная» — a test sent by link, with the author's settings and live results (from the commit of this entry)
 
 - **The owner, 16.10:** «если ты хочешь кинуть кому-то тест, то ты выставляешь сам как будет (например таймер) и можешь
