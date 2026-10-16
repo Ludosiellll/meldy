@@ -4,6 +4,29 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-16 — Release 46: «Контрольная» — a test sent by link, with the author's settings and live results (from the commit of this entry)
+
+- **The owner, 16.10:** «если ты хочешь кинуть кому-то тест, то ты выставляешь сам как будет (например таймер) и можешь
+  смотреть постоянно статистику как отвечают»; then «стоит добавить возможность попыток выбора и тд». Spec: meldy-notes
+  `10_Project/Quiz_and_Editor_Spec_2026-10-16.md`, part 2; plan `docs/superpowers/plans/2026-10-16-quiz.md`.
+- **The exam menu has «Контрольные».** The author picks the subjects, how many questions (one set for everyone or a
+  different draw each), shuffling of questions and options, a timer (or none), when it opens and closes, attempts (1, 2,
+  3, 5, any) and which counts (best or last), going back to a question, a pass mark, what the participant sees after
+  («балл», «ошибки», «ответы», or answers once it closes) and «только участники экзамена». Once somebody has started,
+  the set, the count, shuffling and the timer stay as they are.
+- **The participant opens `/k/<code>`** (no account needed only to read the card; writing needs a sign-in), is told
+  before the start that the author will see their name, answers and result, and writes against the server's clock: a
+  reload or a second tab goes on with the same attempt, answers are saved as they are given, the time ends the attempt
+  on the server too.
+- **The author's page** of a quiz: who is writing now and who has finished (one row a person, the attempt that counts),
+  the average and how many passed, the questions hardest first with what was chosen, any attempt's answers, «Сбросить
+  попытку», «Закрыть сейчас» and the table for Excel. It refreshes every 5 s while somebody writes, every 30 s otherwise.
+  The ordinary shared exam stays private as before.
+- **Database (applied 16.10 before this release, `supabase-migrate.yml`):** `20261016120000_quizzes` — tables
+  `quizzes`, `quiz_attempts`, `quiz_answers` reachable only through the `quiz_*` functions; the key leaves the server only
+  in a result whose review allows it; question pictures are readable by people with an attempt. Rehearsed locally
+  (22/22, two tabs racing), contract `supabase/tests/quizzes.sql` ok live.
+
 ## 2026-10-16 — Release 45: the author edits questions — «Вопросы и ключи» (from the commit of this entry)
 
 - **The owner, 16.10:** «не хватает возможности самому менять вопросы, редактировать, картинки вставлять». Spec:
