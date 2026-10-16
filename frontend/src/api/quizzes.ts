@@ -1,0 +1,145 @@
+/**
+ * «Контрольная»: the quiz functions of the database (migration 20261016120000_quizzes.sql; contract in
+ * docs/superpowers/plans/2026-10-16-quiz.md). Errors come as ContainerApiError: MC010–MC015 with the quiz's own words
+ * (components/quiz/copyQuiz.ts), everything else as the container API maps it (28000, P0002, 22023, network).
+ */
+import { supabase } from '../lib/supabase';
+import { CONTAINER_ERROR_TEXT, ContainerApiError, containerError } from './containers';
+import { QUIZ_ERRORS } from '../components/quiz/copyQuiz';
+import type { Uuid } from '../types/container';
+import type {
+  AttemptAnswer,
+  QuizAnswerInput,
+  QuizAttempt,
+  QuizListRow,
+  QuizMark,
+  QuizPreview,
+  QuizResult,
+  QuizResults,
+  QuizRow,
+  QuizSettings,
+} from '../types/quiz';
+
+const QUIZ_CODES = new Set(['MC010', 'MC011', 'MC012', 'MC013', 'MC014', 'MC015']);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/** The Russian line of a quiz refusal, by its code and detail. */
+export function quizErrorText(code: string, detail: string | null): string {
+  const key = `${code}_${detail ?? ''}` as keyof typeof QUIZ_ERRORS;
+  if (key in QUIZ_ERRORS) return QUIZ_ERRORS[key];
+  if (code in QUIZ_ERRORS) return QUIZ_ERRORS[code as keyof typeof QUIZ_ERRORS];
+  if (code === 'MC013') return QUIZ_ERRORS.MC013_closed;
+  if (code === 'MC014') return QUIZ_ERRORS.MC014_attempts;
+  if (code === '22023' && detail === 'unfinished') return QUIZ_ERRORS.unfinished;
+  return CONTAINER_ERROR_TEXT.unknown;
+}
+
+function quizError(error: unknown, status: number): ContainerApiError {
+  const code = isRecord(error) ? text(error.code) : '';
+  const detail = (isRecord(error) ? text(error.details) : '') || null;
+  if (QUIZ_CODES.has(code) || (code === '22023' && detail === 'unfinished')) {
+    return new ContainerApiError(code, quizErrorText(code, detail), { status, detail });
+  }
+  return containerError(error, status);
+}
+
+async function rpc(name: string, args: Record<string, unknown>): Promise<unknown> {
+  let result: { data: unknown; error: unknown; status?: number };
+  try {
+    result = await supabase.rpc(name, args);
+  } catch (error) {
+    const kind = error instanceof Error ? error.name : '';
+    if (kind === 'TypeError' || kind === 'AbortError') throw new ContainerApiError('network', CONTAINER_ERROR_TEXT.network, { status: 0 });
+    throw new ContainerApiError('unknown', CONTAINER_ERROR_TEXT.unknown);
+  }
+  if (result.error) throw quizError(result.error, typeof result.status === 'number' ? result.status : 0);
+  return result.data;
+}
+
+function shaped<T>(raw: unknown, what: string, key: string): T {
+  if (!isRecord(raw) || !(key in raw)) throw new ContainerApiError('unknown', CONTAINER_ERROR_TEXT.unknown, { detail: `bad shape: ${what}` });
+  return raw as T;
+}
+
+function rows<T>(raw: unknown, key: string): T[] {
+  return Array.isArray(raw) ? (raw.filter((row) => isRecord(row) && key in row) as T[]) : [];
+}
+
+// ── the author ──
+
+export async function createQuiz(containerId: Uuid, settings: Partial<QuizSettings>): Promise<QuizRow> {
+  return shaped(await rpc('quiz_create', { p_container_id: containerId, p_settings: settings }), 'quiz_create', 'code');
+}
+
+export async function updateQuiz(quizId: Uuid, settings: Partial<QuizSettings>): Promise<QuizRow> {
+  return shaped(await rpc('quiz_update', { p_quiz_id: quizId, p_settings: settings }), 'quiz_update', 'code');
+}
+
+export async function closeQuiz(quizId: Uuid): Promise<QuizRow> {
+  return shaped(await rpc('quiz_close', { p_quiz_id: quizId }), 'quiz_close', 'code');
+}
+
+export async function deleteQuiz(quizId: Uuid): Promise<void> {
+  await rpc('quiz_delete', { p_quiz_id: quizId });
+}
+
+export async function listQuizzes(containerId: Uuid): Promise<QuizListRow[]> {
+  return rows(await rpc('quiz_list', { p_container_id: containerId }), 'code');
+}
+
+export async function quizResults(quizId: Uuid): Promise<QuizResults> {
+  const raw = shaped<Record<string, unknown>>(await rpc('quiz_results', { p_quiz_id: quizId }), 'quiz_results', 'quiz');
+  return {
+    quiz: shaped(raw.quiz, 'quiz_results.quiz', 'code'),
+    server_now: text(raw.server_now),
+    attempts: rows(raw.attempts, 'id'),
+    items: rows(raw.items, 'item_id'),
+  };
+}
+
+export async function quizMarks(quizId: Uuid): Promise<QuizMark[]> {
+  return rows(await rpc('quiz_marks', { p_quiz_id: quizId }), 'attempt_id');
+}
+
+export async function attemptAnswers(attemptId: Uuid): Promise<AttemptAnswer[]> {
+  return rows(await rpc('quiz_attempt_answers', { p_attempt_id: attemptId }), 'item_id');
+}
+
+export async function resetAttempt(attemptId: Uuid): Promise<void> {
+  await rpc('quiz_attempt_reset', { p_attempt_id: attemptId });
+}
+
+// ── the participant ──
+
+export async function previewQuiz(code: string): Promise<QuizPreview> {
+  return shaped(await rpc('quiz_preview', { p_code: code }), 'quiz_preview', 'status');
+}
+
+export async function startQuiz(code: string, name: string): Promise<QuizAttempt> {
+  const raw = shaped<QuizAttempt>(await rpc('quiz_start', { p_code: code, p_name: name }), 'quiz_start', 'attempt_id');
+  return { ...raw, items: rows(raw.items, 'id'), answers: rows(raw.answers, 'item_id') };
+}
+
+export async function sendAnswers(attemptId: Uuid, answers: QuizAnswerInput[]): Promise<{ saved: number; server_now: string; deadline_at: string | null }> {
+  return shaped(await rpc('quiz_answer', { p_attempt_id: attemptId, p_answers: answers }), 'quiz_answer', 'saved');
+}
+
+function result(raw: unknown, what: string): QuizResult {
+  const value = shaped<QuizResult>(raw, what, 'attempt_id');
+  return { ...value, items: rows(value.items, 'id') };
+}
+
+export async function finishQuiz(attemptId: Uuid): Promise<QuizResult> {
+  return result(await rpc('quiz_finish', { p_attempt_id: attemptId }), 'quiz_finish');
+}
+
+export async function quizResult(attemptId: Uuid): Promise<QuizResult> {
+  return result(await rpc('quiz_result', { p_attempt_id: attemptId }), 'quiz_result');
+}
