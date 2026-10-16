@@ -86,3 +86,92 @@ export function pictureUrl(path: string): Promise<string> {
   }
   return url;
 }
+
+// ── a picture the author adds by hand (the question editor: a file or Ctrl+V) ──
+
+export const MAX_PICTURE_BYTES = 3 * 1024 * 1024; // the bucket's limit
+export const MAX_PICTURE_SIDE = 2000;
+const TAKEN = new Set(Object.keys(EXTENSIONS));
+
+export interface PictureDeps {
+  /** The picture's size in pixels; null when the browser cannot say (it is then kept as it is, if small enough). */
+  measure?: (blob: Blob) => Promise<{ width: number; height: number } | null>;
+  /** The picture redrawn no larger than `side` px on its longer side, as JPEG. */
+  shrink?: (blob: Blob, side: number) => Promise<Blob>;
+}
+
+async function bytesOf(blob: Blob): Promise<Uint8Array> {
+  if (typeof blob.arrayBuffer === 'function') return new Uint8Array(await blob.arrayBuffer());
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+function base64Of(bytes: Uint8Array): string {
+  let text = '';
+  for (let start = 0; start < bytes.length; start += 0x8000) text += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
+  return btoa(text);
+}
+
+async function sha256Of(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function measureInBrowser(blob: Blob): Promise<{ width: number; height: number } | null> {
+  if (typeof createImageBitmap !== 'function') return null;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close?.();
+    return size;
+  } catch {
+    return null;
+  }
+}
+
+async function shrinkInBrowser(blob: Blob, side: number): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no canvas');
+  // White under a transparent picture: JPEG has no transparency, and the pages show pictures on white anyway.
+  context.fillStyle = '#fff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return new Promise((resolve, reject) => canvas.toBlob((out) => (out ? resolve(out) : reject(new Error('no picture'))), 'image/jpeg', 0.85));
+}
+
+/**
+ * A picture from a file or the clipboard, ready for uploadPicture: its id (sha256 of the bytes, so the same picture is
+ * one object) and its bytes. A picture over 3 MB, or wider or taller than 2000 px (not a GIF, which would lose its
+ * motion), is redrawn as JPEG first; 'type' — not a picture the bucket takes; 'size' — still over 3 MB.
+ */
+export async function pictureFromFile(file: Blob, deps: PictureDeps = {}): Promise<{ id: string; picture: BankPicture } | 'type' | 'size'> {
+  if (!TAKEN.has(file.type)) return 'type';
+  const measure = deps.measure ?? measureInBrowser;
+  const shrink = deps.shrink ?? shrinkInBrowser;
+  let blob: Blob = file;
+  let big = blob.size > MAX_PICTURE_BYTES;
+  if (!big && file.type !== 'image/gif') {
+    const size = await measure(blob);
+    big = Boolean(size && Math.max(size.width, size.height) > MAX_PICTURE_SIDE);
+  }
+  if (big) {
+    try {
+      blob = await shrink(blob, MAX_PICTURE_SIDE);
+    } catch {
+      return 'size';
+    }
+  }
+  if (blob.size > MAX_PICTURE_BYTES || !TAKEN.has(blob.type)) return 'size';
+  const bytes = await bytesOf(blob);
+  return { id: await sha256Of(bytes), picture: { type: blob.type, data: base64Of(bytes) } };
+}
