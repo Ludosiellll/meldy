@@ -23,7 +23,8 @@ describe('examActions: the exam’s «⋯»', () => {
 
   it('the author: no way out, «Удалить» at the delete confirm', () => {
     const actions = examActions(summary({ owner: { members: 0, doubts_open: 0, links: [] } }));
-    expect(actions.map((action) => action.key)).toEqual(['invite', 'keys', 'minutes', 'add', 'settings', 'delete']);
+    expect(actions.map((action) => action.key)).toEqual(['invite', 'keys', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
+    expect(actions.find((action) => action.key === 'quizzes')).toMatchObject({ label: 'Контрольные', to: `/exams/c/${CONTAINER}/quizzes` });
     expect(actions.find((action) => action.key === 'delete')?.to).toBe(`${settings}#delete`);
     expect(actions.some((action) => action.label === SETTINGS.leave)).toBe(false);
   });

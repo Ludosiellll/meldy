@@ -1,0 +1,545 @@
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { createQuiz, listQuizzes, updateQuiz } from '../../api/quizzes';
+import { useContainerData } from '../../lib/containers/hooks';
+import { rememberContainerTitle } from '../../lib/containers/titleCache';
+import { track } from '../../lib/telemetry';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import {
+  ATTEMPT_OPTIONS,
+  defaultMinutes,
+  defaultSettings,
+  MAX_ITEMS,
+  PASS_OPTIONS,
+  settingsProblems,
+  TIME_OPTIONS,
+  type SettingsProblem,
+} from '../../lib/quizzes/quizModel';
+import { useFrame } from '../../components/exams/useFrame';
+import PaperSelect, { type PaperSelectOption } from '../../components/ui/PaperSelect';
+import { errorText, GONE, nb } from '../../components/containers/copyImport';
+import { TO_EXAMS } from '../../components/containers/copy';
+import { QA_ERRORS, QA_LIST, QA_SETUP } from '../../components/quiz/copyAuthor';
+import {
+  changedSettings,
+  countChoices,
+  countFor,
+  isoFromLocal,
+  keyedBySubject,
+  localInput,
+  nextHour,
+  poolOf,
+  settingsOf,
+  weekOn,
+} from '../../components/quiz/setupModel';
+import { LOCKED_SETTINGS, type QuizGrading, type QuizReview, type QuizRow, type QuizSettings } from '../../types/quiz';
+import type { SummarySubject, Uuid } from '../../types/container';
+import '../../components/exams/exams.css';
+import '../../components/containers/import/import.css';
+import '../../components/quiz/quizAuthor.css';
+
+/**
+ * /exams/c/:id/quizzes/new and /exams/c/:id/quizzes/:quizId/edit — the settings of a «Контрольная» (spec 2026-10-16
+ * §2.1): what questions (the ticked subjects' keyed ones: the pool), how many, the set, the order, the timer; when it
+ * is open, the attempts, what counts, going back, the pass mark, what the participant sees after, who may write.
+ *
+ * A new quiz starts from defaultSettings (every subject with keyed questions, 20, about a minute a question, one
+ * attempt, open a week); the count and the timer follow the subjects until the author picks them. «Создать» →
+ * quiz_create → the stats page with the link. An edit sends only the keys it changed; once somebody has started, the
+ * locked ones (LOCKED_SETTINGS) are disabled with a line why. What the server would refuse is said as lines beside the
+ * button (settingsProblems).
+ */
+
+type Problem = SettingsProblem | 'when';
+type OpensMode = 'now' | 'at';
+type ClosesMode = 'at' | 'never';
+
+/** A subject only of oral questions has none for a quiz (its questions live in its own editor). */
+const oralOnly = (subject: SummarySubject) => subject.keyed + subject.no_key === 0 && Boolean(subject.oral);
+
+/** A value of a list that allows «нет»: PaperSelect takes numbers, so null is 0. */
+const nz = (value: number | null) => value ?? 0;
+const zn = (value: number) => (value === 0 ? null : value);
+
+function withCurrent(options: readonly (number | null)[], current: number | null): Array<number | null> {
+  return options.includes(current) ? [...options] : [...options, current].sort((a, b) => (a ?? Infinity) - (b ?? Infinity));
+}
+
+export default function QuizSetupPage() {
+  const params = useParams();
+  const containerId = (params.id ?? '') as Uuid;
+  const quizId = (params.quizId ?? null) as Uuid | null;
+  const editing = quizId !== null;
+  const navigate = useNavigate();
+  const frame = useFrame<HTMLDivElement>();
+  const formId = useId();
+  const data = useContainerData(containerId);
+  const summary = data.data?.summary ?? null;
+  const owner = summary?.role === 'owner';
+  const pageTitle = editing ? QA_SETUP.editTitle : QA_SETUP.newTitle;
+  useDocumentTitle(summary ? `${pageTitle} · ${summary.title}` : pageTitle);
+  useEffect(() => {
+    if (summary) rememberContainerTitle(summary.id, summary.title);
+  }, [summary]);
+
+  const listPath = `/exams/c/${containerId}/quizzes`;
+  const statsPath = quizId ? `${listPath}/${quizId}` : listPath;
+
+  // ── the pool: keyed questions of the exam's subjects (oral-only subjects have none) ──
+  const items = data.data?.items;
+  const counts = useMemo(() => keyedBySubject(items ? items.values() : []), [items]);
+  const subjects = useMemo(
+    () => (summary?.subjects ?? []).filter((subject) => !oralOnly(subject) || (counts.get(subject.id) ?? 0) > 0),
+    [summary, counts],
+  );
+  const subjectOrder = useMemo(() => new Map(subjects.map((subject, index) => [subject.id, index])), [subjects]);
+
+  // ── the quiz being edited ──
+  const [quiz, setQuiz] = useState<QuizRow | null>(null);
+  const [quizError, setQuizError] = useState<{ text: string; missing: boolean } | null>(null);
+  const loadQuiz = useCallback(() => {
+    if (!quizId) return;
+    setQuizError(null);
+    listQuizzes(containerId).then(
+      (rows) => {
+        const row = rows.find((entry) => entry.id === quizId) ?? null;
+        if (row) setQuiz(row);
+        else setQuizError({ text: QA_SETUP.notFound, missing: true });
+      },
+      (failure: unknown) => setQuizError({ text: errorText(failure, undefined, QA_SETUP.loadFailed), missing: false }),
+    );
+  }, [containerId, quizId]);
+  useEffect(() => {
+    if (editing && owner) loadQuiz();
+  }, [editing, owner, loadQuiz]);
+  const locked = Boolean(editing && quiz?.started);
+  const lockedKey = (key: keyof QuizSettings) => locked && (LOCKED_SETTINGS as readonly string[]).includes(key);
+
+  // ── the form ──
+  const [form, setForm] = useState<QuizSettings | null>(null);
+  const [original, setOriginal] = useState<QuizSettings | null>(null);
+  const [opensMode, setOpensMode] = useState<OpensMode>('now');
+  const [closesMode, setClosesMode] = useState<ClosesMode>('at');
+  // A new quiz's count and timer follow the subjects until the author picks them (an edit keeps what was saved).
+  const [touched, setTouched] = useState({ count: editing, time: editing });
+  useEffect(() => {
+    if (form || !owner || !data.data) return;
+    let start: QuizSettings | null = null;
+    if (editing) {
+      if (quiz) {
+        start = settingsOf(quiz);
+        setOriginal(start);
+      }
+    } else {
+      const ids = subjects.filter((subject) => (counts.get(subject.id) ?? 0) > 0).map((subject) => subject.id);
+      start = defaultSettings(ids, poolOf(ids, counts), new Date());
+    }
+    if (!start) return;
+    setForm(start);
+    setOpensMode(start.opens_at ? 'at' : 'now');
+    setClosesMode(start.closes_at ? 'at' : 'never');
+  }, [form, owner, data.data, editing, quiz, subjects, counts]);
+
+  const pool = form ? poolOf(form.subject_ids, counts) : 0;
+  const set = <K extends keyof QuizSettings>(key: K, value: QuizSettings[K]) => setForm((current) => (current ? { ...current, [key]: value } : current));
+
+  const toggleSubject = (subjectId: string) =>
+    setForm((current) => {
+      if (!current) return current;
+      const ids = current.subject_ids.includes(subjectId)
+        ? current.subject_ids.filter((id) => id !== subjectId)
+        : [...current.subject_ids, subjectId].sort((a, b) => (subjectOrder.get(a) ?? 0) - (subjectOrder.get(b) ?? 0));
+      const before = poolOf(current.subject_ids, counts);
+      const after = poolOf(ids, counts);
+      const count = touched.count ? countFor(current.item_count, before, after) : Math.max(1, Math.min(20, after, MAX_ITEMS));
+      const minutes = touched.time ? current.time_limit_min : defaultMinutes(count);
+      return { ...current, subject_ids: ids, item_count: count, time_limit_min: minutes };
+    });
+  const chooseCount = (count: number) => {
+    setTouched((current) => ({ ...current, count: true }));
+    setForm((current) => (current ? { ...current, item_count: count, time_limit_min: touched.time ? current.time_limit_min : defaultMinutes(count) } : current));
+  };
+  const chooseTime = (minutes: number | null) => {
+    setTouched((current) => ({ ...current, time: true }));
+    set('time_limit_min', minutes);
+  };
+  const chooseOpens = (mode: OpensMode) => {
+    setOpensMode(mode);
+    set('opens_at', mode === 'now' ? null : form?.opens_at ?? nextHour(new Date()));
+  };
+  const chooseCloses = (mode: ClosesMode) => {
+    setClosesMode(mode);
+    set('closes_at', mode === 'never' ? null : form?.closes_at ?? weekOn(new Date()));
+  };
+
+  let problems: Problem[] = form ? settingsProblems(form, pool) : [];
+  // After the first attempt the questions are fixed: the pool on this device has no say any more.
+  if (locked) problems = problems.filter((problem) => problem !== 'subjects' && problem !== 'count');
+  if (form && ((opensMode === 'at' && !form.opens_at) || (closesMode === 'at' && !form.closes_at))) problems.push('when');
+  const closesPast = Boolean(form && closesMode === 'at' && form.closes_at && Date.parse(form.closes_at) < Date.now());
+
+  // ── «Создать» / «Сохранить» ──
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const submit = async () => {
+    if (!form || saving || problems.length > 0) return;
+    const settings: QuizSettings = {
+      ...form,
+      title: form.title.trim(),
+      opens_at: opensMode === 'now' ? null : form.opens_at,
+      closes_at: closesMode === 'never' ? null : form.closes_at,
+    };
+    setSaving(true);
+    setSaveError(null);
+    try {
+      if (!editing) {
+        const row = await createQuiz(containerId, settings);
+        track('quiz.created', { items: settings.item_count, minutes: settings.time_limit_min ?? 0, attempts: settings.attempts ?? 0 });
+        navigate(`${listPath}/${row.id}`, { replace: true, state: { quizNote: 'created' } });
+        return;
+      }
+      if (!original || !quizId) return;
+      const patch = changedSettings(original, settings);
+      if (locked) for (const key of LOCKED_SETTINGS) delete patch[key];
+      const changed = Object.keys(patch).length > 0;
+      if (changed) await updateQuiz(quizId, patch);
+      navigate(statsPath, { replace: true, state: { quizNote: changed ? 'saved' : null } });
+    } catch (failure) {
+      setSaveError(errorText(failure, QA_ERRORS));
+      setSaving(false);
+    }
+  };
+
+  // ───────────────────────────── render ─────────────────────────────
+
+  const header = (
+    <header className="ex-head qa-head">
+      <div style={{ minWidth: 0 }}>
+        {summary ? (
+          <p className="ex-crumb">
+            <Link to={`/exams/c/${containerId}`}>{summary.title}</Link>
+            {' · '}
+            <Link to={listPath}>{QA_LIST.title}</Link>
+          </p>
+        ) : null}
+        <h1 className="ex-h1">{pageTitle}</h1>
+      </div>
+    </header>
+  );
+  const shell = (children: ReactNode) => (
+    <div className="sf-page qa-page" ref={frame.ref} data-frame={frame.size}>
+      {header}
+      {children}
+    </div>
+  );
+
+  if (!summary) {
+    if (data.loading) {
+      return shell(
+        <p className="qa-wait" role="status">
+          {QA_SETUP.loading}
+        </p>,
+      );
+    }
+    return shell(
+      data.gone ? (
+        <p className="ex-note">
+          {GONE.title}. {GONE.text}{' '}
+          <Link className="sf-link" to="/exams">
+            {TO_EXAMS}
+          </Link>
+        </p>
+      ) : (
+        <p className="ex-note" role="alert">
+          {data.error && /[а-яё]/i.test(data.error) ? data.error : QA_SETUP.loadFailed}{' '}
+          <button type="button" className="sf-link" onClick={data.reload}>
+            {QA_SETUP.retry}
+          </button>
+        </p>
+      ),
+    );
+  }
+  if (!owner) {
+    return shell(
+      <>
+        <p className="qa-lede">{QA_LIST.authorOnly}</p>
+        <p>
+          <Link className="sf-link" to={`/exams/c/${containerId}`}>
+            {QA_LIST.toExam}
+          </Link>
+        </p>
+      </>,
+    );
+  }
+  if (quizError) {
+    return shell(
+      <p className="ex-note" role="alert">
+        {quizError.text}{' '}
+        {quizError.missing ? (
+          <Link className="sf-link" to={listPath}>
+            {QA_SETUP.toList}
+          </Link>
+        ) : (
+          <button type="button" className="sf-link" onClick={loadQuiz}>
+            {QA_SETUP.retry}
+          </button>
+        )}
+      </p>,
+    );
+  }
+  if (!form) {
+    return shell(
+      <p className="qa-wait" role="status">
+        {QA_SETUP.loading}
+      </p>,
+    );
+  }
+
+  const anyPool = subjects.some((subject) => (counts.get(subject.id) ?? 0) > 0);
+  const timeOptions: PaperSelectOption<number>[] = withCurrent(TIME_OPTIONS, form.time_limit_min).map((value) => ({
+    value: nz(value),
+    label: value === null ? QA_SETUP.timeNone : QA_SETUP.timeOption(value),
+  }));
+  const countOptions: PaperSelectOption<number>[] = countChoices(pool, form.item_count).map((choice) => ({
+    value: choice.value,
+    label: choice.all ? QA_SETUP.countAll(choice.value) : QA_SETUP.countOption(choice.value),
+  }));
+  const attemptOptions: PaperSelectOption<number>[] = withCurrent(ATTEMPT_OPTIONS, form.attempts)
+    .sort((a, b) => (a ?? Infinity) - (b ?? Infinity))
+    .map((value) => ({ value: nz(value), label: value === null ? QA_SETUP.attemptsNone : QA_SETUP.attemptsOption(value) }));
+  const passOptions: PaperSelectOption<number>[] = withCurrent(PASS_OPTIONS, form.pass_percent)
+    .sort((a, b) => (a ?? -1) - (b ?? -1))
+    .map((value) => ({ value: nz(value), label: value === null ? QA_SETUP.passNone : QA_SETUP.passOption(value) }));
+  const reviews: QuizReview[] = ['score', 'mistakes', 'answers', 'mistakes_then_answers'];
+  const gradings: QuizGrading[] = ['best', 'last'];
+
+  const select = <T extends string | number>(p: {
+    label: string;
+    value: T;
+    options: ReadonlyArray<PaperSelectOption<T>>;
+    onChange: (value: T) => void;
+    disabled?: boolean;
+    hint?: string | null;
+    after?: ReactNode;
+  }) => (
+    <div className="im-field qa-field">
+      <span className="im-label">{p.label}</span>
+      <span className="qa-when">
+        <PaperSelect ariaLabel={p.label} value={p.value} options={p.options} onChange={p.onChange} disabled={p.disabled || saving} />
+        {p.after}
+      </span>
+      {p.hint ? (
+        <p className="im-hint" data-muted="">
+          {nb(p.hint)}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const questionsPart = (
+    <section className="qa-part" aria-labelledby={`${formId}-q`}>
+      <h2 id={`${formId}-q`} className="qa-part-h">
+        {QA_SETUP.partQuestions}
+      </h2>
+      <div className="im-field qa-field">
+        <label className="im-label" htmlFor={`${formId}-name`}>
+          {QA_SETUP.name}
+        </label>
+        <input
+          id={`${formId}-name`}
+          className="im-input"
+          value={form.title}
+          maxLength={120}
+          disabled={saving}
+          aria-invalid={problems.includes('title') ? true : undefined}
+          onChange={(event) => set('title', event.target.value)}
+        />
+      </div>
+      <fieldset className="qa-subjects" disabled={lockedKey('subject_ids') || saving}>
+        <legend className="im-label">{QA_SETUP.subjects}</legend>
+        {anyPool ? (
+          <ul className="qa-checks">
+            {subjects.map((subject) => {
+              const n = counts.get(subject.id) ?? 0;
+              return (
+                <li key={subject.id}>
+                  <label className="qa-check" data-off={n === 0 ? '' : undefined}>
+                    <input
+                      type="checkbox"
+                      checked={form.subject_ids.includes(subject.id)}
+                      disabled={n === 0 && !form.subject_ids.includes(subject.id)}
+                      onChange={() => toggleSubject(subject.id)}
+                    />
+                    <span className="qa-check-t">
+                      <span className="qa-check-title">{subject.title}</span>
+                      <span className="qa-check-meta">{nb(QA_SETUP.subjectMeta(n))}</span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="im-hint">
+            {QA_SETUP.noPool}{' '}
+            <Link className="sf-link" to={`/exams/c/${containerId}/keys`}>
+              {QA_SETUP.toKeys}
+            </Link>
+          </p>
+        )}
+        {anyPool ? (
+          <p className="im-hint" data-muted="">
+            {nb(QA_SETUP.pool(pool))}
+          </p>
+        ) : null}
+      </fieldset>
+      {select({ label: QA_SETUP.count, value: form.item_count, options: countOptions, onChange: chooseCount, disabled: lockedKey('item_count') || pool === 0 })}
+      {select({
+        label: QA_SETUP.set,
+        value: form.same_set ? 'same' : 'own',
+        options: [
+          { value: 'own', label: QA_SETUP.setOwn },
+          { value: 'same', label: QA_SETUP.setSame },
+        ],
+        onChange: (value) => set('same_set', value === 'same'),
+        disabled: lockedKey('same_set'),
+        hint: form.same_set ? null : QA_SETUP.setOwnHint,
+      })}
+      {select({
+        label: QA_SETUP.order,
+        value: form.shuffle_items ? 'shuffle' : 'file',
+        options: [
+          { value: 'shuffle', label: QA_SETUP.orderShuffle },
+          { value: 'file', label: QA_SETUP.orderFile },
+        ],
+        onChange: (value) => set('shuffle_items', value === 'shuffle'),
+        disabled: lockedKey('shuffle_items'),
+      })}
+      {select({
+        label: QA_SETUP.options,
+        value: form.shuffle_options ? 'shuffle' : 'file',
+        options: [
+          { value: 'shuffle', label: QA_SETUP.optionsShuffle },
+          { value: 'file', label: QA_SETUP.optionsFile },
+        ],
+        onChange: (value) => set('shuffle_options', value === 'shuffle'),
+        disabled: lockedKey('shuffle_options'),
+        hint: form.shuffle_options ? QA_SETUP.optionsHint : null,
+      })}
+      {select({ label: QA_SETUP.time, value: nz(form.time_limit_min), options: timeOptions, onChange: (value) => chooseTime(zn(value)), disabled: lockedKey('time_limit_min') })}
+    </section>
+  );
+
+  const whenPart = (
+    <section className="qa-part" aria-labelledby={`${formId}-w`}>
+      <h2 id={`${formId}-w`} className="qa-part-h">
+        {QA_SETUP.partWhen}
+      </h2>
+      {select({
+        label: QA_SETUP.opens,
+        value: opensMode,
+        options: [
+          { value: 'now', label: QA_SETUP.opensNow },
+          { value: 'at', label: QA_SETUP.opensAt },
+        ],
+        onChange: chooseOpens,
+        after:
+          opensMode === 'at' ? (
+            <input
+              type="datetime-local"
+              className="im-input im-date qa-date"
+              aria-label={QA_SETUP.opensField}
+              value={localInput(form.opens_at)}
+              disabled={saving}
+              onChange={(event) => set('opens_at', isoFromLocal(event.target.value))}
+            />
+          ) : null,
+      })}
+      {select({
+        label: QA_SETUP.closes,
+        value: closesMode,
+        options: [
+          { value: 'at', label: QA_SETUP.closesAt },
+          { value: 'never', label: QA_SETUP.closesNever },
+        ],
+        onChange: chooseCloses,
+        hint: closesPast ? QA_SETUP.closesPast : null,
+        after:
+          closesMode === 'at' ? (
+            <input
+              type="datetime-local"
+              className="im-input im-date qa-date"
+              aria-label={QA_SETUP.closesField}
+              value={localInput(form.closes_at)}
+              disabled={saving}
+              onChange={(event) => set('closes_at', isoFromLocal(event.target.value))}
+            />
+          ) : null,
+      })}
+      {select({ label: QA_SETUP.attempts, value: nz(form.attempts), options: attemptOptions, onChange: (value) => set('attempts', zn(value)) })}
+      {form.attempts !== 1
+        ? select({
+            label: QA_SETUP.grading,
+            value: form.grading,
+            options: gradings.map((value) => ({ value, label: QA_SETUP.gradingOption(value) })),
+            onChange: (value) => set('grading', value),
+          })
+        : null}
+      {select({
+        label: QA_SETUP.back,
+        value: form.allow_back ? 'yes' : 'no',
+        options: [
+          { value: 'yes', label: QA_SETUP.backYes },
+          { value: 'no', label: QA_SETUP.backNo },
+        ],
+        onChange: (value) => set('allow_back', value === 'yes'),
+      })}
+      {select({ label: QA_SETUP.pass, value: nz(form.pass_percent), options: passOptions, onChange: (value) => set('pass_percent', zn(value)) })}
+      {select({
+        label: QA_SETUP.review,
+        value: form.review,
+        options: reviews.map((value) => ({ value, label: QA_SETUP.reviewOption(value) })),
+        onChange: (value) => set('review', value),
+      })}
+      {select({
+        label: QA_SETUP.who,
+        value: form.members_only ? 'members' : 'all',
+        options: [
+          { value: 'all', label: QA_SETUP.whoAll },
+          { value: 'members', label: QA_SETUP.whoMembers },
+        ],
+        onChange: (value) => set('members_only', value === 'members'),
+        hint: QA_SETUP.whoHint,
+      })}
+    </section>
+  );
+
+  return (
+    <div className="sf-page qa-page" ref={frame.ref} data-frame={frame.size}>
+      {header}
+      {locked ? <p className="qa-locked">{QA_SETUP.locked}</p> : null}
+      <div className="qa-parts" data-side={frame.side ? '' : undefined}>
+        {questionsPart}
+        {whenPart}
+      </div>
+      <div className="ex-cta qa-cta" data-row={frame.side ? '' : undefined}>
+        {problems.length > 0 || saveError ? (
+          <div className="qa-cta-why" role={saveError ? 'alert' : 'status'}>
+            {saveError ? <p>{saveError}</p> : null}
+            {problems.map((problem) => (
+              <p key={problem}>{QA_SETUP.problems[problem]}</p>
+            ))}
+          </div>
+        ) : null}
+        <div className="qa-cta-acts">
+          <Link className="sf-link" data-muted="" to={statsPath}>
+            {QA_SETUP.cancel}
+          </Link>
+          <button type="button" className="sf-primary" disabled={saving || problems.length > 0} onClick={() => void submit()}>
+            {editing ? (saving ? QA_SETUP.saving : QA_SETUP.save) : saving ? QA_SETUP.creating : QA_SETUP.create}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
