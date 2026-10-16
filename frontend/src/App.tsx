@@ -62,6 +62,7 @@ const QuizSetupPage = lazy(() => import('./pages/quiz/QuizSetupPage'));
 const QuizStatsPage = lazy(() => import('./pages/quiz/QuizStatsPage'));
 const SettingsPage = lazy(() => import('./pages/container/SettingsPage'));
 const JoinContainerPage = lazy(() => import('./pages/container/JoinContainerPage'));
+const QuizTakePage = lazy(() => import('./pages/quiz/QuizTakePage'));
 // Meldy as a Telegram Mini App (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md): the bot opens /tg.
 const TelegramMiniApp = lazy(() => import('./pages/TelegramMiniApp'));
 const MiniAppImportNote = lazy(() => import('./components/telegram/MiniAppImportNote'));
@@ -232,6 +233,8 @@ export default function App() {
         <Route path="/join/:code" element={<JoinGroup />} />
         {/* The exam's group link: the preview opens without an account, sign-in comes back with ?next= (lib/returnTo). */}
         <Route path="/g/:code" element={<JoinContainerPage />} />
+        {/* «Контрольная» by its link: the preview opens without an account, sign-in comes back with ?next=. */}
+        <Route path="/k/:code" element={<QuizTakePage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

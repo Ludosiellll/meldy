@@ -178,7 +178,9 @@ export interface QuizAnswerInput {
   text?: string | null;
 }
 
-export interface QuizResultItem extends QuizAttemptItem {
+/** A question of the review (quiz_result carries no keep_order). */
+export interface QuizResultItem extends Omit<QuizAttemptItem, 'keep_order'> {
+  keep_order?: boolean;
   chosen: number[] | null;
   text: string | null;
   right: boolean;
