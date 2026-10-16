@@ -18,3 +18,4 @@ failed checks, never row data.
 - 2026-10-11 — apply: supabase/migrations/20261011100000_containers_not_found_null.sql; check: supabase/tests/containers_not_found.sql, supabase/tests/containers.sql
 - 2026-10-12 — apply: supabase/migrations/20261012100000_telegram_bot_monitor.sql; check: supabase/tests/telegram_bot.sql, supabase/tests/containers.sql
 - 2026-10-14 — apply: supabase/migrations/20261014120000_test_item_images.sql; check: supabase/tests/test_item_images.sql, supabase/tests/containers.sql
+- 2026-10-16 — apply: supabase/migrations/20261016120000_quizzes.sql; check: supabase/tests/quizzes.sql, supabase/tests/item_update_images.sql, supabase/tests/containers.sql
