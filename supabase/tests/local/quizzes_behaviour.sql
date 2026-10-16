@@ -1,4 +1,5 @@
 -- LOCAL ONLY; NEVER RUN AGAINST THE LIVE PROJECT. Behaviour of supabase/migrations/20261016120000_quizzes.sql
+-- (+ 20261016140000_quiz_result_order.sql)
 -- («Контрольная») on the scratch database of quizzes_run.sh. One transaction, rolled back. A = author aaaa…1,
 -- B = bbbb…2 (becomes a member of exam K1 half way), C = stranger cccc…3 (the participant), D = dddd…4 (3000 filler
 -- attempts), E = eeee…5 (no attempt anywhere).
@@ -455,8 +456,13 @@ declare r jsonb; r2 jsonb; it jsonb;
 begin
   r := public.quiz_finish(pg_temp.c('att1')::uuid);
   if pg_temp.keys(r) is distinct from 'answers_after,attempt_id,attempts_left,can_retry,code,correct,finish_reason,finished_at,items,n,'
-       'pass_percent,passed,percent,quiz_title,review_now,started_at,total' then
+       'pass_percent,passed,percent,quiz_title,review_now,shuffle_options,started_at,total' then
     raise exception 'FAILED: Result keys %', pg_temp.keys(r);
+  end if;
+  -- 20261016140000_quiz_result_order: the review orders the options as the attempt did (shuffle_options + keep_order)
+  if not (r ->> 'shuffle_options')::boolean
+     or exists (select 1 from jsonb_array_elements(r -> 'items') x where jsonb_typeof(x -> 'keep_order') is distinct from 'boolean') then
+    raise exception 'FAILED: the review cannot order the options %', r;
   end if;
   if r ->> 'attempt_id' is distinct from pg_temp.c('att1') or (r ->> 'n')::int is distinct from 1
      or r ->> 'quiz_title' is distinct from 'Контрольная 1 (правка)' or r ->> 'code' is distinct from pg_temp.c('code1')
@@ -468,7 +474,7 @@ begin
     raise exception 'FAILED: finish %', r;
   end if;
   if exists (select 1 from jsonb_array_elements(r -> 'items') x
-              where pg_temp.keys(x) is distinct from 'chosen,code,forms,id,images,key,kind,options,right,stem,text'
+              where pg_temp.keys(x) is distinct from 'chosen,code,forms,id,images,keep_order,key,kind,options,right,stem,text'
                  or x -> 'key' is distinct from 'null'::jsonb or x -> 'forms' is distinct from 'null'::jsonb)
      or position('Париж' in r::text) > 0 then
     raise exception 'FAILED: a key in «mistakes» %', r -> 'items';

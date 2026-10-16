@@ -15,6 +15,9 @@ WORK=${QUIZ_WORK:-${TMPDIR:-/tmp}/meldy-quizzes}
 PG_BIN=${PG_BIN:-/usr/lib/postgresql/16/bin}
 MIG=$SB/migrations/20261016120000_quizzes.sql
 DOWN=$SB/rollback/20261016120000_quizzes_down.sql
+# release 46.1: the review orders the options as the attempt did (quiz_result_json gives shuffle_options, keep_order)
+MIG2=$SB/migrations/20261016140000_quiz_result_order.sql
+DOWN2=$SB/rollback/20261016140000_quiz_result_order_down.sql
 export PGHOST=127.0.0.1 PGPORT=$PORT PGUSER=postgres
 PSQL=(psql -X -q -At -v ON_ERROR_STOP=1)
 FAILS=0
@@ -91,10 +94,18 @@ fingerprint() {
        where schemaname = 'storage' and policyname = 'Test item images: quiz takers read')))"
 }
 step "migration, first apply" "$MIG"
+step "follow-up quiz_result_order, first apply" "$MIG2"
 AFTER=$(fingerprint)
 step "migration, second apply (re-runnable)" "$MIG"
+step "follow-up quiz_result_order, second apply" "$MIG2"
 [ "$(fingerprint)" = "$AFTER" ] && ok "a second apply changes nothing in the catalog" || bad "a second apply changed the catalog"
 step "contract: quizzes.sql" "$SB/tests/quizzes.sql"
+step "contract: quiz_result_order.sql" "$SB/tests/quiz_result_order.sql"
+# the follow-up's own rollback: back to the release-46 body (the contract bites), then forward again (same catalog)
+step "follow-up rollback" "$DOWN2"
+if run "$SB/tests/quiz_result_order.sql"; then bad "quiz_result_order.sql passes after its rollback (it tests nothing)"; else ok "quiz_result_order.sql fails after its rollback"; fi
+step "follow-up again" "$MIG2"
+[ "$(fingerprint)" = "$AFTER" ] && ok "follow-up after its rollback: the same catalog" || bad "follow-up after its rollback: another catalog"
 out=$(behaviour)
 if echo "$out" | grep -q 'QUIZ CHECKS PASSED'; then ok "behaviour: create, preview, start, answer, finish, review, limits, results, key change, storage"
 else bad "behaviour"; echo "$out" | grep -v NOTICE | tail -6 | sed 's/^/    /'; fi
@@ -159,8 +170,10 @@ GONE=$(q "select (select count(*) from pg_class where relnamespace = 'public'::r
 out=$("${PSQL[@]}" -d quizzes -f "$SB/tests/containers.sql" 2>&1)
 if [ $? = 0 ] && ! echo "$out" | grep -q '"contract_ok" *: *false'; then ok "contract: containers.sql after the rollback"; else bad "containers after the rollback"; fi
 step "migration after the rollback" "$MIG"
+step "follow-up after the rollback" "$MIG2"
 [ "$(fingerprint)" = "$AFTER" ] && ok "the same catalog as the first apply" || bad "another catalog than the first apply"
 step "contract again" "$SB/tests/quizzes.sql"
+step "contract again: quiz_result_order.sql" "$SB/tests/quiz_result_order.sql"
 out=$(behaviour)
 if echo "$out" | grep -q 'QUIZ CHECKS PASSED'; then ok "behaviour again"; else bad "behaviour again"; echo "$out" | grep -v NOTICE | tail -6 | sed 's/^/    /'; fi
 echo "failures: $FAILS"
