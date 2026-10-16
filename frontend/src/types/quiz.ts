@@ -118,7 +118,8 @@ export interface AttemptAnswer {
 }
 
 export interface QuizPreviewMe {
-  name_hint: string;
+  /** The profile's name, when it has one. */
+  name_hint: string | null;
   is_author: boolean;
   is_member: boolean;
   attempts_used: number;
