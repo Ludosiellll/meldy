@@ -172,8 +172,8 @@ export const SAVE_FAILED = 'Не сохранилось. Проверьте св
 export const MENU_LABEL_EXAM = 'Ещё: экзамен';
 export const MENU_LABEL_SUBJECT = 'Ещё: предмет';
 export const MENU_INVITE = 'Пригласить группу';
-export const MENU_KEYS = 'Ключи';
-export const menuKeysWaiting = (n: number) => glue(`Ключи · ${n} ждут`);
+export const MENU_KEYS = 'Вопросы и ключи';
+export const menuKeysWaiting = (n: number) => glue(`Вопросы и ключи · ${n} ждут`);
 export const MENU_MINUTES = 'Время в день';
 export const MENU_ADD_SUBJECT = 'Добавить предмет';
 export const MENU_SETTINGS = 'Настройки';
@@ -306,12 +306,12 @@ export const keyChanged = (group: boolean) =>
 export const KEY_SAME = 'Это и есть ключ из файла.';
 export const doubtTitle = (no: string) => glue(`Сомневаюсь в ключе · № ${no}`);
 export const DOUBT_MEMBER_TEXT = 'Автор увидит число отметок и комментарии, но не имена.';
-export const DOUBT_OWN_TEXT = 'Вопрос отложится: в занятия он не придёт, пока вы не решите в «Ключах».';
+export const DOUBT_OWN_TEXT = 'Вопрос отложится: в занятия он не придёт, пока вы не решите в «Вопросах и ключах».';
 export const DOUBT_NOTE_LABEL = 'Комментарий';
 export const DOUBT_PLACEHOLDER = 'Например: в лекции сказано иначе';
 export const DOUBT_SEND = 'Отметить';
 export const DOUBT_DONE_MEMBER = 'Отложено. Когда автор ответит, вопрос вернётся в занятия.';
-export const DOUBT_DONE_OWN = 'Отложено: вопрос не придёт в занятия, пока вы не решите. Он в «Ключах».';
+export const DOUBT_DONE_OWN = 'Отложено: вопрос не придёт в занятия, пока вы не решите. Он в «Вопросах и ключах».';
 
 // The oral turn: a free self-check (decisions 19, 51; Concept 1 §3.8 with the critique's lines).
 export const oralNumber = (label: string) => `Вопрос ${label}`;

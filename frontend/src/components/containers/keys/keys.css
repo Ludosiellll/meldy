@@ -206,3 +206,111 @@
 @media (prefers-reduced-motion: reduce) {
   .kq-option { transition: none; }
 }
+
+/*
+ * The question editor (QuestionEditor.tsx): the same white card; fields on the soft surface, the options as rows of
+ * one block with a tick and the letter on the left, «верный» in words beside the green edge (decision 54).
+ */
+.qe { display: grid; gap: 0; }
+.qe-kind { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; border: 0; }
+.qe-kind-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  cursor: pointer;
+}
+.qe-kind-option:has(input:checked) { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
+.qe-kind-option input { position: absolute; opacity: 0; pointer-events: none; }
+.qe-kind-option:has(input:focus-visible) { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.qe-label { margin: 16px 0 8px; font-size: 15px; font-weight: 500; color: var(--sf-ink); }
+.qe-text {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 400 16px/1.45 var(--ph-sans);
+  resize: vertical;
+}
+.qe-text:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 1px; }
+.qe-text[data-code] { font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace; font-size: 14px; }
+.qe-stem { font-size: 17px; font-weight: 500; }
+.qe-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-top: 10px; }
+.qe-check { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; color: var(--sf-muted); cursor: pointer; }
+.qe-check input { width: 18px; height: 18px; accent-color: var(--sf-accent); }
+.qe-pics { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 0; padding: 0; list-style: none; }
+.qe-pic { position: relative; max-width: min(100%, 280px); }
+.qe-pic .ct-pics { margin: 0; }
+.qe-pic-off {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  cursor: pointer;
+}
+.qe-pic-off svg { width: 14px; height: 14px; }
+.qe-pic-off:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.qe-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  overflow: hidden;
+}
+.qe-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 14px 10px 10px;
+}
+.qe-option + .qe-option { border-top: 1px solid var(--sf-line); }
+.qe-option[data-key] { background: var(--m-green-soft); }
+.qe-option[data-key]::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--m-green); }
+.qe-right { display: grid; justify-items: center; align-content: start; gap: 4px; padding-top: 10px; cursor: pointer; }
+.qe-right input { width: 20px; height: 20px; margin: 0; accent-color: var(--m-green); }
+.qe-letter { font-weight: 600; color: var(--sf-muted); }
+.qe-option[data-key] .qe-letter { color: var(--m-green-ink); }
+.qe-option-body { min-width: 0; }
+.qe-option .qe-text { background: var(--sf-surface); }
+.qe-option-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; margin: 6px 0 0; font-size: 14px; }
+.qe-right-word { font-weight: 600; color: var(--m-green-ink); }
+.qe-hint { margin: 12px 0 0; font-size: 14px; color: var(--sf-muted); }
+.qe-notes:empty { display: none; }
+.qe-problem { color: var(--sf-ink); }
+.qe-warn { padding-left: 17px; position: relative; }
+.qe-warn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc((1.45em - 9px) / 2);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.qe-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 18px; }
+.qe-same { font-size: 14px; color: var(--sf-muted); }
+
+@media (max-width: 639px) {
+  .qe-option { grid-template-columns: 34px minmax(0, 1fr); padding: 10px 10px 8px 6px; gap: 8px; }
+  .qe-actions .sf-primary { flex: 1 1 auto; justify-content: center; }
+}
