@@ -4,6 +4,29 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-18 — Release 47: tests without sign-in, «Новый тест», explanations, the test's look, «Перенести экзамен» (from the commit of this entry)
+
+- **The owner, 18.10:** «давай добавим все и обойдем даже то, в чем они сильнее»; «все новые функции должны быть на
+  огромном уровне». Spec: meldy-notes `10_Project/Test_Builder_Spec_2026-10-18.md` (§47.1–47.5).
+- **A test by link without an account.** A guest types a name and writes; the attempt lives under a random token in this
+  browser (the server keeps its sha256). Answers, the timer, the review and the pictures (Edge Function `quiz-media`) work
+  as for a signed-in taker. On a shared computer the page asks «Это я / Это не я» before moving a guest attempt into an
+  account, and «Я другой человек» starts fresh.
+- **«Новый тест» and the constructor** (`/tests/new`, `/exams/c/:id/build`): questions from scratch, the editor under the
+  list with «Сохранить и следующий», compact options (Enter for the next one), a live line about how many answers are
+  right, a guard for unsaved edits; explanations for every question (shown with the right answer).
+- **The test's page:** a cover and one of six colours; the start screen fits a laptop and a phone with «Начать» in view;
+  «осталось 19:58» with 5- and 1-minute warnings; the result marks a right answer you missed; the pass mark as a bar.
+  The author's setup from the constructor is short («Ещё настройки» folds the rest), the title is the test's name, the
+  link has «Показать QR», «Поделиться», «Открыть как ученик».
+- **«Тренировать эти вопросы»** after a test — only once no test of the exam is open (training shows every answer).
+- **«Перенести экзамен»** on the exam page, a subject's page and «Сегодня» (a passed exam stays there for 14 days with
+  «Перенести»); a member's own date in settings; «Экзамены в плане» in the profile with a switch per exam. The bot's
+  part went live on 18.10 (migration `20261018120000_exam_move_bot_exams`, function `telegram`).
+- **Security (before this release):** `20261018130000_quiz_guards` and `20261018140000_quiz_practice_grace` — training
+  waits for the closing (+20 s), the address throttle under a secret HMAC; the `/sb/` proxy keys anonymous callers by the
+  visitor and forwards only the visitor's address. CSV cells starting with = + - @ get an apostrophe.
+
 ## 2026-10-16 — Release 46.1: the review in the attempt's order; the author's page says what it means (from the commit of this entry)
 
 - **From the release 46 live check (account B as author and participant).** The review listed a question's options in the
