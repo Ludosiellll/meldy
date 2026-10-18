@@ -12,6 +12,7 @@ DO $check$
 DECLARE
   v_t text;
   v_sig text;
+  v_preview text;
   v_fn regprocedure;
   v_rel regclass;
 BEGIN
@@ -62,9 +63,12 @@ BEGIN
     RAISE EXCEPTION 'foreign_keys_indexed';
   END IF;
 
+  -- release 47 (20261018100000_test_builder) replaced quiz_preview(text) by quiz_preview(text, text default null)
+  v_preview := CASE WHEN pg_catalog.to_regprocedure('public.quiz_preview(text,text)') IS NOT NULL
+                    THEN 'quiz_preview(text,text)' ELSE 'quiz_preview(text)' END;
   FOREACH v_sig IN ARRAY ARRAY['quiz_create(uuid,jsonb)', 'quiz_update(uuid,jsonb)', 'quiz_close(uuid)', 'quiz_delete(uuid)',
       'quiz_list(uuid)', 'quiz_results(uuid)', 'quiz_marks(uuid)', 'quiz_attempt_answers(uuid)', 'quiz_attempt_reset(uuid)',
-      'quiz_preview(text)', 'quiz_start(text,text)', 'quiz_answer(uuid,jsonb)', 'quiz_finish(uuid)', 'quiz_result(uuid)',
+      v_preview, 'quiz_start(text,text)', 'quiz_answer(uuid,jsonb)', 'quiz_finish(uuid)', 'quiz_result(uuid)',
       'my_quiz_container_ids()'] LOOP
     v_fn := pg_catalog.to_regprocedure('public.' || v_sig);
     IF v_fn IS NULL THEN
@@ -77,7 +81,7 @@ BEGIN
     IF NOT pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE') THEN
       RAISE EXCEPTION 'authenticated_runs_%', v_sig;
     END IF;
-    IF pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE') <> (v_sig = 'quiz_preview(text)') THEN
+    IF pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE') <> (v_sig = v_preview) THEN
       RAISE EXCEPTION 'anon_runs_only_the_preview_%', v_sig;
     END IF;
   END LOOP;

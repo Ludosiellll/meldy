@@ -130,16 +130,11 @@ step "migration, second apply (re-runnable)" "$MIG"
 [ "$(fingerprint)" = "$F47" ] && ok "a second apply changes nothing in the catalog" || bad "a second apply changed the catalog"
 
 step "contract: test_builder.sql" "$SB/tests/test_builder.sql"
+step "contract: quizzes.sql holds with the new preview signature" "$SB/tests/quizzes.sql"
 step "contract: quiz_result_order.sql still holds" "$SB/tests/quiz_result_order.sql"
 step "contract: item_update_images.sql still holds" "$SB/tests/item_update_images.sql"
 step "contract: test_item_images.sql still holds" "$SB/tests/test_item_images.sql"
 if containers_contract; then ok "contract: containers.sql still holds"; else bad "contract: containers.sql"; fi
-"${PSQL[@]}" -d builder -f "$SB/tests/quizzes.sql" > "$WORK/quizzes_contract.log" 2>&1
-if grep -q 'ERROR:  function_quiz_preview(text)' "$WORK/quizzes_contract.log"; then
-  ok "contract: quizzes.sql stops only at the replaced quiz_preview(text) (use test_builder.sql after 47)"
-else
-  bad "contract: quizzes.sql after 47"; grep -v NOTICE "$WORK/quizzes_contract.log" | head -4
-fi
 
 behave "behaviour: explanations, reorder, settings, guests, throttle, claim, practice, results, pictures, covers" \
   "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
