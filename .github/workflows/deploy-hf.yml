@@ -51,7 +51,7 @@ jobs:
       - name: Bot tests and its copy of the plan
         run: |
           set -euo pipefail
-          node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts
+          node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts supabase/functions/_shared/quizMedia.test.ts
           node scripts/sync_bot_plan.mjs --check
 
       # The image builds the frontend with node:20 from frontend/ and contracts/ only (Dockerfile):
