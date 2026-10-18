@@ -11,6 +11,12 @@
  * Ответ 401 с кодом PGRST303 («JWT issued at future»): PostgREST отказал раньше, чем выполнил запрос, потому что
  * время выдачи токена у него ещё впереди — часы сервера входа ушли на секунду вперёд (живая проверка 07.10:
  * «Сегодня» не загрузился сразу после входа). Такой запрос повторяется через 1 и 2 с, запись тоже: она не выполнялась.
+ *
+ * Запрос, оборванный уходом со страницы (после `pagehide`: перезагрузка, переход на другой адрес, закрытие вкладки),
+ * не отвечает ошибкой: слушать её уже некому, а клиент входа supabase-js (auth-js `_handleRequest`) пишет каждую
+ * сетевую ошибку в console.error — живая проверка 47.2 видела «TypeError: Failed to fetch» от `auth/v1/user`, когда
+ * страница уходила (чанк сборки с клиентом Supabase называется groupLinks-…js). Если страница вернётся из кэша
+ * «назад/вперёд» (`pageshow`), ошибка придёт как была. Ошибки, пока страница на месте, — как всегда.
  */
 
 export type SupabaseRoute = 'direct' | 'proxy';
@@ -36,6 +42,8 @@ export interface SupabaseFetchOptions {
   origin?: () => string;
   /** Пауза перед повтором (тесты подменяют). */
   wait?: (ms: number) => Promise<void>;
+  /** Где слышны `pagehide` и `pageshow` (по умолчанию — window; тесты дают свой). */
+  page?: Pick<EventTarget, 'addEventListener'> | null;
 }
 
 function storedRoute(now: number): SupabaseRoute | null {
@@ -149,7 +157,28 @@ export function createSupabaseFetch(options: SupabaseFetchOptions): FetchLike {
 
   const wait = options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
-  async function send(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  // Страница уходит: от `pagehide` до `pageshow` (возврат из кэша «назад/вперёд»).
+  let leaving = false;
+  const held = new Set<() => void>();
+  const page = options.page !== undefined ? options.page : typeof window !== 'undefined' ? window : null;
+  page?.addEventListener('pagehide', () => {
+    leaving = true;
+  });
+  page?.addEventListener('pageshow', () => {
+    leaving = false;
+    const waiting = [...held];
+    held.clear();
+    for (const release of waiting) release();
+  });
+
+  /** Оборванный уходом запрос молчит; вернулась страница — ошибка приходит как была. */
+  function heldFailure(error: unknown): Promise<never> {
+    return new Promise<never>((_, reject) => {
+      held.add(() => reject(error));
+    });
+  }
+
+  async function sendNow(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     let response = await routed(input, init);
     for (const pause of FUTURE_TOKEN_RETRY_MS) {
       if (init?.signal?.aborted || !(await futureToken(response))) return response;
@@ -157,6 +186,15 @@ export function createSupabaseFetch(options: SupabaseFetchOptions): FetchLike {
       response = await routed(input, init);
     }
     return response;
+  }
+
+  async function send(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    try {
+      return await sendNow(input, init);
+    } catch (error) {
+      if (leaving) return heldFailure(error);
+      throw error;
+    }
   }
 
   return send;
