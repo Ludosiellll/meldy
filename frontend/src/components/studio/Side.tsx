@@ -34,11 +34,11 @@ export interface SideProps {
   tabs?: boolean;
 }
 
-const PANELS: Panel[] = ['block', 'design', 'result', 'check'];
+/** «Проверка» has its own button in the top bar (with the number of things to look at). */
+const PANELS: Panel[] = ['block', 'design', 'result'];
 
 export default function Side(props: SideProps) {
   const { studio, api, panel, onPanel, hints, tabs = true } = props;
-  const fixes = hints.filter((hint) => hint.level === 'fix').length;
   return (
     <div className="st-side-in">
       {tabs ? (
@@ -55,16 +55,17 @@ export default function Side(props: SideProps) {
               onClick={() => onPanel(name)}
             >
               {STUDIO.panels[name]}
-              {name === 'check' && hints.length > 0 ? (
-                <span className="st-tab-n" data-fix={fixes > 0 ? '' : undefined}>
-                  {hints.length}
-                </span>
-              ) : null}
             </button>
           ))}
         </div>
       ) : null}
-      <div className="st-panel" id="st-tabpanel" role="tabpanel" aria-labelledby={`st-tab-${panel}`}>
+      <div
+        className="st-panel"
+        id="st-tabpanel"
+        role={panel === 'check' ? 'region' : 'tabpanel'}
+        aria-labelledby={panel === 'check' ? undefined : `st-tab-${panel}`}
+        aria-label={panel === 'check' ? STUDIO.check : undefined}
+      >
         {panel === 'block' ? (
           <BlockPanel
             studio={studio}

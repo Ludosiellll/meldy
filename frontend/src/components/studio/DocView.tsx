@@ -384,14 +384,16 @@ function ResultScreen({ doc, result, imageUrl, onRestart }: { doc: TestDoc; resu
         <span style={{ width: `${Math.max(0, Math.min(100, result.percent))}%` }} />
       </div>
       {band ? (
-        <div className="dv-band">
+        <div className="dv-band" data-pic={band.image ? '' : undefined}>
+          <div className="dv-band-words">
+            <h2 className="dv-band-title">{band.title}</h2>
+            {band.text.trim() ? (
+              <div className="dv-band-text">
+                <Rich text={band.text} />
+              </div>
+            ) : null}
+          </div>
           {band.image ? <Picture path={band.image} alt="" className="dv-band-pic" imageUrl={imageUrl} /> : null}
-          <h2 className="dv-band-title">{band.title}</h2>
-          {band.text.trim() ? (
-            <div className="dv-band-text">
-              <Rich text={band.text} />
-            </div>
-          ) : null}
         </div>
       ) : null}
       {cta ? (

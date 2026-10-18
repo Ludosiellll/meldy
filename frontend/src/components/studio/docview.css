@@ -415,7 +415,9 @@ button.dv-opt:hover { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--qt-
 .dv-meter { height: 8px; margin: 20px 0 0; overflow: hidden; border-radius: 8px; background: var(--doc-surface-soft); box-shadow: inset 0 0 0 1px var(--doc-line); }
 .dv-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--qt-bar); }
 .dv-band { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--doc-line); }
-.dv-band-pic { display: block; aspect-ratio: 5 / 2; margin: 0 0 20px; overflow: hidden; border-radius: var(--doc-radius-field); background: var(--doc-surface-soft); }
+/* The message and its picture side by side on a wide page, the picture under the words on a narrow one. */
+.dv-band[data-pic] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr); align-items: start; gap: 24px; }
+.dv-band-pic { display: block; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--doc-radius-field); background: var(--doc-surface-soft); }
 .dv-band-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .dv-band-title { margin: 0; font-size: calc(clamp(22px, 4cqi, 28px) * var(--dv-scale)); line-height: 1.15; font-weight: 600; letter-spacing: var(--dv-track-h); overflow-wrap: anywhere; }
 .dv-band-text { margin-top: 10px; font-size: 17px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
@@ -439,6 +441,8 @@ button.dv-opt:hover { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--qt-
   .dv-figure[data-width='full'] .dv-pic { border-radius: 0; }
   .dv-nav .dv-btn { flex: 1 1 auto; min-width: 0; }
   .dv-result { padding: 26px 22px; }
+  .dv-band[data-pic] { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .dv-band-pic { aspect-ratio: 5 / 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {

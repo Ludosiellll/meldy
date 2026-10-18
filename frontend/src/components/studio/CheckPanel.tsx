@@ -46,7 +46,7 @@ export default function CheckPanel({ studio, hints, onShow }: { studio: Studio; 
                   <p className="st-check-text">{hint.message}</p>
                   <p className="st-check-acts">
                     {hint.fix ? (
-                      <button type="button" className="st-pill st-pill-small" disabled={working !== null} aria-busy={working === hint.id || undefined} onClick={() => void fix(hint)}>
+                      <button type="button" className="st-pill st-pill-dark st-pill-small" disabled={working !== null} aria-busy={working === hint.id || undefined} onClick={() => void fix(hint)}>
                         {STUDIO.checkFix}
                       </button>
                     ) : null}

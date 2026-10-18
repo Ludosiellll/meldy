@@ -13,10 +13,11 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
+  type KeyboardCoordinateGetter,
   type Modifier,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { isDraftQuestion } from '../../lib/studio/checker';
 import { insertBlock, newBlock, removeBlock } from '../../lib/studio/doc';
 import { typingKey } from '../../lib/studio/history';
@@ -30,6 +31,7 @@ import Palette, { EntryIcon, entryLabel, paletteEntry, type PaletteEntry } from 
 import Sheet from './Sheet';
 import { targetKey, uploadDocPicture, uploadPreset, type PictureTarget } from './pictures';
 import type { PresetId } from './presets';
+import { reducedMotion } from './useDark';
 import type { Studio } from './useStudio';
 
 /**
@@ -417,10 +419,34 @@ export default function Workspace({
 
   // ─────────────────────────── dragging ───────────────────────────
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  /**
+   * The keyboard's drag goes block by block (↑ ↓), then past the last one: the place it is over is kept here and the
+   * collision takes it as it is — the page's blocks are of any height, so a guess by distance would skip or stick.
+   */
+  const keyTarget = useRef<UniqueIdentifier | null>(null);
+  const idsRef = useRef(ids);
+  idsRef.current = ids;
+  const keyboardCoordinates: KeyboardCoordinateGetter = useCallback((event, { context, currentCoordinates }) => {
+    if (event.code !== 'ArrowDown' && event.code !== 'ArrowUp') return undefined;
+    event.preventDefault();
+    const order: UniqueIdentifier[] = [...idsRef.current, END];
+    const from = order.indexOf(keyTarget.current ?? context.active?.id ?? '');
+    const at = Math.max(0, Math.min(order.length - 1, (from < 0 ? 0 : from) + (event.code === 'ArrowDown' ? 1 : -1)));
+    keyTarget.current = order[at];
+    const rect = context.droppableRects.get(order[at]);
+    return rect ? { x: rect.left, y: rect.top } : currentCoordinates;
+  }, []);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates, scrollBehavior: reducedMotion() ? 'auto' : 'smooth' }),
+  );
 
   const collision: CollisionDetection = useCallback((args) => {
     const pointer = args.pointerCoordinates;
+    if (!pointer && keyTarget.current !== null) {
+      const container = args.droppableContainers.find((entry) => entry.id === keyTarget.current);
+      if (container) return [{ id: container.id, data: { droppableContainer: container, value: 0 } }];
+    }
     const rect = canvasRect.current;
     if (pointer && rect && (pointer.x < rect.left || pointer.x > rect.right || pointer.y < rect.top || pointer.y > rect.bottom)) return [];
     return closestCenter(args);
@@ -456,22 +482,29 @@ export default function Workspace({
     return block ? blockName(block, numbers) : '';
   };
 
+  /** The place (from 1) and the number of places a dragged thing is over: a block takes the place of the one it is over. */
+  const placeOf = (active: UniqueIdentifier, over: UniqueIdentifier): [number, number] => {
+    const fresh = paletteEntry(active) !== null;
+    const count = doc.blocks.length + (fresh ? 1 : 0);
+    const at = over === END ? count - 1 : ids.indexOf(String(over));
+    return [at + 1, count];
+  };
   const announcements: Announcements = {
     onDragStart: ({ active }) => STUDIO.dnd.start(nameOf(active.id)),
-    onDragOver: ({ over }) => {
+    onDragOver: ({ active, over }) => {
       if (!over) return STUDIO.dnd.outside;
-      const at = over.id === END ? doc.blocks.length : ids.indexOf(String(over.id));
-      return STUDIO.dnd.over(at + 1, doc.blocks.length + (over.id === END ? 1 : 0));
+      const [place, count] = placeOf(active.id, over.id);
+      return STUDIO.dnd.over(place, count);
     },
     onDragEnd: ({ active, over }) => {
       if (!over) return STUDIO.dnd.cancel(nameOf(active.id));
-      const at = over.id === END ? doc.blocks.length : ids.indexOf(String(over.id));
-      return STUDIO.dnd.end(nameOf(active.id), at + 1);
+      return STUDIO.dnd.end(nameOf(active.id), placeOf(active.id, over.id)[0]);
     },
     onDragCancel: ({ active }) => STUDIO.dnd.cancel(nameOf(active.id)),
   };
 
   const onDragStart = (event: DragStartEvent) => {
+    keyTarget.current = null;
     canvasRect.current = scrollRef.current?.getBoundingClientRect() ?? null;
     setDragId(event.active.id);
     setSlot(null);
@@ -484,6 +517,7 @@ export default function Workspace({
   };
   const onDragEnd = (event: DragEndEvent) => {
     const at = slotOf(event);
+    keyTarget.current = null;
     const id = event.active.id;
     setDragId(null);
     setSlot(null);
@@ -501,6 +535,12 @@ export default function Workspace({
   };
 
   const shownSlot = dragId !== null && !still(dragId, slot) ? slot : null;
+
+  // A keyboard drag keeps the line where the block will land in sight.
+  useEffect(() => {
+    if (shownSlot === null || keyTarget.current === null) return;
+    scrollRef.current?.querySelector<HTMLElement>('.st-gap[data-drop]')?.scrollIntoView?.({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }, [shownSlot]);
 
   // ─────────────────────────── the page ───────────────────────────
 
@@ -590,10 +630,13 @@ export default function Workspace({
       onDragOver={onDragMove}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
+        keyTarget.current = null;
         setDragId(null);
         setSlot(null);
       }}
       accessibility={{ announcements, screenReaderInstructions: { draggable: STUDIO.dnd.instructions } }}
+      // Only the page scrolls while something is dragged over it (not the palette, not the window).
+      autoScroll={{ threshold: { x: 0, y: 0.12 }, canScroll: (element) => element === scrollRef.current || (phone && element === document.scrollingElement) }}
     >
       <div className="st-work" data-phone={phone ? '' : undefined}>
         {phone ? null : (
@@ -635,7 +678,7 @@ export default function Workspace({
         </Sheet>
       ) : null}
       {phone && sideOpen ? (
-        <Sheet title={STUDIO.panels[panel]} onClose={() => onSideOpen(false)} className="st-side">
+        <Sheet title={STUDIO.panelsLabel} onClose={() => onSideOpen(false)} className="st-side">
           {side(sideApi)}
         </Sheet>
       ) : null}

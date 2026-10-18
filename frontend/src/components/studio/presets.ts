@@ -123,15 +123,15 @@ export function presetSvg(id: PresetId, width: number, height: number): string {
         height,
         `<defs><filter id="w" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${0.9 / unit} ${0.035 / unit}" numOctaves="2" seed="3" result="a"/>` +
           `<feTurbulence type="fractalNoise" baseFrequency="${0.035 / unit} ${0.9 / unit}" numOctaves="2" seed="5" result="b"/><feBlend in="a" in2="b" mode="multiply"/>` +
-          `<feColorMatrix type="matrix" values="0 0 0 0 0.36  0 0 0 0 0.31  0 0 0 0 0.24  0.9 0 0 0 -0.12"/></filter>${grain('g', 0.7 / unit, [0.3, 0.26, 0.2], 0.12)}</defs>` +
-          `<rect width="100%" height="100%" fill="#e8e1d3"/><rect width="100%" height="100%" filter="url(#w)"/><rect width="100%" height="100%" filter="url(#g)"/>`,
+          `<feColorMatrix type="matrix" values="0 0 0 0 0.33  0 0 0 0 0.28  0 0 0 0 0.21  1.6 0 0 0 -0.32"/></filter>${grain('g', 0.7 / unit, [0.3, 0.26, 0.2], 0.12)}</defs>` +
+          `<rect width="100%" height="100%" fill="#ddd3bf"/><rect width="100%" height="100%" filter="url(#w)"/><rect width="100%" height="100%" filter="url(#g)"/>`,
       );
     case 'slate':
       return wrap(
         width,
         height,
-        `<defs>${grain('g', 0.9 / unit, [0.9, 0.92, 0.9], 0.13)}${grain('s', 0.006 / unit, [0.75, 0.8, 0.78], 0.16, 3)}</defs>` +
-          `<rect width="100%" height="100%" fill="#26312d"/><rect width="100%" height="100%" filter="url(#s)"/><rect width="100%" height="100%" filter="url(#g)"/>`,
+        `<defs>${grain('g', 0.9 / unit, [0.9, 0.92, 0.9], 0.12)}${grain('s', 0.004 / unit, [0.7, 0.76, 0.74], 0.07, 2)}</defs>` +
+          `<rect width="100%" height="100%" fill="#28332f"/><rect width="100%" height="100%" filter="url(#s)"/><rect width="100%" height="100%" filter="url(#g)"/>`,
       );
     case 'mist': {
       const random = seeded(47);

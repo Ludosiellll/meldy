@@ -39,19 +39,23 @@ function SaveLine({ save, onRetry, onReload }: { save: SaveState; onRetry: () =>
     case 'idle':
       return <span className="st-save" />;
     case 'saving':
-      return <span className="st-save">{STUDIO.saving}</span>;
+      return (
+        <span className="st-save">
+          <span className="st-save-t">{STUDIO.saving}</span>
+        </span>
+      );
     case 'saved':
       return (
         <span className="st-save" data-ok="">
           <UiIcon name="check" />
-          {STUDIO.saved}
+          <span className="st-save-t">{STUDIO.saved}</span>
         </span>
       );
     case 'offline':
     case 'failed':
       return (
         <span className="st-save" data-bad="">
-          {save.kind === 'offline' ? STUDIO.offline : `${STUDIO.failed}: ${save.message}`}
+          <span className="st-save-t">{save.kind === 'offline' ? STUDIO.offline : `${STUDIO.failed}: ${save.message}`}</span>
           <button type="button" className="st-save-btn" onClick={onRetry}>
             {STUDIO.retry}
           </button>
@@ -60,13 +64,13 @@ function SaveLine({ save, onRetry, onReload }: { save: SaveState; onRetry: () =>
     case 'invalid':
       return (
         <span className="st-save" data-bad="" title={save.problems[0]?.message}>
-          {`${STUDIO.invalid}: ${save.problems[0]?.message ?? ''}`}
+          <span className="st-save-t">{`${STUDIO.invalid}: ${save.problems[0]?.message ?? ''}`}</span>
         </span>
       );
     case 'stale':
       return (
         <span className="st-save" data-bad="">
-          {STUDIO.stale}
+          <span className="st-save-t">{STUDIO.stale}</span>
           <button type="button" className="st-save-btn" onClick={onReload}>
             {STUDIO.reload}
           </button>
@@ -314,7 +318,7 @@ export default function StudioPage() {
   );
 
   return (
-    <div className="sf-page st-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
+    <div className="sf-page tb-page st-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
       <header className="st-bar">
         <div className="st-bar-start">
           {phone ? null : (
@@ -446,7 +450,7 @@ export default function StudioPage() {
               </button>
             </>
           ) : null}
-          {sendButton}
+          {keyed > 0 || !phone ? sendButton : null}
         </div>
       ) : null}
 
@@ -455,7 +459,7 @@ export default function StudioPage() {
       </p>
 
       {preview ? <Preview doc={studio.doc} items={studio.rows} dark={dark} device={preview.device} percent={preview.percent} onClose={() => setPreview(null)} /> : null}
-      {touring && user?.id && view === 'canvas' ? <Tour userId={user.id} onDone={() => setTouring(false)} /> : null}
+      {touring && user?.id && view === 'canvas' ? <Tour userId={user.id} phone={narrow} onDone={() => setTouring(false)} /> : null}
     </div>
   );
 }

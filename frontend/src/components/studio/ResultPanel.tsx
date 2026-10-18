@@ -186,6 +186,13 @@ export default function ResultPanel({ studio, api, onPreviewBand }: { studio: St
                 </button>
               </span>
             </div>
+            {issues
+              .filter((issue) => issue.at === at)
+              .map((issue, index) => (
+                <p key={index} className="st-note" data-bad={issue.bad ? '' : undefined} role={issue.bad ? 'alert' : undefined}>
+                  {issue.message}
+                </p>
+              ))}
             <label className="st-label-block">
               <span className="st-field-sub">{STUDIO.bandTitle}</span>
               <input className="st-input" value={band.title} maxLength={DOC_TITLE_MAX} onChange={(event) => setBand(at, { title: event.target.value.replace(/\s*\n\s*/g, ' ') }, 'title')} />
@@ -195,13 +202,6 @@ export default function ResultPanel({ studio, api, onPreviewBand }: { studio: St
               <textarea className="st-input st-textarea" rows={2} value={band.text} maxLength={DOC_TEXT_MAX} onChange={(event) => setBand(at, { text: event.target.value }, 'text')} />
             </label>
             <PictureField label={STUDIO.picture} path={band.image} target={{ kind: 'band', index: at }} api={api} onRemove={() => setBand(at, { image: null }, 'image')} />
-            {issues
-              .filter((issue) => issue.at === at)
-              .map((issue, index) => (
-                <p key={index} className="st-note" data-bad={issue.bad ? '' : undefined} role={issue.bad ? 'alert' : undefined}>
-                  {issue.message}
-                </p>
-              ))}
           </li>
         ))}
       </ol>

@@ -32,19 +32,21 @@ export default function PictureField({
   return (
     <div className="st-pic-field">
       <p className="st-field-label">{label}</p>
-      <div className="st-pic-now" data-empty={path ? undefined : ''}>
-        {path ? <img src={imageUrl(path)} alt="" /> : <span>{busy ? STUDIO.imageUploading : STUDIO.imageEmpty}</span>}
-      </div>
+      {path ? (
+        <div className="st-pic-now">
+          <img src={imageUrl(path)} alt="" />
+        </div>
+      ) : null}
       <p className="st-pic-acts">
         <button type="button" className="st-pill" disabled={busy} onClick={() => api.pickPicture(target)}>
-          {path ? STUDIO.pictureReplace : STUDIO.pictureUpload}
+          {path ? STUDIO.pictureReplace : presets ? STUDIO.pictureOwn : STUDIO.pictureUpload}
         </button>
         {path && onRemove ? (
           <button type="button" className="sf-link" data-muted="" onClick={onRemove}>
             {STUDIO.pictureRemove}
           </button>
         ) : null}
-        {busy && path ? <span className="st-muted">{STUDIO.imageUploading}</span> : null}
+        {busy ? <span className="st-muted">{STUDIO.imageUploading}</span> : null}
       </p>
       {api.pictureNote ? (
         <p className="st-note" data-bad="" role="alert">

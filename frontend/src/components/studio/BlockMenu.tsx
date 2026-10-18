@@ -34,11 +34,15 @@ export default function BlockMenu({ anchor, onPick, onClose }: Props) {
     const rect = anchor.getBoundingClientRect();
     const box = boxRef.current?.getBoundingClientRect();
     const width = box?.width || 288;
-    const height = box?.height || 360;
+    const height = box?.height || 520;
     const viewW = window.innerWidth || 1024;
     const viewH = window.innerHeight || 768;
+    // Under the place it was called from; above it when there is more room there; else as low as it fits.
     let top = rect.bottom + 8;
-    if (top + height > viewH - 12) top = Math.max(12, rect.top - height - 8);
+    if (top + height > viewH - 12) {
+      const above = rect.top - height - 8;
+      top = above >= 12 ? above : Math.max(12, viewH - height - 12);
+    }
     const left = Math.min(Math.max(12, rect.left), Math.max(12, viewW - width - 12));
     setPlace({ top, left });
   }, [anchor]);

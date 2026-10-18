@@ -28,10 +28,10 @@ function markSeen(userId: string) {
   }
 }
 
-export default function Tour({ userId, onDone }: { userId: string; onDone: () => void }) {
+export default function Tour({ userId, phone = false, onDone }: { userId: string; phone?: boolean; onDone: () => void }) {
   const [step, setStep] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
-  const [place, setPlace] = useState<{ top: number; left: number; side: 'right' | 'below' | 'inside' } | null>(null);
+  const [place, setPlace] = useState<{ top: number; left: number; side: 'right' | 'below' | 'above' | 'inside' } | null>(null);
   const last = step === STUDIO.tour.length - 1;
 
   const finish = () => {
@@ -52,7 +52,10 @@ export default function Tour({ userId, onDone }: { userId: string; onDone: () =>
         return;
       }
       const rect = anchor.getBoundingClientRect();
-      if (step === 0 && rect.right + width + 24 < viewW) {
+      if (rect.top > viewH * 0.6) {
+        // An anchor low on the screen (a phone's bar): the card stands above it.
+        setPlace({ top: Math.max(16, rect.top - height - 14), left: Math.min(Math.max(16, rect.left), viewW - width - 16), side: 'above' });
+      } else if (step === 0 && rect.right + width + 24 < viewW) {
         setPlace({ top: Math.min(Math.max(16, rect.top + 64), viewH - height - 16), left: rect.right + 16, side: 'right' });
       } else if (step === 3) {
         setPlace({ top: Math.min(rect.bottom + 12, viewH - height - 16), left: Math.min(Math.max(16, rect.right - width), viewW - width - 16), side: 'below' });
@@ -74,7 +77,7 @@ export default function Tour({ userId, onDone }: { userId: string; onDone: () =>
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const card = STUDIO.tour[step];
+  const card = phone && step === 0 ? STUDIO.tourPhoneFirst : STUDIO.tour[step];
   return createPortal(
     <div
       ref={boxRef}

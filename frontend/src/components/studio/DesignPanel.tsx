@@ -147,7 +147,7 @@ export default function DesignPanel({ studio, dark, api, onPreview }: { studio: 
           onChange={(kind) => {
             if (kind === 'plain') set({ background: { kind: 'plain' } });
             else if (kind === 'soft') set({ background: { kind: 'soft', tone: accentTone } });
-            else if (theme.background.kind !== 'image') api.usePreset({ kind: 'background' }, 'paper');
+            else if (theme.background.kind !== 'image') api.usePreset({ kind: 'background' }, 'mist');
           }}
         />
         {theme.background.kind === 'image' ? (
@@ -172,8 +172,6 @@ export default function DesignPanel({ studio, dark, api, onPreview }: { studio: 
               </span>
             </label>
           </>
-        ) : theme.background.kind === 'plain' ? (
-          <PictureField label={STUDIO.presetsBackground} path={null} target={{ kind: 'background' }} api={api} presets="background" />
         ) : null}
       </div>
 

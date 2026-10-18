@@ -430,6 +430,18 @@ describe('StudioPage: the settings (spec §47.6 «Справа — свойст�
     expect(await within(frame('qblock000002')).findByText('Какие из веществ — кислоты? Отметьте все верные.')).toBeInTheDocument();
   });
 
+  it('changes not saved in the question’s editor hold another block back until «Сохранить» or «Не сохранять»', async () => {
+    await openStored();
+    fireEvent.click(frame('qblock000002'));
+    fireEvent.change(within(side()).getByLabelText('Текст вопроса'), { target: { value: 'Какие вещества — кислоты?' } });
+    fireEvent.click(frame('head00000001'));
+    expect(frame('qblock000002')).toHaveAttribute('data-selected');
+    expect(within(side()).getByText(STUDIO.editorUnsaved(2))).toBeInTheDocument();
+    fireEvent.click(within(side()).getByRole('button', { name: 'Не сохранять' }));
+    expect(frame('head00000001')).toHaveAttribute('data-selected');
+    expect(api.updateItem).not.toHaveBeenCalled();
+  });
+
   it('a block’s own settings: a heading’s size, a note’s tone, a cover’s alignment', async () => {
     await openStored();
     fireEvent.click(frame('cover0000001'));

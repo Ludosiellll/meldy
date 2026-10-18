@@ -13,7 +13,6 @@ import { BlockIcon, QuestionIcon } from './icons';
 import PictureField from './PictureField';
 import type { Studio } from './useStudio';
 import type { SideApi } from './Workspace';
-import { hintFor } from './Workspace';
 
 /**
  * «Блок» of the settings (spec §47.6 «Справа — свойства выбранного блока»): the selected block's settings — the
@@ -83,7 +82,7 @@ function PointsField({ value, onChange }: { value: number; onChange: (value: num
           +
         </button>
       </div>
-      <p className="st-field-hint" id={`${id}-hint`}>
+      <p className="sr-only" id={`${id}-hint`}>
         {STUDIO.pointsHint}
       </p>
     </div>
@@ -135,6 +134,17 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
   const set = (patch: Partial<typeof block>, field: string) => studio.change((current) => replaceBlock(current, { ...block, ...patch }), typingKey(block.id, field));
   return (
     <div className="st-panel-body st-question">
+      <div className="st-q-extra">
+        <PointsField value={block.points} onChange={(points) => set({ points }, 'points')} />
+        <label className="st-switch">
+          <input type="checkbox" checked={block.required} onChange={(event) => set({ required: event.target.checked }, 'required')} />
+          <span className="st-switch-track" aria-hidden="true" />
+          <span className="st-switch-words">
+            <span className="st-switch-label">{STUDIO.requiredLabel}</span>
+            <span className="st-field-hint">{STUDIO.requiredHint}</span>
+          </span>
+        </label>
+      </div>
       <QuestionEditor
         key={`${item.id}:${round}`}
         containerId={containerId}
@@ -159,17 +169,6 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
           {note}
         </p>
       ) : null}
-      <div className="st-q-extra">
-        <PointsField value={block.points} onChange={(points) => set({ points }, 'points')} />
-        <label className="st-switch">
-          <input type="checkbox" checked={block.required} onChange={(event) => set({ required: event.target.checked }, 'required')} />
-          <span className="st-switch-track" aria-hidden="true" />
-          <span className="st-switch-words">
-            <span className="st-switch-label">{STUDIO.requiredLabel}</span>
-            <span className="st-field-hint">{STUDIO.requiredHint}</span>
-          </span>
-        </label>
-      </div>
     </div>
   );
 }
@@ -208,7 +207,6 @@ export default function BlockPanel({ studio, selected, containerId, group, api, 
           <p className="st-panel-sub">{`Блок ${at + 1} из ${doc.blocks.length}`}</p>
         </div>
       </header>
-      <p className="st-panel-hint">{hintFor(block, doc, studio.rows)}</p>
 
       {block.type === 'question' ? (
         <QuestionPanel
