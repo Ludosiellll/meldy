@@ -4,7 +4,8 @@
 # the base in the live order (containers + storage stand-in + pgcrypto in extensions, then every later migration up to
 # 20261018130000_quiz_guards.sql: the bot's packages with pg_cron / pg_net stubbed when not installed, the frozen day, the
 # Mini App, «not found», the monitor, pictures, the bot skips pictures, the tempo, item_update_images, release 46 / 46.1,
-# release 47 = 20261018100000, 20261018120000_exam_move_bot_exams, 20261018130000_quiz_guards) → the catalog fingerprint
+# release 47 = 20261018100000, 20261018120000_exam_move_bot_exams, 20261018130000_quiz_guards, 20261018140000_quiz_practice_grace,
+# release 47.3 = 20261019090000_container_kind) → the catalog fingerprint
 # of that base → test_docs_behaviour.sql fails (the test bites), the guards' and the exam move's contracts, the guards',
 # test_builder and quizzes behaviour pass → the migration twice (the same fingerprint) → the contract (tests/test_docs.sql;
 # quiz_guards.sql, exam_move_bot_exams.sql, test_builder.sql, quizzes.sql, quiz_result_order.sql, item_update_images.sql,
@@ -130,8 +131,9 @@ q "grant select on storage.objects to anon" >/dev/null || BASE_OK=0
 [ $BASE_OK = 1 ] && ok "base (containers + storage stand-in, anon may select storage.objects as live, pgcrypto in extensions)" || bad "base"
 # Then every later migration in the live order (deploy/supabase-migrate.md): the bot's packages (T1 = the main file, its
 # cron file and its revokes; T5, T7, T9, T10, T11), the frozen day, the Mini App, the page's «not found», the outage
-# monitor, pictures, the bot skips pictures, the tempo, item_update_images, release 46 / 46.1, release 47 and its two
-# live follow-ups (the exam move with the bot's exams, the quiz guards).
+# monitor, pictures, the bot skips pictures, the tempo, item_update_images, release 46 / 46.1, release 47 and its three
+# live follow-ups (the exam move with the bot's exams, the quiz guards, the practice grace), and release 47.3 (a test is
+# its own kind: 20261019090000_container_kind, which sorts before this file).
 step "base: 20261010120000_telegram_bot.sql" "$SB/migrations/20261010120000_telegram_bot.sql"
 step "base: 20261010120001_telegram_bot_cron.sql$([ "$CRON_RUN" = "$WORK/cron_local.sql" ] && echo ' (pg_cron and pg_net stubbed)')" "$CRON_RUN"
 for f in 20261010120002_telegram_bot_revokes.sql 20261010120003_telegram_bot_sessions.sql \
@@ -140,7 +142,8 @@ for f in 20261010120002_telegram_bot_revokes.sql 20261010120003_telegram_bot_ses
          20261011100000_containers_not_found_null.sql 20261012100000_telegram_bot_monitor.sql \
          20261014120000_test_item_images.sql 20261014150000_bot_skips_pictures.sql 20261014170000_plan_tempo.sql \
          20261016100000_item_update_images.sql 20261016120000_quizzes.sql 20261016140000_quiz_result_order.sql \
-         20261018100000_test_builder.sql 20261018120000_exam_move_bot_exams.sql 20261018130000_quiz_guards.sql; do
+         20261018100000_test_builder.sql 20261018120000_exam_move_bot_exams.sql 20261018130000_quiz_guards.sql \
+         20261018140000_quiz_practice_grace.sql 20261019090000_container_kind.sql; do
   step "base: $f" "$SB/migrations/$f"
 done
 
@@ -172,7 +175,7 @@ fingerprint_sql() {
                         order by id) from storage.buckets)))"
 }
 FBASE=$(fingerprint)
-[[ "$FBASE" =~ ^[0-9a-f]{32}$ ]] && ok "the catalog fingerprint of the live base (up to 20261018130000_quiz_guards) taken" \
+[[ "$FBASE" =~ ^[0-9a-f]{32}$ ]] && ok "the catalog fingerprint of the live base (up to 20261019090000_container_kind) taken" \
   || bad "fingerprint of the live base"
 
 if passes "$HERE/test_docs_behaviour.sql" 'TEST DOCS BEHAVIOUR PASSED' >/dev/null; then
