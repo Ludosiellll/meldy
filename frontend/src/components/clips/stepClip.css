@@ -1,0 +1,110 @@
+/*
+ * A how-to clip (StepClip.tsx): the picture, a 1440 × 900 stage scaled to the frame, and the line of the step under it.
+ * The picture is Meldy's light screen in every theme (as the guide's clips); the line under it takes the colours of the
+ * card it sits in — the guide's card, the studio tour's dark card, the move dialog — so it is drawn in currentColor.
+ */
+
+.sc { display: flex; flex-direction: column; min-width: 0; }
+
+.sc-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fbfbf9;
+  isolation: isolate;
+  box-shadow: 0 0 0 1px rgba(11, 18, 28, .07);
+}
+.dark .sc-frame { box-shadow: 0 0 0 1px rgba(255, 255, 255, .08); }
+.sc-stage { width: 1440px; height: 900px; background: #fbfbf9; }
+
+/* The steps: a thin strip at the foot of the picture, the step playing filling in. */
+.sc-strip {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+}
+.sc-strip i { flex: 1 1 0; height: 3px; overflow: hidden; border-radius: 2px; background: rgba(11, 18, 28, .12); }
+.sc-strip b { display: block; height: 100%; background: rgba(11, 18, 28, .62); transform: scaleX(0); transform-origin: 0 50%; }
+
+/* The line under the picture: the step's number, its words, «Следующий шаг» and «Пауза». */
+.sc-bar { display: flex; align-items: flex-start; gap: 6px; min-height: 46px; padding: 9px 0 0 2px; }
+.sc-cap {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding-top: 6px;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 500;
+  color: inherit;
+  text-wrap: pretty;
+}
+.sc-count { flex: none; font-size: 13px; font-weight: 500; opacity: .6; font-variant-numeric: tabular-nums; }
+.sc-cap-t { min-width: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .sc-cap-t { animation: sc-cap-in .32s cubic-bezier(.16, 1, .3, 1) both; }
+}
+@keyframes sc-cap-in {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+}
+
+.sc-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  color: inherit;
+  cursor: pointer;
+  transition: background-color .2s ease;
+}
+.sc-btn:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
+.sc-btn svg { width: 16px; height: 16px; }
+.sc-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+/* «Смотреть» while motion is reduced: the word and the play circle. */
+.sc-watch {
+  display: inline-flex;
+  gap: 8px;
+  width: auto;
+  padding: 0 4px 0 14px;
+  border-radius: 999px;
+  font: 500 14px/1 var(--ph-sans, inherit);
+  white-space: nowrap;
+}
+.sc-watch i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #2869dd; color: #fff; }
+.sc-watch svg { width: 12px; height: 12px; }
+
+/* The move dialog's tip: a smaller line. */
+.sc[data-compact] .sc-frame { border-radius: 14px; }
+.sc[data-compact] .sc-bar { min-height: 40px; padding-top: 6px; gap: 4px; }
+.sc[data-compact] .sc-cap { padding-top: 5px; font-size: 13.5px; }
+.sc[data-compact] .sc-count { font-size: 12px; }
+.sc[data-compact] .sc-btn { width: 32px; height: 32px; }
+.sc[data-compact] .sc-btn svg { width: 14px; height: 14px; }
+.sc[data-compact] .sc-watch { width: auto; font-size: 13px; }
+.sc[data-compact] .sc-strip { left: 8px; right: 8px; bottom: 6px; }
+
+/* The studio tour's first step (TourClip.tsx): the dark card widens for the clip; the line takes the card's colours. */
+.st-tour:has(.st-tour-clip) { width: min(400px, calc(100vw - 32px)); }
+.st-tour-clip { margin: -4px -6px 10px; }
+.st-tour-clip .sc-frame { border-radius: 14px; box-shadow: 0 0 0 1px rgba(11, 18, 28, .1); }
+.st-tour-clip .sc-bar { min-height: 42px; padding-top: 6px; }
+.st-tour-clip .sc-cap { font-size: 14px; }
+
+@media print {
+  .sc { display: none; }
+}
