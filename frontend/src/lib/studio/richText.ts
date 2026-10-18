@@ -7,7 +7,11 @@
  * The marks follow CommonMark's emphasis rules for `*` (flanking, the rule of three), so `2*3*4` or `* list` read the
  * way they do in any Markdown editor. A backslash keeps a mark as a plain character: `\*`, `\[`, `\]`, `\(`, `\)`, `\\`.
  */
-import { urlOk } from './doc';
+import { DOC_URL_MAX } from '../../types/testDoc';
+import { chars } from './doc';
+
+/** A link in the text: https, no spaces, at most 300 characters (stricter than the result screen's link). */
+const linkOk = (href: string) => /^https:\/\/\S+$/.test(href) && chars(href) <= DOC_URL_MAX;
 
 export interface RichRun {
   text: string;
@@ -47,7 +51,7 @@ function matchLink(src: string, start: number): { words: string; href: string; e
   const close = src.indexOf(')', at + 2);
   if (close < 0 || !words.trim()) return null;
   const href = src.slice(at + 2, close);
-  return urlOk(href) ? { words, href, end: close + 1 } : null;
+  return linkOk(href) ? { words, href, end: close + 1 } : null;
 }
 
 function lex(src: string, links: boolean): Node[] {

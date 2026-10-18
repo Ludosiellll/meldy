@@ -22,10 +22,10 @@ function seeded(seed = 7): RandomFill {
 const EXAM = '11111111-2222-3333-4444-555555555555';
 const IDS: TemplateId[] = ['topic_check', 'quiz', 'entry', 'self_check'];
 
-/** A starter added: rows made from its inputs (ids «row-n») and the document with them bound. */
+/** A starter added: rows made from its inputs (uuids ending in n) and the document with them bound. */
 function added(id: TemplateId, title?: string) {
   const { doc, adds } = templateDoc(id, { title, random: seeded(), importId: `tpl-${id}` });
-  const items: TestItem[] = adds.map((input, at) => itemFromInput(input, `row-${at + 1}`, at + 1, 's', EXAM));
+  const items: TestItem[] = adds.map((input, at) => itemFromInput(input, `00000000-0000-4000-8000-${String(at + 1).padStart(12, '0')}`, at + 1, 's', EXAM));
   return { doc: bindRefs(doc, items.map((item, at) => ({ ref: adds[at].ref, id: item.id }))), items, adds, raw: doc };
 }
 
@@ -63,7 +63,8 @@ describe('the four starters', () => {
   it.each(IDS)('%s: a valid page that the checker has nothing against', (id) => {
     const { doc, items, raw, adds } = added(id);
     expect(questionIds(raw)).toEqual(adds.map((input) => input.ref));
-    expect(docProblems(raw, adds.map((input) => input.ref))).toEqual([]);
+    // Until bindRefs the question blocks hold refs, which the server refuses: the rows are added first.
+    expect(docProblems(raw, adds.map((input) => input.ref))).toEqual(raw.blocks.flatMap((block, at) => (block.type === 'question' ? [`block:${at}:item_id`] : [])));
     expect(docProblems(doc, items.map((item) => item.id), EXAM)).toEqual([]);
     expect(checkTest(doc, items)).toEqual([]);
     expect(doc.results.bands.length).toBeGreaterThan(0);

@@ -5,7 +5,9 @@
 # 20261018100000) → the catalog fingerprint of 47 → test_docs_behaviour.sql fails (the test bites), test_builder_behaviour
 # and quizzes_behaviour pass → the migration twice (the same fingerprint) → the contract (tests/test_docs.sql;
 # test_builder.sql, quizzes.sql, quiz_result_order.sql, item_update_images.sql, test_item_images.sql, containers.sql still
-# hold) → test_docs_behaviour.sql → test_builder_behaviour, quizzes_behaviour, containers, pictures and item_update_images
+# hold) → test_docs_behaviour.sql → test_docs_parity.sql (test_doc_ok gives each document of
+# contracts/studio/test_doc_cases.json the first rule the client's docProblems gives it) → test_builder_behaviour,
+# quizzes_behaviour, containers, pictures and item_update_images
 # behaviour → two tabs save the first revision together (one revision, the other MC020 stale) → the rollback twice (the
 # fingerprint of 47 again; the release-47 contracts and behaviour pass, test_docs.sql bites) → the migration again (the
 # same fingerprint as the first apply) → the contract and the behaviour again.
@@ -18,6 +20,7 @@ PORT=${DOCS_PG_PORT:-54400}
 WORK=${DOCS_WORK:-${TMPDIR:-/tmp}/meldy-test-docs}
 PG_BIN=${PG_BIN:-/usr/lib/postgresql/16/bin}
 MIG=$SB/migrations/20261019100000_test_docs.sql
+CASES=$(cd "$SB/.." && pwd)/contracts/studio/test_doc_cases.json
 DOWN=$SB/rollback/20261019100000_test_docs_down.sql
 export PGHOST=127.0.0.1 PGPORT=$PORT PGUSER=postgres
 PSQL=(psql -X -q -At -v ON_ERROR_STOP=1)
@@ -139,6 +142,15 @@ if containers_contract; then ok "contract: containers.sql still holds"; else bad
 
 behave "behaviour: the rules, get / save, revisions, size, dangling blocks, design quizzes, guests, bands" \
   "$HERE/test_docs_behaviour.sql" 'TEST DOCS BEHAVIOUR PASSED'
+# The client's docProblems (frontend/src/lib/studio/doc.ts) runs the same documents in doc.test.ts: the same first rule
+# for each case of contracts/studio/test_doc_cases.json. psql reads the file through the \set line written here.
+parity() {
+  local out
+  out=$({ printf '\\set cases `cat %q`\n' "$CASES"; cat "$HERE/test_docs_parity.sql"; } | "${PSQL[@]}" -d docs 2>&1)
+  if echo "$out" | grep -q 'TEST DOC PARITY PASSED'; then ok "$1 ($(echo "$out" | grep '^PARITY [0-9]'))"
+  else bad "$1"; echo "$out" | grep -v NOTICE | tail -15 | sed 's/^/    /'; fi
+}
+parity "parity: test_doc_ok and the client's docProblems give every case of test_doc_cases.json the same first rule"
 behave "test_builder_behaviour after the migration (every release-47 flow still works)" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
 behave "quizzes_behaviour after the migration (every release-46 flow still works)" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
 if containers_contract; then ok "contract: containers.sql after the behaviour"; else bad "contract: containers.sql after the behaviour"; fi

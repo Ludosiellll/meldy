@@ -27,7 +27,7 @@ import { isPictureWord, type ItemInput, type ItemPatch, type TestItem } from '..
 import { DOC_CAPTION_MAX, DOC_MAX_BLOCKS, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type TestDoc } from '../../types/testDoc';
 import { draftOf, draftProblems, emptyDraft, formsOf, inputOf, LIMITS, patchOf, type Draft, type DraftProblem } from '../../components/containers/keys/editorModel';
 import { isTrueFalse, orderBound } from './checker';
-import { chars, cryptoFill, freshId, newId, oneLine, sameValue, type RandomFill } from './doc';
+import { chars, cryptoFill, freshId, hasWords, newId, oneLine, sameValue, type RandomFill } from './doc';
 
 // ─────────────────────────────────────────────── lines
 
@@ -264,7 +264,7 @@ function parse(text: string): { blocks: Parsed[]; problems: TextProblem[] } {
     return made;
   };
 
-  const lines = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n');
+  const lines = text.replace(/^\ufeff/, '').replace(/\r\n?/g, '\n').split('\n');
   lines.forEach((raw, index) => {
     const line = index + 1;
     const open = current?.type === 'question' && current.open ? current : null;
@@ -584,17 +584,17 @@ function blockProblems(parsed: Exclude<Parsed, { type: 'question' }>): TextProbl
   const at = parsed.line;
   switch (parsed.type) {
     case 'heading':
-      if (!parsed.text.trim()) return [say(at, 'пустой заголовок — допишите его или удалите строку.')];
+      if (!hasWords(parsed.text)) return [say(at, 'пустой заголовок — допишите его или удалите строку.')];
       return long(parsed.text, DOC_TITLE_MAX) ? [say(at, 'заголовок длиннее 200 знаков — сократите его.')] : [];
     case 'text':
-      if (!parsed.text.trim()) return [say(at, 'пустой текст — удалите эту строку.')];
+      if (!hasWords(parsed.text)) return [say(at, 'пустой текст — удалите эту строку.')];
       return long(parsed.text, DOC_TEXT_MAX) ? [say(at, 'текст длиннее 4000 знаков — разделите его пустой строкой.')] : [];
     case 'note':
-      if (!parsed.text.trim()) return [say(at, 'пустая заметка — допишите её или удалите строку.')];
+      if (!hasWords(parsed.text)) return [say(at, 'пустая заметка — допишите её или удалите строку.')];
       return long(parsed.text, DOC_TEXT_MAX) ? [say(at, 'заметка длиннее 4000 знаков — сократите её.')] : [];
     case 'cover': {
       const out: TextProblem[] = [];
-      if (!parsed.title.trim()) out.push(say(at, 'у обложки нет названия — напишите его после «[обложка]».'));
+      if (!hasWords(parsed.title)) out.push(say(at, 'у обложки нет названия — напишите его после «[обложка]».'));
       else if (long(parsed.title, DOC_TITLE_MAX)) out.push(say(at, 'название на обложке длиннее 200 знаков — сократите его.'));
       if (long(parsed.subtitle, DOC_CAPTION_MAX)) out.push(say(at + 1, 'подзаголовок обложки длиннее 300 знаков — сократите его.'));
       return out;

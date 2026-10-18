@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import casesJson from '../../../../contracts/studio/test_doc_cases.json';
 import { BLOCK_ID_RE, DOC_BLOCK_TYPES, DOC_MAX_BLOCKS, type DocBlock, type TestDoc } from '../../types/testDoc';
 import {
   BLOCK_WORDS,
@@ -12,6 +13,7 @@ import {
   emptyDoc,
   findBlock,
   freshId,
+  hasWords,
   imageOk,
   insertBlock,
   jsonbTextBytes,
@@ -50,6 +52,7 @@ const PIC = `${EXAM}/${'a'.repeat(64)}.png`;
 const PIC2 = `${EXAM}/${'b'.repeat(64)}.webp`;
 const ITEM_A = 'aaaaaaaa-0000-0000-0000-000000000001';
 const ITEM_B = 'aaaaaaaa-0000-0000-0000-000000000002';
+const GONE = 'aaaaaaaa-0000-0000-0000-00000000dead';
 
 function fullDoc(): TestDoc {
   return {
@@ -144,7 +147,7 @@ describe('a new document and new blocks', () => {
     const blocks = DOC_BLOCK_TYPES.map((type) => newBlock(type, type === 'question' ? ITEM_A : undefined, random));
     expect(new Set(blocks.map((block) => block.id)).size).toBe(blocks.length);
     const doc: TestDoc = { ...emptyDoc('Т'), blocks };
-    expect(docProblems(doc, [ITEM_A])).toEqual(['block:4:image']);
+    expect(docProblems(doc, [ITEM_A])).toEqual(['block:3:path']);
     expect(newBlock('heading', undefined, random)).toMatchObject({ type: 'heading', text: BLOCK_WORDS.heading, size: 'l' });
     expect(newBlock('question')).toMatchObject({ type: 'question', item_id: '', points: 1, required: false });
   });
@@ -167,12 +170,19 @@ describe('helpers', () => {
     expect(imageOk(5)).toBe(false);
   });
 
-  it('links are https, without spaces, up to 300 characters', () => {
+  it('the result screen link as the server takes it: https, up to 300 characters', () => {
     expect(urlOk('https://a.ru/x')).toBe(true);
+    expect(urlOk('https://a.ru/x y')).toBe(true);
     expect(urlOk('http://a.ru')).toBe(false);
-    expect(urlOk('https://a.ru/x y')).toBe(false);
     expect(urlOk(`https://a.ru/${'x'.repeat(300)}`)).toBe(false);
     expect(urlOk(null)).toBe(false);
+  });
+
+  it('hasWords counts spaces as the server does', () => {
+    expect(hasWords('a')).toBe(true);
+    expect(hasWords(' \t\n\u2003\u3000\u2028')).toBe(false);
+    expect(hasWords('\u00a0')).toBe(true);
+    expect(hasWords('\ufeff')).toBe(true);
   });
 
   it('sameValue compares data in any key order', () => {
@@ -195,149 +205,57 @@ describe('helpers', () => {
   });
 });
 
-describe('docProblems mirrors test_doc_ok', () => {
-  it('takes a whole valid document', () => {
-    expect(docProblems(fullDoc(), ITEMS)).toEqual([]);
-    expect(docProblems(fullDoc(), new Set(ITEMS), EXAM)).toEqual([]);
+interface Corpus {
+  container_id: string;
+  items: string[];
+  cases: Array<{ name: string; expect: string | null; doc: unknown }>;
+}
+const corpus = casesJson as unknown as Corpus;
+/** One name per rule kind: `block:<n>:text` → `block:text`. */
+const kindOf = (rule: string | null) => (rule === null ? null : rule.replace(/^block:\d+:/, 'block:'));
+
+describe('docProblems gives the first rule test_doc_ok gives (contracts/studio/test_doc_cases.json)', () => {
+  it('the corpus: at least 60 documents, valid ones and every rule', () => {
+    expect(corpus.cases.length).toBeGreaterThanOrEqual(60);
+    const kinds = new Set(corpus.cases.map((entry) => kindOf(entry.expect)));
+    const block = ['type', 'id', 'title', 'subtitle', 'image', 'align', 'text', 'size', 'path', 'caption', 'width', 'tone', 'item_id', 'points', 'required'];
+    for (const kind of [null, 'version', 'title', 'theme', 'layout', 'blocks', 'results', ...block.map((rule) => `block:${rule}`)]) expect([kind, kinds.has(kind)]).toEqual([kind, true]);
   });
 
-  it('answers the rule names in the server order', () => {
-    expect(docProblems(null, ITEMS)).toEqual(['version']);
-    expect(docProblems([], ITEMS)).toEqual(['version']);
-    expect(docProblems({}, ITEMS)).toEqual(['version', 'title', 'theme', 'layout', 'blocks', 'results']);
-    expect(docProblems(withField(['v'], 2), ITEMS)).toEqual(['version']);
+  // `size` is the client's own last name (test_doc_save checks it before test_doc_ok); no case is that big.
+  it.each(corpus.cases.map((entry) => [entry.name, entry] as const))('%s', (_, entry) => {
+    const problems = docProblems(entry.doc, corpus.items, corpus.container_id).filter((rule) => rule !== 'size');
+    expect(problems[0] ?? null).toBe(entry.expect);
   });
+});
 
-  it.each([
-    [['title'], ''],
-    [['title'], '   '],
-    [['title'], 'я'.repeat(201)],
-    [['title'], 5],
-  ])('title %j = %j', (path, value) => {
-    expect(docProblems(withField(path, value), ITEMS)).toEqual(['title']);
-  });
-
-  it('a title of 200 code points is fine even when JavaScript counts more', () => {
-    expect(docProblems(withField(['title'], '😀'.repeat(200)), ITEMS)).toEqual([]);
-  });
-
-  it.each([
-    [['theme'], null],
-    [['theme', 'accent'], 'red'],
-    [['theme', 'accent'], { custom: '#FFAA00' }],
-    [['theme', 'accent'], { custom: 7 }],
-    [['theme', 'background'], 'plain'],
-    [['theme', 'background'], { kind: 'soft', tone: 'red' }],
-    [['theme', 'background'], { kind: 'image', path: 'x.png', dim: 10 }],
-    [['theme', 'background'], { kind: 'image', path: PIC, dim: 81 }],
-    [['theme', 'background'], { kind: 'image', path: PIC, dim: 1.5 }],
-    [['theme', 'background'], { kind: 'video' }],
-    [['theme', 'font'], 'comic'],
-    [['theme', 'radius'], 'huge'],
-    [['theme', 'density'], 'dense'],
-    [['theme', 'answers'], 'table'],
-    [['theme', 'buttons'], 'round'],
-  ])('theme %j = %j', (path, value) => {
-    expect(docProblems(withField(path, value), ITEMS)).toEqual(['theme']);
-  });
-
-  it('takes the other theme values', () => {
-    expect(docProblems(withField(['theme', 'accent'], { custom: '#ffaa00' }), ITEMS)).toEqual([]);
-    expect(docProblems(withField(['theme', 'background'], { kind: 'soft', tone: 'pink' }), ITEMS)).toEqual([]);
-    expect(docProblems(withField(['theme', 'background'], { kind: 'plain' }), ITEMS)).toEqual([]);
-  });
-
-  it('a picture of another exam breaks the theme, the blocks and the bands when the exam is given', () => {
-    const elsewhere = `${OTHER}/${'c'.repeat(64)}.jpg`;
-    expect(docProblems(withField(['theme', 'background', 'path'], elsewhere), ITEMS, EXAM)).toEqual(['theme']);
-    expect(docProblems(withField(['blocks', 0, 'image'], elsewhere), ITEMS, EXAM)).toEqual(['block:1:image']);
-    expect(docProblems(withField(['blocks', 3, 'path'], elsewhere), ITEMS, EXAM)).toEqual(['block:4:image']);
-    expect(docProblems(withField(['results', 'bands', 1, 'image'], elsewhere), ITEMS, EXAM)).toEqual(['results']);
-    expect(docProblems(withField(['blocks', 3, 'path'], elsewhere), ITEMS)).toEqual([]);
-  });
-
-  it('layout and blocks', () => {
-    expect(docProblems(withField(['layout'], 'slides'), ITEMS)).toEqual(['layout']);
-    expect(docProblems(withField(['blocks'], {}), ITEMS)).toEqual(['blocks']);
-    const many = Array.from({ length: DOC_MAX_BLOCKS + 1 }, (_, at) => ({ type: 'divider', id: `d${String(at).padStart(8, '0')}` }));
-    expect(docProblems(withField(['blocks'], many), ITEMS)).toEqual(['blocks']);
-    expect(docProblems(withField(['blocks'], many.slice(0, DOC_MAX_BLOCKS)), ITEMS)).toEqual([]);
-  });
-
-  it.each([
-    [0, 'type', 'type', 'poll'],
-    [0, 'type', 'type', undefined],
-    [0, 'id', 'id', 'Short'],
-    [0, 'id', 'id', 5],
-    [0, 'title', 'title', ''],
-    [0, 'subtitle', 'subtitle', 'я'.repeat(301)],
-    [0, 'subtitle', 'subtitle', null],
-    [0, 'image', 'image', 'x.png'],
-    [0, 'align', 'align', 'right'],
-    [1, 'text', 'text', ' '],
-    [1, 'text', 'text', 'я'.repeat(201)],
-    [1, 'size', 'size', 'xl'],
-    [2, 'text', 'text', 'я'.repeat(4001)],
-    [2, 'align', 'align', 'justify'],
-    [3, 'image', 'path', ''],
-    [3, 'caption', 'caption', 'я'.repeat(301)],
-    [3, 'width', 'width', 'half'],
-    [4, 'tone', 'tone', 'danger'],
-    [4, 'text', 'text', ''],
-    [6, 'title', 'title', 'я'.repeat(201)],
-    [7, 'item', 'item_id', 'cccccccc-0000-0000-0000-000000000009'],
-    [7, 'item', 'item_id', 42],
-    [7, 'points', 'points', 0],
-    [7, 'points', 'points', 101],
-    [7, 'points', 'points', 1.5],
-    [7, 'required', 'required', 'yes'],
-  ])('block %i: %s (%s = %j)', (at, rule, field, value) => {
-    expect(docProblems(withField(['blocks', at, field], value), ITEMS)).toEqual([`block:${at + 1}:${rule}`]);
-  });
-
-  it('a block that is not an object, a repeated id, a repeated question', () => {
-    expect(docProblems(withField(['blocks', 5], 'divider'), ITEMS)).toEqual(['block:6:type']);
-    expect(docProblems(withField(['blocks', 5, 'id'], 'cover0000001'), ITEMS)).toEqual(['block:6:id']);
-    expect(docProblems(withField(['blocks', 8, 'item_id'], ITEM_A), ITEMS)).toEqual(['block:9:duplicate_item']);
-  });
-
-  it('one rule per block, every broken block', () => {
+describe('docProblems, beyond the first rule', () => {
+  it('every broken block, one rule each, counted from 0, then the results', () => {
     const doc = withField(['blocks', 1, 'text'], '');
     (doc.blocks as Array<Record<string, unknown>>)[1].size = 'xl';
     (doc.blocks as Array<Record<string, unknown>>)[4].tone = 'x';
-    expect(docProblems(doc, ITEMS)).toEqual(['block:2:text', 'block:5:tone']);
+    (doc.results as Record<string, unknown>).cta = 'link';
+    expect(docProblems(doc, ITEMS)).toEqual(['block:1:text', 'block:4:tone', 'results']);
+    expect(docProblems({}, ITEMS)).toEqual(['version', 'title', 'theme', 'layout', 'blocks', 'results']);
   });
 
-  it.each([
-    [['results'], null],
-    [['results', 'bands'], null],
-    [['results', 'bands'], Array.from({ length: 7 }, (_, at) => ({ from: at * 10, to: at * 10 + 5, title: 'Т', text: '', image: null }))],
-    [['results', 'bands', 0], 'band'],
-    [['results', 'bands', 0, 'from'], -1],
-    [['results', 'bands', 0, 'from'], 60],
-    [['results', 'bands', 0, 'to'], 101],
-    [['results', 'bands', 0, 'to'], 50],
-    [['results', 'bands', 0, 'title'], ''],
-    [['results', 'bands', 0, 'text'], 'я'.repeat(4001)],
-    [['results', 'bands', 0, 'image'], 'x.png'],
-    [['results', 'cta'], 'link'],
-    [['results', 'cta', 'label'], ''],
-    [['results', 'cta', 'url'], 'http://example.com'],
-    [['results', 'cta', 'url'], `https://example.com/${'x'.repeat(290)}`],
-  ])('results %j = %j', (path, value) => {
-    expect(docProblems(withField(path, value), ITEMS)).toEqual(['results']);
+  it('without the exam, pictures are checked against the bucket pattern only', () => {
+    const elsewhere = `${OTHER}/${'c'.repeat(64)}.jpg`;
+    expect(docProblems(withField(['blocks', 3, 'path'], elsewhere), ITEMS)).toEqual([]);
+    expect(docProblems(withField(['blocks', 3, 'path'], elsewhere), ITEMS, EXAM)).toEqual(['block:3:path']);
   });
 
-  it('bands in any order, touching but not overlapping; no link at all', () => {
-    const doc = withField(['results', 'bands'], [
-      { from: 50, to: 100, title: 'Б', text: '', image: null },
-      { from: 0, to: 49, title: 'А', text: '', image: null },
-    ]);
-    expect(docProblems(doc, ITEMS)).toEqual([]);
-    expect(docProblems(withField(['results', 'cta'], null), ITEMS)).toEqual([]);
+  it('question ids compare in any case, on both sides', () => {
+    expect(docProblems(fullDoc(), ITEMS.map((id) => id.toUpperCase()))).toEqual([]);
+    expect(docProblems(withField(['blocks', 8, 'item_id'], ITEM_A.toUpperCase()), ITEMS)).toEqual(['block:8:item_id']);
   });
 
-  it('size: the table keeps 200 KB of jsonb text', () => {
+  it('a key holding undefined is not a key (JSON drops it)', () => {
+    expect(docProblems({ ...fullDoc(), extra: undefined }, ITEMS)).toEqual([]);
+    expect(docProblems(withField(['blocks', 5, 'style'], undefined), ITEMS)).toEqual([]);
+  });
+
+  it('size: test_doc_save keeps 200 KB of jsonb text', () => {
     const blocks = Array.from({ length: 60 }, (_, at) => ({ type: 'text', id: `t${String(at).padStart(8, '0')}`, text: 'я'.repeat(4000), align: 'left' }));
     expect(docProblems(withField(['blocks'], blocks), ITEMS)).toEqual(['size']);
   });
@@ -353,21 +271,32 @@ describe('ruleMessage', () => {
     ['results', 'Экран результата'],
     ['size', '200 КБ'],
     ['something', 'обновите страницу'],
-    ['block:3:type', 'Блок 3: сломан'],
-    ['block:3:id', 'Блок 3: сломан'],
-    ['block:2:text', 'текст пустой'],
+    ['block:2:type', 'Блок 3: сломан'],
+    ['block:2:id', 'Блок 3: сломан'],
+    ['block:0:text', 'Блок 1: текст пустой'],
     ['block:2:title', 'заголовок пустой'],
     ['block:2:subtitle', 'подпись'],
     ['block:2:caption', 'подпись'],
     ['block:2:image', 'картинка'],
-    ['block:2:item', 'вопроса больше нет'],
-    ['block:2:duplicate_item', 'уже есть'],
+    ['block:2:path', 'картинка'],
+    ['block:2:item_id', 'вопроса больше нет'],
     ['block:2:points', 'от 1 до 100'],
     ['block:2:align', 'настройки'],
   ])('%s', (rule, words) => {
     const message = ruleMessage(rule);
     expect(message).toContain(words);
     expect(message).not.toContain('!');
+  });
+
+  it('with the document: a repeated block or question has its own words', () => {
+    const repeatedId = withField(['blocks', 5, 'id'], 'cover0000001');
+    expect(ruleMessage('block:5:id', repeatedId)).toBe('Блок 6: копия другого блока — удалите её и добавьте блок заново.');
+    expect(ruleMessage('block:5:id', withField(['blocks', 5, 'id'], 'BAD'))).toBe('Блок 6: сломан — удалите его и добавьте заново.');
+    const repeatedItem = withField(['blocks', 8, 'item_id'], ITEM_A.toUpperCase());
+    expect(ruleMessage('block:8:item_id', repeatedItem)).toBe('Блок 9: этот вопрос уже есть на странице — уберите копию.');
+    expect(ruleMessage('block:7:item_id', repeatedItem)).toBe('Блок 8: этого вопроса больше нет — уберите блок.');
+    expect(ruleMessage('block:0:item_id', { blocks: ['x'] })).toBe('Блок 1: этого вопроса больше нет — уберите блок.');
+    expect(ruleMessage('block:0:item_id', null)).toBe('Блок 1: этого вопроса больше нет — уберите блок.');
   });
 });
 
@@ -433,7 +362,7 @@ describe('normalizeDoc', () => {
         { type: 'question', id: 'q00000000001', item_id: ITEM_A, points: 500, required: 'yes' },
         { type: 'question', id: 'q00000000002', item_id: ITEM_A, points: 1 },
         { type: 'question', id: 'q00000000003', item_id: ITEM_B, points: -3.4, required: true },
-        { type: 'question', id: 'q00000000004', item_id: 'gone-row', points: 'x' },
+        { type: 'question', id: 'q00000000004', item_id: GONE, points: 'x' },
         { type: 'divider', id: 'd00000000001', extra: 1 },
         { type: 'page' },
       ],
@@ -454,11 +383,11 @@ describe('normalizeDoc', () => {
     expect(note).toMatchObject({ tone: 'info', text: 'Заметка' });
     expect(q1).toMatchObject({ item_id: ITEM_A, points: 100, required: false });
     expect(q2).toMatchObject({ item_id: ITEM_B, points: 1, required: true });
-    expect(q3).toMatchObject({ item_id: 'gone-row', points: 1 });
+    expect(q3).toMatchObject({ item_id: GONE, points: 1 });
     expect(page).toMatchObject({ title: '' });
     expect(dangling).toEqual([q3.id]);
-    expect(docProblems(doc, [...ITEMS, 'gone-row'])).toEqual([]);
-    expect(docProblems(doc, ITEMS)).toEqual(['block:6:item']);
+    expect(docProblems(doc, [...ITEMS, GONE])).toEqual([]);
+    expect(docProblems(doc, ITEMS)).toEqual(['block:5:item_id']);
     expect(normalizeDoc(doc, ITEMS, seeded(11)).doc).toEqual(doc);
   });
 
@@ -536,6 +465,15 @@ describe('the page and the exam questions', () => {
     const saved = withoutDangling(doc, [ITEM_A]);
     expect(questionIds(saved)).toEqual([ITEM_A]);
     expect(withoutDangling(doc, ITEMS)).toBe(doc);
+  });
+
+  it('a save also drops the same question again and an unbound ref; ids compare in any case', () => {
+    const doc = withField(['blocks', 8, 'item_id'], ITEM_A.toUpperCase()) as unknown as TestDoc;
+    expect(danglingBlocks(doc, ITEMS)).toEqual(['question0002']);
+    expect(docProblems(withoutDangling(doc, ITEMS), ITEMS)).toEqual([]);
+    const ref = withField(['blocks', 7, 'item_id'], 'text-abc:1') as unknown as TestDoc;
+    expect(danglingBlocks(ref, ITEMS.map((id) => id.toUpperCase()))).toEqual(['question0001']);
+    expect(syncQuestions(fullDoc(), [{ id: ITEM_A.toUpperCase() }], seeded())).toEqual(fullDoc());
   });
 
   it('bindRefs puts the new rows ids in place of their refs', () => {

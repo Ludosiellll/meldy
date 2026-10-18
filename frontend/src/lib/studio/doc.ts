@@ -186,35 +186,73 @@ function separators(value: unknown): number {
   return kept.reduce<number>((sum, entry) => sum + separators(entry), kept.length + Math.max(0, kept.length - 1));
 }
 
+/**
+ * A character the server's `[[:space:]]` does not match: PostgreSQL's regex on the database's C.UTF-8 (glibc) counts
+ * the ASCII spaces and the Unicode ones, but not the no-break spaces (U+00A0, U+2007, U+202F) nor U+FEFF. A «1..N» text
+ * needs one such character (contracts/studio/test_doc_cases.json pins it against the server).
+ */
+const WORD_CHAR = /[^\t\n\v\f\r \u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]/;
+/** The text has a character that is not a space, as the server counts spaces. */
+export const hasWords = (text: string): boolean => WORD_CHAR.test(text);
+
 const isText = (value: unknown, max: number, min = 1): value is string =>
-  typeof value === 'string' && chars(value) <= max && (min === 0 || value.trim().length > 0);
+  typeof value === 'string' && chars(value) <= max && (min === 0 || hasWords(value));
 const isInt = (value: unknown, lo: number, hi: number): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= lo && value <= hi;
 const oneOf = <T extends string>(list: readonly T[], value: unknown): value is T => typeof value === 'string' && (list as readonly string[]).includes(value);
+/** Exactly these keys (a key holding undefined is not sent, so it does not count). */
+function keysAre(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const own = Object.keys(value).filter((key) => value[key] !== undefined);
+  return own.length === keys.length && own.every((key) => keys.includes(key));
+}
 
 /** An image path of the bucket (and of this exam's folder when the exam is known). */
 export function imageOk(path: unknown, containerId?: string): path is string {
   return typeof path === 'string' && DOC_IMAGE_RE.test(path) && (!containerId || path.startsWith(`${containerId.toLowerCase()}/`));
 }
 
-const HTTPS_RE = /^https:\/\/[^\s]+$/;
-export const urlOk = (url: unknown): url is string => typeof url === 'string' && HTTPS_RE.test(url) && chars(url) <= DOC_URL_MAX;
+/** The result screen's link as the server takes it: https, at most 300 characters. */
+export const urlOk = (url: unknown): url is string => typeof url === 'string' && url.startsWith('https://') && chars(url) <= DOC_URL_MAX;
+
+/** A test_items id as the server reads a question block's item_id (any case; it compares the uuid). */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const DOC_KEYS = ['v', 'title', 'theme', 'layout', 'blocks', 'results'];
+const THEME_KEYS = ['accent', 'background', 'font', 'radius', 'density', 'answers', 'buttons'];
+const BAND_KEYS = ['from', 'to', 'title', 'text', 'image'];
+/** Each block type's keys, in the order of types/testDoc.ts (the order its rules are checked in). */
+const BLOCK_KEYS: Record<DocBlockType, readonly string[]> = {
+  cover: ['type', 'id', 'title', 'subtitle', 'image', 'align'],
+  heading: ['type', 'id', 'text', 'size'],
+  text: ['type', 'id', 'text', 'align'],
+  image: ['type', 'id', 'path', 'caption', 'width'],
+  note: ['type', 'id', 'tone', 'text'],
+  divider: ['type', 'id'],
+  page: ['type', 'id', 'title'],
+  question: ['type', 'id', 'item_id', 'points', 'required'],
+};
 
 function accentOk(accent: unknown): boolean {
   if (oneOf(QUIZ_ACCENTS, accent)) return true;
-  return isObj(accent) && typeof accent.custom === 'string' && HEX_RE.test(accent.custom);
+  return isObj(accent) && keysAre(accent, ['custom']) && typeof accent.custom === 'string' && HEX_RE.test(accent.custom);
 }
 
 function backgroundOk(background: unknown, containerId?: string): boolean {
   if (!isObj(background)) return false;
-  if (background.kind === 'plain') return true;
-  if (background.kind === 'soft') return oneOf(QUIZ_ACCENTS, background.tone);
-  return background.kind === 'image' && imageOk(background.path, containerId) && isInt(background.dim, 0, DIM_MAX);
+  if (background.kind === 'plain') return keysAre(background, ['kind']);
+  if (background.kind === 'soft') return keysAre(background, ['kind', 'tone']) && oneOf(QUIZ_ACCENTS, background.tone);
+  return (
+    background.kind === 'image' &&
+    keysAre(background, ['kind', 'path', 'dim']) &&
+    imageOk(background.path, containerId) &&
+    isInt(background.dim, 0, DIM_MAX)
+  );
 }
 
 function themeOk(theme: unknown, containerId?: string): boolean {
   return (
     isObj(theme) &&
+    keysAre(theme, THEME_KEYS) &&
     accentOk(theme.accent) &&
     backgroundOk(theme.background, containerId) &&
     oneOf(FONTS, theme.font) &&
@@ -228,8 +266,9 @@ function themeOk(theme: unknown, containerId?: string): boolean {
 function bandOk(band: unknown, containerId?: string): band is ResultBand {
   return (
     isObj(band) &&
+    keysAre(band, BAND_KEYS) &&
     isInt(band.from, 0, 100) &&
-    isInt(band.to, band.from, 100) &&
+    isInt(band.to, 0, 100) &&
     isText(band.title, DOC_TITLE_MAX) &&
     isText(band.text, DOC_TEXT_MAX, 0) &&
     (band.image === null || imageOk(band.image, containerId))
@@ -237,31 +276,32 @@ function bandOk(band: unknown, containerId?: string): band is ResultBand {
 }
 
 function resultsOk(results: unknown, containerId?: string): boolean {
-  if (!isObj(results) || !Array.isArray(results.bands) || results.bands.length > DOC_MAX_BANDS) return false;
+  if (!isObj(results) || !keysAre(results, ['bands', 'cta']) || !Array.isArray(results.bands) || results.bands.length > DOC_MAX_BANDS) return false;
   const bands: ResultBand[] = [];
   for (const band of results.bands) {
     if (!bandOk(band, containerId)) return false;
     bands.push(band);
   }
-  const sorted = [...bands].sort((a, b) => a.from - b.from);
-  for (let at = 1; at < sorted.length; at += 1) if (sorted[at].from <= sorted[at - 1].to) return false;
+  // Each band in order, no two sharing a percent.
+  if (bands.some((band) => band.from > band.to)) return false;
+  for (let a = 0; a < bands.length; a += 1) {
+    for (let b = a + 1; b < bands.length; b += 1) if (bands[a].from <= bands[b].to && bands[b].from <= bands[a].to) return false;
+  }
   const cta = results.cta;
-  return cta === null || (isObj(cta) && isText(cta.label, DOC_TITLE_MAX) && urlOk(cta.url));
+  return cta === null || (isObj(cta) && keysAre(cta, ['label', 'url']) && isText(cta.label, DOC_TITLE_MAX) && urlOk(cta.url));
 }
 
 interface BlockScope {
   ids: Set<string>;
+  /** The exam's question ids, lower case. */
   items: Set<string>;
   onPage: Set<string>;
   containerId?: string;
 }
 
-/** The first broken rule of one block, or null. */
-function blockRule(block: unknown, scope: BlockScope): string | null {
-  if (!isObj(block) || !oneOf(DOC_BLOCK_TYPES, block.type)) return 'type';
-  if (typeof block.id !== 'string' || !BLOCK_ID_RE.test(block.id) || scope.ids.has(block.id)) return 'id';
-  scope.ids.add(block.id);
-  switch (block.type) {
+/** The first broken field of a block of a known type, in the order of types/testDoc.ts. */
+function fieldRule(block: Record<string, unknown>, type: DocBlockType, scope: BlockScope): string | null {
+  switch (type) {
     case 'cover':
       if (!isText(block.title, DOC_TITLE_MAX)) return 'title';
       if (!isText(block.subtitle, DOC_CAPTION_MAX, 0)) return 'subtitle';
@@ -274,7 +314,7 @@ function blockRule(block: unknown, scope: BlockScope): string | null {
       if (!isText(block.text, DOC_TEXT_MAX)) return 'text';
       return oneOf(ALIGNS, block.align) ? null : 'align';
     case 'image':
-      if (!imageOk(block.path, scope.containerId)) return 'image';
+      if (!imageOk(block.path, scope.containerId)) return 'path';
       if (!isText(block.caption, DOC_CAPTION_MAX, 0)) return 'caption';
       return oneOf(WIDTHS, block.width) ? null : 'width';
     case 'note':
@@ -285,35 +325,48 @@ function blockRule(block: unknown, scope: BlockScope): string | null {
     case 'page':
       return isText(block.title, DOC_TITLE_MAX, 0) ? null : 'title';
     case 'question': {
-      if (typeof block.item_id !== 'string' || !scope.items.has(block.item_id)) return 'item';
-      if (scope.onPage.has(block.item_id)) return 'duplicate_item';
-      scope.onPage.add(block.item_id);
+      // Not a uuid, not a question of this exam, or on the page already: one rule for all three, as the server has it.
+      const itemId = typeof block.item_id === 'string' && UUID_RE.test(block.item_id) ? block.item_id.toLowerCase() : null;
+      if (itemId === null || scope.onPage.has(itemId) || !scope.items.has(itemId)) return 'item_id';
+      scope.onPage.add(itemId);
       if (!isInt(block.points, 1, POINTS_MAX)) return 'points';
       return typeof block.required === 'boolean' ? null : 'required';
     }
   }
 }
 
+/** The first broken rule of one block, or null: type, id, its fields, then type again for a key the type lacks. */
+function blockRule(block: unknown, scope: BlockScope): string | null {
+  if (!isObj(block) || !oneOf(DOC_BLOCK_TYPES, block.type)) return 'type';
+  if (typeof block.id !== 'string' || !BLOCK_ID_RE.test(block.id) || scope.ids.has(block.id)) return 'id';
+  scope.ids.add(block.id);
+  return fieldRule(block, block.type, scope) ?? (keysAre(block, BLOCK_KEYS[block.type]) ? null : 'type');
+}
+
 /**
- * What meldy_private.test_doc_ok would refuse, in its order: `version`, `title`, `theme`, `layout`, `blocks`,
- * `block:<n>:<rule>` (n from 1; one rule per block: `type`, `id`, `title`, `subtitle`, `image`, `align`, `text`, `size`,
- * `caption`, `width`, `tone`, `item`, `duplicate_item`, `points`, `required`), `results`. The first entry is the name
- * the server answers with (22023); [] — the server takes it. One more name the function itself never gives: `size`, the
- * table's CHECK (octet_length(doc::text) ≤ 200 KB). `containerId` adds the rule that pictures live in the exam's folder.
+ * What meldy_private.test_doc_ok refuses, in its order: `version` (not an object of the six keys with v = 1), `title`,
+ * `theme`, `layout`, `blocks`, `block:<n>:<rule>` (n counts from 0; one rule per block: `type`, `id`, then the fields —
+ * `title`, `subtitle`, `image`, `align` / `text`, `size` / `text`, `align` / `path`, `caption`, `width` / `tone`, `text`
+ * / `title` / `item_id`, `points`, `required` — then `type` for a key the type does not have), `results`. The first
+ * entry is the server's answer (22023 detail); [] — the server takes it. Pass `containerId` for the server's own check
+ * (pictures in the exam's folder): contracts/studio/test_doc_cases.json holds both to the same answers. One more name
+ * comes last, never from test_doc_ok: `size` (test_doc_save refuses more than 200 KB of jsonb text before the rules).
  */
 export function docProblems(doc: unknown, itemIds: Iterable<string>, containerId?: string): string[] {
   if (!isObj(doc)) return ['version'];
   const problems: string[] = [];
-  if (doc.v !== TEST_DOC_VERSION) problems.push('version');
+  if (doc.v !== TEST_DOC_VERSION || !Object.keys(doc).every((key) => doc[key] === undefined || DOC_KEYS.includes(key))) problems.push('version');
   if (!isText(doc.title, DOC_TITLE_MAX)) problems.push('title');
   if (!themeOk(doc.theme, containerId)) problems.push('theme');
   if (!oneOf(LAYOUTS, doc.layout)) problems.push('layout');
   if (!Array.isArray(doc.blocks) || doc.blocks.length > DOC_MAX_BLOCKS) problems.push('blocks');
   else {
-    const scope: BlockScope = { ids: new Set(), items: new Set(itemIds), onPage: new Set(), containerId };
+    const items = new Set<string>();
+    for (const id of itemIds) items.add(id.toLowerCase());
+    const scope: BlockScope = { ids: new Set(), items, onPage: new Set(), containerId };
     doc.blocks.forEach((block, index) => {
       const rule = blockRule(block, scope);
-      if (rule) problems.push(`block:${index + 1}:${rule}`);
+      if (rule) problems.push(`block:${index}:${rule}`);
     });
   }
   if (!resultsOk(doc.results, containerId)) problems.push('results');
@@ -321,28 +374,38 @@ export function docProblems(doc: unknown, itemIds: Iterable<string>, containerId
   return problems;
 }
 
-/** A rule name in plain words, for the line under the canvas when a save is refused. */
-export function ruleMessage(rule: string): string {
+/**
+ * A rule name in plain words, for the line under the canvas when a save is refused (blocks counted from 1 for people).
+ * With the document, `id` and `item_id` say whether the block repeats an earlier one.
+ */
+export function ruleMessage(rule: string, doc?: unknown): string {
   const block = /^block:(\d+):([a-z_]+)$/.exec(rule);
   if (block) {
-    const at = `Блок ${block[1]}: `;
+    const index = Number(block[1]);
+    const at = `Блок ${index + 1}: `;
+    const blocks: unknown[] = isObj(doc) && Array.isArray(doc.blocks) ? doc.blocks : [];
+    const valueOf = (entry: unknown, key: string) => (isObj(entry) && typeof entry[key] === 'string' ? (entry[key] as string).toLowerCase() : null);
+    const repeats = (key: string) => {
+      const value = valueOf(blocks[index], key);
+      return value !== null && blocks.slice(0, index).some((entry) => valueOf(entry, key) === value);
+    };
     switch (block[2]) {
-      case 'type':
       case 'id':
+        return repeats('id') ? `${at}копия другого блока — удалите её и добавьте блок заново.` : `${at}сломан — удалите его и добавьте заново.`;
+      case 'item_id':
+        return repeats('item_id') ? `${at}этот вопрос уже есть на странице — уберите копию.` : `${at}этого вопроса больше нет — уберите блок.`;
+      case 'type':
         return `${at}сломан — удалите его и добавьте заново.`;
       case 'text':
         return `${at}текст пустой или слишком длинный — поправьте его.`;
       case 'title':
-        return `${at}заголовок пустой или длиннее 200 знаков — поправьте его.`;
+        return `${at}заголовок пустой или слишком длинный — поправьте его.`;
       case 'subtitle':
       case 'caption':
         return `${at}подпись длиннее 300 знаков — сократите её.`;
       case 'image':
+      case 'path':
         return `${at}картинка не загружена — загрузите её заново.`;
-      case 'item':
-        return `${at}этого вопроса больше нет — уберите блок.`;
-      case 'duplicate_item':
-        return `${at}этот вопрос уже есть на странице — уберите копию.`;
       case 'points':
         return `${at}баллы — целое число от 1 до 100.`;
       default:
@@ -376,7 +439,8 @@ const clampInt = (value: unknown, lo: number, hi: number, fallback: number): num
   typeof value === 'number' && Number.isFinite(value) ? Math.min(hi, Math.max(lo, Math.round(value))) : fallback;
 const pick = <T extends string>(list: readonly T[], value: unknown, fallback: T): T => (oneOf(list, value) ? value : fallback);
 const line = (value: unknown, max: number): string => cut(oneLine(str(value)), max);
-const filled = (text: string) => text.trim().length > 0;
+const filled = hasWords;
+const lowerSet = (ids: Iterable<string>) => new Set(Array.from(ids, (id) => id.toLowerCase()));
 
 function accentOf(value: unknown): DocTheme['accent'] {
   if (oneOf(QUIZ_ACCENTS, value)) return value;
@@ -436,8 +500,8 @@ function blockBody(raw: Record<string, unknown>, title: string, onPage: Set<stri
       return { type: 'page', title: line(raw.title, DOC_TITLE_MAX) };
     case 'question': {
       const itemId = str(raw.item_id);
-      if (!itemId || onPage.has(itemId)) return null;
-      onPage.add(itemId);
+      if (!itemId || onPage.has(itemId.toLowerCase())) return null;
+      onPage.add(itemId.toLowerCase());
       return { type: 'question', item_id: itemId, points: clampInt(raw.points, 1, POINTS_MAX, 1), required: raw.required === true };
     }
     default:
@@ -507,9 +571,7 @@ export function normalizeDoc(raw: unknown, itemIds?: Iterable<string>, random: R
     blocks,
     results: resultsOf(source.results),
   };
-  const known = itemIds ? new Set(itemIds) : null;
-  const dangling = known ? blocks.filter((block) => block.type === 'question' && !known.has(block.item_id)).map((block) => block.id) : [];
-  return { doc, dangling };
+  return { doc, dangling: itemIds ? danglingBlocks(doc, itemIds) : [] };
 }
 
 // ─────────────────────────────────────────────── the page and the exam's questions
@@ -527,21 +589,32 @@ export function questionIds(doc: TestDoc): string[] {
  * The same document back when nothing is missing.
  */
 export function syncQuestions(doc: TestDoc, items: readonly Pick<TestItem, 'id'>[], random: RandomFill = cryptoFill): TestDoc {
-  const onPage = new Set(questionIds(doc));
+  const onPage = lowerSet(questionIds(doc));
   const ids = new Set(doc.blocks.map((block) => block.id));
   const added: DocBlock[] = [];
   for (const item of items) {
-    if (onPage.has(item.id) || doc.blocks.length + added.length >= DOC_MAX_BLOCKS) continue;
-    onPage.add(item.id);
+    if (onPage.has(item.id.toLowerCase()) || doc.blocks.length + added.length >= DOC_MAX_BLOCKS) continue;
+    onPage.add(item.id.toLowerCase());
     added.push(blockWith('question', freshId(ids, random), item.id));
   }
   return added.length === 0 ? doc : { ...doc, blocks: [...doc.blocks, ...added] };
 }
 
-/** The ids of question blocks whose row is not among `itemIds`. */
+/**
+ * The ids of the question blocks a save cannot keep (the server's `item_id` rule): the row is not among `itemIds`
+ * (deleted, or a new question's ref not bound yet), or the same row is on the page already. Ids compare in any case.
+ */
 export function danglingBlocks(doc: TestDoc, itemIds: Iterable<string>): string[] {
-  const known = new Set(itemIds);
-  return doc.blocks.filter((block) => block.type === 'question' && !known.has(block.item_id)).map((block) => block.id);
+  const known = lowerSet(itemIds);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const block of doc.blocks) {
+    if (block.type !== 'question') continue;
+    const id = block.item_id.toLowerCase();
+    if (!known.has(id) || seen.has(id)) out.push(block.id);
+    seen.add(id);
+  }
+  return out;
 }
 
 /** The document without question blocks whose row is gone — what a save sends. The same document when there are none. */
