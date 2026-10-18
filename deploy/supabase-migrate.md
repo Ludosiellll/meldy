@@ -20,3 +20,4 @@ failed checks, never row data.
 - 2026-10-14 — apply: supabase/migrations/20261014120000_test_item_images.sql; check: supabase/tests/test_item_images.sql, supabase/tests/containers.sql
 - 2026-10-16 — apply: supabase/migrations/20261016120000_quizzes.sql; check: supabase/tests/quizzes.sql, supabase/tests/item_update_images.sql, supabase/tests/containers.sql
 - 2026-10-16 — apply: supabase/migrations/20261016140000_quiz_result_order.sql; check: supabase/tests/quiz_result_order.sql, supabase/tests/quizzes.sql
+- 2026-10-18 — apply: supabase/migrations/20261018100000_test_builder.sql; check: supabase/tests/test_builder.sql, supabase/tests/quizzes.sql, supabase/tests/quiz_result_order.sql, supabase/tests/item_update_images.sql, supabase/tests/test_item_images.sql, supabase/tests/containers.sql
