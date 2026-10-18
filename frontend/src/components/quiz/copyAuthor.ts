@@ -13,7 +13,8 @@ const REVIEW_OPTIONS: Record<QuizReview, string> = {
   score: 'только балл',
   mistakes: 'балл и где ошибся',
   answers: 'балл, ошибки и верные ответы',
-  mistakes_then_answers: 'балл и ошибки сразу, верные ответы после закрытия',
+  /** The safe default: the explanations come with the right answers, after the closing (fits a phone's list). */
+  mistakes_then_answers: 'балл и ошибки сразу; верные ответы и пояснения — после закрытия',
 };
 const keyed = (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} с ключом`;
 
@@ -48,6 +49,13 @@ export const QA_SETUP = {
   subjects: 'Вопросы из',
   subjectMeta: (n: number) => (n > 0 ? keyed(n) : 'нет вопросов с ключом'),
   pool: (n: number) => `В контрольную идут только вопросы с ключом: в выбранных предметах их ${n}.`,
+  /** One subject: no «Вопросы из», the count's hint says the pool. */
+  poolOne: (n: number) => `В контрольную идут только вопросы с ключом: их ${n}.`,
+  /** The part of a quiz of all the questions (?all=1) with the five settings that matter first. */
+  partMain: 'Основное',
+  /** The rest of the settings of ?all=1, folded. */
+  more: 'Ещё настройки',
+  moreNote: 'вопросы и порядок, попытки, проходной балл, что ученик видит после сдачи',
   noPool: 'В экзамене нет вопросов с ключом: контрольную пока не из чего собрать.',
   toKeys: 'Вопросы и ключи',
   count: 'Сколько вопросов',
@@ -76,6 +84,9 @@ export const QA_SETUP = {
   closesNever: 'пока не закрою',
   closesField: 'Дата и время закрытия',
   closesPast: 'Это время уже прошло: контрольная будет закрыта.',
+  /** Beside the date field: the date in words («до 25 октября, 23:59»). */
+  opensWords: (when: string) => `с ${when}`,
+  closesWords: (when: string) => `до ${when}`,
   attempts: 'Попыток',
   attemptsNone: 'без ограничения (до 50)',
   attemptsOption: (n: number) => `${n}`,
@@ -91,6 +102,13 @@ export const QA_SETUP = {
   reviewOption: (r: QuizReview) => REVIEW_OPTIONS[r],
   /** Without an account and with the right answers at once: a second browser is a fresh start that shows them. */
   reviewGuests: `Без входа тест можно открыть заново в другом браузере и увидеть ответы до своей попытки. Для контрольной лучше «${REVIEW_OPTIONS.mistakes_then_answers}».`,
+  /** A question of the set has the author's explanation: when the takers see it (it comes with the right answers). */
+  reviewExplain: (review: QuizReview) =>
+    review === 'answers'
+      ? 'В тесте есть пояснения. Ученики увидят их вместе с верными ответами — сразу.'
+      : review === 'mistakes_then_answers'
+        ? 'В тесте есть пояснения. Ученики увидят их вместе с верными ответами — после закрытия.'
+        : 'В тесте есть пояснения. При этой настройке ученики их не увидят: пояснения показываются вместе с верными ответами.',
   who: 'Кто может писать',
   whoOption: (who: QuizWho) =>
     ({
@@ -105,9 +123,9 @@ export const QA_SETUP = {
       members: 'Писать могут только те, кто уже вступил в этот экзамен. Остальные увидят, что контрольная только для участников.',
     })[who],
   practice: 'После сдачи предложить тренироваться по этому экзамену',
-  practiceNote: 'Участник станет участником экзамена, если сам нажмёт кнопку. Вы увидите его в списке участников, его прогресс — нет.',
   /** The button waits until no quiz of the exam is open or not yet open (20261018130000_quiz_guards). */
-  practiceLater: 'Кнопка появится, когда контрольная закроется: в тренировке видны все ответы экзамена.',
+  practiceNote: 'После закрытия ученикам предложат тренировать вопросы экзамена в Meldy (в тренировке видны все ответы).',
+  practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его прогресс вам не виден.',
   partLook: 'Оформление',
   cover: 'Обложка',
   coverHint: 'Картинка над названием на странице контрольной: PNG, JPEG, GIF или WebP до 3 МБ.',
@@ -161,6 +179,14 @@ export const QA_STATS = {
   copied: 'Скопировано',
   copiedLine: 'Ссылка скопирована.',
   copyFailed: 'Не получилось скопировать: выделите ссылку в поле и скопируйте её.',
+  /** Sharing the link (release 47): a QR on the whole screen, the phone's sharing, the page as a taker sees it. */
+  qr: 'Показать QR',
+  qrTitle: 'QR-код ссылки на контрольную',
+  qrHint: 'Наведите камеру телефона на код или наберите адрес.',
+  qrClose: 'Закрыть',
+  share: 'Поделиться',
+  asTaker: 'Открыть как ученик',
+  asTakerLabel: 'Открыть как ученик (в новой вкладке)',
   edit: 'Изменить настройки',
   close: 'Закрыть сейчас',
   closeAsk: (writing: number) =>
@@ -206,6 +232,8 @@ export const QA_PEOPLE = {
   writing: (answered: number, total: number, left: string | null) => `пишет — ${answered} из ${total}${left ? `, осталось ${left}` : ''}`,
   done: (time: string) => `сдано ${time}`,
   time: 'время вышло',
+  /** Still unfinished, the clock at 00:00: the server takes the last answers for 20 s more, then closes it. */
+  timeOver: 'время вышло, ответы сдаются',
   closed: 'закрыта',
   result: (correct: number, total: number, percent: number | null) => `${correct} из ${total}${percent === null ? '' : ` · ${percent} %`}`,
   minutes: (n: number) => `${n} мин`,

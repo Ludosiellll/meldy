@@ -27,9 +27,14 @@ import './quizTake.css';
  * through the quiz-media function with the device's token (AttemptPictures).
  *
  * Release 47 (spec 2026-10-18 §47.3, §47.5): the author's explanation under a question when the server sends one (only
- * with the right answers); and when the author offers it, «Тренироваться дальше» — a signed-in taker joins the exam
+ * with the right answers); and when the author offers it, «Повторить эти вопросы» — a signed-in taker joins the exam
  * (quiz_practice_join, the note about what the author sees comes first), a member opens it, a guest makes an account
  * and comes back to /k/<код>?practice=1, where the page takes the device's attempts and joins.
+ *
+ * With the right answers shown each option says what it is: the person's right pick (green fill, «Ваш ответ —
+ * верно»), their wrong pick (pink, «Ваш ответ — неверно»), and a right option they did not pick (no fill, a green edge,
+ * «Верный — вы не отметили»). Under the score a thin bar in the quiz's colour shows the percent, with a tick at the
+ * pass mark («Проходной балл 60 % — сдано», the start page's words).
  */
 
 function OptionWords({ text, paths }: { text: string; paths: string[] | undefined }) {
@@ -71,8 +76,8 @@ function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: nu
             const text = options[index] ?? '';
             const mine = chosen.includes(index);
             const right = key.includes(index);
-            const state = right ? 'file' : mine ? (showKey ? 'wrong' : 'mine') : undefined;
-            const tag = mine && right ? RESULT.tagMineRight : right ? RESULT.tagRight : mine ? RESULT.tagMine : null;
+            const state = right ? (mine ? 'file' : 'missed') : mine ? (showKey ? 'wrong' : 'mine') : undefined;
+            const tag = right ? (mine ? RESULT.tagMineRight : RESULT.tagMissed) : mine ? (showKey ? RESULT.tagMineWrong : RESULT.tagMine) : null;
             return (
               <li key={index} className="ct-opt qt-opt" data-state={state}>
                 <span className="ct-opt-l">{OPTION_LETTERS[place] ?? String(place + 1)}</span>
@@ -96,7 +101,7 @@ function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: nu
 }
 
 /**
- * «Тренироваться дальше»: the blue pill when the result has no «Ещё попытка» (one blue pill a screen), else the white
+ * «Повторить эти вопросы»: the blue pill when the result has no «Ещё попытка» (one blue pill a screen), else the white
  * one. A refusal (MC018: not offered, removed by the author, no places, a quiz of the exam still open) is said right
  * here. While a quiz of the exam is open or not yet open (practice.ready false) there is no button, only a quiet line:
  * a member sees every answer of the exam. A server without ready (before 20261018130000) — as open.
@@ -139,7 +144,7 @@ function PracticeOffer({ result, guest, primary }: { result: QuizResult; guest: 
       </h2>
       {guest ? (
         <>
-          <p className="qt-practice-note">{RESULT.practiceNote(practice.exam_title)}</p>
+          <p className="qt-practice-note">{RESULT.practiceNote}</p>
           <Link className={pill} to={withReturn('/register', `/k/${result.code}?practice=1`)}>
             {RESULT.practiceGuest}
           </Link>
@@ -153,7 +158,7 @@ function PracticeOffer({ result, guest, primary }: { result: QuizResult; guest: 
         </>
       ) : (
         <>
-          <p className="qt-practice-note">{RESULT.practiceNote(practice.exam_title)}</p>
+          <p className="qt-practice-note">{RESULT.practiceNote}</p>
           <button type="button" className={pill} aria-busy={busy || undefined} disabled={busy} onClick={() => void join()}>
             {RESULT.practiceJoin}
           </button>
@@ -220,6 +225,10 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
           {' · '}
           <span className="qt-nb">{RESULT.percent(percent)}</span>
         </p>
+        <div className="qt-meter" aria-hidden="true">
+          <span className="qt-meter-fill" style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+          {threshold !== null ? <span className="qt-meter-tick" style={{ left: `${Math.min(100, Math.max(0, threshold))}%` }} /> : null}
+        </div>
         {threshold !== null && passed !== null ? (
           <p className="qt-pass" data-passed={passed ? '' : undefined}>
             {RESULT.pass(threshold, passed)}

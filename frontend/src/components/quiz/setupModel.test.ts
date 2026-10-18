@@ -7,6 +7,7 @@ import {
   changedSettings,
   countChoices,
   countFor,
+  hasExplanations,
   isoFromLocal,
   keyedBySubject,
   localInput,
@@ -153,5 +154,27 @@ describe('all the questions (?all=1)', () => {
   it('keeps everything else of the start', () => {
     const all = allQuestions(base, 30);
     expect({ ...all, item_count: base.item_count, time_limit_min: base.time_limit_min, same_set: base.same_set, shuffle_items: base.shuffle_items }).toEqual(base);
+  });
+  it('is named as the test: its title, trimmed and cut to 120; none — the usual name', () => {
+    expect(allQuestions(base, 30, '  Химия, 9 класс ').title).toBe('Химия, 9 класс');
+    expect(allQuestions(base, 30, 'Я'.repeat(125)).title).toBe('Я'.repeat(120));
+    expect(allQuestions(base, 30, '   ').title).toBe(base.title);
+    expect(allQuestions(base, 30, null).title).toBe(base.title);
+  });
+});
+
+describe('hasExplanations', () => {
+  const items = [
+    item({ id: 'a', subject_id: 's1', correct: [0], explanation: '' }),
+    item({ id: 'b', subject_id: 's1', correct: [0], explanation: '  ' }),
+    item({ id: 'c', subject_id: 's2', correct: [0], explanation: 'Потому что так.' }),
+    item({ id: 'd', subject_id: 's3', correct: [], answers: [], explanation: 'Без ключа — не в контрольной.' }),
+  ];
+  it('a keyed question of a ticked subject with words in its explanation', () => {
+    expect(hasExplanations(items, ['s1', 's2'])).toBe(true);
+    expect(hasExplanations(items, ['s1'])).toBe(false);
+    // Without a key a question never reaches a quiz, its explanation neither.
+    expect(hasExplanations(items, ['s3'])).toBe(false);
+    expect(hasExplanations([], ['s1'])).toBe(false);
   });
 });

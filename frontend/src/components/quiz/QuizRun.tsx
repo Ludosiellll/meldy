@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { TestItem } from '../../types/container';
 import type { QuizAccent, QuizAnswerInput, QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
 import { finishQuiz, quizResult, sendAnswers } from '../../api/quizzes';
-import { clockOffset, clockText, quizOrder, secondsLeft } from '../../lib/quizzes/quizModel';
+import { clockOffset, clockText, quizOrder, secondsLeft, timeStage } from '../../lib/quizzes/quizModel';
 import { track } from '../../lib/telemetry';
 import { AttemptPictures } from '../containers/ItemPictures';
 import QuestionCard from '../containers/QuestionCard';
-import { RoomBar } from '../containers/RoomParts';
 import { Sheet } from '../containers/ui';
 import { isAnswered, type MockAnswer } from '../containers/mockModel';
 import { useWide } from '../containers/useWide';
@@ -26,8 +25,13 @@ import './quizTake.css';
  *
  * Release 47 (spec 2026-10-18 §47.1, §47.4): a taker without an account passes the device's token, and every call of
  * the attempt goes with it (quiz_guest_answer / _finish / _result), and its question pictures come through the
- * quiz-media function with that token (AttemptPictures); with a timer a thin strip at the top edge shrinks to the
- * deadline in the quiz's colour (the clock in the top line says the same in words).
+ * quiz-media function with that token (AttemptPictures); with a timer a thin strip along the top line's lower edge
+ * shrinks to the deadline in the quiz's colour (a progressbar «Осталось времени»; the clock in the top line says the
+ * same in words).
+ *
+ * The top line reads «1 из 3 · осталось 19:58». With five minutes left and again with one the clock (and the strip)
+ * turns red and bold, and a status line says «Осталось 5 минут» / «Осталась 1 минута» — once each, only when the
+ * attempt crosses that mark (a resumed attempt already past it is not told again).
  */
 
 export type QuizAnswer = MockAnswer;
@@ -37,6 +41,46 @@ export const SEND_DELAY_MS = 500;
 /** Waits between tries after a failed send (the last one repeats). */
 export const RETRY_MS = [1000, 2000, 5000, 10000, 30000] as const;
 const TEXT_MAX = 200;
+
+/** The top line of the attempt (RoomBar's look, with the clock as its own span: it turns red near the end). */
+function RunBar({ where, onExit, children }: { where: ReactNode; onExit?: () => void; children?: ReactNode }) {
+  return (
+    <header className="sf-room-bar ct-roombar qt-roombar">
+      {children}
+      <div className="ct-rb-left">
+        <span className="ct-rb-mark" aria-hidden="true">
+          Meldy
+        </span>
+        <span className="ct-rb-where">
+          <span className="ct-rb-long">{where}</span>
+          <span className="ct-rb-short">{where}</span>
+        </span>
+      </div>
+      {onExit ? (
+        <button type="button" className="sf-link ct-rb-exit" data-muted="" onClick={onExit}>
+          {RUN.finish}
+        </button>
+      ) : null}
+    </header>
+  );
+}
+
+/** «1 из 3 · осталось 19:58»; without a timer «1 из 3». */
+function where(pos: number, total: number, clock: string | null, stage: 0 | 1 | 2): ReactNode {
+  return (
+    <>
+      {RUN.place(pos, total)}
+      {clock ? (
+        <>
+          {RUN.sep}
+          <span className="qt-clock" data-low={stage > 0 ? '' : undefined}>
+            {RUN.clock(clock)}
+          </span>
+        </>
+      ) : null}
+    </>
+  );
+}
 
 /** Where the unsent answers of an attempt wait on this device. */
 export const storeKey = (attemptId: string) => `quiz:${attemptId}`;
@@ -404,6 +448,16 @@ export default function QuizRun({ attempt, token, accent = 'blue', onResult, onL
     if (left === 0) end('time');
   }, [left]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Five minutes left, then one: said once each when the attempt crosses the mark (not for one already past it).
+  const stage = timeStage(left);
+  const told = useRef(stage);
+  const [lowNote, setLowNote] = useState('');
+  useEffect(() => {
+    if (stage <= told.current) return;
+    told.current = stage;
+    setLowNote(stage === 2 ? RUN.lowOne : RUN.lowFive);
+  }, [stage]);
+
   useEffect(() => {
     stemRef.current?.focus({ preventScroll: true });
     try {
@@ -436,17 +490,7 @@ export default function QuizRun({ attempt, token, accent = 'blue', onResult, onL
     const canGoBack = ending.state !== 'sending' && ending.reason === 'sent' && (left === null || left > 0);
     return (
       <>
-        <header className="sf-room-bar ct-roombar">
-          <div className="ct-rb-left">
-            <span className="ct-rb-mark" aria-hidden="true">
-              Meldy
-            </span>
-            <span className="ct-rb-where">
-              <span className="ct-rb-long">{RUN.barLong(shown, total, null)}</span>
-              <span className="ct-rb-short">{RUN.barShort(shown, total, null)}</span>
-            </span>
-          </div>
-        </header>
+        <RunBar where={where(shown, total, null, 0)} />
         <main className="sf-page ct-study ct-end">
           <p className="ct-recall" role="status">
             {line}
@@ -487,13 +531,26 @@ export default function QuizRun({ attempt, token, accent = 'blue', onResult, onL
 
   return (
     <AttemptPictures attemptId={id} token={token}>
-      {share !== null ? (
-        <div className="qt-time" aria-hidden="true">
-          <span className="qt-time-left" style={{ transform: `scaleX(${share})` }} />
-        </div>
-      ) : null}
-      <RoomBar long={RUN.barLong(shown, total, timeText)} short={RUN.barShort(shown, total, timeText)} exitLabel={RUN.finish} onExit={() => setFinishOpen(true)} />
+      <RunBar where={where(shown, total, timeText, stage)} onExit={() => setFinishOpen(true)}>
+        {share !== null && timeText !== null ? (
+          <div
+            className="qt-time"
+            role="progressbar"
+            aria-label={RUN.timeLabel}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(share * 100)}
+            aria-valuetext={RUN.clock(timeText)}
+            data-low={stage > 0 ? '' : undefined}
+          >
+            <span className="qt-time-left" style={{ transform: `scaleX(${share})` }} />
+          </div>
+        ) : null}
+      </RunBar>
       <main className="sf-page ct-study qt-run">
+        <p className="qt-low" role="status">
+          {lowNote}
+        </p>
         {resumedNote ? <p className="ct-offline">{RUN.resumed(shown, total, timeText)}</p> : null}
         {item && card ? (
           <QuestionCard

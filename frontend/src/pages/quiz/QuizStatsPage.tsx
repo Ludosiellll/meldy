@@ -12,6 +12,7 @@ import { TO_EXAMS } from '../../components/containers/copy';
 import { useFocusAfter } from '../../components/containers/useFocusAfter';
 import QuizPeople from '../../components/quiz/QuizPeople';
 import QuizQuestions from '../../components/quiz/QuizQuestions';
+import QuizShare from '../../components/quiz/QuizShare';
 import { QA_ERRORS, QA_LIST, QA_STATS } from '../../components/quiz/copyAuthor';
 import { QUIZ } from '../../components/quiz/copyQuiz';
 import type { TestItem, Uuid } from '../../types/container';
@@ -22,7 +23,8 @@ import '../../components/quiz/quizAuthor.css';
 
 /**
  * /exams/c/:id/quizzes/:quizId — the author's stats of a «Контрольная» (spec 2026-10-16 §2.3): the head (name, state,
- * the link /k/<code> with «Скопировать», «Изменить настройки», «Закрыть сейчас», «Удалить» after asking), the line of
+ * the link /k/<code> with «Скопировать», «Показать QR», «Поделиться», «Открыть как ученик» (QuizShare), «Изменить
+ * настройки», «Закрыть сейчас», «Удалить» after asking), the line of
  * totals («Пишут сейчас: 3 · Сдали: 12 · Средний результат: 71 % · Прошли порог: 9 из 12», the author's own tries left
  * out), «Участники» and «Вопросы», and «Скачать таблицу» (CSV for Excel).
  *
@@ -351,6 +353,7 @@ export default function QuizStatsPage() {
         <p className="qa-announce" role="status">
           {announce}
         </p>
+        <QuizShare url={url} title={quiz.title} />
         <p className="qa-acts">
           <Link className="sf-link" to={`${listPath}/${quizId}/edit`}>
             {QA_STATS.edit}

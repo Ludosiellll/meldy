@@ -16,7 +16,8 @@ import './quizAuthor.css';
 /**
  * «Участники» of a quiz's stats (spec 2026-10-16 §2.3): one row a person — the attempt that counts (best or last, or
  * the one being written), their name («(вы)» for the author's own tries), what they do now («пишет — 12 из 20,
- * осталось 08:41» against the server's deadline, «сдал(а) 17:32», «время вышло», «закрыта»), the result, the minutes
+ * осталось 08:41» against the server's deadline, or «время вышло, ответы сдаются» at 00:00 while the server still
+ * takes the last answers, «сдал(а) 17:32», «время вышло», «закрыта»), the result, the minutes
  * and «попытка 2 из 3». A press opens their answers in a sheet: a switch between their attempts, each answered question
  * with their answer and the key in letters, and «Сбросить попытку» after asking (the person gets the attempt back).
  * Somebody who wrote without an account (release 47) has a quiet «без входа» after the name, and a line under the table
@@ -54,6 +55,8 @@ function finishedText(iso: string, nowMs: number): string {
 export function statusText(attempt: QuizAttemptRow, offsetMs: number, nowMs: number): string {
   if (!attempt.finished_at) {
     const left = secondsLeft(attempt.deadline_at, offsetMs, nowMs);
+    // The clock ran out, the server has not closed the attempt yet (it takes the last answers for 20 s more).
+    if (left === 0) return QA_PEOPLE.timeOver;
     return QA_PEOPLE.writing(attempt.answered, attempt.total, left === null ? null : clockText(left));
   }
   if (attempt.finish_reason === 'time') return QA_PEOPLE.time;

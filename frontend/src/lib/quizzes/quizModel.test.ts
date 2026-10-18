@@ -5,6 +5,7 @@ import {
   clockOffset,
   clockText,
   csvOf,
+  dateWords,
   defaultMinutes,
   defaultSettings,
   peopleRows,
@@ -13,6 +14,7 @@ import {
   secondsLeft,
   settingsProblems,
   summaryOf,
+  timeStage,
 } from './quizModel';
 
 const NOW = new Date('2026-10-16T12:00:00Z');
@@ -206,5 +208,26 @@ describe('quizOrder', () => {
     expect(quizOrder(item, 'att-1', false)).toEqual([0, 1, 2, 3, 4]);
     expect(quizOrder({ ...item, keep_order: true }, 'att-1', true)).toEqual([0, 1, 2, 3, 4]);
     expect(quizOrder({ ...item, kind: 'short', options: [] }, 'att-1', true)).toEqual([]);
+  });
+});
+
+describe('dateWords and timeStage (release 47 design fixes)', () => {
+  const NB = String.fromCharCode(0xa0);
+  const at = (y: number, m: number, d: number, h: number, min: number) => new Date(y, m, d, h, min).toISOString();
+  it('«25 октября, 23:59» in the device’s time, kept whole; the year only when it is another one', () => {
+    const now = new Date(2026, 9, 18, 12, 0);
+    expect(dateWords(at(2026, 9, 25, 23, 59), now)).toBe(`25${NB}октября,${NB}23:59`);
+    expect(dateWords(at(2026, 4, 1, 9, 5), now)).toBe(`1${NB}мая,${NB}09:05`);
+    expect(dateWords(at(2027, 0, 3, 9, 0), now)).toBe(`3${NB}января${NB}2027,${NB}09:00`);
+    expect(dateWords(null, now)).toBe('');
+    expect(dateWords('не дата', now)).toBe('');
+  });
+  it('red from five minutes left, the second step at one minute; nothing without a timer', () => {
+    expect(timeStage(null)).toBe(0);
+    expect(timeStage(301)).toBe(0);
+    expect(timeStage(300)).toBe(1);
+    expect(timeStage(61)).toBe(1);
+    expect(timeStage(60)).toBe(2);
+    expect(timeStage(0)).toBe(2);
   });
 });

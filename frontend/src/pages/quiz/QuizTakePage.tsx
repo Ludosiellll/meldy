@@ -40,6 +40,10 @@ import '../../components/quiz/quizTake.css';
  * - back from making an account for «Тренироваться» (?practice=1): that person has just pressed the button on their own
  *   result, so the claim runs by itself, then quiz_practice_join, then the exam;
  * - the author's cover on top of the card and the quiz's colour on the page's root (data-accent, quizTake.css).
+ *
+ * The start fits a laptop's 734 px and a phone's 844 px with «Начать» in view: a low cover band, the title, the author,
+ * the facts on one line (dates kept whole), then the name («Имя и фамилия — их увидит <автор>») and the button; the
+ * rules and the line about what the author sees come under the button.
  */
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: QuizPreview } | { state: 'error'; message: string };
@@ -71,7 +75,7 @@ function accentOf(value: unknown): QuizAccent {
   return QUIZ_ACCENTS.find((accent) => accent === value) ?? 'blue';
 }
 
-/** The author's cover: a box of a fixed shape (nothing moves when it arrives); a picture that fails goes away. */
+/** The author's cover: a band of a fixed height (nothing moves when it arrives); a picture that fails goes away. */
 function Cover({ path }: { path: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
@@ -339,6 +343,20 @@ export default function QuizTakePage() {
   const deviceCard = user && device && me && !me.is_author ? device : null;
   // A guest whose device already holds attempts of this quiz may be someone else at a shared computer.
   const otherHere = guest && me !== null && (Boolean(me.open_attempt) || me.attempts_used > 0);
+  // The rules and what the author sees: under the button, so the start stays in view.
+  const facts =
+    ready && value && !failed ? (
+      <div className="qt-facts">
+        <ul className="qt-rules">
+          <li>{value.allow_back === false ? TAKE.forwardOnly : TAKE.backAllowed}</li>
+          {typeof value.pass_percent === 'number' ? <li>{TAKE.passMark(value.pass_percent)}</li> : null}
+          {value.attempts !== 1 && value.grading ? <li>{TAKE.grading[value.grading]}</li> : null}
+          {value.review ? <li>{TAKE.review[value.review]}</li> : null}
+          {value.members_only ? <li>{TAKE.membersOnly}</li> : null}
+        </ul>
+        <p className="qt-privacy">{guest ? TAKE.guestPrivacy : TAKE.privacy}</p>
+      </div>
+    ) : null;
   const otherButton = (
     <button type="button" className="sf-link qt-other" disabled={starting} onClick={otherPerson}>
       {TAKE.otherPerson}
@@ -358,7 +376,6 @@ export default function QuizTakePage() {
             {ready && value ? (
               <>
                 {value.cover_path ? <Cover path={value.cover_path} /> : null}
-                <p className="qt-kicker">{TAKE.kicker}</p>
                 <h1 id="qt-title" className="au-h1 qt-h1">
                   {value.title}
                 </h1>
@@ -368,14 +385,6 @@ export default function QuizTakePage() {
                   {value.exam_title ? <span>{TAKE.exam(value.exam_title)}</span> : null}
                 </p>
                 <p className="qt-meta">{meta}</p>
-                <ul className="qt-rules">
-                  <li>{value.allow_back === false ? TAKE.forwardOnly : TAKE.backAllowed}</li>
-                  {typeof value.pass_percent === 'number' ? <li>{TAKE.passMark(value.pass_percent)}</li> : null}
-                  {value.attempts !== 1 && value.grading ? <li>{TAKE.grading[value.grading]}</li> : null}
-                  {value.review ? <li>{TAKE.review[value.review]}</li> : null}
-                  {value.members_only ? <li>{TAKE.membersOnly}</li> : null}
-                </ul>
-                <p className="qt-privacy">{guest ? TAKE.guestPrivacy : TAKE.privacy}</p>
               </>
             ) : (
               <h1 id="qt-title" className="au-h1 qt-h1">
@@ -459,7 +468,7 @@ export default function QuizTakePage() {
                   <form className="qt-start" onSubmit={(event) => void begin(event)} noValidate>
                     <div className="au-field">
                       <label className="au-label" htmlFor={nameId}>
-                        {TAKE.nameLabel}
+                        {TAKE.nameLabel(value.author_name)}
                       </label>
                       <input
                         id={nameId}
@@ -493,6 +502,13 @@ export default function QuizTakePage() {
                     </Link>
                   </p>
                 ) : null}
+              </>
+            ) : null}
+
+            {facts}
+
+            {ready && value && me && (user || guest) ? (
+              <>
                 {results.length > 0 ? (
                   <section className="qt-past" aria-labelledby="qt-past-title">
                     <h2 id="qt-past-title" className="qt-past-h">

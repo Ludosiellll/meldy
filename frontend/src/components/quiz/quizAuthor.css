@@ -116,6 +116,47 @@
 /* A list and the date it may open: side by side while there is room, the date under it on a phone. */
 .sf-page.qa-page .qa-when { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; max-width: 100%; min-width: 0; }
 .sf-page.qa-page .qa-date { flex: 1 1 220px; width: auto; min-width: 0; max-width: 260px; min-height: 48px; font-size: 16px; }
+/* A long choice («балл и ошибки сразу; верные ответы и пояснения — после закрытия») wraps inside its list instead of
+   being cut: a phone shows it whole on two lines. A one-line list keeps its pill (22 px is half its height). */
+.sf-page.qa-page .qa-field .ps-trigger { padding-top: 10px; padding-bottom: 10px; border-radius: 22px; }
+.sf-page.qa-page .qa-field .ps-value { white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
+/* The date in words beside its field («до 25 октября, 23:59»): it never breaks inside. */
+.sf-page.qa-page .qa-date-words { flex: none; font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); white-space: nowrap; }
+
+/* ?all=1: «Основное» on the left from 1024 px, «Оформление» and «Ещё настройки» on the right; the folded settings
+   open under both. */
+.sf-page.qa-page .qa-parts[data-side][data-compact] > .qa-part-m { grid-column: 1; grid-row: 1 / span 2; }
+.sf-page.qa-page .qa-parts[data-side][data-compact] > .qa-part-l { grid-column: 2; grid-row: 1; }
+.sf-page.qa-page .qa-parts[data-side][data-compact] > .qa-more { grid-column: 2; grid-row: 2; }
+.sf-page.qa-page .qa-more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  grid-template-areas: 'title icon' 'note icon';
+  align-items: center;
+  gap: 2px 12px;
+  width: 100%;
+  min-height: 64px;
+  margin: 0;
+  padding: 14px 20px 14px 26px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .3s var(--m-ease);
+}
+.sf-page.qa-page[data-frame='s'] .qa-more { padding: 12px 16px; border-radius: 20px; }
+.sf-page.qa-page .qa-more:hover { background: var(--ex-hover, var(--sf-surface-soft)); }
+.sf-page.qa-page .qa-more:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.sf-page.qa-page .qa-more-t { grid-area: title; font-size: 17px; line-height: 1.35; font-weight: 600; }
+.sf-page.qa-page .qa-more-n { grid-area: note; font-size: 14px; line-height: 1.4; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page.qa-page .qa-more-i { grid-area: icon; color: var(--sf-muted); transition: transform .3s var(--m-ease); }
+.sf-page.qa-page .qa-more[aria-expanded='true'] .qa-more-i { transform: rotate(180deg); }
+.sf-page.qa-page .qa-more-parts { margin-top: 20px; }
+.sf-page.qa-page .qa-more-parts[hidden] { display: none; }
 .sf-page.qa-page .qa-subjects { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .sf-page.qa-page .qa-subjects legend { margin-bottom: 8px; padding: 0; }
 .sf-page.qa-page .qa-checks {
@@ -272,6 +313,29 @@
 .sf-page.qa-page .qa-announce { min-height: 0; margin: 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
 .sf-page.qa-page .qa-announce:empty { display: none; }
 .sf-page.qa-page .qa-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; margin: 0; }
+/* Sharing (QuizShare): «Показать QR», «Поделиться», «Открыть как ученик» — soft pills under the link. */
+.sf-page.qa-page .qa-shares { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 4px; }
+.sf-page.qa-page .qa-share-b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 15px/1.2 var(--ph-sans);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .3s var(--m-ease);
+}
+.sf-page.qa-page .qa-share-b svg { flex: none; color: var(--sf-muted); }
+.sf-page.qa-page .qa-share-b:hover { background: var(--ex-hover, var(--sf-surface-soft)); }
+.sf-page.qa-page .qa-share-b:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.sf-page.qa-page .qa-share-b[aria-busy='true'] { cursor: progress; }
 .sf-page.qa-page .qa-ask { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; margin: 4px 0 0; font-size: 15px; line-height: 1.45; }
 .sf-page.qa-page .qa-ask > span { flex: 1 1 100%; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page.qa-page .qa-ask .sf-link { min-height: 44px; margin: -10px 0; font-size: 15px; vertical-align: baseline; }
@@ -473,6 +537,59 @@
 .qa-sheet .qa-ask { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; margin: 6px 0 0; font-size: 15px; line-height: 1.45; }
 .qa-sheet .qa-ask > span { flex: 1 1 100%; color: var(--sf-ink); }
 .qa-sheet .qa-ask .sf-link { min-height: 44px; margin: -10px 0; font-size: 15px; vertical-align: baseline; }
+
+/* ── «Показать QR»: the whole screen, the code on white (dark modules on light in both themes), the link large ── */
+.qa-qr-root {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  -webkit-font-smoothing: antialiased;
+  animation: qa-qr-in .2s ease both;
+}
+.qa-qr { display: grid; justify-items: center; gap: 0; width: 100%; max-width: 920px; text-align: center; }
+.qa-qr-t {
+  max-width: 100%;
+  margin: 0;
+  font-size: clamp(18px, 2.6dvh, 24px);
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -.01em;
+  color: var(--sf-muted);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.qa-qr-code {
+  display: block;
+  width: min(58dvh, calc(100vw - 32px), 560px);
+  height: auto;
+  margin: clamp(12px, 2.4dvh, 24px) 0 0;
+  border-radius: 24px;
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.qa-qr-link {
+  max-width: 100%;
+  margin: clamp(14px, 2.6dvh, 26px) 0 0;
+  font-size: clamp(26px, min(5vw, 6.4dvh), 56px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.qa-qr-hint { margin: 8px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.qa-qr-close.sf-secondary { margin-top: clamp(12px, 2.4dvh, 24px); }
+@keyframes qa-qr-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .qa-qr-root { animation: none; }
+}
 
 @media (max-width: 639px) {
   .sf-page.qa-page .qa-link-row { flex-wrap: wrap; }

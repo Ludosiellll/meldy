@@ -38,6 +38,8 @@ import { EXAM, examItems, examSummary, listRow, NOW, QUIZ_ID, quizRow, S1, S2 } 
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/ /g, ' ');
 const combo = (name: string) => screen.getByRole('combobox', { name });
+/** The words a field points to with aria-describedby, its non-breaking spaces as spaces. */
+const described = (field: HTMLElement) => plain(document.getElementById(field.getAttribute('aria-describedby') ?? '')?.textContent);
 const pick = (name: string, option: string) => {
   fireEvent.click(combo(name));
   fireEvent.click(screen.getByRole('option', { name: option }));
@@ -202,7 +204,7 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
   it('without an account and «балл, ошибки и верные ответы»: a hint under the review names the safer choice', async () => {
     const HINT =
       'Без входа тест можно открыть заново в другом браузере и увидеть ответы до своей попытки. ' +
-      'Для контрольной лучше «балл и ошибки сразу, верные ответы после закрытия».';
+      'Для контрольной лучше «балл и ошибки сразу; верные ответы и пояснения — после закрытия».';
     expect(QA_SETUP.reviewGuests).toBe(HINT);
     expect(QA_SETUP.reviewGuests).toContain(`«${QA_SETUP.reviewOption('mistakes_then_answers')}»`);
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
@@ -288,13 +290,14 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     const toggle = screen.getByRole('checkbox', { name: QA_SETUP.practice });
     expect(toggle).toHaveAccessibleDescription(
-      'Участник станет участником экзамена, если сам нажмёт кнопку. Вы увидите его в списке участников, его прогресс — нет. ' +
-        'Кнопка появится, когда контрольная закроется: в тренировке видны все ответы экзамена.',
+      'После закрытия ученикам предложат тренировать вопросы экзамена в Meldy (в тренировке видны все ответы). ' +
+        'Кто согласится, появится в списке участников экзамена. Его прогресс вам не виден.',
     );
-    // The button waits for the closing: said whether the offer is on or off.
-    expect(screen.getByText(QA_SETUP.practiceLater)).toHaveClass('im-hint');
+    // No «Участник станет участником»: the words say what happens and when.
+    expect(document.body.textContent).not.toContain('станет участником');
+    expect(screen.getByText(QA_SETUP.practiceNote)).toHaveClass('im-hint');
     fireEvent.click(toggle);
-    expect(screen.getByText(QA_SETUP.practiceLater)).toBeInTheDocument();
+    expect(screen.getByText(QA_SETUP.practiceNote)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
     await waitFor(() => expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ offer_practice: true })));
   });
@@ -321,8 +324,11 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
 });
 
 describe('QuizSetupPage: all the questions (?all=1, the constructor’s «Отправить по ссылке»)', () => {
+  const more = () => screen.getByRole('button', { name: /^Ещё настройки/ });
+
   it('every subject with keyed questions, their whole pool, one set for everyone, in the exam’s order', async () => {
     renderAt(`/exams/c/${EXAM}/quizzes/new?all=1`);
+    fireEvent.click(more());
     const subjects = screen.getByRole('group', { name: QA_SETUP.subjects });
     expect(within(subjects).getByRole('checkbox', { name: /Вариант 1/ })).toBeChecked();
     expect(within(subjects).getByRole('checkbox', { name: /Вариант 2/ })).toBeChecked();
@@ -344,8 +350,47 @@ describe('QuizSetupPage: all the questions (?all=1, the constructor’s «Отп
     );
   });
 
+  it('named as the test; five settings in view, the rest under «Ещё настройки», folded', () => {
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1`);
+    expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Зимняя сессия');
+    const main = screen.getByRole('region', { name: QA_SETUP.partMain });
+    expect(within(main).getByLabelText(QA_SETUP.name)).toBeInTheDocument();
+    expect(within(main).getByRole('combobox', { name: QA_SETUP.time })).toBeInTheDocument();
+    expect(within(main).getByRole('combobox', { name: QA_SETUP.closes })).toBeInTheDocument();
+    expect(within(main).getByRole('combobox', { name: QA_SETUP.who })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: QA_SETUP.partLook })).toBeInTheDocument();
+    const button = more();
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    const folded = document.getElementById(button.getAttribute('aria-controls') ?? '')!;
+    expect(folded).not.toBeVisible();
+    for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order, QA_SETUP.options, QA_SETUP.opens, QA_SETUP.attempts, QA_SETUP.pass, QA_SETUP.review]) {
+      expect(screen.queryByRole('combobox', { name })).toBeNull();
+    }
+    expect(screen.queryByRole('group', { name: QA_SETUP.subjects })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: QA_SETUP.practice })).toBeNull();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(folded).toBeVisible();
+    for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order, QA_SETUP.options, QA_SETUP.opens, QA_SETUP.attempts, QA_SETUP.pass, QA_SETUP.review]) {
+      expect(within(folded).getByRole('combobox', { name })).toBeInTheDocument();
+    }
+    expect(within(folded).getByRole('group', { name: QA_SETUP.subjects })).toBeInTheDocument();
+    expect(within(folded).getByRole('checkbox', { name: QA_SETUP.practice })).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(folded).not.toBeVisible();
+  });
+
+  it('a name longer than a quiz may have is cut to 120 characters; an empty one keeps the usual', () => {
+    api.state.summary = examSummary({ title: 'Б'.repeat(130) });
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1`);
+    expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Б'.repeat(120));
+  });
+
   it('without it a new quiz keeps the usual start', () => {
     renderAt(`/exams/c/${EXAM}/quizzes/new?all=0`);
+    expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Контрольная · 16.10');
+    expect(screen.queryByRole('button', { name: /^Ещё настройки/ })).toBeNull();
     expect(combo(QA_SETUP.count)).toHaveTextContent('20');
     expect(combo(QA_SETUP.set)).toHaveTextContent(QA_SETUP.setOwn);
     expect(combo(QA_SETUP.order)).toHaveTextContent(QA_SETUP.orderShuffle);
@@ -391,5 +436,59 @@ describe('QuizSetupPage: changing a quiz', () => {
     renderAt(`/exams/c/${EXAM}/quizzes/${QUIZ_ID}/edit`);
     expect(await screen.findByRole('alert')).toHaveTextContent(QA_SETUP.notFound);
     expect(screen.getByRole('link', { name: QA_SETUP.toList }).getAttribute('href')).toBe(`/exams/c/${EXAM}/quizzes`);
+  });
+});
+
+describe('QuizSetupPage: one subject, the date in words, the explanations (release 47 design fixes)', () => {
+  it('an exam of one subject has no «Вопросы из»: the count’s hint says the pool', () => {
+    api.state.summary = examSummary({ subjects: [examSummary().subjects[0]] });
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    expect(screen.queryByRole('group', { name: QA_SETUP.subjects })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /Вариант 1/ })).toBeNull();
+    const count = combo(QA_SETUP.count).closest('.qa-field')!;
+    expect(plain(count.textContent)).toContain('В контрольную идут только вопросы с ключом: их 15.');
+  });
+
+  it('two subjects (the oral one does not count): «Вопросы из» stays', () => {
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    expect(screen.getByRole('group', { name: QA_SETUP.subjects })).toBeInTheDocument();
+  });
+
+  it('beside the date field, the date in words; it follows the field', () => {
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    const field = screen.getByLabelText(QA_SETUP.closesField);
+    // A week on from 16 October, 23:59 of the device.
+    expect(described(field)).toBe('до 23 октября, 23:59');
+    fireEvent.change(field, { target: { value: '2026-10-25T23:59' } });
+    expect(described(field)).toBe('до 25 октября, 23:59');
+    pick(QA_SETUP.opens, QA_SETUP.opensAt);
+    fireEvent.change(screen.getByLabelText(QA_SETUP.opensField), { target: { value: '2027-01-03T09:00' } });
+    // Another year says its year.
+    expect(described(screen.getByLabelText(QA_SETUP.opensField))).toBe('с 3 января 2027, 09:00');
+    pick(QA_SETUP.closes, QA_SETUP.closesNever);
+    expect(screen.queryByText(/^до /)).toBeNull();
+  });
+
+  it('the review’s option for the safe default fits its words; no explanations in the set — no line', () => {
+    expect(QA_SETUP.reviewOption('mistakes_then_answers')).toBe('балл и ошибки сразу; верные ответы и пояснения — после закрытия');
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    expect(combo(QA_SETUP.review)).toHaveTextContent(QA_SETUP.reviewOption('mistakes_then_answers'));
+    expect(screen.queryByText(/В тесте есть пояснения/)).toBeNull();
+  });
+
+  it('a question of the set with an explanation: a line under the review says when the takers see it', () => {
+    const items = examItems();
+    items.set('i37', { ...items.get('i37')!, explanation: 'Два знака равенства сравнивают значения.' });
+    api.state.items = items;
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    const review = combo(QA_SETUP.review).closest('.qa-field')!;
+    expect(plain(review.textContent)).toContain('В тесте есть пояснения. Ученики увидят их вместе с верными ответами — после закрытия.');
+    pick(QA_SETUP.review, QA_SETUP.reviewOption('answers'));
+    expect(plain(review.textContent)).toContain('В тесте есть пояснения. Ученики увидят их вместе с верными ответами — сразу.');
+    pick(QA_SETUP.review, QA_SETUP.reviewOption('score'));
+    expect(plain(review.textContent)).toContain('При этой настройке ученики их не увидят');
+    // The subject with the explanation unticked: no longer in the set, no line.
+    fireEvent.click(screen.getByRole('checkbox', { name: /Вариант 1/ }));
+    expect(plain(review.textContent)).not.toContain('В тесте есть пояснения');
   });
 });

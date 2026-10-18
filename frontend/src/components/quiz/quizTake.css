@@ -25,7 +25,13 @@
  *   violet     #6d3fd6   6.30    #5530ac   8.73          #432689  11.19         #5f37c4   6.67    #c0a8f7   7.73
  *   pink       #c0306b   5.42    #9c2556   7.47          #7c1d44   9.92         #b02a62   5.63    #f6a8c8   8.61
  *   graphite   #3b4250  10.09    #2a303b  13.25          #1d222a  15.98         #3b4250   9.08    #c3c8d0   9.48
- *   graphite, dark theme: #5b6475 5.96 · #454d5c 8.51 · #343a46 11.42 (lighter: 3.22:1 to the dark canvas, not 1.9).
+ *   graphite, dark theme: a light pill with dark text and a dark arrow — pill #e6e8ec / #0b0f16 15.65, circle and hover
+ *   #c5cad3 11.66, hover circle #a9b0bc 8.80; the pill against the dark canvas 15.65, the card 14.23.
+ *
+ * The chosen option of the attempt: a 2 px ring and an 8 % tint of --qt-ring — the pill's colour in the light theme,
+ * the lighter link colour in the dark one (the darker pill colours would give violet 2.8:1 to the dark card; the
+ * lighter ones give 7.7:1 or more). The clock and the strip near the end: --qt-danger, #be123c light (5.65:1 to the
+ * canvas), #fda4af dark (10.15:1).
  *
  * The time strip is not text: the pill's colour in the light theme, the dark link colour in the dark one; against the
  * canvas light / dark — blue 4.55 / 8.97 (#8db2f5), green 4.83 / 11.05, orange 4.52 / 9.60, violet 5.67 / 9.31,
@@ -40,6 +46,10 @@
   --qt-bar: var(--sf-accent);
 }
 .dark .qt-accent { --qt-bar: var(--sf-accent-fg); }
+/* Not colours of their own (lib/studio/contrast.ts mirrors the six above): the chosen option's ring, from the palette,
+   and the clock near the end. */
+:where(.qt-accent) { --qt-ring: var(--qt-fill); --qt-danger: #be123c; }
+.dark :where(.qt-accent) { --qt-ring: var(--qt-bar); --qt-danger: #fda4af; }
 
 .qt-accent:is([data-accent='green'], .qt-accent-green) { --qt-fill: #1f7a3d; --qt-fill-deep: #165c2e; --qt-fill-deeper: #10471f; --qt-link: #1d6b36; --qt-bar: #1f7a3d; }
 .dark .qt-accent:is([data-accent='green'], .qt-accent-green) { --qt-link: #8fd4a0; --qt-bar: #8fd4a0; }
@@ -54,7 +64,11 @@
 .dark .qt-accent:is([data-accent='pink'], .qt-accent-pink) { --qt-link: #f6a8c8; --qt-bar: #f6a8c8; }
 
 .qt-accent:is([data-accent='graphite'], .qt-accent-graphite) { --qt-fill: #3b4250; --qt-fill-deep: #2a303b; --qt-fill-deeper: #1d222a; --qt-link: #3b4250; --qt-bar: #3b4250; }
-.dark .qt-accent:is([data-accent='graphite'], .qt-accent-graphite) { --qt-fill: #5b6475; --qt-fill-deep: #454d5c; --qt-fill-deeper: #343a46; --qt-link: #c3c8d0; --qt-bar: #c3c8d0; }
+.dark .qt-accent:is([data-accent='graphite'], .qt-accent-graphite) { --qt-fill: #e6e8ec; --qt-fill-deep: #c5cad3; --qt-fill-deeper: #a9b0bc; --qt-on-fill: #0b0f16; --qt-link: #c3c8d0; --qt-bar: #c3c8d0; }
+/* The light pill's arrow is dark. */
+.dark .qt-accent:is([data-accent='graphite'], .qt-accent-graphite) .sf-primary::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4 10h11M11 5.5 15.5 10 11 14.5' fill='none' stroke='%230b0f16' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
 
 .qt-accent .sf-primary { background: var(--qt-fill); color: var(--qt-on-fill); }
 .qt-accent .sf-primary::after { background-color: var(--qt-fill-deep); }
@@ -62,6 +76,14 @@
 .qt-accent .sf-primary:hover::after { background-color: var(--qt-fill-deeper); }
 .qt-accent .sf-link:not([data-muted], :disabled, [aria-disabled='true']) { color: var(--qt-link); }
 .qt-accent .ct-opt[aria-pressed='true'] .ct-box { background: var(--qt-fill); }
+.qt-accent .ct-opt[aria-pressed='true'] .ct-box svg { stroke: var(--qt-on-fill); }
+/* The chosen option: a ring and a tint of the quiz's colour; the corners follow the card's (room.css first/last). */
+.qt-accent .ct-opt[data-state='picked'],
+.qt-accent .ct-opt[data-state='picked']:hover:not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--qt-ring) 8%, var(--sf-surface));
+  box-shadow: inset 0 0 0 2px var(--qt-ring);
+}
+.qt-accent .ct-opt[data-state='picked'] .ct-opt-l { color: var(--sf-ink); }
 .qt-accent .ct-cells button[aria-current='true'] { box-shadow: 0 0 0 2px var(--qt-fill); }
 
 /* ---------------------------------------------------------------- the card before the start */
@@ -75,9 +97,13 @@
   padding: 0 var(--au-g) clamp(16px, 4dvh, 48px);
 }
 .qt-card { width: 100%; }
-/* The author's cover: a box of a fixed shape on top of the card, so nothing moves when the picture arrives. */
+/* Wide screens: 40 px inside the card, the content its full width (the sign-in pages keep 440 px). */
+.qt-card.au-card { padding-inline: 40px; }
+.qt-in.au-in { max-width: none; }
+/* The author's cover: a band of a fixed height on top of the card (low enough that «Начать» stays in view on a
+   laptop), so nothing moves when the picture arrives. */
 .qt-cover {
-  aspect-ratio: 5 / 2;
+  height: clamp(88px, 16dvh, 160px);
   margin: 0 0 20px;
   overflow: hidden;
   border-radius: 28px;
@@ -88,11 +114,13 @@
 .qt-kicker { margin: 0 0 8px; font-size: 15px; line-height: 1.3; font-weight: 500; color: var(--sf-muted); }
 .qt-h1 { font-size: clamp(28px, min(3vw, 5dvh), 40px); line-height: 1.1; overflow-wrap: break-word; }
 .qt-by { margin: 10px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); overflow-wrap: anywhere; text-wrap: pretty; }
-.qt-meta { margin: 14px 0 0; font-size: 16px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); text-wrap: pretty; }
-.qt-rules { display: grid; gap: 4px; margin: 10px 0 0; padding: 0; list-style: none; }
+.qt-meta { margin: 12px 0 0; font-size: 16px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); text-wrap: pretty; }
+/* Under the button: the rules, then what the author sees. */
+.qt-facts { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
+.qt-rules { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .qt-rules li { font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .qt-privacy {
-  margin: 18px 0 0;
+  margin: 14px 0 0;
   padding: 12px 16px;
   border-radius: 16px;
   background: var(--sf-surface-soft);
@@ -157,30 +185,51 @@
   .qt { --au-g: 16px; }
   .qt-main { align-content: start; }
   .qt-card.au-card { padding: 24px 20px; border-radius: 28px; }
+  .qt-cover { height: clamp(88px, 14dvh, 140px); }
   .qt-cover { margin-bottom: 16px; border-radius: 20px; }
   .qt-actions .qt-go.sf-primary,
   .qt-failed .sf-primary { width: 100%; min-width: 0; }
 }
 
 /* ---------------------------------------------------------------- the attempt */
-/* The time strip: the share of the time left, along the top edge over the sticky top line (z-index 20 there). The
-   clock in the line says the same in words, so the strip is hidden from screen readers. */
+/* The top line: «1 из 3 · осталось 19:58». The clock is a span of its own: near the end it turns red and bold. */
+.qt-clock { font-variant-numeric: tabular-nums; }
+.qt-clock::before {
+  content: '';
+  display: inline-block;
+  width: .82em;
+  height: .82em;
+  margin-right: .3em;
+  vertical-align: -.1em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='11' r='7' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M10 7.5V11l2.2 1.6M8 2h4' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='11' r='7' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M10 7.5V11l2.2 1.6M8 2h4' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.qt-clock[data-low] { color: var(--qt-danger); font-weight: 600; }
+/* The time strip: the share of the time left, along the lower edge of the sticky top line, so it reads as the clock's
+   (a progressbar «Осталось времени»); a track under it, red near the end like the clock. */
+.qt-roombar { position: sticky; }
 .qt-time {
-  position: sticky;
-  top: 0;
-  z-index: 21;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   height: 4px;
-  margin-bottom: -4px;
-  background: color-mix(in srgb, var(--sf-ink) 8%, transparent);
+  background: color-mix(in srgb, var(--sf-ink) 9%, transparent);
   pointer-events: none;
 }
 .qt-time-left {
   display: block;
   height: 100%;
+  border-radius: 0 999px 999px 0;
   background: var(--qt-bar, var(--sf-accent));
   transform-origin: left center;
-  transition: transform 1s linear;
+  transition: transform 1s linear, background-color .3s ease;
 }
+.qt-time[data-low] .qt-time-left { background: var(--qt-danger); }
+/* «Осталось 5 минут» / «Осталась 1 минута»: said once (role status); it stays as a quiet red line. */
+.qt-low { margin: 0 0 12px; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--qt-danger); }
+.qt-low:empty { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .qt-time-left { transition: none; }
 }
@@ -191,6 +240,8 @@
 .qt-saved[data-tone='offline'],
 .qt-saved[data-tone='failing'] { color: var(--m-yellow-ink); font-weight: 500; text-align: left; }
 .qt-end-acts { gap: 12px 24px; margin-top: 22px; }
+/* «Завершить контрольную?»: the line runs the sheet's full width (the sheets' «pretty» wrap broke it early). */
+.ct-sheet.qt-accent .ct-sheet-body > .ct-finish-line { max-width: none; text-wrap: wrap; }
 
 /* ---------------------------------------------------------------- the result */
 .qt-result-h { margin-top: 4px; overflow-wrap: anywhere; }
@@ -204,6 +255,10 @@
   font-variant-numeric: tabular-nums;
 }
 .qt-nb { white-space: nowrap; }
+/* The percent as a bar in the quiz's colour, a tick at the pass mark. */
+.qt-meter { position: relative; max-width: 420px; height: 6px; margin: 16px 0 0; border-radius: 999px; background: color-mix(in srgb, var(--sf-ink) 10%, transparent); }
+.qt-meter-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--qt-bar, var(--sf-accent)); }
+.qt-meter-tick { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--sf-ink); }
 .qt-pass { margin: 12px 0 0; font-size: 18px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); }
 .qt-pass[data-passed] { color: var(--m-green-ink); }
 .qt-review { margin-top: 30px; }
@@ -219,6 +274,12 @@
 .qt-opts > .qt-opt[data-state='wrong']:hover { background: var(--ct-wrong-bg); }
 .qt-opts > .qt-opt[data-state='file'],
 .qt-opts > .qt-opt[data-state='file']:hover { background: var(--ct-right-bg); }
+/* A right option the person did not pick: no fill, the green edge, its own words. */
+.qt-opts > .qt-opt[data-state='missed'],
+.qt-opts > .qt-opt[data-state='missed']:hover { background: none; box-shadow: inset 4px 0 0 var(--m-green); }
+.qt-opts > .qt-opt[data-state='missed'] .ct-opt-l { color: var(--sf-ink); }
+.qt-opts > .qt-opt[data-state='missed'] .ct-opt-tag,
+.qt-opts > .qt-opt[data-state='file'] .ct-opt-tag { color: var(--m-green-ink); }
 /* The person's answer where the right one is not shown yet: a neutral edge, the words say it. */
 .qt-opts > .qt-opt[data-state='mine'],
 .qt-opts > .qt-opt[data-state='mine']:hover { background: var(--sf-surface-soft); box-shadow: inset 4px 0 0 var(--sf-muted); }
@@ -242,7 +303,7 @@
 .qt-explain-h { margin: 0; font-size: 14px; line-height: 1.4; font-weight: 600; color: var(--sf-muted); }
 .qt-explain-t { margin: 4px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 
-/* «Тренироваться дальше»: a card after the review; what the author will see comes before the button. */
+/* «Повторить эти вопросы»: a card after the review; what the author will see comes before the button. */
 .qt-practice {
   display: grid;
   justify-items: start;

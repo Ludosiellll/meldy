@@ -61,11 +61,22 @@ export function withWho(settings: QuizSettings, who: QuizWho): QuizSettings {
 
 /**
  * A new quiz of all the questions (the constructor's «Отправить по ссылке», `?all=1`): the whole pool of the ticked
- * subjects (no more than MAX_ITEMS), one set for everyone, the questions in the exam's order; the timer follows.
+ * subjects (no more than MAX_ITEMS), one set for everyone, the questions in the exam's order; the timer follows. Its
+ * name is the test's own (the exam's title, cut to the 120 characters a quiz's name may have), when there is one.
  */
-export function allQuestions(settings: QuizSettings, pool: number): QuizSettings {
+export function allQuestions(settings: QuizSettings, pool: number, title?: string | null): QuizSettings {
   const count = Math.max(1, Math.min(pool, MAX_ITEMS));
-  return { ...settings, item_count: count, time_limit_min: defaultMinutes(count), same_set: true, shuffle_items: false };
+  const name = (title ?? '').trim().slice(0, 120).trim();
+  return { ...settings, title: name || settings.title, item_count: count, time_limit_min: defaultMinutes(count), same_set: true, shuffle_items: false };
+}
+
+/** A keyed question of the ticked subjects has the author's explanation (it reaches the takers with the right answers). */
+export function hasExplanations(items: Iterable<TestItem>, subjectIds: readonly string[]): boolean {
+  const ticked = new Set(subjectIds);
+  for (const item of items) {
+    if (ticked.has(item.subject_id) && isKeyed(item) && typeof item.explanation === 'string' && item.explanation.trim() !== '') return true;
+  }
+  return false;
 }
 
 /** The form's settings of a saved quiz. */

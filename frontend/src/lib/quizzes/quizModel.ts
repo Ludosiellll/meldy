@@ -72,6 +72,21 @@ export function dateTimeText(iso: string): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+const MONTHS_FULL = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const NBSP = '\u00a0';
+
+/**
+ * «25 октября, 23:59» in the device's time, the year only when it is not this one («3 января 2027, 09:00»); the spaces
+ * inside are non-breaking, so the date never splits across lines. '' for an empty or unreadable moment.
+ */
+export function dateWords(iso: string | null, now: Date = new Date()): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear() === now.getFullYear() ? '' : `${NBSP}${date.getFullYear()}`;
+  return `${date.getDate()}${NBSP}${MONTHS_FULL[date.getMonth()]}${year},${NBSP}${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function quizStateWords(row: Pick<QuizRow, 'state' | 'opens_at' | 'closes_at'>): string {
   if (row.state === 'closed') return QUIZ.stateClosed;
   if (row.state === 'not_yet' && row.opens_at) return QUIZ.stateNotYet(dateTimeText(row.opens_at));
@@ -90,6 +105,17 @@ export function secondsLeft(deadlineIso: string | null, offsetMs: number, nowMs:
   const deadline = Date.parse(deadlineIso);
   if (!Number.isFinite(deadline)) return null;
   return Math.max(0, Math.ceil((deadline - (nowMs + offsetMs)) / 1000));
+}
+
+/**
+ * How near the end an attempt is: 2 — a minute or less left, 1 — five minutes or less, 0 — more, or no timer. The clock
+ * turns red from 1 on; each step up is said once (QuizRun).
+ */
+export function timeStage(seconds: number | null): 0 | 1 | 2 {
+  if (seconds === null) return 0;
+  if (seconds <= 60) return 2;
+  if (seconds <= 300) return 1;
+  return 0;
 }
 
 export function clockText(seconds: number): string {

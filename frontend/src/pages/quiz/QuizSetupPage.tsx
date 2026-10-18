@@ -8,6 +8,7 @@ import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import {
   ATTEMPT_OPTIONS,
+  dateWords,
   defaultMinutes,
   defaultSettings,
   MAX_ITEMS,
@@ -26,6 +27,7 @@ import {
   changedSettings,
   countChoices,
   countFor,
+  hasExplanations,
   isoFromLocal,
   keyedBySubject,
   localInput,
@@ -53,7 +55,10 @@ import '../../components/quiz/quizAuthor.css';
  *
  * A new quiz starts from defaultSettings (every subject with keyed questions, 20, about a minute a question, one
  * attempt, open a week, guests welcome); the count and the timer follow the subjects until the author picks them.
- * `?all=1` (the constructor's «Отправить по ссылке») starts with all the questions, one set, in order. «Создать» →
+ * `?all=1` (the constructor's «Отправить по ссылке») starts with all the questions, one set, in order, named as the test;
+ * it shows only what matters first (the name, the time, «Открыта до», who may write, the look) and folds the rest under
+ * «Ещё настройки». An exam of one subject has no «Вопросы из». A date field says its date in words beside it; when a
+ * question of the set has an explanation, a line under «После сдачи» says when the takers see it. «Создать» →
  * quiz_create → the stats page with the link. An edit sends only the keys it changed; once somebody has started, the
  * locked ones (LOCKED_SETTINGS) are disabled with a line why. What the server would refuse is said as lines beside the
  * button (settingsProblems).
@@ -82,6 +87,9 @@ export default function QuizSetupPage() {
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const allAsked = !editing && search.get('all') === '1';
+  // ?all=1: five settings in view, the rest folded under «Ещё настройки».
+  const compact = allAsked;
+  const [moreOpen, setMoreOpen] = useState(false);
   const frame = useFrame<HTMLDivElement>();
   const formId = useId();
   const data = useContainerData(containerId);
@@ -145,7 +153,7 @@ export default function QuizSetupPage() {
       const ids = subjects.filter((subject) => (counts.get(subject.id) ?? 0) > 0).map((subject) => subject.id);
       start = defaultSettings(ids, poolOf(ids, counts), new Date());
       if (allAsked) {
-        start = allQuestions(start, poolOf(ids, counts));
+        start = allQuestions(start, poolOf(ids, counts), data.data.summary.title);
         // «все» stays «все» when a subject is ticked off or on (countFor); the timer still follows the count.
         setTouched({ count: true, time: false });
       }
@@ -353,228 +361,263 @@ export default function QuizSetupPage() {
   const gradings: QuizGrading[] = ['best', 'last'];
   const who = whoOf(form);
 
+  const explained = hasExplanations(items ? items.values() : [], form.subject_ids);
+  const oneSubject = subjects.length === 1;
+  const reviewHints = [who === 'guests' && form.review === 'answers' ? QA_SETUP.reviewGuests : null, explained ? QA_SETUP.reviewExplain(form.review) : null];
+  const opensWords = opensMode === 'at' ? dateWords(form.opens_at) : '';
+  const closesWords = closesMode === 'at' ? dateWords(form.closes_at) : '';
+
   const select = <T extends string | number>(p: {
     label: string;
     value: T;
     options: ReadonlyArray<PaperSelectOption<T>>;
     onChange: (value: T) => void;
     disabled?: boolean;
-    hint?: string | null;
+    hint?: string | null | ReadonlyArray<string | null>;
     after?: ReactNode;
-  }) => (
+  }) => {
+    const hints = (Array.isArray(p.hint) ? p.hint : [p.hint]).filter((hint): hint is string => Boolean(hint));
+    return (
+      <div className="im-field qa-field">
+        <span className="im-label">{p.label}</span>
+        <span className="qa-when">
+          <PaperSelect ariaLabel={p.label} value={p.value} options={p.options} onChange={p.onChange} disabled={p.disabled || saving} />
+          {p.after}
+        </span>
+        {hints.map((hint) => (
+          <p key={hint} className="im-hint" data-muted="">
+            {nb(hint)}
+          </p>
+        ))}
+      </div>
+    );
+  };
+
+  // ── the fields, each once: the usual form puts them in three cards; ?all=1 shows five and folds the rest ──
+  const nameField = (
     <div className="im-field qa-field">
-      <span className="im-label">{p.label}</span>
-      <span className="qa-when">
-        <PaperSelect ariaLabel={p.label} value={p.value} options={p.options} onChange={p.onChange} disabled={p.disabled || saving} />
-        {p.after}
-      </span>
-      {p.hint ? (
-        <p className="im-hint" data-muted="">
-          {nb(p.hint)}
-        </p>
-      ) : null}
+      <label className="im-label" htmlFor={`${formId}-name`}>
+        {QA_SETUP.name}
+      </label>
+      <input
+        id={`${formId}-name`}
+        className="im-input"
+        value={form.title}
+        maxLength={120}
+        disabled={saving}
+        aria-invalid={problems.includes('title') ? true : undefined}
+        onChange={(event) => set('title', event.target.value)}
+      />
     </div>
   );
-
-  const questionsPart = (
-    <section className="qa-part qa-part-q" aria-labelledby={`${formId}-q`}>
-      <h2 id={`${formId}-q`} className="qa-part-h">
-        {QA_SETUP.partQuestions}
-      </h2>
-      <div className="im-field qa-field">
-        <label className="im-label" htmlFor={`${formId}-name`}>
-          {QA_SETUP.name}
-        </label>
-        <input
-          id={`${formId}-name`}
-          className="im-input"
-          value={form.title}
-          maxLength={120}
-          disabled={saving}
-          aria-invalid={problems.includes('title') ? true : undefined}
-          onChange={(event) => set('title', event.target.value)}
-        />
-      </div>
-      <fieldset className="qa-subjects" disabled={lockedKey('subject_ids') || saving}>
-        <legend className="im-label">{QA_SETUP.subjects}</legend>
-        {anyPool ? (
-          <ul className="qa-checks">
-            {subjects.map((subject) => {
-              const n = counts.get(subject.id) ?? 0;
-              return (
-                <li key={subject.id}>
-                  <label className="qa-check" data-off={n === 0 ? '' : undefined}>
-                    <input
-                      type="checkbox"
-                      checked={form.subject_ids.includes(subject.id)}
-                      disabled={n === 0 && !form.subject_ids.includes(subject.id)}
-                      onChange={() => toggleSubject(subject.id)}
-                    />
-                    <span className="qa-check-t">
-                      <span className="qa-check-title">{subject.title}</span>
-                      <span className="qa-check-meta">{nb(QA_SETUP.subjectMeta(n))}</span>
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="im-hint">
-            {QA_SETUP.noPool}{' '}
-            <Link className="sf-link" to={`/exams/c/${containerId}/keys`}>
-              {QA_SETUP.toKeys}
-            </Link>
-          </p>
-        )}
-        {anyPool ? (
-          <p className="im-hint" data-muted="">
-            {nb(QA_SETUP.pool(pool))}
-          </p>
-        ) : null}
-      </fieldset>
-      {select({ label: QA_SETUP.count, value: form.item_count, options: countOptions, onChange: chooseCount, disabled: lockedKey('item_count') || pool === 0 })}
-      {select({
-        label: QA_SETUP.set,
-        value: form.same_set ? 'same' : 'own',
-        options: [
-          { value: 'own', label: QA_SETUP.setOwn },
-          { value: 'same', label: QA_SETUP.setSame },
-        ],
-        onChange: (value) => set('same_set', value === 'same'),
-        disabled: lockedKey('same_set'),
-        hint: form.same_set ? null : QA_SETUP.setOwnHint,
-      })}
-      {select({
-        label: QA_SETUP.order,
-        value: form.shuffle_items ? 'shuffle' : 'file',
-        options: [
-          { value: 'shuffle', label: QA_SETUP.orderShuffle },
-          { value: 'file', label: QA_SETUP.orderFile },
-        ],
-        onChange: (value) => set('shuffle_items', value === 'shuffle'),
-        disabled: lockedKey('shuffle_items'),
-      })}
-      {select({
-        label: QA_SETUP.options,
-        value: form.shuffle_options ? 'shuffle' : 'file',
-        options: [
-          { value: 'shuffle', label: QA_SETUP.optionsShuffle },
-          { value: 'file', label: QA_SETUP.optionsFile },
-        ],
-        onChange: (value) => set('shuffle_options', value === 'shuffle'),
-        disabled: lockedKey('shuffle_options'),
-        hint: form.shuffle_options ? QA_SETUP.optionsHint : null,
-      })}
-      {select({ label: QA_SETUP.time, value: nz(form.time_limit_min), options: timeOptions, onChange: (value) => chooseTime(zn(value)), disabled: lockedKey('time_limit_min') })}
-    </section>
+  // One subject: nothing to choose, so no «Вопросы из» (the count's hint says how many there are).
+  const subjectsField = !oneSubject ? (
+    <fieldset className="qa-subjects" disabled={lockedKey('subject_ids') || saving}>
+      <legend className="im-label">{QA_SETUP.subjects}</legend>
+      {anyPool ? (
+        <ul className="qa-checks">
+          {subjects.map((subject) => {
+            const n = counts.get(subject.id) ?? 0;
+            return (
+              <li key={subject.id}>
+                <label className="qa-check" data-off={n === 0 ? '' : undefined}>
+                  <input
+                    type="checkbox"
+                    checked={form.subject_ids.includes(subject.id)}
+                    disabled={n === 0 && !form.subject_ids.includes(subject.id)}
+                    onChange={() => toggleSubject(subject.id)}
+                  />
+                  <span className="qa-check-t">
+                    <span className="qa-check-title">{subject.title}</span>
+                    <span className="qa-check-meta">{nb(QA_SETUP.subjectMeta(n))}</span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {anyPool ? (
+        <p className="im-hint" data-muted="">
+          {nb(QA_SETUP.pool(pool))}
+        </p>
+      ) : null}
+    </fieldset>
+  ) : null;
+  const noPoolLine = !anyPool ? (
+    <p className="im-hint">
+      {QA_SETUP.noPool}{' '}
+      <Link className="sf-link" to={`/exams/c/${containerId}/keys`}>
+        {QA_SETUP.toKeys}
+      </Link>
+    </p>
+  ) : null;
+  const countField = select({
+    label: QA_SETUP.count,
+    value: form.item_count,
+    options: countOptions,
+    onChange: chooseCount,
+    disabled: lockedKey('item_count') || pool === 0,
+    hint: oneSubject && anyPool ? QA_SETUP.poolOne(pool) : null,
+  });
+  const setField = select({
+    label: QA_SETUP.set,
+    value: form.same_set ? 'same' : 'own',
+    options: [
+      { value: 'own', label: QA_SETUP.setOwn },
+      { value: 'same', label: QA_SETUP.setSame },
+    ],
+    onChange: (value) => set('same_set', value === 'same'),
+    disabled: lockedKey('same_set'),
+    hint: form.same_set ? null : QA_SETUP.setOwnHint,
+  });
+  const orderField = select({
+    label: QA_SETUP.order,
+    value: form.shuffle_items ? 'shuffle' : 'file',
+    options: [
+      { value: 'shuffle', label: QA_SETUP.orderShuffle },
+      { value: 'file', label: QA_SETUP.orderFile },
+    ],
+    onChange: (value) => set('shuffle_items', value === 'shuffle'),
+    disabled: lockedKey('shuffle_items'),
+  });
+  const optionsField = select({
+    label: QA_SETUP.options,
+    value: form.shuffle_options ? 'shuffle' : 'file',
+    options: [
+      { value: 'shuffle', label: QA_SETUP.optionsShuffle },
+      { value: 'file', label: QA_SETUP.optionsFile },
+    ],
+    onChange: (value) => set('shuffle_options', value === 'shuffle'),
+    disabled: lockedKey('shuffle_options'),
+    hint: form.shuffle_options ? QA_SETUP.optionsHint : null,
+  });
+  const timeField = select({ label: QA_SETUP.time, value: nz(form.time_limit_min), options: timeOptions, onChange: (value) => chooseTime(zn(value)), disabled: lockedKey('time_limit_min') });
+  const dateField = (p: { label: string; value: string | null; words: string; id: string; onChange: (value: string | null) => void }) => (
+    <>
+      <input
+        type="datetime-local"
+        className="im-input im-date qa-date"
+        aria-label={p.label}
+        aria-describedby={p.words ? p.id : undefined}
+        value={localInput(p.value)}
+        disabled={saving}
+        onChange={(event) => p.onChange(isoFromLocal(event.target.value))}
+      />
+      {p.words ? (
+        <span id={p.id} className="qa-date-words">
+          {p.words}
+        </span>
+      ) : null}
+    </>
   );
-
-  const whenPart = (
-    <section className="qa-part qa-part-w" aria-labelledby={`${formId}-w`}>
-      <h2 id={`${formId}-w`} className="qa-part-h">
-        {QA_SETUP.partWhen}
-      </h2>
-      {select({
-        label: QA_SETUP.opens,
-        value: opensMode,
-        options: [
-          { value: 'now', label: QA_SETUP.opensNow },
-          { value: 'at', label: QA_SETUP.opensAt },
-        ],
-        onChange: chooseOpens,
-        after:
-          opensMode === 'at' ? (
-            <input
-              type="datetime-local"
-              className="im-input im-date qa-date"
-              aria-label={QA_SETUP.opensField}
-              value={localInput(form.opens_at)}
-              disabled={saving}
-              onChange={(event) => set('opens_at', isoFromLocal(event.target.value))}
-            />
-          ) : null,
-      })}
-      {select({
-        label: QA_SETUP.closes,
-        value: closesMode,
-        options: [
-          { value: 'at', label: QA_SETUP.closesAt },
-          { value: 'never', label: QA_SETUP.closesNever },
-        ],
-        onChange: chooseCloses,
-        hint: closesPast ? QA_SETUP.closesPast : null,
-        after:
-          closesMode === 'at' ? (
-            <input
-              type="datetime-local"
-              className="im-input im-date qa-date"
-              aria-label={QA_SETUP.closesField}
-              value={localInput(form.closes_at)}
-              disabled={saving}
-              onChange={(event) => set('closes_at', isoFromLocal(event.target.value))}
-            />
-          ) : null,
-      })}
-      {select({ label: QA_SETUP.attempts, value: nz(form.attempts), options: attemptOptions, onChange: (value) => set('attempts', zn(value)) })}
-      {form.attempts !== 1
-        ? select({
-            label: QA_SETUP.grading,
-            value: form.grading,
-            options: gradings.map((value) => ({ value, label: QA_SETUP.gradingOption(value) })),
-            onChange: (value) => set('grading', value),
+  const opensField = select({
+    label: QA_SETUP.opens,
+    value: opensMode,
+    options: [
+      { value: 'now', label: QA_SETUP.opensNow },
+      { value: 'at', label: QA_SETUP.opensAt },
+    ],
+    onChange: chooseOpens,
+    after:
+      opensMode === 'at'
+        ? dateField({
+            label: QA_SETUP.opensField,
+            value: form.opens_at,
+            words: opensWords ? QA_SETUP.opensWords(opensWords) : '',
+            id: `${formId}-opens-words`,
+            onChange: (value) => set('opens_at', value),
           })
-        : null}
-      {select({
-        label: QA_SETUP.back,
-        value: form.allow_back ? 'yes' : 'no',
-        options: [
-          { value: 'yes', label: QA_SETUP.backYes },
-          { value: 'no', label: QA_SETUP.backNo },
-        ],
-        onChange: (value) => set('allow_back', value === 'yes'),
-      })}
-      {select({ label: QA_SETUP.pass, value: nz(form.pass_percent), options: passOptions, onChange: (value) => set('pass_percent', zn(value)) })}
-      {select({
-        label: QA_SETUP.review,
-        value: form.review,
-        options: reviews.map((value) => ({ value, label: QA_SETUP.reviewOption(value) })),
-        onChange: (value) => set('review', value),
-        hint: who === 'guests' && form.review === 'answers' ? QA_SETUP.reviewGuests : null,
-      })}
-      <div className="im-field qa-field">
-        <label className="qa-toggle">
-          <input
-            type="checkbox"
-            checked={form.offer_practice}
-            disabled={saving}
-            aria-describedby={`${formId}-practice ${formId}-practice-later`}
-            onChange={(event) => set('offer_practice', event.target.checked)}
-          />
-          <span className="qa-toggle-t">{QA_SETUP.practice}</span>
-        </label>
-        <p id={`${formId}-practice`} className="im-hint" data-muted="">
-          {QA_SETUP.practiceNote}
-        </p>
-        <p id={`${formId}-practice-later`} className="im-hint" data-muted="">
-          {QA_SETUP.practiceLater}
-        </p>
-      </div>
-      {select<QuizWho>({
-        label: QA_SETUP.who,
-        value: who,
-        options: WHO_CHOICES.map((value) => ({ value, label: QA_SETUP.whoOption(value) })),
-        onChange: (value) => setForm((current) => (current ? withWho(current, value) : current)),
-        hint: QA_SETUP.whoHint(who),
-      })}
+        : null,
+  });
+  const closesField = select({
+    label: QA_SETUP.closes,
+    value: closesMode,
+    options: [
+      { value: 'at', label: QA_SETUP.closesAt },
+      { value: 'never', label: QA_SETUP.closesNever },
+    ],
+    onChange: chooseCloses,
+    hint: closesPast ? QA_SETUP.closesPast : null,
+    after:
+      closesMode === 'at'
+        ? dateField({
+            label: QA_SETUP.closesField,
+            value: form.closes_at,
+            words: closesWords ? QA_SETUP.closesWords(closesWords) : '',
+            id: `${formId}-closes-words`,
+            onChange: (value) => set('closes_at', value),
+          })
+        : null,
+  });
+  const attemptsField = select({ label: QA_SETUP.attempts, value: nz(form.attempts), options: attemptOptions, onChange: (value) => set('attempts', zn(value)) });
+  const gradingField =
+    form.attempts !== 1
+      ? select({
+          label: QA_SETUP.grading,
+          value: form.grading,
+          options: gradings.map((value) => ({ value, label: QA_SETUP.gradingOption(value) })),
+          onChange: (value) => set('grading', value),
+        })
+      : null;
+  const backField = select({
+    label: QA_SETUP.back,
+    value: form.allow_back ? 'yes' : 'no',
+    options: [
+      { value: 'yes', label: QA_SETUP.backYes },
+      { value: 'no', label: QA_SETUP.backNo },
+    ],
+    onChange: (value) => set('allow_back', value === 'yes'),
+  });
+  const passField = select({ label: QA_SETUP.pass, value: nz(form.pass_percent), options: passOptions, onChange: (value) => set('pass_percent', zn(value)) });
+  const reviewField = select({
+    label: QA_SETUP.review,
+    value: form.review,
+    options: reviews.map((value) => ({ value, label: QA_SETUP.reviewOption(value) })),
+    onChange: (value) => set('review', value),
+    hint: reviewHints,
+  });
+  const practiceField = (
+    <div className="im-field qa-field">
+      <label className="qa-toggle">
+        <input
+          type="checkbox"
+          checked={form.offer_practice}
+          disabled={saving}
+          aria-describedby={`${formId}-practice ${formId}-practice-seen`}
+          onChange={(event) => set('offer_practice', event.target.checked)}
+        />
+        <span className="qa-toggle-t">{QA_SETUP.practice}</span>
+      </label>
+      <p id={`${formId}-practice`} className="im-hint" data-muted="">
+        {QA_SETUP.practiceNote}
+      </p>
+      <p id={`${formId}-practice-seen`} className="im-hint" data-muted="">
+        {QA_SETUP.practiceSeen}
+      </p>
+    </div>
+  );
+  const whoField = select<QuizWho>({
+    label: QA_SETUP.who,
+    value: who,
+    options: WHO_CHOICES.map((value) => ({ value, label: QA_SETUP.whoOption(value) })),
+    onChange: (value) => setForm((current) => (current ? withWho(current, value) : current)),
+    hint: QA_SETUP.whoHint(who),
+  });
+
+  const part = (key: 'q' | 'w' | 'l' | 'm', title: string, children: ReactNode) => (
+    <section className={`qa-part qa-part-${key}`} aria-labelledby={`${formId}-${key}`}>
+      <h2 id={`${formId}-${key}`} className="qa-part-h">
+        {title}
+      </h2>
+      {children}
     </section>
   );
 
-  const lookPart = (
-    <section className="qa-part qa-part-l" aria-labelledby={`${formId}-l`}>
-      <h2 id={`${formId}-l`} className="qa-part-h">
-        {QA_SETUP.partLook}
-      </h2>
+  const lookPart = part(
+    'l',
+    QA_SETUP.partLook,
+    <>
       <div className="im-field qa-field" role="group" aria-labelledby={`${formId}-cover`}>
         <span id={`${formId}-cover`} className="im-label">
           {QA_SETUP.cover}
@@ -630,18 +673,107 @@ export default function QuizSetupPage() {
           {QA_SETUP.accentHint}
         </p>
       </fieldset>
-    </section>
+    </>,
+  );
+
+  const side = frame.side ? '' : undefined;
+  const body = compact ? (
+    <>
+      <div className="qa-parts" data-side={side} data-compact="">
+        {part(
+          'm',
+          QA_SETUP.partMain,
+          <>
+            {nameField}
+            {timeField}
+            {closesField}
+            {whoField}
+          </>,
+        )}
+        {lookPart}
+        {/* On a computer under «Оформление», in view at 734 px; the folded settings open under both cards. */}
+        <button
+          type="button"
+          className="qa-more"
+          aria-expanded={moreOpen}
+          aria-controls={`${formId}-more`}
+          onClick={() => setMoreOpen((open) => !open)}
+        >
+          <span className="qa-more-t">{QA_SETUP.more}</span>
+          <span className="qa-more-n">{QA_SETUP.moreNote}</span>
+          <svg className="qa-more-i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+      <div id={`${formId}-more`} className="qa-parts qa-more-parts" data-side={side} hidden={!moreOpen}>
+        {part(
+          'q',
+          QA_SETUP.partQuestions,
+          <>
+            {subjectsField}
+            {noPoolLine}
+            {countField}
+            {setField}
+            {orderField}
+            {optionsField}
+          </>,
+        )}
+        {part(
+          'w',
+          QA_SETUP.partWhen,
+          <>
+            {opensField}
+            {attemptsField}
+            {gradingField}
+            {backField}
+            {passField}
+            {reviewField}
+            {practiceField}
+          </>,
+        )}
+      </div>
+    </>
+  ) : (
+    <div className="qa-parts" data-side={side}>
+      {part(
+        'q',
+        QA_SETUP.partQuestions,
+        <>
+          {nameField}
+          {subjectsField}
+          {noPoolLine}
+          {countField}
+          {setField}
+          {orderField}
+          {optionsField}
+          {timeField}
+        </>,
+      )}
+      {part(
+        'w',
+        QA_SETUP.partWhen,
+        <>
+          {opensField}
+          {closesField}
+          {attemptsField}
+          {gradingField}
+          {backField}
+          {passField}
+          {reviewField}
+          {practiceField}
+          {whoField}
+        </>,
+      )}
+      {lookPart}
+    </div>
   );
 
   return (
     <div className="sf-page qa-page" ref={frame.ref} data-frame={frame.size}>
       {header}
       {locked ? <p className="qa-locked">{QA_SETUP.locked}</p> : null}
-      <div className="qa-parts" data-side={frame.side ? '' : undefined}>
-        {questionsPart}
-        {whenPart}
-        {lookPart}
-      </div>
+      {body}
       <div className="ex-cta qa-cta" data-row={frame.side ? '' : undefined}>
         {problems.length > 0 || saveError ? (
           <div className="qa-cta-why" role={saveError ? 'alert' : 'status'}>

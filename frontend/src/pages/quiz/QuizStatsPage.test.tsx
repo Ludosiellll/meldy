@@ -392,3 +392,77 @@ describe('polling (no realtime: spec §2.3)', () => {
     expect(screen.getByRole('list', { name: QA_PEOPLE.title })).toBeInTheDocument();
   });
 });
+
+describe('QuizStatsPage: the end of a writer’s time and sharing (release 47 design fixes)', () => {
+  it('a writer whose clock ran out reads «время вышло, ответы сдаются», not «осталось 00:00»', async () => {
+    const base = results();
+    api.quizResults.mockImplementation(async () =>
+      results({
+        attempts: base.attempts.map((attempt) => (attempt.id === 'b1' ? { ...attempt, deadline_at: new Date(NOW.getTime() - 5000).toISOString() } : attempt)),
+      }),
+    );
+    renderPage();
+    const list = await screen.findByRole('list', { name: QA_PEOPLE.title });
+    const writing = within(list).getAllByRole('button').map((row) => plain(row.textContent)).find((row) => row.startsWith('Борисова Анна'));
+    expect(writing).toContain('время вышло, ответы сдаются');
+    expect(writing).not.toContain('00:00');
+  });
+
+  it('«Показать QR»: the code over the whole screen with the short link; Escape closes it and the focus comes back', async () => {
+    renderPage();
+    const show = await screen.findByRole('button', { name: QA_STATS.qr });
+    show.focus();
+    fireEvent.click(show);
+    const screenQr = screen.getByRole('dialog', { name: 'Контрольная · 16.10' });
+    expect(screenQr).toHaveAttribute('aria-modal', 'true');
+    // Made here from the link: an SVG of dark modules on a white field.
+    const code = within(screenQr).getByRole('img', { name: QA_STATS.qrTitle });
+    expect(code.querySelector('path')?.getAttribute('d')).toMatch(/^M\d+ \d+h\d+v1h-\d+z/);
+    expect(code.querySelector('rect')).toHaveAttribute('fill', '#fff');
+    // The link in large letters, without its scheme; a narrow screen may break it only after a «/».
+    const link = screenQr.querySelector('.qa-qr-link')!;
+    expect(link.textContent).toBe(`${window.location.host}/k/k7m2p9q4r8st`);
+    expect(link.querySelectorAll('wbr')).toHaveLength(2);
+    expect(within(screenQr).getByRole('button', { name: QA_STATS.qrClose })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Контрольная · 16.10' })).toBeNull();
+    expect(show).toHaveFocus();
+  });
+
+  it('«Закрыть» closes the code too', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: QA_STATS.qr }));
+    fireEvent.click(screen.getByRole('button', { name: QA_STATS.qrClose }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('«Открыть как ученик» opens /k/<код> in a new tab', async () => {
+    renderPage();
+    const link = await screen.findByRole('link', { name: QA_STATS.asTakerLabel });
+    expect(link).toHaveAttribute('href', '/k/k7m2p9q4r8st');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(plain(link.textContent)).toBe(QA_STATS.asTaker);
+  });
+
+  it('«Поделиться» only where the device can share; it hands over the title and the link', async () => {
+    renderPage();
+    await screen.findByRole('button', { name: QA_STATS.qr });
+    expect(screen.queryByRole('button', { name: QA_STATS.share })).toBeNull();
+    cleanup();
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share });
+    try {
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: QA_STATS.share }));
+      await waitFor(() => expect(share).toHaveBeenCalledWith({ title: 'Контрольная · 16.10', url: `${window.location.origin}/k/k7m2p9q4r8st` }));
+      // Closed without sharing: nothing to say, the button works again.
+      share.mockRejectedValueOnce(new DOMException('cancel', 'AbortError'));
+      fireEvent.click(screen.getByRole('button', { name: QA_STATS.share }));
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+      expect(screen.queryByRole('alert')).toBeNull();
+    } finally {
+      delete (navigator as { share?: unknown }).share;
+    }
+  });
+});

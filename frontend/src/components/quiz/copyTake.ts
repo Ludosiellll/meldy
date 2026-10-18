@@ -8,6 +8,9 @@ import { glue } from '../containers/copy';
 import { QUIZ, plural } from './copyQuiz';
 
 const SEP = ' · ';
+const NBSP = '\u00a0';
+/** Words that must not break apart (a date and its time). */
+const together = (text: string) => text.replace(/ /g, NBSP);
 
 export const TAKE = {
   docTitle: QUIZ.name,
@@ -26,12 +29,14 @@ export const TAKE = {
     parts.push(QUIZ.attempts(p.attempts));
     return glue(parts.join(SEP));
   },
-  openUntil: (when: string) => `открыта до ${when}`,
-  opensAt: (when: string) => `откроется ${when}`,
+  /** The date keeps together on one line («24 окт., 18:00»). */
+  openUntil: (when: string) => `открыта до ${together(when)}`,
+  opensAt: (when: string) => `откроется ${together(when)}`,
   closedWord: 'закрыта',
   backAllowed: 'К вопросам можно возвращаться и менять ответы до «Завершить».',
   forwardOnly: 'Только вперёд: к прошлым вопросам вернуться нельзя.',
-  passMark: (percent: number) => glue(`Проходной балл — ${percent} %.`),
+  /** The same words as on the result: «Проходной балл 60 %». */
+  passMark: (percent: number) => glue(`Проходной балл ${percent} %.`),
   grading: {
     best: 'В зачёт идёт лучшая попытка.',
     last: 'В зачёт идёт последняя попытка.',
@@ -52,8 +57,9 @@ export const TAKE = {
   register: 'Создать аккаунт',
   signInAgain: 'Вход закончился. Войдите снова — ответы, которые уже сохранились, останутся.',
   signInShort: 'Войти',
-  nameLabel: 'Ваше имя для автора',
-  nameHint: 'Например: Иванов Иван, гр. 21',
+  /** «Имя и фамилия — их увидит Анна Петрова»; without the author's name — «автор теста». */
+  nameLabel: (author: string | null | undefined) => glue(`Имя и фамилия — их увидит ${author?.trim() || 'автор теста'}`),
+  nameHint: `Например: Иванов Иван, 9${NBSP}Б`,
   nameBad: 'Имя — от 2 до 80 знаков.',
   start: 'Начать',
   resume: 'Продолжить',
@@ -83,9 +89,15 @@ export const TAKE = {
 } as const;
 
 export const RUN = {
-  /** The top line: «Контрольная · 3 из 20 · 24:13» (a phone keeps «3 из 20 · 24:13»). */
-  barLong: (pos: number, total: number, clock: string | null) => glue([QUIZ.name, `${pos} из ${total}`, ...(clock ? [clock] : [])].join(SEP)),
-  barShort: (pos: number, total: number, clock: string | null) => glue([`${pos} из ${total}`, ...(clock ? [clock] : [])].join(SEP)),
+  /** The top line: «3 из 20 · осталось 24:13»; the place, then the clock in a span of its own (it turns red near the end). */
+  place: (pos: number, total: number) => glue(`${pos} из ${total}`),
+  sep: glue(SEP),
+  clock: (clock: string) => `осталось${NBSP}${clock}`,
+  /** The strip under the top line (role progressbar). */
+  timeLabel: 'Осталось времени',
+  /** Said once each, when five minutes and then one minute are left (role status). */
+  lowFive: 'Осталось 5 минут',
+  lowOne: 'Осталась 1 минута',
   finish: 'Завершить',
   next: 'Дальше',
   back: 'Назад',
@@ -124,7 +136,8 @@ export const RESULT = {
   /** «15 из 20 · 75 %». */
   score: (correct: number, total: number) => glue(`${correct} из ${total}`),
   percent: (percent: number) => glue(`${percent} %`),
-  pass: (threshold: number, passed: boolean) => glue(`Порог ${threshold} % — ${passed ? 'сдано' : 'не сдано'}`),
+  /** The words of the start page: «Проходной балл 60 % — сдано». */
+  pass: (threshold: number, passed: boolean) => glue(`Проходной балл ${threshold} % — ${passed ? 'сдано' : 'не сдано'}`),
   byTime: 'Время вышло — попытка закрылась сама. Вопросы без ответа считаются ошибкой.',
   byClose: 'Автор закрыл контрольную — попытка закрылась.',
   answersAfter: (when: string) => glue(`Верные ответы откроются после ${when}.`),
@@ -135,17 +148,20 @@ export const RESULT = {
   showWrong: 'Показать только ошибки',
   itemNo: (n: number) => `Вопрос ${n}`,
   unanswered: 'без ответа',
+  /** The person's answer where the right ones are not shown yet. */
   tagMine: 'Ваш ответ',
-  tagRight: 'Верный',
-  tagMineRight: 'Ваш ответ, верный',
+  tagMineWrong: 'Ваш ответ — неверно',
+  tagMineRight: 'Ваш ответ — верно',
+  /** A right option the person did not pick: no fill, a green edge. */
+  tagMissed: 'Верный — вы не отметили',
   shortMine: (text: string) => `Ваш ответ: ${text}`,
   shortNone: 'Ответа нет.',
   shortRight: (forms: readonly string[]) => (forms.length > 1 ? `Верные ответы: ${forms.join(', ')}` : `Верный ответ: ${forms[0] ?? ''}`),
   explanation: 'Пояснение',
-  /** «Тренироваться дальше» (release 47, spec §47.5): the author offers the exam the quiz was drawn from. */
-  practiceTitle: 'Тренироваться дальше',
-  practiceJoin: 'Тренировать эти вопросы в Meldy',
-  practiceNote: (exam: string) => glue(`Вы станете участником экзамена «${exam}»: автор увидит вас в списке участников, ваш прогресс — нет.`),
+  /** «Повторить эти вопросы» (release 47, spec §47.5): the author offers the exam the quiz was drawn from. */
+  practiceTitle: 'Повторить эти вопросы',
+  practiceJoin: 'Тренировать эти вопросы',
+  practiceNote: glue('Meldy будет возвращать вопросы, пока вы их не запомните. Автор увидит только, что вы присоединились.'),
   practiceMember: (exam: string) => glue(`Вы уже участник экзамена «${exam}».`),
   practiceOpen: 'Открыть экзамен',
   practiceGuest: 'Создать аккаунт и тренироваться',

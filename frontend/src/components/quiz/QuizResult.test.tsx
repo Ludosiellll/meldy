@@ -90,13 +90,20 @@ describe('QuizResult: the score', () => {
   it('«15 из 20 · 75 %» and the pass mark — passed', () => {
     renderResult(result({ pass_percent: 60, passed: true }));
     expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('15 из 20 · 75 %');
-    expect(page()).toContain('Порог 60 % — сдано');
+    // The start page's words for the pass mark.
+    expect(page()).toContain('Проходной балл 60 % — сдано');
     expect(screen.getByRole('heading', { level: 1, name: 'Контрольная по базам данных' })).toBeInTheDocument();
+    // A thin bar of the percent in the quiz's colour, a tick at the pass mark (decorative: the words say it).
+    const meter = document.querySelector('.qt-meter')!;
+    expect(meter).toHaveAttribute('aria-hidden', 'true');
+    expect(meter.querySelector<HTMLElement>('.qt-meter-fill')?.style.width).toBe('75%');
+    expect(meter.querySelector<HTMLElement>('.qt-meter-tick')?.style.left).toBe('60%');
   });
 
   it('not passed', () => {
     renderResult(result({ correct: 10, percent: 50, pass_percent: 60, passed: false }));
-    expect(page()).toContain('Порог 60 % — не сдано');
+    expect(page()).toContain('Проходной балл 60 % — не сдано');
+    expect(document.querySelector<HTMLElement>('.qt-meter-fill')?.style.width).toBe('50%');
   });
 
   it('score only: no questions, no answers, no other try', () => {
@@ -104,7 +111,10 @@ describe('QuizResult: the score', () => {
     expect(screen.queryByRole('heading', { name: 'Где вы ошиблись' })).toBeNull();
     expect(screen.queryByText(/Ваш ответ/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Ещё попытка/ })).toBeNull();
-    expect(page()).not.toContain('Порог');
+    expect(page()).not.toContain('Проходной балл');
+    // The bar without a pass mark has no tick.
+    expect(document.querySelector('.qt-meter-fill')).not.toBeNull();
+    expect(document.querySelector('.qt-meter-tick')).toBeNull();
   });
 
   it('says when the time closed the attempt', () => {
@@ -149,14 +159,31 @@ describe('QuizResult: the review', () => {
     const sky = screen.getByText('Какой цвет у неба?').closest('li')!;
     const rows = Array.from(sky.querySelectorAll('.ct-opt'));
     expect(rows.map((row) => row.querySelector('.ct-opt-l')?.textContent)).toEqual(['А', 'Б', 'В']);
-    expect(rows[1].getAttribute('data-state')).toBe('file');
-    expect(rows[1].textContent).toContain('Верный');
+    // The right one the person did not pick has its own look and words; their wrong pick says so.
+    expect(rows[1].getAttribute('data-state')).toBe('missed');
+    expect(plain(rows[1].querySelector('.ct-opt-tag')?.textContent)).toBe('Верный — вы не отметили');
     expect(rows[2].getAttribute('data-state')).toBe('wrong');
-    expect(rows[2].textContent).toContain('Ваш ответ');
+    expect(plain(rows[2].querySelector('.ct-opt-tag')?.textContent)).toBe('Ваш ответ — неверно');
+    expect(rows[0].getAttribute('data-state')).toBeNull();
+    expect(rows[0].querySelector('.ct-opt-tag')).toBeNull();
     const capital = screen.getByText('Столица Франции').closest('li')!;
     expect(capital.textContent).toContain('Верный ответ: Париж');
+    // Nothing picked: both right options are «missed», none filled.
     const even = screen.getByText('Чётные числа').closest('li')!;
-    expect(even.querySelectorAll('.ct-opt[data-state="file"]').length).toBe(2);
+    expect(even.querySelectorAll('.ct-opt[data-state="missed"]').length).toBe(2);
+    expect(even.querySelectorAll('.ct-opt[data-state="file"]').length).toBe(0);
+  });
+
+  it('answers: several right, one picked, one missed, one wrong pick — three looks, three tags', () => {
+    const items: QuizResultItem[] = [{ ...ITEMS[3], chosen: [0, 1], key: [1, 2] }];
+    renderResult(result({ review_now: 'answers', items }));
+    const rows = Array.from(screen.getByText('Чётные числа').closest('li')!.querySelectorAll('.ct-opt'));
+    expect(rows.map((row) => row.getAttribute('data-state'))).toEqual(['wrong', 'file', 'missed']);
+    expect(rows.map((row) => plain(row.querySelector('.ct-opt-tag')?.textContent))).toEqual([
+      'Ваш ответ — неверно',
+      'Ваш ответ — верно',
+      'Верный — вы не отметили',
+    ]);
   });
 
   it('answers: «Показать все вопросы» opens the right ones too, in the attempt’s order', () => {
@@ -166,7 +193,7 @@ describe('QuizResult: the review', () => {
     fireEvent.click(screen.getByRole('button', { name: (name) => plain(name) === 'Показать все вопросы (4)' }));
     const first = screen.getByText('Сколько будет 2 + 2?').closest('li')!;
     expect(first.textContent).toContain('Вопрос 1');
-    expect(first.querySelector('.ct-opt[data-state="file"]')?.textContent).toContain('Ваш ответ, верный');
+    expect(plain(first.querySelector('.ct-opt[data-state="file"] .ct-opt-tag')?.textContent)).toBe('Ваш ответ — верно');
     fireEvent.click(screen.getByRole('button', { name: 'Показать только ошибки' }));
     expect(screen.queryByText('Сколько будет 2 + 2?')).toBeNull();
   });
@@ -263,14 +290,14 @@ describe('the author’s explanation in the review (release 47)', () => {
   });
 });
 
-describe('«Тренироваться дальше» (release 47)', () => {
-  const NOTE = 'Вы станете участником экзамена «Зимняя сессия»: автор увидит вас в списке участников, ваш прогресс — нет.';
+describe('«Повторить эти вопросы» (release 47)', () => {
+  const NOTE = 'Meldy будет возвращать вопросы, пока вы их не запомните. Автор увидит только, что вы присоединились.';
   const offered = (over: Partial<QuizResult> = {}) => result({ practice: { exam_title: 'Зимняя сессия', member: false }, ...over });
 
   it('signed in: the note first, then the button; it joins and opens the exam', async () => {
     renderResult(offered());
     const note = screen.getByText((_, node) => node?.classList.contains('qt-practice-note') === true && plain(node.textContent) === NOTE);
-    const button = screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' });
+    const button = screen.getByRole('button', { name: 'Тренировать эти вопросы' });
     expect(note.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // No other try: this is the screen's one blue pill.
     expect(button).toHaveClass('sf-primary');
@@ -281,12 +308,12 @@ describe('«Тренироваться дальше» (release 47)', () => {
 
   it('with «Ещё попытка» on the screen the button is the white pill', () => {
     renderResult(offered({ can_retry: true, attempts_left: 1 }));
-    expect(screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toHaveClass('sf-secondary');
+    expect(screen.getByRole('button', { name: 'Тренировать эти вопросы' })).toHaveClass('sf-secondary');
   });
 
   it('a member already: «Открыть экзамен» asks for the exam’s id and opens it', async () => {
     renderResult(offered({ practice: { exam_title: 'Зимняя сессия', member: true } }));
-    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы' })).toBeNull();
     expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe('Вы уже участник экзамена «Зимняя сессия».');
     fireEvent.click(screen.getByRole('button', { name: 'Открыть экзамен' }));
     await waitFor(() => expect(where).toBe('/exams/c/cont-1'));
@@ -298,7 +325,7 @@ describe('«Тренироваться дальше» (release 47)', () => {
     expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe(NOTE);
     const link = screen.getByRole('link', { name: 'Создать аккаунт и тренироваться' });
     expect(link).toHaveAttribute('href', `/register?next=${encodeURIComponent('/k/abcd2fghjkmn?practice=1')}`);
-    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы' })).toBeNull();
     fireEvent.click(link);
     expect(where).toBe(`/register?next=${encodeURIComponent('/k/abcd2fghjkmn?practice=1')}`);
     expect(api.joinPractice).not.toHaveBeenCalled();
@@ -312,7 +339,7 @@ describe('«Тренироваться дальше» (release 47)', () => {
   ])('MC018 %s is said in place and the button works again', async (detail, words) => {
     api.joinPractice.mockRejectedValueOnce(new ContainerApiError('MC018', words, { status: 400, detail }));
     renderResult(offered());
-    const button = screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' });
+    const button = screen.getByRole('button', { name: 'Тренировать эти вопросы' });
     fireEvent.click(button);
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(words);
@@ -332,14 +359,14 @@ describe('«Тренироваться дальше» (release 47)', () => {
       ['a guest', false, true],
     ] as const)('%s: no button, a quiet line under the title; nothing joined', (_who, member, guest) => {
       renderResult(offered({ practice: { exam_title: 'Зимняя сессия', member, ready: false } }), guest);
-      expect(screen.getByRole('heading', { name: 'Тренироваться дальше' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Повторить эти вопросы' })).toBeInTheDocument();
       expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe(LATER);
       expect(document.querySelectorAll('.qt-practice-note')).toHaveLength(1);
       expect(document.querySelector('.qt-practice button, .qt-practice a')).toBeNull();
-      expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Открыть экзамен' })).toBeNull();
       expect(screen.queryByRole('link', { name: 'Создать аккаунт и тренироваться' })).toBeNull();
-      expect(page()).not.toContain('Вы станете участником');
+      expect(page()).not.toContain('Meldy будет возвращать');
       expect(api.joinPractice).not.toHaveBeenCalled();
     });
 
@@ -351,20 +378,20 @@ describe('«Тренироваться дальше» (release 47)', () => {
 
     it('ready true: the button as before', () => {
       renderResult(offered({ practice: { exam_title: 'Зимняя сессия', member: false, ready: true } }));
-      expect(screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toHaveClass('sf-primary');
+      expect(screen.getByRole('button', { name: 'Тренировать эти вопросы' })).toHaveClass('sf-primary');
       expect(page()).not.toContain(LATER);
     });
 
     it('a server without ready (before the guards): read as open', () => {
       renderResult(offered());
-      expect(screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Тренировать эти вопросы' })).toBeInTheDocument();
       expect(page()).not.toContain(LATER);
     });
   });
 
   it('not offered: no block', () => {
     renderResult(result({ practice: null }));
-    expect(screen.queryByRole('heading', { name: 'Тренироваться дальше' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Повторить эти вопросы' })).toBeNull();
     expect(screen.queryByText(/Тренировать/)).toBeNull();
   });
 });

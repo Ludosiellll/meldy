@@ -114,10 +114,10 @@ describe('QuizRun: the clock', () => {
   it('counts to the server deadline, corrected by the difference of the clocks', async () => {
     renderRun();
     // The device is 2 minutes ahead: without the correction the bar would say 28:00.
-    expect(bar()).toBe('Контрольная · 1 из 3 · 30:00');
-    expect(plain(screen.getByRole('banner').querySelector('.ct-rb-short')?.textContent)).toBe('1 из 3 · 30:00');
+    expect(bar()).toBe('1 из 3 · осталось 30:00');
+    expect(plain(screen.getByRole('banner').querySelector('.ct-rb-short')?.textContent)).toBe('1 из 3 · осталось 30:00');
     await advance(1000);
-    expect(bar()).toBe('Контрольная · 1 из 3 · 29:59');
+    expect(bar()).toBe('1 из 3 · осталось 29:59');
   });
 
   it('follows the deadline each save brings back (the author moved the closing)', async () => {
@@ -125,7 +125,7 @@ describe('QuizRun: the clock', () => {
     renderRun();
     fireEvent.click(options()[0]);
     await advance(SEND_DELAY_MS);
-    expect(bar()).toBe('Контрольная · 1 из 3 · 10:00');
+    expect(bar()).toBe('1 из 3 · осталось 10:00');
   });
 
   it('corrects the clock by the server time each save brings back', async () => {
@@ -135,12 +135,12 @@ describe('QuizRun: the clock', () => {
     api.sendAnswers.mockImplementation(async () => ({ saved: 1, server_now: '2026-10-16T10:00:01.000Z', deadline_at: '2026-10-16T10:30:00.000Z' }));
     fireEvent.click(options()[0]);
     await advance(SEND_DELAY_MS);
-    expect(bar()).toBe('Контрольная · 1 из 3 · 29:59');
+    expect(bar()).toBe('1 из 3 · осталось 29:59');
   });
 
   it('without a time limit shows no clock', () => {
     renderRun(attempt({ deadline_at: null }));
-    expect(bar()).toBe('Контрольная · 1 из 3');
+    expect(bar()).toBe('1 из 3');
   });
 });
 
@@ -286,7 +286,7 @@ describe('QuizRun: the end of the time', () => {
     api.finishQuiz.mockResolvedValue(RESULT);
     // One second left by the server's clock.
     renderRun(attempt({ deadline_at: '2026-10-16T10:00:01.000Z' }));
-    expect(bar()).toBe('Контрольная · 1 из 3 · 00:01');
+    expect(bar()).toBe('1 из 3 · осталось 00:01');
     await advance(700);
     fireEvent.click(options()[2]);
     expect(api.sendAnswers).not.toHaveBeenCalled();
@@ -370,7 +370,7 @@ describe('QuizRun: a reload (review focus 1)', () => {
     });
     renderRun(resumed);
     // The first question without an answer; the clock counts to the same deadline: 20 minutes left.
-    expect(bar()).toBe('Контрольная · 2 из 3 · 20:00');
+    expect(bar()).toBe('2 из 3 · осталось 20:00');
     expect(plain(screen.getByText(/Попытка продолжается/).textContent)).toBe('Попытка продолжается: 2 из 3, осталось 20:00.');
     // The unsent answer goes at once.
     await advance(0);
@@ -426,13 +426,19 @@ describe('QuizRun: a guest without an account (release 47)', () => {
 describe('QuizRun: the time strip and the quiz colour (release 47)', () => {
   const strip = () => document.querySelector<HTMLElement>('.qt-time-left');
 
-  it('with a timer: a strip at the top shrinks to the deadline, hidden from screen readers', async () => {
+  it('with a timer: a strip along the top line shrinks to the deadline, a progressbar «Осталось времени»', async () => {
     // A quarter of an hour of the thirty is gone.
     renderRun(attempt({ server_now: '2026-10-16T10:15:00.000Z' }));
-    expect(document.querySelector('.qt-time')).toHaveAttribute('aria-hidden', 'true');
+    const timer = screen.getByRole('progressbar', { name: 'Осталось времени' });
+    expect(timer).toHaveClass('qt-time');
+    // It rides the top line, under the clock it stands for.
+    expect(timer.closest('header')).toBe(screen.getByRole('banner'));
+    expect(timer).toHaveAttribute('aria-valuenow', '50');
+    expect(plain(timer.getAttribute('aria-valuetext'))).toBe('осталось 15:00');
     expect(strip()?.style.transform).toBe('scaleX(0.5)');
     await advance(180_000);
     expect(strip()?.style.transform).toBe('scaleX(0.4)');
+    expect(timer).toHaveAttribute('aria-valuenow', '40');
   });
 
   it('without a timer there is no strip', () => {
@@ -487,7 +493,49 @@ describe('QuizRun: the question pictures (release 47)', () => {
     const asked = pictures.guestPictureUrl.mock.calls.length;
     expect(asked).toBe(2);
     await advance(3000);
-    expect(bar()).toBe('Контрольная · 1 из 3 · 29:57');
+    expect(bar()).toBe('1 из 3 · осталось 29:57');
     expect(pictures.guestPictureUrl).toHaveBeenCalledTimes(asked);
+  });
+});
+
+describe('QuizRun: the last minutes (release 47 design fixes)', () => {
+  const clock = () => screen.getByRole('banner').querySelector('.ct-rb-long .qt-clock');
+  const status = () => document.querySelector('.qt-low');
+
+  it('at 5:00 and at 1:00 the clock turns red and a status line says so, once each', async () => {
+    // 5:02 left by the server's clock.
+    renderRun(attempt({ deadline_at: '2026-10-16T10:05:02.000Z' }));
+    expect(bar()).toBe('1 из 3 · осталось 05:02');
+    expect(clock()).not.toHaveAttribute('data-low');
+    expect(status()).toHaveAttribute('role', 'status');
+    expect(status()?.textContent).toBe('');
+    await advance(2000);
+    expect(bar()).toBe('1 из 3 · осталось 05:00');
+    expect(clock()).toHaveAttribute('data-low', '');
+    expect(document.querySelector('.qt-time')).toHaveAttribute('data-low', '');
+    expect(status()?.textContent).toBe('Осталось 5 минут');
+    await advance(30_000);
+    // Nothing new is said between the marks.
+    expect(status()?.textContent).toBe('Осталось 5 минут');
+    await advance(210_000);
+    expect(bar()).toBe('1 из 3 · осталось 01:00');
+    expect(status()?.textContent).toBe('Осталась 1 минута');
+    expect(clock()).toHaveAttribute('data-low', '');
+  });
+
+  it('an attempt resumed past a mark is not told it again; the next one is said', async () => {
+    // 4:00 left at the start: red already, nothing said.
+    renderRun(attempt({ deadline_at: '2026-10-16T10:04:00.000Z' }));
+    expect(clock()).toHaveAttribute('data-low', '');
+    expect(status()?.textContent).toBe('');
+    await advance(180_000);
+    expect(status()?.textContent).toBe('Осталась 1 минута');
+  });
+
+  it('without a timer: no clock, no strip, nothing said', () => {
+    renderRun(attempt({ deadline_at: null }));
+    expect(clock()).toBeNull();
+    expect(document.querySelector('.qt-time')).toBeNull();
+    expect(status()?.textContent).toBe('');
   });
 });

@@ -47,6 +47,9 @@ import { dateTimeText } from '../../lib/quizzes/quizModel';
 const NB = String.fromCharCode(0xa0);
 const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
 const page = () => plain(document.body.textContent);
+/** «Имя и фамилия — их увидит Анна Петрова» (the preview's author). */
+const NAME_LABEL = /^Имя и фамилия — их увидит /;
+const labelOf = (field: HTMLElement) => plain((field as HTMLInputElement).labels?.[0]?.textContent);
 const bar = () => plain(document.querySelector('.ct-rb-long')?.textContent);
 const options = () => Array.from(document.querySelectorAll<HTMLButtonElement>('.ct-opts .ct-opt'));
 
@@ -194,10 +197,10 @@ describe('/k/<код> before the start (spec §2.2)', () => {
     const signIn = screen.getByRole('link', { name: 'Войти, чтобы начать' });
     expect(signIn).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/k/${CODE}`)}`);
     expect(signIn).toHaveClass('sf-primary');
-    // The line about the author comes before anything that can be pressed.
-    expect(privacy.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The rules and the line about the author come under the button, so it stays in view.
+    expect(privacy.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Начать' })).toBeNull();
-    expect(screen.queryByLabelText('Ваше имя для автора')).toBeNull();
+    expect(screen.queryByLabelText(NAME_LABEL)).toBeNull();
     // A quiz that wants an account says nothing about a browser keeping attempts, and makes no token.
     expect(screen.queryByText(GUEST_PRIVACY)).toBeNull();
     expect(screen.queryByText('Есть аккаунт?')).toBeNull();
@@ -212,7 +215,7 @@ describe('/k/<код> before the start (spec §2.2)', () => {
     await screen.findByRole('heading', { level: 1, name: 'Контрольная по базам данных' });
     expect(page()).toContain('20 вопросов · без ограничения времени · попыток сколько угодно');
     expect(page()).toContain('Только вперёд: к прошлым вопросам вернуться нельзя.');
-    expect(page()).toContain('Проходной балл — 60 %.');
+    expect(page()).toContain('Проходной балл 60 %.');
     expect(page()).toContain('В зачёт идёт лучшая попытка.');
   });
 
@@ -241,24 +244,28 @@ describe('/k/<код> signed in', () => {
   it('the name comes from the profile; «Начать» starts with the name typed', async () => {
     signedIn();
     renderAt();
-    const field = await screen.findByLabelText('Ваше имя для автора');
+    const field = await screen.findByLabelText(NAME_LABEL);
     expect(field).toHaveValue('Иван Иванов');
-    expect(screen.getByText('Автор увидит имя, которое вы укажете, ваши ответы и результат.').compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The field's label says who sees the name; what else the author sees comes under «Начать».
+    expect(labelOf(field)).toBe('Имя и фамилия — их увидит Анна Петрова');
+    expect(field).toHaveAccessibleDescription(/^Например: Иванов Иван, 9\sБ$/);
+    const start = screen.getByRole('button', { name: 'Начать' });
+    expect(screen.getByText('Автор увидит имя, которое вы укажете, ваши ответы и результат.').compareDocumentPosition(start) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     fireEvent.change(field, { target: { value: '  Иванов Иван, гр. 21 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     await waitFor(() => expect(api.startQuiz).toHaveBeenCalledWith(CODE, 'Иванов Иван, гр. 21', null));
     // The attempt: the clock from the server's deadline (the device is two minutes ahead).
-    await waitFor(() => expect(bar()).toBe('Контрольная · 1 из 3 · 30:00'));
+    await waitFor(() => expect(bar()).toBe('1 из 3 · осталось 30:00'));
     expect(api.track).toHaveBeenCalledWith('quiz.started', { resumed: false, guest: false });
   });
 
   it('a name shorter than 2 characters is not sent', async () => {
     signedIn({ name_hint: '' });
     renderAt();
-    fireEvent.change(await screen.findByLabelText('Ваше имя для автора'), { target: { value: ' И ' } });
+    fireEvent.change(await screen.findByLabelText(NAME_LABEL), { target: { value: ' И ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     expect(await screen.findByText('Имя — от 2 до 80 знаков.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Ваше имя для автора')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(NAME_LABEL)).toHaveAttribute('aria-invalid', 'true');
     expect(api.startQuiz).not.toHaveBeenCalled();
   });
 
@@ -273,20 +280,20 @@ describe('/k/<код> signed in', () => {
     await screen.findByRole('heading', { level: 1, name: 'Контрольная по базам данных' });
     await waitFor(() => expect(page()).toContain(words));
     expect(screen.queryByRole('button', { name: 'Начать' })).toBeNull();
-    expect(screen.queryByLabelText('Ваше имя для автора')).toBeNull();
+    expect(screen.queryByLabelText(NAME_LABEL)).toBeNull();
   });
 
   it('a profile without a name leaves the field empty', async () => {
     signedIn({ name_hint: null });
     renderAt();
-    expect(await screen.findByLabelText('Ваше имя для автора')).toHaveValue('');
+    expect(await screen.findByLabelText(NAME_LABEL)).toHaveValue('');
   });
 
   it('a quiz deleted since the preview (P0002) is said as a link that does not work', async () => {
     signedIn();
     api.startQuiz.mockRejectedValue(new ContainerApiError('P0002', 'Не найдено', { status: 400 }));
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     expect(await screen.findByText('Такой контрольной нет. Проверьте ссылку.')).toBeInTheDocument();
   });
@@ -295,7 +302,7 @@ describe('/k/<код> signed in', () => {
     signedIn();
     api.startQuiz.mockRejectedValue(new ContainerApiError('42501', 'Нет доступа', { status: 401 }));
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     expect(await screen.findByText(/Вход закончился/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Войти' })).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/k/${CODE}`)}`);
@@ -305,7 +312,7 @@ describe('/k/<код> signed in', () => {
     signedIn();
     api.startQuiz.mockRejectedValue(new ContainerApiError('MC014', 'Попытки закончились.', { status: 400, detail: 'attempts' }));
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     expect(await screen.findByText('Попытки закончились.')).toBeInTheDocument();
   });
@@ -320,7 +327,7 @@ describe('/k/<код> signed in', () => {
     await waitFor(() => expect(api.quizResult).toHaveBeenCalledWith('att-0', null));
     await waitFor(() => expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('12 из 20 · 60 %'));
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
-    expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(await screen.findByLabelText(NAME_LABEL)).toBeInTheDocument();
     expect(api.previewQuiz).toHaveBeenCalledTimes(2);
   });
 
@@ -344,11 +351,11 @@ describe('/k/<код>: a reload in the middle of an attempt (review focus 1)', (
     api.sendAnswers.mockResolvedValue({ saved: 1, server_now: '2026-10-16T10:10:00.000Z', deadline_at: ATTEMPT.deadline_at });
     renderAt();
     const resume = await screen.findByRole('button', { name: 'Продолжить' });
-    expect(screen.queryByLabelText('Ваше имя для автора')).toBeNull();
+    expect(screen.queryByLabelText(NAME_LABEL)).toBeNull();
     fireEvent.click(resume);
     await waitFor(() => expect(api.startQuiz).toHaveBeenCalledWith(CODE, 'Иван Иванов', null));
     // The first question without an answer is the third; 20 minutes are left, not 30.
-    await waitFor(() => expect(bar()).toBe('Контрольная · 3 из 3 · 20:00'));
+    await waitFor(() => expect(bar()).toBe('3 из 3 · осталось 20:00'));
     expect(api.track).toHaveBeenCalledWith('quiz.started', { resumed: true, guest: false });
     await waitFor(() => expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i2', chosen: [1] }], null));
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
@@ -364,7 +371,7 @@ describe('/k/<код>: the attempt to its result', () => {
     signedIn();
     api.sendAnswers.mockRejectedValue(new ContainerApiError('MC012', 'Время вышло: ответы больше не принимаются.', { status: 400 }));
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     await waitFor(() => expect(options().length).toBe(3));
     fireEvent.click(options()[1]);
@@ -376,16 +383,16 @@ describe('/k/<код>: the attempt to its result', () => {
   it('the time runs out: the attempt finishes by itself; «Ещё попытка» goes back to the start', async () => {
     signedIn({ attempts_used: 0 }, { attempts: 2 });
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
-    await waitFor(() => expect(bar()).toBe('Контрольная · 1 из 3 · 30:00'));
+    await waitFor(() => expect(bar()).toBe('1 из 3 · осталось 30:00'));
     await act(async () => {
       vi.setSystemTime(Date.parse('2026-10-16T10:32:00.000Z'));
     });
     await waitFor(() => expect(api.finishQuiz).toHaveBeenCalledWith('att-1', null), { timeout: 3000 });
     const retry = await screen.findByRole('button', { name: (name) => plain(name) === 'Ещё попытка (осталась 1)' });
     fireEvent.click(retry);
-    expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(await screen.findByLabelText(NAME_LABEL)).toBeInTheDocument();
     await waitFor(() => expect(api.previewQuiz).toHaveBeenCalledTimes(2));
   });
 });
@@ -395,13 +402,13 @@ describe('/k/<код> without an account (release 47, spec §47.1)', () => {
     api.previewQuiz.mockResolvedValue(GUEST_PREVIEW);
     api.finishQuiz.mockResolvedValue({ ...RESULT, finish_reason: 'sent', can_retry: false, practice: { exam_title: 'Зимняя сессия', member: false } });
     renderAt();
-    const field = await screen.findByLabelText('Ваше имя для автора');
+    const field = await screen.findByLabelText(NAME_LABEL);
     expect(field).toHaveValue('');
     // Before the start the device holds no token: the preview goes without one.
     expect(api.previewQuiz).toHaveBeenCalledWith(CODE, null);
     expect(guestToken(CODE)).toBeNull();
     const privacy = screen.getByText(GUEST_PRIVACY);
-    expect(privacy.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(privacy.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Войти, чтобы начать' })).toBeNull();
     // For those with an account: a quiet «Войти» that comes back here.
     const quiet = screen.getByRole('link', { name: 'Войти' });
@@ -429,7 +436,7 @@ describe('/k/<код> without an account (release 47, spec §47.1)', () => {
       'href',
       `/register?next=${encodeURIComponent(`/k/${CODE}?practice=1`)}`,
     );
-    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы' })).toBeNull();
   });
 
   it('a returning guest: the preview with the device’s token, «Продолжить» and the earlier results', async () => {
@@ -442,7 +449,7 @@ describe('/k/<код> without an account (release 47, spec §47.1)', () => {
     renderAt();
     expect(await screen.findByRole('button', { name: 'Продолжить' })).toBeInTheDocument();
     expect(api.previewQuiz).toHaveBeenCalledWith(CODE, token);
-    expect(screen.queryByLabelText('Ваше имя для автора')).toBeNull();
+    expect(screen.queryByLabelText(NAME_LABEL)).toBeNull();
     expect(page()).toContain('Попытка 1 · 12 из 20');
     fireEvent.click(screen.getByRole('button', { name: 'Посмотреть попытку 1' }));
     await waitFor(() => expect(api.quizResult).toHaveBeenCalledWith('att-0', token));
@@ -461,7 +468,7 @@ describe('/k/<код> without an account (release 47, spec §47.1)', () => {
     api.previewQuiz.mockResolvedValue(GUEST_PREVIEW);
     api.startQuiz.mockRejectedValue(new ContainerApiError(code, words, { status: 400, detail }));
     renderAt();
-    fireEvent.change(await screen.findByLabelText('Ваше имя для автора'), { target: { value: 'Пётр' } });
+    fireEvent.change(await screen.findByLabelText(NAME_LABEL), { target: { value: 'Пётр' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(words);
   });
@@ -470,11 +477,11 @@ describe('/k/<код> without an account (release 47, spec §47.1)', () => {
     api.previewQuiz.mockResolvedValueOnce(GUEST_PREVIEW).mockResolvedValue({ ...PREVIEW, guests: false, me: null });
     api.startQuiz.mockRejectedValue(new ContainerApiError('MC017', QUIZ_ERRORS.MC017_guests, { status: 400, detail: 'guests' }));
     renderAt();
-    fireEvent.change(await screen.findByLabelText('Ваше имя для автора'), { target: { value: 'Пётр' } });
+    fireEvent.change(await screen.findByLabelText(NAME_LABEL), { target: { value: 'Пётр' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     expect(await screen.findByRole('link', { name: 'Войти, чтобы начать' })).toHaveAttribute('href', BACK_HERE);
     expect(screen.getByRole('alert')).toHaveTextContent(QUIZ_ERRORS.MC017_guests);
-    expect(screen.queryByLabelText('Ваше имя для автора')).toBeNull();
+    expect(screen.queryByLabelText(NAME_LABEL)).toBeNull();
   });
 });
 
@@ -542,7 +549,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     signedIn();
     deviceHas();
     renderAt();
-    const field = await screen.findByLabelText('Ваше имя для автора');
+    const field = await screen.findByLabelText(NAME_LABEL);
     expect(api.claimGuestAttempts).not.toHaveBeenCalled();
     // Signed in, the page's own preview goes without the token; the device's attempts are read as its guest reads them.
     expect(api.previewQuiz).toHaveBeenCalledWith(CODE);
@@ -597,7 +604,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     expect(card()).toBeNull();
     expect(guestToken(CODE)).toBeNull();
     expect(api.claimGuestAttempts).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(screen.getByLabelText(NAME_LABEL)).toBeInTheDocument();
   });
 
   it('a failed claim is said; the card stays and can be pressed again', async () => {
@@ -622,7 +629,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     signedIn();
     deviceHas({ attempts_used: 1, open_attempt: 'g-1', can_start: true, reason: null, results: [] });
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     expect(plain(card()?.querySelector('.qt-device-t')?.textContent)).toBe('На этом устройстве есть начатая попытка без входа.');
   });
 
@@ -631,7 +638,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     signedIn();
     deviceHas({ attempts_used: 0, can_start: true, reason: null, results: [] });
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     expect(api.previewAsGuest).toHaveBeenCalledTimes(1);
     expect(card()).toBeNull();
   });
@@ -641,7 +648,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     signedIn();
     api.previewAsGuest.mockResolvedValue({ ...PREVIEW, guests: false, me: null });
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     expect(card()).toBeNull();
   });
 
@@ -650,7 +657,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     signedIn();
     api.previewAsGuest.mockRejectedValue(new ContainerApiError('network', 'Нет сети', { status: 0 }));
     renderAt();
-    expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(await screen.findByLabelText(NAME_LABEL)).toBeInTheDocument();
     expect(card()).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(guestToken(CODE)).toBe(token);
@@ -669,7 +676,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
   it('no token on this device: nothing to ask, nothing read as a guest', async () => {
     signedIn();
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     expect(api.previewAsGuest).not.toHaveBeenCalled();
     expect(api.claimGuestAttempts).not.toHaveBeenCalled();
     expect(card()).toBeNull();
@@ -690,7 +697,7 @@ describe('/k/<код> as a guest on a device that holds someone’s attempts: «
     expect(other).toHaveClass('sf-link');
     expect(other.closest('.qt-actions')).toBe(resume.closest('.qt-actions'));
     fireEvent.click(other);
-    const field = await screen.findByLabelText('Ваше имя для автора');
+    const field = await screen.findByLabelText(NAME_LABEL);
     expect(field).toHaveValue('');
     expect(guestToken(CODE)).toBeNull();
     expect(api.previewQuiz).toHaveBeenLastCalledWith(CODE, null);
@@ -724,7 +731,7 @@ describe('/k/<код> as a guest on a device that holds someone’s attempts: «
     renderAt();
     expect(await screen.findByText('Попытки закончились.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Я другой человек' }));
-    expect(await screen.findByLabelText('Ваше имя для автора')).toHaveValue('');
+    expect(await screen.findByLabelText(NAME_LABEL)).toHaveValue('');
     expect(guestToken(CODE)).toBeNull();
     expect(page()).not.toContain('Попытка 1 · 12 из 20');
   });
@@ -732,7 +739,7 @@ describe('/k/<код> as a guest on a device that holds someone’s attempts: «
   it('a guest without attempts here, or someone signed in: no such button', async () => {
     api.previewQuiz.mockResolvedValue(GUEST_PREVIEW);
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     expect(screen.queryByRole('button', { name: 'Я другой человек' })).toBeNull();
     cleanup();
     signedIn({ attempts_used: 1, open_attempt: 'att-1' });
@@ -764,7 +771,7 @@ describe('/k/<код>?practice=1: back from making an account to train (release 
     signedIn();
     api.joinPractice.mockRejectedValue(new ContainerApiError('MC018', words, { status: 400, detail }));
     renderAt(CODE, '?practice=1');
-    expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(await screen.findByLabelText(NAME_LABEL)).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent(words);
     expect(where).toBe('');
     expect(api.joinPractice).toHaveBeenCalledTimes(1);
@@ -776,7 +783,7 @@ describe('/k/<код>?practice=1: back from making an account to train (release 
     api.claimGuestAttempts.mockResolvedValue({ claimed: 1 });
     api.joinPractice.mockRejectedValue(new ContainerApiError('MC018', QUIZ_ERRORS.MC018_open, { status: 400, detail: 'open' }));
     renderAt(CODE, '?practice=1');
-    expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(await screen.findByLabelText(NAME_LABEL)).toBeInTheDocument();
     expect(api.claimGuestAttempts).toHaveBeenCalledTimes(1);
     expect(api.claimGuestAttempts).toHaveBeenCalledWith(CODE, token);
     expect(guestToken(CODE)).toBeNull();
@@ -786,7 +793,7 @@ describe('/k/<код>?practice=1: back from making an account to train (release 
   it('still signed out: nothing is joined', async () => {
     api.previewQuiz.mockResolvedValue(GUEST_PREVIEW);
     renderAt(CODE, '?practice=1');
-    await screen.findByLabelText('Ваше имя для автора');
+    await screen.findByLabelText(NAME_LABEL);
     expect(api.joinPractice).not.toHaveBeenCalled();
     expect(api.claimGuestAttempts).not.toHaveBeenCalled();
   });
@@ -842,5 +849,43 @@ describe('/k/<код>: the cover and the colour (release 47, spec §47.4)', () =
     await waitFor(() => expect(options().length).toBe(3));
     expect(document.querySelector('.ct-roomshell')).toHaveAttribute('data-accent', 'green');
     expect(document.querySelector('.qt-time')).not.toBeNull();
+  });
+});
+
+describe('/k/<код>: the start in view (release 47 design fixes)', () => {
+  it('no «Контрольная» above the title; the facts keep their date whole; the name says who sees it', async () => {
+    signedIn({}, { pass_percent: 60 });
+    renderAt();
+    const title = await screen.findByRole('heading', { level: 1, name: 'Контрольная по базам данных' });
+    // Nothing between the top of the card and the title but the cover.
+    expect(title.previousElementSibling).toBeNull();
+    expect(document.querySelector('.qt-kicker')).toBeNull();
+    const meta = document.querySelector('.qt-meta')!;
+    // «24 окт., 18:00» never splits: the spaces inside the date and the time are non-breaking.
+    expect(meta.textContent).toContain(`открыта до${NB}24${NB}окт.,${NB}18:00`);
+    const field = screen.getByLabelText(NAME_LABEL);
+    expect(labelOf(field)).toBe('Имя и фамилия — их увидит Анна Петрова');
+    expect(screen.getByText('Например: Иванов Иван, 9 Б')).toHaveClass('qt-hint');
+    // The rules (the pass mark in the result's words) and what the author sees: under «Начать».
+    const start = screen.getByRole('button', { name: 'Начать' });
+    const rules = document.querySelector('.qt-facts')!;
+    expect(start.compareDocumentPosition(rules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(plain(rules.textContent)).toContain('Проходной балл 60 %.');
+    expect(plain(rules.textContent)).toContain('Автор увидит имя, которое вы укажете, ваши ответы и результат.');
+  });
+
+  it('without the author’s name the label names «автор теста»', async () => {
+    signedIn({}, { author_name: undefined });
+    renderAt();
+    expect(labelOf(await screen.findByLabelText(NAME_LABEL))).toBe('Имя и фамилия — их увидит автор теста');
+  });
+
+  it('a guest: the same label, the browser line under the button', async () => {
+    api.previewQuiz.mockResolvedValue(GUEST_PREVIEW);
+    renderAt();
+    const field = await screen.findByLabelText(NAME_LABEL);
+    expect(field).toHaveAccessibleDescription(/^Например: Иванов Иван, 9\sБ$/);
+    const start = screen.getByRole('button', { name: 'Начать' });
+    expect(start.compareDocumentPosition(screen.getByText(GUEST_PRIVACY)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

@@ -130,7 +130,7 @@ export const SURFACES: { light: Surfaces; dark: Surfaces } = {
 };
 
 export interface AccentPalette {
-  /** The pill and a chosen option's box (white text on it). */
+  /** The pill and a chosen option's box (onFill text on it: white, dark on the dark theme's graphite). */
   fill: string;
   /** Hover of the pill and its circle. */
   fillDeep: string;
@@ -173,7 +173,8 @@ export const ACCENTS: Record<QuizAccent, { light: Six; dark: Six }> = {
   orange: sixOf('#b45309', '#8f400a', '#6f3208', '#a2480c', '#f5a660'),
   violet: sixOf('#6d3fd6', '#5530ac', '#432689', '#5f37c4', '#c0a8f7'),
   pink: sixOf('#c0306b', '#9c2556', '#7c1d44', '#b02a62', '#f6a8c8'),
-  graphite: sixOf('#3b4250', '#2a303b', '#1d222a', '#3b4250', '#c3c8d0', { fill: '#5b6475', fillDeep: '#454d5c', fillDeeper: '#343a46' }),
+  // Dark: a light pill with dark text (release 47 design fixes; 15.65:1, the circle 11.66:1).
+  graphite: sixOf('#3b4250', '#2a303b', '#1d222a', '#3b4250', '#c3c8d0', { fill: '#e6e8ec', fillDeep: '#c5cad3', fillDeeper: '#a9b0bc', onFill: '#0b0f16' }),
 };
 
 /** The colour of a «мягкий» background's top: the tone's fill laid thinly over the canvas. */
