@@ -1,7 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { isPictureWord } from '../../types/container';
 import type { QuizResult, QuizResultItem } from '../../types/quiz';
+import { containerErrorText } from '../../api/containers';
+import { joinPractice } from '../../api/quizzes';
 import { dateTimeText, percentOf, quizOrder } from '../../lib/quizzes/quizModel';
+import { withReturn } from '../../lib/returnTo';
 import { CodeBlock } from '../containers/QuestionCard';
 import ItemPictures, { storedPictures } from '../containers/ItemPictures';
 import { RoomBar } from '../containers/RoomParts';
@@ -20,6 +24,11 @@ import './quizTake.css';
  * keeps its number. Before the quiz closes, «mistakes then answers» says when the right answers open. The options stand
  * in the attempt's order with the attempt's letters (quizOrder from the attempt id, shuffle_options and keep_order), so
  * «я выбрал В» reads the same here. Pictures come from the private bucket (storage paths, ItemPictures).
+ *
+ * Release 47 (spec 2026-10-18 §47.3, §47.5): the author's explanation under a question when the server sends one (only
+ * with the right answers); and when the author offers it, «Тренироваться дальше» — a signed-in taker joins the exam
+ * (quiz_practice_join, the note about what the author sees comes first), a member opens it, a guest makes an account
+ * and comes back to /k/<код>?practice=1, where the page takes the device's attempts and joins.
  */
 
 function OptionWords({ text, paths }: { text: string; paths: string[] | undefined }) {
@@ -42,6 +51,7 @@ function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: nu
   const typed = typeof item.text === 'string' ? item.text.trim() : '';
   const unanswered = item.kind === 'short' ? typed === '' : chosen.length === 0;
   const options = Array.isArray(item.options) ? item.options : [];
+  const explanation = typeof item.explanation === 'string' ? item.explanation.trim() : '';
   return (
     <li className="qt-ritem">
       <p className="ct-ctx">{unanswered ? `${RESULT.itemNo(no)} · ${RESULT.unanswered}` : RESULT.itemNo(no)}</p>
@@ -74,7 +84,74 @@ function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: nu
           })}
         </ul>
       )}
+      {explanation ? (
+        <div className="qt-explain">
+          <p className="qt-explain-h">{RESULT.explanation}</p>
+          <p className="qt-explain-t">{explanation}</p>
+        </div>
+      ) : null}
     </li>
+  );
+}
+
+/**
+ * «Тренироваться дальше»: the blue pill when the result has no «Ещё попытка» (one blue pill a screen), else the white
+ * one. A refusal (MC018: not offered, removed by the author, no places) is said right here.
+ */
+function PracticeOffer({ result, guest, primary }: { result: QuizResult; guest: boolean; primary: boolean }) {
+  const navigate = useNavigate();
+  const titleId = useId();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const practice = result.practice;
+  if (!practice) return null;
+  const pill = primary ? 'sf-primary qt-practice-go' : 'sf-secondary qt-practice-go';
+  const join = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      // A member gets the exam's id too: the same call opens it.
+      const joined = await joinPractice(result.code);
+      navigate(`/exams/c/${joined.container_id}`);
+    } catch (failure) {
+      setError(containerErrorText(failure));
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="qt-practice" aria-labelledby={titleId}>
+      <h2 id={titleId} className="qt-practice-h">
+        {RESULT.practiceTitle}
+      </h2>
+      {guest ? (
+        <>
+          <p className="qt-practice-note">{RESULT.practiceNote(practice.exam_title)}</p>
+          <Link className={pill} to={withReturn('/register', `/k/${result.code}?practice=1`)}>
+            {RESULT.practiceGuest}
+          </Link>
+        </>
+      ) : practice.member ? (
+        <>
+          <p className="qt-practice-note">{RESULT.practiceMember(practice.exam_title)}</p>
+          <button type="button" className="sf-link" aria-busy={busy || undefined} disabled={busy} onClick={() => void join()}>
+            {RESULT.practiceOpen}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="qt-practice-note">{RESULT.practiceNote(practice.exam_title)}</p>
+          <button type="button" className={pill} aria-busy={busy || undefined} disabled={busy} onClick={() => void join()}>
+            {RESULT.practiceJoin}
+          </button>
+        </>
+      )}
+      {error ? (
+        <p role="alert" className="qt-practice-error">
+          {error}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -84,9 +161,11 @@ export interface QuizResultProps {
   onRetry: () => void;
   /** «Закрыть»: back to the page's start. */
   onClose: () => void;
+  /** Written without an account (release 47): «тренироваться» goes through making one. */
+  guest?: boolean;
 }
 
-export default function QuizResultView({ result, onRetry, onClose }: QuizResultProps) {
+export default function QuizResultView({ result, onRetry, onClose, guest = false }: QuizResultProps) {
   const wide = useWide();
   const headRef = useRef<HTMLHeadingElement | null>(null);
   const reviewId = useId();
@@ -155,6 +234,7 @@ export default function QuizResultView({ result, onRetry, onClose }: QuizResultP
             ) : null}
           </section>
         ) : null}
+        {result.practice ? <PracticeOffer result={result} guest={guest} primary={!result.can_retry} /> : null}
         {result.can_retry ? (
           <div className="ct-bar">
             <div className="ct-bar-row" style={wide ? undefined : { width: '100%' }}>

@@ -3,7 +3,66 @@
  * §2.2). Before the start: the frame of the sign-in pages (.au, .au-bar, .au-card from styles/legacy.css) with one
  * quiet card in the middle, as /g/<код>. The attempt and the result: the exam's room (room.css: .ct-roomshell,
  * .ct-study, QuestionCard, the pinned bar). Only the existing tokens, both themes; the one blue pill per screen.
+ * Release 47 (spec 2026-10-18 §47.4): the quiz's colour and cover, the time strip, the explanation, «Тренироваться
+ * дальше».
  */
+
+/* ---------------------------------------------------------------- the quiz's colour (release 47) */
+/*
+ * The author picks one of six colours (the page's root carries .qt-accent and data-accent="<colour>"; the sheets, which
+ * open outside it, .qt-accent .qt-accent-<colour>). It reaches the blue pill (fill, circle, hover), the quiet links, the box of a chosen
+ * option, the current cell of «Все вопросы» and the time strip. 'blue' is Meldy's own: its tokens are the app's
+ * (--sf-accent, --sf-accent-hover, links in ink), so a blue quiz looks as before.
+ *
+ * Contrast (WCAG 2), measured. The pill's text and arrow stay white. A link's colour against the three surfaces it sits
+ * on, the lowest given — light: card #ffffff, canvas #f3f3f0, soft #f7f7f3; dark: card #141a24, canvas #0b0f16, soft
+ * #1b2230. Text needs 4.5:1.
+ *
+ *   colour     pill / white      circle, hover / white   hover circle / white   link, light       link, dark
+ *   blue       #2869dd   5.05    #1c4db1   7.65          #163f93   9.69         ink (as today)    ink (as today)
+ *   green      #1f7a3d   5.37    #165c2e   8.06          #10471f  10.81         #1d6b36   5.89    #8fd4a0   9.17
+ *   orange     #b45309   5.02    #8f400a   7.23          #6f3208   9.83         #a2480c   5.45    #f5a660   7.97
+ *   violet     #6d3fd6   6.30    #5530ac   8.73          #432689  11.19         #5f37c4   6.67    #c0a8f7   7.73
+ *   pink       #c0306b   5.42    #9c2556   7.47          #7c1d44   9.92         #b02a62   5.63    #f6a8c8   8.61
+ *   graphite   #3b4250  10.09    #2a303b  13.25          #1d222a  15.98         #3b4250   9.08    #c3c8d0   9.48
+ *   graphite, dark theme: #5b6475 5.96 · #454d5c 8.51 · #343a46 11.42 (lighter: 3.22:1 to the dark canvas, not 1.9).
+ *
+ * The time strip is not text: the pill's colour in the light theme, the dark link colour in the dark one; against the
+ * canvas light / dark — blue 4.55 / 8.97 (#8db2f5), green 4.83 / 11.05, orange 4.52 / 9.60, violet 5.67 / 9.31,
+ * pink 4.87 / 10.38, graphite 9.08 / 11.42.
+ */
+.qt-accent {
+  --qt-fill: var(--sf-accent);
+  --qt-fill-deep: var(--sf-accent-hover);
+  --qt-fill-deeper: #163f93;
+  --qt-on-fill: #fff;
+  --qt-link: var(--sf-ink);
+  --qt-bar: var(--sf-accent);
+}
+.dark .qt-accent { --qt-bar: var(--sf-accent-fg); }
+
+.qt-accent:is([data-accent='green'], .qt-accent-green) { --qt-fill: #1f7a3d; --qt-fill-deep: #165c2e; --qt-fill-deeper: #10471f; --qt-link: #1d6b36; --qt-bar: #1f7a3d; }
+.dark .qt-accent:is([data-accent='green'], .qt-accent-green) { --qt-link: #8fd4a0; --qt-bar: #8fd4a0; }
+
+.qt-accent:is([data-accent='orange'], .qt-accent-orange) { --qt-fill: #b45309; --qt-fill-deep: #8f400a; --qt-fill-deeper: #6f3208; --qt-link: #a2480c; --qt-bar: #b45309; }
+.dark .qt-accent:is([data-accent='orange'], .qt-accent-orange) { --qt-link: #f5a660; --qt-bar: #f5a660; }
+
+.qt-accent:is([data-accent='violet'], .qt-accent-violet) { --qt-fill: #6d3fd6; --qt-fill-deep: #5530ac; --qt-fill-deeper: #432689; --qt-link: #5f37c4; --qt-bar: #6d3fd6; }
+.dark .qt-accent:is([data-accent='violet'], .qt-accent-violet) { --qt-link: #c0a8f7; --qt-bar: #c0a8f7; }
+
+.qt-accent:is([data-accent='pink'], .qt-accent-pink) { --qt-fill: #c0306b; --qt-fill-deep: #9c2556; --qt-fill-deeper: #7c1d44; --qt-link: #b02a62; --qt-bar: #c0306b; }
+.dark .qt-accent:is([data-accent='pink'], .qt-accent-pink) { --qt-link: #f6a8c8; --qt-bar: #f6a8c8; }
+
+.qt-accent:is([data-accent='graphite'], .qt-accent-graphite) { --qt-fill: #3b4250; --qt-fill-deep: #2a303b; --qt-fill-deeper: #1d222a; --qt-link: #3b4250; --qt-bar: #3b4250; }
+.dark .qt-accent:is([data-accent='graphite'], .qt-accent-graphite) { --qt-fill: #5b6475; --qt-fill-deep: #454d5c; --qt-fill-deeper: #343a46; --qt-link: #c3c8d0; --qt-bar: #c3c8d0; }
+
+.qt-accent .sf-primary { background: var(--qt-fill); color: var(--qt-on-fill); }
+.qt-accent .sf-primary::after { background-color: var(--qt-fill-deep); }
+.qt-accent .sf-primary:hover { background: var(--qt-fill-deep); }
+.qt-accent .sf-primary:hover::after { background-color: var(--qt-fill-deeper); }
+.qt-accent .sf-link:not([data-muted], :disabled, [aria-disabled='true']) { color: var(--qt-link); }
+.qt-accent .ct-opt[aria-pressed='true'] .ct-box { background: var(--qt-fill); }
+.qt-accent .ct-cells button[aria-current='true'] { box-shadow: 0 0 0 2px var(--qt-fill); }
 
 /* ---------------------------------------------------------------- the card before the start */
 .qt-main {
@@ -16,6 +75,16 @@
   padding: 0 var(--au-g) clamp(16px, 4dvh, 48px);
 }
 .qt-card { width: 100%; }
+/* The author's cover: a box of a fixed shape on top of the card, so nothing moves when the picture arrives. */
+.qt-cover {
+  aspect-ratio: 5 / 2;
+  margin: 0 0 20px;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+}
+.qt-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .qt-kicker { margin: 0 0 8px; font-size: 15px; line-height: 1.3; font-weight: 500; color: var(--sf-muted); }
 .qt-h1 { font-size: clamp(28px, min(3vw, 5dvh), 40px); line-height: 1.1; overflow-wrap: break-word; }
 .qt-by { margin: 10px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); overflow-wrap: anywhere; text-wrap: pretty; }
@@ -65,16 +134,41 @@
 .qt-past-list li + li { border-top: 1px solid var(--sf-line); }
 .qt-past-list .sf-link { font-size: 15px; }
 .qt-next { margin: 18px 0 0; }
+/* A guest's way to sign in: one quiet line under «Начать». */
+.qt-account { margin: 16px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.qt-account .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; vertical-align: baseline; }
 
 @media (max-width: 639px) {
   .qt { --au-g: 16px; }
   .qt-main { align-content: start; }
   .qt-card.au-card { padding: 24px 20px; border-radius: 28px; }
+  .qt-cover { margin-bottom: 16px; border-radius: 20px; }
   .qt-actions .qt-go.sf-primary,
   .qt-failed .sf-primary { width: 100%; min-width: 0; }
 }
 
 /* ---------------------------------------------------------------- the attempt */
+/* The time strip: the share of the time left, along the top edge over the sticky top line (z-index 20 there). The
+   clock in the line says the same in words, so the strip is hidden from screen readers. */
+.qt-time {
+  position: sticky;
+  top: 0;
+  z-index: 21;
+  height: 4px;
+  margin-bottom: -4px;
+  background: color-mix(in srgb, var(--sf-ink) 8%, transparent);
+  pointer-events: none;
+}
+.qt-time-left {
+  display: block;
+  height: 100%;
+  background: var(--qt-bar, var(--sf-accent));
+  transform-origin: left center;
+  transition: transform 1s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qt-time-left { transition: none; }
+}
 .qt-under { justify-content: space-between; }
 .qt-forward { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
 /* The quiet line of the saving: muted when saved, the yellow ink of a warning while the network is away. */
@@ -128,9 +222,47 @@
 .qt-rshort p[data-state='mine'] { box-shadow: inset 4px 0 0 var(--sf-muted); }
 .qt-rshort p[data-state='wrong'] { background: var(--ct-wrong-bg); box-shadow: inset 4px 0 0 var(--m-pink); }
 .qt-rshort p[data-state='file'] { background: var(--ct-right-bg); box-shadow: inset 4px 0 0 var(--m-green); }
+/* The author's explanation under a question (shown only with the right answers): plain text, its own line breaks. */
+.qt-explain { margin-top: 14px; padding: 12px 16px 14px; border-radius: 16px; background: var(--sf-surface-soft); box-shadow: inset 0 0 0 1px var(--sf-line); }
+.qt-explain-h { margin: 0; font-size: 14px; line-height: 1.4; font-weight: 600; color: var(--sf-muted); }
+.qt-explain-t { margin: 4px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* «Тренироваться дальше»: a card after the review; what the author will see comes before the button. */
+.qt-practice {
+  display: grid;
+  justify-items: start;
+  margin-top: 30px;
+  padding: 22px 24px 24px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: var(--ct-card);
+}
+.qt-practice-h { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; letter-spacing: -.01em; color: var(--sf-ink); }
+.qt-practice-note { margin: 8px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-muted); overflow-wrap: anywhere; text-wrap: pretty; }
+.qt-practice > .sf-primary,
+.qt-practice > .sf-secondary,
+.qt-practice > .sf-link { margin-top: 16px; }
+.qt-practice > .sf-primary { justify-content: space-between; }
+.qt-practice > .sf-secondary { max-width: 100%; height: auto; min-height: 48px; padding: 10px 22px; line-height: 1.25; white-space: normal; text-align: left; }
+.qt-practice > [aria-busy='true'] { cursor: progress; }
+.qt-practice-error {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--ct-wrong-bg, var(--sf-surface-soft));
+  box-shadow: inset 4px 0 0 var(--m-pink);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+}
 
 @media (max-width: 639px) {
   .qt-ritem { padding: 16px 16px 18px; border-radius: 22px; }
   .qt-rstem { font-size: 17px; }
   .qt-pass { font-size: 17px; }
+  .qt-practice { padding: 18px 16px 20px; border-radius: 24px; }
+  .qt-practice > .sf-primary,
+  .qt-practice > .sf-secondary { width: 100%; }
 }

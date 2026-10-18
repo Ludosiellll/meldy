@@ -1,14 +1,18 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { QuizResult, QuizResultItem } from '../../types/quiz';
 
-const api = vi.hoisted(() => ({ pictureUrl: vi.fn() }));
+const api = vi.hoisted(() => ({ pictureUrl: vi.fn(), joinPractice: vi.fn() }));
 vi.mock('../../api/itemPictures', () => ({ pictureUrl: api.pictureUrl, pictureDataUrl: () => null }));
+vi.mock('../../api/quizzes', () => ({ joinPractice: api.joinPractice }));
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn(), storage: { from: vi.fn() } } }));
 
 import QuizResultView from './QuizResult';
+import { ContainerApiError } from '../../api/containers';
 import { quizOrder } from '../../lib/quizzes/quizModel';
 import { OPTION_LETTERS } from '../containers/copy';
+import { QUIZ_ERRORS } from './copyQuiz';
 
 const NB = String.fromCharCode(0xa0);
 const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
@@ -46,19 +50,38 @@ function result(over: Partial<QuizResult> = {}): QuizResult {
 
 let onRetry: Mock<() => void>;
 let onClose: Mock<() => void>;
+let where = '';
 
-function renderResult(value: QuizResult) {
+function Where() {
+  const location = useLocation();
+  where = `${location.pathname}${location.search}`;
+  return <p>Другая страница</p>;
+}
+
+function renderResult(value: QuizResult, guest = false) {
   return render(
-    <div className="ct-roomshell">
-      <QuizResultView result={value} onRetry={onRetry} onClose={onClose} />
-    </div>,
+    <MemoryRouter initialEntries={['/k/abcd2fghjkmn']}>
+      <Routes>
+        <Route
+          path="/k/:code"
+          element={
+            <div className="ct-roomshell">
+              <QuizResultView result={value} guest={guest} onRetry={onRetry} onClose={onClose} />
+            </div>
+          }
+        />
+        <Route path="*" element={<Where />} />
+      </Routes>
+    </MemoryRouter>,
   );
 }
 
 beforeEach(() => {
   onRetry = vi.fn<() => void>();
   onClose = vi.fn<() => void>();
+  where = '';
   api.pictureUrl.mockReset().mockResolvedValue('blob:picture');
+  api.joinPractice.mockReset().mockResolvedValue({ container_id: 'cont-1' });
 });
 afterEach(() => cleanup());
 
@@ -203,5 +226,92 @@ describe('the options stand as the attempt showed them (release 46.1)', () => {
     cleanup();
     renderResult(result({ review_now: 'mistakes', items: [item] }));
     expect(rowsOf()[0].startsWith('АMVC')).toBe(true);
+  });
+});
+
+describe('the author’s explanation in the review (release 47)', () => {
+  const keyed = (over: Partial<QuizResultItem>): QuizResultItem => ({ ...ITEMS[1], key: [1], ...over });
+
+  it('stands under the question with its label, the author’s line breaks kept', () => {
+    renderResult(result({ review_now: 'answers', items: [keyed({ explanation: 'Рэлеевское рассеяние.\nКороткие волны рассеиваются сильнее.' })] }));
+    const sky = screen.getByText('Какой цвет у неба?').closest('li')!;
+    const box = sky.querySelector('.qt-explain')!;
+    expect(within(sky).getByText('Пояснение')).toBeInTheDocument();
+    expect(box.querySelector('.qt-explain-t')?.textContent).toBe('Рэлеевское рассеяние.\nКороткие волны рассеиваются сильнее.');
+    // After the options: the explanation reads after the answer.
+    const options = sky.querySelector('.qt-opts')!;
+    expect(options.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('none, empty or only spaces: nothing', () => {
+    renderResult(result({ review_now: 'answers', items: [keyed({ explanation: '  \n ' }), keyed({ id: 'i5', stem: 'Второй', explanation: null }), keyed({ id: 'i6', stem: 'Третий' })] }));
+    expect(screen.queryByText('Пояснение')).toBeNull();
+    expect(document.querySelector('.qt-explain')).toBeNull();
+  });
+});
+
+describe('«Тренироваться дальше» (release 47)', () => {
+  const NOTE = 'Вы станете участником экзамена «Зимняя сессия»: автор увидит вас в списке участников, ваш прогресс — нет.';
+  const offered = (over: Partial<QuizResult> = {}) => result({ practice: { exam_title: 'Зимняя сессия', member: false }, ...over });
+
+  it('signed in: the note first, then the button; it joins and opens the exam', async () => {
+    renderResult(offered());
+    const note = screen.getByText((_, node) => node?.classList.contains('qt-practice-note') === true && plain(node.textContent) === NOTE);
+    const button = screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' });
+    expect(note.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No other try: this is the screen's one blue pill.
+    expect(button).toHaveClass('sf-primary');
+    fireEvent.click(button);
+    await waitFor(() => expect(where).toBe('/exams/c/cont-1'));
+    expect(api.joinPractice).toHaveBeenCalledWith('abcd2fghjkmn');
+  });
+
+  it('with «Ещё попытка» on the screen the button is the white pill', () => {
+    renderResult(offered({ can_retry: true, attempts_left: 1 }));
+    expect(screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toHaveClass('sf-secondary');
+  });
+
+  it('a member already: «Открыть экзамен» asks for the exam’s id and opens it', async () => {
+    renderResult(offered({ practice: { exam_title: 'Зимняя сессия', member: true } }));
+    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeNull();
+    expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe('Вы уже участник экзамена «Зимняя сессия».');
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть экзамен' }));
+    await waitFor(() => expect(where).toBe('/exams/c/cont-1'));
+    expect(api.joinPractice).toHaveBeenCalledWith('abcd2fghjkmn');
+  });
+
+  it('a guest: an account first, coming back to the quiz with ?practice=1; nothing joined from here', () => {
+    renderResult(offered(), true);
+    expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe(NOTE);
+    const link = screen.getByRole('link', { name: 'Создать аккаунт и тренироваться' });
+    expect(link).toHaveAttribute('href', `/register?next=${encodeURIComponent('/k/abcd2fghjkmn?practice=1')}`);
+    expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeNull();
+    fireEvent.click(link);
+    expect(where).toBe(`/register?next=${encodeURIComponent('/k/abcd2fghjkmn?practice=1')}`);
+    expect(api.joinPractice).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['practice', QUIZ_ERRORS.MC018_practice],
+    ['removed', QUIZ_ERRORS.MC018_removed],
+    ['full', QUIZ_ERRORS.MC018_full],
+  ])('MC018 %s is said in place and the button works again', async (detail, words) => {
+    api.joinPractice.mockRejectedValueOnce(new ContainerApiError('MC018', words, { status: 400, detail }));
+    renderResult(offered());
+    const button = screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' });
+    fireEvent.click(button);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(words);
+    expect(alert.closest('.qt-practice')).not.toBeNull();
+    expect(where).toBe('');
+    expect(button).not.toBeDisabled();
+    fireEvent.click(button);
+    await waitFor(() => expect(where).toBe('/exams/c/cont-1'));
+  });
+
+  it('not offered: no block', () => {
+    renderResult(result({ practice: null }));
+    expect(screen.queryByRole('heading', { name: 'Тренироваться дальше' })).toBeNull();
+    expect(screen.queryByText(/Тренировать/)).toBeNull();
   });
 });

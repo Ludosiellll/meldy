@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TestItem } from '../../types/container';
-import type { QuizAnswerInput, QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
+import type { QuizAccent, QuizAnswerInput, QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
 import { finishQuiz, quizResult, sendAnswers } from '../../api/quizzes';
 import { clockOffset, clockText, quizOrder, secondsLeft } from '../../lib/quizzes/quizModel';
 import { track } from '../../lib/telemetry';
@@ -22,6 +22,10 @@ import './quizTake.css';
  * corrected by the difference of the clocks; at 0:00 the waiting answers go and the attempt is finished. MC012 (the
  * server closed the attempt) shows its result. A reload starts again from quiz_start, which gives the same attempt with
  * the server's answers; the unsent ones of this device are put back over them and sent.
+ *
+ * Release 47 (spec 2026-10-18 §47.1, §47.4): a taker without an account passes the device's token, and every call of
+ * the attempt goes with it (quiz_guest_answer / _finish / _result); with a timer a thin strip at the top edge shrinks
+ * to the deadline in the quiz's colour (the clock in the top line says the same in words).
  */
 
 export type QuizAnswer = MockAnswer;
@@ -113,11 +117,11 @@ function codeOf(error: unknown): string {
 type SendOutcome = 'ok' | 'over' | 'lost' | 'invalid' | 'offline' | 'failing';
 
 /** The result of an attempt the server closed; one it has not closed yet (22023 unfinished) is finished (idempotent). */
-async function resultOf(attemptId: string): Promise<QuizResult> {
+async function resultOf(attemptId: string, token: string | null): Promise<QuizResult> {
   try {
-    return await quizResult(attemptId);
+    return await quizResult(attemptId, token);
   } catch (error) {
-    if (codeOf(error) === '22023') return finishQuiz(attemptId);
+    if (codeOf(error) === '22023') return finishQuiz(attemptId, token);
     throw error;
   }
 }
@@ -135,13 +139,17 @@ type Ending = { reason: 'sent' | 'time'; state: 'sending' | 'offline' | 'failed'
 
 export interface QuizRunProps {
   attempt: QuizAttempt;
+  /** The device's token of a taker without an account (lib/quizzes/guestToken.ts); null — signed in. */
+  token: string | null;
+  /** The quiz's colour: the sheets open outside the page's root, so they take it by class. */
+  accent?: QuizAccent;
   /** The attempt is over (sent, out of time, or closed by the server): its result. */
   onResult: (result: QuizResult) => void;
   /** The attempt is gone on the server (the author reset it): the page goes back to its start with these words. */
   onLost: (message: string) => void;
 }
 
-export default function QuizRun({ attempt, onResult, onLost }: QuizRunProps) {
+export default function QuizRun({ attempt, token, accent = 'blue', onResult, onLost }: QuizRunProps) {
   const id = attempt.attempt_id;
   const items = attempt.items;
   const total = items.length;
@@ -229,6 +237,7 @@ export default function QuizRun({ attempt, onResult, onLost }: QuizRunProps) {
       const saved = await sendAnswers(
         id,
         entries.map(([itemId, value]) => toInput(itemId, value, kinds.get(itemId) ?? 'single')),
+        token,
       );
       // What changed while the call was on its way stays to be sent.
       for (const [itemId, version] of sent) if ((versions.current[itemId] ?? 0) === version) delete pending.current[itemId];
@@ -289,13 +298,13 @@ export default function QuizRun({ attempt, onResult, onLost }: QuizRunProps) {
       if (sent === 'lost') return { kind: 'lost' };
       if (sent === 'offline' || sent === 'failing') return { kind: sent };
       try {
-        return { kind: 'result', result: sent === 'over' ? await resultOf(id) : await finishQuiz(id) };
+        return { kind: 'result', result: sent === 'over' ? await resultOf(id, token) : await finishQuiz(id, token) };
       } catch (error) {
         const code = codeOf(error);
         if (code === 'P0002') return { kind: 'lost' };
         if (code === 'MC012') {
           try {
-            return { kind: 'result', result: await resultOf(id) };
+            return { kind: 'result', result: await resultOf(id, token) };
           } catch (again) {
             failures.current += 1;
             return { kind: failureOf(again) };
@@ -414,6 +423,10 @@ export default function QuizRun({ attempt, onResult, onLost }: QuizRunProps) {
 
   const timeText = left !== null ? clockText(left) : null;
   const shown = Math.min(pos + 1, total);
+  // The strip: the share of the attempt's time still left (from its start to the deadline as the server has it now).
+  const span = deadline ? (Date.parse(deadline) - Date.parse(attempt.started_at)) / 1000 : Number.NaN;
+  const share = left !== null && Number.isFinite(span) && span > 0 ? Math.min(1, Math.max(0, left / span)) : null;
+  const sheetClass = `qt-accent qt-accent-${accent}`;
 
   // ── the end on its way (or waiting for the network)
   if (ending) {
@@ -472,6 +485,11 @@ export default function QuizRun({ attempt, onResult, onLost }: QuizRunProps) {
 
   return (
     <>
+      {share !== null ? (
+        <div className="qt-time" aria-hidden="true">
+          <span className="qt-time-left" style={{ transform: `scaleX(${share})` }} />
+        </div>
+      ) : null}
       <RoomBar long={RUN.barLong(shown, total, timeText)} short={RUN.barShort(shown, total, timeText)} exitLabel={RUN.finish} onExit={() => setFinishOpen(true)} />
       <main className="sf-page ct-study qt-run">
         {resumedNote ? <p className="ct-offline">{RUN.resumed(shown, total, timeText)}</p> : null}
@@ -536,7 +554,7 @@ export default function QuizRun({ attempt, onResult, onLost }: QuizRunProps) {
         </div>
       </main>
       {allOpen && attempt.allow_back ? (
-        <Sheet title={RUN.all} onClose={() => setAllOpen(false)}>
+        <Sheet title={RUN.all} onClose={() => setAllOpen(false)} className={sheetClass}>
           <ul className="ct-cells">
             {items.map((entry, index) => (
               <li key={entry.id}>
@@ -562,6 +580,7 @@ export default function QuizRun({ attempt, onResult, onLost }: QuizRunProps) {
           title={RUN.finishTitle}
           onClose={() => setFinishOpen(false)}
           bare
+          className={sheetClass}
           actions={
             <>
               <button type="button" className="sf-primary" onClick={() => end('sent')}>

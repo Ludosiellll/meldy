@@ -1,7 +1,8 @@
 /**
- * The participant's words of «Контрольная» (spec 2026-10-16 §2.2): the page /k/<код> before the start, the attempt
- * and the result. Plain Russian, no exclamation marks; numbers keep the word after them (glue). The words both sides
- * share (the counts, the states, the refusals) stay in copyQuiz.ts.
+ * The participant's words of «Контрольная» (spec 2026-10-16 §2.2; release 47: a guest without an account, the
+ * explanation in the review, «тренироваться дальше» — spec 2026-10-18 §47.1, §47.5): the page /k/<код> before the
+ * start, the attempt and the result. Plain Russian, no exclamation marks; numbers keep the word after them (glue). The
+ * words both sides share (the counts, the states, the refusals MC010–MC018) stay in copyQuiz.ts.
  */
 import { glue } from '../containers/copy';
 import { QUIZ, plural } from './copyQuiz';
@@ -43,6 +44,9 @@ export const TAKE = {
   },
   membersOnly: 'Писать могут только участники экзамена.',
   privacy: 'Автор увидит имя, которое вы укажете, ваши ответы и результат.',
+  /** Without an account (release 47): the attempts live on this device, by its token. */
+  guestPrivacy: 'Автор увидит имя, которое вы укажете, ваши ответы и результат. Попытки сохраняются в этом браузере.',
+  haveAccount: 'Есть аккаунт?',
   signIn: 'Войти, чтобы начать',
   signInToSee: 'Войти и посмотреть свои результаты',
   register: 'Создать аккаунт',
@@ -126,6 +130,14 @@ export const RESULT = {
   shortMine: (text: string) => `Ваш ответ: ${text}`,
   shortNone: 'Ответа нет.',
   shortRight: (forms: readonly string[]) => (forms.length > 1 ? `Верные ответы: ${forms.join(', ')}` : `Верный ответ: ${forms[0] ?? ''}`),
+  explanation: 'Пояснение',
+  /** «Тренироваться дальше» (release 47, spec §47.5): the author offers the exam the quiz was drawn from. */
+  practiceTitle: 'Тренироваться дальше',
+  practiceJoin: 'Тренировать эти вопросы в Meldy',
+  practiceNote: (exam: string) => glue(`Вы станете участником экзамена «${exam}»: автор увидит вас в списке участников, ваш прогресс — нет.`),
+  practiceMember: (exam: string) => glue(`Вы уже участник экзамена «${exam}».`),
+  practiceOpen: 'Открыть экзамен',
+  practiceGuest: 'Создать аккаунт и тренироваться',
   /** «Ещё попытка (осталась 1)»; without a limit — «Ещё попытка». */
   retry: (left: number | null) => (left === null ? 'Ещё попытка' : glue(`Ещё попытка (${plural(left, 'осталась', 'осталось', 'осталось')} ${left})`)),
 } as const;

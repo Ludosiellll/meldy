@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import type { QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
+import type { QuizAccent, QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
 
 const api = vi.hoisted(() => ({
   sendAnswers: vi.fn(),
@@ -79,9 +79,12 @@ const advance = (ms: number) =>
 let onResult: Mock<(result: QuizResult) => void>;
 let onLost: Mock<(message: string) => void>;
 
-function renderRun(value: QuizAttempt = attempt()) {
-  return render(<QuizRun attempt={value} onResult={onResult} onLost={onLost} />);
+function renderRun(value: QuizAttempt = attempt(), token: string | null = null, accent?: QuizAccent) {
+  return render(<QuizRun attempt={value} token={token} accent={accent} onResult={onResult} onLost={onLost} />);
 }
+
+/** A device's token of a guest (43 characters of base64url). */
+const TOKEN = 'A'.repeat(42) + 'g';
 
 beforeEach(() => {
   vi.useFakeTimers({ now: DEVICE_NOW });
@@ -152,7 +155,7 @@ describe('QuizRun: saving the answers', () => {
     expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [
       { item_id: 'i1', chosen: [1] },
       { item_id: 'i2', chosen: [1, 2] },
-    ]);
+    ], null);
     expect(stored()).toBeNull();
     expect(screen.getByText('Сохранено')).toBeInTheDocument();
   });
@@ -161,12 +164,12 @@ describe('QuizRun: saving the answers', () => {
     renderRun(attempt({ items: [ITEMS[2], ITEMS[0]] }));
     fireEvent.change(screen.getByLabelText('Ваш ответ'), { target: { value: ' Париж ' } });
     await advance(SEND_DELAY_MS);
-    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i3', text: 'Париж' }]);
+    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i3', text: 'Париж' }], null);
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     fireEvent.click(options()[0]);
     fireEvent.click(options()[0]);
     await advance(SEND_DELAY_MS);
-    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i1', chosen: [] }]);
+    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i1', chosen: [] }], null);
   });
 
   it('a failed send says so quietly, keeps the copy and is tried again later', async () => {
@@ -179,7 +182,7 @@ describe('QuizRun: saving the answers', () => {
     expect(JSON.parse(stored() ?? '{}')).toEqual({ i1: [0] });
     await advance(RETRY_MS[0]);
     expect(api.sendAnswers).toHaveBeenCalledTimes(2);
-    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i1', chosen: [0] }]);
+    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i1', chosen: [0] }], null);
     expect(stored()).toBeNull();
     expect(screen.getByText('Сохранено')).toBeInTheDocument();
   });
@@ -214,7 +217,7 @@ describe('QuizRun: saving the answers', () => {
     // The first call saved [0]; [2] is newer and still waits.
     expect(JSON.parse(stored() ?? '{}')).toEqual({ i1: [2] });
     await advance(SEND_DELAY_MS);
-    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i1', chosen: [2] }]);
+    expect(api.sendAnswers).toHaveBeenLastCalledWith('att-1', [{ item_id: 'i1', chosen: [2] }], null);
     expect(stored()).toBeNull();
   });
 });
@@ -226,7 +229,7 @@ describe('QuizRun: the questions', () => {
     expect(optionTexts()).toEqual(order.map((index) => ITEMS[0].options[index]));
     fireEvent.click(options()[0]);
     await advance(SEND_DELAY_MS);
-    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i1', chosen: [order[0]] }]);
+    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i1', chosen: [order[0]] }], null);
   });
 
   it('keeps the file order when the author asked for it', () => {
@@ -262,8 +265,8 @@ describe('QuizRun: the questions', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Завершить' }));
     await advance(0);
     // The waiting answer goes first, then the finish.
-    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i1', chosen: [1] }]);
-    expect(api.finishQuiz).toHaveBeenCalledWith('att-1');
+    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i1', chosen: [1] }], null);
+    expect(api.finishQuiz).toHaveBeenCalledWith('att-1', null);
     expect(api.sendAnswers.mock.invocationCallOrder[0]).toBeLessThan(api.finishQuiz.mock.invocationCallOrder[0]);
     expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ attempt_id: 'att-1', finish_reason: 'sent' }));
     expect(api.track).toHaveBeenCalledWith('quiz.finished', expect.objectContaining({ reason: 'sent' }));
@@ -280,8 +283,8 @@ describe('QuizRun: the end of the time', () => {
     fireEvent.click(options()[2]);
     expect(api.sendAnswers).not.toHaveBeenCalled();
     await advance(300);
-    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i1', chosen: [2] }]);
-    expect(api.finishQuiz).toHaveBeenCalledWith('att-1');
+    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i1', chosen: [2] }], null);
+    expect(api.finishQuiz).toHaveBeenCalledWith('att-1', null);
     expect(api.sendAnswers.mock.invocationCallOrder[0]).toBeLessThan(api.finishQuiz.mock.invocationCallOrder[0]);
     expect(onResult).toHaveBeenCalledWith(RESULT);
     expect(stored()).toBeNull();
@@ -290,7 +293,7 @@ describe('QuizRun: the end of the time', () => {
   it('an attempt whose time ran out while away ends at once', async () => {
     renderRun(attempt({ server_now: '2026-10-16T10:31:00.000Z' }));
     await advance(0);
-    expect(api.finishQuiz).toHaveBeenCalledWith('att-1');
+    expect(api.finishQuiz).toHaveBeenCalledWith('att-1', null);
     expect(onResult).toHaveBeenCalled();
   });
 
@@ -299,7 +302,7 @@ describe('QuizRun: the end of the time', () => {
     renderRun();
     fireEvent.click(options()[0]);
     await advance(SEND_DELAY_MS);
-    expect(api.quizResult).toHaveBeenCalledWith('att-1');
+    expect(api.quizResult).toHaveBeenCalledWith('att-1', null);
     expect(api.finishQuiz).not.toHaveBeenCalled();
     expect(onResult).toHaveBeenCalledWith(RESULT);
     expect(stored()).toBeNull();
@@ -311,7 +314,7 @@ describe('QuizRun: the end of the time', () => {
     renderRun();
     fireEvent.click(options()[0]);
     await advance(SEND_DELAY_MS);
-    expect(api.finishQuiz).toHaveBeenCalledWith('att-1');
+    expect(api.finishQuiz).toHaveBeenCalledWith('att-1', null);
     expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ attempt_id: 'att-1' }));
   });
 
@@ -321,7 +324,7 @@ describe('QuizRun: the end of the time', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Завершить' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Завершить' }));
     await advance(0);
-    expect(api.quizResult).toHaveBeenCalledWith('att-1');
+    expect(api.quizResult).toHaveBeenCalledWith('att-1', null);
     expect(onResult).toHaveBeenCalledWith(RESULT);
   });
 
@@ -363,7 +366,7 @@ describe('QuizRun: a reload (review focus 1)', () => {
     expect(plain(screen.getByText(/Попытка продолжается/).textContent)).toBe('Попытка продолжается: 2 из 3, осталось 20:00.');
     // The unsent answer goes at once.
     await advance(0);
-    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i3', text: 'Париж' }]);
+    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i3', text: 'Париж' }], null);
     // The same order as before the reload (the seed is the attempt and the question).
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
     const order = optionOrder(4, false, pinnedLast(ITEMS[0].options), 'att-1:i1');
@@ -377,5 +380,70 @@ describe('QuizRun: a reload (review focus 1)', () => {
   it('only forward: goes on after the last answered question', () => {
     renderRun(attempt({ allow_back: false, answers: [{ item_id: 'i2', chosen: [1], text: null }] }));
     expect(bar()).toContain('3 из 3');
+  });
+});
+
+describe('QuizRun: a guest without an account (release 47)', () => {
+  it('every call of the attempt carries the device token: the answers, then the finish', async () => {
+    renderRun(attempt(), TOKEN);
+    fireEvent.click(options()[1]);
+    await advance(SEND_DELAY_MS);
+    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i1', chosen: [1] }], TOKEN);
+    fireEvent.click(screen.getByRole('button', { name: 'Завершить' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Завершить' }));
+    await advance(0);
+    expect(api.finishQuiz).toHaveBeenCalledWith('att-1', TOKEN);
+    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ finish_reason: 'sent' }));
+  });
+
+  it('an attempt the server closed (MC012) reads its result with the token, finishing it when still open', async () => {
+    api.sendAnswers.mockRejectedValue(new ContainerApiError('MC012', 'Время вышло', { status: 400, detail: 'time' }));
+    api.quizResult.mockRejectedValue(new ContainerApiError('22023', 'Попытка ещё не закончена.', { status: 400, detail: 'unfinished' }));
+    renderRun(attempt(), TOKEN);
+    fireEvent.click(options()[0]);
+    await advance(SEND_DELAY_MS);
+    expect(api.quizResult).toHaveBeenCalledWith('att-1', TOKEN);
+    expect(api.finishQuiz).toHaveBeenCalledWith('att-1', TOKEN);
+    expect(onResult).toHaveBeenCalled();
+  });
+
+  it('the unsent answers of a reload go with the token too', async () => {
+    window.localStorage.setItem(storeKey('att-1'), JSON.stringify({ i3: 'Париж' }));
+    renderRun(attempt(), TOKEN);
+    await advance(0);
+    expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i3', text: 'Париж' }], TOKEN);
+  });
+});
+
+describe('QuizRun: the time strip and the quiz colour (release 47)', () => {
+  const strip = () => document.querySelector<HTMLElement>('.qt-time-left');
+
+  it('with a timer: a strip at the top shrinks to the deadline, hidden from screen readers', async () => {
+    // A quarter of an hour of the thirty is gone.
+    renderRun(attempt({ server_now: '2026-10-16T10:15:00.000Z' }));
+    expect(document.querySelector('.qt-time')).toHaveAttribute('aria-hidden', 'true');
+    expect(strip()?.style.transform).toBe('scaleX(0.5)');
+    await advance(180_000);
+    expect(strip()?.style.transform).toBe('scaleX(0.4)');
+  });
+
+  it('without a timer there is no strip', () => {
+    renderRun(attempt({ deadline_at: null }));
+    expect(document.querySelector('.qt-time')).toBeNull();
+  });
+
+  it('the sheets open outside the page, so they take the colour by class', () => {
+    renderRun(attempt(), null, 'green');
+    fireEvent.click(screen.getByRole('button', { name: 'Завершить' }));
+    expect(screen.getByRole('dialog', { name: 'Завершить контрольную?' })).toHaveClass('qt-accent', 'qt-accent-green');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Вернуться к вопросам' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Все вопросы' }));
+    expect(screen.getByRole('dialog', { name: 'Все вопросы' })).toHaveClass('qt-accent', 'qt-accent-green');
+  });
+
+  it('without a colour the sheets are blue, Meldy’s own', () => {
+    renderRun();
+    fireEvent.click(screen.getByRole('button', { name: 'Завершить' }));
+    expect(screen.getByRole('dialog')).toHaveClass('qt-accent-blue');
   });
 });
