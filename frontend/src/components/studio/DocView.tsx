@@ -561,12 +561,25 @@ function AnswerFlow({
   const [missing, setMissing] = useState<number[]>([]);
   const [result, setResult] = useState<DocResultView | null>(given ?? null);
   const [sending, setSending] = useState(false);
+  // Each press that finds required questions without an answer: the first of them is brought into view.
+  const [asked, setAsked] = useState(0);
   const topRef = useRef<HTMLDivElement>(null);
+  const colRef = useRef<HTMLDivElement>(null);
   const step = steps[Math.min(at, steps.length - 1)];
   const last = at >= steps.length - 1;
   const paged = steps.length > 1;
 
   useEffect(() => setResult(given ?? null), [given]);
+
+  // As the participant's run does (QuizDocRun «Завершить»): the first required question left without an answer comes
+  // into view — inside the preview's frame, which scrolls by itself — and its head takes the focus, read from its number.
+  useEffect(() => {
+    if (asked === 0) return;
+    const card = colRef.current?.querySelector<HTMLElement>('.dv-q[data-missing]');
+    if (!card) return;
+    card.scrollIntoView?.({ block: 'start' });
+    card.querySelector<HTMLElement>('.dv-q-head')?.focus({ preventScroll: true });
+  }, [asked]);
 
   const missingIds = useMemo(() => {
     const set = new Set<string>();
@@ -587,6 +600,7 @@ function AnswerFlow({
     const gaps = doc.layout === 'one_by_one' ? [] : missingRequired(step.blocks, answers, numbers);
     if (gaps.length > 0) {
       setMissing(gaps);
+      setAsked((n) => n + 1);
       return;
     }
     if (!last) {
@@ -624,7 +638,7 @@ function AnswerFlow({
   }
 
   return (
-    <div className="dv-col" data-mode="answer">
+    <div ref={colRef} className="dv-col" data-mode="answer">
       <div ref={topRef} tabIndex={-1} className="dv-top" aria-live="polite">
         {paged ? (
           <div className="dv-progress">

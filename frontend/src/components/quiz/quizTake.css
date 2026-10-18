@@ -379,8 +379,6 @@
 .qt-docmain { display: block; }
 .qt-docrun.dv { min-height: calc(100vh - 60px); min-height: calc(100dvh - 60px); }
 .qt-docrun .dv-q { scroll-margin-top: 84px; }
-.qt-docrun .dv-q-head:focus { outline: none; }
-.qt-docrun .dv-q:has(.dv-q-head:focus-visible) { box-shadow: var(--dv-shadow), 0 0 0 2px var(--qt-fill); }
 /* «Осталось 5 минут»: kept for the screen reader while empty, out of the column's gaps. */
 .qt-docrun .qt-low { margin: 0; }
 .qt-docrun .qt-low:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

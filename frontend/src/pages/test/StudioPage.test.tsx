@@ -643,9 +643,15 @@ describe('StudioPage: the views and the participant', () => {
     const saves = api.saveTestDoc.mock.calls.length;
     fireEvent.click(screen.getByRole('button', { name: STUDIO.preview }));
     const dialog = screen.getByRole('dialog', { name: STUDIO.previewTitle });
-    // The required first question is asked for.
+    // The required first question is asked for: brought into view inside the frame, its head focused (as in the run).
+    const into = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => undefined);
     fireEvent.click(within(dialog).getByRole('button', { name: /Завершить/ }));
     expect(within(dialog).getByText('Ответьте на обязательный вопрос: 1.')).toBeInTheDocument();
+    const first = within(dialog).getByRole('region', { name: /Вопрос 1/ });
+    expect(into.mock.contexts).toEqual([first]);
+    into.mockRestore();
+    expect(dialog.querySelector('.st-scroll')?.contains(first)).toBe(true);
+    expect(document.activeElement).toBe(first.querySelector('.dv-q-head'));
     fireEvent.click(within(dialog).getByRole('radio', { name: /Водород/ }));
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /HCl/ }));
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /H₂SO₄/ }));

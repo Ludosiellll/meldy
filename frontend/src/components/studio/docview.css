@@ -231,6 +231,10 @@
 .dv-q-meta::before { content: '·'; margin: 0 8px; }
 /* A required question the participant was told about: the words under it, as well as the ring. */
 .dv-q-need { margin: 0; color: var(--dv-bad); font-size: 15px; line-height: 1.4; font-weight: 500; }
+/* The question taken to (the first required one without an answer, a cell of «Все вопросы»): its head holds the focus,
+   so it is read from its number; a keyboard's focus shows as the card's ring (the preview and the run alike). */
+.dv-q-head:focus { outline: none; }
+.dv-q:has(.dv-q-head:focus-visible) { box-shadow: var(--dv-shadow), 0 0 0 2px var(--qt-fill); }
 .dv-stem {
   margin: 0;
   font-size: calc(clamp(19px, 3.1cqi, 23px) * var(--dv-scale));
