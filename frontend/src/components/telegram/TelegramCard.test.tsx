@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import TelegramCard, {
   LINK_MS, POLL_MS, TELEGRAM_COPY, TelegramLinkWindow, TelegramRemindLink, clockWords, codeMoment, examLine, leadingExam, linkedByCode, pauseLine,
-  timeLine,
+  planExamWhen, timeLine,
 } from './TelegramCard';
 import { PHONE_QUERY } from '../../lib/usePhone';
 import { danglingControls } from '../../test/a11y';
@@ -17,6 +17,8 @@ const db = vi.hoisted(() => ({
 const mocks = vi.hoisted(() => ({
   user: { id: 'user-1' } as { id: string } | null,
   fetchOverview: vi.fn(),
+  telegramExams: vi.fn(),
+  setExamRemind: vi.fn(),
 }));
 
 vi.mock('../../lib/supabase', () => ({
@@ -37,7 +39,12 @@ vi.mock('../../lib/supabase', () => ({
   },
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: mocks.user, loading: false }) }));
-vi.mock('../../api/containers', () => ({ fetchOverview: (...args: unknown[]) => mocks.fetchOverview(...args) }));
+vi.mock('../../api/containers', () => ({
+  fetchOverview: (...args: unknown[]) => mocks.fetchOverview(...args),
+  telegramExams: (...args: unknown[]) => mocks.telegramExams(...args),
+  setExamRemind: (...args: unknown[]) => mocks.setExamRemind(...args),
+  containerErrorText: (error: unknown) => (error instanceof Error && /[а-яё]/i.test(error.message) ? error.message : 'Не получилось. Попробуйте ещё раз.'),
+}));
 
 const HEX = '0123456789abcdef0123456789abcdef';
 const URL_OF_CODE = `https://t.me/Meldyteach_bot?start=L${HEX}`;
@@ -126,6 +133,9 @@ beforeEach(() => {
   db.calls.length = 0;
   mocks.user = { id: 'user-1' };
   mocks.fetchOverview.mockReset().mockResolvedValue(OVERVIEW);
+  // A server without the per-exam switches (telegram_exams) unless a test says otherwise: the one exam line, as before.
+  mocks.telegramExams.mockReset().mockResolvedValue(null);
+  mocks.setExamRemind.mockReset().mockImplementation(async (id: string, on: boolean) => ({ container_id: id, tg_remind: on }));
   setAgent(UA.desktop);
   setPhone(false);
   setZone('Europe/Minsk');
@@ -522,6 +532,105 @@ describe('linked', () => {
     await tick();
     expect(plain(container.textContent)).not.toContain('/settings');
     expect(container.querySelectorAll('.sf-primary, .ac-btn--blue')).toHaveLength(0);
+  });
+});
+
+describe('«Экзамены в плане»: the bot’s day plan per exam (release 47)', () => {
+  /** telegram_exams(): the account's exams, nearest first, each with its switch. */
+  const EXAMS = [
+    { container_id: 'c-3', title: 'Летняя практика', exam_date: '2026-10-16', state: 'exam_today', tg_remind: true },
+    { container_id: 'c-2', title: 'Осенняя сессия', exam_date: '2026-11-03', state: 'study', tg_remind: true },
+    { container_id: 'c-1', title: 'Зимняя сессия', exam_date: '2027-01-20', state: 'study', tg_remind: false },
+    { container_id: 'c-0', title: 'Коллоквиум', exam_date: '2026-10-10', state: 'after', tg_remind: false },
+  ];
+  const switchOf = (name: string) => screen.getByRole('switch', { name });
+
+  it('lists every exam with its switch in place of the one exam line, without reading the exams list', async () => {
+    server([LINKED]);
+    mocks.telegramExams.mockResolvedValue(EXAMS);
+    const { container } = show();
+    await tick();
+    expect(mocks.telegramExams).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchOverview).not.toHaveBeenCalled();
+    const list = screen.getByRole('list', { name: 'Экзамены в плане' });
+    expect(within(list).getAllByRole('switch')).toHaveLength(4);
+    expect(switchOf('Летняя практика')).toHaveAttribute('aria-checked', 'true');
+    expect(switchOf('Осенняя сессия')).toHaveAttribute('aria-checked', 'true');
+    expect(switchOf('Зимняя сессия')).toHaveAttribute('aria-checked', 'false');
+    // Each row says its day: the switch is described by it.
+    expect(switchOf('Летняя практика')).toHaveAccessibleDescription('сегодня экзамен');
+    expect(plain(within(list).getAllByRole('listitem')[1].textContent)).toBe('Осенняя сессия3 ноября');
+    expect(plain(within(list).getAllByRole('listitem')[3].textContent)).toBe('Коллоквиумпрошёл 10 октября');
+    const text = plain(container.textContent);
+    expect(text).not.toContain('Экзамен — «');
+    expect(text).not.toContain(TELEGRAM_COPY.noneChosen);
+    expect(text).toContain('План на день — в 20:00.');
+    expect(danglingControls(container)).toEqual([]);
+  });
+
+  it('a switch saves at once; with none on the card says the plan does not come', async () => {
+    server([LINKED]);
+    mocks.telegramExams.mockResolvedValue([EXAMS[1], EXAMS[2]]);
+    const { container } = show();
+    await tick();
+    press(switchOf('Осенняя сессия'));
+    // Saving, it keeps the focus and says it is busy.
+    expect(switchOf('Осенняя сессия')).toHaveAttribute('aria-disabled', 'true');
+    await tick();
+    expect(mocks.setExamRemind).toHaveBeenCalledWith('c-2', false);
+    expect(switchOf('Осенняя сессия')).toHaveAttribute('aria-checked', 'false');
+    expect(switchOf('Осенняя сессия')).not.toHaveAttribute('aria-disabled');
+    expect(document.activeElement).toBe(switchOf('Осенняя сессия'));
+    expect(plain(container.textContent)).toContain('Ни один экзамен не выбран — план не приходит.');
+    press(switchOf('Зимняя сессия'));
+    await tick();
+    expect(mocks.setExamRemind).toHaveBeenLastCalledWith('c-1', true);
+    expect(switchOf('Зимняя сессия')).toHaveAttribute('aria-checked', 'true');
+    expect(plain(container.textContent)).not.toContain(TELEGRAM_COPY.noneChosen);
+  });
+
+  it('says when a switch was not saved and leaves it as it was', async () => {
+    server([LINKED]);
+    mocks.telegramExams.mockResolvedValue([EXAMS[1]]);
+    mocks.setExamRemind.mockRejectedValue(new Error('Нет сети — попробуем ещё раз, когда она появится.'));
+    show();
+    await tick();
+    press(switchOf('Осенняя сессия'));
+    await tick();
+    expect(screen.getByRole('alert')).toHaveTextContent('Нет сети — попробуем ещё раз, когда она появится.');
+    expect(switchOf('Осенняя сессия')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('says there is no exam with a plan when the account has none', async () => {
+    server([LINKED]);
+    mocks.telegramExams.mockResolvedValue([]);
+    const { container } = show();
+    await tick();
+    expect(plain(container.textContent)).toContain(TELEGRAM_COPY.noExam);
+    expect(screen.queryByRole('switch')).toBeNull();
+  });
+
+  it('says no exam line when the switches cannot be read, and none before the account is linked', async () => {
+    server([LINKED]);
+    mocks.telegramExams.mockRejectedValue(new Error('offline'));
+    const { container } = show();
+    await tick();
+    expect(plain(container.textContent)).not.toContain('Экзамен');
+    expect(mocks.fetchOverview).not.toHaveBeenCalled();
+    cleanup();
+    mocks.telegramExams.mockClear();
+    server([NOT_LINKED]);
+    show();
+    await tick();
+    expect(mocks.telegramExams).not.toHaveBeenCalled();
+  });
+
+  it('words the day of each exam', () => {
+    expect(plain(planExamWhen({ exam_date: '2026-11-03', state: 'study' }))).toBe('3 ноября');
+    expect(planExamWhen({ exam_date: '2026-10-16', state: 'exam_today' })).toBe('сегодня экзамен');
+    expect(plain(planExamWhen({ exam_date: '2026-10-17', state: 'after' }))).toBe('прошёл 17 октября');
+    expect(planExamWhen({ exam_date: null, state: 'no_date' })).toBe('дата не указана');
+    expect(planExamWhen({ exam_date: null, state: 'study' })).toBe('дата не указана');
   });
 });
 

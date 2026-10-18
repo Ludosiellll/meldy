@@ -176,4 +176,25 @@ describe('the layer of a screen', () => {
     });
     expect(seen.length).toBe(before);
   });
+
+  it('reads the overview again on the screen’s word (an exam moved on «Сегодня», release 47); nothing breaks without the hook’s reload', async () => {
+    const reload = vi.fn();
+    hook.answer = answer({ data: OVERVIEW, reload });
+    let again: () => void = () => undefined;
+    function Mover() {
+      const { probe, reload: read } = useContainerLayer();
+      again = read;
+      return <>{probe}</>;
+    }
+    const view = render(<Mover />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    again();
+    expect(reload).toHaveBeenCalledTimes(1);
+    view.unmount();
+    hook.answer = () => ({ data: OVERVIEW, loading: false, offline: false, unavailable: false, error: null });
+    render(<Mover />);
+    expect(() => again()).not.toThrow();
+  });
 });

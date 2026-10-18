@@ -1,0 +1,56 @@
+/* «Перенести экзамен» (MoveExamDialog.tsx) in the exam's sheet (.ct-sheet of containers.css): the choices as soft rows
+ * of 52 px with the date on the right, «Своя дата» opening a date field, «Для кого» the same rows. Existing tokens only,
+ * so both themes follow; blue text is --sf-accent-fg, --sf-accent only fills. */
+
+.mv-form { min-width: 0; }
+.mv-set { display: grid; gap: 4px; min-width: 0; margin: 14px 0 0; padding: 0; border: 0; }
+.mv-legend { margin: 0 0 6px; padding: 0; font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-muted); }
+.mv-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--sf-ink);
+  cursor: pointer;
+}
+.mv-choice:hover { background: var(--sf-surface-soft); }
+.mv-choice:has(input:checked) { background: var(--sf-accent-soft); }
+.mv-choice input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--sf-accent); }
+.mv-choice input:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 3px; }
+.mv-choice-t { min-width: 0; overflow-wrap: anywhere; }
+.mv-choice-d { margin-left: auto; padding-left: 12px; font-size: 15px; font-weight: 400; color: var(--sf-muted); white-space: nowrap; }
+.mv-choice:has(input:checked) .mv-choice-d { color: var(--sf-ink); }
+
+.mv-field { display: grid; gap: 6px; margin-top: 12px; font-size: 15px; font-weight: 500; color: var(--sf-muted); }
+.mv-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--sf-line);
+  border-radius: 16px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  font: 400 16px/1.45 var(--ph-sans);
+  color-scheme: light;
+}
+.dark .mv-field input { color-scheme: dark; }
+.mv-field input:focus-visible { outline: none; border-color: var(--sf-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent) 22%, transparent); }
+.mv-field input[aria-invalid='true'] { border-color: var(--ph-wrong); }
+
+.mv-note { margin: 14px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+
+@media (max-width: 639px) {
+  .mv-choice { padding: 6px 12px; font-size: 16px; }
+}
+
+/* «Экзамен перенесён на 25 октября.»: said in ink where the page's quiet notes are; it takes the focus without a ring
+   (the opener may be gone), as the Telegram card's title does. */
+.mv-moved,
+.ct-plan .ct-note.mv-moved { color: var(--sf-ink); }
+.mv-moved:focus { outline: none; }

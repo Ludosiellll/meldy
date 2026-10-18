@@ -94,3 +94,11 @@
 .sf-page.st-page[data-frame='s'] { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
 .sf-page.st-page[data-frame='s'] > .ex-cta { margin-top: auto; }
 .sf-page.st-page[data-frame='s'] > :nth-last-child(2) { margin-bottom: 24px; }
+
+/* «Моя дата экзамена» (release 47): the date and its quiet «Убрать» on one line, wrapping on a narrow phone. */
+.sf-page.st-page .st-own { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; max-width: 100%; }
+.sf-page.st-page .st-own .sf-link { min-height: 44px; }
+/* «План в Telegram по этому экзамену»: the words and the switch of «Профиль» (.ac-switch) on one line. */
+.sf-page.st-page .st-tg { justify-items: stretch; }
+.sf-page.st-page .st-tg-row { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; min-width: 0; }
+.sf-page.st-page .st-tg-label { min-width: 0; text-wrap: pretty; }

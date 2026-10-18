@@ -15,6 +15,7 @@ import MockSetup from './MockSetup';
 import { NoteLine } from './ui';
 import { examActions, examLinks, startTarget, useSubjectActions } from './actions';
 import { lineLink, linkFor, noteLines, type LinkTargets, type ViewProps } from './ExamView';
+import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
 import { lineViews, noDateText, planLineViews, planText, text as lineWords, titleText } from './planLines';
 import * as copy from './copy';
@@ -68,6 +69,10 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   const moreNewHref = more && more.subjectId === subject.id ? studyHref(containerId, { s: subject.id, only: 'new', back }) : null;
   const errorsHref = errors > 0 ? studyHref(containerId, { s: subject.id, only: 'errors', back }) : null;
   const targets: LinkTargets = { minutesHref: hrefs.minutes, settingsHref: hrefs.settings, lecturesHref: null, moreNewHref, errorsHref };
+  // «Перенести экзамен» (release 47): a subject of several moves its own date; a one-subject exam is the exam.
+  const moveSubject = solo ? null : subject.id;
+  const facts = useMemo(() => moveFacts(summary, moveSubject), [summary, moveSubject]);
+  const move = useExamMove({ containerId, role: summary.role, today, facts, subjectId: moveSubject, reload });
 
   // ── the plan card: a one-subject exam has the exam's plan; a subject of several says its own phase and lines
   // (lib/containers/plan.ts subjectInfo: its final days, its exam day, after its date, no date).
@@ -94,12 +99,16 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   const passed = day.passed || phase === 'after';
   let title: ReactNode;
   let pill = start;
+  // The exam's day: the errors are the pill «Пройтись по ошибкам: N» (N as the plan counts them, ≤ 20).
+  const errorsLine = (solo ? plan?.lines : info?.lines)?.find((line) => line.key === 'exam_errors');
+  const errorsToday = errorsLine?.n?.[0] ?? Math.min(20, errors);
+  const walk = phase === 'exam_today' && !passed && Boolean(errorsHref) && errorsToday > 0;
   if (passed) {
     title = (afterLine ? lineWords(afterLine).replace(/\.$/, '') : '') || copy.AFTER_EXAM;
     pill = null;
   } else if (phase === 'exam_today') {
     title = (solo && plan ? titleText(plan) : lineWords({ key: 'exam_today' }).replace(/\.$/, '')) || copy.EXAM_TODAY;
-    pill = null;
+    pill = walk && errorsHref ? { href: errorsHref, label: copy.walkErrors(errorsToday) } : null;
   } else if (share && shareCount > 0) {
     title = <PlanTitle text={titleText(share)} />;
   } else {
@@ -109,7 +118,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   }
   const linkItems: ReactNode[] = [];
   const examErrors = lines.find((line) => line.kind === 'exam_errors');
-  if (errorsHref) {
+  if (errorsHref && !walk) {
     linkItems.push(
       phase === 'exam_today' && examErrors ? (
         lineLink(examErrors, targets)
@@ -134,11 +143,11 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
       </button>,
     );
   }
-  if (passed) {
+  if (phase === 'exam_today' && !passed) {
     linkItems.push(
-      <Link key="date" className="sf-link" to={hrefs.settings}>
-        {copy.SET_NEW_DATE}
-      </Link>,
+      <button key="move" type="button" className="sf-link" aria-haspopup="dialog" onClick={move.open}>
+        {copy.MOVE_TITLE}
+      </button>,
     );
   }
   const planNew = lines.find((line) => line.action === 'more_new');
@@ -232,10 +241,15 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
     }
   })();
   const lastRun = summary.mock_runs.filter((run) => run.subject_ids.includes(subject.id)).sort((a, b) => (a.local_date < b.local_date ? 1 : -1))[0] ?? null;
+  // After the date the one blue pill moves the exam (owner, 2026-10-18: «нельзя продлить кнопкой»), for a member too.
   const pillNode = pill ? (
     <Link className="sf-primary" to={pill.href}>
       {pill.label}
     </Link>
+  ) : passed ? (
+    <button type="button" className="sf-primary" aria-haspopup="dialog" onClick={move.open}>
+      {copy.MOVE_TITLE}
+    </button>
   ) : null;
   const meta = copy.metaLine(day.text, solo ? examQuestions(summary) : subjectQuestions(subject), null);
 
@@ -253,7 +267,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
         id={`ct-plan-${subject.id}`}
         title={title}
         links={linkItems.length > 0 ? linkItems : null}
-        notes={cardNotes}
+        notes={move.line ? [move.line, ...cardNotes] : cardNotes}
         action={wide ? pillNode : null}
         tip={solo ? planTip : null}
       />
@@ -296,6 +310,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
           onClose={() => setDaysOpen(false)}
         />
       ) : null}
+      {move.dialog}
     </div>
   );
 }

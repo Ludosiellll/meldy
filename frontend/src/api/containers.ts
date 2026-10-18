@@ -24,6 +24,7 @@ import {
   type MemberRow, type MockRunInput, type MockRunResult, type OralSyncResponse, type PlanInputsWire,
   type RecordAnswersResponse, type TestItem, type Uuid,
 } from '../types/container';
+import type { ExamMoveFor, ExamMoved, ExamRemind, TelegramExam, TelegramExamState } from '../types/container';
 
 /** Russian text of every error code (spec §3 words: «экзамен», never «контейнер» or «тест»). */
 export const CONTAINER_ERROR_TEXT = {
@@ -709,4 +710,81 @@ export async function parseBank(input: ParseBankInput): Promise<BankParseResult>
     warnings: list(raw.warnings).filter(isRecord),
     pictures: isRecord(raw.pictures) ? (raw.pictures as BankParseResult['pictures']) : {},
   } as BankParseResult;
+}
+
+// ── «Перенести экзамен» and the Telegram plan per exam (20261018120000) ──────────────────────
+
+/** 22023 of a move: the date is before today or more than two years ahead (exam_date_move checks 0..730 days). */
+export const MOVE_DATE_TEXT = 'Нужна дата не раньше сегодняшней и не дальше чем через два года.';
+
+const DAY_KEY = /^(\d{4}-\d{2}-\d{2})/;
+
+function dayKey(value: unknown): DayKey | null {
+  const match = typeof value === 'string' ? DAY_KEY.exec(value) : null;
+  return match ? match[1] : null;
+}
+
+/**
+ * Moves an exam's date (exam_date_move). `forWhom` 'all' is the author's: with `subjectId` that subject's date (and its
+ * oral exam's, as `updateSubject` writes it), without it the exam's date and every subject date already passed. 'me' is
+ * the caller's own date of the whole exam (the author's and the others' stay); `date` null clears it.
+ */
+export async function moveExamDate(containerId: Uuid, date: DayKey | null, forWhom: ExamMoveFor, subjectId?: Uuid | null): Promise<ExamMoved> {
+  let raw: unknown;
+  try {
+    raw = await call('exam_date_move', { p_container_id: containerId, p_date: date, p_for: forWhom, p_subject_id: subjectId ?? null });
+  } catch (error) {
+    if (error instanceof ContainerApiError && error.code === '22023') {
+      throw new ContainerApiError('22023', MOVE_DATE_TEXT, { status: error.status, detail: error.detail });
+    }
+    throw error;
+  }
+  if (!isRecord(raw)) throw badShape('exam_date_move');
+  return {
+    for: raw.for === 'me' ? 'me' : raw.for === 'all' ? 'all' : forWhom,
+    container_id: typeof raw.container_id === 'string' ? raw.container_id : containerId,
+    exam_date: dayKey(raw.exam_date),
+    own_exam_date: dayKey(raw.own_exam_date),
+    subjects: list(raw.subjects)
+      .filter(isRecord)
+      .filter((subject) => typeof subject.id === 'string')
+      .map((subject) => ({ id: subject.id as Uuid, exam_date: dayKey(subject.exam_date) })),
+  };
+}
+
+/** Whether the bot's day plan counts this exam (exam_remind_set; the author or an active member). */
+export async function setExamRemind(containerId: Uuid, on: boolean): Promise<ExamRemind> {
+  const raw = await call('exam_remind_set', { p_container_id: containerId, p_on: on });
+  if (!isRecord(raw)) throw badShape('exam_remind_set');
+  return { container_id: typeof raw.container_id === 'string' ? raw.container_id : containerId, tg_remind: raw.tg_remind !== false };
+}
+
+const EXAM_STATES: ReadonlySet<string> = new Set(['study', 'exam_today', 'after', 'no_date']);
+
+/**
+ * The caller's exams for the bot's day plan (telegram_exams), nearest first, each with its switch; `null` when the
+ * database has no such function yet (the profile then says the one exam line, as before).
+ */
+export async function telegramExams(): Promise<TelegramExam[] | null> {
+  let raw: unknown;
+  try {
+    raw = await call('telegram_exams', {});
+  } catch (error) {
+    if (isContainersUnavailable(error)) return null;
+    throw error;
+  }
+  return list(raw)
+    .filter(isRecord)
+    .filter((exam) => typeof exam.container_id === 'string' && exam.container_id !== '')
+    .map((exam) => {
+      const date = dayKey(exam.exam_date);
+      const state = typeof exam.state === 'string' && EXAM_STATES.has(exam.state) ? (exam.state as TelegramExamState) : date ? 'study' : 'no_date';
+      return {
+        container_id: exam.container_id as Uuid,
+        title: typeof exam.title === 'string' && exam.title.trim() ? exam.title.trim() : 'Экзамен',
+        exam_date: date,
+        state,
+        tg_remind: exam.tg_remind !== false,
+      };
+    });
 }

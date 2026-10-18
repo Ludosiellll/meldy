@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, loading: false }) }));
@@ -182,5 +182,37 @@ describe('the «Сегодня» card of an exam (decision 47)', () => {
     });
     renderCard({ container, plan: dayPlan({ sessions: [{ subjectId: SUBJECT_ORAL, kind: 'ai_check', ids: ['a', 'b', 'c'], estSec: 450 }] }) });
     expect(screen.getByRole('link', { name: nm('Ответить вслух: 3 вопроса') }).getAttribute('href')).toBe(`/exams/${ORAL_EXAM}/ticket?q=a,b,c&from=c:${CONTAINER}`);
+  });
+});
+
+describe('«Перенести» on the exam’s own day (release 47)', () => {
+  const examToday = () => {
+    const subjects = overviewContainer().subjects.map((entry) => ({ ...entry, exam_date: '2026-10-10' }));
+    return overviewContainer({ exam_date: '2026-10-10', subjects });
+  };
+  const todayPlan = () => dayPlan({ state: 'exam_today', sessions: [], lines: [{ key: 'exam_today', n: [3] }, { key: 'exam_errors', n: [3] }] });
+
+  it('a quiet «Перенести» beside the day’s line; «Сегодня» opens the dialog', () => {
+    const onMove = vi.fn();
+    renderCard({ container: examToday(), plan: todayPlan(), onMove });
+    expect(text()).toContain('Сегодня экзамен.');
+    const move = screen.getByRole('button', { name: 'Перенести' });
+    expect(move).toHaveClass('sf-link');
+    expect(move).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(card().querySelector('.sf-primary')).toBeNull();
+    fireEvent.click(move);
+    expect(onMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('no «Перенести» on a study day, while the plan loads, or without a way to open the dialog', () => {
+    const onMove = vi.fn();
+    renderCard({ onMove });
+    expect(screen.queryByRole('button', { name: 'Перенести' })).toBeNull();
+    cleanup();
+    renderCard({ container: examToday(), plan: null, onMove });
+    expect(screen.queryByRole('button', { name: 'Перенести' })).toBeNull();
+    cleanup();
+    renderCard({ container: examToday(), plan: todayPlan() });
+    expect(screen.queryByRole('button', { name: 'Перенести' })).toBeNull();
   });
 });

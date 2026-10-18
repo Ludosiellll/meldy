@@ -7,7 +7,8 @@ import {
   TELEGRAM_ERROR_TEXT, TelegramApiError, fetchTelegramState, isTelegramMissing, startTelegramLink, telegramErrorText, unlinkTelegram,
   updateTelegramSettings, type TelegramExam, type TelegramLinkCode, type TelegramState,
 } from '../../api/telegram';
-import { fetchOverview } from '../../api/containers';
+import { containerErrorText, fetchOverview, setExamRemind, telegramExams } from '../../api/containers';
+import type { TelegramExam as PlanExam } from '../../types/container';
 import { browserZone, chatUrl, linkQr, onComputer, zoneWords } from '../../lib/telegram/links';
 import { NBSP, dayText } from '../../lib/containers/words';
 import { clockOf, isLocalDay, localDay, weekday } from '../../lib/containers/time';
@@ -20,7 +21,9 @@ import './telegramCard.css';
  * - not linked: «Подключить Telegram» asks the server for a one-time code (15 minutes) and opens a window with the link:
  *   on a phone the blue «Открыть Telegram»; on a computer the link as a QR code for the phone, and «Открыть Telegram на
  *   компьютере». The state is read every 3 s until the bot links the account or the code ends.
- * - linked: the exam, «План на день — в 20:00», the pause, «Отключить» (asked once more in the row).
+ * - linked: «Экзамены в плане» — a row per exam with its switch (release 47: the plan comes for the exams switched on,
+ *   «Ни один экзамен не выбран — план не приходит.» when none is), «План на день — в 20:00», the pause, «Отключить»
+ *   (asked once more in the row). A server without the per-exam switches: the one exam line, as before.
  * - a database without the functions: nothing at all, as the containers' old-client rule.
  * The line about the data (decision 31) is the spec's, word for word, in the window and on the linked card.
  *
@@ -57,6 +60,8 @@ export const TELEGRAM_COPY = {
   askText: 'План перестанет приходить в Telegram. Экзамен и счёт останутся в Meldy.',
   unlinked: 'Telegram отключён от Meldy.',
   noExam: 'В Meldy пока нет экзамена с планом на день.',
+  exams: 'Экзамены в плане',
+  noneChosen: 'Ни один экзамен не выбран — план не приходит.',
   off: 'План на день не приходит.',
   resume: 'Присылать снова',
   blocked: 'Бот остановлен в Telegram — план не приходит.',
@@ -82,6 +87,15 @@ export function clockWords(at: string): string {
 export function examLine(exam: TelegramExam): string {
   const when = exam.date && isLocalDay(exam.date) ? dayText(exam.date) : 'дата не указана';
   return `Экзамен — «${exam.title}», ${when}.`;
+}
+
+/** The day of an exam in «Экзамены в плане»: «3 ноября», «сегодня экзамен», «прошёл 17 октября», «дата не указана». */
+export function planExamWhen(exam: Pick<PlanExam, 'exam_date' | 'state'>): string {
+  const day = exam.exam_date && isLocalDay(exam.exam_date) ? dayText(exam.exam_date) : null;
+  if (exam.state === 'exam_today') return 'сегодня экзамен';
+  if (!day || exam.state === 'no_date') return 'дата не указана';
+  if (exam.state === 'after') return `прошёл ${day}`;
+  return day;
 }
 
 /** «План на день — в 20:00.», with the zone when its clock is not the browser's: «… в 20:00 по Минску.» */
@@ -357,6 +371,106 @@ function useTelegramLink(userId: string | null): TelegramLink {
   };
 }
 
+type PlanExams =
+  | { kind: 'loading' }
+  /** The server has no per-exam switches (telegram_exams): the one exam line, as before. */
+  | { kind: 'old' }
+  | { kind: 'failed' }
+  | { kind: 'ready'; exams: PlanExam[] };
+
+/**
+ * «Экзамены в плане» (release 47): the account's exams with the bot's switch for each (telegram_exams), read once the
+ * account is linked; a switch saves at once (exam_remind_set).
+ */
+function usePlanExams(linked: boolean): { list: PlanExams; busy: ReadonlySet<string>; error: string | null; toggle: (exam: PlanExam) => void } {
+  const [list, setList] = useState<PlanExams>({ kind: 'loading' });
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!linked) return undefined;
+    let alive = true;
+    setList({ kind: 'loading' });
+    telegramExams().then(
+      (exams) => {
+        if (alive) setList(exams ? { kind: 'ready', exams } : { kind: 'old' });
+      },
+      () => {
+        if (alive) setList({ kind: 'failed' });
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [linked]);
+  const toggle = useCallback(
+    async (exam: PlanExam) => {
+      if (busy.has(exam.container_id)) return;
+      setBusy((current) => new Set([...current, exam.container_id]));
+      setError(null);
+      try {
+        const saved = await setExamRemind(exam.container_id, !exam.tg_remind);
+        setList((current) =>
+          current.kind === 'ready'
+            ? { kind: 'ready', exams: current.exams.map((entry) => (entry.container_id === exam.container_id ? { ...entry, tg_remind: saved.tg_remind } : entry)) }
+            : current,
+        );
+      } catch (failure) {
+        setError(containerErrorText(failure));
+      } finally {
+        setBusy((current) => new Set([...current].filter((id) => id !== exam.container_id)));
+      }
+    },
+    [busy],
+  );
+  return { list, busy, error, toggle: (exam) => void toggle(exam) };
+}
+
+/** «Экзамены в плане»: a row per exam, its day and its switch; a line when none is on, or when there is no exam. */
+function PlanExamList({ exams, busy, onToggle }: { exams: PlanExam[]; busy: ReadonlySet<string>; onToggle: (exam: PlanExam) => void }) {
+  const ids = useId();
+  if (exams.length === 0) return <p className="ac-row-d">{glue(TELEGRAM_COPY.noExam)}</p>;
+  const allOff = exams.every((exam) => !exam.tg_remind);
+  return (
+    <div className="tg-exams">
+      <p className="ac-row-d tg-exams-h" id={`${ids}-h`}>
+        {TELEGRAM_COPY.exams}
+      </p>
+      <ul className="tg-exam-list" aria-labelledby={`${ids}-h`}>
+        {exams.map((exam, index) => (
+          <li key={exam.container_id} className="tg-exam">
+            <span className="tg-exam-text">
+              <span className="tg-exam-t" id={`${ids}-t${index}`}>
+                {exam.title}
+              </span>
+              <span className="tg-exam-m" id={`${ids}-m${index}`}>
+                {glue(planExamWhen(exam))}
+              </span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={exam.tg_remind}
+              aria-labelledby={`${ids}-t${index}`}
+              aria-describedby={`${ids}-m${index}`}
+              // Saving, it keeps the focus (aria-disabled): a disabled button would drop it to the page.
+              aria-disabled={busy.has(exam.container_id) || undefined}
+              className="ac-switch tg-switch"
+              onClick={() => onToggle(exam)}
+            >
+              <span className="ac-switch-box" aria-hidden="true" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {allOff ? (
+        <p className="ac-row-d tg-exams-off" role="status">
+          {glue(TELEGRAM_COPY.noneChosen)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** The exam line: the server's, else read from the exams list once (undefined while unknown: no line). */
 function useExam(state: TelegramState | null, linked: boolean): TelegramExam | null | undefined {
   const [found, setFound] = useState<TelegramExam | null | undefined>(undefined);
@@ -483,7 +597,9 @@ export default function TelegramCard() {
   const location = useLocation();
   const link = useTelegramLink(userId);
   const { phase, state, error, busy } = link;
-  const exam = useExam(state, phase.kind === 'linked');
+  const planExams = usePlanExams(phase.kind === 'linked');
+  // The one exam line only on a server without the per-exam switches.
+  const exam = useExam(state, phase.kind === 'linked' && planExams.list.kind === 'old');
   const ids = useId();
   const titleId = `${ids}-title`;
   const askId = `${ids}-ask`;
@@ -561,7 +677,11 @@ export default function TelegramCard() {
     }
     lines = (
       <>
-        {exam !== undefined ? <p className="ac-row-d">{glue(exam ? examLine(exam) : TELEGRAM_COPY.noExam)}</p> : null}
+        {planExams.list.kind === 'ready' ? (
+          <PlanExamList exams={planExams.list.exams} busy={planExams.busy} onToggle={planExams.toggle} />
+        ) : planExams.list.kind === 'old' && exam !== undefined ? (
+          <p className="ac-row-d">{glue(exam ? examLine(exam) : TELEGRAM_COPY.noExam)}</p>
+        ) : null}
         <p className="ac-row-d">{time}</p>
         {paused && state.pausedUntil ? <p className="ac-row-d">{glue(pauseLine(state.pausedUntil))}</p> : null}
         {phone ? null : <p className="ac-row-d">{glue(TELEGRAM_COPY.settingsHint)}</p>}
@@ -676,9 +796,9 @@ export default function TelegramCard() {
       <p className={note === TELEGRAM_COPY.linkedNow ? 'tg-note sr-only' : 'tg-note'} role="status">
         {note ? glue(note) : null}
       </p>
-      {error ? (
+      {error || planExams.error ? (
         <p className="tg-note" data-tone="warn" role="alert">
-          {error}
+          {error ?? planExams.error}
         </p>
       ) : null}
     </div>

@@ -118,6 +118,13 @@ export interface ContainerSummary {
       members: number; max_members: number; oral: number;
     }>;
   } | null;
+  /**
+   * The caller's own date of this exam («Только для меня», «Моя дата экзамена»; null — none). While it is set, every
+   * date above is it: the subjects' and `exam_date` (20261018120000; absent from an older server).
+   */
+  own_exam_date?: DayKey | null;
+  /** The author's date of the exam, the container's own, whatever the caller's own date (20261018120000). */
+  author_exam_date?: DayKey | null;
 }
 
 /**
@@ -411,6 +418,9 @@ export interface ContainerRpc {
   container_leave: { args: { p_container_id: Uuid }; returns: { container_id: Uuid; left: true } };
   container_members_list: { args: { p_container_id: Uuid }; returns: MemberRow[] };
   container_member_remove: { args: { p_container_id: Uuid; p_user_id: Uuid | null; p_restore?: boolean }; returns: { removed: number } };
+  exam_date_move: { args: { p_container_id: Uuid; p_date: DayKey | null; p_for: ExamMoveFor; p_subject_id?: Uuid | null }; returns: ExamMoved };
+  exam_remind_set: { args: { p_container_id: Uuid; p_on: boolean }; returns: ExamRemind };
+  telegram_exams: { args: Record<string, never>; returns: TelegramExam[] };
 }
 
 // ───────────────────────────────────── 2. The plan: decoded input and output ─────────────────────────────────────
@@ -581,4 +591,35 @@ export interface BankKeyFile {
 export interface BankParseError {
   detail: string;
   code: string;
+}
+
+// ─────────────────────── 4. «Перенести экзамен» and the Telegram plan per exam (20261018120000) ───────────────────────
+
+/** Whose date a move changes: everyone's (the author only) or the caller's own date of the exam. */
+export type ExamMoveFor = 'all' | 'me';
+/**
+ * exam_date_move(p_container_id, p_date, p_for, p_subject_id): 'all' — the author's subject date (with p_subject_id),
+ * or the exam's date and every subject date already passed; 'me' — the caller's own date (null clears it).
+ */
+export interface ExamMoved {
+  for: ExamMoveFor;
+  container_id: Uuid;
+  exam_date: DayKey | null;
+  own_exam_date: DayKey | null;
+  subjects: Array<{ id: Uuid; exam_date: DayKey | null }>;
+}
+/** exam_remind_set(p_container_id, p_on): whether the bot's day plan counts this exam. */
+export interface ExamRemind {
+  container_id: Uuid;
+  tg_remind: boolean;
+}
+/** An exam's day as the bot sees it: work ahead, its day today, passed, or no date. */
+export type TelegramExamState = 'study' | 'exam_today' | 'after' | 'no_date';
+/** telegram_exams() / bot_exams(p_tg_user_id): the caller's exams (owned and joined), nearest first. */
+export interface TelegramExam {
+  container_id: Uuid;
+  title: string;
+  exam_date: DayKey | null;
+  state: TelegramExamState;
+  tg_remind: boolean;
 }

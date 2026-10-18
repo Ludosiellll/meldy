@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   alert: vi.fn(),
   withdrawDoubt: vi.fn(),
   deleteSubject: vi.fn(),
+  moveExamDate: vi.fn(),
 }));
 
 vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
@@ -20,6 +21,7 @@ vi.mock('../../api/containers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/containers')>()),
   withdrawDoubt: mocks.withdrawDoubt,
   deleteSubject: mocks.deleteSubject,
+  moveExamDate: mocks.moveExamDate,
 }));
 
 import SubjectPage from './SubjectPage';
@@ -100,6 +102,9 @@ beforeEach(() => {
   mocks.alert.mockResolvedValue(undefined);
   mocks.withdrawDoubt.mockResolvedValue(undefined);
   mocks.deleteSubject.mockResolvedValue(undefined);
+  mocks.moveExamDate.mockReset().mockImplementation(async (id: string, date: string, forWhom: string) => ({
+    for: forWhom, container_id: id, exam_date: '2026-10-28', own_exam_date: forWhom === 'me' ? date : null, subjects: [],
+  }));
 });
 
 afterEach(() => cleanup());
@@ -188,5 +193,49 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     renderPage(loaded(dbData()), 'missing-subject');
     expect(page()).toContain('Такого предмета в экзамене нет.');
     expect(screen.getByRole('link', { name: 'Аккредитация' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}`);
+  });
+});
+
+describe('«Перенести экзамен» on a subject’s page (release 47)', () => {
+  /** «Базы данных» with its own date, 5 October, passed; the other subjects on 28 October. */
+  function passedDb(role: 'owner' | 'member' = 'owner') {
+    const base = summary({
+      role,
+      owner: role === 'owner' ? { members: 0, doubts_open: 0, links: [] } : null,
+      subjects: summary().subjects.map((entry) => (entry.id === SUBJECT_DB ? { ...entry, exam_date: '2026-10-05' } : entry)),
+    });
+    const data = dbData({ summary: base });
+    data.planInput.subjects = data.planInput.subjects.map((entry) => (entry.id === SUBJECT_DB ? { ...entry, date: '2026-10-05' } : entry));
+    return data;
+  }
+
+  it('a passed subject: the blue pill moves that subject’s date, and the page reads its data again', async () => {
+    const state = loaded(passedDb());
+    renderPage(state);
+    expect(page()).toContain('Экзамен прошёл 5 октября');
+    expect(screen.queryByRole('link', { name: 'Поставить новую дату' })).toBeNull();
+    const pill = screen.getByRole('button', { name: 'Перенести экзамен' });
+    expect(pill).toHaveClass('sf-primary');
+    fireEvent.click(pill);
+    const dialog = screen.getByRole('dialog', { name: 'Перенести экзамен' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Перенести' }));
+    await waitFor(() => expect(mocks.moveExamDate).toHaveBeenCalledWith(CONTAINER, '2026-10-17', 'all', SUBJECT_DB));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(state.reload).toHaveBeenCalledTimes(1);
+    expect(plain(screen.getByRole('status').textContent)).toBe('Экзамен перенесён на 17 октября.');
+  });
+
+  it('a member moves their own date; the note names the author’s date of the subject', async () => {
+    renderPage(loaded(passedDb('member')));
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести экзамен' }));
+    const dialog = screen.getByRole('dialog', { name: 'Перенести экзамен' });
+    expect(plain(dialog.textContent)).toContain('Это ваша дата. У автора остаётся 5 октября.');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Перенести' }));
+    await waitFor(() => expect(mocks.moveExamDate).toHaveBeenCalledWith(CONTAINER, '2026-10-17', 'me', SUBJECT_DB));
+  });
+
+  it('a subject before its date has no «Перенести экзамен»', () => {
+    renderPage(loaded(dbData()));
+    expect(screen.queryByRole('button', { name: 'Перенести экзамен' })).toBeNull();
   });
 });

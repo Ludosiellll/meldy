@@ -13,6 +13,7 @@ import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet } from './Sheets';
 import { NoteLine } from './ui';
 import { examActions, examLinks, startTarget } from './actions';
+import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
 import { detailText, isDayOff, noDateText, paceNote, planLineViews, planText, text as lineWords, titleText, type LineView, type PaceNote } from './planLines';
 import * as copy from './copy';
@@ -192,6 +193,9 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
   const hrefs = examLinks(containerId);
   const actions = examActions(summary);
   const saved = useMemo(() => (user?.id ? resumable(loadSession(user.id, containerId), today) : null), [user?.id, containerId, today]);
+  // «Перенести экзамен» (release 47): on the exam's day and after it; the page reads its data again once it is moved.
+  const facts = useMemo(() => moveFacts(summary), [summary]);
+  const move = useExamMove({ containerId, role: summary.role, today, facts, reload });
 
   // The oral part that waits for lectures (decision 35): its editor's lectures, back to this exam by ?from=c:.
   const lecturesSubject = summary.subjects.find((subject) => oralCount(subject) > 0 && subject.oral?.exam_id && !(planInput?.items ?? []).some((item) => item.f === 'o' && item.s === subject.id));
@@ -234,30 +238,34 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
   let sub: ReactNode = null;
   let links: ReactNode = null;
   let pill: { href: string; label: string } | null = null;
+  // After the date the one blue pill moves the exam (owner, 2026-10-18: «нельзя продлить кнопкой»), for a member too.
+  let moveLeads = false;
+  const moveLink = (
+    <button key="move" type="button" className="sf-link" aria-haspopup="dialog" onClick={move.open}>
+      {copy.MOVE_TITLE}
+    </button>
+  );
   if (day.passed || state === 'after') {
     title = (plan && state === 'after' ? titleText(plan) : '') || copy.AFTER_EXAM;
-    links = (
-      <>
-        <Link className="sf-link" to={hrefs.settings}>
-          {copy.SET_NEW_DATE}
-        </Link>
-        {author ? (
-          <Link className="sf-link" data-muted="" to={hrefs.remove}>
-            {copy.DELETE_EXAM_LINK}
-          </Link>
-        ) : null}
-      </>
-    );
+    moveLeads = true;
+    links = author ? (
+      <Link className="sf-link" data-muted="" to={hrefs.remove}>
+        {copy.DELETE_EXAM_LINK}
+      </Link>
+    ) : null;
   } else if (state === 'exam_today') {
     title = (plan ? titleText(plan) : '') || copy.EXAM_TODAY;
-    if (lineLinks.length > 0) links = lineLinks;
-    else if (errorsHref && errorsSubject) {
-      links = (
-        <Link className="sf-link" to={errorsHref}>
-          {lineWords({ key: 'exam_errors', n: [Math.min(20, errorCount(planInput, errorsSubject.id))] })}
-        </Link>
-      );
-    }
+    // The errors are the pill «Пройтись по ошибкам: N» (N as the plan counts them, ≤ 20); moving is a quiet link.
+    const errorsLine = plan?.lines.find((line) => line.key === 'exam_errors');
+    const errorsToday = errorsLine?.n?.[0] ?? (errorsSubject ? Math.min(20, errorCount(planInput, errorsSubject.id)) : 0);
+    if (errorsHref && errorsToday > 0) pill = { href: errorsHref, label: copy.walkErrors(errorsToday) };
+    const others = lines.filter((line) => line.linkOnly && line.action !== 'errors').map((line) => lineLink(line, targets)).filter(Boolean);
+    links = (
+      <>
+        {others}
+        {moveLink}
+      </>
+    );
   } else if (plan && state === 'study') {
     title = <PlanTitle text={titleText(plan)} />;
     const detail = detailText(plan);
@@ -378,13 +386,25 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
     <Link className="sf-primary" to={pill.href}>
       {pill.label}
     </Link>
+  ) : moveLeads ? (
+    <button type="button" className="sf-primary" aria-haspopup="dialog" onClick={move.open}>
+      {copy.MOVE_TITLE}
+    </button>
   ) : null;
   const meta = copy.metaLine(day.text, examQuestions(summary), phone ? null : summary.subjects.length);
 
   return (
     <div className="sf-page ct-page" data-view="exam">
       <PageHead title={summary.title} meta={meta} crumb={{ to: '/exams', label: copy.TO_EXAMS }} actions={actions} menuLabel={copy.MENU_LABEL_EXAM} phone={phone} />
-      <PlanCard id={`ct-plan-${containerId}`} title={title} sub={sub} links={links} notes={shownNotes} action={wide ? pillNode : null} tip={planTip} />
+      <PlanCard
+        id={`ct-plan-${containerId}`}
+        title={title}
+        sub={sub}
+        links={links}
+        notes={move.line ? [move.line, ...shownNotes] : shownNotes}
+        action={wide ? pillNode : null}
+        tip={planTip}
+      />
       <div className="ct-body">
         <FigureBlock figure={figure} plan={plan} today={today} />
         <div className="ct-main">
@@ -405,6 +425,7 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
           onClose={() => setDaysOpen(false)}
         />
       ) : null}
+      {move.dialog}
     </div>
   );
 }

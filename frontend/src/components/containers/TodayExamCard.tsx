@@ -11,6 +11,7 @@
  *   the link to the exam's page. While nothing counts yet: the dated line of the plan; before any answer: the rule in
  *   one line. No «Видели N из M» (decision 47).
  * The card leads «Сегодня» (`lead`) or steps aside: then its pill is white on a computer, a quiet link on a phone.
+ * On the exam's own day a quiet «Перенести» (`onMove`: «Сегодня» opens «Перенести экзамен», release 47).
  */
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -33,6 +34,8 @@ export interface TodayExamCardProps {
   offline?: boolean;
   /** This card leads «Сегодня» and holds the page's one blue button. */
   lead: boolean;
+  /** On the exam's own day: «Перенести» opens «Перенести экзамен» («Сегодня» holds the dialog). */
+  onMove?: () => void;
 }
 
 function ArrowIcon() {
@@ -67,7 +70,7 @@ export function nearestDate(container: OverviewContainer, today: LocalDay): Loca
   return dates.find((date) => (dayDiff(today, date) ?? -1) >= 0) ?? dates[dates.length - 1] ?? null;
 }
 
-export default function TodayExamCard({ container, plan, questions = null, offline = false, lead }: TodayExamCardProps) {
+export default function TodayExamCard({ container, plan, questions = null, offline = false, lead, onMove }: TodayExamCardProps) {
   const titleId = useId();
   const phone = usePhone();
   const wide = useWide();
@@ -134,6 +137,13 @@ export default function TodayExamCard({ container, plan, questions = null, offli
       );
   }
 
+  const moveButton =
+    onMove && plan?.state === 'exam_today' ? (
+      <button type="button" className="sf-link td-alt" aria-haspopup="dialog" onClick={onMove}>
+        {copy.MOVE_SHORT}
+      </button>
+    ) : null;
+
   // ── the figure
   const figure = plan
     ? { twoDays: plan.figure.twoDays, total: plan.figure.inPlan, seen: plan.figure.seen, errors: plan.figure.errors }
@@ -182,7 +192,12 @@ export default function TodayExamCard({ container, plan, questions = null, offli
       {meta ? <p className="td-meta">{meta}</p> : null}
       <div className="td-next">
         <p className="td-erase-t tc-today">{line}</p>
-        {pill ? <div className="td-actions">{pill}</div> : null}
+        {pill || moveButton ? (
+          <div className="td-actions">
+            {pill}
+            {moveButton}
+          </div>
+        ) : null}
       </div>
       {offline ? <p className="tc-note">{copy.OFFLINE_PAGE}</p> : null}
       <div className="td-ready">{figureRow}</div>

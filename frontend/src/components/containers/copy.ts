@@ -422,3 +422,31 @@ export function todayFlag(days: number): string {
 export const todayMeta = (dayText: string | null, questions: number | null) =>
   glue([dayText, questions === null ? null : q(questions)].filter(Boolean).join(SEP));
 export const TODAY_LOADING = 'Считаем план на сегодня…';
+
+// ─────────────────────────────────────────────── «Перенести экзамен» (release 47, 2026-10-18)
+
+export const MOVE_TITLE = 'Перенести экзамен';
+/** The short form: a quiet row of «Сегодня», the exam-day card. */
+export const MOVE_SHORT = 'Перенести';
+export const MOVE_WHEN = 'Новая дата';
+export const MOVE_WEEK = 'Через неделю';
+export const MOVE_TWO_WEEKS = glue('Через 2 недели');
+export const MOVE_MONTH = 'Через месяц';
+export const MOVE_OWN = 'Своя дата';
+export const MOVE_DATE = 'Дата';
+export const MOVE_WHO = 'Для кого';
+export const MOVE_ALL = 'Для всех участников';
+export const MOVE_ME = 'Только для меня';
+/** A member moves only their own date; the author's stays. */
+export const moveMemberNote = (authorDay: string | null) =>
+  glue(authorDay ? `Это ваша дата. У автора остаётся ${authorDay}.` : 'Это ваша дата. У автора дата не меняется.');
+export const MOVE_SAVE = 'Перенести';
+export const MOVE_SAVING = 'Переносим…';
+export const MOVE_PICK = 'Выберите дату.';
+export const MOVE_PAST = 'Нужна дата не раньше сегодняшней.';
+export const MOVE_FAR = 'Можно перенести не дальше чем на два года.';
+export const MOVE_LOADING = 'Загружаем экзамен…';
+/** Said on the page once the move is saved and the plan is read again. */
+export const moved = (day: string) => glue(`Экзамен перенесён на ${day}.`);
+/** The exam day's pill: the questions with errors, as the plan counts them (≤ 20). */
+export const walkErrors = (n: number) => glue(`Пройтись по ошибкам: ${n}`);

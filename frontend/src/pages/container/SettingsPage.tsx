@@ -4,6 +4,7 @@ import {
   deleteContainer,
   deleteSubject,
   leaveContainer,
+  moveExamDate,
   saveSettings,
   updateContainer,
   updateSubject,
@@ -18,7 +19,10 @@ import MoreMenu from '../../components/ui/MoreMenu';
 import PaperSelect from '../../components/ui/PaperSelect';
 import InviteExam from '../../components/containers/group/InviteExam';
 import MembersList from '../../components/containers/group/MembersList';
-import { errorText, GONE, IMPORT, INVITE, MEMBERS, nb, SETTINGS } from '../../components/containers/copyImport';
+import ExamTelegramSwitch from '../../components/telegram/ExamTelegramSwitch';
+import { MOVE_MAX_DAYS, moveFacts } from '../../components/containers/MoveExamDialog';
+import { addDay, dayDiff } from '../../components/containers/model';
+import { dayText, errorText, GONE, IMPORT, INVITE, MEMBERS, nb, SETTINGS } from '../../components/containers/copyImport';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import { TO_EXAMS } from '../../components/containers/copy';
 import { minutesLines } from '../../components/containers/import/minutesLines';
@@ -35,7 +39,9 @@ import './SettingsPage.css';
  * question by the date, or what they reach when they fall short (Concept 2 §3.6, the design table; the exam page's
  * «Время в день» leads here) — the days of the week (Пн–Вс, at least one; spec §3), the subjects (rename, remove,
  * add), the group, and «Удалить экзамен», refused while members are in (MC009) until the author removes them. A member
- * sets only their own minutes and days; their way out is «Выйти из экзамена».
+ * sets only their own minutes and days and «Моя дата экзамена» (release 47: their own date, the author's stays; the
+ * author has it too after «Только для меня»); their way out is «Выйти из экзамена». With Telegram linked, both get «План
+ * в Telegram по этому экзамену».
  *
  * Anchors for the exam page's «⋯»: #minutes («Время в день»), #subjects, #group, #delete (the author), #leave (a
  * member: the confirm opens); ?invite=1 opens «Пригласить группу».
@@ -49,6 +55,18 @@ const MINUTE_OPTIONS = [30, 45, 60, 90, ALL_QUESTIONS_MIN] as const;
 const TEMPO_OPTIONS: readonly Tempo[] = ['date', 'fast'];
 
 const oralOnly = (subject: SummarySubject) => subject.keyed + subject.no_key === 0 && Boolean(subject.oral);
+/** Errors of «Моя дата экзамена»: the server's 22023 is the date out of range. */
+const OWN_DATE_ERRORS: Record<string, string> = { '22023': SETTINGS.ownDateRange };
+
+/**
+ * The exam's common date as the author set it. While the caller (the author, after «Только для меня») has an own date,
+ * the summary's dates are that date: the author's comes in `author_exam_date`, and the subjects' own dates are not
+ * known here, so the form keeps to the common one.
+ */
+function commonDateOf(summary: ContainerSummary): string | null {
+  if (summary.own_exam_date && summary.author_exam_date !== undefined) return summary.author_exam_date;
+  return summary.exam_date;
+}
 
 export default function SettingsPage() {
   const params = useParams();
@@ -61,6 +79,10 @@ export default function SettingsPage() {
   const summary = data.data?.summary ?? null;
   const planInput = data.data?.planInput ?? null;
   const owner = summary?.role === 'owner';
+  // The author's own date stands in for every date of the summary (see commonDateOf).
+  const ownOverrides = Boolean(owner && summary?.own_exam_date);
+  // «Моя дата экзамена»: always for a member; for the author only while they have one.
+  const showOwn = Boolean(summary && (!owner || summary.own_exam_date));
   useDocumentTitle(summary ? `${SETTINGS.title} · ${summary.title}` : SETTINGS.docTitle);
   const formId = useId();
   const minutesRef = useRef<HTMLDivElement>(null);
@@ -74,17 +96,21 @@ export default function SettingsPage() {
   const [weekdays, setWeekdays] = useState(127);
   const [tempo, setTempo] = useState<Tempo>('date');
   const [lastDayTried, setLastDayTried] = useState(false);
+  const [ownDate, setOwnDate] = useState('');
+  const [ownBusy, setOwnBusy] = useState(false);
   const [filled, setFilled] = useState<string | null>(null);
   useEffect(() => {
     if (!summary) return;
-    const stamp = `${summary.id}:${summary.title}:${summary.exam_date}:${summary.settings.minutes_per_day}:${summary.settings.study_weekdays}:${summary.settings.tempo ?? 'date'}:${summary.subjects.map((subject) => `${subject.id}=${subject.exam_date}`).join(',')}`;
+    const stamp = `${summary.id}:${summary.title}:${summary.exam_date}:${summary.own_exam_date ?? ''}:${summary.author_exam_date ?? ''}:${summary.settings.minutes_per_day}:${summary.settings.study_weekdays}:${summary.settings.tempo ?? 'date'}:${summary.subjects.map((subject) => `${subject.id}=${subject.exam_date}`).join(',')}`;
     if (filled === stamp) return;
     setFilled(stamp);
     rememberContainerTitle(summary.id, summary.title);
     setTitle(summary.title);
-    setDate(summary.exam_date ?? '');
+    const common = commonDateOf(summary);
+    setDate(common ?? '');
+    setOwnDate(summary.own_exam_date ?? '');
     const own = summary.subjects.filter((subject) => !oralOnly(subject));
-    const distinct = own.some((subject) => subject.exam_date && subject.exam_date !== summary.exam_date);
+    const distinct = !(summary.role === 'owner' && summary.own_exam_date) && own.some((subject) => subject.exam_date && subject.exam_date !== common);
     setPerSubject((current) => current || distinct);
     setSubjectDates(Object.fromEntries(summary.subjects.map((subject) => [subject.id, subject.exam_date ?? ''])));
     setMinutes(summary.settings.minutes_per_day);
@@ -98,14 +124,18 @@ export default function SettingsPage() {
 
   const subjects = summary?.subjects ?? [];
   const changedSubjects = subjects.filter(
-    (subject) => !oralOnly(subject) && perSubject && (subjectDates[subject.id] ?? '') !== (subject.exam_date ?? ''),
+    (subject) => !ownOverrides && !oralOnly(subject) && perSubject && (subjectDates[subject.id] ?? '') !== (subject.exam_date ?? ''),
   );
-  // «Одна дата для всех»: a subject's own date would still win over the exam's (coalesce), so it is cleared.
-  const ownDates = subjects.filter((subject) => !oralOnly(subject) && !perSubject && subject.exam_date && subject.exam_date !== (date || null));
+  // «Одна дата для всех»: a subject's own date would still win over the exam's (coalesce), so it is cleared. (Not while
+  // the author's own date stands in for the subjects' dates: they are not known here.)
+  const ownDates = ownOverrides ? [] : subjects.filter((subject) => !oralOnly(subject) && !perSubject && subject.exam_date && subject.exam_date !== (date || null));
+  const ownChanged = Boolean(summary && showOwn && ownDate !== (summary.own_exam_date ?? ''));
+  const today = summary?.day ?? '';
   const dirty = Boolean(
     summary &&
       ((owner && title.trim() !== summary.title) ||
-        (owner && !perSubject && date !== (summary.exam_date ?? '')) ||
+        (owner && !perSubject && date !== (commonDateOf(summary) ?? '')) ||
+        ownChanged ||
         (owner && changedSubjects.length > 0) ||
         (owner && ownDates.length > 0) ||
         minutes !== summary.settings.minutes_per_day ||
@@ -124,11 +154,13 @@ export default function SettingsPage() {
         const subject = summary.subjects.find((candidate) => candidate.id === entry.id);
         // An oral-only subject keeps the date of its oral page; the rest take their own date or the exam's.
         if (!subject || oralOnly(subject)) return entry;
+        // «Моя дата экзамена» stands for every subject's date (the server's effective date, 20261018120000).
+        if (showOwn && ownDate) return { ...entry, date: ownDate };
         const own = perSubject ? subjectDates[entry.id] || null : null;
         return { ...entry, date: own ?? (date || null) };
       }),
     };
-  }, [planInput, summary, perSubject, subjectDates, date, weekdays]);
+  }, [planInput, summary, perSubject, subjectDates, date, weekdays, showOwn, ownDate]);
   const lines = useMemo(() => minutesLines(liveInput, minutes, tempo), [liveInput, minutes, tempo]);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -185,11 +217,26 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(summary), anchor]);
 
+  /** A date of «Моя дата экзамена» the server takes (today to two years ahead), else what is wrong with it. */
+  const ownDateProblem = (value: string): string | null => {
+    if (!value || !today) return null;
+    const ahead = dayDiff(today, value);
+    if (ahead === null || ahead > MOVE_MAX_DAYS) return SETTINGS.ownDateRange;
+    if (ahead < 0) return SETTINGS.ownDatePast;
+    return null;
+  };
+
   const save = async () => {
     if (!summary || saving) return;
     if (owner && !title.trim()) {
       setNameTried(true);
       document.getElementById(`${formId}-name`)?.focus();
+      return;
+    }
+    const ownProblem = ownChanged ? ownDateProblem(ownDate) : null;
+    if (ownProblem) {
+      setNote({ text: ownProblem, error: true });
+      document.getElementById(`${formId}-own`)?.focus();
       return;
     }
     setSaving(true);
@@ -215,6 +262,15 @@ export default function SettingsPage() {
         if (minutes !== summary.settings.minutes_per_day) track('container.minutes_set', { minutes });
         if (tempoChanged) track('container.tempo_set', { tempo });
         if (daysChanged) track('container.days_set', { days: dayCount(weekdays) });
+      }
+      if (ownChanged) {
+        try {
+          await moveExamDate(containerId, ownDate || null, 'me');
+        } catch (error) {
+          setNote({ text: errorText(error, OWN_DATE_ERRORS), error: true });
+          data.reload();
+          return;
+        }
       }
       if (owner) rememberContainerTitle(containerId, title.trim());
       setNote({ text: SETTINGS.saved });
@@ -320,6 +376,25 @@ export default function SettingsPage() {
       setActing(false);
     }
   };
+  /** «Убрать»: the own date goes at once; the plan takes the author's date again. */
+  const clearOwn = async () => {
+    if (ownBusy || saving) return;
+    setOwnBusy(true);
+    setNote(null);
+    try {
+      await moveExamDate(containerId, null, 'me');
+      setOwnDate('');
+      setNote({ text: SETTINGS.ownDateCleared });
+      // The field stays where the focus was (the button leaves with the date).
+      focusAfter(() => document.getElementById(`${formId}-own`));
+      data.reload();
+    } catch (error) {
+      setNote({ text: errorText(error, OWN_DATE_ERRORS), error: true });
+    } finally {
+      setOwnBusy(false);
+    }
+  };
+
   const showWho = () => {
     setWho(true);
     focusAfter(() => whoRef.current);
@@ -401,6 +476,38 @@ export default function SettingsPage() {
     </div>
   );
 
+  // «Моя дата экзамена»: the member's own date (the author's after «Только для меня»), «Убрать», and whose date stays.
+  const authorDay = dayText(owner ? commonDateOf(summary) : moveFacts(summary).authorDate);
+  const ownField = showOwn ? (
+    <div className="im-field" id="settings-own-date">
+      <label className="im-label" htmlFor={`${formId}-own`}>
+        {SETTINGS.ownDate}
+      </label>
+      <div className="st-own">
+        <input
+          id={`${formId}-own`}
+          type="date"
+          className="im-input im-date"
+          value={ownDate}
+          min={today || undefined}
+          max={today ? addDay(today, MOVE_MAX_DAYS) : undefined}
+          aria-describedby={`${formId}-own-note`}
+          aria-invalid={note?.error && ownDateProblem(ownDate) ? true : undefined}
+          disabled={saving}
+          onChange={(event) => setOwnDate(event.target.value)}
+        />
+        {summary.own_exam_date ? (
+          <button type="button" className="sf-link" data-muted="" aria-busy={ownBusy || undefined} onClick={() => void clearOwn()}>
+            {SETTINGS.ownDateClear}
+          </button>
+        ) : null}
+      </div>
+      <p className="im-hint" data-muted="" id={`${formId}-own-note`}>
+        {nb(owner ? SETTINGS.ownDateNoteOwner(authorDay) : SETTINGS.ownDateNote(authorDay))}
+      </p>
+    </div>
+  ) : null;
+
   // Пн–Вс, each a toggle; the last day on stays on (the plan needs a day to study in).
   const daysField = (
     <div className="im-field st-days-field" id="settings-days">
@@ -461,8 +568,10 @@ export default function SettingsPage() {
       <div className="sf-page st-page" ref={frame.ref} data-frame={frame.size}>
         {header}
         <section className="st-form">
+          {ownField}
           {minutesField}
           {daysField}
+          <ExamTelegramSwitch containerId={containerId} />
         </section>
         <section className="st-danger" id="settings-leave">
           {asking ? (
@@ -538,15 +647,17 @@ export default function SettingsPage() {
                 <input id={`${formId}-date`} type="date" className="im-input im-date" value={date} onChange={(event) => setDate(event.target.value)} />
               </>
             )}
-            {subjects.length > 1 ? (
+            {subjects.length > 1 && !ownOverrides ? (
               <button type="button" className="sf-link im-dates-switch" data-muted="" onClick={() => setPerSubject((value) => !value)}>
                 {perSubject ? SETTINGS.oneDate : SETTINGS.dates}
               </button>
             ) : null}
             {!anyDate && tempo !== 'fast' ? <p className="im-hint" data-muted="">{nb(SETTINGS.noDate)}</p> : null}
           </div>
+          {ownField}
           {minutesField}
           {daysField}
+          <ExamTelegramSwitch containerId={containerId} />
         </section>
 
         <div className="st-side">

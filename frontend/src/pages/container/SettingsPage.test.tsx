@@ -19,6 +19,10 @@ const api = vi.hoisted(() => ({
   feasibility: vi.fn(),
   windowDays: vi.fn(),
   reload: vi.fn(),
+  moveExamDate: vi.fn(),
+  telegramExams: vi.fn(),
+  setExamRemind: vi.fn(),
+  fetchTelegramState: vi.fn(),
   state: { summary: null as ContainerSummary | null, plan: null as PlanInput | null, error: null as string | null, gone: false },
 }));
 vi.mock('../../api/containers', () => ({
@@ -32,7 +36,13 @@ vi.mock('../../api/containers', () => ({
   revokeLink: api.revokeLink,
   fetchMembers: api.fetchMembers,
   removeMember: api.removeMember,
+  // Release 47: «Моя дата экзамена» and «План в Telegram по этому экзамену».
+  moveExamDate: api.moveExamDate,
+  telegramExams: api.telegramExams,
+  setExamRemind: api.setExamRemind,
+  containerErrorText: (error: unknown) => (error instanceof Error && /[а-яё]/i.test(error.message) ? error.message : 'Не получилось. Попробуйте ещё раз.'),
 }));
+vi.mock('../../api/telegram', () => ({ fetchTelegramState: api.fetchTelegramState }));
 vi.mock('../../lib/containers/bankCache', () => ({ forgetBank: api.forgetBank }));
 // The rest of the plan module stays real («Все вопросы»: ALL_QUESTIONS_MIN, allQuestions, planDay).
 vi.mock('../../lib/containers/plan', async (importOriginal) => ({
@@ -113,6 +123,11 @@ beforeEach(() => {
   api.feasibility.mockReset().mockReturnValue({ neededMin: 40, option: 45, seenByDateEst: 960 });
   api.windowDays.mockReset().mockReturnValue(4);
   api.reload.mockReset();
+  api.moveExamDate.mockReset().mockImplementation(async (id: string, date: string | null) => ({ for: 'me', container_id: id, exam_date: '2027-01-12', own_exam_date: date, subjects: [] }));
+  // Telegram not linked unless a test says so: no switch.
+  api.fetchTelegramState.mockReset().mockResolvedValue({ linked: false });
+  api.telegramExams.mockReset().mockResolvedValue([]);
+  api.setExamRemind.mockReset().mockImplementation(async (id: string, on: boolean) => ({ container_id: id, tg_remind: on }));
 });
 afterEach(() => cleanup());
 
@@ -497,5 +512,139 @@ describe('SettingsPage: the group’s one line and «Кто вошёл» (usabil
     expect(screen.getByRole('alert').textContent).toContain('Нет связи с сервером.');
     fireEvent.click(screen.getByRole('button', { name: SETTINGS.retry }));
     expect(api.reload).toHaveBeenCalled();
+  });
+});
+
+describe('SettingsPage: «Моя дата экзамена» (release 47)', () => {
+  /** A member of «Зимняя сессия» (12 January 2027; the summary's day is 21 December 2026). */
+  const member = (over: Partial<ContainerSummary> = {}): ContainerSummary => ({ ...solo(), role: 'member', owner: null, author_exam_date: '2027-01-12', own_exam_date: null, ...over });
+  const field = () => screen.getByLabelText(SETTINGS.ownDate) as HTMLInputElement;
+
+  it('a member sets their own date: only for them, the author’s stays; «Сохранить» sends it', async () => {
+    api.state.summary = member();
+    renderAt();
+    expect(field().type).toBe('date');
+    expect(field().value).toBe('');
+    expect(field().min).toBe('2026-12-21');
+    expect(field().max).toBe('2028-12-20');
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора — 12\sянваря\.$/);
+    // Nothing to take away yet.
+    expect(screen.queryByRole('button', { name: SETTINGS.ownDateClear })).toBeNull();
+    fireEvent.change(field(), { target: { value: '2027-01-26' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(api.moveExamDate).toHaveBeenCalledWith(ID, '2027-01-26', 'me'));
+    expect(api.saveSettings).not.toHaveBeenCalled();
+    expect(api.updateContainer).not.toHaveBeenCalled();
+    expect(await screen.findByText(SETTINGS.saved)).toBeInTheDocument();
+    expect(api.reload).toHaveBeenCalled();
+  });
+
+  it('a member’s own date comes back filled; «Убрать» takes it away at once', async () => {
+    api.state.summary = member({ exam_date: '2027-01-26', own_exam_date: '2027-01-26' });
+    renderAt();
+    expect(field().value).toBe('2027-01-26');
+    // Their own date stands in for the summary's: the note still names the author's.
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора — 12\sянваря\.$/);
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.ownDateClear }));
+    await waitFor(() => expect(api.moveExamDate).toHaveBeenCalledWith(ID, null, 'me'));
+    expect(await screen.findByText(SETTINGS.ownDateCleared)).toBeInTheDocument();
+    expect(field().value).toBe('');
+    await waitFor(() => expect(document.activeElement).toBe(field()));
+    expect(api.reload).toHaveBeenCalled();
+  });
+
+  it('a date before today is said before sending; the server’s refusal of a date is said in the page’s words', async () => {
+    api.state.summary = member();
+    renderAt();
+    fireEvent.change(field(), { target: { value: '2026-12-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(SETTINGS.ownDatePast);
+    expect(api.moveExamDate).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(field());
+    api.moveExamDate.mockRejectedValueOnce(Object.assign(new Error('date'), { code: '22023' }));
+    fireEvent.change(field(), { target: { value: '2027-02-01' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(SETTINGS.ownDateRange));
+  });
+
+  it('the author has no «Моя дата экзамена» until they keep a date of their own', () => {
+    renderAt();
+    expect(screen.queryByLabelText(SETTINGS.ownDate)).toBeNull();
+  });
+
+  it('the author after «Только для меня»: their date with «Убрать», the common date as the members have it, nothing to save', () => {
+    const base = solo();
+    // The server's effective date: their own date stands for the exam's and the subjects'.
+    api.state.summary = {
+      ...base,
+      exam_date: '2027-01-26',
+      own_exam_date: '2027-01-26',
+      author_exam_date: '2027-01-12',
+      subjects: base.subjects.map((entry) => ({ ...entry, exam_date: '2027-01-26' })),
+      owner: { members: 2, doubts_open: 0, links: [] },
+    };
+    renderAt();
+    expect(field().value).toBe('2027-01-26');
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У участников — 12\sянваря\.$/);
+    expect((screen.getByLabelText('Дата экзамена') as HTMLInputElement).value).toBe('2027-01-12');
+    // The subjects' own dates are not known here: no «У предметов разные даты», and nothing to clear.
+    expect(screen.queryByRole('button', { name: SETTINGS.dates })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    expect(screen.getByRole('button', { name: SETTINGS.ownDateClear })).toBeInTheDocument();
+  });
+});
+
+describe('SettingsPage: «План в Telegram по этому экзамену» (release 47)', () => {
+  const linked = (on = true) => {
+    api.fetchTelegramState.mockResolvedValue({ linked: true });
+    api.telegramExams.mockResolvedValue([
+      { container_id: 'other', title: 'Осенняя сессия', exam_date: '2026-12-28', state: 'study', tg_remind: true },
+      { container_id: ID, title: 'Зимняя сессия', exam_date: '2027-01-12', state: 'study', tg_remind: on },
+    ]);
+  };
+
+  it('is there only when Telegram is linked', async () => {
+    renderAt();
+    await waitFor(() => expect(api.fetchTelegramState).toHaveBeenCalled());
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(api.telegramExams).not.toHaveBeenCalled();
+  });
+
+  it('switches this exam’s plan off and on at once, for the author', async () => {
+    linked();
+    renderAt();
+    const toggle = await screen.findByRole('switch', { name: 'План в Telegram по этому экзамену' });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    toggle.focus();
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.setExamRemind).toHaveBeenCalledWith(ID, false));
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+    expect(screen.getByText('Бот не присылает план по этому экзамену. Другие экзамены — в профиле.')).toBeInTheDocument();
+    expect(document.activeElement).toBe(toggle);
+    // Not part of «Сохранить».
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.setExamRemind).toHaveBeenLastCalledWith(ID, true));
+  });
+
+  it('a member has the same switch; a failure is said and the switch stays', async () => {
+    linked(false);
+    api.state.summary = { ...solo(), role: 'member', owner: null };
+    api.setExamRemind.mockRejectedValueOnce(new Error('Нет сети — попробуем ещё раз, когда она появится.'));
+    renderAt();
+    const toggle = await screen.findByRole('switch', { name: 'План в Telegram по этому экзамену' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(toggle);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Нет сети — попробуем ещё раз, когда она появится.');
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('a server without the per-exam switches: none', async () => {
+    api.fetchTelegramState.mockResolvedValue({ linked: true });
+    api.telegramExams.mockResolvedValue(null);
+    renderAt();
+    await waitFor(() => expect(api.telegramExams).toHaveBeenCalled());
+    expect(screen.queryByRole('switch')).toBeNull();
   });
 });

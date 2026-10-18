@@ -511,7 +511,8 @@ export const SETTINGS = {
   oralDate: 'дата — на странице предмета',
   noDate: 'Без даты — по 15 новых вопросов в день на предмет.',
   minutes: 'Время в день',
-  minutesMember: 'Время в день и дни занятий — только для вас. Даты ставит автор экзамена.',
+  // A member has «Моя дата экзамена» too (release 47): «Даты ставит автор экзамена» is no longer the whole truth.
+  minutesMember: 'Время в день и дни занятий — только для вас.',
   // Spec §3: the student sets «минуты и дни недели» (usability check m6).
   days: 'Дни занятий',
   dayShort: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
@@ -546,6 +547,14 @@ export const SETTINGS = {
   leave: 'Выйти из экзамена',
   leaveAsk: (title: string) => `Выйти из «${title}»? Ваши ответы сохранятся: если войдёте снова по ссылке, продолжите с того же места.`,
   leaveYes: 'Выйти',
+  // «Моя дата экзамена» (release 47): a member's own date, or the author's after «Только для меня».
+  ownDate: 'Моя дата экзамена',
+  ownDateClear: 'Убрать',
+  ownDateNote: (authorDay: string) => (authorDay ? `Только для вас. У автора — ${authorDay}.` : 'Только для вас. У автора дата не указана.'),
+  ownDateNoteOwner: (commonDay: string) => (commonDay ? `Только для вас. У участников — ${commonDay}.` : 'Только для вас.'),
+  ownDatePast: 'Нужна дата не раньше сегодняшней.',
+  ownDateRange: 'Нужна дата не раньше сегодняшней и не дальше чем через два года.',
+  ownDateCleared: 'Ваша дата убрана.',
   save: 'Сохранить',
   saving: 'Сохраняем…',
   saved: 'Сохранено.',

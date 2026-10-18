@@ -90,7 +90,7 @@ vi.mock('../lib/containers/plan', () => ({
 // Package D3b's card (spec decision 47): a stand-in that shows what «Сегодня» hands it.
 const card = vi.hoisted(() => ({ crash: false }));
 vi.mock('../components/containers/TodayExamCard', () => ({
-  default: (props: { container: { id: string; title: string }; plan: { state: string } | null; questions?: number | null; offline?: boolean; lead: boolean }) => {
+  default: (props: { container: { id: string; title: string }; plan: { state: string } | null; questions?: number | null; offline?: boolean; lead: boolean; onMove?: () => void }) => {
     if (card.crash) throw new Error('the card broke');
     return (
       <article
@@ -105,9 +105,22 @@ vi.mock('../components/containers/TodayExamCard', () => ({
         <a className={props.lead ? 'sf-primary' : 'sf-link'} href={`/exams/c/${props.container.id}/study`}>
           Начать
         </a>
+        {/* Release 47: the real card's quiet «Перенести» on the exam's day (TodayExamCard.test). */}
+        {props.onMove && props.plan?.state === 'exam_today' ? (
+          <button type="button" className="sf-link" onClick={props.onMove}>
+            Перенести
+          </button>
+        ) : null}
       </article>
     );
   },
+}));
+// «Перенести экзамен» (release 47): the dialog reads the exam and saves the move through these.
+const move = vi.hoisted(() => ({ fetchSummary: vi.fn(), moveExamDate: vi.fn() }));
+vi.mock('../api/containers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/containers')>()),
+  fetchSummary: move.fetchSummary,
+  moveExamDate: move.moveExamDate,
 }));
 
 import Dashboard from './Dashboard';
@@ -400,7 +413,7 @@ describe('«Сегодня» without containers is today’s page to the byte', 
 
 import { fireEvent, waitFor, within } from '@testing-library/react';
 import type { DayPlan, OverviewContainer, OverviewSubject } from '../types/container';
-import { aboutMinutes, containerRowMeta, firstStepViews, firstStepsDone, todayLayout, type TodayContainer } from './Dashboard';
+import { aboutMinutes, containerRowMeta, firstStepViews, firstStepsDone, recentlyPassed, todayLayout, type TodayContainer } from './Dashboard';
 
 const plainText = (text: string | null | undefined) => (text ?? '').replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -592,6 +605,109 @@ describe('«Сегодня» with exam containers: who leads', () => {
     expect(cardEl.compareDocumentPosition(rows) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // «Начать повторение» is a quiet link under them.
     expect(screen.getByRole('link', { name: 'Начать повторение' })).toHaveClass('sf-link');
+  });
+});
+
+describe('«Сегодня»: an exam passed in the last 14 days stays with «Перенести» (release 47)', () => {
+  const SUMMER = (date = '2026-09-30') => container('c-5', 'Летняя сессия', date);
+  beforeEach(() => {
+    move.fetchSummary.mockReset().mockResolvedValue({ role: 'owner', owner: { members: 0 }, exam_date: '2026-09-30', subjects: [] });
+    move.moveExamDate.mockReset().mockImplementation(async (id: string, date: string) => ({ for: 'all', container_id: id, exam_date: date, own_exam_date: null, subjects: [] }));
+  });
+
+  it('a quiet row under the others: «Экзамен «Летняя сессия» прошёл 30 сентября · Перенести» (it used to leave the page)', async () => {
+    db.tables.exams = () => ({ data: [] });
+    withContainers([ACCR(), SUMMER()], { 'c-1': dayPlan('study') });
+    await renderPage();
+    await screen.findByTestId('today-card');
+    const rows = screen.getByRole('region', { name: 'Другие экзамены' });
+    const items = within(rows).getAllByRole('listitem');
+    expect(items).toHaveLength(1);
+    expect(plainText(items[0].textContent)).toBe('Экзамен «Летняя сессия» прошёл 30 сентября · Перенести');
+    expect(within(items[0]).getByRole('link')).toHaveAttribute('href', '/exams/c/c-5');
+    const button = within(items[0]).getByRole('button', { name: 'Перенести' });
+    expect(button).toHaveClass('sf-link');
+    expect(button).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(plainText(button.getAttribute('aria-describedby') ? document.getElementById(button.getAttribute('aria-describedby')!)?.textContent : '')).toBe('Экзамен «Летняя сессия» прошёл 30 сентября');
+    // Still one blue button: the card's.
+    expect(blues()).toHaveLength(1);
+  });
+
+  it('with no other exam the row stands under «Сегодня»’s own first card', async () => {
+    db.tables.exams = () => ({ data: [] });
+    withContainers([SUMMER('2026-10-02')], {});
+    await renderPage();
+    const rows = await screen.findByRole('region', { name: 'Другие экзамены' });
+    expect(plainText(rows.textContent)).toBe('Экзамен «Летняя сессия» прошёл 2 октября · Перенести');
+    expect(screen.queryByTestId('today-card')).toBeNull();
+  });
+
+  it('an exam passed more than 14 days ago is not on «Сегодня»', async () => {
+    db.tables.exams = () => ({ data: [] });
+    withContainers([ACCR(), SUMMER('2026-09-18')], { 'c-1': dayPlan('study') });
+    await renderPage();
+    await screen.findByTestId('today-card');
+    expect(screen.queryByRole('region', { name: 'Другие экзамены' })).toBeNull();
+    expect(plainText(document.body.textContent)).not.toContain('Летняя сессия');
+  });
+
+  it('«Перенести» opens the dialog; saved, the overview and the plans are read again and the page says the new date', async () => {
+    db.tables.exams = () => ({ data: [] });
+    withContainers([ACCR(), SUMMER()], { 'c-1': dayPlan('study') });
+    const overviewReload = vi.fn();
+    const planReload = vi.fn();
+    const overview = layer.overview!;
+    layer.overview = () => ({ ...(overview() as object), reload: overviewReload });
+    const plan = layer.data['c-1'];
+    layer.data['c-1'] = () => ({ ...(plan() as object), reload: planReload });
+    await renderPage();
+    const opener = await screen.findByRole('button', { name: 'Перенести' });
+    fireEvent.click(opener);
+    const dialog = screen.getByRole('dialog', { name: 'Перенести экзамен' });
+    await waitFor(() => expect(move.fetchSummary).toHaveBeenCalledWith('c-5', '2026-10-03'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Перенести' }));
+    await waitFor(() => expect(move.moveExamDate).toHaveBeenCalledWith('c-5', '2026-10-10', 'all', null));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const line = screen.getByRole('status', { name: '' });
+    expect(plainText(line.textContent)).toBe('Экзамен перенесён на 10 октября.');
+    await waitFor(() => expect(document.activeElement).toBe(line));
+    expect(overviewReload).toHaveBeenCalledTimes(1);
+    expect(planReload).toHaveBeenCalledTimes(1);
+    // The page did not go back to waiting for the plans.
+    expect(screen.getByTestId('today-card')).toBeInTheDocument();
+  });
+
+  it('the exam-day card’s «Перенести» opens the same dialog for its exam; «Закрыть» changes nothing', async () => {
+    db.tables.exams = () => ({ data: [] });
+    withContainers([container('c-1', 'Аккредитация', '2026-10-03')], { 'c-1': dayPlan('exam_today') });
+    await renderPage();
+    const cardEl = await screen.findByTestId('today-card');
+    fireEvent.click(within(cardEl).getByRole('button', { name: 'Перенести' }));
+    const dialog = screen.getByRole('dialog', { name: 'Перенести экзамен' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(move.moveExamDate).not.toHaveBeenCalled();
+    fireEvent.click(within(cardEl).getByRole('button', { name: 'Перенести' }));
+    // The dialog reads the exam first (its members): «Перенести» waits for it.
+    const save = within(screen.getByRole('dialog')).getByRole('button', { name: 'Перенести' });
+    await waitFor(() => expect(save).not.toHaveAttribute('aria-disabled'));
+    fireEvent.click(save);
+    await waitFor(() => expect(move.moveExamDate).toHaveBeenCalledWith('c-1', '2026-10-10', 'all', null));
+  });
+
+  it('which exams count as passed lately: the last date within 14 days, the latest first', () => {
+    const today = '2026-10-03';
+    const list = [
+      container('a', 'Две недели назад', '2026-09-19'),
+      container('b', 'Пятнадцать дней назад', '2026-09-18'),
+      container('c', 'Вчера', '2026-10-02'),
+      container('d', 'Сегодня', '2026-10-03'),
+      container('e', 'Без даты', null),
+      // One subject passed, another ahead: not passed.
+      container('f', 'Частично', null, { subjects: [subjectOf(1, { exam_date: '2026-09-30' }), subjectOf(2, { exam_date: '2026-10-20' })] }),
+    ];
+    expect(recentlyPassed(list, today).map((entry) => entry.id)).toEqual(['c', 'a']);
+    expect(recentlyPassed(list, 'not a day')).toEqual([]);
   });
 });
 

@@ -129,10 +129,14 @@ export function layerKey(layer: ContainerLayer): string {
   return `on|${layer.overview.containers.map((container) => container.id).sort().join(',')}|${attached}`;
 }
 
-/** Reads the overview and hands each answer up; it draws nothing. */
-function OverviewProbe({ onLayer }: { onLayer: (layer: Settled) => void }) {
+/** Reads the overview and hands each answer up (and its `reload`); it draws nothing. */
+function OverviewProbe({ onLayer, onReload }: { onLayer: (layer: Settled) => void; onReload?: (reload: (() => void) | null) => void }) {
   const loadable = useContainersOverview();
   const { data, loading, offline, unavailable } = loadable ?? { data: null, loading: false, offline: false, unavailable: false };
+  const reload = typeof loadable?.reload === 'function' ? loadable.reload : null;
+  useEffect(() => {
+    onReload?.(reload);
+  }, [reload, onReload]);
   useEffect(() => {
     const next = layerOf({ data, loading, offline, unavailable });
     if (next) onLayer(next);
@@ -146,6 +150,8 @@ export interface ContainerLayerHandle {
   probe: ReactNode;
   /** The first settled answer ('on' or 'off'; 'off' once LAYER_WAIT has passed without one). */
   settled: () => Promise<Settled>;
+  /** Reads the overview again (an exam was moved on «Сегодня»). */
+  reload: () => void;
 }
 
 /** The container layer of one screen. */
@@ -169,6 +175,11 @@ export function useContainerLayer(): ContainerLayerHandle {
   }, [settle]);
 
   const crashed = useCallback(() => settle({ mode: 'off' }), [settle]);
+  const reloadRef = useRef<(() => void) | null>(null);
+  const onReload = useCallback((next: (() => void) | null) => {
+    reloadRef.current = next;
+  }, []);
+  const reload = useCallback(() => reloadRef.current?.(), []);
 
   const settled = useCallback((): Promise<Settled> => {
     if (latest.current) return Promise.resolve(latest.current);
@@ -179,10 +190,10 @@ export function useContainerLayer(): ContainerLayerHandle {
 
   const probe = (
     <QuietBoundary onError={crashed}>
-      <OverviewProbe onLayer={settle} />
+      <OverviewProbe onLayer={settle} onReload={onReload} />
     </QuietBoundary>
   );
-  return { layer, probe, settled };
+  return { layer, probe, settled, reload };
 }
 
 function sameOffline(a: ContainerLayer, b: ContainerLayer): boolean {

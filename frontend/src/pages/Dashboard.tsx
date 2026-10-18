@@ -34,6 +34,8 @@ import { useContainerData } from '../lib/containers/hooks';
 import { planDay } from '../lib/containers/plan';
 import { glue as glueCount, shownMinutes } from '../lib/containers/words';
 import TodayExamCard from '../components/containers/TodayExamCard';
+import MoveExamDialog from '../components/containers/MoveExamDialog';
+import { MOVE_SHORT, moved as movedWords } from '../components/containers/copy';
 import { isDayOff } from '../components/containers/planLines';
 import { examQuestions, overviewQuestions } from '../components/containers/model';
 import type { DayPlan, OverviewContainer } from '../types/container';
@@ -988,7 +990,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const frame = useFrame<HTMLDivElement>();
   const phone = usePhone();
-  const { layer, probe, settled } = useContainerLayer();
+  const { layer, probe, settled, reload: reloadLayer } = useContainerLayer();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -1027,6 +1029,16 @@ export default function Dashboard() {
   const on = layer.mode === 'on' ? layer : null;
   const dayKey = localDateKey();
   const planned = useMemo(() => (on ? on.overview.containers.filter((container) => !containerDays(container, dayKey).past) : NO_CONTAINERS), [on, dayKey]);
+  // An exam passed in the last 14 days stays as a quiet row with «Перенести» (release 47), instead of leaving the page.
+  const passed = useMemo(() => (on ? recentlyPassed(on.overview.containers, dayKey) : NO_CONTAINERS), [on, dayKey]);
+  // «Перенести экзамен» from a passed row or the exam-day card: the overview and the plans are read again after it.
+  const [moving, setMoving] = useState<OverviewContainer | null>(null);
+  const [moved, setMoved] = useState<{ text: string; at: number } | null>(null);
+  const [planRound, setPlanRound] = useState(0);
+  const movedRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (moved) movedRef.current?.focus();
+  }, [moved]);
   const [plans, setPlans] = useState<Record<string, PlanResult>>({});
   const onPlan = useCallback((id: string, result: PlanResult) => setPlans((current) => (samePlanResult(current[id], result) ? current : { ...current, [id]: result })), []);
   // A card that crashed (package D3b's component): its container becomes a quiet row.
@@ -1042,7 +1054,7 @@ export default function Dashboard() {
   const plansSettled = planWaitOver || planned.every((container) => plans[container.id] && plans[container.id].status !== 'loading');
   const planSources = planned.map((container) => (
     <QuietBoundary key={container.id} onError={() => onPlan(container.id, PLAN_FAILED)}>
-      <PlanSource id={container.id} onPlan={onPlan} />
+      <PlanSource id={container.id} onPlan={onPlan} round={planRound} />
     </QuietBoundary>
   ));
   const todayOf = (oral: TodayExam | null) =>
@@ -1052,8 +1064,9 @@ export default function Dashboard() {
       today: dayKey,
     });
   // The page as read under the layer it shows: the containers' part only when the pick knew about them.
-  const containerView = on && data && data.layerKey === liveKey && planned.length > 0 ? on : null;
-  const containerWait = Boolean(containerView && !plansSettled);
+  const containerView = on && data && data.layerKey === liveKey && (planned.length > 0 || passed.length > 0) ? on : null;
+  // After a move the page stays: a plan read again (or a moved exam's first) fills its card in when it comes.
+  const containerWait = Boolean(containerView && !plansSettled && !moved);
   const layout = containerView && !containerWait ? todayOf(data?.exam ?? null) : null;
 
   // Once all the steps are done they are not read again on this device.
@@ -1142,12 +1155,41 @@ export default function Dashboard() {
                 questions={layout.main.item.plan.status === 'ready' ? layout.main.item.plan.questions ?? null : null}
                 offline={(on?.offline ?? false) || (layout.main.item.plan.status === 'ready' && layout.main.item.plan.offline)}
                 lead={layout.mainLeads}
+                onMove={() => {
+                  if (layout.main?.kind === 'container') setMoving(layout.main.item.container);
+                }}
               />
             </QuietBoundary>
           ) : null,
-        rows: layout.rows.length > 0 ? <TodayRows rows={layout.rows} exam={data.exam} today={dayKey} /> : null,
+        rows:
+          layout.rows.length > 0 || passed.length > 0 || moved ? (
+            <>
+              {moved ? (
+                <p key={`moved-${moved.at}`} ref={movedRef} className="td-note tdc-moved" role="status" tabIndex={-1}>
+                  {moved.text}
+                </p>
+              ) : null}
+              {layout.rows.length > 0 || passed.length > 0 ? (
+                <TodayRows rows={layout.rows} exam={data.exam} today={dayKey} passed={passed} onMove={setMoving} />
+              ) : null}
+            </>
+          ) : null,
       }
     : undefined;
+  const moveDialog = moving ? (
+    <MoveExamDialog
+      containerId={moving.id}
+      role={moving.role}
+      today={dayKey}
+      onClose={() => setMoving(null)}
+      onMoved={(day) => {
+        setMoving(null);
+        setMoved((current) => ({ text: movedWords(formatDay(day)), at: (current?.at ?? 0) + 1 }));
+        reloadLayer();
+        setPlanRound((round) => round + 1);
+      }}
+    />
+  ) : null;
 
   const head = (
     <header className="td-head">
@@ -1245,6 +1287,7 @@ export default function Dashboard() {
       {probe}
       {planSources}
       <div className="td-in">{content}</div>
+      {moveDialog}
     </div>
   );
 }
@@ -1640,10 +1683,20 @@ function samePlanResult(a: PlanResult | undefined, b: PlanResult): boolean {
   return true;
 }
 
-/** One container's plan for today: package D1's data (from the device's copy without network), package D2's planDay. */
-function PlanSource({ id, onPlan }: { id: string; onPlan: (id: string, result: PlanResult) => void }) {
+/**
+ * One container's plan for today: package D1's data (from the device's copy without network), package D2's planDay.
+ * A new `round` (an exam moved on «Сегодня») reads it again; the plan in hand stays until the new one comes.
+ */
+function PlanSource({ id, onPlan, round = 0 }: { id: string; onPlan: (id: string, result: PlanResult) => void; round?: number }) {
   const loadable = useContainerData(id);
   const { data, loading, offline, unavailable } = loadable ?? { data: null, loading: false, offline: false, unavailable: true };
+  const reload = loadable?.reload;
+  const readAt = useRef(round);
+  useEffect(() => {
+    if (readAt.current === round) return;
+    readAt.current = round;
+    reload?.();
+  }, [round, reload]);
   const planInput = data?.planInput;
   const summary = data?.summary;
   useEffect(() => {
@@ -1696,6 +1749,27 @@ function containerState(item: TodayContainer, today: string): ContainerState {
   if (item.plan.status === 'failed') return 'failed';
   if (containerDays(item.container, today).past) return 'after';
   return item.container.subjects.some((subject) => subject.keyed > 0) ? 'study' : 'empty';
+}
+
+/** How long a passed exam stays on «Сегодня» as a quiet row with «Перенести» (release 47). */
+export const PASSED_DAYS = 14;
+
+/**
+ * The exams whose dates have all passed within the last 14 days (owner, 2026-10-18: «Я зашел, а мне нельзя было
+ * проходить, оказывается потому что уже 17 число»): the latest first. Older ones are in «Экзамены» only.
+ */
+export function recentlyPassed(containers: readonly OverviewContainer[], today: string): OverviewContainer[] {
+  let from: string;
+  try {
+    from = shiftDateKey(today, -PASSED_DAYS);
+  } catch {
+    return [];
+  }
+  return containers
+    .map((container) => ({ container, days: containerDays(container, today) }))
+    .filter(({ days }) => days.past && days.day !== null && days.day >= from)
+    .sort((a, b) => ((a.days.day ?? '') < (b.days.day ?? '') ? 1 : (a.days.day ?? '') > (b.days.day ?? '') ? -1 : 0))
+    .map(({ container }) => container);
 }
 
 /**
@@ -1797,8 +1871,43 @@ function OralTodayRow({ exam }: { exam: TodayExam }) {
   );
 }
 
+/**
+ * A passed exam as a quiet row: «Экзамен «Осенняя сессия» прошёл 17 октября · Перенести» — the words lead to its page,
+ * «Перенести» opens «Перенести экзамен» (release 47).
+ */
+function PassedRow({ container, today, onMove }: { container: OverviewContainer; today: string; onMove: (container: OverviewContainer) => void }) {
+  const textId = useId();
+  const { day } = containerDays(container, today);
+  return (
+    <li className="tdc-row tdc-passed">
+      <p className="tdc-passed-line">
+        <Link className="tdc-passed-link" id={textId} to={`/exams/c/${encodeURIComponent(container.id)}`}>
+          {glue(`Экзамен «${container.title}» прошёл ${formatDay(day)}`)}
+        </Link>
+        <span aria-hidden="true">{' · '}</span>
+        <button type="button" className="sf-link tdc-passed-move" aria-haspopup="dialog" aria-describedby={textId} onClick={() => onMove(container)}>
+          {MOVE_SHORT}
+        </button>
+      </p>
+    </li>
+  );
+}
+
 /** The other exams with something today: rows of one card, no pill (the page's blue button is the leading card's). */
-function TodayRows({ rows, exam, today }: { rows: TodayEntry[]; exam: TodayExam | null; today: string }) {
+function TodayRows({
+  rows,
+  exam,
+  today,
+  passed = [],
+  onMove,
+}: {
+  rows: TodayEntry[];
+  exam: TodayExam | null;
+  today: string;
+  /** Exams passed in the last 14 days, under the others (recentlyPassed). */
+  passed?: readonly OverviewContainer[];
+  onMove?: (container: OverviewContainer) => void;
+}) {
   return (
     <section className="td-card tdc-rows td-rise" data-d="3" aria-label="Другие экзамены">
       <ul className="tdc-list">
@@ -1815,6 +1924,7 @@ function TodayRows({ rows, exam, today }: { rows: TodayEntry[]; exam: TodayExam 
             </li>
           ),
         )}
+        {onMove ? passed.map((container) => <PassedRow key={`p:${container.id}`} container={container} today={today} onMove={onMove} />) : null}
       </ul>
     </section>
   );

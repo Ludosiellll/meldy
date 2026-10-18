@@ -25,7 +25,13 @@ vi.mock('../../api/containers', () => ({
   revokeLink: vi.fn(),
   fetchMembers: vi.fn().mockResolvedValue([]),
   removeMember: vi.fn(),
+  moveExamDate: vi.fn(),
+  telegramExams: vi.fn().mockResolvedValue(null),
+  setExamRemind: vi.fn(),
+  containerErrorText: () => 'Не получилось. Попробуйте ещё раз.',
 }));
+// «План в Telegram по этому экзамену» (release 47) is not what this file checks: Telegram is not linked.
+vi.mock('../../api/telegram', () => ({ fetchTelegramState: vi.fn().mockResolvedValue(null) }));
 vi.mock('../../lib/containers/bankCache', () => ({ forgetBank: vi.fn() }));
 // The rest of the plan module stays real («Все вопросы»: ALL_QUESTIONS_MIN, allQuestions, planDay).
 vi.mock('../../lib/containers/plan', async (importOriginal) => ({

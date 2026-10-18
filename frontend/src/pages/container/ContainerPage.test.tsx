@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   withdrawDoubt: vi.fn(),
   deleteContainer: vi.fn(),
   deleteSubject: vi.fn(),
+  moveExamDate: vi.fn(),
 }));
 
 vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
@@ -34,6 +35,7 @@ vi.mock('../../api/containers', async (importOriginal) => ({
   withdrawDoubt: mocks.withdrawDoubt,
   deleteContainer: mocks.deleteContainer,
   deleteSubject: mocks.deleteSubject,
+  moveExamDate: mocks.moveExamDate,
 }));
 
 import ContainerPage from './ContainerPage';
@@ -114,6 +116,9 @@ beforeEach(() => {
   mocks.saveSettings.mockResolvedValue(undefined);
   mocks.withdrawDoubt.mockResolvedValue(undefined);
   mocks.deleteContainer.mockResolvedValue(undefined);
+  mocks.moveExamDate.mockReset().mockImplementation(async (id: string, date: string | null, forWhom: string) => ({
+    for: forWhom, container_id: id, exam_date: forWhom === 'all' ? date : '2026-10-05', own_exam_date: forWhom === 'me' ? date : null, subjects: [],
+  }));
 });
 
 afterEach(() => {
@@ -318,25 +323,45 @@ describe('the states of the exam page (§3.3 table)', () => {
     expect(screen.getByRole('link', { name: 'Указать дату' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings`);
   });
 
-  it('exam today: «Сегодня экзамен.» and a quiet link to the errors, no blue pill', () => {
+  // Release 47: the errors are the day's pill «Пройтись по ошибкам: N» (was a quiet link with no pill), and «Перенести
+  // экзамен» is a quiet link beside it.
+  it('exam today: «Сегодня экзамен.», the pill «Пройтись по ошибкам: 20» and a quiet «Перенести экзамен»', () => {
     const base = summary({ exam_date: '2026-10-10', subjects: summary().subjects.map((s) => ({ ...s, exam_date: '2026-10-10' })) });
     const plan = dayPlan({ state: 'exam_today', sessions: [], lines: [{ key: 'exam_today', n: [37] }, { key: 'exam_errors', n: [20] }] });
     const data = containerData({ summary: base, plan, items: [item({ id: 'e1', subject_id: SUBJECT_DB })] });
     data.planInput.items = [{ id: 'e1', s: SUBJECT_DB, f: 't', tp: 1, o: 1, u: { seen: 1, wrong: 1, firstDay: '2026-10-08', lastDay: '2026-10-08', seriesAt: null, seriesDay: null, twoDaysAt: null, namedAt: null, checks: 0, peekDay: '2026-10-08', wasTwoDays: false, cleanOkAt: null } }];
     renderPage(loaded(data));
     expect(screen.getByRole('heading', { level: 2, name: 'Сегодня экзамен' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: nm('20 вопросов, где были ошибки') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors`);
-    expect(document.querySelector('.sf-primary')).toBeNull();
+    const pill = screen.getByRole('link', { name: nm('Пройтись по ошибкам: 20') });
+    expect(pill.getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors`);
+    expect(pill).toHaveClass('sf-primary');
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(screen.queryByRole('link', { name: nm('20 вопросов, где были ошибки') })).toBeNull();
+    const move = screen.getByRole('button', { name: 'Перенести экзамен' });
+    expect(move).toHaveClass('sf-link');
+    expect(move).toHaveAttribute('aria-haspopup', 'dialog');
   });
 
-  it('exam passed: the meta says so, the figure stays, «Поставить новую дату» and a quiet «Удалить экзамен»', () => {
+  it('exam today without errors: no pill, only the quiet «Перенести экзамен»', () => {
+    const base = summary({ exam_date: '2026-10-10', subjects: summary().subjects.map((s) => ({ ...s, exam_date: '2026-10-10' })) });
+    const plan = dayPlan({ state: 'exam_today', sessions: [], lines: [{ key: 'exam_today', n: [0] }] });
+    renderPage(loaded(containerData({ summary: base, plan })));
+    expect(document.querySelector('.sf-primary')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Перенести экзамен' })).toHaveClass('sf-link');
+  });
+
+  // Release 47: «Поставить новую дату» (a link to «Настройки», where a member could not change it) became the blue pill
+  // «Перенести экзамен», for the author and for a member.
+  it('exam passed: the meta says so, the figure stays, the blue pill «Перенести экзамен» and a quiet «Удалить экзамен»', () => {
     const base = summary({ exam_date: '2026-10-05', subjects: summary().subjects.map((s) => ({ ...s, exam_date: '2026-10-05' })) });
     const plan = dayPlan({ state: 'after', sessions: [], lines: [{ key: 'after', day: '2026-10-05' }] });
     renderPage(loaded(containerData({ summary: base, plan })));
     expect(page()).toContain('Экзамен прошёл 5 октября');
     expect(screen.getByRole('region', { name: 'верно в два разных дня' }).textContent).toContain('143');
-    expect(screen.getByRole('link', { name: 'Поставить новую дату' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings`);
-    expect(document.querySelector('.sf-primary')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Поставить новую дату' })).toBeNull();
+    const pill = screen.getByRole('button', { name: 'Перенести экзамен' });
+    expect(pill).toHaveClass('sf-primary');
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Удалить экзамен' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#delete`);
   });
 
@@ -436,6 +461,83 @@ describe('the states of the exam page (§3.3 table)', () => {
     expect(text).toContain('Если пропустите день, его вопросы перейдут на следующие.');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('«Перенести экзамен» on the exam page (release 47)', () => {
+  const passedSummary = (over: Parameters<typeof summary>[0] = {}) =>
+    summary({ exam_date: '2026-10-05', subjects: summary().subjects.map((s) => ({ ...s, exam_date: '2026-10-05' })), ...over });
+  const afterPlan = () => dayPlan({ state: 'after', sessions: [], lines: [{ key: 'after', day: '2026-10-05' }] });
+
+  it('the author without members moves the exam for everyone; the page reads its data again and says the new date', async () => {
+    const state = loaded(containerData({ summary: passedSummary(), plan: afterPlan() }));
+    renderPage(state);
+    const pill = screen.getByRole('button', { name: 'Перенести экзамен' });
+    pill.focus();
+    fireEvent.click(pill);
+    const dialog = screen.getByRole('dialog', { name: 'Перенести экзамен' });
+    // The first choice has the focus; no «Для кого» without members.
+    expect(document.activeElement).toBe(within(dialog).getByRole('radio', { name: /Через неделю/ }));
+    expect(within(dialog).queryByRole('group', { name: 'Для кого' })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('radio', { name: (name) => plain(name).startsWith('Через 2 недели') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Перенести' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(mocks.moveExamDate).toHaveBeenCalledWith(CONTAINER, '2026-10-24', 'all', null);
+    expect(state.reload).toHaveBeenCalledTimes(1);
+    const line = screen.getByRole('status');
+    expect(plain(line.textContent)).toBe('Экзамен перенесён на 24 октября.');
+    await waitFor(() => expect(document.activeElement).toBe(line));
+  });
+
+  it('the author with members chooses «Для всех участников» or «Только для меня»', async () => {
+    const base = passedSummary({ owner: { members: 3, doubts_open: 0, links: [] } });
+    renderPage(loaded(containerData({ summary: base, plan: afterPlan() })));
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести экзамен' }));
+    const who = screen.getByRole('group', { name: 'Для кого' });
+    expect(within(who).getByRole('radio', { name: 'Для всех участников' })).toBeChecked();
+    fireEvent.click(within(who).getByRole('radio', { name: 'Только для меня' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести' }));
+    await waitFor(() => expect(mocks.moveExamDate).toHaveBeenCalledWith(CONTAINER, '2026-10-17', 'me', null));
+  });
+
+  it('a member moves only their own date and is told the author’s stays', async () => {
+    const base = passedSummary({ role: 'member', owner: null });
+    renderPage(loaded(containerData({ summary: base, plan: afterPlan() })));
+    expect(screen.queryByRole('link', { name: 'Удалить экзамен' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести экзамен' }));
+    const dialog = screen.getByRole('dialog', { name: 'Перенести экзамен' });
+    expect(within(dialog).queryByRole('group', { name: 'Для кого' })).toBeNull();
+    expect(plain(dialog.textContent)).toContain('Это ваша дата. У автора остаётся 5 октября.');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Через месяц/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Перенести' }));
+    await waitFor(() => expect(mocks.moveExamDate).toHaveBeenCalledWith(CONTAINER, '2026-11-10', 'me', null));
+  });
+
+  it('a refusal is said in the dialog, which stays open', async () => {
+    const { ContainerApiError } = await import('../../api/containers');
+    mocks.moveExamDate.mockRejectedValueOnce(new ContainerApiError('42501', 'Это может сделать только автор экзамена.'));
+    const state = loaded(containerData({ summary: passedSummary(), plan: afterPlan() }));
+    renderPage(state);
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести экзамен' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Это может сделать только автор экзамена.');
+    expect(screen.getByRole('dialog', { name: 'Перенести экзамен' })).toBeInTheDocument();
+    expect(state.reload).not.toHaveBeenCalled();
+  });
+
+  it('on a phone the pill is in the bar at the bottom', () => {
+    renderPage(loaded(containerData({ summary: passedSummary(), plan: afterPlan() })), { phone: true });
+    const bar = document.querySelector('.ct-cta') as HTMLElement;
+    expect(within(bar).getByRole('button', { name: 'Перенести экзамен' })).toHaveClass('sf-primary');
+  });
+
+  it('on the exam’s day the quiet «Перенести экзамен» opens the same dialog', async () => {
+    const base = summary({ exam_date: '2026-10-10', subjects: summary().subjects.map((s) => ({ ...s, exam_date: '2026-10-10' })) });
+    const plan = dayPlan({ state: 'exam_today', sessions: [], lines: [{ key: 'exam_today', n: [0] }] });
+    renderPage(loaded(containerData({ summary: base, plan })));
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести экзамен' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перенести' }));
+    await waitFor(() => expect(mocks.moveExamDate).toHaveBeenCalledWith(CONTAINER, '2026-10-17', 'all', null));
   });
 });
 

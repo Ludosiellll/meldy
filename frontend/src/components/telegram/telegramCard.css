@@ -128,6 +128,19 @@
   .tg-acts { gap: 6px 18px; }
 }
 
+/* «Экзамены в плане» (release 47): a row per exam — its name and day on the left, the profile's switch (.ac-switch of
+   styles/legacy.css) on the right; hairlines between rows, as the profile's rows. */
+.tg-exams { margin-top: 10px; }
+.tg .tg-exams-h { margin: 0; font-weight: 600; color: var(--sf-ink); }
+.tg-exam-list { margin: 4px 0 0; padding: 0; list-style: none; }
+.tg-exam { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 4px 0; }
+.tg-exam + .tg-exam { border-top: 1px solid var(--sf-line); }
+.tg-exam-text { display: grid; gap: 2px; min-width: 0; }
+.tg-exam-t { font-size: 16px; line-height: 1.35; font-weight: 500; color: var(--sf-ink); overflow-wrap: anywhere; }
+.tg-exam-m { font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
+.tg .tg-switch { min-height: 44px; }
+.tg .tg-exams-off { margin-top: 6px; color: var(--sf-ink); }
+
 @media (prefers-reduced-motion: reduce) {
   .tg-panel { animation: none; }
   .tg-remind-open > span { transition: none; }
