@@ -23,9 +23,10 @@ describe('examActions: the exam’s «⋯»', () => {
 
   it('the author: no way out, «Удалить» at the delete confirm', () => {
     const actions = examActions(summary({ owner: { members: 0, doubts_open: 0, links: [] } }));
-    expect(actions.map((action) => action.key)).toEqual(['invite', 'keys', 'build', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
-    // «Конструктор» (spec 2026-10-18 §47.2) beside «Вопросы и ключи»; a member has neither.
-    expect(actions.find((action) => action.key === 'build')).toMatchObject({ label: 'Конструктор', to: `/exams/c/${CONTAINER}/build` });
+    expect(actions.map((action) => action.key)).toEqual(['invite', 'keys', 'studio', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
+    // «Студия» (spec 2026-10-18 §47.6, release 47.2) in place of «Конструктор», beside «Вопросы и ключи»; a member has neither.
+    expect(actions.find((action) => action.key === 'studio')).toMatchObject({ label: 'Студия', to: `/exams/c/${CONTAINER}/studio` });
+    expect(actions.some((action) => action.key === 'build')).toBe(false);
     expect(actions.find((action) => action.key === 'quizzes')).toMatchObject({ label: 'Контрольные', to: `/exams/c/${CONTAINER}/quizzes` });
     expect(actions.find((action) => action.key === 'delete')?.to).toBe(`${settings}#delete`);
     expect(actions.some((action) => action.label === SETTINGS.leave)).toBe(false);
@@ -38,7 +39,7 @@ describe('examActions: the exam’s «⋯»', () => {
       owner: { members: 0, doubts_open: 0, links: [] },
       subjects: [subject({ title: 'Вопросы', exam_date: null, oral: null, topic_titles: [], topics: [] })],
     });
-    expect(examActions(test).map((action) => action.key)).toEqual(['invite', 'keys', 'build', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
+    expect(examActions(test).map((action) => action.key)).toEqual(['invite', 'keys', 'studio', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
   });
 
   it('examLinks names the settings page’s sections', () => {

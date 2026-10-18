@@ -7,7 +7,7 @@ import type { HeadAction } from './PageHead';
 import * as copy from './copy';
 import { SETTINGS } from './copyImport';
 import { QUIZ } from '../quiz/copyQuiz';
-import { BUILD } from '../test/copyTest';
+import { STUDIO } from '../studio/copyStudio';
 import { firstSession, isAuthor, minutesOf, sessionHref, studyHref, subjectTitle } from './model';
 import { resumeCounts, type SavedSession } from './sessionStore';
 
@@ -44,7 +44,7 @@ export function startTarget(p: {
 
 /**
  * The exam's «⋯» (decision 44, the critique's I9): the author's «Пригласить группу», «Ключи» (always, with what waits),
- * «Конструктор» (spec 2026-10-18 §47.2: /exams/c/<id>/build), «Контрольные» (spec 2026-10-16 §2.1:
+ * «Студия» (spec 2026-10-18 §47.6: /exams/c/<id>/studio), «Контрольные» (spec 2026-10-16 §2.1:
  * /exams/c/<id>/quizzes), «Время в день», «Добавить предмет», «Настройки»,
  * «Удалить»; a member's «Время в день», «Настройки» and «Выйти из экзамена» (usability check m1: the way out was only at the bottom of «Настройки»). On a computer the same items are
  * the row of white pills under the meta, «Удалить» and «Выйти из экзамена» as quiet links. «Время в день», «Удалить»
@@ -76,10 +76,11 @@ export function examActions(summary: ContainerSummary): HeadAction[] {
   return [
     { key: 'invite', label: copy.MENU_INVITE, to: links.invite },
     { key: 'keys', label: waiting > 0 ? copy.menuKeysWaiting(waiting) : copy.MENU_KEYS, to: links.keys },
-    // «Конструктор» (spec 2026-10-18 §47.2): the questions as cards to add, copy, move and send by link. It stays after
-    // «Ключи» for a test too (release 47, M11): the summary does not tell a test from an exam — «Новый тест» makes one
-    // subject without a date, and an import without a date, topics or lectures reads the same.
-    { key: 'build', label: BUILD.label, to: `/exams/c/${summary.id}/build` },
+    // «Студия» (spec 2026-10-18 §47.6, release 47.2) in place of «Конструктор»: the test built like a site; its «Список»
+    // is the constructor's cards (the old /build address still opens them). It stays after «Ключи» for a test too
+    // (release 47, M11): the summary does not tell a test from an exam — «Новый тест» makes one subject without a date,
+    // and an import without a date, topics or lectures reads the same.
+    { key: 'studio', label: STUDIO.label, to: `/exams/c/${summary.id}/studio` },
     { key: 'quizzes', label: QUIZ.names, to: `/exams/c/${summary.id}/quizzes` },
     { key: 'minutes', label: copy.MENU_MINUTES, to: links.minutes },
     { key: 'add', label: copy.MENU_ADD_SUBJECT, to: `/exams/import?from=c:${summary.id}` },

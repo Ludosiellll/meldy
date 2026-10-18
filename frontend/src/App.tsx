@@ -65,6 +65,7 @@ const JoinContainerPage = lazy(() => import('./pages/container/JoinContainerPage
 const QuizTakePage = lazy(() => import('./pages/quiz/QuizTakePage'));
 const NewTestPage = lazy(() => import('./pages/test/NewTestPage'));
 const BuildPage = lazy(() => import('./pages/test/BuildPage'));
+const StudioPage = lazy(() => import('./pages/test/StudioPage'));
 // Meldy as a Telegram Mini App (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md): the bot opens /tg.
 const TelegramMiniApp = lazy(() => import('./pages/TelegramMiniApp'));
 const MiniAppImportNote = lazy(() => import('./components/telegram/MiniAppImportNote'));
@@ -216,6 +217,7 @@ export default function App() {
           <Route path="exams/c/:id/keys" element={<KeysPage />} />
           {/* «Конструктор» (spec 2026-10-18 §47.2): the author's questions as cards; /tests/new names a new test. */}
           <Route path="exams/c/:id/build" element={<BuildPage />} />
+          <Route path="exams/c/:id/studio" element={<StudioPage />} />
           <Route path="tests/new" element={<NewTestPage />} />
           {/* «Контрольная» (spec 2026-10-16 part 2): the author's list, settings and live results. */}
           <Route path="exams/c/:id/quizzes" element={<QuizListPage />} />

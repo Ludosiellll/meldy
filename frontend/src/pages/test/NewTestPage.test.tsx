@@ -11,7 +11,7 @@ import { RPC_ERRORS } from '../../components/containers/copyImport';
 
 function Built() {
   const { id } = useParams();
-  return <h1>{`Конструктор ${id}`}</h1>;
+  return <h1>{`Студия ${id}`}</h1>;
 }
 
 function renderPage() {
@@ -20,7 +20,7 @@ function renderPage() {
       <Routes>
         <Route path="/exams" element={<h1>Экзамены</h1>} />
         <Route path="/tests/new" element={<NewTestPage />} />
-        <Route path="/exams/c/:id/build" element={<Built />} />
+        <Route path="/exams/c/:id/studio" element={<Built />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -32,13 +32,13 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('NewTestPage: «Новый тест» (spec 2026-10-18 §47.2)', () => {
-  it('creates an exam of one subject «Вопросы» under the name and opens it in the builder', async () => {
+  it('creates an exam of one subject «Вопросы» under the name and opens it in «Студия теста» (release 47.2)', async () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1, name: 'Новый тест' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
     fireEvent.change(screen.getByLabelText(NEW_TEST.name), { target: { value: '  Химия, 9 класс  ' } });
     fireEvent.click(screen.getByRole('button', { name: NEW_TEST.create }));
-    expect(await screen.findByRole('heading', { name: 'Конструктор c-new' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Студия c-new' })).toBeInTheDocument();
     expect(api.createContainer).toHaveBeenCalledWith('Химия, 9 класс', null, [{ title: 'Вопросы' }]);
   });
 
@@ -68,6 +68,6 @@ describe('NewTestPage: «Новый тест» (spec 2026-10-18 §47.2)', () => 
     expect(button).toBeEnabled();
     fireEvent.click(button);
     await waitFor(() => expect(api.createContainer).toHaveBeenCalledTimes(2));
-    expect(await screen.findByRole('heading', { name: 'Конструктор c-new' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Студия c-new' })).toBeInTheDocument();
   });
 });

@@ -315,7 +315,7 @@ describe('the exam container (spec decision 23)', () => {
     }
     for (const path of [
       `/exams/c/${C}`, `/exams/c/${C}/`, `/exams/c/${C}/s/${S}`, `/exams/c/${C}/keys`, `/exams/c/${C}/settings`, '/exams/import',
-      '/g/abcd2fghjkmn', '/exams/c/draw', '/exams/c/ticket',
+      `/exams/c/${C}/studio`, '/g/abcd2fghjkmn', '/exams/c/draw', '/exams/c/ticket',
     ]) {
       expect(isRoomPath(path), path).toBe(false);
     }
@@ -324,14 +324,14 @@ describe('the exam container (spec decision 23)', () => {
   });
 
   it('steps the tab bar aside on every page of an exam container, the import page and the group link', () => {
-    for (const path of ['/exams/import', `/exams/c/${C}`, `/exams/c/${C}/`, '/exams/c/draw', `/exams/c/${C}/s/${S}`, `/exams/c/${C}/keys`, `/exams/c/${C}/settings`, '/g/abcd2fghjkmn']) {
+    for (const path of ['/exams/import', `/exams/c/${C}`, `/exams/c/${C}/`, '/exams/c/draw', `/exams/c/${C}/s/${S}`, `/exams/c/${C}/keys`, `/exams/c/${C}/settings`, `/exams/c/${C}/studio`, '/g/abcd2fghjkmn']) {
       expect(hidesBottomNav(path), path).toBe(true);
     }
     expect(hidesBottomNav('/exams'), '/exams').toBe(false);
   });
 
   it('leads from the pages under an exam back to it, with its title when this tab knows it', () => {
-    for (const page of [`s/${S}`, 'keys', 'settings', 'study', 'mock']) {
+    for (const page of [`s/${S}`, 'keys', 'settings', 'study', 'mock', 'studio']) {
       expect(backLinkFor(`/exams/c/${C}/${page}`), page).toEqual(toContainer('Назад'));
     }
     rememberContainerTitle(C, 'Зимняя сессия');

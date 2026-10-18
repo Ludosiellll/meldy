@@ -43,6 +43,9 @@ describe('the page fetched with the shell', () => {
     expect(signedInPageOf('/exams/c/abc/mock')).toBe('MockPage');
     expect(signedInPageOf('/exams/c/abc/keys')).toBe('KeysPage');
     expect(signedInPageOf('/exams/c/abc/settings')).toBe('SettingsPage');
+    // «Студия теста» (release 47.2) beside the constructor it replaces in the menu.
+    expect(signedInPageOf('/exams/c/abc/build')).toBe('BuildPage');
+    expect(signedInPageOf('/exams/c/abc/studio')).toBe('StudioPage');
   });
 
   it('/exams/new is a redirect to the import page: no editor', () => {

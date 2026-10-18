@@ -12,8 +12,8 @@ import '../../components/test/build.css';
 
 /**
  * /tests/new — «Новый тест» (spec 2026-10-18 §47.2): one field, the test's name, and «Создать». The test is an exam of
- * one subject «Вопросы» (container_create), opened in the builder; this page is left out of the history, so «Назад»
- * from the builder does not bring the empty form back.
+ * one subject «Вопросы» (container_create), opened in «Студия теста» (release 47.2: its empty page offers the starters);
+ * this page is left out of the history, so «Назад» from the studio does not bring the empty form back.
  */
 export default function NewTestPage() {
   const navigate = useNavigate();
@@ -37,7 +37,7 @@ export default function NewTestPage() {
     try {
       const created = await createContainer(name.slice(0, TEST_TITLE_MAX), null, [{ title: NEW_TEST.subject }]);
       rememberContainerTitle(created.container_id, name);
-      navigate(`/exams/c/${created.container_id}/build`, { replace: true });
+      navigate(`/exams/c/${created.container_id}/studio`, { replace: true });
     } catch (failure) {
       setError(errorText(failure));
       setBusy(false);
