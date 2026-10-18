@@ -3,6 +3,7 @@ import type { ContainerRole, ContainerSummary, DayKey, ExamMoveFor, ExamMoved, U
 import { containerErrorText, fetchSummary, moveExamDate } from '../../api/containers';
 import { dayText } from '../../lib/containers/words';
 import { Sheet } from './ui';
+import MoveExamTip from '../tips/MoveExamTip';
 import { addDay, dayDiff, examDates } from './model';
 import * as copy from './copy';
 import './moveExam.css';
@@ -173,6 +174,7 @@ export default function MoveExamDialog({ containerId, role, today, facts = null,
       }
     >
       <form id={formId} className="mv-form" noValidate onSubmit={(event) => void submit(event)}>
+        <MoveExamTip />
         <fieldset className="mv-set">
           <legend className="mv-legend">{copy.MOVE_WHEN}</legend>
           {QUICK.map((entry, index) => (

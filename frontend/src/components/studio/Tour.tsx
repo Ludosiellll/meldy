@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { STUDIO } from './copyStudio';
+import TourClip from '../clips/TourClip';
 
 /**
  * The first visit's tour (spec §47.6 «При первом входе — короткое знакомство в 4 шага»): the palette, editing in place,
  * «/», «Посмотреть как участник». A small card beside what it talks about; it never takes the focus and never covers
- * the field being typed in (the page works under it), «Пропустить» ends it. Seen once per user on this device.
+ * the field being typed in (the page works under it), «Пропустить» ends it. Seen once per user on this device. Its first
+ * step plays the clip «Свой тест» (components/clips): the studio's first-use tip is the tour itself.
  */
 
 const ANCHORS = ['[data-tour="palette"], [data-tour="palette-phone"]', '[data-tour="canvas"]', '[data-tour="canvas"]', '[data-tour="preview"]'];
@@ -88,6 +90,7 @@ export default function Tour({ userId, phone = false, onDone }: { userId: string
       data-side={place?.side}
       style={place ? { top: place.top, left: place.left } : { visibility: 'hidden', top: 0, left: 0 }}
     >
+      {step === 0 ? <TourClip /> : null}
       <p className="st-tour-step">{STUDIO.tourStep(step + 1, STUDIO.tour.length)}</p>
       <h2 className="st-tour-title">{card.title}</h2>
       <p className="st-tour-text">{card.text}</p>

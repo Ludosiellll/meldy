@@ -12,7 +12,9 @@
  * The exam's cheat sheet had a tip of its own until 2026-10-07: the exam page's status block now says what
  * erases the lines and the one next step, and a second card with its own «Тянуть билет» only repeated it.
  */
-export type TipId = 'talk' | 'telegram';
+export type TipId = 'talk' | 'telegram' | 'move';
+/** The tips shown as a card under their anchor (TipCard) with a clip of tips/scenes; «move» lives in its dialog. */
+export type CardTipId = Exclude<TipId, 'move'>;
 
 export interface TipDef {
   id: TipId;
@@ -30,7 +32,7 @@ export interface TipDef {
   clip?: { ratio: number; themed: boolean };
 }
 
-export const TIPS: Record<TipId, TipDef> = {
+export const TIPS: { [K in TipId]: TipDef & { id: K } } = {
   // The voice tutor (pages/LectureTalk.tsx): it asks the lecture's cards («Meldy задаст 4 вопроса по карточкам
   // этой лекции»), climbs hints (a hint, then the lecture's own words on a slip «Из лекции, фрагмент N»), and the
   // student answers by voice or in writing. The title is the button's own name, word for word.
@@ -54,7 +56,20 @@ export const TIPS: Record<TipId, TipDef> = {
     // The bot's chat as Telegram draws it: a phone's width, from the header to the input bar — a square.
     clip: { ratio: 1, themed: true },
   },
+  // «Перенести экзамен» (MoveExamDialog): the first time the dialog opens, a compact card at its top with the clip of a
+  // move (components/clips «move»: the exam's day, the dialog, «Экзамен перенесён на 25 октября.» and the plan made
+  // again). Its action is the dialog's own «Перенести» (MoveExamTip marks the tip used when the form is sent).
+  move: {
+    id: 'move',
+    title: 'План пересчитается сам',
+    text: 'После переноса Meldy заново разложит вопросы по дням до новой даты.',
+    action: 'Перенести',
+    later: 'Не сейчас',
+  },
 };
+
+/** A tip shown as a card under its anchor (TipCard). */
+export type CardTipDef = TipDef & { id: CardTipId };
 
 /** Remembered on this device as soon as the tip is dismissed or used. */
 export const TIP_KEY_PREFIX = 'meldy_tip_';

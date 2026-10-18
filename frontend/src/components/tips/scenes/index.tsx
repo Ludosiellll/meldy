@@ -11,7 +11,7 @@ import { bezier, clamp, ease, mix, seg } from '../../reel/timeline';
 import { Arrow, Statement, Wordmark, pressDepth, slideIn, slideOut } from '../../film/kit';
 import { dayText, figureLines, glue, lineText, startLabel } from '../../../lib/containers/words';
 import type { TipClipDef } from '../TipClip';
-import type { TipId } from '../tips';
+import type { CardTipId } from '../tips';
 import './scenes.css';
 
 export const CLIP = 6400;
@@ -560,8 +560,8 @@ function Telegram() {
 }
 
 /** Every tip's clip by the tip's id. Still frames (reduced motion): the talk clip's reply and the lecture's words; the
-    bot's plan for the day with its «Начать: 20 вопросов». */
-export const TIP_CLIPS: Record<TipId, TipClipDef> = {
+    bot's plan for the day with its «Начать: 20 вопросов». The move dialog's tip plays a step clip (components/clips). */
+export const TIP_CLIPS: Record<CardTipId, TipClipDef> = {
   talk: { total: CLIP, poster: 5300, Scene: Talk },
   telegram: { total: TG_TOTAL, poster: 3900, Scene: Telegram, stage: TG_STAGE, playAt: 'top' },
 };

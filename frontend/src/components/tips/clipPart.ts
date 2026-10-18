@@ -1,9 +1,9 @@
 import type { ComponentType } from 'react';
 import { lazyPart } from '../../lib/lazyPart';
-import type { TipId } from './tips';
+import type { CardTipId } from './tips';
 
 export interface TipClipForProps {
-  id: TipId;
+  id: CardTipId;
   active: boolean;
 }
 

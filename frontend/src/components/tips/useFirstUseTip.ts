@@ -56,6 +56,11 @@ interface ProfileFlags {
 export interface FirstUseTip {
   /** Show the tip now. */
   show: boolean;
+  /**
+   * The moment is here and nothing on this device says the tip was put away, but the profile is still being read: a tip
+   * that sits inside a page's flow (the move dialog's) keeps its room meanwhile, so nothing jumps when it shows.
+   */
+  pending: boolean;
   /** «Не сейчас» or Escape: the tip goes away for good. */
   dismiss: () => void;
   /** The student used the feature, from the tip or by themselves: the tip goes away for good. */
@@ -64,7 +69,8 @@ export interface FirstUseTip {
 
 /**
  * Whether a first-use tip is shown now. It is, when the caller says the moment is right (`enabled`:
- * the page is loaded and the feature is in reach) and for ~0.7 s since; the tip was not dismissed or
+ * the page is loaded and the feature is in reach) and for ~0.7 s since (`settle`: none for a tip inside a dialog that
+ * has just opened); the tip was not dismissed or
  * used on this device (localStorage `meldy_tip_<id>`) or on any other (the profile's
  * `onboarding_status.tip_<id>`, read once when the moment first comes); the guide is not open and its
  * first run is behind (the profile's `guide` or the device's own mark) — the app as a whole comes
@@ -76,7 +82,7 @@ export interface FirstUseTip {
  * shows (it stays for that visit, and the next one does not see it). Statistics: tip_shown once per
  * page visit, tip_action with `action` try or dismiss (try only when the tip was on screen).
  */
-export function useFirstUseTip(id: TipId, { enabled }: { enabled: boolean }): FirstUseTip {
+export function useFirstUseTip(id: TipId, { enabled, settle = TIP_SETTLE_MS }: { enabled: boolean; settle?: number }): FirstUseTip {
   const { user } = useAuth();
   const userId = user?.id;
   const guideOpen = Boolean(useGuide()?.open);
@@ -121,21 +127,27 @@ export function useFirstUseTip(id: TipId, { enabled }: { enabled: boolean }): Fi
       setSettled(false);
       return undefined;
     }
-    const timer = window.setTimeout(() => setSettled(true), TIP_SETTLE_MS);
+    if (settle <= 0) {
+      setSettled(true);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setSettled(true), settle);
     return () => window.clearTimeout(timer);
-  }, [moment]);
+  }, [moment, settle]);
 
   // Read at render: the guide marks this device the moment it is closed, before it re-renders the page.
   const guideSeen = Boolean(profile?.guide) || readFlag(GUIDE_SEEN_KEY);
   const due = moment && profile !== null && !profile.tip && guideSeen;
   const show = due && settled;
+  const pending = moment && profile === null && readFlag(GUIDE_SEEN_KEY);
   const showRef = useRef(show);
   showRef.current = show;
 
-  // The clip is fetched while the page settles, so the card comes with it.
+  // The clip is fetched while the page settles, so the card comes with it. The move dialog's tip plays a step clip of its
+  // own part (MoveExamTip): the cards' clips are not its.
   useEffect(() => {
-    if (due) void tipClipPart.load().catch(() => undefined);
-  }, [due]);
+    if (due && id !== 'move') void tipClipPart.load().catch(() => undefined);
+  }, [due, id]);
 
   useEffect(() => {
     if (!show || reported.current) return;
@@ -166,5 +178,5 @@ export function useFirstUseTip(id: TipId, { enabled }: { enabled: boolean }): Fi
 
   const dismiss = useCallback(() => finish('dismiss'), [finish]);
   const done = useCallback(() => finish('try'), [finish]);
-  return { show, dismiss, done };
+  return { show, pending, dismiss, done };
 }

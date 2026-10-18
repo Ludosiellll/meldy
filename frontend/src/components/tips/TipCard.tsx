@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { Link } from 'react-router-dom';
 import { useLazyPart } from '../../lib/lazyPart';
 import { tipClipPart } from './clipPart';
-import type { TipDef } from './tips';
+import type { CardTipDef } from './tips';
 import './tips.css';
 
 /** Phones: the card is a sheet at the bottom of the screen (finding LIB-4: hung under the pill it covered seven of
@@ -42,7 +42,7 @@ function viewportWidth(): number {
 }
 
 interface TipCardProps {
-  tip: TipDef;
+  tip: CardTipDef;
   /** What the tip points at: the card hangs under it, and it gets a ring while the card is shown. */
   anchor: RefObject<HTMLElement>;
   /**

@@ -104,7 +104,8 @@ describe('the Telegram tip’s clip', () => {
   const scaleOf = (el: HTMLElement) => Number(/scale\(([\d.]+)\)/.exec(el.style.transform)?.[1] ?? '1');
 
   it('is the tip’s own: a phone-wide chat on a square stage, as the tip’s frame says, following the site’s theme', () => {
-    expect(Object.keys(TIP_CLIPS).sort()).toEqual(Object.keys(TIPS).sort());
+    // Every card tip has its clip here; the move dialog's tip plays a step clip (components/clips «move»).
+    expect(Object.keys(TIP_CLIPS).sort()).toEqual(Object.keys(TIPS).filter((id) => id !== 'move').sort());
     const clip = TIP_CLIPS.telegram;
     expect(clip.total).toBe(TG_TOTAL);
     expect(clip.stage).toEqual(TG_STAGE);
