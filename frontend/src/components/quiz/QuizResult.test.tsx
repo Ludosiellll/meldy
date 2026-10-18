@@ -3,8 +3,8 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { QuizResult, QuizResultItem } from '../../types/quiz';
 
-const api = vi.hoisted(() => ({ pictureUrl: vi.fn(), joinPractice: vi.fn() }));
-vi.mock('../../api/itemPictures', () => ({ pictureUrl: api.pictureUrl, pictureDataUrl: () => null }));
+const api = vi.hoisted(() => ({ pictureUrl: vi.fn(), guestPictureUrl: vi.fn(), joinPractice: vi.fn() }));
+vi.mock('../../api/itemPictures', () => ({ pictureUrl: api.pictureUrl, guestPictureUrl: api.guestPictureUrl, pictureDataUrl: () => null }));
 vi.mock('../../api/quizzes', () => ({ joinPractice: api.joinPractice }));
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn(), storage: { from: vi.fn() } } }));
 
@@ -58,7 +58,7 @@ function Where() {
   return <p>Другая страница</p>;
 }
 
-function renderResult(value: QuizResult, guest = false) {
+function renderResult(value: QuizResult, guest = false, token: string | null = null) {
   return render(
     <MemoryRouter initialEntries={['/k/abcd2fghjkmn']}>
       <Routes>
@@ -66,7 +66,7 @@ function renderResult(value: QuizResult, guest = false) {
           path="/k/:code"
           element={
             <div className="ct-roomshell">
-              <QuizResultView result={value} guest={guest} onRetry={onRetry} onClose={onClose} />
+              <QuizResultView result={value} guest={guest} token={token} onRetry={onRetry} onClose={onClose} />
             </div>
           }
         />
@@ -81,6 +81,7 @@ beforeEach(() => {
   onClose = vi.fn<() => void>();
   where = '';
   api.pictureUrl.mockReset().mockResolvedValue('blob:picture');
+  api.guestPictureUrl.mockReset().mockResolvedValue('blob:guest-picture');
   api.joinPractice.mockReset().mockResolvedValue({ container_id: 'cont-1' });
 });
 afterEach(() => cleanup());
@@ -186,6 +187,18 @@ describe('QuizResult: the review', () => {
     await waitFor(() => expect(document.querySelectorAll('.ct-pic img').length).toBe(2));
     expect(api.pictureUrl).toHaveBeenCalledWith('c1/stem.png');
     expect(api.pictureUrl).toHaveBeenCalledWith('c1/red.png');
+    expect(api.guestPictureUrl).not.toHaveBeenCalled();
+  });
+
+  it('a guest’s pictures come through quiz-media with the attempt and the device’s token (release 47)', async () => {
+    const token = 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE';
+    const items: QuizResultItem[] = [{ ...ITEMS[1], images: { stem: ['c1/stem.png'], options: [[], [], ['c1/red.png']] } }];
+    renderResult(result({ review_now: 'mistakes', items }), true, token);
+    await waitFor(() => expect(document.querySelectorAll('.ct-pic img').length).toBe(2));
+    expect(api.guestPictureUrl).toHaveBeenCalledWith('c1/stem.png', 'att-1', token);
+    expect(api.guestPictureUrl).toHaveBeenCalledWith('c1/red.png', 'att-1', token);
+    expect(api.pictureUrl).not.toHaveBeenCalled();
+    expect(Array.from(document.querySelectorAll('.ct-pic img'), (img) => img.getAttribute('src'))).toEqual(['blob:guest-picture', 'blob:guest-picture']);
   });
 });
 

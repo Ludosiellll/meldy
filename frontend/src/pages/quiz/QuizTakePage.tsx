@@ -250,7 +250,7 @@ export default function QuizTakePage() {
   if (stage.kind === 'result') {
     return (
       <div className="ct-roomshell qt-accent" data-accent={accentOf(stage.result.accent ?? value?.accent)}>
-        <QuizResultView result={stage.result} guest={stage.token !== null} onRetry={() => toStart()} onClose={() => toStart()} />
+        <QuizResultView result={stage.result} guest={stage.token !== null} token={stage.token} onRetry={() => toStart()} onClose={() => toStart()} />
       </div>
     );
   }

@@ -126,6 +126,47 @@ def test_the_mini_apps_sign_in_passes_as_post_only_with_the_users_headers(proxy)
     assert len(proxy.seen) == 1
 
 
+def test_a_guests_quiz_picture_passes_as_post_and_options_only(proxy, monkeypatch):
+    picture = b"\x89PNG\r\n\x1a\n\x00\x01"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        proxy.seen.append(request)
+        return httpx.Response(200, content=picture, headers={
+            "Content-Type": "image/png", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox", "Access-Control-Allow-Origin": "https://evil.example",
+            "Set-Cookie": "x=1",
+        })
+
+    monkeypatch.setattr(supabase_proxy, "_transport", httpx.MockTransport(handler))
+    body = {"attempt_id": "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e", "token": "t" * 43, "path": "c/" + "a" * 64 + ".png"}
+    response = proxy.post("/sb/functions/v1/quiz-media?forceFunctionRegion=eu-central-1", json=body,
+                          headers={"apikey": "anon", "Authorization": "Bearer anon", "Origin": "https://evil.example",
+                                   "Cookie": "secret=1"})
+    assert response.status_code == 200 and response.content == picture
+    sent = proxy.seen[-1]
+    assert str(sent.url) == f"{UPSTREAM}/functions/v1/quiz-media?forceFunctionRegion=eu-central-1"
+    assert sent.method == "POST" and b'"attempt_id"' in sent.content
+    assert sent.headers["authorization"] == "Bearer anon" and sent.headers["apikey"] == "anon"
+    assert "origin" not in sent.headers and "cookie" not in sent.headers
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "private, max-age=3600"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["content-security-policy"] == "default-src 'none'; sandbox"
+    assert "set-cookie" not in response.headers and "access-control-allow-origin" not in response.headers
+
+    # OPTIONS passes for this path (a plain one: the CORS middleware answers a browser's preflight itself).
+    assert proxy.options("/sb/functions/v1/quiz-media").status_code == 200
+    assert proxy.seen[-1].method == "OPTIONS" and len(proxy.seen) == 2
+    # Nothing else of the function, and OPTIONS nowhere else.
+    for method, path in (("get", "/sb/functions/v1/quiz-media"), ("put", "/sb/functions/v1/quiz-media"),
+                         ("delete", "/sb/functions/v1/quiz-media"), ("post", "/sb/functions/v1/quiz-media/x"),
+                         ("post", "/sb/functions/v1/quiz-media/../telegram/setup"), ("post", "/sb/functions/v1/quiz"),
+                         ("options", "/sb/rest/v1/materials"), ("options", "/sb/storage/v1/object/test-item-images/x"),
+                         ("options", "/sb/functions/v1/telegram/webapp/session")):
+        assert getattr(proxy, method)(path).status_code == 404, (method, path)
+    assert len(proxy.seen) == 2
+
+
 def test_an_unreachable_supabase_is_a_plain_russian_502(proxy, capsys):
     proxy.replies["fail"] = True
     response = proxy.get("/sb/rest/v1/materials?select=id", headers={"apikey": "anon"})

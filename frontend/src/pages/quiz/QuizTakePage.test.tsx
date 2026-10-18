@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   claimGuestAttempts: vi.fn(),
   joinPractice: vi.fn(),
   track: vi.fn(),
+  pictureUrl: vi.fn(),
+  guestPictureUrl: vi.fn(),
   auth: { user: null as null | { id: string }, loading: false },
 }));
 vi.mock('../../api/quizzes', () => ({
@@ -26,6 +28,8 @@ vi.mock('../../api/quizzes', () => ({
 vi.mock('../../api/itemPictures', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/itemPictures')>()),
   coverUrl: (path: string) => `https://covers.test/${path}`,
+  pictureUrl: api.pictureUrl,
+  guestPictureUrl: api.guestPictureUrl,
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: api.auth.user, loading: api.auth.loading, requestSession: vi.fn() }) }));
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn(), auth: { signInWithOAuth: vi.fn() }, storage: { from: vi.fn() } } }));
@@ -164,6 +168,8 @@ beforeEach(() => {
   api.claimGuestAttempts.mockReset().mockResolvedValue({ claimed: 0 });
   api.joinPractice.mockReset().mockResolvedValue({ container_id: 'cont-1' });
   api.track.mockReset();
+  api.pictureUrl.mockReset().mockResolvedValue('blob:signed-in');
+  api.guestPictureUrl.mockReset().mockResolvedValue('blob:guest');
 });
 
 afterEach(() => {
@@ -465,6 +471,42 @@ describe('/k/<код> without an account (release 47, spec §47.1)', () => {
     expect(await screen.findByRole('link', { name: 'Войти, чтобы начать' })).toHaveAttribute('href', BACK_HERE);
     expect(screen.getByRole('alert')).toHaveTextContent(QUIZ_ERRORS.MC017_guests);
     expect(screen.queryByLabelText('Ваше имя для автора')).toBeNull();
+  });
+});
+
+describe('/k/<код>: the pictures of a result (release 47)', () => {
+  const PIC = `11111111-2222-4333-8444-555555555555/${'c'.repeat(64)}.png`;
+  const pictured: QuizResult = {
+    ...RESULT,
+    attempt_id: 'att-0',
+    review_now: 'mistakes',
+    correct: 0,
+    total: 1,
+    percent: 0,
+    finish_reason: 'sent',
+    items: [{ id: 'i2', kind: 'single', stem: 'Какой цвет у неба?', options: ['Зелёный', 'Синий'], code: false, keep_order: false, images: { stem: [PIC], options: [] }, chosen: [0], text: null, right: false, key: null, forms: null }],
+  };
+  const PAST = [{ attempt_id: 'att-0', n: 1, finished_at: '2026-10-15T12:00:00.000Z', correct: 0, total: 1 }];
+
+  it('a guest’s result: through quiz-media with that attempt and the device’s token', async () => {
+    const token = ensureGuestToken(CODE);
+    api.previewQuiz.mockResolvedValue({ ...GUEST_PREVIEW, me: { ...GUEST_ME, attempts_used: 1, results: PAST } });
+    api.quizResult.mockResolvedValue(pictured);
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Посмотреть попытку 1' }));
+    await waitFor(() => expect(document.querySelector('.ct-pic img')).toHaveAttribute('src', 'blob:guest'));
+    expect(api.guestPictureUrl).toHaveBeenCalledWith(PIC, 'att-0', token);
+    expect(api.pictureUrl).not.toHaveBeenCalled();
+  });
+
+  it('signed in: from the bucket, no token', async () => {
+    signedIn({ attempts_used: 1, results: PAST });
+    api.quizResult.mockResolvedValue(pictured);
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Посмотреть попытку 1' }));
+    await waitFor(() => expect(document.querySelector('.ct-pic img')).toHaveAttribute('src', 'blob:signed-in'));
+    expect(api.pictureUrl).toHaveBeenCalledWith(PIC);
+    expect(api.guestPictureUrl).not.toHaveBeenCalled();
   });
 });
 

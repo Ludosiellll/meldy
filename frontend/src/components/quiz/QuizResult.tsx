@@ -7,7 +7,7 @@ import { joinPractice } from '../../api/quizzes';
 import { dateTimeText, percentOf, quizOrder } from '../../lib/quizzes/quizModel';
 import { withReturn } from '../../lib/returnTo';
 import { CodeBlock } from '../containers/QuestionCard';
-import ItemPictures, { storedPictures } from '../containers/ItemPictures';
+import ItemPictures, { AttemptPictures, storedPictures } from '../containers/ItemPictures';
 import { RoomBar } from '../containers/RoomParts';
 import { OPTION_LETTERS } from '../containers/copy';
 import { stemParts } from '../containers/stemCode';
@@ -23,7 +23,8 @@ import './quizTake.css';
  * rest of the attempt). The server lists every counted question in the attempt's order with `right`, so a question
  * keeps its number. Before the quiz closes, «mistakes then answers» says when the right answers open. The options stand
  * in the attempt's order with the attempt's letters (quizOrder from the attempt id, shuffle_options and keep_order), so
- * «я выбрал В» reads the same here. Pictures come from the private bucket (storage paths, ItemPictures).
+ * «я выбрал В» reads the same here. Pictures come from the private bucket (storage paths, ItemPictures); a guest's
+ * through the quiz-media function with the device's token (AttemptPictures).
  *
  * Release 47 (spec 2026-10-18 §47.3, §47.5): the author's explanation under a question when the server sends one (only
  * with the right answers); and when the author offers it, «Тренироваться дальше» — a signed-in taker joins the exam
@@ -163,9 +164,11 @@ export interface QuizResultProps {
   onClose: () => void;
   /** Written without an account (release 47): «тренироваться» goes through making one. */
   guest?: boolean;
+  /** The device's token of a guest's attempt (lib/quizzes/guestToken.ts): the pictures are read with it; null — signed in. */
+  token?: string | null;
 }
 
-export default function QuizResultView({ result, onRetry, onClose, guest = false }: QuizResultProps) {
+export default function QuizResultView({ result, onRetry, onClose, guest = false, token = null }: QuizResultProps) {
   const wide = useWide();
   const headRef = useRef<HTMLHeadingElement | null>(null);
   const reviewId = useId();
@@ -193,7 +196,7 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
   const reason = result.finish_reason === 'time' ? RESULT.byTime : result.finish_reason === 'closed' ? RESULT.byClose : null;
 
   return (
-    <>
+    <AttemptPictures attemptId={result.attempt_id} token={token}>
       <RoomBar long={RESULT.barLong} short={RESULT.barShort} exitLabel={RESULT.close} onExit={onClose} />
       <main className="sf-page ct-study ct-end qt-result">
         <p className="ct-end-small">{RESULT.attemptLine(result.n, finished)}</p>
@@ -245,6 +248,6 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
           </div>
         ) : null}
       </main>
-    </>
+    </AttemptPictures>
   );
 }

@@ -2,9 +2,11 @@
  * Pictures of test questions (owner, 2026-10-14: «а если вопрос является картинкой, что делать?»). The importer returns
  * a DOCX's pictures as base64 under their sha256 (BankParseResult.pictures); the import page puts each into the private
  * bucket test-item-images at «<container id>/<sha256>.<ext>» before it saves the items, and the study pages read them
- * back through the owner's or a member's session (storage policies of 20261014120000_test_item_images.sql).
+ * back through the owner's or a member's session (storage policies of 20261014120000_test_item_images.sql). A quiz
+ * taker without an account (release 47) reads the pictures of their attempt through the `quiz-media` function instead
+ * (guestPictureUrl).
  */
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAnonKey, supabaseFetch, supabaseUrl } from '../lib/supabase';
 import type { BankPicture } from '../types/container';
 
 export const PICTURE_BUCKET = 'test-item-images';
@@ -72,26 +74,57 @@ export function coverUrl(path: string): string {
   return supabase.storage.from(COVER_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+/** Object URLs by storage path: a path names one picture (its sha256), however it was read. */
 const shown = new Map<string, Promise<string>>();
+
+/** The path's object URL, read by `read` once per page load; a failed read is forgotten, so the next showing tries again. */
+function cached(path: string, read: () => Promise<Blob>): Promise<string> {
+  let url = shown.get(path);
+  if (!url) {
+    url = read().then((blob) => URL.createObjectURL(blob));
+    url.catch(() => shown.delete(path));
+    shown.set(path, url);
+  }
+  return url;
+}
 
 /**
  * An object URL of a saved picture, read once per page load (a question comes back many times in a session). A failed
  * read is forgotten, so the next showing tries again.
  */
 export function pictureUrl(path: string): Promise<string> {
-  let url = shown.get(path);
-  if (!url) {
-    url = supabase.storage
-      .from(PICTURE_BUCKET)
-      .download(path)
-      .then(({ data, error }) => {
-        if (error || !data) throw error ?? new Error('no picture');
-        return URL.createObjectURL(data);
-      });
-    url.catch(() => shown.delete(path));
-    shown.set(path, url);
-  }
-  return url;
+  return cached(path, async () => {
+    const { data, error } = await supabase.storage.from(PICTURE_BUCKET).download(path);
+    if (error || !data) throw error ?? new Error('no picture');
+    return data;
+  });
+}
+
+/** The Edge Function that reads a guest's pictures (supabase/functions/_shared/quizMedia.ts). */
+export const GUEST_PICTURE_FUNCTION = 'quiz-media';
+/** Its region (lib/telegram/fileTicket.ts FUNCTION_REGION): Frankfurt, near the database. */
+export const GUEST_PICTURE_REGION = 'eu-central-1';
+
+/**
+ * A picture of a quiz attempt written without an account (release 47): a guest has no session, and the bucket has no
+ * policy for anon, so the `quiz-media` function reads it with the service key after the database checked that the
+ * device's token is the attempt's and the picture is one of its questions. The call goes through the client's fetch
+ * (lib/supabase supabaseFetch: direct or the site's /sb/, as lib/supabaseRoute chose) with the public anon key as
+ * supabase-js sends it. Cached by path as pictureUrl; a failed read is forgotten.
+ */
+export function guestPictureUrl(path: string, attemptId: string, token: string): Promise<string> {
+  return cached(path, async () => {
+    const base = supabaseUrl.replace(/\/+$/, '');
+    const response = await supabaseFetch(`${base}/functions/v1/${GUEST_PICTURE_FUNCTION}?forceFunctionRegion=${GUEST_PICTURE_REGION}`, {
+      method: 'POST',
+      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attempt_id: attemptId, token, path }),
+    });
+    if (!response.ok) throw new Error(`picture ${response.status}`);
+    const type = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+    if (!type.startsWith('image/')) throw new Error('not a picture');
+    return response.blob();
+  });
 }
 
 // ── a picture the author adds by hand (the question editor: a file or Ctrl+V) ──

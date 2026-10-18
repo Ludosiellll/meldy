@@ -4,6 +4,7 @@ import type { QuizAccent, QuizAnswerInput, QuizAttempt, QuizAttemptItem, QuizRes
 import { finishQuiz, quizResult, sendAnswers } from '../../api/quizzes';
 import { clockOffset, clockText, quizOrder, secondsLeft } from '../../lib/quizzes/quizModel';
 import { track } from '../../lib/telemetry';
+import { AttemptPictures } from '../containers/ItemPictures';
 import QuestionCard from '../containers/QuestionCard';
 import { RoomBar } from '../containers/RoomParts';
 import { Sheet } from '../containers/ui';
@@ -24,8 +25,9 @@ import './quizTake.css';
  * the server's answers; the unsent ones of this device are put back over them and sent.
  *
  * Release 47 (spec 2026-10-18 §47.1, §47.4): a taker without an account passes the device's token, and every call of
- * the attempt goes with it (quiz_guest_answer / _finish / _result); with a timer a thin strip at the top edge shrinks
- * to the deadline in the quiz's colour (the clock in the top line says the same in words).
+ * the attempt goes with it (quiz_guest_answer / _finish / _result), and its question pictures come through the
+ * quiz-media function with that token (AttemptPictures); with a timer a thin strip at the top edge shrinks to the
+ * deadline in the quiz's colour (the clock in the top line says the same in words).
  */
 
 export type QuizAnswer = MockAnswer;
@@ -484,7 +486,7 @@ export default function QuizRun({ attempt, token, accent = 'blue', onResult, onL
   const statusText = status === 'saved' ? RUN.saved : status === 'offline' ? RUN.offline : status === 'failing' ? RUN.failing : '';
 
   return (
-    <>
+    <AttemptPictures attemptId={id} token={token}>
       {share !== null ? (
         <div className="qt-time" aria-hidden="true">
           <span className="qt-time-left" style={{ transform: `scaleX(${share})` }} />
@@ -595,6 +597,6 @@ export default function QuizRun({ attempt, token, accent = 'blue', onResult, onL
           <p className="ct-finish-line">{RUN.finishLine(answeredCount, total, missing)}</p>
         </Sheet>
       ) : null}
-    </>
+    </AttemptPictures>
   );
 }

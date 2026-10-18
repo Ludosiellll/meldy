@@ -11,3 +11,8 @@ verify_jwt = false
 # The token check of the owner's first bot step: called with the app's public key.
 [functions.tg-health]
 verify_jwt = true
+
+# A question picture of a guest's quiz attempt (release 47, supabase/functions/_shared/quizMedia.ts): the site calls it
+# with the app's public key; the device's token of the attempt is checked by quiz_guest_media_paths.
+[functions.quiz-media]
+verify_jwt = true

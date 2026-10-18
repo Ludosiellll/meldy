@@ -11,6 +11,12 @@ const api = vi.hoisted(() => ({
 vi.mock('../../api/quizzes', () => ({ sendAnswers: api.sendAnswers, finishQuiz: api.finishQuiz, quizResult: api.quizResult }));
 vi.mock('../../lib/telemetry', () => ({ track: api.track }));
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn(), storage: { from: vi.fn() } } }));
+const pictures = vi.hoisted(() => ({ pictureUrl: vi.fn(), guestPictureUrl: vi.fn() }));
+vi.mock('../../api/itemPictures', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/itemPictures')>()),
+  pictureUrl: pictures.pictureUrl,
+  guestPictureUrl: pictures.guestPictureUrl,
+}));
 
 import QuizRun, { RETRY_MS, SEND_DELAY_MS, storeKey } from './QuizRun';
 import { ContainerApiError } from '../../api/containers';
@@ -95,6 +101,8 @@ beforeEach(() => {
   api.finishQuiz.mockReset().mockResolvedValue({ ...RESULT, finish_reason: 'sent' });
   api.quizResult.mockReset().mockResolvedValue(RESULT);
   api.track.mockReset();
+  pictures.pictureUrl.mockReset().mockResolvedValue('blob:signed-in');
+  pictures.guestPictureUrl.mockReset().mockResolvedValue('blob:guest');
 });
 
 afterEach(() => {
@@ -445,5 +453,41 @@ describe('QuizRun: the time strip and the quiz colour (release 47)', () => {
     renderRun();
     fireEvent.click(screen.getByRole('button', { name: 'Завершить' }));
     expect(screen.getByRole('dialog')).toHaveClass('qt-accent-blue');
+  });
+});
+
+describe('QuizRun: the question pictures (release 47)', () => {
+  const C = '11111111-2222-4333-8444-555555555555';
+  const STEM = `${C}/${'a'.repeat(64)}.png`;
+  const OPTION = `${C}/${'b'.repeat(64)}.jpg`;
+  const pictured = () => attempt({ items: [{ ...ITEMS[0], images: { stem: [STEM], options: [[OPTION], [], [], []] } }, ...ITEMS.slice(1)] });
+  const shown = () => Array.from(document.querySelectorAll('.ct-pic img'), (img) => img.getAttribute('src'));
+
+  it('a guest: through quiz-media with the attempt and the device token', async () => {
+    renderRun(pictured(), TOKEN);
+    await advance(0);
+    expect(pictures.guestPictureUrl).toHaveBeenCalledWith(STEM, 'att-1', TOKEN);
+    expect(pictures.guestPictureUrl).toHaveBeenCalledWith(OPTION, 'att-1', TOKEN);
+    expect(pictures.pictureUrl).not.toHaveBeenCalled();
+    expect(shown()).toEqual(['blob:guest', 'blob:guest']);
+  });
+
+  it('signed in: from the private bucket as before', async () => {
+    renderRun(pictured());
+    await advance(0);
+    expect(pictures.pictureUrl).toHaveBeenCalledWith(STEM);
+    expect(pictures.pictureUrl).toHaveBeenCalledWith(OPTION);
+    expect(pictures.guestPictureUrl).not.toHaveBeenCalled();
+    expect(shown()).toEqual(['blob:signed-in', 'blob:signed-in']);
+  });
+
+  it('the clock ticking does not ask for the pictures again', async () => {
+    renderRun(pictured(), TOKEN);
+    await advance(0);
+    const asked = pictures.guestPictureUrl.mock.calls.length;
+    expect(asked).toBe(2);
+    await advance(3000);
+    expect(bar()).toBe('Контрольная · 1 из 3 · 29:57');
+    expect(pictures.guestPictureUrl).toHaveBeenCalledTimes(asked);
   });
 });

@@ -5,7 +5,9 @@
 rest/v1 и storage/v1 одного проекта и два пути функции telegram: GET functions/v1/telegram/file
 (файл, пересланный боту, по одноразовому токену: frontend/src/lib/telegram/fileTicket.ts) и POST
 functions/v1/telegram/webapp/session (вход в мини-приложении Telegram: frontend/src/api/telegramMiniApp.ts;
-привязки Telegram там нет); заголовки запроса и ответа — по списку, тело — как есть.
+привязки Telegram там нет), а также POST functions/v1/quiz-media (картинка вопроса в попытке гостя «Контрольной»
+по токену устройства: frontend/src/api/itemPictures.ts guestPictureUrl); заголовки запроса и ответа — по списку,
+тело — как есть.
 Права те же, что при прямом запросе: anon-ключ и токен пользователя из его же заголовков, RLS
 решает в базе. Ключи, токены и тела в журнал не пишутся.
 
@@ -42,7 +44,13 @@ FILE_METHODS = ("GET", "HEAD")
 # sign-in, and the link of an account signed in inside Telegram. The function checks the signature itself.
 WEBAPP_PATHS = ("functions/v1/telegram/webapp/session",)
 WEBAPP_METHODS = ("POST",)
-METHODS = ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"]
+# A question picture of a guest's quiz attempt (release 47, supabase/functions/_shared/quizMedia.ts): POST
+# {attempt_id, token, path} → the picture's bytes; the function checks the device's token in the database. OPTIONS
+# passes for this path only (every other path refuses it); the site's page never needs it here (/sb/ is its own origin,
+# and a browser's preflight is answered by the CORS middleware before any route).
+QUIZ_MEDIA_PATHS = ("functions/v1/quiz-media",)
+QUIZ_MEDIA_METHODS = ("POST", "OPTIONS")
+METHODS = ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"]
 REQUEST_HEADERS = (
     "accept",
     "accept-profile",
@@ -73,6 +81,7 @@ FILE_RESPONSE_HEADERS = RESPONSE_HEADERS + (
     "x-content-type-options",
 )
 WEBAPP_RESPONSE_HEADERS = RESPONSE_HEADERS + ("cache-control", "x-content-type-options")
+QUIZ_MEDIA_RESPONSE_HEADERS = RESPONSE_HEADERS + ("cache-control", "content-security-policy", "x-content-type-options")
 TIMEOUT_SECONDS = 30.0
 UNREACHABLE_DETAIL = "Сервер Meldy не смог связаться с базой данных. Повторите попытку через минуту."
 
@@ -102,7 +111,10 @@ def _raw_target(request: Request) -> Optional[str]:
     decoded = unquote(rest)
     is_file = decoded == FILE_PATH and request.method in FILE_METHODS
     is_webapp = decoded in WEBAPP_PATHS and request.method in WEBAPP_METHODS
-    if not (decoded.startswith(ALLOWED_PREFIXES) or is_file or is_webapp) or ".." in decoded.split("/") or "\\" in decoded:
+    is_quiz_media = decoded in QUIZ_MEDIA_PATHS and request.method in QUIZ_MEDIA_METHODS
+    if request.method == "OPTIONS" and not is_quiz_media:
+        return None
+    if not (decoded.startswith(ALLOWED_PREFIXES) or is_file or is_webapp or is_quiz_media) or ".." in decoded.split("/") or "\\" in decoded:
         return None
     query = request.url.query
     return f"{rest}?{query}" if query else rest
@@ -137,6 +149,13 @@ async def supabase_passthrough(request: Request, path: str) -> Response:
         print(f"Supabase passthrough failed: {type(exc).__name__}")
         return JSONResponse({"message": UNREACHABLE_DETAIL}, status_code=502)
     path_only = target.split("?", 1)[0]
-    allowed = FILE_RESPONSE_HEADERS if path_only == FILE_PATH else WEBAPP_RESPONSE_HEADERS if path_only in WEBAPP_PATHS else RESPONSE_HEADERS
+    if path_only == FILE_PATH:
+        allowed = FILE_RESPONSE_HEADERS
+    elif path_only in WEBAPP_PATHS:
+        allowed = WEBAPP_RESPONSE_HEADERS
+    elif path_only in QUIZ_MEDIA_PATHS:
+        allowed = QUIZ_MEDIA_RESPONSE_HEADERS
+    else:
+        allowed = RESPONSE_HEADERS
     kept = {name: value for name, value in answer.headers.items() if name.lower() in allowed}
     return Response(content=answer.content, status_code=answer.status_code, headers=kept)
