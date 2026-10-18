@@ -4,6 +4,30 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-18 — Release 47.2: «Студия теста», a test's own page, actions in place (from the commit of this entry)
+
+- **The owner, 18.10:** «как будто ты сайт создаёшь… перетаскивать, расставлять как захочешь + подсказки»; then, on the
+  release 47 test page: «не слишком ли перегружен… Почему конструктор не по центру… кнопки перекидывают в настройки…
+  нужно чтобы они сразу давали возможность сделать то, чего ты хочешь».
+- **«Студия теста»** (`/exams/c/:id/studio`): a test as a page of blocks — cover, heading, text, picture, note, divider,
+  new page, questions — dragged from the palette or added with «+», moved by mouse or keyboard, edited in place; three
+  views «Холст / Список / Текст» (the whole test as text and back); «Оформление»: six colours or your own (nudged for
+  readability), background, font, corners, density, answers as a list or tiles, four ready themes and six covers;
+  «Результат»: up to six bands by percent with a picture and a «Ссылка дальше»; «Проверка теста» with one-press fixes;
+  «Посмотреть как участник»; points and «обязательный» per question; undo/redo; autosave with a guard for two tabs; a
+  first-visit tour and four templates. Database `20261019100000_test_docs` (applied 18.10 before this release).
+- **The participant sees the page:** a quiz sent from the studio («как в студии») shows the studio's cover and theme on
+  the start, the run (one by one with notes above questions, one page, or pages with «Дальше») and the result (the band,
+  «9 баллов из 12 · 75 %», the link); required questions are checked before «Завершить»; the author's table and CSV
+  count points.
+- **A test is its own kind** (`20261019090000_container_kind`, applied 18.10): its page has «Открыть студию», «Отправить
+  по ссылке», its контрольные and «Ещё» — no study plan; the author's own tests stay out of «Сегодня» and the Telegram
+  plan; «Это тест / Это экзамен» in settings.
+- **Actions in place:** «Удалить», «Время в день», «Пригласить группу» (with «Показать QR») open right on the exam page
+  instead of sending to «Настройки»; at most three buttons plus «Ещё» on a computer, as on a phone. The constructor list
+  is centred.
+- Gate on 17fde9d: pytest 2069, bot 359, sync ok, Vitest 322 files / 5813 tests, Docker-layout build ok.
+
 ## 2026-10-18 — Release 47.1: the release 47 live check's findings (from the commit of this entry)
 
 - **Phone:** the quiz setup's «Отмена / Создать» (and «Сохранить», «Новая контрольная») sit above the bottom tab bar, not
