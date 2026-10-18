@@ -322,6 +322,128 @@ test('«Другой экзамен»: the keyboard becomes the list; an exam fr
   assert.match(words(h.tg.of('editMessageText').at(-1)!.params.text).split('\n')[1], /^Зимняя сессия · 12 января/);
 });
 
+// ── release 47: «Экзамены» and «Перенести экзамен» ─────────────────────────────────────────────────────────────────────
+const WINTER = { id: 'a1b2c3d4-0000-4000-8000-000000000002', title: 'Зимняя сессия', date: '2026-12-20', started: 10 };
+const AUTUMN30 = { id: CID, title: 'Осенняя сессия', date: '2026-11-03', started: 30 };
+const lastEdit = (h: ReturnType<typeof harness>) => h.tg.of('editMessageText').at(-1)!.params;
+const rowsOf = (params: { reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data?: string }>> } }) =>
+  params.reply_markup.inline_keyboard.map((r) => r.map((b) => [b.text, b.callback_data]));
+
+test('«Экзамены» from S1: the list, a press takes an exam out of the plan, «‹ Назад» is S1; the card then leaves it out', async () => {
+  const h = harness();
+  h.linked([AUTUMN30, WINTER]);
+  h.tg.seed(TG, 777, 'S1');
+  await h.post(privateText('/today'));
+  assert.ok(words(lastSent(h).text).includes('Ещё сегодня: «Зимняя сессия»'), 'both exams in the plan');
+  await h.post(press('xl|s'));
+  assert.equal(words(lastEdit(h).text), 'Какие экзамены присылать\nОтметьте экзамены, по которым приходит план на день. Можно несколько.');
+  assert.deepEqual(rowsOf(lastEdit(h)), [
+    [['✓ Осенняя сессия', `xr|${CID}|0|s`]], [['✓ Зимняя сессия', `xr|${WINTER.id}|0|s`]], [['‹ Назад', 'st|back']],
+  ]);
+  await h.post(press(`xr|${WINTER.id}|0|s`));
+  assert.deepEqual(h.fdb.of('bot_exam_remind').map((c) => c.args), [{ tgUserId: TG, containerId: WINTER.id, on: false }]);
+  assert.deepEqual(rowsOf(lastEdit(h))[1], [['— Зимняя сессия', `xr|${WINTER.id}|1|s`]]);
+  await h.post(press('st|back'));
+  assert.equal(words(lastEdit(h).text), `${W.SETTINGS_TITLE}\nПлан на день — в 20:00 по Минску.\nЭкзамен — «Осенняя сессия», 3 ноября.`);
+  assert.deepEqual(rowsOf(lastEdit(h)).map((r) => r.map((b) => b[1])), [['st|time', 'st|pause'], ['xl|s'], ['st|off']]);
+  await h.post(privateText('/today'));
+  assert.ok(!words(lastSent(h).text).includes('Зимняя сессия'), 'out of the plan: not on the card');
+  // both out: /today says so; the tick sends nothing
+  await h.post(press(`xr|${CID}|0|s`));
+  await h.post(privateText('/today'));
+  assert.equal(words(lastSent(h).text), W.NO_EXAM_CHOSEN);
+  assert.deepEqual(lastSent(h).reply_markup.inline_keyboard[0][0].callback_data, 'xl|c');
+});
+
+test('«Экзамены» from the card: «‹ Назад» (xc) draws the day card again; a press on an exam that is gone says so', async () => {
+  const h = harness();
+  h.linked([AUTUMN30, WINTER]);
+  h.tg.seed(TG, 777, 'K1');
+  await h.post(press('xl|c'));
+  assert.equal(rowsOf(lastEdit(h)).at(-1)![0][1], 'xc');
+  await h.post(press('xc'));
+  assert.match(words(lastEdit(h).text), /^.+\nОсенняя сессия · 3 ноября/);
+  await h.post(press(`xr|a1b2c3d4-0000-4000-8000-000000000009|0|c`));
+  assert.equal(h.tg.of('answerCallbackQuery').at(-1)!.params.text, typo(W.EXAM_GONE));
+});
+
+test('«Перенести на неделю» from K3 by a member: for themselves, 7 days from the link\'s day; the answer in place of K3', async () => {
+  const h = harness();
+  h.linked([AUTUMN30]);
+  h.tg.seed(TG, 777, 'K3');
+  await h.post(press(`mv|${CID}|7`));
+  assert.deepEqual(h.fdb.moves, [{ userId: USER, containerId: CID, date: '2026-10-23', forWhom: 'me' }]);
+  assert.equal(lastEdit(h).message_id, 777);
+  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 23 октября. План пересчитан.');
+  assert.deepEqual(rowsOf(lastEdit(h)), [[['План на сегодня', 'xc']]]);
+  // the owner of an exam without members: for everyone, two weeks
+  const o = harness();
+  o.linked([{ ...AUTUMN30, role: 'owner' }]);
+  await o.post(press(`mv|${CID}|14`));
+  assert.deepEqual(o.fdb.moves, [{ userId: USER, containerId: CID, date: '2026-10-30', forWhom: 'all' }]);
+});
+
+test('the author of an exam with members chooses «Для всех участников» / «Только для меня»; a member cannot move it for everyone', async () => {
+  const h = harness();
+  h.linked([{ ...AUTUMN30, role: 'owner', members: 2 }]);
+  await h.post(press(`mv|${CID}|7`));
+  assert.equal(h.fdb.moves.length, 0);
+  assert.equal(words(lastEdit(h).text), 'Перенести «Осенняя сессия» на 23 октября?\nВ экзамене есть участники. Новая дата может быть у всех или только у вас.');
+  assert.deepEqual(rowsOf(lastEdit(h)), [[['Для всех участников', `mf|${CID}|20261023|a`]], [['Только для меня', `mf|${CID}|20261023|m`]]]);
+  await h.post(press(`mf|${CID}|20261023|m`));
+  assert.deepEqual(h.fdb.moves, [{ userId: USER, containerId: CID, date: '2026-10-23', forWhom: 'me' }]);
+  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 23 октября. План пересчитан.');
+  const m = harness();
+  m.linked([AUTUMN30]);
+  await m.post(press(`mf|${CID}|20261023|a`));
+  assert.equal(m.tg.of('answerCallbackQuery').at(-1)!.params.text, typo(W.MOVE_ONLY_OWNER));
+  assert.equal(m.fdb.moves.length, 0);
+  await m.post(press(`mf|${CID}|20261001|m`));
+  assert.equal(m.tg.of('answerCallbackQuery').at(-1)!.params.text, typo(W.MOVE_PAST));
+});
+
+test('the exam-day card: «Перенести экзамен» opens the choices in place of its keyboard, «‹ Назад» to the exam\'s card', async () => {
+  const h = harness({ now: Date.UTC(2026, 10, 3, 17, 0) });
+  h.linked([AUTUMN30]);
+  await h.post(privateText('/today'));
+  const card = lastSent(h);
+  assert.equal(words(card.text).split('\n')[0], 'Сегодня экзамен.');
+  assert.ok(card.reply_markup.inline_keyboard.flat().some((b: { callback_data?: string }) => b.callback_data === `mv|${CID}|o`));
+  await h.post(press(`mv|${CID}|o`));
+  assert.deepEqual(h.tg.of('editMessageReplyMarkup').at(-1)!.params.reply_markup.inline_keyboard.map((r: Array<{ callback_data: string }>) => r.map((b) => b.callback_data)),
+    [[`mv|${CID}|7`], [`mv|${CID}|14`, `mv|${CID}|d`], [`ex|${CID}`]]);
+  assert.equal(h.fdb.moves.length, 0);
+});
+
+test('«Другая дата»: a ForceReply kept with the exam; a past, a far or no date asks again; a date moves it and the answer replaces K3', async () => {
+  const h = harness();
+  h.linked([AUTUMN30]);
+  h.tg.seed(TG, 777, 'K3');
+  await h.post(press(`mv|${CID}|d`));
+  const prompt = lastSent(h);
+  assert.equal(words(prompt.text), W.MOVE_PROMPT);
+  assert.deepEqual(prompt.reply_markup, { force_reply: true, input_field_placeholder: W.DATE_PLACEHOLDER });
+  const stored = h.fdb.link(TG)!.prompt!;
+  assert.deepEqual([stored.kind, stored.targetId, stored.from], ['move', 777, 'settings']);
+  for (const [reply, expected] of [['10.10', W.MOVE_PAST], ['завтра', W.MOVE_BAD], ['10.11.2029', W.MOVE_FAR]] as const) {
+    const current = h.fdb.link(TG)!.prompt!.promptId;
+    await h.post(privateText(reply, { replyTo: botMessage(current, lastSent(h).text) }));
+    assert.equal(words(lastSent(h).text), expected, reply);
+    assert.ok(h.tg.of('deleteMessage').some((c) => c.params.message_id === current), 'the old prompt goes');
+  }
+  assert.equal(h.fdb.moves.length, 0);
+  const current = h.fdb.link(TG)!.prompt!.promptId;
+  await h.post(privateText('25.10', { replyTo: botMessage(current, lastSent(h).text) }));
+  assert.deepEqual(h.fdb.moves, [{ userId: USER, containerId: CID, date: '2026-10-25', forWhom: 'me' }]);
+  assert.equal(lastEdit(h).message_id, 777);
+  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 25 октября. План пересчитан.');
+  assert.equal(h.fdb.link(TG)!.prompt, null, 'the prompt is closed');
+  // plain text within the hour answers it too
+  await h.post(press(`mv|${CID}|d`));
+  await h.post(privateText('1 ноября'));
+  assert.deepEqual(h.fdb.moves.at(-1), { userId: USER, containerId: CID, date: '2026-11-01', forWhom: 'me' });
+});
+
 test('session and group presses go to their ports; garbage only stops the spinner; old messages get a new one', async () => {
   const h = harness();
   h.linked();

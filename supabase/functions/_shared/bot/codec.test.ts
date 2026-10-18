@@ -41,9 +41,21 @@ const ALL: Array<[Callback, string]> = [
   [{ kind: 'ask', answer: 'p' }, 'ask|p'],
   [{ kind: 'ask', answer: 'n' }, 'ask|n'],
   [{ kind: 'group', post: '1z4', i: 2 }, 'g|1z4|2'],
+  // release 47: «Экзамены» and «Перенести экзамен»
+  [{ kind: 'exams', from: 's' }, 'xl|s'],
+  [{ kind: 'exams', from: 'c' }, 'xl|c'],
+  [{ kind: 'remind', cid: CID, on: true, from: 's' }, `xr|${CID}|1|s`],
+  [{ kind: 'remind', cid: CID, on: false, from: 'c' }, `xr|${CID}|0|c`],
+  [{ kind: 'card' }, 'xc'],
+  [{ kind: 'move', cid: CID, act: 'open' }, `mv|${CID}|o`],
+  [{ kind: 'move', cid: CID, act: 'w1' }, `mv|${CID}|7`],
+  [{ kind: 'move', cid: CID, act: 'w2' }, `mv|${CID}|14`],
+  [{ kind: 'move', cid: CID, act: 'date' }, `mv|${CID}|d`],
+  [{ kind: 'moveFor', cid: CID, date: '2026-10-25', who: 'all' }, `mf|${CID}|20261025|a`],
+  [{ kind: 'moveFor', cid: CID, date: '2028-02-29', who: 'me' }, `mf|${CID}|20280229|m`],
 ];
 
-test('every form of §6.5 round-trips and fits 64 bytes; the longest is go|<uuid>|p (41)', () => {
+test('every form of §6.5 round-trips and fits 64 bytes; the longest is mf|<uuid>|<date>|a (50; before release 47 go|<uuid>|p, 41)', () => {
   let longest = 0;
   for (const [cb, data] of ALL) {
     assert.equal(encode(cb), data);
@@ -52,7 +64,20 @@ test('every form of §6.5 round-trips and fits 64 bytes; the longest is go|<uuid
     assert.ok(bytes <= MAX_BYTES);
     longest = Math.max(longest, bytes);
   }
-  assert.equal(longest, 41);
+  assert.equal(longest, 50);
+});
+
+test('release 47: malformed «Экзамены» and move data decode to null; encode refuses a day that is not one', () => {
+  for (const data of [
+    'xl', 'xl|x', 'xl|s|1', `xr|${CID}|2|s`, `xr|${CID}|1|x`, `xr|${CID}|1`, 'xr|not-a-uuid|1|s', 'xc|1', `mv|${CID}`, `mv|${CID}|30`,
+    `mv|${CID}|w1`, `mf|${CID}|20261025`, `mf|${CID}|20260230|a`, `mf|${CID}|2026-10-25|a`, `mf|${CID}|20261025|x`, 'mf|x|20261025|a',
+  ]) {
+    assert.equal(decode(data), null, data);
+  }
+  assert.throws(() => encode({ kind: 'moveFor', cid: CID, date: '2026-02-30', who: 'all' }));
+  assert.throws(() => encode({ kind: 'moveFor', cid: CID, date: '25.10', who: 'all' }));
+  assert.throws(() => encode({ kind: 'move', cid: 'x', act: 'w1' }));
+  assert.throws(() => encode({ kind: 'remind', cid: CID, on: true, from: 'x' as 's' }));
 });
 
 test('malformed, old or forged data decodes to null', () => {

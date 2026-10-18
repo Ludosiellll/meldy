@@ -9,7 +9,12 @@
  *   `ex|l` the list of exams;
  * - settings: `st|time` / `st|pause` / `st|off` / `st|back`; time `t|1930` (`t|other`), `…|s` when chosen in settings
  *   (S2) instead of right after linking (M2); pause `p|1`, `p|3`, `p|mon`, `p|date`, `p|off`; `off|y`;
- * - K2: `ask|y`, `ask|p`, `ask|n`; the group: `g|<post base36>|<i>`.
+ * - K2: `ask|y`, `ask|p`, `ask|n`; the group: `g|<post base36>|<i>`;
+ * - «Экзамены» (which exams the day plan includes): `xl|s` from S1, `xl|c` from the card; a row toggles
+ *   `xr|<cid>|<1 on | 0 off>|<s|c>`; `xc` the day card again (its «‹ Назад», «План на сегодня»);
+ * - «Перенести экзамен»: `mv|<cid>|o` the choices on the exam-day card, `mv|<cid>|7` / `mv|<cid>|14` a week or two from
+ *   today, `mv|<cid>|d` a typed date; the author of an exam with members then picks `mf|<cid>|<YYYYMMDD>|a` (everyone)
+ *   or `…|m` (only them). The longest is `mf|…` (50 bytes).
  */
 
 export type SessionAct =
@@ -27,6 +32,10 @@ export type SessionAct =
   | { a: 'done' };
 
 export type GoMode = 'p' | 'e' | 'x';
+/** Where «Экзамены» was opened: S1 (`s`) or the day card (`c`); its «‹ Назад» goes there. */
+export type ExamsFrom = 's' | 'c';
+/** «Перенести экзамен»: open the choices, a week, two weeks, a typed date. */
+export type MoveAct = 'open' | 'w1' | 'w2' | 'date';
 export type PauseChoice = '1' | '3' | 'mon' | 'date' | 'off';
 export type SettingsScreen = 'time' | 'pause' | 'off' | 'back';
 
@@ -39,7 +48,12 @@ export type Callback =
   | { kind: 'pause'; choice: PauseChoice }
   | { kind: 'unlink' }
   | { kind: 'ask'; answer: 'y' | 'p' | 'n' }
-  | { kind: 'group'; post: string; i: number };
+  | { kind: 'group'; post: string; i: number }
+  | { kind: 'exams'; from: ExamsFrom }
+  | { kind: 'remind'; cid: string; on: boolean; from: ExamsFrom }
+  | { kind: 'card' }
+  | { kind: 'move'; cid: string; act: MoveAct }
+  | { kind: 'moveFor'; cid: string; date: string; who: 'all' | 'me' };
 
 export const MAX_BYTES = 64;
 export const SID_RE = /^[0-9a-z]{8}$/;
@@ -47,6 +61,22 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 const POST_RE = /^[0-9a-z]{1,13}$/;
 const MAX_POS = 999;
 const MAX_OPTIONS = 8;
+const MOVE_ACTS: Record<MoveAct, string> = { open: 'o', w1: '7', w2: '14', date: 'd' };
+
+/** '2026-10-25' ↔ '20261025'; null for anything that is not a real day. */
+function compactDay(day: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  return m && realDay(`${m[1]}-${m[2]}-${m[3]}`) ? `${m[1]}${m[2]}${m[3]}` : null;
+}
+function fullDay(text: string): string | null {
+  const m = /^(\d{4})(\d{2})(\d{2})$/.exec(text);
+  const day = m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+  return day && realDay(day) ? day : null;
+}
+function realDay(day: string): boolean {
+  const date = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === day;
+}
 
 function actText(act: SessionAct): string {
   switch (act.a) {
@@ -117,6 +147,27 @@ export function encode(cb: Callback): string {
       if (!POST_RE.test(cb.post) || !(Number.isInteger(cb.i) && cb.i >= 0 && cb.i < MAX_OPTIONS)) throw new Error('codec: group');
       data = `g|${cb.post}|${cb.i}`;
       break;
+    case 'exams':
+      if (cb.from !== 's' && cb.from !== 'c') throw new Error('codec: from');
+      data = `xl|${cb.from}`;
+      break;
+    case 'remind':
+      if (!UUID_RE.test(cb.cid) || (cb.from !== 's' && cb.from !== 'c')) throw new Error('codec: remind');
+      data = `xr|${cb.cid}|${cb.on ? 1 : 0}|${cb.from}`;
+      break;
+    case 'card':
+      data = 'xc';
+      break;
+    case 'move':
+      if (!UUID_RE.test(cb.cid) || !Object.prototype.hasOwnProperty.call(MOVE_ACTS, cb.act)) throw new Error('codec: move');
+      data = `mv|${cb.cid}|${MOVE_ACTS[cb.act]}`;
+      break;
+    case 'moveFor': {
+      const day = compactDay(cb.date);
+      if (!UUID_RE.test(cb.cid) || day === null || (cb.who !== 'all' && cb.who !== 'me')) throw new Error('codec: moveFor');
+      data = `mf|${cb.cid}|${day}|${cb.who === 'all' ? 'a' : 'm'}`;
+      break;
+    }
   }
   if (new TextEncoder().encode(data).length > MAX_BYTES) throw new Error('codec: over 64 bytes');
   return data;
@@ -172,6 +223,23 @@ export function decode(data: unknown): Callback | null {
     case 'g':
       if (parts.length !== 3 || !POST_RE.test(parts[1]) || !/^[0-7]$/.test(parts[2])) return null;
       return { kind: 'group', post: parts[1], i: Number(parts[2]) };
+    case 'xl':
+      return parts.length === 2 && (parts[1] === 's' || parts[1] === 'c') ? { kind: 'exams', from: parts[1] } : null;
+    case 'xr':
+      if (parts.length !== 4 || !UUID_RE.test(parts[1]) || !['0', '1'].includes(parts[2]) || !['s', 'c'].includes(parts[3])) return null;
+      return { kind: 'remind', cid: parts[1], on: parts[2] === '1', from: parts[3] as ExamsFrom };
+    case 'xc':
+      return parts.length === 1 ? { kind: 'card' } : null;
+    case 'mv': {
+      if (parts.length !== 3 || !UUID_RE.test(parts[1])) return null;
+      const act = (Object.keys(MOVE_ACTS) as MoveAct[]).find((key) => MOVE_ACTS[key] === parts[2]);
+      return act ? { kind: 'move', cid: parts[1], act } : null;
+    }
+    case 'mf': {
+      const day = parts.length === 4 ? fullDay(parts[2]) : null;
+      if (!day || !UUID_RE.test(parts[1]) || !['a', 'm'].includes(parts[3])) return null;
+      return { kind: 'moveFor', cid: parts[1], date: day, who: parts[3] === 'a' ? 'all' : 'me' };
+    }
     default:
       return null;
   }

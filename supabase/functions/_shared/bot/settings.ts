@@ -10,7 +10,7 @@ import type { LocalDay } from '../plan/container.ts';
 import { addDays, daysBetween, weekday } from '../plan/time.ts';
 import { planNow, timeText, type ExamDay } from './card.ts';
 import { encode, type Callback } from './codec.ts';
-import type { Link, Prompt } from './db.ts';
+import type { BotExam, Link, Prompt } from './db.ts';
 import { hhmm } from './db.ts';
 import { b, lines, t } from './html.ts';
 import { askTime, askWith, timeKeyboard } from './link.ts';
@@ -27,13 +27,30 @@ const isPaused = (link: Link) => link.pausedUntil !== null && link.pausedUntil >
 
 // ─────────────────────────────────────────── screens ───────────────────────────────────────────
 
-/** S1: the time and its zone, the exam, the pause; [Время] [Пауза | Снять паузу] / [Отключить Telegram]. */
-export function s1(link: Link, exam: Pick<ExamDay, 'title' | 'date'> | null): Out {
+/**
+ * The exams line of S1: with the user's exams (bot.exams_list) the ones in the Telegram plan that are not over — one:
+ * «Экзамен — «…», 3 ноября.»; two or more: «Экзамены в плане: «A», «B».»; none of them: «Ни один экзамен не выбран…».
+ * Without the list (no exam, or only passed ones): the lead exam's line, as before.
+ */
+export function examsLine(exam: Pick<ExamDay, 'title' | 'date'> | null, exams: readonly BotExam[]): { text: string; user: string[] } {
+  const current = exams.filter((e) => e.state !== 'after');
+  const inPlan = current.filter((e) => e.on);
+  if (current.length === 0) return { text: exam ? W.examIs(exam.title, exam.date) : W.NO_EXAM, user: exam ? [exam.title] : [] };
+  if (inPlan.length === 0) return { text: W.NO_EXAM_CHOSEN, user: [] };
+  if (inPlan.length === 1) return { text: W.examIs(inPlan[0].title, inPlan[0].date), user: [inPlan[0].title] };
+  return { text: W.examsInPlan(inPlan.map((e) => e.title)), user: inPlan.map((e) => e.title) };
+}
+
+/**
+ * S1: the time and its zone, the exams in the plan, the pause; [Время] [Пауза | Снять паузу] / [Экзамены] (when the
+ * user has an exam) / [Отключить Telegram].
+ */
+export function s1(link: Link, exam: Pick<ExamDay, 'title' | 'date'> | null, exams: readonly BotExam[] = []): Out {
   const time = timeText(link.remindAt);
   const text = lines(
     b(W.SETTINGS_TITLE),
     t(link.remindOn ? W.planAt(time, W.zoneText(link.tz)) : W.PLAN_OFF),
-    t(exam ? W.examIs(exam.title, exam.date) : W.NO_EXAM),
+    t(examsLine(exam, exams).text),
     isPaused(link) ? t(W.pauseUntil(link.pausedUntil as LocalDay, addDays(link.today, 1))) : null,
   );
   const keyboard: Keyboard = [
@@ -43,8 +60,9 @@ export function s1(link: Link, exam: Pick<ExamDay, 'title' | 'date'> | null): Ou
         ? { text: W.UNPAUSE, data: encode({ kind: 'pause', choice: 'off' }) }
         : { text: W.PAUSE, data: encode({ kind: 'settings', screen: 'pause' }) },
     ],
-    [{ text: W.UNLINK_TG, data: encode({ kind: 'settings', screen: 'off' }) }],
   ];
+  if (exams.length > 0) keyboard.push([{ text: W.EXAMS, data: encode({ kind: 'exams', from: 's' }) }]);
+  keyboard.push([{ text: W.UNLINK_TG, data: encode({ kind: 'settings', screen: 'off' }) }]);
   return { text, keyboard };
 }
 
@@ -167,7 +185,7 @@ export function parseDate(text: string, today: LocalDay): LocalDay | null {
 export async function showSettings(ctx: Ctx, chatId: number, messageId: number | null, link: Link): Promise<void> {
   const today = await ctx.db.today(link.tgUserId);
   const exam = today ? planNow(today).exam : null;
-  const out = s1(today?.link ?? link, exam);
+  const out = s1(today?.link ?? link, exam, today?.botExams ?? []);
   await editOrSend(ctx.tg, { chatId, messageId, text: out.text, keyboard: out.keyboard });
 }
 

@@ -2,7 +2,7 @@
 // 4 предмета, 960 вопросов; today is Friday, 16 October 2026; the zone is Europe/Minsk). Nothing here comes from a
 // real bank: the ids are made up and there is no question text (the card only needs states).
 import type { PlanInputsWire, PlanItemRow, PlanStateRow } from '../../plan/container.ts';
-import type { Link, Today } from '../db.ts';
+import type { BotExam, Link, Today } from '../db.ts';
 
 export const TZ = 'Europe/Minsk';
 export const DAY = '2026-10-16';
@@ -47,6 +47,10 @@ export interface ExamSpec {
   /** The day offset of the last answers of the seen items (−1 yesterday; −2 skipped yesterday). */
   lastDay?: number;
   today?: { firstAt: number | null; doneSec: number };
+  /** In the Telegram plan (container_plans.tg_remind); true when left out. */
+  on?: boolean;
+  /** The author's active members (bot.exams_list); 0 when left out. */
+  members?: number;
 }
 
 /** One exam's part of the wire (items in subject blocks, states by the counts asked). */
@@ -138,6 +142,20 @@ export function linkOf(overrides: Partial<Link> = {}, nowMs = NOW): Link {
   };
 }
 
+/**
+ * bot.exams_list as the server gives it for these exams (migration 20261018120000): the state by the date against
+ * today, nearest first (a date ahead or today, then none, then the passed ones, the latest first).
+ */
+export function botExamsOf(specs: ExamSpec[], nowMs = NOW): BotExam[] {
+  const day = dayOf(nowMs);
+  const rank = (e: BotExam) => (e.date === null ? 1 : e.date >= day ? 0 : 2);
+  const cmp = (x: string | null, y: string | null) => ((x ?? '') < (y ?? '') ? -1 : (x ?? '') > (y ?? '') ? 1 : 0);
+  return specs.map((s): BotExam => ({
+    id: s.id, title: s.title, date: s.date, on: s.on ?? true, role: s.role ?? 'member', members: s.members ?? 0,
+    state: s.date === null ? 'no_date' : s.date > day ? 'study' : s.date === day ? 'exam_today' : 'after',
+  })).sort((a, b) => rank(a) - rank(b) || (rank(a) === 2 ? cmp(b.date, a.date) : cmp(a.date, b.date)));
+}
+
 export function todayOf(specs: ExamSpec[] | null, extra: Partial<Today> = {}, nowMs = NOW): Today {
   return {
     link: linkOf({}, nowMs),
@@ -146,6 +164,7 @@ export function todayOf(specs: ExamSpec[] | null, extra: Partial<Today> = {}, no
     oral: [],
     oralParts: [],
     exams: (specs ?? []).map((s, i) => ({ id: s.id, createdAt: `2026-10-0${i + 1}T10:00:00Z`, keyChanges: 0, hasOral: false })),
+    botExams: botExamsOf(specs ?? [], nowMs),
     session: null,
     day: null,
     ...extra,

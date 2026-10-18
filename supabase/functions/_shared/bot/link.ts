@@ -108,12 +108,15 @@ export async function timeChosen(ctx: Ctx, tap: Tap, minutes: number): Promise<v
   if (result.status === 'ok') await showM3(ctx, tap.chatId, tap.messageId, result.link);
 }
 
-/** A ForceReply prompt (M4 time, S3 date); the database keeps which message it answers for. */
+/** A ForceReply prompt (M4 time, S3 date, a move's date); the database keeps which message it answers for. */
 export async function askWith(ctx: Ctx, chatId: number, tgUserId: number, text: string, placeholder: string,
-  prompt: Pick<Prompt, 'kind' | 'targetId' | 'from'>): Promise<void> {
+  prompt: Pick<Prompt, 'kind' | 'targetId' | 'from' | 'cid'>): Promise<void> {
   const sent = await send(ctx.tg, { chatId, text: t(text), forceReply: { placeholder } });
   await ctx.db.settings(tgUserId, {
-    prompt: { kind: prompt.kind, prompt_id: sent.message_id, target_id: prompt.targetId, from: prompt.from, at: Math.floor(ctx.now() / 1000) },
+    prompt: {
+      kind: prompt.kind, prompt_id: sent.message_id, target_id: prompt.targetId, from: prompt.from, at: Math.floor(ctx.now() / 1000),
+      ...(prompt.cid ? { cid: prompt.cid } : {}),
+    },
   });
 }
 

@@ -5,7 +5,7 @@ import { createApp, type Ports, type TgUpdate } from '../router.ts';
 import { derivedSecret } from '../secrets.ts';
 import { fakeDb } from './fake_db.ts';
 import { fakeTelegram, TEST_FUNCTION_URL, TEST_TOKEN } from './fake_telegram.ts';
-import { AUTUMN, NOW, TG, USER, wireOf, type ExamSpec } from './scenario.ts';
+import { AUTUMN, botExamsOf, NOW, TG, USER, wireOf, type ExamSpec } from './scenario.ts';
 
 /** Every log line written while a test file that uses the harness runs (the console stays quiet). */
 export const LOGS: string[] = [];
@@ -126,7 +126,9 @@ export function harness(options: { now?: number; ports?: 'stubs' | 'record'; ses
   /** The linked student of the spec's example with the given exams (default: «Осенняя сессия»). */
   function linked(specs: ExamSpec[] = [AUTUMN], link: Parameters<typeof fdb.addLink>[0] = { userId: USER, tgUserId: TG }) {
     const row = fdb.addLink(link);
-    fdb.setUser(link.userId, { wire: wireOf(specs, t), exams: specs.map((s, i) => ({ id: s.id, createdAt: `2026-10-0${i + 1}T10:00:00Z` })) });
+    fdb.setUser(link.userId, {
+      wire: wireOf(specs, t), exams: specs.map((s, i) => ({ id: s.id, createdAt: `2026-10-0${i + 1}T10:00:00Z` })), botExams: botExamsOf(specs, t),
+    });
     return row;
   }
 

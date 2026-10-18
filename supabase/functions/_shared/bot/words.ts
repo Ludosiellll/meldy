@@ -106,6 +106,38 @@ export function k3Days(days: number, studyDays: number, answers: string, answers
 }
 export const k3Figure = (twoDays: number, inPlan: number) => `${twoDays} из ${inPlan} — верно в два разных дня.`;
 export const K3_LAST = 'По этому экзамену бот больше не напишет. Экзамен и счёт остаются в Meldy.';
+/** K3 and the /today card of a passed exam when it can be moved from here (in place of K3_LAST). */
+export const K3_MOVE = 'Если экзамен перенесли — нажмите, план пересчитается.';
+
+// ─────────────────────────────────────────── which exams, «Перенести экзамен» ───────────────────────────────────────────
+
+/** An exam on its exam day under the card of another one (it no longer leads the card). */
+export const examToday = (title: string) => `Сегодня экзамен: «${title}».`;
+export const EXAMS = 'Экзамены';
+export const EXAMS_TITLE = 'Какие экзамены присылать';
+export const EXAMS_BODY = 'Отметьте экзамены, по которым приходит план на день. Можно несколько.';
+/** S1 with two exams or more in the plan. */
+export const examsInPlan = (titles: readonly string[]) => `Экзамены в плане: ${titles.map((title) => `«${title}»`).join(', ')}.`;
+export const NO_EXAM_CHOSEN = 'Ни один экзамен не выбран — план не приходит.';
+/** A row of «Экзамены»: «✓ Осенняя сессия · 3 ноября» (in the plan) / «— Зимняя сессия · 20 декабря» (not). */
+export const examChoice = (on: boolean, title: string, date: LocalDay | null) => `${on ? '✓' : '—'} ${title}${date ? ` · ${dayText(date)}` : ''}`;
+export const MOVE_EXAM = 'Перенести экзамен';
+export const MOVE_WEEK = 'Перенести на неделю';
+export const MOVE_2_WEEKS = 'На 2 недели';
+export const MOVE_DATE = 'Другая дата';
+export const MOVE_FOR_ALL = 'Для всех участников';
+export const MOVE_FOR_ME = 'Только для меня';
+export const moveAsk = (title: string, date: LocalDay) => `Перенести «${title}» на ${dayText(date)}?`;
+export const MOVE_ASK_BODY = 'В экзамене есть участники. Новая дата может быть у всех или только у вас.';
+export const examMoved = (title: string, date: LocalDay) => `Экзамен «${title}» перенесён на ${dayText(date)}. План пересчитан.`;
+export const PLAN_TODAY = 'План на сегодня';
+export const MOVE_PROMPT = 'Напишите новую дату экзамена, например 25.10.';
+export const MOVE_BAD = 'Дата экзамена не распознана. Напишите так: 25.10.';
+export const MOVE_PAST = 'Эта дата уже прошла. Напишите новую дату экзамена.';
+export const MOVE_FAR = 'Эта дата дальше чем через два года. Напишите дату поближе.';
+export const MOVE_LOST = 'Нажмите «Другая дата» под экзаменом ещё раз.';
+export const MOVE_ONLY_OWNER = 'Для всех участников переносит только автор экзамена.';
+export const EXAM_GONE = 'Этого экзамена больше нет в вашем списке.';
 
 // ─────────────────────────────────────────── §4.5 pause, settings, help ───────────────────────────────────────────
 

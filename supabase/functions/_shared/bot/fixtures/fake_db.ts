@@ -7,8 +7,8 @@
 // sent back by bot_delivery_retry after a 429 → taken again after 10 minutes, at most 3 tries) and K2 (three cards in a
 // row with nothing since).
 import type {
-  AfterDateRow, BotDb, BotRpcName, BotStatus, ChatEvent, ClaimResult, DayCloseRow, Link, OpenSession, Prompt, ReminderContext,
-  ReminderRow, SettingsPatch, SettingsResult, Today, UpdateBegin, Who,
+  AfterDateRow, BotDb, BotExam, BotRpcName, BotStatus, ChatEvent, ClaimResult, DayCloseRow, ExamsResult, Link, MoveFor, MoveResult,
+  OpenSession, Prompt, ReminderContext, ReminderRow, SettingsPatch, SettingsResult, Today, UpdateBegin, Who,
 } from '../db.ts';
 import { DbError, minutesOf } from '../db.ts';
 import type { PlanInputsWire } from '../../plan/container.ts';
@@ -56,10 +56,18 @@ interface DayRow { cardMessageId: number | null; cardUsed: boolean; lastMessageI
 export interface UserData {
   wire?: PlanInputsWire | null;
   exams?: Array<{ id: string; createdAt?: string | null; keyChanges?: number; hasOral?: boolean }>;
+  /**
+   * bot.exams_list (20261018120000): the exams with their switch, role and members; bot_exams, bot_exam_remind and
+   * bot_exam_move read and change it. Left out: none (as from a server before it: every exam in the plan).
+   */
+  botExams?: BotExam[];
   session?: OpenSession | null;
   /** Moments of answers on the site or in the bot (ms), for «recently active» and K2. */
   answers?: number[];
 }
+
+/** A move bot_exam_move made (the fake keeps them for the tests). */
+export interface MoveRow { userId: string; containerId: string; date: string | null; forWhom: MoveFor }
 
 const LEASE_MS = 30_000;
 const MIN = 60_000;
@@ -96,6 +104,10 @@ export function fakeDb(options: { now: () => number }) {
   const byTg = (tg: number) => active().find((l) => l.tgUserId === tg) ?? null;
   const dayKey = (l: LinkRow, d: string) => `${l.id}|${d}`;
   const answersOf = (l: LinkRow) => users.get(l.userId)?.answers ?? [];
+  const moves: MoveRow[] = [];
+  const botExamsOf = (l: LinkRow) => users.get(l.userId)?.botExams ?? [];
+  /** bot.remind_any: an exam in the plan, or no exam at all. */
+  const remindAny = (l: LinkRow) => botExamsOf(l).length === 0 || botExamsOf(l).some((e) => e.on);
   /** An answer (site or bot) in the last 30 minutes delays the card; an action in the bot does not (T1 90e15a5). */
   const recentlyActive = (l: LinkRow, t: number) => answersOf(l).some((a) => a > t - 30 * MIN && a <= t);
   const answeredSince = (l: LinkRow, at: number) => answersOf(l).some((a) => a > at);
@@ -122,6 +134,7 @@ export function fakeDb(options: { now: () => number }) {
       oral: [],
       oralParts: [],
       exams: (data.exams ?? []).map((e) => ({ id: e.id, createdAt: e.createdAt ?? null, keyChanges: e.keyChanges ?? 0, hasOral: e.hasOral ?? false })),
+      botExams: (data.botExams ?? []).map((e) => ({ ...e })),
       session: withSession ? data.session ?? null : null,
       day: withSession && row ? { cardMessageId: row.cardMessageId, cardUsed: row.cardUsed, lastMessageId: row.lastMessageId } : null,
     };
@@ -319,7 +332,9 @@ export function fakeDb(options: { now: () => number }) {
       if (patch.paused_until !== undefined) l.pausedUntil = patch.paused_until;
       if (patch.prompt !== undefined) {
         l.prompt = patch.prompt === null ? null
-          : { kind: patch.prompt.kind, promptId: patch.prompt.prompt_id, targetId: patch.prompt.target_id, from: patch.prompt.from, at: patch.prompt.at };
+          : { kind: patch.prompt.kind, promptId: patch.prompt.prompt_id, targetId: patch.prompt.target_id, from: patch.prompt.from, at: patch.prompt.at,
+            // bot.links.prompt keeps the object as sent; db.ts toPrompt reads a move's exam back (cid)
+            ...(patch.prompt.kind === 'move' ? { cid: patch.prompt.cid ?? null } : {}) };
       }
       if (patch.ask !== undefined && !['yes', 'pause', 'stop'].includes(patch.ask)) return { status: 'invalid', field: 'ask', reason: 'format' };
       if (hint) l.hintAt = now();
@@ -369,7 +384,7 @@ export function fakeDb(options: { now: () => number }) {
         .filter((l) => l.blockedAt === null && l.remindOn && inWindow(l, t))
         .filter((l) => {
           const today = localDay(t, l.tz);
-          return (l.pausedUntil === null || l.pausedUntil <= today) && !recentlyActive(l, t)
+          return (l.pausedUntil === null || l.pausedUntil <= today) && !recentlyActive(l, t) && remindAny(l)
             && !deliveries.some((d) => (d.kind === 'reminder' || d.kind === 'ask') && d.chatId === l.chatId && d.localDay === today);
         })
         .sort((a, b) => a.remindAt - b.remindAt || a.id - b.id)
@@ -394,7 +409,7 @@ export function fakeDb(options: { now: () => number }) {
       const d = deliveries.find((x) => x.id === deliveryId);
       if (!d || !(d.kind === 'reminder' || d.kind === 'ask') || d.status !== 'claimed') return { card: 'skip', deliveryId, reason: 'not_claimed' };
       const l = links.find((x) => x.id === d.linkId);
-      const reason = !l || l.unlinkedAt !== null ? 'unlinked' : l.blockedAt !== null ? 'blocked' : !l.remindOn ? 'off'
+      const reason = !l || l.unlinkedAt !== null ? 'unlinked' : l.blockedAt !== null ? 'blocked' : !l.remindOn || !remindAny(l) ? 'off'
         : l.pausedUntil !== null && l.pausedUntil > d.localDay ? 'paused'
           : l.askedAt !== null && (l.lastSeenAt ?? -Infinity) <= l.askedAt && !answeredSince(l, l.askedAt) ? 'silent' : null;
       if (reason !== null || !l) {
@@ -508,6 +523,8 @@ export function fakeDb(options: { now: () => number }) {
         if (out.length >= limit) break;
         const l = links.find((x) => x.id === q.linkId);
         if (!l || l.unlinkedAt !== null || l.blockedAt !== null || !l.remindOn) continue;
+        // K3 never for an exam out of the Telegram plan (bot.remind_on).
+        if (botExamsOf(l).some((e) => e.id === q.containerId && !e.on)) continue;
         const d = newDelivery('after_date', l, localDay(now(), l.tz), q.containerId);
         if (d) out.push({ deliveryId: d.id, chatId: l.chatId, localDay: d.localDay, containerId: q.containerId, exam: q.exam });
       }
@@ -525,6 +542,43 @@ export function fakeDb(options: { now: () => number }) {
       }
       return out;
     },
+
+    async exams(tgUserId: number): Promise<ExamsResult> {
+      record('bot_exams', { tgUserId });
+      const l = byTg(tgUserId);
+      if (!l) return { status: 'unlinked' };
+      l.lastSeenAt = now();
+      return { status: 'ok', today: localDay(now(), l.tz), exams: botExamsOf(l).map((e) => ({ ...e })) };
+    },
+    async examRemind(tgUserId: number, containerId: string, on: boolean): Promise<ExamsResult> {
+      record('bot_exam_remind', { tgUserId, containerId, on });
+      const l = byTg(tgUserId);
+      if (!l) return { status: 'unlinked' };
+      l.lastSeenAt = now();
+      const exam = botExamsOf(l).find((e) => e.id === containerId);
+      if (!exam) return { status: 'gone' };
+      exam.on = on;
+      return { status: 'ok', today: null, exams: botExamsOf(l).map((e) => ({ ...e })) };
+    },
+    async examMove(tgUserId: number, containerId: string, date: string | null, forWhom: MoveFor): Promise<MoveResult> {
+      record('bot_exam_move', { tgUserId, containerId, date, forWhom });
+      const l = byTg(tgUserId);
+      if (!l) return { status: 'unlinked' };
+      l.lastSeenAt = now();
+      const exam = botExamsOf(l).find((e) => e.id === containerId);
+      if (!exam) return { status: 'gone' };
+      const today = localDay(now(), l.tz);
+      if (date === null && forWhom !== 'me') return { status: 'invalid', reason: 'date' };
+      if (date !== null && date < today) return { status: 'invalid', reason: 'past' };
+      if (date !== null && date > addDays(today, 730)) return { status: 'invalid', reason: 'far' };
+      if (forWhom === 'all' && exam.role !== 'owner') return { status: 'forbidden' };
+      moves.push({ userId: l.userId, containerId, date, forWhom });
+      if (date !== null) {
+        exam.date = date;
+        exam.state = date === today ? 'exam_today' : 'study';
+      }
+      return { status: 'ok', title: exam.title, examDate: forWhom === 'all' ? date : null, ownDate: forWhom === 'me' ? date : null };
+    },
   };
 
   return {
@@ -538,6 +592,7 @@ export function fakeDb(options: { now: () => number }) {
     setups,
     dayCloseQueue,
     afterDateQueue,
+    moves,
     /** The next call of `fn` throws (once per error queued). */
     fail(fn: string, ...errors: Error[]) {
       failures.set(fn, [...(failures.get(fn) ?? []), ...errors]);

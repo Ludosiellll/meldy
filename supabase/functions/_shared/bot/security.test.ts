@@ -52,6 +52,8 @@ const RPC_ALLOWED = new Set([
   'bot_webapp_session',
   // The outage monitor (monitor.ts, migration 20261012100000_telegram_bot_monitor.sql).
   'bot_monitor_state', 'bot_monitor_claim', 'bot_monitor_save',
+  // «Экзамены» and «Перенести экзамен» (exams.ts, migration 20261018120000_exam_move_bot_exams.sql).
+  'bot_exams', 'bot_exam_remind', 'bot_exam_move',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {

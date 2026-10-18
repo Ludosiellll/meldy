@@ -22,9 +22,26 @@ function everyString(): string[] {
   out.push(W.examIs('Экзамен', '2026-11-03'), W.examIs('Экзамен', null), W.m2Time('20:00'), W.m3Title('7:30'), W.examLine('Экзамен', null),
     W.moreNewNote('Ещё 20 новых'), W.k2Yes('20:00'), W.k2YesDone('20:00'), W.examPassed('2026-11-03'), W.planAt('20:00', 'по Минску'),
     W.dateAfterExam('2026-11-03'), W.pauseUntil('2026-10-19', '2026-10-17'), W.pauseBack('2026-10-19', '2026-10-17', 3, '20:00'),
-    W.unpaused('сегодня', '20:00'), W.examGone('Экзамен'));
+    W.unpaused('сегодня', '20:00'), W.examGone('Экзамен'),
+    // release 47: «Экзамены», «Перенести экзамен»
+    W.examToday('Экзамен'), W.examsInPlan(['Экзамен', 'Зачёт']), W.examChoice(true, 'Экзамен', '2026-11-03'), W.examChoice(false, 'Экзамен', null),
+    W.moveAsk('Экзамен', '2026-10-25'), W.examMoved('Экзамен', '2026-10-25'));
   return out.filter((s) => s.length > 0);
 }
+
+test('release 47: the words of «Экзамены» and «Перенести экзамен» as the plan gives them', () => {
+  const plain = (s: string) => s.replace(/ /g, ' ');
+  assert.equal(W.EXAMS_TITLE, 'Какие экзамены присылать');
+  assert.equal(W.EXAMS_BODY, 'Отметьте экзамены, по которым приходит план на день. Можно несколько.');
+  assert.equal(W.examsInPlan(['A', 'B']), 'Экзамены в плане: «A», «B».');
+  assert.equal(plain(W.examChoice(true, 'Осенняя сессия', '2026-11-03')), '✓ Осенняя сессия · 3 ноября');
+  assert.equal(plain(W.examChoice(false, 'Зимняя сессия', '2026-12-20')), '— Зимняя сессия · 20 декабря');
+  assert.equal(W.examToday('Зимняя сессия'), 'Сегодня экзамен: «Зимняя сессия».');
+  assert.equal(plain(W.examMoved('Осенняя сессия', '2026-10-25')), 'Экзамен «Осенняя сессия» перенесён на 25 октября. План пересчитан.');
+  assert.equal(W.K3_MOVE, 'Если экзамен перенесли — нажмите, план пересчитается.');
+  assert.deepEqual([W.MOVE_EXAM, W.MOVE_WEEK, W.MOVE_2_WEEKS, W.MOVE_DATE, W.MOVE_FOR_ALL, W.MOVE_FOR_ME],
+    ['Перенести экзамен', 'Перенести на неделю', 'На 2 недели', 'Другая дата', 'Для всех участников', 'Только для меня']);
+});
 
 test('every string of the bot passes the copy rules (forbidden words, emoji, «!», capitals, «не X, а Y»)', () => {
   const strings = everyString();

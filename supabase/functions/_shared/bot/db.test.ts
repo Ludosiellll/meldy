@@ -276,6 +276,59 @@ test('the tick: claims, the reminder context (K1 / K2 / skip / gone), sending, d
   }
 });
 
+test('release 47: bot_exams, bot_exam_remind, bot_exam_move — names, arguments, shapes; exam_list on /today and in the tick; K3\'s role; a move prompt', async () => {
+  const LIST = [
+    { container_id: CID, title: 'Осенняя сессия', exam_date: '2026-11-03', state: 'study', tg_remind: true, role: 'owner', members: 2 },
+    { container_id: 'a1b2c3d4-0000-4000-8000-000000000002', title: 'Зимняя сессия', exam_date: null, state: 'no_date', tg_remind: false, role: 'member', members: null },
+  ];
+  const EXAMS = [
+    { id: CID, title: 'Осенняя сессия', date: '2026-11-03', state: 'study', on: true, role: 'owner', members: 2 },
+    { id: 'a1b2c3d4-0000-4000-8000-000000000002', title: 'Зимняя сессия', date: null, state: 'no_date', on: false, role: 'member', members: 0 },
+  ];
+  const rest = fakeRest({
+    bot_exams: { status: 'ok', local_day: '2026-10-16', exams: LIST },
+    bot_exam_remind: { status: 'ok', container_id: CID, tg_remind: false, exams: LIST },
+    bot_exam_move: { status: 'ok', title: 'Осенняя сессия', for: 'me', container_id: CID, exam_date: '2026-11-03', own_exam_date: '2026-11-10', subjects: [] },
+    bot_today: { linked: true, link: LINK, local_day: '2026-10-16', plan: wireOf([AUTUMN]), overview: OVERVIEW, session: null, day: null, exam_list: LIST },
+    bot_claim_after_date: [{ delivery_id: 7, chat_id: 700100, local_day: '2026-11-04', tz: 'Europe/Minsk', container_id: CID,
+      exam: { container_id: CID, title: 'Осенняя сессия', exam_date: '2026-11-03', last_date: '2026-11-03', first_plan_day: '2026-10-09', active_days: 21,
+        answers: 6480, two_days: 902, keyed: 960, own_exam_date: null, role: 'owner', members: 2 } }],
+  });
+  const db = createDb({ url: URL_, key: SECRET, fetch: rest.fetch });
+  assert.deepEqual(await db.exams(700100), { status: 'ok', today: '2026-10-16', exams: EXAMS });
+  assert.deepEqual(await db.examRemind(700100, CID, false), { status: 'ok', today: null, exams: EXAMS });
+  assert.deepEqual(await db.examMove(700100, CID, '2026-11-10', 'me'), { status: 'ok', title: 'Осенняя сессия', examDate: '2026-11-03', ownDate: '2026-11-10' });
+  assert.deepEqual((await db.today(700100))!.botExams, EXAMS);
+  assert.deepEqual((await db.claimAfterDate(50))[0].exam, {
+    title: 'Осенняя сессия', examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-10-09', activeDays: 21, answers: 6480, twoDays: 902, keyed: 960,
+    role: 'owner', members: 2,
+  });
+  assert.deepEqual(rest.calls.slice(0, 3).map((c) => [c.fn, c.body]), [
+    ['bot_exams', { p_tg_user_id: 700100 }],
+    ['bot_exam_remind', { p_tg_user_id: 700100, p_container_id: CID, p_on: false }],
+    ['bot_exam_move', { p_tg_user_id: 700100, p_container_id: CID, p_date: '2026-11-10', p_for: 'me' }],
+  ]);
+  for (const [answer, expected] of [
+    [{ status: 'unlinked' }, { status: 'unlinked' }], [{ status: 'gone' }, { status: 'gone' }], [{ status: 'forbidden' }, { status: 'forbidden' }],
+    [{ status: 'invalid', reason: 'far' }, { status: 'invalid', reason: 'far' }],
+  ] as const) {
+    const m = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_exam_move: answer }).fetch });
+    assert.deepEqual(await m.examMove(700100, CID, null, 'me'), expected);
+  }
+  assert.deepEqual(await createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_exam_remind: { status: 'gone' } }).fetch }).examRemind(1, CID, true), { status: 'gone' });
+  // a server before release 47: no exam_list (every exam in the plan), K3 without a role
+  const old = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_today: { linked: true, link: LINK, local_day: '2026-10-16', plan: null, overview: OVERVIEW } }).fetch });
+  assert.deepEqual((await old.today(700100))!.botExams, []);
+  // a move's prompt keeps its exam (bot.links.prompt), a malformed one is dropped
+  const prompted = { ...LINK, prompt: { kind: 'move', prompt_id: 56, target_id: 900, from: 'settings', at: 1_792_170_000, cid: CID } };
+  const p = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_whoami: { ...prompted, exams: [] } }).fetch });
+  const who = await p.whoami(700100);
+  assert.deepEqual(who.linked && who.prompt, { kind: 'move', promptId: 56, targetId: 900, from: 'settings', at: 1_792_170_000, cid: CID });
+  const bad = createDb({ url: URL_, key: SECRET, fetch: fakeRest({ bot_whoami: { ...prompted, prompt: { ...prompted.prompt, cid: 'x' }, exams: [] } }).fetch });
+  const whoBad = await bad.whoami(700100);
+  assert.equal(whoBad.linked && whoBad.prompt?.cid, null);
+});
+
 test('clock helpers', () => {
   assert.equal(minutesOf('20:00'), 1200);
   assert.equal(minutesOf('7:45'), 465);

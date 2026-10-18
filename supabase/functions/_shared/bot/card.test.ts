@@ -2,7 +2,7 @@
 // behind them (the lead exam as «Сегодня» picks it, the plan's own words, the window line only on its eve).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, planInputOf, planNow, planSentence, timeText } from './card.ts';
+import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, moveKeyboard, planInputOf, planNow, planSentence, timeText } from './card.ts';
 import { decode } from './codec.ts';
 import { lintMessage } from './lint.ts';
 import { visibleText } from './html.ts';
@@ -54,8 +54,16 @@ function variants(): Record<string, CardResult> {
     k1_after_date: dayCard(todayOf([AUTUMN], {}, at(2026, 11, 5)), 'today', SITE),
     // Пн–Чт (study_weekdays 15): Friday is a day off; /today says so, with «Ещё 20 новых» for who studies anyway.
     k1_day_off: dayCard(todayOf([{ ...AUTUMN, weekdays: 15 }]), 'today', SITE),
+    // Release 47: the exam day alone goes out (errors, «Перенести экзамен»); with another exam's work it is a line.
+    k1_exam_today_reminder: dayCard(todayOf([AUTUMN], {}, at(2026, 11, 3)), 'reminder', SITE),
+    k1_exam_today_line: dayCard(todayOf([AUTUMN, { id: CID2, title: TITLE2, date: DAY, started: 30 }]), 'reminder', SITE),
+    // «Экзамены»: one of two out of the plan — the other leads, alone; every exam out — /today says so.
+    k1_one_exam_off: dayCard(todayOf([{ ...AUTUMN, on: false }, { id: CID2, title: TITLE2, date: '2027-01-12', started: 30 }]), 'today', SITE),
+    k1_exams_off: dayCard(todayOf([{ ...AUTUMN, on: false }]), 'today', SITE),
   };
 }
+
+const K3_EXAM = { title: TITLE, examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-10-09', activeDays: 21, answers: 6480, twoDays: 902, keyed: 960 };
 
 test('every K1 variant of §4.2 passes the linter and matches its snapshot', () => {
   const all = variants();
@@ -67,12 +75,16 @@ test('every K1 variant of §4.2 passes the linter and matches its snapshot', () 
   const k2 = askCard(todayOf([AUTUMN]), linkOf());
   lintCard('k2', k2);
   shots.k2 = shot(k2);
-  const k3 = afterDateCard({
-    deliveryId: 1, chatId: TG, localDay: '2026-11-04', containerId: CID,
-    exam: { title: TITLE, examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-10-09', activeDays: 21, answers: 6480, twoDays: 902, keyed: 960 },
-  }, SITE);
+  // K3 from a server before release 47 (no role): the last word, as before; with the role, the move's buttons.
+  const k3 = afterDateCard({ deliveryId: 1, chatId: TG, localDay: '2026-11-04', containerId: CID, exam: K3_EXAM }, SITE);
   lintCard('k3', k3);
   shots.k3 = shot(k3);
+  const k3Move = afterDateCard({ deliveryId: 1, chatId: TG, localDay: '2026-11-04', containerId: CID, exam: { ...K3_EXAM, role: 'member', members: 0 } }, SITE);
+  lintCard('k3_move', k3Move);
+  shots.k3_move = shot(k3Move);
+  // «Перенести экзамен» on the exam-day card: its keyboard becomes the choices with «‹ Назад».
+  shots.k1_move_open = { text: all.k1_exam_today.out.text, keyboard: moveKeyboard(CID, true) };
+  assert.deepEqual(lintMessage({ text: all.k1_exam_today.out.text, keyboard: moveKeyboard(CID, true), user: [TITLE] }), []);
   const list = { out: { text: all.k1_two_exams.out.text, keyboard: examList(todayOf([AUTUMN, { id: CID2, title: TITLE2, date: '2027-01-12', started: 30 }])) }, user: [TITLE, TITLE2] };
   assert.deepEqual(lintMessage({ text: list.out.text, keyboard: list.out.keyboard, user: list.user, options: [TITLE, TITLE2] }), []);
   shots.k1_exam_list = { text: list.out.text, keyboard: list.out.keyboard };
@@ -97,7 +109,64 @@ test('K1: the first line is the plan\'s own line (words.ts), the figure line is 
   assert.equal(blue.length, 1);
   assert.deepEqual(decode(blue[0].data), { kind: 'go', cid: CID, mode: 'p' });
   assert.match(blue[0].text, /^Начать: \d+ вопрос/);
-  for (const state of ['k1_done_today', 'k1_exam_today', 'k1_no_exam', 'k1_after_date'] as const) assert.equal(variants()[state].send, false, state);
+  for (const state of ['k1_done_today', 'k1_no_exam', 'k1_after_date', 'k1_exams_off'] as const) assert.equal(variants()[state].send, false, state);
+  // Release 47 (the plan «Lead exam»): the exam day alone is sent too, once (one day card a day).
+  assert.equal(variants().k1_exam_today_reminder.send, true);
+  assert.equal(variants().k1_exam_today_reminder.state, 'exam_today');
+  assert.equal(variants().k1_exams_off.state, 'off');
+});
+
+test('release 47: the nearest exam with work leads; an exam on its exam day is a line; the exam day alone has errors and «Перенести экзамен»', () => {
+  const words = (card: CardResult) => visibleText(card.out.text).replace(/ /g, ' ');
+  const line = variants().k1_exam_today_line;
+  assert.equal(line.examId, CID, 'the exam with work leads');
+  assert.equal(line.send, true);
+  assert.ok(words(line).split('\n').includes(`Сегодня экзамен: «${TITLE2}».`), words(line));
+  assert.ok(line.user.includes(TITLE2));
+  const alone = variants().k1_exam_today_reminder;
+  assert.equal(words(alone).split('\n')[0], 'Сегодня экзамен.');
+  const buttons = alone.out.keyboard!.flat();
+  assert.deepEqual(buttons.map((b) => b.text), ['Пройтись по ошибкам: 20', 'Перенести экзамен']);
+  assert.deepEqual(decode(buttons[1].data), { kind: 'move', cid: CID, act: 'open' });
+  // Without the list (a server before release 47) no move is offered.
+  assert.ok(!dayCard(todayOf([AUTUMN], { botExams: [] }, at(2026, 11, 3)), 'reminder', SITE).out.keyboard!.flat().some((b) => b.text === 'Перенести экзамен'));
+});
+
+test('«Экзамены»: an exam out of the plan leaves the card, «Другой экзамен» and the reminder; the card with two exams or more has the button', () => {
+  const winter = { id: CID2, title: TITLE2, date: '2027-01-12', started: 30 };
+  const one = dayCard(todayOf([{ ...AUTUMN, on: false }, winter]), 'reminder', SITE);
+  assert.equal(one.examId, CID2);
+  assert.ok(!visibleText(one.out.text).includes('Ещё сегодня'));
+  assert.ok(one.out.keyboard!.flat().some((b) => b.text === 'Экзамены' && b.data === 'xl|c'));
+  assert.ok(!one.out.keyboard!.flat().some((b) => b.text === 'Другой экзамен'), 'only one exam in the plan has a card');
+  assert.deepEqual(dayView(todayOf([{ ...AUTUMN, on: false }, winter])).listed.map((e) => e.id), [CID2]);
+  // the focus is the user's choice: an exam out of the plan still opens (a group's post, the end of a session)
+  assert.equal(dayView(todayOf([{ ...AUTUMN, on: false }, winter]), CID).main!.id, CID);
+  // one exam: no «Экзамены» on the card (S1 has it)
+  assert.ok(!dayCard(todayOf([AUTUMN]), 'today', SITE).out.keyboard!.flat().some((b) => b.text === 'Экзамены'));
+  // two exams: the button, after «Другой экзамен»
+  const two = variants().k1_two_exams.out.keyboard!.flat().map((b) => b.text);
+  assert.deepEqual(two.slice(-2), ['Другой экзамен', 'Экзамены']);
+  // every exam out: nothing goes; /today says so with «Экзамены» (the one blue)
+  const off = variants().k1_exams_off;
+  assert.equal(visibleText(off.out.text).replace(/ /g, ' '), 'Ни один экзамен не выбран — план не приходит.');
+  assert.deepEqual(off.out.keyboard, [[{ text: 'Экзамены', data: 'xl|c', style: 'primary' }]]);
+  assert.equal(planNow(todayOf([{ ...AUTUMN, on: false }])).exam, null);
+});
+
+test('K3 and the /today card of a passed exam offer the move; K3 drops «бот больше не напишет»', () => {
+  const k3 = afterDateCard({ deliveryId: 1, chatId: TG, localDay: '2026-11-04', containerId: CID, exam: { ...K3_EXAM, role: 'owner', members: 2 } }, SITE);
+  const text = visibleText(k3.out.text).replace(/ /g, ' ');
+  assert.ok(text.endsWith('\n\nЕсли экзамен перенесли — нажмите, план пересчитается.'), text);
+  assert.ok(!text.includes('больше не напишет'));
+  assert.deepEqual(k3.out.keyboard!.map((r) => r.map((b) => [b.text, b.data])), [
+    [['Перенести на неделю', `mv|${CID}|7`]],
+    [['На 2 недели', `mv|${CID}|14`], ['Другая дата', `mv|${CID}|d`]],
+  ]);
+  const after = variants().k1_after_date;
+  assert.equal(visibleText(after.out.text).replace(/ /g, ' '), 'Экзамен прошёл 3 ноября.\nЕсли экзамен перенесли — нажмите, план пересчитается.');
+  assert.deepEqual(after.out.keyboard, moveKeyboard(CID, false));
+  for (const row of moveKeyboard(CID, true)) for (const b of row) assert.ok(new TextEncoder().encode(b.data!).length <= 64);
 });
 
 test('a day off (settings.study_weekdays): no reminder while every exam is off; an exam with a study day leads and rings', () => {
@@ -196,12 +265,15 @@ test('an open session of today turns the blue into «Продолжить: 8 и�
   assert.ok(!dayCard(answered, 'today', SITE).out.keyboard!.flat().some((b) => b.text.startsWith('Продолжить')));
 });
 
-test('the lead exam: nearest date with work today; exam day first; a done day only when nothing has work; ties → newer', () => {
+test('the lead exam: nearest date with work today; the exam day a line under it (release 47); a done day only when nothing has work; ties → newer', () => {
   const winterSoon = { id: CID2, title: TITLE2, date: '2026-10-25', started: 30 };
   assert.equal(dayView(todayOf([AUTUMN, winterSoon])).main!.id, CID2);
   assert.deepEqual(dayView(todayOf([AUTUMN, winterSoon])).others.map((e) => e.id), [CID]);
+  // Before release 47 the exam day led the card and the reminder was not sent; now the exam with work leads.
   const winterToday = { id: CID2, title: TITLE2, date: DAY, started: 30 };
-  assert.equal(dayView(todayOf([AUTUMN, winterToday])).main!.id, CID2);
+  assert.equal(dayView(todayOf([AUTUMN, winterToday])).main!.id, CID);
+  assert.deepEqual(dayView(todayOf([AUTUMN, winterToday])).examDays.map((e) => e.id), [CID2]);
+  assert.equal(dayView(todayOf([{ ...AUTUMN, date: DAY }, winterToday])).main!.plan.state, 'exam_today', 'only exam days: one of them leads');
   const done = { id: CID2, title: TITLE2, date: '2026-10-20', perSubject: 10, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3_600_000) / 1000), doneSec: 2700 } };
   assert.equal(dayView(todayOf([AUTUMN, done])).main!.id, CID, 'the done exam leads only when nothing else has work');
   const sameDay = todayOf([AUTUMN, { ...AUTUMN, id: CID2, title: TITLE2 }]);

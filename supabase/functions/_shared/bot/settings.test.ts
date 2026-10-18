@@ -4,14 +4,17 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lintMessage } from './lint.ts';
 import { comesToday, isDatePrompt, k2No, k2Yes, parseDate, pauseDay, pausedScreen, s1, s2, s3, s4, s5, s6, unlinkedScreen, unpausedScreen } from './settings.ts';
-import { t, b, lines } from './html.ts';
+import { t, b, lines, visibleText } from './html.ts';
 import type { Out } from './tg.ts';
-import { linkOf, TITLE } from './fixtures/scenario.ts';
+import { AUTUMN, botExamsOf, CID2, linkOf, TITLE, TITLE2 } from './fixtures/scenario.ts';
 import { matchSnapshots, type Shot } from './fixtures/snapshot.ts';
 import * as W from './words.ts';
 
 const SITE = 'https://ludosiel-studyforge.hf.space';
 const EXAM = { title: TITLE, date: '2026-11-03' };
+const WINTER = { id: CID2, title: TITLE2, date: '2026-12-20' };
+const ONE = botExamsOf([AUTUMN]);
+const TWO = botExamsOf([AUTUMN, WINTER]);
 
 function check(name: string, out: Out, user: string[] = [], toasts?: string[]): Shot {
   const problems = lintMessage({ text: out.text, keyboard: out.keyboard, user, toasts });
@@ -23,10 +26,13 @@ test('every message of §4.5 passes the linter and matches its snapshot', () => 
   const link = linkOf();
   const prompt = (text: string): Out => ({ text: t(text), keyboard: null });
   const shots: Record<string, Shot> = {
-    s1: check('s1', s1(link, EXAM), [TITLE]),
-    s1_paused: check('s1_paused', s1(linkOf({ pausedUntil: '2026-10-19' }), EXAM), [TITLE]),
-    s1_off: check('s1_off', s1(linkOf({ remindOn: false }), EXAM), [TITLE]),
+    // Release 47: S1 has «Экзамены» when the user has an exam (s1, s1_paused, s1_off gained that row).
+    s1: check('s1', s1(link, EXAM, ONE), [TITLE]),
+    s1_paused: check('s1_paused', s1(linkOf({ pausedUntil: '2026-10-19' }), EXAM, ONE), [TITLE]),
+    s1_off: check('s1_off', s1(linkOf({ remindOn: false }), EXAM, ONE), [TITLE]),
     s1_no_exam: check('s1_no_exam', s1(linkOf({ tz: 'America/Lima' }), null)),
+    s1_two_exams: check('s1_two_exams', s1(link, EXAM, TWO), [TITLE, TITLE2]),
+    s1_none_chosen: check('s1_none_chosen', s1(link, null, TWO.map((e) => ({ ...e, on: false }))), [TITLE, TITLE2]),
     s2: check('s2', s2()),
     s3: check('s3', s3()),
     s3_until_tomorrow: check('s3_until_tomorrow', pausedScreen(link, '2026-10-17')),
@@ -58,6 +64,19 @@ test('the lines of §4.8 (presses that fail, old buttons) pass the toast rules; 
   for (const toast of toasts) assert.ok([...toast].length <= 200);
   matchSnapshots('failures', shots);
   assert.equal(b('x'), '<b>x</b>');
+});
+
+test('S1 (release 47): the exams in the plan; «Экзамены» under the time and the pause', () => {
+  const words = (out: Out) => visibleText(out.text).replace(/ /g, ' ').split('\n');
+  assert.equal(words(s1(linkOf(), EXAM, ONE))[2], 'Экзамен — «Осенняя сессия», 3 ноября.');
+  assert.equal(words(s1(linkOf(), EXAM, TWO))[2], 'Экзамены в плане: «Осенняя сессия», «Зимняя сессия».');
+  assert.equal(words(s1(linkOf(), EXAM, [TWO[0], { ...TWO[1], on: false }]))[2], 'Экзамен — «Осенняя сессия», 3 ноября.', 'one of two in the plan');
+  assert.equal(words(s1(linkOf(), null, TWO.map((e) => ({ ...e, on: false }))))[2], 'Ни один экзамен не выбран — план не приходит.');
+  // passed exams are not «in the plan»; without a current one the lead exam's line stays
+  const passed = TWO.map((e) => ({ ...e, state: 'after' as const }));
+  assert.equal(words(s1(linkOf(), null, passed))[2], W.NO_EXAM);
+  assert.deepEqual(s1(linkOf(), EXAM, ONE).keyboard!.map((r) => r.map((b) => b.data)), [['st|time', 'st|pause'], ['xl|s'], ['st|off']]);
+  assert.deepEqual(s1(linkOf(), null).keyboard!.map((r) => r.map((b) => b.data)), [['st|time', 'st|pause'], ['st|off']], 'no exam: no «Экзамены»');
 });
 
 test('S1: the time by city for frequent zones, the IANA name otherwise; «Снять паузу» in place of «Пауза»', () => {

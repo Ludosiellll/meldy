@@ -8,7 +8,7 @@ import { DbError } from './db.ts';
 import { setLogSink } from './log.ts';
 import { visibleText } from './html.ts';
 import { harness, type Harness } from './fixtures/harness.ts';
-import { AUTUMN, CID, NOW, wireOf } from './fixtures/scenario.ts';
+import { AUTUMN, botExamsOf, CID, NOW, wireOf } from './fixtures/scenario.ts';
 import * as W from './words.ts';
 
 const AT_2001 = NOW + 60_000; // 20:01 in Minsk
@@ -59,10 +59,10 @@ test('K1 at the chosen time: with sound, protect_content, the card of the copied
   assert.equal(h.tg.of('sendMessage').length, 1);
 });
 
-test('no card when the plan is done, has nothing, it is a day off or the exam day: the row is closed as skipped with that word', async () => {
+test('no card when the plan is done, has nothing, it is a day off: the row is closed as skipped with that word', async () => {
+  // (The exam day left this list in release 47: its card goes out now, see below.)
   for (const [name, spec, now, word] of [
     ['done', { id: CID, title: 'Осенняя сессия', date: '2026-11-03', perSubject: 10, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3_600_000) / 1000), doneSec: 2700 } }, AT_2001, 'done'],
-    ['exam day', AUTUMN, Date.UTC(2026, 10, 3, 17, 1), 'exam_today'],
     // Пн–Чт (study_weekdays 15): Friday is a day off — the reminder waits for a study day
     ['day off', { ...AUTUMN, weekdays: 15 }, AT_2001, 'day_off'],
   ] as const) {
@@ -76,6 +76,71 @@ test('no card when the plan is done, has nothing, it is a day off or the exam da
     assert.equal(h.fdb.deliveries[0].error, word);
     assert.equal(stats[`rem_skip_${word}`], 1);
   }
+});
+
+test('release 47: the exam day alone goes out once, «Сегодня экзамен.» with «Перенести экзамен»; with another exam\'s work that one leads', async () => {
+  const examDay = Date.UTC(2026, 10, 3, 17, 1); // 20:01 on 3 November in Minsk
+  const h = harness({ now: examDay });
+  const userId = 'c1c2c3d4-0000-4000-8000-000000000556';
+  h.fdb.addLink({ userId, tgUserId: 800556 });
+  h.fdb.setUser(userId, { wire: wireOf([AUTUMN], examDay), botExams: botExamsOf([AUTUMN], examDay) });
+  const stats = await tickNow(h);
+  assert.equal(stats.rem_sent, 1);
+  const card = h.tg.of('sendMessage')[0].params;
+  assert.equal(words(card.text).split('\n')[0], 'Сегодня экзамен.');
+  assert.deepEqual(card.reply_markup.inline_keyboard.flat().map((b: { text: string }) => b.text), ['Пройтись по ошибкам: 20', 'Перенести экзамен']);
+  assert.equal(card.disable_notification, false);
+  h.advance(60_000);
+  await tickNow(h);
+  assert.equal(h.tg.of('sendMessage').length, 1, 'once');
+
+  const two = harness({ now: examDay });
+  const other = { id: 'a1b2c3d4-0000-4000-8000-000000000002', title: 'Зимняя сессия', date: '2027-01-12', started: 30 };
+  two.fdb.addLink({ userId, tgUserId: 800557 });
+  two.fdb.setUser(userId, { wire: wireOf([AUTUMN, other], examDay), botExams: botExamsOf([AUTUMN, other], examDay) });
+  await tickNow(two);
+  const lines = words(two.tg.of('sendMessage')[0].params.text).split('\n');
+  assert.match(lines[0], /\d+ минут/, 'the plan of the exam with work');
+  assert.match(lines[1], /^Зимняя сессия · /);
+  assert.ok(lines.includes('Сегодня экзамен: «Осенняя сессия».'), lines.join(' | '));
+});
+
+test('«Экзамены»: every exam out of the plan → no claim; out after the claim → the context skips «off»; K3 never for an exam out of it', async () => {
+  const h = harness({ now: AT_2001 });
+  const userId = 'c1c2c3d4-0000-4000-8000-000000000557';
+  const row = h.fdb.addLink({ userId, tgUserId: 800558 });
+  h.fdb.setUser(userId, { wire: wireOf([AUTUMN], NOW), botExams: botExamsOf([{ ...AUTUMN, on: false }], NOW) });
+  await tickNow(h);
+  assert.equal(h.fdb.deliveries.length, 0, 'not claimed');
+  // on at the claim, off before the context
+  h.fdb.setUser(userId, { botExams: botExamsOf([AUTUMN], NOW) });
+  await h.fdb.db.claimReminders(50);
+  h.fdb.setUser(userId, { botExams: botExamsOf([{ ...AUTUMN, on: false }], NOW) });
+  h.advance(11 * 60_000);
+  const stats = await tickNow(h);
+  assert.equal(stats.rem_skip_off, 1);
+  assert.deepEqual([h.fdb.deliveries[0].status, h.fdb.deliveries[0].error], ['skipped', 'off']);
+  assert.equal(h.tg.of('sendMessage').length, 0);
+  // K3 of that exam: never
+  const k = harness({ now: Date.UTC(2026, 10, 4, 17, 1) });
+  const kRow = k.fdb.addLink({ userId, tgUserId: 800559 });
+  k.fdb.setUser(userId, { botExams: botExamsOf([{ ...AUTUMN, on: false }], Date.UTC(2026, 10, 4, 17, 1)) });
+  k.fdb.addAfterDate(kRow.id, CID, { title: 'Осенняя сессия', examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-10-09', activeDays: 21, answers: 6480, twoDays: 902, keyed: 960, role: 'member', members: 0 });
+  await tickNow(k);
+  assert.equal(k.tg.of('sendMessage').length, 0);
+  assert.ok(row.id > 0);
+});
+
+test('K3 with the move (release 47): «Если экзамен перенесли — нажмите…», «Перенести на неделю», «На 2 недели», «Другая дата»', async () => {
+  const h = harness({ now: Date.UTC(2026, 10, 4, 17, 1) });
+  const [row] = students(h, 1);
+  h.fdb.addAfterDate(row.id, CID, { title: 'Осенняя сессия', examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-10-09', activeDays: 21, answers: 6480, twoDays: 902, keyed: 960, role: 'owner', members: 0 });
+  await tickNow(h);
+  const k3 = h.tg.of('sendMessage').map((c) => c.params).find((p) => words(p.text).startsWith('Экзамен прошёл'))!;
+  assert.equal(words(k3.text), 'Экзамен прошёл 3 ноября.\nЗа 26 дней — 21 с занятиями, 6 480 ответов.\n902 из 960 — верно в два разных дня.\n\nЕсли экзамен перенесли — нажмите, план пересчитается.');
+  assert.deepEqual(k3.reply_markup.inline_keyboard.map((r: Array<{ callback_data: string }>) => r.map((b) => b.callback_data)),
+    [[`mv|${CID}|7`], [`mv|${CID}|14`, `mv|${CID}|d`]]);
+  assert.equal(k3.disable_notification, true);
 });
 
 test('the window: not before the chosen time, not 3 h late, not at 23:00; paused or off → no claim', async () => {

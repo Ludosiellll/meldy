@@ -20,6 +20,7 @@ import type { BotDb, Link, Who } from './db.ts';
 import { derivedSecret, sameSecret } from './secrets.ts';
 import { askTime, claimLink, m1, openPrompt, promptOf, timeChosen, timeReply, TIME_PROMPTS } from './link.ts';
 import { buttonsOnly, dateReply, helpCommand, isDatePrompt, settingsCommand, settingsTap, showSettings, stopCommand } from './settings.ts';
+import { examsTap, isMovePrompt, moveReply } from './exams.ts';
 import { errorName, log, type LogRoute } from './log.ts';
 import { processUpdate } from './ledger.ts';
 import { runTick, type StepStats, type TickTools } from './tick.ts';
@@ -333,10 +334,14 @@ async function onPrivateMessage(ctx: Ctx, ports: Ports, msg: TgMessage): Promise
     const asked = plain(reply.text);
     if (TIME_PROMPTS.includes(asked)) return timeReply(ctx, msg, who, promptOf(who, 'time', reply.message_id), showS1);
     if (isDatePrompt(asked)) return dateReply(ctx, msg, who, promptOf(who, 'date', reply.message_id));
+    if (isMovePrompt(asked)) return moveReply(ctx, msg, who, promptOf(who, 'move', reply.message_id));
   }
   if (text !== null && (await ports.session.text(ctx, msg, who))) return;
   const pending = text !== null ? openPrompt(who, ctx.now()) : null;
-  if (pending) return pending.kind === 'time' ? timeReply(ctx, msg, who, pending, showS1) : dateReply(ctx, msg, who, pending);
+  if (pending) {
+    if (pending.kind === 'time') return timeReply(ctx, msg, who, pending, showS1);
+    return pending.kind === 'move' ? moveReply(ctx, msg, who, pending) : dateReply(ctx, msg, who, pending);
+  }
   // After the time and date prompts: a typed «19:45» answers the prompt, not the oral question waiting for a voice.
   if (text !== null && (await ports.voice.text(ctx, msg, who))) return;
   return buttonsOnly(ctx, msg, who);
@@ -370,6 +375,8 @@ async function onTap(ctx: Ctx, ports: Ports, tap: Tap): Promise<void> {
     await editOrSend(ctx.tg, { chatId: tap.chatId, messageId: tap.messageId, text: card.out.text, keyboard: card.out.keyboard });
     return;
   }
+  // «Экзамены» and «Перенести экзамен»: their own SQL (bot_exams, bot_exam_remind, bot_exam_move) finds the user.
+  if (cb.kind === 'exams' || cb.kind === 'remind' || cb.kind === 'card' || cb.kind === 'move' || cb.kind === 'moveFor') return examsTap(ctx, tap, cb);
   const who = await ctx.db.whoami(tap.tgUserId);
   if (!who.linked) return tap.answer(W.NOT_LINKED);
   if (cb.kind === 'time' && cb.from === 'link') return cb.minutes === null ? askTime(ctx, tap, 'link') : timeChosen(ctx, tap, cb.minutes);

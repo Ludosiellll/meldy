@@ -101,6 +101,25 @@ tries, still due), and becomes `failed` after 3 hours. Rows claimed by one tick 
 - `bot.tick_due(p_now)`: the two hooks above. New functions in schema `bot` are executable by PUBLIC until revoked: take
   EXECUTE back from public, anon, authenticated (the contract check `bot_helpers_closed_to_clients` fails otherwise).
 
+## Release 47: «Экзамены» and «Перенести экзамен» (20261018120000_exam_move_bot_exams.sql)
+
+`EXAM` = `{container_id, title, exam_date, state, tg_remind, role, members}` (bot.exams_list, nearest first):
+`exam_date` the nearest date ahead or today, else the last one (the user's own date first); `state` `study` \|
+`exam_today` \| `after` \| `no_date`; `tg_remind` = the exam is in the Telegram plan; `members` = the author's active
+members (null for a member). The site reads the same list through `telegram_exams()`.
+
+| Function | Answer |
+|---|---|
+| `bot_exams(p_tg_user_id)` | `{status: "ok", local_day, exams: [EXAM]}` \| `{status: "unlinked"}`. Marks the user as seen. |
+| `bot_exam_remind(p_tg_user_id, p_container_id, p_on)` | `{status: "ok", container_id, tg_remind, exams: [EXAM]}` \| `invalid` \| `gone` \| `unlinked`. |
+| `bot_exam_move(p_tg_user_id, p_container_id, p_date, p_for = 'all')` | `{status: "ok", title, for, container_id, exam_date, own_exam_date, subjects}` \| `{status: "invalid", reason: for\|date\|past\|far}` \| `forbidden` (a member for everyone) \| `gone` \| `unlinked`. `exam_date_move`'s rules on the link's local day (today … today + 730). |
+
+Changed: `bot_today` and `bot_reminder_context` add `exam_list: [EXAM]` (the card leaves out the exams that are off);
+the context skips `off` when every exam of the user is off, and the reminders' claim leaves such a user out;
+`bot_claim_after_date`'s `exam` adds `own_exam_date`, `role`, `members`, never comes for an exam that is off, and comes
+once per user, exam and date (a moved exam gets K3 again after its new date); every date the bot reads is the user's own
+date first (`container_plans.own_exam_date`).
+
 ## Tables (schema `bot`; RLS on, no policy, no client grants)
 
 `config` (one row), `link_codes`, `links`, `updates`, `claim_failures`, `deliveries` (+ `answer` of a K2), `days`,

@@ -2,9 +2,14 @@
  * The day card (spec §4.2): K1 in every variant of its table, K2 «Присылать план дальше?», K3 after the date.
  *
  * Each exam is decoded from `plan_inputs` with the copied `planInputs.ts` and planned with the copied `planDay`, so the
- * bot and «Сегодня» count the same. Every plan and count line is the copied `words.ts`; the lead exam is chosen as
- * «Сегодня» chooses it (pages/Dashboard.tsx `todayLayout`): the nearest date among the exams with something to do
- * today, else the nearest whose day is done; ties — the newer exam.
+ * bot and «Сегодня» count the same. Every plan and count line is the copied `words.ts`.
+ *
+ * Which exams (release 47, docs/superpowers/plans/2026-10-18-exam-move-bot-exams.md): the card is about the exams the
+ * user keeps in the Telegram plan (`today.botExams`, container_plans.tg_remind; «Экзамены» switches them). Among them
+ * the nearest exam with work today leads; an exam on its exam day becomes the line «Сегодня экзамен: «…».» under it;
+ * the card goes out when any of them has work. When none has work and one is on its exam day, that day's card leads
+ * and goes out too: «Сегодня экзамен.» with «Пройтись по ошибкам: N» and «Перенести экзамен». Else the nearest whose
+ * day is done; ties — the newer exam. «Другой экзамен» may focus any exam of the day.
  */
 import type { DayPlan, LocalDay, PlanInput } from '../plan/container.ts';
 import { decodePlanInputs } from '../plan/planInputs.ts';
@@ -14,7 +19,7 @@ import { figureLines, lineText, planLine, RULE_LINE, shownMinutes, startLabel } 
 import { counter } from '../plan/session.ts';
 import { addDays, daysBetween, isStudyDay, studyDayFrom, studyMask } from '../plan/time.ts';
 import { encode } from './codec.ts';
-import type { AfterDateRow, Link, Today } from './db.ts';
+import type { AfterDateRow, BotExam, Link, Today } from './db.ts';
 import { b, lines, t, thousands } from './html.ts';
 import type { Button, Keyboard, Out } from './tg.ts';
 import * as W from './words.ts';
@@ -45,6 +50,10 @@ export interface DayView {
    * exam day, or today's work done). Not an exam without questions: its card would say there is no exam with a plan.
    */
   listed: ExamDay[];
+  /** Exams in the plan on their exam day, other than the leading one: «Сегодня экзамен: «…».» under the card. */
+  examDays: ExamDay[];
+  /** The exams the user took out of the Telegram plan (container_plans.tg_remind false). */
+  off: ReadonlySet<string>;
 }
 
 const sentence = (text: string) => (/[.?…]$/.test(text) ? text : `${text}.`);
@@ -103,15 +112,45 @@ export function dayView(today: Today, focus?: string | null): DayView {
       }
     });
   }
-  const shown = exams.filter((e) => e.plan.state !== 'after');
-  const active = shown.filter((e) => e.plan.state === 'study' || e.plan.state === 'exam_today').sort(byDate);
+  const off = new Set((today.botExams ?? []).filter((e) => !e.on).map((e) => e.id));
+  const all = exams.filter((e) => e.plan.state !== 'after');
+  const shown = all.filter((e) => !off.has(e.id));
+  const study = shown.filter((e) => e.plan.state === 'study').sort(byDate);
+  const examDay = shown.filter((e) => e.plan.state === 'exam_today').sort(byDate);
   const quiet = shown.filter((e) => e.plan.state === 'done' || e.plan.state === 'nothing' || e.plan.state === 'empty').sort(byDate);
   const listable = (e: ExamDay) => e.plan.state === 'study' || e.plan.state === 'exam_today' || e.plan.state === 'done';
-  const focused = focus ? shown.find((e) => e.id === focus && listable(e)) ?? null : null;
-  const main = focused ?? active[0] ?? quiet[0] ?? null;
+  // A focus is the user's own choice («Другой экзамен», a group's post, the end of a session): any exam of the day.
+  const focused = focus ? all.find((e) => e.id === focus && listable(e)) ?? null : null;
+  const main = focused ?? study[0] ?? examDay[0] ?? quiet[0] ?? null;
   const others = shown.filter((e) => e !== main && e.plan.state === 'study').sort(byDate);
-  const listed = shown.filter((e) => e === main || listable(e)).sort(byDate);
-  return { day, exams, main, others, listed };
+  const examDays = examDay.filter((e) => e !== main);
+  const listed = all.filter((e) => e === main || (!off.has(e.id) && listable(e))).sort(byDate);
+  return { day, exams, main, others, listed, examDays, off };
+}
+
+/** The user's exam in bot.exams_list (role, members), or null (an older server, or not the user's any more). */
+export function botExamOf(today: Today, containerId: string): BotExam | null {
+  return (today.botExams ?? []).find((e) => e.id === containerId) ?? null;
+}
+
+/**
+ * «Перенести на неделю» / «На 2 недели» / «Другая дата» (K3, the exam-day card, the /today card of a passed exam), and
+ * «‹ Назад» to the exam's card on the exam-day card. Two in a row are at most 12 characters each (§3), so the week has
+ * a row of its own.
+ */
+export function moveKeyboard(cid: string, back: boolean): Keyboard {
+  const keyboard: Keyboard = [
+    [{ text: W.MOVE_WEEK, data: encode({ kind: 'move', cid, act: 'w1' }) }],
+    [{ text: W.MOVE_2_WEEKS, data: encode({ kind: 'move', cid, act: 'w2' }) }, { text: W.MOVE_DATE, data: encode({ kind: 'move', cid, act: 'date' }) }],
+  ];
+  if (back) keyboard.push([{ text: W.BACK, data: encode({ kind: 'exam', cid }) }]);
+  return keyboard;
+}
+
+/** «Экзамены» on the card: with two exams or more that are not over (in the plan or not). */
+function examsButton(today: Today): Button | null {
+  const current = (today.botExams ?? []).filter((e) => e.state !== 'after');
+  return current.length >= 2 ? { text: W.EXAMS, data: encode({ kind: 'exams', from: 'c' }) } : null;
 }
 
 /**
@@ -153,11 +192,15 @@ export type CardMode = 'reminder' | 'today';
 
 export interface CardResult {
   out: Out;
-  /** reminder: false when there is nothing to send today (done, nothing, a day off, exam day, after the date, no exam). */
+  /**
+   * reminder: false when there is nothing to send today (done, nothing, a day off, after the date, no exam, every exam
+   * out of the plan); true on a day with work, and on the exam day when that leads.
+   */
   send: boolean;
   /**
    * The lead exam's plan state (study, done, nothing, exam_today, after, empty), `day_off` when its day is not one of the
-   * student's days of the week, or none: the reason of a skipped reminder.
+   * student's days of the week, `off` when every exam is out of the Telegram plan, or none: the reason of a skipped
+   * reminder.
    */
   state: string;
   examId: string | null;
@@ -179,6 +222,17 @@ function resumeButton(today: Today, exam: ExamDay): Button | null {
   }
 }
 
+/** Every exam the user has is out of the Telegram plan: nothing goes out; /today says so, with «Экзамены». */
+function noneChosenCard(): CardResult {
+  return {
+    out: { text: t(W.NO_EXAM_CHOSEN), keyboard: [row({ text: W.EXAMS, data: encode({ kind: 'exams', from: 'c' }), style: 'primary' })] },
+    send: false,
+    state: 'off',
+    examId: null,
+    user: [],
+  };
+}
+
 function noExamCard(site: string, state = 'none'): CardResult {
   return {
     out: { text: t(W.NO_EXAM_UPLOAD), keyboard: [row({ text: W.UPLOAD, url: url(site, W.PATH.upload), style: 'primary' })] },
@@ -197,10 +251,16 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
   const view = dayView(today, focus);
   const main = view.main;
   if (!main) {
-    const past = view.exams.filter((e) => e.date !== null).sort(byDate).at(-1);
+    if (view.exams.length > 0 && view.exams.every((e) => view.off.has(e.id))) return noneChosenCard();
+    const past = view.exams.filter((e) => e.date !== null && !view.off.has(e.id)).sort(byDate).at(-1);
     if (mode === 'today' && past && past.date) {
+      // «Экзамен прошёл 17 октября.» — and, when the user may move it here, the way to move it (the owner, 2026-10-18).
+      const movable = botExamOf(today, past.id) !== null;
       return {
-        out: { text: b(W.examPassed(past.date)), keyboard: [row({ text: W.NEW_DATE, url: url(site, W.PATH.examSettings(past.id)) })] },
+        out: {
+          text: movable ? lines(b(W.examPassed(past.date)), t(W.K3_MOVE)) : b(W.examPassed(past.date)),
+          keyboard: movable ? moveKeyboard(past.id, false) : [row({ text: W.NEW_DATE, url: url(site, W.PATH.examSettings(past.id)) })],
+        },
         send: false,
         state: 'after',
         examId: past.id,
@@ -212,7 +272,7 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
   if (main.plan.state === 'empty') return noExamCard(site, 'empty');
 
   const plan = main.plan;
-  const user = [main.title, ...view.others.map((e) => e.title)];
+  const user = [main.title, ...view.others.map((e) => e.title), ...view.examDays.map((e) => e.title)];
   const keyboard: Keyboard = [];
   const text: Array<string | null> = [];
   const figure = figureLine(plan);
@@ -224,6 +284,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     if (mode === 'today' && figure.under) text.push(t(figure.under));
     const lead = plan.lines.find((l) => l.key === 'exam_errors');
     if (lead && errors > 0) keyboard.push(row({ text: W.throughErrors(lead.n?.[0] ?? errors), data: encode({ kind: 'go', cid, mode: 'e' }), style: 'primary' }));
+    // The exam moved after all (the owner, 2026-10-18): its choices open in place of this keyboard.
+    if (botExamOf(today, cid)) keyboard.push(row({ text: W.MOVE_EXAM, data: encode({ kind: 'move', cid, act: 'open' }) }));
   } else {
     text.push(b(planSentence(main)), t(examLineOf(main)));
     // «Накануне окна» (the day before the final days) and «В окне» (spec §4.2): the plan keeps window_ahead every day.
@@ -258,6 +320,7 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     // Oral questions are planned on the site (the bot's plan input has the test part only): a quiet way there.
     if (main.hasOral) keyboard.push(row({ text: W.ORAL_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
   }
+  for (const exam of view.examDays) text.push(t(W.examToday(exam.title)));
   for (const other of view.others) {
     const sec = other.plan.counts.leftSec > 0 ? other.plan.counts.leftSec : other.plan.counts.estSec;
     text.push(t(W.alsoToday(other.title, shownMinutes(sec))));
@@ -268,9 +331,13 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     if (plan.state !== 'study') keyboard.push(row({ text: W.OPEN_IN_MELDY, url: url(site, W.PATH.exam(cid)) }));
   }
   if (view.listed.length > 1) keyboard.push(row({ text: W.OTHER_EXAM, data: encode({ kind: 'exam', cid: null }) }));
+  const choose = examsButton(today);
+  if (choose) keyboard.push(row(choose));
 
-  // A reminder goes out only on a day with work: never on a day off (its reason says so, like «done» or «nothing»).
-  return { out: { text: lines(...text), keyboard }, send: plan.state === 'study', state: plan.state !== 'study' && isDayOff(plan) ? 'day_off' : plan.state, examId: cid, user };
+  // A reminder goes out on a day with work, and on the exam day when that leads (no exam of the plan has work); never
+  // on a day off (its reason says so, like «done» or «nothing»).
+  const send = plan.state === 'study' || plan.state === 'exam_today';
+  return { out: { text: lines(...text), keyboard }, send, state: !send && isDayOff(plan) ? 'day_off' : plan.state, examId: cid, user };
 }
 
 const ellipsize = (text: string, max: number) => ([...text].length <= max ? text : `${[...text].slice(0, max - 1).join('').trimEnd()}…`);
@@ -311,10 +378,15 @@ export function askCard(today: Today, link: Link): CardResult {
   };
 }
 
-/** K3 after the exam's (last test) date: the last thing the bot writes about it (silent). «За N дней» = last − first + 1. */
+/**
+ * K3 after the exam's (last test) date (silent). «За N дней» = last − first + 1. When the user may move the exam here
+ * (the author for everyone, a member for themselves): «Если экзамен перенесли — нажмите…» and the move's buttons;
+ * from a server before the move (no role): the last thing the bot writes about it, with «Новая дата» on the site.
+ */
 export function afterDateCard(row0: AfterDateRow & { exam: NonNullable<AfterDateRow['exam']> }, site: string): CardResult {
   const e = row0.exam;
   const days = e.firstPlanDay ? daysBetween(e.firstPlanDay, e.lastDate) + 1 : null;
+  const movable = e.role === 'owner' || e.role === 'member';
   return {
     out: {
       text: lines(
@@ -322,9 +394,9 @@ export function afterDateCard(row0: AfterDateRow & { exam: NonNullable<AfterDate
         days !== null && days > 0 ? t(W.k3Days(days, e.activeDays, thousands(e.answers), e.answers)) : null,
         t(W.k3Figure(e.twoDays, e.keyed)),
         '',
-        t(W.K3_LAST),
+        t(movable ? W.K3_MOVE : W.K3_LAST),
       ),
-      keyboard: [row({ text: W.NEW_DATE, url: url(site, W.PATH.examSettings(row0.containerId)) })],
+      keyboard: movable ? moveKeyboard(row0.containerId, false) : [row({ text: W.NEW_DATE, url: url(site, W.PATH.examSettings(row0.containerId)) })],
     },
     send: true,
     state: 'after',

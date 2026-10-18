@@ -41,16 +41,18 @@ export class DbError extends Error {
 
 export type UpdateBegin = 'new' | 'retry' | 'done' | 'busy';
 
-/** The function's pending ForceReply (M4 time, S3 date), kept in bot.links.prompt (≤ 1 KB). */
+/** The function's pending ForceReply (M4 time, S3 date, «Другая дата» of a move), kept in bot.links.prompt (≤ 1 KB). */
 export interface Prompt {
-  kind: 'time' | 'date';
+  kind: 'time' | 'date' | 'move';
   /** The prompt message (the user replies to it). */
   promptId: number;
-  /** The message that changes after the answer (M2 → M3, S1, S3 → the pause); null: post anew. */
+  /** The message that changes after the answer (M2 → M3, S1, S3 → the pause, K3 → the move); null: post anew. */
   targetId: number | null;
   from: 'link' | 'settings';
   /** When it was asked (epoch s): a prompt older than an hour no longer takes plain text. */
   at: number | null;
+  /** move: the exam to move. */
+  cid?: string | null;
 }
 
 /** LINK (`bot.link_json`) of a Telegram user; `tgUserId` is the caller's (the JSON has no ids but the chat's). */
@@ -76,6 +78,25 @@ export interface Link {
 /** bot_whoami's exams (nearest date first). */
 export interface ExamRow { id: string; title: string; examDate: LocalDay | null; lastDate: LocalDay | null; role: 'owner' | 'member' }
 
+/** An exam's state for the user, as bot.exams_list gives it (the plan's: no_date when nothing has a date). */
+export type ExamState = 'study' | 'exam_today' | 'after' | 'no_date';
+
+/**
+ * One exam of bot.exams_list (bot_exams; bot_today's and bot_reminder_context's exam_list), nearest first: the date
+ * ahead (or today) else the last one, the user's own date first; whether the day plan in Telegram includes it
+ * (container_plans.tg_remind); the role, and the author's active members (who may move it, and for whom).
+ */
+export interface BotExam { id: string; title: string; date: LocalDay | null; state: ExamState; on: boolean; role: 'owner' | 'member'; members: number }
+
+export type ExamsResult = { status: 'ok'; today: LocalDay | null; exams: BotExam[] } | { status: 'gone' | 'invalid' | 'unlinked'; exams?: undefined };
+
+/** bot_exam_move: for everyone (the author) or only for the user. */
+export type MoveFor = 'all' | 'me';
+export type MoveResult =
+  | { status: 'ok'; title: string; examDate: LocalDay | null; ownDate: LocalDay | null }
+  | { status: 'invalid'; reason: string }
+  | { status: 'forbidden' | 'gone' | 'unlinked' };
+
 export type Who = { linked: false } | ({ linked: true } & Link & { exams: ExamRow[] });
 
 export type ClaimStatus = 'linked' | 'used' | 'expired' | 'invalid' | 'slow_down' | 'private_only';
@@ -98,7 +119,7 @@ export interface SettingsPatch {
   remind_on?: boolean;
   tz?: string;
   paused_until?: LocalDay | null;
-  prompt?: { kind: Prompt['kind']; prompt_id: number; target_id: number | null; from: Prompt['from']; at: number } | null;
+  prompt?: { kind: Prompt['kind']; prompt_id: number; target_id: number | null; from: Prompt['from']; at: number; cid?: string } | null;
   hint?: true;
   ask?: 'yes' | 'pause' | 'stop';
 }
@@ -150,6 +171,11 @@ export interface Today {
    */
   oralParts: OralPlanPart[];
   exams: ExamMeta[];
+  /**
+   * The user's exams with their switch (bot.exams_list): the card, M3 and S1 leave out the exams that are off. Empty
+   * from a server without the list: every exam is in the plan then.
+   */
+  botExams: BotExam[];
   session: OpenSession | null;
   /** Today's bot.days row: the card and the last summary. */
   day: { cardMessageId: number | null; cardUsed: boolean; lastMessageId: number | null } | null;
@@ -186,6 +212,10 @@ export interface AfterDateRow {
     answers: number;
     twoDays: number;
     keyed: number;
+    /** The user's role (who may move it; null from a server before the move: K3 then says it is the last word). */
+    role?: 'owner' | 'member' | null;
+    /** The author's active members (the move asks «for everyone or only for me» when there are some). */
+    members?: number;
   } | null;
 }
 
@@ -237,6 +267,13 @@ export interface BotDb {
   deliveryRetry(deliveryId: number, error?: string): Promise<boolean>;
   claimDayClose(limit: number): Promise<DayCloseRow[]>;
   claimAfterDate(limit: number): Promise<AfterDateRow[]>;
+
+  /** bot_exams: the user's exams with their switch, and the link's local day. Marks the user as seen. */
+  exams(tgUserId: number): Promise<ExamsResult>;
+  /** bot_exam_remind: the exam in the Telegram plan or out of it; the list after it. */
+  examRemind(tgUserId: number, containerId: string, on: boolean): Promise<ExamsResult>;
+  /** bot_exam_move: the exam's date for everyone (the author) or only for the user (null: back to the author's). */
+  examMove(tgUserId: number, containerId: string, date: LocalDay | null, forWhom: MoveFor): Promise<MoveResult>;
 }
 
 // ─────────────────────────────────────────── raw JSON → shapes ───────────────────────────────────────────
@@ -264,12 +301,46 @@ export function hhmm(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 function toPrompt(raw: unknown): Prompt | null {
   const p = obj(raw);
-  const kind = p.kind === 'time' || p.kind === 'date' ? p.kind : null;
+  const kind = p.kind === 'time' || p.kind === 'date' || p.kind === 'move' ? p.kind : null;
   const promptId = num(p.prompt_id);
   if (!kind || promptId === null) return null;
-  return { kind, promptId, targetId: num(p.target_id), from: p.from === 'link' ? 'link' : 'settings', at: num(p.at) };
+  const prompt: Prompt = { kind, promptId, targetId: num(p.target_id), from: p.from === 'link' ? 'link' : 'settings', at: num(p.at) };
+  if (kind === 'move') prompt.cid = typeof p.cid === 'string' && UUID.test(p.cid) ? p.cid : null;
+  return prompt;
+}
+
+const EXAM_STATES: readonly ExamState[] = ['study', 'exam_today', 'after', 'no_date'];
+
+/** bot.exams_list → BotExam[] (rows without an id are left out). */
+export function toBotExams(raw: unknown): BotExam[] {
+  return rows(raw).map((e) => ({
+    id: str(e.container_id) ?? '',
+    title: str(e.title) ?? '',
+    date: day(e.exam_date),
+    state: EXAM_STATES.includes(e.state as ExamState) ? (e.state as ExamState) : 'study',
+    on: e.tg_remind !== false,
+    role: (e.role === 'owner' ? 'owner' : 'member') as BotExam['role'],
+    members: num(e.members) ?? 0,
+  })).filter((e) => e.id !== '');
+}
+
+export function toExamsResult(raw: unknown): ExamsResult {
+  const r = obj(raw);
+  if (r.status === 'ok') return { status: 'ok', today: day(r.local_day), exams: toBotExams(r.exams) };
+  if (r.status === 'gone' || r.status === 'invalid') return { status: r.status };
+  return { status: 'unlinked' };
+}
+
+export function toMoveResult(raw: unknown): MoveResult {
+  const r = obj(raw);
+  if (r.status === 'ok') return { status: 'ok', title: str(r.title) ?? '', examDate: day(r.exam_date), ownDate: day(r.own_exam_date) };
+  if (r.status === 'invalid') return { status: 'invalid', reason: str(r.reason) ?? 'date' };
+  if (r.status === 'forbidden' || r.status === 'gone') return { status: r.status };
+  return { status: 'unlinked' };
 }
 
 /** LINK → Link; null when it is not a link. */
@@ -360,6 +431,7 @@ export function toToday(raw: unknown, tgUserId: number): Today | null {
     oral: [],
     oralParts: [],
     exams: examMeta(r.overview),
+    botExams: toBotExams(r.exam_list),
     session: r.session ? toSession(r.session) : null,
     day: d ? { cardMessageId: num(d.card_message_id), cardUsed: d.card_used === true, lastMessageId: num(d.last_message_id) } : null,
   };
@@ -395,7 +467,10 @@ export function toReminderContext(raw: unknown, deliveryId: number): ReminderCon
         deliveryId,
         chatId,
         localDay: day(r.local_day) ?? link.today,
-        today: { link, now: link.now, wire: toWire(r.plan), oral: [], oralParts: [], exams: examMeta(r.overview), session: null, day: null },
+        today: {
+          link, now: link.now, wire: toWire(r.plan), oral: [], oralParts: [], exams: examMeta(r.overview), botExams: toBotExams(r.exam_list),
+          session: null, day: null,
+        },
       };
     }
   }
@@ -581,10 +656,21 @@ export function createDb(options: DbOptions): BotDb {
                 answers: num(e.answers) ?? 0,
                 twoDays: num(e.two_days) ?? 0,
                 keyed: num(e.keyed) ?? 0,
+                // From 20261018120000: who may move the exam, and for whom (a server before it sends neither).
+                ...(e.role === 'owner' || e.role === 'member' ? { role: e.role as 'owner' | 'member', members: num(e.members) ?? 0 } : {}),
               }
             : null,
         };
       }).filter((r) => r.deliveryId > 0 && r.chatId > 0);
+    },
+    async exams(tgUserId) {
+      return toExamsResult(await rpc('bot_exams', { p_tg_user_id: tgUserId }));
+    },
+    async examRemind(tgUserId, containerId, on) {
+      return toExamsResult(await rpc('bot_exam_remind', { p_tg_user_id: tgUserId, p_container_id: containerId, p_on: on }));
+    },
+    async examMove(tgUserId, containerId, date, forWhom) {
+      return toMoveResult(await rpc('bot_exam_move', { p_tg_user_id: tgUserId, p_container_id: containerId, p_date: date, p_for: forWhom }));
     },
   };
 }
