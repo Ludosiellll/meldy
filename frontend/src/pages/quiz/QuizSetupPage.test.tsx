@@ -141,6 +141,10 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
       pass_percent: 60,
       review: 'mistakes_then_answers',
       members_only: false,
+      guests: true,
+      cover_path: null,
+      accent: 'blue',
+      offer_practice: false,
     });
     expect(await screen.findByTestId('where')).toHaveTextContent(`/exams/c/${EXAM}/quizzes/new-quiz|{"quizNote":"created"}`);
   });

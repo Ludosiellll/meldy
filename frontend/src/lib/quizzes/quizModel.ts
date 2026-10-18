@@ -44,6 +44,10 @@ export function defaultSettings(subjectIds: string[], pool: number, now: Date): 
     pass_percent: null,
     review: 'mistakes_then_answers',
     members_only: false,
+    guests: true,
+    cover_path: null,
+    accent: 'blue',
+    offer_practice: false,
   };
 }
 

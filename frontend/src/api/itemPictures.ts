@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 import type { BankPicture } from '../types/container';
 
 export const PICTURE_BUCKET = 'test-item-images';
+/** Quiz covers (release 47): a public bucket, the author writes into their exam's folder. */
+export const COVER_BUCKET = 'quiz-covers';
 
 const EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
@@ -52,9 +54,9 @@ function alreadyThere(error: StorageFailure): boolean {
  * Puts one picture at `path`. 'kept' — it is there now; 'refused' — storage turned this picture down (type, size,
  * rights): the question is saved without it. A network or server failure throws, so the save stops and goes on later.
  */
-export async function uploadPicture(path: string, picture: BankPicture): Promise<'kept' | 'refused'> {
+export async function uploadPicture(path: string, picture: BankPicture, bucket: string = PICTURE_BUCKET): Promise<'kept' | 'refused'> {
   const { error } = await supabase.storage
-    .from(PICTURE_BUCKET)
+    .from(bucket)
     .upload(path, pictureBlob(picture), { contentType: picture.type, upsert: false, cacheControl: '31536000' });
   if (!error) return 'kept';
   const failure = error as StorageFailure;
@@ -63,6 +65,11 @@ export async function uploadPicture(path: string, picture: BankPicture): Promise
     return 'refused';
   }
   throw error;
+}
+
+/** The address anyone can open of a saved cover (the bucket is public). */
+export function coverUrl(path: string): string {
+  return supabase.storage.from(COVER_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 const shown = new Map<string, Promise<string>>();

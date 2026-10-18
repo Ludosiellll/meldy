@@ -190,6 +190,8 @@ export interface TestItem {
   updated_at: string;
   /** The question's pictures in the private bucket test-item-images (null — none). */
   images?: ItemImages | null;
+  /** «Пояснение» the author wrote (release 47), shown after an answer; '' — none. */
+  explanation?: string;
 }
 /**
  * Pictures of a question (owner, 2026-10-14: «а если вопрос является картинкой, что делать?»): storage paths
@@ -206,7 +208,7 @@ export const pictureOption = (letter: string) => `Рисунок ${letter}`;
 export const isPictureWord = (text: string) => text.trim() === PICTURE_STEM || /^Рисунок [А-Я0-9]{1,2}$/.test(text.trim());
 export const PICTURE_LIMITS = { stem: 8, option: 4 } as const; // meldy_images_ok: paths per stem and per option
 export const TEST_ITEM_COLUMNS =
-  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at, images';
+  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at, images, explanation';
 
 // record_test_answers(p_answers) / container_mock_finish(p_run)
 /** The plan class an answer belongs to (for the student's own pace and miss rates). */
@@ -309,6 +311,7 @@ export interface ItemInput {
   keep_order?: boolean;
   flags?: string[];
   images?: ItemImages;
+  explanation?: string; // ≤ 2000 characters; '' — none
 }
 export interface ItemsAdded {
   subject_id: Uuid;
@@ -316,7 +319,9 @@ export interface ItemsAdded {
   in_container: number; // ≤ 2000
   items: Array<{ ref: string; id: Uuid; position: number }>;
 }
-export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order' | 'images'>>;
+export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order' | 'images' | 'explanation'>>;
+/** The most characters of an explanation (test_items_explanation_check). */
+export const EXPLANATION_MAX = 2000;
 export interface ItemUpdated {
   id: Uuid;
   rev: number;
@@ -390,6 +395,7 @@ export interface ContainerRpc {
   container_subject_add: { args: { p_container_id: Uuid; p_subject: CreateSubjectInput }; returns: { id: Uuid; position: number; title: string } };
   container_items_add: { args: { p_subject_id: Uuid; p_items: ItemInput[] }; returns: ItemsAdded };
   container_item_update: { args: { p_item_id: Uuid; p_patch: ItemPatch }; returns: ItemUpdated };
+  container_items_reorder: { args: { p_subject_id: Uuid; p_item_ids: Uuid[] }; returns: null };
   test_key_doubt: { args: { p_item_id: Uuid; p_proposed?: number[]; p_note?: string }; returns: { item_id: Uuid; open: true } };
   test_key_doubt_withdraw: { args: { p_item_id: Uuid }; returns: { item_id: Uuid; open: false } };
   container_doubts: { args: { p_container_id: Uuid }; returns: DoubtRow[] };

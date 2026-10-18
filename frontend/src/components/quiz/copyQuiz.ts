@@ -17,7 +17,7 @@ export const QUIZ = {
   stateClosed: 'Закрыта',
 } as const;
 
-/** Russian words of the quiz functions' refusals (MC010–MC015 by their detail; the rest come from api/containers). */
+/** Russian words of the quiz functions' refusals (MC010–MC018 by their detail; the rest come from api/containers). */
 export const QUIZ_ERRORS = {
   MC010: 'В экзамене уже 50 контрольных. Удалите старые, чтобы создать новую.',
   MC011: 'Эту настройку уже не поменять: контрольную начали писать.',
@@ -28,6 +28,11 @@ export const QUIZ_ERRORS = {
   MC014_attempts: 'Попытки закончились.',
   MC014_full: 'В контрольной больше нет мест.',
   MC015: 'Эта контрольная только для участников экзамена.',
+  MC016_busy: 'Слишком много начатых попыток. Подождите минуту и попробуйте снова.',
+  MC017_guests: 'Чтобы писать эту контрольную, войдите в аккаунт.',
+  MC018_practice: 'Автор не предлагает тренироваться по этому экзамену.',
+  MC018_removed: 'Автор убрал вас из этого экзамена.',
+  MC018_full: 'В экзамене больше нет мест для участников.',
   unfinished: 'Попытка ещё не закончена.',
 } as const;
 

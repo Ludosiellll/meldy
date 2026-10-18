@@ -1,6 +1,8 @@
 /**
  * «Контрольная»: the quiz functions of the database (migration 20261016120000_quizzes.sql; contract in
- * docs/superpowers/plans/2026-10-16-quiz.md). Errors come as ContainerApiError: MC010–MC015 with the quiz's own words
+ * docs/superpowers/plans/2026-10-16-quiz.md; guests, release 47: 20261018100000_test_builder.sql and
+ * docs/superpowers/plans/2026-10-18-test-builder-r47.md). A taker without an account passes the device's token
+ * (lib/quizzes/guestToken.ts) and the calls go to the quiz_guest_* functions. Errors come as ContainerApiError: MC010–MC018 with the quiz's own words
  * (components/quiz/copyQuiz.ts), everything else as the container API maps it (28000, P0002, 22023, network).
  */
 import { supabase } from '../lib/supabase';
@@ -20,7 +22,7 @@ import type {
   QuizSettings,
 } from '../types/quiz';
 
-const QUIZ_CODES = new Set(['MC010', 'MC011', 'MC012', 'MC013', 'MC014', 'MC015']);
+const QUIZ_CODES = new Set(['MC010', 'MC011', 'MC012', 'MC013', 'MC014', 'MC015', 'MC016', 'MC017', 'MC018']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -118,17 +120,31 @@ export async function resetAttempt(attemptId: Uuid): Promise<void> {
 
 // ── the participant ──
 
-export async function previewQuiz(code: string): Promise<QuizPreview> {
-  return shaped(await rpc('quiz_preview', { p_code: code }), 'quiz_preview', 'status');
+/** The card of /k/<code>; with a guest's token, «me» is that device's (attempts, the open one, the results). */
+export async function previewQuiz(code: string, token: string | null = null): Promise<QuizPreview> {
+  return shaped(await rpc('quiz_preview', token ? { p_code: code, p_token: token } : { p_code: code }), 'quiz_preview', 'status');
 }
 
-export async function startQuiz(code: string, name: string): Promise<QuizAttempt> {
-  const raw = shaped<QuizAttempt>(await rpc('quiz_start', { p_code: code, p_name: name }), 'quiz_start', 'attempt_id');
+/** «Начать»: signed in — quiz_start; without an account (a token) — quiz_guest_start. */
+export async function startQuiz(code: string, name: string, token: string | null = null): Promise<QuizAttempt> {
+  const raw = shaped<QuizAttempt>(
+    token
+      ? await rpc('quiz_guest_start', { p_code: code, p_name: name, p_token: token })
+      : await rpc('quiz_start', { p_code: code, p_name: name }),
+    token ? 'quiz_guest_start' : 'quiz_start',
+    'attempt_id',
+  );
   return { ...raw, items: rows(raw.items, 'id'), answers: rows(raw.answers, 'item_id') };
 }
 
-export async function sendAnswers(attemptId: Uuid, answers: QuizAnswerInput[]): Promise<{ saved: number; server_now: string; deadline_at: string | null }> {
-  return shaped(await rpc('quiz_answer', { p_attempt_id: attemptId, p_answers: answers }), 'quiz_answer', 'saved');
+export async function sendAnswers(
+  attemptId: Uuid,
+  answers: QuizAnswerInput[],
+  token: string | null = null,
+): Promise<{ saved: number; server_now: string; deadline_at: string | null }> {
+  return token
+    ? shaped(await rpc('quiz_guest_answer', { p_attempt_id: attemptId, p_token: token, p_answers: answers }), 'quiz_guest_answer', 'saved')
+    : shaped(await rpc('quiz_answer', { p_attempt_id: attemptId, p_answers: answers }), 'quiz_answer', 'saved');
 }
 
 function result(raw: unknown, what: string): QuizResult {
@@ -136,10 +152,24 @@ function result(raw: unknown, what: string): QuizResult {
   return { ...value, items: rows(value.items, 'id') };
 }
 
-export async function finishQuiz(attemptId: Uuid): Promise<QuizResult> {
-  return result(await rpc('quiz_finish', { p_attempt_id: attemptId }), 'quiz_finish');
+export async function finishQuiz(attemptId: Uuid, token: string | null = null): Promise<QuizResult> {
+  return token
+    ? result(await rpc('quiz_guest_finish', { p_attempt_id: attemptId, p_token: token }), 'quiz_guest_finish')
+    : result(await rpc('quiz_finish', { p_attempt_id: attemptId }), 'quiz_finish');
 }
 
-export async function quizResult(attemptId: Uuid): Promise<QuizResult> {
-  return result(await rpc('quiz_result', { p_attempt_id: attemptId }), 'quiz_result');
+export async function quizResult(attemptId: Uuid, token: string | null = null): Promise<QuizResult> {
+  return token
+    ? result(await rpc('quiz_guest_result', { p_attempt_id: attemptId, p_token: token }), 'quiz_guest_result')
+    : result(await rpc('quiz_result', { p_attempt_id: attemptId }), 'quiz_result');
+}
+
+/** After signing in on /k/<code>: the device's attempts become the account's (none taken when it has its own there). */
+export async function claimGuestAttempts(code: string, token: string): Promise<{ claimed: number }> {
+  return shaped(await rpc('quiz_guest_claim', { p_code: code, p_token: token }), 'quiz_guest_claim', 'claimed');
+}
+
+/** «Тренировать эти вопросы»: the taker joins the quiz's exam as a member (the author offers it). */
+export async function joinPractice(code: string): Promise<{ container_id: Uuid }> {
+  return shaped(await rpc('quiz_practice_join', { p_code: code }), 'quiz_practice_join', 'container_id');
 }

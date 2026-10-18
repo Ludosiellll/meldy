@@ -260,6 +260,7 @@ export function normalizeItem(raw: unknown): TestItem | null {
     rev: Math.max(1, int(raw.rev, 1)),
     updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : '',
     images: itemImages(raw.images),
+    explanation: typeof raw.explanation === 'string' ? raw.explanation : '',
   };
 }
 
@@ -449,6 +450,11 @@ export async function addItems(subjectId: Uuid, items: ItemInput[], onProgress?:
 
 export async function updateItem(itemId: Uuid, patch: ItemPatch): Promise<ItemUpdated> {
   return record(await call('container_item_update', { p_item_id: itemId, p_patch: patch }), 'container_item_update', 'rev');
+}
+
+/** The constructor's «вверх / вниз»: every question of the subject, in the new order (positions become 1..n). */
+export async function reorderItems(subjectId: Uuid, itemIds: Uuid[]): Promise<void> {
+  await call('container_items_reorder', { p_subject_id: subjectId, p_item_ids: itemIds });
 }
 
 type OwnTable = 'containers' | 'container_subjects' | 'test_items';

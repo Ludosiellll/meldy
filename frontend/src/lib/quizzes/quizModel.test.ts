@@ -23,6 +23,7 @@ function attempt(over: Partial<QuizAttemptRow>): QuizAttemptRow {
     person: 'p1',
     name: 'Иванов Иван',
     own: false,
+    guest: false,
     n: 1,
     started_at: '2026-10-16T12:00:00Z',
     deadline_at: '2026-10-16T12:30:00Z',

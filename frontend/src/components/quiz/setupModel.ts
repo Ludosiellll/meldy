@@ -59,6 +59,10 @@ export function settingsOf(row: QuizRow): QuizSettings {
     pass_percent: row.pass_percent,
     review: row.review,
     members_only: row.members_only,
+    guests: row.guests,
+    cover_path: row.cover_path,
+    accent: row.accent,
+    offer_practice: row.offer_practice,
   };
 }
 
