@@ -15,7 +15,9 @@
 -- item_count and subject_ids say; no question without a key; at most 200), locked after the start (MC011 design);
 -- QuizRow / the preview / the attempt / the result carry design (the stored document without v; null without design)
 -- and the result band (the matching one, null in a gap or without design); guests the same; the attempt JSON carries
--- no key or explanation. A failure raises; success prints TEST DOCS BEHAVIOUR PASSED.
+-- no key or explanation; points count (score / max_score, the percent, passed and band by them; the points of the start
+-- kept with the attempt; the author's views and the preview read the same). A failure raises; success prints
+-- TEST DOCS BEHAVIOUR PASSED.
 \set ON_ERROR_STOP 1
 begin;
 create or replace function pg_temp.expect_error(p_sql text, p_state text, p_what text, p_detail text default null)
@@ -528,7 +530,7 @@ begin
   if r2 ->> 'attempt_id' is distinct from r ->> 'attempt_id' or r2 -> 'items' is distinct from r -> 'items' or r2 -> 'design' is distinct from v_design then
     raise exception 'FAILED: a resume %', r2;
   end if;
-  -- 3 of 5 right: d:3, d:1, d:2; d:7 wrong; d:5 unanswered → 60 % → «Хорошо»
+  -- 3 of 5 right: d:3 (2 points), d:1 (1), d:2 (3); d:7 (1) wrong; d:5 (1) unanswered → 6 of 8 points, 75 % → «Хорошо»
   perform public.quiz_answer((r ->> 'attempt_id')::uuid, jsonb_build_array(
     jsonb_build_object('item_id', pg_temp.item('d:3'), 'text', 'париж'),
     jsonb_build_object('item_id', pg_temp.item('d:1'), 'chosen', jsonb_build_array(1)),
@@ -536,10 +538,11 @@ begin
     jsonb_build_object('item_id', pg_temp.item('d:2'), 'chosen', jsonb_build_array(1, 2))));
   r := public.quiz_finish((r ->> 'attempt_id')::uuid);
   if pg_temp.keys(r) is distinct from 'accent,answers_after,attempt_id,attempts_left,band,can_retry,code,correct,design,finish_reason,'
-       'finished_at,items,n,pass_percent,passed,percent,practice,quiz_title,review_now,shuffle_options,started_at,total' then
+       'finished_at,items,max_score,n,pass_percent,passed,percent,practice,quiz_title,review_now,score,shuffle_options,started_at,total' then
     raise exception 'FAILED: Result keys %', pg_temp.keys(r);
   end if;
-  if (r ->> 'correct')::int is distinct from 3 or (r ->> 'total')::int is distinct from 5 or (r ->> 'percent')::int is distinct from 60
+  if (r ->> 'correct')::int is distinct from 3 or (r ->> 'total')::int is distinct from 5 or (r ->> 'percent')::int is distinct from 75
+     or (r ->> 'score')::int is distinct from 6 or (r ->> 'max_score')::int is distinct from 8
      or r -> 'band' is distinct from v_design -> 'results' -> 'bands' -> 1 or r -> 'design' is distinct from v_design
      or pg_temp.ids(r -> 'items') is distinct from pg_temp.refs('d:3', 'd:1', 'd:7', 'd:2', 'd:5')
      or pg_temp.find(r -> 'items', 'id', pg_temp.item('d:1')::text) ->> 'explanation' is distinct from 'Потому что четыре' then
@@ -553,7 +556,8 @@ begin
     raise exception 'FAILED: an attempt without design %', r;
   end if;
   r := public.quiz_finish((r ->> 'attempt_id')::uuid);
-  if r -> 'design' is distinct from 'null'::jsonb or r -> 'band' is distinct from 'null'::jsonb or not (r ? 'band') or not (r ? 'design') then
+  if r -> 'design' is distinct from 'null'::jsonb or r -> 'band' is distinct from 'null'::jsonb or not (r ? 'band') or not (r ? 'design')
+     or (r ->> 'score')::int is distinct from (r ->> 'correct')::int or (r ->> 'max_score')::int is distinct from 5 then
     raise exception 'FAILED: a result without design %', r;
   end if;
 end
@@ -581,7 +585,8 @@ begin
     jsonb_build_object('item_id', pg_temp.item('d:2'), 'chosen', jsonb_build_array(1, 2)),
     jsonb_build_object('item_id', pg_temp.item('d:5'), 'chosen', jsonb_build_array(0))));
   r := public.quiz_guest_finish((r ->> 'attempt_id')::uuid, pg_temp.tok(1));
-  if (r ->> 'percent')::int is distinct from 100 or r -> 'band' ->> 'title' is distinct from 'Отлично' or r -> 'design' is distinct from v_design then
+  if (r ->> 'percent')::int is distinct from 100 or r -> 'band' ->> 'title' is distinct from 'Отлично' or r -> 'design' is distinct from v_design
+     or (r ->> 'score')::int is distinct from 8 or (r ->> 'max_score')::int is distinct from 8 then
     raise exception 'FAILED: a guest''s result %', r;
   end if;
   perform pg_temp.put('g1_att', r ->> 'attempt_id');
@@ -645,14 +650,17 @@ begin
     raise exception 'FAILED: a new attempt skips the dangling block %', r -> 'items';
   end if;
   perform pg_temp.put('g3_att', r ->> 'attempt_id');
-  -- guest 1's finished attempt is graded over what is left: 4 of 4
+  -- guest 1's finished attempt is graded over what is left: 4 of 4, 7 of 7 points
   r := public.quiz_guest_result(pg_temp.c('g1_att')::uuid, pg_temp.tok(1));
-  if (r ->> 'total')::int is distinct from 4 or (r ->> 'correct')::int is distinct from 4 then raise exception 'FAILED: a result after the delete %', r; end if;
+  if (r ->> 'total')::int is distinct from 4 or (r ->> 'correct')::int is distinct from 4
+     or (r ->> 'score')::int is distinct from 7 or (r ->> 'max_score')::int is distinct from 7 then
+    raise exception 'FAILED: a result after the delete %', r;
+  end if;
 end
 $t$;
 
--- 11. A drops the dangling block and leaves a gap between the bands; C's result (3 of 4 = 75 %) falls in the gap: band
---     null, the design the new document.
+-- 11. A drops the dangling block and leaves a gap between the bands; C's result (6 of 7 points = 86 %) falls in the gap:
+--     band null, the design the new document.
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
@@ -671,7 +679,8 @@ do $t$
 declare r jsonb;
 begin
   r := public.quiz_result(pg_temp.c('c_att')::uuid);
-  if (r ->> 'percent')::int is distinct from 75 or r -> 'band' is distinct from 'null'::jsonb
+  if (r ->> 'percent')::int is distinct from 86 or (r ->> 'score')::int is distinct from 6 or (r ->> 'max_score')::int is distinct from 7
+     or r -> 'band' is distinct from 'null'::jsonb
      or r -> 'design' is distinct from pg_temp.c('design2')::jsonb then
     raise exception 'FAILED: a result in a gap between the bands %', r;
   end if;
@@ -709,7 +718,143 @@ begin
 end
 $t$;
 
--- 13. Deleting an exam takes its document with it.
+-- 13. Points count. W: three questions worth 1, 1 and 5 on the page; C starts, then A changes the points to 1, 1, 1; C
+--     answers only the 5-point one right: 1 of 3 right, 5 of 7 points → 71 %, passed (pass mark 70), the band of 71 —
+--     the points of C's start, kept with the attempt. A guest who starts after the edit weighs 1, 1, 1: 33 %, not
+--     passed. The author's views read the same percent (quiz_results' score / max_score, quiz_list's avg_percent), and
+--     so does C's preview.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
+do $t$
+declare r jsonb; v_w uuid; d jsonb;
+begin
+  r := public.container_create('Баллы', null, '[{"title":"Один"}]');
+  v_w := (r ->> 'container_id')::uuid;
+  perform pg_temp.put('w', v_w::text);
+  perform public.container_items_add((r -> 'subjects' -> 0 ->> 'id')::uuid, jsonb_build_array(
+    jsonb_build_object('ref', 'w:1', 'stem', 'Первый', 'options', jsonb_build_array('а', 'б'), 'correct', jsonb_build_array(0)),
+    jsonb_build_object('ref', 'w:2', 'stem', 'Второй', 'options', jsonb_build_array('а', 'б'), 'correct', jsonb_build_array(0)),
+    jsonb_build_object('ref', 'w:3', 'stem', 'Главный', 'options', jsonb_build_array('а', 'б'), 'correct', jsonb_build_array(0))));
+  insert into pg_temp.ctx select 'item:' || i.import_ref, i.id::text from public.test_items i where i.container_id = v_w;
+  d := jsonb_set(jsonb_set(pg_temp.doc(), '{blocks}', jsonb_build_array(
+         jsonb_build_object('type', 'question', 'id', 'wq000001', 'item_id', pg_temp.item('w:1'), 'points', 1, 'required', false),
+         jsonb_build_object('type', 'question', 'id', 'wq000002', 'item_id', pg_temp.item('w:2'), 'points', 1, 'required', false),
+         jsonb_build_object('type', 'question', 'id', 'wq000003', 'item_id', pg_temp.item('w:3'), 'points', 5, 'required', false))),
+       '{results,bands}', jsonb_build_array(
+         jsonb_build_object('from', 0, 'to', 69, 'title', 'Меньше семидесяти', 'text', '', 'image', null),
+         jsonb_build_object('from', 70, 'to', 79, 'title', 'Семьдесят с лишним', 'text', '', 'image', null),
+         jsonb_build_object('from', 80, 'to', 100, 'title', 'Больше восьмидесяти', 'text', '', 'image', null)));
+  perform pg_temp.put('doc_w', d::text);
+  r := public.test_doc_save(v_w, d, 0);
+  r := public.quiz_create(v_w, '{"design": true, "pass_percent": 70, "review": "answers", "attempts": null}');
+  perform pg_temp.put('qw', r ->> 'id');
+  perform pg_temp.put('code_w', r ->> 'code');
+end
+$t$;
+select set_config('request.jwt.claim.sub', 'cccccccc-0000-0000-0000-000000000003', true);
+do $t$
+declare r jsonb;
+begin
+  r := public.quiz_start(pg_temp.c('code_w'), 'Вера');
+  if pg_temp.ids(r -> 'items') is distinct from pg_temp.refs('w:1', 'w:2', 'w:3') then raise exception 'FAILED: W''s items %', r -> 'items'; end if;
+  perform pg_temp.put('cw_att', r ->> 'attempt_id');
+end
+$t$;
+-- A edits the points after C's start: 1, 1, 1
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
+do $t$
+declare r jsonb;
+begin
+  r := public.test_doc_save(pg_temp.c('w')::uuid, jsonb_set(pg_temp.c('doc_w')::jsonb, '{blocks,2,points}', '1'), 1);
+  if (r ->> 'rev')::int is distinct from 2 then raise exception 'FAILED: the points edited %', r; end if;
+end
+$t$;
+select set_config('request.jwt.claim.sub', 'cccccccc-0000-0000-0000-000000000003', true);
+do $t$
+declare r jsonb;
+begin
+  perform public.quiz_answer(pg_temp.c('cw_att')::uuid, jsonb_build_array(
+    jsonb_build_object('item_id', pg_temp.item('w:1'), 'chosen', jsonb_build_array(1)),
+    jsonb_build_object('item_id', pg_temp.item('w:2'), 'chosen', jsonb_build_array(1)),
+    jsonb_build_object('item_id', pg_temp.item('w:3'), 'chosen', jsonb_build_array(0))));
+  r := public.quiz_finish(pg_temp.c('cw_att')::uuid);
+  if (r ->> 'correct')::int is distinct from 1 or (r ->> 'total')::int is distinct from 3 or (r ->> 'score')::int is distinct from 5
+     or (r ->> 'max_score')::int is distinct from 7 or (r ->> 'percent')::int is distinct from 71 or not (r ->> 'passed')::boolean
+     or r -> 'band' ->> 'title' is distinct from 'Семьдесят с лишним' then
+    raise exception 'FAILED: 5 of 7 points %', r;
+  end if;
+  if public.quiz_result(pg_temp.c('cw_att')::uuid) is distinct from r then raise exception 'FAILED: the weighted result read again'; end if;
+  r := public.quiz_preview(pg_temp.c('code_w'));
+  if pg_temp.keys(r -> 'me' -> 'results' -> 0) is distinct from 'attempt_id,correct,finished_at,max_score,n,score,total'
+     or (r -> 'me' -> 'results' -> 0 ->> 'score')::int is distinct from 5 or (r -> 'me' -> 'results' -> 0 ->> 'max_score')::int is distinct from 7 then
+    raise exception 'FAILED: the preview''s results with points %', r -> 'me' -> 'results';
+  end if;
+end
+$t$;
+reset role;
+set local role anon;
+select set_config('request.jwt.claim.sub', '', true);
+do $t$
+declare r jsonb;
+begin
+  r := public.quiz_guest_start(pg_temp.c('code_w'), 'Гость Баллов', pg_temp.tok(5));
+  perform public.quiz_guest_answer((r ->> 'attempt_id')::uuid, pg_temp.tok(5), jsonb_build_array(
+    jsonb_build_object('item_id', pg_temp.item('w:3'), 'chosen', jsonb_build_array(0))));
+  r := public.quiz_guest_finish((r ->> 'attempt_id')::uuid, pg_temp.tok(5));
+  if (r ->> 'score')::int is distinct from 1 or (r ->> 'max_score')::int is distinct from 3 or (r ->> 'percent')::int is distinct from 33
+     or (r ->> 'passed')::boolean or r -> 'band' ->> 'title' is distinct from 'Меньше семидесяти' then
+    raise exception 'FAILED: a start after the edit weighs 1, 1, 1 %', r;
+  end if;
+  perform pg_temp.put('gw_att', r ->> 'attempt_id');
+end
+$t$;
+-- postgres: the points live with the attempts (C's from its start, the guest's from the edited page); none for a quiz
+-- without design
+reset role;
+do $t$
+begin
+  if (select item_points from public.quiz_attempts where id = pg_temp.c('cw_att')::uuid) is distinct from '{1,1,5}'::smallint[]
+     or (select item_points from public.quiz_attempts where id = pg_temp.c('gw_att')::uuid) is distinct from '{1,1,1}'::smallint[]
+     or (select item_points from public.quiz_attempts where id = pg_temp.c('c_att')::uuid) is distinct from '{2,1,1,3,1}'::smallint[]
+     or exists (select 1 from public.quiz_attempts a where a.quiz_id = pg_temp.c('qn')::uuid and a.item_points is not null) then
+    raise exception 'FAILED: the points kept with the attempts %',
+      (select string_agg(coalesce(item_points::text, 'null'), ' ') from public.quiz_attempts);
+  end if;
+  perform pg_temp.expect_error(format('update public.quiz_attempts set item_points = %L where id = %L', '{1,1}', pg_temp.c('cw_att')),
+    '23514', 'points that do not match the items');
+  perform pg_temp.expect_error(format('update public.quiz_attempts set item_points = %L where id = %L', '{1,1,0}', pg_temp.c('cw_att')),
+    '23514', 'a question worth 0');
+  perform pg_temp.expect_error(format('update public.quiz_attempts set item_points = %L where id = %L', '{1,null,5}', pg_temp.c('cw_att')),
+    '23514', 'a question worth null');
+end
+$t$;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
+do $t$
+declare r jsonb;
+begin
+  r := public.quiz_results(pg_temp.c('qw')::uuid);
+  if pg_temp.keys(pg_temp.find(r -> 'attempts', 'id', pg_temp.c('cw_att')))
+       is distinct from 'answered,correct,deadline_at,finish_reason,finished_at,guest,id,max_score,n,name,own,person,score,started_at,total'
+     or (pg_temp.find(r -> 'attempts', 'id', pg_temp.c('cw_att')) ->> 'score')::int is distinct from 5
+     or (pg_temp.find(r -> 'attempts', 'id', pg_temp.c('cw_att')) ->> 'max_score')::int is distinct from 7
+     or (pg_temp.find(r -> 'attempts', 'id', pg_temp.c('gw_att')) ->> 'score')::int is distinct from 1
+     or (pg_temp.find(r -> 'attempts', 'id', pg_temp.c('gw_att')) ->> 'max_score')::int is distinct from 3 then
+    raise exception 'FAILED: quiz_results with points %', r -> 'attempts';
+  end if;
+  -- avg_percent: (5/7 + 1/3) / 2 = 52.4 %
+  if (pg_temp.find(public.quiz_list(pg_temp.c('w')::uuid), 'id', pg_temp.c('qw')) ->> 'avg_percent')::numeric is distinct from 52.4 then
+    raise exception 'FAILED: quiz_list''s avg_percent with points %', pg_temp.find(public.quiz_list(pg_temp.c('w')::uuid), 'id', pg_temp.c('qw'));
+  end if;
+  -- QD (points 2, 1, 1, 3 left after d:5 went): C 6 of 7, guest 1 7 of 7, guest 2 0 of 7 → (85.71 + 100 + 0) / 3 = 61.9
+  if (pg_temp.find(public.quiz_list(pg_temp.c('x')::uuid), 'id', pg_temp.c('qd')) ->> 'avg_percent')::numeric is distinct from 61.9 then
+    raise exception 'FAILED: QD''s avg_percent %', pg_temp.find(public.quiz_list(pg_temp.c('x')::uuid), 'id', pg_temp.c('qd'));
+  end if;
+end
+$t$;
+
+-- 14. Deleting an exam takes its document with it.
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);

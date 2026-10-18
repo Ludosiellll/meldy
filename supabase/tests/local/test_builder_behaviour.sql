@@ -41,11 +41,12 @@ create or replace function pg_temp.put(p_k text, p_v text) returns void language
   insert into pg_temp.ctx values (p_k, p_v) on conflict (k) do update set v = excluded.v
 $fn$;
 -- the sorted key set of a JSON object (pins the contract's field names). Release 47.1 (20261019100000_test_docs.sql)
--- adds «design» to QuizRow, the preview, the attempt and the result, and «band» to the result; test_docs_behaviour.sql
--- pins those shapes, so once it is applied the pins here leave the two keys out (before it, they must not be there).
+-- adds «design» to QuizRow, the preview, the attempt and the result, «band», «score» and «max_score» to the result, and
+-- «score» / «max_score» to the attempt rows of quiz_results and the preview's results; test_docs_behaviour.sql pins those
+-- shapes, so once it is applied the pins here leave those keys out (before it, they must not be there).
 create or replace function pg_temp.keys(p jsonb) returns text language sql stable as $fn$
   select string_agg(k, ',' order by k) from jsonb_object_keys(p) k
-   where not (k in ('design', 'band') and to_regclass('public.test_docs') is not null)
+   where not (k in ('design', 'band', 'score', 'max_score') and to_regclass('public.test_docs') is not null)
 $fn$;
 create or replace function pg_temp.find(p_list jsonb, p_key text, p_val text) returns jsonb language sql immutable as $fn$
   select x from jsonb_array_elements(p_list) x where x ->> p_key = p_val limit 1

@@ -8,8 +8,10 @@
 -- test_doc_save SECURITY DEFINER with an empty search_path, for authenticated only (not anon, not PUBLIC); the rule
 -- function and the quiz helpers exist and stay private; test_doc_ok answers null for a valid document and the rule for
 -- broken ones; quiz_row, quiz_apply, quiz_update (MC011 design), quiz_draw, quiz_draw_count, the attempt, the preview and
--- the result know design; the result carries band; the attempt still carries no key or explanation, the result shows
--- them only with the answers. The behaviour is rehearsed locally: supabase/tests/local/test_docs_run.sh.
+-- the result know design; the result carries band, score and max_score; points count (quiz_attempts.item_points, 1..100
+-- per question or null, stored by the start of a design quiz; the result, quiz_results, quiz_list and the preview's
+-- results weigh by them); the attempt still carries no key or explanation, the result shows them only with the answers.
+-- The behaviour is rehearsed locally: supabase/tests/local/test_docs_run.sh.
 DO $check$
 DECLARE
   v_rel regclass := pg_catalog.to_regclass('public.test_docs');
@@ -203,5 +205,45 @@ BEGIN
      OR pg_catalog.strpos(v_src, '''explanation'', case when v_review = ''answers''') = 0 THEN
     RAISE EXCEPTION 'result_design_band_key_behind_review';
   END IF;
+
+  -- 7. Points count: the attempt keeps its questions' points (item_points beside item_ids, 1..100 each, or null); the
+  --    start stores them for a design quiz; the result, quiz_results, quiz_list and the preview's results weigh by them.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns c
+                  WHERE c.table_schema = 'public' AND c.table_name = 'quiz_attempts' AND c.column_name = 'item_points'
+                    AND c.data_type = 'ARRAY' AND c.udt_name = '_int2' AND c.is_nullable = 'YES') THEN
+    RAISE EXCEPTION 'quiz_attempts_item_points_column';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k
+                  WHERE k.conrelid = 'public.quiz_attempts'::regclass AND k.conname = 'quiz_attempts_item_points_check'
+                    AND k.convalidated
+                    AND pg_catalog.pg_get_constraintdef(k.oid) LIKE '%cardinality(item_points) = cardinality(item_ids)%'
+                    AND pg_catalog.pg_get_constraintdef(k.oid) LIKE '%1 <= ALL (item_points)%'
+                    AND pg_catalog.pg_get_constraintdef(k.oid) LIKE '%100 >= ALL (item_points)%') THEN
+    RAISE EXCEPTION 'quiz_attempts_item_points_check';
+  END IF;
+  FOREACH v_sig IN ARRAY ARRAY['quiz_doc_points(uuid,uuid[])', 'quiz_start_for(text,text,uuid,text)',
+      'quiz_me(public.quizzes,uuid,text)'] LOOP
+    v_fn := pg_catalog.to_regprocedure('meldy_private.' || v_sig);
+    IF v_fn IS NULL OR pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE')
+       OR pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE') THEN
+      RAISE EXCEPTION 'points_helper_private_%', v_sig;
+    END IF;
+  END LOOP;
+  IF pg_catalog.strpos((SELECT p.prosrc FROM pg_catalog.pg_proc p
+                         WHERE p.oid = pg_catalog.to_regprocedure('meldy_private.quiz_start_for(text,text,uuid,text)')),
+                       'case when v_q.design then meldy_private.quiz_doc_points(v_q.container_id, v_items) end') = 0 THEN
+    RAISE EXCEPTION 'start_keeps_the_points';
+  END IF;
+  IF pg_catalog.strpos(v_src, '''score'', v_score, ''max_score'', v_max') = 0
+     OR pg_catalog.strpos(v_src, 'pg_catalog.round(100.0 * v_score / v_max)') = 0
+     OR pg_catalog.strpos(v_src, 'coalesce(v_a.item_points[g.ord], 1)') = 0 THEN
+    RAISE EXCEPTION 'result_weighs_by_points';
+  END IF;
+  FOREACH v_sig IN ARRAY ARRAY['public.quiz_results(uuid)', 'public.quiz_list(uuid)', 'meldy_private.quiz_me(public.quizzes,uuid,text)'] LOOP
+    SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = pg_catalog.to_regprocedure(v_sig);
+    IF pg_catalog.strpos(v_src, 'coalesce(a.item_points[g.ord], 1)') = 0 OR pg_catalog.strpos(v_src, 'max_score') = 0 THEN
+      RAISE EXCEPTION 'weighs_by_points_%', v_sig;
+    END IF;
+  END LOOP;
 END
 $check$;

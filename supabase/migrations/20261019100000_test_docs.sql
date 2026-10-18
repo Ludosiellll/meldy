@@ -30,6 +30,13 @@
 --    preview, the taker's attempt and the result carry «design»: QuizRow the flag, the others the stored document
 --    {title, theme, layout, blocks, results} of a design quiz (it holds no key: the questions are not in it), null
 --    otherwise; the result also «band», the result band whose from..to holds its percent (null when none does).
+--    Points count: a design attempt keeps the points of its question blocks as they were at its start
+--    (quiz_attempts.item_points, beside item_ids; a later edit of the page changes no started attempt). The result
+--    gives score (the points of the right answers) and max_score (of all its graded questions) beside the counts
+--    correct / total; percent = round(100 · score / max_score), and passed and band follow it. Without points (any
+--    other attempt) every question weighs 1: score = correct, max_score = total, the percent as before. The author's
+--    side reads the same: quiz_results' attempt rows and the preview's results give score / max_score too, and
+--    quiz_list's avg_percent averages that percent.
 -- The key and the explanation still leave the server only through the result, and only when the review allows it.
 -- Re-runnable: IF NOT EXISTS, OR REPLACE, guarded DO blocks; CREATE OR REPLACE keeps the grants of replaced functions;
 -- a second apply leaves the catalog as the first one did. The whole file is one request (supabase/migrate.py).
@@ -622,8 +629,10 @@ as $fn$
                            from public.quiz_answers w where w.attempt_id = p_a.id), '[]'::jsonb))
 $fn$;
 
--- 4h. Result (release 47) + design and band: the band of the document whose from..to holds the percent (null when
---     none does, and for a quiz without design).
+-- 4h. Result (release 47) + score and max_score (the weighted points of the right answers and of all, §4l; without
+--     points they are correct and total), percent = score / max_score (so unchanged without points), passed by it;
+--     design and band: the band of the document whose from..to holds the percent (null when none does, and for a quiz
+--     without design).
 create or replace function meldy_private.quiz_result_json(p_attempt uuid)
 returns jsonb
 language plpgsql
@@ -641,12 +650,17 @@ declare
   v_items jsonb := '[]'::jsonb;
   v_design jsonb;
   v_band jsonb;
+  v_score integer;
+  v_max integer;
 begin
   select a.* into v_a from public.quiz_attempts a where a.id = p_attempt;
   select q.* into v_q from public.quizzes q where q.id = v_a.quiz_id;
-  select pg_catalog.count(*)::integer, (pg_catalog.count(*) filter (where g.correct))::integer into v_total, v_correct
+  select pg_catalog.count(*)::integer, (pg_catalog.count(*) filter (where g.correct))::integer,
+         coalesce(pg_catalog.sum(coalesce(v_a.item_points[g.ord], 1)) filter (where g.correct), 0)::integer,
+         coalesce(pg_catalog.sum(coalesce(v_a.item_points[g.ord], 1)), 0)::integer
+    into v_total, v_correct, v_score, v_max
     from meldy_private.quiz_graded(null, p_attempt) g;
-  v_percent := case when v_total > 0 then pg_catalog.round(100.0 * v_correct / v_total)::integer else 0 end;
+  v_percent := case when v_max > 0 then pg_catalog.round(100.0 * v_score / v_max)::integer else 0 end;
   v_review := case when v_q.review <> 'mistakes_then_answers' then v_q.review
                    when meldy_private.quiz_state(v_q) = 'closed' then 'answers'
                    else 'mistakes' end;
@@ -679,6 +693,7 @@ begin
   return pg_catalog.jsonb_build_object(
     'attempt_id', v_a.id, 'n', v_a.n, 'quiz_title', v_q.title, 'code', v_q.code, 'started_at', v_a.started_at,
     'finished_at', v_a.finished_at, 'finish_reason', v_a.finish_reason, 'correct', v_correct, 'total', v_total,
+    'score', v_score, 'max_score', v_max,
     'percent', v_percent, 'pass_percent', v_q.pass_percent, 'shuffle_options', v_q.shuffle_options,
     'passed', case when v_q.pass_percent is not null then v_percent >= v_q.pass_percent end,
     'review_now', v_review,
@@ -906,6 +921,306 @@ begin
 end;
 $fn$;
 
+-- 4l. The points of a design quiz: each question weighs the points of its block (1..100), taken when the attempt starts
+--     (quiz_attempts.item_points, beside item_ids, in the same order) so that a later edit of the page does not change a
+--     running or finished attempt; null for any other attempt (every question weighs 1). An item without a block (the
+--     block went between the draw and this read) weighs 1.
+alter table public.quiz_attempts add column if not exists item_points smallint[];
+do $do$
+begin
+  if not exists (select 1 from pg_catalog.pg_constraint
+                  where conrelid = 'public.quiz_attempts'::regclass and conname = 'quiz_attempts_item_points_check') then
+    alter table public.quiz_attempts add constraint quiz_attempts_item_points_check check (item_points is null
+      or (cardinality(item_points) = cardinality(item_ids) and array_position(item_points, null) is null
+          and 1 <= all (item_points) and 100 >= all (item_points)));
+  end if;
+end;
+$do$;
+
+create or replace function meldy_private.quiz_doc_points(p_container uuid, p_items uuid[])
+returns smallint[]
+language sql
+stable
+set search_path = ''
+as $fn$
+  select coalesce(pg_catalog.array_agg(coalesce(p.points, 1)::smallint order by x.ord), '{}'::smallint[])
+    from pg_catalog.unnest(p_items) with ordinality as x(id, ord)
+    left join lateral (
+           select least(greatest((b.x ->> 'points')::integer, 1), 100) as points
+             from public.test_docs d
+            cross join lateral pg_catalog.jsonb_array_elements(
+                    case when pg_catalog.jsonb_typeof(d.doc -> 'blocks') = 'array' then d.doc -> 'blocks' else '[]'::jsonb end)
+                    with ordinality as b(x, o)
+            where d.container_id = p_container and pg_catalog.jsonb_typeof(b.x) = 'object' and b.x ->> 'type' = 'question'
+              and pg_catalog.lower(b.x ->> 'item_id') = x.id::text and b.x ->> 'points' ~ '^[0-9]{1,3}$'
+            order by b.o
+            limit 1) p on true
+$fn$;
+
+-- 4m. «Начать» for a person (release 47) + the points of a design quiz stored with the attempt.
+create or replace function meldy_private.quiz_start_for(p_code text, p_name text, p_user uuid, p_guest text)
+returns jsonb
+language plpgsql
+volatile
+set search_path = ''
+as $fn$
+declare
+  v_q public.quizzes%rowtype;
+  v_a public.quiz_attempts%rowtype;
+  v_state text;
+  v_items uuid[];
+  v_name text := pg_catalog.btrim(coalesce(p_name, ''));
+  v_ip text;
+begin
+  if p_code is null or p_code !~ '^[0-9a-hjkmnp-tv-z]{12}$' then
+    raise exception 'quiz not found' using errcode = 'P0002', detail = 'quiz';
+  end if;
+  select q.* into v_q from public.quizzes q where q.code = p_code for update;
+  if not found then
+    raise exception 'quiz not found' using errcode = 'P0002', detail = 'quiz';
+  end if;
+  if p_user is null and not v_q.guests then
+    raise exception 'sign in to write this quiz' using errcode = 'MC017', detail = 'guests';
+  end if;
+  perform meldy_private.quiz_settle(v_q.id);
+  select a.* into v_a from public.quiz_attempts a
+   where a.quiz_id = v_q.id and (a.user_id = p_user or a.guest_hash = p_guest) and a.finished_at is null
+   order by a.n desc
+   limit 1;
+  if found then
+    return meldy_private.quiz_attempt_json(v_a, v_q);
+  end if;
+  v_state := meldy_private.quiz_state(v_q);
+  if v_state <> 'open' then
+    raise exception 'quiz not open' using errcode = 'MC013', detail = v_state;
+  end if;
+  if v_q.members_only and meldy_private.role_in(p_user, v_q.container_id) is null then
+    raise exception 'members only' using errcode = 'MC015', detail = 'members_only';
+  end if;
+  if (select pg_catalog.count(*) from public.quiz_attempts a
+       where a.quiz_id = v_q.id and (a.user_id = p_user or a.guest_hash = p_guest))
+       >= coalesce(v_q.attempts_allowed, 50) then
+    raise exception 'no attempts left' using errcode = 'MC014', detail = 'attempts';
+  end if;
+  if (select pg_catalog.count(*) from public.quiz_attempts a where a.quiz_id = v_q.id) >= 3000
+     or (p_user is null
+         and (select pg_catalog.count(*) from public.quiz_attempts a
+               where a.quiz_id = v_q.id and a.guest_hash is not null) >= 2000) then
+    raise exception 'no attempts left' using errcode = 'MC014', detail = 'full';
+  end if;
+  if pg_catalog.char_length(v_name) not between 2 and 80 then
+    raise exception 'invalid name' using errcode = '22023', detail = 'name';
+  end if;
+  if p_user is null then
+    if (select pg_catalog.count(*) from public.quiz_attempts a
+         where a.quiz_id = v_q.id and a.guest_hash is not null
+           and a.started_at > pg_catalog.now() - interval '1 minute') >= 120 then
+      raise exception 'too many starts' using errcode = 'MC016', detail = 'busy';
+    end if;
+    v_ip := meldy_private.quiz_ip_hash();
+    if v_ip is not null
+       and (select pg_catalog.count(*) from meldy_private.quiz_guest_starts s
+             where s.ip_hash = v_ip and s.started_at > pg_catalog.now() - interval '1 minute') >= 30 then
+      raise exception 'too many starts' using errcode = 'MC016', detail = 'busy';
+    end if;
+  end if;
+  v_items := meldy_private.quiz_draw(v_q);
+  if pg_catalog.cardinality(v_items) = 0 then
+    raise exception 'no questions to draw' using errcode = 'MC013', detail = 'no_questions';
+  end if;
+  insert into public.quiz_attempts (quiz_id, user_id, guest_hash, name, n, item_ids, item_points, started_at, deadline_at)
+  values (v_q.id, p_user, case when p_user is null then p_guest end, v_name,
+          (select coalesce(pg_catalog.max(a.n), 0) + 1 from public.quiz_attempts a
+            where a.quiz_id = v_q.id and (a.user_id = p_user or a.guest_hash = p_guest)),
+          v_items, case when v_q.design then meldy_private.quiz_doc_points(v_q.container_id, v_items) end,
+          pg_catalog.now(), meldy_private.quiz_deadline(pg_catalog.now(), v_q))
+  returning * into v_a;
+  if p_user is null then
+    -- The rows of the last minute are all the throttle reads; older ones go here (a few per start at most).
+    delete from meldy_private.quiz_guest_starts s where s.started_at <= pg_catalog.now() - interval '1 minute';
+    if v_ip is not null then
+      insert into meldy_private.quiz_guest_starts (ip_hash, started_at) values (v_ip, pg_catalog.now());
+    end if;
+  end if;
+  return meldy_private.quiz_attempt_json(v_a, v_q);
+end;
+$fn$;
+
+-- 4n. «me» of the preview (release 47) + each finished attempt's score and max_score (the weighted points; for an
+--     attempt without points: correct and total).
+create or replace function meldy_private.quiz_me(p_q public.quizzes, p_user uuid, p_guest text)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $fn$
+declare
+  v_role text;
+  v_used integer;
+  v_open uuid;
+  v_reason text;
+  v_results jsonb;
+begin
+  select pg_catalog.count(*)::integer, (pg_catalog.array_agg(a.id) filter (where a.finished_at is null))[1]
+    into v_used, v_open
+    from public.quiz_attempts a where a.quiz_id = p_q.id and (a.user_id = p_user or a.guest_hash = p_guest);
+  v_reason := case when v_open is null then meldy_private.quiz_block_for(p_q, p_user, p_guest) end;
+  v_results := coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                                  'attempt_id', a.id, 'n', a.n, 'finished_at', a.finished_at,
+                                  'correct', s.correct, 'total', s.total, 'score', s.score, 'max_score', s.max_score)
+                                  order by a.n)
+                           from public.quiz_attempts a
+                           cross join lateral (select pg_catalog.count(*) filter (where g.correct) as correct,
+                                                      pg_catalog.count(*) as total,
+                                                      coalesce(pg_catalog.sum(coalesce(a.item_points[g.ord], 1))
+                                                                 filter (where g.correct), 0) as score,
+                                                      coalesce(pg_catalog.sum(coalesce(a.item_points[g.ord], 1)), 0) as max_score
+                                                 from meldy_private.quiz_graded(null, a.id) g) s
+                          where a.quiz_id = p_q.id and (a.user_id = p_user or a.guest_hash = p_guest)
+                            and a.finished_at is not null), '[]'::jsonb);
+  if p_user is null then
+    return pg_catalog.jsonb_build_object(
+      'name_hint', null, 'is_author', false, 'is_member', false, 'guest', true, 'attempts_used', v_used,
+      'open_attempt', v_open, 'can_start', v_open is not null or v_reason is null, 'reason', v_reason,
+      'results', v_results);
+  end if;
+  v_role := meldy_private.role_in(p_user, p_q.container_id);
+  return pg_catalog.jsonb_build_object(
+    'name_hint', coalesce((select a.name from public.quiz_attempts a
+                            where a.quiz_id = p_q.id and a.user_id = p_user order by a.n desc limit 1),
+                          (select nullif(pg_catalog.btrim(p.full_name), '') from public.profiles p where p.id = p_user)),
+    'is_author', p_q.owner_id = p_user,
+    'is_member', coalesce(v_role = 'member', false),
+    'attempts_used', v_used,
+    'open_attempt', v_open,
+    'can_start', v_open is not null or v_reason is null,
+    'reason', v_reason,
+    'results', v_results);
+end;
+$fn$;
+
+-- 4o. quiz_list (release 47): avg_percent averages the attempts' weighted percent (= correct / total without points).
+create or replace function public.quiz_list(p_container_id uuid)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'not authenticated' using errcode = '28000';
+  end if;
+  if not exists (select 1 from public.containers c where c.id = p_container_id and c.owner_id = v_user) then
+    raise exception 'container not found' using errcode = 'P0002', detail = 'container';
+  end if;
+  perform meldy_private.quiz_settle(q.id) from public.quizzes q where q.container_id = p_container_id;
+  return coalesce((
+    select pg_catalog.jsonb_agg(meldy_private.quiz_row(q) || pg_catalog.jsonb_build_object(
+             'people', (select pg_catalog.count(distinct coalesce(a.user_id::text, a.guest_hash)) from public.quiz_attempts a
+                         where a.quiz_id = q.id and a.user_id is distinct from q.owner_id),
+             'writing', (select pg_catalog.count(*) from public.quiz_attempts a where a.quiz_id = q.id and a.finished_at is null),
+             'finished', (select pg_catalog.count(*) from public.quiz_attempts a where a.quiz_id = q.id and a.finished_at is not null),
+             'avg_percent', (select pg_catalog.round(pg_catalog.avg(100.0 * s.score / s.max_score), 1)
+                               from (select g.attempt_id, pg_catalog.sum(coalesce(a.item_points[g.ord], 1)) as max_score,
+                                            coalesce(pg_catalog.sum(coalesce(a.item_points[g.ord], 1))
+                                                       filter (where g.correct), 0) as score
+                                       from meldy_private.quiz_graded(q.id, null) g
+                                       join public.quiz_attempts a on a.id = g.attempt_id
+                                      where a.finished_at is not null and a.user_id is distinct from q.owner_id
+                                      group by g.attempt_id) s))
+             order by q.created_at desc, q.id desc)
+      from public.quizzes q where q.container_id = p_container_id), '[]'::jsonb);
+end;
+$fn$;
+
+-- 4p. quiz_results (release 47): each attempt row also gives score and max_score (the weighted points, live like
+--     correct; without points: correct and total), so the author's percent is the result's percent.
+create or replace function public.quiz_results(p_quiz_id uuid)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_user uuid := auth.uid();
+  v_q public.quizzes%rowtype;
+  v_out jsonb;
+begin
+  if v_user is null then
+    raise exception 'not authenticated' using errcode = '28000';
+  end if;
+  select q.* into v_q from public.quizzes q
+    join public.containers c on c.id = q.container_id
+   where q.id = p_quiz_id and c.owner_id = v_user;
+  if not found then
+    raise exception 'quiz not found' using errcode = 'P0002', detail = 'quiz';
+  end if;
+  perform meldy_private.quiz_settle(v_q.id);
+  -- One grading pass (g0) for both lists.
+  with g0 as materialized (
+    select g.*, a.user_id is distinct from v_q.owner_id as counted, coalesce(a.item_points[g.ord], 1) as weight
+      from meldy_private.quiz_graded(v_q.id, null) g
+      join public.quiz_attempts a on a.id = g.attempt_id
+  ), s as (  -- the live score of each attempt
+    select g0.attempt_id, pg_catalog.count(*) as total, pg_catalog.count(*) filter (where g0.answered) as answered,
+           pg_catalog.count(*) filter (where g0.correct) as correct, pg_catalog.sum(g0.weight) as max_score,
+           coalesce(pg_catalog.sum(g0.weight) filter (where g0.correct), 0) as score
+      from g0 group by g0.attempt_id
+  ), g as (  -- the question stats count the attempts of others than the author only
+    select g0.* from g0 where g0.counted
+  ), x as (
+    select g.item_id, pg_catalog.count(*) as shown, pg_catalog.count(*) filter (where g.answered) as answered,
+           pg_catalog.count(*) filter (where g.correct) as correct
+      from g group by g.item_id
+  ), p as (  -- answers that chose option k of a question
+    select g.item_id, c.k::integer as k, pg_catalog.count(*) as n
+      from g cross join lateral pg_catalog.unnest(g.chosen) as c(k)
+     group by g.item_id, c.k
+  ), wt as (  -- the 3 most common wrong short answers of a question (one spelling per normalised form)
+    select z.item_id, z.t, z.n
+      from (select y.item_id, y.t, y.n, pg_catalog.row_number() over (partition by y.item_id order by y.n desc, y.t) as r
+              from (select g.item_id, pg_catalog.min(pg_catalog.btrim(g.typed)) as t, pg_catalog.count(*) as n
+                      from g where g.answered and not g.correct and g.typed is not null
+                     group by g.item_id, public.meldy_short_norm(g.typed)) y) z
+     where z.r <= 3
+  )
+  select pg_catalog.jsonb_build_object(
+    'quiz', meldy_private.quiz_row(v_q), 'server_now', pg_catalog.now(),
+    'attempts', (select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                   'id', a.id,
+                   'person', pg_catalog.left(pg_catalog.md5(coalesce(a.user_id::text, a.guest_hash) || a.quiz_id::text), 16),
+                   'name', a.name, 'own', coalesce(a.user_id = v_q.owner_id, false), 'guest', a.guest_hash is not null,
+                   'n', a.n, 'started_at', a.started_at,
+                   'deadline_at', a.deadline_at, 'finished_at', a.finished_at, 'finish_reason', a.finish_reason,
+                   'total', coalesce(s.total, 0), 'answered', coalesce(s.answered, 0), 'correct', coalesce(s.correct, 0),
+                   'score', coalesce(s.score, 0), 'max_score', coalesce(s.max_score, 0))
+                   order by a.started_at, a.user_id, a.guest_hash, a.n), '[]'::jsonb)
+                   from public.quiz_attempts a
+                   left join s on s.attempt_id = a.id
+                  where a.quiz_id = v_q.id),
+    'items', (select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                'item_id', i.id, 'shown', x.shown, 'answered', x.answered, 'correct', x.correct,
+                'picks', case when i.kind = 'short' then '[]'::jsonb
+                              else (select pg_catalog.jsonb_agg(coalesce(p.n, 0) order by o.k)
+                                      from pg_catalog.generate_series(0, pg_catalog.jsonb_array_length(i.options) - 1) as o(k)
+                                      left join p on p.item_id = i.id and p.k = o.k) end,
+                'wrong_texts', case when i.kind <> 'short' then '[]'::jsonb
+                                    else coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('text', wt.t, 'n', wt.n)
+                                                                               order by wt.n desc, wt.t)
+                                                     from wt where wt.item_id = i.id), '[]'::jsonb) end)
+                order by cs.position, cs.created_at, i.position, i.id), '[]'::jsonb)
+                from x
+                join public.test_items i on i.id = x.item_id
+                join public.container_subjects cs on cs.id = i.subject_id))
+    into v_out;
+  return v_out;
+end;
+$fn$;
+
 -- 5. Grants. The author's two functions need an account; the rules and the quiz helpers stay private (meldy_private
 --    has no USAGE for clients anyway). The replaced functions keep their grants (CREATE OR REPLACE).
 revoke all on function public.test_doc_get(uuid), public.test_doc_save(uuid, jsonb, integer) from public, anon;
@@ -913,5 +1228,6 @@ grant execute on function public.test_doc_get(uuid), public.test_doc_save(uuid, 
 revoke all on function meldy_private.test_doc_str(jsonb, integer, integer), meldy_private.test_doc_enum(jsonb, text[]),
   meldy_private.test_doc_int(jsonb, integer, integer), meldy_private.test_doc_keys(jsonb, text[]),
   meldy_private.test_doc_image(jsonb, uuid, boolean), meldy_private.test_doc_ok(jsonb, uuid),
-  meldy_private.quiz_doc_items(uuid), meldy_private.quiz_design(public.quizzes)
+  meldy_private.quiz_doc_items(uuid), meldy_private.quiz_design(public.quizzes),
+  meldy_private.quiz_doc_points(uuid, uuid[])
   from public, anon, authenticated;
