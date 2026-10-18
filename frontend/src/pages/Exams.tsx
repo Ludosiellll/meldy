@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { EXAM_MESSAGES, examErrorMessage, listExams, type ExamListItem } from '../api/exams';
 import { fetchQuestionEvents } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
@@ -16,7 +16,8 @@ import { localDateKey } from '../utils/streak';
 import type { OverviewContainer } from '../types/container';
 import { containerDays, useContainerLayer } from './containerLayer';
 import { containerDateLine, containerFigure, containerFigureLine, containerQuestions, containerSizeLine } from './containerFigure';
-import { NEW_TEST } from '../components/test/copyTest';
+import { NEW_TEST, TEST_HOME } from '../components/test/copyTest';
+import { isOwnTest } from '../components/containers/model';
 
 export { containerDays };
 import '../styles/paper.css';
@@ -200,8 +201,26 @@ export function listRows(plain: ExamListItem[], containers: OverviewContainer[],
   return keyed.map((entry) => entry.row);
 }
 
-/** A container's row: the student's name for the exam, one meta line, the bar and, on a phone, its figure under it. */
+/**
+ * A container's row: the student's name for the exam, one meta line, the bar and, on a phone, its figure under it. The
+ * author's own test (release 47.3) says «Тест · 12 вопросов», without a date or a figure: it is given, not studied.
+ */
 function ContainerRow({ container, questions, phone }: { container: OverviewContainer; questions: number; phone: boolean }) {
+  if (isOwnTest(container)) {
+    return (
+      <li data-container="" data-kind="test">
+        <Link className="ex-row" to={`/exams/c/${encodeURIComponent(container.id)}`}>
+          <span className="ex-row-title">{container.title}</span>
+          <span className="ex-row-meta" style={{ display: 'block' }}>
+            {glue(TEST_HOME.listMeta(questions))}
+          </span>
+        </Link>
+        <span className="ex-row-go" aria-hidden="true">
+          {ARROW}
+        </span>
+      </li>
+    );
+  }
   const figure = containerFigure(container);
   const date = containerDateLine(container);
   // A computer: the figure joins the meta and stays whole («верно в два разных дня: 143 из 960»), so a long line breaks
@@ -331,9 +350,23 @@ export default function Exams() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const navigate = useNavigate();
+  const location = useLocation();
   const frame = useFrame<HTMLDivElement>();
   const phone = usePhone();
   const { layer, probe } = useContainerLayer();
+  // «Экзамен «…» удалён.» / «Вы вышли из «…».» after the exam's page or its settings (release 47.3): said once, with the
+  // focus, then taken out of the history entry so a reload does not say it again.
+  const [notice] = useState<string | null>(() => {
+    const state = location.state as { notice?: unknown } | null;
+    return state && typeof state.notice === 'string' ? state.notice : null;
+  });
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (!notice) return;
+    noticeRef.current?.focus({ preventScroll: true });
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notice]);
   const [items, setItems] = useState<ExamListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [states, setStates] = useState<Map<string, QuestionState> | null>(null);
@@ -446,6 +479,11 @@ export default function Exams() {
           </div>
         )}
       </header>
+      {notice ? (
+        <p ref={noticeRef} className="ex-notice" role="status" tabIndex={-1}>
+          {notice}
+        </p>
+      ) : null}
 
       {error && containerRows.length > 0 ? (
         <>

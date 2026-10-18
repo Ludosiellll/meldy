@@ -1,0 +1,77 @@
+/* The test's own page (TestHome.tsx, release 47.3) in the Meldy language: one centred column (owner 18.10: Meldy's
+ * blocks stand in the middle), the name and its meta, the one blue pill «Открыть студию» beside a white pill «Отправить
+ * по ссылке» and «Ещё», then the контрольные as rows of one white card. Tokens of index.css only, so both themes follow.
+ * The phone and the tablet keep the blue pill in the bar at the bottom (.ct-cta), as the exam's page does. */
+
+.sf-page.th-page { max-width: calc(880px + 2 * var(--sf-g)); }
+
+/* The row: the blue pill, the white one of the same height, «Ещё» as a white pill with its dots. */
+.th-page .ct-links[data-lead] { gap: 10px 12px; margin-top: 22px; }
+.th-page .th-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+  font: 500 17px/1.2 var(--ph-sans);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color .45s var(--m-ease), box-shadow .6s var(--m-ease);
+}
+.th-page a.th-send:hover { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-ink); }
+.th-page .th-send:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
+.th-page .th-send:disabled { color: var(--sf-muted); cursor: not-allowed; box-shadow: 0 0 0 1px var(--sf-line); }
+.th-page .ct-links[data-lead] .ct-more-pill .mm-text { min-height: 56px; padding: 0 22px 0 18px; font-size: 17px; }
+.th-page .th-why { max-width: 640px; margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+
+/* «Контрольные». */
+.th-page .th-quizzes { margin-top: 44px; }
+.th-page .th-h2 { margin: 0 0 14px; font-size: 24px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; color: var(--sf-ink); }
+.th-page .th-line { margin: 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); }
+.th-page .th-wait { color: var(--sf-muted); }
+.th-page .th-empty {
+  margin: 0;
+  padding: 24px 28px 26px;
+  border-radius: 28px;
+  background: var(--sf-surface);
+  box-shadow: var(--ct-card);
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--sf-ink);
+  text-wrap: pretty;
+}
+/* An open контрольная: a green dot before its state (the word says it; the dot only helps the eye). */
+.th-page .th-state[data-state='open']::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 8px 1px 0;
+  border-radius: 50%;
+  background: var(--m-green);
+  vertical-align: middle;
+}
+
+/* A low window (1532 × 734): the контрольные start on the first screen. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .th-page .ct-links[data-lead] { margin-top: 16px; }
+  .th-page .th-quizzes { margin-top: 32px; }
+}
+@media (max-width: 1023px) {
+  .th-page .ct-links[data-lead] { margin-top: 18px; }
+}
+@media (max-width: 639px) {
+  .th-page .ct-links[data-lead] { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .th-page .th-send { width: 100%; min-height: 52px; font-size: 16px; }
+  .th-page .th-quizzes { margin-top: 32px; }
+  .th-page .th-h2 { font-size: 21px; }
+  .th-page .th-empty { padding: 18px 20px 20px; border-radius: 24px; font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .th-page .th-send { transition: none; }
+}

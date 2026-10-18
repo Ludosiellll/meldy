@@ -87,3 +87,50 @@ export const BUILD = {
   settings: 'Настройки',
   noSubjects: 'В этом экзамене только устные предметы: их вопросы правят на странице предмета.',
 } as const;
+
+const quizzes = (n: number) => count(n, 'контрольная', 'контрольные', 'контрольных');
+
+/**
+ * The test's own page (release 47.3; owner, 18.10: the page of a test was an exam's study page — eight pills, the
+ * plan's «На сегодня здесь всё», «В счёт идёт вопрос…»): /exams/c/:id for the author of a test (containers.kind 'test').
+ */
+export const TEST_HOME = {
+  /** «Тест · 12 вопросов · 2 контрольные»; no question yet — «пока без вопросов»; no quiz — not said. */
+  meta: (total: number, quizCount: number | null) =>
+    ['Тест', total > 0 ? questions(total) : 'пока без вопросов', quizCount ? quizzes(quizCount) : null].filter(Boolean).join(`${NBSP}· `),
+  /** The row on «Экзамены»: «Тест · 12 вопросов». */
+  listMeta: (total: number) => `Тест${NBSP}· ${total > 0 ? questions(total) : 'пока без вопросов'}`,
+  studio: 'Открыть студию',
+  send: BUILD.send,
+  /** Why «Отправить по ссылке» waits: no question yet, or none with its key. */
+  sendWhyEmpty: 'Отправить можно, когда в тесте появятся вопросы: добавьте их в студии.',
+  sendWhyKey: BUILD.sendWhy,
+  quizzes: BUILD.quizzes,
+  quizzesLoading: 'Загружаем контрольные…',
+  quizzesFailed: 'Не получилось загрузить контрольные.',
+  retry: 'Повторить',
+  quizzesEmpty: 'Контрольных пока нет. Отправьте тест по ссылке: здесь будет видно, кто его написал и как.',
+  /** «сдали 5»; nobody yet — «пока никто не сдал». */
+  finished: (n: number) => (n > 0 ? `сдали ${n}` : 'пока никто не сдал'),
+  menuLabel: 'Ещё: тест',
+} as const;
+
+/** «Это экзамен» / «Это тест» in «Настройки»: the author's own choice, saved at once. */
+export const KIND = {
+  label: 'Что это',
+  exam: 'Это экзамен',
+  test: 'Это тест',
+  examHint: 'Вы готовитесь сами: план на каждый день, время в день, напоминания в Telegram.',
+  testHint: 'Вы даёте вопросы другим: студия, ссылка, контрольные. В ваш план на день он не входит.',
+  saving: 'Сохраняем…',
+  savedExam: 'Сохранено: это экзамен.',
+  savedTest: 'Сохранено: это тест.',
+} as const;
+
+/** «Удалить» of a test: the words of «Настройки» and of the confirm on the test's page, one source. */
+export const REMOVE_TEST = {
+  title: 'Удалить тест',
+  ask: (title: string) => `Удалить «${title}»? Вопросы, контрольные и их результаты пропадут.`,
+  yes: 'Удалить тест',
+  done: (title: string) => `Тест «${title}» удалён.`,
+} as const;

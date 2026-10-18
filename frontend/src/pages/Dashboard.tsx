@@ -37,7 +37,7 @@ import TodayExamCard from '../components/containers/TodayExamCard';
 import MoveExamDialog from '../components/containers/MoveExamDialog';
 import { MOVE_SHORT, moved as movedWords } from '../components/containers/copy';
 import { isDayOff } from '../components/containers/planLines';
-import { examQuestions, overviewQuestions } from '../components/containers/model';
+import { examQuestions, isOwnTest, overviewQuestions } from '../components/containers/model';
 import type { DayPlan, OverviewContainer } from '../types/container';
 import { containerDays, layerKey, QuietBoundary, useContainerLayer, type ContainerLayer } from './containerLayer';
 import './containerScreens.css';
@@ -1026,11 +1026,13 @@ export default function Dashboard() {
   }, [data, loading, liveKey, load]);
 
   // The plans of the containers with a date ahead or none (package D1's data, package D2's planDay), read beside the page.
+  // The author's own tests are given, not studied (release 47.3): they stay off «Сегодня», as off the bot's day card.
   const on = layer.mode === 'on' ? layer : null;
   const dayKey = localDateKey();
-  const planned = useMemo(() => (on ? on.overview.containers.filter((container) => !containerDays(container, dayKey).past) : NO_CONTAINERS), [on, dayKey]);
+  const studied = useMemo(() => (on ? on.overview.containers.filter((container) => !isOwnTest(container)) : NO_CONTAINERS), [on]);
+  const planned = useMemo(() => (on ? studied.filter((container) => !containerDays(container, dayKey).past) : NO_CONTAINERS), [on, studied, dayKey]);
   // An exam passed in the last 14 days stays as a quiet row with «Перенести» (release 47), instead of leaving the page.
-  const passed = useMemo(() => (on ? recentlyPassed(on.overview.containers, dayKey) : NO_CONTAINERS), [on, dayKey]);
+  const passed = useMemo(() => (on ? recentlyPassed(studied, dayKey) : NO_CONTAINERS), [on, studied, dayKey]);
   // «Перенести экзамен» from a passed row or the exam-day card: the overview and the plans are read again after it.
   const [moving, setMoving] = useState<OverviewContainer | null>(null);
   const [moved, setMoved] = useState<{ text: string; at: number } | null>(null);

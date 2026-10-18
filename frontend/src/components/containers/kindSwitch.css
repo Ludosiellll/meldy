@@ -1,0 +1,32 @@
+/* «Это экзамен» / «Это тест» (KindSwitch.tsx) in «Настройки»: two white chips with a ring, the chosen one filled with
+ * the soft blue and a ring of ink; the radio stays visible (the choice is said by its sign, not by colour alone). */
+
+.sf-page .ks-set { margin: 0; padding: 0; border: 0; }
+.sf-page .ks-legend { margin: 0 0 6px; padding: 0; }
+.sf-page .ks-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sf-page .ks-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font: 500 16px/1.2 var(--ph-sans);
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: background-color .3s ease, box-shadow .3s ease;
+}
+.sf-page .ks-chip:hover { background: var(--sf-surface-soft); }
+.sf-page .ks-chip:has(input:checked) { background: var(--sf-accent-soft); box-shadow: inset 0 0 0 1.5px var(--sf-accent-fg); }
+.sf-page .ks-chip:has(input:focus-visible) { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+.sf-page .ks-chip input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--sf-accent); }
+.sf-page .ks-chip input:focus-visible { outline: none; }
+.sf-page .ks-set[aria-busy='true'] .ks-chip { cursor: progress; }
+.sf-page .ks-said { min-height: 1.45em; margin-top: 2px; color: var(--sf-muted); }
+.sf-page .ks-said:empty { min-height: 0; margin: 0; }
+.sf-page .ks-said[data-error] { color: var(--ph-wrong); }
+@media (prefers-reduced-motion: reduce) {
+  .sf-page .ks-chip { transition: none; }
+}

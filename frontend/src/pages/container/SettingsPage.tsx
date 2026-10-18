@@ -20,11 +20,13 @@ import PaperSelect from '../../components/ui/PaperSelect';
 import InviteExam from '../../components/containers/group/InviteExam';
 import MembersList from '../../components/containers/group/MembersList';
 import ExamTelegramSwitch from '../../components/telegram/ExamTelegramSwitch';
+import KindSwitch from '../../components/containers/KindSwitch';
+import { removeWords } from '../../components/containers/actions';
 import { MOVE_MAX_DAYS, moveFacts } from '../../components/containers/MoveExamDialog';
-import { addDay, dayDiff } from '../../components/containers/model';
+import { addDay, dayDiff, isOwnTest } from '../../components/containers/model';
 import { dayText, errorText, GONE, IMPORT, INVITE, MEMBERS, nb, SETTINGS } from '../../components/containers/copyImport';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
-import { TO_EXAMS } from '../../components/containers/copy';
+import { examLeft, TO_EXAMS } from '../../components/containers/copy';
 import { minutesLines } from '../../components/containers/import/minutesLines';
 import { useFocusAfter } from '../../components/containers/useFocusAfter';
 import { cleanDays, dayCount, dayOn, toggleDay } from '../../components/containers/weekdays';
@@ -44,7 +46,9 @@ import './SettingsPage.css';
  * в Telegram по этому экзамену».
  *
  * Anchors for the exam page's «⋯»: #minutes («Время в день»), #subjects, #group, #delete (the author), #leave (a
- * member: the confirm opens); ?invite=1 opens «Пригласить группу».
+ * member: the confirm opens); ?invite=1 opens «Пригласить группу», ?who=1 the members («Кто вошёл» of the page's
+ * «Удалить» while members are in). The author's first field is «Это экзамен» / «Это тест» (release 47.3, KindSwitch:
+ * saved as it is chosen); «Удалить» says the test's words for a test (removeWords, as the page's own confirm).
  *
  * Every inline confirm gives «Отмена» the focus when it opens and gives it back to the button that opened it when it
  * closes; a refusal is said in an alert (usability check m9).
@@ -83,6 +87,8 @@ export default function SettingsPage() {
   const ownOverrides = Boolean(owner && summary?.own_exam_date);
   // «Моя дата экзамена»: always for a member; for the author only while they have one.
   const showOwn = Boolean(summary && (!owner || summary.own_exam_date));
+  // The author's own test (release 47.3): no plan of their own, so no minutes, days or Telegram plan here.
+  const ownTest = isOwnTest(summary);
   useDocumentTitle(summary ? `${SETTINGS.title} · ${summary.title}` : SETTINGS.docTitle);
   const formId = useId();
   const minutesRef = useRef<HTMLDivElement>(null);
@@ -181,7 +187,7 @@ export default function SettingsPage() {
 
   // ── the group and deleting ──
   const [inviting, setInviting] = useState(() => search.get('invite') === '1');
-  const [who, setWho] = useState(false);
+  const [who, setWho] = useState(() => search.get('who') === '1');
   const [asking, setAsking] = useState(false);
   const [acting, setActing] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -350,7 +356,7 @@ export default function SettingsPage() {
         // The device's copy of the questions goes when the next overview no longer lists the exam.
       }
       track('container.deleted', { subjects: subjects.length });
-      navigate('/exams', { replace: true });
+      navigate('/exams', { replace: true, state: summary ? { notice: removeWords(summary).done } : null });
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
       if (code === 'MC009') {
@@ -369,7 +375,7 @@ export default function SettingsPage() {
     setRemoveError(null);
     try {
       await leaveContainer(containerId);
-      navigate('/exams', { replace: true });
+      navigate('/exams', { replace: true, state: summary ? { notice: examLeft(summary.title) } : null });
     } catch (error) {
       setRemoveError(errorText(error));
     } finally {
@@ -605,6 +611,7 @@ export default function SettingsPage() {
       {header}
       <div className="st-body" data-side={frame.side ? '' : undefined}>
         <section className="st-form" aria-label={SETTINGS.title}>
+          {summary.kind ? <KindSwitch containerId={containerId} kind={summary.kind} onSaved={() => data.reload()} /> : null}
           <div className="im-field">
             <label className="im-label" htmlFor={`${formId}-name`}>
               {SETTINGS.name}
@@ -652,12 +659,18 @@ export default function SettingsPage() {
                 {perSubject ? SETTINGS.oneDate : SETTINGS.dates}
               </button>
             ) : null}
-            {!anyDate && tempo !== 'fast' ? <p className="im-hint" data-muted="">{nb(SETTINGS.noDate)}</p> : null}
+            {!anyDate && tempo !== 'fast' && !ownTest ? <p className="im-hint" data-muted="">{nb(SETTINGS.noDate)}</p> : null}
           </div>
-          {ownField}
-          {minutesField}
-          {daysField}
-          <ExamTelegramSwitch containerId={containerId} />
+          {/* The author of a test does not study it (release 47.3): no plan of their own to set here; the date stays —
+              the members' plans count to it. «Это экзамен» brings the plan back. */}
+          {ownTest ? null : (
+            <>
+              {ownField}
+              {minutesField}
+              {daysField}
+              <ExamTelegramSwitch containerId={containerId} />
+            </>
+          )}
         </section>
 
         <div className="st-side">
@@ -794,9 +807,9 @@ export default function SettingsPage() {
                 </p>
               ) : (
                 <p key="ask" className="st-line st-ask" role="group" aria-labelledby={`${formId}-ask`}>
-                  <span id={`${formId}-ask`}>{SETTINGS.removeAsk(summary.title, subjects.some((subject) => subject.oral))}</span>
+                  <span id={`${formId}-ask`}>{removeWords(summary).ask}</span>
                   <button type="button" className="sf-link" onClick={() => void removeExam()}>
-                    {SETTINGS.removeYes}
+                    {removeWords(summary).yes}
                   </button>
                   <button ref={askNoRef} type="button" className="sf-link" data-muted="" onClick={closeAsk}>
                     {SETTINGS.removeNo}
@@ -805,7 +818,7 @@ export default function SettingsPage() {
               )
             ) : (
               <button ref={askRef} type="button" className="sf-link" data-muted="" onClick={openAsk}>
-                {SETTINGS.remove}
+                {removeWords(summary).title}
               </button>
             )}
             {removeError ? (

@@ -1,6 +1,9 @@
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ContainerSummary, DayPlan } from '../../types/container';
-import { containerErrorText, deleteSubject } from '../../api/containers';
+import type { ContainerSummary, DayPlan, PlanInput } from '../../types/container';
+import { containerErrorText, deleteContainer, deleteSubject, leaveContainer } from '../../api/containers';
+import { forgetBank } from '../../lib/containers/bankCache';
+import { track } from '../../lib/telemetry';
 import { safeStart } from './planLines';
 import { useConfirm } from '../../contexts/ConfirmContext';
 import type { HeadAction } from './PageHead';
@@ -8,7 +11,10 @@ import * as copy from './copy';
 import { SETTINGS } from './copyImport';
 import { QUIZ } from '../quiz/copyQuiz';
 import { STUDIO } from '../studio/copyStudio';
-import { firstSession, isAuthor, minutesOf, sessionHref, studyHref, subjectTitle } from './model';
+import { REMOVE_TEST } from '../test/copyTest';
+import InviteExam from './group/InviteExam';
+import MinutesDialog from './MinutesDialog';
+import { firstSession, isAuthor, isOwnTest, minutesOf, sessionHref, studyHref, subjectTitle } from './model';
 import { resumeCounts, type SavedSession } from './sessionStore';
 
 /**
@@ -43,13 +49,9 @@ export function startTarget(p: {
 }
 
 /**
- * The exam's «⋯» (decision 44, the critique's I9): the author's «Пригласить группу», «Ключи» (always, with what waits),
- * «Студия» (spec 2026-10-18 §47.6: /exams/c/<id>/studio), «Контрольные» (spec 2026-10-16 §2.1:
- * /exams/c/<id>/quizzes), «Время в день», «Добавить предмет», «Настройки»,
- * «Удалить»; a member's «Время в день», «Настройки» and «Выйти из экзамена» (usability check m1: the way out was only at the bottom of «Настройки»). On a computer the same items are
- * the row of white pills under the meta, «Удалить» and «Выйти из экзамена» as quiet links. «Время в день», «Удалить»
- * and «Выйти из экзамена» are the settings page's sections (package D3a: /exams/c/<id>/settings#minutes, #delete and
- * #leave, which opens its confirm), «Пригласить группу» its invite (?invite=1).
+ * The settings page's sections (package D3a): /exams/c/<id>/settings#minutes, #delete and #leave (which opens its
+ * confirm), «Пригласить группу» its invite (?invite=1), «Кто вошёл» its members (?who=1#group). The exam's page acts in
+ * place (release 47.3); the addresses stay for the bot, «План по дням» and the links of other pages.
  */
 export function examLinks(containerId: string): { settings: string; minutes: string; remove: string; leave: string; invite: string; keys: string } {
   const settings = `/exams/c/${containerId}/settings`;
@@ -63,35 +65,188 @@ export function examLinks(containerId: string): { settings: string; minutes: str
   };
 }
 
-export function examActions(summary: ContainerSummary): HeadAction[] {
+/** What the exam's page does in place (release 47.3): without one, the item leads to the settings page's section. */
+export interface ExamHandlers {
+  invite?: () => void;
+  minutes?: () => void;
+  remove?: () => void;
+  leave?: () => void;
+}
+
+/** An item that does its thing in place when the page gives a handler, else leads to its section of «Настройки». */
+function act(key: string, label: string, to: string, handler: (() => void) | undefined, extra: Partial<HeadAction> = {}): HeadAction {
+  return handler ? { key, label, onSelect: handler, haspopup: 'dialog', ...extra } : { key, label, to, ...extra };
+}
+
+/**
+ * The exam's «⋯» (decision 44, the critique's I9; release 47.3, owner 18.10: «Удалить» and the others only led to
+ * «Настройки» — «нужно чтобы они сразу давали возможность сделать то, чего ты хочешь»). The author's «Пригласить группу»
+ * (the invite dialog), «Вопросы и ключи» (with what waits), «Контрольные» — the computer's three pills, the most used —
+ * then in «Ещё» «Студия», «Время в день» (a dialog), «Добавить предмет», «Настройки» and «Удалить» (its confirm, here);
+ * a member's «Время в день», «Настройки» and «Выйти из экзамена» (its confirm, here). On a phone all of them are the
+ * round «⋯».
+ */
+export function examActions(summary: ContainerSummary, handlers: ExamHandlers = {}): HeadAction[] {
   const links = examLinks(summary.id);
   if (!isAuthor(summary.role)) {
     return [
-      { key: 'minutes', label: copy.MENU_MINUTES, to: links.minutes },
+      act('minutes', copy.MENU_MINUTES, links.minutes, handlers.minutes),
       { key: 'settings', label: copy.MENU_SETTINGS, to: links.settings },
-      { key: 'leave', label: SETTINGS.leave, to: links.leave, danger: true },
+      act('leave', SETTINGS.leave, links.leave, handlers.leave, { danger: true }),
     ];
   }
   const waiting = summary.subjects.reduce((sum, subject) => sum + subject.no_key, 0) + (summary.owner?.doubts_open ?? 0);
   return [
-    { key: 'invite', label: copy.MENU_INVITE, to: links.invite },
+    act('invite', copy.MENU_INVITE, links.invite, handlers.invite),
     { key: 'keys', label: waiting > 0 ? copy.menuKeysWaiting(waiting) : copy.MENU_KEYS, to: links.keys },
-    // «Студия» (spec 2026-10-18 §47.6, release 47.2) in place of «Конструктор»: the test built like a site; its «Список»
-    // is the constructor's cards (the old /build address still opens them). It stays after «Ключи» for a test too
-    // (release 47, M11): the summary does not tell a test from an exam — «Новый тест» makes one subject without a date,
-    // and an import without a date, topics or lectures reads the same.
-    { key: 'studio', label: STUDIO.label, to: `/exams/c/${summary.id}/studio` },
     { key: 'quizzes', label: QUIZ.names, to: `/exams/c/${summary.id}/quizzes` },
-    { key: 'minutes', label: copy.MENU_MINUTES, to: links.minutes },
+    // «Студия» (spec 2026-10-18 §47.6, release 47.2) in place of «Конструктор»: the test built like a site; its «Список»
+    // is the constructor's cards (the old /build address still opens them).
+    { key: 'studio', label: STUDIO.label, to: `/exams/c/${summary.id}/studio` },
+    act('minutes', copy.MENU_MINUTES, links.minutes, handlers.minutes),
     { key: 'add', label: copy.MENU_ADD_SUBJECT, to: `/exams/import?from=c:${summary.id}` },
     { key: 'settings', label: copy.MENU_SETTINGS, to: links.settings },
-    { key: 'delete', label: copy.MENU_DELETE, to: links.remove, danger: true },
+    act('delete', copy.MENU_DELETE, links.remove, handlers.remove, { danger: true }),
   ];
 }
 
 /**
- * A subject's own «⋯» inside an exam of several subjects: the author's «Ключи», «Обновить из файла», «Настройки» and
- * «Убрать предмет»; a member's «Настройки».
+ * The «⋯» of the author's own test (release 47.3): «Настройки», «Вопросы и ключи», «Пригласить группу» and «Удалить» —
+ * the page's own buttons («Открыть студию», «Отправить по ссылке») stand beside it; no plan, so no «Время в день».
+ */
+export function testActions(summary: ContainerSummary, handlers: ExamHandlers = {}): HeadAction[] {
+  const links = examLinks(summary.id);
+  const waiting = summary.subjects.reduce((sum, subject) => sum + subject.no_key, 0) + (summary.owner?.doubts_open ?? 0);
+  return [
+    { key: 'settings', label: copy.MENU_SETTINGS, to: links.settings },
+    { key: 'keys', label: waiting > 0 ? copy.menuKeysWaiting(waiting) : copy.MENU_KEYS, to: links.keys },
+    act('invite', copy.MENU_INVITE, links.invite, handlers.invite),
+    act('delete', copy.MENU_DELETE, links.remove, handlers.remove, { danger: true }),
+  ];
+}
+
+/** «Удалить» says the same here and in «Настройки»: the exam's words, or the test's. */
+export function removeWords(summary: ContainerSummary): { title: string; ask: string; yes: string; done: string } {
+  if (isOwnTest(summary)) return { title: REMOVE_TEST.title, ask: REMOVE_TEST.ask(summary.title), yes: REMOVE_TEST.yes, done: REMOVE_TEST.done(summary.title) };
+  return {
+    title: SETTINGS.remove,
+    ask: SETTINGS.removeAsk(summary.title, summary.subjects.some((subject) => subject.oral)),
+    yes: SETTINGS.removeYes,
+    done: copy.examDeleted(summary.title),
+  };
+}
+
+/** The line «Экзамены» says after a delete or a way out from the exam's page (location.state.notice). */
+export interface ExamsNotice {
+  notice: string;
+}
+
+/**
+ * The exam's actions with their dialogs (release 47.3): «Пригласить группу» opens the invite over the page, «Время в
+ * день» the minutes (saved as chosen; the page's plan is read again), «Удалить» and «Выйти из экзамена» their confirm
+ * (the settings page's words); done, the way leads to «Экзамены» with a line of what happened. While members are in,
+ * «Удалить» says to remove them first, with «Кто вошёл». `dialogs` goes on the page.
+ */
+export function useExamActions(p: {
+  summary: ContainerSummary;
+  planInput: PlanInput | null;
+  reload: () => void;
+  /** The author's own test: its four items (testActions). */
+  test?: boolean;
+}): { actions: HeadAction[]; dialogs: ReactNode } {
+  const { summary, planInput, reload, test = false } = p;
+  const navigate = useNavigate();
+  const { confirm, alert } = useConfirm();
+  const [inviting, setInviting] = useState(false);
+  const [minutes, setMinutes] = useState(false);
+  const containerId = summary.id;
+  const toExams = (notice: string) => navigate('/exams', { replace: true, state: { notice } satisfies ExamsNotice });
+
+  const membersFirst = async (n: number) => {
+    const words = removeWords(summary);
+    await alert({
+      title: words.title,
+      message: SETTINGS.hasMembers(n),
+      confirmText: copy.MEMBERS_FIRST_OK,
+      secondaryText: copy.MEMBERS_WHO,
+      onSecondary: () => navigate(`/exams/c/${containerId}/settings?who=1#group`),
+    });
+  };
+  const remove = async () => {
+    const words = removeWords(summary);
+    const members = summary.owner?.members ?? 0;
+    if (members > 0) {
+      await membersFirst(members);
+      return;
+    }
+    const ok = await confirm({ title: words.title, message: words.ask, confirmText: words.yes, cancelText: SETTINGS.removeNo, type: 'danger' });
+    if (!ok) return;
+    try {
+      await deleteContainer(containerId);
+    } catch (error) {
+      if ((error as { code?: unknown } | null)?.code === 'MC009') {
+        // Someone joined since the page was read: the group is read again, and the way to them is said.
+        reload();
+        await membersFirst(Math.max(1, members));
+      } else {
+        await alert({ title: words.title, message: containerErrorText(error), confirmText: copy.MEMBERS_FIRST_OK });
+      }
+      return;
+    }
+    try {
+      await forgetBank(containerId);
+    } catch {
+      // The device's copy of the questions goes when the next overview no longer lists the exam.
+    }
+    track('container.deleted', { subjects: summary.subjects.length, from: 'page' });
+    toExams(words.done);
+  };
+  const leave = async () => {
+    const ok = await confirm({
+      title: SETTINGS.leave,
+      message: SETTINGS.leaveAsk(summary.title),
+      confirmText: SETTINGS.leaveYes,
+      cancelText: SETTINGS.removeNo,
+      type: 'danger',
+    });
+    if (!ok) return;
+    try {
+      await leaveContainer(containerId);
+    } catch (error) {
+      await alert({ title: SETTINGS.leave, message: containerErrorText(error), confirmText: copy.MEMBERS_FIRST_OK });
+      return;
+    }
+    toExams(copy.examLeft(summary.title));
+  };
+
+  const handlers: ExamHandlers = {
+    invite: () => setInviting(true),
+    minutes: () => setMinutes(true),
+    remove: () => void remove(),
+    leave: () => void leave(),
+  };
+  const actions = test ? testActions(summary, handlers) : examActions(summary, handlers);
+  const dialogs = (
+    <>
+      {inviting ? <InviteExam summary={summary} onClose={() => setInviting(false)} onChanged={reload} /> : null}
+      {minutes ? (
+        <MinutesDialog
+          containerId={containerId}
+          settings={summary.settings}
+          planInput={planInput}
+          settingsHref={examLinks(containerId).settings}
+          onClose={() => setMinutes(false)}
+          onSaved={reload}
+        />
+      ) : null}
+    </>
+  );
+  return { actions, dialogs };
+}
+
+/**
+ * A subject's own «⋯» inside an exam of several subjects: the author's «Ключи», «Обновить из файла», «Настройки» — the
+ * computer's three pills — and «Убрать предмет» (its confirm, in «Ещё»); a member's «Настройки».
  */
 export function useSubjectActions(p: { containerId: string; summary: ContainerSummary; subjectId: string; title: string }): HeadAction[] {
   const { containerId, summary, subjectId, title } = p;
@@ -118,6 +273,8 @@ export function useSubjectActions(p: { containerId: string; summary: ContainerSu
     { key: 'keys', label: copy.MENU_KEYS, to: `/exams/c/${containerId}/keys?s=${subjectId}` },
     { key: 'refresh', label: copy.MENU_REFRESH, to: `/exams/import?from=c:${containerId}&subject=${subjectId}` },
     { key: 'settings', label: copy.MENU_SETTINGS, to: `/exams/c/${containerId}/settings` },
-    ...(summary.subjects.length > 1 ? [{ key: 'remove', label: copy.MENU_REMOVE_SUBJECT, onSelect: () => void removeSubject(), danger: true }] : []),
+    ...(summary.subjects.length > 1
+      ? [{ key: 'remove', label: copy.MENU_REMOVE_SUBJECT, onSelect: () => void removeSubject(), danger: true, haspopup: 'dialog' as const }]
+      : []),
   ];
 }

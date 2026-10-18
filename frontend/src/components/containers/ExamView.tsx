@@ -12,7 +12,7 @@ import FigureBlock from './FigureBlock';
 import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet } from './Sheets';
 import { NoteLine } from './ui';
-import { examActions, examLinks, startTarget } from './actions';
+import { examLinks, startTarget, useExamActions } from './actions';
 import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
 import { detailText, isDayOff, noDateText, paceNote, planLineViews, planText, text as lineWords, titleText, type LineView, type PaceNote } from './planLines';
@@ -191,7 +191,8 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
   const day = metaDay(dates, today);
   const figure = examFigure(summary, plan);
   const hrefs = examLinks(containerId);
-  const actions = examActions(summary);
+  // «Удалить», «Время в день», «Пригласить группу» act here (release 47.3); their dialogs go on the page.
+  const { actions, dialogs } = useExamActions({ summary, planInput, reload });
   const saved = useMemo(() => (user?.id ? resumable(loadSession(user.id, containerId), today) : null), [user?.id, containerId, today]);
   // «Перенести экзамен» (release 47): on the exam's day and after it; the page reads its data again once it is moved.
   const facts = useMemo(() => moveFacts(summary), [summary]);
@@ -426,6 +427,7 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
         />
       ) : null}
       {move.dialog}
+      {dialogs}
     </div>
   );
 }

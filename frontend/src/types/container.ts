@@ -15,6 +15,12 @@
 export type Uuid = string;
 export type DayKey = string;
 export type ContainerRole = 'owner' | 'member';
+/**
+ * What the container is (20261019090000, release 47.3): 'exam' — a plan of study (the default); 'test' — questions its
+ * author gives to others («Новый тест»). The author's own test opens as the test's page and stays out of their plan in
+ * Telegram; a member studies it as an exam. Absent from an older server: 'exam'.
+ */
+export type ContainerKind = 'exam' | 'test';
 
 /** single: one option; multiple: several, all or nothing; short: a typed short answer compared with the file's forms. */
 export type ItemKind = 'single' | 'multiple' | 'short';
@@ -61,6 +67,8 @@ export interface OverviewSubject extends SubjectFacts {
 export interface OverviewContainer {
   id: Uuid;
   title: string;
+  /** 20261019090000; absent from an older server (then 'exam'). */
+  kind?: ContainerKind;
   exam_date: DayKey | null;
   created_at: string;
   role: ContainerRole;
@@ -100,6 +108,8 @@ export interface ContainerSummary {
   day: DayKey;
   id: Uuid;
   title: string;
+  /** 20261019090000; absent from an older server (then 'exam'). */
+  kind?: ContainerKind;
   exam_date: DayKey | null;
   role: ContainerRole;
   created_at: string;

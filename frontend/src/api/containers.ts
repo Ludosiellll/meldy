@@ -18,7 +18,7 @@ import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
 import {
   TEST_ITEM_COLUMNS,
-  type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerRpc,
+  type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerKind, type ContainerRpc,
   type ContainerSettings, type ContainerSummary, type ContainersOverview, type CreateSubjectInput, type DayKey,
   type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkPreview,
   type MemberRow, type MockRunInput, type MockRunResult, type OralSyncResponse, type PlanInputsWire,
@@ -481,14 +481,26 @@ export async function deleteItem(itemId: Uuid): Promise<void> {
   await deleteRow('test_items', itemId);
 }
 
-/** The owner's title or common date (direct write, RLS «Containers: update own»). */
-export async function updateContainer(containerId: Uuid, patch: { title?: string; exam_date?: DayKey | null }): Promise<void> {
+/**
+ * The owner's title, common date or kind (direct write, RLS «Containers: update own»; a member's or a stranger's write
+ * touches no row: 42501 / P0002). `kind` needs 20261019090000; before it the column is unknown (an error, 'unknown').
+ */
+export async function updateContainer(
+  containerId: Uuid,
+  patch: { title?: string; exam_date?: DayKey | null; kind?: ContainerKind },
+): Promise<void> {
   const values: Record<string, unknown> = {};
   if (patch.title !== undefined) values.title = patch.title.trim();
   if (patch.exam_date !== undefined) values.exam_date = patch.exam_date;
+  if (patch.kind !== undefined) values.kind = patch.kind;
   if (Object.keys(values).length === 0) return;
   const rows = await run(supabase.from('containers').update(values).eq('id', containerId).select('id'));
   if (list(rows).length === 0) throw await noRow('containers', containerId);
+}
+
+/** «Это тест» / «Это экзамен» (release 47.3): the author's own choice, saved at once; «Новый тест» sets 'test'. */
+export async function setContainerKind(containerId: Uuid, kind: ContainerKind): Promise<void> {
+  await updateContainer(containerId, { kind });
 }
 
 /**

@@ -2,8 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ createContainer: vi.fn() }));
-vi.mock('../../api/containers', () => ({ createContainer: api.createContainer }));
+const api = vi.hoisted(() => ({ createContainer: vi.fn(), setContainerKind: vi.fn() }));
+vi.mock('../../api/containers', () => ({ createContainer: api.createContainer, setContainerKind: api.setContainerKind }));
 
 import NewTestPage from './NewTestPage';
 import { NEW_TEST } from '../../components/test/copyTest';
@@ -28,6 +28,7 @@ function renderPage() {
 
 beforeEach(() => {
   api.createContainer.mockReset().mockResolvedValue({ container_id: 'c-new', subjects: [{ id: 's-new', position: 1, title: 'Вопросы' }] });
+  api.setContainerKind.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => cleanup());
 
@@ -40,6 +41,18 @@ describe('NewTestPage: «Новый тест» (spec 2026-10-18 §47.2)', () => 
     fireEvent.click(screen.getByRole('button', { name: NEW_TEST.create }));
     expect(await screen.findByRole('heading', { name: 'Студия c-new' })).toBeInTheDocument();
     expect(api.createContainer).toHaveBeenCalledWith('Химия, 9 класс', null, [{ title: 'Вопросы' }]);
+    // Release 47.3: a test is its own kind — its page is the test's own, and it stays out of the author's plan.
+    expect(api.setContainerKind).toHaveBeenCalledWith('c-new', 'test');
+    expect(api.setContainerKind.mock.invocationCallOrder[0]).toBeGreaterThan(api.createContainer.mock.invocationCallOrder[0]);
+  });
+
+  it('opens the studio all the same when the kind could not be written (an older database, a lost answer)', async () => {
+    api.setContainerKind.mockRejectedValueOnce(Object.assign(new Error('column kind'), { code: 'unknown' }));
+    renderPage();
+    fireEvent.change(screen.getByLabelText(NEW_TEST.name), { target: { value: 'Химия' } });
+    fireEvent.click(screen.getByRole('button', { name: NEW_TEST.create }));
+    expect(await screen.findByRole('heading', { name: 'Студия c-new' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('asks for a name before creating anything', () => {

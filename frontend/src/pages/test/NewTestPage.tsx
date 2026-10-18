@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createContainer } from '../../api/containers';
+import { createContainer, setContainerKind } from '../../api/containers';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useFrame } from '../../components/exams/useFrame';
@@ -13,7 +13,9 @@ import '../../components/test/build.css';
 /**
  * /tests/new — «Новый тест» (spec 2026-10-18 §47.2): one field, the test's name, and «Создать». The test is an exam of
  * one subject «Вопросы» (container_create), opened in «Студия теста» (release 47.2: its empty page offers the starters);
- * this page is left out of the history, so «Назад» from the studio does not bring the empty form back.
+ * this page is left out of the history, so «Назад» from the studio does not bring the empty form back. Release 47.3: the
+ * new exam is marked a test (containers.kind 'test', the author's own write) — its page is the test's own, and it stays
+ * out of the author's plan; when that write fails the test opens all the same, an exam until «Это тест» in «Настройки».
  */
 export default function NewTestPage() {
   const navigate = useNavigate();
@@ -37,6 +39,11 @@ export default function NewTestPage() {
     try {
       const created = await createContainer(name.slice(0, TEST_TITLE_MAX), null, [{ title: NEW_TEST.subject }]);
       rememberContainerTitle(created.container_id, name);
+      try {
+        await setContainerKind(created.container_id, 'test');
+      } catch {
+        // An older database (no kind yet) or a lost answer: the test is made; «Настройки» can say «Это тест» later.
+      }
       navigate(`/exams/c/${created.container_id}/studio`, { replace: true });
     } catch (failure) {
       setError(errorText(failure));

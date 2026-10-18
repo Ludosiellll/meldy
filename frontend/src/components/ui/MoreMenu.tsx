@@ -50,6 +50,8 @@ export interface MoreMenuItem {
   danger?: boolean;
   /** A line above this item. */
   separatorBefore?: boolean;
+  /** The item opens a dialog (aria-haspopup): «Удалить», «Время в день», «Пригласить группу» on the exam's page. */
+  haspopup?: 'dialog';
 }
 
 interface MoreMenuProps {
@@ -209,6 +211,7 @@ function MenuRow({ item, onPicked, buttonRef }: { item: MoreMenuItem; onPicked: 
         type="button"
         role="menuitem"
         className="mm-item"
+        aria-haspopup={item.haspopup}
         data-danger={item.danger ? '' : undefined}
         onClick={() => {
           onPicked();

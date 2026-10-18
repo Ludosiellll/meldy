@@ -67,3 +67,22 @@
    «Повторить» a 44 px target taken from the line's height (usability check m5). */
 .sf-page .exc-rest { margin: 16px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .exc-rest .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; vertical-align: baseline; }
+
+/* «Экзамен «…» удалён.» on «Экзамены» after «Удалить» on the exam's page (release 47.3): one quiet line on a white pill
+   under the heading; it takes the focus once (without a ring: nothing to press). */
+.sf-page .ex-notice {
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 18px 0 0;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+}
+.sf-page .ex-notice:focus { outline: none; }
+.sf-page[data-frame='s'] .ex-notice { border-radius: 20px; font-size: 15px; }

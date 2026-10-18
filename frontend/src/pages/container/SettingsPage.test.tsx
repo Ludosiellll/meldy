@@ -22,6 +22,7 @@ const api = vi.hoisted(() => ({
   moveExamDate: vi.fn(),
   telegramExams: vi.fn(),
   setExamRemind: vi.fn(),
+  setContainerKind: vi.fn(),
   fetchTelegramState: vi.fn(),
   state: { summary: null as ContainerSummary | null, plan: null as PlanInput | null, error: null as string | null, gone: false },
 }));
@@ -40,6 +41,8 @@ vi.mock('../../api/containers', () => ({
   moveExamDate: api.moveExamDate,
   telegramExams: api.telegramExams,
   setExamRemind: api.setExamRemind,
+  // Release 47.3: «Это экзамен» / «Это тест».
+  setContainerKind: api.setContainerKind,
   containerErrorText: (error: unknown) => (error instanceof Error && /[а-яё]/i.test(error.message) ? error.message : 'Не получилось. Попробуйте ещё раз.'),
 }));
 vi.mock('../../api/telegram', () => ({ fetchTelegramState: api.fetchTelegramState }));
@@ -128,6 +131,7 @@ beforeEach(() => {
   api.fetchTelegramState.mockReset().mockResolvedValue({ linked: false });
   api.telegramExams.mockReset().mockResolvedValue([]);
   api.setExamRemind.mockReset().mockImplementation(async (id: string, on: boolean) => ({ container_id: id, tg_remind: on }));
+  api.setContainerKind.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => cleanup());
 
@@ -646,5 +650,76 @@ describe('SettingsPage: «План в Telegram по этому экзамену�
     renderAt();
     await waitFor(() => expect(api.telegramExams).toHaveBeenCalled());
     expect(screen.queryByRole('switch')).toBeNull();
+  });
+});
+
+describe('SettingsPage: «Это экзамен» / «Это тест» (release 47.3)', () => {
+  it('the author switches it, saved at once (no «Сохранить»), and the page reads the exam again', async () => {
+    api.state.summary = { ...solo(), kind: 'exam' };
+    renderAt();
+    const group = screen.getByRole('group', { name: 'Что это' });
+    expect(within(group).getByRole('radio', { name: 'Это экзамен' })).toBeChecked();
+    expect(group).toHaveAccessibleDescription('Вы готовитесь сами: план на каждый день, время в день, напоминания в Telegram.');
+    fireEvent.click(within(group).getByRole('radio', { name: 'Это тест' }));
+    await waitFor(() => expect(api.setContainerKind).toHaveBeenCalledWith(ID, 'test'));
+    expect(await within(group).findByText('Сохранено: это тест.')).toBeInTheDocument();
+    expect(group).toHaveAccessibleDescription('Вы даёте вопросы другим: студия, ссылка, контрольные. В ваш план на день он не входит.');
+    expect(api.reload).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    fireEvent.click(within(group).getByRole('radio', { name: 'Это экзамен' }));
+    await waitFor(() => expect(api.setContainerKind).toHaveBeenLastCalledWith(ID, 'exam'));
+    expect(await within(group).findByText('Сохранено: это экзамен.')).toBeInTheDocument();
+  });
+
+  it('a failure is said and the choice goes back', async () => {
+    api.state.summary = { ...solo(), kind: 'exam' };
+    api.setContainerKind.mockRejectedValueOnce(new Error('Нет сети — попробуем ещё раз, когда она появится.'));
+    renderAt();
+    const group = screen.getByRole('group', { name: 'Что это' });
+    fireEvent.click(within(group).getByRole('radio', { name: 'Это тест' }));
+    expect(await within(group).findByText('Нет сети — попробуем ещё раз, когда она появится.')).toBeInTheDocument();
+    expect(within(group).getByRole('radio', { name: 'Это экзамен' })).toBeChecked();
+    expect(api.reload).not.toHaveBeenCalled();
+  });
+
+  it('the author’s own test has no plan of their own here: no minutes, days or Telegram plan; the date stays', () => {
+    api.state.summary = { ...solo(), kind: 'test' };
+    renderAt();
+    expect(screen.getByLabelText('Дата экзамена')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Время в день' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Дни занятий' })).toBeNull();
+    expect(screen.queryByText(SETTINGS.noDate)).toBeNull();
+    cleanup();
+    api.state.summary = { ...solo(), kind: 'exam' };
+    renderAt();
+    expect(screen.getByRole('combobox', { name: 'Время в день' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Дни занятий' })).toBeInTheDocument();
+  });
+
+  it('a member has no switch; an older server (no kind) neither', () => {
+    api.state.summary = { ...solo(), kind: 'test', role: 'member', owner: null };
+    renderAt();
+    expect(screen.queryByRole('group', { name: 'Что это' })).toBeNull();
+    cleanup();
+    api.state.summary = solo();
+    renderAt();
+    expect(screen.queryByRole('group', { name: 'Что это' })).toBeNull();
+  });
+
+  it('a test says «Удалить тест» with the words of the test’s page, and «Экзамены» says it is gone', async () => {
+    api.state.summary = { ...solo(), kind: 'test', title: 'Кислоты' };
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить тест' }));
+    expect(screen.getByRole('group', { name: 'Удалить «Кислоты»? Вопросы, контрольные и их результаты пропадут.' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить тест' }));
+    await waitFor(() => expect(api.deleteContainer).toHaveBeenCalledWith(ID));
+    await waitFor(() => expect(where).toBe('/exams'));
+  });
+
+  it('?who=1 (from «Кто вошёл» of the exam page’s «Удалить») opens the members', async () => {
+    api.state.summary = { ...solo(), owner: { members: 2, doubts_open: 0, links: [] } };
+    renderAt(`/exams/c/${ID}/settings?who=1#group`);
+    await waitFor(() => expect(api.fetchMembers).toHaveBeenCalledWith(ID));
+    expect(within(document.getElementById('settings-group')!).getByRole('button', { name: 'Кто вошёл' })).toHaveAttribute('aria-expanded', 'true');
   });
 });

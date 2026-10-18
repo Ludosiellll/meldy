@@ -8,6 +8,7 @@
  */
 import type {
   AnswerResult,
+  ContainerKind,
   ContainerRole,
   ContainerSummary,
   DayPlan,
@@ -527,6 +528,14 @@ export function firstCountWhen(ms: number | null, today: LocalDay, tz: string, m
 
 export function isAuthor(role: ContainerRole): boolean {
   return role === 'owner';
+}
+
+/**
+ * The author's own test (release 47.3, containers.kind 'test'): its page is the test's own (TestHome), «Экзамены» says
+ * «Тест · N вопросов», «Сегодня» and the bot leave it out of the plan. A member of a test studies it as an exam.
+ */
+export function isOwnTest(entry: { kind?: ContainerKind; role: ContainerRole } | null | undefined): boolean {
+  return Boolean(entry && entry.kind === 'test' && entry.role === 'owner');
 }
 
 /** The author shares the exam with a group (then a key fix reaches the group, too). */

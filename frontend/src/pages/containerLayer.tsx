@@ -86,6 +86,8 @@ function cleanContainer(raw: unknown): OverviewContainer | null {
   return {
     id: raw.id,
     title: raw.title.trim() || 'Экзамен',
+    // 20261019090000 (release 47.3): the author's own test is drawn as a test, and kept off «Сегодня»; absent — an exam.
+    ...(raw.kind === 'test' || raw.kind === 'exam' ? { kind: raw.kind } : {}),
     exam_date: day(raw.exam_date),
     created_at: typeof raw.created_at === 'string' ? raw.created_at : '',
     role: raw.role === 'member' ? 'member' : 'owner',

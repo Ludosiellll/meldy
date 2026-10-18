@@ -116,6 +116,73 @@
 .gr-copy-w { grid-area: 1 / 1; }
 .gr-copy-w[aria-hidden='true'] { visibility: hidden; }
 .gr-copy-text { justify-self: start; }
+/* «Скопировать текст» and «Показать QR» side by side (release 47.3). */
+.gr-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.gr-qr-b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 15px/1 var(--ph-sans);
+  cursor: pointer;
+}
+.gr-qr-b:hover { background: var(--sf-surface-soft); }
+.gr-qr-b:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.gr-qr-b:disabled { opacity: .45; cursor: default; }
+/* The QR over the whole screen (InviteQr.tsx): the canvas, the code as large as the window allows, the address big. */
+.gr-qr-root {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  -webkit-font-smoothing: antialiased;
+  animation: gr-qr-in .2s ease both;
+}
+.gr-qr { display: grid; justify-items: center; width: 100%; max-width: 920px; text-align: center; }
+.gr-qr-t {
+  max-width: 100%;
+  margin: 0;
+  font-size: clamp(18px, 2.6dvh, 24px);
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -.01em;
+  color: var(--sf-muted);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.gr-qr-code {
+  display: block;
+  width: min(58dvh, calc(100vw - 32px), 560px);
+  height: auto;
+  margin: clamp(12px, 2.4dvh, 24px) 0 0;
+  border-radius: 24px;
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.gr-qr-link {
+  max-width: 100%;
+  margin: clamp(14px, 2.6dvh, 26px) 0 0;
+  font-size: clamp(24px, min(4.6vw, 6dvh), 52px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.gr-qr-hint { margin: 8px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.gr-qr-close.sf-secondary { margin-top: clamp(12px, 2.4dvh, 24px); }
+@keyframes gr-qr-in { from { opacity: 0; } to { opacity: 1; } }
 .gr-once { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .gr-seats { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
 .gr-seats > .gr-line:first-child { margin-top: 0; }
@@ -164,5 +231,6 @@
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gr-box { animation: none; }
+  .gr-box,
+  .gr-qr-root { animation: none; }
 }

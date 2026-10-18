@@ -180,6 +180,22 @@ export const MENU_SETTINGS = 'Настройки';
 export const MENU_DELETE = 'Удалить';
 export const MENU_REFRESH = 'Обновить из файла';
 export const MENU_REMOVE_SUBJECT = 'Убрать предмет';
+/** The computer's «Ещё» after the first pills (release 47.3: at most three pills, the rest in it, as on a phone). */
+export const MENU_MORE = 'Ещё';
+/** The line on «Экзамены» after «Удалить» on the exam's page, and after «Выйти из экзамена». */
+export const examDeleted = (title: string) => `Экзамен «${title}» удалён.`;
+export const examLeft = (title: string) => `Вы вышли из «${title}».`;
+/** «Удалить» while members are in: what to do first, and the way to them. */
+export const MEMBERS_FIRST_OK = 'Понятно';
+export const MEMBERS_WHO = 'Кто вошёл';
+// «Время в день» on the exam's page (release 47.3): the settings' choices in a dialog, each saved as it is chosen.
+export const MINUTES_TITLE = 'Время в день';
+export const MINUTES_SAVING = 'Сохраняем…';
+export const minutesSaved = (minutes: number) =>
+  glue(minutes >= ALL_QUESTIONS_MIN ? 'Сохранено: все вопросы в день. План пересчитан.' : `Сохранено: ${minNom(minutes)} в день. План пересчитан.`);
+export const TEMPO_SAVED = 'Сохранено. План пересчитан.';
+export const MINUTES_DONE = 'Готово';
+export const MINUTES_MORE = 'Дни занятий и дата — в настройках';
 export const CANCEL = 'Отмена';
 export const removeSubjectTitle = (title: string) => `Убрать предмет «${title}»?`;
 export const REMOVE_SUBJECT_TEXT = 'Его вопросы и ответы по ним пропадут.';

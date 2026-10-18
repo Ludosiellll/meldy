@@ -81,6 +81,37 @@
 .ct-links .ct-pill-link:hover { background: var(--sf-surface-soft); }
 .ct-links .ct-pill-link:focus-visible { border-radius: 999px; }
 .ct-links .ct-quiet { margin-left: 6px; }
+/* «Ещё» after the computer's three pills (release 47.3): a white pill with three dots, its menu under it. */
+.ct-links .ct-more-pill .mm-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  transition: background-color .45s var(--m-ease);
+}
+.ct-links .ct-more-pill .mm-text::before {
+  content: '';
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.9'/%3E%3Ccircle cx='12' cy='12' r='1.9'/%3E%3Ccircle cx='19' cy='12' r='1.9'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.9'/%3E%3Ccircle cx='12' cy='12' r='1.9'/%3E%3Ccircle cx='19' cy='12' r='1.9'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ct-links .ct-more-pill .mm-text:hover,
+.ct-links .ct-more-pill .mm-text[aria-expanded='true'] { background: var(--sf-surface-soft); }
+.ct-links .ct-more-pill .mm-text:focus-visible { border-radius: 999px; }
+.ct-links .ct-more-pill .sf-menu.mm-menu { top: calc(100% + 8px); right: auto; left: 0; min-width: 260px; }
+.ct-links .ct-more-pill .mm-item { width: 100%; text-align: left; }
 /* The phone's «⋯» beside the heading: a white circle with a ring. */
 .ct-more { flex: none; margin-top: 2px; }
 .ct-more .mm-round.sf-more {
@@ -391,7 +422,8 @@
   .ct-scrim { animation: none; }
   .ct-row,
   .ct-crumb a,
-  .ct-links .ct-pill-link { transition: none; }
+  .ct-links .ct-pill-link,
+  .ct-links .ct-more-pill .mm-text { transition: none; }
 }
 html[data-stage] .ct-links { display: none; }
 

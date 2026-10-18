@@ -620,6 +620,11 @@ export const INVITE = {
   revokeYes: 'Да, закрыть',
   revokeNo: 'Отмена',
   revoked: 'Ссылка закрыта. По ней больше никто не войдёт.',
+  /** The link as a QR over the whole screen (release 47.3; lib/quizzes/qr.ts draws it on the device). */
+  qr: 'Показать QR',
+  qrTitle: 'QR-код ссылки для группы',
+  qrHint: 'Наведите камеру телефона на код или наберите адрес.',
+  qrClose: 'Закрыть',
   copiedLink: 'Ссылка скопирована.',
   copiedText: 'Текст скопирован.',
   copyFailed: 'Не получилось скопировать: выделите текст и скопируйте его сами.',

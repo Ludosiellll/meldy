@@ -163,8 +163,8 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     expect(within(menu).getAllByRole('menuitem').map((node) => plain(node.textContent))).toEqual([
       'Пригласить группу',
       'Вопросы и ключи · 4 ждут',
-      'Студия',
       'Контрольные',
+      'Студия',
       'Время в день',
       'Добавить предмет',
       'Настройки',
@@ -210,8 +210,10 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     const base = summary({ owner: { members: 3, doubts_open: 3, links: [] } });
     renderPage(loaded(containerData({ summary: base })));
     expect(screen.getByRole('link', { name: nm('Вопросы и ключи · 7 ждут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
-    expect(screen.getByRole('link', { name: 'Пригласить группу' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings?invite=1`);
-    expect(screen.getByRole('link', { name: 'Добавить предмет' }).getAttribute('href')).toBe(`/exams/import?from=c:${CONTAINER}`);
+    // Release 47.3: «Пригласить группу» opens its dialog here; «Добавить предмет» waits in «Ещё».
+    expect(screen.getByRole('button', { name: 'Пригласить группу' })).toHaveAttribute('aria-haspopup', 'dialog');
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
+    expect(screen.getByRole('menuitem', { name: 'Добавить предмет' }).getAttribute('href')).toBe(`/exams/import?from=c:${CONTAINER}`);
     expect(page()).toContain('Сомневаются в ключе: 3 вопроса.');
     expect(page()).toContain('4 вопроса без ключа не идут в занятия.');
     expect(screen.getByRole('link', { name: 'Отметить ответы' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
@@ -221,7 +223,9 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     renderPage(loaded(containerData({ summary: summary({ role: 'member', owner: null, key_changes_unseen: 2 }) })), { phone: true });
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => node.textContent)).toEqual(['Время в день', 'Настройки', 'Выйти из экзамена']);
-    expect(screen.getByRole('menuitem', { name: 'Выйти из экзамена' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#leave`);
+    // Release 47.3: the way out is its confirm, here (ContainerPage.inPlace.test.tsx), not a link to «Настройки».
+    expect(screen.getByRole('menuitem', { name: 'Выйти из экзамена' })).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(screen.getByRole('menuitem', { name: 'Выйти из экзамена' }).getAttribute('href')).toBeNull();
     expect(page()).toContain('Автор исправил ключ в 2 вопросах — счёт по ним начнётся заново.');
     expect(screen.queryByRole('link', { name: 'Отметить ответы' })).toBeNull();
   });
@@ -587,7 +591,7 @@ describe('a one-subject exam is its subject page (decision 44)', () => {
     expect(screen.getByRole('list', { name: 'Темы' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => plain(node.textContent));
-    expect(items).toEqual(['Пригласить группу', 'Вопросы и ключи', 'Студия', 'Контрольные', 'Время в день', 'Добавить предмет', 'Настройки', 'Удалить']);
+    expect(items).toEqual(['Пригласить группу', 'Вопросы и ключи', 'Контрольные', 'Студия', 'Время в день', 'Добавить предмет', 'Настройки', 'Удалить']);
   });
 });
 

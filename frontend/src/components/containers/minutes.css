@@ -1,0 +1,42 @@
+/* «Время в день» on the exam's page (MinutesDialog.tsx) in the exam's sheet (.ct-sheet of containers.css): the choices
+ * as white chips with a ring, the chosen one filled with the soft blue and a ring of ink; the radio stays (the choice
+ * is said by its own sign, not by colour alone). Existing tokens only, so both themes follow. */
+
+.md-sheet .md-set { min-width: 0; margin: 16px 0 0; padding: 0; border: 0; }
+.md-sheet .md-legend { margin: 0 0 10px; padding: 0; font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-muted); }
+.md-sheet .md-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.md-sheet .md-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: background-color .3s ease, box-shadow .3s ease;
+}
+.md-sheet .md-chip:hover { background: var(--sf-surface-soft); }
+.md-sheet .md-chip:has(input:checked) { background: var(--sf-accent-soft); box-shadow: inset 0 0 0 1.5px var(--sf-accent-fg); }
+.md-sheet .md-chip:has(input:focus-visible) { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+.md-sheet .md-chip input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--sf-accent); }
+.md-sheet .md-chip input:focus-visible { outline: none; }
+.md-sheet .md-set[aria-busy='true'] .md-chip { cursor: progress; }
+
+.md-sheet .md-line { margin: 16px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.md-sheet .md-status { min-height: 1.5em; margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
+.md-sheet .md-status[data-error] { color: var(--ph-wrong); }
+.md-sheet .md-more { margin: 4px 0 0; font-size: 15px; line-height: 1.5; }
+.md-sheet .md-more .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
+
+@media (max-width: 639px) {
+  .md-sheet .md-chip { min-height: 46px; padding: 0 14px 0 12px; font-size: 15.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-sheet .md-chip { transition: none; }
+}

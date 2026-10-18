@@ -314,3 +314,34 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('InviteExam: «Показать QR» (release 47.3)', () => {
+  it('puts the link’s code over the whole screen; Escape closes it alone and the focus goes back', async () => {
+    const onClose = vi.fn();
+    render(<InviteExam summary={TEST_ONLY} onClose={onClose} />);
+    const dialog = screen.getByRole('dialog', { name: 'Пригласить группу' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Создать ссылку' }));
+    const url = `${window.location.origin}/g/abcd2fghjkmn`;
+    expect(await within(dialog).findByLabelText(INVITE.linkLabel)).toHaveValue(url);
+    const show = within(dialog).getByRole('button', { name: INVITE.qr });
+    expect(show).toHaveAttribute('aria-haspopup', 'dialog');
+    show.focus();
+    fireEvent.click(show);
+    const qr = screen.getByRole('dialog', { name: SUMMARY.title });
+    expect(within(qr).getByRole('img', { name: INVITE.qrTitle })).toBeInTheDocument();
+    expect(qr.textContent).toContain('/g/abcd2fghjkmn');
+    expect(qr.textContent).toContain(INVITE.qrHint);
+    expect(document.activeElement).toBe(within(qr).getByRole('button', { name: INVITE.qrClose }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: SUMMARY.title })).toBeNull();
+    // The invite under it stays open, and «Показать QR» has the focus again.
+    expect(screen.getByRole('dialog', { name: 'Пригласить группу' })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(show);
+  });
+
+  it('no link on screen yet: no QR to show', () => {
+    render(<InviteExam summary={TEST_ONLY} onClose={() => undefined} />);
+    expect(screen.queryByRole('button', { name: INVITE.qr })).toBeNull();
+  });
+});

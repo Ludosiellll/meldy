@@ -560,3 +560,41 @@ describe('a container row’s words', () => {
     ]);
   });
 });
+
+describe('«Экзамены»: the author’s own test and the line after «Удалить» (release 47.3)', () => {
+  const tests = () => {
+    mocks.listExams.mockResolvedValue([]);
+    const questions = [subject(1, { title: 'Вопросы', exam_date: null, keyed: 10, no_key: 2 })];
+    const own = accreditation({ id: 'c-t', title: 'Кислоты и основания', kind: 'test', exam_date: null, items: 12, subjects: questions });
+    const theirs = accreditation({ id: 'c-m', title: 'Тест соседа', kind: 'test', role: 'member', exam_date: null, items: 12, subjects: questions });
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [own, theirs, accreditation()], attached_exam_ids: [] } });
+  };
+
+  it('the author’s own test says «Тест · 12 вопросов» and opens the test’s page; a member’s test is a row to study', async () => {
+    tests();
+    const list = await renderMixed();
+    const own = within(list).getByRole('link', { name: /^Кислоты и основания/ });
+    expect(own).toHaveAttribute('href', '/exams/c/c-t');
+    const card = own.closest('li')!;
+    expect(plain(card.querySelector('.ex-row-meta')?.textContent)).toBe('Тест · 12 вопросов');
+    expect(card.querySelector('.ex-bar')).toBeNull();
+    expect(card).toHaveAttribute('data-kind', 'test');
+    const theirs = within(list).getByRole('link', { name: /^Тест соседа/ }).closest('li')!;
+    expect(plain(theirs.querySelector('.ex-row-meta')?.textContent)).toBe('Дата не указана · 12 вопросов');
+    expect(theirs).not.toHaveAttribute('data-kind');
+  });
+
+  it('says the line the exam’s page handed over, once, with the focus', async () => {
+    tests();
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/exams', state: { notice: 'Экзамен «Аккредитация» удалён.' } }]}>
+        <Routes>
+          <Route path="/exams" element={<Exams />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const line = await screen.findByText('Экзамен «Аккредитация» удалён.');
+    expect(line).toHaveAttribute('role', 'status');
+    expect(document.activeElement).toBe(line);
+  });
+});

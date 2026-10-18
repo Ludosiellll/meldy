@@ -582,6 +582,17 @@ describe('«Сегодня» with exam containers: who leads', () => {
     expect(blues()).toHaveLength(1);
   });
 
+  it('the author’s own test is given, not studied (release 47.3): no card, no row; a test they joined is studied', async () => {
+    db.tables.exams = () => ({ data: [] });
+    const own = container('c-2', 'Кислоты и основания', null, { kind: 'test', created_at: '2026-10-02T10:00:00Z' });
+    const joined = container('c-3', 'Тест соседа', null, { kind: 'test', role: 'member', created_at: '2026-09-20T10:00:00Z' });
+    withContainers([own, ACCR(), joined], { 'c-1': dayPlan('study'), 'c-2': dayPlan('study'), 'c-3': dayPlan('study') });
+    await renderPage();
+    expect(await screen.findByTestId('today-card')).toHaveAttribute('data-id', 'c-1');
+    expect(plainText(document.body.textContent)).not.toContain('Кислоты и основания');
+    expect(within(screen.getByRole('region', { name: 'Другие экзамены' })).getByRole('link', { name: /Тест соседа/ })).toBeInTheDocument();
+  });
+
   it('an exam on its day off is a quiet row «… · сегодня выходной» while another one has work (D1)', async () => {
     db.tables.exams = () => ({ data: [] });
     // The nearer exam is the one on its day off: the other, with work, still leads.

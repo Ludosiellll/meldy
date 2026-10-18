@@ -13,7 +13,7 @@ import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet, TopicSheet } from './Sheets';
 import MockSetup from './MockSetup';
 import { NoteLine } from './ui';
-import { examActions, examLinks, startTarget, useSubjectActions } from './actions';
+import { examLinks, startTarget, useExamActions, useSubjectActions } from './actions';
 import { lineLink, linkFor, noteLines, type LinkTargets, type ViewProps } from './ExamView';
 import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
@@ -61,7 +61,9 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   const figure = solo ? examFigure(summary, plan) : subjectFigure(subject, plan);
   const hrefs = examLinks(containerId);
   const own = useSubjectActions({ containerId, summary, subjectId: subject.id, title: subject.title });
-  const actions = solo ? examActions(summary) : own;
+  // A one-subject exam is the exam: its «⋯» acts in place (release 47.3), its dialogs go on the page.
+  const exam = useExamActions({ summary, planInput, reload });
+  const actions = solo ? exam.actions : own;
   const saved = useMemo(() => (user?.id ? resumable(loadSession(user.id, containerId), today) : null), [user?.id, containerId, today]);
   const errors = errorCount(planInput, subject.id);
   const back = solo ? null : ('s' as const);
@@ -311,6 +313,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
         />
       ) : null}
       {move.dialog}
+      {solo ? exam.dialogs : null}
     </div>
   );
 }

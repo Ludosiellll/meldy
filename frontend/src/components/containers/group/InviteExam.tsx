@@ -8,6 +8,7 @@ import { errorText, INVITE, MEMBERS, nb } from '../copyImport';
 import { useFocusAfter } from '../useFocusAfter';
 import MembersList from './MembersList';
 import GroupBotInvite from '../../telegram/GroupBotInvite';
+import InviteQr from './InviteQr';
 import { forgetLink, keepLink, keptCode } from './linkStore';
 import './group.css';
 
@@ -30,7 +31,9 @@ import './group.css';
  * part under the paragraph keeps the height it has, so a closed link or a failure moves nothing either, and the next
  * press gives the room back.
  *
- * The exam page opens it from «⋯ → Пригласить группу» (package D3b) with its summary; «Настройки» also does.
+ * The exam page opens it from «⋯ → Пригласить группу» (package D3b; release 47.3: over the page itself, not on the way
+ * to «Настройки») with its summary; «Настройки» also does. «Показать QR» puts the link's code over the whole screen
+ * (InviteQr).
  */
 
 interface Props {
@@ -116,6 +119,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const [closing, setClosing] = useState(false);
   const [revoked, setRevoked] = useState(false);
   const [who, setWho] = useState(false);
+  const [qr, setQr] = useState(false);
   const busy = creating || revoking;
   // The height of the part under the paragraph while a call is out, kept until the next press (no jump at the answer).
   const [hold, setHold] = useState<number | null>(null);
@@ -332,9 +336,20 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
                 {INVITE.textLabel}
               </label>
               <textarea id={`${titleId}-text`} ref={textRef} className="gr-field gr-text" readOnly rows={3} value={creating ? '' : message} />
-              <button type="button" className="gr-copy gr-copy-text" disabled={creating} onClick={() => void copy('text')}>
-                {copied === 'text' ? INVITE.copied : INVITE.copyText}
-              </button>
+              <div className="gr-acts">
+                <button type="button" className="gr-copy gr-copy-text" disabled={creating} onClick={() => void copy('text')}>
+                  {copied === 'text' ? INVITE.copied : INVITE.copyText}
+                </button>
+                <button type="button" className="gr-qr-b" aria-haspopup="dialog" disabled={creating || !url} onClick={() => setQr(true)}>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="4" y="4" width="6" height="6" rx="1" />
+                    <rect x="14" y="4" width="6" height="6" rx="1" />
+                    <rect x="4" y="14" width="6" height="6" rx="1" />
+                    <path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" strokeLinecap="round" />
+                  </svg>
+                  {INVITE.qr}
+                </button>
+              </div>
               {created || creating ? <p className="gr-once">{created && !created.kept ? INVITE.onceLost : INVITE.once}</p> : null}
             </div>
           ) : null}
@@ -433,6 +448,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
         </div>
         <GroupBotInvite containerId={containerId} linkOpen={linkShown} />
       </div>
+      {qr && url ? <InviteQr url={url} title={summary.title} onClose={() => setQr(false)} /> : null}
     </div>
   );
 }
