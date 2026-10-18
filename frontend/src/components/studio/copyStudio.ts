@@ -135,7 +135,7 @@ export const STUDIO = {
   layouts: { one_by_one: 'По одному', one_page: 'Одна страница', pages: 'По страницам' } as Record<DocLayout, string>,
   layoutHints: {
     one_by_one: 'Вопрос за вопросом; блоки перед вопросом видны вместе с ним.',
-    one_page: 'Вся страница сразу, «Отправить» внизу.',
+    one_page: 'Вся страница сразу, «Завершить» внизу.',
     pages: 'Страницы делят блоки «Новая страница», между ними — «Дальше».',
   } as Record<DocLayout, string>,
   align: 'Выравнивание',
@@ -311,8 +311,10 @@ export const STUDIO = {
 export const DOC = {
   next: 'Дальше',
   back: 'Назад',
-  send: 'Отправить',
-  /** The last step of a quiz «как в студии» (release 47.2): the quiz's own word. */
+  /**
+   * The last step's button: the quiz's own word (release 47.2), in the author's preview too (release 47.3: the preview
+   * said «Отправить», the participant's run «Завершить»). Words of a page that name the button name this one.
+   */
   finish: 'Завершить',
   step: (n: number, of: number) => `${n} из ${of}`,
   questionNo: (n: number) => `Вопрос ${n}`,

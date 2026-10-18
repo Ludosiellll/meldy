@@ -1,7 +1,7 @@
 /**
  * «Свой тест» (release 47.2, «Студия теста»): «Новый тест» on «Экзамены», the test named and «Создать»; in the studio
  * «Заголовок» dragged from «Блоки» onto the page (the blue line shows where it goes), «Один ответ» added and its right
- * option marked «верный», a colour picked in «Оформление» (the page's «Отправить» takes it), and «Посмотреть как
+ * option marked «верный», a colour picked in «Оформление» (the page's «Завершить» takes it), and «Посмотреть как
  * участник» — the page in a phone as the participant gets it. Every word is the screens' own (copyTest.ts,
  * copyStudio.ts); the example is a chemistry test.
  */
@@ -145,7 +145,7 @@ export function StudioStill({ title, send }: { title: string; send: string }) {
                 </div>
                 <div className="st-x-below" style={{ transform: 'translate3d(0,400px,0)' }}>
                   <span className="st-x-pagesend" style={{ background: GREEN }}>
-                    {DOC.send}
+                    {DOC.finish}
                   </span>
                 </div>
               </div>
@@ -189,7 +189,7 @@ function PhonePage() {
         ))}
       </div>
       <span className="st-x-phone-send" style={{ background: GREEN }}>
-        {DOC.send}
+        {DOC.finish}
       </span>
     </div>
   );
@@ -258,7 +258,7 @@ export function StudioScene() {
     put(one('opt-right'), 'background', keyOn ? '#f2f9f3' : '#fff');
     opacity(one('keytag'), seg(l, ST.save + 80, 180));
 
-    // 4 · «Оформление»: green; the page's «Отправить» takes it.
+    // 4 · «Оформление»: green; the page's «Завершить» takes it.
     press(one('tab-design'), l, ST.design, 0.06);
     const onDesign = l >= ST.design + 60;
     put(one('tab-block'), 'background', onDesign ? 'transparent' : 'var(--ink)');
@@ -434,7 +434,7 @@ export function StudioScene() {
                     </div>
                     <div data-a="below-question" className="st-x-below">
                       <span data-a="send" className="st-x-pagesend" style={{ background: BLUE }}>
-                        {DOC.send}
+                        {DOC.finish}
                       </span>
                     </div>
                   </div>

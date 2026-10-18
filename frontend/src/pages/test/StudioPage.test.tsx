@@ -644,13 +644,13 @@ describe('StudioPage: the views and the participant', () => {
     fireEvent.click(screen.getByRole('button', { name: STUDIO.preview }));
     const dialog = screen.getByRole('dialog', { name: STUDIO.previewTitle });
     // The required first question is asked for.
-    fireEvent.click(within(dialog).getByRole('button', { name: /Отправить/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /Завершить/ }));
     expect(within(dialog).getByText('Ответьте на обязательный вопрос: 1.')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('radio', { name: /Водород/ }));
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /HCl/ }));
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /H₂SO₄/ }));
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Ваш ответ' }), { target: { value: ' Атом ' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: /Отправить/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /Завершить/ }));
     expect(await within(dialog).findByRole('heading', { name: /^100\s%$/ })).toBeInTheDocument();
     expect(within(dialog).getByText('Хорошо')).toBeInTheDocument();
     expect(within(dialog).getByRole('link', { name: /Следующая тема/ })).toHaveAttribute('href', 'https://chem8.ru/temy/oksidy');

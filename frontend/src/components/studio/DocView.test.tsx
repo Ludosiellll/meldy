@@ -56,11 +56,11 @@ describe('DocView in answer mode: what the participant gets', () => {
   it('«Одна страница»: required questions are asked for, then the result with its band, picture and the link’s address', async () => {
     const doc = page('one_page');
     render(<DocView mode="answer" doc={doc} items={items} dark imageUrl={url} onSubmit={(answers) => gradeDoc(doc, items, answers)} />);
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.send) }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.finish) }));
     expect(screen.getByRole('alert')).toHaveTextContent(DOC.missing([1]));
     fireEvent.click(screen.getByRole('radio', { name: /Водород/ }));
     expect(screen.queryByRole('alert')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.send) }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.finish) }));
     expect(await screen.findByRole('heading', { name: /^67\s%$/ })).toBeInTheDocument();
     expect(screen.getByText(/^2 из 3\sбаллов$/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Хорошо' })).toBeInTheDocument();
@@ -85,8 +85,21 @@ describe('DocView in answer mode: what the participant gets', () => {
     expect(screen.getByRole('radio', { name: /Водород/ })).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.next) }));
     fireEvent.change(screen.getByRole('textbox', { name: DOC.shortLabel }), { target: { value: 'Na' } });
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.send) }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.finish) }));
     expect(submit).toHaveBeenCalledWith({ i1: { chosen: [0] }, i2: { text: 'Na' } });
+  });
+
+  it('the last step’s button is the participant’s own «Завершить», on every layout (release 47.3: it said «Отправить»)', () => {
+    for (const layout of ['one_page', 'pages', 'one_by_one'] as const) {
+      const doc = page(layout);
+      render(<DocView mode="answer" doc={doc} items={items} dark={false} onSubmit={(answers) => gradeDoc(doc, items, answers)} />);
+      fireEvent.click(screen.getAllByRole('radio', { name: /Водород/ })[0]);
+      if (layout !== 'one_page') fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.next) }));
+      const last = document.querySelector('.dv-nav .dv-btn') as HTMLElement;
+      expect(last).toHaveTextContent(DOC.finish);
+      expect(screen.queryByRole('button', { name: /Отправить/ })).toBeNull();
+      cleanup();
+    }
   });
 
   it('«По одному»: a question per step, blocks before it shown with it; nothing is required on the way', () => {

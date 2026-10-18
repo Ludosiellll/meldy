@@ -22,8 +22,9 @@ import './docview.css';
  * (a list, or tiles 2 × 2 — on a phone too), the layouts with «Дальше / Назад», and the result screen with the band
  * and the link further shown with its address.
  *
- * - `mode="answer"` is what the participant gets: the answers live here, «Отправить» hands them to `onSubmit`, and the
- *   result it gives is shown. Question blocks whose row is missing are skipped.
+ * - `mode="answer"` is the author's preview of what the participant gets: the answers live here, «Завершить» (the last
+ *   step's word, as in the participant's run) hands them to `onSubmit`, and the result it gives is shown. Question
+ *   blocks whose row is missing are skipped.
  * - `mode="edit"` is the studio's canvas: every block in page order (a «Новая страница» shows as a mark between
  *   pages), the texts editable in place (Editable), and the canvas's own frame around each block (`editor.frame`:
  *   selection, the handle, the actions) and between them (`editor.gap`: «+» and the drop line).
@@ -649,7 +650,7 @@ function AnswerFlow({
           if (missing.length > 0) setMissing([]);
         }}
         back={at > 0 ? () => go(at - 1) : null}
-        primary={last ? DOC.send : DOC.next}
+        primary={last ? DOC.finish : DOC.next}
         onPrimary={() => void forward()}
         busy={sending}
       />

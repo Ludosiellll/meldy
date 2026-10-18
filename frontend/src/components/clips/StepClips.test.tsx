@@ -260,7 +260,7 @@ describe('«Свой тест»: the studio in its own words', () => {
       STUDIO.keyMark,
       STUDIO.previewTitle,
       STUDIO.previewNote,
-      DOC.send,
+      DOC.finish,
       STUDIO_EXAMPLE.heading,
       STUDIO_EXAMPLE.stem,
     ]) {

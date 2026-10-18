@@ -65,7 +65,7 @@ const DEFINITIONS: readonly Template[] = [
     ],
     blocks: (title) => [
       { type: 'cover', title, subtitle: 'Контрольная по теме', image: null, align: 'center' },
-      { type: 'note', tone: 'info', text: 'Ответьте на все вопросы и нажмите «Отправить». Где верных ответов несколько, это сказано в вопросе.' },
+      { type: 'note', tone: 'info', text: 'Ответьте на все вопросы и нажмите «Завершить». Где верных ответов несколько, это сказано в вопросе.' },
       { question: 0, required: true },
       { question: 1, required: true },
       { question: 2, points: 2, required: true },

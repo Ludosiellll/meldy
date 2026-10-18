@@ -6,6 +6,7 @@ import { checkTest } from './checker';
 import { contrast, themeTokens } from './contrast';
 import { bindRefs, docProblems, emptyDoc, newId, questionIds, type RandomFill } from './doc';
 import { READY_THEMES, sampleInput, TEMPLATES, templateDoc, templateSamples, type TemplateId } from './templates';
+import { DOC, STUDIO } from '../../components/studio/copyStudio';
 import { fromText, toText } from './textFormat';
 
 function seeded(seed = 7): RandomFill {
@@ -113,6 +114,37 @@ describe('the four starters', () => {
     const second = templateDoc('quiz', { random: seeded() });
     expect(second.doc.results.bands[0].title).not.toBe('Изменено');
     expect(second.doc.theme.background).toEqual({ kind: 'soft', tone: 'orange' });
+  });
+});
+
+describe('the words that name the participant’s buttons (release 47.3)', () => {
+  /** Every word a starter puts on its page: the blocks' texts and the result screen's. */
+  const words = (id: TemplateId) => {
+    const { doc } = templateDoc(id, { random: seeded() });
+    const out: string[] = [];
+    for (const block of doc.blocks) {
+      if (block.type === 'cover') out.push(block.title, block.subtitle);
+      else if (block.type === 'heading' || block.type === 'text' || block.type === 'note') out.push(block.text);
+      else if (block.type === 'page') out.push(block.title);
+      else if (block.type === 'image') out.push(block.caption);
+    }
+    for (const band of doc.results.bands) out.push(band.title, band.text);
+    return out.join('\n');
+  };
+  const BUTTONS = new Set<string>([DOC.next, DOC.back, DOC.finish]);
+
+  it('a starter names only the buttons the run has: «Контрольная по теме» ends with «Завершить», as the quiz does', () => {
+    expect(words('topic_check')).toContain(`нажмите «${DOC.finish}»`);
+    for (const id of IDS) {
+      const text = words(id);
+      expect(text, id).not.toMatch(/Отправить/);
+      for (const match of text.matchAll(/нажмите «([^»]+)»/g)) expect(BUTTONS.has(match[1]), `${id}: «${match[1]}»`).toBe(true);
+    }
+  });
+
+  it('the studio’s hint for «Одна страница» names the same button', () => {
+    expect(STUDIO.layoutHints.one_page).toContain(`«${DOC.finish}»`);
+    expect(Object.values(STUDIO.layoutHints).join(' ')).not.toMatch(/Отправить/);
   });
 });
 
