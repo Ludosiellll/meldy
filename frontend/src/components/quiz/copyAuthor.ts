@@ -17,6 +17,8 @@ const REVIEW_OPTIONS: Record<QuizReview, string> = {
   mistakes_then_answers: 'балл и ошибки сразу; верные ответы и пояснения — после закрытия',
 };
 const keyed = (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} с ключом`;
+/** «6 баллов», «1 балл», «3 балла». */
+export const pointsWord = (n: number) => `${n} ${plural(n, 'балл', 'балла', 'баллов')}`;
 
 /** «Контрольные» of an exam: /exams/c/:id/quizzes. */
 export const QA_LIST = {
@@ -151,10 +153,18 @@ export const QA_SETUP = {
       graphite: 'Графит',
     })[accent],
   locked: 'Контрольную уже начали писать: предметы, число вопросов, набор, порядок и время больше не меняются. Остальное можно.',
+  /** A quiz «как в студии» (release 47.2). */
+  lockedDesign: 'Контрольную уже начали писать: «Как в студии», порядок вариантов и время больше не меняются. Остальное можно.',
+  design: 'Как в студии',
+  designLine: 'Вопросы, порядок и оформление — как в студии.',
+  designOff: 'Вопросы — из предметов экзамена, как в обычной контрольной.',
+  toStudio: 'Открыть студию',
+  moreNoteDesign: 'варианты ответа, попытки, проходной балл, что ученик видит после сдачи',
   problems: {
     title: 'Напишите название, до 120 знаков.',
     subjects: 'Отметьте хотя бы один предмет.',
     count: 'В выбранных предметах нет вопросов с ключом.',
+    page: 'На странице студии нет вопросов с ключом.',
     window: '«Открыта до» должно быть позже, чем «Открыта с».',
     when: 'Укажите дату и время.',
   },
@@ -237,6 +247,8 @@ export const QA_PEOPLE = {
   timeOver: 'время вышло, ответы сдаются',
   closed: 'закрыта',
   result: (correct: number, total: number, percent: number | null) => `${correct} из ${total}${percent === null ? '' : ` · ${percent} %`}`,
+  /** A quiz «как в студии» whose questions weigh their points (release 47.2): the participant's «6 баллов из 8 · 75 %». */
+  points: (score: number, max: number, percent: number | null) => `${pointsWord(score)} из ${max}${percent === null ? '' : ` · ${percent} %`}`,
   /** 0 — under a minute (quizModel.minutesTaken). */
   minutes: (n: number) => (n === 0 ? 'меньше минуты' : `${n} мин`),
   attempts: (used: number, allowed: number | null) => (allowed === null ? `попытка ${used}` : `попытка ${used} из ${allowed}`),

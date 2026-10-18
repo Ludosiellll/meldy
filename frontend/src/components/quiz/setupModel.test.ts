@@ -11,6 +11,7 @@ import {
   isoFromLocal,
   keyedBySubject,
   localInput,
+  pageQuestionCount,
   poolOf,
   settingsOf,
   whoOf,
@@ -176,5 +177,31 @@ describe('hasExplanations', () => {
     // Without a key a question never reaches a quiz, its explanation neither.
     expect(hasExplanations(items, ['s3'])).toBe(false);
     expect(hasExplanations([], ['s1'])).toBe(false);
+  });
+});
+
+describe('a quiz «как в студии» (release 47.2)', () => {
+  it('reads the switch of a saved quiz (an older server without it — off) and sends it when it changes', () => {
+    expect(settingsOf({ ...ROW, design: true }).design).toBe(true);
+    expect(settingsOf(ROW).design).toBe(false);
+    const s = settingsOf({ ...ROW, design: true });
+    expect(changedSettings(s, { ...s })).toEqual({});
+    expect(changedSettings(s, { ...s, design: false })).toEqual({ design: false });
+  });
+
+  it('counts the keyed questions of the page, each once, whatever the case of the id', () => {
+    const items = new Map(
+      [item({ id: 'aaaaaaaa-0000-4000-8000-000000000001' }), item({ id: 'aaaaaaaa-0000-4000-8000-000000000002', correct: [], answers: [] }), item({ id: 'aaaaaaaa-0000-4000-8000-000000000003' })].map((entry) => [entry.id, entry]),
+    );
+    const blocks = [
+      { type: 'cover' },
+      { type: 'question', item_id: 'AAAAAAAA-0000-4000-8000-000000000001' },
+      { type: 'question', item_id: 'aaaaaaaa-0000-4000-8000-000000000002' },
+      { type: 'question', item_id: 'aaaaaaaa-0000-4000-8000-000000000001' },
+      { type: 'question', item_id: 'aaaaaaaa-0000-4000-8000-00000000dead' },
+      { type: 'question', item_id: 'aaaaaaaa-0000-4000-8000-000000000003' },
+    ];
+    expect(pageQuestionCount(blocks, items)).toBe(2);
+    expect(pageQuestionCount([], items)).toBe(0);
   });
 });

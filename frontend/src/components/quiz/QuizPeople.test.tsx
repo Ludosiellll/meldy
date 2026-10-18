@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../api/quizzes', () => ({ attemptAnswers: vi.fn(async () => []), resetAttempt: vi.fn() }));
@@ -114,5 +114,31 @@ describe('QuizPeople: the table of a quiz of one attempt, the time under a minut
   it('a phone: «меньше минуты» in the muted line, no «попытка 1 из 1»', () => {
     showOne(one(), false, 1);
     expect(plain(row('Иванов').querySelector('.qa-person-more')?.textContent)).toBe('меньше минуты');
+  });
+});
+
+describe('QuizPeople: a quiz «как в студии» weighs its questions (release 47.2)', () => {
+  const weighted = (): QuizAttemptRow[] => {
+    const base = results().attempts[0];
+    return [
+      { ...base, id: 'w1', person: 'pa', name: 'Абрамова Ольга', n: 1, correct: 5, total: 6, score: 7, max_score: 12 },
+      { ...base, id: 'w2', person: 'pa', name: 'Абрамова Ольга', n: 2, correct: 4, total: 6, score: 9, max_score: 12 },
+      { ...base, id: 'w3', person: 'pb', name: 'Белов Пётр', n: 1, correct: 3, total: 3, score: 3, max_score: 3 },
+    ];
+  };
+
+  it('says the points as the participant’s result does, the best attempt and the percent by them', () => {
+    show(weighted(), true);
+    const rows = within(screen.getByRole('list', { name: QA_PEOPLE.title })).getAllByRole('button');
+    expect(plain(rows[0].querySelector('.qa-person-result')?.textContent)).toBe('9 баллов из 12 · 75 %');
+    // Points equal to the count: the usual words.
+    expect(plain(rows[1].querySelector('.qa-person-result')?.textContent)).toBe('3 из 3 · 100 %');
+  });
+
+  it('the answers sheet heads the attempt with the same words', async () => {
+    show(weighted(), true);
+    fireEvent.click(within(screen.getByRole('list', { name: QA_PEOPLE.title })).getAllByRole('button')[0]);
+    const dialog = await screen.findByRole('dialog');
+    expect(plain(dialog.querySelector('.qa-ans-head')?.textContent)).toContain('9 баллов из 12 · 75 %');
   });
 });

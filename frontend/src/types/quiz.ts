@@ -4,6 +4,7 @@
  * The tables are reachable only through these functions; the key never comes with a question before the review allows.
  */
 import type { ItemImages, ItemKind, Uuid } from './container';
+import type { DocDesign, ResultBand } from './testDoc';
 
 export type QuizGrading = 'best' | 'last';
 export type QuizReview = 'score' | 'mistakes' | 'answers' | 'mistakes_then_answers';
@@ -39,10 +40,15 @@ export interface QuizSettings {
   accent: QuizAccent;
   /** After the result, offer the taker to train this exam in Meldy (they join it as a member). */
   offer_practice: boolean;
+  /**
+   * «Как в студии» (release 47.2, 20261019100000_test_docs): the questions, their order and the look are the studio
+   * page's; the draw settings (subjects, count, set, order) are stored as given and ignored. Missing — false.
+   */
+  design?: boolean;
 }
 
 /** Settings fixed once somebody has started (quiz_update answers MC011 for them). */
-export const LOCKED_SETTINGS = ['subject_ids', 'item_count', 'same_set', 'shuffle_items', 'shuffle_options', 'time_limit_min'] as const;
+export const LOCKED_SETTINGS = ['subject_ids', 'item_count', 'same_set', 'shuffle_items', 'shuffle_options', 'time_limit_min', 'design'] as const;
 
 export interface QuizRow {
   id: Uuid;
@@ -68,6 +74,8 @@ export interface QuizRow {
   cover_path: string | null;
   accent: QuizAccent;
   offer_practice: boolean;
+  /** «Как в студии» (release 47.2); missing from an older server — false. */
+  design?: boolean;
   created_at: string;
   updated_at: string;
   state: QuizState;
@@ -100,6 +108,13 @@ export interface QuizAttemptRow {
   total: number;
   answered: number;
   correct: number;
+  /**
+   * The points of the right answers and of all the attempt's questions (release 47.2): a question of a quiz «как в
+   * студии» weighs the points of its block; any other weighs 1 (score = correct, max_score = total). Missing from an
+   * older server.
+   */
+  score?: number;
+  max_score?: number;
 }
 
 export interface QuizItemStat {
@@ -144,7 +159,8 @@ export interface QuizPreviewMe {
   open_attempt: Uuid | null;
   can_start: boolean;
   reason: null | 'no_attempts' | 'members_only' | 'not_yet' | 'closed';
-  results: Array<{ attempt_id: Uuid; n: number; finished_at: string; correct: number; total: number }>;
+  /** score / max_score: the weighted points (release 47.2), missing from an older server. */
+  results: Array<{ attempt_id: Uuid; n: number; finished_at: string; correct: number; total: number; score?: number; max_score?: number }>;
 }
 
 export interface QuizPreview {
@@ -166,6 +182,8 @@ export interface QuizPreview {
   cover_path?: string | null;
   accent?: QuizAccent;
   offer_practice?: boolean;
+  /** The studio page of a quiz «как в студии» (release 47.2); null for any other quiz, missing from an older server. */
+  design?: DocDesign | null;
   server_now?: string;
   me?: QuizPreviewMe | null;
 }
@@ -189,6 +207,8 @@ export interface QuizAttempt {
   deadline_at: string | null;
   allow_back: boolean;
   shuffle_options: boolean;
+  /** The studio page the attempt is shown on (release 47.2); null — the usual one question at a time. */
+  design?: DocDesign | null;
   items: QuizAttemptItem[];
   answers: Array<{ item_id: Uuid; chosen: number[] | null; text: string | null }>;
 }
@@ -223,6 +243,12 @@ export interface QuizResult {
   finish_reason: QuizFinishReason;
   correct: number;
   total: number;
+  /**
+   * The points of the right answers and of all graded questions (release 47.2): with the studio's points they differ
+   * from correct / total, and percent = round(100 · score / max_score). Missing from an older server.
+   */
+  score?: number;
+  max_score?: number;
   percent: number;
   pass_percent: number | null;
   passed: boolean | null;
@@ -242,4 +268,8 @@ export interface QuizResult {
    */
   practice?: { exam_title: string; member: boolean; ready?: boolean } | null;
   accent?: QuizAccent;
+  /** The studio page of a quiz «как в студии» (release 47.2): its result screen (bands, the link further) and look. */
+  design?: DocDesign | null;
+  /** The band of the page whose from..to holds the percent; null when none does or the quiz has no page. */
+  band?: ResultBand | null;
 }

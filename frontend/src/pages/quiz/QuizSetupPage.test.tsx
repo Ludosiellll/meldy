@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   upload: vi.fn(),
   reload: vi.fn(),
   bring: vi.fn(),
+  fetchDoc: vi.fn(),
   state: { summary: null as unknown, items: null as unknown },
 }));
 
@@ -20,6 +21,7 @@ vi.mock('../../api/itemPictures', async (importOriginal) => ({
   coverUrl: (path: string) => `https://covers.test/${path}`,
 }));
 vi.mock('../../components/test/bringIntoView', () => ({ bringIntoView: api.bring }));
+vi.mock('../../api/testDocs', () => ({ fetchTestDoc: api.fetchDoc }));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainerData: () => ({
     data: api.state.summary ? { summary: api.state.summary, items: api.state.items, planInput: null, oralWithoutPoints: 0 } : null,
@@ -74,6 +76,7 @@ beforeEach(() => {
   api.listQuizzes.mockReset().mockResolvedValue([listRow()]);
   api.upload.mockReset().mockResolvedValue('kept');
   api.bring.mockReset();
+  api.fetchDoc.mockReset().mockResolvedValue(null);
 });
 afterEach(() => {
   cleanup();
@@ -527,5 +530,108 @@ describe('QuizSetupPage: one subject, the date in words, the explanations (relea
     // The subject with the explanation unticked: no longer in the set, no line.
     fireEvent.click(screen.getByRole('checkbox', { name: /Вариант 1/ }));
     expect(plain(review.textContent)).not.toContain('В тесте есть пояснения');
+  });
+});
+
+describe('QuizSetupPage: a quiz «как в студии» (?all=1&design=1, the studio’s «Отправить по ссылке»; release 47.2)', () => {
+  /** The studio's page: three keyed questions of the exam, one without a key, one whose row is gone. */
+  function page(itemIds = ['i37', 'nokey', 'i3', 'i5', 'gone-row']) {
+    return {
+      container_id: EXAM,
+      rev: 2,
+      updated_at: '2026-10-16T10:00:00Z',
+      doc: {
+        v: 1,
+        title: 'Кислоты и основания',
+        theme: {},
+        layout: 'one_by_one',
+        blocks: itemIds.map((id, index) => ({ type: 'question', id: `quest000000${index}`, item_id: id, points: 1, required: false })),
+        results: { bands: [], cta: null },
+      },
+    };
+  }
+  const more = () => screen.getByRole('button', { name: /^Ещё настройки/ });
+
+  it('one quiet line and the way back to the studio; what the page decides is not asked; the page’s name, count and timer', async () => {
+    api.fetchDoc.mockResolvedValue(page());
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
+    const toggle = screen.getByRole('checkbox', { name: QA_SETUP.design });
+    expect(toggle).toBeChecked();
+    expect(described(toggle)).toBe(`${QA_SETUP.designLine} ${QA_SETUP.toStudio}`);
+    expect(screen.getByRole('link', { name: QA_SETUP.toStudio })).toHaveAttribute('href', `/exams/c/${EXAM}/studio`);
+    await waitFor(() => expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Кислоты и основания'));
+    expect(api.fetchDoc).toHaveBeenCalledWith(EXAM);
+    expect(combo(QA_SETUP.time)).toHaveTextContent('5 мин');
+    expect(screen.queryByRole('region', { name: QA_SETUP.partLook })).toBeNull();
+    expect(more()).toHaveTextContent(QA_SETUP.moreNoteDesign);
+    fireEvent.click(more());
+    expect(screen.queryByRole('group', { name: QA_SETUP.subjects })).toBeNull();
+    for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order]) expect(screen.queryByRole('combobox', { name })).toBeNull();
+    expect(combo(QA_SETUP.options)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
+    await waitFor(() =>
+      expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ design: true, title: 'Кислоты и основания', item_count: 3, time_limit_min: 5 })),
+    );
+  });
+
+  it('a page without a keyed question says so before «Создать»', async () => {
+    api.fetchDoc.mockResolvedValue(page(['nokey']));
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
+    expect(await screen.findByText(QA_SETUP.problems.page)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: QA_SETUP.create })).toBeDisabled();
+  });
+
+  it('the server finds no question on the page (MC013): said in the page’s words', async () => {
+    api.fetchDoc.mockRejectedValue(new Error('offline'));
+    api.createQuiz.mockRejectedValue(new ContainerApiError('MC013', 'В выбранных предметах нет вопросов с ключом.', { detail: 'no_questions' }));
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
+    expect(await screen.findByText(QA_SETUP.problems.page)).toBeInTheDocument();
+  });
+
+  it('switched off: the subjects, the count of all of them and the timer come back; nothing about the page is sent', async () => {
+    api.fetchDoc.mockResolvedValue(page());
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
+    await waitFor(() => expect(combo(QA_SETUP.time)).toHaveTextContent('5 мин'));
+    fireEvent.click(screen.getByRole('checkbox', { name: QA_SETUP.design }));
+    expect(described(screen.getByRole('checkbox', { name: QA_SETUP.design }))).toBe(`${QA_SETUP.designOff} ${QA_SETUP.toStudio}`);
+    expect(screen.getByRole('region', { name: QA_SETUP.partLook })).toBeInTheDocument();
+    fireEvent.click(more());
+    expect(screen.getByRole('group', { name: QA_SETUP.subjects })).toBeInTheDocument();
+    expect(combo(QA_SETUP.count)).toHaveTextContent('все (30)');
+    expect(combo(QA_SETUP.time)).toHaveTextContent('30 мин');
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
+    await waitFor(() => expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ design: false, item_count: 30 })));
+  });
+
+  it('a started quiz «как в студии»: the switch shown, locked like the set; the rest still changes', async () => {
+    api.listQuizzes.mockResolvedValue([listRow({ design: true })]);
+    api.fetchDoc.mockResolvedValue(page());
+    renderAt(`/exams/c/${EXAM}/quizzes/${QUIZ_ID}/edit`);
+    expect(await screen.findByText(QA_SETUP.lockedDesign)).toBeInTheDocument();
+    const toggle = screen.getByRole('checkbox', { name: QA_SETUP.design });
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeDisabled();
+    expect(screen.queryByRole('group', { name: QA_SETUP.subjects })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: QA_SETUP.count })).toBeNull();
+    pick(QA_SETUP.attempts, '5');
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.save }));
+    await waitFor(() => expect(api.updateQuiz).toHaveBeenCalledWith(QUIZ_ID, { attempts: 5 }));
+  });
+
+  it('before the start the switch can go off (sent alone); a quiz that never had it shows none', async () => {
+    api.listQuizzes.mockResolvedValue([listRow({ design: true, started: false })]);
+    api.fetchDoc.mockResolvedValue(page());
+    renderAt(`/exams/c/${EXAM}/quizzes/${QUIZ_ID}/edit`);
+    const toggle = await screen.findByRole('checkbox', { name: QA_SETUP.design });
+    expect(toggle).toBeEnabled();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.save }));
+    await waitFor(() => expect(api.updateQuiz).toHaveBeenCalledWith(QUIZ_ID, { design: false }));
+    cleanup();
+    api.listQuizzes.mockResolvedValue([listRow()]);
+    renderAt(`/exams/c/${EXAM}/quizzes/${QUIZ_ID}/edit`);
+    await screen.findByRole('heading', { level: 2, name: QA_SETUP.partQuestions });
+    expect(screen.queryByRole('checkbox', { name: QA_SETUP.design })).toBeNull();
   });
 });

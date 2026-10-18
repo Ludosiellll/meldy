@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TestItem } from '../../types/container';
 import type { QuizAttemptRow, QuizItemStat, QuizRow } from '../../types/quiz';
 import {
+  attemptPercent,
   clockOffset,
   clockText,
   csvOf,
@@ -10,6 +11,7 @@ import {
   defaultSettings,
   minutesTaken,
   peopleRows,
+  pointsOf,
   questionRows,
   quizOrder,
   secondsLeft,
@@ -265,5 +267,41 @@ describe('minutesTaken (release 47.1)', () => {
     expect(minutesTaken({ started_at: at(0), finished_at: at(18 * 60 + 10) })).toBe(18);
     expect(minutesTaken({ started_at: at(0), finished_at: null })).toBeNull();
     expect(minutesTaken({ started_at: 'не дата', finished_at: at(30) })).toBeNull();
+  });
+});
+
+describe('the studio’s points (release 47.2)', () => {
+  it('pointsOf: the server’s score / max_score, else the counts; «weighted» when they differ from the counts', () => {
+    expect(pointsOf({ correct: 4, total: 6, score: 9, max_score: 12 })).toEqual({ score: 9, max: 12, weighted: true });
+    expect(pointsOf({ correct: 4, total: 6, score: 4, max_score: 6 })).toEqual({ score: 4, max: 6, weighted: false });
+    expect(pointsOf({ correct: 4, total: 6 })).toEqual({ score: 4, max: 6, weighted: false });
+    expect(pointsOf({ correct: 4, total: 6, score: Number.NaN, max_score: 12 })).toEqual({ score: 4, max: 6, weighted: false });
+    expect(attemptPercent({ correct: 4, total: 6, score: 9, max_score: 12 })).toBe(75);
+    expect(attemptPercent({ correct: 4, total: 6 })).toBe(67);
+    expect(attemptPercent({ correct: 0, total: 0, score: 0, max_score: 0 })).toBeNull();
+  });
+
+  it('peopleRows: the percent and the best attempt by the points, as the participant’s result has them', () => {
+    // More right answers, fewer points: the attempt of more points counts.
+    const rows = peopleRows(
+      [attempt({ id: 'a1', n: 1, correct: 5, total: 6, score: 7, max_score: 12 }), attempt({ id: 'a2', n: 2, correct: 4, total: 6, score: 9, max_score: 12 })],
+      'best',
+    );
+    expect(rows[0].counted.id).toBe('a2');
+    expect(rows[0].percent).toBe(75);
+    expect(summaryOf(rows, 60)).toMatchObject({ avgPercent: 75, passed: 1 });
+  });
+
+  it('csvOf: «Баллы» and «Всего баллов» only for a quiz «как в студии», its «%» from the points', () => {
+    const items = [{ id: 'i1', subject_id: 's1', position: 1, file_no: '1' }] as TestItem[];
+    const rows = [attempt({ id: 'a1', correct: 4, total: 6, score: 9, max_score: 12 })];
+    const marks = [{ attempt_id: 'a1', item_id: 'i1', correct: true }];
+    const subjects = [{ id: 's1', title: 'Вопросы' }];
+    const design = csvOf({ pass_percent: 80, design: true }, rows, marks, items, subjects).slice(1).split('\r\n');
+    expect(design[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;Баллы;Всего баллов;%;Порог;Вопросы № 1');
+    expect(design[1].endsWith(';4;6;9;12;75;нет;1')).toBe(true);
+    const plain = csvOf({ pass_percent: 80, design: false }, [attempt({ id: 'a1', correct: 4, total: 6 })], marks, items, subjects).slice(1).split('\r\n');
+    expect(plain[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог;Вопросы № 1');
+    expect(plain[1].endsWith(';4;6;67;нет;1')).toBe(true);
   });
 });

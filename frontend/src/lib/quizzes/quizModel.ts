@@ -165,7 +165,27 @@ export interface PersonRow {
   minutes: number | null;
 }
 
-const ratio = (a: QuizAttemptRow) => (a.total > 0 ? a.correct / a.total : 0);
+/**
+ * The points of an attempt: the server's score / max_score (release 47.2: a question of a quiz «как в студии» weighs the
+ * points of its block), else correct / total (an older server; any other quiz has score = correct anyway). `weighted` —
+ * the points differ from the counts, so they are said as points («6 баллов из 8»), the participant's words.
+ */
+export function pointsOf(a: Pick<QuizAttemptRow, 'correct' | 'total' | 'score' | 'max_score'>): { score: number; max: number; weighted: boolean } {
+  const whole = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  if (!whole(a.score) || !whole(a.max_score)) return { score: a.correct, max: a.total, weighted: false };
+  return { score: a.score, max: a.max_score, weighted: a.score !== a.correct || a.max_score !== a.total };
+}
+
+/** The attempt's percent as its result says it: from the points (the same rounding as the server's). */
+export function attemptPercent(a: Pick<QuizAttemptRow, 'correct' | 'total' | 'score' | 'max_score'>): number | null {
+  const { score, max } = pointsOf(a);
+  return percentOf(score, max);
+}
+
+const ratio = (a: QuizAttemptRow) => {
+  const { score, max } = pointsOf(a);
+  return max > 0 ? score / max : 0;
+};
 
 /** The minutes a finished attempt took, rounded; 0 — under a minute («меньше минуты», not «1 мин»); null — unfinished. */
 export function minutesTaken(attempt: Pick<QuizAttemptRow, 'started_at' | 'finished_at'>): number | null {
@@ -198,7 +218,7 @@ export function peopleRows(attempts: readonly QuizAttemptRow[], grading: QuizGra
       counted,
       all,
       status,
-      percent: status === 'writing' ? null : percentOf(counted.correct, counted.total),
+      percent: status === 'writing' ? null : attemptPercent(counted),
       minutes,
     });
   });
@@ -267,9 +287,13 @@ function stamp(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? '' : `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** The results as a table Excel opens (BOM, «;», CRLF): a row an attempt, a column a question (1 / 0 / empty). */
+/**
+ * The results as a table Excel opens (BOM, «;», CRLF): a row an attempt, a column a question (1 / 0 / empty). A quiz «как
+ * в студии» (release 47.2) also has «Баллы» and «Всего баллов» (its questions weigh their points), and its «%» is the
+ * points' percent, as the participant saw it.
+ */
 export function csvOf(
-  quiz: Pick<QuizRow, 'pass_percent'>,
+  quiz: Pick<QuizRow, 'pass_percent' | 'design'>,
   attempts: readonly QuizAttemptRow[],
   marks: readonly QuizMark[],
   items: readonly TestItem[],
@@ -283,11 +307,25 @@ export function csvOf(
     .filter((item): item is TestItem => Boolean(item))
     .sort((a, b) => (order.get(a.subject_id) ?? 0) - (order.get(b.subject_id) ?? 0) || a.position - b.position);
   const mark = new Map(marks.map((m) => [`${m.attempt_id}:${m.item_id}`, m.correct]));
-  const header = ['Имя', 'Попытка', 'Начало', 'Конец', 'Минуты', 'Верно', 'Всего', '%', 'Порог', ...asked.map((item) => `${title.get(item.subject_id) ?? ''} № ${item.file_no}`.trim())];
+  const points = quiz.design === true;
+  const header = [
+    'Имя',
+    'Попытка',
+    'Начало',
+    'Конец',
+    'Минуты',
+    'Верно',
+    'Всего',
+    ...(points ? ['Баллы', 'Всего баллов'] : []),
+    '%',
+    'Порог',
+    ...asked.map((item) => `${title.get(item.subject_id) ?? ''} № ${item.file_no}`.trim()),
+  ];
   const lines = [header.map(cell).join(';')];
   const sorted = [...attempts].sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.n - b.n);
   for (const a of sorted) {
-    const percent = percentOf(a.correct, a.total);
+    const percent = attemptPercent(a);
+    const weights = pointsOf(a);
     const minutes = a.finished_at ? Math.round((Date.parse(a.finished_at) - Date.parse(a.started_at)) / 60000) : '';
     const passed = quiz.pass_percent === null || percent === null || !a.finished_at ? '' : percent >= quiz.pass_percent ? 'да' : 'нет';
     const row: Array<string | number> = [
@@ -298,6 +336,7 @@ export function csvOf(
       minutes,
       a.correct,
       a.total,
+      ...(points ? [weights.score, weights.max] : []),
       percent ?? '',
       passed,
       ...asked.map((item) => {

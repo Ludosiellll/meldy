@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { attemptAnswers, resetAttempt } from '../../api/quizzes';
-import { clockText, dateTimeText, minutesTaken, peopleRows, percentOf, secondsLeft, type PersonRow } from '../../lib/quizzes/quizModel';
+import { attemptPercent, clockText, dateTimeText, minutesTaken, peopleRows, pointsOf, secondsLeft, type PersonRow } from '../../lib/quizzes/quizModel';
 import PaperSelect from '../ui/PaperSelect';
 import { Sheet } from '../containers/ui';
 import { errorText, letter, lettersText, nb } from '../containers/copyImport';
@@ -22,7 +22,8 @@ import './quizAuthor.css';
  * sheet: a switch between their attempts, each answered question with their answer and the key in letters, and
  * «Сбросить попытку» after asking (the person gets the attempt back). Somebody who wrote without an account
  * (release 47) has a quiet «без входа» after the name, and a line under the table says such attempts are counted per
- * browser.
+ * browser. A quiz «как в студии» (release 47.2) weighs its questions by the page's points: the result reads «6 баллов
+ * из 8 · 75 %», the percent and «лучшая попытка» from the points, as the participant's result has them.
  */
 
 export type PeopleSort = 'name' | 'result' | 'time';
@@ -65,8 +66,18 @@ export function statusText(attempt: QuizAttemptRow, offsetMs: number, nowMs: num
   return QA_PEOPLE.done(finishedText(attempt.finished_at, nowMs));
 }
 
+/**
+ * «7 из 12 · 58 %»; with the studio's points (release 47.2) «6 баллов из 8 · 75 %» — the participant's own line, the
+ * percent from the points.
+ */
+export function scoreText(attempt: QuizAttemptRow): string {
+  const points = pointsOf(attempt);
+  const percent = attemptPercent(attempt);
+  return points.weighted ? QA_PEOPLE.points(points.score, points.max, percent) : QA_PEOPLE.result(attempt.correct, attempt.total, percent);
+}
+
 function resultText(attempt: QuizAttemptRow): string {
-  return attempt.finished_at ? QA_PEOPLE.result(attempt.correct, attempt.total, percentOf(attempt.correct, attempt.total)) : '';
+  return attempt.finished_at ? scoreText(attempt) : '';
 }
 
 function sortRows(rows: PersonRow[], by: PeopleSort): PersonRow[] {
@@ -288,7 +299,7 @@ function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset }
 
   const minutes = minutesTaken(shown);
   const head = shown.finished_at
-    ? [statusText(shown, offsetMs, now), QA_PEOPLE.result(shown.correct, shown.total, percentOf(shown.correct, shown.total)), minutes === null ? null : QA_PEOPLE.minutes(minutes)]
+    ? [statusText(shown, offsetMs, now), scoreText(shown), minutes === null ? null : QA_PEOPLE.minutes(minutes)]
         .filter(Boolean)
         .join(' · ')
     : statusText(shown, offsetMs, now);

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { COVER_BUCKET, coverUrl, pictureFromFile, picturePath, uploadPicture } from '../../api/itemPictures';
 import { createQuiz, listQuizzes, updateQuiz } from '../../api/quizzes';
+import { fetchTestDoc } from '../../api/testDocs';
+import { normalizeDoc } from '../../lib/studio/doc';
 import { useContainerData } from '../../lib/containers/hooks';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { track } from '../../lib/telemetry';
@@ -33,6 +35,7 @@ import {
   keyedBySubject,
   localInput,
   nextHour,
+  pageQuestionCount,
   poolOf,
   settingsOf,
   weekOn,
@@ -63,9 +66,15 @@ import '../../components/quiz/quizAuthor.css';
  * quiz_create → the stats page with the link. An edit sends only the keys it changed; once somebody has started, the
  * locked ones (LOCKED_SETTINGS) are disabled with a line why. What the server would refuse is said as lines beside the
  * button (settingsProblems).
+ *
+ * `?all=1&design=1` (the studio's «Отправить по ссылке», release 47.2) makes a quiz «как в студии»: one quiet line says
+ * the questions, their order and the look are the studio page's («Открыть студию» goes back there), and the settings the
+ * page decides are not shown — which subjects, how many questions, the set, the order of the questions, the cover and
+ * the colour. The page is read once to count its keyed questions: the count and the timer follow it, and a page with
+ * none says so before «Создать». An edit of such a quiz shows the same switch, locked once somebody has started.
  */
 
-type Problem = SettingsProblem | 'when';
+type Problem = SettingsProblem | 'when' | 'page';
 type OpensMode = 'now' | 'at';
 type ClosesMode = 'at' | 'never';
 
@@ -88,6 +97,8 @@ export default function QuizSetupPage() {
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const allAsked = !editing && search.get('all') === '1';
+  // ?all=1&design=1: the studio's page as it is (release 47.2).
+  const designAsked = allAsked && search.get('design') === '1';
   // ?all=1: five settings in view, the rest folded under «Ещё настройки».
   const compact = allAsked;
   const [moreOpen, setMoreOpen] = useState(false);
@@ -149,6 +160,7 @@ export default function QuizSetupPage() {
   }, [editing, owner, loadQuiz]);
   const locked = Boolean(editing && quiz?.started);
   const lockedKey = (key: keyof QuizSettings) => locked && (LOCKED_SETTINGS as readonly string[]).includes(key);
+  const studioPath = `/exams/c/${containerId}/studio`;
 
   // ── the form ──
   const [form, setForm] = useState<QuizSettings | null>(null);
@@ -173,14 +185,62 @@ export default function QuizSetupPage() {
         // «все» stays «все» when a subject is ticked off or on (countFor); the timer still follows the count.
         setTouched({ count: true, time: false });
       }
+      if (designAsked) start = { ...start, design: true };
     }
     if (!start) return;
     setForm(start);
     setOpensMode(start.opens_at ? 'at' : 'now');
     setClosesMode(start.closes_at ? 'at' : 'never');
-  }, [form, owner, data.data, editing, quiz, subjects, counts, allAsked]);
+  }, [form, owner, data.data, editing, quiz, subjects, counts, allAsked, designAsked]);
 
   const pool = form ? poolOf(form.subject_ids, counts) : 0;
+  const designOn = form?.design === true;
+  // The studio's page of a quiz «как в студии»: how many keyed questions it holds and its title (null — not read).
+  const [page, setPage] = useState<{ count: number; title: string } | null>(null);
+  const pageCount = page?.count ?? null;
+  useEffect(() => {
+    if (!designOn || !items) return undefined;
+    let live = true;
+    fetchTestDoc(containerId).then(
+      (stored) => {
+        if (!live) return;
+        const doc = stored ? normalizeDoc(stored.doc).doc : null;
+        setPage({ count: doc ? pageQuestionCount(doc.blocks, items) : 0, title: doc?.title ?? '' });
+      },
+      () => {
+        // Unread, the server still counts at «Создать» (MC013 no_questions).
+        if (live) setPage(null);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [designOn, containerId, items]);
+  // A new quiz: the count is the page's (back to all of the subjects' when the switch goes off), the timer follows it
+  // until the author picks one, and the name the exam gave becomes the page's own.
+  const wasDesign = useRef(false);
+  useEffect(() => {
+    if (editing || !allAsked) return;
+    // Off again: only after it was on (the form's start already has all of the subjects').
+    const turnedOff = !designOn && wasDesign.current;
+    wasDesign.current = designOn;
+    if (!designOn && !turnedOff) return;
+    const count = designOn ? (pageCount !== null && pageCount >= 1 ? Math.min(pageCount, MAX_ITEMS) : null) : Math.max(1, Math.min(pool, MAX_ITEMS));
+    if (count === null) return;
+    const examName = (data.data?.summary.title ?? '').trim().slice(0, 120).trim();
+    const pageName = designOn ? (page?.title ?? '').trim().slice(0, 120).trim() : '';
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            title: pageName && current.title.trim() === examName ? pageName : current.title,
+            item_count: count,
+            time_limit_min: touched.time ? current.time_limit_min : defaultMinutes(count),
+          }
+        : current,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, designOn, editing]);
   const set = <K extends keyof QuizSettings>(key: K, value: QuizSettings[K]) => setForm((current) => (current ? { ...current, [key]: value } : current));
 
   const toggleSubject = (subjectId: string) =>
@@ -236,8 +296,10 @@ export default function QuizSetupPage() {
   };
 
   let problems: Problem[] = form ? settingsProblems(form, pool) : [];
-  // After the first attempt the questions are fixed: the pool on this device has no say any more.
-  if (locked) problems = problems.filter((problem) => problem !== 'subjects' && problem !== 'count');
+  // After the first attempt the questions are fixed: the pool on this device has no say any more. «Как в студии»: the
+  // page has the say (its keyed questions), not the subjects.
+  if (locked || designOn) problems = problems.filter((problem) => problem !== 'subjects' && problem !== 'count');
+  if (designOn && !locked && pageCount === 0) problems.push('page');
   if (form && ((opensMode === 'at' && !form.opens_at) || (closesMode === 'at' && !form.closes_at))) problems.push('when');
   const closesPast = Boolean(form && closesMode === 'at' && form.closes_at && Date.parse(form.closes_at) < Date.now());
 
@@ -268,7 +330,8 @@ export default function QuizSetupPage() {
       if (changed) await updateQuiz(quizId, patch);
       navigate(statsPath, { replace: true, state: { quizNote: changed ? 'saved' : null } });
     } catch (failure) {
-      setSaveError(errorText(failure, QA_ERRORS));
+      const code = (failure as { code?: unknown } | null)?.code;
+      setSaveError(settings.design && code === 'MC013' ? QA_SETUP.problems.page : errorText(failure, QA_ERRORS));
       setSaving(false);
     }
   };
@@ -426,8 +489,30 @@ export default function QuizSetupPage() {
       />
     </div>
   );
+  // «Как в студии»: the page's questions in its order — the switch, the quiet line and the way back to the studio.
+  const designField =
+    designAsked || original?.design ? (
+      <div className="im-field qa-field qa-design">
+        <label className="qa-toggle">
+          <input
+            type="checkbox"
+            checked={designOn}
+            disabled={saving || lockedKey('design')}
+            aria-describedby={`${formId}-design`}
+            onChange={(event) => set('design', event.target.checked)}
+          />
+          <span className="qa-toggle-t">{QA_SETUP.design}</span>
+        </label>
+        <p id={`${formId}-design`} className="im-hint" data-muted="">
+          {designOn ? QA_SETUP.designLine : QA_SETUP.designOff}{' '}
+          <Link className="sf-link" to={studioPath}>
+            {QA_SETUP.toStudio}
+          </Link>
+        </p>
+      </div>
+    ) : null;
   // One subject: nothing to choose, so no «Вопросы из» (the count's hint says how many there are).
-  const subjectsField = !oneSubject ? (
+  const subjectsField = !oneSubject && !designOn ? (
     <fieldset className="qa-subjects" disabled={lockedKey('subject_ids') || saving}>
       <legend className="im-label">{QA_SETUP.subjects}</legend>
       {anyPool ? (
@@ -460,7 +545,7 @@ export default function QuizSetupPage() {
       ) : null}
     </fieldset>
   ) : null;
-  const noPoolLine = !anyPool ? (
+  const noPoolLine = !anyPool && !designOn ? (
     <p className="im-hint">
       {QA_SETUP.noPool}{' '}
       <Link className="sf-link" to={`/exams/c/${containerId}/keys`}>
@@ -468,35 +553,41 @@ export default function QuizSetupPage() {
       </Link>
     </p>
   ) : null;
-  const countField = select({
-    label: QA_SETUP.count,
-    value: form.item_count,
-    options: countOptions,
-    onChange: chooseCount,
-    disabled: lockedKey('item_count') || pool === 0,
-    hint: oneSubject && anyPool ? QA_SETUP.poolOne(pool) : null,
-  });
-  const setField = select({
-    label: QA_SETUP.set,
-    value: form.same_set ? 'same' : 'own',
-    options: [
-      { value: 'own', label: QA_SETUP.setOwn },
-      { value: 'same', label: QA_SETUP.setSame },
-    ],
-    onChange: (value) => set('same_set', value === 'same'),
-    disabled: lockedKey('same_set'),
-    hint: form.same_set ? null : QA_SETUP.setOwnHint,
-  });
-  const orderField = select({
-    label: QA_SETUP.order,
-    value: form.shuffle_items ? 'shuffle' : 'file',
-    options: [
-      { value: 'shuffle', label: QA_SETUP.orderShuffle },
-      { value: 'file', label: QA_SETUP.orderFile },
-    ],
-    onChange: (value) => set('shuffle_items', value === 'shuffle'),
-    disabled: lockedKey('shuffle_items'),
-  });
+  const countField = designOn
+    ? null
+    : select({
+        label: QA_SETUP.count,
+        value: form.item_count,
+        options: countOptions,
+        onChange: chooseCount,
+        disabled: lockedKey('item_count') || pool === 0,
+        hint: oneSubject && anyPool ? QA_SETUP.poolOne(pool) : null,
+      });
+  const setField = designOn
+    ? null
+    : select({
+        label: QA_SETUP.set,
+        value: form.same_set ? 'same' : 'own',
+        options: [
+          { value: 'own', label: QA_SETUP.setOwn },
+          { value: 'same', label: QA_SETUP.setSame },
+        ],
+        onChange: (value) => set('same_set', value === 'same'),
+        disabled: lockedKey('same_set'),
+        hint: form.same_set ? null : QA_SETUP.setOwnHint,
+      });
+  const orderField = designOn
+    ? null
+    : select({
+        label: QA_SETUP.order,
+        value: form.shuffle_items ? 'shuffle' : 'file',
+        options: [
+          { value: 'shuffle', label: QA_SETUP.orderShuffle },
+          { value: 'file', label: QA_SETUP.orderFile },
+        ],
+        onChange: (value) => set('shuffle_items', value === 'shuffle'),
+        disabled: lockedKey('shuffle_items'),
+      });
   const optionsField = select({
     label: QA_SETUP.options,
     value: form.shuffle_options ? 'shuffle' : 'file',
@@ -630,73 +721,76 @@ export default function QuizSetupPage() {
     </section>
   );
 
-  const lookPart = part(
-    'l',
-    QA_SETUP.partLook,
-    <>
-      <div className="im-field qa-field" role="group" aria-labelledby={`${formId}-cover`}>
-        <span id={`${formId}-cover`} className="im-label">
-          {QA_SETUP.cover}
-        </span>
-        {form.cover_path ? <img className="qa-cover" src={coverUrl(form.cover_path)} alt={QA_SETUP.coverAlt} /> : null}
-        <span className="qa-cover-acts">
-          <button type="button" className="sf-secondary" disabled={saving || coverBusy} aria-busy={coverBusy || undefined} onClick={() => coverRef.current?.click()}>
-            {form.cover_path ? QA_SETUP.coverReplace : QA_SETUP.coverUpload}
-          </button>
-          {form.cover_path ? (
-            <button
-              type="button"
-              className="sf-link"
-              data-muted=""
-              disabled={saving || coverBusy}
-              onClick={() => {
-                setCoverNote(null);
-                set('cover_path', null);
+  // «Как в студии»: the cover and the colour are the page's.
+  const lookPart = designOn
+    ? null
+    : part(
+        'l',
+        QA_SETUP.partLook,
+        <>
+          <div className="im-field qa-field" role="group" aria-labelledby={`${formId}-cover`}>
+            <span id={`${formId}-cover`} className="im-label">
+              {QA_SETUP.cover}
+            </span>
+            {form.cover_path ? <img className="qa-cover" src={coverUrl(form.cover_path)} alt={QA_SETUP.coverAlt} /> : null}
+            <span className="qa-cover-acts">
+              <button type="button" className="sf-secondary" disabled={saving || coverBusy} aria-busy={coverBusy || undefined} onClick={() => coverRef.current?.click()}>
+                {form.cover_path ? QA_SETUP.coverReplace : QA_SETUP.coverUpload}
+              </button>
+              {form.cover_path ? (
+                <button
+                  type="button"
+                  className="sf-link"
+                  data-muted=""
+                  disabled={saving || coverBusy}
+                  onClick={() => {
+                    setCoverNote(null);
+                    set('cover_path', null);
+                  }}
+                >
+                  {QA_SETUP.coverRemove}
+                </button>
+              ) : null}
+            </span>
+            <input
+              ref={coverRef}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              hidden
+              aria-label={QA_SETUP.coverUpload}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) void uploadCover(file);
               }}
-            >
-              {QA_SETUP.coverRemove}
-            </button>
-          ) : null}
-        </span>
-        <input
-          ref={coverRef}
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          hidden
-          aria-label={QA_SETUP.coverUpload}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = '';
-            if (file) void uploadCover(file);
-          }}
-        />
-        <p className="im-hint" data-muted={coverNote && !coverBusy ? undefined : ''} role={coverNote && !coverBusy ? 'alert' : undefined}>
-          {nb(coverBusy ? QA_SETUP.coverUploading : coverNote ?? QA_SETUP.coverHint)}
-        </p>
-      </div>
-      <fieldset className="qa-accents" disabled={saving}>
-        <legend className="im-label">{QA_SETUP.accent}</legend>
-        <span className="qa-swatches">
-          {QUIZ_ACCENTS.map((accent) => (
-            <label key={accent} className="qa-swatch" data-accent={accent}>
-              <input type="radio" name={`${formId}-accent`} value={accent} checked={form.accent === accent} onChange={() => set('accent', accent)} />
-              <span className="qa-swatch-dot" aria-hidden="true" />
-              <span className="qa-swatch-name">{QA_SETUP.accentName(accent)}</span>
-            </label>
-          ))}
-        </span>
-        <p className="im-hint" data-muted="">
-          {QA_SETUP.accentHint}
-        </p>
-      </fieldset>
-    </>,
-  );
+            />
+            <p className="im-hint" data-muted={coverNote && !coverBusy ? undefined : ''} role={coverNote && !coverBusy ? 'alert' : undefined}>
+              {nb(coverBusy ? QA_SETUP.coverUploading : coverNote ?? QA_SETUP.coverHint)}
+            </p>
+          </div>
+          <fieldset className="qa-accents" disabled={saving}>
+            <legend className="im-label">{QA_SETUP.accent}</legend>
+            <span className="qa-swatches">
+              {QUIZ_ACCENTS.map((accent) => (
+                <label key={accent} className="qa-swatch" data-accent={accent}>
+                  <input type="radio" name={`${formId}-accent`} value={accent} checked={form.accent === accent} onChange={() => set('accent', accent)} />
+                  <span className="qa-swatch-dot" aria-hidden="true" />
+                  <span className="qa-swatch-name">{QA_SETUP.accentName(accent)}</span>
+                </label>
+              ))}
+            </span>
+            <p className="im-hint" data-muted="">
+              {QA_SETUP.accentHint}
+            </p>
+          </fieldset>
+        </>,
+      );
 
   const side = frame.side ? '' : undefined;
   const moreButton = (
     <button type="button" className="qa-more" aria-expanded={moreOpen} aria-controls={`${formId}-more`} onClick={toggleMore}>
       <span className="qa-more-t">{QA_SETUP.more}</span>
-      <span className="qa-more-n">{QA_SETUP.moreNote}</span>
+      <span className="qa-more-n">{designOn ? QA_SETUP.moreNoteDesign : QA_SETUP.moreNote}</span>
       <svg className="qa-more-i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="m6 9 6 6 6-6" />
       </svg>
@@ -710,6 +804,7 @@ export default function QuizSetupPage() {
           QA_SETUP.partMain,
           <>
             {nameField}
+            {designField}
             {timeField}
             {closesField}
             {whoField}
@@ -756,6 +851,7 @@ export default function QuizSetupPage() {
         QA_SETUP.partQuestions,
         <>
           {nameField}
+          {designField}
           {subjectsField}
           {noPoolLine}
           {countField}
@@ -787,7 +883,7 @@ export default function QuizSetupPage() {
   return (
     <div className="sf-page qa-page" ref={frame.ref} data-frame={frame.size}>
       {header}
-      {locked ? <p className="qa-locked">{QA_SETUP.locked}</p> : null}
+      {locked ? <p className="qa-locked">{designOn ? QA_SETUP.lockedDesign : QA_SETUP.locked}</p> : null}
       {body}
       <div className="ex-cta qa-cta" data-row={frame.side ? '' : undefined}>
         {problems.length > 0 || saveError ? (

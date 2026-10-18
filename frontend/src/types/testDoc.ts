@@ -129,6 +129,12 @@ export interface TestDoc {
   results: DocResults;
 }
 
+/**
+ * The page as a quiz «как в студии» carries it to the participant (quiz_preview, the attempt, the result: `design`):
+ * the stored document without its version. It holds no key — the questions come with the attempt.
+ */
+export type DocDesign = Omit<TestDoc, 'v'>;
+
 /** public.test_doc_get / test_doc_save. rev starts at 1; a save with an older rev → MC020 «stale». */
 export interface TestDocRow {
   container_id: Uuid;

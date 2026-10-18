@@ -3,7 +3,8 @@
  * the pool of keyed questions by subject, the counts the «Сколько вопросов» list offers, who may write (three choices
  * over `guests` and `members_only`), the start of a quiz of all the questions (`?all=1` from the constructor), a saved
  * quiz as the form's settings, the keys an edit changed (quiz_update takes only those), and the device's local
- * date-time of a native datetime-local field.
+ * date-time of a native datetime-local field. A quiz «как в студии» (release 47.2): how many keyed questions the
+ * studio's page holds.
  */
 import type { TestItem } from '../../types/container';
 import type { QuizRow, QuizSettings } from '../../types/quiz';
@@ -101,6 +102,7 @@ export function settingsOf(row: QuizRow): QuizSettings {
     cover_path: row.cover_path,
     accent: row.accent,
     offer_practice: row.offer_practice,
+    design: row.design === true,
   };
 }
 
@@ -131,6 +133,7 @@ const SETTING_KEYS: ReadonlyArray<keyof QuizSettings> = [
   'cover_path',
   'accent',
   'offer_practice',
+  'design',
 ];
 
 /** Only what the edit changed: quiz_update keeps every key it is not given. */
@@ -184,4 +187,19 @@ export function weekOn(now: Date): string {
   const d = new Date(now.getTime() + 7 * 86400000);
   d.setHours(23, 59, 0, 0);
   return d.toISOString();
+}
+
+/**
+ * The keyed questions of the studio's page (a quiz «как в студии» draws them, each once, in the page's order): the
+ * question blocks whose row is a keyed question of the exam.
+ */
+export function pageQuestionCount(blocks: ReadonlyArray<{ type: string; item_id?: string }>, items: ReadonlyMap<string, TestItem>): number {
+  const lower = new Map([...items.values()].map((item) => [item.id.toLowerCase(), item]));
+  const seen = new Set<string>();
+  for (const block of blocks) {
+    if (block.type !== 'question' || typeof block.item_id !== 'string') continue;
+    const item = lower.get(block.item_id.toLowerCase());
+    if (item && isKeyed(item)) seen.add(item.id);
+  }
+  return seen.size;
 }
