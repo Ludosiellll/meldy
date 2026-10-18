@@ -9,8 +9,8 @@
 -- the preview and the four guest calls, never claim / practice / reorder; quiz_preview(text) is gone; the person helpers
 -- exist and stay private; the attempt JSON carries no key or explanation; the result shows the explanation only with
 -- the answers; the bucket quiz-covers is public (3 MB, four image types) and only an exam's owner writes its folder;
--- anon reads test-item-images only through meldy_storage.guest_quiz_picture_paths(), which is not in public (no RPC),
--- runs for anon and authenticated, and is the only object of its schema.
+-- no storage policy lets anon read test-item-images; quiz_guest_media_paths (a guest attempt's picture paths, for the
+-- Edge Function that signs them) runs for service_role only; no listing function or meldy_storage schema is left.
 -- The behaviour is rehearsed locally: supabase/tests/local/test_builder_run.sh.
 DO $check$
 DECLARE
@@ -139,50 +139,31 @@ BEGIN
   IF (SELECT pg_catalog.pg_get_function_result(pg_catalog.to_regprocedure('public.container_items_reorder(uuid,uuid[])'))) <> 'void' THEN
     RAISE EXCEPTION 'function_results';
   END IF;
-  -- The guests' picture paths: in meldy_storage, which the API does not expose, so no client calls them as an RPC; the
-  -- storage policy runs them as the reader, so anon and authenticated have USAGE and EXECUTE (and nothing more there).
-  IF pg_catalog.to_regprocedure('public.guest_quiz_picture_paths()') IS NOT NULL THEN
-    RAISE EXCEPTION 'picture_paths_not_in_public';
-  END IF;
-  v_fn := pg_catalog.to_regprocedure('meldy_storage.guest_quiz_picture_paths()');
+  -- A guest's pictures: quiz_guest_media_paths for the Edge Function's service key only (no grant to PUBLIC, anon or
+  -- authenticated); no listing function of an earlier draft anywhere.
+  v_fn := pg_catalog.to_regprocedure('public.quiz_guest_media_paths(uuid,text,text[])');
   IF v_fn IS NULL THEN
-    RAISE EXCEPTION 'picture_paths_in_meldy_storage';
+    RAISE EXCEPTION 'function_quiz_guest_media_paths';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
                   WHERE p.oid = v_fn AND p.prosecdef AND 'search_path=""' = ANY (p.proconfig)) THEN
-    RAISE EXCEPTION 'picture_paths_definer_with_empty_search_path';
+    RAISE EXCEPTION 'media_paths_definer_with_empty_search_path';
   END IF;
-  IF pg_catalog.pg_get_function_result(v_fn) <> 'SETOF text' THEN
-    RAISE EXCEPTION 'picture_paths_setof_text';
+  IF pg_catalog.pg_get_function_result(v_fn) <> 'text[]' THEN
+    RAISE EXCEPTION 'media_paths_returns_text_array';
   END IF;
-  IF NOT pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE')
-     OR NOT pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE')
-     OR NOT pg_catalog.has_schema_privilege('anon', 'meldy_storage', 'USAGE')
-     OR NOT pg_catalog.has_schema_privilege('authenticated', 'meldy_storage', 'USAGE') THEN
-    RAISE EXCEPTION 'picture_paths_run_by_the_readers';
+  IF NOT pg_catalog.has_function_privilege('service_role', v_fn, 'EXECUTE')
+     OR pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE')
+     OR pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE')
+     OR (SELECT p.proacl FROM pg_catalog.pg_proc p WHERE p.oid = v_fn) IS NULL
+     OR EXISTS (SELECT 1 FROM pg_catalog.pg_proc p CROSS JOIN LATERAL pg_catalog.aclexplode(p.proacl) a
+                 WHERE p.oid = v_fn AND a.grantee = 0 AND a.privilege_type = 'EXECUTE') THEN
+    RAISE EXCEPTION 'media_paths_service_role_only';
   END IF;
-  IF pg_catalog.has_schema_privilege('anon', 'meldy_storage', 'CREATE')
-     OR pg_catalog.has_schema_privilege('authenticated', 'meldy_storage', 'CREATE') THEN
-    RAISE EXCEPTION 'meldy_storage_no_create';
+  IF pg_catalog.to_regprocedure('public.guest_quiz_picture_paths()') IS NOT NULL
+     OR EXISTS (SELECT 1 FROM pg_catalog.pg_namespace n WHERE n.nspname = 'meldy_storage') THEN
+    RAISE EXCEPTION 'no_picture_listing_function';
   END IF;
-  IF (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace = 'meldy_storage'::regnamespace) <> 1
-     OR EXISTS (SELECT 1 FROM pg_catalog.pg_class c WHERE c.relnamespace = 'meldy_storage'::regnamespace)
-     OR EXISTS (SELECT 1 FROM pg_catalog.pg_type t WHERE t.typnamespace = 'meldy_storage'::regnamespace) THEN
-    RAISE EXCEPTION 'meldy_storage_holds_only_the_paths';
-  END IF;
-  -- When the API's schemas are kept as a setting of the authenticator role, meldy_storage must not be among them (a
-  -- reader without the right to see role settings skips this check).
-  BEGIN
-    IF EXISTS (SELECT 1 FROM pg_catalog.pg_db_role_setting s
-                 JOIN pg_catalog.pg_roles r ON r.oid = s.setrole
-                CROSS JOIN LATERAL pg_catalog.unnest(s.setconfig) AS c(v)
-                WHERE r.rolname = 'authenticator' AND c.v LIKE 'pgrst.db_schemas=%meldy_storage%') THEN
-      RAISE EXCEPTION 'meldy_storage_not_exposed';
-    END IF;
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      NULL;
-  END;
   IF (SELECT pg_catalog.pg_get_function_arguments(pg_catalog.to_regprocedure('public.quiz_preview(text,text)')))
      <> 'p_code text, p_token text DEFAULT NULL::text' THEN
     RAISE EXCEPTION 'quiz_preview_token_optional';
@@ -244,7 +225,7 @@ BEGIN
     RAISE EXCEPTION 'items_add_explanation';
   END IF;
 
-  -- 7. Storage: the covers bucket and its policies; anon reads item pictures only through the guest paths.
+  -- 7. Storage: the covers bucket and its policies; anon reads no question picture.
   SELECT b.public, b.file_size_limit, b.allowed_mime_types INTO v_b FROM storage.buckets b WHERE b.id = 'quiz-covers';
   IF NOT FOUND OR v_b.public IS NOT TRUE OR v_b.file_size_limit IS DISTINCT FROM 3145728
      OR (SELECT pg_catalog.array_agg(m ORDER BY m) FROM pg_catalog.unnest(v_b.allowed_mime_types) m)
@@ -269,25 +250,13 @@ BEGIN
                 AND coalesce(p.qual, '') || coalesce(p.with_check, '') LIKE '%quiz-covers%') THEN
     RAISE EXCEPTION 'anon_never_writes_covers';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policies p
-                  WHERE p.schemaname = 'storage' AND p.tablename = 'objects'
-                    AND p.policyname = 'Test item images: quiz guests read' AND p.cmd = 'SELECT'
-                    AND p.roles = ARRAY['anon']::name[]
-                    AND p.qual LIKE '%test-item-images%' AND p.qual LIKE '%guest_quiz_picture_paths()%') THEN
-    RAISE EXCEPTION 'storage_policy_quiz_guests_read';
-  END IF;
-  -- the policy calls the meldy_storage function (its dependency), whatever the reader's search_path prints
-  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policy p
-                   JOIN pg_catalog.pg_depend d ON d.classid = 'pg_catalog.pg_policy'::regclass AND d.objid = p.oid
-                  WHERE p.polname = 'Test item images: quiz guests read' AND p.polrelid = 'storage.objects'::regclass
-                    AND d.refclassid = 'pg_catalog.pg_proc'::regclass
-                    AND d.refobjid = pg_catalog.to_regprocedure('meldy_storage.guest_quiz_picture_paths()')) THEN
-    RAISE EXCEPTION 'storage_policy_reads_meldy_storage_paths';
-  END IF;
-  IF (SELECT pg_catalog.count(*) FROM pg_catalog.pg_policies p
-       WHERE p.schemaname = 'storage' AND p.tablename = 'objects' AND 'anon' = ANY (p.roles)
-         AND coalesce(p.qual, '') || coalesce(p.with_check, '') LIKE '%test-item-images%') <> 1 THEN
-    RAISE EXCEPTION 'anon_reads_item_pictures_only_as_guest';
+  -- No storage policy lets anon (or PUBLIC, which includes anon) at the question pictures: a guest's pictures come as
+  -- URLs signed by the Edge Function, so the Storage API's list endpoint has nothing to show anon.
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_policies p
+              WHERE p.schemaname = 'storage' AND p.tablename = 'objects'
+                AND ('anon' = ANY (p.roles) OR 'public' = ANY (p.roles))
+                AND coalesce(p.qual, '') || coalesce(p.with_check, '') LIKE '%test-item-images%') THEN
+    RAISE EXCEPTION 'anon_reads_no_item_pictures';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policies p
                   WHERE p.schemaname = 'storage' AND p.policyname = 'Test item images: quiz takers read'

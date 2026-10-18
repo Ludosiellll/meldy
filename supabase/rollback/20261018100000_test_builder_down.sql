@@ -1,7 +1,6 @@
 -- Rollback of 20261018100000_test_builder.sql (release 47) back to the release-46.1 state: the catalog as
 -- 20261016120000_quizzes.sql + 20261016140000_quiz_result_order.sql (and 20261014120000 / 20261016100000 for the two item
--- functions) left it. Re-runnable. In order: the storage policies (the anon one depends on
--- meldy_storage.guest_quiz_picture_paths), the covers bucket, the new functions and the schema meldy_storage,
+-- functions) left it. Re-runnable. In order: the covers' storage policies and their bucket, the new functions,
 -- quiz_preview(text) again, every replaced body exactly as before, the private helpers and the throttle table, then the
 -- columns.
 -- What is lost: guest attempts (with their answers: user_id must be NOT NULL again), the four quiz settings and the
@@ -9,7 +8,6 @@
 -- The bucket quiz-covers is removed only when it is empty and the platform lets SQL remove it: with covers inside it
 -- stays (Supabase keeps the files; remove them through the Storage API first, then run this again), and a refusal of
 -- the delete itself is reported as a notice instead of failing the rollback.
-drop policy if exists "Test item images: quiz guests read" on storage.objects;
 drop policy if exists "Quiz covers: owner uploads" on storage.objects;
 drop policy if exists "Quiz covers: owner reads" on storage.objects;
 drop policy if exists "Quiz covers: owner updates" on storage.objects;
@@ -24,10 +22,8 @@ exception
 end;
 $do$;
 
--- The functions of release 47. meldy_storage held only the picture paths: dropped without CASCADE, so anything else
--- someone put there later stops the rollback instead of going with it.
-drop function if exists meldy_storage.guest_quiz_picture_paths();
-drop schema if exists meldy_storage;
+-- The functions of release 47.
+drop function if exists public.quiz_guest_media_paths(uuid, text, text[]);
 drop function if exists public.quiz_practice_join(text);
 drop function if exists public.quiz_guest_claim(text, text);
 drop function if exists public.quiz_guest_result(uuid, text);

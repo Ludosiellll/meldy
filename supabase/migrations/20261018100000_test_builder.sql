@@ -23,10 +23,10 @@
 --    meldy_private.quiz_guest_starts), and with MC014 full past 2000 guest attempts on a quiz.
 -- 5. Cover and colour (cover_path in the public bucket quiz-covers, accent), and «тренироваться дальше»
 --    (offer_practice → quiz_practice_join makes the taker a member of the exam, as a group link would).
--- 6. Pictures for guests: anon reads test-item-images only at the paths of the items of guest quizzes' subjects
---    (meldy_storage.guest_quiz_picture_paths()), not whole exam folders. The function lives in its own schema, which
---    the API does not expose (PostgREST serves public and graphql_public only): the storage policy can call it, a
---    client cannot call it as an RPC to list every guest quiz's pictures.
+-- 6. Pictures for guests: anon gets no storage access at all (any anon read policy on test-item-images would let the
+--    Storage API's list endpoint enumerate every picture it allows). Instead public.quiz_guest_media_paths — service_role
+--    only — tells an Edge Function holding the service key which of the requested paths belong to the items of a guest's
+--    attempt, by the attempt's token; the Edge Function signs URLs for those.
 -- The key and the explanation leave the server only through the result, and only when the review shows the answers.
 -- Re-runnable: IF NOT EXISTS, OR REPLACE, guarded DO blocks; CREATE OR REPLACE keeps the grants of replaced functions;
 -- a second apply leaves the catalog as the first one did. The whole file is one request (supabase/migrate.py).
@@ -1512,31 +1512,48 @@ end;
 $fn$;
 
 -- 8. Pictures and covers.
--- 8a. The picture paths a guest may read: stems and options of every item in the subjects of quizzes that take guests
---     (any state: the review after the closing still shows them). The storage policy below reads it for anon, so anon
---     needs USAGE on the schema and EXECUTE on the function; the schema holds this function only and is not exposed by
---     the API, so the list never leaves through PostgREST.
-create schema if not exists meldy_storage;
-comment on schema meldy_storage is 'Helpers of storage policies (not an API: not exposed by PostgREST). Called by policies only.';
-revoke all on schema meldy_storage from public;
-grant usage on schema meldy_storage to anon, authenticated;
-create or replace function meldy_storage.guest_quiz_picture_paths()
-returns setof text
-language sql
+-- 8a. The pictures of a guest's attempt, for the Edge Function that signs their URLs (service_role only: no client calls
+--     it). Of p_paths (at most 60; more → 22023 paths), the ones that are stem or option pictures of the attempt's items,
+--     in the order asked, each once — when sha256(p_token) is the attempt's guest_hash. A malformed or wrong token, a
+--     user's attempt or no attempt → an empty array: nothing tells whether the attempt exists. Any state of the quiz:
+--     the review after the closing still shows the pictures.
+create or replace function public.quiz_guest_media_paths(p_attempt_id uuid, p_token text, p_paths text[])
+returns text[]
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $fn$
-  select distinct p.path
-    from public.quizzes q
-    join public.test_items i on i.subject_id = any (q.subject_ids) and i.container_id = q.container_id
-   cross join lateral (
-           select s.path from pg_catalog.jsonb_array_elements_text(coalesce(i.images -> 'stem', '[]'::jsonb)) as s(path)
-           union all
-           select o.path from pg_catalog.jsonb_array_elements(coalesce(i.images -> 'options', '[]'::jsonb)) as l(list)
-            cross join lateral pg_catalog.jsonb_array_elements_text(l.list) as o(path)
-         ) p
-   where q.guests and i.images <> '{}'::jsonb
+declare
+  v_hash text := meldy_private.quiz_token_hash(p_token);
+  v_items uuid[];
+begin
+  if pg_catalog.cardinality(p_paths) > 60 then
+    raise exception 'too many paths' using errcode = '22023', detail = 'paths';
+  end if;
+  if v_hash is null or p_attempt_id is null or p_paths is null then
+    return '{}'::text[];
+  end if;
+  select a.item_ids into v_items from public.quiz_attempts a where a.id = p_attempt_id and a.guest_hash = v_hash;
+  if not found then
+    return '{}'::text[];
+  end if;
+  return coalesce((
+    select pg_catalog.array_agg(u.path order by u.ord)
+      from (select x.path, pg_catalog.min(x.ord) as ord
+              from pg_catalog.unnest(p_paths) with ordinality as x(path, ord)
+             where x.path is not null
+             group by x.path) u
+     where u.path in (select p.path
+                        from public.test_items i
+                       cross join lateral (
+                               select s.path from pg_catalog.jsonb_array_elements_text(coalesce(i.images -> 'stem', '[]'::jsonb)) as s(path)
+                               union all
+                               select o.path from pg_catalog.jsonb_array_elements(coalesce(i.images -> 'options', '[]'::jsonb)) as l(list)
+                                cross join lateral pg_catalog.jsonb_array_elements_text(l.list) as o(path)
+                             ) p
+                       where i.id = any (v_items))), '{}'::text[]);
+end;
 $fn$;
 
 -- 8b. The public bucket of covers (3 MB; PNG, JPEG, GIF, WebP): anyone opens a cover by its address; only the owner of
@@ -1549,11 +1566,6 @@ on conflict (id) do update
 
 do $do$
 begin
-  if not exists (select 1 from pg_catalog.pg_policies where schemaname = 'storage' and tablename = 'objects'
-                 and policyname = 'Test item images: quiz guests read') then
-    create policy "Test item images: quiz guests read" on storage.objects for select to anon
-      using (bucket_id = 'test-item-images' and name in (select meldy_storage.guest_quiz_picture_paths()));
-  end if;
   if not exists (select 1 from pg_catalog.pg_policies where schemaname = 'storage' and tablename = 'objects'
                  and policyname = 'Quiz covers: owner uploads') then
     create policy "Quiz covers: owner uploads" on storage.objects for insert to authenticated
@@ -1588,17 +1600,17 @@ begin
 end;
 $do$;
 
--- 9. Grants. Guests (anon) run the preview and the four guest calls; the storage policy runs the picture paths as the
---    reader (anon, authenticated); claim, practice and reorder need an account; the helpers stay private (meldy_private
---    has no USAGE for clients anyway).
+-- 9. Grants. Guests (anon) run the preview and the four guest calls; claim, practice and reorder need an account; the
+--    guest's picture paths are for the Edge Function's service key only; the helpers stay private (meldy_private has no
+--    USAGE for clients anyway).
 revoke all on function public.quiz_preview(text, text), public.quiz_guest_start(text, text, text),
-  public.quiz_guest_answer(uuid, text, jsonb), public.quiz_guest_finish(uuid, text), public.quiz_guest_result(uuid, text),
-  meldy_storage.guest_quiz_picture_paths()
+  public.quiz_guest_answer(uuid, text, jsonb), public.quiz_guest_finish(uuid, text), public.quiz_guest_result(uuid, text)
   from public;
 grant execute on function public.quiz_preview(text, text), public.quiz_guest_start(text, text, text),
-  public.quiz_guest_answer(uuid, text, jsonb), public.quiz_guest_finish(uuid, text), public.quiz_guest_result(uuid, text),
-  meldy_storage.guest_quiz_picture_paths()
+  public.quiz_guest_answer(uuid, text, jsonb), public.quiz_guest_finish(uuid, text), public.quiz_guest_result(uuid, text)
   to anon, authenticated;
+revoke all on function public.quiz_guest_media_paths(uuid, text, text[]) from public, anon, authenticated;
+grant execute on function public.quiz_guest_media_paths(uuid, text, text[]) to service_role;
 revoke all on function public.quiz_guest_claim(text, text), public.quiz_practice_join(text),
   public.container_items_reorder(uuid, uuid[])
   from public, anon;

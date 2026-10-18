@@ -9,9 +9,10 @@
 -- practice; quiz_results' guest flag and person; started by a guest; MC016 per quiz (121 starts in a minute) and per
 -- address (x-forwarded-for), the pruning of the throttle; MC014 past 2000 guest attempts (2000 rows inserted, no session
 -- setting); claim; practice join (off, unfinished, joined like container_join, again, left and back, removed, the author,
--- full at 200); meldy_storage.guest_quiz_picture_paths (and none in public: no RPC) and the anon picture policy (a
--- guest quiz's picture readable, another exam's not); the quiz-covers policies. A failure raises; success
--- prints BUILDER BEHAVIOUR PASSED.
+-- full at 200); pictures: anon reads no question picture at all (no policy), quiz_guest_media_paths runs for
+-- service_role only and gives a guest attempt's own picture paths by its token (not other items of the subject, not
+-- another exam's; a wrong token, a user's attempt → empty; at most 60 paths); the quiz-covers policies. A failure
+-- raises; success prints BUILDER BEHAVIOUR PASSED.
 \set ON_ERROR_STOP 1
 begin;
 create or replace function pg_temp.expect_error(p_sql text, p_state text, p_what text, p_detail text default null)
@@ -60,11 +61,11 @@ $fn$;
 create or replace function pg_temp.pic(p_container text, p_n integer) returns text language sql immutable as $fn$
   select p_container || '/' || encode(sha256(convert_to('pic' || p_n, 'UTF8')), 'hex') || '.png'
 $fn$;
-grant all on ctx to authenticated, anon;
+grant all on ctx to authenticated, anon, service_role;
 grant execute on function pg_temp.expect_error(text, text, text, text), pg_temp.c(text), pg_temp.put(text, text),
   pg_temp.keys(jsonb), pg_temp.find(jsonb, text, text), pg_temp.tok(integer), pg_temp.hash(text), pg_temp.item(text),
   pg_temp.pic(text, integer)
-  to authenticated, anon;
+  to authenticated, anon, service_role;
 
 -- 1. A: exam X (S1 «Вопросы»: four questions with explanations and pictures; S2 «Ещё»: one question with a picture; S3:
 --    an unkeyed question with a picture, so no quiz takes S3), exam Y (a picture, a quiz without guests). Explanations: add, refusals, update, no rev bump.
@@ -462,20 +463,14 @@ begin
     raise exception 'FAILED: «mistakes» shows an explanation %', r;
   end if;
   perform pg_temp.put('h_att', r ->> 'attempt_id');
-  -- no RPC lists the pictures: public has no guest_quiz_picture_paths (the policy's function lives in meldy_storage,
-  -- which PostgREST does not serve)
-  perform pg_temp.expect_error('select public.guest_quiz_picture_paths()', '42883', 'anon calls public.guest_quiz_picture_paths');
-  -- the picture paths a guest may read: S1 (stem and option) and S2 (quizzes with guests); not S3, not exam Y
-  if (select string_agg(p, ',' order by p) from meldy_storage.guest_quiz_picture_paths() p) is distinct from
-     (select string_agg(p, ',' order by p) from (values (pg_temp.pic(pg_temp.c('x'), 1)), (pg_temp.pic(pg_temp.c('x'), 2)),
-                                                        (pg_temp.pic(pg_temp.c('x'), 3))) v(p)) then
-    raise exception 'FAILED: guest_quiz_picture_paths %', (select string_agg(p, ',') from meldy_storage.guest_quiz_picture_paths() p);
-  end if;
-  -- and the storage policy: anon sees exactly those files (not the unreferenced one of X's folder, not Y's)
-  if (select string_agg(name, ',' order by name) from storage.objects where bucket_id = 'test-item-images') is distinct from
-     (select string_agg(p, ',' order by p) from meldy_storage.guest_quiz_picture_paths() p) then
+  -- pictures: anon reads none of the bucket (no policy; the Storage API's list shows nothing), runs neither the media
+  -- paths (service_role only) nor a listing function of an earlier draft
+  if exists (select 1 from storage.objects where bucket_id = 'test-item-images') then
     raise exception 'FAILED: anon reads pictures %', (select string_agg(name, ',') from storage.objects);
   end if;
+  perform pg_temp.expect_error(format('select public.quiz_guest_media_paths(%L, %L, %L)', pg_temp.c('g_att1'), pg_temp.tok(1),
+    array[pg_temp.pic(pg_temp.c('x'), 1)]), '42501', 'anon runs quiz_guest_media_paths');
+  perform pg_temp.expect_error('select public.guest_quiz_picture_paths()', '42883', 'anon calls public.guest_quiz_picture_paths');
 end
 $t$;
 
@@ -494,8 +489,59 @@ begin
   -- a signed-in taker can write as the device too (its token), and sees the device's attempts by it
   r := public.quiz_guest_result(pg_temp.c('g_att1')::uuid, pg_temp.tok(1));
   if r ->> 'attempt_id' is distinct from pg_temp.c('g_att1') then raise exception 'FAILED: a signed-in caller with the token %', r; end if;
+  -- the media paths are not for clients, signed in or not
+  perform pg_temp.expect_error(format('select public.quiz_guest_media_paths(%L, %L, %L)', pg_temp.c('g_att1'), pg_temp.tok(1),
+    array[pg_temp.pic(pg_temp.c('x'), 1)]), '42501', 'authenticated runs quiz_guest_media_paths');
 end
 $t$;
+
+-- 7b. service_role (the Edge Function that signs a guest's picture URLs): the paths asked that are pictures of the
+--     attempt's items, in the order asked, once; nothing for a wrong, malformed or missing token, another device's
+--     attempt or no attempt; at most 60 paths.
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.sub', '', true);
+do $t$
+declare
+  v_x text := pg_temp.c('x');
+  v_asked text[] := array[pg_temp.pic(v_x, 3), pg_temp.pic(v_x, 2), pg_temp.pic(v_x, 1), pg_temp.pic(v_x, 4),
+                          pg_temp.pic(pg_temp.c('y'), 5), pg_temp.pic(v_x, 6), 'ничего', pg_temp.pic(v_x, 2), null];
+  v_case record;
+begin
+  -- QG's attempt holds b:1..b:4 (S1): b:1's stem picture and b:2's option picture; not b:5's (S2, an item of the exam
+  -- outside this attempt), not S3's, not exam Y's, not a file no item names
+  if public.quiz_guest_media_paths(pg_temp.c('g_att1')::uuid, pg_temp.tok(1), v_asked)
+     is distinct from array[pg_temp.pic(v_x, 2), pg_temp.pic(v_x, 1)] then
+    raise exception 'FAILED: media paths of the attempt %', public.quiz_guest_media_paths(pg_temp.c('g_att1')::uuid, pg_temp.tok(1), v_asked);
+  end if;
+  -- the second device's open attempt: the same items, its own token
+  if public.quiz_guest_media_paths(pg_temp.c('g2_att')::uuid, pg_temp.tok(2), v_asked)
+     is distinct from array[pg_temp.pic(v_x, 2), pg_temp.pic(v_x, 1)] then
+    raise exception 'FAILED: media paths of an open attempt';
+  end if;
+  for v_case in select * from (values
+      (pg_temp.c('g_att1'), pg_temp.tok(2), 'another device''s token'), (pg_temp.c('g_att1'), 'короткий', 'a malformed token'),
+      (pg_temp.c('g_att1'), null, 'no token'), (pg_temp.c('g2_att'), pg_temp.tok(1), 'the attempt of another device'),
+      ('99999999-0000-0000-0000-000000000009', pg_temp.tok(1), 'no such attempt'), (null, pg_temp.tok(1), 'no attempt id')) c(att, token, what) loop
+    if public.quiz_guest_media_paths(v_case.att::uuid, v_case.token, v_asked) is distinct from '{}'::text[] then
+      raise exception 'FAILED: media paths for %', v_case.what;
+    end if;
+  end loop;
+  if public.quiz_guest_media_paths(pg_temp.c('g_att1')::uuid, pg_temp.tok(1), null) is distinct from '{}'::text[]
+     or public.quiz_guest_media_paths(pg_temp.c('g_att1')::uuid, pg_temp.tok(1), '{}') is distinct from '{}'::text[] then
+    raise exception 'FAILED: media paths of no paths';
+  end if;
+  -- 60 paths at once pass; 61 are refused (22023 paths), whatever the token
+  if public.quiz_guest_media_paths(pg_temp.c('g_att1')::uuid, pg_temp.tok(1), array_fill(pg_temp.pic(v_x, 1), array[60]))
+     is distinct from array[pg_temp.pic(v_x, 1)] then
+    raise exception 'FAILED: 60 paths';
+  end if;
+  perform pg_temp.expect_error(format('select public.quiz_guest_media_paths(%L, %L, %L)', pg_temp.c('g_att1'), pg_temp.tok(2),
+    array_fill(pg_temp.pic(v_x, 1), array[61])), '22023', '61 paths', 'paths');
+end
+$t$;
+reset role;
+set local role authenticated;
 
 -- 8. A: the results with the guest flag and person; a guest's attempt starts the quiz (locks the draw settings); the
 --    four settings stay free; guests off for a while.
@@ -728,6 +774,27 @@ begin
   end if;
 end
 $t$;
+-- service_role after the claim: a user's attempt gives no paths by its old token; a guest's attempt on S2 (QT) gives
+-- b:5's picture only.
+reset role;
+select pg_temp.put('t_att', (select id::text from public.quiz_attempts where guest_hash = pg_temp.hash(pg_temp.tok(1001))));
+set local role service_role;
+do $t$
+declare v_x text := pg_temp.c('x');
+begin
+  if public.quiz_guest_media_paths(pg_temp.c('g_att1')::uuid, pg_temp.tok(1), array[pg_temp.pic(v_x, 1), pg_temp.pic(v_x, 2)])
+     is distinct from '{}'::text[] then
+    raise exception 'FAILED: media paths of a claimed (user''s) attempt';
+  end if;
+  if public.quiz_guest_media_paths(pg_temp.c('t_att')::uuid, pg_temp.tok(1001),
+       array[pg_temp.pic(v_x, 1), pg_temp.pic(v_x, 2), pg_temp.pic(v_x, 3), pg_temp.pic(v_x, 4)])
+     is distinct from array[pg_temp.pic(v_x, 3)] then
+    raise exception 'FAILED: media paths of a QT attempt';
+  end if;
+end
+$t$;
+reset role;
+set local role authenticated;
 
 -- 12. Practice. QH offers none (MC018 practice); QP: E without a finished attempt → MC018; finished → a member row as
 --     container_join writes one; again → nothing new; left → back; removed → MC018 removed; the author → own exam,
@@ -855,7 +922,8 @@ begin
 end
 $t$;
 
--- 13. Pictures: a guest quiz of exam Y opens Y's picture to anon; any state counts (closed too); guests off closes it.
+-- 13. Pictures: anon reads no question picture whatever the quizzes — here exam Y's quiz takes guests and is closed,
+--     and guests have written X's quizzes.
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
@@ -866,25 +934,8 @@ set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
 do $t$
 begin
-  if not exists (select 1 from storage.objects where name = pg_temp.pic(pg_temp.c('y'), 5)) then
-    raise exception 'FAILED: a closed guest quiz hides its pictures';
-  end if;
-  if exists (select 1 from storage.objects where name in (pg_temp.pic(pg_temp.c('x'), 4), pg_temp.pic(pg_temp.c('x'), 6))) then
-    raise exception 'FAILED: anon reads a picture of no guest quiz';
-  end if;
-end
-$t$;
-reset role;
-set local role authenticated;
-select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
-select public.quiz_update(pg_temp.c('qy')::uuid, '{"guests": false}') is null;
-reset role;
-set local role anon;
-select set_config('request.jwt.claim.sub', '', true);
-do $t$
-begin
-  if exists (select 1 from storage.objects where name = pg_temp.pic(pg_temp.c('y'), 5)) then
-    raise exception 'FAILED: guests off still opens the picture';
+  if exists (select 1 from storage.objects where bucket_id = 'test-item-images') then
+    raise exception 'FAILED: anon reads a question picture %', (select string_agg(name, ',') from storage.objects);
   end if;
 end
 $t$;
