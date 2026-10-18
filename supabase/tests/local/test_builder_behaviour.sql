@@ -13,6 +13,10 @@
 -- service_role only and gives a guest attempt's own picture paths by its token (not other items of the subject, not
 -- another exam's; a wrong token, a user's attempt → empty; at most 60 paths); the quiz-covers policies. A failure
 -- raises; success prints BUILDER BEHAVIOUR PASSED.
+-- After 20261018130000_quiz_guards.sql (pg_temp.guards()) the same flows hold with its rules: the result's practice
+-- carries ready (compared here without it; quiz_guards_behaviour.sql pins it), the practice joins of section 12 run
+-- while exam X's quizzes are closed for the moment (pg_temp.x_quizzes), and the address hash is the HMAC under the
+-- private secret.
 \set ON_ERROR_STOP 1
 begin;
 create or replace function pg_temp.expect_error(p_sql text, p_state text, p_what text, p_detail text default null)
@@ -65,10 +69,51 @@ $fn$;
 create or replace function pg_temp.pic(p_container text, p_n integer) returns text language sql immutable as $fn$
   select p_container || '/' || encode(sha256(convert_to('pic' || p_n, 'UTF8')), 'hex') || '.png'
 $fn$;
+-- 20261018130000_quiz_guards.sql applied (its secret table exists; read from the catalog, which every role may read)
+create or replace function pg_temp.guards() returns boolean language sql stable as $fn$
+  select exists (select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+                  where n.nspname = 'meldy_private' and c.relname = 'quiz_ip_secret')
+$fn$;
+-- the result's practice as release 47 shapes it: with the guards, ready must be there (a boolean) and is left out
+create or replace function pg_temp.practice47(p jsonb) returns jsonb language sql stable as $fn$
+  select case when not pg_temp.guards() or jsonb_typeof(p) is distinct from 'object' then p
+              when jsonb_typeof(p -> 'ready') = 'boolean' then p - 'ready'
+              else jsonb_build_object('ready_missing', p) end
+$fn$;
+-- the throttle's hash of an address (as postgres): release 47's prefixed sha256, or the HMAC under the guards' secret
+create or replace function pg_temp.ip_hash(p_ip text) returns text language plpgsql stable as $fn$
+declare v text;
+begin
+  if not pg_temp.guards() then
+    return encode(sha256(convert_to('meldy-quiz-ip:' || p_ip, 'UTF8')), 'hex');
+  end if;
+  execute 'select encode(extensions.hmac(convert_to($1, ''UTF8''), s.secret, ''sha256''), ''hex'') from meldy_private.quiz_ip_secret s'
+    into v using p_ip;
+  return v;
+end;
+$fn$;
+-- With the guards, «Тренироваться» joins only while no quiz of the exam is open: close exam X's open quizzes for the
+-- moment (true) and open them again (false). Without the guards it does nothing. Runs as its owner (postgres).
+create or replace function pg_temp.x_quizzes(p_closed boolean) returns void language plpgsql security definer as $fn$
+begin
+  if not pg_temp.guards() then
+    return;
+  end if;
+  if p_closed then
+    perform pg_temp.put('x_closed', coalesce((select string_agg(q.id::text, ',') from public.quizzes q
+                                              where q.container_id = pg_temp.c('x')::uuid and q.closed_at is null), ''));
+    update public.quizzes q set closed_at = now() where q.container_id = pg_temp.c('x')::uuid and q.closed_at is null;
+  else
+    update public.quizzes q set closed_at = null
+     where q.id::text = any (string_to_array(coalesce(pg_temp.c('x_closed'), ''), ','));
+    perform pg_temp.put('x_closed', '');
+  end if;
+end;
+$fn$;
 grant all on ctx to authenticated, anon, service_role;
 grant execute on function pg_temp.expect_error(text, text, text, text), pg_temp.c(text), pg_temp.put(text, text),
   pg_temp.keys(jsonb), pg_temp.find(jsonb, text, text), pg_temp.tok(integer), pg_temp.hash(text), pg_temp.item(text),
-  pg_temp.pic(text, integer)
+  pg_temp.pic(text, integer), pg_temp.guards(), pg_temp.practice47(jsonb), pg_temp.x_quizzes(boolean)
   to authenticated, anon, service_role;
 
 -- 1. A: exam X (S1 «Вопросы»: four questions with explanations and pictures; S2 «Ещё»: one question with a picture; S3:
@@ -428,7 +473,7 @@ begin
   if r ->> 'review_now' is distinct from 'answers' or (r ->> 'correct')::int is distinct from 2 or (r ->> 'total')::int is distinct from 4
      or r ->> 'finish_reason' is distinct from 'sent' or (r ->> 'attempts_left')::int is distinct from 1 or not (r ->> 'can_retry')::boolean
      or r ->> 'accent' is distinct from 'blue'
-     or r -> 'practice' is distinct from jsonb_build_object('exam_title', 'Конструктор проверка', 'member', false)
+     or pg_temp.practice47(r -> 'practice') is distinct from jsonb_build_object('exam_title', 'Конструктор проверка', 'member', false)
      or pg_temp.find(r -> 'items', 'id', pg_temp.item('b:1')::text) ->> 'explanation' is distinct from 'Потому что 2+2=4'
      or pg_temp.find(r -> 'items', 'id', pg_temp.item('b:2')::text) -> 'explanation' is distinct from 'null'::jsonb
      or pg_temp.find(r -> 'items', 'id', pg_temp.item('b:3')::text) ->> 'explanation' is distinct from 'Столица Франции — Париж'
@@ -661,7 +706,7 @@ $t$;
 reset role;
 do $t$
 begin
-  if (select count(*) from meldy_private.quiz_guest_starts where ip_hash = encode(sha256(convert_to('meldy-quiz-ip:203.0.113.7', 'UTF8')), 'hex')) <> 30
+  if (select count(*) from meldy_private.quiz_guest_starts where ip_hash = pg_temp.ip_hash('203.0.113.7')) <> 30
      or (select count(*) from meldy_private.quiz_guest_starts) <> 151 then
     raise exception 'FAILED: the address rows %', (select count(*) from meldy_private.quiz_guest_starts);
   end if;
@@ -818,12 +863,14 @@ begin
   v_att := (r ->> 'attempt_id')::uuid;
   perform pg_temp.expect_error(format('select public.quiz_practice_join(%L)', pg_temp.c('code_p')), 'MC018', 'practice before the finish', 'practice');
   r := public.quiz_finish(v_att);
-  if r -> 'practice' is distinct from jsonb_build_object('exam_title', 'Конструктор проверка', 'member', false) then
+  if pg_temp.practice47(r -> 'practice') is distinct from jsonb_build_object('exam_title', 'Конструктор проверка', 'member', false) then
     raise exception 'FAILED: practice offered to a signed-in taker %', r -> 'practice';
   end if;
   if exists (select 1 from public.test_items where container_id = pg_temp.c('x')::uuid) then
     raise exception 'FAILED: E reads the items before joining';
   end if;
+  -- with the guards the join waits for the closing: exam X's quizzes closed until the author's start below
+  perform pg_temp.x_quizzes(true);
   r := public.quiz_practice_join(pg_temp.c('code_p'));
   if r is distinct from jsonb_build_object('container_id', pg_temp.c('x')) then raise exception 'FAILED: practice join %', r; end if;
   perform pg_temp.put('e_att', v_att::text);
@@ -876,6 +923,7 @@ do $t$
 declare r jsonb;
 begin
   perform public.container_member_remove(pg_temp.c('x')::uuid, 'eeeeeeee-0000-0000-0000-000000000005');
+  perform pg_temp.x_quizzes(false);
   -- the author: their own exam back, nothing written; their own result offers nothing
   r := public.quiz_start(pg_temp.c('code_p'), 'Автор');
   r := public.quiz_finish((r ->> 'attempt_id')::uuid);
@@ -887,6 +935,7 @@ $t$;
 select set_config('request.jwt.claim.sub', 'eeeeeeee-0000-0000-0000-000000000005', true);
 do $t$
 begin
+  perform pg_temp.x_quizzes(true);
   perform pg_temp.expect_error(format('select public.quiz_practice_join(%L)', pg_temp.c('code_p')), 'MC018', 'removed by the author', 'removed');
 end
 $t$;
@@ -907,8 +956,10 @@ select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004
 do $t$
 declare r jsonb;
 begin
+  perform pg_temp.x_quizzes(false);
   r := public.quiz_start(pg_temp.c('code_p'), 'Дмитрий');
   perform public.quiz_finish((r ->> 'attempt_id')::uuid);
+  perform pg_temp.x_quizzes(true);
   perform pg_temp.expect_error(format('select public.quiz_practice_join(%L)', pg_temp.c('code_p')), 'MC018', 'the 201st member', 'full');
 end
 $t$;
@@ -918,9 +969,10 @@ select set_config('request.jwt.claim.sub', '', true);
 do $t$
 declare r jsonb;
 begin
+  perform pg_temp.x_quizzes(false);
   r := public.quiz_guest_start(pg_temp.c('code_p'), 'Гость практики', pg_temp.tok(4000));
   r := public.quiz_guest_finish((r ->> 'attempt_id')::uuid, pg_temp.tok(4000));
-  if r -> 'practice' is distinct from jsonb_build_object('exam_title', 'Конструктор проверка', 'member', false) then
+  if pg_temp.practice47(r -> 'practice') is distinct from jsonb_build_object('exam_title', 'Конструктор проверка', 'member', false) then
     raise exception 'FAILED: practice offered to a guest %', r -> 'practice';
   end if;
 end
