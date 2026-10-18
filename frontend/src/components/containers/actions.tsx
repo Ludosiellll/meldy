@@ -7,6 +7,7 @@ import type { HeadAction } from './PageHead';
 import * as copy from './copy';
 import { SETTINGS } from './copyImport';
 import { QUIZ } from '../quiz/copyQuiz';
+import { BUILD } from '../test/copyTest';
 import { firstSession, isAuthor, minutesOf, sessionHref, studyHref, subjectTitle } from './model';
 import { resumeCounts, type SavedSession } from './sessionStore';
 
@@ -43,7 +44,8 @@ export function startTarget(p: {
 
 /**
  * The exam's «⋯» (decision 44, the critique's I9): the author's «Пригласить группу», «Ключи» (always, with what waits),
- * «Контрольные» (spec 2026-10-16 §2.1: /exams/c/<id>/quizzes), «Время в день», «Добавить предмет», «Настройки»,
+ * «Конструктор» (spec 2026-10-18 §47.2: /exams/c/<id>/build), «Контрольные» (spec 2026-10-16 §2.1:
+ * /exams/c/<id>/quizzes), «Время в день», «Добавить предмет», «Настройки»,
  * «Удалить»; a member's «Время в день», «Настройки» and «Выйти из экзамена» (usability check m1: the way out was only at the bottom of «Настройки»). On a computer the same items are
  * the row of white pills under the meta, «Удалить» and «Выйти из экзамена» as quiet links. «Время в день», «Удалить»
  * and «Выйти из экзамена» are the settings page's sections (package D3a: /exams/c/<id>/settings#minutes, #delete and
@@ -74,6 +76,8 @@ export function examActions(summary: ContainerSummary): HeadAction[] {
   return [
     { key: 'invite', label: copy.MENU_INVITE, to: links.invite },
     { key: 'keys', label: waiting > 0 ? copy.menuKeysWaiting(waiting) : copy.MENU_KEYS, to: links.keys },
+    // «Конструктор» (spec 2026-10-18 §47.2): the questions as cards to add, copy, move and send by link.
+    { key: 'build', label: BUILD.label, to: `/exams/c/${summary.id}/build` },
     { key: 'quizzes', label: QUIZ.names, to: `/exams/c/${summary.id}/quizzes` },
     { key: 'minutes', label: copy.MENU_MINUTES, to: links.minutes },
     { key: 'add', label: copy.MENU_ADD_SUBJECT, to: `/exams/import?from=c:${summary.id}` },

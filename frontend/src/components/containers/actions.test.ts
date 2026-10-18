@@ -23,7 +23,9 @@ describe('examActions: the exam’s «⋯»', () => {
 
   it('the author: no way out, «Удалить» at the delete confirm', () => {
     const actions = examActions(summary({ owner: { members: 0, doubts_open: 0, links: [] } }));
-    expect(actions.map((action) => action.key)).toEqual(['invite', 'keys', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
+    expect(actions.map((action) => action.key)).toEqual(['invite', 'keys', 'build', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
+    // «Конструктор» (spec 2026-10-18 §47.2) beside «Вопросы и ключи»; a member has neither.
+    expect(actions.find((action) => action.key === 'build')).toMatchObject({ label: 'Конструктор', to: `/exams/c/${CONTAINER}/build` });
     expect(actions.find((action) => action.key === 'quizzes')).toMatchObject({ label: 'Контрольные', to: `/exams/c/${CONTAINER}/quizzes` });
     expect(actions.find((action) => action.key === 'delete')?.to).toBe(`${settings}#delete`);
     expect(actions.some((action) => action.label === SETTINGS.leave)).toBe(false);

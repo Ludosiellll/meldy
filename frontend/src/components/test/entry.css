@@ -1,0 +1,8 @@
+/*
+ * «Экзамены» (pages/Exams.tsx): «Новый экзамен» and «Новый тест» side by side, two white pills; on a phone they wrap
+ * under the heading from the left. Only drawn for an account with exams in the new form: the page of an account
+ * without them stays as it was.
+ */
+.sf-page .ex-draw[data-pair] { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px 12px; }
+/* A phone: the row takes the line's width, so the second pill wraps instead of running into the gutter. */
+.sf-page[data-frame='s'] .ex-draw[data-pair] { flex: 1 1 100%; min-width: 0; justify-content: flex-start; }

@@ -1,0 +1,293 @@
+/*
+ * «Новый тест» and «Конструктор» (pages/test/*, components/test/*; spec 2026-10-18 §47.2), in Meldy's language: white
+ * cards on the warm canvas, pills, the one blue pill in the bar at the bottom. Tokens of index.css only, so both themes
+ * follow. The key is said in a word («верный») with a green edge as a second sign, never colour alone. Nothing is
+ * wider than the page: long words and code lines wrap (390 px phones, no sideways scroll).
+ */
+
+/* ---------------------------------------------------------------- the page */
+.sf-page.tb-page .tb-eyebrow {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--sf-accent-fg);
+}
+.sf-page.tb-page .ex-h1 { overflow-wrap: anywhere; }
+/* «Контрольные», «Настройки»: white pills on the header's right, by the meta line; under it on a phone. */
+.sf-page.tb-page .tb-head-links { flex: none; justify-content: flex-end; margin-top: 0; padding-bottom: 2px; }
+.sf-page.tb-page[data-frame='s'] .tb-head-links { justify-content: flex-start; }
+.sf-page.tb-page .tb-body { max-width: 880px; }
+.sf-page.tb-page .tb-wait { margin: 24px 0 0; font-size: 16px; color: var(--sf-muted); }
+.sf-page.tb-page .tb-lede { margin: 12px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+
+.sf-page.tb-page .tb-subject { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 24px; }
+.sf-page.tb-page .tb-subject > :first-child { min-width: 0; max-width: 100%; }
+.sf-page.tb-page .tb-subject-n { font-size: 15px; color: var(--sf-muted); }
+
+/* The row above the list: «Добавить вопрос» and the tools to come; an empty row or line takes no room. */
+.sf-page.tb-page .tb-tools-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 24px; }
+.sf-page.tb-page .tb-tools-row:empty { display: none; }
+.sf-page.tb-page .tb-tools .tb-types { margin-top: 24px; }
+.sf-page.tb-page .tb-tools-note { margin: 12px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-ink); }
+.sf-page.tb-page .tb-tools-note:empty { margin: 0; }
+
+/* ---------------------------------------------------------------- the kinds of question */
+.sf-page .tb-types-label { margin: 0 0 12px; font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-muted); }
+.sf-page .tb-types-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sf-page .tb-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 20px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  font: 500 16px/1.2 var(--ph-sans);
+  color: var(--sf-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease);
+}
+.sf-page .tb-type:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+.sf-page .tb-type:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.sf-page .tb-type-glyph { flex: none; width: 22px; height: 22px; color: var(--sf-accent-fg); }
+.sf-page .tb-types-cancel { margin-left: 6px; }
+.sf-page[data-frame='s'] .tb-types-row { display: grid; grid-template-columns: minmax(0, 1fr); }
+.sf-page[data-frame='s'] .tb-type { width: 100%; }
+.sf-page[data-frame='s'] .tb-types-cancel { justify-self: start; margin-left: 0; }
+
+/* An empty test: a white card with one line and the four kinds. */
+.sf-page.tb-page .tb-empty {
+  margin-top: 24px;
+  padding: 26px 28px 28px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.sf-page.tb-page .tb-empty .tb-lede { margin: 0 0 18px; color: var(--sf-ink); }
+.sf-page.tb-page[data-frame='s'] .tb-empty { padding: 20px 16px 18px; border-radius: 24px; }
+
+/* The editor of a new question: «Ничего не изменилось» means nothing before anything was written. */
+.sf-page.tb-page .tb-newq { margin-top: 24px; scroll-margin-top: 80px; }
+.sf-page.tb-page .tb-newq .qe-same { display: none; }
+.sf-page.tb-page .tb-edit { scroll-margin-top: 80px; }
+
+/* ---------------------------------------------------------------- the cards */
+.sf-page.tb-page .tb-list { display: grid; gap: 16px; margin: 24px 0 0; padding: 0; list-style: none; }
+.sf-page.tb-page .tb-list > li { min-width: 0; }
+.sf-page .tb-card {
+  min-width: 0;
+  padding: 22px 28px 10px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  color: var(--sf-ink);
+}
+.sf-page .tb-card[aria-busy='true'] { opacity: .75; transition: opacity .3s ease; }
+.sf-page .tb-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.sf-page .tb-card-no { margin: 0; font-size: 15px; line-height: 1.3; font-weight: 600; letter-spacing: 0; color: var(--sf-muted); }
+/* The kind as a flag: a label with a notch on the right (Design_Language §3). */
+.sf-page .tb-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 22px 0 12px;
+  background: var(--m-sky);
+  color: #0b121c;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 500;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 0 100%);
+}
+
+.sf-page .tb-stem {
+  margin: 12px 0 0;
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -.01em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sf-page .tb-stem-lead { margin: 0; }
+/* Code: every line wraps under its own indentation (as KeyQuestion draws it): no sideways scroll on a phone. */
+.sf-page .tb-code {
+  display: grid;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.sf-page .tb-code-line {
+  --tb-hang: calc((var(--tb-ind, 0) + 2) * 1ch);
+  display: block;
+  padding-left: var(--tb-hang);
+  text-indent: calc(-1 * var(--tb-hang));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sf-page .tb-options {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  overflow: hidden;
+}
+.sf-page .tb-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 16px 12px 16px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+.sf-page .tb-option + .tb-option { border-top: 1px solid var(--sf-line); }
+.sf-page .tb-letter { font-weight: 600; color: var(--sf-muted); }
+.sf-page .tb-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sf-page .tb-option[data-code] .tb-text { font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace; font-size: 14px; }
+.sf-page .tb-option[data-key] { background: var(--m-green-soft); }
+.sf-page .tb-option[data-key]::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--m-green); }
+.sf-page .tb-option[data-key] .tb-letter,
+.sf-page .tb-tag { color: var(--m-green-ink); }
+.sf-page .tb-tag { font-size: 14px; line-height: 1.4; font-weight: 600; white-space: nowrap; }
+
+.sf-page .tb-forms { margin-top: 14px; }
+.sf-page .tb-forms-label { margin: 0 0 8px; font-size: 14px; line-height: 1.4; font-weight: 600; color: var(--sf-muted); }
+.sf-page .tb-forms-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sf-page .tb-forms-list li {
+  max-width: 100%;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--m-green-soft);
+  color: var(--sf-ink);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* «Без ключа»: a yellow dot before the words (no red, as everywhere in Meldy). */
+.sf-page .tb-warn { position: relative; margin: 12px 0 0; padding-left: 17px; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .tb-warn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc((1.45em - 9px) / 2);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+
+.sf-page .tb-expl { margin-top: 14px; padding: 12px 16px 14px; border-radius: 20px; background: var(--sf-surface-soft); }
+.sf-page .tb-expl-label { margin: 0 0 4px; font-size: 14px; line-height: 1.4; font-weight: 600; color: var(--sf-muted); }
+.sf-page .tb-expl-text { margin: 0; font-size: 16px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.sf-page .tb-note { margin: 12px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .tb-confirm { padding: 12px 16px 4px; border-radius: 20px; background: var(--sf-surface-soft); }
+.sf-page .tb-confirm p { margin: 0; }
+.sf-page .tb-confirm-acts { display: flex; flex-wrap: wrap; gap: 0 22px; }
+
+.sf-page .tb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 20px;
+  margin-top: 14px;
+  padding-top: 2px;
+  border-top: 1px solid var(--sf-line);
+}
+.sf-page .tb-actions-main,
+.sf-page .tb-actions-move { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; }
+.sf-page .tb-actions-move { gap: 0 16px; }
+.sf-page .tb-act { font-size: 15px; }
+.sf-page .tb-move { gap: 6px; text-decoration: none; }
+.sf-page .tb-move:disabled { color: var(--sf-muted); opacity: .55; }
+.sf-page .tb-arrow { flex: none; width: 18px; height: 18px; }
+
+.sf-page[data-frame='s'] .tb-card { padding: 18px 16px 6px; border-radius: 24px; }
+.sf-page[data-frame='s'] .tb-stem { font-size: 18px; }
+.sf-page[data-frame='s'] .tb-option { grid-template-columns: 22px minmax(0, 1fr) auto; padding: 11px 12px; gap: 8px; }
+.sf-page[data-frame='s'] .tb-code { font-size: 13px; padding: 10px; }
+.sf-page[data-frame='s'] .tb-actions-main { gap: 0 16px; }
+/* A phone: «Выше» / «Ниже» are their arrows (the words stay for screen readers), so the actions keep one row. */
+.sf-page[data-frame='s'] .tb-actions-move { gap: 0 2px; }
+.sf-page[data-frame='s'] .tb-move { position: relative; justify-content: center; min-width: 44px; }
+.sf-page[data-frame='s'] .tb-move .tb-arrow { width: 22px; height: 22px; }
+.sf-page[data-frame='s'] .tb-move-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- the bar at the bottom */
+/* A phone with the tab bar: the bar stands on it, not under it. */
+@media (max-width: 1023px) {
+  .sf-shell[data-tabs] .sf-page.tb-page > .ex-cta { bottom: calc(var(--sf-tabs-h, 56px) + env(safe-area-inset-bottom)); }
+}
+/* A phone with little on the page: the bar still stands at the bottom of the screen, where the thumb is. */
+.sf-page.tb-page[data-frame='s']:has(> .ex-cta) { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
+.sf-shell[data-tabs] .sf-page.tb-page[data-frame='s']:has(> .ex-cta) { min-height: calc(100dvh - var(--sf-bar-h, 52px) - var(--sf-tabs-h, 56px) - env(safe-area-inset-bottom)); }
+.sf-page.tb-page[data-frame='s'] > .ex-cta { margin-top: auto; }
+.sf-page.tb-page[data-frame='s']:has(> .ex-cta) > :nth-last-child(2) { margin-bottom: 24px; }
+.sf-page.tb-page .ex-cta .ex-cta-why { color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- /tests/new */
+.sf-page.tb-new-page .tb-new-form {
+  display: grid;
+  gap: 10px;
+  max-width: 640px;
+  margin-top: 28px;
+  padding: 28px 32px 30px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.sf-page.tb-new-page[data-frame='s'] .tb-new-form { margin-top: 20px; padding: 20px 16px 22px; border-radius: 24px; }
+.sf-page.tb-new-page .tb-label { font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); }
+.sf-page.tb-new-page .tb-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 18px/1.3 var(--ph-sans);
+  outline: none;
+}
+.sf-page.tb-new-page .tb-input:focus-visible,
+.sf-page.tb-new-page .tb-input:focus { box-shadow: inset 0 0 0 2px var(--sf-accent), 0 0 0 4px color-mix(in srgb, var(--sf-accent) 16%, transparent); }
+.sf-page.tb-new-page .tb-input[aria-invalid='true'] { box-shadow: inset 0 0 0 2px var(--m-yellow); }
+.sf-page.tb-new-page .tb-count { margin: 0; font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.sf-page.tb-new-page .tb-error { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-ink); }
+.sf-page.tb-new-page .tb-new-acts { margin-top: 10px; }
+.sf-page.tb-new-page[data-frame='s'] .tb-new-acts .sf-primary { width: 100%; justify-content: space-between; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-page .tb-type,
+  .sf-page .tb-card { transition: none; }
+}

@@ -16,11 +16,13 @@ import { localDateKey } from '../utils/streak';
 import type { OverviewContainer } from '../types/container';
 import { containerDays, useContainerLayer } from './containerLayer';
 import { containerDateLine, containerFigure, containerFigureLine, containerQuestions, containerSizeLine } from './containerFigure';
+import { NEW_TEST } from '../components/test/copyTest';
 
 export { containerDays };
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 import './containerScreens.css';
+import '../components/test/entry.css';
 
 /** «экзамен · 15 октября, через 12 дней», «зачёт · прошёл 15 октября», «экзамен, дата не указана». */
 export function examDateLine(item: Pick<ExamListItem, 'kind' | 'exam_date'>, now: Date = new Date()): string {
@@ -269,6 +271,13 @@ function EmptyExams({ phone }: { phone: boolean }) {
             Вставить список текстом
           </Link>
         </p>
+        {/* «Новый тест» (spec 2026-10-18 §47.2): no file at all, the questions are written in the builder. */}
+        <p>
+          {NEW_TEST.emptyLead}{' '}
+          <Link className="sf-link" to="/tests/new">
+            {NEW_TEST.entry}
+          </Link>
+        </p>
         {/* The example exam (/try): its lectures and list are checked already, nothing is saved. */}
         <p>
           Сначала посмотреть, как это работает?{' '}
@@ -390,7 +399,7 @@ export default function Exams() {
           <h1 className="ex-h1">Экзамены</h1>
         </div>
         {anyRow && (
-          <div className="ex-draw">
+          <div className="ex-draw" data-pair={containers.length > 0 ? '' : undefined}>
             {/* One door (spec decision 21). Without containers the old address stays (App.tsx sends it on to
                 /exams/import), so such an account's page is today's to the byte. */}
             <Link className="ex-secondary ex-new" to={containers.length > 0 ? '/exams/import' : '/exams/new'}>
@@ -401,6 +410,18 @@ export default function Exams() {
                 </svg>
               </span>
             </Link>
+            {/* «Новый тест» (spec 2026-10-18 §47.2): questions written in the builder. A white pill too, so the
+                page keeps one blue one; for the same reason as above only beside the containers' door. */}
+            {containers.length > 0 ? (
+              <Link className="ex-secondary ex-new" to="/tests/new">
+                {NEW_TEST.entry}
+                <span className="ex-new-dot" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </span>
+              </Link>
+            ) : null}
           </div>
         )}
       </header>

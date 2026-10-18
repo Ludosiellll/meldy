@@ -129,6 +129,8 @@ describe('Exams', () => {
     expect(plain(links[2].textContent)).toMatch(/коллоквиум · прошёл \d+ [а-я]+ · 8 из 12 вопросов есть в лекциях/);
     expect(mocks.fetchQuestionEvents).toHaveBeenCalledWith(expect.arrayContaining([hash(1)]), ['exam_answer']);
     expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/new');
+    // An account without exams in the new form keeps today's page: no «Новый тест» at the top (Exams.containers.test.tsx).
+    expect(screen.queryByRole('link', { name: 'Новый тест' })).toBeNull();
   });
 
   it('counts «подтверждено» by the rule: passes on one day, or two minutes apart over midnight, confirm nothing', async () => {
@@ -200,6 +202,26 @@ describe('Exams', () => {
     expect(screen.getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
     fireEvent.click(screen.getByRole('link', { name: 'Выбрать файлы' }));
     expect(await screen.findByRole('heading', { name: 'Новый экзамен' })).toBeInTheDocument();
+  });
+
+  it('empty: «Новый тест» one quiet link away, for questions without a file (spec 2026-10-18 §47.2)', async () => {
+    mocks.listExams.mockResolvedValue([]);
+    render(
+      <MemoryRouter initialEntries={['/exams']}>
+        <Routes>
+          <Route path="/exams" element={<Exams />} />
+          <Route path="/tests/new" element={<h1>Новый тест</h1>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Загрузите вопросы к экзамену' })).toBeInTheDocument();
+    const entry = screen.getByRole('link', { name: 'Новый тест' });
+    expect(entry).toHaveAttribute('href', '/tests/new');
+    expect(entry).toHaveClass('sf-link');
+    expect(entry.closest('p')).toHaveTextContent('Файла нет? Напишите вопросы сами: Новый тест');
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    fireEvent.click(entry);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Новый тест' })).toBeInTheDocument();
   });
 
   it('says what failed and retries', async () => {

@@ -158,6 +158,7 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     expect(within(menu).getAllByRole('menuitem').map((node) => plain(node.textContent))).toEqual([
       'Пригласить группу',
       'Вопросы и ключи · 4 ждут',
+      'Конструктор',
       'Контрольные',
       'Время в день',
       'Добавить предмет',
@@ -484,7 +485,7 @@ describe('a one-subject exam is its subject page (decision 44)', () => {
     expect(screen.getByRole('list', { name: 'Темы' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => plain(node.textContent));
-    expect(items).toEqual(['Пригласить группу', 'Вопросы и ключи', 'Контрольные', 'Время в день', 'Добавить предмет', 'Настройки', 'Удалить']);
+    expect(items).toEqual(['Пригласить группу', 'Вопросы и ключи', 'Конструктор', 'Контрольные', 'Время в день', 'Добавить предмет', 'Настройки', 'Удалить']);
   });
 });
 

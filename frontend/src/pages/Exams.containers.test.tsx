@@ -375,6 +375,12 @@ describe('«Экзамены» with exam containers', () => {
     const list = await renderMixed();
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/import');
+    // «Новый тест» (spec 2026-10-18 §47.2) beside it, a white pill too: the page keeps no blue pill at the top.
+    const entry = screen.getByRole('link', { name: 'Новый тест' });
+    expect(entry).toHaveAttribute('href', '/tests/new');
+    expect(entry).toHaveClass('ex-secondary');
+    expect(entry.parentElement).toBe(screen.getByRole('link', { name: 'Новый экзамен' }).parentElement);
+    expect(entry.parentElement).toHaveAttribute('data-pair');
     expect(screen.queryByRole('heading', { name: 'Загрузите вопросы к экзамену' })).toBeNull();
     expect(mocks.fetchQuestionEvents).not.toHaveBeenCalled();
   });
