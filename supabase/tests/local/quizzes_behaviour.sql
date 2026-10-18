@@ -10,6 +10,10 @@
 -- an attempt is open returns that attempt (the two-tabs race itself: quizzes_run.sh); the author's own attempt has
 -- own = true and stays out of the question stats and quiz_list's averages. A failure raises; success prints
 -- QUIZ CHECKS PASSED.
+-- Release 47 (20261018100000_test_builder.sql) adds keys to QuizRow, the preview, the attempt rows of quiz_results, the
+-- result and its items, and gives a signed-out visitor of a quiz with guests a guest «me». pg_temp.r47() tells which
+-- release is applied, and the pins take that release's shape: the same flows run on 46.1 (quizzes_run.sh, and
+-- test_builder_run.sh before the migration and after its rollback) and on 47 (test_builder_run.sh).
 \set ON_ERROR_STOP 1
 begin;
 create or replace function pg_temp.expect_error(p_sql text, p_state text, p_what text, p_detail text default null)
@@ -41,6 +45,14 @@ $fn$;
 create or replace function pg_temp.keys(p jsonb) returns text language sql immutable as $fn$
   select string_agg(k, ',' order by k) from jsonb_object_keys(p) k
 $fn$;
+-- release 47 applied (its guest functions exist)
+create or replace function pg_temp.r47() returns boolean language sql stable as $fn$
+  select to_regprocedure('public.quiz_guest_start(text,text,text)') is not null
+$fn$;
+-- a pinned key list: the 46.1 one, or the 47 one when release 47 is applied
+create or replace function pg_temp.pin(p_46 text, p_47 text) returns text language sql stable as $fn$
+  select case when pg_temp.r47() then p_47 else p_46 end
+$fn$;
 create or replace function pg_temp.item(p_ref text) returns uuid language sql stable as $fn$
   select v::uuid from pg_temp.ctx where k = 'item:' || p_ref
 $fn$;
@@ -58,7 +70,8 @@ create or replace function pg_temp.answer(p_id text, p_right boolean) returns js
 $fn$;
 grant all on ctx to authenticated, anon;
 grant execute on function pg_temp.expect_error(text, text, text, text), pg_temp.c(text), pg_temp.put(text, text),
-  pg_temp.keys(jsonb), pg_temp.item(text), pg_temp.ref(text), pg_temp.find(jsonb, text, text), pg_temp.answer(text, boolean)
+  pg_temp.keys(jsonb), pg_temp.item(text), pg_temp.ref(text), pg_temp.find(jsonb, text, text), pg_temp.answer(text, boolean),
+  pg_temp.r47(), pg_temp.pin(text, text)
   to authenticated, anon;
 
 -- 1. A: exam K1 (three subjects: 4 + 1 unkeyed, 3, 1 unkeyed), the defaults, the clamp, every refusal of a setting,
@@ -69,9 +82,13 @@ do $t$
 declare
   r jsonb; v_k1 uuid; v_k2 uuid; v_k3 uuid; s1 uuid; s2 uuid; s3 uuid; v_pic text; v_bad record;
   d date := (now() at time zone 'utc')::date;
-  v_row_keys constant text := 'allow_back,attempts,closed_at,closes_at,code,container_id,created_at,grading,id,item_count,'
+  v_row_keys constant text := pg_temp.pin(
+    'allow_back,attempts,closed_at,closes_at,code,container_id,created_at,grading,id,item_count,'
     'members_only,opens_at,pass_percent,review,same_set,shuffle_items,shuffle_options,started,state,subject_ids,'
-    'time_limit_s,title,updated_at';
+    'time_limit_s,title,updated_at',
+    'accent,allow_back,attempts,closed_at,closes_at,code,container_id,cover_path,created_at,grading,guests,id,item_count,'
+    'members_only,offer_practice,opens_at,pass_percent,review,same_set,shuffle_items,shuffle_options,started,state,subject_ids,'
+    'time_limit_s,title,updated_at');
 begin
   r := public.container_create('Контрольная проверка', d + 10, jsonb_build_array(jsonb_build_object('title', 'Алгоритмы'),
          jsonb_build_object('title', 'Сети'), jsonb_build_object('title', 'Без ключей')));
@@ -199,11 +216,18 @@ do $t$
 declare r jsonb;
 begin
   r := public.quiz_preview(pg_temp.c('code1'));
-  if pg_temp.keys(r) is distinct from 'allow_back,attempts,author_name,closes_at,exam_title,grading,item_count,me,members_only,'
-       'opens_at,pass_percent,review,server_now,status,time_limit_s,title' then
+  if pg_temp.keys(r) is distinct from pg_temp.pin(
+       'allow_back,attempts,author_name,closes_at,exam_title,grading,item_count,me,members_only,'
+       'opens_at,pass_percent,review,server_now,status,time_limit_s,title',
+       'accent,allow_back,attempts,author_name,closes_at,cover_path,exam_title,grading,guests,item_count,me,members_only,'
+       'offer_practice,opens_at,pass_percent,review,server_now,status,time_limit_s,title') then
     raise exception 'FAILED: preview keys %', pg_temp.keys(r);
   end if;
-  if r ->> 'status' is distinct from 'open' or r -> 'me' is distinct from 'null'::jsonb or position('"correct"' in r::text) > 0
+  -- 46.1: no «me» signed out; 47: a quiz takes guests by default, so a signed-out visitor gets a guest «me» (no attempt)
+  if r ->> 'status' is distinct from 'open' or position('"correct"' in r::text) > 0
+     or (not pg_temp.r47() and r -> 'me' is distinct from 'null'::jsonb)
+     or (pg_temp.r47() and (r -> 'me' ->> 'guest' is distinct from 'true' or (r -> 'me' ->> 'attempts_used')::int is distinct from 0
+                            or not (r ->> 'guests')::boolean))
      or position('Париж' in r::text) > 0 or (r ->> 'item_count')::int is distinct from 7 or r ->> 'title' is distinct from 'Контрольная 1'
      or r ->> 'exam_title' is distinct from 'Контрольная проверка' or r ->> 'author_name' is distinct from 'Автор А'
      or (r ->> 'time_limit_s')::int is distinct from 600 or (r ->> 'attempts')::int is distinct from 2
@@ -372,7 +396,10 @@ begin
     raise exception 'FAILED: results %', r;
   end if;
   a := r -> 'attempts' -> 0;
-  if pg_temp.keys(a) is distinct from 'answered,correct,deadline_at,finish_reason,finished_at,id,n,name,own,person,started_at,total' then
+  if pg_temp.keys(a) is distinct from pg_temp.pin(
+       'answered,correct,deadline_at,finish_reason,finished_at,id,n,name,own,person,started_at,total',
+       'answered,correct,deadline_at,finish_reason,finished_at,guest,id,n,name,own,person,started_at,total')
+     or (pg_temp.r47() and (a ->> 'guest')::boolean) then
     raise exception 'FAILED: attempt row keys %', pg_temp.keys(a);
   end if;
   if a ->> 'id' is distinct from pg_temp.c('att1') or a ->> 'name' is distinct from 'Вера С.' or (a ->> 'own')::boolean
@@ -455,9 +482,16 @@ do $t$
 declare r jsonb; r2 jsonb; it jsonb;
 begin
   r := public.quiz_finish(pg_temp.c('att1')::uuid);
-  if pg_temp.keys(r) is distinct from 'answers_after,attempt_id,attempts_left,can_retry,code,correct,finish_reason,finished_at,items,n,'
-       'pass_percent,passed,percent,quiz_title,review_now,shuffle_options,started_at,total' then
+  if pg_temp.keys(r) is distinct from pg_temp.pin(
+       'answers_after,attempt_id,attempts_left,can_retry,code,correct,finish_reason,finished_at,items,n,'
+       'pass_percent,passed,percent,quiz_title,review_now,shuffle_options,started_at,total',
+       'accent,answers_after,attempt_id,attempts_left,can_retry,code,correct,finish_reason,finished_at,items,n,'
+       'pass_percent,passed,percent,practice,quiz_title,review_now,shuffle_options,started_at,total') then
     raise exception 'FAILED: Result keys %', pg_temp.keys(r);
+  end if;
+  -- 47: the colour; no practice (the author did not offer it)
+  if pg_temp.r47() and (r ->> 'accent' is distinct from 'blue' or r -> 'practice' is distinct from 'null'::jsonb) then
+    raise exception 'FAILED: Result accent / practice %', r;
   end if;
   -- 20261016140000_quiz_result_order: the review orders the options as the attempt did (shuffle_options + keep_order)
   if not (r ->> 'shuffle_options')::boolean
@@ -474,8 +508,11 @@ begin
     raise exception 'FAILED: finish %', r;
   end if;
   if exists (select 1 from jsonb_array_elements(r -> 'items') x
-              where pg_temp.keys(x) is distinct from 'chosen,code,forms,id,images,keep_order,key,kind,options,right,stem,text'
-                 or x -> 'key' is distinct from 'null'::jsonb or x -> 'forms' is distinct from 'null'::jsonb)
+              where pg_temp.keys(x) is distinct from pg_temp.pin(
+                      'chosen,code,forms,id,images,keep_order,key,kind,options,right,stem,text',
+                      'chosen,code,explanation,forms,id,images,keep_order,key,kind,options,right,stem,text')
+                 or x -> 'key' is distinct from 'null'::jsonb or x -> 'forms' is distinct from 'null'::jsonb
+                 or (pg_temp.r47() and x -> 'explanation' is distinct from 'null'::jsonb))
      or position('Париж' in r::text) > 0 then
     raise exception 'FAILED: a key in «mistakes» %', r -> 'items';
   end if;
@@ -550,9 +587,13 @@ begin
   -- quiz_list: people / avg without the author (C: 3/7 and 0/7 → 21.4), writing / finished count attempts
   r := public.quiz_list(pg_temp.c('k1')::uuid);
   v_row := pg_temp.find(r, 'id', pg_temp.c('q1'));
-  if pg_temp.keys(v_row) is distinct from 'allow_back,attempts,avg_percent,closed_at,closes_at,code,container_id,created_at,finished,'
+  if pg_temp.keys(v_row) is distinct from pg_temp.pin(
+       'allow_back,attempts,avg_percent,closed_at,closes_at,code,container_id,created_at,finished,'
        'grading,id,item_count,members_only,opens_at,pass_percent,people,review,same_set,shuffle_items,shuffle_options,started,state,'
-       'subject_ids,time_limit_s,title,updated_at,writing' then
+       'subject_ids,time_limit_s,title,updated_at,writing',
+       'accent,allow_back,attempts,avg_percent,closed_at,closes_at,code,container_id,cover_path,created_at,finished,'
+       'grading,guests,id,item_count,members_only,offer_practice,opens_at,pass_percent,people,review,same_set,shuffle_items,'
+       'shuffle_options,started,state,subject_ids,time_limit_s,title,updated_at,writing') then
     raise exception 'FAILED: list row keys %', pg_temp.keys(v_row);
   end if;
   if (v_row ->> 'people')::int is distinct from 1 or (v_row ->> 'writing')::int is distinct from 0
