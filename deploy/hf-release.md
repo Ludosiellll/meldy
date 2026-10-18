@@ -4,6 +4,20 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-18 — Release 47.3: how-to videos for the new features; the 47.2 live check's findings (from the commit of this entry)
+
+- **The owner, 18.10:** «для новых функций тоже нужно сделать обучение с видео». Four clips in Meldy's own look (10–14 s,
+  a line of plain text per step, reduced motion as still frames): «Свой тест» (studio), «Тест по ссылке» (how a student
+  without an account sees it), «Перенести экзамен», «Экзамены в Telegram». The guide «?» gets a chapter «Тесты» after
+  «Экзамены», and «Экзамены» gets its own row of clips; the studio tour's first step plays «Свой тест»; the move dialog
+  shows «Перенести экзамен» once (`components/clips/*`, `components/guide/*`, `components/tips/*`).
+- **From the 47.2 live check:** a new block's default word («Заметка», «Заголовок», «Текст», the cover title) is selected
+  on first edit, so typing replaces it; the preview's last button and the templates say «Завершить», as the real run;
+  the preview scrolls to the first missing required question; a test's pages say «тест» (the quiz list, practice and
+  members-only options) and deleting a test's quiz lands on the test's page; the run's top line is opaque; a request cut
+  off by leaving the page no longer logs a console error.
+- Gate on 72e45e0: pytest 2069, bot 359, sync ok, Vitest 326 files / 5868 tests, Docker-layout build ok.
+
 ## 2026-10-18 — Release 47.2: «Студия теста», a test's own page, actions in place (from the commit of this entry)
 
 - **The owner, 18.10:** «как будто ты сайт создаёшь… перетаскивать, расставлять как захочешь + подсказки»; then, on the
