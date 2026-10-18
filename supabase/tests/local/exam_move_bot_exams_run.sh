@@ -80,7 +80,8 @@ LATER=(migrations/20261010130000_containers_frozen_pace.sql migrations/202610111
        tests/local/storage_baseline.sql migrations/20261014120000_test_item_images.sql
        migrations/20261014150000_bot_skips_pictures.sql migrations/20261014170000_plan_tempo.sql
        migrations/20261016100000_item_update_images.sql migrations/20261016120000_quizzes.sql
-       migrations/20261016140000_quiz_result_order.sql)
+       migrations/20261016140000_quiz_result_order.sql
+       migrations/20261018100000_test_builder.sql)
 BASE_OK=1
 for f in "${LATER[@]}"; do run "$SB/$f" || BASE_OK=0; done
 [ $BASE_OK = 1 ] && ok "the later migrations in the live order" "${#LATER[@]} files" || bad "the later migrations"
