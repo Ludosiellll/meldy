@@ -209,6 +209,19 @@
 /* The time strip: the share of the time left, along the lower edge of the sticky top line, so it reads as the clock's
    (a progressbar «Осталось времени»); a track under it, red near the end like the clock. */
 .qt-roombar { position: sticky; }
+/* The top line is opaque (live check of release 47.2: the words scrolled under it showed through the room line's 84 %
+   canvas and blur): Meldy's canvas in both themes; in a run «как в студии», the page theme's own surface. A hairline
+   under it, so the page goes under an edge. */
+.qt-roombar.sf-room-bar {
+  background: var(--sf-canvas);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 1px 0 var(--sf-line);
+}
+[data-design] .qt-roombar.sf-room-bar {
+  background: var(--doc-surface);
+  box-shadow: 0 1px 0 var(--doc-line);
+}
 .qt-time {
   position: absolute;
   left: 0;

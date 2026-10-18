@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SURFACES } from '../../lib/studio/contrast';
 
 /**
  * The quiz author's pages (release 47.1, the live check of release 47): on a phone the sticky bar («Отмена» and
@@ -114,5 +115,36 @@ describe('«Ещё настройки» on a computer and the one-attempt table 
     const tracks = (selector: string) => (declaration(find(quiz, selector)!.body, 'grid-template-columns') ?? '').match(/minmax\([^)]*\)|\d+px/g) ?? [];
     expect(tracks('.sf-page.qa-page .qa-people[data-wide] .qa-person')).toHaveLength(6);
     expect(tracks('.sf-page.qa-page .qa-people[data-wide][data-one] .qa-person')).toHaveLength(5);
+  });
+});
+
+describe('the participant’s top line (live check of release 47.2: text scrolled under it showed through)', () => {
+  const OPAQUE = /^#[0-9a-f]{6}$/i;
+
+  it('the room line is see-through by itself, so the run’s line sets its own opaque colour, in both themes', async () => {
+    const paper = rules(await read('styles/paper.css'));
+    expect(declaration(find(paper, '.sf-bar, .sf-room-bar')!.body, 'background')).toMatch(/transparent/);
+    const run = rules(await read('components/quiz/quizTake.css'));
+    const line = find(run, '.qt-roombar.sf-room-bar');
+    expect(line).toBeDefined();
+    expect(declaration(line!.body, 'background')).toBe('var(--sf-canvas)');
+    expect(declaration(line!.body, 'backdrop-filter')).toBe('none');
+    // Meldy's canvas is a solid colour in the light theme and in the dark one, and nothing on the way redefines it.
+    // (The @tailwind lines are statements, not rules: left out for the reader above.)
+    const index = rules((await read('index.css')).replace(/^@tailwind[^;]*;/gm, ''));
+    expect(declaration(find(index, ':root')!.body, '--sf-canvas')).toMatch(OPAQUE);
+    expect(declaration(find(index, '.dark')!.body, '--sf-canvas')).toMatch(OPAQUE);
+    for (const sheet of ['styles/paper.css', 'components/containers/room.css', 'components/quiz/quizTake.css']) {
+      expect(rules(await read(sheet)).filter((rule) => declaration(rule.body, '--sf-canvas') !== null), sheet).toEqual([]);
+    }
+  });
+
+  it('a run «как в студии»: the page theme’s surface, solid in both themes', async () => {
+    const run = rules(await read('components/quiz/quizTake.css'));
+    const line = find(run, '[data-design] .qt-roombar.sf-room-bar');
+    expect(line).toBeDefined();
+    expect(declaration(line!.body, 'background')).toBe('var(--doc-surface)');
+    expect(SURFACES.light.surface).toMatch(OPAQUE);
+    expect(SURFACES.dark.surface).toMatch(OPAQUE);
   });
 });
