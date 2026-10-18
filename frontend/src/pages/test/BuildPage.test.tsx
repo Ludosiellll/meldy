@@ -33,6 +33,7 @@ vi.mock('../../lib/containers/hooks', () => ({
 import BuildPage from './BuildPage';
 import { item, subject, summary } from '../../components/containers/testkit/fixtures';
 import { EDITOR, GONE, KEYS } from '../../components/containers/copyImport';
+import { TO_EXAMS } from '../../components/containers/copy';
 import { BUILD } from '../../components/test/copyTest';
 
 const ID = 'c-test';
@@ -64,6 +65,7 @@ function renderAt(path = `/exams/c/${ID}/build`) {
       <Routes>
         <Route path="/exams/c/:id/build" element={<BuildPage />} />
         <Route path="/exams/c/:id" element={<p>Экзамен</p>} />
+        <Route path="/exams" element={<p>Все экзамены</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -132,6 +134,25 @@ describe('BuildPage: the questions as cards (spec 2026-10-18 §47.2)', () => {
     expect(document.title).toContain('Конструктор · Химия, 9 класс');
   });
 
+  it('the header: no «Конструктор» label over the name; «Контрольные · Настройки» in the top row, while loading too (m3)', () => {
+    renderAt();
+    expect(screen.queryByText(BUILD.label)).toBeNull();
+    const top = document.querySelector('.tb-top') as HTMLElement;
+    expect(within(top).getByRole('link', { name: TO_EXAMS })).toHaveAttribute('href', '/exams');
+    expect(within(top).getByRole('link', { name: BUILD.quizzes })).toBeInTheDocument();
+    expect(within(top).getByRole('link', { name: BUILD.settings })).toBeInTheDocument();
+    // The top row comes before the name: a long name or the meta line never moves the pills.
+    expect(top.compareDocumentPosition(screen.getByRole('heading', { level: 1 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+
+    api.state.summary = null;
+    api.state.loading = true;
+    renderAt();
+    const waiting = document.querySelector('.tb-top') as HTMLElement;
+    expect(within(waiting).getByRole('link', { name: BUILD.quizzes })).toBeInTheDocument();
+    expect(within(waiting).getByRole('link', { name: BUILD.settings })).toBeInTheDocument();
+  });
+
   it('«Отправить по ссылке» opens the quiz setup with every question', () => {
     renderAt();
     const send = screen.getByRole('link', { name: BUILD.send });
@@ -143,7 +164,9 @@ describe('BuildPage: the questions as cards (spec 2026-10-18 §47.2)', () => {
   it('says a choice question has no key yet, and keeps «Отправить по ссылке» shut while no question has one', () => {
     api.state.items = asMap([{ ...QUESTIONS[0], correct: [], key_source: 'none' }]);
     renderAt();
-    expect(within(card(1)).getByText(EDITOR.noKey)).toBeInTheDocument();
+    // In the constructor's words (release 47, M10): where the question would have gone.
+    expect(within(card(1)).getByText(BUILD.noKey)).toBeInTheDocument();
+    expect(BUILD.noKey).toBe('Не отмечен верный ответ: вопрос не попадёт в контрольную и в повторение.');
     expect(screen.getByText(/без ключа: 1/)).toBeInTheDocument();
     const send = screen.getByRole('button', { name: BUILD.send });
     expect(send).toBeDisabled();
@@ -273,10 +296,33 @@ describe('BuildPage: the questions as cards (spec 2026-10-18 §47.2)', () => {
   });
 });
 
+/** «Добавить вопрос» above the list or under its last card. */
+const place = (at: 'top' | 'end') => document.querySelector(`[data-place="${at}"]`) as HTMLElement;
+const addAt = (at: 'top' | 'end') => within(place(at)).getByRole('button', { name: KEYS.add });
+const lastCard = () => screen.getAllByRole('article').slice(-1)[0];
+const follows = (a: Node, b: Node) => Boolean(b.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
+
 describe('BuildPage: adding a question by its kind', () => {
+  it('«Добавить вопрос» stands above the list and under its last card; the new question is written under the list (M2)', () => {
+    renderAt();
+    expect(screen.getAllByRole('button', { name: KEYS.add })).toHaveLength(2);
+    expect(follows(addAt('end'), lastCard())).toBe(true);
+    expect(follows(lastCard(), addAt('top'))).toBe(true);
+    fireEvent.click(addAt('end'));
+    const kinds = within(place('end')).getByRole('group', { name: BUILD.typeChoice });
+    expect(within(kinds).getByRole('button', { name: 'Один ответ' })).toHaveFocus();
+    fireEvent.click(within(kinds).getByRole('button', { name: 'Один ответ' }));
+    const editor = screen.getByRole('form', { name: EDITOR.label });
+    expect(follows(editor, lastCard())).toBe(true);
+    expect(within(editor).getByLabelText(EDITOR.stem)).toHaveFocus();
+    // The editor takes the place of the second «Добавить вопрос»; the one above the list stays.
+    expect(screen.getAllByRole('button', { name: KEYS.add })).toHaveLength(1);
+    expect(addAt('top')).toBeInTheDocument();
+  });
+
   it('«Верно / неверно» opens the editor with «Верно», «Неверно» kept in order; the author marks the right one', async () => {
     renderAt();
-    fireEvent.click(screen.getByRole('button', { name: KEYS.add }));
+    fireEvent.click(addAt('top'));
     const kinds = screen.getByRole('group', { name: BUILD.typeChoice });
     expect(within(kinds).getAllByRole('button').map((button) => button.textContent)).toEqual(['Один ответ', 'Несколько ответов', 'Короткий ответ', 'Верно / неверно', 'Отмена']);
     expect(within(kinds).getByRole('button', { name: 'Один ответ' })).toHaveFocus();
@@ -287,12 +333,17 @@ describe('BuildPage: adding a question by its kind', () => {
     expect(within(editor).getByLabelText(EDITOR.option('А'))).toHaveValue('Верно');
     expect(within(editor).getByLabelText(EDITOR.option('Б'))).toHaveValue('Неверно');
     expect(within(editor).queryByLabelText(EDITOR.option('В'))).toBeNull();
-    expect(within(editor).getByLabelText(EDITOR.keepOrder)).toBeChecked();
-    expect(within(editor).getByLabelText(EDITOR.right('А'))).not.toBeChecked();
+    // Two fixed options: no third, no pictures, no shuffling to switch off (M5).
+    expect(within(editor).queryByRole('button', { name: EDITOR.addOption })).toBeNull();
+    expect(within(editor).queryByRole('button', { name: EDITOR.optionPicture('А') })).toBeNull();
+    expect(within(editor).queryByLabelText(EDITOR.keepOrder)).toBeNull();
+    expect(within(editor).getByRole('radio', { name: EDITOR.right('А') })).not.toBeChecked();
     expect(within(editor).getByLabelText(EDITOR.stem)).toHaveFocus();
 
     fireEvent.change(within(editor).getByLabelText(EDITOR.stem), { target: { value: 'Вода кипит при 100 °C на уровне моря.' } });
-    fireEvent.click(within(editor).getByLabelText(EDITOR.right('А')));
+    fireEvent.click(within(editor).getByRole('radio', { name: EDITOR.right('Б') }));
+    fireEvent.click(within(editor).getByRole('radio', { name: EDITOR.right('А') }));
+    expect(within(editor).getByRole('radio', { name: EDITOR.right('Б') })).not.toBeChecked();
     fireEvent.click(within(editor).getByRole('button', { name: EDITOR.save }));
     await waitFor(() => expect(api.addItems).toHaveBeenCalledTimes(1));
     const [subjectId, inputs] = api.addItems.mock.calls[0] as [string, ItemInput[]];
@@ -307,25 +358,55 @@ describe('BuildPage: adding a question by its kind', () => {
       file_no: '5',
     });
     expect(inputs[0].ref).toMatch(/^man:/);
-    expect(await screen.findByText(BUILD.added(5))).toBeInTheDocument();
+    expect(await within(card(5)).findByText(BUILD.added(5))).toBeInTheDocument();
     expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
     expect(ids()).toEqual(['q-1', 'q-2', 'q-3', 'q-4', 'new-1']);
     expect(within(card(5)).getByText('Верно / неверно')).toBeInTheDocument();
     expect(api.reorderItems).not.toHaveBeenCalled();
     expect(api.reload).toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: KEYS.add })).toHaveFocus();
+    // The saved card stays where the author writes: the focus is on «Добавить вопрос» right under it.
+    expect(addAt('end')).toHaveFocus();
+    expect(follows(addAt('end'), card(5))).toBe(true);
+  });
+
+  it('«Сохранить и следующий» saves and opens a blank question of the same kind, the focus in its text (M2)', async () => {
+    renderAt();
+    fireEvent.click(addAt('end'));
+    fireEvent.click(screen.getByRole('button', { name: 'Несколько ответов' }));
+    let editor = screen.getByRole('form', { name: EDITOR.label });
+    const next = within(editor).getByRole('button', { name: EDITOR.saveNext });
+    expect(next).toHaveClass('sf-primary');
+    expect(within(editor).getByRole('button', { name: EDITOR.save })).not.toHaveClass('sf-primary');
+    fireEvent.change(within(editor).getByLabelText(EDITOR.stem), { target: { value: 'Какие числа чётные?' } });
+    ['2', '3', '4', '5'].forEach((text, index) => fireEvent.change(within(editor).getByLabelText(EDITOR.option('АБВГ'[index])), { target: { value: text } }));
+    fireEvent.click(within(editor).getByLabelText(EDITOR.right('А')));
+    // «Несколько ответов» stays so with one tick (M5): the line says what the student does.
+    expect(within(editor).getByText(/ученик может отметить несколько/)).toBeInTheDocument();
+    fireEvent.click(next);
+    await waitFor(() => expect(api.addItems).toHaveBeenCalledTimes(1));
+    const [, inputs] = api.addItems.mock.calls[0] as [string, ItemInput[]];
+    expect(inputs[0]).toMatchObject({ stem: 'Какие числа чётные?', options: ['2', '3', '4', '5'], correct: [0], kind: 'multiple' });
+
+    expect(await within(card(5)).findByText(BUILD.added(5))).toBeInTheDocument();
+    expect(within(card(5)).getByText('Несколько ответов')).toBeInTheDocument();
+    editor = screen.getByRole('form', { name: EDITOR.label });
+    expect(within(editor).getByText(/^Новый вопрос 6\s·\sНесколько ответов/)).toBeInTheDocument();
+    expect(within(editor).getByLabelText(EDITOR.stem)).toHaveValue('');
+    expect(within(editor).getByLabelText(EDITOR.stem)).toHaveFocus();
+    expect(within(editor).getByLabelText(EDITOR.option('Г'))).toHaveValue('');
+    expect(follows(editor, card(5))).toBe(true);
   });
 
   it('«Короткий ответ» opens the editor with the accepted forms, without options', () => {
     renderAt();
-    fireEvent.click(screen.getByRole('button', { name: KEYS.add }));
+    fireEvent.click(addAt('top'));
     fireEvent.click(screen.getByRole('button', { name: 'Короткий ответ' }));
     const editor = screen.getByRole('form', { name: EDITOR.label });
     expect(within(editor).getByLabelText(EDITOR.forms)).toHaveValue('');
     expect(within(editor).queryByLabelText(EDITOR.option('А'))).toBeNull();
     fireEvent.click(within(editor).getByRole('button', { name: EDITOR.cancel }));
     expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
-    expect(screen.getByRole('button', { name: KEYS.add })).toHaveFocus();
+    expect(addAt('end')).toHaveFocus();
     expect(api.addItems).not.toHaveBeenCalled();
   });
 
@@ -348,10 +429,30 @@ describe('BuildPage: adding a question by its kind', () => {
     expect(screen.queryByText(BUILD.empty)).toBeNull();
   });
 
+  it('an empty test on a phone shows no shut «Отправить по ссылке» until the first question (m4)', () => {
+    const width = window.innerWidth;
+    window.innerWidth = 390;
+    try {
+      api.state.summary = testSummary({ subjects: [subject({ id: SUBJ, title: 'Вопросы', oral: null, topic_titles: [], topics: [], kinds: { single: 0, multiple: 0, short: 0 } })] });
+      api.state.items = new Map();
+      renderAt();
+      expect(screen.getByText(BUILD.empty)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: BUILD.send })).toBeNull();
+      expect(screen.queryByText(BUILD.sendWhy)).toBeNull();
+      cleanup();
+      // A test with questions, none keyed yet: the shut bar says why, as on a computer.
+      api.state.items = asMap([{ ...QUESTIONS[0], correct: [], key_source: 'none' }]);
+      renderAt();
+      expect(screen.getByRole('button', { name: BUILD.send })).toBeDisabled();
+    } finally {
+      window.innerWidth = width;
+    }
+  });
+
   it('a failed add keeps the editor open with the reason', async () => {
     api.addItems.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'MC007' }));
     renderAt();
-    fireEvent.click(screen.getByRole('button', { name: KEYS.add }));
+    fireEvent.click(addAt('top'));
     fireEvent.click(screen.getByRole('button', { name: 'Короткий ответ' }));
     const editor = screen.getByRole('form', { name: EDITOR.label });
     fireEvent.change(within(editor).getByLabelText(EDITOR.stem), { target: { value: 'Столица Италии?' } });
@@ -359,6 +460,111 @@ describe('BuildPage: adding a question by its kind', () => {
     fireEvent.click(within(editor).getByRole('button', { name: EDITOR.save }));
     expect(await within(editor).findByRole('alert')).toHaveTextContent('В экзамене помещается 20 предметов и 2000 вопросов с вариантами.');
     expect(ids()).toEqual(['q-1', 'q-2', 'q-3', 'q-4']);
+  });
+});
+
+describe('BuildPage: changes not saved (release 47, B3)', () => {
+  const unsavedLine = (n: number) => new RegExp(`^В вопросе\\s${n}\\sесть несохранённые правки`);
+  const ask = (n: number) => screen.getByText(unsavedLine(n));
+  const editStem = (value: string) => fireEvent.change(within(screen.getByRole('form', { name: EDITOR.label })).getByLabelText(EDITOR.stem), { target: { value } });
+
+  it('«Изменить» on another card: the editor stays and asks; «Не сохранять» opens the other one', () => {
+    renderAt();
+    fireEvent.click(within(card(1)).getByRole('button', { name: KEYS.edit }));
+    editStem('Сколько будет 3 + 3?');
+    fireEvent.click(within(card(3)).getByRole('button', { name: KEYS.edit }));
+    const editor = screen.getByRole('form', { name: EDITOR.label });
+    expect(within(editor).getByText(/^Вопрос 1\s·/)).toBeInTheDocument();
+    expect(within(editor).getByLabelText(EDITOR.stem)).toHaveValue('Сколько будет 3 + 3?');
+    expect(ask(1)).toBeInTheDocument();
+    expect(within(editor).getByRole('button', { name: EDITOR.save })).toHaveFocus();
+    fireEvent.click(within(editor).getByRole('button', { name: EDITOR.discard }));
+    const other = screen.getByRole('form', { name: EDITOR.label });
+    expect(within(other).getByText(/^Вопрос 3\s·\sНесколько ответов$/)).toBeInTheDocument();
+    expect(within(other).getByLabelText(EDITOR.stem)).toHaveFocus();
+    expect(api.updateItem).not.toHaveBeenCalled();
+    expect(within(card(1)).getByText('Сколько будет 2 + 2?')).toBeInTheDocument();
+  });
+
+  it('«Сохранить» in the question saves the changes, then goes on', async () => {
+    renderAt();
+    fireEvent.click(within(card(1)).getByRole('button', { name: KEYS.edit }));
+    editStem('Сколько будет 3 + 3?');
+    fireEvent.click(within(card(2)).getByRole('button', { name: KEYS.edit }));
+    fireEvent.click(within(screen.getByRole('form', { name: EDITOR.label })).getByRole('button', { name: EDITOR.save }));
+    await waitFor(() => expect(api.updateItem).toHaveBeenCalledWith('q-1', { stem: 'Сколько будет 3 + 3?' }));
+    const other = await screen.findByText(/^Вопрос 2\s·\sКороткий ответ$/);
+    expect(other.closest('form')).toBeInTheDocument();
+    expect(within(card(1)).getByText('Сколько будет 3 + 3?')).toBeInTheDocument();
+  });
+
+  it('without changes «Изменить» on another card simply opens it', () => {
+    renderAt();
+    fireEvent.click(within(card(1)).getByRole('button', { name: KEYS.edit }));
+    fireEvent.click(within(card(3)).getByRole('button', { name: KEYS.edit }));
+    expect(screen.queryByText(unsavedLine(1))).toBeNull();
+    expect(within(screen.getByRole('form', { name: EDITOR.label })).getByText(/^Вопрос 3\s·/)).toBeInTheDocument();
+  });
+
+  it('«Добавить вопрос» waits for the answer about a new question that holds words', () => {
+    renderAt();
+    fireEvent.click(addAt('end'));
+    fireEvent.click(screen.getByRole('button', { name: 'Один ответ' }));
+    editStem('Наполовину написанный вопрос');
+    fireEvent.click(addAt('top'));
+    expect(ask(5)).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: BUILD.typeChoice })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.discard }));
+    expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
+    const kinds = within(place('top')).getByRole('group', { name: BUILD.typeChoice });
+    expect(within(kinds).getByRole('button', { name: 'Один ответ' })).toHaveFocus();
+    expect(api.addItems).not.toHaveBeenCalled();
+  });
+
+  it('a link off the page waits too; «Не сохранять» goes there', () => {
+    renderAt();
+    fireEvent.click(within(card(1)).getByRole('button', { name: KEYS.edit }));
+    editStem('Сколько будет 3 + 3?');
+    fireEvent.click(screen.getByRole('link', { name: TO_EXAMS }));
+    expect(screen.queryByText('Все экзамены')).toBeNull();
+    expect(ask(1)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.discard }));
+    expect(screen.getByText('Все экзамены')).toBeInTheDocument();
+  });
+
+  it('another subject waits too; «Не сохранять» opens it', () => {
+    api.state.summary = testSummary({
+      subjects: [
+        subject({ id: SUBJ, position: 1, title: 'Неорганика', oral: null, topic_titles: [], topics: [], kinds: { single: 2, multiple: 1, short: 1 } }),
+        subject({ id: OTHER, position: 2, title: 'Органика', oral: null, topic_titles: [], topics: [], kinds: { single: 0, multiple: 0, short: 0 } }),
+      ],
+    });
+    renderAt();
+    fireEvent.click(within(card(2)).getByRole('button', { name: KEYS.edit }));
+    fireEvent.change(within(screen.getByRole('form', { name: EDITOR.label })).getByLabelText(EDITOR.forms), { target: { value: 'Париж' } });
+    fireEvent.click(screen.getByRole('combobox', { name: KEYS.findSubject }));
+    fireEvent.click(screen.getByRole('option', { name: 'Органика' }));
+    expect(ask(2)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: KEYS.findSubject })).toHaveTextContent('Неорганика');
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.discard }));
+    expect(screen.getByRole('combobox', { name: KEYS.findSubject })).toHaveTextContent('Органика');
+    expect(screen.getByText(BUILD.empty)).toBeInTheDocument();
+  });
+
+  it('the tab asks before it closes only while there are changes', () => {
+    renderAt();
+    const leave = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(leave()).toBe(false);
+    fireEvent.click(within(card(1)).getByRole('button', { name: KEYS.edit }));
+    expect(leave()).toBe(false);
+    editStem('Сколько будет 3 + 3?');
+    expect(leave()).toBe(true);
+    editStem('Сколько будет 2 + 2?');
+    expect(leave()).toBe(false);
   });
 });
 

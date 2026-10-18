@@ -227,8 +227,11 @@
 }
 
 /*
- * The question editor (QuestionEditor.tsx): the same white card; fields on the soft surface, the options as rows of
- * one block with a tick and the letter on the left, «верный» in words beside the green edge (decision 54).
+ * The question editor (QuestionEditor.tsx): the same white card; fields on the soft surface, as tall as their text
+ * (no handle to drag). The options are compact rows of one block, about 52 px each: the tick and the letter, the field,
+ * a picture button and «×» (icons, named for screen readers); the ticked row has the green edge and a ticked box, and
+ * the line under the block says in words how many are the key and what the student does (decision 54: never colour
+ * alone).
  */
 .qe { display: grid; gap: 0; }
 .qe-kind { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; border: 0; }
@@ -259,11 +262,14 @@
   box-shadow: inset 0 0 0 1px var(--sf-line);
   color: var(--sf-ink);
   font: 400 16px/1.45 var(--ph-sans);
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
+  overflow-wrap: anywhere;
 }
 .qe-text:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 1px; }
 .qe-text[data-code] { font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace; font-size: 14px; }
-.qe-stem { font-size: 17px; font-weight: 500; }
+.qe-stem { min-height: 74px; font-size: 17px; font-weight: 500; }
+.qe-explanation { min-height: 72px; }
 .qe-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-top: 10px; }
 .qe-check { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; color: var(--sf-muted); cursor: pointer; }
 .qe-check input { width: 18px; height: 18px; accent-color: var(--sf-accent); }
@@ -297,22 +303,48 @@
 .qe-option {
   position: relative;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 10px;
-  padding: 12px 14px 10px 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 6px;
+  padding: 4px 6px 4px 8px;
 }
 .qe-option + .qe-option { border-top: 1px solid var(--sf-line); }
 .qe-option[data-key] { background: var(--m-green-soft); }
 .qe-option[data-key]::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--m-green); }
-.qe-right { display: grid; justify-items: center; align-content: start; gap: 4px; padding-top: 10px; cursor: pointer; }
-.qe-right input { width: 20px; height: 20px; margin: 0; accent-color: var(--m-green); }
-.qe-letter { font-weight: 600; color: var(--sf-muted); }
+.qe-right { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px 0 6px; cursor: pointer; }
+.qe-right input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--m-green); cursor: pointer; }
+.qe-letter { min-width: 1.1em; font-weight: 600; color: var(--sf-muted); }
 .qe-option[data-key] .qe-letter { color: var(--m-green-ink); }
 .qe-option-body { min-width: 0; }
-.qe-option .qe-text { background: var(--sf-surface); }
-.qe-option-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; margin: 6px 0 0; font-size: 14px; }
-.qe-right-word { font-weight: 600; color: var(--m-green-ink); }
+.qe-option .qe-text { min-height: 44px; padding: 10px 12px; border-radius: 12px; background: var(--sf-surface); }
+.qe-option .qe-pics { margin: 8px 0 4px; }
+.qe-option-tools { display: flex; align-items: center; min-height: 44px; }
+.qe-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+  transition: background-color .3s var(--m-ease), color .2s ease;
+}
+.qe-icon svg { width: 20px; height: 20px; }
+.qe-icon:hover:not(:disabled) { background: var(--sf-tint); color: var(--sf-ink); }
+.qe-icon:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: -2px; }
+.qe-icon:disabled { opacity: .5; cursor: default; }
+/* What is ticked and what the student does: one quiet line under the options (with «Сделать с одним ответом»). */
+.qe-kind-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 18px; margin-top: 10px; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
+.qe-kind-line p { margin: 0; text-wrap: pretty; }
+.qe-kind-line .sf-link { min-height: 44px; margin: -12px 0; vertical-align: baseline; }
 .qe-hint { margin: 12px 0 0; font-size: 14px; color: var(--sf-muted); }
+/* A touch screen pastes no picture with Ctrl+V: the hint would only puzzle. */
+@media (pointer: coarse) {
+  .qe-hint { display: none; }
+}
 /* The explanation's counter near its limit; over it the figure turns ink and bold, and a problem line says it too. */
 .qe-count { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); text-align: right; font-variant-numeric: tabular-nums; }
 .qe-count[data-over] { color: var(--sf-ink); font-weight: 600; }
@@ -331,8 +363,37 @@
 }
 .qe-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 18px; }
 .qe-same { font-size: 14px; color: var(--sf-muted); }
+/* «В вопросе N есть несохранённые правки»: a soft block with the yellow dot, in place of the editor's buttons. */
+.qe-unsaved {
+  margin-top: 18px;
+  padding: 14px 18px 16px;
+  border-radius: 20px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  scroll-margin: 96px 0 120px;
+}
+.qe-unsaved-text { position: relative; margin: 0; padding-left: 17px; font-size: 16px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); text-wrap: pretty; }
+.qe-unsaved-text::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc((1.45em - 9px) / 2);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.qe-unsaved .qe-actions { margin-top: 12px; }
 
 @media (max-width: 639px) {
-  .qe-option { grid-template-columns: 34px minmax(0, 1fr); padding: 10px 10px 8px 6px; gap: 8px; }
-  .qe-actions .sf-primary { flex: 1 1 auto; justify-content: center; }
+  .qe-option { gap: 0 2px; padding: 4px 2px 4px 6px; }
+  /* The letter under the tick: the field keeps the room a long option needs. */
+  .qe-right { flex-direction: column; justify-content: center; gap: 1px; min-width: 28px; padding: 0 2px; }
+  .qe-right .qe-letter { min-width: 0; font-size: 13px; line-height: 1.1; }
+  .qe-icon { width: 34px; }
+  .qe-actions .sf-primary { flex: 1 1 100%; justify-content: space-between; }
+  .qe-unsaved { padding: 12px 14px 14px; border-radius: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qe-icon { transition: none; }
 }

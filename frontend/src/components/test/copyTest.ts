@@ -13,6 +13,9 @@ export type BuildType = 'single' | 'multiple' | 'short' | 'truefalse';
 
 export const NEW_TEST = {
   entry: 'Новый тест',
+  /** Under the two doors on «Экзамены» (release 47, M11): what each one makes. */
+  examNote: 'Экзамен — план подготовки по вопросам и лекциям',
+  entryNote: 'Тест — свои вопросы, ученикам по ссылке',
   /** On the empty «Экзамены», under the import's door. */
   emptyLead: 'Файла нет? Напишите вопросы сами:',
   docTitle: 'Новый тест',
@@ -62,6 +65,8 @@ export const BUILD = {
   cancel: 'Отмена',
   empty: 'В тесте пока нет вопросов. Выберите, с какого начать.',
   rightWord: 'верный',
+  /** A question without its key, on the card and in the editor (release 47, M10). */
+  noKey: 'Не отмечен верный ответ: вопрос не попадёт в контрольную и в повторение.',
   forms: 'Принятые ответы',
   explanation: 'Пояснение',
   copy: 'Копия',

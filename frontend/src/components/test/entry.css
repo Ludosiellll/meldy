@@ -1,8 +1,19 @@
 /*
- * «Экзамены» (pages/Exams.tsx): «Новый экзамен» and «Новый тест» side by side, two white pills; on a phone they wrap
- * under the heading from the left. Only drawn for an account with exams in the new form: the page of an account
- * without them stays as it was.
+ * «Экзамены» (pages/Exams.tsx): «Новый экзамен» and «Новый тест» side by side, two white pills, each with one quiet
+ * line under it of what it makes (release 47, M11). On a computer the pills stand on the heading's line at the right
+ * and the lines hang under them, two short balanced lines each; on a tablet and a phone the pair goes under the
+ * heading from the left (on a phone one door under the other). Only drawn for an account with exams in the new form:
+ * the page of an account without them stays as it was.
  */
-.sf-page .ex-draw[data-pair] { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px 12px; }
-/* A phone: the row takes the line's width, so the second pill wraps instead of running into the gutter. */
-.sf-page[data-frame='s'] .ex-draw[data-pair] { flex: 1 1 100%; min-width: 0; justify-content: flex-start; }
+.sf-page .ex-head:has(> .ex-draw[data-pair]) { align-items: flex-start; }
+.sf-page .ex-draw[data-pair] { display: flex; flex-wrap: nowrap; justify-content: flex-end; align-items: flex-start; gap: 12px 24px; padding-bottom: 0; }
+.sf-page .ex-draw[data-pair] .tb-door { display: grid; justify-items: start; gap: 8px; min-width: 0; width: max-content; max-width: 260px; }
+.sf-page .ex-draw[data-pair] .tb-door-note { margin: 0; padding: 0 4px; font-size: 14px; line-height: 1.4; color: var(--sf-muted); text-wrap: balance; }
+
+/* A tablet: no room beside the heading for both doors with their lines; they go under it, in a row. */
+.sf-page[data-frame='m'] .ex-head:has(> .ex-draw[data-pair]) { flex-wrap: wrap; gap: 16px 24px; }
+.sf-page[data-frame='m'] .ex-head:has(> .ex-draw[data-pair]) > :first-child { flex-basis: 100%; }
+.sf-page[data-frame='s'] .ex-draw[data-pair],
+.sf-page[data-frame='m'] .ex-draw[data-pair] { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-start; }
+/* A phone: one door under the other, the line under its pill as wide as the screen lets it. */
+.sf-page[data-frame='s'] .ex-draw[data-pair] .tb-door { flex: 1 1 100%; width: auto; max-width: none; }

@@ -47,6 +47,8 @@ export const EDITOR = {
   pictures: 'Картинки',
   addPicture: 'Картинка',
   addPictureFull: 'Добавить картинку',
+  /** The picture button of an option's row (an icon: its name is read out). */
+  optionPicture: (l: string) => `Картинка к варианту ${l}`,
   removePicture: 'Убрать картинку',
   pasteHint: 'Картинку можно вставить в поле: Ctrl+V.',
   options: 'Варианты ответа',
@@ -58,14 +60,33 @@ export const EDITOR = {
   removeWord: 'Убрать',
   keepOrder: 'Не перемешивать варианты',
   forms: 'Принятые ответы через «;»',
-  explanation: 'Пояснение — видно после ответа',
+  explanation: 'Пояснение — ученик увидит его вместе с верным ответом',
   /** The explanation's heading where it is shown: after an answer in a «занятие», in «Вопросы и ключи». */
   explanationShown: 'Пояснение',
   /** Near the limit: «1 850 из 2000». */
   explanationCount: (n: number, max: number) => `${n} из ${max}`,
   save: 'Сохранить',
+  /** A new question in «Конструктор»: saved, and a blank one of the same kind opens under it. */
+  saveNext: 'Сохранить и следующий',
   add: 'Добавить вопрос',
   cancel: 'Отмена',
+  /** Another question, «Добавить вопрос» or a way off the page while this one holds changes. */
+  unsaved: (n: number) => `В вопросе ${n} есть несохранённые правки`,
+  discard: 'Не сохранять',
+  /**
+   * The live line under the options (release 47, M5): how many are ticked and what the student does — «Отмечен 1
+   * верный — ученик выберет один вариант», «Отмечено 2 верных — ученик выберет несколько». The ticks themselves show
+   * which. `multiple` — the author chose several answers; `forced` — the author chose one answer and ticked several:
+   * the question is saved with several, and the line says so.
+   */
+  ticked: (marked: readonly number[], multiple: boolean, forced = false) => {
+    const n = marked.length;
+    const does = n >= 2 ? 'ученик выберет несколько' : multiple ? 'ученик может отметить несколько' : 'ученик выберет один вариант';
+    const head = n === 0 ? 'Не отмечен ни один верный' : `${plural(n, 'Отмечен', 'Отмечено', 'Отмечено')} ${n} ${plural(n, 'верный', 'верных', 'верных')}`;
+    return `${head} — ${does}${forced ? '. Вопрос сохранится как «Несколько ответов»' : ''}`;
+  },
+  /** A question with several answers and one tick: back to one answer. */
+  makeSingle: 'Сделать с одним ответом',
   saving: 'Сохраняем…',
   uploading: 'Загружаем картинку…',
   resets: 'Меняется ключ или число вариантов: у участников этот вопрос начнётся заново.',

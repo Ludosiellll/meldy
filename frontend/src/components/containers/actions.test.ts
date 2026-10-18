@@ -4,7 +4,7 @@ vi.mock('../../api/containers', () => ({ containerErrorText: vi.fn(), deleteSubj
 
 import { examActions, examLinks } from './actions';
 import { SETTINGS } from './copyImport';
-import { CONTAINER, summary } from './testkit/fixtures';
+import { CONTAINER, subject, summary } from './testkit/fixtures';
 
 const settings = `/exams/c/${CONTAINER}/settings`;
 
@@ -29,6 +29,16 @@ describe('examActions: the exam’s «⋯»', () => {
     expect(actions.find((action) => action.key === 'quizzes')).toMatchObject({ label: 'Контрольные', to: `/exams/c/${CONTAINER}/quizzes` });
     expect(actions.find((action) => action.key === 'delete')?.to).toBe(`${settings}#delete`);
     expect(actions.some((action) => action.label === SETTINGS.leave)).toBe(false);
+  });
+
+  it('what «Новый тест» makes keeps the same order: the summary cannot tell a test from an exam (release 47, M11)', () => {
+    // One subject «Вопросы» without a date, topics or lectures: an import without them looks exactly the same.
+    const test = summary({
+      exam_date: null,
+      owner: { members: 0, doubts_open: 0, links: [] },
+      subjects: [subject({ title: 'Вопросы', exam_date: null, oral: null, topic_titles: [], topics: [] })],
+    });
+    expect(examActions(test).map((action) => action.key)).toEqual(['invite', 'keys', 'build', 'quizzes', 'minutes', 'add', 'settings', 'delete']);
   });
 
   it('examLinks names the settings page’s sections', () => {

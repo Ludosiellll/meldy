@@ -7,7 +7,8 @@ import { BUILD } from './copyTest';
 /**
  * The builder's questions of one subject, in order: a card each (BuildCard), or the editor in its place while it is
  * open (the page draws the editor: `renderEditor`). Under a card, the line its last change left and, after «Удалить»,
- * the question whether to delete it. The list knows nothing of the API: the page acts on `onAction`, `onDelete`.
+ * the question whether to delete it. The list knows nothing of the API: the page acts on `onAction`, `onDelete`. Each
+ * row carries its question's id (`data-item`): the page brings a saved card into view by it.
  */
 
 export interface CardNote {
@@ -39,7 +40,7 @@ export default function QuestionList({ items, busy, notes, askDelete, group, edi
       {items.map((item, index) => {
         if (editing === item.id) {
           return (
-            <li key={item.id}>
+            <li key={item.id} data-item={item.id}>
               <div className="tb-edit" data-editing={item.id}>
                 {renderEditor(item, index + 1)}
               </div>
@@ -49,7 +50,7 @@ export default function QuestionList({ items, busy, notes, askDelete, group, edi
         const note = notes[item.id];
         const asking = askDelete === item.id;
         return (
-          <li key={item.id}>
+          <li key={item.id} data-item={item.id}>
             <BuildCard
               item={item}
               number={index + 1}

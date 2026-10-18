@@ -105,6 +105,25 @@ describe('copyImport: the words of the import, keys, settings and group screens'
     expect(lettersText([0, 2, 3])).toBe('А, В и Г');
   });
 
+  it('the question editor of release 47: the explanation’s label, changes not saved, the line under the options', () => {
+    expect(copy.EDITOR.explanation).toBe('Пояснение — ученик увидит его вместе с верным ответом');
+    expect(copy.EDITOR.unsaved(3)).toBe('В вопросе 3 есть несохранённые правки');
+    expect(copy.EDITOR.discard).toBe('Не сохранять');
+    expect(copy.EDITOR.saveNext).toBe('Сохранить и следующий');
+    expect(copy.EDITOR.optionPicture('Б')).toBe('Картинка к варианту Б');
+    const { ticked } = copy.EDITOR;
+    // The decided words (release 47, M5): how many are ticked and what the student does; the ticks show which.
+    expect(ticked([], false)).toBe('Не отмечен ни один верный — ученик выберет один вариант');
+    expect(ticked([], true)).toBe('Не отмечен ни один верный — ученик может отметить несколько');
+    expect(ticked([1], false)).toBe('Отмечен 1 верный — ученик выберет один вариант');
+    expect(ticked([1], true)).toBe('Отмечен 1 верный — ученик может отметить несколько');
+    expect(ticked([0, 2], true)).toBe('Отмечено 2 верных — ученик выберет несколько');
+    expect(ticked([0, 2], false, true)).toBe('Отмечено 2 верных — ученик выберет несколько. Вопрос сохранится как «Несколько ответов»');
+    expect(ticked([0, 1, 2, 3, 4], true)).toBe('Отмечено 5 верных — ученик выберет несколько');
+    // No exclamation marks in the editor's words.
+    expect(strings(copy.EDITOR).filter((line) => line.includes('!'))).toEqual([]);
+  });
+
   it('uses the corrected lines of the design table, not the concept’s', () => {
     expect(IMPORT.lede).toBe('Один общий файл или по файлу на предмет.');
     expect(IMPORT.problems(11)).toBe(`Проверьте 11${NBSP}вопросов — можно и после сохранения.`);

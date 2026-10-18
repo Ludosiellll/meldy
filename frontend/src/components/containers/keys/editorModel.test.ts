@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { EXPLANATION_MAX, PICTURE_STEM, type TestItem } from '../../../types/container';
 import {
+  appendOption,
+  draftChanged,
   draftOf,
   draftProblems,
   emptyDraft,
   explanationText,
   formsOf,
   inputOf,
+  kindForced,
+  kindOf,
   nextFileNo,
   patchOf,
   removeOption,
   resetsProgress,
   searchItems,
+  tickOnly,
+  toggleTick,
   type Draft,
 } from './editorModel';
 
@@ -234,5 +240,78 @@ describe('searchItems', () => {
     expect(searchItems(items, 'ежи лес').map((found) => found.id)).toEqual(['b']);
     expect(searchItems(items, 'ежи битва')).toEqual([]);
     expect(searchItems(items, '  ')).toEqual([]);
+  });
+});
+
+describe('the kind the author chose (release 47, M5)', () => {
+  it('keeps «несколько ответов» with one tick or none, and says nothing changed', () => {
+    const several = item({ kind: 'multiple', correct: [0, 2] });
+    const draft = draftOf(several);
+    expect(draft.multiple).toBe(true);
+    expect(kindOf({ ...draft, correct: [0] })).toBe('multiple');
+    expect(kindOf({ ...draft, correct: [] })).toBe('multiple');
+    expect(patchOf(several, { ...draft, correct: [0] })).toEqual({ correct: [0] });
+    expect(kindForced({ ...draft, correct: [0] })).toBe(false);
+  });
+
+  it('makes a one-answer question one with several at two ticks, and says it was forced', () => {
+    const draft = draftOf(item());
+    expect(draft.multiple).toBe(false);
+    expect(kindOf(draft)).toBe('single');
+    expect(kindOf({ ...draft, correct: [0, 1] })).toBe('multiple');
+    expect(kindForced({ ...draft, correct: [0, 1] })).toBe(true);
+    // Back to one tick: back to the author's one answer.
+    expect(kindOf({ ...draft, correct: [1] })).toBe('single');
+  });
+
+  it('turns «несколько ответов» back to one answer when the author says so', () => {
+    const several = item({ kind: 'multiple', correct: [1] });
+    expect(patchOf(several, { ...draftOf(several), multiple: false })).toEqual({ kind: 'single' });
+  });
+
+  it('a draft without the flag (an older caller) reads as one answer', () => {
+    const older: Draft = { ...draftOf(item()) };
+    delete older.multiple;
+    expect(kindOf(older)).toBe('single');
+    expect(inputOf({ ...older, correct: [0, 1] }, '7', 'man:x').kind).toBe('multiple');
+  });
+
+  it('a new question of «несколько ответов» is saved as such with one tick', () => {
+    const draft: Draft = { ...emptyDraft(), stem: 'Q', options: [{ text: 'a', pictures: [] }, { text: 'b', pictures: [] }], correct: [1], multiple: true };
+    expect(inputOf(draft, '1', 'man:y')).toMatchObject({ kind: 'multiple', correct: [1] });
+  });
+});
+
+describe('ticks and options', () => {
+  it('a tick on and off keeps the key in option order', () => {
+    const draft: Draft = { ...emptyDraft(), options: [0, 1, 2].map(() => ({ text: 'x', pictures: [] })) };
+    expect(toggleTick({ ...draft, correct: [2] }, 0).correct).toEqual([0, 2]);
+    expect(toggleTick({ ...draft, correct: [0, 2] }, 2).correct).toEqual([0]);
+  });
+  it('«верно / неверно» takes one tick at a time', () => {
+    expect(tickOnly({ ...emptyDraft(), correct: [0] }, 1).correct).toEqual([1]);
+  });
+  it('adds an empty option at the end', () => {
+    expect(appendOption(emptyDraft()).options).toEqual([
+      { text: '', pictures: [] },
+      { text: '', pictures: [] },
+      { text: '', pictures: [] },
+    ]);
+  });
+});
+
+describe('draftChanged', () => {
+  it('follows patchOf for a question opened from the list', () => {
+    expect(draftChanged(item(), draftOf(item()))).toBe(false);
+    expect(draftChanged(item(), { ...draftOf(item()), explanation: 'Слева — вход.' })).toBe(true);
+    // Spaces after the words are not a change.
+    expect(draftChanged(item(), { ...draftOf(item()), stem: 'Что означает стрелка слева?  ' })).toBe(false);
+  });
+  it('compares a new question of «Вопросы и ключи» with the empty one', () => {
+    expect(draftChanged(null, emptyDraft())).toBe(false);
+    expect(draftChanged(null, { ...emptyDraft(), short: true })).toBe(false);
+    expect(draftChanged(null, { ...emptyDraft(), stem: 'Что такое шлюз?' })).toBe(true);
+    expect(draftChanged(null, { ...emptyDraft(), correct: [1] })).toBe(true);
+    expect(draftChanged(null, { ...emptyDraft(), short: true, forms: 'Шлюз' })).toBe(true);
   });
 });

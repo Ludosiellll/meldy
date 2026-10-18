@@ -8,7 +8,9 @@ import { letter } from '../copyImport';
  * input of a new question for container_items_add, and the database trigger's rule of when everyone's progress on the
  * question restarts (decision 15). A picture stands for its words: a stem or option that is only a picture is saved as
  * «Вопрос на картинке» / «Рисунок Б» and shown back empty here. The explanation (release 47, ≤ EXPLANATION_MAX) is
- * shown after an answer; changing it never restarts anybody's progress.
+ * shown after an answer; changing it never restarts anybody's progress. A choice question keeps the kind the author
+ * gave it (release 47, M5): «несколько ответов» stays so with one tick; two ticks make any choice question one with
+ * several answers (the database refuses a one-answer question with two keys).
  */
 
 export interface DraftOption {
@@ -25,6 +27,11 @@ export interface Draft {
   options: DraftOption[];
   /** Ticked options, file order. */
   correct: number[];
+  /**
+   * The kind the author chose for a choice question: several answers even with one tick (or none). Absent or false —
+   * one answer while at most one option is ticked. Two ticks always make it several (kindOf).
+   */
+  multiple?: boolean;
   /** A short answer's accepted forms, «;» between them. */
   forms: string;
   /** «Пояснение»: shown after an answer; '' — none. */
@@ -60,6 +67,7 @@ export function draftOf(item: TestItem): Draft {
     short,
     options: short ? [] : item.options.map((text, index) => ({ text: isPictureWord(text) ? '' : text, pictures: [...(item.images?.options?.[index] ?? [])] })),
     correct: short ? [] : sorted(item.correct),
+    multiple: item.kind === 'multiple',
     forms: item.answers.join('; '),
     explanation: item.explanation ?? '',
   };
@@ -77,6 +85,7 @@ export function emptyDraft(): Draft {
       { text: '', pictures: [] },
     ],
     correct: [],
+    multiple: false,
     forms: '',
     explanation: '',
   };
@@ -134,9 +143,49 @@ export function draftProblems(draft: Draft): DraftProblem[] {
   return problems;
 }
 
-function kindOf(draft: Draft): ItemKind {
+/** The kind the question is saved as: the author's, unless two ticks make a one-answer question one with several. */
+export function kindOf(draft: Pick<Draft, 'short' | 'correct' | 'multiple'>): ItemKind {
   if (draft.short) return 'short';
-  return draft.correct.length >= 2 ? 'multiple' : 'single';
+  return draft.correct.length >= 2 || draft.multiple ? 'multiple' : 'single';
+}
+
+/** The author chose one answer and ticked two or more: the question is saved with several (the live line says so). */
+export const kindForced = (draft: Pick<Draft, 'short' | 'correct' | 'multiple'>) => !draft.short && !draft.multiple && draft.correct.length >= 2;
+
+/** One tick only (a «верно / неверно» question): the option becomes the key, the others lose theirs. */
+export function tickOnly(draft: Draft, index: number): Draft {
+  return { ...draft, correct: [index] };
+}
+
+/** A tick on or off; the order of the key follows the options. */
+export function toggleTick(draft: Draft, index: number): Draft {
+  const correct = draft.correct.includes(index) ? draft.correct.filter((at) => at !== index) : [...draft.correct, index];
+  return { ...draft, correct: sorted(correct) };
+}
+
+/** One more empty option at the end. */
+export function appendOption(draft: Draft): Draft {
+  return { ...draft, options: [...draft.options, { text: '', pictures: [] }] };
+}
+
+/**
+ * The editor holds something not saved: the draft differs from the question it was opened on (patchOf), or, for a
+ * question of «Вопросы и ключи» that starts empty, from the empty draft.
+ */
+export function draftChanged(item: TestItem | null, draft: Draft): boolean {
+  if (item) return patchOf(item, draft) !== null;
+  const blank = emptyDraft();
+  const held = (d: Draft) => ({
+    stem: d.stem.trim(),
+    stemPictures: d.stemPictures,
+    code: d.code,
+    keepOrder: d.keepOrder,
+    options: d.short ? blank.options : d.options,
+    correct: d.short ? [] : d.correct,
+    forms: d.short ? d.forms.trim() : '',
+    explanation: d.explanation.trim(),
+  });
+  return !same(held(draft), held(blank));
 }
 
 function imagesOf(draft: Draft): Required<ItemImages> {

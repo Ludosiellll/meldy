@@ -248,6 +248,17 @@ function onIPhone(): boolean {
   }
 }
 
+/** The dark circle with a plus of «Новый экзамен» / «Новый тест» (prototype .pill.white). */
+function NewDot() {
+  return (
+    <span className="ex-new-dot" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </span>
+  );
+}
+
 /**
  * No exam yet, with the exam container in the database (Concept 1 §3.1, the design critique's words): one door,
  * /exams/import, for any file or a list typed in; the example one quiet link away. «Новый экзамен» at the top is left
@@ -402,25 +413,35 @@ export default function Exams() {
           <div className="ex-draw" data-pair={containers.length > 0 ? '' : undefined}>
             {/* One door (spec decision 21). Without containers the old address stays (App.tsx sends it on to
                 /exams/import), so such an account's page is today's to the byte. */}
-            <Link className="ex-secondary ex-new" to={containers.length > 0 ? '/exams/import' : '/exams/new'}>
-              Новый экзамен
-              <span className="ex-new-dot" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </span>
-            </Link>
+            {containers.length > 0 ? (
+              // Beside «Новый тест» each door says in one quiet line what it makes (release 47, M11).
+              <div className="tb-door">
+                <Link className="ex-secondary ex-new" to="/exams/import" aria-describedby="ex-door-exam">
+                  Новый экзамен
+                  <NewDot />
+                </Link>
+                <p id="ex-door-exam" className="tb-door-note">
+                  {NEW_TEST.examNote}
+                </p>
+              </div>
+            ) : (
+              <Link className="ex-secondary ex-new" to="/exams/new">
+                Новый экзамен
+                <NewDot />
+              </Link>
+            )}
             {/* «Новый тест» (spec 2026-10-18 §47.2): questions written in the builder. A white pill too, so the
                 page keeps one blue one; for the same reason as above only beside the containers' door. */}
             {containers.length > 0 ? (
-              <Link className="ex-secondary ex-new" to="/tests/new">
-                {NEW_TEST.entry}
-                <span className="ex-new-dot" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </span>
-              </Link>
+              <div className="tb-door">
+                <Link className="ex-secondary ex-new" to="/tests/new" aria-describedby="ex-door-test">
+                  {NEW_TEST.entry}
+                  <NewDot />
+                </Link>
+                <p id="ex-door-test" className="tb-door-note">
+                  {NEW_TEST.entryNote}
+                </p>
+              </div>
             ) : null}
           </div>
         )}

@@ -4,26 +4,28 @@ import TypeChoice from './TypeChoice';
 import type { BuildType } from './copyTest';
 
 /**
- * The row above the builder's questions: «Добавить вопрос», which asks the kind first (TypeChoice), the line an added
- * question leaves, and room for the page's other tools (`children`, drawn after «Добавить вопрос»).
+ * «Добавить вопрос», which asks the kind first (TypeChoice): above the builder's questions and again under the last
+ * card (release 47, M2: the next question is written where it will stand), with room for the page's other tools
+ * (`children`, drawn after «Добавить вопрос»).
  */
 
+/** Above the list or under it; the page finds each one's buttons by `data-place`. */
+export type ToolbarPlace = 'top' | 'end';
+
 interface Props {
-  /** «Добавить вопрос» is offered (not while an editor is open, nor on an empty test: it shows the kinds itself). */
+  place: ToolbarPlace;
+  /** «Добавить вопрос» is offered (not on an empty test: it shows the kinds itself). */
   canAdd: boolean;
   /** The kinds are shown in place of «Добавить вопрос». */
   choosing: boolean;
   onChoosing: (open: boolean) => void;
   onPick: (type: BuildType) => void;
-  /** The line after a change made from here («Вопрос 5 добавлен.»). */
-  note?: string | null;
   children?: ReactNode;
 }
 
-export default function BuildToolbar({ canAdd, choosing, onChoosing, onPick, note = null, children }: Props) {
-  // Always drawn, so its status line is in place before a line comes (an empty row and line take no room: build.css).
+export default function BuildToolbar({ place, canAdd, choosing, onChoosing, onPick, children }: Props) {
   return (
-    <div className="tb-tools">
+    <div className="tb-tools" data-place={place}>
       {canAdd && choosing ? (
         <TypeChoice onPick={onPick} onCancel={() => onChoosing(false)} />
       ) : (
@@ -41,9 +43,6 @@ export default function BuildToolbar({ canAdd, choosing, onChoosing, onPick, not
           {children}
         </div>
       )}
-      <p className="tb-tools-note" role="status">
-        {note ?? ''}
-      </p>
     </div>
   );
 }

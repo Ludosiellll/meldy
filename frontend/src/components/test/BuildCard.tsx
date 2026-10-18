@@ -1,6 +1,6 @@
 import { useId, type CSSProperties, type ReactNode } from 'react';
 import { isPictureWord, type TestItem } from '../../types/container';
-import { EDITOR, KEYS, letter, QUEUE } from '../containers/copyImport';
+import { KEYS, letter, QUEUE } from '../containers/copyImport';
 import ItemPictures, { storedPictures, type PictureSource } from '../containers/ItemPictures';
 import { leadingSpaces, stemParts } from '../containers/stemCode';
 import { isKeyed, typeOf } from './buildModel';
@@ -109,7 +109,7 @@ export default function BuildCard({ item, number, first, last, busy, locked, sho
             </ul>
           </div>
         ) : (
-          <p className="tb-warn">{KEYS.noKeyNow}</p>
+          <p className="tb-warn">{BUILD.noKey}</p>
         )
       ) : (
         <ol className="tb-options">
@@ -133,7 +133,7 @@ export default function BuildCard({ item, number, first, last, busy, locked, sho
           })}
         </ol>
       )}
-      {item.kind !== 'short' && !keyed ? <p className="tb-warn">{EDITOR.noKey}</p> : null}
+      {item.kind !== 'short' && !keyed ? <p className="tb-warn">{BUILD.noKey}</p> : null}
 
       {explanation ? (
         <div className="tb-expl">

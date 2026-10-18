@@ -76,7 +76,9 @@ export function examActions(summary: ContainerSummary): HeadAction[] {
   return [
     { key: 'invite', label: copy.MENU_INVITE, to: links.invite },
     { key: 'keys', label: waiting > 0 ? copy.menuKeysWaiting(waiting) : copy.MENU_KEYS, to: links.keys },
-    // «Конструктор» (spec 2026-10-18 §47.2): the questions as cards to add, copy, move and send by link.
+    // «Конструктор» (spec 2026-10-18 §47.2): the questions as cards to add, copy, move and send by link. It stays after
+    // «Ключи» for a test too (release 47, M11): the summary does not tell a test from an exam — «Новый тест» makes one
+    // subject without a date, and an import without a date, topics or lectures reads the same.
     { key: 'build', label: BUILD.label, to: `/exams/c/${summary.id}/build` },
     { key: 'quizzes', label: QUIZ.names, to: `/exams/c/${summary.id}/quizzes` },
     { key: 'minutes', label: copy.MENU_MINUTES, to: links.minutes },

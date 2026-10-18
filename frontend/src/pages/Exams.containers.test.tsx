@@ -379,8 +379,12 @@ describe('«Экзамены» with exam containers', () => {
     const entry = screen.getByRole('link', { name: 'Новый тест' });
     expect(entry).toHaveAttribute('href', '/tests/new');
     expect(entry).toHaveClass('ex-secondary');
-    expect(entry.parentElement).toBe(screen.getByRole('link', { name: 'Новый экзамен' }).parentElement);
-    expect(entry.parentElement).toHaveAttribute('data-pair');
+    const door = screen.getByRole('link', { name: 'Новый экзамен' });
+    expect(entry.closest('[data-pair]')).not.toBeNull();
+    expect(entry.closest('[data-pair]')).toBe(door.closest('[data-pair]'));
+    // Each door says in one quiet line what it makes (release 47, M11).
+    expect(door).toHaveAccessibleDescription('Экзамен — план подготовки по вопросам и лекциям');
+    expect(entry).toHaveAccessibleDescription('Тест — свои вопросы, ученикам по ссылке');
     expect(screen.queryByRole('heading', { name: 'Загрузите вопросы к экзамену' })).toBeNull();
     expect(mocks.fetchQuestionEvents).not.toHaveBeenCalled();
   });
