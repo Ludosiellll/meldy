@@ -4,6 +4,17 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-18 — Release 47.1: the release 47 live check's findings (from the commit of this entry)
+
+- **Phone:** the quiz setup's «Отмена / Создать» (and «Сохранить», «Новая контрольная») sit above the bottom tab bar, not
+  under it. **Laptop 734 px:** «Ещё настройки» stands at the top of the right column, in view without scrolling.
+- **The clock:** the 5-minute warning only for attempts longer than 5 minutes (a 5-minute test no longer starts red);
+  the 1-minute warning for anything longer than a minute.
+- **Words:** the guest page drops «экзамен «…»» when it repeats the test's name; «После сдачи предложить тренировать эти
+  вопросы в Meldy»; the author on their own /k sees «Имя и фамилия»; stats hide «Попытки» for one-attempt tests and say
+  «меньше минуты»; «Вопрос N добавлен.» is announced once; the two lines under «Новый экзамен» / «Новый тест» wrap alike.
+- Gate on b686771: pytest 2069, bot 359, sync ok, Vitest 312 files / 5660 tests, Docker-layout build ok.
+
 ## 2026-10-18 — Release 47: tests without sign-in, «Новый тест», explanations, the test's look, «Перенести экзамен» (from the commit of this entry)
 
 - **The owner, 18.10:** «давай добавим все и обойдем даже то, в чем они сильнее»; «все новые функции должны быть на
