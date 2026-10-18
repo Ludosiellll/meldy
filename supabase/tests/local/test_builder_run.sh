@@ -86,14 +86,17 @@ for f in 20261014120000_test_item_images.sql 20261016100000_item_update_images.s
   step "base: $f" "$SB/migrations/$f"
 done
 
-# The catalog the migration and its rollback touch: every function of public and meldy_private (source and grants),
-# their relations (RLS, grants), columns, constraints, indexes, the storage policies and the buckets.
+# The catalog the migration and its rollback touch: every function of public, meldy_private and meldy_storage (source
+# and grants), those schemas (present, grants), their relations (RLS, grants), columns, constraints, indexes, the
+# storage policies and the buckets.
 fingerprint() { local f; f=$(fingerprint_sql) && [ -n "$f" ] && echo "$f" || echo "fingerprint failed $RANDOM"; }
 fingerprint_sql() {
   q "select md5(concat_ws('|',
      (select string_agg(p.oid::regprocedure::text || pg_get_functiondef(p.oid) || coalesce(p.proacl::text, ''), '' order by p.oid::regprocedure::text)
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname in ('public', 'meldy_private') and p.prokind in ('f', 'p')),
+       where n.nspname in ('public', 'meldy_private', 'meldy_storage') and p.prokind in ('f', 'p')),
+     (select string_agg(nspname || ':' || coalesce(nspacl::text, ''), ',' order by nspname) from pg_namespace
+       where nspname in ('public', 'meldy_private', 'meldy_storage')),
      (select string_agg(n.nspname || '.' || c.relname || ':' || c.relkind::text || ':' || c.relrowsecurity::text || ':' || coalesce(c.relacl::text, ''), ','
                         order by n.nspname, c.relname)
         from pg_class c join pg_namespace n on n.oid = c.relnamespace

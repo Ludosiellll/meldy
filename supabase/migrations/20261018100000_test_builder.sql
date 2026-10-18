@@ -24,7 +24,9 @@
 -- 5. Cover and colour (cover_path in the public bucket quiz-covers, accent), and «тренироваться дальше»
 --    (offer_practice → quiz_practice_join makes the taker a member of the exam, as a group link would).
 -- 6. Pictures for guests: anon reads test-item-images only at the paths of the items of guest quizzes' subjects
---    (public.guest_quiz_picture_paths()), not whole exam folders.
+--    (meldy_storage.guest_quiz_picture_paths()), not whole exam folders. The function lives in its own schema, which
+--    the API does not expose (PostgREST serves public and graphql_public only): the storage policy can call it, a
+--    client cannot call it as an RPC to list every guest quiz's pictures.
 -- The key and the explanation leave the server only through the result, and only when the review shows the answers.
 -- Re-runnable: IF NOT EXISTS, OR REPLACE, guarded DO blocks; CREATE OR REPLACE keeps the grants of replaced functions;
 -- a second apply leaves the catalog as the first one did. The whole file is one request (supabase/migrate.py).
@@ -1511,8 +1513,14 @@ $fn$;
 
 -- 8. Pictures and covers.
 -- 8a. The picture paths a guest may read: stems and options of every item in the subjects of quizzes that take guests
---     (any state: the review after the closing still shows them). The storage policy below reads it for anon.
-create or replace function public.guest_quiz_picture_paths()
+--     (any state: the review after the closing still shows them). The storage policy below reads it for anon, so anon
+--     needs USAGE on the schema and EXECUTE on the function; the schema holds this function only and is not exposed by
+--     the API, so the list never leaves through PostgREST.
+create schema if not exists meldy_storage;
+comment on schema meldy_storage is 'Helpers of storage policies (not an API: not exposed by PostgREST). Called by policies only.';
+revoke all on schema meldy_storage from public;
+grant usage on schema meldy_storage to anon, authenticated;
+create or replace function meldy_storage.guest_quiz_picture_paths()
 returns setof text
 language sql
 stable
@@ -1544,7 +1552,7 @@ begin
   if not exists (select 1 from pg_catalog.pg_policies where schemaname = 'storage' and tablename = 'objects'
                  and policyname = 'Test item images: quiz guests read') then
     create policy "Test item images: quiz guests read" on storage.objects for select to anon
-      using (bucket_id = 'test-item-images' and name in (select public.guest_quiz_picture_paths()));
+      using (bucket_id = 'test-item-images' and name in (select meldy_storage.guest_quiz_picture_paths()));
   end if;
   if not exists (select 1 from pg_catalog.pg_policies where schemaname = 'storage' and tablename = 'objects'
                  and policyname = 'Quiz covers: owner uploads') then
@@ -1580,15 +1588,16 @@ begin
 end;
 $do$;
 
--- 9. Grants. Guests (anon) run the preview, the four guest calls and the picture paths; claim, practice and reorder
---    need an account; the helpers stay private (meldy_private has no USAGE for clients anyway).
+-- 9. Grants. Guests (anon) run the preview and the four guest calls; the storage policy runs the picture paths as the
+--    reader (anon, authenticated); claim, practice and reorder need an account; the helpers stay private (meldy_private
+--    has no USAGE for clients anyway).
 revoke all on function public.quiz_preview(text, text), public.quiz_guest_start(text, text, text),
   public.quiz_guest_answer(uuid, text, jsonb), public.quiz_guest_finish(uuid, text), public.quiz_guest_result(uuid, text),
-  public.guest_quiz_picture_paths()
+  meldy_storage.guest_quiz_picture_paths()
   from public;
 grant execute on function public.quiz_preview(text, text), public.quiz_guest_start(text, text, text),
   public.quiz_guest_answer(uuid, text, jsonb), public.quiz_guest_finish(uuid, text), public.quiz_guest_result(uuid, text),
-  public.guest_quiz_picture_paths()
+  meldy_storage.guest_quiz_picture_paths()
   to anon, authenticated;
 revoke all on function public.quiz_guest_claim(text, text), public.quiz_practice_join(text),
   public.container_items_reorder(uuid, uuid[])

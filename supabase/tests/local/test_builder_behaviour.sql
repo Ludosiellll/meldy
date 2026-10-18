@@ -9,7 +9,8 @@
 -- practice; quiz_results' guest flag and person; started by a guest; MC016 per quiz (121 starts in a minute) and per
 -- address (x-forwarded-for), the pruning of the throttle; MC014 past 2000 guest attempts (2000 rows inserted, no session
 -- setting); claim; practice join (off, unfinished, joined like container_join, again, left and back, removed, the author,
--- full at 200); guest_quiz_picture_paths and the anon picture policy; the quiz-covers policies. A failure raises; success
+-- full at 200); meldy_storage.guest_quiz_picture_paths (and none in public: no RPC) and the anon picture policy (a
+-- guest quiz's picture readable, another exam's not); the quiz-covers policies. A failure raises; success
 -- prints BUILDER BEHAVIOUR PASSED.
 \set ON_ERROR_STOP 1
 begin;
@@ -461,15 +462,18 @@ begin
     raise exception 'FAILED: «mistakes» shows an explanation %', r;
   end if;
   perform pg_temp.put('h_att', r ->> 'attempt_id');
+  -- no RPC lists the pictures: public has no guest_quiz_picture_paths (the policy's function lives in meldy_storage,
+  -- which PostgREST does not serve)
+  perform pg_temp.expect_error('select public.guest_quiz_picture_paths()', '42883', 'anon calls public.guest_quiz_picture_paths');
   -- the picture paths a guest may read: S1 (stem and option) and S2 (quizzes with guests); not S3, not exam Y
-  if (select string_agg(p, ',' order by p) from public.guest_quiz_picture_paths() p) is distinct from
+  if (select string_agg(p, ',' order by p) from meldy_storage.guest_quiz_picture_paths() p) is distinct from
      (select string_agg(p, ',' order by p) from (values (pg_temp.pic(pg_temp.c('x'), 1)), (pg_temp.pic(pg_temp.c('x'), 2)),
                                                         (pg_temp.pic(pg_temp.c('x'), 3))) v(p)) then
-    raise exception 'FAILED: guest_quiz_picture_paths %', (select string_agg(p, ',') from public.guest_quiz_picture_paths() p);
+    raise exception 'FAILED: guest_quiz_picture_paths %', (select string_agg(p, ',') from meldy_storage.guest_quiz_picture_paths() p);
   end if;
   -- and the storage policy: anon sees exactly those files (not the unreferenced one of X's folder, not Y's)
   if (select string_agg(name, ',' order by name) from storage.objects where bucket_id = 'test-item-images') is distinct from
-     (select string_agg(p, ',' order by p) from public.guest_quiz_picture_paths() p) then
+     (select string_agg(p, ',' order by p) from meldy_storage.guest_quiz_picture_paths() p) then
     raise exception 'FAILED: anon reads pictures %', (select string_agg(name, ',') from storage.objects);
   end if;
 end

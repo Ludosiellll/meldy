@@ -6,10 +6,11 @@
 -- (members_only never with guests); quiz_attempts: user_id nullable, guest_hash, exactly one of the two, attempt numbers
 -- unique per token, the (quiz_id, guest_hash) index; the throttle table private and closed; every function of the data
 -- contract (docs/superpowers/plans/2026-10-18-test-builder-r47.md) SECURITY DEFINER with an empty search_path; anon runs
--- the preview, the four guest calls and guest_quiz_picture_paths, never claim / practice / reorder; quiz_preview(text)
--- is gone; the person helpers exist and stay private; the attempt JSON carries no key or explanation; the result shows
--- the explanation only with the answers; the bucket quiz-covers is public (3 MB, four image types) and only an exam's
--- owner writes its folder; anon reads test-item-images only through guest_quiz_picture_paths().
+-- the preview and the four guest calls, never claim / practice / reorder; quiz_preview(text) is gone; the person helpers
+-- exist and stay private; the attempt JSON carries no key or explanation; the result shows the explanation only with
+-- the answers; the bucket quiz-covers is public (3 MB, four image types) and only an exam's owner writes its folder;
+-- anon reads test-item-images only through meldy_storage.guest_quiz_picture_paths(), which is not in public (no RPC),
+-- runs for anon and authenticated, and is the only object of its schema.
 -- The behaviour is rehearsed locally: supabase/tests/local/test_builder_run.sh.
 DO $check$
 DECLARE
@@ -114,7 +115,7 @@ BEGIN
   END IF;
   FOREACH v_sig IN ARRAY ARRAY['quiz_preview(text,text)', 'quiz_guest_start(text,text,text)',
       'quiz_guest_answer(uuid,text,jsonb)', 'quiz_guest_finish(uuid,text)', 'quiz_guest_result(uuid,text)',
-      'guest_quiz_picture_paths()', 'quiz_guest_claim(text,text)', 'quiz_practice_join(text)',
+      'quiz_guest_claim(text,text)', 'quiz_practice_join(text)',
       'container_items_reorder(uuid,uuid[])', 'container_items_add(uuid,jsonb)', 'container_item_update(uuid,jsonb)',
       'quiz_create(uuid,jsonb)', 'quiz_update(uuid,jsonb)', 'quiz_list(uuid)', 'quiz_results(uuid)',
       'quiz_start(text,text)', 'quiz_answer(uuid,jsonb)', 'quiz_finish(uuid)', 'quiz_result(uuid)'] LOOP
@@ -131,14 +132,57 @@ BEGIN
     END IF;
     IF pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE')
        <> (v_sig IN ('quiz_preview(text,text)', 'quiz_guest_start(text,text,text)', 'quiz_guest_answer(uuid,text,jsonb)',
-                     'quiz_guest_finish(uuid,text)', 'quiz_guest_result(uuid,text)', 'guest_quiz_picture_paths()')) THEN
+                     'quiz_guest_finish(uuid,text)', 'quiz_guest_result(uuid,text)')) THEN
       RAISE EXCEPTION 'anon_runs_only_the_guest_calls_%', v_sig;
     END IF;
   END LOOP;
-  IF (SELECT pg_catalog.pg_get_function_result(pg_catalog.to_regprocedure('public.guest_quiz_picture_paths()'))) <> 'SETOF text'
-     OR (SELECT pg_catalog.pg_get_function_result(pg_catalog.to_regprocedure('public.container_items_reorder(uuid,uuid[])'))) <> 'void' THEN
+  IF (SELECT pg_catalog.pg_get_function_result(pg_catalog.to_regprocedure('public.container_items_reorder(uuid,uuid[])'))) <> 'void' THEN
     RAISE EXCEPTION 'function_results';
   END IF;
+  -- The guests' picture paths: in meldy_storage, which the API does not expose, so no client calls them as an RPC; the
+  -- storage policy runs them as the reader, so anon and authenticated have USAGE and EXECUTE (and nothing more there).
+  IF pg_catalog.to_regprocedure('public.guest_quiz_picture_paths()') IS NOT NULL THEN
+    RAISE EXCEPTION 'picture_paths_not_in_public';
+  END IF;
+  v_fn := pg_catalog.to_regprocedure('meldy_storage.guest_quiz_picture_paths()');
+  IF v_fn IS NULL THEN
+    RAISE EXCEPTION 'picture_paths_in_meldy_storage';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+                  WHERE p.oid = v_fn AND p.prosecdef AND 'search_path=""' = ANY (p.proconfig)) THEN
+    RAISE EXCEPTION 'picture_paths_definer_with_empty_search_path';
+  END IF;
+  IF pg_catalog.pg_get_function_result(v_fn) <> 'SETOF text' THEN
+    RAISE EXCEPTION 'picture_paths_setof_text';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE')
+     OR NOT pg_catalog.has_schema_privilege('anon', 'meldy_storage', 'USAGE')
+     OR NOT pg_catalog.has_schema_privilege('authenticated', 'meldy_storage', 'USAGE') THEN
+    RAISE EXCEPTION 'picture_paths_run_by_the_readers';
+  END IF;
+  IF pg_catalog.has_schema_privilege('anon', 'meldy_storage', 'CREATE')
+     OR pg_catalog.has_schema_privilege('authenticated', 'meldy_storage', 'CREATE') THEN
+    RAISE EXCEPTION 'meldy_storage_no_create';
+  END IF;
+  IF (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace = 'meldy_storage'::regnamespace) <> 1
+     OR EXISTS (SELECT 1 FROM pg_catalog.pg_class c WHERE c.relnamespace = 'meldy_storage'::regnamespace)
+     OR EXISTS (SELECT 1 FROM pg_catalog.pg_type t WHERE t.typnamespace = 'meldy_storage'::regnamespace) THEN
+    RAISE EXCEPTION 'meldy_storage_holds_only_the_paths';
+  END IF;
+  -- When the API's schemas are kept as a setting of the authenticator role, meldy_storage must not be among them (a
+  -- reader without the right to see role settings skips this check).
+  BEGIN
+    IF EXISTS (SELECT 1 FROM pg_catalog.pg_db_role_setting s
+                 JOIN pg_catalog.pg_roles r ON r.oid = s.setrole
+                CROSS JOIN LATERAL pg_catalog.unnest(s.setconfig) AS c(v)
+                WHERE r.rolname = 'authenticator' AND c.v LIKE 'pgrst.db_schemas=%meldy_storage%') THEN
+      RAISE EXCEPTION 'meldy_storage_not_exposed';
+    END IF;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+  END;
   IF (SELECT pg_catalog.pg_get_function_arguments(pg_catalog.to_regprocedure('public.quiz_preview(text,text)')))
      <> 'p_code text, p_token text DEFAULT NULL::text' THEN
     RAISE EXCEPTION 'quiz_preview_token_optional';
@@ -231,6 +275,14 @@ BEGIN
                     AND p.roles = ARRAY['anon']::name[]
                     AND p.qual LIKE '%test-item-images%' AND p.qual LIKE '%guest_quiz_picture_paths()%') THEN
     RAISE EXCEPTION 'storage_policy_quiz_guests_read';
+  END IF;
+  -- the policy calls the meldy_storage function (its dependency), whatever the reader's search_path prints
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policy p
+                   JOIN pg_catalog.pg_depend d ON d.classid = 'pg_catalog.pg_policy'::regclass AND d.objid = p.oid
+                  WHERE p.polname = 'Test item images: quiz guests read' AND p.polrelid = 'storage.objects'::regclass
+                    AND d.refclassid = 'pg_catalog.pg_proc'::regclass
+                    AND d.refobjid = pg_catalog.to_regprocedure('meldy_storage.guest_quiz_picture_paths()')) THEN
+    RAISE EXCEPTION 'storage_policy_reads_meldy_storage_paths';
   END IF;
   IF (SELECT pg_catalog.count(*) FROM pg_catalog.pg_policies p
        WHERE p.schemaname = 'storage' AND p.tablename = 'objects' AND 'anon' = ANY (p.roles)
