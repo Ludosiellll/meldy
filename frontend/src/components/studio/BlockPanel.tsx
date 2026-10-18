@@ -30,20 +30,22 @@ function PageSettings({ studio }: { studio: Studio }) {
     <div className="st-panel-body">
       <p className="st-lead">{STUDIO.nothingSelected}</p>
       <h3 className="st-panel-h">{STUDIO.pageSettings}</h3>
-      <label className="st-field-label" htmlFor={id}>
-        {STUDIO.pageTitle}
-      </label>
-      <input
-        id={id}
-        className="st-input"
-        value={doc.title}
-        maxLength={DOC_TITLE_MAX}
-        aria-describedby={`${id}-hint`}
-        onChange={(event) => studio.change((current) => ({ ...current, title: event.target.value.replace(/\s*\n\s*/g, ' ') }), typingKey('doc', 'title'))}
-      />
-      <p className="st-field-hint" id={`${id}-hint`}>
-        {STUDIO.pageTitleHint}
-      </p>
+      <div className="st-group">
+        <label className="st-field-label" htmlFor={id}>
+          {STUDIO.pageTitle}
+        </label>
+        <input
+          id={id}
+          className="st-input"
+          value={doc.title}
+          maxLength={DOC_TITLE_MAX}
+          aria-describedby={`${id}-hint`}
+          onChange={(event) => studio.change((current) => ({ ...current, title: event.target.value.replace(/\s*\n\s*/g, ' ') }), typingKey('doc', 'title'))}
+        />
+        <p className="st-field-hint" id={`${id}-hint`}>
+          {STUDIO.pageTitleHint}
+        </p>
+      </div>
       <Choice label={STUDIO.layout} options={LAYOUT_OPTIONS} value={doc.layout} wide onChange={(layout) => studio.change((current) => ({ ...current, layout }))} />
     </div>
   );

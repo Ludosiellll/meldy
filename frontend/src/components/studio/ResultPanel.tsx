@@ -177,14 +177,6 @@ export default function ResultPanel({ studio, api, onPreviewBand }: { studio: St
                 –
               </span>
               <Percent label={STUDIO.bandTo} value={band.to} onChange={(to) => setBand(at, { to }, 'to')} />
-              <span className="st-band-acts">
-                <button type="button" className="sf-link" onClick={() => onPreviewBand(Math.round((band.from + band.to) / 2))}>
-                  {STUDIO.bandPreview}
-                </button>
-                <button type="button" className="sf-link" data-muted="" onClick={() => setBands(bands.filter((_, index) => index !== at))}>
-                  {STUDIO.bandRemove}
-                </button>
-              </span>
             </div>
             {issues
               .filter((issue) => issue.at === at)
@@ -202,6 +194,14 @@ export default function ResultPanel({ studio, api, onPreviewBand }: { studio: St
               <textarea className="st-input st-textarea" rows={2} value={band.text} maxLength={DOC_TEXT_MAX} onChange={(event) => setBand(at, { text: event.target.value }, 'text')} />
             </label>
             <PictureField label={STUDIO.picture} path={band.image} target={{ kind: 'band', index: at }} api={api} onRemove={() => setBand(at, { image: null }, 'image')} />
+            <div className="st-band-acts">
+              <button type="button" className="sf-link" onClick={() => onPreviewBand(Math.round((band.from + band.to) / 2))}>
+                {STUDIO.bandPreview}
+              </button>
+              <button type="button" className="sf-link" data-muted="" onClick={() => setBands(bands.filter((_, index) => index !== at))}>
+                {STUDIO.bandRemove}
+              </button>
+            </div>
           </li>
         ))}
       </ol>

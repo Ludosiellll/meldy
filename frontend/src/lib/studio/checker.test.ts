@@ -336,6 +336,10 @@ describe('the studio’s own checks (release 47.2)', () => {
     const hints = checkTest(pageOf(items), items).filter((hint) => hint.id.startsWith('draft:'));
     expect(hints.map((hint) => [hint.id, hint.level])).toEqual(items.map((item) => [`draft:${item.id}`, 'fix']));
     expect(hints[2].message).toBe('Вопрос 3: это заготовка — напишите вопрос и принятые ответы.');
+    const unkeyed = row({ stem: DRAFT_WORDS.stem, correct: [] });
+    expect(checkTest(pageOf([unkeyed]), [unkeyed]).map((hint) => [hint.id, hint.message])).toEqual([
+      [`draft:${unkeyed.id}`, 'Вопрос 1: это заготовка — напишите вопрос и варианты ответа, отметьте верный.'],
+    ]);
     expect(isDraftQuestion(row({ options: ['Вариант 1', 'Медь'] }))).toBe(false);
     expect(isDraftQuestion(row({ kind: 'short', options: [], answers: ['ответ', 'другой'] }))).toBe(false);
   });

@@ -137,17 +137,15 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
   const pictureOnly = item.stem.trim() === PICTURE_STEM && !(item.images?.stem?.length);
   if (!item.stem.trim() || pictureOnly) out.push({ ...where, id: `no_stem:${item.id}`, level: 'fix', message: `${head}нет текста — напишите его.` });
 
-  if (!keyed(item)) {
+  // A question still holding the palette's words is one problem, not two: its line also asks for the key.
+  const draft = isDraftQuestion(item);
+  if (!keyed(item) && !draft) {
     out.push({ ...where, id: `no_key:${item.id}`, level: 'fix', message: `${head}нет верного ответа — ${short ? 'впишите' : 'отметьте'} его.` });
   }
 
-  if (isDraftQuestion(item)) {
-    out.push({
-      ...where,
-      id: `draft:${item.id}`,
-      level: 'fix',
-      message: short ? `${head}это заготовка — напишите вопрос и принятые ответы.` : `${head}это заготовка — напишите вопрос и варианты ответа.`,
-    });
+  if (draft) {
+    const words = short ? 'напишите вопрос и принятые ответы' : keyed(item) ? 'напишите вопрос и варианты ответа' : 'напишите вопрос и варианты ответа, отметьте верный';
+    out.push({ ...where, id: `draft:${item.id}`, level: 'fix', message: `${head}это заготовка — ${words}.` });
   }
 
   if (item.kind === 'multiple' && item.correct.length === 1 && !isTrueFalse(item.options)) {

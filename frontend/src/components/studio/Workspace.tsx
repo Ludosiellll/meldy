@@ -60,8 +60,11 @@ type Menu = { anchor: HTMLElement; index: number; replace?: string } | null;
 const MAIN_FIELD: Partial<Record<DocBlock['type'], string>> = { cover: 'title', heading: 'text', text: 'text', note: 'text', image: 'caption', page: 'title' };
 
 /** One quiet line near the selected block (spec §47.6 «рядом с выбранным блоком — одна уместная подсказка»). */
-export function hintFor(block: DocBlock, doc: TestDoc, rows: ReadonlyMap<string, TestItem>): string {
+export function hintFor(block: DocBlock, doc: TestDoc, rows: ReadonlyMap<string, TestItem>, phone = false): string {
   switch (block.type) {
+    case 'heading':
+      // A phone has no Alt and no Ctrl: the buttons above the block do the same.
+      return phone ? STUDIO.hints.headingTouch : STUDIO.hints.heading;
     case 'page':
       return doc.layout === 'pages' ? STUDIO.hints.pageOn : STUDIO.hints.pageOff;
     case 'question': {
@@ -179,7 +182,7 @@ function Frame({ block, index, count, name, selected, phone, problem, hint, conf
 
 function Gap({ index, drop, reachable, onPlus }: { index: number; drop: boolean; reachable: boolean; onPlus: (index: number, anchor: HTMLElement) => void }) {
   return (
-    <div className="st-gap" data-drop={drop ? '' : undefined}>
+    <div className="st-gap" data-drop={drop ? '' : undefined} data-next={reachable ? '' : undefined}>
       <button type="button" className="st-plus" aria-label={STUDIO.addHere} title={STUDIO.addHere} tabIndex={reachable ? 0 : -1} onClick={(event) => onPlus(index, event.currentTarget)}>
         <UiIcon name="plus" />
       </button>
@@ -572,7 +575,7 @@ export default function Workspace({
           selected={selected === block.id}
           phone={phone}
           problem={isEditing ? null : problem}
-          hint={selected === block.id ? hintFor(block, doc, rows) : null}
+          hint={selected === block.id ? hintFor(block, doc, rows, phone) : null}
           confirm={confirm?.blockId === block.id ? confirm : null}
           busy={studio.busy === block.id}
           onSelect={() => {
