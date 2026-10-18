@@ -227,6 +227,14 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(plain(screen.getByRole('banner').textContent)).toContain('2 из 5');
   });
 
+  it('a key the author set (a test from «Конструктор», a key ticked in «Ключи») is no file’s: «Верный ответ» (release 47, M10)', () => {
+    renderStudy(dataWith(['q-plain']));
+    fireEvent.click(option('Первая'));
+    expect(verdict()).toBe('Неверно. Верный ответ — Третья. Вернётся через пару вопросов и завтра.');
+    expect(plain(option('Третья').textContent)).toContain('Верный ответ');
+    expect(plain(option('Третья').textContent)).not.toContain('В файле');
+  });
+
   it('«Нажали не туда?» marks the answer as a misclick: no mistake, no retry in this session', async () => {
     renderStudy(dataWith(['q-iso', 'q-plain']));
     fireEvent.click(option('READ COMMITTED'));
@@ -393,7 +401,8 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(verdict()).toBe('Верно: все 3.');
     fireEvent.keyDown(window, { key: 'Enter' });
     fireEvent.keyDown(window, { key: '0' });
-    expect(verdict()).toBe('В файле — Третья. Вернётся через пару вопросов и завтра.');
+    // q-plain's key was set by the author (key_source 'manual'): no file says it (release 47, M10).
+    expect(verdict()).toBe('Верный ответ — Третья. Вернётся через пару вопросов и завтра.');
   });
 });
 

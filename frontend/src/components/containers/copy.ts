@@ -238,6 +238,8 @@ export const SHORT_LABEL = 'Ваш ответ';
 export const SHORT_EMPTY = 'Впишите ответ.';
 export const TAG_YOURS = 'Ваш ответ';
 export const TAG_FILE = 'В файле';
+/** The tag beside the key the author set (a test written in «Конструктор», a key ticked in «Ключи»): no file says it. */
+export const TAG_KEY = 'Верный ответ';
 export const TAG_RIGHT = 'Верно';
 export const VERDICT_RIGHT = 'Верно.';
 export const verdictRightAll = (n: number) => glue(`Верно: ${n === 2 ? 'оба' : `все ${n}`}.`);
@@ -250,26 +252,43 @@ export const comesBack = (again: boolean, when = 'завтра') => (again ? `В
 const KEY_NAMES_MAX = 90;
 /** A name that ends a sentence itself («…», «?», «;») takes no period after it. */
 const sentence = (text: string) => (/[.!?…;]$/u.test(text) ? text : `${text}.`);
+/** Keys no file marked: set by the author, typed in as «ваш ключ», or none. */
+const NOT_FROM_FILE = new Set(['manual', 'key_text', 'none']);
+/**
+ * The key came from the file (its marks, its key column or list, its markup, «первый вариант»): the screens say
+ * «В файле». A question without its source (an older caller) reads as one from the file, as before release 47.
+ */
+export const keyFromFile = (source?: string | null) => !source || !NOT_FROM_FILE.has(source);
+/** The tag beside the key after an answer: «В файле», or «Верный ответ» for a key the author set (release 47, M10). */
+export const keyTag = (source?: string | null) => (keyFromFile(source) ? TAG_FILE : TAG_KEY);
 /**
  * «В файле — 7 12.» / «В файле верны: CREATE, ALTER и DROP.»: the key in the file's own words (model.ts keyNames), as
- * the bot says it («В файле — DHCP»), so the verdict, the key panel and «Ключи» never name one option two ways.
+ * the bot says it («В файле — DHCP»), so the verdict, the key panel and «Ключи» never name one option two ways. A key
+ * the author set is no file's (release 47, M10): «Верный ответ — 7 12.» / «Верные ответы: CREATE, ALTER и DROP.»
  */
-function inFile(names: string[]): string {
-  if (names.length <= 1) return sentence(`В файле — ${names[0] ?? '—'}`);
+function inFile(names: string[], source?: string | null): string {
+  const file = keyFromFile(source);
+  if (names.length <= 1) return sentence(`${file ? 'В файле' : TAG_KEY} — ${names[0] ?? '—'}`);
   const list = listLetters(names);
-  if (list.length > KEY_NAMES_MAX) return `В файле верны ${names.length} ${pl(names.length, 'вариант', 'варианта', 'вариантов')} — они отмечены выше.`;
-  return sentence(`В файле верны: ${list}`);
+  const n = names.length;
+  if (list.length > KEY_NAMES_MAX) {
+    return file
+      ? `В файле верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')} — они отмечены выше.`
+      : `Верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')} — они отмечены выше.`;
+  }
+  return sentence(file ? `В файле верны: ${list}` : `Верные ответы: ${list}`);
 }
-export function verdictWrong(keyNames: string[], again: boolean, when?: string): string {
-  return glue(`Неверно. ${inFile(keyNames)} ${comesBack(again, when)}`);
+/** `source` — the question's key_source: «В файле» for a key from the file, «Верный ответ» for one the author set. */
+export function verdictWrong(keyNames: string[], again: boolean, when?: string, source?: string | null): string {
+  return glue(`Неверно. ${inFile(keyNames, source)} ${comesBack(again, when)}`);
 }
-export function verdictDontKnow(keyNames: string[], again: boolean, when?: string): string {
-  return glue(`${inFile(keyNames)} ${comesBack(again, when)}`);
+export function verdictDontKnow(keyNames: string[], again: boolean, when?: string, source?: string | null): string {
+  return glue(`${inFile(keyNames, source)} ${comesBack(again, when)}`);
 }
-export function verdictShortWrong(answer: string, again: boolean, when?: string): string {
-  return glue(`Неверно. ${inFile([answer])} ${comesBack(again, when)}`);
+export function verdictShortWrong(answer: string, again: boolean, when?: string, source?: string | null): string {
+  return glue(`Неверно. ${inFile([answer], source)} ${comesBack(again, when)}`);
 }
-export const shortDontKnow = (answer: string, again: boolean, when?: string) => glue(`${inFile([answer])} ${comesBack(again, when)}`);
+export const shortDontKnow = (answer: string, again: boolean, when?: string, source?: string | null) => glue(`${inFile([answer], source)} ${comesBack(again, when)}`);
 /** After the author changed the key in place (decision 14): the panel says what changed; this answer is not sent. */
 export const VERDICT_KEY_FIXED = 'Этот ответ в счёт не идёт.';
 /** «Нажали не туда?»: no mistake, but the answer was seen, so the question comes back on `when` (as comesBack). */

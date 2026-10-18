@@ -9,7 +9,7 @@ import './room.css';
  * One question at a time (Concept 1 §3.7; decisions 41–43, 50, 54): a muted line above it (the subject, «повтор, не в
  * счёт», after the answer «№ 37 · тема 2.12»), the words, the code as the file has it, the options as rows of one card
  * with their letters after the shuffle, or the field of a short answer. After an answer the options say it in words:
- * «Ваш ответ», «В файле», «Верно».
+ * «Ваш ответ», «В файле» («Верный ответ» for a key the author set: no file says it, release 47), «Верно».
  */
 
 /**
@@ -133,7 +133,7 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
             const chosen = answered.chosen?.includes(fileIndex) ?? false;
             if (inKey) {
               state = 'file';
-              tag = chosen ? copy.TAG_RIGHT : copy.TAG_FILE;
+              tag = chosen ? copy.TAG_RIGHT : copy.keyTag(item.key_source);
             } else if (chosen) {
               state = 'wrong';
               tag = copy.TAG_YOURS;

@@ -121,7 +121,7 @@ export function KeyFix({
                 <span className="ct-opt-l">{copy.OPTION_LETTERS[index] ?? String(index + 1)}</span>
                 <span className="ct-opt-t">
                   {option}
-                  {!multiple && item.correct.includes(index) ? <span className="ct-opt-tag">{copy.TAG_FILE}</span> : null}
+                  {!multiple && item.correct.includes(index) ? <span className="ct-opt-tag">{copy.keyTag(item.key_source)}</span> : null}
                 </span>
               </button>
             );

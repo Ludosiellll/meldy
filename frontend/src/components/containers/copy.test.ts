@@ -103,7 +103,9 @@ function rendered(): string[] {
 
 describe('copy.ts: the words of the exam screens', () => {
   it('has none of the banned words in its source', () => {
-    for (const [name, pattern] of BANNED) {
+    // «Верный ответ — …» is said for a key the author set, never for the file's (release 47, M10: «В файле» would
+    // claim a file that does not exist); the lines rendered below, with the file's key, still may not say it.
+    for (const [name, pattern] of BANNED.filter(([word]) => word !== 'верный ответ —')) {
       const line = source.split('\n').find((text) => pattern.test(text));
       expect(line, `«${name}» in copy.ts: ${line}`).toBeUndefined();
     }
@@ -165,8 +167,31 @@ describe('copy.ts: the words of the exam screens', () => {
     // several long ones: the options marked above
     const long = ['Транзакция выполняется целиком', 'Изменения сохраняются даже после сбоя', 'Данные остаются согласованными'];
     expect(plain(copy.verdictWrong(long, false))).toBe('Неверно. В файле верны 3 варианта — они отмечены выше. Вернётся завтра.');
+    // the file's key, said with its source: as before
+    expect(plain(copy.verdictWrong(['7 12'], true, undefined, 'bold'))).toBe('Неверно. В файле — 7 12. Вернётся через пару вопросов и завтра.');
+    expect(plain(copy.verdictDontKnow(['DHCP'], false, undefined, 'key_list'))).toBe('В файле — DHCP. Вернётся завтра.');
     expect(plain(copy.startSubject('Базы данных', 17))).toBe('Начать: Базы данных — 17 вопросов');
     expect(plain(copy.aloudSubject('Гражданское право', 3))).toBe('Ответить вслух: Гражданское право — 3 вопроса');
+  });
+
+  it('a key the author set is no file’s: «Верный ответ — …» (release 47, M10)', () => {
+    const plain = (text: string) => text.split(copy.NBSP).join(' ');
+    expect(plain(copy.verdictWrong(['7 12'], true, undefined, 'manual'))).toBe('Неверно. Верный ответ — 7 12. Вернётся через пару вопросов и завтра.');
+    expect(plain(copy.verdictDontKnow(['DHCP'], false, 'в понедельник', 'manual'))).toBe('Верный ответ — DHCP. Вернётся в понедельник.');
+    expect(plain(copy.verdictWrong(['string', 'object'], false, undefined, 'key_text'))).toBe('Неверно. Верные ответы: string и object. Вернётся завтра.');
+    expect(plain(copy.verdictShortWrong('ROLLBACK', false, undefined, 'manual'))).toBe('Неверно. Верный ответ — ROLLBACK. Вернётся завтра.');
+    expect(plain(copy.shortDontKnow('32', false, undefined, 'none'))).toBe('Верный ответ — 32. Вернётся завтра.');
+    const long = ['Транзакция выполняется целиком', 'Изменения сохраняются даже после сбоя', 'Данные остаются согласованными'];
+    expect(plain(copy.verdictWrong(long, false, undefined, 'manual'))).toBe('Неверно. Верны 3 варианта — они отмечены выше. Вернётся завтра.');
+    // the tag beside the key after an answer
+    expect(copy.keyTag('manual')).toBe('Верный ответ');
+    expect(copy.keyTag('bold')).toBe(copy.TAG_FILE);
+    expect(copy.keyTag(undefined)).toBe(copy.TAG_FILE);
+    // a key from the file's marks, key column, key list or markup, or «первый вариант»: «В файле»
+    for (const source of ['bold', 'underline', 'italic', 'color', 'highlight', 'shade', 'marker', 'key_column', 'answer_line', 'key_list', 'gift', 'first_option']) {
+      expect(copy.keyFromFile(source), source).toBe(true);
+    }
+    for (const source of ['manual', 'key_text', 'none']) expect(copy.keyFromFile(source), source).toBe(false);
   });
 
   it('an oral subject’s row says it is oral, in the word «Настройки» uses (usability check 2026-10-10, m7)', () => {

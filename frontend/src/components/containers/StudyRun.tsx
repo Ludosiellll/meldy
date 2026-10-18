@@ -535,11 +535,14 @@ export default function StudyRun(props: StudyRunProps) {
     else if (answered.correct) verdict = item.kind === 'multiple' ? copy.verdictRightAll(item.correct.length) : copy.VERDICT_RIGHT;
     else if (item.kind === 'short') {
       const form = item.answers[0] ?? '';
-      verdict = pending.dontKnow ? copy.shortDontKnow(form, pending.again, back) : copy.verdictShortWrong(form, pending.again, back);
+      verdict = pending.dontKnow ? copy.shortDontKnow(form, pending.again, back, item.key_source) : copy.verdictShortWrong(form, pending.again, back, item.key_source);
     } else {
       // The key in the file's own words: the screen's letters are shuffled, the key panel and «Ключи» use the file's.
+      // A key the author set is said as «Верный ответ — …», not «В файле — …» (release 47, M10).
       const names = keyNames(item);
-      verdict = pending.dontKnow ? copy.verdictDontKnow(names, pending.again, back) : copy.verdictWrong(names, pending.again, back);
+      verdict = pending.dontKnow
+        ? copy.verdictDontKnow(names, pending.again, back, item.key_source)
+        : copy.verdictWrong(names, pending.again, back, item.key_source);
     }
   }
 
