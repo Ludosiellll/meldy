@@ -95,7 +95,9 @@
 .sc[data-compact] .sc-count { font-size: 12px; }
 .sc[data-compact] .sc-btn { width: 32px; height: 32px; }
 .sc[data-compact] .sc-btn svg { width: 14px; height: 14px; }
-.sc[data-compact] .sc-watch { width: auto; font-size: 13px; }
+/* The compact line keeps its room for the words: «Смотреть» is its circle alone (the word is still its name). */
+.sc[data-compact] .sc-watch { width: 32px; padding: 0; background: none; }
+.sc[data-compact] .sc-watch-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sc[data-compact] .sc-strip { left: 8px; right: 8px; bottom: 6px; }
 
 /* The studio tour's first step (TourClip.tsx): the dark card widens for the clip; the line takes the card's colours. */

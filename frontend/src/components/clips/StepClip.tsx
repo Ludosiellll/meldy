@@ -238,7 +238,7 @@ export default function StepClip({ clip, active, compact = false }: StepClipProp
           </button>
         ) : (
           <button type="button" className="sc-btn sc-watch" onClick={toggle}>
-            Смотреть
+            <span className="sc-watch-t">Смотреть</span>
             <i>
               <PlayIcon />
             </i>
