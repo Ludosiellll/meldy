@@ -180,11 +180,11 @@
 .sf-page.qa-page .qa-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 /* The swatch's own colour; white text on each would read at 4.5:1 or more (the quiz page's buttons). */
 .sf-page.qa-page .qa-swatch[data-accent='blue'] { --qa-swatch: #2869dd; }
-.sf-page.qa-page .qa-swatch[data-accent='green'] { --qa-swatch: #1f7a4d; }
-.sf-page.qa-page .qa-swatch[data-accent='orange'] { --qa-swatch: #c2410c; }
-.sf-page.qa-page .qa-swatch[data-accent='violet'] { --qa-swatch: #6d3fd1; }
-.sf-page.qa-page .qa-swatch[data-accent='pink'] { --qa-swatch: #c0266d; }
-.sf-page.qa-page .qa-swatch[data-accent='graphite'] { --qa-swatch: #3d4552; }
+.sf-page.qa-page .qa-swatch[data-accent='green'] { --qa-swatch: #1f7a3d; }
+.sf-page.qa-page .qa-swatch[data-accent='orange'] { --qa-swatch: #b45309; }
+.sf-page.qa-page .qa-swatch[data-accent='violet'] { --qa-swatch: #6d3fd6; }
+.sf-page.qa-page .qa-swatch[data-accent='pink'] { --qa-swatch: #c0306b; }
+.sf-page.qa-page .qa-swatch[data-accent='graphite'] { --qa-swatch: #3b4250; }
 .sf-page.qa-page .qa-swatch {
   position: relative;
   display: inline-flex;

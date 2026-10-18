@@ -239,6 +239,7 @@ export default function KeysPage() {
       if (patch.code !== undefined) local.code = patch.code;
       if (patch.keep_order !== undefined) local.keep_order = patch.keep_order;
       if (patch.images !== undefined) local.images = patch.images;
+      if (patch.explanation !== undefined) local.explanation = patch.explanation;
       if (patch.correct !== undefined || patch.answers !== undefined) local.key_source = 'manual';
       setPatched((current) => ({ ...current, [item.id]: { ...current[item.id], ...local } }));
       if (result.doubts_resolved > 0) setDoubts((rows) => rows.filter((row) => row.item_id !== item.id));
@@ -319,6 +320,7 @@ export default function KeysPage() {
     return (
       <KeyQuestion
         key={item.id}
+        explanation={item.explanation}
         context={QUEUE.context(subjectName, item.file_no, topic)}
         reason={
           reasonLines.length ? (
