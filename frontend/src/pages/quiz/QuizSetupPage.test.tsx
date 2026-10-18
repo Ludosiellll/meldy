@@ -311,6 +311,21 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     await waitFor(() => expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ offer_practice: true })));
   });
 
+  it('a test’s quiz: the offer to train names the test’s questions and participants, «Кто может писать» the test’s members (release 47.3)', async () => {
+    api.state.summary = examSummary({ kind: 'test' });
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    const toggle = screen.getByRole('checkbox', { name: 'После сдачи предложить тренировать эти вопросы в Meldy' });
+    expect(toggle).toHaveAccessibleDescription(
+      'После закрытия ученикам предложат тренировать вопросы теста в Meldy (в тренировке видны все ответы). ' +
+        'Кто согласится, появится в списке участников теста. Его прогресс вам не виден.',
+    );
+    expect(screen.queryByText(QA_SETUP.practiceNote)).toBeNull();
+    pick(QA_SETUP.who, QA_SETUP.whoOption('members', true));
+    expect(QA_SETUP.whoOption('members', true)).toBe('только участники этого теста');
+    expect(screen.getByText(QA_SETUP.whoHint('members', true))).toBeInTheDocument();
+    expect(QA_SETUP.whoHint('members', true)).toContain('вступил в этот тест');
+  });
+
   it('after the start these settings still change, and only they are sent', async () => {
     const cover = `${EXAM}/${'a'.repeat(64)}.png`;
     api.listQuizzes.mockResolvedValue([listRow({ members_only: true, guests: false, cover_path: cover, accent: 'pink' })]);

@@ -175,6 +175,23 @@ describe('QuizStatsPage: the head (spec 2026-10-16 §2.3)', () => {
     expect(await screen.findByTestId('where')).toHaveTextContent(`/exams/c/${EXAM}/quizzes`);
   });
 
+  it('a test’s quiz deleted: back to the test’s own page, where its quizzes are (release 47.3)', async () => {
+    api.state.summary = examSummary({ kind: 'test' });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: QA_STATS.remove }));
+    fireEvent.click(screen.getByRole('button', { name: QA_STATS.removeYes }));
+    await waitFor(() => expect(api.deleteQuiz).toHaveBeenCalledWith(QUIZ_ID));
+    expect((await screen.findByTestId('where')).textContent).toBe(`/exams/c/${EXAM}`);
+  });
+
+  it('a member of a test: the words name the test', async () => {
+    api.state.summary = examSummary({ kind: 'test', role: 'member', owner: null } as Partial<ContainerSummary>);
+    renderPage();
+    expect(screen.getByText(QA_LIST.authorOnlyTest)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: QA_LIST.toTest })).toHaveAttribute('href', `/exams/c/${EXAM}`);
+    expect(page()).not.toContain('экзамен');
+  });
+
   it('a member of the exam sees that quizzes are the author’s', async () => {
     api.state.summary = examSummary({ role: 'member', owner: null } as Partial<ContainerSummary>);
     renderPage();

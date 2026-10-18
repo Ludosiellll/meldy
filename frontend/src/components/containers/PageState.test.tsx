@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Loadable } from '../../lib/containers/hooks';
 import { CONTAINER_ERROR_TEXT } from '../../api/containers';
 import { PageState } from './PageState';
-import { GONE } from './copyImport';
+import { GONE, GONE_EXAM } from './copyImport';
+import { GONE_TEST, goneWords } from '../test/copyTest';
 
 function state(extra: Partial<Loadable<unknown>>): Loadable<unknown> {
   return { data: null, loading: false, offline: false, unavailable: false, error: null, reload: vi.fn(), ...extra };
@@ -32,6 +33,21 @@ describe('PageState: an exam page without its data', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
     expect(screen.queryByText('Не удалось загрузить экзамен')).not.toBeInTheDocument();
     expect(screen.queryByText(CONTAINER_ERROR_TEXT.P0002)).not.toBeInTheDocument();
+  });
+
+  it('the kind of a container that is gone is not known: the words name neither an exam nor a test (live check of 47.2)', () => {
+    renderState(state({ error: CONTAINER_ERROR_TEXT.P0002, gone: true }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Этой страницы больше нет в вашем списке');
+    expect(document.body.textContent).not.toMatch(/Этого экзамена|Этого теста/);
+  });
+
+  it('where the kind is known, the words name it; unknown, the neutral ones', () => {
+    expect(goneWords('test')).toBe(GONE_TEST);
+    expect(GONE_TEST).toEqual({ title: 'Этого теста больше нет в вашем списке', text: 'Его удалили, вы из него вышли или автор убрал вас.' });
+    expect(goneWords('exam')).toBe(GONE_EXAM);
+    expect(GONE_EXAM.title).toBe('Этого экзамена больше нет в вашем списке');
+    expect(goneWords(null)).toBe(GONE);
+    expect(goneWords(undefined)).toBe(GONE);
   });
 
   it('a real failure (no network) keeps «Повторить»', () => {

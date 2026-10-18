@@ -89,6 +89,31 @@ describe('QuizListPage: the exam’s quizzes (spec 2026-10-16 §2.1)', () => {
     expect(api.listQuizzes).not.toHaveBeenCalled();
   });
 
+  it('a test’s list names the test: «Соберите контрольную из вопросов теста…» (release 47.3)', async () => {
+    api.state.summary = examSummary({ kind: 'test' });
+    api.listQuizzes.mockResolvedValue([]);
+    renderAt();
+    expect(await screen.findByText(QA_LIST.emptyTest)).toBeInTheDocument();
+    expect(QA_LIST.emptyTest).toContain('Соберите контрольную из вопросов теста');
+    expect(plain(document.body.textContent)).not.toContain('экзамена');
+  });
+
+  it('a member of a test: the author is the test’s, the way back is «К тесту»', () => {
+    api.state.summary = examSummary({ kind: 'test', role: 'member', owner: null } as Partial<ContainerSummary>);
+    renderAt();
+    expect(screen.getByText(QA_LIST.authorOnlyTest)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: QA_LIST.toTest })).toHaveAttribute('href', `/exams/c/${EXAM}`);
+    expect(plain(document.body.textContent)).not.toContain('экзамен');
+  });
+
+  it('the address of a container that is gone says neutral words', () => {
+    api.state.summary = null;
+    api.state.gone = true;
+    renderAt();
+    expect(plain(document.body.textContent)).toContain('Этой страницы больше нет в вашем списке.');
+    expect(plain(document.body.textContent)).not.toContain('Этого экзамена');
+  });
+
   it('says a failure with «Повторить»', async () => {
     api.listQuizzes.mockRejectedValue(Object.assign(new Error('Нет связи с сервером.'), { code: 'network' }));
     renderAt();

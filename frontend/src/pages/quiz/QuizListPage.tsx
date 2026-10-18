@@ -17,7 +17,8 @@ import '../../components/quiz/quizAuthor.css';
 /**
  * /exams/c/:id/quizzes — «Контрольные» of an exam (spec 2026-10-16 §2.1): the author's quizzes, newest first, each a
  * row of one card (its name, its state, «пишут N · сдали M · средний X %») that opens its stats; «Новая контрольная» is
- * the page's one blue pill. A member of the exam sees one line: quizzes are the author's.
+ * the page's one blue pill. A member of the exam sees one line: quizzes are the author's. A test's list (its summary's
+ * kind 'test') names the test in its words.
  */
 export default function QuizListPage() {
   const params = useParams();
@@ -26,6 +27,8 @@ export default function QuizListPage() {
   const data = useContainerData(containerId);
   const summary = data.data?.summary ?? null;
   const owner = summary?.role === 'owner';
+  // A test's quizzes (containers.kind 'test', release 47.3): the words name the test.
+  const ofTest = summary?.kind === 'test';
   useDocumentTitle(summary ? `${QA_LIST.title} · ${summary.title}` : QA_LIST.title);
   useEffect(() => {
     if (summary) rememberContainerTitle(summary.id, summary.title);
@@ -95,10 +98,10 @@ export default function QuizListPage() {
   if (!owner) {
     return shell(
       <>
-        <p className="qa-lede">{QA_LIST.authorOnly}</p>
+        <p className="qa-lede">{ofTest ? QA_LIST.authorOnlyTest : QA_LIST.authorOnly}</p>
         <p>
           <Link className="sf-link" to={`/exams/c/${containerId}`}>
-            {QA_LIST.toExam}
+            {ofTest ? QA_LIST.toTest : QA_LIST.toExam}
           </Link>
         </p>
       </>,
@@ -122,7 +125,7 @@ export default function QuizListPage() {
             {QA_LIST.loading}
           </p>
         ) : rows.length === 0 ? (
-          <p className="qa-lede">{QA_LIST.empty}</p>
+          <p className="qa-lede">{ofTest ? QA_LIST.emptyTest : QA_LIST.empty}</p>
         ) : (
           <ul className="qa-rows" aria-label={QA_LIST.title}>
             {rows.map((row) => (

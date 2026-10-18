@@ -5,8 +5,9 @@ import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { checkTest } from '../../lib/studio/checker';
 import { useFrame } from '../../components/exams/useFrame';
-import { GONE, KEYS } from '../../components/containers/copyImport';
+import { KEYS } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
+import { goneWords } from '../../components/test/copyTest';
 import { useBuild } from '../../components/test/useBuild';
 import { STUDIO, type Panel, type StudioView } from '../../components/studio/copyStudio';
 import EmptyStart from '../../components/studio/EmptyStart';
@@ -203,10 +204,12 @@ export default function StudioPage() {
     );
   }
   if (!data.data || !summary || studio.phase === 'gone') {
+    // The kind is known when the summary was read (the test went away while its studio was open).
+    const gone = goneWords(summary ? summary.kind ?? 'exam' : null);
     return simple(
       data.gone || studio.phase === 'gone' ? (
         <p className="ex-note">
-          {GONE.title}. {GONE.text}{' '}
+          {gone.title}. {gone.text}{' '}
           <Link className="sf-link" to="/exams">
             {TO_EXAMS}
           </Link>

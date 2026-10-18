@@ -122,6 +122,8 @@ export default function QuizSetupPage() {
   const data = useContainerData(containerId);
   const summary = data.data?.summary ?? null;
   const owner = summary?.role === 'owner';
+  // A test's quiz (containers.kind 'test', release 47.3): its words name the test, not an exam.
+  const ofTest = summary?.kind === 'test';
   const pageTitle = editing ? QA_SETUP.editTitle : QA_SETUP.newTitle;
   useDocumentTitle(summary ? `${pageTitle} · ${summary.title}` : pageTitle);
   useEffect(() => {
@@ -388,10 +390,10 @@ export default function QuizSetupPage() {
   if (!owner) {
     return shell(
       <>
-        <p className="qa-lede">{QA_LIST.authorOnly}</p>
+        <p className="qa-lede">{ofTest ? QA_LIST.authorOnlyTest : QA_LIST.authorOnly}</p>
         <p>
           <Link className="sf-link" to={`/exams/c/${containerId}`}>
-            {QA_LIST.toExam}
+            {ofTest ? QA_LIST.toTest : QA_LIST.toExam}
           </Link>
         </p>
       </>,
@@ -697,19 +699,19 @@ export default function QuizSetupPage() {
         <span className="qa-toggle-t">{QA_SETUP.practice}</span>
       </label>
       <p id={`${formId}-practice`} className="im-hint" data-muted="">
-        {QA_SETUP.practiceNote}
+        {ofTest ? QA_SETUP.practiceNoteTest : QA_SETUP.practiceNote}
       </p>
       <p id={`${formId}-practice-seen`} className="im-hint" data-muted="">
-        {QA_SETUP.practiceSeen}
+        {ofTest ? QA_SETUP.practiceSeenTest : QA_SETUP.practiceSeen}
       </p>
     </div>
   );
   const whoField = select<QuizWho>({
     label: QA_SETUP.who,
     value: who,
-    options: WHO_CHOICES.map((value) => ({ value, label: QA_SETUP.whoOption(value) })),
+    options: WHO_CHOICES.map((value) => ({ value, label: QA_SETUP.whoOption(value, ofTest) })),
     onChange: (value) => setForm((current) => (current ? withWho(current, value) : current)),
-    hint: QA_SETUP.whoHint(who),
+    hint: QA_SETUP.whoHint(who, ofTest),
   });
 
   const part = (key: 'q' | 'w' | 'l' | 'm', title: string, children: ReactNode) => (

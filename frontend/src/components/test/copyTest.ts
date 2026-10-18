@@ -3,7 +3,8 @@
  * new test (/tests/new) and the author's builder (/exams/c/:id/build). Words the keys page and the editor already have
  * are taken from copyImport.ts (KEYS, EDITOR), not repeated here.
  */
-import { count, NBSP } from '../containers/copyImport';
+import { count, GONE, GONE_EXAM, NBSP } from '../containers/copyImport';
+import type { ContainerKind } from '../../types/container';
 
 const questions = (n: number) => count(n, 'вопрос', 'вопроса', 'вопросов');
 const subjects = (n: number) => count(n, 'предмет', 'предмета', 'предметов');
@@ -134,3 +135,16 @@ export const REMOVE_TEST = {
   yes: 'Удалить тест',
   done: (title: string) => `Тест «${title}» удалён.`,
 } as const;
+
+/** A test that is no longer the user's, where the page knows it was a test (copyImport.ts GONE, release 47.3). */
+export const GONE_TEST = {
+  title: 'Этого теста больше нет в вашем списке',
+  text: 'Его удалили, вы из него вышли или автор убрал вас.',
+} as const;
+
+/** The words of a container gone: of its kind when known (ContainerSummary.kind; absent — an exam), else neutral. */
+export function goneWords(kind: ContainerKind | null | undefined): { title: string; text: string } {
+  if (kind === 'test') return GONE_TEST;
+  if (kind === 'exam') return GONE_EXAM;
+  return GONE;
+}

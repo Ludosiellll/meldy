@@ -30,6 +30,10 @@ export const QA_LIST = {
   authorOnly: 'Контрольные собирает и смотрит автор экзамена: участникам он присылает ссылку.',
   toExam: 'К экзамену',
   empty: 'Контрольных пока нет. Соберите контрольную из вопросов экзамена и пришлите ссылку: здесь будет видно, кто как ответил.',
+  /** The same of a test (containers.kind 'test', release 47.3): the questions and the author are the test's. */
+  authorOnlyTest: 'Контрольные собирает и смотрит автор теста: участникам он присылает ссылку.',
+  toTest: 'К тесту',
+  emptyTest: 'Контрольных пока нет. Соберите контрольную из вопросов теста и пришлите ссылку: здесь будет видно, кто как ответил.',
   /** «пишут 2 · сдали 5 · средний 71 %» (attempts; the average leaves the author out); nobody but the author — «пока никто не писал». */
   counts: (writing: number, finished: number, avg: number | null, anyone: boolean) =>
     anyone ? [`пишут ${writing}`, `сдали ${finished}`, avg === null ? null : `средний ${Math.round(avg)} %`].filter(Boolean).join(' · ') : 'пока никто не писал',
@@ -112,23 +116,27 @@ export const QA_SETUP = {
         ? 'В тесте есть пояснения. Ученики увидят их вместе с верными ответами — после закрытия.'
         : 'В тесте есть пояснения. При этой настройке ученики их не увидят: пояснения показываются вместе с верными ответами.',
   who: 'Кто может писать',
-  whoOption: (who: QuizWho) =>
+  /** `test`: the quiz is a test's (containers.kind 'test', release 47.3), its members are the test's. */
+  whoOption: (who: QuizWho, test = false) =>
     ({
       guests: 'все по ссылке, без входа',
       link: 'все по ссылке, со входом',
-      members: 'только участники этого экзамена',
+      members: test ? 'только участники этого теста' : 'только участники этого экзамена',
     })[who],
-  whoHint: (who: QuizWho) =>
+  whoHint: (who: QuizWho, test = false) =>
     ({
       guests: 'Участнику не нужен аккаунт. Его попытки считаются по браузеру: в другом браузере можно начать заново.',
       link: 'Чтобы начать, участник входит в Meldy или создаёт аккаунт. Попытки считаются по аккаунту.',
-      members: 'Писать могут только те, кто уже вступил в этот экзамен. Остальные увидят, что контрольная только для участников.',
+      members: `Писать могут только те, кто уже вступил в этот ${test ? 'тест' : 'экзамен'}. Остальные увидят, что контрольная только для участников.`,
     })[who],
   /** The words of the participant's button «Тренировать эти вопросы» (copyTake RESULT.practiceJoin; release 47.1). */
   practice: 'После сдачи предложить тренировать эти вопросы в Meldy',
   /** The button waits until no quiz of the exam is open or not yet open (20261018130000_quiz_guards). */
   practiceNote: 'После закрытия ученикам предложат тренировать вопросы экзамена в Meldy (в тренировке видны все ответы).',
   practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его прогресс вам не виден.',
+  /** The same of a test (containers.kind 'test', release 47.3). */
+  practiceNoteTest: 'После закрытия ученикам предложат тренировать вопросы теста в Meldy (в тренировке видны все ответы).',
+  practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его прогресс вам не виден.',
   partLook: 'Оформление',
   cover: 'Обложка',
   coverHint: 'Картинка над названием на странице контрольной: PNG, JPEG, GIF или WebP до 3 МБ.',

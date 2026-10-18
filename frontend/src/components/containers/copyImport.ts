@@ -666,11 +666,19 @@ export const MEMBERS = {
 } as const;
 
 /**
- * The address of an exam that is no longer the user's (P0002: the database says «not found» to a non-member): the
- * author deleted it, the member left, or the author removed them. Another try changes nothing, so no «Повторить»
- * (usability check m2).
+ * The address of an exam (or a test) that is no longer the user's (P0002: the database says «not found» to a
+ * non-member): the author deleted it, the member left, or the author removed them. Another try changes nothing, so no
+ * «Повторить» (usability check m2).
+ *
+ * The server says nothing of a container that is gone, so an old address says neutral words (live check of release
+ * 47.2: a deleted test's address said «Этого экзамена…»). Where the page knows the kind (its summary read before),
+ * the words name it: GONE_EXAM here, a test's in components/test/copyTest.ts (goneWords picks).
  */
 export const GONE = {
+  title: 'Этой страницы больше нет в вашем списке',
+  text: 'Её удалили, или вы больше не участник: вышли сами или автор убрал вас.',
+} as const;
+export const GONE_EXAM = {
   title: 'Этого экзамена больше нет в вашем списке',
   text: 'Его удалили, вы из него вышли или автор убрал вас.',
 } as const;

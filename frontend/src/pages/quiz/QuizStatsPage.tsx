@@ -61,6 +61,8 @@ export default function QuizStatsPage() {
   const ids = useId();
   const data = useContainerData(containerId);
   const summary = data.data?.summary ?? null;
+  // A test's quiz (containers.kind 'test', release 47.3): the words name the test, and its page is the way back.
+  const ofTest = summary?.kind === 'test';
   useEffect(() => {
     if (summary) rememberContainerTitle(summary.id, summary.title);
   }, [summary]);
@@ -200,7 +202,8 @@ export default function QuizStatsPage() {
     try {
       if (asking === 'remove') {
         await deleteQuiz(quizId);
-        navigate(listPath, { replace: true });
+        // A test's quizzes live on the test's own page (TestHome, release 47.3): back there, not to the exam's list.
+        navigate(ofTest ? `/exams/c/${containerId}` : listPath, { replace: true });
         return;
       }
       const row = await closeQuiz(quizId);
@@ -289,10 +292,10 @@ export default function QuizStatsPage() {
   if (summary && summary.role !== 'owner') {
     return shell(
       <>
-        <p className="qa-lede">{QA_LIST.authorOnly}</p>
+        <p className="qa-lede">{ofTest ? QA_LIST.authorOnlyTest : QA_LIST.authorOnly}</p>
         <p>
           <Link className="sf-link" to={`/exams/c/${containerId}`}>
-            {QA_LIST.toExam}
+            {ofTest ? QA_LIST.toTest : QA_LIST.toExam}
           </Link>
         </p>
       </>,

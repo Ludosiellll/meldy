@@ -695,6 +695,19 @@ describe('StudioPage: the views and the participant', () => {
     expect(screen.queryByRole('dialog', { name: STUDIO.tourLabel })).toBeNull();
   });
 
+  it('a test gone while its studio opens: the words name the test; an address of one never read says neutral words', async () => {
+    api.state.summary = examSummary({ kind: 'test' });
+    api.fetchTestDoc.mockRejectedValue({ code: 'P0002' });
+    renderStudio();
+    expect(await screen.findByText(/^Этого теста больше нет в вашем списке\./)).toBeInTheDocument();
+    cleanup();
+    api.state.summary = null;
+    api.state.gone = true;
+    renderStudio();
+    expect(screen.getByText(/^Этой страницы больше нет в вашем списке\./)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Этого (экзамена|теста)/);
+  });
+
   it('a member of the exam gets the author-only screen', async () => {
     api.state.summary = examSummary({ role: 'member', owner: null });
     api.fetchTestDoc.mockResolvedValue(null);
