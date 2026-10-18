@@ -94,19 +94,20 @@ describe('DocView in answer mode: what the participant gets', () => {
     const doc: TestDoc = { ...base, blocks: base.blocks.map((block) => (block.type === 'question' && block.id === 'q2' ? { ...block, required: true } : block)) };
     const into = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => undefined);
     const scrolled = () => into.mock.contexts as unknown as Element[];
+    const lastScrolled = () => scrolled()[scrolled().length - 1];
     render(<DocView mode="answer" doc={doc} items={items} dark={false} onSubmit={(answers) => gradeDoc(doc, items, answers)} />);
     // Both unanswered: the first of them.
     fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.finish) }));
     expect(screen.getByRole('alert')).toHaveTextContent(DOC.missing([1, 2]));
     expect(document.activeElement).toBe(document.getElementById('dv-q-q1'));
-    expect(scrolled().at(-1)).toBe(document.getElementById('dv-q-q1')?.closest('.dv-q'));
+    expect(lastScrolled()).toBe(document.getElementById('dv-q-q1')?.closest('.dv-q'));
     expect(into).toHaveBeenLastCalledWith({ block: 'start' });
     // The first answered: the second is the one now; every press takes the participant there again.
     fireEvent.click(screen.getByRole('radio', { name: /Водород/ }));
     fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.finish) }));
     expect(screen.getByRole('alert')).toHaveTextContent(DOC.missing([2]));
     expect(document.activeElement).toBe(document.getElementById('dv-q-q2'));
-    expect(scrolled().at(-1)).toBe(document.getElementById('dv-q-q2')?.closest('.dv-q'));
+    expect(lastScrolled()).toBe(document.getElementById('dv-q-q2')?.closest('.dv-q'));
     const count = scrolled().length;
     (document.activeElement as HTMLElement).blur();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(DOC.finish) }));
