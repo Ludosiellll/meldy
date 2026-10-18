@@ -122,7 +122,8 @@ export const QA_SETUP = {
       link: 'Чтобы начать, участник входит в Meldy или создаёт аккаунт. Попытки считаются по аккаунту.',
       members: 'Писать могут только те, кто уже вступил в этот экзамен. Остальные увидят, что контрольная только для участников.',
     })[who],
-  practice: 'После сдачи предложить тренироваться по этому экзамену',
+  /** The words of the participant's button «Тренировать эти вопросы» (copyTake RESULT.practiceJoin; release 47.1). */
+  practice: 'После сдачи предложить тренировать эти вопросы в Meldy',
   /** The button waits until no quiz of the exam is open or not yet open (20261018130000_quiz_guards). */
   practiceNote: 'После закрытия ученикам предложат тренировать вопросы экзамена в Meldy (в тренировке видны все ответы).',
   practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его прогресс вам не виден.',
@@ -236,7 +237,8 @@ export const QA_PEOPLE = {
   timeOver: 'время вышло, ответы сдаются',
   closed: 'закрыта',
   result: (correct: number, total: number, percent: number | null) => `${correct} из ${total}${percent === null ? '' : ` · ${percent} %`}`,
-  minutes: (n: number) => `${n} мин`,
+  /** 0 — under a minute (quizModel.minutesTaken). */
+  minutes: (n: number) => (n === 0 ? 'меньше минуты' : `${n} мин`),
   attempts: (used: number, allowed: number | null) => (allowed === null ? `попытка ${used}` : `попытка ${used} из ${allowed}`),
   empty: 'Пока никто не начал.',
   open: (name: string) => `Ответы: ${name}`,

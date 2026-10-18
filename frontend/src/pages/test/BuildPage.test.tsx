@@ -359,6 +359,9 @@ describe('BuildPage: adding a question by its kind', () => {
     });
     expect(inputs[0].ref).toMatch(/^man:/);
     expect(await within(card(5)).findByText(BUILD.added(5))).toBeInTheDocument();
+    // Said once (release 47.1): by the page's status line, which is there before it; the card's line is shown only.
+    expect(screen.getAllByRole('status').filter((node) => node.textContent === BUILD.added(5))).toHaveLength(1);
+    expect(within(card(5)).getByText(BUILD.added(5))).not.toHaveAttribute('role');
     expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
     expect(ids()).toEqual(['q-1', 'q-2', 'q-3', 'q-4', 'new-1']);
     expect(within(card(5)).getByText('Верно / неверно')).toBeInTheDocument();

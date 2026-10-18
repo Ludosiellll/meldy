@@ -18,6 +18,7 @@ import {
   type SettingsProblem,
 } from '../../lib/quizzes/quizModel';
 import { useFrame } from '../../components/exams/useFrame';
+import { bringIntoView } from '../../components/test/bringIntoView';
 import PaperSelect, { type PaperSelectOption } from '../../components/ui/PaperSelect';
 import { errorText, GONE, nb } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
@@ -91,6 +92,21 @@ export default function QuizSetupPage() {
   const compact = allAsked;
   const [moreOpen, setMoreOpen] = useState(false);
   const frame = useFrame<HTMLDivElement>();
+  // A computer: «Ещё настройки» stands on top of the right column and the folded settings open under both cards,
+  // below the window's edge at 734 px — the window moves the least to show where they begin (bringIntoView).
+  const moreRef = useRef<HTMLDivElement>(null);
+  const revealMore = useRef(false);
+  const toggleMore = () => {
+    revealMore.current = !moreOpen && frame.side;
+    setMoreOpen(!moreOpen);
+  };
+  useEffect(() => {
+    if (!moreOpen || !revealMore.current) return;
+    revealMore.current = false;
+    const block = moreRef.current;
+    const heading = block?.querySelector('.qa-part-h');
+    if (block && heading) bringIntoView(block, heading);
+  }, [moreOpen]);
   const formId = useId();
   const data = useContainerData(containerId);
   const summary = data.data?.summary ?? null;
@@ -677,6 +693,15 @@ export default function QuizSetupPage() {
   );
 
   const side = frame.side ? '' : undefined;
+  const moreButton = (
+    <button type="button" className="qa-more" aria-expanded={moreOpen} aria-controls={`${formId}-more`} onClick={toggleMore}>
+      <span className="qa-more-t">{QA_SETUP.more}</span>
+      <span className="qa-more-n">{QA_SETUP.moreNote}</span>
+      <svg className="qa-more-i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </button>
+  );
   const body = compact ? (
     <>
       <div className="qa-parts" data-side={side} data-compact="">
@@ -690,23 +715,13 @@ export default function QuizSetupPage() {
             {whoField}
           </>,
         )}
+        {/* A computer: on top of the right column, above «Оформление» — in view at 734 px, not behind the bar; a phone:
+            under «Оформление», the folded settings right under it. The order of the page is the order of the eye. */}
+        {frame.side ? moreButton : null}
         {lookPart}
-        {/* On a computer under «Оформление», in view at 734 px; the folded settings open under both cards. */}
-        <button
-          type="button"
-          className="qa-more"
-          aria-expanded={moreOpen}
-          aria-controls={`${formId}-more`}
-          onClick={() => setMoreOpen((open) => !open)}
-        >
-          <span className="qa-more-t">{QA_SETUP.more}</span>
-          <span className="qa-more-n">{QA_SETUP.moreNote}</span>
-          <svg className="qa-more-i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
+        {frame.side ? null : moreButton}
       </div>
-      <div id={`${formId}-more`} className="qa-parts qa-more-parts" data-side={side} hidden={!moreOpen}>
+      <div id={`${formId}-more`} ref={moreRef} className="qa-parts qa-more-parts" data-side={side} hidden={!moreOpen}>
         {part(
           'q',
           QA_SETUP.partQuestions,

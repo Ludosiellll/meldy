@@ -65,3 +65,54 @@ describe('QuizPeople: somebody who wrote without an account (release 47 §47.1)'
     expect(screen.queryByText(QA_PEOPLE.guestHint)).toBeNull();
   });
 });
+
+describe('QuizPeople: the table of a quiz of one attempt, the time under a minute (release 47.1)', () => {
+  const one = (): QuizAttemptRow[] => {
+    const base = results().attempts[0];
+    return [
+      { ...base, id: 'x1', person: 'p1', name: 'Иванов Иван', started_at: '2026-10-16T11:30:00Z', finished_at: '2026-10-16T11:30:40Z' },
+      { ...base, id: 'y1', person: 'p2', name: 'Борисова Анна', started_at: '2026-10-16T11:30:00Z', finished_at: '2026-10-16T11:48:00Z' },
+    ];
+  };
+  const showOne = (list: QuizAttemptRow[], wide: boolean, allowed: number | null) =>
+    render(
+      <QuizPeople quiz={quizRow({ attempts: allowed })} attempts={list} items={examItems()} subjects={SUBJECTS} offsetMs={0} wide={wide} onChanged={() => undefined} />,
+    );
+  const row = (name: string) =>
+    within(screen.getByRole('list', { name: QA_PEOPLE.title }))
+      .getAllByRole('button')
+      .find((button) => plain(button.textContent).startsWith(name))!;
+
+  it('one attempt allowed: no «Попытки» on a computer, in the head or the rows; «Время» says «меньше минуты»', () => {
+    showOne(one(), true, 1);
+    const head = document.querySelector('.qa-people-head')!;
+    expect(plain(head.textContent)).not.toContain(QA_PEOPLE.head.attempts);
+    expect(plain(head.textContent)).toContain(QA_PEOPLE.head.minutes);
+    expect(document.querySelector('.qa-people')).toHaveAttribute('data-one', '');
+    expect(document.querySelectorAll('.qa-person-attempts')).toHaveLength(0);
+    // Four columns and the arrow, in the head as in the rows.
+    expect(head.children).toHaveLength(5);
+    expect(row('Иванов').children).toHaveLength(5);
+    expect(row('Иванов').querySelector('.qa-person-minutes')?.textContent).toBe('меньше минуты');
+    expect(plain(row('Борисова').querySelector('.qa-person-minutes')?.textContent)).toBe('18 мин');
+  });
+
+  it('more attempts allowed: the column stays', () => {
+    showOne(one(), true, 3);
+    expect(plain(document.querySelector('.qa-people-head')?.textContent)).toContain(QA_PEOPLE.head.attempts);
+    expect(document.querySelector('.qa-people')).not.toHaveAttribute('data-one');
+    expect(plain(row('Иванов').querySelector('.qa-person-attempts')?.textContent)).toBe('попытка 1 из 3');
+  });
+
+  it('one allowed, but somebody has two (the limit was lowered later): the column comes back for them', () => {
+    const list = [...one(), { ...one()[0], id: 'x2', n: 2, started_at: '2026-10-16T11:40:00Z', finished_at: '2026-10-16T11:45:00Z' }];
+    showOne(list, true, 1);
+    expect(plain(document.querySelector('.qa-people-head')?.textContent)).toContain(QA_PEOPLE.head.attempts);
+    expect(plain(row('Иванов').querySelector('.qa-person-attempts')?.textContent)).toBe('попытка 2 из 1');
+  });
+
+  it('a phone: «меньше минуты» in the muted line, no «попытка 1 из 1»', () => {
+    showOne(one(), false, 1);
+    expect(plain(row('Иванов').querySelector('.qa-person-more')?.textContent)).toBe('меньше минуты');
+  });
+});

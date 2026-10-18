@@ -14,6 +14,9 @@ import { BUILD } from './copyTest';
 export interface CardNote {
   text: string;
   error?: boolean;
+  /** Shown, not said: the page's own status line says it already («Вопрос 5 добавлен.» — a new card's line would
+      come in with its words, and a screen reader may miss a status region that arrives full). */
+  quiet?: boolean;
 }
 
 interface Props {
@@ -62,7 +65,7 @@ export default function QuestionList({ items, busy, notes, askDelete, group, edi
               onAction={(action) => onAction(item, action)}
             >
               {note ? (
-                <p className="tb-note" role={note.error ? 'alert' : 'status'}>
+                <p className="tb-note" role={note.error ? 'alert' : note.quiet ? undefined : 'status'}>
                   {note.text}
                 </p>
               ) : null}

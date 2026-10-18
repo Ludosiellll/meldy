@@ -110,11 +110,16 @@ export function secondsLeft(deadlineIso: string | null, offsetMs: number, nowMs:
 /**
  * How near the end an attempt is: 2 — a minute or less left, 1 — five minutes or less, 0 — more, or no timer. The clock
  * turns red from 1 on; each step up is said once (QuizRun).
+ *
+ * `whole` — the attempt's whole time in seconds (from its start to the deadline), when known. A mark is only for an
+ * attempt longer than it (release 47.1): one of five minutes or less does not start red — it has no five-minute step,
+ * only the last minute; one of a minute or less has neither.
  */
-export function timeStage(seconds: number | null): 0 | 1 | 2 {
+export function timeStage(seconds: number | null, whole: number | null = null): 0 | 1 | 2 {
   if (seconds === null) return 0;
-  if (seconds <= 60) return 2;
-  if (seconds <= 300) return 1;
+  const longer = (mark: number) => whole === null || !Number.isFinite(whole) || whole > mark;
+  if (seconds <= 60) return longer(60) ? 2 : 0;
+  if (seconds <= 300 && longer(300)) return 1;
   return 0;
 }
 
@@ -161,6 +166,14 @@ export interface PersonRow {
 }
 
 const ratio = (a: QuizAttemptRow) => (a.total > 0 ? a.correct / a.total : 0);
+
+/** The minutes a finished attempt took, rounded; 0 — under a minute («меньше минуты», not «1 мин»); null — unfinished. */
+export function minutesTaken(attempt: Pick<QuizAttemptRow, 'started_at' | 'finished_at'>): number | null {
+  if (!attempt.finished_at) return null;
+  const ms = Date.parse(attempt.finished_at) - Date.parse(attempt.started_at);
+  if (!Number.isFinite(ms)) return null;
+  return ms < 60_000 ? 0 : Math.round(ms / 60_000);
+}
 export const percentOf = (correct: number, total: number) => (total > 0 ? Math.round((correct * 100) / total) : null);
 
 export function peopleRows(attempts: readonly QuizAttemptRow[], grading: QuizGrading): PersonRow[] {
@@ -176,7 +189,7 @@ export function peopleRows(attempts: readonly QuizAttemptRow[], grading: QuizGra
       for (const a of finished) if (ratio(a) > ratio(counted)) counted = a;
     }
     const status: PersonStatus = !counted.finished_at ? 'writing' : counted.finish_reason === 'time' ? 'time' : counted.finish_reason === 'closed' ? 'closed' : 'done';
-    const minutes = counted.finished_at ? Math.round((Date.parse(counted.finished_at) - Date.parse(counted.started_at)) / 60000) : null;
+    const minutes = minutesTaken(counted);
     rows.push({
       person,
       name: counted.name,

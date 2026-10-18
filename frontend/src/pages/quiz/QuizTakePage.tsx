@@ -42,8 +42,9 @@ import '../../components/quiz/quizTake.css';
  * - the author's cover on top of the card and the quiz's colour on the page's root (data-accent, quizTake.css).
  *
  * The start fits a laptop's 734 px and a phone's 844 px with «Начать» in view: a low cover band, the title, the author,
- * the facts on one line (dates kept whole), then the name («Имя и фамилия — их увидит <автор>») and the button; the
- * rules and the line about what the author sees come under the button.
+ * the facts on one line (dates kept whole), then the name («Имя и фамилия — их увидит <автор>»; the author on their own
+ * page — «Имя и фамилия») and the button; the rules and the line about what the author sees come under the button. The
+ * line under the title leaves out the exam when its title is the quiz's own (release 47.1).
  */
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: QuizPreview } | { state: 'error'; message: string };
@@ -84,6 +85,12 @@ function Cover({ path }: { path: string }) {
       <img src={coverUrl(path)} alt="" decoding="async" onError={() => setFailed(true)} />
     </div>
   );
+}
+
+/** Two titles that differ only in case and spaces («Проверка  выпуска» and «проверка выпуска») are the same one. */
+function sameTitle(a: string | null | undefined, b: string | null | undefined): boolean {
+  const plain = (text: string | null | undefined) => (text ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru');
+  return plain(a) !== '' && plain(a) === plain(b);
 }
 
 function windowWords(value: QuizPreview): string | null {
@@ -340,6 +347,8 @@ export default function QuizTakePage() {
   const reason = value && me && !me.open_attempt ? reasonWords(value, me.reason ?? (me.can_start ? null : byState)) : null;
   const guestReason = value && !me ? reasonWords(value, byState) : null;
   const results = me?.results ?? [];
+  // The exam's title only when it says something the quiz's own does not (a test of «Новый тест» bears its exam's).
+  const examTitle = value?.exam_title && !sameTitle(value.exam_title, value.title) ? value.exam_title : null;
   const deviceCard = user && device && me && !me.is_author ? device : null;
   // A guest whose device already holds attempts of this quiz may be someone else at a shared computer.
   const otherHere = guest && me !== null && (Boolean(me.open_attempt) || me.attempts_used > 0);
@@ -379,11 +388,13 @@ export default function QuizTakePage() {
                 <h1 id="qt-title" className="au-h1 qt-h1">
                   {value.title}
                 </h1>
-                <p className="qt-by">
-                  {value.author_name ? <span>{TAKE.author(value.author_name)}</span> : null}
-                  {value.author_name && value.exam_title ? <span aria-hidden="true"> · </span> : null}
-                  {value.exam_title ? <span>{TAKE.exam(value.exam_title)}</span> : null}
-                </p>
+                {value.author_name || examTitle ? (
+                  <p className="qt-by">
+                    {value.author_name ? <span>{TAKE.author(value.author_name)}</span> : null}
+                    {value.author_name && examTitle ? <span aria-hidden="true"> · </span> : null}
+                    {examTitle ? <span>{TAKE.exam(examTitle)}</span> : null}
+                  </p>
+                ) : null}
                 <p className="qt-meta">{meta}</p>
               </>
             ) : (
@@ -468,7 +479,7 @@ export default function QuizTakePage() {
                   <form className="qt-start" onSubmit={(event) => void begin(event)} noValidate>
                     <div className="au-field">
                       <label className="au-label" htmlFor={nameId}>
-                        {TAKE.nameLabel(value.author_name)}
+                        {me.is_author ? TAKE.nameLabelOwn : TAKE.nameLabel(value.author_name)}
                       </label>
                       <input
                         id={nameId}

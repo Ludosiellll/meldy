@@ -31,7 +31,8 @@ import './quizTake.css';
  *
  * The top line reads «1 из 3 · осталось 19:58». With five minutes left and again with one the clock (and the strip)
  * turns red and bold, and a status line says «Осталось 5 минут» / «Осталась 1 минута» — once each, only when the
- * attempt crosses that mark (a resumed attempt already past it is not told again).
+ * attempt crosses that mark (a resumed attempt already past it is not told again). A mark is only for an attempt longer
+ * than it (release 47.1): a five-minute test does not start red, it has the last minute only (timeStage).
  */
 
 export type QuizAnswer = MockAnswer;
@@ -448,8 +449,12 @@ export default function QuizRun({ attempt, token, accent = 'blue', onResult, onL
     if (left === 0) end('time');
   }, [left]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Five minutes left, then one: said once each when the attempt crosses the mark (not for one already past it).
-  const stage = timeStage(left);
+  // The attempt's whole time (from its start to the deadline as the server has it now): the strip's length, and the
+  // marks it is longer than.
+  const span = deadline ? (Date.parse(deadline) - Date.parse(attempt.started_at)) / 1000 : Number.NaN;
+  // Five minutes left, then one: said once each when the attempt crosses the mark (not for one already past it). An
+  // attempt of five minutes or less has only the last minute: it does not start red (release 47.1).
+  const stage = timeStage(left, Number.isFinite(span) ? Math.round(span) : null);
   const told = useRef(stage);
   const [lowNote, setLowNote] = useState('');
   useEffect(() => {
@@ -479,8 +484,7 @@ export default function QuizRun({ attempt, token, accent = 'blue', onResult, onL
 
   const timeText = left !== null ? clockText(left) : null;
   const shown = Math.min(pos + 1, total);
-  // The strip: the share of the attempt's time still left (from its start to the deadline as the server has it now).
-  const span = deadline ? (Date.parse(deadline) - Date.parse(attempt.started_at)) / 1000 : Number.NaN;
+  // The strip: the share of the attempt's time still left.
   const share = left !== null && Number.isFinite(span) && span > 0 ? Math.min(1, Math.max(0, left / span)) : null;
   const sheetClass = `qt-accent qt-accent-${accent}`;
 

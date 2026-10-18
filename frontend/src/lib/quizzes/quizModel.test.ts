@@ -8,6 +8,7 @@ import {
   dateWords,
   defaultMinutes,
   defaultSettings,
+  minutesTaken,
   peopleRows,
   questionRows,
   quizOrder,
@@ -229,5 +230,40 @@ describe('dateWords and timeStage (release 47 design fixes)', () => {
     expect(timeStage(61)).toBe(1);
     expect(timeStage(60)).toBe(2);
     expect(timeStage(0)).toBe(2);
+  });
+  it('a mark only for an attempt longer than it: five minutes or less — the last minute only; a minute or less — none (release 47.1)', () => {
+    // A 20-minute attempt: both marks.
+    expect(timeStage(300, 1200)).toBe(1);
+    expect(timeStage(60, 1200)).toBe(2);
+    // Just over five minutes: both.
+    expect(timeStage(300, 301)).toBe(1);
+    // Five minutes in all: not red at the start, red from the last minute.
+    expect(timeStage(300, 300)).toBe(0);
+    expect(timeStage(61, 300)).toBe(0);
+    expect(timeStage(60, 300)).toBe(2);
+    expect(timeStage(0, 300)).toBe(2);
+    // Two minutes in all.
+    expect(timeStage(120, 120)).toBe(0);
+    expect(timeStage(60, 120)).toBe(2);
+    // A minute or less in all: never red.
+    expect(timeStage(60, 60)).toBe(0);
+    expect(timeStage(10, 45)).toBe(0);
+    // The whole time unknown: as before.
+    expect(timeStage(300, null)).toBe(1);
+    expect(timeStage(300, Number.NaN)).toBe(1);
+    expect(timeStage(null, 300)).toBe(0);
+  });
+});
+
+describe('minutesTaken (release 47.1)', () => {
+  const at = (seconds: number) => new Date(Date.UTC(2026, 9, 16, 10, 0, seconds)).toISOString();
+  it('0 under a minute («меньше минуты»), else rounded; null while unfinished', () => {
+    expect(minutesTaken({ started_at: at(0), finished_at: at(20) })).toBe(0);
+    expect(minutesTaken({ started_at: at(0), finished_at: at(59) })).toBe(0);
+    expect(minutesTaken({ started_at: at(0), finished_at: at(60) })).toBe(1);
+    expect(minutesTaken({ started_at: at(0), finished_at: at(89) })).toBe(1);
+    expect(minutesTaken({ started_at: at(0), finished_at: at(18 * 60 + 10) })).toBe(18);
+    expect(minutesTaken({ started_at: at(0), finished_at: null })).toBeNull();
+    expect(minutesTaken({ started_at: 'не дата', finished_at: at(30) })).toBeNull();
   });
 });

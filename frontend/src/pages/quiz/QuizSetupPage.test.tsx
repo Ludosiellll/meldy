@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   listQuizzes: vi.fn(),
   upload: vi.fn(),
   reload: vi.fn(),
+  bring: vi.fn(),
   state: { summary: null as unknown, items: null as unknown },
 }));
 
@@ -18,6 +19,7 @@ vi.mock('../../api/itemPictures', async (importOriginal) => ({
   uploadPicture: api.upload,
   coverUrl: (path: string) => `https://covers.test/${path}`,
 }));
+vi.mock('../../components/test/bringIntoView', () => ({ bringIntoView: api.bring }));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainerData: () => ({
     data: api.state.summary ? { summary: api.state.summary, items: api.state.items, planInput: null, oralWithoutPoints: 0 } : null,
@@ -71,10 +73,12 @@ beforeEach(() => {
   api.updateQuiz.mockReset().mockResolvedValue(quizRow());
   api.listQuizzes.mockReset().mockResolvedValue([listRow()]);
   api.upload.mockReset().mockResolvedValue('kept');
+  api.bring.mockReset();
 });
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
 });
 
 describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
@@ -286,9 +290,11 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     await waitFor(() => expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ accent: 'green' })));
   });
 
-  it('«После сдачи предложить тренироваться…» with its note', async () => {
+  it('«После сдачи предложить тренировать эти вопросы в Meldy» with its note', async () => {
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
-    const toggle = screen.getByRole('checkbox', { name: QA_SETUP.practice });
+    const toggle = screen.getByRole('checkbox', { name: 'После сдачи предложить тренировать эти вопросы в Meldy' });
+    // The questions, not «этому экзамену» (release 47.1).
+    expect(document.body.textContent).not.toContain('по этому экзамену');
     expect(toggle).toHaveAccessibleDescription(
       'После закрытия ученикам предложат тренировать вопросы экзамена в Meldy (в тренировке видны все ответы). ' +
         'Кто согласится, появится в списке участников экзамена. Его прогресс вам не виден.',
@@ -379,6 +385,37 @@ describe('QuizSetupPage: all the questions (?all=1, the constructor’s «Отп
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'false');
     expect(folded).not.toBeVisible();
+  });
+
+  it('a computer: «Ещё настройки» on top of the right column, before «Оформление» (in view at 734 px); opened, the window shows where the folded cards begin (release 47.1)', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1532 });
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1`);
+    const button = more();
+    const main = screen.getByRole('region', { name: QA_SETUP.partMain });
+    const look = screen.getByRole('region', { name: QA_SETUP.partLook });
+    expect(main.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button.compareDocumentPosition(look) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button.parentElement).toHaveAttribute('data-side', '');
+    fireEvent.click(button);
+    expect(api.bring).toHaveBeenCalledTimes(1);
+    const [first, last] = api.bring.mock.calls[0] as [HTMLElement, HTMLElement];
+    expect(first).toBe(document.getElementById(button.getAttribute('aria-controls') ?? ''));
+    expect(last).toHaveTextContent(QA_SETUP.partQuestions);
+    // Folding moves nothing.
+    fireEvent.click(button);
+    expect(api.bring).toHaveBeenCalledTimes(1);
+  });
+
+  it('a phone: «Ещё настройки» under «Оформление», the folded settings right under it; the window stays', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1`);
+    const button = more();
+    const look = screen.getByRole('region', { name: QA_SETUP.partLook });
+    expect(look.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button.parentElement).not.toHaveAttribute('data-side');
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(api.bring).not.toHaveBeenCalled();
   });
 
   it('a name longer than a quiz may have is cut to 120 characters; an empty one keeps the usual', () => {

@@ -524,12 +524,38 @@ describe('QuizRun: the last minutes (release 47 design fixes)', () => {
   });
 
   it('an attempt resumed past a mark is not told it again; the next one is said', async () => {
-    // 4:00 left at the start: red already, nothing said.
-    renderRun(attempt({ deadline_at: '2026-10-16T10:04:00.000Z' }));
+    // A 30-minute attempt with 4:00 left when it is opened again: red already, nothing said.
+    renderRun(attempt({ started_at: '2026-10-16T09:34:00.000Z', deadline_at: '2026-10-16T10:04:00.000Z' }));
     expect(clock()).toHaveAttribute('data-low', '');
     expect(status()?.textContent).toBe('');
     await advance(180_000);
     expect(status()?.textContent).toBe('Осталась 1 минута');
+  });
+
+  it('a five-minute test does not start red: no five-minute step, only the last minute (release 47.1)', async () => {
+    // The whole attempt is 5:00, from its start to its deadline.
+    renderRun(attempt({ deadline_at: '2026-10-16T10:05:00.000Z' }));
+    expect(bar()).toBe('1 из 3 · осталось 05:00');
+    expect(clock()).not.toHaveAttribute('data-low');
+    expect(document.querySelector('.qt-time')).not.toHaveAttribute('data-low');
+    expect(status()?.textContent).toBe('');
+    await advance(30_000);
+    expect(clock()).not.toHaveAttribute('data-low');
+    expect(status()?.textContent).toBe('');
+    await advance(210_000);
+    expect(bar()).toBe('1 из 3 · осталось 01:00');
+    expect(clock()).toHaveAttribute('data-low', '');
+    expect(document.querySelector('.qt-time')).toHaveAttribute('data-low', '');
+    expect(status()?.textContent).toBe('Осталась 1 минута');
+  });
+
+  it('a test of a minute or less has no mark at all', async () => {
+    renderRun(attempt({ deadline_at: '2026-10-16T10:01:00.000Z' }));
+    expect(clock()).not.toHaveAttribute('data-low');
+    await advance(30_000);
+    expect(bar()).toBe('1 из 3 · осталось 00:30');
+    expect(clock()).not.toHaveAttribute('data-low');
+    expect(status()?.textContent).toBe('');
   });
 
   it('without a timer: no clock, no strip, nothing said', () => {

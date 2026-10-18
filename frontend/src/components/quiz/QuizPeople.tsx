@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { attemptAnswers, resetAttempt } from '../../api/quizzes';
-import { clockText, dateTimeText, peopleRows, percentOf, secondsLeft, type PersonRow } from '../../lib/quizzes/quizModel';
+import { clockText, dateTimeText, minutesTaken, peopleRows, percentOf, secondsLeft, type PersonRow } from '../../lib/quizzes/quizModel';
 import PaperSelect from '../ui/PaperSelect';
 import { Sheet } from '../containers/ui';
 import { errorText, letter, lettersText, nb } from '../containers/copyImport';
@@ -17,11 +17,12 @@ import './quizAuthor.css';
  * «Участники» of a quiz's stats (spec 2026-10-16 §2.3): one row a person — the attempt that counts (best or last, or
  * the one being written), their name («(вы)» for the author's own tries), what they do now («пишет — 12 из 20,
  * осталось 08:41» against the server's deadline, or «время вышло, ответы сдаются» at 00:00 while the server still
- * takes the last answers, «сдал(а) 17:32», «время вышло», «закрыта»), the result, the minutes
- * and «попытка 2 из 3». A press opens their answers in a sheet: a switch between their attempts, each answered question
- * with their answer and the key in letters, and «Сбросить попытку» after asking (the person gets the attempt back).
- * Somebody who wrote without an account (release 47) has a quiet «без входа» after the name, and a line under the table
- * says such attempts are counted per browser.
+ * takes the last answers, «сдал(а) 17:32», «время вышло», «закрыта»), the result, the minutes («меньше минуты» under
+ * one) and «попытка 2 из 3» (a quiz of one attempt has no such column on a computer). A press opens their answers in a
+ * sheet: a switch between their attempts, each answered question with their answer and the key in letters, and
+ * «Сбросить попытку» after asking (the person gets the attempt back). Somebody who wrote without an account
+ * (release 47) has a quiet «без входа» after the name, and a line under the table says such attempts are counted per
+ * browser.
  */
 
 export type PeopleSort = 'name' | 'result' | 'time';
@@ -68,10 +69,6 @@ function resultText(attempt: QuizAttemptRow): string {
   return attempt.finished_at ? QA_PEOPLE.result(attempt.correct, attempt.total, percentOf(attempt.correct, attempt.total)) : '';
 }
 
-function minutesOf(attempt: QuizAttemptRow): number | null {
-  return attempt.finished_at ? Math.round((Date.parse(attempt.finished_at) - Date.parse(attempt.started_at)) / 60000) : null;
-}
-
 function sortRows(rows: PersonRow[], by: PeopleSort): PersonRow[] {
   const byName = (a: PersonRow, b: PersonRow) => a.name.localeCompare(b.name, 'ru');
   if (by === 'name') return [...rows].sort(byName);
@@ -108,6 +105,9 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
 
   const allowed = quiz.attempts;
   const attemptsCell = (row: PersonRow) => (allowed === 1 && row.attempts === 1 ? '' : QA_PEOPLE.attempts(row.attempts, allowed));
+  // One attempt a person: the column «Попытки» would stand empty (release 47.1). It comes back for somebody with more,
+  // as after the limit was lowered.
+  const attemptsColumn = !(allowed === 1 && rows.every((row) => row.attempts <= 1));
 
   return (
     <div className="qa-people-wrap">
@@ -124,14 +124,14 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
           />
         </div>
       ) : null}
-      <div className="qa-people" data-wide={wide ? '' : undefined}>
+      <div className="qa-people" data-wide={wide ? '' : undefined} data-one={attemptsColumn ? undefined : ''}>
         {wide ? (
           <div className="qa-person qa-people-head" aria-hidden="true">
             <span>{QA_PEOPLE.head.name}</span>
             <span>{QA_PEOPLE.head.status}</span>
             <span>{QA_PEOPLE.head.result}</span>
             <span>{QA_PEOPLE.head.minutes}</span>
-            <span>{QA_PEOPLE.head.attempts}</span>
+            {attemptsColumn ? <span>{QA_PEOPLE.head.attempts}</span> : null}
             <span />
           </div>
         ) : null}
@@ -156,7 +156,7 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
                   {wide ? (
                     <>
                       <span className="qa-person-minutes">{nb(minutes)}</span>
-                      <span className="qa-person-attempts">{nb(attemptsCell(row))}</span>
+                      {attemptsColumn ? <span className="qa-person-attempts">{nb(attemptsCell(row))}</span> : null}
                     </>
                   ) : (
                     <span className="qa-person-more">{nb([minutes, attemptsCell(row)].filter(Boolean).join(' · '))}</span>
@@ -286,7 +286,7 @@ function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset }
     }
   };
 
-  const minutes = minutesOf(shown);
+  const minutes = minutesTaken(shown);
   const head = shown.finished_at
     ? [statusText(shown, offsetMs, now), QA_PEOPLE.result(shown.correct, shown.total, percentOf(shown.correct, shown.total)), minutes === null ? null : QA_PEOPLE.minutes(minutes)]
         .filter(Boolean)

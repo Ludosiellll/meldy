@@ -15,5 +15,7 @@
 .sf-page[data-frame='m'] .ex-head:has(> .ex-draw[data-pair]) > :first-child { flex-basis: 100%; }
 .sf-page[data-frame='s'] .ex-draw[data-pair],
 .sf-page[data-frame='m'] .ex-draw[data-pair] { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-start; }
-/* A phone: one door under the other, the line under its pill as wide as the screen lets it. */
+/* A phone: one door under the other. Both lines get one measure, as on a computer, so they break alike — two short
+   balanced lines each; as wide as the screen the exam's broke and the test's did not (release 47.1). */
 .sf-page[data-frame='s'] .ex-draw[data-pair] .tb-door { flex: 1 1 100%; width: auto; max-width: none; }
+.sf-page[data-frame='s'] .ex-draw[data-pair] .tb-door-note { max-width: 260px; }

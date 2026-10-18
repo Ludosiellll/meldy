@@ -21,6 +21,7 @@ export const TAKE = {
   retry: 'Попробовать ещё раз',
   home: 'На главную',
   author: (name: string) => `автор: ${name}`,
+  /** Not shown when it repeats the quiz's own title (sameTitle): a test made in «Новый тест» is named as its exam. */
   exam: (title: string) => `экзамен «${title}»`,
   /** «20 вопросов · 30 минут · открыта до 24 окт., 18:00 · 1 попытка». */
   meta(p: { items: number; minutes: number | null; window: string | null; attempts: number | null }): string {
@@ -59,6 +60,8 @@ export const TAKE = {
   signInShort: 'Войти',
   /** «Имя и фамилия — их увидит Анна Петрова»; without the author's name — «автор теста». */
   nameLabel: (author: string | null | undefined) => glue(`Имя и фамилия — их увидит ${author?.trim() || 'автор теста'}`),
+  /** The author on their own page: nobody else to see the name (release 47.1). */
+  nameLabelOwn: 'Имя и фамилия',
   nameHint: `Например: Иванов Иван, 9${NBSP}Б`,
   nameBad: 'Имя — от 2 до 80 знаков.',
   start: 'Начать',

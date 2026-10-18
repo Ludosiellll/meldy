@@ -339,7 +339,7 @@ export default function BuildPage() {
     try {
       const { items } = await addMany([inputOf(draft, '', `man:${newId()}`)]);
       const saved = items[0].id;
-      say(saved, BUILD.added(number));
+      setNotes((current) => ({ ...current, [saved]: { text: BUILD.added(number), quiet: true } }));
       setStatus(BUILD.added(number));
       if (goOn()) return;
       if (next) {

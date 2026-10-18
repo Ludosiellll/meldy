@@ -888,4 +888,42 @@ describe('/k/<код>: the start in view (release 47 design fixes)', () => {
     const start = screen.getByRole('button', { name: 'Начать' });
     expect(start.compareDocumentPosition(screen.getByText(GUEST_PRIVACY)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('the author on their own page: the label is just «Имя и фамилия», nobody else to see it (release 47.1)', async () => {
+    signedIn({ is_author: true });
+    renderAt();
+    const field = await screen.findByLabelText('Имя и фамилия');
+    expect(labelOf(field)).toBe('Имя и фамилия');
+    expect(page()).not.toContain('их увидит');
+  });
+});
+
+describe('/k/<код>: the line under the title without a repeated name (release 47.1)', () => {
+  const byLine = () => plain(document.querySelector('.qt-by')?.textContent);
+
+  it('the exam left out when its title is the quiz’s own, whatever the case and the spaces', async () => {
+    api.previewQuiz.mockResolvedValue({ ...PREVIEW, title: 'Проверка  выпуска 47', exam_title: ' проверка выпуска 47 ' });
+    renderAt();
+    await screen.findByRole('heading', { level: 1 });
+    expect(byLine()).toBe('автор: Анна Петрова');
+    expect(page()).not.toContain('экзамен «');
+  });
+
+  it('another title: «автор: … · экзамен «…»» as before', async () => {
+    renderAt();
+    await screen.findByRole('heading', { level: 1 });
+    expect(byLine()).toBe('автор: Анна Петрова · экзамен «Зимняя сессия»');
+  });
+
+  it('without the author’s name the exam alone, and nothing when it repeats the title', async () => {
+    api.previewQuiz.mockResolvedValue({ ...PREVIEW, author_name: undefined });
+    renderAt();
+    await screen.findByRole('heading', { level: 1 });
+    expect(byLine()).toBe('экзамен «Зимняя сессия»');
+    cleanup();
+    api.previewQuiz.mockResolvedValue({ ...PREVIEW, author_name: undefined, exam_title: 'КОНТРОЛЬНАЯ ПО БАЗАМ ДАННЫХ' });
+    renderAt();
+    await screen.findByRole('heading', { level: 1 });
+    expect(document.querySelector('.qt-by')).toBeNull();
+  });
 });
