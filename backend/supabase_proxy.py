@@ -11,6 +11,11 @@ functions/v1/telegram/webapp/session (вход в мини-приложении 
 Права те же, что при прямом запросе: anon-ключ и токен пользователя из его же заголовков, RLS
 решает в базе. Ключи, токены и тела в журнал не пишутся.
 
+X-Forwarded-For уходит в Supabase один: адрес самого посетителя (ratelimit.visitor_ip), а не то, что прислал
+браузер. Без него база видела бы первым адрес сервера Meldy, один на всех, и предел гостевых стартов
+«Контрольной» (30 в минуту с адреса, meldy_private.quiz_ip_hash) делили бы все посетители этого пути. Предел
+самого пути для анонимов — тоже по адресу посетителя (visitor_ip_key), а не прокси Hugging Face.
+
 Вход через Google сюда не проходит: Google возвращает браузер на адрес Supabase, заданный в
 настройках провайдера.
 """
@@ -25,9 +30,7 @@ import httpx
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
-from slowapi.util import get_remote_address
-
-from ratelimit import limiter
+from ratelimit import limiter, visitor_ip, visitor_ip_key
 
 router = APIRouter()
 
@@ -121,12 +124,13 @@ def _raw_target(request: Request) -> Optional[str]:
 
 
 def _caller_key(request: Request) -> str:
-    """A signed-in browser by its session token; anonymous ones (the anon key as the bearer) by
-    address — behind the HF proxy one address is shared by many people."""
+    """A signed-in browser by its session token; anonymous ones (the anon key as the bearer) by the
+    visitor's own address (visitor_ip_key) — the connection's address is the HF proxy, the same for
+    every visitor."""
     token = request.headers.get("authorization", "")
     if token[:7].lower() == "bearer " and token[7:].strip() and token[7:].strip() != request.headers.get("apikey", ""):
         return "sb:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
-    return "sb-ip:" + get_remote_address(request)
+    return "sb-ip:" + visitor_ip_key(request)
 
 
 @router.api_route("/sb/{path:path}", methods=METHODS, include_in_schema=False)
@@ -137,6 +141,8 @@ async def supabase_passthrough(request: Request, path: str) -> Response:
     if upstream is None or target is None:
         return JSONResponse({"message": "Not found"}, status_code=404)
     headers = {name: value for name, value in request.headers.items() if name.lower() in REQUEST_HEADERS}
+    # The visitor's address, and only it: whatever X-Forwarded-For the browser sent stays here.
+    headers["x-forwarded-for"] = visitor_ip(request)
     body = await request.body()
     try:
         answer = await _http().request(

@@ -42,7 +42,7 @@ def test_a_rest_read_goes_to_the_project_with_its_raw_query_and_only_supabase_he
     response = proxy.get(
         "/sb/rest/v1/materials?select=id,title&created_at=gte.2026-10-05T00:00:00%2B00:00&or=(a.eq.1,b.eq.2)",
         headers={"apikey": "anon", "Authorization": "Bearer user-token", "Cookie": "secret=1",
-                 "Prefer": "count=exact", "X-Forwarded-For": "1.2.3.4"},
+                 "Prefer": "count=exact", "X-Forwarded-For": "1.2.3.4, 203.0.113.9, 10.0.0.2"},
     )
     assert response.status_code == 200 and response.json() == [{"id": 1}]
     (sent,) = proxy.seen
@@ -50,7 +50,9 @@ def test_a_rest_read_goes_to_the_project_with_its_raw_query_and_only_supabase_he
     assert sent.url.query.decode() == "select=id,title&created_at=gte.2026-10-05T00:00:00%2B00:00&or=(a.eq.1,b.eq.2)"
     assert sent.headers["apikey"] == "anon" and sent.headers["authorization"] == "Bearer user-token"
     assert sent.headers["prefer"] == "count=exact"
-    assert "cookie" not in sent.headers and "x-forwarded-for" not in sent.headers
+    assert "cookie" not in sent.headers
+    # Only the visitor's own address goes on (the browser's «1.2.3.4» stays here).
+    assert sent.headers.get_list("x-forwarded-for") == ["203.0.113.9"]
     assert response.headers["content-range"] == "0-0/1"
     assert "set-cookie" not in response.headers and response.headers.get("server") != "cloudflare"
 
@@ -187,5 +189,61 @@ def test_the_way_needs_no_meldy_session_and_keys_its_limit_by_the_users_session(
 
     signed_in = key({"apikey": "anon", "Authorization": "Bearer user-token"})
     assert signed_in.startswith("sb:") and "user-token" not in signed_in
-    assert key({"apikey": "anon", "Authorization": "Bearer anon"}) == "sb-ip:10.0.0.7"  # аноним — по адресу
-    assert key({}) == "sb-ip:10.0.0.7"
+    assert key({"apikey": "anon", "Authorization": "Bearer anon"}) == "sb-ip:visitor:10.0.0.7"  # аноним — по адресу
+    assert key({}) == "sb-ip:visitor:10.0.0.7"
+    # The same token from two visitors keeps one key: the session, not the address.
+    assert key({"apikey": "anon", "Authorization": "Bearer user-token", "X-Forwarded-For": "198.51.100.4, 10.0.0.7"}) == signed_in
+
+
+def test_anonymous_visitors_behind_the_hf_proxy_each_get_their_own_limit(proxy):
+    """The connection's address is the HF proxy (the same for everyone); the visitor is the address the HF proxy
+    put before it in X-Forwarded-For (ratelimit.visitor_ip). An IPv6 visitor counts by their /64."""
+    from starlette.requests import Request
+
+    def key(forwarded: str | None, client: str = "10.0.0.7") -> str:
+        headers = [(b"apikey", b"anon"), (b"authorization", b"Bearer anon")]
+        if forwarded is not None:
+            headers.append((b"x-forwarded-for", forwarded.encode()))
+        return supabase_proxy._caller_key(Request({"type": "http", "headers": headers, "client": (client, 1234)}))
+
+    first = key("203.0.113.9, 10.0.0.7")
+    second = key("198.51.100.4, 10.0.0.7")
+    assert first == "sb-ip:visitor:203.0.113.9" and second == "sb-ip:visitor:198.51.100.4"
+    # A visitor cannot pick another key by sending their own X-Forwarded-For: it stays to the left.
+    assert key("6.6.6.6, 203.0.113.9, 10.0.0.7") == first
+    assert key("2001:db8:1:2::5, 10.0.0.7") == key("2001:db8:1:2:ffff::1, 10.0.0.7") == "sb-ip:visitor:2001:db8:1:2::/64"
+    # Without the HF proxy (nginx alone, one address) — that address; without any — the connection's.
+    assert key("192.0.2.10") == "sb-ip:visitor:192.0.2.10"
+    assert key(None, client="192.0.2.20") == "sb-ip:visitor:192.0.2.20"
+
+
+@pytest.mark.parametrize("forwarded, expected", [
+    # the browser's own value, the visitor (added by the HF proxy), the HF proxy (added by nginx)
+    ("6.6.6.6, 203.0.113.9, 10.0.0.2", "203.0.113.9"),
+    ("unknown, 6.6.6.6, 2001:db8::5, 10.0.0.2", "2001:db8::5"),
+    ("203.0.113.9:4431, 10.0.0.2", "203.0.113.9"),
+    # nginx without the HF proxy: one address
+    ("192.0.2.10", "192.0.2.10"),
+    # nothing usable: the connection's address
+    (None, "testclient"),
+    ("not-an-address, 10.0.0.2", "testclient"),
+])
+def test_supabase_gets_the_visitors_address_as_its_only_x_forwarded_for(proxy, forwarded, expected):
+    """The database's per-address limit of guest starts reads the first X-Forwarded-For entry
+    (meldy_private.quiz_ip_hash): it must be the visitor, never a value the browser chose."""
+    headers = {"apikey": "anon", "Authorization": "Bearer anon"}
+    if forwarded is not None:
+        headers["X-Forwarded-For"] = forwarded
+    response = proxy.post("/sb/rest/v1/rpc/quiz_guest_start", json={"p_code": "abcd2fghjkmn"}, headers=headers)
+    assert response.status_code == 200
+    (sent,) = proxy.seen
+    assert sent.headers.get_list("x-forwarded-for") == [expected]
+
+
+def test_two_x_forwarded_for_lines_of_the_browser_are_read_as_one_list(proxy):
+    """A second header line cannot push the visitor's address out of its place."""
+    response = proxy.get("/sb/rest/v1/materials?select=id",
+                         headers=[("apikey", "anon"), ("x-forwarded-for", "6.6.6.6"),
+                                  ("x-forwarded-for", "203.0.113.9, 10.0.0.2")])
+    assert response.status_code == 200
+    assert proxy.seen[-1].headers.get_list("x-forwarded-for") == ["203.0.113.9"]
