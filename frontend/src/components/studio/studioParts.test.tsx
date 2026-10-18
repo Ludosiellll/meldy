@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { isDraftQuestion } from '../../lib/studio/checker';
@@ -64,6 +65,69 @@ describe('the marks of a rich text', () => {
     fireEvent.keyDown(field, { key: 'Enter' });
     expect(done).toBe('enter');
     expect(screen.queryByRole('toolbar')).toBeNull();
+  });
+});
+
+describe('a block’s first words (live check of release 47.2: «ЗаметкаЗаметка 47.2»)', () => {
+  /** A field shown as the page shows it until a click, as the canvas has it. */
+  function Field({ first, starter, slash }: { first: string; starter?: string; slash?: () => void }) {
+    const [value, setValue] = useState(first);
+    const [active, setActive] = useState(false);
+    return (
+      <Editable
+        value={value}
+        onChange={setValue}
+        label="Заметка"
+        rich
+        multiline
+        max={4000}
+        starter={starter}
+        active={active}
+        onActivate={() => setActive(true)}
+        onDone={() => setActive(false)}
+        onSlash={slash ? () => slash() : undefined}
+      />
+    );
+  }
+  const field = () => screen.getByRole('textbox', { name: 'Заметка' }) as HTMLTextAreaElement;
+
+  it('the words the block started with open selected whole: the first key typed replaces them', async () => {
+    const user = userEvent.setup();
+    render(<Field first="Заметка" starter="Заметка" />);
+    await user.click(screen.getByText('Заметка'));
+    expect(field()).toHaveFocus();
+    expect([field().selectionStart, field().selectionEnd]).toEqual([0, 'Заметка'.length]);
+    await user.keyboard('Заметка 47.3: прочитайте вопрос до конца.');
+    expect(field()).toHaveValue('Заметка 47.3: прочитайте вопрос до конца.');
+  });
+
+  it('words the author wrote open with the cursor at their end', async () => {
+    const user = userEvent.setup();
+    render(<Field first="Заметка о главном" starter="Заметка" />);
+    await user.click(screen.getByText('Заметка о главном'));
+    expect([field().selectionStart, field().selectionEnd]).toEqual([17, 17]);
+    await user.keyboard('.');
+    expect(field()).toHaveValue('Заметка о главном.');
+  });
+
+  it('a field without first words (a caption, a subtitle) opens with the cursor at the end, as before', async () => {
+    const user = userEvent.setup();
+    render(<Field first="Заметка" />);
+    await user.click(screen.getByText('Заметка'));
+    expect([field().selectionStart, field().selectionEnd]).toEqual([7, 7]);
+  });
+
+  it('«/» over the selected first words asks for the block menu, as in an empty block; in the author’s words it is typed', async () => {
+    const user = userEvent.setup();
+    let asked = 0;
+    render(<Field first="Текст" starter="Текст" slash={() => (asked += 1)} />);
+    await user.click(screen.getByText('Текст'));
+    fireEvent.keyDown(field(), { key: '/' });
+    expect(asked).toBe(1);
+    await user.keyboard('Дроби');
+    expect(field()).toHaveValue('Дроби');
+    fireEvent.keyDown(field(), { key: '/' });
+    expect(asked).toBe(1);
   });
 });
 

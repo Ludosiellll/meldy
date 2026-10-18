@@ -18,7 +18,7 @@ import {
   type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { isDraftQuestion } from '../../lib/studio/checker';
+import { DRAFT_WORDS, isDraftQuestion } from '../../lib/studio/checker';
 import { insertBlock, newBlock, removeBlock } from '../../lib/studio/doc';
 import { typingKey } from '../../lib/studio/history';
 import type { TestItem } from '../../types/container';
@@ -388,7 +388,13 @@ export default function Workspace({
     else if (block.type === 'question') {
       onPanel('block');
       if (phone) onSideOpen(true);
-      window.setTimeout(() => document.querySelector<HTMLElement>('.st-side .qe-stem, .st-sheet .qe-stem')?.focus(), 0);
+      window.setTimeout(() => {
+        const stem = document.querySelector<HTMLTextAreaElement | HTMLInputElement>('.st-side .qe-stem, .st-sheet .qe-stem');
+        if (!stem) return;
+        stem.focus();
+        // The palette's words of a new question are taken whole, as a new block's: typing replaces them.
+        if (stem.value === DRAFT_WORDS.stem || stem.value === DRAFT_WORDS.statement) stem.setSelectionRange?.(0, stem.value.length);
+      }, 0);
     }
   };
 

@@ -10,6 +10,11 @@ import { STUDIO } from './copyStudio';
  * *курсив* and [слова](https://…), and shows a small bar for them while it has the focus (Ctrl+B, Ctrl+I, Ctrl+K do
  * the same). A one-line field ends on Enter; a text field breaks the line. «/» in an empty text block asks the page for
  * the block menu (`onSlash`).
+ *
+ * A text that is still the words its block started with (`starter`, lib/studio/doc.ts BLOCK_WORDS: «Заметка»,
+ * «Заголовок»…) opens selected whole, so the first key typed replaces it (live check of release 47.2: a new note took
+ * «Заметка 47.2» after its own word, «ЗаметкаЗаметка 47.2»); «/» then asks for the block menu as in an empty block. Any
+ * other text opens with the cursor at its end.
  */
 
 export interface EditableProps {
@@ -24,6 +29,8 @@ export interface EditableProps {
   max: number;
   /** Shown in place of an empty value while editing is possible. */
   placeholder?: string;
+  /** The words the block started with: while the value is still them, editing starts with them selected. */
+  starter?: string;
   active: boolean;
   onActivate: () => void;
   onDone: (how: 'blur' | 'enter' | 'escape') => void;
@@ -47,7 +54,10 @@ function fit(field: HTMLTextAreaElement) {
   if (height > 0) field.style.height = `${height}px`;
 }
 
-export default function Editable({ value, onChange, label, as: Tag = 'div', className, rich = false, multiline = false, max, placeholder, active, onActivate, onDone, onSlash }: EditableProps) {
+/** The value is still the block's own first words (and nothing else is typed yet). */
+const isStarter = (value: string, starter: string | undefined) => starter !== undefined && starter !== '' && value === starter;
+
+export default function Editable({ value, onChange, label, as: Tag = 'div', className, rich = false, multiline = false, max, placeholder, starter, active, onActivate, onDone, onSlash }: EditableProps) {
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const [linking, setLinking] = useState<{ start: number; end: number } | null>(null);
   const [href, setHref] = useState('https://');
@@ -76,8 +86,11 @@ export default function Editable({ value, onChange, label, as: Tag = 'div', clas
     if (field && document.activeElement !== field) {
       field.focus({ preventScroll: true });
       const end = field.value.length;
-      field.setSelectionRange(end, end);
+      // The block's own first words are taken whole: typing replaces them.
+      field.setSelectionRange(isStarter(field.value, starter) ? 0 : end, end);
     }
+    // Only on the start of editing: the words typed since are the author's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   const set = (next: string) => onChange(multiline ? next : oneLine(next));
@@ -137,7 +150,10 @@ export default function Editable({ value, onChange, label, as: Tag = 'div', clas
       onDone('enter');
       return;
     }
-    if (event.key === '/' && onSlash && event.currentTarget.value === '' && !ctrl && !event.altKey) {
+    const field = event.currentTarget;
+    // An empty block, or one still holding its own first words, all of them selected (typing would replace them).
+    const blank = field.value === '' || (isStarter(field.value, starter) && field.selectionStart === 0 && field.selectionEnd === field.value.length);
+    if (event.key === '/' && onSlash && blank && !ctrl && !event.altKey) {
       event.preventDefault();
       onSlash(event.currentTarget);
     }

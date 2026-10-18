@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContainerSummary, ItemInput } from '../../types/container';
@@ -48,7 +49,8 @@ import { item, subject, summary } from '../../components/containers/testkit/fixt
 import { STUDIO } from '../../components/studio/copyStudio';
 import { tourKey } from '../../components/studio/Tour';
 import { readableAccent } from '../../lib/studio/contrast';
-import { emptyDoc, ruleMessage } from '../../lib/studio/doc';
+import { DRAFT_WORDS } from '../../lib/studio/checker';
+import { BLOCK_WORDS, emptyDoc, ruleMessage } from '../../lib/studio/doc';
 import { TEMPLATES, templateSamples } from '../../lib/studio/templates';
 
 const EXAM = '11111111-2222-4333-8444-555555555555';
@@ -356,6 +358,77 @@ describe('StudioPage: undo, moving, inserting, removing (spec §47.6 «Холс�
     fireEvent.change(within(menu).getByRole('combobox'), { target: { value: 'разд' } });
     fireEvent.keyDown(within(menu).getByRole('combobox'), { key: 'Enter' });
     expect(frame(order()[0] as string)).toHaveAttribute('data-type', 'divider');
+  });
+
+  it('every block type: a new one opens on its own first words selected whole, so typing replaces them (live check of 47.2)', async () => {
+    const user = userEvent.setup();
+    await openStored();
+    const palette = () => within(screen.getByRole('complementary', { name: STUDIO.palette }));
+    const add = async (name: string) => {
+      fireEvent.click(frame('head00000001'));
+      await user.click(palette().getByRole('button', { name }));
+    };
+    const selection = (field: HTMLElement) => [(field as HTMLTextAreaElement).selectionStart, (field as HTMLTextAreaElement).selectionEnd];
+    // The new block stands after the heading (the selected one): the third on the page. The canvas's field, not the settings'.
+    const onCanvas = () => within(frame(order()[2] as string));
+
+    // Заголовок, Текст, Заметка: editing starts at once, on the block's word, all of it selected.
+    for (const type of ['heading', 'text', 'note'] as const) {
+      await add(STUDIO.types[type]);
+      const field = onCanvas().getByRole('textbox', { name: STUDIO.types[type] });
+      expect(field).toHaveFocus();
+      expect(selection(field)).toEqual([0, BLOCK_WORDS[type].length]);
+      await user.keyboard(`${STUDIO.types[type]} 47.3`);
+      expect(field).toHaveValue(`${STUDIO.types[type]} 47.3`);
+      await user.keyboard('{Escape}');
+    }
+
+    // Обложка: selected, not opened; a click on its title takes «Название теста» whole. Its line under the title is empty.
+    await add(STUDIO.types.cover);
+    await user.click(onCanvas().getByText(BLOCK_WORDS.cover));
+    const title = onCanvas().getByRole('textbox', { name: STUDIO.coverTitle });
+    expect(selection(title)).toEqual([0, BLOCK_WORDS.cover.length]);
+    await user.keyboard('Проверка 47.3');
+    expect(title).toHaveValue('Проверка 47.3');
+    await user.keyboard('{Escape}');
+    await user.click(onCanvas().getByText(STUDIO.subtitleAdd));
+    const subtitle = onCanvas().getByRole('textbox', { name: STUDIO.coverSubtitle });
+    expect(subtitle).toHaveValue('');
+    await user.keyboard('Для 8 класса');
+    expect(subtitle).toHaveValue('Для 8 класса');
+    await user.keyboard('{Escape}');
+
+    // Новая страница: its title starts empty, so the words typed are all there is.
+    await add(STUDIO.types.page);
+    const pageTitle = onCanvas().getByRole('textbox', { name: STUDIO.pageBlockTitle });
+    expect(pageTitle).toHaveValue('');
+    await user.keyboard('Часть 2');
+    expect(pageTitle).toHaveValue('Часть 2');
+    await user.keyboard('{Escape}');
+
+    // Картинка: the caption starts empty too.
+    await add(STUDIO.types.image);
+    await user.click(onCanvas().getByText(STUDIO.captionAdd));
+    const caption = onCanvas().getByRole('textbox', { name: STUDIO.caption });
+    expect(caption).toHaveValue('');
+    await user.keyboard('Цинк в кислоте');
+    expect(caption).toHaveValue('Цинк в кислоте');
+    await user.keyboard('{Escape}');
+
+    // Разделитель: no words at all.
+    await add(STUDIO.types.divider);
+    expect(onCanvas().queryByRole('textbox')).toBeNull();
+
+    // A question: Enter on its block opens its editor on «Новый вопрос», selected whole.
+    fireEvent.click(frame('qblock000003'));
+    await user.click(palette().getByRole('button', { name: STUDIO.qtypes.single }));
+    await waitFor(() => expect(frame(order()[order().length - 1] as string)).toHaveAttribute('data-type', 'question'));
+    const block = frame(order()[order().length - 1] as string);
+    block.focus();
+    fireEvent.keyDown(block, { key: 'Enter' });
+    const stem = within(side()).getByLabelText('Текст вопроса') as HTMLTextAreaElement;
+    await waitFor(() => expect(stem).toHaveFocus());
+    expect(selection(stem)).toEqual([0, DRAFT_WORDS.stem.length]);
   });
 
   it('«/» in an empty text block opens the block menu, and the chosen block takes its place', async () => {

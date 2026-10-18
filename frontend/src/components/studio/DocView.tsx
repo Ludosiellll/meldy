@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { coverUrl } from '../../api/itemPictures';
 import { themeTokens } from '../../lib/studio/contrast';
+import { BLOCK_WORDS } from '../../lib/studio/doc';
 import { linkAddress } from '../../lib/studio/richText';
 import { isPictureWord } from '../../types/container';
 import { DOC_CAPTION_MAX, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type ResultBand, type TestDoc } from '../../types/testDoc';
@@ -131,6 +132,7 @@ function Field({
   multiline = false,
   max,
   placeholder,
+  starter,
   hideEmpty = false,
   slash = false,
 }: {
@@ -144,6 +146,8 @@ function Field({
   multiline?: boolean;
   max: number;
   placeholder?: string;
+  /** The words a new block of this type starts with (BLOCK_WORDS): still them, they open selected. */
+  starter?: string;
   /** An empty optional text (a subtitle, a caption) shows only while its block is selected. */
   hideEmpty?: boolean;
   slash?: boolean;
@@ -167,6 +171,7 @@ function Field({
       multiline={multiline}
       max={max}
       placeholder={placeholder}
+      starter={starter}
       active={active}
       onActivate={() => editor.setEditing(key)}
       onDone={(how) => editor.setEditing(null, how)}
@@ -342,7 +347,7 @@ function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answ
         <header className="dv-cover" data-align={block.align} data-image={block.image ? '' : undefined}>
           {block.image ? <Picture path={block.image} alt="" className="dv-cover-pic" imageUrl={imageUrl} /> : null}
           <div className="dv-cover-body">
-            <Field ctx={ctx} field="title" value={block.title} label={STUDIO.coverTitle} as="h1" className="dv-cover-title" max={DOC_TITLE_MAX} />
+            <Field ctx={ctx} field="title" value={block.title} label={STUDIO.coverTitle} as="h1" className="dv-cover-title" max={DOC_TITLE_MAX} starter={BLOCK_WORDS.cover} />
             <Field ctx={ctx} field="subtitle" value={block.subtitle} label={STUDIO.coverSubtitle} placeholder={STUDIO.subtitleAdd} as="p" className="dv-cover-sub" max={DOC_CAPTION_MAX} hideEmpty />
           </div>
         </header>
@@ -350,20 +355,20 @@ function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answ
     case 'heading':
       return (
         <div className="dv-on-bg">
-          <Field ctx={ctx} field="text" value={block.text} label={STUDIO.types.heading} as="h2" className={`dv-heading dv-heading-${block.size}`} max={DOC_TITLE_MAX} />
+          <Field ctx={ctx} field="text" value={block.text} label={STUDIO.types.heading} as="h2" className={`dv-heading dv-heading-${block.size}`} max={DOC_TITLE_MAX} starter={BLOCK_WORDS.heading} />
         </div>
       );
     case 'text':
       return (
         <div className="dv-on-bg" data-align={block.align}>
-          <Field ctx={ctx} field="text" value={block.text} label={STUDIO.types.text} placeholder={STUDIO.emptyText} as="div" className="dv-text" rich multiline max={DOC_TEXT_MAX} slash />
+          <Field ctx={ctx} field="text" value={block.text} label={STUDIO.types.text} placeholder={STUDIO.emptyText} as="div" className="dv-text" rich multiline max={DOC_TEXT_MAX} starter={BLOCK_WORDS.text} slash />
         </div>
       );
     case 'note':
       return (
         <aside className="dv-note" data-tone={block.tone}>
           {block.tone !== 'info' ? <p className="dv-note-label">{STUDIO.tones[block.tone]}</p> : null}
-          <Field ctx={ctx} field="text" value={block.text} label={STUDIO.types.note} as="div" className="dv-note-text" rich multiline max={DOC_TEXT_MAX} />
+          <Field ctx={ctx} field="text" value={block.text} label={STUDIO.types.note} as="div" className="dv-note-text" rich multiline max={DOC_TEXT_MAX} starter={BLOCK_WORDS.note} />
         </aside>
       );
     case 'image':
