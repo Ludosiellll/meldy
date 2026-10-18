@@ -13,7 +13,7 @@ import { draftOf, patchOf, removeOption, LIMITS } from '../../components/contain
 import { optionName, shortNorm } from '../../components/containers/model';
 import { letter, plural } from '../../components/containers/copyImport';
 import { contrast, readableAccent } from './contrast';
-import { chars, removeBlock } from './doc';
+import { BLOCK_WORDS, DEFAULT_TITLE, chars, removeBlock } from './doc';
 
 export type Fix =
   /** The options are shown in the file's order (container_item_update keep_order). */
@@ -27,7 +27,9 @@ export type Fix =
   /** A block taken off the page (an empty page, a question whose row is gone). */
   | { kind: 'remove_block'; blockId: string }
   /** The theme's accent set to this one. */
-  | { kind: 'theme_accent'; value: DocTheme['accent'] };
+  | { kind: 'theme_accent'; value: DocTheme['accent'] }
+  /** The question's kind made to fit its key: one answer, or several. */
+  | { kind: 'set_kind'; itemId: string; value: 'single' | 'multiple' };
 
 export type HintLevel = 'fix' | 'think';
 
@@ -79,6 +81,36 @@ export function numberForms(form: string): string[] {
   return out;
 }
 
+/**
+ * The words a question new from the studio's palette starts with (container_items_add needs a valid row: a stem,
+ * 2–8 options, a short answer's form). Until the author writes their own, the checker says so.
+ */
+export const DRAFT_WORDS = {
+  stem: 'Новый вопрос',
+  statement: 'Новое утверждение',
+  option: (n: number) => `Вариант ${n}`,
+  form: 'ответ',
+} as const;
+
+const DRAFT_OPTION = /^Вариант \d{1,2}$/;
+
+/** The question still holds the palette's words: its stem, all its options or its only form. */
+export function isDraftQuestion(item: Pick<TestItem, 'kind' | 'stem' | 'options' | 'answers'>): boolean {
+  const stem = item.stem.trim();
+  if (stem === DRAFT_WORDS.stem || stem === DRAFT_WORDS.statement) return true;
+  if (item.kind === 'short') return item.answers.length === 1 && item.answers[0].trim() === DRAFT_WORDS.form;
+  return item.options.length > 0 && item.options.every((option) => DRAFT_OPTION.test(option.trim()));
+}
+
+/** Words that ask for several answers in a one-answer question. */
+const SEVERAL_WORDS = /(?:отметьте|выберите|укажите)\s+все|все\s+(?:верные|правильные)|несколько\s+(?:верных|правильных)?\s*(?:ответ|вариант)/i;
+
+/** A title nobody wrote: empty, the quiz's own «Контрольная · …», or the words a new page starts with. */
+export function draftTitle(title: string): boolean {
+  const text = title.replace(/\u00a0/g, ' ').trim();
+  return !text || /^Контрольная\s+·/.test(text) || text === DEFAULT_TITLE || text === BLOCK_WORDS.cover;
+}
+
 const quote = (text: string, index: number) => `«${optionName(text, index)}»`;
 const ofQuestions = (n: number) => `${n} ${plural(n, 'вопроса', 'вопросов', 'вопросов')}`;
 const keyed = (item: TestItem) => (item.kind === 'short' ? item.answers.length > 0 : item.correct.length > 0);
@@ -107,6 +139,33 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
 
   if (!keyed(item)) {
     out.push({ ...where, id: `no_key:${item.id}`, level: 'fix', message: `${head}нет верного ответа — ${short ? 'впишите' : 'отметьте'} его.` });
+  }
+
+  if (isDraftQuestion(item)) {
+    out.push({
+      ...where,
+      id: `draft:${item.id}`,
+      level: 'fix',
+      message: short ? `${head}это заготовка — напишите вопрос и принятые ответы.` : `${head}это заготовка — напишите вопрос и варианты ответа.`,
+    });
+  }
+
+  if (item.kind === 'multiple' && item.correct.length === 1 && !isTrueFalse(item.options)) {
+    out.push({
+      ...where,
+      id: `kind:${item.id}`,
+      level: 'think',
+      message: `${head}выбран тип «несколько ответов», а верный отмечен один — участник будет искать второй. Отметьте остальные верные или сделайте вопрос с одним ответом.`,
+      fix: { kind: 'set_kind', itemId: item.id, value: 'single' },
+    });
+  } else if (item.kind === 'single' && SEVERAL_WORDS.test(item.stem)) {
+    out.push({
+      ...where,
+      id: `kind:${item.id}`,
+      level: 'think',
+      message: `${head}в тексте просят отметить все верные, а вопрос с одним ответом — участник сможет выбрать только один вариант.`,
+      fix: { kind: 'set_kind', itemId: item.id, value: 'multiple' },
+    });
   }
 
   if (!short) {
@@ -264,6 +323,28 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
   longestHint(questions, found);
   letterHint(questions, found);
 
+  if (draftTitle(doc.title)) {
+    const title = doc.title.trim();
+    found.push({
+      id: 'title',
+      level: 'think',
+      at: -1,
+      message: title
+        ? `Название теста «${title}» — черновое: его увидят участники во вкладке браузера и в ссылке. Назовите тест в настройках страницы.`
+        : 'У теста нет названия. Назовите его в настройках страницы.',
+    });
+  }
+  doc.blocks.forEach((block, at) => {
+    if (block.type !== 'cover' || !draftTitle(block.title)) return;
+    found.push({
+      id: `cover_title:${block.id}`,
+      blockId: block.id,
+      level: 'think',
+      at,
+      message: `Обложка: название «${block.title.trim()}» — заготовка. Напишите, как называется тест.`,
+    });
+  });
+
   const accent = doc.theme.accent;
   if (typeof accent !== 'string' && contrast(accent.custom, '#ffffff') < 4.5) {
     found.push({
@@ -305,7 +386,10 @@ export function applyFix(fix: Fix, doc: TestDoc, items: readonly TestItem[]): Fi
   if (!item) return none;
   let patch: ItemPatch | null = null;
   if (fix.kind === 'keep_order') patch = item.keep_order ? null : { keep_order: true };
-  else if (fix.kind === 'drop_option') {
+  else if (fix.kind === 'set_kind') {
+    const fits = fix.value === 'single' ? item.kind === 'multiple' && item.correct.length <= 1 : item.kind === 'single';
+    patch = fits ? { kind: fix.value } : null;
+  } else if (fix.kind === 'drop_option') {
     patch = item.kind !== 'short' && fix.index >= 0 && fix.index < item.options.length ? patchOf(item, removeOption(draftOf(item), fix.index)) : null;
   } else {
     const known = new Set(item.answers.map(shortNorm));

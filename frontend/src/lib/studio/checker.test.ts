@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PICTURE_STEM, type TestItem } from '../../types/container';
 import type { DocBlock, TestDoc } from '../../types/testDoc';
-import { applyFix, checkTest, isTrueFalse, numberForms, orderBound, type Fix, type Hint } from './checker';
+import { applyFix, checkTest, DRAFT_WORDS, draftTitle, isDraftQuestion, isTrueFalse, numberForms, orderBound, type Fix, type Hint } from './checker';
 import { readableAccent } from './contrast';
 import { emptyDoc } from './doc';
 
@@ -297,5 +297,66 @@ describe('applyFix', () => {
       updates: [],
       removes: [],
     });
+  });
+});
+
+describe('the studio’s own checks (release 47.2)', () => {
+  it('the kind does not fit the key: «несколько ответов» with one tick, or words that ask for all in a one-answer question', () => {
+    const one = row({ kind: 'multiple', correct: [1] });
+    const asks = row({ stem: 'Какие из этих металлов щелочные? Отметьте все верные.', correct: [0] });
+    const fine = row({ kind: 'multiple', correct: [0, 1] });
+    const tf = row({ kind: 'multiple', options: ['Верно', 'Неверно'], correct: [0], keep_order: true });
+    const items = [one, asks, fine, tf];
+    const hints = checkTest(pageOf(items), items).filter((hint) => hint.id.startsWith('kind:'));
+    expect(hints.map((hint) => [hint.id, hint.level, hint.fix])).toEqual([
+      [`kind:${one.id}`, 'think', { kind: 'set_kind', itemId: one.id, value: 'single' }],
+      [`kind:${asks.id}`, 'think', { kind: 'set_kind', itemId: asks.id, value: 'multiple' }],
+    ]);
+    expect(hints[0].message).toBe(
+      'Вопрос 1: выбран тип «несколько ответов», а верный отмечен один — участник будет искать второй. Отметьте остальные верные или сделайте вопрос с одним ответом.',
+    );
+    expect(hints[1].message).toMatch(/^Вопрос 2: в тексте просят отметить все верные/);
+  });
+
+  it('set_kind patches the kind once, and only when it still does not fit', () => {
+    const one = row({ id: 'm1', kind: 'multiple', correct: [1] });
+    const doc = pageOf([one]);
+    expect(applyFix({ kind: 'set_kind', itemId: 'm1', value: 'single' }, doc, [one])).toEqual({ doc, updates: [{ id: 'm1', patch: { kind: 'single' } }], removes: [] });
+    expect(applyFix({ kind: 'set_kind', itemId: 'm1', value: 'single' }, doc, [{ ...one, correct: [0, 1] }]).updates).toEqual([]);
+    expect(applyFix({ kind: 'set_kind', itemId: 'm1', value: 'multiple' }, doc, [{ ...one, kind: 'single' }]).updates).toEqual([{ id: 'm1', patch: { kind: 'multiple' } }]);
+    expect(applyFix({ kind: 'set_kind', itemId: 'm1', value: 'multiple' }, doc, [one]).updates).toEqual([]);
+  });
+
+  it('a question still holding the palette’s words is a problem', () => {
+    const stem = row({ stem: DRAFT_WORDS.stem });
+    const options = row({ options: [DRAFT_WORDS.option(1), DRAFT_WORDS.option(2), DRAFT_WORDS.option(3)] });
+    const form = row({ kind: 'short', options: [], correct: [], answers: [DRAFT_WORDS.form] });
+    const statement = row({ stem: DRAFT_WORDS.statement, options: ['Верно', 'Неверно'], keep_order: true });
+    const items = [stem, options, form, statement];
+    const hints = checkTest(pageOf(items), items).filter((hint) => hint.id.startsWith('draft:'));
+    expect(hints.map((hint) => [hint.id, hint.level])).toEqual(items.map((item) => [`draft:${item.id}`, 'fix']));
+    expect(hints[2].message).toBe('Вопрос 3: это заготовка — напишите вопрос и принятые ответы.');
+    expect(isDraftQuestion(row({ options: ['Вариант 1', 'Медь'] }))).toBe(false);
+    expect(isDraftQuestion(row({ kind: 'short', options: [], answers: ['ответ', 'другой'] }))).toBe(false);
+  });
+
+  it('a title nobody wrote: empty, «Контрольная · …», «Новый тест», and a cover still called «Название теста»', () => {
+    expect(['', '  ', 'Контрольная · 18 октября', 'Контрольная\u00a0· 1', 'Новый тест', 'Название теста'].map(draftTitle)).toEqual([true, true, true, true, true, true]);
+    expect(['Химия, 8 класс', 'Контрольная по химии'].map(draftTitle)).toEqual([false, false]);
+    const doc: TestDoc = {
+      ...emptyDoc('Т'),
+      title: 'Контрольная · 18 октября',
+      blocks: [
+        { type: 'cover', id: 'cover1', title: 'Название теста', subtitle: '', image: null, align: 'center' },
+        { type: 'cover', id: 'cover2', title: 'Кислоты и основания', subtitle: '', image: null, align: 'center' },
+      ],
+    };
+    const hints = checkTest(doc, []);
+    expect(hints.map((hint) => [hint.id, hint.level, hint.blockId])).toEqual([
+      ['title', 'think', undefined],
+      ['cover_title:cover1', 'think', 'cover1'],
+    ]);
+    expect(hints[0].message).toMatch(/^Название теста «Контрольная · 18 октября» — черновое/);
+    expect(checkTest({ ...doc, title: ' ', blocks: [] }, [])[0].message).toBe('У теста нет названия. Назовите его в настройках страницы.');
   });
 });
