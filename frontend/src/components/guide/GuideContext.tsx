@@ -101,7 +101,8 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
     ({ route, match }: GuideChapter) => {
       if (!route || !match) return;
       const here = pathRef.current;
-      if (match.test(here)) return;
+      // Already there: «Тесты» shares «Экзамены»'s page (its door, «Новый тест», is there).
+      if (match.test(here) || route === here) return;
       if (!mayLeave(here, brought.current, touched.current)) return;
       brought.current = route;
       touched.current = false;

@@ -858,7 +858,7 @@ function Limit() {
 
 const clip = (Scene: ComponentType, poster = 5200, total = CLIP) => ({ total, poster, Scene });
 
-export const GUIDE_SCENES: Record<GuideChapterId, { total: number; poster: number; Scene: ComponentType }> = {
+export const GUIDE_SCENES: Record<Exclude<GuideChapterId, 'tests'>, { total: number; poster: number; Scene: ComponentType }> = {
   today: clip(Today),
   add: clip(Add),
   library: clip(Library),

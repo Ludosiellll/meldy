@@ -14,4 +14,7 @@ export interface GuideClipDef {
   Scene: ComponentType;
 }
 
-export const GUIDE_CLIPS: Record<GuideChapterId, GuideClipDef> = GUIDE_SCENES;
+/** The chapters with a clip of their own here; «Тесты» has only step clips (components/clips). */
+export type OwnClipChapter = Exclude<GuideChapterId, 'tests'>;
+
+export const GUIDE_CLIPS: Record<OwnClipChapter, GuideClipDef> = GUIDE_SCENES;

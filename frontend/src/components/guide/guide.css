@@ -80,6 +80,35 @@
 }
 .gd-stage { width: 1440px; height: 1080px; background: #fbfbf9; }
 
+/* A step clip (components/clips: 16:10 and the line of the step under it): the line as wide as the card, the picture as
+   tall as the room lets it be — on the owner's 1532×734 laptop the card keeps «Назад / Дальше» inside with the row of
+   the chapter's clips and four lines of text. A chapter with that row gives it the room from its own clip too. */
+.gd-clip[data-step] { width: 100%; }
+.gd-clip[data-step] .sc-frame { width: min(100%, max(240px, calc((100dvh - 540px) * 1.6))); margin: 0 auto; }
+.gd[data-reels] .gd-clip:not([data-step]) { width: min(100%, max(240px, calc((100dvh - 508px) * 4 / 3))); }
+.gd-clip,
+.gd-reels { flex: none; }
+
+/* The chapter's clips: a row of quiet buttons, the one playing in ink (as the studio's «Холст / Список / Текст»). */
+.gd-reels { display: flex; flex-wrap: nowrap; justify-content: center; gap: 4px; margin: -4px 0 -2px; overflow-x: auto; scrollbar-width: none; }
+.gd-reels::-webkit-scrollbar { display: none; }
+.gd-reel {
+  flex: none;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--sf-ink);
+  font: 500 14px/1 var(--ph-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .2s ease, color .2s ease;
+}
+.gd-reel:hover { background: var(--sf-tint); }
+.gd-reel[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
+.gd-reel:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+
 .gd-play {
   position: absolute;
   right: 10px;
@@ -224,6 +253,8 @@
     max-height: calc(100dvh - var(--sf-bar-h, 60px) - var(--sf-tabs-h, 56px) - env(safe-area-inset-bottom) - 24px);
   }
   .gd-clip { width: min(100%, max(200px, calc(36dvh * 4 / 3))); }
+  .gd-clip[data-step] .sc-frame,
+  .gd[data-reels] .gd-clip:not([data-step]) { width: min(100%, max(200px, calc(33dvh * 4 / 3))); }
   .gd-box { border-radius: 18px; }
   .gd-h { font-size: 22px; }
   .gd-p { font-size: 15px; }

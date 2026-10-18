@@ -3,8 +3,11 @@ import { ReelClock } from '../reel/clock';
 import { ClockProvider, SceneProvider } from '../reel/engine';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
-import { GUIDE_CLIPS, GUIDE_W } from './clips';
+import { GUIDE_CLIPS, GUIDE_W, type OwnClipChapter } from './clips';
 import type { GuideChapterId } from './chapters';
+import StepClip from '../clips/StepClip';
+import { STEP_CLIPS } from '../clips';
+import type { StepClipId } from '../clips/types';
 import '../reel/reel.css';
 import './guide.css';
 
@@ -36,12 +39,21 @@ function PauseIcon() {
 }
 
 /**
- * One chapter's clip: a 4:3 stage scaled to the width it is given, looping silently while the
+ * One chapter's clip: its own (OwnClip), or one of its step clips (`reel`, components/clips: the picture with the line
+ * of each step under it). «Тесты» has step clips only: without a reel it plays the studio's.
+ */
+export default function GuideClip({ chapter, reel = null, active }: { chapter: GuideChapterId; reel?: StepClipId | null; active: boolean }) {
+  if (reel || chapter === 'tests') return <StepClip clip={STEP_CLIPS[reel ?? 'studio']} active={active} />;
+  return <OwnClip chapter={chapter} active={active} />;
+}
+
+/**
+ * A chapter's own clip: a 4:3 stage scaled to the width it is given, looping silently while the
  * guide is open and the tab is visible. It can be paused; with reduced motion it waits on a still
  * frame until asked to play. The stage is decoration (aria-hidden): the chapter's title and text
  * next to it say the same in words.
  */
-export default function GuideClip({ chapter, active }: { chapter: GuideChapterId; active: boolean }) {
+function OwnClip({ chapter, active }: { chapter: OwnClipChapter; active: boolean }) {
   const clip = GUIDE_CLIPS[chapter];
   const box = useRef<HTMLDivElement>(null);
   const clock = useMemo(() => new ReelClock(clip.total), [clip]);

@@ -1,9 +1,12 @@
 import type { ComponentType } from 'react';
 import { lazyPart } from '../../lib/lazyPart';
 import type { GuideChapterId } from './chapters';
+import type { StepClipId } from '../clips/types';
 
 export interface GuideClipProps {
   chapter: GuideChapterId;
+  /** A step clip of the chapter (its `reels`) in place of the chapter's own clip. */
+  reel?: StepClipId | null;
   active: boolean;
 }
 

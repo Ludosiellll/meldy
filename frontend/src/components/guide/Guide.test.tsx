@@ -86,14 +86,22 @@ describe('the guide chapters', () => {
       'Разобрать лекцию',
       'Лекции',
       'Экзамены',
+      'Тесты',
       'Повторение',
       'Прогресс',
       'Лимит ИИ',
     ]);
     expect(chapterIndexFor('/library/abc')).toBe(2);
     expect(chapterIndexFor('/exams/1/edit')).toBe(3);
-    expect(chapterIndexFor('/mistakes')).toBe(4);
-    expect(chapterIndexFor('/knowledge-map')).toBe(5);
+    // The test pages are «Тесты»: its door («Новый тест») is on «Экзамены», the studio, the builder and the quizzes.
+    expect(chapterIndexFor('/exams/c/abc/studio')).toBe(4);
+    expect(chapterIndexFor('/exams/c/abc/quizzes/q1')).toBe(4);
+    expect(chapterIndexFor('/tests/new')).toBe(4);
+    expect(chapterIndexFor('/exams/c/abc')).toBe(3);
+    expect(chapterIndexFor('/exams/c/abc/settings')).toBe(3);
+    expect(chapterIndexFor('/exams')).toBe(3);
+    expect(chapterIndexFor('/mistakes')).toBe(5);
+    expect(chapterIndexFor('/knowledge-map')).toBe(6);
     expect(chapterIndexFor('/profile')).toBe(-1);
     const byId = Object.fromEntries(GUIDE_CHAPTERS.map((chapter) => [chapter.id, chapter.text]));
     expect(byId.review).toMatch(/дневник ошибок/);
@@ -208,6 +216,12 @@ describe('the first run', () => {
     expect(where()).toBe('/exams');
     expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
     expect(within(panel()!).getByRole('button', { name: 'Назад' })).toBeInTheDocument();
+    // «Тесты» stays on «Экзамены» (its door is there), and «Экзамены» stays lit.
+    next();
+    expect(where()).toBe('/exams');
+    expect(within(panel()!).getByRole('heading', { name: 'Тесты' })).toBeInTheDocument();
+    expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
+    expect(within(panel()!).queryByRole('link', { name: 'Открыть раздел' })).toBeNull();
     next();
     expect(where()).toBe('/review');
     next();

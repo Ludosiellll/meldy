@@ -4,6 +4,7 @@ import { GUIDE_CHAPTERS } from './chapters';
 import { useGuide } from './GuideContext';
 import { guideClipPart } from './clipPart';
 import { useLazyPart } from '../../lib/lazyPart';
+import StepClipPlaceholder from '../clips/Placeholder';
 import { track } from '../../lib/telemetry';
 import { usePhone } from '../../lib/usePhone';
 import './guide.css';
@@ -124,6 +125,8 @@ export default function GuidePanel() {
   const mandatory = Boolean(guide?.mandatory);
   // A phone's top line has no «+ Лекция»: its chapter says where «Разобрать лекцию» is there.
   const phone = usePhone();
+  /** The chapter's clip chosen under the clip (its `reels`); the first one when the chapter changes. */
+  const [chosen, setChosen] = useState<{ chapter: string; at: number }>({ chapter: '', at: 0 });
   // The clip is a file of its own (clipPart.ts): until it arrives the card keeps its empty frame.
   const GuideClip = useLazyPart(guideClipPart, open, {
     onError: (error) => console.error('Ролик раздела не загрузился:', error),
@@ -190,9 +193,16 @@ export default function GuidePanel() {
   const chapter = GUIDE_CHAPTERS[index];
   const total = GUIDE_CHAPTERS.length;
   const last = index === total - 1;
+  const reels = chapter.reels ?? null;
+  const reelAt = reels && chosen.chapter === chapter.id ? Math.min(chosen.at, reels.length - 1) : 0;
+  const reel = reels ? reels[reelAt] : null;
+  const title = reel?.title ?? chapter.title;
+  const text = reel?.text ?? chapter.text;
   // The section's page, unless the student is on it; the limit has none (its meter is in the top line).
-  const sectionLink = chapter.route && !chapter.match?.test(pathname) ? chapter.route : null;
-  const where = phone && chapter.narrow ? chapter.narrow : chapter.phone;
+  const sectionLink = chapter.route && !chapter.match?.test(pathname) && chapter.route !== pathname ? chapter.route : null;
+  // Where the section is on a phone: said with the chapter's own clip.
+  const where = reelAt > 0 ? undefined : phone && chapter.narrow ? chapter.narrow : chapter.phone;
+  const stepReel = reel?.clip ?? (chapter.id === 'tests' ? 'studio' : null);
 
   const card = (
     <section
@@ -203,6 +213,7 @@ export default function GuidePanel() {
       aria-labelledby={titleId}
       aria-describedby={textId}
       data-mandatory={mandatory ? '' : undefined}
+      data-reels={reels ? '' : undefined}
       tabIndex={-1}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return;
@@ -222,13 +233,31 @@ export default function GuidePanel() {
         )}
       </div>
 
-      <div className="gd-clip">
+      <div className="gd-clip" data-step={stepReel ? '' : undefined}>
         {GuideClip ? (
-          <GuideClip key={chapter.id} chapter={chapter.id} active={open} />
+          <GuideClip key={`${chapter.id}-${stepReel ?? 'own'}`} chapter={chapter.id} reel={stepReel} active={open} />
+        ) : stepReel ? (
+          <StepClipPlaceholder />
         ) : (
           <div className="gd-box" data-playing="false" aria-hidden="true" />
         )}
       </div>
+
+      {reels ? (
+        <div className="gd-reels" role="group" aria-label="Ролики раздела">
+          {reels.map((item, at) => (
+            <button
+              key={item.label}
+              type="button"
+              className="gd-reel"
+              aria-pressed={at === reelAt}
+              onClick={() => setChosen({ chapter: chapter.id, at })}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <ol className="gd-steps" aria-label="Разделы">
         {GUIDE_CHAPTERS.map((item, position) => (
@@ -246,10 +275,10 @@ export default function GuidePanel() {
       </ol>
 
       <h2 id={titleId} className="gd-h">
-        {chapter.title}
+        {title}
       </h2>
       <p id={textId} className="gd-p">
-        {chapter.text}
+        {text}
         {where ? <span className="gd-phone"> {where}</span> : null}
       </p>
 
@@ -283,7 +312,7 @@ export default function GuidePanel() {
       </div>
 
       <p className="sr-only" aria-live="polite">
-        {`Раздел ${index + 1} из ${total}: ${chapter.title}`}
+        {`Раздел ${index + 1} из ${total}: ${title}`}
       </p>
     </section>
   );
