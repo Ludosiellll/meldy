@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # LOCAL ONLY; NEVER AGAINST THE LIVE PROJECT. Rehearsal of supabase/migrations/20261019100000_test_docs.sql (release 47.1,
 # «Студия теста»: the test document, quizzes «как в студии») on a scratch PostgreSQL 16 cluster:
-# the base as test_builder_run.sh builds it → release 47 (20261014120000, 20261016100000, 20261016120000, 20261016140000,
-# 20261018100000) → the catalog fingerprint of 47 → test_docs_behaviour.sql fails (the test bites), test_builder_behaviour
-# and quizzes_behaviour pass → the migration twice (the same fingerprint) → the contract (tests/test_docs.sql;
-# test_builder.sql, quizzes.sql, quiz_result_order.sql, item_update_images.sql, test_item_images.sql, containers.sql still
-# hold) → test_docs_behaviour.sql → test_docs_parity.sql (test_doc_ok gives each document of
-# contracts/studio/test_doc_cases.json the first rule the client's docProblems gives it) → test_builder_behaviour,
-# quizzes_behaviour, containers, pictures and item_update_images
+# the base in the live order (containers + storage stand-in + pgcrypto in extensions, then every later migration up to
+# 20261018130000_quiz_guards.sql: the bot's packages with pg_cron / pg_net stubbed when not installed, the frozen day, the
+# Mini App, «not found», the monitor, pictures, the bot skips pictures, the tempo, item_update_images, release 46 / 46.1,
+# release 47 = 20261018100000, 20261018120000_exam_move_bot_exams, 20261018130000_quiz_guards) → the catalog fingerprint
+# of that base → test_docs_behaviour.sql fails (the test bites), the guards' and the exam move's contracts, the guards',
+# test_builder and quizzes behaviour pass → the migration twice (the same fingerprint) → the contract (tests/test_docs.sql;
+# quiz_guards.sql, exam_move_bot_exams.sql, test_builder.sql, quizzes.sql, quiz_result_order.sql, item_update_images.sql,
+# test_item_images.sql, containers.sql still hold) → test_docs_behaviour.sql → test_docs_parity.sql (test_doc_ok gives
+# each document of contracts/studio/test_doc_cases.json the first rule the client's docProblems gives it) →
+# quiz_guards_behaviour, test_builder_behaviour, quizzes_behaviour, containers, pictures and item_update_images
 # behaviour → two tabs save the first revision together (one revision, the other MC020 stale) → the rollback twice (the
-# fingerprint of 47 again; the release-47 contracts and behaviour pass, test_docs.sql bites) → the migration again (the
-# same fingerprint as the first apply) → the contract and the behaviour again.
+# fingerprint of the base again: the guards' bodies byte for byte; the guards' and release-47 contracts and behaviour
+# pass, test_docs.sql bites) → the migration again (the same fingerprint as the first apply) → the contracts and the
+# behaviour again.
 # The last line is TEST DOCS CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): DOCS_PG_PORT (54400), DOCS_WORK (${TMPDIR:-/tmp}/meldy-test-docs), PG_BIN (/usr/lib/postgresql/16/bin).
 set -u -o pipefail
@@ -74,16 +78,69 @@ SQL
 for f in migrations/20261004205613_ai_quota_server.sql migrations/20261005031722_ai_quota_lockdown.sql \
          migrations/20261007103621_oral_answer_texts.sql tests/local/containers_baseline.sql \
          migrations/20261009093500_containers.sql migrations/20261009093501_containers_revokes.sql \
-         migrations/20261010074500_containers_fk_indexes.sql migrations/20261010110000_containers_oral_codes_closed.sql \
-         migrations/20261010130000_containers_frozen_pace.sql migrations/20261011100000_containers_not_found_null.sql \
-         tests/local/storage_baseline.sql; do
+         migrations/20261010074500_containers_fk_indexes.sql migrations/20261010110000_containers_oral_codes_closed.sql; do
   run "$SB/$f" || BASE_OK=0
 done
+# pgcrypto lives in schema extensions on every Supabase project (20261018130000_quiz_guards.sql calls it there).
+q "create schema if not exists extensions" >/dev/null || BASE_OK=0
+q "create extension if not exists pgcrypto with schema extensions" >/dev/null || BASE_OK=0
+# The bot's cron file as this cluster can take it: as it is when pg_cron and pg_net are installed here; otherwise
+# without its two CREATE EXTENSION lines, on LOCAL STUBS of the same names and signatures as pg_cron 1.6 and pg_net 0.20
+# (as telegram_bot_run.sh; none of them is in public or meldy_private, so no fingerprint below sees them).
+if [ "$(q "select count(*) from pg_available_extensions where name in ('pg_cron', 'pg_net')")" = 2 ]; then
+  CRON_RUN=$SB/migrations/20261010120001_telegram_bot_cron.sql
+else
+  "${PSQL[@]}" -d docs >/dev/null <<'SQL' || BASE_OK=0
+create schema if not exists cron;
+create schema if not exists net;
+create table if not exists cron.job (
+  jobid bigserial primary key, schedule text not null, command text not null, nodename text not null default 'localhost',
+  nodeport integer not null default 5432, database text not null default current_database(),
+  username text not null default current_user, active boolean not null default true, jobname text unique);
+create table if not exists cron.job_run_details (
+  jobid bigint, runid bigserial primary key, job_pid integer, database text, username text, command text, status text,
+  return_message text, start_time timestamptz, end_time timestamptz);
+create or replace function cron.schedule(job_name text, schedule text, command text) returns bigint language sql as $$
+  insert into cron.job (jobname, schedule, command) values (job_name, schedule, command)
+  on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command
+  returning jobid $$;
+create or replace function cron.unschedule(job_name text) returns boolean language plpgsql as $$
+begin
+  delete from cron.job where jobname = job_name;
+  if not found then raise exception 'could not find valid entry for job ''%''', job_name; end if;
+  return true;
+end $$;
+create table if not exists net.calls (
+  id bigserial primary key, url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer,
+  at timestamptz not null default clock_timestamp());
+create or replace function net.http_post(url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb,
+  headers jsonb default '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds integer default 5000)
+  returns bigint language sql as $$
+  insert into net.calls (url, body, params, headers, timeout_milliseconds)
+  values (url, body, params, headers, timeout_milliseconds) returning id $$;
+SQL
+  sed -E 's/^(create extension if not exists pg_(cron|net) .*)$/-- (local: stubbed) \1/' \
+    "$SB/migrations/20261010120001_telegram_bot_cron.sql" > "$WORK/cron_local.sql"
+  [ "$(grep -c '^-- (local: stubbed) create extension' "$WORK/cron_local.sql")" = 2 ] || BASE_OK=0
+  CRON_RUN=$WORK/cron_local.sql
+fi
 # Live, the API roles may read storage.objects (RLS decides what they see); as test_builder_run.sh does.
+run "$SB/tests/local/storage_baseline.sql" || BASE_OK=0
 q "grant select on storage.objects to anon" >/dev/null || BASE_OK=0
-[ $BASE_OK = 1 ] && ok "base (containers + storage stand-in, anon may select storage.objects as live)" || bad "base"
-for f in 20261014120000_test_item_images.sql 20261016100000_item_update_images.sql 20261016120000_quizzes.sql \
-         20261016140000_quiz_result_order.sql 20261018100000_test_builder.sql; do
+[ $BASE_OK = 1 ] && ok "base (containers + storage stand-in, anon may select storage.objects as live, pgcrypto in extensions)" || bad "base"
+# Then every later migration in the live order (deploy/supabase-migrate.md): the bot's packages (T1 = the main file, its
+# cron file and its revokes; T5, T7, T9, T10, T11), the frozen day, the Mini App, the page's «not found», the outage
+# monitor, pictures, the bot skips pictures, the tempo, item_update_images, release 46 / 46.1, release 47 and its two
+# live follow-ups (the exam move with the bot's exams, the quiz guards).
+step "base: 20261010120000_telegram_bot.sql" "$SB/migrations/20261010120000_telegram_bot.sql"
+step "base: 20261010120001_telegram_bot_cron.sql$([ "$CRON_RUN" = "$WORK/cron_local.sql" ] && echo ' (pg_cron and pg_net stubbed)')" "$CRON_RUN"
+for f in 20261010120002_telegram_bot_revokes.sql 20261010120003_telegram_bot_sessions.sql \
+         20261010120004_telegram_bot_groups.sql 20261010120005_telegram_bot_files.sql 20261010120006_telegram_bot_voice.sql \
+         20261010120007_oral_plan_inputs.sql 20261010130000_containers_frozen_pace.sql 20261010150000_telegram_webapp.sql \
+         20261011100000_containers_not_found_null.sql 20261012100000_telegram_bot_monitor.sql \
+         20261014120000_test_item_images.sql 20261014150000_bot_skips_pictures.sql 20261014170000_plan_tempo.sql \
+         20261016100000_item_update_images.sql 20261016120000_quizzes.sql 20261016140000_quiz_result_order.sql \
+         20261018100000_test_builder.sql 20261018120000_exam_move_bot_exams.sql 20261018130000_quiz_guards.sql; do
   step "base: $f" "$SB/migrations/$f"
 done
 
@@ -114,8 +171,9 @@ fingerprint_sql() {
      (select string_agg(id || ':' || public || ':' || coalesce(file_size_limit::text, '') || ':' || coalesce(allowed_mime_types::text, ''), ','
                         order by id) from storage.buckets)))"
 }
-F47=$(fingerprint)
-[[ "$F47" =~ ^[0-9a-f]{32}$ ]] && ok "the catalog fingerprint of release 47 taken" || bad "fingerprint of 47"
+FBASE=$(fingerprint)
+[[ "$FBASE" =~ ^[0-9a-f]{32}$ ]] && ok "the catalog fingerprint of the live base (up to 20261018130000_quiz_guards) taken" \
+  || bad "fingerprint of the live base"
 
 if passes "$HERE/test_docs_behaviour.sql" 'TEST DOCS BEHAVIOUR PASSED' >/dev/null; then
   bad "test_docs_behaviour passes before the migration (it tests nothing)"
@@ -123,16 +181,22 @@ else
   ok "test_docs_behaviour fails before the migration"
 fi
 if run "$SB/tests/test_docs.sql"; then bad "test_docs.sql passes before the migration (it tests nothing)"; else ok "test_docs.sql fails before the migration"; fi
-behave "test_builder_behaviour passes on 47" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
-behave "quizzes_behaviour passes on 47 (the 47 shapes)" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
+step "contract: quiz_guards.sql holds on the base" "$SB/tests/quiz_guards.sql"
+step "contract: exam_move_bot_exams.sql holds on the base" "$SB/tests/exam_move_bot_exams.sql"
+behave "quiz_guards_behaviour passes on the base" "$HERE/quiz_guards_behaviour.sql" 'QUIZ GUARDS BEHAVIOUR PASSED'
+behave "test_builder_behaviour passes on the base (47 with the guards)" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
+behave "quizzes_behaviour passes on the base (the 47 shapes)" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
 
 step "migration, first apply" "$MIG"
 F471=$(fingerprint)
-[ "$F471" != "$F47" ] && ok "the migration changed the catalog" || bad "the migration changed nothing"
+[ "$F471" != "$FBASE" ] && ok "the migration changed the catalog" || bad "the migration changed nothing"
 step "migration, second apply (re-runnable)" "$MIG"
 [ "$(fingerprint)" = "$F471" ] && ok "a second apply changes nothing in the catalog" || bad "a second apply changed the catalog"
 
 step "contract: test_docs.sql" "$SB/tests/test_docs.sql"
+step "contract: quiz_guards.sql still holds (practice with ready, the HMAC throttle, its prune before the count)" \
+  "$SB/tests/quiz_guards.sql"
+step "contract: exam_move_bot_exams.sql still holds" "$SB/tests/exam_move_bot_exams.sql"
 step "contract: test_builder.sql still holds" "$SB/tests/test_builder.sql"
 step "contract: quizzes.sql still holds" "$SB/tests/quizzes.sql"
 step "contract: quiz_result_order.sql still holds" "$SB/tests/quiz_result_order.sql"
@@ -151,6 +215,8 @@ parity() {
   else bad "$1"; echo "$out" | grep -v NOTICE | tail -15 | sed 's/^/    /'; fi
 }
 parity "parity: test_doc_ok and the client's docProblems give every case of test_doc_cases.json the same first rule"
+behave "quiz_guards_behaviour after the migration (practice waits for the closing, the HMAC throttle, the prune)" \
+  "$HERE/quiz_guards_behaviour.sql" 'QUIZ GUARDS BEHAVIOUR PASSED'
 behave "test_builder_behaviour after the migration (every release-47 flow still works)" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
 behave "quizzes_behaviour after the migration (every release-46 flow still works)" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
 if containers_contract; then ok "contract: containers.sql after the behaviour"; else bad "contract: containers.sql after the behaviour"; fi
@@ -199,13 +265,16 @@ q "delete from public.containers where title = 'Две вкладки студи
 [ "$(fingerprint)" = "$F471" ] && ok "the catalog unchanged by the behaviour runs" || bad "the behaviour runs changed the catalog"
 
 step "rollback" "$DOWN"
-[ "$(fingerprint)" = "$F47" ] && ok "after the rollback: the catalog of release 47 (fingerprint)" || bad "after the rollback: another catalog than 47"
+[ "$(fingerprint)" = "$FBASE" ] && ok "after the rollback: the catalog of the live base (fingerprint, the guards' bodies byte for byte)" \
+  || bad "after the rollback: another catalog than the live base"
 step "rollback again (re-runnable)" "$DOWN"
-[ "$(fingerprint)" = "$F47" ] && ok "after the second rollback: still the catalog of 47" || bad "after the second rollback: another catalog"
+[ "$(fingerprint)" = "$FBASE" ] && ok "after the second rollback: still the catalog of the live base" || bad "after the second rollback: another catalog"
+step "contract after the rollback: quiz_guards.sql" "$SB/tests/quiz_guards.sql"
 step "contract after the rollback: test_builder.sql (47)" "$SB/tests/test_builder.sql"
 step "contract after the rollback: quizzes.sql" "$SB/tests/quizzes.sql"
 step "contract after the rollback: quiz_result_order.sql" "$SB/tests/quiz_result_order.sql"
 if run "$SB/tests/test_docs.sql"; then bad "test_docs.sql passes after the rollback (it tests nothing)"; else ok "test_docs.sql fails after the rollback"; fi
+behave "quiz_guards_behaviour after the rollback" "$HERE/quiz_guards_behaviour.sql" 'QUIZ GUARDS BEHAVIOUR PASSED'
 behave "test_builder_behaviour after the rollback" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
 behave "quizzes_behaviour after the rollback (the 47 shapes)" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
 if containers_contract; then ok "contract: containers.sql after the rollback"; else bad "contract: containers.sql after the rollback"; fi
@@ -214,7 +283,9 @@ behave "containers behaviour after the rollback" "$HERE/containers_behaviour.sql
 step "migration after the rollback" "$MIG"
 [ "$(fingerprint)" = "$F471" ] && ok "the same catalog as the first apply" || bad "another catalog than the first apply"
 step "contract again" "$SB/tests/test_docs.sql"
+step "contract: quiz_guards.sql again" "$SB/tests/quiz_guards.sql"
 behave "behaviour again" "$HERE/test_docs_behaviour.sql" 'TEST DOCS BEHAVIOUR PASSED'
+behave "quiz_guards_behaviour again" "$HERE/quiz_guards_behaviour.sql" 'QUIZ GUARDS BEHAVIOUR PASSED'
 behave "test_builder_behaviour again" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
 behave "quizzes_behaviour again" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
 

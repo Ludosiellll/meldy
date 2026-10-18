@@ -1,9 +1,13 @@
 -- test_docs («Студия теста», release 47.1: the test as a page of blocks; quizzes «как в студии»)
 -- Repo file: supabase/migrations/20261019100000_test_docs.sql. Spec: meldy-notes 10_Project/Test_Builder_Spec_2026-10-18.md
 -- §47.6; plan: docs/superpowers/plans/2026-10-18-studio.md («Data contract — database (agent S1)», items 1–4; the
--- document's shape is frontend/src/types/testDoc.ts, and meldy_private.test_doc_ok below mirrors it). Base: release 47
--- (20261018100000_test_builder.sql on 20261016120000_quizzes.sql + 20261016140000_quiz_result_order.sql).
--- Check after the apply: supabase/tests/test_docs.sql (test_builder.sql, quizzes.sql, quiz_result_order.sql still hold).
+-- document's shape is frontend/src/types/testDoc.ts, and meldy_private.test_doc_ok below mirrors it). Base: the live
+-- order up to 20261018130000_quiz_guards.sql (release 47 = 20261018100000_test_builder.sql on 20261016120000_quizzes.sql
+-- + 20261016140000_quiz_result_order.sql; then 20261018120000_exam_move_bot_exams.sql, which touches nothing here, and
+-- the guards). Each function redefined here is its newest earlier body with this file's changes: quiz_result_json and
+-- quiz_start_for are the guards' (practice with ready; the HMAC throttle and its prune), the others release 47's or 46's.
+-- Check after the apply: supabase/tests/test_docs.sql (test_builder.sql, quiz_guards.sql, quizzes.sql,
+-- quiz_result_order.sql still hold).
 -- Local rehearsal (never live): supabase/tests/local/test_docs_run.sh. Rollback: supabase/rollback/20261019100000_test_docs_down.sql.
 --
 -- 1. public.test_docs: one document per exam (blocks, theme, layout, the result screen), at most 200 KB as jsonb text,
@@ -629,10 +633,10 @@ as $fn$
                            from public.quiz_answers w where w.attempt_id = p_a.id), '[]'::jsonb))
 $fn$;
 
--- 4h. Result (release 47) + score and max_score (the weighted points of the right answers and of all, §4l; without
---     points they are correct and total), percent = score / max_score (so unchanged without points), passed by it;
---     design and band: the band of the document whose from..to holds the percent (null when none does, and for a quiz
---     without design).
+-- 4h. Result (20261018130000_quiz_guards: practice = {exam_title, member, ready}) + score and max_score (the weighted
+--     points of the right answers and of all, §4l; without points they are correct and total), percent = score /
+--     max_score (so unchanged without points), passed by it; design and band: the band of the document whose from..to
+--     holds the percent (null when none does, and for a quiz without design).
 create or replace function meldy_private.quiz_result_json(p_attempt uuid)
 returns jsonb
 language plpgsql
@@ -709,7 +713,8 @@ begin
     'practice', case when v_q.offer_practice and v_a.user_id is distinct from v_q.owner_id
                      then pg_catalog.jsonb_build_object(
                             'exam_title', (select c.title from public.containers c where c.id = v_q.container_id),
-                            'member', coalesce(meldy_private.role_in(v_a.user_id, v_q.container_id) = 'member', false)) end,
+                            'member', coalesce(meldy_private.role_in(v_a.user_id, v_q.container_id) = 'member', false),
+                            'ready', meldy_private.quiz_practice_ready(v_q.container_id)) end,
     'design', v_design,
     'band', v_band,
     'items', v_items);
@@ -957,7 +962,8 @@ as $fn$
             limit 1) p on true
 $fn$;
 
--- 4m. «Начать» for a person (release 47) + the points of a design quiz stored with the attempt.
+-- 4m. «Начать» for a person (20261018130000_quiz_guards: the address throttle under the secret, the prune before the
+--     count) + the points of a design quiz stored with the attempt.
 create or replace function meldy_private.quiz_start_for(p_code text, p_name text, p_user uuid, p_guest text)
 returns jsonb
 language plpgsql
@@ -1012,6 +1018,8 @@ begin
     raise exception 'invalid name' using errcode = '22023', detail = 'name';
   end if;
   if p_user is null then
+    -- The check reads the last minute; rows older than two minutes go at every check, before the count.
+    delete from meldy_private.quiz_guest_starts s where s.started_at <= pg_catalog.now() - interval '2 minutes';
     if (select pg_catalog.count(*) from public.quiz_attempts a
          where a.quiz_id = v_q.id and a.guest_hash is not null
            and a.started_at > pg_catalog.now() - interval '1 minute') >= 120 then
@@ -1035,12 +1043,8 @@ begin
           v_items, case when v_q.design then meldy_private.quiz_doc_points(v_q.container_id, v_items) end,
           pg_catalog.now(), meldy_private.quiz_deadline(pg_catalog.now(), v_q))
   returning * into v_a;
-  if p_user is null then
-    -- The rows of the last minute are all the throttle reads; older ones go here (a few per start at most).
-    delete from meldy_private.quiz_guest_starts s where s.started_at <= pg_catalog.now() - interval '1 minute';
-    if v_ip is not null then
-      insert into meldy_private.quiz_guest_starts (ip_hash, started_at) values (v_ip, pg_catalog.now());
-    end if;
+  if p_user is null and v_ip is not null then
+    insert into meldy_private.quiz_guest_starts (ip_hash, started_at) values (v_ip, pg_catalog.now());
   end if;
   return meldy_private.quiz_attempt_json(v_a, v_q);
 end;

@@ -37,10 +37,12 @@ $fn$;
 create or replace function pg_temp.put(p_k text, p_v text) returns void language sql as $fn$
   insert into pg_temp.ctx values (p_k, p_v) on conflict (k) do update set v = excluded.v
 $fn$;
--- the sorted key set of a JSON object; «design» and «band» of 20261019100000_test_docs.sql left out once it is applied
+-- the sorted key set of a JSON object. Release 47.1 (20261019100000_test_docs.sql) adds «design», «band», «score» and
+-- «max_score» to the result; test_docs_behaviour.sql pins those shapes, so once it is applied the pins here leave those
+-- keys out (before it, they must not be there).
 create or replace function pg_temp.keys(p jsonb) returns text language sql stable as $fn$
   select string_agg(k, ',' order by k) from jsonb_object_keys(p) k
-   where not (k in ('design', 'band') and to_regclass('public.test_docs') is not null)
+   where not (k in ('design', 'band', 'score', 'max_score') and to_regclass('public.test_docs') is not null)
 $fn$;
 create or replace function pg_temp.tok(p_n integer) returns text language sql immutable as $fn$
   select 'grd' || lpad(p_n::text, 8, '0') || repeat('Q', 32)
