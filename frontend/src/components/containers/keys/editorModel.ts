@@ -1,4 +1,4 @@
-import { isPictureWord, PICTURE_STEM, pictureOption, type ItemImages, type ItemInput, type ItemKind, type ItemPatch, type TestItem } from '../../../types/container';
+import { EXPLANATION_MAX, isPictureWord, PICTURE_STEM, pictureOption, type ItemImages, type ItemInput, type ItemKind, type ItemPatch, type TestItem } from '../../../types/container';
 import { letter } from '../copyImport';
 
 /**
@@ -7,7 +7,8 @@ import { letter } from '../copyImport';
  * characters and ≤ 8 KB, 1–10 accepted forms of ≤ 200), the patch of only what changed for container_item_update, the
  * input of a new question for container_items_add, and the database trigger's rule of when everyone's progress on the
  * question restarts (decision 15). A picture stands for its words: a stem or option that is only a picture is saved as
- * «Вопрос на картинке» / «Рисунок Б» and shown back empty here.
+ * «Вопрос на картинке» / «Рисунок Б» and shown back empty here. The explanation (release 47, ≤ EXPLANATION_MAX) is
+ * shown after an answer; changing it never restarts anybody's progress.
  */
 
 export interface DraftOption {
@@ -26,11 +27,25 @@ export interface Draft {
   correct: number[];
   /** A short answer's accepted forms, «;» between them. */
   forms: string;
+  /** «Пояснение»: shown after an answer; '' — none. */
+  explanation: string;
 }
 
-export type DraftProblem = 'stem' | 'stem_long' | 'option_empty' | 'option_long' | 'options_few' | 'options_many' | 'options_size' | 'forms' | 'form_long';
+export type DraftProblem =
+  | 'stem'
+  | 'stem_long'
+  | 'option_empty'
+  | 'option_long'
+  | 'options_few'
+  | 'options_many'
+  | 'options_size'
+  | 'forms'
+  | 'form_long'
+  | 'explanation_long';
 
-export const LIMITS = { stem: 4000, option: 600, optionsMin: 2, optionsMax: 8, optionsBytes: 8192, forms: 10, form: 200 } as const;
+export const LIMITS = { stem: 4000, option: 600, optionsMin: 2, optionsMax: 8, optionsBytes: 8192, forms: 10, form: 200, explanation: EXPLANATION_MAX } as const;
+/** The explanation's counter shows from this many characters on. */
+export const EXPLANATION_COUNT_FROM = LIMITS.explanation - 200;
 
 const sorted = (list: readonly number[]) => [...new Set(list)].sort((a, b) => a - b);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -46,11 +61,25 @@ export function draftOf(item: TestItem): Draft {
     options: short ? [] : item.options.map((text, index) => ({ text: isPictureWord(text) ? '' : text, pictures: [...(item.images?.options?.[index] ?? [])] })),
     correct: short ? [] : sorted(item.correct),
     forms: item.answers.join('; '),
+    explanation: item.explanation ?? '',
   };
 }
 
 export function emptyDraft(): Draft {
-  return { stem: '', stemPictures: [], code: false, keepOrder: false, short: false, options: [{ text: '', pictures: [] }, { text: '', pictures: [] }], correct: [], forms: '' };
+  return {
+    stem: '',
+    stemPictures: [],
+    code: false,
+    keepOrder: false,
+    short: false,
+    options: [
+      { text: '', pictures: [] },
+      { text: '', pictures: [] },
+    ],
+    correct: [],
+    forms: '',
+    explanation: '',
+  };
 }
 
 export function removeOption(draft: Draft, index: number): Draft {
@@ -75,6 +104,11 @@ export function stemText(draft: Draft): string {
   return draft.stemPictures.length > 0 ? PICTURE_STEM : '';
 }
 
+/** The explanation as saved: the typed words without blank lines or spaces around them. */
+export function explanationText(draft: Pick<Draft, 'explanation'>): string {
+  return draft.explanation.trim();
+}
+
 export function optionTexts(draft: Draft): string[] {
   return draft.options.map((option, index) => option.text.trim() || (option.pictures.length > 0 ? pictureOption(letter(index)) : ''));
 }
@@ -88,14 +122,15 @@ export function draftProblems(draft: Draft): DraftProblem[] {
     const forms = formsOf(draft.forms);
     if (forms.length === 0 || forms.length > LIMITS.forms) problems.push('forms');
     else if (forms.some((form) => form.length > LIMITS.form)) problems.push('form_long');
-    return problems;
+  } else {
+    const texts = optionTexts(draft);
+    if (texts.length < LIMITS.optionsMin) problems.push('options_few');
+    if (texts.length > LIMITS.optionsMax) problems.push('options_many');
+    if (texts.some((text) => !text)) problems.push('option_empty');
+    if (texts.some((text) => text.length > LIMITS.option)) problems.push('option_long');
+    else if (new TextEncoder().encode(JSON.stringify(texts)).length > LIMITS.optionsBytes) problems.push('options_size');
   }
-  const texts = optionTexts(draft);
-  if (texts.length < LIMITS.optionsMin) problems.push('options_few');
-  if (texts.length > LIMITS.optionsMax) problems.push('options_many');
-  if (texts.some((text) => !text)) problems.push('option_empty');
-  if (texts.some((text) => text.length > LIMITS.option)) problems.push('option_long');
-  else if (new TextEncoder().encode(JSON.stringify(texts)).length > LIMITS.optionsBytes) problems.push('options_size');
+  if (explanationText(draft).length > LIMITS.explanation) problems.push('explanation_long');
   return problems;
 }
 
@@ -137,13 +172,16 @@ export function patchOf(item: TestItem, draft: Draft): ItemPatch | null {
   if (kind !== item.kind) patch.kind = kind;
   const images = imagesOf(draft);
   if (!same(hasPictures(images) ? images : {}, hasPictures(storedImages(item)) ? storedImages(item) : {})) patch.images = hasPictures(images) ? images : {};
+  // Compared with the saved words trimmed too: opening and saving never sends an explanation nobody touched.
+  const explanation = explanationText(draft);
+  if (explanation !== (item.explanation ?? '').trim()) patch.explanation = explanation;
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
 const normForm = (form: string) => form.trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
 const formSet = (forms: readonly string[]) => [...new Set(forms.map(normForm))].sort();
 
-/** test_items_guard's rule: a new kind, option count, key or set of forms restarts the question for everyone. */
+/** test_items_guard's rule: a new kind, option count, key or set of forms restarts the question for everyone (words, pictures and the explanation never do). */
 export function resetsProgress(item: TestItem, patch: ItemPatch): boolean {
   if (patch.kind !== undefined && patch.kind !== item.kind) return true;
   if (patch.options !== undefined && patch.options.length !== item.options.length) return true;
@@ -182,6 +220,8 @@ export function inputOf(draft: Draft, fileNo: string, ref: string): ItemInput {
     keep_order: draft.keepOrder,
   };
   if (hasPictures(images)) input.images = images;
+  const explanation = explanationText(draft);
+  if (explanation) input.explanation = explanation;
   return input;
 }
 

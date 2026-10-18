@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { COVER_BUCKET, coverUrl, pictureFromFile, picturePath, uploadPicture } from '../../api/itemPictures';
 import { createQuiz, listQuizzes, updateQuiz } from '../../api/quizzes';
 import { useContainerData } from '../../lib/containers/hooks';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
@@ -21,6 +22,7 @@ import { errorText, GONE, nb } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
 import { QA_ERRORS, QA_LIST, QA_SETUP } from '../../components/quiz/copyAuthor';
 import {
+  allQuestions,
   changedSettings,
   countChoices,
   countFor,
@@ -31,8 +33,12 @@ import {
   poolOf,
   settingsOf,
   weekOn,
+  whoOf,
+  withWho,
+  WHO_CHOICES,
+  type QuizWho,
 } from '../../components/quiz/setupModel';
-import { LOCKED_SETTINGS, type QuizGrading, type QuizReview, type QuizRow, type QuizSettings } from '../../types/quiz';
+import { LOCKED_SETTINGS, QUIZ_ACCENTS, type QuizGrading, type QuizReview, type QuizRow, type QuizSettings } from '../../types/quiz';
 import type { SummarySubject, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
@@ -41,10 +47,13 @@ import '../../components/quiz/quizAuthor.css';
 /**
  * /exams/c/:id/quizzes/new and /exams/c/:id/quizzes/:quizId/edit — the settings of a «Контрольная» (spec 2026-10-16
  * §2.1): what questions (the ticked subjects' keyed ones: the pool), how many, the set, the order, the timer; when it
- * is open, the attempts, what counts, going back, the pass mark, what the participant sees after, who may write.
+ * is open, the attempts, what counts, going back, the pass mark, what the participant sees after, the offer to train the
+ * exam after, who may write (without an account, signed in, or the exam's members only); the look of the quiz's page —
+ * a cover (uploaded at once into the exam's folder of the public bucket quiz-covers) and one of six colours (release 47).
  *
  * A new quiz starts from defaultSettings (every subject with keyed questions, 20, about a minute a question, one
- * attempt, open a week); the count and the timer follow the subjects until the author picks them. «Создать» →
+ * attempt, open a week, guests welcome); the count and the timer follow the subjects until the author picks them.
+ * `?all=1` (the constructor's «Отправить по ссылке») starts with all the questions, one set, in order. «Создать» →
  * quiz_create → the stats page with the link. An edit sends only the keys it changed; once somebody has started, the
  * locked ones (LOCKED_SETTINGS) are disabled with a line why. What the server would refuse is said as lines beside the
  * button (settingsProblems).
@@ -71,6 +80,8 @@ export default function QuizSetupPage() {
   const quizId = (params.quizId ?? null) as Uuid | null;
   const editing = quizId !== null;
   const navigate = useNavigate();
+  const [search] = useSearchParams();
+  const allAsked = !editing && search.get('all') === '1';
   const frame = useFrame<HTMLDivElement>();
   const formId = useId();
   const data = useContainerData(containerId);
@@ -133,12 +144,17 @@ export default function QuizSetupPage() {
     } else {
       const ids = subjects.filter((subject) => (counts.get(subject.id) ?? 0) > 0).map((subject) => subject.id);
       start = defaultSettings(ids, poolOf(ids, counts), new Date());
+      if (allAsked) {
+        start = allQuestions(start, poolOf(ids, counts));
+        // «все» stays «все» when a subject is ticked off or on (countFor); the timer still follows the count.
+        setTouched({ count: true, time: false });
+      }
     }
     if (!start) return;
     setForm(start);
     setOpensMode(start.opens_at ? 'at' : 'now');
     setClosesMode(start.closes_at ? 'at' : 'never');
-  }, [form, owner, data.data, editing, quiz, subjects, counts]);
+  }, [form, owner, data.data, editing, quiz, subjects, counts, allAsked]);
 
   const pool = form ? poolOf(form.subject_ids, counts) : 0;
   const set = <K extends keyof QuizSettings>(key: K, value: QuizSettings[K]) => setForm((current) => (current ? { ...current, [key]: value } : current));
@@ -172,6 +188,29 @@ export default function QuizSetupPage() {
     set('closes_at', mode === 'never' ? null : form?.closes_at ?? weekOn(new Date()));
   };
 
+  // ── the cover: uploaded as soon as it is chosen, named by its sha256 in the exam's folder ──
+  const coverRef = useRef<HTMLInputElement>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverNote, setCoverNote] = useState<string | null>(null);
+  const uploadCover = async (file: Blob) => {
+    setCoverNote(null);
+    setCoverBusy(true);
+    try {
+      const made = await pictureFromFile(file);
+      if (made === 'type') return setCoverNote(QA_SETUP.coverType);
+      if (made === 'size') return setCoverNote(QA_SETUP.coverSize);
+      // quiz-covers takes PNG, JPEG, GIF and WebP (a small BMP stays BMP).
+      const path = made.picture.type === 'image/bmp' ? null : picturePath(containerId, made.id, made.picture.type);
+      if (!path) return setCoverNote(QA_SETUP.coverType);
+      if ((await uploadPicture(path, made.picture, COVER_BUCKET)) === 'refused') return setCoverNote(QA_SETUP.coverRefused);
+      set('cover_path', path);
+    } catch {
+      setCoverNote(QA_SETUP.coverFailed);
+    } finally {
+      setCoverBusy(false);
+    }
+  };
+
   let problems: Problem[] = form ? settingsProblems(form, pool) : [];
   // After the first attempt the questions are fixed: the pool on this device has no say any more.
   if (locked) problems = problems.filter((problem) => problem !== 'subjects' && problem !== 'count');
@@ -182,7 +221,7 @@ export default function QuizSetupPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const submit = async () => {
-    if (!form || saving || problems.length > 0) return;
+    if (!form || saving || coverBusy || problems.length > 0) return;
     const settings: QuizSettings = {
       ...form,
       title: form.title.trim(),
@@ -312,6 +351,7 @@ export default function QuizSetupPage() {
     .map((value) => ({ value: nz(value), label: value === null ? QA_SETUP.passNone : QA_SETUP.passOption(value) }));
   const reviews: QuizReview[] = ['score', 'mistakes', 'answers', 'mistakes_then_answers'];
   const gradings: QuizGrading[] = ['best', 'last'];
+  const who = whoOf(form);
 
   const select = <T extends string | number>(p: {
     label: string;
@@ -337,7 +377,7 @@ export default function QuizSetupPage() {
   );
 
   const questionsPart = (
-    <section className="qa-part" aria-labelledby={`${formId}-q`}>
+    <section className="qa-part qa-part-q" aria-labelledby={`${formId}-q`}>
       <h2 id={`${formId}-q`} className="qa-part-h">
         {QA_SETUP.partQuestions}
       </h2>
@@ -431,7 +471,7 @@ export default function QuizSetupPage() {
   );
 
   const whenPart = (
-    <section className="qa-part" aria-labelledby={`${formId}-w`}>
+    <section className="qa-part qa-part-w" aria-labelledby={`${formId}-w`}>
       <h2 id={`${formId}-w`} className="qa-part-h">
         {QA_SETUP.partWhen}
       </h2>
@@ -501,16 +541,91 @@ export default function QuizSetupPage() {
         options: reviews.map((value) => ({ value, label: QA_SETUP.reviewOption(value) })),
         onChange: (value) => set('review', value),
       })}
-      {select({
+      <div className="im-field qa-field">
+        <label className="qa-toggle">
+          <input
+            type="checkbox"
+            checked={form.offer_practice}
+            disabled={saving}
+            aria-describedby={`${formId}-practice`}
+            onChange={(event) => set('offer_practice', event.target.checked)}
+          />
+          <span className="qa-toggle-t">{QA_SETUP.practice}</span>
+        </label>
+        <p id={`${formId}-practice`} className="im-hint" data-muted="">
+          {QA_SETUP.practiceNote}
+        </p>
+      </div>
+      {select<QuizWho>({
         label: QA_SETUP.who,
-        value: form.members_only ? 'members' : 'all',
-        options: [
-          { value: 'all', label: QA_SETUP.whoAll },
-          { value: 'members', label: QA_SETUP.whoMembers },
-        ],
-        onChange: (value) => set('members_only', value === 'members'),
-        hint: QA_SETUP.whoHint,
+        value: who,
+        options: WHO_CHOICES.map((value) => ({ value, label: QA_SETUP.whoOption(value) })),
+        onChange: (value) => setForm((current) => (current ? withWho(current, value) : current)),
+        hint: QA_SETUP.whoHint(who),
       })}
+    </section>
+  );
+
+  const lookPart = (
+    <section className="qa-part qa-part-l" aria-labelledby={`${formId}-l`}>
+      <h2 id={`${formId}-l`} className="qa-part-h">
+        {QA_SETUP.partLook}
+      </h2>
+      <div className="im-field qa-field" role="group" aria-labelledby={`${formId}-cover`}>
+        <span id={`${formId}-cover`} className="im-label">
+          {QA_SETUP.cover}
+        </span>
+        {form.cover_path ? <img className="qa-cover" src={coverUrl(form.cover_path)} alt={QA_SETUP.coverAlt} /> : null}
+        <span className="qa-cover-acts">
+          <button type="button" className="sf-secondary" disabled={saving || coverBusy} aria-busy={coverBusy || undefined} onClick={() => coverRef.current?.click()}>
+            {form.cover_path ? QA_SETUP.coverReplace : QA_SETUP.coverUpload}
+          </button>
+          {form.cover_path ? (
+            <button
+              type="button"
+              className="sf-link"
+              data-muted=""
+              disabled={saving || coverBusy}
+              onClick={() => {
+                setCoverNote(null);
+                set('cover_path', null);
+              }}
+            >
+              {QA_SETUP.coverRemove}
+            </button>
+          ) : null}
+        </span>
+        <input
+          ref={coverRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          hidden
+          aria-label={QA_SETUP.coverUpload}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void uploadCover(file);
+          }}
+        />
+        <p className="im-hint" data-muted={coverNote && !coverBusy ? undefined : ''} role={coverNote && !coverBusy ? 'alert' : undefined}>
+          {nb(coverBusy ? QA_SETUP.coverUploading : coverNote ?? QA_SETUP.coverHint)}
+        </p>
+      </div>
+      <fieldset className="qa-accents" disabled={saving}>
+        <legend className="im-label">{QA_SETUP.accent}</legend>
+        <span className="qa-swatches">
+          {QUIZ_ACCENTS.map((accent) => (
+            <label key={accent} className="qa-swatch" data-accent={accent}>
+              <input type="radio" name={`${formId}-accent`} value={accent} checked={form.accent === accent} onChange={() => set('accent', accent)} />
+              <span className="qa-swatch-dot" aria-hidden="true" />
+              <span className="qa-swatch-name">{QA_SETUP.accentName(accent)}</span>
+            </label>
+          ))}
+        </span>
+        <p className="im-hint" data-muted="">
+          {QA_SETUP.accentHint}
+        </p>
+      </fieldset>
     </section>
   );
 
@@ -521,6 +636,7 @@ export default function QuizSetupPage() {
       <div className="qa-parts" data-side={frame.side ? '' : undefined}>
         {questionsPart}
         {whenPart}
+        {lookPart}
       </div>
       <div className="ex-cta qa-cta" data-row={frame.side ? '' : undefined}>
         {problems.length > 0 || saveError ? (
@@ -535,7 +651,7 @@ export default function QuizSetupPage() {
           <Link className="sf-link" data-muted="" to={statsPath}>
             {QA_SETUP.cancel}
           </Link>
-          <button type="button" className="sf-primary" disabled={saving || problems.length > 0} onClick={() => void submit()}>
+          <button type="button" className="sf-primary" disabled={saving || coverBusy || problems.length > 0} onClick={() => void submit()}>
             {editing ? (saving ? QA_SETUP.saving : QA_SETUP.save) : saving ? QA_SETUP.creating : QA_SETUP.create}
           </button>
         </div>

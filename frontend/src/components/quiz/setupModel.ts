@@ -1,11 +1,13 @@
 /**
- * The author's settings form of «Контрольная» without React (spec 2026-10-16 §2.1): the pool of keyed questions by
- * subject, the counts the «Сколько вопросов» list offers, a saved quiz as the form's settings, the keys an edit changed
- * (quiz_update takes only those), and the device's local date-time of a native datetime-local field.
+ * The author's settings form of «Контрольная» without React (spec 2026-10-16 §2.1; release 47 §47.1, §47.4, §47.5):
+ * the pool of keyed questions by subject, the counts the «Сколько вопросов» list offers, who may write (three choices
+ * over `guests` and `members_only`), the start of a quiz of all the questions (`?all=1` from the constructor), a saved
+ * quiz as the form's settings, the keys an edit changed (quiz_update takes only those), and the device's local
+ * date-time of a native datetime-local field.
  */
 import type { TestItem } from '../../types/container';
 import type { QuizRow, QuizSettings } from '../../types/quiz';
-import { COUNT_OPTIONS, MAX_ITEMS } from '../../lib/quizzes/quizModel';
+import { COUNT_OPTIONS, defaultMinutes, MAX_ITEMS } from '../../lib/quizzes/quizModel';
 
 /** A question goes into a quiz only with a key (the database's `keyed` column). */
 export const isKeyed = (item: Pick<TestItem, 'correct' | 'answers'>) => item.correct.length > 0 || item.answers.length > 0;
@@ -39,6 +41,31 @@ export function countFor(current: number, oldPool: number, newPool: number): num
   const newCap = Math.max(1, Math.min(newPool, MAX_ITEMS));
   if (oldPool > 0 && current >= oldCap) return newCap;
   return Math.min(current, newCap);
+}
+
+/**
+ * «Кто может писать»: anyone with the link without signing in (guests), anyone with the link who signs in, or only the
+ * exam's members. The database keeps it as two flags and never both (quizzes CHECK not (members_only and guests)).
+ */
+export type QuizWho = 'guests' | 'link' | 'members';
+export const WHO_CHOICES: readonly QuizWho[] = ['guests', 'link', 'members'];
+
+export function whoOf(settings: Pick<QuizSettings, 'guests' | 'members_only'>): QuizWho {
+  if (settings.members_only) return 'members';
+  return settings.guests ? 'guests' : 'link';
+}
+
+export function withWho(settings: QuizSettings, who: QuizWho): QuizSettings {
+  return { ...settings, guests: who === 'guests', members_only: who === 'members' };
+}
+
+/**
+ * A new quiz of all the questions (the constructor's «Отправить по ссылке», `?all=1`): the whole pool of the ticked
+ * subjects (no more than MAX_ITEMS), one set for everyone, the questions in the exam's order; the timer follows.
+ */
+export function allQuestions(settings: QuizSettings, pool: number): QuizSettings {
+  const count = Math.max(1, Math.min(pool, MAX_ITEMS));
+  return { ...settings, item_count: count, time_limit_min: defaultMinutes(count), same_set: true, shuffle_items: false };
 }
 
 /** The form's settings of a saved quiz. */
@@ -89,6 +116,10 @@ const SETTING_KEYS: ReadonlyArray<keyof QuizSettings> = [
   'pass_percent',
   'review',
   'members_only',
+  'guests',
+  'cover_path',
+  'accent',
+  'offer_practice',
 ];
 
 /** Only what the edit changed: quiz_update keeps every key it is not given. */

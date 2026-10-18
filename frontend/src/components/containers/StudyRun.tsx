@@ -6,6 +6,7 @@ import { dayText } from '../../lib/containers/words';
 import { track } from '../../lib/telemetry';
 import { miniAppHaptic } from '../../lib/telegram/miniApp';
 import QuestionCard, { type Answered } from './QuestionCard';
+import { Explanation } from './keys/KeyQuestion';
 import { DoubtSheet, KeyFix, RoomBar } from './RoomParts';
 import SessionEnd, { useReplan } from './SessionEnd';
 import * as copy from './copy';
@@ -40,7 +41,10 @@ import './room.css';
  *   queue, with its client_event_id, the item's rev, the shown order in file indices, ms, cls, the local day and the
  *   session; the plan is read again once the session's answers have left (SessionEnd useReplan), so the end screen
  *   says the server's results and what the exam page will;
- * - keys on a computer: 1–8 (or А–З) answer, 0 «Не знаю», Enter «Дальше», Backspace «Нажали не туда?».
+ * - keys on a computer: 1–8 (or А–З) answer, 0 «Не знаю», Enter «Дальше», Backspace «Нажали не туда?»;
+ * - after an answer the author's explanation (release 47), when the question has one, right under the question: in the
+ *   page's flow, not in the pinned bar, so a long one scrolls and the bar with the verdict stays as it is; a right
+ *   answer to such a question waits for «Дальше» instead of moving on after a second.
  */
 interface Pending {
   chosen: number[] | null;
@@ -332,7 +336,8 @@ export default function StudyRun(props: StudyRunProps) {
     setPending({ ...choice, dontKnow, correct, misclick: false, again, at: Date.now() });
     // Inside Telegram the phone answers too (lib/telegram/miniApp; nothing elsewhere).
     miniAppHaptic(correct ? 'success' : dontKnow ? 'warning' : 'error');
-    if (correct) {
+    // A right answer moves on by itself, unless the author explained the question: then it waits for «Дальше».
+    if (correct && !item.explanation?.trim()) {
       timer.current = window.setTimeout(() => {
         timer.current = null;
         nextRef.current(true);
@@ -598,6 +603,7 @@ export default function StudyRun(props: StudyRunProps) {
           stemRef={stemRef}
           fileRef={fileRef}
         />
+        {pending ? <Explanation text={item.explanation} /> : null}
         {under.length > 0 ? <div className="ct-under">{under}</div> : null}
         {notes.length > 0 ? (
           <div className="ct-notes-q">

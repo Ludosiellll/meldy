@@ -5,7 +5,7 @@ vi.mock('../../../lib/supabase', () => ({ supabase: { storage: { from: vi.fn() }
 
 import QuestionEditor from './QuestionEditor';
 import { EDITOR } from '../copyImport';
-import type { TestItem } from '../../../types/container';
+import { EXPLANATION_MAX, type TestItem } from '../../../types/container';
 
 const C = '11111111-2222-4333-8444-555555555555';
 
@@ -107,6 +107,44 @@ describe('QuestionEditor', () => {
     fireEvent.change(screen.getByLabelText(EDITOR.forms), { target: { value: 'Шлюз; gateway' } });
     fireEvent.click(screen.getByRole('button', { name: EDITOR.add }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ short: true, forms: 'Шлюз; gateway' }));
+  });
+
+  it('shows the saved explanation and saves a new one without warning the group', () => {
+    const { onSave } = setup({ group: true, item: { ...ITEM, explanation: 'Слева входит то, что блок меняет.' } });
+    const field = screen.getByLabelText(EDITOR.explanation) as HTMLTextAreaElement;
+    expect(field.tagName).toBe('TEXTAREA');
+    expect(field.value).toBe('Слева входит то, что блок меняет.');
+    fireEvent.change(field, { target: { value: 'Слева — вход.\nСверху — управление.' } });
+    // An explanation never restarts the question.
+    expect(screen.queryByText(EDITOR.resets)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.save }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ explanation: 'Слева — вход.\nСверху — управление.' }));
+  });
+
+  it('the explanation may stay empty; a new question saves without one', () => {
+    const { onSave } = setup({ item: null, context: 'Новый вопрос' });
+    expect((screen.getByLabelText(EDITOR.explanation) as HTMLTextAreaElement).value).toBe('');
+    fireEvent.change(screen.getByLabelText(EDITOR.stem), { target: { value: 'Что такое шлюз?' } });
+    fireEvent.change(screen.getByLabelText(EDITOR.option('А')), { target: { value: 'Узел' } });
+    fireEvent.change(screen.getByLabelText(EDITOR.option('Б')), { target: { value: 'Поток' } });
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.add }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ explanation: '' }));
+  });
+
+  it('counts the characters near the limit and says when the explanation is too long', () => {
+    setup();
+    const field = screen.getByLabelText(EDITOR.explanation);
+    fireEvent.change(field, { target: { value: 'я'.repeat(100) } });
+    expect(screen.queryByText(EDITOR.explanationCount(100, EXPLANATION_MAX))).toBeNull();
+    fireEvent.change(field, { target: { value: 'я'.repeat(1900) } });
+    expect(screen.getByText(EDITOR.explanationCount(1900, EXPLANATION_MAX))).toBeInTheDocument();
+    expect(field).toHaveAccessibleDescription(EDITOR.explanationCount(1900, EXPLANATION_MAX));
+    expect(screen.getByRole('button', { name: EDITOR.save })).toBeEnabled();
+    fireEvent.change(field, { target: { value: 'я'.repeat(EXPLANATION_MAX + 5) } });
+    expect(screen.getByText(EDITOR.explanationCount(EXPLANATION_MAX + 5, EXPLANATION_MAX))).toHaveAttribute('data-over');
+    expect(screen.getByText(EDITOR.problems.explanation_long)).toBeInTheDocument();
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('button', { name: EDITOR.save })).toBeDisabled();
   });
 
   it('cancels', () => {

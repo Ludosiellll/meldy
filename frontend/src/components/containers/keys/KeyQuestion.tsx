@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { isPictureWord } from '../../../types/container';
-import { letter, nb, QUEUE } from '../copyImport';
+import { EDITOR, letter, nb, QUEUE } from '../copyImport';
 import ItemPictures, { type PictureSource } from '../ItemPictures';
 import { leadingSpaces, stemParts } from '../stemCode';
 import './keys.css';
@@ -10,7 +10,8 @@ import './keys.css';
  * wrong, the question and its options in the FILE's order and letters (the author edits the file, not studies it).
  * A tap on an option is the answer to the line above it: the right one (a key), or the one to take out (an empty or
  * repeated option). Several right options are ticked, then saved. The current key is marked with a word, not only a
- * colour (spec decision 54). Shared by the import page and «Ключи».
+ * colour (spec decision 54). The author's explanation (release 47), when there is one, under the options. Shared by the
+ * import page and «Ключи».
  */
 
 export type TapMode = 'key' | 'keys' | 'drop' | 'none';
@@ -49,6 +50,23 @@ interface Props {
   headingId?: string;
   /** The question's pictures: the stem's and each option's (in the order of `options`). */
   pictures?: { stem: PictureSource[]; options: PictureSource[][] } | null;
+  /** «Пояснение» of the question ('' or missing — none). */
+  explanation?: string | null;
+}
+
+/**
+ * The author's explanation of a question as everyone sees it after an answer (release 47): «Пояснение» and the words
+ * as typed, line breaks kept. Nothing when there is none. Used here and under a question of a «занятие» (StudyRun).
+ */
+export function Explanation({ text }: { text: string | null | undefined }) {
+  const words = (text ?? '').trim();
+  if (!words) return null;
+  return (
+    <div className="kq-explain">
+      <p className="kq-explain-h">{EDITOR.explanationShown}</p>
+      <p className="kq-explain-t">{words}</p>
+    </div>
+  );
 }
 
 /**
@@ -103,6 +121,7 @@ export default function KeyQuestion({
   children,
   headingId,
   pictures = null,
+  explanation = null,
 }: Props) {
   const fallbackId = useId();
   const contextId = headingId ?? fallbackId;
@@ -211,6 +230,8 @@ export default function KeyQuestion({
           ) : null}
         </>
       )}
+
+      <Explanation text={explanation} />
 
       {children}
 

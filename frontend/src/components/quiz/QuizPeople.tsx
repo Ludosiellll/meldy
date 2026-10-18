@@ -19,6 +19,8 @@ import './quizAuthor.css';
  * осталось 08:41» against the server's deadline, «сдал(а) 17:32», «время вышло», «закрыта»), the result, the minutes
  * and «попытка 2 из 3». A press opens their answers in a sheet: a switch between their attempts, each answered question
  * with their answer and the key in letters, and «Сбросить попытку» after asking (the person gets the attempt back).
+ * Somebody who wrote without an account (release 47) has a quiet «без входа» after the name, and a line under the table
+ * says such attempts are counted per browser.
  */
 
 export type PeopleSort = 'name' | 'result' | 'time';
@@ -139,6 +141,12 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
                   <span className="qa-person-name">
                     {row.name}
                     {row.own ? <span className="qa-own"> {QA_PEOPLE.own}</span> : null}
+                    {row.counted.guest ? (
+                      <>
+                        {' '}
+                        <span className="qa-guest">{QA_PEOPLE.guest}</span>
+                      </>
+                    ) : null}
                   </span>
                   <span className="qa-person-status">{nb(statusText(row.counted, offsetMs, now))}</span>
                   <span className="qa-person-result">{nb(resultText(row.counted))}</span>
@@ -160,6 +168,7 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
         </ul>
       </div>
       {rows.some((row) => row.own) ? <p className="qa-hint">{QA_PEOPLE.ownHint}</p> : null}
+      {rows.some((row) => row.counted.guest) ? <p className="qa-hint">{QA_PEOPLE.guestHint}</p> : null}
       {opened ? (
         <PersonAnswers
           row={opened}

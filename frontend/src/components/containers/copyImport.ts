@@ -58,6 +58,11 @@ export const EDITOR = {
   removeWord: 'Убрать',
   keepOrder: 'Не перемешивать варианты',
   forms: 'Принятые ответы через «;»',
+  explanation: 'Пояснение — видно после ответа',
+  /** The explanation's heading where it is shown: after an answer in a «занятие», in «Вопросы и ключи». */
+  explanationShown: 'Пояснение',
+  /** Near the limit: «1 850 из 2000». */
+  explanationCount: (n: number, max: number) => `${n} из ${max}`,
   save: 'Сохранить',
   add: 'Добавить вопрос',
   cancel: 'Отмена',
@@ -79,6 +84,7 @@ export const EDITOR = {
     options_size: 'Варианты вместе слишком длинные: сократите их.',
     forms: 'Напишите от одного до десяти принятых ответов через «;».',
     form_long: 'Принятый ответ длиннее 200 знаков.',
+    explanation_long: 'Пояснение длиннее 2000 знаков.',
   },
 } as const;
 

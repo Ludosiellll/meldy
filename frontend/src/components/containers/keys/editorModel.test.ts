@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PICTURE_STEM, type TestItem } from '../../../types/container';
+import { EXPLANATION_MAX, PICTURE_STEM, type TestItem } from '../../../types/container';
 import {
   draftOf,
   draftProblems,
   emptyDraft,
+  explanationText,
   formsOf,
   inputOf,
   nextFileNo,
@@ -63,6 +64,12 @@ describe('draftOf', () => {
     expect(draft.short).toBe(true);
     expect(draft.forms).toBe('Шлюз; шлюз XOR');
   });
+
+  it('carries the explanation; a question saved before it had one starts empty', () => {
+    expect(draftOf(item({ explanation: 'Стрелка слева — вход.\nСверху — управление.' })).explanation).toBe('Стрелка слева — вход.\nСверху — управление.');
+    expect(draftOf(item()).explanation).toBe('');
+    expect(emptyDraft().explanation).toBe('');
+  });
 });
 
 describe('removeOption', () => {
@@ -99,6 +106,13 @@ describe('draftProblems', () => {
     expect(draftProblems({ ...short, forms: 'шлюз' })).toEqual([]);
     expect(draftProblems({ ...short, forms: 'ш'.repeat(201) })).toEqual(['form_long']);
   });
+  it('lets the explanation be empty or up to the limit, spaces around it not counted', () => {
+    expect(draftProblems({ ...base, explanation: '' })).toEqual([]);
+    expect(draftProblems({ ...base, explanation: `  ${'я'.repeat(EXPLANATION_MAX)}\n\n` })).toEqual([]);
+    expect(draftProblems({ ...base, explanation: 'я'.repeat(EXPLANATION_MAX + 1) })).toEqual(['explanation_long']);
+    const short: Draft = { ...emptyDraft(), stem: 'Как называется элемент?', short: true, options: [], forms: 'шлюз', explanation: 'я'.repeat(EXPLANATION_MAX + 1) };
+    expect(draftProblems(short)).toEqual(['explanation_long']);
+  });
 });
 
 describe('patchOf', () => {
@@ -127,6 +141,18 @@ describe('patchOf', () => {
     const short = item({ kind: 'short', options: [], correct: [], answers: ['Шлюз'] });
     expect(patchOf(short, { ...draftOf(short), forms: 'Шлюз; Gateway' })).toEqual({ answers: ['Шлюз', 'Gateway'] });
   });
+  it('sends the explanation only when it changed, trimmed; an emptied one as an empty string', () => {
+    expect(patchOf(item(), { ...draftOf(item()), explanation: '  Слева входит то, что блок меняет.\n' })).toEqual({ explanation: 'Слева входит то, что блок меняет.' });
+    const explained = item({ explanation: 'Слева — вход.' });
+    expect(patchOf(explained, draftOf(explained))).toBeNull();
+    expect(patchOf(explained, { ...draftOf(explained), explanation: 'Слева — вход. ' })).toBeNull();
+    expect(patchOf(explained, { ...draftOf(explained), explanation: '   ' })).toEqual({ explanation: '' });
+    // A question read before the column existed has no explanation at all: an untouched draft sends nothing.
+    expect(patchOf(item({ explanation: undefined }), { ...draftOf(item()), explanation: '' })).toBeNull();
+  });
+  it('sends the explanation beside the other changes', () => {
+    expect(patchOf(item(), { ...draftOf(item()), correct: [1], explanation: 'Управление — сверху.' })).toEqual({ correct: [1], explanation: 'Управление — сверху.' });
+  });
 });
 
 describe('resetsProgress', () => {
@@ -140,6 +166,11 @@ describe('resetsProgress', () => {
     const short = item({ kind: 'short', options: [], correct: [], answers: ['Шлюз'] });
     expect(resetsProgress(short, { answers: [' шлюз '] })).toBe(false);
     expect(resetsProgress(short, { answers: ['Шлюз', 'Gateway'] })).toBe(true);
+  });
+  it('never restarts the question for an explanation', () => {
+    expect(resetsProgress(item(), { explanation: 'Стрелка слева — вход.' })).toBe(false);
+    expect(resetsProgress(item({ explanation: 'Было' }), { explanation: '' })).toBe(false);
+    expect(resetsProgress(item(), patchOf(item(), { ...draftOf(item()), explanation: 'Новое пояснение' })!)).toBe(false);
   });
 });
 
@@ -171,6 +202,18 @@ describe('inputOf', () => {
     const draft: Draft = { ...emptyDraft(), stem: 'Без ключа', options: [{ text: 'А', pictures: [] }, { text: 'Б', pictures: [] }] };
     expect(inputOf(draft, '1', 'man:2')).toMatchObject({ key_source: 'none', correct: [] });
     expect(inputOf(draft, '1', 'man:2').images).toBeUndefined();
+    expect(inputOf(draft, '1', 'man:2').explanation).toBeUndefined();
+  });
+  it('carries the explanation of a new question, trimmed', () => {
+    const draft: Draft = { ...emptyDraft(), stem: 'Что такое шлюз?', short: true, options: [], forms: 'шлюз', explanation: '\n Ромб в BPMN — шлюз. \n' };
+    expect(inputOf(draft, '2', 'man:3')).toMatchObject({ kind: 'short', answers: ['шлюз'], explanation: 'Ромб в BPMN — шлюз.' });
+  });
+});
+
+describe('explanationText', () => {
+  it('drops the blank lines and spaces around the words, keeps those inside', () => {
+    expect(explanationText({ explanation: '\n  Первое.\n\nВторое.  \n' })).toBe('Первое.\n\nВторое.');
+    expect(explanationText({ explanation: ' \n ' })).toBe('');
   });
 });
 

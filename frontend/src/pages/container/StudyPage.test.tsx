@@ -991,3 +991,49 @@ describe('an oral self-check (decisions 19, 51)', () => {
     expect(document.querySelector('.ct-bar .sf-primary')?.textContent).toBe('Готово');
   });
 });
+
+describe('the author’s explanation after an answer (release 47, spec §47.3)', () => {
+  const explained = (text: string) => dbItems().map((entry) => (entry.id === 'q-iso' ? { ...entry, explanation: text } : entry));
+  const explanation = () => document.querySelector('.kq-explain');
+
+  it('comes under the question after an answer, not before; the bar keeps only the verdict and «Дальше»', () => {
+    renderStudy(dataWith(['q-iso', 'q-plain'], { items: explained('Фантомы не допускает только SERIALIZABLE.\nREPEATABLE READ их пропускает.') }));
+    expect(screen.queryByText('Пояснение')).toBeNull();
+    fireEvent.click(option('REPEATABLE READ'));
+    const block = explanation() as HTMLElement;
+    expect(block).not.toBeNull();
+    expect(within(block).getByText('Пояснение')).toBeInTheDocument();
+    expect(block.querySelector('.kq-explain-t')?.textContent).toBe('Фантомы не допускает только SERIALIZABLE.\nREPEATABLE READ их пропускает.');
+    // In the page's flow above the row of links, outside the pinned bar.
+    expect(block.closest('.ct-bar')).toBeNull();
+    expect(block.parentElement).toBe(document.querySelector('main.ct-study'));
+    expect(block.compareDocumentPosition(document.querySelector('.ct-under')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
+  });
+
+  it('after «Не знаю» too; a question without one shows none', async () => {
+    renderStudy(dataWith(['q-iso', 'q-plain'], { items: explained('Только SERIALIZABLE.') }));
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    expect(plain(explanation()?.textContent)).toContain('Только SERIALIZABLE.');
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Какая нормальная форма требует отсутствия транзитивных зависимостей?'));
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    expect(explanation()).toBeNull();
+  });
+
+  it('a right answer shows it as well and waits for «Дальше» instead of moving on after a second', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderStudy(dataWith(['q-iso', 'q-plain'], { items: explained('Только SERIALIZABLE.') }));
+    fireEvent.click(option('SERIALIZABLE'));
+    expect(verdict()).toBe('Верно.');
+    expect(plain(explanation()?.textContent)).toContain('Только SERIALIZABLE.');
+    await act(async () => {
+      vi.advanceTimersByTime(2500);
+    });
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Какой уровень изоляции не допускает фантомного чтения?');
+    expect(mocks.enqueue).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-iso', chosen: 3 }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Какая нормальная форма требует отсутствия транзитивных зависимостей?');
+  });
+});

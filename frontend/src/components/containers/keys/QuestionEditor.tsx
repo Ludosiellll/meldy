@@ -3,15 +3,16 @@ import { pictureFromFile, picturePath, uploadPicture } from '../../../api/itemPi
 import { PICTURE_LIMITS, type BankPicture, type TestItem } from '../../../types/container';
 import { EDITOR, letter, nb } from '../copyImport';
 import ItemPictures, { type PictureSource } from '../ItemPictures';
-import { draftOf, draftProblems, emptyDraft, patchOf, removeOption, resetsProgress, LIMITS, type Draft } from './editorModel';
+import { draftOf, draftProblems, emptyDraft, explanationText, patchOf, removeOption, resetsProgress, EXPLANATION_COUNT_FROM, LIMITS, type Draft } from './editorModel';
 import './keys.css';
 
 /**
  * The author's editor of one question in «Вопросы и ключи» (spec 2026-10-16 part 1): the text (code shown as typed
  * when ticked), the pictures of the question and of each option (a file or Ctrl+V into the field; uploaded at once into
  * the exam's folder of the bucket, named by their sha256), the options with «верный» ticks (two or more make a
- * question with several answers), or the accepted forms of a short answer. It says before saving when the change
- * restarts the question for the group (decision 15) and when the question would have no key. The page saves: an
+ * question with several answers), or the accepted forms of a short answer, and an optional explanation shown after an
+ * answer (release 47; a counter near its limit). It says before saving when the change restarts the question for the
+ * group (decision 15; an explanation never does) and when the question would have no key. The page saves: an
  * existing question through container_item_update, a new one through container_items_add (editorModel.ts).
  */
 
@@ -47,6 +48,7 @@ export default function QuestionEditor({ containerId, item, context, group, busy
   const unchanged = Boolean(item) && patch === null;
   const resets = Boolean(item && patch && group && resetsProgress(item, patch));
   const noKey = !draft.short && draft.correct.length === 0 && draft.options.length >= 2;
+  const explained = explanationText(draft).length;
   const canSave = !busy && loading === 0 && problems.length === 0 && !unchanged;
 
   const sourceOf = (path: string): PictureSource => (local[path] ? { picture: local[path] } : { path });
@@ -240,6 +242,26 @@ export default function QuestionEditor({ containerId, item, context, group, busy
       )}
 
       <p className="qe-hint">{EDITOR.pasteHint}</p>
+
+      <label className="qe-label" htmlFor={`${id}-explanation`}>
+        {EDITOR.explanation}
+      </label>
+      <textarea
+        id={`${id}-explanation`}
+        className="qe-text qe-explanation"
+        value={draft.explanation}
+        rows={Math.min(8, Math.max(2, draft.explanation.split('\n').length, Math.ceil(draft.explanation.length / 70)))}
+        maxLength={LIMITS.explanation + 200}
+        disabled={busy}
+        aria-describedby={explained >= EXPLANATION_COUNT_FROM ? `${id}-explanation-count` : undefined}
+        aria-invalid={explained > LIMITS.explanation ? true : undefined}
+        onChange={(event) => setDraft((current) => ({ ...current, explanation: event.target.value }))}
+      />
+      {explained >= EXPLANATION_COUNT_FROM ? (
+        <p id={`${id}-explanation-count`} className="qe-count" data-over={explained > LIMITS.explanation ? '' : undefined}>
+          {EDITOR.explanationCount(explained, LIMITS.explanation)}
+        </p>
+      ) : null}
       <input
         ref={fileRef}
         type="file"

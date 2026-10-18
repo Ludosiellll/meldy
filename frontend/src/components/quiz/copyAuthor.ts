@@ -4,7 +4,8 @@
  * share (states, errors, plurals) are in copyQuiz.ts. Plain Russian, no exclamation marks.
  */
 import { plural, QUIZ } from './copyQuiz';
-import type { QuizGrading, QuizReview } from '../../types/quiz';
+import type { QuizAccent, QuizGrading, QuizReview } from '../../types/quiz';
+import type { QuizWho } from './setupModel';
 
 const people = (n: number) => `${n} ${plural(n, 'человек', 'человека', 'человек')}`;
 const keyed = (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} с ключом`;
@@ -88,9 +89,43 @@ export const QA_SETUP = {
       mistakes_then_answers: 'балл и ошибки сразу, верные ответы после закрытия',
     })[r],
   who: 'Кто может писать',
-  whoAll: 'все, у кого есть ссылка',
-  whoMembers: 'только участники этого экзамена',
-  whoHint: 'Участник видит до начала, что вы увидите его имя, ответы и результат.',
+  whoOption: (who: QuizWho) =>
+    ({
+      guests: 'все по ссылке, без входа',
+      link: 'все по ссылке, со входом',
+      members: 'только участники этого экзамена',
+    })[who],
+  whoHint: (who: QuizWho) =>
+    ({
+      guests: 'Участнику не нужен аккаунт. Его попытки считаются по браузеру: в другом браузере можно начать заново.',
+      link: 'Чтобы начать, участник входит в Meldy или создаёт аккаунт. Попытки считаются по аккаунту.',
+      members: 'Писать могут только те, кто уже вступил в этот экзамен. Остальные увидят, что контрольная только для участников.',
+    })[who],
+  practice: 'После сдачи предложить тренироваться по этому экзамену',
+  practiceNote: 'Участник станет участником экзамена, если сам нажмёт кнопку. Вы увидите его в списке участников, его прогресс — нет.',
+  partLook: 'Оформление',
+  cover: 'Обложка',
+  coverHint: 'Картинка над названием на странице контрольной: PNG, JPEG, GIF или WebP до 3 МБ.',
+  coverUpload: 'Загрузить обложку',
+  coverReplace: 'Заменить',
+  coverRemove: 'Убрать',
+  coverAlt: 'Обложка контрольной',
+  coverUploading: 'Загружаем обложку…',
+  coverType: 'Это не картинка. Подойдут PNG, JPEG, GIF, WebP.',
+  coverSize: 'Картинка больше 3 МБ даже после сжатия.',
+  coverRefused: 'Хранилище не приняло эту картинку. Подойдут PNG, JPEG, GIF, WebP до 3 МБ.',
+  coverFailed: 'Обложка не загрузилась. Попробуйте ещё раз.',
+  accent: 'Цвет',
+  accentHint: 'Цвет кнопок и полосы времени на странице контрольной.',
+  accentName: (accent: QuizAccent) =>
+    ({
+      blue: 'Синий',
+      green: 'Зелёный',
+      orange: 'Оранжевый',
+      violet: 'Фиолетовый',
+      pink: 'Розовый',
+      graphite: 'Графит',
+    })[accent],
   locked: 'Контрольную уже начали писать: предметы, число вопросов, набор, порядок и время больше не меняются. Остальное можно.',
   problems: {
     title: 'Напишите название, до 120 знаков.',
@@ -157,6 +192,9 @@ export const QA_PEOPLE = {
   title: 'Участники',
   own: '(вы)',
   ownHint: 'Ваши собственные попытки помечены «(вы)» и в средний результат не идут.',
+  /** Beside the name of somebody who wrote without an account (release 47). */
+  guest: 'без входа',
+  guestHint: 'Попытки без входа считаются по браузеру.',
   sort: 'Порядок',
   sortOption: (key: 'name' | 'result' | 'time') => ({ name: 'по имени', result: 'по результату', time: 'по времени' })[key],
   head: { name: 'Имя', status: 'Сейчас', result: 'Результат', minutes: 'Время', attempts: 'Попытки' },
