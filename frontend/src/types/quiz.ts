@@ -237,7 +237,8 @@ export interface QuizResult {
   /**
    * The author offers to train this exam (release 47): its title, whether the taker is a member already, and whether
    * the training is open — false while a quiz of the exam is open or not yet open (20261018130000_quiz_guards; a member
-   * sees every answer of the exam). Missing from an older server: read as open.
+   * sees every answer of the exam), and for 20 s after a closing by time, while the last answers still save
+   * (20261018140000_quiz_practice_grace). Missing from an older server: read as open.
    */
   practice?: { exam_title: string; member: boolean; ready?: boolean } | null;
   accent?: QuizAccent;

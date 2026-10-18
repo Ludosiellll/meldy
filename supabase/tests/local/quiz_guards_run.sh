@@ -12,6 +12,11 @@
 # press «Начать» together (one attempt) → the rollback twice (the fingerprint of 47 again, the secret gone; the release-47
 # contracts and behaviour pass, the contract and the behaviour of the guards bite) → the migration again (the same
 # fingerprint as the first apply) → the contract and the behaviour again.
+# Part 2, supabase/migrations/20261018140000_quiz_practice_grace.sql (practice waits 20 s more after a closing by time, the
+# answer grace) on top of that: its behaviour and contract fail before it → the migration twice (the same fingerprint) →
+# its contract, quiz_guards.sql and the release-47 contracts → its behaviour, quiz_guards_behaviour and the other
+# behaviour files → the rollback twice (the catalog of 20261018130000 byte for byte; its contract and behaviour bite, the
+# guards still pass) → the migration again (the same catalog) → its contract and behaviour again.
 # 20261018120000_exam_move_bot_exams.sql (release 47 too) touches none of these functions or tables; its rehearsal
 # (exam_move_bot_exams_run.sh) builds the bot's base.
 # The last line is QUIZ GUARDS CHECKS PASSED and the exit code 0 only when every step is green.
@@ -247,6 +252,58 @@ step "contract again" "$CONTRACT"
 behave "behaviour again" "$BEHAVIOUR" 'QUIZ GUARDS BEHAVIOUR PASSED'
 behave "test_builder_behaviour again" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
 behave "quizzes_behaviour again" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
+
+# Part 2: 20261018140000_quiz_practice_grace.sql on the guards just applied.
+GMIG=$SB/migrations/20261018140000_quiz_practice_grace.sql
+GDOWN=$SB/rollback/20261018140000_quiz_practice_grace_down.sql
+GCONTRACT=$SB/tests/quiz_practice_grace.sql
+GBEHAVIOUR=$HERE/quiz_practice_grace_behaviour.sql
+FG0=$(fingerprint)
+SG=$(secret)
+[ "$FG0" = "$F48" ] && ok "part 2 starts on the catalog of the guards" || bad "part 2: another catalog than the guards"
+if passes "$GBEHAVIOUR" 'QUIZ PRACTICE GRACE BEHAVIOUR PASSED' >/dev/null; then
+  bad "quiz_practice_grace_behaviour passes before its migration (it tests nothing)"
+else
+  ok "quiz_practice_grace_behaviour fails before its migration"
+fi
+if run "$GCONTRACT" >/dev/null; then bad "quiz_practice_grace.sql passes before its migration (it tests nothing)"
+else ok "quiz_practice_grace.sql fails before its migration"; fi
+step "grace migration, first apply" "$GMIG"
+FG1=$(fingerprint)
+[ "$FG1" != "$FG0" ] && ok "the grace migration changed the catalog" || bad "the grace migration changed nothing"
+step "grace migration, second apply (re-runnable)" "$GMIG"
+[ "$(fingerprint)" = "$FG1" ] && ok "a second grace apply changes nothing in the catalog" || bad "a second grace apply changed the catalog"
+[[ "$SG" =~ ^[0-9a-f]{32}$ ]] && [ "$(secret)" = "$SG" ] && ok "the grace migration keeps the guards' secret" || bad "the secret after the grace migration"
+step "contract: quiz_practice_grace.sql" "$GCONTRACT"
+step "contract: quiz_guards.sql still holds" "$CONTRACT"
+step "contract: test_builder.sql still holds (grace)" "$SB/tests/test_builder.sql"
+step "contract: quizzes.sql still holds (grace)" "$SB/tests/quizzes.sql"
+step "contract: quiz_result_order.sql still holds (grace)" "$SB/tests/quiz_result_order.sql"
+if containers_contract; then ok "contract: containers.sql still holds (grace)"; else bad "contract: containers.sql (grace)"; fi
+behave "behaviour: closed by time 10 and 19 s ago — not ready, the join refused; 20 s — ready; closed by the author — at once" \
+  "$GBEHAVIOUR" 'QUIZ PRACTICE GRACE BEHAVIOUR PASSED'
+behave "quiz_guards_behaviour after the grace migration" "$BEHAVIOUR" 'QUIZ GUARDS BEHAVIOUR PASSED'
+behave "test_builder_behaviour after the grace migration" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
+behave "quizzes_behaviour after the grace migration" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
+[ "$(fingerprint)" = "$FG1" ] && ok "the catalog unchanged by the grace behaviour runs" || bad "the grace behaviour runs changed the catalog"
+step "grace rollback" "$GDOWN"
+[ "$(fingerprint)" = "$FG0" ] && ok "after the grace rollback: the catalog of 20261018130000 (function bodies byte for byte)" \
+  || bad "after the grace rollback: another catalog than the guards"
+step "grace rollback again (re-runnable)" "$GDOWN"
+[ "$(fingerprint)" = "$FG0" ] && ok "after the second grace rollback: still the catalog of the guards" || bad "after the second grace rollback"
+if run "$GCONTRACT" >/dev/null; then bad "quiz_practice_grace.sql passes after its rollback (it tests nothing)"
+else ok "quiz_practice_grace.sql fails after its rollback"; fi
+if passes "$GBEHAVIOUR" 'QUIZ PRACTICE GRACE BEHAVIOUR PASSED' >/dev/null; then
+  bad "quiz_practice_grace_behaviour passes after its rollback (it tests nothing)"
+else
+  ok "quiz_practice_grace_behaviour fails after its rollback"
+fi
+step "contract after the grace rollback: quiz_guards.sql" "$CONTRACT"
+behave "quiz_guards_behaviour after the grace rollback" "$BEHAVIOUR" 'QUIZ GUARDS BEHAVIOUR PASSED'
+step "grace migration after its rollback" "$GMIG"
+[ "$(fingerprint)" = "$FG1" ] && ok "the same catalog as the first grace apply" || bad "another catalog than the first grace apply"
+step "grace contract again" "$GCONTRACT"
+behave "grace behaviour again" "$GBEHAVIOUR" 'QUIZ PRACTICE GRACE BEHAVIOUR PASSED'
 
 echo "ok: $OKS, failures: $FAILS"
 if [ $FAILS = 0 ]; then echo "QUIZ GUARDS CHECKS PASSED"; fi
