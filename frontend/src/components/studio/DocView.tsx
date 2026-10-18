@@ -11,7 +11,7 @@ import { letter } from '../containers/copyImport';
 import Editable from './Editable';
 import Rich from './Rich';
 import { DOC, STUDIO } from './copyStudio';
-import { answered, missingRequired, questionNumbers, stepsOf, visibleBlocks, type Answer, type Answers, type DocItem, type DocResultView } from './docRun';
+import { answered, missingRequired, questionNumbers, stepsOf, visibleBlocks, type Answer, type Answers, type DocItem, type DocResultView, type Step } from './docRun';
 import './docview.css';
 
 /**
@@ -26,6 +26,10 @@ import './docview.css';
  * - `mode="edit"` is the studio's canvas: every block in page order (a «Новая страница» shows as a mark between
  *   pages), the texts editable in place (Editable), and the canvas's own frame around each block (`editor.frame`:
  *   selection, the handle, the actions) and between them (`editor.gap`: «+» and the drop line).
+ * - `mode="take"` is a quiz «как в студии» (release 47.2, components/quiz/QuizDocRun.tsx): the same steps and blocks,
+ *   but the caller keeps everything — the answers (saved to the server as they change), the step, the required
+ *   questions it has to name, «Назад / Дальше / Завершить» — and the options stand in the attempt's order. No result
+ *   screen: the quiz has its own.
  *
  * The background picture sits in its own layer (`.dv-bg`, position: fixed): a frame that holds the page (the canvas,
  * the preview) makes itself its containing block, so the picture stays while the page scrolls over it.
@@ -72,7 +76,33 @@ export interface AnswerProps extends CommonProps {
   result?: DocResultView | null;
 }
 
-export type DocViewProps = EditProps | AnswerProps;
+/** A quiz «как в студии» (release 47.2): the caller keeps the answers and the step (QuizDocRun). */
+export interface TakeProps extends CommonProps {
+  mode: 'take';
+  answers: Answers;
+  onAnswer: (itemId: string, answer: Answer) => void;
+  /** The order each question's options stand in (file indices by place: the attempt's shuffle); missing — the file's. */
+  orders?: ReadonlyMap<string, readonly number[]>;
+  /** The step shown, of stepsOf(doc, visibleBlocks(doc, items)). */
+  at: number;
+  /** Required questions without an answer the participant was just told about (their numbers): marked, and said. */
+  missing?: readonly number[];
+  /** «Назад» is offered on the steps after the first. */
+  canBack: boolean;
+  onBack: () => void;
+  onNext: () => void;
+  /** The last step's button, «Завершить». */
+  onFinish: () => void;
+  /** Lines of the caller over the blocks (time is running out, the attempt goes on) and under them («Сохранено»). */
+  top?: ReactNode;
+  under?: ReactNode;
+  /** Read on arriving at a step (the focus goes to it): «Вопрос 2 из 6». */
+  stepLabel?: string;
+  /** A question to bring into view instead of the step's top (from «Все вопросы»); `key` repeats a jump. */
+  jump?: { blockId: string; key: number } | null;
+}
+
+export type DocViewProps = EditProps | AnswerProps | TakeProps;
 
 // ─────────────────────────────────────────────── blocks
 
@@ -184,6 +214,8 @@ interface QuestionProps {
   block: DocBlock & { type: 'question' };
   item: DocItem;
   number: number;
+  /** File indices by place (the attempt's shuffle); missing — the file's order. */
+  order?: readonly number[];
   /** Answer mode: the answer and how to change it. Edit mode: undefined (the options are drawn, not pressed). */
   answer?: Answer;
   onAnswer?: (answer: Answer) => void;
@@ -192,11 +224,22 @@ interface QuestionProps {
   missing?: boolean;
 }
 
-function Question({ block, item, number, answer, onAnswer, showKey = false, missing = false }: QuestionProps) {
+/** A short answer is at most this long (quiz_answer keeps 200). */
+const SHORT_MAX = 200;
+
+/** The order given when it is a whole order of the options, else the file's. */
+function orderOf(item: DocItem, given: readonly number[] | undefined): readonly number[] {
+  const files = item.options.map((_, index) => index);
+  if (!given || given.length !== files.length) return files;
+  const whole = new Set(given).size === files.length && given.every((index) => Number.isInteger(index) && index >= 0 && index < files.length);
+  return whole ? given : files;
+}
+
+function Question({ block, item, number, order: given, answer, onAnswer, showKey = false, missing = false }: QuestionProps) {
   const multiple = item.kind === 'multiple';
   const live = Boolean(onAnswer);
   const chosen = answer?.chosen ?? [];
-  const order = item.options.map((_, index) => index);
+  const order = orderOf(item, given);
   const pick = (index: number) => {
     if (!onAnswer) return;
     if (multiple) onAnswer({ chosen: chosen.includes(index) ? chosen.filter((at) => at !== index) : [...chosen, index].sort((a, b) => a - b) });
@@ -205,7 +248,7 @@ function Question({ block, item, number, answer, onAnswer, showKey = false, miss
   const headId = `dv-q-${block.id}`;
   return (
     <section className="dv-q" aria-labelledby={headId} data-missing={missing ? '' : undefined}>
-      <p className="dv-q-head" id={headId}>
+      <p className="dv-q-head" id={headId} tabIndex={live ? -1 : undefined}>
         <span>{DOC.questionNo(number)}</span>
         {block.points !== 1 ? <span className="dv-q-meta">{DOC.points(block.points)}</span> : null}
         {block.required ? <span className="dv-q-meta">{DOC.required}</span> : null}
@@ -219,6 +262,7 @@ function Question({ block, item, number, answer, onAnswer, showKey = false, miss
             value={live ? answer?.text ?? '' : showKey ? item.answers?.[0] ?? '' : ''}
             readOnly={!live}
             tabIndex={live ? undefined : -1}
+            maxLength={live ? SHORT_MAX : undefined}
             autoComplete="off"
             spellCheck={false}
             data-key={!live && showKey && (item.answers?.length ?? 0) > 0 ? '' : undefined}
@@ -271,6 +315,7 @@ function Question({ block, item, number, answer, onAnswer, showKey = false, miss
           </div>
         </>
       )}
+      {missing ? <p className="dv-q-need">{DOC.needAnswer}</p> : null}
     </section>
   );
 }
@@ -286,9 +331,10 @@ interface BlockProps {
   answers?: Answers;
   onAnswer?: (itemId: string, answer: Answer) => void;
   missing?: ReadonlySet<string>;
+  orders?: ReadonlyMap<string, readonly number[]>;
 }
 
-function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answers, onAnswer, missing }: BlockProps) {
+function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answers, onAnswer, missing, orders }: BlockProps) {
   const ctx: FieldCtx = { editor, block };
   switch (block.type) {
     case 'cover':
@@ -356,6 +402,7 @@ function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answ
           block={block}
           item={item}
           number={numbers.get(block.id) ?? 0}
+          order={orders?.get(item.id)}
           showKey={Boolean(editor)}
           answer={answers?.[item.id]}
           onAnswer={onAnswer ? (answer) => onAnswer(item.id, answer) : undefined}
@@ -478,6 +525,7 @@ export default function DocView(props: DocViewProps) {
     );
   }
 
+  if (props.mode === 'take') return root(<TakeFlow {...props} shown={shown} numbers={numbers} pageNumbers={pageNumbers} imageUrl={imageUrl} />, { 'data-mode': 'answer' });
   return root(<AnswerFlow {...props} shown={shown} numbers={numbers} pageNumbers={pageNumbers} imageUrl={imageUrl} />, { 'data-mode': 'answer' });
 }
 
@@ -569,9 +617,6 @@ function AnswerFlow({
     );
   }
 
-  const questionsHere = step.blocks.filter((block) => block.type === 'question');
-  const allAnswered = questionsHere.every((block) => block.type !== 'question' || answered(answers[block.item_id]));
-
   return (
     <div className="dv-col" data-mode="answer">
       <div ref={topRef} tabIndex={-1} className="dv-top" aria-live="polite">
@@ -584,6 +629,73 @@ function AnswerFlow({
           </div>
         ) : null}
       </div>
+      <StepBody
+        step={step}
+        doc={doc}
+        items={items}
+        numbers={numbers}
+        pageNumbers={pageNumbers}
+        imageUrl={imageUrl}
+        answers={answers}
+        missing={missing}
+        missingIds={missingIds}
+        onAnswer={(itemId, answer) => {
+          setAnswers((current) => ({ ...current, [itemId]: answer }));
+          if (missing.length > 0) setMissing([]);
+        }}
+        back={at > 0 ? () => go(at - 1) : null}
+        primary={last ? DOC.send : DOC.next}
+        onPrimary={() => void forward()}
+        busy={sending}
+      />
+    </div>
+  );
+}
+
+/** A step's blocks, the line naming the required questions left, and the buttons (the preview's and the quiz's). */
+function StepBody({
+  step,
+  doc,
+  items,
+  numbers,
+  pageNumbers,
+  imageUrl,
+  answers,
+  missing,
+  missingIds,
+  onAnswer,
+  orders,
+  back,
+  primary,
+  onPrimary,
+  busy = false,
+  under,
+  pinned = false,
+}: {
+  step: Step;
+  doc: TestDoc;
+  items: ReadonlyMap<string, DocItem>;
+  numbers: ReadonlyMap<string, number>;
+  pageNumbers: ReadonlyMap<string, number>;
+  imageUrl: (path: string) => string;
+  answers: Answers;
+  missing: readonly number[];
+  missingIds: ReadonlySet<string>;
+  onAnswer: (itemId: string, answer: Answer) => void;
+  orders?: ReadonlyMap<string, readonly number[]>;
+  /** «Назад», when there is a step to go back to. */
+  back: (() => void) | null;
+  primary: string;
+  onPrimary: () => void;
+  busy?: boolean;
+  under?: ReactNode;
+  /** The buttons stay at the window's bottom while the step scrolls (the quiz's screens of «По одному», «По страницам»). */
+  pinned?: boolean;
+}) {
+  const questionsHere = step.blocks.filter((block) => block.type === 'question');
+  const allAnswered = questionsHere.every((block) => block.type !== 'question' || answered(answers[block.item_id]));
+  return (
+    <>
       {step.page && step.page.title.trim() ? <h2 className="dv-page-title dv-on-bg">{step.page.title}</h2> : null}
       {step.blocks.length === 0 ? <p className="dv-empty dv-on-bg">{DOC.empty}</p> : null}
       {step.blocks.map((block) => (
@@ -598,30 +710,115 @@ function AnswerFlow({
           editor={null}
           answers={answers}
           missing={missingIds}
-          onAnswer={(itemId, answer) => {
-            setAnswers((current) => ({ ...current, [itemId]: answer }));
-            if (missing.length > 0) setMissing([]);
-          }}
+          orders={orders}
+          onAnswer={onAnswer}
         />
       ))}
       {missing.length > 0 ? (
         <p className="dv-missing" role="alert">
-          {DOC.missing(missing)}
+          {DOC.missing([...missing])}
         </p>
       ) : null}
-      <div className="dv-nav" data-ready={allAnswered ? '' : undefined}>
-        {at > 0 ? (
-          <button type="button" className="dv-quiet" onClick={() => go(at - 1)}>
+      {under}
+      <div className="dv-nav" data-ready={allAnswered ? '' : undefined} data-pinned={pinned ? '' : undefined}>
+        {back ? (
+          <button type="button" className="dv-quiet" onClick={back}>
             {DOC.back}
           </button>
         ) : (
           <span />
         )}
-        <button type="button" className="dv-btn" onClick={() => void forward()} aria-busy={sending || undefined} disabled={sending}>
-          <span>{last ? DOC.send : DOC.next}</span>
+        <button type="button" className="dv-btn" onClick={onPrimary} aria-busy={busy || undefined} disabled={busy}>
+          <span>{primary}</span>
           <Arrow />
         </button>
       </div>
+    </>
+  );
+}
+
+/**
+ * The quiz's way through the page (mode «take»): the step the caller names, its blocks with the caller's answers, the
+ * required questions it names marked (with a line in the question), «Назад / Дальше / Завершить» calling back — pinned
+ * to the window's bottom on «По одному» and «По страницам», as the quiz's own pinned bar. Arriving at a step — the
+ * first one too — takes the window to its top and the focus to a line that names the step (read by a screen reader),
+ * or to the question asked for from «Все вопросы».
+ */
+function TakeFlow({
+  doc,
+  items,
+  answers,
+  onAnswer,
+  orders,
+  at,
+  missing = [],
+  canBack,
+  onBack,
+  onNext,
+  onFinish,
+  top,
+  under,
+  stepLabel,
+  jump,
+  shown,
+  numbers,
+  pageNumbers,
+  imageUrl,
+}: TakeProps & { shown: DocBlock[]; numbers: Map<string, number>; pageNumbers: Map<string, number>; imageUrl: (path: string) => string }) {
+  const steps = useMemo(() => stepsOf(doc, shown), [doc, shown]);
+  const place = Math.max(0, Math.min(at, steps.length - 1));
+  const step = steps[place];
+  const last = place >= steps.length - 1;
+  const topRef = useRef<HTMLParagraphElement>(null);
+  const missingIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const block of step.blocks) if (block.type === 'question' && missing.includes(numbers.get(block.id) ?? -1)) set.add(block.id);
+    return set;
+  }, [missing, step, numbers]);
+
+  useEffect(() => {
+    // The question's head (its number) takes the focus: the question is read from there, Tab goes to its options.
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    } catch {
+      // jsdom and old browsers: no scrolling to do.
+    }
+    const head = jump ? document.getElementById(`dv-q-${jump.blockId}`) : null;
+    if (head) {
+      // From the step's top when the question starts in the window's upper half (the page's title stays in view), else
+      // the question at the top.
+      const card = head.closest<HTMLElement>('.dv-q') ?? head;
+      if (card.getBoundingClientRect().top > window.innerHeight / 2) card.scrollIntoView?.({ block: 'start' });
+      head.focus({ preventScroll: true });
+      return;
+    }
+    topRef.current?.focus({ preventScroll: true });
+  }, [place, jump]);
+
+  return (
+    <div className="dv-col" data-mode="answer">
+      <p ref={topRef} tabIndex={-1} className="dv-top sr-only">
+        {stepLabel ?? ''}
+      </p>
+      {top}
+      <StepBody
+        step={step}
+        doc={doc}
+        items={items}
+        numbers={numbers}
+        pageNumbers={pageNumbers}
+        imageUrl={imageUrl}
+        answers={answers}
+        missing={missing}
+        missingIds={missingIds}
+        onAnswer={onAnswer}
+        orders={orders}
+        back={canBack && place > 0 ? onBack : null}
+        primary={last ? DOC.finish : DOC.next}
+        onPrimary={last ? onFinish : onNext}
+        under={under}
+        pinned={doc.layout !== 'one_page'}
+      />
     </div>
   );
 }

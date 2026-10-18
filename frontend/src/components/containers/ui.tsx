@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import * as copy from './copy';
 import './containers.css';
@@ -39,6 +39,8 @@ interface SheetProps {
   /** No «Закрыть»: the sheet closes by its own buttons, the scrim or Escape. */
   bare?: boolean;
   className?: string;
+  /** Custom properties of the page that opened it (the sheet lives outside the page's root): a quiz page's colours. */
+  style?: CSSProperties;
 }
 
 /**
@@ -46,7 +48,7 @@ interface SheetProps {
  * critique's N4); on a computer it is a card in the middle. Escape and the scrim close it, the focus moves to the sheet
  * (or the control it names with data-autofocus) and comes back to what opened it, Tab stays inside.
  */
-export function Sheet({ title, onClose, children, actions, bare = false, className = '' }: SheetProps) {
+export function Sheet({ title, onClose, children, actions, bare = false, className = '', style }: SheetProps) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement | null>(null);
   const opener = useRef<HTMLElement | null>(typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null);
@@ -97,7 +99,7 @@ export function Sheet({ title, onClose, children, actions, bare = false, classNa
   const sheet = (
     <div className="ct-sheet-root" data-ct-sheet="">
       <div className="ct-scrim" aria-hidden="true" onClick={() => closeRef.current()} />
-      <div ref={ref} className={`ct-sheet ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <div ref={ref} className={`ct-sheet ${className}`.trim()} style={style} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="ct-sheet-head">
           <h2 className="ct-sheet-t" id={titleId}>
             {title}

@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { QuizAttempt, QuizAttemptItem, QuizPreview, QuizPreviewMe, QuizResult } from '../../types/quiz';
+import type { DocDesign } from '../../types/testDoc';
 
 const api = vi.hoisted(() => ({
   previewQuiz: vi.fn(),
@@ -925,5 +926,67 @@ describe('/k/<код>: the line under the title without a repeated name (release
     renderAt();
     await screen.findByRole('heading', { level: 1 });
     expect(document.querySelector('.qt-by')).toBeNull();
+  });
+});
+
+describe('/k/<код>: a quiz «как в студии» (release 47.2)', () => {
+  const COVER = `11111111-2222-4333-8444-555555555555/${'a'.repeat(64)}.jpg`;
+  const design = (withCover = true): DocDesign => ({
+    title: 'Кислоты',
+    theme: { accent: { custom: '#3fb68b' }, background: { kind: 'soft', tone: 'green' }, font: 'serif', radius: 'round', density: 'airy', answers: 'list', buttons: 'rounded' },
+    layout: 'one_page',
+    blocks: [
+      ...(withCover ? [{ type: 'cover' as const, id: 'cover0000001', title: 'Кислоты и основания', subtitle: 'Проверочная работа, 8 класс', image: COVER, align: 'left' as const }] : []),
+      { type: 'question', id: 'quest0000001', item_id: 'i1', points: 2, required: false },
+      { type: 'question', id: 'quest0000002', item_id: 'i2', points: 1, required: false },
+      { type: 'question', id: 'quest0000003', item_id: 'i3', points: 3, required: false },
+    ],
+    results: { bands: [], cta: null },
+  });
+
+  it('the start is the page’s cover — its title, its line and its picture — in the page’s colours, not the quiz’s', async () => {
+    signedIn({}, { accent: 'violet', cover_path: 'c1/cover.png', design: design() });
+    renderAt();
+    const title = await screen.findByRole('heading', { level: 1, name: 'Кислоты и основания' });
+    expect(screen.getByText('Проверочная работа, 8 класс')).toBeInTheDocument();
+    expect(document.querySelector('.qt-cover img')).toHaveAttribute('src', `https://covers.test/${COVER}`);
+    const root = document.querySelector('.qt') as HTMLElement;
+    expect(root).toHaveAttribute('data-design', '');
+    expect(root).toHaveAttribute('data-bg', 'soft');
+    // The custom colour, nudged for white text, on the root; the quiz's violet gives way.
+    expect(root.style.getPropertyValue('--qt-fill')).toMatch(/^#[0-9a-f]{6}$/);
+    expect(root.style.getPropertyValue('--qt-fill')).not.toBe('#3fb68b');
+    expect(root).toHaveAttribute('data-accent', 'blue');
+    expect(root.style.getPropertyValue('--doc-font')).toContain('Georgia');
+    expect(title.compareDocumentPosition(screen.getByRole('button', { name: 'Начать' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('a page without a cover: the quiz’s title, no picture at all (the quiz’s cover gives way too)', async () => {
+    signedIn({}, { cover_path: 'c1/cover.png', design: design(false) });
+    renderAt();
+    await screen.findByRole('heading', { level: 1, name: 'Контрольная по базам данных' });
+    expect(document.querySelector('.qt-cover')).toBeNull();
+    expect(document.querySelector('.qt')).toHaveAttribute('data-design', '');
+  });
+
+  it('«Начать» opens the page in its theme; the result keeps the theme; earlier results say the points', async () => {
+    signedIn({ attempts_used: 1, results: [{ attempt_id: 'att-0', n: 1, finished_at: '2026-10-15T12:00:00.000Z', correct: 2, total: 3, score: 5, max_score: 6 }] }, { attempts: 2, design: design() });
+    api.startQuiz.mockResolvedValue({ ...ATTEMPT, design: design() });
+    api.quizResult.mockResolvedValue({ ...RESULT, attempt_id: 'att-0', correct: 2, total: 3, score: 5, max_score: 6, percent: 83, design: design(), band: null });
+    renderAt();
+    expect(await screen.findByRole('heading', { name: 'Ваши попытки' })).toBeInTheDocument();
+    expect(page()).toContain('Попытка 1 · 5 баллов из 6');
+    fireEvent.click(screen.getByRole('button', { name: 'Посмотреть попытку 1' }));
+    await waitFor(() => expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('5 баллов из 6 · 83 %'));
+    expect(document.querySelector('.ct-roomshell')).toHaveAttribute('data-design', '');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Начать' }));
+    await waitFor(() => expect(document.querySelector('.dv')).not.toBeNull());
+    const shell = document.querySelector('.ct-roomshell') as HTMLElement;
+    expect(shell).toHaveAttribute('data-design', '');
+    expect(shell.style.getPropertyValue('--doc-radius-button')).toBe('14px');
+    expect(bar()).toBe('Отвечено 0 из 3 · осталось 30:00');
+    expect(screen.getByRole('heading', { name: 'Кислоты и основания' })).toBeInTheDocument();
+    expect(screen.getAllByRole('region')).toHaveLength(3);
   });
 });

@@ -56,13 +56,14 @@
 
 .dv-body { position: relative; z-index: 1; container: dv / inline-size; }
 .dv-col {
+  --dv-col-x: clamp(16px, 4cqi, 32px);
   display: flex;
   flex-direction: column;
   gap: var(--doc-gap);
   width: 100%;
   max-width: 760px;
   margin: 0 auto;
-  padding: clamp(20px, 5cqi, 56px) clamp(16px, 4cqi, 32px) clamp(48px, 9cqi, 104px);
+  padding: clamp(20px, 5cqi, 56px) var(--dv-col-x) clamp(48px, 9cqi, 104px);
 }
 
 /* ---------------------------------------------------------------- cards */
@@ -228,6 +229,8 @@
 .dv-q-head { display: flex; flex-wrap: wrap; gap: 2px 0; margin: 0; font-size: 14px; line-height: 1.3; font-weight: 600; color: var(--doc-muted); }
 .dv-q-meta { font-weight: 500; }
 .dv-q-meta::before { content: '·'; margin: 0 8px; }
+/* A required question the participant was told about: the words under it, as well as the ring. */
+.dv-q-need { margin: 0; color: var(--dv-bad); font-size: 15px; line-height: 1.4; font-weight: 500; }
 .dv-stem {
   margin: 0;
   font-size: calc(clamp(19px, 3.1cqi, 23px) * var(--dv-scale));
@@ -346,6 +349,20 @@ button.dv-opt:hover { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--qt-
 .dv-missing { margin: 0; color: var(--dv-bad); font-size: 16px; font-weight: 500; }
 .dv[data-bg='image'] .dv-missing { padding: 12px 16px; border-radius: var(--doc-radius-field); background: var(--doc-surface); color: #b3261e; }
 .dv-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 4px; }
+/* The quiz's screens («По одному», «По страницам»): the buttons stay at the window's bottom while a long step scrolls,
+   as the quiz's own pinned bar (room.css .ct-bar), on the page's canvas. */
+.dv-nav[data-pinned] {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-inline: calc(-1 * var(--dv-col-x));
+  padding: 12px var(--dv-col-x) calc(12px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--doc-canvas) 88%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+  box-shadow: 0 -1px 0 var(--doc-line);
+}
+.dv[data-bg='image'] .dv-nav[data-pinned] { background: rgba(16, 18, 22, 0.72); box-shadow: none; }
 
 .dv-btn {
   display: inline-flex;
@@ -429,7 +446,7 @@ button.dv-opt:hover { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--qt-
 
 /* ---------------------------------------------------------------- a phone-wide page */
 @container dv (max-width: 560px) {
-  .dv-col { padding: 16px 14px 56px; }
+  .dv-col { --dv-col-x: 14px; padding: 16px var(--dv-col-x) 56px; }
   .dv-cover-body { padding: 26px 22px 24px; }
   .dv-cover[data-image] .dv-cover-body { padding-top: 20px; }
   .dv-q { gap: 12px; padding: calc(var(--doc-pad) * 0.7) calc(var(--doc-pad) * 0.62); }

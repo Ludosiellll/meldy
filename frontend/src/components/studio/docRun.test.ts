@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDoc } from '../../lib/studio/doc';
 import type { DocBlock, TestDoc } from '../../types/testDoc';
-import { answered, bandFor, gradeDoc, isRight, missingRequired, normShort, questionNumbers, stepsOf, visibleBlocks, type DocItem } from './docRun';
+import { answered, bandFor, gradeDoc, isRight, missingRequired, normShort, questionNumbers, runPlan, stepsOf, visibleBlocks, type DocItem } from './docRun';
 
 const single: DocItem = { id: 'i1', kind: 'single', stem: 'Один', options: ['а', 'б', 'в'], code: false, correct: [1] };
 const multiple: DocItem = { id: 'i2', kind: 'multiple', stem: 'Несколько', options: ['а', 'б', 'в'], code: false, correct: [0, 2] };
@@ -98,5 +98,21 @@ describe('docRun: grading in the author’s preview', () => {
     expect(gradeDoc(page, items, {})).toMatchObject({ score: 0, max: 4, percent: 0, band: { title: 'Слабо' } });
     expect(gradeDoc({ ...page, blocks: [] }, items, {})).toMatchObject({ score: 0, max: 0, percent: 0 });
     expect(bandFor({ ...page, results: { bands: [], cta: null } }, 50)).toBeNull();
+  });
+});
+
+describe('docRun: the plan of a participant’s way (release 47.2)', () => {
+  it('runPlan: the shown blocks, the steps and each question with its number, step and «обязательный»', () => {
+    const plan = runPlan(doc('pages'), items);
+    expect(plan.steps).toHaveLength(3);
+    expect(plan.shown.map((block) => block.id)).not.toContain('gone');
+    expect(plan.questions).toEqual([
+      { blockId: 'q1', itemId: 'i1', number: 1, step: 0, required: true },
+      { blockId: 'q2', itemId: 'i2', number: 2, step: 1, required: false },
+      { blockId: 'q3', itemId: 'i3', number: 3, step: 1, required: true },
+      { blockId: 'q4', itemId: 'i4', number: 4, step: 2, required: false },
+    ]);
+    expect(runPlan(doc('one_page'), items).questions.every((question) => question.step === 0)).toBe(true);
+    expect(runPlan(doc('one_by_one'), items).questions.map((question) => question.step)).toEqual([0, 1, 2, 3]);
   });
 });

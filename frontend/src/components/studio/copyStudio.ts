@@ -312,6 +312,8 @@ export const DOC = {
   next: 'Дальше',
   back: 'Назад',
   send: 'Отправить',
+  /** The last step of a quiz «как в студии» (release 47.2): the quiz's own word. */
+  finish: 'Завершить',
   step: (n: number, of: number) => `${n} из ${of}`,
   questionNo: (n: number) => `Вопрос ${n}`,
   required: 'обязательный',
@@ -319,6 +321,8 @@ export const DOC = {
   multipleHint: 'Отметьте все верные варианты',
   shortLabel: 'Ваш ответ',
   options: 'Варианты ответа',
+  /** In a required question the participant was told about. */
+  needAnswer: 'Обязательный вопрос: нужен ответ.',
   missing: (list: number[]) => `Ответьте на ${plural(list.length, 'обязательный вопрос', 'обязательные вопросы', 'обязательные вопросы')}: ${list.join(', ')}.`,
   result: 'Результат',
   /** «2 из 3 баллов», «1 из 21 балла»: after «из» the word takes the genitive. */

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { claimGuestAttempts, joinPractice, previewAsGuest, previewQuiz, quizResult, startQuiz } from '../../api/quizzes';
@@ -7,14 +7,18 @@ import { coverUrl } from '../../api/itemPictures';
 import InAppNote from '../../components/InAppNote';
 import QuizRun from '../../components/quiz/QuizRun';
 import QuizResultView from '../../components/quiz/QuizResult';
-import { TAKE } from '../../components/quiz/copyTake';
+import { RESULT, TAKE } from '../../components/quiz/copyTake';
+import { useDark } from '../../components/studio/useDark';
 import { detectInAppBrowser } from '../../lib/inAppBrowser';
 import { dropGuestToken, ensureGuestToken, guestToken } from '../../lib/quizzes/guestToken';
-import { dateTimeText } from '../../lib/quizzes/quizModel';
+import { designDoc, startCover } from '../../lib/quizzes/design';
+import { dateTimeText, pointsOf } from '../../lib/quizzes/quizModel';
+import { themeTokens } from '../../lib/studio/contrast';
 import { normalizeJoinCode, withReturn } from '../../lib/returnTo';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { QUIZ_ACCENTS, type QuizAccent, type QuizAttempt, type QuizPreview, type QuizPreviewMe, type QuizResult } from '../../types/quiz';
+import type { TestDoc } from '../../types/testDoc';
 import '../../components/containers/room.css';
 import '../../components/quiz/quizTake.css';
 
@@ -45,6 +49,12 @@ import '../../components/quiz/quizTake.css';
  * the facts on one line (dates kept whole), then the name («Имя и фамилия — их увидит <автор>»; the author on their own
  * page — «Имя и фамилия») and the button; the rules and the line about what the author sees come under the button. The
  * line under the title leaves out the exam when its title is the quiz's own (release 47.1).
+ *
+ * A quiz «как в студии» (release 47.2: the preview, the attempt and the result carry the studio's page as `design`): the
+ * page's theme is the page's colours everywhere — the start, the attempt (QuizRun draws the page: QuizDocRun) and the
+ * result (lib/studio/contrast.ts themeTokens on each root: the accent nudged for contrast, the font, the corners, the
+ * background) — and the quiz's own cover and colour give way to it. The page's cover (its first cover block) is the
+ * start: its title, the line under it and its picture.
  */
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: QuizPreview } | { state: 'error'; message: string };
@@ -74,6 +84,23 @@ function messageOf(error: unknown): string {
 /** The quiz's colour as the server names it; anything else is Meldy's blue. */
 function accentOf(value: unknown): QuizAccent {
   return QUIZ_ACCENTS.find((accent) => accent === value) ?? 'blue';
+}
+
+/**
+ * The root of a screen of a quiz «как в студии»: the page's theme as custom properties (the quiz page's --qt-* names and
+ * the page's --doc-*), and the colour named for the rules that go by name (graphite's dark arrow). Any other quiz: its
+ * own colour.
+ */
+function lookOf(doc: TestDoc | null, accent: QuizAccent, dark: boolean): { 'data-accent': QuizAccent; 'data-design'?: ''; 'data-bg'?: string; style?: CSSProperties } {
+  if (!doc) return { 'data-accent': accent };
+  const named = typeof doc.theme.accent === 'string' ? accentOf(doc.theme.accent) : 'blue';
+  return { 'data-accent': named, 'data-design': '', 'data-bg': doc.theme.background.kind, style: themeTokens(doc.theme, dark) as CSSProperties };
+}
+
+/** «2 из 3», or the page's points when they differ from the count («6 баллов из 8»). */
+function pastScore(row: { correct: number; total: number; score?: number; max_score?: number }): string {
+  const points = pointsOf(row);
+  return points.weighted ? RESULT.points(points.score, points.max) : RESULT.score(row.correct, row.total);
 }
 
 /** The author's cover: a band of a fixed height (nothing moves when it arrives); a picture that fails goes away. */
@@ -123,6 +150,7 @@ export default function QuizTakePage() {
   const navigate = useNavigate();
   const code = normalizeJoinCode(params.code);
   const { user, loading, requestSession } = useAuth();
+  const dark = useDark();
   const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
   const [preview, setPreview] = useState<PreviewState>({ state: 'loading' });
   const [reload, setReload] = useState(0);
@@ -225,6 +253,11 @@ export default function QuizTakePage() {
   const guest = !user && !loading && value?.guests === true && me !== null;
   const typedName = name ?? me?.name_hint ?? '';
   const accent = accentOf(value?.accent);
+  const design = useMemo(() => designDoc(value?.design), [value?.design]);
+  const cover = design ? startCover(design) : null;
+  // A quiz «как в студии» shows the page's cover picture (or none), never the quiz's own.
+  const coverPath = design ? cover?.image ?? null : value?.cover_path ?? null;
+  const runDesign = useMemo(() => (stage.kind === 'run' ? designDoc(stage.attempt.design) : stage.kind === 'result' ? designDoc(stage.result.design) : null), [stage]);
 
   const toStart = (message: string | null = null) => {
     setStage({ kind: 'preview' });
@@ -317,12 +350,13 @@ export default function QuizTakePage() {
   if (stage.kind === 'run') {
     const token = stage.token;
     return (
-      <div className="ct-roomshell qt-accent" data-accent={accent}>
+      <div className="ct-roomshell qt-accent" {...lookOf(runDesign, accent, dark)}>
         <QuizRun
           key={stage.attempt.attempt_id}
           attempt={stage.attempt}
           token={token}
           accent={accent}
+          dark={dark}
           onResult={(result) => setStage({ kind: 'result', result, token })}
           onLost={(message) => toStart(message)}
         />
@@ -331,7 +365,7 @@ export default function QuizTakePage() {
   }
   if (stage.kind === 'result') {
     return (
-      <div className="ct-roomshell qt-accent" data-accent={accentOf(stage.result.accent ?? value?.accent)}>
+      <div className="ct-roomshell qt-accent" {...lookOf(runDesign, accentOf(stage.result.accent ?? value?.accent), dark)}>
         <QuizResultView result={stage.result} guest={stage.token !== null} token={stage.token} onRetry={() => toStart()} onClose={() => toStart()} />
       </div>
     );
@@ -373,7 +407,13 @@ export default function QuizTakePage() {
   );
 
   return (
-    <div className="au qt qt-accent" data-accent={accent}>
+    <div className="au qt qt-accent" {...lookOf(design, accent, dark)}>
+      {design && design.theme.background.kind === 'image' ? (
+        <div className="qt-bg" aria-hidden="true">
+          <img src={coverUrl(design.theme.background.path)} alt="" decoding="async" />
+          <span className="qt-bg-dim" />
+        </div>
+      ) : null}
       <header className="au-bar">
         <Link to="/" className="au-logo">
           Meldy
@@ -384,10 +424,11 @@ export default function QuizTakePage() {
           <div className="au-in qt-in">
             {ready && value ? (
               <>
-                {value.cover_path ? <Cover path={value.cover_path} /> : null}
+                {coverPath ? <Cover path={coverPath} /> : null}
                 <h1 id="qt-title" className="au-h1 qt-h1">
-                  {value.title}
+                  {cover ? cover.title : value.title}
                 </h1>
+                {cover && cover.subtitle.trim() ? <p className="qt-sub">{cover.subtitle}</p> : null}
                 {value.author_name || examTitle ? (
                   <p className="qt-by">
                     {value.author_name ? <span>{TAKE.author(value.author_name)}</span> : null}
@@ -528,7 +569,7 @@ export default function QuizTakePage() {
                     <ul className="qt-past-list">
                       {results.map((row) => (
                         <li key={row.attempt_id}>
-                          <span>{TAKE.pastRow(row.n, row.correct, row.total, row.finished_at ? dateTimeText(row.finished_at) : '')}</span>
+                          <span>{TAKE.pastRow(row.n, pastScore(row), row.finished_at ? dateTimeText(row.finished_at) : '')}</span>
                           <button
                             type="button"
                             className="sf-link"

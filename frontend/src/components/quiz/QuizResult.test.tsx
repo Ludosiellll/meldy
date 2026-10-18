@@ -2,9 +2,15 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { QuizResult, QuizResultItem } from '../../types/quiz';
+import type { DocDesign } from '../../types/testDoc';
 
 const api = vi.hoisted(() => ({ pictureUrl: vi.fn(), guestPictureUrl: vi.fn(), joinPractice: vi.fn() }));
-vi.mock('../../api/itemPictures', () => ({ pictureUrl: api.pictureUrl, guestPictureUrl: api.guestPictureUrl, pictureDataUrl: () => null }));
+vi.mock('../../api/itemPictures', () => ({
+  pictureUrl: api.pictureUrl,
+  guestPictureUrl: api.guestPictureUrl,
+  pictureDataUrl: () => null,
+  coverUrl: (path: string) => `https://covers.test/${path}`,
+}));
 vi.mock('../../api/quizzes', () => ({ joinPractice: api.joinPractice }));
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn(), storage: { from: vi.fn() } } }));
 
@@ -393,5 +399,82 @@ describe('«Повторить эти вопросы» (release 47)', () => {
     renderResult(result({ practice: null }));
     expect(screen.queryByRole('heading', { name: 'Повторить эти вопросы' })).toBeNull();
     expect(screen.queryByText(/Тренировать/)).toBeNull();
+  });
+});
+
+describe('QuizResult: a quiz «как в студии» (release 47.2)', () => {
+  const PIC = `11111111-2222-4333-8444-555555555555/${'b'.repeat(64)}.jpg`;
+  const design: DocDesign = {
+    title: 'Кислоты',
+    theme: { accent: 'green', background: { kind: 'plain' }, font: 'serif', radius: 'soft', density: 'airy', answers: 'list', buttons: 'pill' },
+    layout: 'one_page',
+    blocks: [],
+    results: {
+      bands: [{ from: 50, to: 100, title: 'Хорошая работа', text: 'Повторите **нейтрализацию**, *растворимость* и [разбор](https://chem.example.org/razbor). <b>не HTML</b>', image: PIC }],
+      cta: { label: 'Разбор заданий', url: 'https://chem.example.org/8/kisloty/razbor' },
+    },
+  };
+  const designed = (over: Partial<QuizResult> = {}) =>
+    result({ correct: 4, total: 6, score: 9, max_score: 12, percent: 75, design, band: design.results.bands[0], ...over });
+
+  it('the band above the score: its title, its words with the three marks (links with their address), its picture', () => {
+    renderResult(designed());
+    const band = screen.getByRole('region', { name: 'Хорошая работа' });
+    const score = document.querySelector('.qt-score')!;
+    expect(band.compareDocumentPosition(score) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(band).getByText('нейтрализацию').tagName).toBe('STRONG');
+    expect(within(band).getByText('растворимость').tagName).toBe('EM');
+    const link = within(band).getByRole('link', { name: 'разбор' });
+    expect(link).toHaveAttribute('href', 'https://chem.example.org/razbor');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(within(band).getByText('(chem.example.org/razbor)')).toBeInTheDocument();
+    expect(within(band).getByText(/<b>не HTML<\/b>/)).toBeInTheDocument();
+    expect(band.querySelector('img')).toHaveAttribute('src', `https://covers.test/${PIC}`);
+  });
+
+  it('the points when they differ from the count: «9 баллов из 12 · 75 %»; else today’s line', () => {
+    renderResult(designed());
+    expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('9 баллов из 12 · 75 %');
+    cleanup();
+    renderResult(designed({ score: 4, max_score: 6, percent: 67 }));
+    expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('4 из 6 · 67 %');
+    cleanup();
+    // An older server: no points at all.
+    renderResult(result());
+    expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('15 из 20 · 75 %');
+  });
+
+  it('«Ссылка дальше» with its address, in a new tab; the blue pill when nothing else asks to be pressed', () => {
+    renderResult(designed());
+    const link = screen.getByRole('link', { name: /Разбор заданий/ });
+    expect(link).toHaveAttribute('href', 'https://chem.example.org/8/kisloty/razbor');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(link).toHaveClass('sf-primary');
+    expect(plain(link.textContent)).toContain('откроется в новой вкладке');
+    expect(plain(document.getElementById(link.getAttribute('aria-describedby') ?? '')?.textContent)).toBe('chem.example.org/8/kisloty/razbor');
+    cleanup();
+    renderResult(designed({ can_retry: true, attempts_left: 1 }));
+    expect(screen.getByRole('link', { name: /Разбор заданий/ })).toHaveClass('sf-secondary');
+  });
+
+  it('no band for this percent, no page: nothing of it', () => {
+    renderResult(designed({ band: null }));
+    expect(screen.queryByRole('region', { name: 'Хорошая работа' })).toBeNull();
+    expect(screen.getByRole('link', { name: /Разбор заданий/ })).toBeInTheDocument();
+    cleanup();
+    renderResult(result({ band: design.results.bands[0], design: null }));
+    expect(screen.queryByRole('region', { name: 'Хорошая работа' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Разбор заданий/ })).toBeNull();
+  });
+
+  it('a band picture that does not load goes away, the words stay', () => {
+    renderResult(designed());
+    const band = screen.getByRole('region', { name: 'Хорошая работа' });
+    fireEvent.error(band.querySelector('img')!);
+    expect(band.querySelector('img')).toBeNull();
+    expect(band).not.toHaveAttribute('data-pic');
+    expect(within(band).getByRole('heading', { name: 'Хорошая работа' })).toBeInTheDocument();
   });
 });

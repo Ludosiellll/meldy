@@ -11,6 +11,8 @@ const SEP = ' · ';
 const NBSP = '\u00a0';
 /** Words that must not break apart (a date and its time). */
 const together = (text: string) => text.replace(/ /g, NBSP);
+/** The first letter small: a top line's words inside a sentence. */
+const lower = (text: string) => (text ? text[0].toLocaleLowerCase('ru') + text.slice(1) : text);
 
 export const TAKE = {
   docTitle: QUIZ.name,
@@ -86,7 +88,8 @@ export const TAKE = {
   /** A guest on a device with someone else's attempts: forget them here and start as a new person. */
   otherPerson: 'Я другой человек',
   pastTitle: 'Ваши попытки',
-  pastRow: (n: number, correct: number, total: number, when: string) => glue(`Попытка ${n}${SEP}${correct} из ${total}${when ? `${SEP}${when}` : ''}`),
+  /** «Попытка 1 · 2 из 3 · 16 окт., 10:30»; the score as the result says it (RESULT.score or RESULT.points). */
+  pastRow: (n: number, score: string, when: string) => glue(`Попытка ${n}${SEP}${score}${when ? `${SEP}${when}` : ''}`),
   see: 'Посмотреть',
   seeLabel: (n: number) => `Посмотреть попытку ${n}`,
 } as const;
@@ -94,6 +97,11 @@ export const TAKE = {
 export const RUN = {
   /** The top line: «3 из 20 · осталось 24:13»; the place, then the clock in a span of its own (it turns red near the end). */
   place: (pos: number, total: number) => glue(`${pos} из ${total}`),
+  /** A quiz «как в студии» (release 47.2): «По страницам» says the page, «Одна страница» how many have an answer. */
+  pageOf: (pos: number, total: number) => glue(`Страница ${pos} из ${total}`),
+  answeredOf: (answered: number, total: number) => glue(`Отвечено ${answered} из ${total}`),
+  /** Read on arriving at a question of «По одному». */
+  questionOf: (pos: number, total: number) => glue(`Вопрос ${pos} из ${total}`),
   sep: glue(SEP),
   clock: (clock: string) => `осталось${NBSP}${clock}`,
   /** The strip under the top line (role progressbar). */
@@ -112,6 +120,9 @@ export const RUN = {
   failing: 'Ответы пока не сохранились — пробуем ещё раз',
   resumed: (pos: number, total: number, left: string | null) =>
     glue(left ? `Попытка продолжается: ${pos} из ${total}, осталось ${left}.` : `Попытка продолжается: ${pos} из ${total}.`),
+  /** The same with the top line's words («Страница 2 из 3», «Отвечено 4 из 6»). */
+  resumedAt: (place: string, left: string | null) =>
+    glue(left ? `Попытка продолжается: ${lower(place)}, осталось ${left}.` : `Попытка продолжается: ${lower(place)}.`),
   finishTitle: 'Завершить контрольную?',
   /** «Отвечено 18 из 20, без ответа: 4, 17 — они считаются ошибками.» */
   finishLine(answered: number, total: number, missing: number[]): string {
@@ -138,6 +149,10 @@ export const RESULT = {
   attemptLine: (n: number, when: string) => glue(when ? `Попытка ${n}${SEP}${when}` : `Попытка ${n}`),
   /** «15 из 20 · 75 %». */
   score: (correct: number, total: number) => glue(`${correct} из ${total}`),
+  /** The studio's points (release 47.2), when they differ from the count: «6 баллов из 8 · 75 %». */
+  points: (score: number, max: number) => glue(`${score} ${plural(score, 'балл', 'балла', 'баллов')} из ${max}`),
+  /** The page's link further on the result screen, with its address. */
+  ctaNote: ' (откроется в новой вкладке)',
   percent: (percent: number) => glue(`${percent} %`),
   /** The words of the start page: «Проходной балл 60 % — сдано». */
   pass: (threshold: number, passed: boolean) => glue(`Проходной балл ${threshold} % — ${passed ? 'сдано' : 'не сдано'}`),

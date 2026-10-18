@@ -134,3 +134,34 @@ export function gradeDoc(doc: TestDoc, items: ReadonlyMap<string, DocItem>, answ
 }
 
 export const isQuestion = (block: DocBlock): block is QuestionBlock => block.type === 'question';
+
+/** A question as a participant meets it: its number on the page, the step that holds it, whether it is required. */
+export interface PlacedQuestion {
+  blockId: string;
+  itemId: string;
+  number: number;
+  step: number;
+  required: boolean;
+}
+
+export interface RunPlan {
+  shown: DocBlock[];
+  steps: Step[];
+  numbers: Map<string, number>;
+  /** In page order. */
+  questions: PlacedQuestion[];
+}
+
+/** The page as the participant goes through it (what DocView answers with): the blocks, the steps, the questions. */
+export function runPlan(doc: TestDoc, items: ReadonlyMap<string, DocItem>): RunPlan {
+  const shown = visibleBlocks(doc, items);
+  const steps = stepsOf(doc, shown);
+  const numbers = questionNumbers(shown);
+  const questions: PlacedQuestion[] = [];
+  steps.forEach((step, at) => {
+    for (const block of step.blocks) {
+      if (block.type === 'question') questions.push({ blockId: block.id, itemId: block.item_id, number: numbers.get(block.id) ?? 0, step: at, required: block.required });
+    }
+  });
+  return { shown, steps, numbers, questions };
+}

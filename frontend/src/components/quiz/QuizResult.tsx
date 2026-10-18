@@ -1,10 +1,13 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { isPictureWord } from '../../types/container';
 import type { QuizResult, QuizResultItem } from '../../types/quiz';
 import { containerErrorText } from '../../api/containers';
 import { joinPractice } from '../../api/quizzes';
-import { dateTimeText, percentOf, quizOrder } from '../../lib/quizzes/quizModel';
+import { coverUrl } from '../../api/itemPictures';
+import { bandOf, designDoc } from '../../lib/quizzes/design';
+import { dateTimeText, percentOf, pointsOf, quizOrder } from '../../lib/quizzes/quizModel';
+import { linkAddress } from '../../lib/studio/richText';
 import { withReturn } from '../../lib/returnTo';
 import { CodeBlock } from '../containers/QuestionCard';
 import ItemPictures, { AttemptPictures, storedPictures } from '../containers/ItemPictures';
@@ -12,8 +15,10 @@ import { RoomBar } from '../containers/RoomParts';
 import { OPTION_LETTERS } from '../containers/copy';
 import { stemParts } from '../containers/stemCode';
 import { useWide } from '../containers/useWide';
+import Rich from '../studio/Rich';
 import { RESULT } from './copyTake';
 import '../containers/room.css';
+import '../studio/docview.css';
 import './quizTake.css';
 
 /**
@@ -35,6 +40,11 @@ import './quizTake.css';
  * верно»), their wrong pick (pink, «Ваш ответ — неверно»), and a right option they did not pick (no fill, a green edge,
  * «Верный — вы не отметили»). Under the score a thin bar in the quiz's colour shows the percent, with a tick at the
  * pass mark («Проходной балл 60 % — сдано», the start page's words).
+ *
+ * A quiz «как в студии» (release 47.2): the page's band for this percent comes above the score — its title, its words
+ * with the three marks (bold, italic, https links shown with their address) and its picture; the score reads in the
+ * page's points when they differ from the count («6 баллов из 8 · 75 %»), and the page's «Ссылка дальше» comes under
+ * it with its address, opening in a new tab.
  */
 
 function OptionWords({ text, paths }: { text: string; paths: string[] | undefined }) {
@@ -185,6 +195,33 @@ export interface QuizResultProps {
   token?: string | null;
 }
 
+/** The page's band: the title, the words (Rich: three marks, links with their address) and the picture. */
+function Band({ band }: { band: NonNullable<ReturnType<typeof bandOf>> }) {
+  const titleId = useId();
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [band.image]);
+  const picture = band.image && !failed ? band.image : null;
+  return (
+    <section className="qt-band" data-pic={picture ? '' : undefined} aria-labelledby={titleId}>
+      {picture ? (
+        <span className="qt-band-pic">
+          <img src={coverUrl(picture)} alt="" decoding="async" onError={() => setFailed(true)} />
+        </span>
+      ) : null}
+      <div className="qt-band-words">
+        <h2 className="qt-band-title" id={titleId}>
+          {band.title}
+        </h2>
+        {band.text.trim() ? (
+          <div className="qt-band-text">
+            <Rich text={band.text} />
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export default function QuizResultView({ result, onRetry, onClose, guest = false, token = null }: QuizResultProps) {
   const wide = useWide();
   const headRef = useRef<HTMLHeadingElement | null>(null);
@@ -199,7 +236,14 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
     }
   }, [result.attempt_id]);
 
-  const percent = typeof result.percent === 'number' ? Math.round(result.percent) : percentOf(result.correct, result.total) ?? 0;
+  const points = pointsOf(result);
+  const percent = typeof result.percent === 'number' ? Math.round(result.percent) : percentOf(points.score, points.max) ?? 0;
+  const design = useMemo(() => designDoc(result.design), [result.design]);
+  const band = useMemo(() => (design ? bandOf(result.band) : null), [design, result.band]);
+  const cta = design?.results.cta ?? null;
+  const ctaAddress = useId();
+  // One blue pill a screen: the link further is the blue one when nothing else asks to be pressed.
+  const ctaPrimary = !result.can_retry && !result.practice;
   const threshold = typeof result.pass_percent === 'number' ? result.pass_percent : null;
   const passed = threshold === null ? null : typeof result.passed === 'boolean' ? result.passed : percent >= threshold;
   const finished = result.finished_at ? dateTimeText(result.finished_at) : '';
@@ -220,8 +264,9 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
         <h1 className="ct-end-h qt-result-h" ref={headRef} tabIndex={-1}>
           {result.quiz_title}
         </h1>
-        <p className="qt-score">
-          <span className="qt-nb">{RESULT.score(result.correct, result.total)}</span>
+        {band ? <Band band={band} /> : null}
+        <p className="qt-score" data-points={points.weighted ? '' : undefined}>
+          <span className="qt-nb">{points.weighted ? RESULT.points(points.score, points.max) : RESULT.score(result.correct, result.total)}</span>
           {' · '}
           <span className="qt-nb">{RESULT.percent(percent)}</span>
         </p>
@@ -233,6 +278,17 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
           <p className="qt-pass" data-passed={passed ? '' : undefined}>
             {RESULT.pass(threshold, passed)}
           </p>
+        ) : null}
+        {cta ? (
+          <div className="qt-cta">
+            <a className={ctaPrimary ? 'sf-primary qt-cta-go' : 'sf-secondary qt-cta-go'} href={cta.url} target="_blank" rel="noopener noreferrer" aria-describedby={ctaAddress}>
+              <span className="qt-cta-label">{cta.label}</span>
+              <span className="sr-only">{RESULT.ctaNote}</span>
+            </a>
+            <span className="qt-cta-addr" id={ctaAddress}>
+              {linkAddress(cta.url)}
+            </span>
+          </div>
         ) : null}
         {reason ? <p className="ct-end-p">{reason}</p> : null}
         {result.answers_after && !showKey ? <p className="ct-end-p">{RESULT.answersAfter(dateTimeText(result.answers_after))}</p> : null}
