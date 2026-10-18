@@ -153,6 +153,20 @@ describe('BuildPage: the questions as cards (spec 2026-10-18 §47.2)', () => {
     expect(within(waiting).getByRole('link', { name: BUILD.settings })).toBeInTheDocument();
   });
 
+  it('is the centred column of «Конструктор» (release 47.3: build.css .tb-build), loading or loaded', () => {
+    renderAt();
+    const root = document.querySelector('.sf-page') as HTMLElement;
+    expect(root).toHaveClass('tb-page', 'tb-build');
+    // The header, the cards and the bar are the column's parts, children of the page itself.
+    expect(root.querySelector(':scope > .tb-head')).not.toBeNull();
+    expect(root.querySelector(':scope > .tb-body')).not.toBeNull();
+    cleanup();
+    api.state.summary = null;
+    api.state.loading = true;
+    renderAt();
+    expect(document.querySelector('.sf-page')).toHaveClass('tb-build');
+  });
+
   it('«Отправить по ссылке» opens the quiz setup with every question', () => {
     renderAt();
     const send = screen.getByRole('link', { name: BUILD.send });

@@ -397,7 +397,7 @@ export default function BuildPage() {
     </header>
   );
   const shell = (children: ReactNode) => (
-    <div className="sf-page tb-page" ref={frame.ref} data-frame={frame.size}>
+    <div className="sf-page tb-page tb-build" ref={frame.ref} data-frame={frame.size}>
       {header}
       {children}
     </div>
@@ -467,7 +467,7 @@ export default function BuildPage() {
   const showBar = subjects.length > 0 && !editorOpen && !(frame.size === 's' && build.items.length === 0);
 
   return (
-    <div className="sf-page tb-page" ref={frame.ref} data-frame={frame.size}>
+    <div className="sf-page tb-page tb-build" ref={frame.ref} data-frame={frame.size}>
       {header}
       <div className="tb-body">
         {subjects.length > 1 ? (

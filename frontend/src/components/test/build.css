@@ -17,6 +17,17 @@
   .sf-shell .sf-page.tb-page .tb-top:not(:has(.tb-head-links)) { display: none; }
 }
 .sf-page.tb-page .tb-body { max-width: 880px; }
+/* «Конструктор» (release 47.3; owner 18.10: the column stood on the left with the right half empty — Meldy's blocks
+   stand in the middle): the header, the cards and the bar at the bottom share one column of 880 px in the middle of the
+   page; «Контрольные · Настройки» end at its right edge, and so does «Отправить по ссылке». The page itself keeps its
+   width, so its frame class (useFrame: 1280 / 1024 / 640) is still the window's. A phone is the column. */
+.sf-page.tb-page.tb-build > .tb-head,
+.sf-page.tb-page.tb-build > .tb-body,
+.sf-page.tb-page.tb-build > .tb-wait,
+.sf-page.tb-page.tb-build > .tb-lede,
+.sf-page.tb-page.tb-build > .ex-note,
+.sf-page.tb-page.tb-build > p:has(> .sf-link) { box-sizing: border-box; width: 100%; max-width: 880px; margin-left: auto; margin-right: auto; }
+.sf-page.tb-page.tb-build > .ex-cta[data-row] { box-sizing: border-box; max-width: 880px; margin-left: auto; margin-right: auto; }
 .sf-page.tb-page .tb-wait { margin: 24px 0 0; font-size: 16px; color: var(--sf-muted); }
 .sf-page.tb-page .tb-lede { margin: 12px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 
@@ -264,6 +275,9 @@
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
 }
 .sf-page.tb-new-page[data-frame='s'] .tb-new-form { margin-top: 20px; padding: 20px 16px 22px; border-radius: 24px; }
+/* The name and its form in one column in the middle of the page, as «Конструктор» (release 47.3). */
+.sf-page.tb-page.tb-new-page > .tb-head,
+.sf-page.tb-page.tb-new-page > .tb-new-form { box-sizing: border-box; width: 100%; max-width: 640px; margin-left: auto; margin-right: auto; }
 .sf-page.tb-new-page .tb-label { font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); }
 .sf-page.tb-new-page .tb-input {
   box-sizing: border-box;
