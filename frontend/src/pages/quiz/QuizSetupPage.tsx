@@ -540,6 +540,7 @@ export default function QuizSetupPage() {
         value: form.review,
         options: reviews.map((value) => ({ value, label: QA_SETUP.reviewOption(value) })),
         onChange: (value) => set('review', value),
+        hint: who === 'guests' && form.review === 'answers' ? QA_SETUP.reviewGuests : null,
       })}
       <div className="im-field qa-field">
         <label className="qa-toggle">
@@ -547,13 +548,16 @@ export default function QuizSetupPage() {
             type="checkbox"
             checked={form.offer_practice}
             disabled={saving}
-            aria-describedby={`${formId}-practice`}
+            aria-describedby={`${formId}-practice ${formId}-practice-later`}
             onChange={(event) => set('offer_practice', event.target.checked)}
           />
           <span className="qa-toggle-t">{QA_SETUP.practice}</span>
         </label>
         <p id={`${formId}-practice`} className="im-hint" data-muted="">
           {QA_SETUP.practiceNote}
+        </p>
+        <p id={`${formId}-practice-later`} className="im-hint" data-muted="">
+          {QA_SETUP.practiceLater}
         </p>
       </div>
       {select<QuizWho>({

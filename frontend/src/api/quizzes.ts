@@ -5,7 +5,7 @@
  * (lib/quizzes/guestToken.ts) and the calls go to the quiz_guest_* functions. Errors come as ContainerApiError: MC010–MC018 with the quiz's own words
  * (components/quiz/copyQuiz.ts), everything else as the container API maps it (28000, P0002, 22023, network).
  */
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAnonKey } from '../lib/supabase';
 import { CONTAINER_ERROR_TEXT, ContainerApiError, containerError } from './containers';
 import { QUIZ_ERRORS } from '../components/quiz/copyQuiz';
 import type { Uuid } from '../types/container';
@@ -52,10 +52,12 @@ function quizError(error: unknown, status: number): ContainerApiError {
   return containerError(error, status);
 }
 
-async function rpc(name: string, args: Record<string, unknown>): Promise<unknown> {
+/** `asGuest`: the call goes as a visitor without an account (the anon key as the bearer), whatever the session. */
+async function rpc(name: string, args: Record<string, unknown>, asGuest = false): Promise<unknown> {
   let result: { data: unknown; error: unknown; status?: number };
   try {
-    result = await supabase.rpc(name, args);
+    const call = supabase.rpc(name, args);
+    result = await (asGuest ? call.setHeader('Authorization', `Bearer ${supabaseAnonKey}`) : call);
   } catch (error) {
     const kind = error instanceof Error ? error.name : '';
     if (kind === 'TypeError' || kind === 'AbortError') throw new ContainerApiError('network', CONTAINER_ERROR_TEXT.network, { status: 0 });
@@ -125,6 +127,16 @@ export async function previewQuiz(code: string, token: string | null = null): Pr
   return shaped(await rpc('quiz_preview', token ? { p_code: code, p_token: token } : { p_code: code }), 'quiz_preview', 'status');
 }
 
+/**
+ * The card of /k/<code> as this device's guest sees it, also while someone is signed in: quiz_preview answers a
+ * signed-in caller with the account's «me» and ignores the token, so this read goes without the session. Its «me» holds
+ * the device's attempts (how many, the open one, the finished ones with their time; a guest's name is not in it), or null
+ * when the quiz takes no guests. Used on a shared computer to ask whose those attempts are before they move.
+ */
+export async function previewAsGuest(code: string, token: string): Promise<QuizPreview> {
+  return shaped(await rpc('quiz_preview', { p_code: code, p_token: token }, true), 'quiz_preview', 'status');
+}
+
 /** «Начать»: signed in — quiz_start; without an account (a token) — quiz_guest_start. */
 export async function startQuiz(code: string, name: string, token: string | null = null): Promise<QuizAttempt> {
   const raw = shaped<QuizAttempt>(
@@ -164,7 +176,10 @@ export async function quizResult(attemptId: Uuid, token: string | null = null): 
     : result(await rpc('quiz_result', { p_attempt_id: attemptId }), 'quiz_result');
 }
 
-/** After signing in on /k/<code>: the device's attempts become the account's (none taken when it has its own there). */
+/**
+ * The device's attempts become the account's (none taken when it has its own there): after «Это я — перенести в
+ * аккаунт», or on the way back from making an account to train (?practice=1).
+ */
 export async function claimGuestAttempts(code: string, token: string): Promise<{ claimed: number }> {
   return shaped(await rpc('quiz_guest_claim', { p_code: code, p_token: token }), 'quiz_guest_claim', 'claimed');
 }

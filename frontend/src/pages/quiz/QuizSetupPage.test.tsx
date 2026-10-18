@@ -199,6 +199,32 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     expect(QA_SETUP.whoHint('guests')).toBe('Участнику не нужен аккаунт. Его попытки считаются по браузеру: в другом браузере можно начать заново.');
   });
 
+  it('without an account and «балл, ошибки и верные ответы»: a hint under the review names the safer choice', async () => {
+    const HINT =
+      'Без входа тест можно открыть заново в другом браузере и увидеть ответы до своей попытки. ' +
+      'Для контрольной лучше «балл и ошибки сразу, верные ответы после закрытия».';
+    expect(QA_SETUP.reviewGuests).toBe(HINT);
+    expect(QA_SETUP.reviewGuests).toContain(`«${QA_SETUP.reviewOption('mistakes_then_answers')}»`);
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    // The defaults (guests, answers after the closing): no hint.
+    expect(screen.queryByText(HINT)).toBeNull();
+    pick(QA_SETUP.review, QA_SETUP.reviewOption('answers'));
+    const hint = screen.getByText(HINT);
+    expect(hint).toHaveClass('im-hint');
+    expect(hint.closest('.qa-field')?.textContent).toContain(QA_SETUP.review);
+    // Signed in or members only: the attempts count by the account — no hint.
+    pick(QA_SETUP.who, QA_SETUP.whoOption('link'));
+    expect(screen.queryByText(HINT)).toBeNull();
+    pick(QA_SETUP.who, QA_SETUP.whoOption('members'));
+    expect(screen.queryByText(HINT)).toBeNull();
+    pick(QA_SETUP.who, QA_SETUP.whoOption('guests'));
+    expect(screen.getByText(HINT)).toBeInTheDocument();
+    for (const review of ['score', 'mistakes', 'mistakes_then_answers'] as const) {
+      pick(QA_SETUP.review, QA_SETUP.reviewOption(review));
+      expect(screen.queryByText(HINT)).toBeNull();
+    }
+  });
+
   it('a cover is uploaded at once into the exam’s folder of quiz-covers, shown, and sent with the quiz', async () => {
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     const look = screen.getByRole('region', { name: QA_SETUP.partLook });
@@ -262,9 +288,13 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     const toggle = screen.getByRole('checkbox', { name: QA_SETUP.practice });
     expect(toggle).toHaveAccessibleDescription(
-      'Участник станет участником экзамена, если сам нажмёт кнопку. Вы увидите его в списке участников, его прогресс — нет.',
+      'Участник станет участником экзамена, если сам нажмёт кнопку. Вы увидите его в списке участников, его прогресс — нет. ' +
+        'Кнопка появится, когда контрольная закроется: в тренировке видны все ответы экзамена.',
     );
+    // The button waits for the closing: said whether the offer is on or off.
+    expect(screen.getByText(QA_SETUP.practiceLater)).toHaveClass('im-hint');
     fireEvent.click(toggle);
+    expect(screen.getByText(QA_SETUP.practiceLater)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
     await waitFor(() => expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ offer_practice: true })));
   });

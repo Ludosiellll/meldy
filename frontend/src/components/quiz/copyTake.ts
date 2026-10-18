@@ -65,6 +65,17 @@ export const TAKE = {
     not_yet: (when: string | null) => (when ? glue(`Контрольная откроется ${when}.`) : 'Контрольная ещё не открыта.'),
     closed: 'Контрольная закрыта.',
   },
+  /**
+   * Signed in on a device that holds attempts written here without an account (a shared computer): nothing moves until
+   * the person says whose they are. The server does not give a guest's name back, so the time of the last one.
+   */
+  deviceAttempt: (when: string | null) =>
+    when ? glue(`На этом устройстве есть попытка без входа от ${when}.`) : 'На этом устройстве есть начатая попытка без входа.',
+  deviceMine: 'Это я — перенести в аккаунт',
+  deviceNotMine: 'Это не я',
+  deviceKept: 'Попытки без входа не перенесены: в аккаунте уже есть попытки этой контрольной.',
+  /** A guest on a device with someone else's attempts: forget them here and start as a new person. */
+  otherPerson: 'Я другой человек',
   pastTitle: 'Ваши попытки',
   pastRow: (n: number, correct: number, total: number, when: string) => glue(`Попытка ${n}${SEP}${correct} из ${total}${when ? `${SEP}${when}` : ''}`),
   see: 'Посмотреть',
@@ -138,6 +149,8 @@ export const RESULT = {
   practiceMember: (exam: string) => glue(`Вы уже участник экзамена «${exam}».`),
   practiceOpen: 'Открыть экзамен',
   practiceGuest: 'Создать аккаунт и тренироваться',
+  /** While a quiz of the exam is open or not yet open: no button (a member sees every answer of the exam). */
+  practiceLater: 'Тренировка по всем вопросам откроется, когда контрольная закроется.',
   /** «Ещё попытка (осталась 1)»; without a limit — «Ещё попытка». */
   retry: (left: number | null) => (left === null ? 'Ещё попытка' : glue(`Ещё попытка (${plural(left, 'осталась', 'осталось', 'осталось')} ${left})`)),
 } as const;

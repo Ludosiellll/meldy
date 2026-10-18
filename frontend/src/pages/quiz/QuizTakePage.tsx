@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { claimGuestAttempts, joinPractice, previewQuiz, quizResult, startQuiz } from '../../api/quizzes';
+import { claimGuestAttempts, joinPractice, previewAsGuest, previewQuiz, quizResult, startQuiz } from '../../api/quizzes';
 import { CONTAINER_ERROR_TEXT } from '../../api/containers';
 import { coverUrl } from '../../api/itemPictures';
 import InAppNote from '../../components/InAppNote';
@@ -32,13 +32,19 @@ import '../../components/quiz/quizTake.css';
  *   (lib/quizzes/guestToken.ts) is made at the start and goes with every call, the preview with it brings that
  *   device's «me» (the attempt in progress, the earlier results). The line about the author says the attempts live in
  *   this browser; «Войти» stays for those with an account;
- * - signed in with a token of this quiz on the device: its attempts become the account's (quiz_guest_claim) once,
- *   before the preview; the token goes when something was taken. A failed claim does not stop the page;
- * - back from making an account for «Тренироваться» (?practice=1): the claim, then quiz_practice_join, then the exam;
+ * - signed in with a token of this quiz on the device (not the quiz's author): nothing moves by itself — a computer may
+ *   be shared. A card above the start says the device holds an attempt without an account, with the time of the last
+ *   one (the guest's «me» has no name), and asks: «Это я — перенести в аккаунт» (quiz_guest_claim, then the token goes)
+ *   or «Это не я» (the token goes). The device's attempts are read as its guest reads them (previewAsGuest);
+ * - a guest whose device holds attempts: «Я другой человек» forgets the token here and opens a fresh start;
+ * - back from making an account for «Тренироваться» (?practice=1): that person has just pressed the button on their own
+ *   result, so the claim runs by itself, then quiz_practice_join, then the exam;
  * - the author's cover on top of the card and the quiz's colour on the page's root (data-accent, quizTake.css).
  */
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: QuizPreview } | { state: 'error'; message: string };
+/** Attempts written on this device without an account, seen while signed in: the token and the last one's time. */
+type Device = { token: string; when: string | null };
 /** `token` — the device's token of a guest's attempt, null when signed in. */
 type Stage = { kind: 'preview' } | { kind: 'run'; attempt: QuizAttempt; token: string | null } | { kind: 'result'; result: QuizResult; token: string | null };
 
@@ -83,6 +89,15 @@ function windowWords(value: QuizPreview): string | null {
   return null;
 }
 
+/** The device's guest attempts as its guest «me» lists them: none — null; else the time of the last finished one. */
+function deviceOf(token: string, guest: QuizPreview | null): Device | null {
+  const me = guest?.me;
+  if (!me || !(me.attempts_used > 0)) return null;
+  const times = (me.results ?? []).map((row) => row.finished_at).filter((at) => typeof at === 'string' && !Number.isNaN(Date.parse(at)));
+  const when = times.length > 0 ? times.reduce((last, at) => (Date.parse(at) > Date.parse(last) ? at : last)) : null;
+  return { token, when };
+}
+
 function reasonWords(value: QuizPreview, reason: QuizPreviewMe['reason']): string | null {
   if (reason === 'no_attempts') return TAKE.reason.no_attempts;
   if (reason === 'members_only') return TAKE.reason.members_only;
@@ -106,8 +121,14 @@ export default function QuizTakePage() {
   const [starting, setStarting] = useState(false);
   const [problem, setProblem] = useState<{ text: string; signIn: boolean } | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
+  const [device, setDevice] = useState<Device | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [deviceNote, setDeviceNote] = useState<string | null>(null);
+  // A token whose attempts stayed (the account writes this quiz itself): not asked about again on this page.
+  const deviceKept = useRef<string | null>(null);
   const nameId = useId();
   const hintId = useId();
+  const deviceId = useId();
   // Back from making an account for «Тренироваться» (QuizResult): the address says so once, at the arrival.
   const practiceAsked = useRef(new URLSearchParams(location.search).get('practice') === '1');
   const practiceDone = useRef(false);
@@ -129,25 +150,25 @@ export default function QuizTakePage() {
   useEffect(() => {
     if (!code || loading) return undefined;
     let live = true;
-    const load = async (): Promise<QuizPreview | null> => {
-      if (!user) return previewQuiz(code, guestToken(code));
-      // The attempts written here without an account become this account's, once per sign-in (the promise is kept, so
-      // a second run of this effect waits for the same claim instead of asking again).
-      const key = `${user.id}:${code}`;
-      const held = guestToken(code);
-      if (held && claim.current?.key !== key) {
-        claim.current = {
-          key,
-          done: claimGuestAttempts(code, held).then(
-            (taken) => {
-              if (taken.claimed > 0) dropGuestToken(code);
-            },
-            () => undefined,
-          ),
-        };
-      }
-      if (claim.current?.key === key) await claim.current.done;
+    const load = async (): Promise<{ preview: QuizPreview; device: Device | null } | null> => {
+      if (!user) return { preview: await previewQuiz(code, guestToken(code)), device: null };
       if (practiceAsked.current && !practiceDone.current) {
+        // Back from making an account to train: the device's attempts become this account's at once, once per sign-in
+        // (the promise is kept, so a second run of this effect waits for the same claim instead of asking again).
+        const key = `${user.id}:${code}`;
+        const held = guestToken(code);
+        if (held && claim.current?.key !== key) {
+          claim.current = {
+            key,
+            done: claimGuestAttempts(code, held).then(
+              (taken) => {
+                if (taken.claimed > 0) dropGuestToken(code);
+              },
+              () => undefined,
+            ),
+          };
+        }
+        if (claim.current?.key === key) await claim.current.done;
         practiceJoin.current ??= joinPractice(code);
         try {
           const joined = await practiceJoin.current;
@@ -161,11 +182,22 @@ export default function QuizTakePage() {
           setProblem({ text: messageOf(error), signIn: SIGNED_OUT.has(codeOf(error)) });
         }
       }
-      return previewQuiz(code);
+      // Attempts written here without an account stay where they are until the person says they are theirs (a computer
+      // may be shared); a failed read of them only leaves the question out.
+      const held = guestToken(code);
+      const asked = held && held !== deviceKept.current ? held : null;
+      const [preview, guestView] = await Promise.all([
+        previewQuiz(code),
+        asked ? previewAsGuest(code, asked).catch(() => null) : Promise.resolve(null),
+      ]);
+      return { preview, device: asked ? deviceOf(asked, guestView) : null };
     };
     load().then(
       (next) => {
-        if (live && next) setPreview({ state: 'ready', value: next });
+        if (live && next) {
+          setPreview({ state: 'ready', value: next.preview });
+          setDevice(next.device);
+        }
       },
       (error: unknown) => {
         if (live) setPreview({ state: 'error', message: messageOf(error) });
@@ -189,6 +221,45 @@ export default function QuizTakePage() {
     setReload((n) => n + 1);
   };
   const say = (error: unknown) => setProblem({ text: messageOf(error), signIn: SIGNED_OUT.has(codeOf(error)) });
+
+  // «Это я — перенести в аккаунт»: the device's attempts become the account's; the token goes once something moved.
+  const claimDevice = async () => {
+    if (!code || !device || claiming) return;
+    setClaiming(true);
+    setProblem(null);
+    try {
+      const taken = await claimGuestAttempts(code, device.token);
+      if (taken.claimed > 0) {
+        dropGuestToken(code);
+        setDeviceNote(null);
+      } else {
+        deviceKept.current = device.token;
+        setDeviceNote(TAKE.deviceKept);
+      }
+      setDevice(null);
+      setReload((n) => n + 1);
+    } catch (error) {
+      say(error);
+    } finally {
+      setClaiming(false);
+    }
+  };
+  // «Это не я»: the device forgets those attempts' token; the account keeps nothing of them.
+  const notMine = () => {
+    if (!code || claiming) return;
+    dropGuestToken(code);
+    setDevice(null);
+    setDeviceNote(null);
+  };
+  // «Я другой человек» (a guest): the device forgets its token for this quiz; a fresh start, the name field empty.
+  const otherPerson = () => {
+    if (!code || starting) return;
+    dropGuestToken(code);
+    setName(null);
+    setNameBad(false);
+    setProblem(null);
+    setReload((n) => n + 1);
+  };
 
   const begin = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -265,6 +336,14 @@ export default function QuizTakePage() {
   const reason = value && me && !me.open_attempt ? reasonWords(value, me.reason ?? (me.can_start ? null : byState)) : null;
   const guestReason = value && !me ? reasonWords(value, byState) : null;
   const results = me?.results ?? [];
+  const deviceCard = user && device && me && !me.is_author ? device : null;
+  // A guest whose device already holds attempts of this quiz may be someone else at a shared computer.
+  const otherHere = guest && me !== null && (Boolean(me.open_attempt) || me.attempts_used > 0);
+  const otherButton = (
+    <button type="button" className="sf-link qt-other" disabled={starting} onClick={otherPerson}>
+      {TAKE.otherPerson}
+    </button>
+  );
 
   return (
     <div className="au qt qt-accent" data-accent={accent}>
@@ -350,12 +429,29 @@ export default function QuizTakePage() {
             {ready && value && me && (user || guest) ? (
               <>
                 {me.is_author ? <p className="qt-note">{TAKE.authorNote}</p> : null}
+                {deviceCard ? (
+                  <section className="qt-device" aria-labelledby={deviceId}>
+                    <p id={deviceId} className="qt-device-t">
+                      {TAKE.deviceAttempt(deviceCard.when ? dateTimeText(deviceCard.when) : null)}
+                    </p>
+                    <div className="qt-device-acts">
+                      <button type="button" className="sf-secondary" aria-busy={claiming || undefined} disabled={claiming} onClick={() => void claimDevice()}>
+                        {TAKE.deviceMine}
+                      </button>
+                      <button type="button" className="sf-link" disabled={claiming} onClick={notMine}>
+                        {TAKE.deviceNotMine}
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
+                {user && deviceNote ? <p className="qt-note">{deviceNote}</p> : null}
                 {me.open_attempt ? (
                   <div className="qt-actions">
                     <p className="qt-note">{TAKE.resumeNote}</p>
                     <button type="button" className="sf-primary qt-go" aria-busy={starting || undefined} disabled={starting} onClick={() => void begin()}>
                       {TAKE.resume}
                     </button>
+                    {otherHere ? otherButton : null}
                   </div>
                 ) : reason ? (
                   <p className="qt-reason">{reason}</p>
@@ -388,6 +484,7 @@ export default function QuizTakePage() {
                     </button>
                   </form>
                 )}
+                {otherHere && !me.open_attempt ? <p className="qt-other-line">{otherButton}</p> : null}
                 {guest && back && !problem?.signIn ? (
                   <p className="qt-account">
                     {TAKE.haveAccount}{' '}

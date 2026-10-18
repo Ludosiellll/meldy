@@ -163,6 +163,34 @@ describe('csvOf', () => {
     expect(lines[1].startsWith('"Иванов; Иван";1;')).toBe(true);
     expect(lines[1].endsWith(';1;2;50;нет;0;1')).toBe(true);
   });
+
+  it('a value a spreadsheet would run as a formula gets an apostrophe first (= + - @, a tab, a carriage return)', () => {
+    const quiz = { pass_percent: null } as QuizRow;
+    const items = [{ id: 'i1', subject_id: 's1', position: 1, file_no: '3' }] as TestItem[];
+    const names = ['=HYPERLINK("http://x.example";"нажми")', '+7 900', '-2+3', '@SUM(A1)', '\tТаб', '\rВозврат', 'Обычное имя', 'Анна=Ян'];
+    const csv = csvOf(
+      quiz,
+      names.map((name, index) => attempt({ id: `a${index}`, name, correct: 1, total: 1 })),
+      names.map((_, index) => ({ attempt_id: `a${index}`, item_id: 'i1', correct: true })),
+      items,
+      [{ id: 's1', title: '=Вариант' }],
+    );
+    const lines = csv.slice(1).split('\r\n');
+    expect(lines[0].endsWith(";'=Вариант № 3")).toBe(true);
+    const row = (start: string) => lines.slice(1).find((line) => line.startsWith(start));
+    expect(row(`"'=HYPERLINK(""http://x.example"";""нажми"")";1;`)).toBeDefined();
+    expect(row("'+7 900;1;")).toBeDefined();
+    expect(row("'-2+3;1;")).toBeDefined();
+    expect(row("'@SUM(A1);1;")).toBeDefined();
+    expect(row("'\tТаб;1;")).toBeDefined();
+    // A carriage return inside a cell: quoted as well (the file's own line breaks are CRLF).
+    expect(csv).toContain(`"'\rВозврат";1;`);
+    // Ordinary text and a sign further in stay as they are; so do the numbers.
+    expect(row('Обычное имя;1;')).toBeDefined();
+    expect(row('Анна=Ян;1;')).toBeDefined();
+    expect(lines).toHaveLength(names.length + 1);
+    expect(lines.slice(1).every((line) => line.endsWith(';1;1;100;;1'))).toBe(true);
+  });
 });
 
 describe('quizOrder', () => {

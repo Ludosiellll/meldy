@@ -308,6 +308,7 @@ describe('«Тренироваться дальше» (release 47)', () => {
     ['practice', QUIZ_ERRORS.MC018_practice],
     ['removed', QUIZ_ERRORS.MC018_removed],
     ['full', QUIZ_ERRORS.MC018_full],
+    ['open', QUIZ_ERRORS.MC018_open],
   ])('MC018 %s is said in place and the button works again', async (detail, words) => {
     api.joinPractice.mockRejectedValueOnce(new ContainerApiError('MC018', words, { status: 400, detail }));
     renderResult(offered());
@@ -320,6 +321,45 @@ describe('«Тренироваться дальше» (release 47)', () => {
     expect(button).not.toBeDisabled();
     fireEvent.click(button);
     await waitFor(() => expect(where).toBe('/exams/c/cont-1'));
+  });
+
+  describe('while a quiz of the exam is open or not yet open (ready false, 20261018130000_quiz_guards)', () => {
+    const LATER = 'Тренировка по всем вопросам откроется, когда контрольная закроется.';
+
+    it.each([
+      ['signed in', false, false],
+      ['a member already', true, false],
+      ['a guest', false, true],
+    ] as const)('%s: no button, a quiet line under the title; nothing joined', (_who, member, guest) => {
+      renderResult(offered({ practice: { exam_title: 'Зимняя сессия', member, ready: false } }), guest);
+      expect(screen.getByRole('heading', { name: 'Тренироваться дальше' })).toBeInTheDocument();
+      expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe(LATER);
+      expect(document.querySelectorAll('.qt-practice-note')).toHaveLength(1);
+      expect(document.querySelector('.qt-practice button, .qt-practice a')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Открыть экзамен' })).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Создать аккаунт и тренироваться' })).toBeNull();
+      expect(page()).not.toContain('Вы станете участником');
+      expect(api.joinPractice).not.toHaveBeenCalled();
+    });
+
+    it('«Ещё попытка» stays the screen’s blue pill', () => {
+      renderResult(offered({ can_retry: true, attempts_left: 1, practice: { exam_title: 'Зимняя сессия', member: false, ready: false } }));
+      expect(screen.getByRole('button', { name: /Ещё попытка/ })).toHaveClass('sf-primary');
+      expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe(LATER);
+    });
+
+    it('ready true: the button as before', () => {
+      renderResult(offered({ practice: { exam_title: 'Зимняя сессия', member: false, ready: true } }));
+      expect(screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toHaveClass('sf-primary');
+      expect(page()).not.toContain(LATER);
+    });
+
+    it('a server without ready (before the guards): read as open', () => {
+      renderResult(offered());
+      expect(screen.getByRole('button', { name: 'Тренировать эти вопросы в Meldy' })).toBeInTheDocument();
+      expect(page()).not.toContain(LATER);
+    });
   });
 
   it('not offered: no block', () => {

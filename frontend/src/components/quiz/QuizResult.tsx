@@ -97,7 +97,9 @@ function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: nu
 
 /**
  * «Тренироваться дальше»: the blue pill when the result has no «Ещё попытка» (one blue pill a screen), else the white
- * one. A refusal (MC018: not offered, removed by the author, no places) is said right here.
+ * one. A refusal (MC018: not offered, removed by the author, no places, a quiz of the exam still open) is said right
+ * here. While a quiz of the exam is open or not yet open (practice.ready false) there is no button, only a quiet line:
+ * a member sees every answer of the exam. A server without ready (before 20261018130000) — as open.
  */
 function PracticeOffer({ result, guest, primary }: { result: QuizResult; guest: boolean; primary: boolean }) {
   const navigate = useNavigate();
@@ -107,6 +109,16 @@ function PracticeOffer({ result, guest, primary }: { result: QuizResult; guest: 
   const practice = result.practice;
   if (!practice) return null;
   const pill = primary ? 'sf-primary qt-practice-go' : 'sf-secondary qt-practice-go';
+  if (practice.ready === false) {
+    return (
+      <section className="qt-practice" aria-labelledby={titleId}>
+        <h2 id={titleId} className="qt-practice-h">
+          {RESULT.practiceTitle}
+        </h2>
+        <p className="qt-practice-note">{RESULT.practiceLater}</p>
+      </section>
+    );
+  }
   const join = async () => {
     if (busy) return;
     setBusy(true);

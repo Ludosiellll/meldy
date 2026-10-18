@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const rpc = vi.hoisted(() => vi.fn());
-vi.mock('../lib/supabase', () => ({ supabase: { rpc } }));
+vi.mock('../lib/supabase', () => ({ supabase: { rpc }, supabaseAnonKey: 'anon-key' }));
 
 import { ContainerApiError } from './containers';
-import { createQuiz, previewQuiz, quizErrorText, quizResults, sendAnswers, startQuiz } from './quizzes';
+import { createQuiz, previewAsGuest, previewQuiz, quizErrorText, quizResults, sendAnswers, startQuiz } from './quizzes';
 import { QUIZ_ERRORS } from '../components/quiz/copyQuiz';
 
 beforeEach(() => rpc.mockReset());
@@ -58,5 +58,25 @@ describe('api/quizzes', () => {
   it('refuses a body of the wrong shape', async () => {
     rpc.mockResolvedValue({ data: [], error: null });
     await expect(previewQuiz('x')).rejects.toBeInstanceOf(ContainerApiError);
+  });
+});
+
+describe('previewAsGuest (a shared computer: the device’s attempts while signed in)', () => {
+  it('reads quiz_preview with the token as a visitor without an account: the anon key as the bearer', async () => {
+    const preview = { status: 'open', guests: true, me: { attempts_used: 1, results: [] } };
+    const setHeader = vi.fn(async () => ({ data: preview, error: null, status: 200 }));
+    rpc.mockReturnValue({ setHeader });
+    await expect(previewAsGuest('abcd2fghjkmn', 't'.repeat(43))).resolves.toEqual(preview);
+    expect(rpc).toHaveBeenCalledWith('quiz_preview', { p_code: 'abcd2fghjkmn', p_token: 't'.repeat(43) });
+    expect(setHeader).toHaveBeenCalledWith('Authorization', 'Bearer anon-key');
+  });
+
+  it('a refusal comes as ContainerApiError; the other calls keep the session (no header set)', async () => {
+    rpc.mockReturnValue({ setHeader: vi.fn(async () => ({ data: null, error: { code: '42501', message: 'denied' }, status: 401 })) });
+    await expect(previewAsGuest('abcd2fghjkmn', 't'.repeat(43))).rejects.toBeInstanceOf(ContainerApiError);
+    const setHeader = vi.fn();
+    rpc.mockReturnValue(Object.assign(Promise.resolve({ data: { status: 'open' }, error: null, status: 200 }), { setHeader }));
+    await previewQuiz('abcd2fghjkmn');
+    expect(setHeader).not.toHaveBeenCalled();
   });
 });

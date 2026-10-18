@@ -134,6 +134,21 @@
 .qt-past-list li + li { border-top: 1px solid var(--sf-line); }
 .qt-past-list .sf-link { font-size: 15px; }
 .qt-next { margin: 18px 0 0; }
+/* Signed in on a device with attempts written here without an account (a shared computer): whose they are. */
+.qt-device {
+  margin: 22px 0 0;
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+}
+.qt-device-t { margin: 0; font-size: 15px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); overflow-wrap: anywhere; text-wrap: pretty; }
+.qt-device-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 12px; }
+.qt-device-acts .sf-secondary { max-width: 100%; height: auto; min-height: 44px; padding: 8px 18px; line-height: 1.25; white-space: normal; text-align: left; }
+.qt-device-acts [aria-busy='true'] { cursor: progress; }
+/* A guest on a device with someone else's attempts: «Я другой человек», quiet, next to «Продолжить» or under the form. */
+.qt-other.sf-link { font-size: 15px; }
+.qt-other-line { margin: 14px 0 0; }
 /* A guest's way to sign in: one quiet line under «Начать». */
 .qt-account { margin: 16px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .qt-account .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; vertical-align: baseline; }

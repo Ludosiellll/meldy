@@ -234,7 +234,11 @@ export interface QuizResult {
   attempts_left: number | null;
   can_retry: boolean;
   items: QuizResultItem[];
-  /** The author offers to train this exam (release 47): its title, and whether the taker is a member already. */
-  practice?: { exam_title: string; member: boolean } | null;
+  /**
+   * The author offers to train this exam (release 47): its title, whether the taker is a member already, and whether
+   * the training is open — false while a quiz of the exam is open or not yet open (20261018130000_quiz_guards; a member
+   * sees every answer of the exam). Missing from an older server: read as open.
+   */
+  practice?: { exam_title: string; member: boolean; ready?: boolean } | null;
   accent?: QuizAccent;
 }

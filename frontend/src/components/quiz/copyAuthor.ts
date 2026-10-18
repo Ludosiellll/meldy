@@ -8,6 +8,13 @@ import type { QuizAccent, QuizGrading, QuizReview } from '../../types/quiz';
 import type { QuizWho } from './setupModel';
 
 const people = (n: number) => `${n} ${plural(n, 'человек', 'человека', 'человек')}`;
+/** «После сдачи участник видит»: the names of the four choices. */
+const REVIEW_OPTIONS: Record<QuizReview, string> = {
+  score: 'только балл',
+  mistakes: 'балл и где ошибся',
+  answers: 'балл, ошибки и верные ответы',
+  mistakes_then_answers: 'балл и ошибки сразу, верные ответы после закрытия',
+};
 const keyed = (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} с ключом`;
 
 /** «Контрольные» of an exam: /exams/c/:id/quizzes. */
@@ -81,13 +88,9 @@ export const QA_SETUP = {
   passNone: 'нет',
   passOption: (n: number) => `${n} %`,
   review: 'После сдачи участник видит',
-  reviewOption: (r: QuizReview) =>
-    ({
-      score: 'только балл',
-      mistakes: 'балл и где ошибся',
-      answers: 'балл, ошибки и верные ответы',
-      mistakes_then_answers: 'балл и ошибки сразу, верные ответы после закрытия',
-    })[r],
+  reviewOption: (r: QuizReview) => REVIEW_OPTIONS[r],
+  /** Without an account and with the right answers at once: a second browser is a fresh start that shows them. */
+  reviewGuests: `Без входа тест можно открыть заново в другом браузере и увидеть ответы до своей попытки. Для контрольной лучше «${REVIEW_OPTIONS.mistakes_then_answers}».`,
   who: 'Кто может писать',
   whoOption: (who: QuizWho) =>
     ({
@@ -103,6 +106,8 @@ export const QA_SETUP = {
     })[who],
   practice: 'После сдачи предложить тренироваться по этому экзамену',
   practiceNote: 'Участник станет участником экзамена, если сам нажмёт кнопку. Вы увидите его в списке участников, его прогресс — нет.',
+  /** The button waits until no quiz of the exam is open or not yet open (20261018130000_quiz_guards). */
+  practiceLater: 'Кнопка появится, когда контрольная закроется: в тренировке видны все ответы экзамена.',
   partLook: 'Оформление',
   cover: 'Обложка',
   coverHint: 'Картинка над названием на странице контрольной: PNG, JPEG, GIF или WebP до 3 МБ.',

@@ -211,8 +211,14 @@ export function questionRows(stats: readonly QuizItemStat[], items: ReadonlyMap<
     .sort((a, b) => (a.percent === null ? 1 : 0) - (b.percent === null ? 1 : 0) || (a.percent ?? 0) - (b.percent ?? 0) || b.shown - a.shown);
 }
 
+/**
+ * One cell of the table. A value a spreadsheet would run as a formula — starting with = + - @, a tab or a carriage
+ * return — gets a leading apostrophe (the names are anyone's text: a guest types theirs); then «;», quotes and line
+ * breaks are quoted.
+ */
 function cell(value: string | number): string {
-  const text = String(value);
+  const raw = String(value);
+  const text = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

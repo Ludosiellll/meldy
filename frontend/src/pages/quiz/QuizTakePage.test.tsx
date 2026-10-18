@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   quizResult: vi.fn(),
   claimGuestAttempts: vi.fn(),
   joinPractice: vi.fn(),
+  previewAsGuest: vi.fn(),
   track: vi.fn(),
   pictureUrl: vi.fn(),
   guestPictureUrl: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../../api/quizzes', () => ({
   quizResult: api.quizResult,
   claimGuestAttempts: api.claimGuestAttempts,
   joinPractice: api.joinPractice,
+  previewAsGuest: api.previewAsGuest,
 }));
 vi.mock('../../api/itemPictures', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/itemPictures')>()),
@@ -40,6 +42,7 @@ import { ContainerApiError } from '../../api/containers';
 import { storeKey } from '../../components/quiz/QuizRun';
 import { QUIZ_ERRORS } from '../../components/quiz/copyQuiz';
 import { TOKEN_RE, dropGuestToken, ensureGuestToken, guestToken } from '../../lib/quizzes/guestToken';
+import { dateTimeText } from '../../lib/quizzes/quizModel';
 
 const NB = String.fromCharCode(0xa0);
 const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
@@ -167,6 +170,7 @@ beforeEach(() => {
   api.quizResult.mockReset().mockResolvedValue(RESULT);
   api.claimGuestAttempts.mockReset().mockResolvedValue({ claimed: 0 });
   api.joinPractice.mockReset().mockResolvedValue({ container_id: 'cont-1' });
+  api.previewAsGuest.mockReset().mockResolvedValue({ ...PREVIEW, guests: true, me: { ...ME, name_hint: null, guest: true } });
   api.track.mockReset();
   api.pictureUrl.mockReset().mockResolvedValue('blob:signed-in');
   api.guestPictureUrl.mockReset().mockResolvedValue('blob:guest');
@@ -510,50 +514,231 @@ describe('/k/<код>: the pictures of a result (release 47)', () => {
   });
 });
 
-describe('/k/<код> signed in with this device’s guest attempts (release 47)', () => {
-  it('they become the account’s once, before the preview; the token goes', async () => {
-    const token = ensureGuestToken(CODE);
-    signedIn();
-    api.claimGuestAttempts.mockResolvedValue({ claimed: 2 });
-    api.startQuiz.mockRejectedValue(new ContainerApiError('MC014', 'Попытки закончились.', { status: 400, detail: 'attempts' }));
-    renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
-    expect(api.claimGuestAttempts).toHaveBeenCalledWith(CODE, token);
-    expect(api.claimGuestAttempts.mock.invocationCallOrder[0]).toBeLessThan(api.previewQuiz.mock.invocationCallOrder[0]);
-    // Signed in, the preview goes without the token.
-    expect(api.previewQuiz).toHaveBeenCalledWith(CODE);
-    expect(guestToken(CODE)).toBeNull();
-    // Another preview (after a refused start) does not claim again.
-    fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
-    await waitFor(() => expect(api.previewQuiz).toHaveBeenCalledTimes(2));
-    expect(api.claimGuestAttempts).toHaveBeenCalledTimes(1);
-    expect(api.startQuiz).toHaveBeenCalledWith(CODE, 'Иван Иванов', null);
-  });
+describe('/k/<код> signed in on a device with attempts written here without an account (a shared computer)', () => {
+  const FINISHED = '2026-10-15T12:00:00.000Z';
+  const LATER = '2026-10-15T15:30:00.000Z';
+  /** What the device's guest sees of the quiz (previewAsGuest): two attempts, the later one last finished. */
+  function deviceHas(me: Partial<QuizPreviewMe> = {}) {
+    api.previewAsGuest.mockResolvedValue({
+      ...GUEST_PREVIEW,
+      me: {
+        ...GUEST_ME,
+        attempts_used: 2,
+        can_start: false,
+        reason: 'no_attempts',
+        results: [
+          { attempt_id: 'g-2', n: 2, finished_at: LATER, correct: 3, total: 20 },
+          { attempt_id: 'g-1', n: 1, finished_at: FINISHED, correct: 2, total: 20 },
+        ],
+        ...me,
+      },
+    });
+  }
+  const card = () => document.querySelector('.qt-device');
+  const LINE = () => `На этом устройстве есть попытка без входа от ${plain(dateTimeText(LATER))}.`;
 
-  it('nothing taken (the account writes this quiz itself): the token stays', async () => {
+  it('nothing moves by itself: a card above the start asks whose they are, with the time of the last one', async () => {
     const token = ensureGuestToken(CODE);
     signedIn();
+    deviceHas();
     renderAt();
-    await screen.findByLabelText('Ваше имя для автора');
-    expect(api.claimGuestAttempts).toHaveBeenCalledWith(CODE, token);
+    const field = await screen.findByLabelText('Ваше имя для автора');
+    expect(api.claimGuestAttempts).not.toHaveBeenCalled();
+    // Signed in, the page's own preview goes without the token; the device's attempts are read as its guest reads them.
+    expect(api.previewQuiz).toHaveBeenCalledWith(CODE);
+    expect(api.previewAsGuest).toHaveBeenCalledWith(CODE, token);
+    expect(plain(card()?.querySelector('.qt-device-t')?.textContent)).toBe(LINE());
+    expect(within(card() as HTMLElement).getByRole('button', { name: 'Это я — перенести в аккаунт' })).toBeInTheDocument();
+    expect(within(card() as HTMLElement).getByRole('button', { name: 'Это не я' })).toBeInTheDocument();
+    expect((card()?.compareDocumentPosition(field) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(guestToken(CODE)).toBe(token);
   });
 
-  it('a failed claim does not stop the page', async () => {
+  it('«Это я — перенести в аккаунт»: the claim, then the token goes, the card too, and «me» comes again', async () => {
     const token = ensureGuestToken(CODE);
     signedIn();
-    api.claimGuestAttempts.mockRejectedValue(new ContainerApiError('network', 'Нет сети', { status: 0 }));
+    deviceHas();
+    api.claimGuestAttempts.mockResolvedValue({ claimed: 2 });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Это я — перенести в аккаунт' }));
+    await waitFor(() => expect(api.claimGuestAttempts).toHaveBeenCalledWith(CODE, token));
+    await waitFor(() => expect(api.previewQuiz).toHaveBeenCalledTimes(2));
+    expect(guestToken(CODE)).toBeNull();
+    expect(card()).toBeNull();
+    expect(api.previewAsGuest).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(page()).not.toContain('не перенесены');
+  });
+
+  it('nothing moved (the account writes this quiz itself): said; the token stays, not asked again on this page', async () => {
+    const token = ensureGuestToken(CODE);
+    signedIn();
+    deviceHas();
+    api.startQuiz.mockRejectedValue(new ContainerApiError('MC014', 'Попытки закончились.', { status: 400, detail: 'attempts' }));
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Это я — перенести в аккаунт' }));
+    expect(await screen.findByText('Попытки без входа не перенесены: в аккаунте уже есть попытки этой контрольной.')).toBeInTheDocument();
+    expect(card()).toBeNull();
+    expect(guestToken(CODE)).toBe(token);
+    // Another preview (after a refused start) does not bring the card back.
+    fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
+    await waitFor(() => expect(api.previewQuiz).toHaveBeenCalledTimes(3));
+    expect(card()).toBeNull();
+    expect(api.previewAsGuest).toHaveBeenCalledTimes(1);
+    expect(api.claimGuestAttempts).toHaveBeenCalledTimes(1);
+  });
+
+  it('«Это не я»: the token goes, the card too; nothing is claimed', async () => {
+    ensureGuestToken(CODE);
+    signedIn();
+    deviceHas();
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Это не я' }));
+    expect(card()).toBeNull();
+    expect(guestToken(CODE)).toBeNull();
+    expect(api.claimGuestAttempts).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Ваше имя для автора')).toBeInTheDocument();
+  });
+
+  it('a failed claim is said; the card stays and can be pressed again', async () => {
+    const token = ensureGuestToken(CODE);
+    signedIn();
+    deviceHas();
+    api.claimGuestAttempts.mockRejectedValueOnce(new ContainerApiError('network', 'Нет сети', { status: 0 })).mockResolvedValue({ claimed: 2 });
+    renderAt();
+    const mine = await screen.findByRole('button', { name: 'Это я — перенести в аккаунт' });
+    fireEvent.click(mine);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Нет сети');
+    expect(card()).not.toBeNull();
+    expect(guestToken(CODE)).toBe(token);
+    await waitFor(() => expect(mine).not.toBeDisabled());
+    fireEvent.click(mine);
+    await waitFor(() => expect(guestToken(CODE)).toBeNull());
+    expect(api.claimGuestAttempts).toHaveBeenCalledTimes(2);
+  });
+
+  it('only an unfinished attempt there: the line without a time', async () => {
+    ensureGuestToken(CODE);
+    signedIn();
+    deviceHas({ attempts_used: 1, open_attempt: 'g-1', can_start: true, reason: null, results: [] });
+    renderAt();
+    await screen.findByLabelText('Ваше имя для автора');
+    expect(plain(card()?.querySelector('.qt-device-t')?.textContent)).toBe('На этом устройстве есть начатая попытка без входа.');
+  });
+
+  it('no attempts behind the token (a start that did not happen): no card', async () => {
+    ensureGuestToken(CODE);
+    signedIn();
+    deviceHas({ attempts_used: 0, can_start: true, reason: null, results: [] });
+    renderAt();
+    await screen.findByLabelText('Ваше имя для автора');
+    expect(api.previewAsGuest).toHaveBeenCalledTimes(1);
+    expect(card()).toBeNull();
+  });
+
+  it('a quiz that no longer takes guests (its guest «me» is null): no card', async () => {
+    ensureGuestToken(CODE);
+    signedIn();
+    api.previewAsGuest.mockResolvedValue({ ...PREVIEW, guests: false, me: null });
+    renderAt();
+    await screen.findByLabelText('Ваше имя для автора');
+    expect(card()).toBeNull();
+  });
+
+  it('a failed read of the device’s attempts leaves the card out; the page opens', async () => {
+    const token = ensureGuestToken(CODE);
+    signedIn();
+    api.previewAsGuest.mockRejectedValue(new ContainerApiError('network', 'Нет сети', { status: 0 }));
     renderAt();
     expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(card()).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(guestToken(CODE)).toBe(token);
   });
 
-  it('no token on this device: nothing to claim', async () => {
+  it('the quiz’s author: no card', async () => {
+    ensureGuestToken(CODE);
+    signedIn({ is_author: true });
+    deviceHas();
+    renderAt();
+    await screen.findByText(/Это ваша контрольная/);
+    expect(card()).toBeNull();
+    expect(api.claimGuestAttempts).not.toHaveBeenCalled();
+  });
+
+  it('no token on this device: nothing to ask, nothing read as a guest', async () => {
     signedIn();
     renderAt();
     await screen.findByLabelText('Ваше имя для автора');
+    expect(api.previewAsGuest).not.toHaveBeenCalled();
     expect(api.claimGuestAttempts).not.toHaveBeenCalled();
+    expect(card()).toBeNull();
+  });
+});
+
+describe('/k/<код> as a guest on a device that holds someone’s attempts: «Я другой человек»', () => {
+  it('next to «Продолжить»: the token goes and a fresh start opens with the name field empty', async () => {
+    const token = ensureGuestToken(CODE);
+    api.previewQuiz.mockImplementation(async (_code: string, held: string | null) =>
+      held
+        ? { ...GUEST_PREVIEW, me: { ...GUEST_ME, attempts_used: 1, open_attempt: 'att-1', can_start: true } }
+        : GUEST_PREVIEW,
+    );
+    renderAt();
+    const resume = await screen.findByRole('button', { name: 'Продолжить' });
+    const other = screen.getByRole('button', { name: 'Я другой человек' });
+    expect(other).toHaveClass('sf-link');
+    expect(other.closest('.qt-actions')).toBe(resume.closest('.qt-actions'));
+    fireEvent.click(other);
+    const field = await screen.findByLabelText('Ваше имя для автора');
+    expect(field).toHaveValue('');
+    expect(guestToken(CODE)).toBeNull();
+    expect(api.previewQuiz).toHaveBeenLastCalledWith(CODE, null);
+    expect(screen.queryByRole('button', { name: 'Продолжить' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Я другой человек' })).toBeNull();
+    // The new person's start makes a new token.
+    fireEvent.change(field, { target: { value: 'Пётр Сидоров' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
+    await waitFor(() => expect(api.startQuiz).toHaveBeenCalledTimes(1));
+    const fresh = api.startQuiz.mock.calls[0][2] as string;
+    expect(fresh).toMatch(TOKEN_RE);
+    expect(fresh).not.toBe(token);
+  });
+
+  it('no attempts left on this device: under the reason, the same way to start over', async () => {
+    ensureGuestToken(CODE);
+    api.previewQuiz.mockImplementation(async (_code: string, held: string | null) =>
+      held
+        ? {
+            ...GUEST_PREVIEW,
+            me: {
+              ...GUEST_ME,
+              attempts_used: 1,
+              can_start: false,
+              reason: 'no_attempts',
+              results: [{ attempt_id: 'att-0', n: 1, finished_at: '2026-10-15T12:00:00.000Z', correct: 12, total: 20 }],
+            },
+          }
+        : GUEST_PREVIEW,
+    );
+    renderAt();
+    expect(await screen.findByText('Попытки закончились.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Я другой человек' }));
+    expect(await screen.findByLabelText('Ваше имя для автора')).toHaveValue('');
+    expect(guestToken(CODE)).toBeNull();
+    expect(page()).not.toContain('Попытка 1 · 12 из 20');
+  });
+
+  it('a guest without attempts here, or someone signed in: no such button', async () => {
+    api.previewQuiz.mockResolvedValue(GUEST_PREVIEW);
+    renderAt();
+    await screen.findByLabelText('Ваше имя для автора');
+    expect(screen.queryByRole('button', { name: 'Я другой человек' })).toBeNull();
+    cleanup();
+    signedIn({ attempts_used: 1, open_attempt: 'att-1' });
+    renderAt();
+    await screen.findByRole('button', { name: 'Продолжить' });
+    expect(screen.queryByRole('button', { name: 'Я другой человек' })).toBeNull();
   });
 });
 
@@ -571,14 +756,31 @@ describe('/k/<код>?practice=1: back from making an account to train (release 
     expect(api.previewQuiz).not.toHaveBeenCalled();
   });
 
-  it('a refusal (MC018) is said on the page, which opens as usual', async () => {
+  it.each([
+    ['practice', QUIZ_ERRORS.MC018_practice],
+    // a quiz of the exam opened since the result said «ready» (20261018130000_quiz_guards)
+    ['open', QUIZ_ERRORS.MC018_open],
+  ] as const)('a refusal (MC018 %s) is said on the page, which opens as usual', async (detail, words) => {
     signedIn();
-    api.joinPractice.mockRejectedValue(new ContainerApiError('MC018', QUIZ_ERRORS.MC018_practice, { status: 400, detail: 'practice' }));
+    api.joinPractice.mockRejectedValue(new ContainerApiError('MC018', words, { status: 400, detail }));
     renderAt(CODE, '?practice=1');
     expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(QUIZ_ERRORS.MC018_practice);
+    expect(screen.getByRole('alert')).toHaveTextContent(words);
     expect(where).toBe('');
     expect(api.joinPractice).toHaveBeenCalledTimes(1);
+  });
+
+  it('the claim of the way back runs once even when the join is refused; no card asks again', async () => {
+    const token = ensureGuestToken(CODE);
+    signedIn();
+    api.claimGuestAttempts.mockResolvedValue({ claimed: 1 });
+    api.joinPractice.mockRejectedValue(new ContainerApiError('MC018', QUIZ_ERRORS.MC018_open, { status: 400, detail: 'open' }));
+    renderAt(CODE, '?practice=1');
+    expect(await screen.findByLabelText('Ваше имя для автора')).toBeInTheDocument();
+    expect(api.claimGuestAttempts).toHaveBeenCalledTimes(1);
+    expect(api.claimGuestAttempts).toHaveBeenCalledWith(CODE, token);
+    expect(guestToken(CODE)).toBeNull();
+    expect(document.querySelector('.qt-device')).toBeNull();
   });
 
   it('still signed out: nothing is joined', async () => {
