@@ -7,15 +7,19 @@
 # release 47 = 20261018100000, 20261018120000_exam_move_bot_exams, 20261018130000_quiz_guards, 20261018140000_quiz_practice_grace,
 # release 47.3 = 20261019090000_container_kind) → the catalog fingerprint
 # of that base → test_docs_behaviour.sql fails (the test bites), the guards' and the exam move's contracts, the guards',
-# test_builder and quizzes behaviour pass → the migration twice (the same fingerprint) → the contract (tests/test_docs.sql;
-# quiz_guards.sql, exam_move_bot_exams.sql, test_builder.sql, quizzes.sql, quiz_result_order.sql, item_update_images.sql,
-# test_item_images.sql, containers.sql still hold) → test_docs_behaviour.sql → test_docs_parity.sql (test_doc_ok gives
-# each document of contracts/studio/test_doc_cases.json the first rule the client's docProblems gives it) →
+# test_builder and quizzes behaviour pass → the migration, then its follow-up 20261019110000_doc_video.sql (the video
+# block in meldy_private.test_doc_ok; tests/doc_video.sql and doc_video_behaviour.sql fail in between), both twice (the
+# same fingerprint) → the contracts (tests/test_docs.sql, tests/doc_video.sql; quiz_guards.sql, exam_move_bot_exams.sql,
+# test_builder.sql, quizzes.sql, quiz_result_order.sql, item_update_images.sql, test_item_images.sql, containers.sql
+# still hold) → test_docs_behaviour.sql, doc_video_behaviour.sql → test_docs_parity.sql (test_doc_ok gives each document
+# of contracts/studio/test_doc_cases.json, the video cases among them, the first rule the client's docProblems gives it) →
 # quiz_guards_behaviour, test_builder_behaviour, quizzes_behaviour, containers, pictures and item_update_images
-# behaviour → two tabs save the first revision together (one revision, the other MC020 stale) → the rollback twice (the
-# fingerprint of the base again: the guards' bodies byte for byte; the guards' and release-47 contracts and behaviour
-# pass, test_docs.sql bites) → the migration again (the same fingerprint as the first apply) → the contracts and the
-# behaviour again.
+# behaviour → two tabs save the first revision together (one revision, the other MC020 stale) → the video rollback twice
+# (the fingerprint after 20261019100000 alone: its test_doc_ok byte for byte; the video contract and behaviour bite,
+# test_docs.sql and its behaviour hold)
+# → the rollback twice (the fingerprint of the base again: the guards' bodies byte for byte; the guards' and release-47
+# contracts and behaviour pass, test_docs.sql bites) → both migrations again (the same fingerprint as the first apply) →
+# the contracts and the behaviour again.
 # The last line is TEST DOCS CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): DOCS_PG_PORT (54400), DOCS_WORK (${TMPDIR:-/tmp}/meldy-test-docs), PG_BIN (/usr/lib/postgresql/16/bin).
 set -u -o pipefail
@@ -25,6 +29,8 @@ PORT=${DOCS_PG_PORT:-54400}
 WORK=${DOCS_WORK:-${TMPDIR:-/tmp}/meldy-test-docs}
 PG_BIN=${PG_BIN:-/usr/lib/postgresql/16/bin}
 MIG=$SB/migrations/20261019100000_test_docs.sql
+VID=$SB/migrations/20261019110000_doc_video.sql
+VID_DOWN=$SB/rollback/20261019110000_doc_video_down.sql
 CASES=$(cd "$SB/.." && pwd)/contracts/studio/test_doc_cases.json
 DOWN=$SB/rollback/20261019100000_test_docs_down.sql
 export PGHOST=127.0.0.1 PGPORT=$PORT PGUSER=postgres
@@ -191,12 +197,25 @@ behave "test_builder_behaviour passes on the base (47 with the guards)" "$HERE/t
 behave "quizzes_behaviour passes on the base (the 47 shapes)" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'
 
 step "migration, first apply" "$MIG"
+FMIG=$(fingerprint)
+[ "$FMIG" != "$FBASE" ] && ok "the migration changed the catalog" || bad "the migration changed nothing"
+if run "$SB/tests/doc_video.sql"; then bad "doc_video.sql passes before its migration (it tests nothing)"; else ok "doc_video.sql fails before 20261019110000_doc_video.sql"; fi
+if passes "$HERE/doc_video_behaviour.sql" 'DOC VIDEO BEHAVIOUR PASSED' >/dev/null; then
+  bad "doc_video_behaviour passes before its migration (it tests nothing)"
+else
+  ok "doc_video_behaviour fails before 20261019110000_doc_video.sql"
+fi
+step "doc_video migration (the video block), first apply" "$VID"
 F471=$(fingerprint)
-[ "$F471" != "$FBASE" ] && ok "the migration changed the catalog" || bad "the migration changed nothing"
+[ "$F471" != "$FMIG" ] && ok "the video migration changed the catalog (test_doc_ok)" || bad "the video migration changed nothing"
 step "migration, second apply (re-runnable)" "$MIG"
-[ "$(fingerprint)" = "$F471" ] && ok "a second apply changes nothing in the catalog" || bad "a second apply changed the catalog"
+step "doc_video migration, second apply (re-runnable)" "$VID"
+[ "$(fingerprint)" = "$F471" ] && ok "a second apply of both changes nothing in the catalog" || bad "a second apply changed the catalog"
+step "doc_video migration, third apply on its own" "$VID"
+[ "$(fingerprint)" = "$F471" ] && ok "the video migration again on its own changes nothing" || bad "the video migration again changed the catalog"
 
 step "contract: test_docs.sql" "$SB/tests/test_docs.sql"
+step "contract: doc_video.sql (the video block's rules)" "$SB/tests/doc_video.sql"
 step "contract: quiz_guards.sql still holds (practice with ready, the HMAC throttle, its prune before the count)" \
   "$SB/tests/quiz_guards.sql"
 step "contract: exam_move_bot_exams.sql still holds" "$SB/tests/exam_move_bot_exams.sql"
@@ -209,6 +228,8 @@ if containers_contract; then ok "contract: containers.sql still holds"; else bad
 
 behave "behaviour: the rules, get / save, revisions, size, dangling blocks, design quizzes, guests, bands" \
   "$HERE/test_docs_behaviour.sql" 'TEST DOCS BEHAVIOUR PASSED'
+behave "doc_video behaviour: a page with videos saved and read back, broken videos refused, the participant gets them" \
+  "$HERE/doc_video_behaviour.sql" 'DOC VIDEO BEHAVIOUR PASSED'
 # The client's docProblems (frontend/src/lib/studio/doc.ts) runs the same documents in doc.test.ts: the same first rule
 # for each case of contracts/studio/test_doc_cases.json. psql reads the file through the \set line written here.
 parity() {
@@ -267,6 +288,20 @@ fi
 q "delete from public.containers where title = 'Две вкладки студии'" >/dev/null || bad "two tabs: cleanup"
 [ "$(fingerprint)" = "$F471" ] && ok "the catalog unchanged by the behaviour runs" || bad "the behaviour runs changed the catalog"
 
+step "rollback of doc_video" "$VID_DOWN"
+[ "$(fingerprint)" = "$FMIG" ] && ok "after the video rollback: the catalog of 20261019100000 alone (its test_doc_ok byte for byte)" \
+  || bad "after the video rollback: another catalog than 20261019100000 alone"
+step "rollback of doc_video again (re-runnable)" "$VID_DOWN"
+[ "$(fingerprint)" = "$FMIG" ] && ok "after the second video rollback: still 20261019100000 alone" || bad "after the second video rollback: another catalog"
+if run "$SB/tests/doc_video.sql"; then bad "doc_video.sql passes after its rollback (it tests nothing)"; else ok "doc_video.sql fails after the video rollback"; fi
+if passes "$HERE/doc_video_behaviour.sql" 'DOC VIDEO BEHAVIOUR PASSED' >/dev/null; then
+  bad "doc_video_behaviour passes after its rollback"
+else
+  ok "doc_video_behaviour fails after the video rollback"
+fi
+step "contract after the video rollback: test_docs.sql still holds" "$SB/tests/test_docs.sql"
+behave "behaviour after the video rollback" "$HERE/test_docs_behaviour.sql" 'TEST DOCS BEHAVIOUR PASSED'
+
 step "rollback" "$DOWN"
 [ "$(fingerprint)" = "$FBASE" ] && ok "after the rollback: the catalog of the live base (fingerprint, the guards' bodies byte for byte)" \
   || bad "after the rollback: another catalog than the live base"
@@ -284,10 +319,14 @@ if containers_contract; then ok "contract: containers.sql after the rollback"; e
 behave "containers behaviour after the rollback" "$HERE/containers_behaviour.sql" 'CONTAINER CHECKS PASSED'
 
 step "migration after the rollback" "$MIG"
+step "doc_video migration after the rollback" "$VID"
 [ "$(fingerprint)" = "$F471" ] && ok "the same catalog as the first apply" || bad "another catalog than the first apply"
 step "contract again" "$SB/tests/test_docs.sql"
+step "contract: doc_video.sql again" "$SB/tests/doc_video.sql"
+parity "parity again: test_doc_ok and docProblems agree on every case of test_doc_cases.json"
 step "contract: quiz_guards.sql again" "$SB/tests/quiz_guards.sql"
 behave "behaviour again" "$HERE/test_docs_behaviour.sql" 'TEST DOCS BEHAVIOUR PASSED'
+behave "doc_video behaviour again" "$HERE/doc_video_behaviour.sql" 'DOC VIDEO BEHAVIOUR PASSED'
 behave "quiz_guards_behaviour again" "$HERE/quiz_guards_behaviour.sql" 'QUIZ GUARDS BEHAVIOUR PASSED'
 behave "test_builder_behaviour again" "$HERE/test_builder_behaviour.sql" 'BUILDER BEHAVIOUR PASSED'
 behave "quizzes_behaviour again" "$HERE/quizzes_behaviour.sql" 'QUIZ CHECKS PASSED'

@@ -232,7 +232,8 @@ begin
          from generate_series(1, 401) i)), 'blocks'),
       -- a block: type, id
       ('a block that is a string', jsonb_set(d, '{blocks,3}', '"текст"'), 'block:3:type'),
-      ('a block of no type', jsonb_set(d, '{blocks,3,type}', '"video"'), 'block:3:type'),
+      -- (not «video»: 20261019110000_doc_video.sql made it a type of its own)
+      ('a block of no type', jsonb_set(d, '{blocks,3,type}', '"audio"'), 'block:3:type'),
       ('a block without a type', d #- '{blocks,3,type}', 'block:3:type'),
       ('a heading with a key of no rule', jsonb_set(d, '{blocks,1,html}', '"<b>x</b>"'), 'block:1:type'),
       ('a divider with a text', jsonb_set(d, '{blocks,9,text}', '"x"'), 'block:9:type'),
