@@ -4,6 +4,22 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-19 — Release 47.4: own pictures, own background and a video block in the studio; question import from wild layouts (from the commit of this entry)
+
+- **The owner, 19.10:** «почему нельзя добавлять свои картинки и тому подобное, на фон тоже почему нельзя своё».
+  Every picture field starts with «Загрузить свою картинку», then the ready pictures; a file can be dropped on the field
+  or pasted with Ctrl+V; pasting anywhere in the studio, or dropping files on the page, makes picture blocks. Phone
+  photos are made to fit (up to 2400 px, turned by EXIF; HEIC gets a plain message) in the studio, the question editor
+  and the quiz cover. «Картинка» as a background starts with the upload, and the participant's result screen shows it.
+- **«Видео» block:** a YouTube, RuTube or VK Видео link with a caption; the page keeps only the link, the player is
+  drawn by the client; nginx allows these three player hosts in `frame-src`. Migration `20261019110000_doc_video`
+  (applied before this release, run 39237042672, checks green); parity corpus 173 cases.
+- **Question import** (`bank_parse`): question numbering, one-line options, marks before options, keys per variant,
+  page furniture, tables, Word text boxes, Kahoot/Quizizz sheets, Markdown headings, Google Forms copies; a question
+  number the key gives two different answers gets no key and a flag. Wild corpus of 149 files with ground truth:
+  right keys 73.7 % → 95.0 % on the tuned set, 30 % → 49 % on the held-out set, no invented keys.
+- Gate on 573a48d: pytest 2242, bot 359, sync ok, Vitest 329 files / 6008 tests, Docker-layout build ok.
+
 ## 2026-10-18 — Release 47.3: how-to videos for the new features; the 47.2 live check's findings (from the commit of this entry)
 
 - **The owner, 18.10:** «для новых функций тоже нужно сделать обучение с видео». Four clips in Meldy's own look (10–14 s,
