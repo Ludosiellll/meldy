@@ -16,8 +16,8 @@ WILD = bank_eval.WILD
 
 # Пол по итогам разбора (вопросов в корпусе — 1080): числа «после» выпуска с улучшениями, без запаса на шум —
 # разбор детерминирован.
-FLOOR = {"found": 955, "stem": 878, "options": 827, "key": 796, "kind": 923, "perfect_files": 83}
-CEILING = {"false": 56, "key_wrong": 14, "key_invented": 0}
+FLOOR = {"found": 1006, "stem": 992, "options": 952, "key": 941, "kind": 990, "perfect_files": 107}
+CEILING = {"false": 50, "key_wrong": 4, "key_invented": 0}
 
 
 def test_corpus_is_large_varied_and_every_truth_has_its_file():

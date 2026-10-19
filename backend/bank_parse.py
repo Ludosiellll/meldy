@@ -174,15 +174,32 @@ TOPIC_RE = re.compile(
     re.I,
 )
 # Номер — «12.» или «12)»; «3.5», «10.0.0.1», «0.0.0.0  0.0.0.0» (число, адрес, строка таблицы) — не номер: после точки цифра.
+# Со словом или знаком перед номером: «Вопрос 3.», «Задание №3», «№3.», «№ 3 …», «Q3.», «Question 3.», «Пытанне 3.» (бел.).
+# «3 – Текст» (тире с пробелами) — номер, если дальше слово (а не ключ «3 – б» и не «5 - 3»).
+_Q_WORD = r"(?:вопрос|задание|заданне|пытанне|question|task)"
 QUESTION_RE = re.compile(
-    r"^(?:(?:вопрос|задание)\s*(?:№\s*)?)?(\d{1,4})\s*(?:\)|\.(?!\d))\s*(?=\S)(.*)$"
-    r"|^(?:вопрос|задание)\s*(?:№\s*)?(\d{1,4})\s*[.:)]?\s+(.*)$",
+    rf"^(?:{_Q_WORD}\s*(?:№\s*)?|№\s*|q\s*)?(\d{{1,4}})\s*(?:\)|\.(?!\d))\s*(?=\S)(.*)$"
+    rf"|^(?:{_Q_WORD}\s*(?:№\s*)?|№\s*)(\d{{1,4}})\s*[.:)]?\s+(.*)$"
+    r"|^(\d{1,4})\s+[–—-]\s+(?=[^\n]*?[^\W\d_]{3})(.*)$",
     re.I | re.S,
 )
+# Римский номер вопроса «IV. Текст» (1–39): только заглавными, после него точка или скобка и пробел.
+ROMAN_QUESTION_RE = re.compile(r"^(?=[IVX])(X{0,3}(?:IX|IV|V?I{0,3}))\s*[.)]\s+(?=\S)(.*)$", re.S)
+_ROMAN_VALUES = {"I": 1, "V": 5, "X": 10}
 # Подпись варианта: «а)», «б.», «(в)», «1)», «2.». Не подпись: «3.5» (число) и «c.Count», «a.b» (код: после точки
 # латинская буква, цифра, «_», скобка). Срезается, только если подписи вариантов идут по порядку (labels_in_sequence).
+# «a<tab>текст» (буква и табуляция без скобки) — тоже подпись.
 OPTION_LABEL_RE = re.compile(
-    r"^\(?([а-иА-ИсСa-hA-H])\s*(?:\)|\.(?![A-Za-z\d_(\[]))\s*(?=\S)|^(\d{1,2})\s*(?:\)|\.(?!\d))\s*(?=\S)", re.S)
+    r"^\(?([а-иА-ИсСa-hA-H])(?:\s*(?:\)|\.(?![A-Za-z\d_(\[]))|\t)\s*(?=\S)|^(\d{1,2})\s*(?:\)|\.(?!\d))\s*(?=\S)", re.S)
+# Отметка перед вариантом: флажок «☑»/«☐», «[x]»/«[ ]» (и пункт Markdown «- [x]»), «+» или «*» вплотную перед буквой («+в)»).
+# Отмеченный — ключ (как флажок Word), «☐»/«[ ]» — неотмеченный.
+LEAD_MARK_RE = re.compile(  # без «^»: lead_mark ищет с позиции после отступа (match с pos)
+    r"(?:[-*]\s+)?(?:\[([ xXхХ✓✔])\]|([☐☑☒✅□✓✔]))\s*(?=\S)"
+    r"|(\+\s?|\*)(?=\(?(?:[а-иА-ИсСa-hA-H]|\d{1,2})\s*[).]\s*\S)"
+)
+# Варианты по два в строке: «а) 180<tab>в) 360» — подпись после табуляции или двух пробелов (их ищет grid_parts:
+# поиск с пробелами перед подписью был бы квадратичным на длинном ряду пробелов).
+GRID_LABEL_RE = re.compile(r"(?<=[\t \u00a0])\(?[а-иА-Иa-hA-H] ?[).] ?(?=\S)")
 BULLET_RE = re.compile(r"^[•·▪◦●○■□➢➤►–—]\s+|^-\s+(?=\S)")
 INLINE_OPTION_RE = re.compile(r"(?:(?<=\s)|^)([а-иa-h])\)\s*")
 ANSWER_RE = re.compile(
@@ -312,7 +329,29 @@ DOUBLE_NUMBER_RE = re.compile(r"^(\d{1,4})\.\s?(\d{1,4})\.\s*(?=\S)(.*)$", re.S)
 # «Вариант 1», «ТЕСТОВЫЙ ВАРИАНТ 4», «Вариант № 2.» — заголовок всего файла; в файле ключей — «КЛЮЧ … — ВАРИАНТ 4».
 VARIANT_HEADING_RE = re.compile(r"^(?:тестовый\s+)?вариант\s*(?:№\s*)?\d{1,3}\s*[.:]?$", re.I)
 VARIANT_RE = re.compile(r"(?<![а-яё])вариант\s*(?:№\s*)?(\d{1,3})(?!\d)", re.I)
-QUESTION_NUMBER_RE = re.compile(r"^(?:вопрос|задание)\s*(?:№\s*)?\d{1,4}\s*[.:]?$", re.I)  # «Вопрос 12» над вопросом
+# Ключ варианта строкой: «Вариант 2: 1а 2б», «Ключ к варианту 2 — 1-а, 2-в», «Ответы к варианту 3.» (пары — со следующих строк)
+VARIANT_KEY_RE = re.compile(
+    r"^(?:(?:ключ\w*|ответы|эталоны?|правильные\s+ответы)\s+(?:к\s+|для\s+)?)?вариант\w*\s*(?:№\s*)?(\d{1,3})(?!\d)\s*[:.)–—-]?\s*(.*)$",
+    re.I | re.S,
+)
+# «Вопрос 12», «Вопрос №12», «Question 12», «Пытанне 12» отдельной строкой — номер вопроса, текст — со следующей строки
+QUESTION_NUMBER_RE = re.compile(rf"^{_Q_WORD}\s*(?:№\s*)?(\d{{1,4}})\s*[.:]?$", re.I)
+# Ответ в скобках в конце строки вопроса: «Кто написал «Бородино»? (Ответ: б)»
+STEM_ANSWER_RE = re.compile(r"\((?:правильн\w*\s+ответ\w*|верн\w*\s+ответ\w*|ответ|ключ|answer) ?[:\-–—] ?([^()]{1,40}?) ?\)\s*$", re.I)
+STEM_ANSWER_TAIL = 80  # ищется только в хвосте строки вопроса (как маркер в конце варианта)
+# Подсказка к вариантам, не часть вопроса: «Выберите один правильный ответ:» (Moodle: «Выберите один ответ:»)
+CHOOSE_ONE_RE = re.compile(r"^(?:выберите|укажите|отметьте)\s+(?:один|одно)\s+(?:(?:правильный|верный)\s+)?(?:ответ|вариант(?:\s+ответа)?)\s*[:.]?$"
+                           r"|^(?:choose|select)\s+(?:one|the\s+correct)\s+(?:answer|option)\s*[:.]?$", re.I)
+# Колонтитулы и служебные строки, которые не относятся ни к одному вопросу: «Страница 3 из 10», «Стр. 4», «Page 2 of 5»;
+# строки страницы просмотра попытки Moodle — только в файле, где она узнана (moodle_chrome).
+PAGE_LINE_RE = re.compile(r"^(?:страница|стр\.?|лист|page)\s*\d{1,4}(?:\s*(?:из|of|/)\s*\d{1,4})?\.?$|^-\s*\d{1,4}\s*-$", re.I)
+MOODLE_MARK_RE = re.compile(r"^(?:отметить вопрос|текст вопроса|flag question|question text)$", re.I)
+MOODLE_CHROME_RE = re.compile(
+    r"^(?:отметить вопрос|текст вопроса|отзыв|верно|неверно|частично правильный|выполнен|нет ответа|не завершено"
+    r"|баллов?\s*:?\s*[\d,.]+\s+из\s+[\d,.]+|балл\s*:?\s*[\d,.]+|flag question|question text|feedback|correct|incorrect"
+    r"|partially correct|mark\s+[\d.]+\s+out\s+of\s+[\d.]+)$",
+    re.I,
+)
 # «1.2. Что такое алгоритм?» — номер внутри темы: метка «1.2», место в нумерации 2. Только строка-вопрос (знак в конце):
 # «3.5 кг», «10.0.0.1  255.0.0.0» — не вопрос.
 SUBNUMBER_RE = re.compile(r"^(\d{1,2})\.(\d{1,3})\.?\s+(?=[^\W\d_])(.*[?:.…])\s*$", re.S)
@@ -351,12 +390,26 @@ def question_number(text: str) -> Optional[tuple[str, int, str]]:
     "Текст"); «Вопрос 3 Текст» → ("3", 3, "Текст"); «1.2. Текст?» → ("1.2", 2, "Текст?")."""
     q = QUESTION_RE.match(text)
     if q:
-        number = q.group(1) or q.group(3)
-        return number, int(number), q.group(2) if q.group(1) else q.group(4)
+        for group in (1, 3, 5):
+            if q.group(group):
+                return q.group(group), int(q.group(group)), q.group(group + 1)
     sub = SUBNUMBER_RE.match(text)
     if sub:
         return f"{sub.group(1)}.{sub.group(2)}", int(sub.group(2)), sub.group(3)
+    roman = ROMAN_QUESTION_RE.match(text)
+    if roman and roman.group(1):
+        value = roman_value(roman.group(1))
+        return str(value), value, roman.group(2)
     return None
+
+
+def roman_value(text: str) -> int:
+    """«IV» → 4 (ROMAN_QUESTION_RE пропускает только правильную запись до XXXIX)."""
+    total = 0
+    for i, char in enumerate(text):
+        value = _ROMAN_VALUES[char]
+        total += -value if i + 1 < len(text) and _ROMAN_VALUES[text[i + 1]] > value else value
+    return total
 
 
 def _number(label: str) -> Optional[int]:
@@ -580,10 +633,20 @@ class Item:
     inline: bool = False  # варианты вырезаны из одного абзаца
     sub_labels: list[str] = field(default_factory=list)  # format «open»: подписи строк-подпунктов в тексте
     mono: bool = False  # в тексте вопроса есть моноширинный шрифт: код (флаг «code» ответа)
+    variant: Optional[int] = None  # «Вариант N» над вопросом (в файле несколько вариантов): ключ берётся из ключа варианта
+    grid: bool = False  # варианты по два в строке («а) …<tab>в) …»): порядок — по буквам
 
     def flag(self, name: str) -> None:
         if name not in self.flags:
             self.flags.append(name)
+
+
+def take_stem_answer(item: "Item") -> None:
+    """«Кто написал «Бородино»? (Ответ: б)» — ответ в скобках в конце строки вопроса: ключ строкой «Ответ:»."""
+    answer = STEM_ANSWER_RE.search(item.text, max(0, len(item.text) - STEM_ANSWER_TAIL)) if "(" in item.text else None
+    if answer and item.text[:answer.start()].strip() and item.explicit is None:
+        item.text = item.text[:answer.start()].rstrip()
+        item.explicit, item.explicit_from = answer.group(1).strip(), "answer_line"
 
 
 @dataclass
@@ -642,7 +705,25 @@ def trim_visible(runs: list[Run], keep: int) -> list[Run]:
     return out
 
 
+def lead_mark(para: Para) -> Para:
+    """Абзац без отметки перед вариантом (LEAD_MARK_RE): «☑ б) 90°» → «б) 90°» с флажком checkbox=True, «☐ а) 45°» →
+    checkbox=False, «+в) азот» → «в) азот», отмечен. Абзац без такой отметки — как был."""
+    raw = para.text
+    lead = len(raw) - len(raw.lstrip())
+    match = LEAD_MARK_RE.match(raw, lead) if raw[lead:lead + 1] in "-*+[☐☑☒✅□✓✔" else None
+    if not match:
+        return para
+    if match.group(3):
+        checked = True
+    elif match.group(1) is not None:
+        checked = match.group(1) != " "
+    else:
+        checked = match.group(2) not in "☐□"
+    return replace(para, runs=strip_runs(para.runs, match.end()), checkbox=checked if para.checkbox is None else para.checkbox)
+
+
 def make_option(para: Para) -> Option:
+    para = lead_mark(para)
     raw = para.text
     runs = list(para.runs)
     lead = len(raw) - len(raw.lstrip())
@@ -660,6 +741,16 @@ def make_option(para: Para) -> Option:
     # «- » остаётся до разбора маркеров: в MyTestX «- » — неверный вариант, в остальных файлах — пункт списка.
     return Option(text=raw.strip(), label=label, runs=runs, images=list(para.images), formulas=para.formulas,
                   checkbox=para.checkbox, prefix=prefix, prefix_runs=prefix_runs)
+
+
+def order_grid(item: Item) -> None:
+    """Варианты по два в строке («а) …<tab>в) …», ниже «б) …<tab>г) …») — в порядке букв, если буквы — все с первой."""
+    labels = [o.label.lower() for o in item.options]
+    for alphabet in (RUS, LAT):
+        places = [alphabet.find(label) if len(label) == 1 else -1 for label in labels]
+        if sorted(places) == list(range(len(places))):
+            item.options = [option for _, option in sorted(zip(places, item.options), key=lambda pair: pair[0])]
+            return
 
 
 def _label_in_place(option: Option, place: int) -> bool:
@@ -836,14 +927,19 @@ class Reader:
         self.keyless = False  # в абзацах ни ключа, ни отметок: строки без подписи под вопросом — его текст (paragraphs)
         self.has_tables = False  # в документе есть таблицы (ключ таблицей может стоять после абзацев): keyless не ставится
         self.variant: Optional[int] = None  # «Вариант 4» в заголовке файла: по нему берётся раздел файла ключей
+        self.current_variant: Optional[int] = None  # последний заголовок «Вариант N» над вопросами
+        self.variant_keys: dict[int, dict[str, str]] = {}  # ключ по вариантам в самом файле («Вариант 2: 1а 2б», столбцы)
         self.pictures: dict[str, tuple[str, bytes]] = {}  # картинки DOCX: id → (тип, байты) (bank_docx.read_docx)
 
     def heading(self, text: str, default: str, level: Optional[int] = None) -> None:
         title = " ".join(text.split())
         if title:
             kind = heading_kind(title, default)
-            if kind == "variant" and self.variant is None:
-                self.variant = variant_number(title)
+            if kind == "variant":
+                number = variant_number(title)
+                if self.variant is None:
+                    self.variant = number
+                self.current_variant = number
             self.headings.append(Heading(seq=self.seq, text=title[:MAX_TITLE_CHARS], kind=kind, level=level))
 
     def skip(self, text: str) -> None:
@@ -855,21 +951,24 @@ class Reader:
         return f"{self.line_word} {line.offset + 1}"
 
     def new_item(self, label: str, text: str, where: str) -> Item:
-        item = Item(label=label, text=text.strip(), seq=self.seq, where=where)
+        item = Item(label=label, text=text.strip(), seq=self.seq, where=where, variant=self.current_variant)
+        take_stem_answer(item)
         self.seq += 1
         self.items.append(item)
         return item
 
     # — списки ключей —
 
-    def key_line(self, text: str) -> int:
+    def key_line(self, text: str, keys: Optional[dict[str, str]] = None) -> int:
+        """Пары «номер – ответ» строки ключа в keys (по умолчанию — общий ключ файла); сколько найдено."""
+        keys = self.keys if keys is None else keys
         starts = list(KEY_PAIR_START_RE.finditer(text))
         found = 0
         for i, start in enumerate(starts):
             end = starts[i + 1].start() if i + 1 < len(starts) else len(text)
             value = text[start.end():end].strip(" ,;.")
             if value:
-                self.keys[start.group(1)] = value
+                keys[start.group(1)] = value
                 found += 1
         return found
 
@@ -886,6 +985,12 @@ class Reader:
         numbers = table.numbers or list(range(1, len(table.rows) + 1))
         rows = [(number, row) for number, row in zip(numbers, table.rows) if any(cell.text for cell in row)]
         if not rows:
+            return
+        by_variant = variant_columns([row for _, row in rows])
+        if by_variant:  # ключ таблицей «№ | Вариант 1 | Вариант 2» в самом файле с вариантами
+            self.key_lists += 1
+            for section in by_variant:
+                self.variant_keys.setdefault(section["variant"], {}).update(section["keys"])
             return
         across = horizontal_keys([row for _, row in rows])
         if across:  # «№ | 1 | 2 | 3» над «Ответ | б | а | в»
@@ -1113,6 +1218,19 @@ class Reader:
             item.images += para.images
             item.formulas += para.formulas
             return
+        if not item.options and not para.label:
+            chain = inline_chain(text)
+            if chain and chain[0].start() == 0:  # «а) 45°; б) 90°; в) 120°» строкой под вопросом
+                item.options.extend(split_inline(para, chain, text, _text_offset(para)))
+                item.inline = True
+                self.layouts["inline_options"] += 1
+                return
+        if not para.label and OPTION_LABEL_RE.match(text) and (not item.options or all(o.label for o in item.options)):
+            parts = self.grid_parts(para, text)
+            if parts:  # «а) 180<tab>в) 360»: варианты по два в строке
+                item.options.extend(make_option(part) for part in parts)
+                item.grid = True
+                return
         if self.continues(item, para, text):
             last = item.options[-1]  # перенос варианта: буква (или «+»/«-») стоит только на первой строке
             if len(last.text) < GROW_OPTION_CHARS:
@@ -1122,6 +1240,29 @@ class Reader:
             item.flag("joined_lines")
             return
         item.options.append(make_option(para))
+
+    @staticmethod
+    def grid_parts(para: Para, text: str) -> Optional[list[Para]]:
+        """Строка из нескольких вариантов с подписями через табуляцию или два пробела → абзацы вариантов (с оформлением)."""
+        starts, ends = [0], []
+        for label in GRID_LABEL_RE.finditer(text):
+            before = text[starts[-1]:label.start()]
+            gap = len(before) - len(before.rstrip(" \t\u00a0"))
+            if "\t" in before[len(before) - gap:] or gap >= 2:
+                ends.append(label.start() - gap)
+                starts.append(label.start())
+        if not ends:
+            return None
+        ends.append(len(text))
+        offset = _text_offset(para)
+        bounds = starts
+        parts = []
+        for start, end in zip(bounds, ends):
+            piece = text[start:end]
+            if not OPTION_LABEL_RE.match(piece.strip()):
+                return None
+            parts.append(Para(runs=trim_runs(strip_runs(para.runs, start + offset), end - start), checkbox=para.checkbox))
+        return parts
 
     def continues(self, item: Item, para: Para, text: str) -> bool:
         """Строка без подписи после вариантов — перенос последнего варианта: у вариантов есть буквы (подпись последнего
@@ -1137,28 +1278,84 @@ class Reader:
             return _label_in_place(item.options[last], last)
         return any(option.label and _label_in_place(option, k) for k, option in enumerate(item.options))
 
+    @staticmethod
+    def _title_like(text: str) -> bool:
+        """Строка шапки, которая может повториться колонтитулом: не короткая, не вопрос, не заголовок темы или варианта."""
+        return len(text) >= 12 and not text.endswith(("?", ":")) and heading_kind(text, "line") == "line" \
+            and not KEY_HEADING_RE.match(text) and not OPTION_LABEL_RE.match(text)
+
+    @staticmethod
+    def furniture(lines: list[Line], i: int, titles: set[str], moodle: bool) -> bool:
+        """Строка не из вопросов: колонтитул («Страница 3 из 10», номер страницы между пустыми строками, шапка файла,
+        повторённая на новой странице) или служебная строка страницы попытки Moodle («Отметить вопрос», «Баллов: …»)."""
+        text = lines[i].text
+        if PAGE_LINE_RE.match(text) or (moodle and MOODLE_CHROME_RE.match(text)):
+            return True
+        if text.isdecimal() and len(text) <= 3 and (i == 0 or not lines[i - 1].text):
+            after = lines[i + 1].text if i + 1 < len(lines) else ""
+            return not after or after in titles
+        if text not in titles:
+            return False
+        before = lines[i - 1].text if i else ""
+        after = lines[i + 1].text if i + 1 < len(lines) else ""
+        return not before or (before.isdecimal() and len(before) <= 3) or not after
+
+    def _key_variant_line(self, lines: list[Line], i: int, in_key: str) -> Optional[tuple[int, Optional[list]]]:
+        """«Вариант 2: 1а 2б 3в», «Ключ к варианту 2 — 1-а …» → (вариант, пары); «Вариант 2» в ключе, а под ним пары →
+        (вариант, None). Иначе None."""
+        head = VARIANT_KEY_RE.match(" ".join(lines[i].text.split()))
+        if not head:
+            return None
+        rest = head.group(2).strip()
+        if rest:
+            pairs = key_list_pairs(rest, continued=True)
+            return (int(head.group(1)), pairs) if pairs and (in_key or len(pairs) >= 2) else None
+        if not in_key:
+            return None
+        following = next((line.text for line in lines[i + 1: i + 4] if line.text), "")
+        return (int(head.group(1)), None) if key_list_pairs(following, continued=True) else None
+
     def paragraphs(self, paras: list[Para], start_index: int) -> None:
+        paras = [lead_mark(p) for p in paras]
         lines = [Line(start_index + i, p, para_text(p).strip()) for i, p in enumerate(paras)]
+        moodle = sum(1 for line in lines if MOODLE_MARK_RE.match(line.text)) >= 2
+        first_question = next((i for i, line in enumerate(lines) if line.text and line.para.level in (None, 0)
+                               and (question_number(line.text) or QUESTION_NUMBER_RE.match(line.text))), len(lines))
+        titles = {line.text for line in lines[:first_question] if line.text and self._title_like(line.text)}
         body: list[Line] = []
         in_key = ""  # «heading» — после строки «Ключ» / «Ответы»; «line» — после строки «Ключ: 1 – б, 2 – а, …»
-        for line in lines:
+        key_variant: Optional[int] = None  # ключ какого варианта идёт («Вариант 2» в ключе)
+        for i, line in enumerate(lines):
             text = line.text
             mono = _mono(line.para.runs)
+            if text and not mono and i > first_question and self.furniture(lines, i, titles, moodle):
+                continue
+            keyed = self._key_variant_line(lines, i, in_key) if text and not mono and "ариант" in text else None
+            if keyed is not None:
+                key_variant, pairs = keyed
+                self.key_lists += 0 if in_key else 1
+                in_key = "line" if pairs else "heading"
+                if pairs:
+                    self.variant_keys.setdefault(key_variant, {}).update(pairs)
+                continue
             # список ключей одной строкой (или несколькими: продолжение — строки из одних пар)
             pairs = key_list_pairs(text, continued=in_key == "line") if text and not mono else None
             if pairs:
                 self.key_lists += 0 if in_key else 1
                 in_key = "line"
-                self.keys.update(pairs)
+                (self.variant_keys.setdefault(key_variant, {}) if key_variant is not None else self.keys).update(pairs)
                 continue
             if text and KEY_HEADING_RE.match(text):
                 in_key = "heading"
+                key_variant = None
                 self.key_lists += 1
                 continue
             if text and not mono:
-                if in_key == "heading" and self.key_line(text):
+                if in_key == "heading" and self.key_line(text, self.variant_keys.setdefault(key_variant, {})
+                                                         if key_variant is not None else None):
                     continue
                 in_key = ""
+                key_variant = None
             body.append(line)
         self.plus_minus = self.marked_lines(body)
         self.keyless = not self.test_mode and not self.has_tables and self.no_key_anywhere(body)
@@ -1232,12 +1429,12 @@ class Reader:
     def heading_line(self, line: Line) -> Optional[str]:
         """Вид заголовка, если строка — заголовок (предмет, «Тема…», заголовок Word), иначе None."""
         text, para = line.text, line.para
-        if (para.level in (None, 0) and question_number(text)) or QUESTION_NUMBER_RE.match(text):
-            return None
+        if (para.level in (None, 0) and question_number(text)) or QUESTION_NUMBER_RE.match(text) or para.checkbox is not None:
+            return None  # строка с флажком — вариант («☐ Вариант 1»), а не заголовок
         kind = heading_kind(text, "section")
         if kind == "topic":
             return kind
-        if kind == "discipline" and not self.option_like(line):
+        if kind in ("discipline", "variant") and not self.option_like(line):
             return kind
         if para.outline is not None and not self.option_like(line):
             return kind
@@ -1272,8 +1469,11 @@ class Reader:
                 continue
             head = block[first]
             rest = block[first + 1:]
-            q = question_number(head.text) if head.para.level in (None, 0) else None
-            label, text = (q[0], q[2]) if q else ("", head.text)
+            alone = QUESTION_NUMBER_RE.match(head.text) if head.para.level in (None, 0) else None
+            if alone and rest:  # «Вопрос 3» строкой, текст вопроса — следующей
+                head, rest = rest[0], rest[1:]
+            q = question_number(head.text) if head.para.level in (None, 0) and not alone else None
+            label, text = (q[0], q[2]) if q else (alone.group(1) if alone else "", head.text)
             marked_at = next((k for k, line in enumerate(rest) if PLUSMINUS_RE.match(line.text)), 0) if self.plus_minus else 0
             mono = _mono_inside(head.para.runs)
             if marked_at:
@@ -1289,6 +1489,9 @@ class Reader:
             while labelled_later and len(rest) - skip > 2 and not self.option_like(rest[skip]) \
                     and not ANSWER_RE.match(rest[skip].text):
                 line = rest[skip]
+                if CHOOSE_ONE_RE.match(line.text):
+                    skip += 1  # «Выберите один правильный ответ:» — подсказка, не текст вопроса
+                    continue
                 if (line.text or not line.para.images) and len(text) < GROW_QUESTION_CHARS:
                     raw = line.para.text.rstrip()  # код (моноширинный или похожий на код) — с отступами
                     text = f"{text}\n{raw if _mono(line.para.runs) or code_like(raw) else line.text}"
@@ -1333,7 +1536,8 @@ class Reader:
         """Строка похожа на вариант или ответ: подпись, «+»/«-», маркер «*»/«#», знак списка, уровень списка Word,
         «[ответ]» / «= ответ». Код (моноширинный) маркером «#», «*» и «[…]» не бывает: «#include», «[Serializable]»."""
         text = line.text
-        if OPTION_LABEL_RE.match(text) or PLUSMINUS_RE.match(text) or BULLET_RE.match(text) or (line.para.level or 0) >= 1:
+        if OPTION_LABEL_RE.match(text) or PLUSMINUS_RE.match(text) or BULLET_RE.match(text) or (line.para.level or 0) >= 1 \
+                or line.para.checkbox is not None:
             return True
         if line.para.images and LONE_LABEL_RE.match(text):  # «Б)» и картинка
             return True
@@ -1343,7 +1547,7 @@ class Reader:
         """Строка, с которой начинаются варианты вопроса: буква («а)», «b.»), пункт списка Word второго уровня,
         «+ …»/«- …» (в файле без ключа «- » — знак списка в тексте вопроса, а не вариант)."""
         label = OPTION_LABEL_RE.match(line.text)
-        if (label and label.group(1)) or (line.para.level or 0) >= 1:
+        if (label and label.group(1)) or (line.para.level or 0) >= 1 or line.para.checkbox is not None:
             return True
         return bool(PLUSMINUS_RE.match(line.text)) and (self.plus_minus or not self.keyless)
 
@@ -1429,6 +1633,7 @@ class Reader:
         code_open = False  # последняя строка вопроса — код как написан: пустые строки после неё могут быть внутри кода
         code_kind = "text"  # её шрифт: «mono» (моноширинный) или «text»
         blanks = 0
+        after_blank = False  # перед строкой была пустая строка
         for position, line in enumerate(body):
             text, para = line.text, line.para
             if not text:
@@ -1439,9 +1644,11 @@ class Reader:
                         current.images += para.images
                 elif code_open:
                     blanks += 1
+                after_blank = not para.images
                 continue
             in_code, code_open = code_open, False
             gap, blanks = blanks, 0
+            blank_before, after_blank = after_blank, False
             mono = _mono(para.runs)
             kind = self.heading_line(line)
             if kind is not None and not (kind == "topic" and current and current.options and OPTION_LABEL_RE.match(text)):
@@ -1452,6 +1659,14 @@ class Reader:
             if answer and current is not None:
                 current.explicit, current.explicit_from = answer.group(1).strip(), "answer_line"
                 continue
+            alone = QUESTION_NUMBER_RE.match(text) if para.level in (None, 0) else None
+            if alone and (current is None or self.next_in_order(int(alone.group(1)), expected_next)):
+                current = self.new_item(alone.group(1), "", self.where(line))  # «Вопрос 3» строкой, текст — ниже
+                expected_next = int(alone.group(1)) + 1
+                self.layouts["numbered_paragraphs"] += 1
+                continue
+            if current is not None and not current.options and CHOOSE_ONE_RE.match(text):
+                continue  # «Выберите один правильный ответ:» между вопросом и вариантами
             q = question_number(text) if para.level in (None, 0) else None
             if q and q[1] >= 1000 and not 0 <= q[1] - expected_next <= 5:
                 q = None  # четыре цифры — номер вопроса, только если продолжают нумерацию («1410.» — скорее год)
@@ -1484,6 +1699,12 @@ class Reader:
                 self.heading(text, "line")
                 current = None
                 continue
+            if current is not None and not current.options and not current.text and not current.images \
+                    and not self.option_start(line) and not OPTION_LABEL_RE.match(text):
+                current.text = text  # текст вопроса под строкой «Вопрос 3»
+                current.mono = _mono_inside(para.runs)
+                take_stem_answer(current)
+                continue
             if current is not None and not current.options and not ANSWER_RE.match(text):
                 if scanned is not current:
                     scanned, options_at = current, self.first_option(body, position, expected_next)
@@ -1500,6 +1721,13 @@ class Reader:
                     if len(current.text) < GROW_QUESTION_CHARS:
                         current.text = f"{current.text} {text}"  # перенос строки вопроса
                     continue
+            if current is not None and blank_before and self.ends_before(current, line):
+                current = None  # после пустой строки — не продолжение варианта: подпись, примечание или новый вопрос
+            if current is not None and self.unnumbered_next(current, line, body, position):
+                current = self.new_item(para.label.rstrip(".") if para.label else "", para.text.strip(), self.where(line))
+                current.mono = _mono_inside(para.runs)
+                self.layouts["unnumbered_paragraphs"] += 1
+                continue
             if current is None:
                 if text.endswith(("?", ":", "…")) or (not self.open_mode and self.options_follow(body, position)):
                     current = self.new_item(para.label.rstrip(".") if para.label else "", para.text.strip(), self.where(line))
@@ -1509,6 +1737,32 @@ class Reader:
                     self.skip(text)
                 continue
             self.add_option(current, para)
+
+    def ends_before(self, item: Item, line: Line) -> bool:
+        """Строка без подписи после пустой строки под вариантами с подписями по порядку («а)», «б)»…) — не перенос
+        последнего варианта: вопрос уже кончился («Составитель: …», «Рассмотрено на заседании …»)."""
+        if len(item.options) < MIN_OPTIONS or self.option_like(line) or self.option_start(line) or line.para.label:
+            return False
+        labels = [o.label for o in item.options]
+        return all(labels) and labels_in_sequence(labels)
+
+    def unnumbered_next(self, item: Item, line: Line, body: list[Line], position: int) -> bool:
+        """Вопрос без номера сразу после вариантов предыдущего: строка с «?» (или «:») без подписи, а следующая строка —
+        первый вариант («а)», «a.», «1)»), а у вариантов текущего вопроса подписи по порядку."""
+        text = line.text
+        if not text.endswith(("?", ":")) or len(item.options) < MIN_OPTIONS or self.option_like(line) or line.para.label:
+            return False
+        labels = [o.label for o in item.options]
+        if not (all(labels) and labels_in_sequence(labels)):
+            return False
+        following = next((other for other in body[position + 1: position + 4] if other.text), None)
+        if following is None or not self.option_start(following):
+            return False
+        label = following.para.label.rstrip(".)") if following.para.label else ""
+        if not label:
+            match = OPTION_LABEL_RE.match(following.text)
+            label = (match.group(1) or match.group(2)) if match else ""
+        return bool(label) and 0 in label_positions(label)
 
     @staticmethod
     def numbered_heading(para: Para, text: str, body: list[Line], position: int) -> bool:
@@ -2119,14 +2373,17 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
     _cap_pictures(reader, items)
     file_keys = dict(reader.keys)
     for item in items:
+        if item.grid:
+            order_grid(item)
         restore_unordered_labels(item)
         labels = [o.label for o in item.options if o.label]
         item.label_style = "lat" if labels and all(label.lower() in LAT for label in labels) else "rus"
         strip_list_punctuation(item, item.inline)
         user_key = user_keys.get(item.label) if user_keys and item.label else None
         file_key = item.explicit
-        if file_key is None and item.label and item.label in file_keys:
-            file_key, item.explicit_from = file_keys[item.label], "key_list"
+        keys = _keys_for(reader, item, file_keys)
+        if file_key is None and item.label and item.label in keys:
+            file_key, item.explicit_from = keys[item.label], "key_list"
         if user_key is not None:
             # ключ пользователя старше ключа файла; несогласие с файлом — key_conflict
             item.file_explicit = file_key
@@ -2200,6 +2457,8 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
             if use_file:
                 if checked:
                     item.correct, item.evidence = checked, "checkbox"
+                    if len(checked) > 1 and item.kind == "single":
+                        item.kind = "multiple"  # отмечены два флажка — автор отметил несколько верных
                 elif formatted:
                     item.correct, item.evidence = formatted, signal
             elif key_mode == "first_option" and item.options:
@@ -2259,6 +2518,20 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
     return _result(reader, items, signal, table, markers, gaps, warnings, subjects, topics)
 
 
+def _keys_for(reader: Reader, item: Item, file_keys: dict[str, str]) -> dict[str, str]:
+    """Ключ списком для вопроса: ключ его варианта, если в файле ключ по вариантам («Вариант 2: 1а 2б», столбцы
+    «Вариант 1 | Вариант 2»), иначе общий. Вопрос варианта, у которого ключа нет, общий ключ не берёт: в файле с
+    несколькими вариантами он может быть чужим, а неверный ключ хуже, чем никакого."""
+    by_variant = reader.variant_keys
+    if not by_variant:
+        return file_keys
+    if item.variant is not None:
+        return by_variant.get(item.variant, {})
+    if len(by_variant) == 1:
+        return next(iter(by_variant.values()))
+    return {}
+
+
 def _cap_pictures(reader: Reader, items: list[Item]) -> None:
     """Картинки сверх MAX_PICTURES_BYTES (по порядку вопросов; одна картинка считается один раз) не переносятся:
     их место становится "", и вопрос получит has_image, как файл без переноса картинок."""
@@ -2287,7 +2560,7 @@ def _item_images(item: Item, options: list[Option]) -> Optional[dict]:
 def _restart_title(roles: list[str]) -> Optional[int]:
     """Индекс заголовка, который называет новую часть: последний не «Тема…» до первой «Темы…»."""
     first_topic = next((k for k, role in enumerate(roles) if role == "topic"), len(roles))
-    candidates = [k for k in range(first_topic) if roles[k] in ("section", "line")]
+    candidates = [k for k in range(first_topic) if roles[k] in ("section", "line", "variant")]
     return candidates[-1] if candidates else None
 
 
@@ -2677,8 +2950,11 @@ def tsv_table(text: str) -> Optional[Table]:
     заполненной считается объединённой с ней (ячейки № и вопроса у строк вариантов)."""
     lines = [line for line in text.replace("\r\n", "\n").split("\n") if line.strip()]
     # «1.<tab>Вопрос» и «а)<tab>вариант» (список Word, вставленный текстом) — одна табуляция, у строки таблицы — две и больше.
-    if len(lines) < 4 or sum(1 for line in lines if line.count("\t") >= 2) < len(lines) * 0.6:
+    tabbed = [line for line in lines if line.count("\t") >= 2]
+    if len(lines) < 4 or len(tabbed) < len(lines) * 0.6:
         return None
+    if sum(1 for line in tabbed if OPTION_LABEL_RE.match(line.strip())) * 2 >= len(tabbed):
+        return None  # «а) 180<tab><tab>в) 360» — варианты по два в строке, а не строки таблицы
     width = max(line.count("\t") + 1 for line in lines)
     rows = []
     for line in lines:
