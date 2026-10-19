@@ -9,6 +9,8 @@
 Обход тела и счётчики автонумерации — те же, что у устного разбора (parser._DocxReader): подкласс
 только добавляет оформление, parser.py не меняется, и его _extract_docx возвращает прежний текст.
 Буквенная автонумерация («а)», «б)» — russianLower, «a)» — lowerLetter) показывается так же, как в Word.
+Надписи Word с вопросами (вёрстка колонками в надписях: строка «N. …» и ещё две строки) читаются абзацами сразу
+после абзаца, к которому привязаны; прочие надписи (подписи схем) — как раньше: картинка без текста, флаг has_image.
 
 Безопасность: до python-docx архив проверяется по объявленным размерам распакованных частей
 (check_archive: zip-бомба не распаковывается — zipfile не отдаёт больше объявленного размера части),
@@ -72,6 +74,11 @@ RUSSIAN_LOWER = "абвгдежзиклмнопрстуфхцчшщэюя"
 LATIN_LOWER = "abcdefghijklmnopqrstuvwxyz"
 _LETTER_REPEATS = 4  # «аа», «ааа»…: дальше буквенный номер показывается числом (огромный startOverride)
 _HEADING_NAME_RE = re.compile(r"(?:heading|заголовок)\s*([1-9])")
+_TXBX = f"{{{_W_NS}}}txbxContent"
+_MC_FALLBACK = f"{{{_MC_NS}}}Fallback"
+# Надпись с вопросами (вёрстка в две колонки надписями): в ней строка с номером вопроса и ещё хотя бы две строки.
+# Подписи схем («Вход», «Выход») так не выглядят: их текст по-прежнему не читается, картинка — флаг has_image.
+_BOX_QUESTION_RE = re.compile(r"^\s*(?:\d{1,4}\s*[.)]|(?:вопрос|задание|пытанне|question)\s*№?\s*\d|№\s*\d)", re.I)
 
 
 class ArchiveTooLarge(ValueError):
@@ -331,6 +338,27 @@ class RichDocxReader(docx_text._DocxReader):
         self._styles = _Styles(doc)
         # картинки абзацев: sha256 содержимого → (тип, байты); одинаковая картинка в разных вопросах — одна
         self.pictures: dict[str, tuple[str, bytes]] = {}
+        self._lifted: set = set()  # надписи с вопросами, чей текст читается абзацами после абзаца-якоря
+
+    @staticmethod
+    def _question_boxes(p) -> list:
+        """Надписи абзаца, в которых вопросы (_BOX_QUESTION_RE): их абзацы читаются после него. Копия той же надписи для
+        старых версий Word (mc:Fallback) пропускается."""
+        boxes = []
+        for box in p.iter(_TXBX):
+            parent, fallback = box.getparent(), False
+            while parent is not None and parent is not p:
+                if parent.tag == _MC_FALLBACK:
+                    fallback = True
+                    break
+                parent = parent.getparent()
+            if fallback:
+                continue
+            texts = ["".join(t.text or "" for t in para.iter(f"{{{_W_NS}}}t")) for para in box.iter(docx_text._W_P)]
+            texts = [text for text in texts if text.strip()]
+            if len(texts) >= 3 and any(_BOX_QUESTION_RE.match(text) for text in texts):
+                boxes.append(box)
+        return boxes
 
     def _picture(self, element) -> str:
         """Картинка элемента (w:drawing, w:pict, w:object, mc:AlternateContent) → её id или "" (не переносится:
@@ -363,7 +391,12 @@ class RichDocxReader(docx_text._DocxReader):
             tag = child.tag
             if tag == docx_text._W_P:
                 # Пустые абзацы остаются: пустая строка между вопросами — граница блока.
+                boxes = self._question_boxes(child) if child.find(f".//{_TXBX}") is not None else []
+                self._lifted.update(boxes)
                 out.append(self._rich_paragraph(child))
+                for box in boxes:  # вопросы в надписях — абзацами после абзаца, к которому надпись привязана
+                    out.append(Para())
+                    self._walk_rich(box, out)
             elif tag == docx_text._W_TBL:
                 out.append(self._rich_table(child))
             elif tag in (docx_text._W_SDT, docx_text._W_CUSTOM_XML):
@@ -486,10 +519,11 @@ class RichDocxReader(docx_text._DocxReader):
                     parts.append("☐")
                     if para.checkbox is None:
                         para.checkbox = False
-            elif tag in (_w("drawing"), _w("pict"), _w("object")):
-                para.images.append(self._picture(child))
-            elif tag == f"{{{_MC_NS}}}AlternateContent":
-                if child.find(f".//{{{_W_NS}}}drawing") is not None or child.find(f".//{{{_V_NS}}}imagedata") is not None:
+            elif tag in (_w("drawing"), _w("pict"), _w("object"), f"{{{_MC_NS}}}AlternateContent"):
+                if self._lifted and any(box in self._lifted for box in child.iter(_TXBX)):
+                    continue  # надпись с вопросами — не картинка: её текст прочитан абзацами
+                if tag != f"{{{_MC_NS}}}AlternateContent" or child.find(f".//{{{_W_NS}}}drawing") is not None \
+                        or child.find(f".//{{{_V_NS}}}imagedata") is not None:
                     para.images.append(self._picture(child))
         text = "".join(parts)
         if not text:

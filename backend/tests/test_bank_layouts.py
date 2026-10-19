@@ -167,3 +167,138 @@ def test_a_moodle_attempt_review_page_copied_as_text():
     assert stems(result) == ["Какой газ преобладает?", "Сколько планет?"]
     assert [item["options"] for item in result["items"]] == [["кислород", "азот"], ["8", "9"]]
     assert keys(result) == [[1], [0]]
+
+
+# ── Таблицы, надписи, Markdown, формы ───────────────────────────────────────────
+
+
+def docx_of(build) -> bytes:
+    doc = Document()
+    build(doc)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
+def fill(table, rows, bold=()):
+    for r, row in enumerate(rows):
+        for c, text in enumerate(row):
+            run = table.cell(r, c).paragraphs[0].add_run(text)
+            run.bold = (r, c) in bold
+
+
+def test_options_in_columns_without_a_header_and_a_key_column_of_letters():
+    rows = [["1", "Столица?", "Минск", "Гомель", "Брест", "Витебск", "а"], ["2", "Река?", "Днепр", "Сож", "Неман", "Припять", "в"],
+            ["3", "Озеро?", "Нарочь", "Освея", "Дривяты", "Лукомльское", "а"]]
+    result = parse_bank_file(docx_of(lambda doc: fill(doc.add_table(rows=3, cols=7), rows)), "bank.docx")
+    assert [item["options"] for item in result["items"]] == [row[2:6] for row in rows]
+    assert keys(result) == [[0], [2], [0]] and result["key_source"] == {"key_column": 3}
+
+
+def test_a_plus_in_the_key_column_marks_the_option_of_its_row():
+    def build(doc):
+        rows = [["№", "Вопрос", "Вариант", "Верный"], ["1", "Столица?", "Минск", "+"], ["", "", "Гомель", ""],
+                ["2", "Река?", "Днепр", ""], ["", "", "Сож", "+"]]
+        table = doc.add_table(rows=5, cols=4)
+        fill(table, rows)
+        for r in (1, 3):  # № и вопрос объединены вниз
+            for c in (0, 1):
+                table.cell(r, c).merge(table.cell(r + 1, c))
+
+    result = parse_bank_file(docx_of(build), "bank.docx")
+    assert [item["options"] for item in result["items"]] == [["Минск", "Гомель"], ["Днепр", "Сож"]]
+    assert keys(result) == [[0], [1]] and "key_invalid" not in result["items"][0]["flags"]
+
+
+def test_one_small_table_per_question_with_letters_in_the_first_column():
+    def build(doc):
+        for n, stem in ((1, "Столица?"), (2, "Река?")):
+            fill(doc.add_table(rows=3, cols=2), [[f"{n}.", stem], ["а)", "один"], ["б)", "два"]], bold={(2, 1)})
+            doc.add_paragraph("")
+
+    result = parse_bank_file(docx_of(build), "bank.docx")
+    assert stems(result) == ["Столица?", "Река?"] and keys(result) == [[1], [1]]
+
+
+def test_statements_with_a_yes_no_answer_column_are_open_questions_with_answers():
+    rows = [["№", "Утверждение", "Ответ (да/нет)"], ["1", "Вода кипит при 100 °C.", "да"], ["2", "Кит — рыба.", "нет"]]
+    result = parse_bank_file(docx_of(lambda doc: fill(doc.add_table(rows=3, cols=3), rows)), "bank.docx")
+    assert [(item["kind"], item["answer"]) for item in result["items"]] == [("open", "да"), ("open", "нет")]
+
+
+@pytest.mark.parametrize("columns", [1, 2])
+def test_a_table_used_as_page_layout_is_read_as_paragraphs(columns):
+    def questions(start):
+        return [line for n in (start, start + 1) for line in (f"{n}. Вопрос номер {n}?", "а) да", "б) нет")]
+
+    def build(doc):
+        table = doc.add_table(rows=1 if columns == 2 else 2, cols=columns)
+        cells = [table.cell(0, 0), table.cell(0, 1)] if columns == 2 else [table.cell(0, 0), table.cell(1, 0)]
+        for cell, start in zip(cells, (1, 3)):
+            for k, line in enumerate(questions(start)):
+                paragraph = cell.paragraphs[0] if k == 0 else cell.add_paragraph()
+                paragraph.add_run(line).bold = line == "б) нет"
+
+    result = parse_bank_file(docx_of(build), "bank.docx")
+    assert stems(result) == [f"Вопрос номер {n}?" for n in range(1, 5)] and keys(result) == [[1]] * 4
+
+
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+def text_box(paragraph, lines):
+    from xml.sax.saxutils import escape
+
+    from docx.oxml import parse_xml
+
+    inner = "".join(f'<w:p><w:r><w:t xml:space="preserve">{escape(line)}</w:t></w:r></w:p>' for line in lines)
+    paragraph._p.append(parse_xml(f'<w:r xmlns:w="{W_NS}" xmlns:v="urn:schemas-microsoft-com:vml"><w:pict><v:shape '
+                                  f'type="#_x0000_t202"><v:textbox><w:txbxContent>{inner}</w:txbxContent></v:textbox></v:shape>'
+                                  "</w:pict></w:r>"))
+
+
+def test_questions_in_text_boxes_are_read_and_a_labelled_diagram_is_not():
+    def build(doc):
+        doc.add_paragraph("Тест")
+        text_box(doc.add_paragraph(), ["1. Первый вопрос?", "а) да", "б) нет", "2. Второй вопрос?", "а) да", "б) нет"])
+        text_box(doc.add_paragraph(), ["3. Третий вопрос?", "а) да", "б) нет"])
+        doc.add_paragraph("4. Что на схеме?")
+        text_box(doc.add_paragraph(), ["Вход", "Выход"])  # подписи схемы, а не вопросы
+        doc.add_paragraph("а) цикл")
+        doc.add_paragraph("б) ветвление")
+
+    result = parse_bank_file(docx_of(build), "bank.docx")
+    assert stems(result) == ["Первый вопрос?", "Второй вопрос?", "Третий вопрос?", "Что на схеме?"]
+    assert result["items"][3]["options"] == ["цикл", "ветвление"] and "has_image" in result["items"][3]["flags"]
+    assert all("has_image" not in item["flags"] for item in result["items"][:3])
+
+
+def test_markdown_headings_are_topics_only_in_a_markdown_file():
+    text = "## Тема 1. Природа\n\n1. Вопрос?\nа) **да**\nб) нет\n\n## Тема 2. Город\n\n2. Вопрос два?\nа) да\nб) **нет**\n"
+    result = parse_bank_file(text.encode(), "test.md")
+    assert [topic["title"] for topic in result["topics"]] == ["Тема 1. Природа", "Тема 2. Город"]
+    assert [item["options"] for item in result["items"]] == [["да", "нет"], ["да", "нет"]] and keys(result) == [[0], [1]]
+    code = "1. Что выведет код?\n# comment\nprint(1)\nа) 1\nб) 2\n"
+    assert parse_bank_file(code.encode(), "test.txt")["items"][0]["text"] == "Что выведет код?\n# comment\nprint(1)"
+
+
+def test_a_google_form_with_answers_copied_as_text():
+    text = ("Тест по природе\nВсего баллов: 1/2\n* Обязательно\n\nКакой материк самый большой? *\n1/1\nАфрика\nЕвразия\n"
+            "Правильный ответ\nЕвразия\n\nКакая планета красная? *\n0/1\nВенера\nМарс\nПравильный ответ\nМарс\n")
+    result = parse_bank_text(text)
+    assert stems(result) == ["Какой материк самый большой?", "Какая планета красная?"]
+    assert [item["options"] for item in result["items"]] == [["Африка", "Евразия"], ["Венера", "Марс"]] and keys(result) == [[1], [1]]
+
+
+def test_numbered_lines_with_blanks_under_an_instruction_are_questions_not_options():
+    text = "Вставьте пропущенное слово.\n1. Столица Франции — ______.\n2. Вода — это H2O и ______.\n3. Мы живём на ______.\n\n" \
+           "Ответы:\n1 – Париж\n2 – вода\n3 – Земле"
+    result = parse_bank_text(text)
+    assert [(item["kind"], item["answer"]) for item in result["items"]] == [("open", "Париж"), ("open", "вода"), ("open", "Земле")]
+
+
+def test_a_numbered_section_over_its_sub_numbered_questions_is_a_topic():
+    text = "1. Природа\n1.1. Вопрос один?\nа) да\nб) **нет**\n2. Человек\n2.1. Вопрос два?\nа) **да**\nб) нет\n"
+    result = parse_bank_text(text)
+    assert [topic["title"] for topic in result["topics"]] == ["1. Природа", "2. Человек"]
+    assert [item["options"] for item in result["items"]] == [["да", "нет"], ["да", "нет"]]

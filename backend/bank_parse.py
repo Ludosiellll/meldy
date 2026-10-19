@@ -9,8 +9,13 @@ lxml, без новых зависимостей), текст — text_blocks (�
 клиент меняет источник ключа без нового запроса), раскладка, статистика.
 
 Раскладки: таблица «вариант на строку» (ячейки № и вопроса объединены вниз), варианты в одной ячейке,
-варианты по столбцам, нумерованные абзацы (набранные руками и автонумерация Word), блоки через пустую
-строку (MyTestX «+»/«-», Indigo «*»/«#», Aiken «ANSWER: B»), варианты в строку «а) … б) …». Вопрос без
+варианты по столбцам (и без шапки; шапки выгрузок Kahoot и Quizizz), таблица на вопрос, таблица-раскладка страницы
+(вопросы в ячейках колонками или рамкой), надписи Word с вопросами (bank_docx), нумерованные абзацы (набранные руками
+и автонумерация Word; «№1.», «Q1.», «Question 1.», «Пытанне 1.», римские «IV.», «1 – …», «Вопрос 3» строкой над
+текстом), вопросы без номеров подряд, блоки через пустую строку (MyTestX «+»/«-», Indigo «*»/«#», Aiken «ANSWER: B»),
+варианты в строку «а) … б) …» (и строкой под вопросом), по два в строке, «a<tab>…»; страница попытки Moodle и форма
+Google с ответами, скопированные текстом; заголовки Markdown в файле .md. Колонтитулы («Страница 3 из 10», номер
+страницы и повторённая шапка) и подсказка «Выберите один правильный ответ:» — не текст вопроса. Вопрос без
 вариантов — открытый (kind «open»): список вопросов к экзамену разбирается в открытые вопросы, в смешанном
 файле вид у каждого вопроса свой. Варианты — строки с буквой («а)», «b.»), с «+»/«-», пункты списка Word;
 строки под вопросом до первого такого варианта — его текст: код идёт отдельными строками как написан, с
@@ -30,9 +35,11 @@ lxml, без новых зависимостей), текст — text_blocks (�
 без названия (evidence «none»). Темы нумеруются по всему файлу, у каждой — свой предмет.
 
 Ключ по старшинству: ключ строками от пользователя (key_text), явный ключ файла (колонка ключа, строка
-«Ответ: …», список ключей: «Ключ» и строки «1 – б», одна строка «Ключ: 1 – б, 2 – а, 7 – а, в», «1б 2а 3в»,
-таблица «№ | Ответ» или «№ | 1 | 2» над «Ответ | б | а»), маркеры («#» и «*» — не в коде: «#include» — код),
-флажки, один признак оформления на весь документ (жирный,
+«Ответ: …» и «(Ответ: б)» в конце строки вопроса, список ключей: «Ключ» и строки «1 – б», одна строка «Ключ: 1 – б,
+2 – а, 7 – а, в», «1б 2а 3в», таблица «№ | Ответ» или «№ | 1 | 2» над «Ответ | б | а»; в файле с вариантами — ключ
+своего варианта: «Вариант 2: 1а 2б», таблица «№ | Вариант 1 | Вариант 2»), маркеры («#» и «*» — не в коде:
+«#include» — код), флажки (и «☑/☐», «[x]», «+в)», «*в)» перед вариантом, «+» в столбце ключа у варианта на строку),
+один признак оформления на весь документ (жирный,
 подчёркивание, выделение, цвет, заливка, курсив; вариант отмечен, если отмечено не меньше 60 % его
 видимых знаков). key_mode: auto — так; first_option — «первый вариант всегда правильный» (у вопросов с
 вариантами [0], ключи файла не берутся); none — «ответы не отмечены» (ключей файла нет). Ключ ИИ не
@@ -264,9 +271,16 @@ MARK_SUFFIX_RE = re.compile(
 HEADER_CELL_RE = re.compile(
     r"^(?:№.*|n|no\.?|п\s*/\s*п|номер.*|вопрос\w*.*|задани\w*.*|содержани\w*.*|формулировк\w*.*|текст.*|тестов\w*.*"
     r"|вариант\w*.*|ответ\w*.*|правильн\w*.*|верн\w*.*|ключ\w*|эталон\w*.*|дистрактор\w*.*|тем[аы]|раздел\w*|компетенци\w*.*|код.*"
-    r"|уров\w*.*|балл\w*.*|[а-еa-e]|[1-8])$",
+    r"|уров\w*.*|балл\w*.*|[а-еa-e]|[1-8]|утверждени\w*.*|тип(?:\s+вопроса)?|#"
+    # шапки выгрузок Kahoot, Quizizz, Google Forms: «Question - max 120 characters», «Answer 1», «Correct answer(s)»
+    r"|question.*|answers?\b.*|options?\s*\d.*|choice\s*\d.*|correct.*|right\s+answer.*|time.*|image.*|type|points?|score)$",
     re.I,
 )
+HEADER_SCAN = 6  # шапка таблицы — в одной из первых строк (выгрузка Kahoot: над шапкой название и подсказка)
+# Отметка верного варианта в столбце ключа при варианте на строку: «+», «✓», «x», «да», «верно»
+MARK_CELL_RE = re.compile(r"^(?:[+✓✔√*xXхХ]|да|верно|правильно|true|истина|correct)$", re.I)
+# Вид вопроса в столбце «Question Type» (Quizizz): ввод ответа — открытый вопрос, ответ — в первом столбце вариантов
+FILL_TYPE_RE = re.compile(r"fill|blank|open|short|ввод|открыт|кратк", re.I)
 CODE_RE = re.compile(r"[{}]|=>|\?\.|\+=|-=|==|!=|<<|>>|::|#\w|\w\(\)|\w\.\w+\(|;\s*\S")
 # Строка SQL, как её пишут в заданиях: оператор заглавными в начале строки («SELECT *», «FROM Students», «ORDER BY
 # name DESC;», «CREATE TABLE Orders (»); строчными — только узнаваемым строением («select … from», «insert into»).
@@ -387,7 +401,8 @@ SUBJECT_ROLES = ("subject", "subject_level")
 
 def question_number(text: str) -> Optional[tuple[str, int, str]]:
     """Номер вопроса в начале строки — (метка, место в нумерации, текст вопроса) или None: «12. Текст» → ("12", 12,
-    "Текст"); «Вопрос 3 Текст» → ("3", 3, "Текст"); «1.2. Текст?» → ("1.2", 2, "Текст?")."""
+    "Текст"); «Вопрос 3 Текст», «№3. Текст», «Q3. Текст», «3 – Текст» → ("3", 3, "Текст"); «1.2. Текст?» → ("1.2", 2,
+    "Текст?"); «IV. Текст» → ("4", 4, "Текст")."""
     q = QUESTION_RE.match(text)
     if q:
         for group in (1, 3, 5):
@@ -977,9 +992,40 @@ class Reader:
     def table(self, table: Table) -> None:
         self.tables += 1
         first_seq = self.seq
-        self._table(table, table.title or f"таблица {self.tables}")
+        if self.layout_table(table):
+            # таблица — раскладка страницы (две колонки, рамка): её ячейки читаются абзацами по порядку
+            self.layouts["table_layout"] += 1
+            flow: list[Para] = []
+            for row in table.rows:
+                for cell in row:
+                    if not cell.continuation and cell.paras:
+                        flow.extend(cell.paras)
+                        flow.append(Para())
+            self.paragraphs(flow, 0)
+        else:
+            self._table(table, table.title or f"таблица {self.tables}")
         if self.seq > first_seq:
             self.table_starts.add(first_seq)
+
+    @staticmethod
+    def layout_table(table: Table) -> bool:
+        """Таблица в один-три столбца, где в ячейке целые вопросы: строка «N. Вопрос?» и под ней варианты с буквами — не
+        таблица вопросов, а раскладка страницы (вопросы 1–4 слева, 5–8 справа; вопрос в рамке)."""
+        if not table.rows or max(len(row) for row in table.rows) > 3:
+            return False
+        numbered = whole = 0
+        for row in table.rows:
+            for cell in row:
+                if cell.continuation:
+                    continue
+                texts = [para_text(p).strip() for p in cell.paras]
+                questions = sum(1 for p, text in zip(cell.paras, texts) if p.level in (None, 0) and question_number(text)
+                                and (text.endswith(("?", ":", "…")) or len(text) > 40))
+                options = sum(1 for p, text in zip(cell.paras, texts)
+                              if (m := OPTION_LABEL_RE.match(text)) is not None and m.group(1) or (p.level or 0) >= 1)
+                numbered += questions
+                whole += 1 if questions and options >= 2 else 0
+        return numbered >= 2 and whole >= 1
 
     def _table(self, table: Table, title: str) -> None:
         numbers = table.numbers or list(range(1, len(table.rows) + 1))
@@ -999,11 +1045,22 @@ class Reader:
             return
         if self._stem_rows(rows, title):
             return
-        first = [cell.text for cell in rows[0][1] if cell.text]
         roles = None
-        if len(first) >= 2 and all(HEADER_CELL_RE.match(text) for text in first):
-            roles = self.header_roles(rows[0][1])
-            rows = rows[1:]
+        for h in range(min(HEADER_SCAN, len(rows))):
+            heads = [" ".join(cell.text.split()) for cell in rows[h][1] if cell.text]
+            if len(heads) < 2 or not all(HEADER_CELL_RE.match(text) for text in heads):
+                continue
+            found = self.header_roles(rows[h][1])
+            if h and (found.get("question") is None or not (found.get("option_cols") or found.get("options") is not None)):
+                continue  # ниже первой строки шапкой считается только строка с вопросом и вариантами
+            for _, row in rows[:h]:  # название и подсказка над шапкой выгрузки
+                for cell in row:
+                    if cell.text and not cell.continuation:
+                        self.skip(cell.text)
+            roles, rows = found, rows[h + 1:]
+            break
+        if not rows:
+            return
         if roles is None:
             roles = self.guess_roles([row for _, row in rows])
         if roles.get("key_table"):
@@ -1046,6 +1103,8 @@ class Reader:
             number_cell, question_cell = cell_at(num_col), cell_at(q_col)
             number = number_cell.text.strip().rstrip(".") if number_cell and number_cell.text else ""
             starts = bool(question_cell and question_cell.text) or _number(number) is not None
+            if starts and current is not None and number and LONE_LABEL_RE.match(number + (")" if number[-1].isalpha() else "")):
+                starts = False  # «а) | вариант»: в столбце номера — буква варианта, строка — вариант текущего вопроса
             if starts:
                 text = question_cell.text if question_cell else ""
                 current = self.new_item(number, text, f"{title}, строка {row_number}")
@@ -1059,6 +1118,7 @@ class Reader:
                         current.text = question_cell.paras[0].text.strip()
             if current is None:
                 continue
+            had = len(current.options)
             if option_cols:
                 for k, c in enumerate(option_cols):
                     if c < len(cells) and cells[c].text:
@@ -1091,7 +1151,18 @@ class Reader:
                             self.add_option(current, paras[0])
             key_cell = cell_at(key_col)
             if key_cell is not None and key_cell.text:
-                current.explicit, current.explicit_from = key_cell.text, "key_column"
+                if MARK_CELL_RE.match(key_cell.text.strip()) and not option_cols and len(current.options) == had + 1:
+                    # вариант на строку, в столбце ключа «+» у верного варианта
+                    current.correct.append(had)
+                    current.evidence = "key_column"
+                    current.marker_multi = len(current.correct) > 1
+                else:
+                    current.explicit, current.explicit_from = key_cell.text, "key_column"
+            type_cell = cell_at(roles.get("type"))
+            if type_cell is not None and FILL_TYPE_RE.search(type_cell.text) and current.options and not current.correct:
+                # «Fill-in-the-Blank»: в первом столбце вариантов — ответ, а не вариант
+                current.answer, current.evidence = current.options[0].text, "key_column"
+                current.options, current.kind, current.explicit = [], "open", None
 
     @staticmethod
     def _live(cells: list[Cell]) -> list[tuple[int, Cell]]:
@@ -1164,18 +1235,21 @@ class Reader:
     def header_roles(row: list[Cell]) -> dict:
         roles: dict = {"option_cols": []}
         for c, cell in enumerate(row):
-            text = cell.text.lower().strip()
+            text = " ".join(cell.text.lower().split())
             if not text:
                 continue
-            if text.startswith("№") or text in ("n", "no", "no.", "п/п") or text.startswith("номер"):
+            if re.match(r"^(?:question\s+type|type|тип(?:\s+вопроса)?)$", text):
+                roles["type"] = c
+            elif text.startswith("№") or text in ("n", "no", "no.", "п/п", "#") or text.startswith("номер"):
                 roles.setdefault("number", c)
-            elif re.match(r"^(?:правильн|верн|ключ|эталон)", text) or text in ("ответ", "ответ:"):
+            elif re.match(r"^(?:правильн|верн|ключ|эталон|correct|right\s+answer)", text) or text in ("ответ", "ответ:") \
+                    or re.match(r"^ответ\s*\(", text):
                 roles["key"] = c
-            elif re.match(r"^(?:вариант\w*\s+ответ|ответы|варианты|дистрактор)", text):
+            elif re.match(r"^(?:вариант\w*\s+ответ|ответы|варианты|дистрактор)", text) or text in ("вариант", "answers", "options"):
                 roles["options"] = c
-            elif re.match(r"^(?:[а-еa-e]|[1-8]|вариант\s*\d)$", text):
+            elif re.match(r"^(?:[а-еa-e]|[1-8]|вариант\s*\d|(?:answer|option|choice|ответ)\s*\d.*)$", text):
                 roles["option_cols"].append(c)
-            elif re.match(r"^(?:вопрос|содержани|задани|формулировк|текст|тестов)", text):
+            elif re.match(r"^(?:вопрос|содержани|задани|формулировк|текст|тестов|утверждени|question)", text):
                 roles.setdefault("question", c)
         if "number" in roles and "question" not in roles and roles.get("key") is not None and "options" not in roles \
                 and not roles["option_cols"]:
@@ -1191,10 +1265,40 @@ class Reader:
         roles: dict = {"option_cols": []}
         if width == 2 and numeric[0] >= len(rows) * 0.8 and all(len(row[1].text) <= 16 for row in rows if len(row) > 1):
             return {"number": 0, "key": 1, "key_table": True}
+        columns = Reader.option_columns(rows, width, 1 if numeric[0] >= len(rows) * 0.8 else 0)
+        if columns:
+            return columns
         if width >= 2 and numeric[0] >= len(rows) * 0.15:
             roles.update(number=0, question=1, options=2 if width >= 3 else 1)
         else:
             roles.update(question=0, options=1 if width >= 2 else 0)
+        return roles
+
+    @staticmethod
+    def option_columns(rows: list[list[Cell]], width: int, start: int) -> Optional[dict]:
+        """Варианты по столбцам без шапки: за столбцом вопроса (и номера) — три столбца и больше, где почти в каждой
+        строке по одному короткому абзацу. Последний такой столбец из одних букв, цифр и «+» — столбец ключа."""
+        if width - start < 4:
+            return None
+
+        def single(row: list[Cell], c: int) -> bool:
+            return c < len(row) and bool(row[c].text) and not row[c].continuation and len(row[c].paras) <= 1 \
+                and len(row[c].text) <= MAX_OPTION_CHARS
+
+        cols = []
+        for c in range(start + 1, width):
+            if sum(1 for row in rows if single(row, c)) < len(rows) * 0.8:
+                break
+            cols.append(c)
+        if len(cols) < 3 or not all(start < len(row) and row[start].text for row in rows):
+            return None
+        roles: dict = {"question": start, "option_cols": cols}
+        if start:
+            roles["number"] = 0
+        last = cols[-1]
+        if len(cols) >= 4 and all(last >= len(row) or not row[last].text or re.fullmatch(r"[А-Иа-иA-Ha-h1-8+,; ]{1,6}", row[last].text)
+                                  for row in rows):
+            roles["key"], roles["option_cols"] = last, cols[:-1]
         return roles
 
     # — абзацы —
@@ -1670,6 +1774,10 @@ class Reader:
             q = question_number(text) if para.level in (None, 0) else None
             if q and q[1] >= 1000 and not 0 <= q[1] - expected_next <= 5:
                 q = None  # четыре цифры — номер вопроса, только если продолжают нумерацию («1410.» — скорее год)
+            if q and self.section_number(q, text, body, position):
+                self.heading(text, "section")  # «2. Человек» над «2.1. …» — раздел (его номер нумерацию не продолжает)
+                current = None
+                continue
             if q and current is not None and not self.next_in_order(q[1], expected_next):
                 q = None  # «0.», «192)» после вопроса 125 — строка кода или таблицы, а не вопрос
             if q and self.numbered_heading(para, text, body, position):
@@ -1778,14 +1886,26 @@ class Reader:
                 return bool(q and q[1] == 1)
         return False
 
+    @staticmethod
+    def section_number(q: tuple[str, int, str], text: str, body: list[Line], position: int) -> bool:
+        """«2. Человек» прямо над «2.1. Вопрос?»: номер раздела, вопросы которого пронумерованы внутри него."""
+        if not q[0].isdecimal() or len(text) > 80 or text.rstrip().endswith(("?", ":", "…")):
+            return False
+        following = next((line.text for line in body[position + 1: position + 3] if line.text), "")
+        sub = SUBNUMBER_RE.match(following)
+        return bool(sub) and sub.group(1) == q[0] and sub.group(2) == "1"
+
     def options_follow(self, body: list[Line], position: int) -> bool:
-        seen = 0
+        seen = blanks = 0
         for line in body[position + 1: position + 4]:
             if not line.text:
                 break
             if line.text.endswith("?") or not self.option_like(line):
                 return False
             seen += 1
+            blanks += 1 if OPEN_HINT_RE.search(line.text) and question_number(line.text) else 0
+        if blanks >= 2:
+            return False  # «1. Столица Франции — ______.»: под заданием — вопросы с пропуском, а не варианты
         # длинный ряд «1.», «2.», … «9.» под строкой — список вопросов, а не варианты
         return seen >= 2 and self.numbered_run(body, position + 1) <= MAX_OPTIONS
 
@@ -2968,12 +3088,20 @@ def tsv_table(text: str) -> Optional[Table]:
     return Table(rows=rows)
 
 
-def text_blocks(text: str) -> list[Para]:
-    """Вставленный текст или TXT: строка — абзац; **жирный** Markdown — жирный кусок (больше ничего не раскрывается)."""
+MD_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(\S.*?)[ \t#]*$")
+
+
+def text_blocks(text: str, markdown: bool = False) -> list[Para]:
+    """Вставленный текст или TXT: строка — абзац; **жирный** Markdown — жирный кусок (больше ничего не раскрывается).
+    markdown (файл .md): «## Тема 2» — заголовок уровня 2 (в тексте «#» в начале строки — комментарий кода)."""
     paras = []
     for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         if not line.strip():
             paras.append(Para(runs=[]))
+            continue
+        heading = MD_HEADING_RE.match(line) if markdown and line[:1] == "#" else None
+        if heading:
+            paras.append(Para(runs=[Run(text=heading.group(2).replace("**", ""))], outline=len(heading.group(1))))
             continue
         runs: list[Run] = []
         last = 0
@@ -3109,9 +3237,37 @@ def _checked(result: dict, format_mode: str) -> dict:
     return result
 
 
+FORMS_MARK_RE = re.compile(r"^(?:\*\s*(?:обязательно|обязательное поле|required)|(?:всего баллов|total points)\s*:?\s*[\d.,]+\s*/\s*[\d.,]+)$", re.I)
+FORMS_SCORE_RE = re.compile(r"^[\d.,]+\s*/\s*[\d.,]+$|^[\d.,]+\s+(?:балл\w*|points?)$", re.I)
+FORMS_RIGHT_RE = re.compile(r"^(?:правильный ответ|правильные ответы|correct answers?)$", re.I)
+
+
+def forms_text(text: str) -> str:
+    """Текст формы Google с ответами («* Обязательно», «Всего баллов: 4/6»): без оценок «1/1» и «1 балл», без «*» в конце
+    вопроса, а «Правильный ответ» и текст варианта следующей строкой — одной строкой «Правильный ответ: …». Иначе — как был."""
+    lines = text.split("\n")
+    if not any(FORMS_MARK_RE.match(line.strip()) for line in lines[:60]):
+        return text
+    out: list[str] = []
+    skip_next = False
+    for i, line in enumerate(lines):
+        if skip_next:
+            skip_next = False
+            continue
+        bare = line.strip()
+        if FORMS_MARK_RE.match(bare) or FORMS_SCORE_RE.match(bare):
+            continue
+        if FORMS_RIGHT_RE.match(bare) and i + 1 < len(lines) and lines[i + 1].strip():
+            out.append(f"Правильный ответ: {lines[i + 1].strip()}")
+            skip_next = True
+            continue
+        out.append(line.rstrip()[:-2].rstrip() if bare.endswith(" *") else line)
+    return "\n".join(out)
+
+
 def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str] = None, format_mode: str = "auto",
-                    key_file: Optional[list[dict]] = None, key_section: Optional[int] = None) -> dict:
-    """Вставленный текст (или текст TXT/MD) → предпросмотр банка. Ошибки — BankError."""
+                    key_file: Optional[list[dict]] = None, key_section: Optional[int] = None, markdown: bool = False) -> dict:
+    """Вставленный текст (или текст TXT/MD) → предпросмотр банка. markdown — файл .md. Ошибки — BankError."""
     _check_modes(key_mode, format_mode)
     text = clean_text(text or "")
     if len(text) > MAX_TOTAL_CHARS:
@@ -3119,8 +3275,9 @@ def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str
     user_keys = _user_keys(key_text)
     if looks_like_gift(text):
         return _checked(finish(read_gift(text), key_mode=key_mode, user_keys=user_keys, format_mode=format_mode), format_mode)
+    text = forms_text(text)
     table = tsv_table(text)
-    blocks: list[Block] = [table] if table is not None else list(text_blocks(text))
+    blocks: list[Block] = [table] if table is not None else list(text_blocks(text, markdown=markdown))
     result = parse_blocks(blocks, key_mode=key_mode, user_keys=user_keys, line_word="строка", format_mode=format_mode,
                           key_file=key_file, key_section=key_section)
     return _checked(result, format_mode)
@@ -3179,7 +3336,7 @@ def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_t
     text, blocks = _file_blocks(contents, name, pictures)
     if text is not None:
         return parse_bank_text(text, key_mode=key_mode, key_text=key_text, format_mode=format_mode,
-                               key_file=key_file, key_section=key_section)
+                               key_file=key_file, key_section=key_section, markdown=name.lower().endswith(".md"))
     result = parse_blocks(blocks, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode,
                           key_file=key_file, key_section=key_section, pictures=pictures)
     return _checked(result, format_mode)
