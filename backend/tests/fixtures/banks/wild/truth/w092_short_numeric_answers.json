@@ -1,0 +1,123 @@
+{
+ "id": "w092_short_numeric_answers",
+ "file": "files/w092_short_numeric_answers.txt",
+ "tags": [
+  "kind:open",
+  "key:answer_line"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Сколько будет 12 × 12?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "144"
+   ]
+  },
+  {
+   "stem": "Назовите химический символ натрия.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Na"
+   ]
+  },
+  {
+   "stem": "В каком году состоялась Грюнвальдская битва?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "1410"
+   ]
+  },
+  {
+   "stem": "Как называется столица Франции?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Париж"
+   ]
+  },
+  {
+   "stem": "Сколько сантиметров в одном метре?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "100"
+   ]
+  },
+  {
+   "stem": "Назовите самую высокую гору мира.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Эверест",
+    "Джомолунгма"
+   ]
+  },
+  {
+   "stem": "Какой газ необходим для горения?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "кислород"
+   ]
+  },
+  {
+   "stem": "Чему равно число π с точностью до сотых?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "3,14",
+    "3.14"
+   ]
+  },
+  {
+   "stem": "Как называется деление клетки с сохранением числа хромосом?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "митоз"
+   ]
+  },
+  {
+   "stem": "Сколько секунд в одном часе?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "3600"
+   ]
+  },
+  {
+   "stem": "Кто написал роман в стихах «Евгений Онегин»?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Пушкин",
+    "А. С. Пушкин"
+   ]
+  },
+  {
+   "stem": "Сколько будет 2 в десятой степени?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "1024"
+   ]
+  }
+ ]
+}

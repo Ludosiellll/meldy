@@ -1,0 +1,134 @@
+{
+ "id": "w102_heading_styles",
+ "file": "files/w102_heading_styles.docx",
+ "tags": [
+  "struct:word_headings",
+  "num:dot",
+  "opt:rus_paren",
+  "key:underline"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Как называется наука о растениях?",
+   "options": [
+    "зоология",
+    "ботаника",
+    "микология",
+    "экология"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "subject": "Общие знания",
+   "topic": "Природа"
+  },
+  {
+   "stem": "Какой материк самый большой по площади?",
+   "options": [
+    "Африка",
+    "Евразия",
+    "Северная Америка",
+    "Антарктида"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "subject": "Общие знания",
+   "topic": "Природа"
+  },
+  {
+   "stem": "Сколько байт в одном килобайте по стандарту JEDEC?",
+   "options": [
+    "1000",
+    "1024",
+    "512",
+    "2048"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "subject": "Общие знания",
+   "topic": "Люди и города"
+  },
+  {
+   "stem": "Какой процесс превращает жидкость в газ?",
+   "options": [
+    "конденсация",
+    "кристаллизация",
+    "испарение",
+    "сублимация"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single",
+   "subject": "Общие знания",
+   "topic": "Люди и города"
+  },
+  {
+   "stem": "What is the boiling point of water at sea level?",
+   "options": [
+    "90 °C",
+    "100 °C",
+    "110 °C",
+    "120 °C"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "subject": "English",
+   "topic": "Basics"
+  },
+  {
+   "stem": "Which protocol is used to send e-mail?",
+   "options": [
+    "FTP",
+    "SMTP",
+    "HTTP",
+    "SSH"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "subject": "English",
+   "topic": "Basics"
+  },
+  {
+   "stem": "What is the past tense of 'go'?",
+   "options": [
+    "goed",
+    "gone",
+    "went",
+    "going"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single",
+   "subject": "English",
+   "topic": "Basics"
+  },
+  {
+   "stem": "Which data structure works on the LIFO principle?",
+   "options": [
+    "queue",
+    "stack",
+    "tree",
+    "graph"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "subject": "English",
+   "topic": "Basics"
+  }
+ ]
+}

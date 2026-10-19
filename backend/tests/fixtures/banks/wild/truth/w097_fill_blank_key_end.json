@@ -1,0 +1,66 @@
+{
+ "id": "w097_fill_blank_key_end",
+ "file": "files/w097_fill_blank_key_end.txt",
+ "tags": [
+  "kind:open",
+  "key:end_text"
+ ],
+ "note": "«Вставьте пропущенное слово: ____», ответы списком в конце",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Столица Франции — ______.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Париж"
+   ]
+  },
+  {
+   "stem": "Вода состоит из водорода и ______.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "кислорода"
+   ]
+  },
+  {
+   "stem": "Самая большая планета Солнечной системы — ______.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Юпитер"
+   ]
+  },
+  {
+   "stem": "Автор «Евгения Онегина» — ______.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Пушкин"
+   ]
+  },
+  {
+   "stem": "Единица измерения силы тока — ______.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "ампер"
+   ]
+  },
+  {
+   "stem": "Процесс превращения пара в воду называется ______.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "конденсация"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,126 @@
+{
+ "id": "w142_markdown_bold",
+ "file": "files/w142_markdown_bold.md",
+ "tags": [
+  "format:markdown",
+  "opt:rus_paren",
+  "key:md_bold",
+  "struct:topics"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Какой органоид клетки отвечает за синтез белка?",
+   "options": [
+    "митохондрия",
+    "рибосома",
+    "лизосома",
+    "вакуоль"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "topic": "Тема 1. Природа"
+  },
+  {
+   "stem": "В каком году началась Вторая мировая война?",
+   "options": [
+    "1914",
+    "1939",
+    "1941",
+    "1945"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "topic": "Тема 1. Природа"
+  },
+  {
+   "stem": "Какой металл самый лёгкий?",
+   "options": [
+    "алюминий",
+    "литий",
+    "натрий",
+    "магний"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "topic": "Тема 1. Природа"
+  },
+  {
+   "stem": "Какая единица измерения силы в СИ?",
+   "options": [
+    "джоуль",
+    "ватт",
+    "ньютон",
+    "паскаль"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single",
+   "topic": "Тема 1. Природа"
+  },
+  {
+   "stem": "Which gas do plants absorb from the air?",
+   "options": [
+    "Oxygen",
+    "Nitrogen",
+    "Carbon dioxide",
+    "Helium"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single",
+   "topic": "Тема 2. English"
+  },
+  {
+   "stem": "Who wrote 'Romeo and Juliet'?",
+   "options": [
+    "Charles Dickens",
+    "William Shakespeare",
+    "Jane Austen",
+    "Mark Twain"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "topic": "Тема 2. English"
+  },
+  {
+   "stem": "How many continents are there?",
+   "options": [
+    "5",
+    "6",
+    "7",
+    "8"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single",
+   "topic": "Тема 2. English"
+  },
+  {
+   "stem": "What is the boiling point of water at sea level?",
+   "options": [
+    "90 °C",
+    "100 °C",
+    "110 °C",
+    "120 °C"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single",
+   "topic": "Тема 2. English"
+  }
+ ]
+}

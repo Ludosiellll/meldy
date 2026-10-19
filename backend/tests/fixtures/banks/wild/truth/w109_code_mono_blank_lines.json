@@ -1,0 +1,144 @@
+{
+ "id": "w109_code_mono_blank_lines",
+ "file": "files/w109_code_mono_blank_lines.docx",
+ "tags": [
+  "content:code",
+  "num:dot",
+  "opt:rus_paren",
+  "key:bold"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Что выведет программа?\nint x = 5;\nx += 3;\nConsole.WriteLine(x);",
+   "options": [
+    "5",
+    "8",
+    "53",
+    "ошибку компиляции"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что вернёт выражение на Python?\nlen([1, 2, [3, 4]])",
+   "options": [
+    "2",
+    "3",
+    "4",
+    "ошибку"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что вернёт запрос?\nSELECT COUNT(*) FROM Students\nWHERE age > 18;",
+   "options": [
+    "число студентов старше 18 лет",
+    "список студентов",
+    "средний возраст",
+    "ошибку синтаксиса"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что напечатает код на C?\nint a[3] = {1, 2, 3};\nprintf(\"%d\", a[1]);",
+   "options": [
+    "1",
+    "2",
+    "3",
+    "адрес массива"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Чему будет равно y после выполнения кода?\ny = 10\nfor i in range(3):\n    y -= i",
+   "options": [
+    "7",
+    "10",
+    "4",
+    "9"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой оператор сравнивает значения без приведения типов в JavaScript?",
+   "options": [
+    "==",
+    "===",
+    "=",
+    "!="
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что делает команда?\nchmod 755 deploy.sh",
+   "options": [
+    "меняет права доступа к файлу",
+    "удаляет файл",
+    "копирует файл",
+    "переименовывает файл"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что выведет этот фрагмент?\nstring s = null;\nConsole.WriteLine(s?.Length ?? -1);",
+   "options": [
+    "0",
+    "null",
+    "-1",
+    "исключение"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какое значение получит переменная c?\na = 7\nb = 2\nc = a // b",
+   "options": [
+    "3",
+    "3.5",
+    "4",
+    "1"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что выведет программа на Java?\nSystem.out.println(10 % 3);",
+   "options": [
+    "1",
+    "3",
+    "0",
+    "3.33"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  }
+ ]
+}

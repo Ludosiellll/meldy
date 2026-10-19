@@ -1,0 +1,118 @@
+{
+ "id": "w110_formulas",
+ "file": "files/w110_formulas.docx",
+ "tags": [
+  "content:formulas",
+  "num:dot",
+  "opt:rus_paren",
+  "key:bold"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Решите уравнение x² − 5x + 6 = 0.",
+   "options": [
+    "x = 2; x = 3",
+    "x = −2; x = −3",
+    "x = 1; x = 6",
+    "корней нет"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Чему равен √144?",
+   "options": [
+    "11",
+    "12",
+    "14",
+    "72"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Найдите производную функции f(x) = x³.",
+   "options": [
+    "3x²",
+    "x²",
+    "3x",
+    "x⁴/4"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Вычислите значение выражения 2³ · 2².",
+   "options": [
+    "16",
+    "32",
+    "64",
+    "10"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Чему равен sin 30°?",
+   "options": [
+    "0",
+    "1/2",
+    "√3/2",
+    "1"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Площадь круга радиуса r равна:",
+   "options": [
+    "2πr",
+    "πr²",
+    "πd",
+    "r²"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Сколько будет 15 % от 200?",
+   "options": [
+    "15",
+    "20",
+    "30",
+    "35"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Решите неравенство 2x + 1 > 7.",
+   "options": [
+    "x > 3",
+    "x < 3",
+    "x > 4",
+    "x ≥ 3"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  }
+ ]
+}

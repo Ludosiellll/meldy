@@ -1,0 +1,101 @@
+{
+ "id": "w093_true_false_options",
+ "file": "files/w093_true_false_options.docx",
+ "tags": [
+  "kind:truefalse",
+  "opt:rus_paren",
+  "key:bold"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Вода кипит при 100 °C на уровне моря.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "truefalse"
+  },
+  {
+   "stem": "Солнце вращается вокруг Земли.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "truefalse"
+  },
+  {
+   "stem": "Минск — столица Беларуси.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "truefalse"
+  },
+  {
+   "stem": "Кит — это рыба.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "truefalse"
+  },
+  {
+   "stem": "Сумма углов квадрата равна 360°.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "truefalse"
+  },
+  {
+   "stem": "Медь — неметалл.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "truefalse"
+  },
+  {
+   "stem": "Python — язык программирования.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "truefalse"
+  },
+  {
+   "stem": "Свет распространяется медленнее звука.",
+   "options": [
+    "Верно",
+    "Неверно"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "truefalse"
+  }
+ ]
+}

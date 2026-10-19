@@ -1,0 +1,87 @@
+{
+ "id": "w095_short_answers_table",
+ "file": "files/w095_short_answers_table.docx",
+ "tags": [
+  "kind:open",
+  "table:row_per_q",
+  "key:column_text"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Сколько будет 12 × 12?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "144"
+   ]
+  },
+  {
+   "stem": "Назовите химический символ натрия.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Na"
+   ]
+  },
+  {
+   "stem": "В каком году состоялась Грюнвальдская битва?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "1410"
+   ]
+  },
+  {
+   "stem": "Как называется столица Франции?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Париж"
+   ]
+  },
+  {
+   "stem": "Сколько сантиметров в одном метре?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "100"
+   ]
+  },
+  {
+   "stem": "Назовите самую высокую гору мира.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "Эверест",
+    "Джомолунгма"
+   ]
+  },
+  {
+   "stem": "Какой газ необходим для горения?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "кислород"
+   ]
+  },
+  {
+   "stem": "Чему равно число π с точностью до сотых?",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "3,14",
+    "3.14"
+   ]
+  }
+ ]
+}

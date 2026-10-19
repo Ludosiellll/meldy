@@ -1,0 +1,119 @@
+{
+ "id": "w022_opts_bare_letter_tab",
+ "file": "files/w022_opts_bare_letter_tab.docx",
+ "tags": [
+  "num:dot",
+  "opt:lat_tab",
+  "key:bold",
+  "lang:en",
+  "text:tabs"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "What does CPU stand for?",
+   "options": [
+    "Central Processing Unit",
+    "Computer Personal Unit",
+    "Central Program Utility",
+    "Core Processing Unit"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Which gas do plants absorb from the air?",
+   "options": [
+    "Oxygen",
+    "Nitrogen",
+    "Carbon dioxide",
+    "Helium"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Who wrote 'Romeo and Juliet'?",
+   "options": [
+    "Charles Dickens",
+    "William Shakespeare",
+    "Jane Austen",
+    "Mark Twain"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "How many continents are there?",
+   "options": [
+    "5",
+    "6",
+    "7",
+    "8"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "What is the boiling point of water at sea level?",
+   "options": [
+    "90 °C",
+    "100 °C",
+    "110 °C",
+    "120 °C"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Which protocol is used to send e-mail?",
+   "options": [
+    "FTP",
+    "SMTP",
+    "HTTP",
+    "SSH"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "What is the past tense of 'go'?",
+   "options": [
+    "goed",
+    "gone",
+    "went",
+    "going"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Which data structure works on the LIFO principle?",
+   "options": [
+    "queue",
+    "stack",
+    "tree",
+    "graph"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  }
+ ]
+}

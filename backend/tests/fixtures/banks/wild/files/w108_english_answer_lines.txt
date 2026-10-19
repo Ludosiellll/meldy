@@ -1,0 +1,70 @@
+Question 1. What is the capital of Canada?
+A. Toronto
+B. Ottawa
+C. Vancouver
+D. Montreal
+Answer: B
+
+Question 2. Which planet is closest to the Sun?
+A. Venus
+B. Earth
+C. Mercury
+D. Mars
+Answer: C
+
+Question 3. What does CPU stand for?
+A. Central Processing Unit
+B. Computer Personal Unit
+C. Central Program Utility
+D. Core Processing Unit
+Answer: A
+
+Question 4. Which gas do plants absorb from the air?
+A. Oxygen
+B. Nitrogen
+C. Carbon dioxide
+D. Helium
+Answer: C
+
+Question 5. Who wrote 'Romeo and Juliet'?
+A. Charles Dickens
+B. William Shakespeare
+C. Jane Austen
+D. Mark Twain
+Answer: B
+
+Question 6. How many continents are there?
+A. 5
+B. 6
+C. 7
+D. 8
+Answer: C
+
+Question 7. What is the boiling point of water at sea level?
+A. 90 °C
+B. 100 °C
+C. 110 °C
+D. 120 °C
+Answer: B
+
+Question 8. Which protocol is used to send e-mail?
+A. FTP
+B. SMTP
+C. HTTP
+D. SSH
+Answer: B
+
+Question 9. What is the past tense of 'go'?
+A. goed
+B. gone
+C. went
+D. going
+Answer: C
+
+Question 10. Which data structure works on the LIFO principle?
+A. queue
+B. stack
+C. tree
+D. graph
+Answer: B
+

@@ -1,0 +1,85 @@
+{
+ "id": "w094_true_false_table",
+ "file": "files/w094_true_false_table.docx",
+ "tags": [
+  "kind:truefalse",
+  "table:statements",
+  "key:column_word"
+ ],
+ "note": "таблица «Утверждение | Да/Нет»: в столбце ответа «да» или «нет»",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Вода кипит при 100 °C на уровне моря.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "да"
+   ]
+  },
+  {
+   "stem": "Солнце вращается вокруг Земли.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "нет"
+   ]
+  },
+  {
+   "stem": "Минск — столица Беларуси.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "да"
+   ]
+  },
+  {
+   "stem": "Кит — это рыба.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "нет"
+   ]
+  },
+  {
+   "stem": "Сумма углов квадрата равна 360°.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "да"
+   ]
+  },
+  {
+   "stem": "Медь — неметалл.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "нет"
+   ]
+  },
+  {
+   "stem": "Python — язык программирования.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "да"
+   ]
+  },
+  {
+   "stem": "Свет распространяется медленнее звука.",
+   "options": [],
+   "correct": [],
+   "kind": "open",
+   "answers": [
+    "нет"
+   ]
+  }
+ ]
+}
