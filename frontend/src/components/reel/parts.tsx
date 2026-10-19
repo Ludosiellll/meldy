@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
-import { blur, opacity, put, text as setText, useEls, useFrame } from './engine';
+import { Fragment, useLayoutEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import { blur, opacity, put, text as setText, useEls, useFrame, useStageScale } from './engine';
 import { beginFrame } from './particles';
 import { clamp, ease, mix, pulse, seg, STAGE_H, STAGE_W } from './timeline';
 
@@ -325,24 +325,49 @@ export function Cursor({ keys, clicks = [], from, to }: { keys: readonly CursorK
 
 const IN_JSDOM = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
 
+/**
+ * Backing pixels per stage pixel of a full-stage canvas: as many as the screen shows of it (the stage's scale × the
+ * device's pixel ratio), never more than one, in steps of 1/8 so that a small resize keeps the canvas. A phone shows
+ * the 1920 × 1080 stage some 360 px wide: its canvases cleared, drew and handed over two million pixels a frame where
+ * the screen shows about a sixth of them (phone measurement 2026-10-19: the opening ran at 23–29 frames a second with
+ * the canvases, at 41 without). The particles are drawn in stage units at that density, so they look the same.
+ */
+export function canvasDensity(scale: number, pixelRatio: number): number {
+  const shown = scale * (pixelRatio > 0 ? pixelRatio : 1);
+  return Math.min(1, Math.max(1 / 8, Math.ceil(shown * 8 - 1e-6) / 8));
+}
+
 export function ParticleCanvas({ draw, className }: { draw: (ctx: CanvasRenderingContext2D, lt: number) => void; className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const context = useRef<CanvasRenderingContext2D | null>(null);
-  useFrame((lt) => {
-    if (IN_JSDOM || !canvas.current) return;
+  const density = canvasDensity(useStageScale(), typeof window !== 'undefined' ? window.devicePixelRatio : 1);
+  const width = Math.round(STAGE_W * density);
+  const height = Math.round(STAGE_H * density);
+  /** The scene time last drawn, and at which width: a resized canvas loses its pixels and is drawn again at once. */
+  const shown = useRef<{ lt: number; width: number } | null>(null);
+  const paint = (lt: number) => {
+    const el = canvas.current;
+    if (IN_JSDOM || !el) return;
     if (!context.current) {
       // Made at once, while a scene mounted ahead may still be hidden: its first frame only draws.
-      context.current = canvas.current.getContext('2d');
-      if (context.current) beginFrame(context.current, STAGE_W, STAGE_H);
+      context.current = el.getContext('2d');
+      if (context.current) beginFrame(context.current, el.width, el.height);
     }
     // A scene mounted ahead of its time is hidden: nothing to draw until it starts.
     if (lt < 0) return;
     const ctx = context.current;
     if (!ctx) return;
-    beginFrame(ctx, STAGE_W, STAGE_H);
+    beginFrame(ctx, el.width, el.height);
+    ctx.setTransform(el.width / STAGE_W, 0, 0, el.height / STAGE_H, 0, 0);
     draw(ctx, lt);
+    shown.current = { lt, width: el.width };
+  };
+  useFrame(paint);
+  // The stage was resized: the canvas got its new size (and lost its pixels), the reel may be paused.
+  useLayoutEffect(() => {
+    if (shown.current && shown.current.width !== width) paint(shown.current.lt);
   });
-  return <canvas ref={canvas} className={`mr-canvas ${className ?? ''}`} width={STAGE_W} height={STAGE_H} aria-hidden="true" />;
+  return <canvas ref={canvas} className={`mr-canvas ${className ?? ''}`} width={width} height={height} aria-hidden="true" />;
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -1330,8 +1330,40 @@
   height: 52px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 0 0 9px rgba(255, 255, 255, 0.22), 0 0 0 18px rgba(255, 255, 255, 0.1);
-  animation: hm-pulse 2.4s var(--m-ease) infinite;
+  isolation: isolate;
+}
+
+/* The «listening» pulse: two rings, 9 and 18 px wide at rest and 13 and 26 px at its height, as white discs behind the
+   mic (over its white face they do not show). They grow by transform and fade by opacity, so the compositor runs the
+   pulse: it used to animate a box-shadow, which repainted the card on every frame, and a phone scrolling the page ran at
+   31 frames a second with it, at 50–55 without (measurement 2026-10-19). It runs only while the mic is on screen
+   (Landing.tsx ListeningMic); with reduced motion it stands at rest. */
+.hm-mic::before,
+.hm-mic::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  background: #fff;
+  pointer-events: none;
+  animation: 2.4s var(--m-ease) infinite paused;
+}
+
+.hm-mic::before {
+  inset: -18px;
+  opacity: 0.1;
+  animation-name: hm-ring-out;
+}
+
+.hm-mic::after {
+  inset: -9px;
+  opacity: 0.22;
+  animation-name: hm-ring-in;
+}
+
+.hm-mic[data-live]::before,
+.hm-mic[data-live]::after {
+  animation-play-state: running;
 }
 
 .hm-mic svg {
@@ -1738,9 +1770,18 @@
   }
 }
 
-@keyframes hm-pulse {
+/* The mic's rings at the pulse's height: 70 → 78 px at 0.22 → 0.18, and 88 → 104 px at 0.1 → 0.06. */
+@keyframes hm-ring-in {
   50% {
-    box-shadow: 0 0 0 13px rgba(255, 255, 255, 0.18), 0 0 0 26px rgba(255, 255, 255, 0.06);
+    transform: scale(1.1143);
+    opacity: 0.18;
+  }
+}
+
+@keyframes hm-ring-out {
+  50% {
+    transform: scale(1.1818);
+    opacity: 0.06;
   }
 }
 

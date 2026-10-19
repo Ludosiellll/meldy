@@ -3,9 +3,16 @@ import type { ReelClock } from './clock';
 
 const ClockContext = createContext<ReelClock | null>(null);
 const SceneContext = createContext<{ from: number; to: number }>({ from: 0, to: Number.POSITIVE_INFINITY });
+/** The stage's scale on the page (its width / 1920): a canvas draws only as many pixels as are shown. */
+const StageScaleContext = createContext(1);
 
 export const ClockProvider = ClockContext.Provider;
 export const SceneProvider = SceneContext.Provider;
+export const StageScaleProvider = StageScaleContext.Provider;
+
+export function useStageScale(): number {
+  return useContext(StageScaleContext);
+}
 
 export function useClock(): ReelClock {
   const clock = useContext(ClockContext);

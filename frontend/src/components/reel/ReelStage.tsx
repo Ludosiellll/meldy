@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import type { ReelClock } from './clock';
-import { ClockProvider, SceneProvider, opacity, put, useFrame } from './engine';
+import { ClockProvider, SceneProvider, StageScaleProvider, opacity, put, useFrame } from './engine';
 import Brand from './scenes/Brand';
 import Chaos from './scenes/Chaos';
 import Group from './scenes/Group';
@@ -89,19 +89,21 @@ export default function ReelStage({ clock, scale }: { clock: ReelClock; scale: n
   );
   return (
     <ClockProvider value={clock}>
-      <div className="mr-stage" style={{ transform: `scale(${scale})` }} aria-hidden="true">
-        {scenes.map((id) => {
-          const View = SCENE_VIEWS[id];
-          return (
-            <SceneProvider key={id} value={sceneWindow(id)}>
-              <SceneGate from={sceneWindow(id).from}>
-                <View />
-              </SceneGate>
-            </SceneProvider>
-          );
-        })}
-        <Hud />
-      </div>
+      <StageScaleProvider value={scale}>
+        <div className="mr-stage" style={{ transform: `scale(${scale})` }} aria-hidden="true">
+          {scenes.map((id) => {
+            const View = SCENE_VIEWS[id];
+            return (
+              <SceneProvider key={id} value={sceneWindow(id)}>
+                <SceneGate from={sceneWindow(id).from}>
+                  <View />
+                </SceneGate>
+              </SceneProvider>
+            );
+          })}
+          <Hud />
+        </div>
+      </StageScaleProvider>
     </ClockProvider>
   );
 }

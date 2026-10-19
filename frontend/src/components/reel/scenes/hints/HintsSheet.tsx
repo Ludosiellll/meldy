@@ -100,50 +100,136 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 /** The squares of question 12's named lines: ringed in blue while they are answered, and they pop as they change. */
 const HOT = new Set(ORAL.points.flatMap((point, line) => (point.namedAfter !== null ? [firstIndex(ORAL.number) + line] : [])));
 
-/** Draws every square for the frames of the lines. */
-function drawMap(ctx: CanvasRenderingContext2D, frames: readonly LineFrame[], ring: number) {
-  const { cell, pitch } = MAP_BOX;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = 1;
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.translate(4, 4);
-  for (let i = 0; i < frames.length; i += 1) {
-    const frame = frames[i];
-    const x = (i % COLS) * pitch;
-    const y = Math.floor(i / COLS) * pitch;
-    const { u } = phases(frame);
-    const hot = HOT.has(i);
-    const pop = hot && frame.move ? 1 + 0.55 * Math.sin(Math.PI * clamp(frame.p * 1.3)) : 1;
-    const size = cell * pop;
-    const ox = x + (cell - size) / 2;
-    const oy = y + (cell - size) / 2;
-    if (frame.state !== 'gone') {
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = frame.state === 'left' ? rgb(INK, INK, 0) : frame.move ? rgb(INK, YELLOW, u) : rgb(YELLOW, YELLOW, 0);
+/** Where square `i` sits on the map (before the canvas's 4 px margin). */
+const cellX = (i: number) => (i % COLS) * MAP_BOX.pitch;
+const cellY = (i: number) => Math.floor(i / COLS) * MAP_BOX.pitch;
+
+/** Draws one square for its line's frame (and the blue ring of a square of question 12). */
+export function drawCell(ctx: CanvasRenderingContext2D, i: number, frame: LineFrame, ring: number) {
+  const { cell } = MAP_BOX;
+  const x = cellX(i);
+  const y = cellY(i);
+  const { u } = phases(frame);
+  const hot = HOT.has(i);
+  const pop = hot && frame.move ? 1 + 0.55 * Math.sin(Math.PI * clamp(frame.p * 1.3)) : 1;
+  const size = cell * pop;
+  const ox = x + (cell - size) / 2;
+  const oy = y + (cell - size) / 2;
+  if (frame.state !== 'gone') {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = frame.state === 'left' ? rgb(INK, INK, 0) : frame.move ? rgb(INK, YELLOW, u) : rgb(YELLOW, YELLOW, 0);
+    roundRect(ctx, ox, oy, size, size, 2.6 * pop);
+    ctx.fill();
+  } else {
+    // Erased: an outline; while it goes, the yellow fades out of it.
+    if (frame.move) {
+      ctx.globalAlpha = 1 - u;
+      ctx.fillStyle = rgb(YELLOW, YELLOW, 0);
       roundRect(ctx, ox, oy, size, size, 2.6 * pop);
       ctx.fill();
-    } else {
-      // Erased: an outline; while it goes, the yellow fades out of it.
-      if (frame.move) {
-        ctx.globalAlpha = 1 - u;
-        ctx.fillStyle = rgb(YELLOW, YELLOW, 0);
-        roundRect(ctx, ox, oy, size, size, 2.6 * pop);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 0.5 * (frame.move ? u : 1);
-      ctx.strokeStyle = rgb(FAINT, FAINT, 0);
-      ctx.lineWidth = 1.5;
-      roundRect(ctx, ox + 0.75, oy + 0.75, size - 1.5, size - 1.5, 2.2 * pop);
-      ctx.stroke();
     }
-    if (hot && ring > 0) {
-      ctx.globalAlpha = ring;
-      ctx.strokeStyle = '#2869dd';
-      ctx.lineWidth = 2;
-      roundRect(ctx, x - 3.5, y - 3.5, cell + 7, cell + 7, 4.5);
-      ctx.stroke();
+    ctx.globalAlpha = 0.5 * (frame.move ? u : 1);
+    ctx.strokeStyle = rgb(FAINT, FAINT, 0);
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, ox + 0.75, oy + 0.75, size - 1.5, size - 1.5, 2.2 * pop);
+    ctx.stroke();
+  }
+  if (hot && ring > 0) {
+    ctx.globalAlpha = ring;
+    ctx.strokeStyle = '#2869dd';
+    ctx.lineWidth = 2;
+    roundRect(ctx, x - 3.5, y - 3.5, cell + 7, cell + 7, 4.5);
+    ctx.stroke();
+  }
+}
+
+/**
+ * What a square looks like at a frame, as one number: everything drawCell paints follows from it (and from the ring, for
+ * the squares of question 12). A square at rest is its state; a moving one changes with every frame.
+ */
+export function cellLook(frame: LineFrame): number {
+  const state = frame.state === 'left' ? 0 : frame.state === 'half' ? 1 : 2;
+  return frame.move ? (state + 1) * 10 + frame.p : state;
+}
+
+/**
+ * The area a square paints in: its own 8 px with a pixel around it (the 3 px gap keeps neighbours apart); a square of
+ * question 12 reaches 5 px further, with its pop (×1.55) and its ring.
+ */
+export function cellBox(i: number): { x: number; y: number; w: number; h: number } {
+  const reach = HOT.has(i) ? 5 : 1;
+  return { x: cellX(i) - reach, y: cellY(i) - reach, w: MAP_BOX.cell + 2 * reach, h: MAP_BOX.cell + 2 * reach };
+}
+
+const meets = (a: ReturnType<typeof cellBox>, b: ReturnType<typeof cellBox>) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** Past this many changed squares a frame draws the whole map (the wave while the days run by). */
+const WHOLE_MAP_FROM = TOTAL_LINES / 3;
+
+/**
+ * The squares to draw again: those whose look changed since the last frame drawn, and every square whose area reaches
+ * into theirs (only the neighbours of a square of question 12 do). Null: the whole map.
+ */
+export function squaresToDraw(looks: Float64Array, before: Float64Array | null, ring: number, ringBefore: number): { changed: number[]; draw: number[] } | null {
+  if (!before) return null;
+  const changed: number[] = [];
+  for (let i = 0; i < looks.length; i += 1) {
+    if (looks[i] !== before[i] || (ring !== ringBefore && HOT.has(i))) changed.push(i);
+  }
+  if (changed.length > WHOLE_MAP_FROM) return null;
+  const marked = new Uint8Array(looks.length);
+  for (const i of changed) {
+    const box = cellBox(i);
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    for (let r = row - 1; r <= row + 1; r += 1) {
+      for (let c = col - 1; c <= col + 1; c += 1) {
+        const j = r * COLS + c;
+        if (c < 0 || c >= COLS || r < 0 || j >= looks.length || marked[j]) continue;
+        if (j === i || meets(cellBox(j), box)) marked[j] = 1;
+      }
     }
   }
+  const draw: number[] = [];
+  for (let j = 0; j < marked.length; j += 1) if (marked[j]) draw.push(j);
+  return { changed, draw };
+}
+
+/**
+ * Draws the map for the frames of the lines. Only the squares that changed since the last frame are drawn again,
+ * clipped to their areas and in the map's order, so the canvas ends up as a whole redraw would leave it: the map used to
+ * draw all its 898 squares on every frame of the chapter (7–14 ms a frame on a phone, measurement 2026-10-19), and a
+ * frame where nothing changed now leaves the canvas as it is.
+ */
+function drawMap(ctx: CanvasRenderingContext2D, frames: readonly LineFrame[], ring: number, last: { looks: Float64Array | null; ring: number }) {
+  const looks = new Float64Array(frames.length);
+  for (let i = 0; i < frames.length; i += 1) looks[i] = cellLook(frames[i]);
+  const plan = squaresToDraw(looks, last.looks, ring, last.ring);
+  last.looks = looks;
+  last.ring = ring;
+  if (plan && plan.changed.length === 0) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  if (!plan) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.translate(4, 4);
+    for (let i = 0; i < frames.length; i += 1) drawCell(ctx, i, frames[i], ring);
+    return;
+  }
+  ctx.translate(4, 4);
+  ctx.save();
+  ctx.beginPath();
+  for (const i of plan.changed) {
+    const box = cellBox(i);
+    ctx.rect(box.x, box.y, box.w, box.h);
+  }
+  ctx.clip();
+  for (const i of plan.changed) {
+    const box = cellBox(i);
+    ctx.clearRect(box.x, box.y, box.w, box.h);
+  }
+  for (const i of plan.draw) drawCell(ctx, i, frames[i], ring);
+  ctx.restore();
 }
 
 const IN_JSDOM = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
@@ -152,6 +238,8 @@ const IN_JSDOM = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.use
 function MapCanvas() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const context = useRef<CanvasRenderingContext2D | null>(null);
+  /** What the canvas holds: every square's look and the ring, as last drawn. */
+  const last = useRef<{ looks: Float64Array | null; ring: number }>({ looks: null, ring: 0 });
   useFrame((l) => {
     if (IN_JSDOM || !canvas.current) return;
     if (!context.current) context.current = canvas.current.getContext('2d');
@@ -159,7 +247,7 @@ function MapCanvas() {
     // Drawn from just before the sheet shows (it is hidden under the answer until then).
     if (!ctx || l < SHEET_AT - 200) return;
     const ring = seg(l, SHEET_AT + 200, 300) * (1 - seg(l, SECOND_AT + MOVE_MS + 400, 400));
-    drawMap(ctx, mapAt(l), ring);
+    drawMap(ctx, mapAt(l), ring, last.current);
   });
   return <canvas ref={canvas} className="mr-h-canvas" width={MAP_BOX.width + 8} height={MAP_HEIGHT + 8} aria-hidden="true" />;
 }

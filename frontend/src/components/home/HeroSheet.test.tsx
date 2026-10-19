@@ -118,7 +118,8 @@ describe('HeroSheet', () => {
 
   it('has no paper: no handwriting, squared grid, pencil marks or eraser, the words are plain text', () => {
     const { container } = render(<HeroSheet />);
-    expect(container.querySelector('.hs-paper, .hs-patch, .hs-tick, .cs-arrow-ink, svg')).toBeNull();
+    // The only drawing: Onest's own «→» of a line (SheetArrow), so the page does not fetch the font's symbols file.
+    expect(container.querySelector('.hs-paper, .hs-patch, .hs-tick, .cs-arrow-ink, svg:not(.hm-arrow-g)')).toBeNull();
     expect(plain(container.querySelector('.hs-list')?.textContent)).toContain('выручка = цена × количество');
   });
 

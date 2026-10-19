@@ -4,6 +4,8 @@ import '@fontsource-variable/onest/wght.css';
 import { useAuth } from '../hooks/useAuth';
 import HeroSheet, { SHEET_REPLAY_EVENT } from '../components/home/HeroSheet';
 import HomeExam from '../components/home/HomeExam';
+import ListeningMic from '../components/home/ListeningMic';
+import { withArrows } from '../components/home/SheetArrow';
 import { jumpToReel, type ReelChapter } from '../components/home/reelJump';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { ty } from '../components/landing/typo';
@@ -289,12 +291,7 @@ function StepArt({ index }: { index: number }) {
           <div className="hm-ask">
             <b>Экзаменатор</b>А если спрос неэластичный, как продавцу увеличить выручку?
           </div>
-          <div className="hm-mic">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="3" width="6" height="11" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-            </svg>
-          </div>
+          <ListeningMic />
         </>
       );
     default: {
@@ -306,7 +303,7 @@ function StepArt({ index }: { index: number }) {
           {[1, 2, 3].map((at) => (
             <p key={at} className="hm-mini-l" data-look={LOOKS[states[at]]}>
               <i />
-              <span>{Q4.lines[at].text}</span>
+              <span>{withArrows(Q4.lines[at].text)}</span>
             </p>
           ))}
           <span className="hm-mini-map">

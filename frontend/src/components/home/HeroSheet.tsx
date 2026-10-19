@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { readReducedMotion, usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import { CAME_BACK, Q6, Q7, SHEET_BEFORE, SHEET_SUBJECT } from '../../data/sheetExample';
+import { withArrows } from './SheetArrow';
 
 /**
  * The cheat sheet of /try's example exam («Микроэкономика») on the landing, in Meldy's own look (decision 2026-10-10,
@@ -288,7 +289,7 @@ export default function HeroSheet({ labelledBy }: { labelledBy?: string } = {}) 
                       </span>
                       {/* The words are inline: the strike runs under each row of them, never past their end. */}
                       <span className="hs-body">
-                        <span className="hs-words">{line.text}</span>
+                        <span className="hs-words">{withArrows(line.text)}</span>
                         {line.note && state === 'returned' ? <span className="hs-note">{line.note}</span> : null}
                       </span>
                     </li>
