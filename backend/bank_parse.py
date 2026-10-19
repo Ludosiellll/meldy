@@ -68,6 +68,7 @@ from dataclasses import dataclass, field, replace
 from typing import Optional
 
 import bank_docx
+import bank_formats
 from bank_docx import (
     LATIN_LOWER,
     RUSSIAN_LOWER,
@@ -105,7 +106,7 @@ __all__ = [
     "tsv_table",
 ]
 
-FILE_EXTENSIONS = ("docx", "txt", "md", "xlsx")
+FILE_EXTENSIONS = ("docx", "txt", "md", "xlsx", "csv", "html", "htm", "xml", "pdf")
 KEY_MODES = ("auto", "first_option", "none")
 FORMAT_MODES = ("auto", "test", "open")
 
@@ -138,7 +139,8 @@ MARK_SHARE = 0.6
 MARK_SUFFIX_TAIL = 80
 
 OLD_DOC_DETAIL = "Это файл Word старого формата (.doc). Откройте его в Word, сохраните как DOCX и загрузите снова."
-UNSUPPORTED_DETAIL = "Пока принимаем DOCX, TXT и XLSX. PDF добавим позже — если есть файл Word, загрузите его."
+UNSUPPORTED_DETAIL = "Этот формат не читаем. Подойдут Word (DOCX), Excel (XLSX), PDF, текст (TXT, MD, CSV), HTML и Moodle XML."
+SCAN_PDF_DETAIL = "В этом PDF нет текста — это скан. Пришлите Word или текстовый файл."
 TOO_MANY_DETAIL = "В файле больше 2000 вопросов. Разделите его на части и загрузите по очереди."
 NO_ITEMS_DETAIL = "Не нашли вопросов. Проверьте, что в файле есть пронумерованные вопросы."
 NO_TEST_ITEMS_DETAIL = "Не нашли вопросов с вариантами ответов. Проверьте, что это тест: вопрос и под ним варианты."
@@ -1097,6 +1099,7 @@ class Reader:
         current: Optional[Item] = None
         num_col, q_col, opt_col, key_col = roles.get("number"), roles.get("question"), roles.get("options"), roles.get("key")
         option_cols = roles.get("option_cols") or []
+        option_labels = roles.get("option_labels") or {}
         listed = False
         for row_number, cells in rows:
             live = [(c, cell) for c, cell in enumerate(cells) if cell.text and not cell.continuation]
@@ -1146,7 +1149,7 @@ class Reader:
                             self.add_option(current, replace(para, runs=[Run(text=f"{_column_label(k)}) "), *para.runs]))
                             continue
                         option = make_option(para)
-                        option.label = option.label or _column_label(k)
+                        option.label = option.label or option_labels.get(c) or _column_label(k)
                         current.options.append(option)
                 self.layouts["table_option_columns"] += 1
             else:
@@ -1266,8 +1269,11 @@ class Reader:
                 roles["key"] = c
             elif re.match(r"^(?:вариант\w*\s+ответ|ответы|варианты|дистрактор)", text) or text in ("вариант", "answers", "options"):
                 roles["options"] = c
-            elif re.match(r"^(?:[а-еa-e]|[1-8]|вариант\s*\d|(?:answer|option|choice|ответ)\s*\d.*)$", text):
+            elif re.match(r"^(?:[а-еa-e]|[1-8]|(?:вариант|answer|option|choice|ответ)\s*(?:\d|[a-hа-з](?![a-zа-яё])).*)$", text):
                 roles["option_cols"].append(c)
+                letter = re.search(r"(?:^|\s)([a-hа-з]|\d)$", text)  # «Вариант B», «Answer 2»: подпись варианта — из шапки
+                if letter:
+                    roles.setdefault("option_labels", {})[c] = letter.group(1)
             elif re.match(r"^(?:вопрос|содержани|задани|формулировк|текст|тестов|утверждени|question)", text):
                 roles.setdefault("question", c)
         if "number" in roles and "question" not in roles and roles.get("key") is not None and "options" not in roles \
@@ -3186,7 +3192,7 @@ _ENCRYPTED_PACKAGE = "EncryptedPackage".encode("utf-16-le")
 
 
 def check_file_name(name: str) -> str:
-    """Расширение файла (docx, txt, md, xlsx) или BankError 415: «.doc» — old_doc, остальное — unsupported."""
+    """Расширение файла (FILE_EXTENSIONS) или BankError 415: «.doc» — old_doc, остальное — unsupported."""
     extension = name.rsplit(".", 1)[-1].lower().strip() if "." in name else ""
     if extension == "doc":
         raise BankError(415, "old_doc", OLD_DOC_DETAIL)
@@ -3196,9 +3202,10 @@ def check_file_name(name: str) -> str:
 
 
 def _sniff(contents: bytes, extension: str) -> str:
-    """'docx', 'xlsx' или 'text' по содержимому (переименованный файл читается тем, чем он является)."""
+    """'docx', 'xlsx', 'pdf', 'moodle', 'html', 'csv' или 'text' по содержимому (переименованный файл читается тем, чем
+    он является)."""
     if contents.startswith(b"%PDF-"):
-        raise BankError(415, "unsupported", UNSUPPORTED_DETAIL)
+        return "pdf"
     if contents.startswith(_OLE_MAGIC):
         # Word 97–2003 (.doc), переименованный в .docx; файл с паролем — тоже OLE, но с EncryptedPackage
         if extension != "xlsx" and _ENCRYPTED_PACKAGE not in contents:
@@ -3218,8 +3225,17 @@ def _sniff(contents: bytes, extension: str) -> str:
         if extension in ("docx", "xlsx"):
             return extension
         raise BankError(422, "unreadable", UNREADABLE_DETAIL)
-    if extension in ("docx", "xlsx"):
+    if extension in ("docx", "xlsx", "pdf"):
         raise BankError(422, "unreadable", UNREADABLE_DETAIL)
+    head = contents[:2048].lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    if b"<quiz" in contents[:4096].lower() and (head.startswith(b"<?xml") or head.startswith(b"<quiz")):
+        return "moodle"
+    if extension == "xml":
+        raise BankError(422, "unreadable", UNREADABLE_DETAIL)  # XML, но не Moodle
+    if extension in ("html", "htm") or head.startswith((b"<!doctype html", b"<html")):
+        return "html"
+    if extension == "csv":
+        return "csv"
     return "text"
 
 
@@ -3304,31 +3320,87 @@ def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str
     return _checked(result, format_mode)
 
 
-def _file_blocks(contents: bytes, name: str, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> tuple[Optional[str], list[Block]]:
-    """Файл → (текст TXT/MD, []) или (None, блоки DOCX/XLSX); картинки DOCX — в pictures, если он передан.
-    Ошибки — те же BankError, что у банка."""
+def _file_input(contents: bytes, name: str, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> tuple[str, object]:
+    """Файл → ("text", текст TXT/MD), ("blocks", блоки DOCX/XLSX/CSV/HTML), ("pdf", строки PDF) или ("moodle", вопросы Moodle XML);
+    картинки DOCX — в pictures, если он передан. Ошибки — те же BankError, что у банка."""
     extension = check_file_name(name)
     if not contents:
         raise BankError(422, "empty_file", EMPTY_FILE_DETAIL)
     kind = _sniff(contents, extension)
-    if kind == "text":
+    if kind in ("text", "csv"):
         if len(contents) > TEXT_BYTES_PER_CHAR * MAX_TOTAL_CHARS:
             raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL)  # заведомо длиннее: не раскодируем
         try:
-            return decode_text(contents), []
+            text = decode_text(contents)
         except Exception as exc:  # кодировку не угадать: текст исключения пользователю не показываем
             print(f"Bank text decoding failed: {type(exc).__name__}")
             raise BankError(422, "unreadable", UNREADABLE_DETAIL) from None
+        if kind == "text":
+            return "text", text
     try:
-        blocks: list[Block] = read_docx(contents, pictures) if kind == "docx" else list(read_xlsx(contents))
+        if kind == "moodle":
+            return "moodle", bank_formats.read_moodle(contents)
+        if kind == "docx":
+            blocks: list[Block] = read_docx(contents, pictures)
+        elif kind == "xlsx":
+            blocks = list(read_xlsx(contents))
+        elif kind == "csv":
+            blocks = [bank_formats.read_csv(text)]
+        elif kind == "html":
+            blocks = bank_formats.read_html(contents)
+        else:
+            blocks = list(bank_formats.read_pdf(contents))
     except ArchiveTooLarge:
         raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL) from None
+    except bank_formats.PdfScan:
+        raise BankError(422, "scan_pdf", SCAN_PDF_DETAIL) from None
     except Exception as exc:  # повреждённый файл: текст исключения пользователю не показываем
         print(f"Bank file read failed: {type(exc).__name__}")
         raise BankError(422, "unreadable", UNREADABLE_DETAIL) from None
     if _block_chars(blocks) > MAX_TOTAL_CHARS:
         raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL)
-    return None, blocks
+    return ("pdf" if kind == "pdf" else "blocks"), blocks
+
+
+def _file_blocks(contents: bytes, name: str, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> tuple[Optional[str], list[Block]]:
+    """Файл → (текст TXT/MD, []) или (None, блоки); Moodle XML здесь не читается (файл ключа из него не бывает)."""
+    kind, value = _file_input(contents, name, pictures)
+    if kind == "moodle":
+        raise BankError(422, "unreadable", UNREADABLE_DETAIL)
+    return (value, []) if kind == "text" else (None, value)  # type: ignore[return-value]
+
+
+def read_moodle_reader(questions: list) -> "Reader":
+    """Вопросы Moodle XML (bank_formats.read_moodle) → вопросы разбора: ответы из разметки файла (evidence «gift», как GIFT)."""
+    reader = Reader(line_word="вопрос")
+    reader.layouts["moodle_xml"] += 1
+    category: Optional[str] = None
+    for number, question in enumerate(questions, start=1):
+        if question.category and question.category != category:
+            category = question.category
+            reader.heading(category, "topic")
+        item = reader.new_item("", question.text, f"вопрос {number}")
+        item.images = [""] * question.images
+        if question.kind in ("multichoice", "truefalse"):
+            if question.kind == "truefalse" and len(question.options) == 2:
+                true_first = question.options[0].strip().lower() in ("true", "верно", "да", "истина")
+                weights = question.fractions if true_first else list(reversed(question.fractions))
+                item.options = [Option(text="Верно"), Option(text="Неверно")]
+                item.kind = "truefalse"
+                item.correct = [k for k, weight in enumerate(weights) if weight > 0]
+            else:
+                item.options = [Option(text=text, runs=[Run(text=text)]) for text in question.options]
+                item.correct = [k for k, weight in enumerate(question.fractions) if weight > 0]
+                if not question.single or len(item.correct) > 1:
+                    item.kind = "multiple"
+            item.evidence = "gift" if item.correct else ""
+        elif question.kind in ("shortanswer", "numerical"):
+            item.kind, item.answer, item.evidence = "open", "; ".join(question.answers) or None, "gift" if question.answers else ""
+        elif question.kind == "matching" and question.pairs:
+            item.kind, item.pairs = "match", list(question.pairs)
+        else:
+            item.kind = "open"  # эссе, cloze, перетаскивание: текст вопроса, ответа нет
+    return reader
 
 
 def read_key_file(contents: bytes, name: str) -> list[dict]:
@@ -3347,17 +3419,23 @@ def read_key_file(contents: bytes, name: str) -> list[dict]:
 def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_text: Optional[str] = None,
                     format_mode: str = "auto", key_file: Optional[list[dict]] = None, key_section: Optional[int] = None,
                     with_pictures: bool = False) -> dict:
-    """Файл банка (DOCX, TXT, MD, XLSX) → предпросмотр. Ошибки — BankError с кодом для клиента:
-    415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items.
+    """Файл банка (DOCX, XLSX, TXT, MD, CSV, HTML, PDF, Moodle XML) → предпросмотр. Ошибки — BankError с кодом для
+    клиента: 415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items / scan_pdf.
     key_file — разделы файла ключа (read_key_file), key_section — раздел, выбранный пользователем.
     with_pictures — картинки DOCX переносятся (их просит клиент, который умеет их сохранить: страница, закэшированная до
     этого, сохранила бы вопрос без картинки и без флага has_image); без него картинки — только флаг, как раньше."""
     _check_modes(key_mode, format_mode)
     pictures: Optional[dict[str, tuple[str, bytes]]] = {} if with_pictures else None
-    text, blocks = _file_blocks(contents, name, pictures)
-    if text is not None:
-        return parse_bank_text(text, key_mode=key_mode, key_text=key_text, format_mode=format_mode,
+    kind, value = _file_input(contents, name, pictures)
+    if kind == "text":
+        return parse_bank_text(value, key_mode=key_mode, key_text=key_text, format_mode=format_mode,  # type: ignore[arg-type]
                                key_file=key_file, key_section=key_section, markdown=name.lower().endswith(".md"))
-    result = parse_blocks(blocks, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode,
-                          key_file=key_file, key_section=key_section, pictures=pictures)
+    if kind == "moodle":
+        reader = read_moodle_reader(value)  # type: ignore[arg-type]
+        result = _finish_with_key_file(reader, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode,
+                                       key_file=key_file, key_section=key_section)
+        return _checked(result, format_mode)
+    line_word = "строка" if kind == "pdf" else "абзац"
+    result = parse_blocks(value, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode,  # type: ignore[arg-type]
+                          key_file=key_file, key_section=key_section, pictures=pictures, line_word=line_word)
     return _checked(result, format_mode)

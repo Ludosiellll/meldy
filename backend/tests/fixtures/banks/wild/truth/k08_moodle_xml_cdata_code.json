@@ -7,7 +7,7 @@
   "content:code"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Что выведет программа?\nint x = 5;\nx += 3;\nConsole.WriteLine(x);",

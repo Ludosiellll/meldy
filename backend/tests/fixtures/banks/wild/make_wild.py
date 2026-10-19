@@ -2427,7 +2427,7 @@ def main() -> int:
         extra = produced[2] if len(produced) > 2 else {}
         name = f"{case_id}.{spec['ext']}"
         record = {"id": case_id, "file": f"files/{name}", "tags": spec["tags"], "note": spec["note"],
-                  "supported": spec["ext"] in ("docx", "txt", "md", "xlsx"), "questions": questions}
+                  "supported": spec["ext"] in ("docx", "txt", "md", "xlsx", "csv", "html", "xml", "pdf"), "questions": questions}
         if data is None:
             if not (FILES / name).is_file():
                 print(f"skip {name}: generator unavailable", file=sys.stderr)

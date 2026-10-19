@@ -7,7 +7,7 @@
   "key:column_letter"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Сколько минут в сутках?",

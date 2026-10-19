@@ -8,7 +8,7 @@
   "key:end_list"
  ],
  "note": "PDF с текстовым слоем (Helvetica, cp1251, ToUnicode)",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Кто был первым космонавтом?",

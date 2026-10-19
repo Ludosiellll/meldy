@@ -7,7 +7,7 @@
   "key:column_text"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Какая валюта используется в Японии?",

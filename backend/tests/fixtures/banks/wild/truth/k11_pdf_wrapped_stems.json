@@ -10,7 +10,7 @@
   "text:pdf_paste"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Какой орган человека вырабатывает инсулин?",

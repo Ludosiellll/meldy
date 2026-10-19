@@ -10,7 +10,7 @@
   "struct:junk"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Какой элемент обозначается символом Fe?",

@@ -8,7 +8,7 @@
   "key:checked"
  ],
  "note": "сохранённая страница теста: варианты — радиокнопки, у верного checked",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Какая формула у воды?",

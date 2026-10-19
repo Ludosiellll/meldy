@@ -1,11 +1,12 @@
 /**
  * Reading one file or one pasted list for the import page (package D3a).
  *
- * - DOCX, XLSX, TXT, MD and pasted text go to the question-bank importer (api/containers.ts parseBank,
- *   POST /api/exams/parse-bank) with the file's format (auto | test | open) and the student's key list (key_text).
- * - A PDF has no formatting to find a key in: it is read by the oral list's parser (api/exams.ts parseQuestionList,
- *   the existing POST /api/exams/parse, which also reads scans) as a list of open questions (Concept 1 §3.2: «PDF и
- *   сканы — для списков без вариантов»).
+ * - DOCX, XLSX, PDF, TXT, MD, CSV, HTML, Moodle XML and pasted text go to the question-bank importer
+ *   (api/containers.ts parseBank, POST /api/exams/parse-bank) with the file's format (auto | test | open) and the
+ *   student's key list (key_text). A PDF is read from its text layer (bold by the font's name).
+ * - A scanned PDF has no text layer: the importer answers scan_pdf, and the file is read as before by the oral list's
+ *   parser (api/exams.ts parseQuestionList, the existing POST /api/exams/parse, which reads scans) as a list of open
+ *   questions (Concept 1 §3.2: «PDF и сканы — для списков без вариантов»).
  * - What can be told before sending is told at once: a Word 97–2003 file (.doc), another format, an empty or too big
  *   file. Errors carry the importer's code and the spec's Russian line (copyImport.ts PARSE_ERRORS).
  */
@@ -15,9 +16,9 @@ import type { BankItem, BankParseResult } from '../../../types/container';
 import { PARSE_ERRORS } from '../copyImport';
 import type { FileFormat } from './importModel';
 
-export const ACCEPT = '.docx,.xlsx,.txt,.md,.pdf,.doc';
+export const ACCEPT = '.docx,.xlsx,.pdf,.txt,.md,.csv,.html,.htm,.xml,.doc';
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
-const READABLE = new Set(['docx', 'xlsx', 'txt', 'md']);
+const READABLE = new Set(['docx', 'xlsx', 'pdf', 'txt', 'md', 'csv', 'html', 'htm', 'xml']);
 
 export class ReadError extends Error {
   readonly code: string;
@@ -37,7 +38,7 @@ export function extensionOf(name: string): string {
 export function precheck(file: File): ReadError | null {
   const extension = extensionOf(file.name);
   if (extension === 'doc') return new ReadError('old_doc');
-  if (extension !== 'pdf' && !READABLE.has(extension)) return new ReadError('unsupported');
+  if (!READABLE.has(extension)) return new ReadError('unsupported');
   if (file.size === 0) return new ReadError('empty_file');
   if (file.size > MAX_FILE_BYTES) return new ReadError('file_too_big');
   return null;
@@ -125,13 +126,6 @@ export async function readBank(input: ReadInput): Promise<{ result: BankParseRes
   if (input.file) {
     const refused = precheck(input.file);
     if (refused) throw refused;
-    if (extensionOf(input.file.name) === 'pdf') {
-      try {
-        return { result: oralListAsBank(await parseQuestionList({ file: input.file })), pdf: true };
-      } catch (error) {
-        throw new ReadError('unknown', examErrorMessage(error, PARSE_ERRORS.unknown));
-      }
-    }
   }
   try {
     const result = await parseBank({
@@ -144,6 +138,17 @@ export async function readBank(input: ReadInput): Promise<{ result: BankParseRes
     });
     return { result, pdf: false };
   } catch (error) {
-    throw asReadError(error);
+    const failure = asReadError(error);
+    if (failure.code === 'scan_pdf' && input.file) return readScan(input.file);
+    throw failure;
+  }
+}
+
+/** A PDF without text, as before: the oral list's parser reads the scan as a list of open questions. */
+async function readScan(file: File): Promise<{ result: BankParseResult; pdf: boolean }> {
+  try {
+    return { result: oralListAsBank(await parseQuestionList({ file })), pdf: true };
+  } catch (error) {
+    throw new ReadError('scan_pdf', examErrorMessage(error, PARSE_ERRORS.scan_pdf));
   }
 }

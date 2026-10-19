@@ -8,7 +8,7 @@
   "key:bold"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Сколько сторон у шестиугольника?",

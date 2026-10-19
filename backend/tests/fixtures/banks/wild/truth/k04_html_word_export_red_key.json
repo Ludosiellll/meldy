@@ -9,7 +9,7 @@
   "key:red"
  ],
  "note": "HTML из Word («Веб-страница»): MsoNormal, ключ — красный цвет в style",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Какой процесс превращает жидкость в газ?",

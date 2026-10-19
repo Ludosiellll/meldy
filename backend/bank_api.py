@@ -5,13 +5,13 @@ main.py, как у /api/exams/parse (без неё — 401); лимит — 10 �
 (user_or_ip_key): клиент шлёт по запросу на файл. Разбор — правила bank_parse.py без ИИ: единиц дневного
 лимита не тратит, в базу ничего не пишет (ни SupabaseRest, ни quota здесь не вызываются). Сохраняет клиент.
 
-Форма (multipart): file (DOCX, TXT, MD, XLSX до MAX_UPLOAD_BYTES, по умолчанию 15 МБ) или text;
-необязательно key_mode (auto | first_option | none), key_text (ключ строками «1 – б»), key_file (ключ отдельным
-файлом: DOCX, XLSX, TXT, MD; берётся раздел варианта теста), key_section (номер раздела файла ключа, выбранный
+Форма (multipart): file (DOCX, XLSX, PDF с текстом, TXT, MD, CSV, HTML, Moodle XML до MAX_UPLOAD_BYTES, по умолчанию
+15 МБ) или text; необязательно key_mode (auto | first_option | none), key_text (ключ строками «1 – б»), key_file (ключ
+отдельным файлом: те же форматы, кроме Moodle XML; берётся раздел варианта теста), key_section (номер раздела файла ключа, выбранный
 пользователем), pictures=1 (картинки DOCX переносятся: так просит страница, которая их сохраняет) и format
 (auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
 ключ, флаги, marks, статистика. Ошибки — {"detail": "<по-русски>", "code": "<код>"}: 415 old_doc /
-unsupported, 413 too_many / too_much_text / file_too_big, 422 empty_file / unreadable / no_items,
+unsupported, 413 too_many / too_much_text / file_too_big, 422 empty_file / unreadable / no_items / scan_pdf,
 400 bad_form / both_inputs / no_input / key_text_too_long.
 """
 

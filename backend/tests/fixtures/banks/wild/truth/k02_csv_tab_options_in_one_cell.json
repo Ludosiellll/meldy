@@ -8,7 +8,7 @@
   "key:column_letter"
  ],
  "note": "варианты в одной ячейке через « | », разделитель — табуляция",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Какой органоид клетки отвечает за синтез белка?",

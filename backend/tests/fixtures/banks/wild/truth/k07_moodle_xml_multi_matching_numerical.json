@@ -7,7 +7,7 @@
   "kind:mixed"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Выберите все чётные числа:",

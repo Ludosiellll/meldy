@@ -6,7 +6,7 @@
   "key:column_letter"
  ],
  "note": "",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Кто написал роман «Война и мир»?",

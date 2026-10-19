@@ -38,6 +38,24 @@ BANK_TEXT = (
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
+def blank_pdf() -> bytes:
+    """PDF с одной пустой страницей: текстового слоя нет, как у скана."""
+    objects = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+               b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >>"]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % number + body + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 4\n0000000000 65535 f \n" + b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
+    out += b"trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % xref
+    return bytes(out)
+
+
+SCAN_PDF = blank_pdf()
+
+
 def assert_error(response, status: int, code: str, detail: str | None = None) -> None:
     assert response.status_code == status, response.text
     body = response.json()
@@ -264,8 +282,10 @@ def test_synthetic_banks_come_back_whole_and_in_the_same_shape(api):
 @pytest.mark.parametrize(("request_kwargs", "status", "code", "detail"), [
     ({"files": {"file": ("Тест.doc", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\0" * 64, "application/msword")}}, 415, "old_doc",
      "Это файл Word старого формата (.doc). Откройте его в Word, сохраните как DOCX и загрузите снова."),
-    ({"files": {"file": ("Тест.pdf", b"%PDF-1.4", "application/pdf")}}, 415, "unsupported",
-     "Пока принимаем DOCX, TXT и XLSX. PDF добавим позже — если есть файл Word, загрузите его."),
+    ({"files": {"file": ("Тест.odt", b"anything", "application/vnd.oasis.opendocument.text")}}, 415, "unsupported",
+     "Этот формат не читаем. Подойдут Word (DOCX), Excel (XLSX), PDF, текст (TXT, MD, CSV), HTML и Moodle XML."),
+    ({"files": {"file": ("Тест.pdf", SCAN_PDF, "application/pdf")}}, 422, "scan_pdf",
+     "В этом PDF нет текста — это скан. Пришлите Word или текстовый файл."),
     ({"files": {"file": ("Тест.xls", b"\xd0\xcf\x11\xe0", "application/vnd.ms-excel")}}, 415, "unsupported", None),
     ({"files": {"file": ("Тест.docx", b"not a zip at all", DOCX)}}, 422, "unreadable",
      "Не удалось прочитать файл. Сохраните его заново в Word как DOCX и попробуйте ещё раз."),
@@ -293,10 +313,10 @@ def test_a_file_over_the_upload_limit_is_413_file_too_big(api, monkeypatch):
     assert_error(response, 413, "file_too_big", "Файл слишком большой. Максимальный размер: 1000 байт")
 
 
-def test_old_word_and_pdf_are_refused_before_the_upload_is_read(api, monkeypatch):
+def test_old_word_and_unknown_formats_are_refused_before_the_upload_is_read(api, monkeypatch):
     monkeypatch.setenv("MAX_UPLOAD_BYTES", "10")  # файл больше предела, но ответ — про формат
-    big_pdf = {"file": ("Тест.pdf", b"%PDF-1.4" + b"0" * 1000, "application/pdf")}
-    assert_error(api.post(PATH, files=big_pdf), 415, "unsupported")
+    big_odt = {"file": ("Тест.odt", b"PK" + b"0" * 1000, "application/vnd.oasis.opendocument.text")}
+    assert_error(api.post(PATH, files=big_odt), 415, "unsupported")
     big_doc = {"file": ("Тест.doc", b"\xd0\xcf\x11\xe0" + b"0" * 1000, "application/msword")}
     assert_error(api.post(PATH, files=big_doc), 415, "old_doc")
 

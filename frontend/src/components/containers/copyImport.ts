@@ -143,7 +143,7 @@ export const IMPORT = {
   lede: 'Один общий файл или по файлу на предмет.',
   pick: 'Выбрать файлы',
   pasteLink: 'Вставить список текстом',
-  formats: 'Word, Excel или TXT · PDF и сканы — для списков без вариантов',
+  formats: 'Word, Excel, PDF, TXT, CSV, HTML или Moodle XML · сканы — для списков без вариантов',
   dropTitle: 'Загрузите вопросы',
   dropLede: 'Перетащите сюда файлы — по одному на предмет или один на все.',
   dropping: 'Отпустите файлы — Meldy разберёт их',
@@ -215,7 +215,7 @@ export const IMPORT = {
   noKeyFile: 'Ключ в другом файле',
   noKeyLater: 'Отмечать по ходу',
   noKeyOral: 'Это устные вопросы',
-  pdfNote: 'В PDF не видно выделения, поэтому ключ не найти. Если есть этот файл в Word, загрузите его.',
+  pdfNote: 'Это скан: вопросы прочитаны списком, без вариантов и ключей. Если есть этот файл в Word, загрузите его.',
 
   target: 'Куда добавить',
   targetNew: 'Новый экзамен',
@@ -404,7 +404,8 @@ export function keyShareLine(source: string, keyed: number, total: number): stri
 /** The importer's error codes (backend/bank_api.py, bank_parse.py) and ours, in the words of the spec. */
 export const PARSE_ERRORS: Record<string, string> = {
   old_doc: 'Это файл Word старого формата (.doc). Откройте его в Word или Google Документах и сохраните как DOCX.',
-  unsupported: 'Этот формат не прочитать. Подойдут Word (.docx), Excel (.xlsx), текст (.txt) и PDF.',
+  unsupported: 'Этот формат не читаем. Подойдут Word (DOCX), Excel (XLSX), PDF, текст (TXT, MD, CSV), HTML и Moodle XML.',
+  scan_pdf: 'В этом PDF нет текста — это скан. Пришлите Word или текстовый файл.',
   too_many: 'В файле больше 2000 вопросов, а в экзамен помещается 2000. Разделите файл и загрузите части в разные экзамены.',
   too_much_text: 'В файле больше 2 000 000 знаков. Разделите его на части и загрузите по очереди.',
   file_too_big: 'Файл больше 15 МБ. Сохраните его без картинок или разделите на части.',

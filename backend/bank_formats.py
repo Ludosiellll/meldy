@@ -1,0 +1,533 @@
+"""Банк вопросов из CSV, HTML, PDF и Moodle XML: блоки для разбора по правилам (bank_parse).
+
+CSV — таблица (разделитель «,», «;» или табуляция — тот, что даёт одинаковое число ячеек в строках; кодировка — как у
+TXT, bank_parse.decode_text). HTML — абзацы, пункты списков с номерами и буквами, как их показывает браузер, заголовки
+(уровень — как у заголовка Word), таблицы; оформление — теги и style: жирный (b, strong, font-weight), подчёркивание,
+курсив, цвет, выделение (mark, background), моноширинный (code, pre); флажок и радиокнопка (checked) — отметка варианта;
+картинка — флаг has_image (её не скачиваем). PDF — текстовый слой PyPDF2 (уже в зависимостях): строки как у
+page.extract_text, жирный и курсив — по имени шрифта («Arial-BoldMT»); PDF без текста — скан, BankError 422 scan_pdf.
+Moodle XML — вопросы целиком (multichoice, truefalse, shortanswer, numerical, matching, essay) с ответами из разметки.
+
+Безопасность: XML и HTML разбирает lxml без подстановки сущностей и без сети; script, style и комментарии не читаются;
+PDF — не больше PDF_MAX_PAGES страниц; из файла ничего не исполняется и ничего не скачивается.
+"""
+
+from __future__ import annotations
+
+import csv
+import io
+import re
+from dataclasses import dataclass, field
+from typing import Optional
+
+from bank_docx import Cell, Para, Run, Table
+
+__all__ = ["MoodleQuestion", "PdfScan", "read_csv", "read_html", "read_moodle", "read_pdf"]
+
+MAX_CELLS = 200_000
+MAX_COLUMNS = 32
+PDF_MAX_PAGES = 300
+# Меньше этого числа видимых знаков на страницу в среднем — текста в PDF нет (скан или картинки).
+PDF_SCAN_CHARS_PER_PAGE = 20
+
+
+class PdfScan(ValueError):
+    """В PDF нет текстового слоя: скан или страницы-картинки."""
+
+
+# ── CSV ─────────────────────────────────────────────────────────────────────────
+
+
+def _csv_rows(text: str, delimiter: str) -> list[list[str]]:
+    return list(csv.reader(io.StringIO(text), delimiter=delimiter))
+
+
+def _delimiter(text: str) -> str:
+    """Разделитель, при котором строки начала файла делятся на одинаковое число ячеек (2 и больше)."""
+    sample = "\n".join(text.split("\n")[:30])
+    best, best_score = ",", -1.0
+    for delimiter in (";", "\t", ",", "|"):
+        try:
+            rows = [row for row in _csv_rows(sample, delimiter) if any(cell.strip() for cell in row)]
+        except csv.Error:
+            continue
+        if not rows:
+            continue
+        widths = [len(row) for row in rows]
+        common = max(set(widths), key=widths.count)
+        if common < 2:
+            continue
+        score = widths.count(common) / len(widths) + common / 100
+        if score > best_score:
+            best, best_score = delimiter, score
+    return best
+
+
+def _cell(text: str) -> Cell:
+    paras = [Para(runs=[Run(text=line.strip())]) for line in text.replace("\r\n", "\n").split("\n") if line.strip()]
+    return Cell(paras=paras)
+
+
+def read_csv(text: str) -> Table:
+    """Таблица CSV: строка — строка таблицы; перевод строки внутри ячейки — абзац ячейки. Номера строк — как в файле."""
+    rows: list[list[Cell]] = []
+    numbers: list[int] = []
+    cells = 0
+    old_limit = csv.field_size_limit()
+    csv.field_size_limit(max(old_limit, 1_000_000))
+    try:
+        for number, row in enumerate(csv.reader(io.StringIO(text), delimiter=_delimiter(text)), start=1):
+            if not any(value.strip() for value in row):
+                continue
+            row = row[:MAX_COLUMNS]
+            cells += len(row)
+            if cells > MAX_CELLS:
+                raise ValueError("too many cells")
+            rows.append([_cell(value) for value in row])
+            numbers.append(number)
+    finally:
+        csv.field_size_limit(old_limit)
+    width = max((len(row) for row in rows), default=0)
+    rows = [row + [Cell(paras=[]) for _ in range(width - len(row))] for row in rows]
+    return Table(rows=rows, numbers=numbers, title="CSV")
+
+
+# ── HTML ────────────────────────────────────────────────────────────────────────
+
+_BLOCK_TAGS = {"p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "blockquote", "dt", "dd", "section", "article",
+               "header", "footer", "main", "fieldset", "legend", "figure", "figcaption", "address", "center", "form", "label"}
+_SKIP_TAGS = {"script", "style", "head", "noscript", "template", "svg", "math", "button", "select", "textarea", "iframe"}
+_COLORS = {"red": "FF0000", "green": "00B050", "blue": "0070C0", "orange": "FFC000", "purple": "7030A0", "magenta": "FF00FF"}
+_STYLE_RE = re.compile(r"([a-z-]+)\s*:\s*([^;]+)", re.I)
+_SPACE_RE = re.compile(r"[ \t\r\n\f ]+")
+
+
+def _style(element) -> dict:
+    out: dict = {}
+    for name, value in _STYLE_RE.findall(element.get("style") or ""):
+        name, value = name.lower(), value.strip().lower()
+        if name == "font-weight" and (value in ("bold", "bolder") or value.isdigit() and int(value) >= 600):
+            out["bold"] = True
+        elif name in ("text-decoration", "text-decoration-line") and "underline" in value:
+            out["underline"] = True
+        elif name == "font-style" and value in ("italic", "oblique"):
+            out["italic"] = True
+        elif name == "color":
+            color = _color(value)
+            if color:
+                out["color"] = color
+        elif name in ("background", "background-color", "mso-highlight") and not value.startswith(("transparent", "white", "#fff", "none")):
+            out["highlight"] = value.split()[0][:20]
+        elif name == "font-family" and any(mono in value for mono in ("courier", "consolas", "mono")):
+            out["mono"] = True
+    return out
+
+
+def _color(value: str) -> Optional[str]:
+    value = value.strip().lower()
+    if value.startswith("#") and len(value) in (4, 7):
+        hex_value = value[1:] if len(value) == 7 else "".join(char * 2 for char in value[1:])
+        return None if hex_value.upper() in ("000000", "FFFFFF") else hex_value.upper()
+    match = re.match(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", value)
+    if match:
+        hex_value = "".join(f"{min(255, int(part)):02X}" for part in match.groups())
+        return None if hex_value in ("000000", "FFFFFF") else hex_value
+    return _COLORS.get(value) or (value.upper()[:20] if value not in ("black", "windowtext", "inherit", "auto", "white") else None)
+
+
+def _tag_marks(tag: str) -> dict:
+    return {"b": {"bold": True}, "strong": {"bold": True}, "u": {"underline": True}, "ins": {"underline": True},
+            "i": {"italic": True}, "em": {"italic": True}, "s": {"strike": True}, "strike": {"strike": True},
+            "del": {"strike": True}, "mark": {"highlight": "yellow"}, "code": {"mono": True}, "tt": {"mono": True},
+            "kbd": {"mono": True}, "samp": {"mono": True}, "pre": {"mono": True}}.get(tag, {})
+
+
+@dataclass
+class _ListState:
+    kind: str  # "ol" | "ul"
+    style: str = "1"
+    counter: int = 0
+
+
+@dataclass
+class _HtmlReader:
+    out: list = field(default_factory=list)
+    current: Optional[Para] = None
+    lists: list = field(default_factory=list)
+
+    def open_para(self, label: str = "", level: Optional[int] = None, outline: Optional[int] = None) -> Para:
+        self.close_para()
+        self.current = Para(label=label, level=level, outline=outline)
+        return self.current
+
+    def close_para(self) -> None:
+        if self.current is not None:
+            para = self.current
+            text = para.text
+            if text.strip() or para.images or para.checkbox is not None:
+                # пробелы по краям абзаца браузер не показывает
+                lead = len(text) - len(text.lstrip())
+                if lead and para.runs:
+                    para.runs[0] = Run(**{**para.runs[0].__dict__, "text": para.runs[0].text.lstrip()})
+                self.out.append(para)
+            self.current = None
+
+    def text(self, value: Optional[str], marks: dict, pre: bool) -> None:
+        if not value:
+            return
+        if not pre:
+            value = _SPACE_RE.sub(" ", value)
+        if self.current is None:
+            if not value.strip():
+                return
+            self.open_para()
+        para = self.current
+        if not pre and para.runs and para.runs[-1].text.endswith(" ") and value.startswith(" "):
+            value = value[1:]
+        if not para.runs and not pre:
+            value = value.lstrip()
+        if not value:
+            return
+        lines = value.split("\n") if pre else [value]
+        for k, line in enumerate(lines):
+            if k:
+                self.close_para()
+                self.open_para()
+                para = self.current
+            if line:
+                para.runs.append(Run(text=line, bold=bool(marks.get("bold")), underline=bool(marks.get("underline")),
+                                     italic=bool(marks.get("italic")), strike=bool(marks.get("strike")),
+                                     highlight=marks.get("highlight"), color=marks.get("color"), mono=bool(marks.get("mono"))))
+
+    def label(self, state: _ListState) -> str:
+        state.counter += 1
+        n = state.counter
+        if state.kind == "ul":
+            return ""
+        if state.style == "a":
+            return _letters(n, "abcdefghijklmnopqrstuvwxyz") + ")"
+        if state.style == "A":
+            return _letters(n, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ")"
+        if state.style in ("i", "I"):
+            roman = _roman(n)
+            return (roman.lower() if state.style == "i" else roman) + "."
+        return f"{n}."
+
+    def walk(self, element, marks: dict, pre: bool = False) -> None:
+        tag = element.tag.lower() if isinstance(element.tag, str) else ""
+        if not tag or tag in _SKIP_TAGS:
+            self.text(element.tail, marks, pre) if tag else None
+            return
+        mine = {**marks, **_tag_marks(tag), **_style(element)}
+        if tag == "font" and element.get("color"):
+            color = _color(element.get("color"))
+            if color:
+                mine["color"] = color
+        pre = pre or tag == "pre"
+        if tag == "table":
+            self.close_para()
+            self.out.append(self.table(element, mine))
+            self.text(element.tail, marks, pre)
+            return
+        if tag == "br":
+            if pre:
+                self.text("\n", mine, True)
+            else:
+                self.close_para()
+            self.text(element.tail, marks, pre)
+            return
+        if tag == "img":
+            if self.current is None:
+                self.open_para()
+            self.current.images.append("")  # картинку из HTML не скачиваем: вопрос получит has_image
+            self.text(element.tail, marks, pre)
+            return
+        if tag == "input" and (element.get("type") or "").lower() in ("checkbox", "radio"):
+            if self.current is None:
+                self.open_para()
+            if self.current.text.strip():
+                self.close_para()
+                self.open_para()
+            self.current.checkbox = element.get("checked") is not None
+            self.text(element.tail, marks, pre)
+            return
+        if tag in ("ol", "ul"):
+            self.close_para()
+            start = element.get("start")
+            state = _ListState(kind=tag, style=(element.get("type") or "1") if tag == "ol" else "")
+            if start and start.isdigit():
+                state.counter = int(start) - 1
+            self.lists.append(state)
+            self.children(element, mine, pre)
+            self.lists.pop()
+            self.close_para()
+            self.text(element.tail, marks, pre)
+            return
+        if tag == "li":
+            state = self.lists[-1] if self.lists else _ListState(kind="ul")
+            label = self.label(state)
+            level = len(self.lists) - 1 if self.lists else 0
+            self.open_para(label=label, level=level or None)
+            self.children(element, mine, pre)
+            self.close_para()
+            self.text(element.tail, marks, pre)
+            return
+        if tag in _BLOCK_TAGS:
+            heading = int(tag[1]) if re.fullmatch(r"h[1-6]", tag) else None
+            if self.current is not None and self.current.label and not self.current.text.strip() and heading is None:
+                pass  # «<li><p>…</p></li>»: первый абзац пункта — продолжение пункта, номер остаётся у него
+            else:
+                self.close_para()
+                if heading is not None:
+                    self.open_para(outline=heading)
+            self.children(element, mine, pre)
+            self.close_para()
+            self.text(element.tail, marks, pre)
+            return
+        self.children(element, mine, pre)
+        self.text(element.tail, marks, pre)
+
+    def children(self, element, marks: dict, pre: bool) -> None:
+        self.text(element.text, marks, pre)
+        for child in element:
+            if isinstance(child.tag, str):
+                self.walk(child, marks, pre)
+            else:  # комментарий, инструкция: только хвост
+                self.text(child.tail, marks, pre)
+
+    def table(self, element, marks: dict) -> Table:
+        rows: list[list[Cell]] = []
+        pending: dict[int, int] = {}  # столбец → сколько ещё строк его занимает rowspan сверху
+        for tr in element.iter("tr"):
+            if _nearest_table(tr) is not element:
+                continue
+            cells: list[Cell] = []
+            column = 0
+            for td in tr:
+                if not isinstance(td.tag, str) or td.tag.lower() not in ("td", "th"):
+                    continue
+                while pending.get(column):
+                    pending[column] -= 1
+                    cells.append(Cell(paras=[], continuation=True))
+                    column += 1
+                inner = _HtmlReader()
+                inner.children(td, {**marks, **_tag_marks(td.tag.lower()), **_style(td)}, False)
+                inner.close_para()
+                paras = [block for block in inner.out if isinstance(block, Para)]
+                for block in inner.out:  # вложенная таблица — строками этой ячейки
+                    if isinstance(block, Table):
+                        paras += [Para(runs=[Run(text=" | ".join(cell.text for cell in row if cell.text))]) for row in block.rows]
+                span = _int(td.get("colspan"), 1)
+                cells.append(Cell(paras=paras, span=span))
+                rowspan = _int(td.get("rowspan"), 1)
+                if rowspan > 1:
+                    pending[column] = rowspan - 1
+                column += span
+            while pending.get(column):
+                pending[column] -= 1
+                cells.append(Cell(paras=[], continuation=True))
+                column += 1
+            if cells:
+                rows.append(cells)
+        return Table(rows=rows)
+
+
+def _nearest_table(tr):
+    parent = tr.getparent()
+    while parent is not None and (not isinstance(parent.tag, str) or parent.tag.lower() != "table"):
+        parent = parent.getparent()
+    return parent
+
+
+def _int(value: Optional[str], default: int) -> int:
+    try:
+        return max(1, min(50, int(value))) if value else default
+    except ValueError:
+        return default
+
+
+def _letters(n: int, alphabet: str) -> str:
+    return alphabet[(n - 1) % len(alphabet)] * ((n - 1) // len(alphabet) + 1)
+
+
+def _roman(n: int) -> str:
+    out = ""
+    for value, digits in ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+                          (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")):
+        while n >= value:
+            out += digits
+            n -= value
+    return out
+
+
+def read_html(contents: bytes) -> list:
+    """Блоки HTML-страницы (Para и Table) в порядке документа."""
+    from lxml import html as lxml_html
+
+    parser = lxml_html.HTMLParser(remove_comments=True, remove_pis=True, no_network=True, recover=True, encoding=_html_encoding(contents))
+    root = lxml_html.document_fromstring(contents, parser=parser)
+    body = root.find("body")
+    reader = _HtmlReader()
+    reader.children(body if body is not None else root, {}, False)
+    reader.close_para()
+    return reader.out
+
+
+def _html_encoding(contents: bytes) -> str:
+    head = contents[:4096].decode("ascii", errors="ignore").lower()
+    match = re.search(r"charset\s*=\s*[\"']?([a-z0-9_-]+)", head)
+    if match:
+        name = match.group(1)
+        try:
+            "".encode(name)
+            return name
+        except LookupError:
+            pass
+    try:
+        contents.decode("utf-8")
+        return "utf-8"
+    except UnicodeDecodeError:
+        return "cp1251"
+
+
+# ── PDF (PyPDF2) ────────────────────────────────────────────────────────────────
+
+_BOLD_FONT_RE = re.compile(r"bold|black|heavy|semibold|demi|,b(?![a-z])", re.I)
+_ITALIC_FONT_RE = re.compile(r"italic|oblique|,i(?![a-z])", re.I)
+
+
+def _page_paras(page) -> list[Para]:
+    """Строки страницы, как их отдаёт page.extract_text, с жирным и курсивом по имени шрифта (посимвольно сопоставлены
+    с кусками визитёра PyPDF2; не сошлись — строки без оформления)."""
+    pieces: list[tuple[str, bool, bool]] = []
+
+    def visit(text, cm, tm, font, size):
+        if text:
+            name = str((font or {}).get("/BaseFont") or "")
+            pieces.append((text, bool(_BOLD_FONT_RE.search(name)), bool(_ITALIC_FONT_RE.search(name))))
+
+    text = page.extract_text(visitor_text=visit) or ""
+    styled = [(char, bold, italic) for piece, bold, italic in pieces for char in piece if not char.isspace()]
+    visible = [char for char in text if not char.isspace()]
+    aligned = len(styled) == len(visible) and all(a == b for (a, _, _), b in zip(styled, visible))
+    paras: list[Para] = []
+    k = 0
+    for line in text.split("\n"):
+        runs: list[Run] = []
+        for char in line:
+            bold = italic = False
+            if not char.isspace():
+                if aligned:
+                    _, bold, italic = styled[k]
+                k += 1
+            if runs and runs[-1].bold == bold and runs[-1].italic == italic:
+                runs[-1].text += char
+            else:
+                runs.append(Run(text=char, bold=bold, italic=italic))
+        paras.append(Para(runs=runs))
+    return paras
+
+
+def read_pdf(contents: bytes) -> list[Para]:
+    """Строки текстового слоя PDF (абзац — строка; между страницами — пустая строка). PdfScan — текста нет."""
+    from PyPDF2 import PdfReader
+
+    reader = PdfReader(io.BytesIO(contents))
+    if reader.is_encrypted:
+        reader.decrypt("")  # PDF с пустым паролем на открытие читается; с паролем — ошибка, файл не прочитан
+    pages = reader.pages
+    count = min(len(pages), PDF_MAX_PAGES)
+    out: list[Para] = []
+    visible = 0
+    for index in range(count):
+        paras = _page_paras(pages[index])
+        visible += sum(len("".join(para.text.split())) for para in paras)
+        out += paras + [Para()]
+    if visible < max(1, count) * PDF_SCAN_CHARS_PER_PAGE:
+        raise PdfScan("no text layer")
+    return out
+
+
+# ── Moodle XML ──────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class MoodleQuestion:
+    """Вопрос Moodle XML: вид Moodle, текст, варианты и их доли (fraction), пары соответствия, категория."""
+
+    kind: str
+    text: str
+    options: list[str] = field(default_factory=list)
+    fractions: list[float] = field(default_factory=list)
+    single: bool = True
+    answers: list[str] = field(default_factory=list)
+    pairs: list[tuple[str, str]] = field(default_factory=list)
+    category: Optional[str] = None
+    images: int = 0
+
+
+def _html_text(value: Optional[str]) -> tuple[str, int]:
+    """Текст из HTML-поля Moodle (абзацы и <br> — строки, <pre> — как написан) и число картинок в нём."""
+    if not value or not value.strip():
+        return "", 0
+    if "<" not in value:
+        return value.strip(), 0
+    blocks = read_html(f"<html><body>{value}</body></html>".encode("utf-8"))
+    lines: list[str] = []
+    images = 0
+    for block in blocks:
+        if isinstance(block, Para):
+            images += len(block.images)
+            if block.text.strip() or block.code_blank:
+                lines.append((block.label + " " if block.label else "") + block.text.rstrip())
+        else:
+            lines += [" | ".join(cell.text for cell in row if cell.text) for row in block.rows]
+    return "\n".join(lines).strip(), images
+
+
+def _fraction(value: Optional[str]) -> float:
+    try:
+        return float(value or 0)
+    except ValueError:
+        return 0.0
+
+
+def read_moodle(contents: bytes) -> list[MoodleQuestion]:
+    """Вопросы Moodle XML по порядку. Неизвестный вид (cloze, перетаскивание…) — открытый вопрос с текстом."""
+    from lxml import etree
+
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False, recover=True)
+    root = etree.fromstring(contents, parser)
+    if root is None:
+        raise ValueError("empty xml")
+    out: list[MoodleQuestion] = []
+    category: Optional[str] = None
+    for question in root.iter("question"):
+        kind = (question.get("type") or "").lower()
+        if kind == "category":
+            path = question.findtext("category/text") or ""
+            category = path.strip().split("/")[-1].strip() or None
+            if category in ("$course$", "$system$", "top", "Default for"):
+                category = None
+            continue
+        if kind == "description":
+            continue
+        text, images = _html_text(question.findtext("questiontext/text"))
+        item = MoodleQuestion(kind=kind, text=text, category=category, images=images)
+        if kind in ("multichoice", "truefalse", "shortanswer", "numerical"):
+            for answer in question.findall("answer"):
+                option, _ = _html_text(answer.findtext("text"))
+                item.options.append(option)
+                item.fractions.append(_fraction(answer.get("fraction")))
+            item.single = (question.findtext("single") or "true").strip().lower() not in ("false", "0")
+            if kind in ("shortanswer", "numerical"):
+                item.answers = [option for option, fraction in zip(item.options, item.fractions) if fraction >= 100]
+                item.options, item.fractions = [], []
+        elif kind == "matching":
+            for sub in question.findall("subquestion"):
+                left, _ = _html_text(sub.findtext("text"))
+                right = (sub.findtext("answer/text") or "").strip()
+                if left:
+                    item.pairs.append((left, right))
+        out.append(item)
+    return out

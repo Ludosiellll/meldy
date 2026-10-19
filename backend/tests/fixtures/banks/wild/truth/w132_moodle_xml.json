@@ -6,7 +6,7 @@
   "kind:mixed"
  ],
  "note": "Moodle XML",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Чему примерно равно ускорение свободного падения у поверхности Земли?",

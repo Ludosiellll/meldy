@@ -9,7 +9,7 @@
   "key:bold"
  ],
  "note": "PDF из «Word»: ключ набран жирным шрифтом (Helvetica-Bold)",
- "supported": false,
+ "supported": true,
  "questions": [
   {
    "stem": "Какой город является столицей Беларуси?",

@@ -201,7 +201,7 @@ describe('ImportPage: one door for every file', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Новый экзамен' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Вставить список текстом' })).toBeInTheDocument();
-    expect(screen.getByText(/PDF и сканы — для списков без вариантов/)).toBeInTheDocument();
+    expect(screen.getByText(/сканы — для списков без вариантов/)).toBeInTheDocument();
   });
 
   it('reads a file of two subjects, previews them and saves one exam with both (items, topics, minutes)', async () => {
