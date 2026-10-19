@@ -2,33 +2,41 @@
 
 The deck is authored as HTML/CSS slides and compiled into a real PPTX. The HTML is the design; the compiler turns
 marked elements into native PowerPoint objects (live text, shapes that Morph, pictures, video) and bakes everything
-else into the slide's background picture. Direction and reasons: meldy-notes `40_Decisions/2026-10-10_deck-direction.md`;
-slide texts and the talk: meldy-notes `10_Project/CodingFest_11_Deck_Script.md`; the look and the three motion ideas:
-`reference/board.html`.
+else into the slide's background picture. Direction and reasons: meldy-notes `40_Decisions/2026-10-10_deck-direction.md`
+(rounds 1–8) and, since 19.10.2026, deck v2: direction A «Сцена» with B's rule (every number with its denominator and
+a way to check it), three equal parts (lectures, exams, the test constructor); slide texts and the talk: meldy-notes
+`10_Project/CodingFest_11_Deck_Script.md`.
 
 ## Hard limits (from the contest and the jury research)
 
 - 16:9, **15 slides at most**, the 10 mandatory names of Приложение 2 verbatim, in this order: «Титульный», «Автор
   проекта», «Актуальность», «Цель, задачи», «Новизна и инновационность», «Содержание», «Представление блоков проекта»
-  (may span several slides), «Используемые источники», «Технические требования», «Заключение». Own slides
-  (one since round 7: «Тестирование, продвижение и масштабируемость») sit between the blocks and «Используемые
-  источники».
+  (may span several slides), «Используемые источники», «Технические требования», «Заключение». Own slides may sit
+  between the blocks and «Используемые источники»; deck v2 has none: the six block slides are two per part (07–08
+  lectures, 09–10 exams, 11–12 tests), testing moves to 14 and promotion and scale to 15.
 - **No hidden slides** in the submitted file. File **≤ 9.5 MB** (decimal), Latin file name, a PDF copy next to it.
 - **The static frame is the master copy.** Normal view, the PDF and LibreOffice show every object at its final place;
   animations only add (entrance effects only, no exits, no motion paths that end elsewhere). Nothing essential lives
   only in motion or only in the notes.
-- Onest only (static TTFs in `design/fonts/`, embedded in the PPTX). Meldy tokens only: canvas `#F3F3F0`, surface
-  `#FFFFFF`, ink `#0B121C`, muted `#4B515B`, faint `#8A8F97`, line `#E3E3DD`, blue `#2869DD` (pill) / `#1F5BC6` (labels),
-  blue-soft `#E8EFFC` (an avatar's round), yellow dot `#F4C45B`, named-once `#E9B13C`, pink tag `#F5B6CD`.
-  **Dark stage slides** (05 «Новизна», 12 «Тестирование, продвижение и масштабируемость»; `<main class="slide dark">`)
-  use the app's own dark theme (`frontend/src/index.css` `.dark`) instead: canvas `#0B0F16`, surface `#141A24`,
-  surface-soft `#1B2230`, ink `#F3F3F0`, muted `#A7ADB7`, line `#262E3B`, labels `#8DB2F5`, yellow `#F4C45B`; Morph
-  into and out of them is the lights going down and up. No gradients, glow, glass, particles, emoji, generated
-  pictures, paper or handwriting.
-- Type on a 1920×1080 slide: mandatory label 40–48 px (20–24 pt) caps 600 blue; claim 72–80 px (36–40 pt) 600, two
-  lines at most; a manifesto's statement (05) 96–112 px; the wordmark on 01 and 15 280–320 px; hero numbers 360–440 px;
-  steps and lists 44–48 px; sources and «как считается» 28–32 px (14–16 pt); nothing under 28 px. One hero per slide;
-  about 35 words at most outside the reading layer (the list slides 02, 13, 14 excepted).
+- Onest only (static TTFs in `design/fonts/`, embedded in the PPTX). **Deck v2: every slide is the dark stage**
+  (`<main class="slide dark">`, `design/stage.css` over `design/deck.css`), the app's own dark theme
+  (`frontend/src/index.css` `.dark`): canvas `#0B0F16`, surface `#141A24`, surface-soft `#1B2230`, ink `#F3F3F0`,
+  muted `#A7ADB7`, line `#262E3B`, labels `#8DB2F5`, yellow `#F4C45B`. The light Meldy tokens (canvas `#F3F3F0`,
+  ink `#0B121C`, …) appear only inside the product: screenshots of the live site, the QR cards, the table column of
+  Meldy on 05, the documentation tiles on 13. One real Meldy moment per slide, large; yellow numbered marks (`.mk`)
+  tie a line of text to a place on the screen. No gradients, glow, glass, particles, emoji, generated pictures, paper
+  or handwriting. **No AI look** (owner, 19.10): no hand-drawn or wavy underline (the app's own marks of the cheat
+  sheet stay; frames that show the site's swoosh under a heading are not used), no eyebrow labels (tracked capitals
+  over a heading), no «не X — а Y» contrasts, no headings built on an em dash, no slogans, no reassurance captions,
+  no «ИИ не придумывает» disclaimers. Plain sentences with real numbers.
+- Every number carries its denominator or its parts and where it comes from (a 28 px line under it, or the notes'
+  «Если спросят»); a number the notes or the code do not confirm keeps a visible `[…]` slot (`.ph`, yellow) until the
+  owner fills it.
+- Type on a 1920×1080 slide: the mandatory name 40 px 600 in sentence case, muted, top left (y 48; it is the title
+  placeholder, not a label over the claim); the parts «Лекции · Экзамены · Тесты» or the small wordmark top right;
+  claim 64–72 px (32–36 pt) 600, two lines at most; the wordmark on 01 and 15 280 px; hero numbers 112–360 px; marked
+  lines and lists 32–40 px; sources and «как считается» 28 px (14 pt); nothing under 28 px. One hero per slide; about
+  35 words at most outside the reading layer (the list slides 02, 13, 14, 15 excepted).
 
 ## Geometry
 
@@ -69,11 +77,14 @@ Keep text live wherever it carries meaning (titles, claims, numbers, sources); b
 
 ## The deck-wide parts
 
-- **The strip** («шпаргалка этой защиты»): 10 squares at the top-left of every slide (x 128, y 56, 22 px squares, 12 px
-  gap), one per mandatory section, named `!!s01`…`!!s10`. No counter: the squares say it. On «Заключение» one line
-  under the dot says the strip is empty («Шпаргалка этой защиты пуста»).
-  The current section's square is yellow `#F4C45B`; passed ones are an empty outline (`#8A8F97` at 55%, 2 px); coming
-  ones ink. «Представление блоков проекта» keeps one square for all its slides. On «Заключение» the squares gather and
-  become the yellow dot of the wordmark «Meldy.» (`!!dot`).
-- **The dot** `!!dot`: the wordmark's yellow dot; on the first product slide it grows into the window of the product clip
-  (rounded rectangle, same name), and closes back at the end.
+- **The header** (deck v2): the mandatory name top left (the title placeholder, `!!title`); top right the small
+  wordmark «Meldy» with its yellow dot (`!!dot`) on 02–05, 13, 14, «CodingFest-11» on 01, nothing on 15 (the big
+  wordmark), and the parts «Лекции · Экзамены · Тесты» (`!!nav`) on 06–12, the current part in ink with «1/2» or
+  «2/2». The ten squares of rounds 2–8 («шпаргалка этой защиты») are gone: without their caption the jury could not
+  read them.
+- **Morph pairs**: `!!word` and `!!dot` (01 → 02 the wordmark's dot shrinks into the corner; 14 → 15 it grows back);
+  the three phones of 01 (`!!p1`…`!!p3`, screens `!!s1`…`!!s3`); the part screens of 06 (`!!s1` lectures, `!!s2`
+  exams, `!!s3` tests) grow into the hero of the part's first slide (07, 09, 11); `!!nav` stays in place on 06–12.
+- **The jury test** (12): the QR opens a real test built in the studio on account A, «Эластичность спроса за
+  минуту», open to guests without an account, no time limit, unlimited attempts:
+  https://ludosiel-studyforge.hf.space/k/kb0dxmwb21fb (`design/v2/qr-jury.svg`). It must stay published.

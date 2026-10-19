@@ -4,65 +4,39 @@
 <meta charset="utf-8">
 <title>07 · Представление блоков проекта: лекции — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
-<style>
-/* Device: the bezel is a native ink shape (!!dot, it morphs along 06 → 11), the screen a video inside it. 07 and 08
-   share the laptop's frame (the same box), so on 07 → 08 only the screen's content changes. */
-.dev { background: #0b121c; }
-/* What the clip shows, in the app's own words: a small label, then the moment itself, large. */
-.mo-c { left: 128px; font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-.mo { left: 128px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
-</style>
+<link rel="stylesheet" href="../design/stage.css">
 </head>
 <body>
-<main class="slide" data-transition-dur="1500">
+<main class="slide dark">
 
-<div class="label" data-pptx="title">Представление блоков проекта</div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Лекция&nbsp;— файл, фото, ссылка или видео&nbsp;—<br>становится конспектом, карточками и&nbsp;тестом</div>
+<div class="sec" data-pptx="title">Представление блоков проекта</div>
+<div class="nav" data-pptx="text" data-name="!!nav"><b>Лекции 1/2</b> · Экзамены · Тесты</div>
 
-<!-- The laptop: the first material's bullet of 06 has grown into its ink bezel (!!dot, Morph); then the screen comes
-     on: the recording of the live site, release 44.1 (media/product/lecture-materials.mp4, 30.0 s at 1152 × 568,
-     fitted from masters/lecture-master by tools/record/fit.py; frame 0 is the poster, so the loop starts on it). It
-     starts with its entrance (data-play «with»), so what it shows comes in on its moments, clip seconds + the
-     entrance's 150 ms (media/product/lecture-moments.json): «Аудио и видео» pressed 3.10; the video chosen 5.78
-     («Рыночное равновесие (лекция).mp4 · 2,03 МБ», «До 15 МБ…» under it); the list «Что сделать из лекции» 7.27, all
-     five ticked 9.70; the results from 14.10, all on the result screen (Конспект: Ключевые тезисы 15.57, a section
-     17.10, Термины 18.60; Карточки 19.93, Тест 21.73, Выжимка 24.93, Подкаст 26.43). The third block, the link to
-     the exam, lands with the results. -->
-<div class="dev lift" data-pptx="shape" data-name="!!dot" style="left:608px;top:392px;width:1184px;height:600px;border-radius:36px"></div>
-<img data-pptx="video" data-name="!!clip" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="500" data-anim-order="1" data-src="../media/product/lecture-materials.mp4" data-poster="../media/product/lecture-materials.jpg" data-loop src="../media/product/lecture-materials.jpg" aria-label="Запись сайта на ноутбуке: «Разобрать лекцию» и четыре вкладки — «Файл», «Текст», «Ссылка», «Аудио и видео»; во вкладке «Аудио и видео» — MP4, MP3, WAV, MPEG, M4A, до 15 МБ, выбран файл «Рыночное равновесие (лекция).mp4», 2,03 МБ; в «Что сделать из лекции» отмечены все пять; «Запустить анализ», «Завершено 4 из 5»; затем экран результата: конспект с ключевыми тезисами, разделом и терминами, карточка с ответом, вопрос теста с пояснением, выжимка в своей вкладке «Выжимка» и подкаст с двумя ведущими" alt="" style="left:624px;top:408px;width:1152px;height:568px">
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Лекция файлом, фото, ссылкой или&nbsp;записью<br>становится пятью материалами</div>
 
-<div class="mo-c" data-pptx="text" style="top:420px" data-anim="fade" data-anim-trigger="with" data-anim-delay="3250" data-anim-dur="400" data-anim-order="3">Аудио и&nbsp;видео</div>
-<div class="mo" data-pptx="text" style="top:460px" data-anim="rise" data-anim-trigger="with" data-anim-delay="5930" data-anim-dur="500" data-anim-order="3">Запись лекции&nbsp;—<br>файлом до&nbsp;15&nbsp;МБ</div>
-<div class="mo-c" data-pptx="text" style="top:604px" data-anim="fade" data-anim-trigger="with" data-anim-delay="7420" data-anim-dur="400" data-anim-order="3">Что сделать из&nbsp;лекции</div>
-<div class="mo" data-pptx="text" style="top:644px" data-anim="rise" data-anim-trigger="with" data-anim-delay="9850" data-anim-dur="500" data-anim-order="3">Конспект, карточки,<br>тест, выжимка, подкаст</div>
-<!-- The link to the exam, in the answer aloud's blue (06's sixth branch): these lectures are what an oral answer is
-     checked against. -->
-<div class="mo-c" data-pptx="text" style="top:788px" data-anim="fade" data-anim-trigger="with" data-anim-delay="14250" data-anim-dur="400" data-anim-order="3">Ответ вслух</div>
-<div class="mo blue" data-pptx="text" style="top:828px" data-anim="rise" data-anim-trigger="with" data-anim-delay="14350" data-anim-dur="500" data-anim-order="3">Из&nbsp;этих же лекций&nbsp;—<br>пункты ответа и&nbsp;цитаты<br>для&nbsp;проверки, слайд 9</div>
+<!-- The product: the result page of the lecture recording «Рыночное равновесие, спрос и предложение» (account A,
+     live site 19.10.2026, release 47.3). -->
+<img class="shot" data-pptx="image" data-name="!!s1" data-src="../media/product/v2/lec-konspekt.png" src="../media/product/v2/lec-konspekt.png" aria-label="Живой сайт: лекция «Рыночное равновесие, спрос и предложение» — вкладки Материал, Выжимка, Подкаст; Конспект, Карточки 6, Тест 5; ключевые тезисы и под ними фрагмент 1, фрагмент 2" alt="" style="left:640px;top:352px;width:1152px;height:688px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="2">
+<div class="mk" data-pptx="shape" style="left:982px;top:492px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="4">1</div>
+<div class="mk" data-pptx="shape" style="left:948px;top:966px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">2</div>
 
-<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
-<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
-<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
-<div class="sq now" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<!-- header:end -->
+<div class="big" data-pptx="text" style="left:120px;top:376px;font-size:120px;line-height:124px" data-anim="settle" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="600" data-anim-order="2">38 <span class="of">из</span> 39</div>
+<div class="t36" data-pptx="text" style="left:128px;top:512px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="3">разборов лекций заняли<br>меньше 30&nbsp;секунд</div>
+<div class="t28" data-pptx="text" style="left:128px;top:612px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="3">журнал сайта, 05–12.10.2026</div>
 
-<template data-pptx="notes">Начнём с лекций — с ними студент работает весь семестр. Лекцию загружают файлом или фото, текстом, ссылкой на страницу или записью до 15 мегабайт.
+<div class="mk s" data-pptx="shape" style="left:128px;top:712px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">1</div>
+<div class="t32" data-pptx="text" style="left:200px;top:714px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Конспект, карточки, тест,<br>выжимка и&nbsp;подкаст</div>
+<div class="mk s" data-pptx="shape" style="left:128px;top:840px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">2</div>
+<div class="t32" data-pptx="text" style="left:200px;top:842px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">У&nbsp;каждого раздела<br>фрагменты лекции,<br>из&nbsp;которых он&nbsp;взят</div>
+<div class="t28" data-pptx="text" style="left:128px;top:1000px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Пример без&nbsp;входа: /try/lecture</div>
 
-Дальше студент выбирает, что сделать. По умолчанию отмечены конспект, карточки для повторения по дням и тест с объяснением ошибок; можно добавить выжимку на одну страницу и подкаст, где два ведущих обсуждают лекцию. В ролике отмечены все пять, и трёхминутное видео Meldy разобрал за 9 секунд.
+<template data-pptx="notes">Начнём с лекций, с ними студент работает весь семестр. Лекцию загружают файлом или фото, текстом, ссылкой на страницу или записью до 15 мегабайт. Студент выбирает, что сделать: конспект, карточки для повторения по дням, тест с объяснением ошибок, выжимку на одну страницу и подкаст, где два ведущих обсуждают лекцию.
 
-Из этих же лекций Meldy берёт пункты ответа и цитаты, когда проверяет ответ вслух.
+У каждого раздела конспекта стоят фрагменты лекции, из которых он взят, по ним раздел можно проверить. Если текст распознан из записи, Meldy прямо пишет: сверьте термины, числа и имена.
 
-О записи: это живой сайт и тестовый аккаунт; лекция наша — текст и слайды сделаны нами, голос синтезирован, видео (3 минуты, 2 МБ) загружено как обычный файл. Ожидание вырезано мягкими переходами, как и ответы на остальные вопросы теста и загрузка звука подкаста; ничего не ускорено, звука в ролике нет. Всё остальное — настоящий интерфейс сайта. Анализ в этой записи занял 9 секунд от нажатия до всех пяти материалов. Видео разбиралось не впервые, и четыре материала из пяти сервер отдал готовыми, но первый разбор того же видео с нуля тоже занял 9 секунд.
+По журналу сайта с 5 по 12 октября 38 разборов из 39 заняли меньше 30 секунд.
 
-Если спросят: по журналу сайта за неделю 38 разборов из 39 заняли меньше 30 секунд. Длинную запись Meldy режет по паузам на куски до 30 секунд, чтобы распознавание не пропускало мест: наша 19-минутная тестовая запись распознаётся около двух минут, 92 % слов и ни одного пропущенного места. Запись — файлом MP4, MP3, WAV, MPEG или M4A до 15 МБ. Это примерно 15–30 минут звука, видео той же длины весит больше; запись целой пары обычно больше лимита — её делят на части. Файл — PDF, DOCX, PPTX, HTML, TXT, MD, JPG или PNG. Ссылку на YouTube Meldy не открывает; со страницы по ссылке берёт основной текст без меню и рекламы. Сканы и фото страниц распознаёт Google Gemini, на телефоне конспект можно сфотографировать.</template>
+О кадре: живой сайт, 19 октября 2026 года, наша лекция «Рыночное равновесие, спрос и предложение», загруженная видеофайлом. Пример без регистрации: ludosiel-studyforge.hf.space/try/lecture.</template>
 </main>
 </body>
 </html>

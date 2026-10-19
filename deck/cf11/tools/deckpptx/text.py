@@ -78,10 +78,12 @@ def rpr(run: dict, ctx: RunCtx, tag: str = 'rPr'):
     if run.get('strike'):
         el.set('strike', 'sngStrike')
     el.set('kern', '1200')
-    if ctx.caps_from_transform and run.get('transform') == 'uppercase':
-        el.set('cap', 'all')
+    # The title placeholder inherits the master's label style (cap="all", spc="240"): a title authored without
+    # capitals or tracking (deck v2: the mandatory name in sentence case) says so on its runs.
+    if ctx.caps_from_transform:
+        el.set('cap', 'all' if run.get('transform') == 'uppercase' else 'none')
     spc = pt100(run.get('letterSpacingPx', 0))
-    if spc:
+    if spc or ctx.caps_from_transform:
         el.set('spc', str(max(-400000, min(400000, spc))))
     shift = run.get('baselineShift') or 0
     if abs(shift) > 0.01:

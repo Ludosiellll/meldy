@@ -33,21 +33,22 @@ export const SECTIONS = [
  * with nothing.
  */
 export const SLIDES = [
-  { n: 1, file: '01-title.html', title: 'Титульный', section: 1, corner: 'runner', opening: true },
-  { n: 2, file: '02-author.html', title: 'Автор проекта', section: 2, corner: 'mark' },
-  { n: 3, file: '03-relevance.html', title: 'Актуальность', section: 3, corner: 'mark' },
-  { n: 4, file: '04-goal.html', title: 'Цель, задачи', section: 4, corner: 'mark' },
+  // Deck v2 (19.10.2026, direction A «Сцена»): every slide dark, no strip (see CONTRACT.md, The deck-wide parts).
+  { n: 1, file: '01-title.html', title: 'Титульный', section: 1, corner: 'runner', dark: true },
+  { n: 2, file: '02-author.html', title: 'Автор проекта', section: 2, corner: 'mark', dark: true },
+  { n: 3, file: '03-relevance.html', title: 'Актуальность', section: 3, corner: 'mark', dark: true },
+  { n: 4, file: '04-goal.html', title: 'Цель, задачи', section: 4, corner: 'mark', dark: true },
   { n: 5, file: '05-novelty.html', title: 'Новизна и инновационность', section: 5, corner: 'mark', dark: true },
-  { n: 6, file: '06-contents.html', title: 'Содержание', section: 6, corner: 'none' },
-  { n: 7, file: '07-lectures.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 8, file: '08-exam-plan.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 9, file: '09-oral.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 10, file: '10-sheet.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 11, file: '11-group.html', title: 'Представление блоков проекта', section: 7, corner: 'none' },
-  { n: 12, file: '12-testing-scale.html', title: 'Тестирование, продвижение и масштабируемость', section: null, after: 7, corner: 'mark', dotAway: true, dark: true },
-  { n: 13, file: '13-sources.html', title: 'Используемые источники', section: 8, corner: 'mark' },
-  { n: 14, file: '14-tech.html', title: 'Технические требования', section: 9, corner: 'mark' },
-  { n: 15, file: '15-conclusion.html', title: 'Заключение', section: 10, corner: 'none', finale: true },
+  { n: 6, file: '06-contents.html', title: 'Содержание', section: 6, corner: 'none', dark: true },
+  { n: 7, file: '07-lectures.html', title: 'Представление блоков проекта', section: 7, corner: 'none', dark: true },
+  { n: 8, file: '08-lecture-talk.html', title: 'Представление блоков проекта', section: 7, corner: 'none', dark: true },
+  { n: 9, file: '09-exam-plan.html', title: 'Представление блоков проекта', section: 7, corner: 'none', dark: true },
+  { n: 10, file: '10-oral-sheet.html', title: 'Представление блоков проекта', section: 7, corner: 'none', dark: true },
+  { n: 11, file: '11-studio.html', title: 'Представление блоков проекта', section: 7, corner: 'none', dark: true },
+  { n: 12, file: '12-jury-test.html', title: 'Представление блоков проекта', section: 7, corner: 'none', dark: true },
+  { n: 13, file: '13-sources.html', title: 'Используемые источники', section: 8, corner: 'mark', dark: true },
+  { n: 14, file: '14-tech.html', title: 'Технические требования', section: 9, corner: 'mark', dark: true },
+  { n: 15, file: '15-conclusion.html', title: 'Заключение', section: 10, corner: 'none', finale: true, dark: true },
 ];
 
 /** Geometry of the header band (CONTRACT.md): squares at x 128 + 34·i, y 56, 22 px. */

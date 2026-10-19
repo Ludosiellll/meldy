@@ -1,0 +1,67 @@
+/*
+ * Deck v2, direction A «Сцена» (2026-10-19): every slide is the app's dark theme (<main class="slide dark">), and
+ * one real Meldy moment sits on it, large. Loaded after deck.css; the tokens are deck.css's .slide.dark ones.
+ *
+ * HEADER (y 48–96): the mandatory name of Приложение 2 on the left (the title placeholder), in sentence case, the
+ * muted colour, 40 px 600; on the right either the small wordmark «Meldy» with its dot or, on the six product
+ * slides, the three parts «Лекции · Экзамены · Тесты» with the current one in ink. No tracked capitals over a
+ * heading, no decoration under words.
+ * CLAIM (y 136–296): one plain sentence or two, 64 px 600, two lines at most.
+ * STAGE (y 336–1080): the product. Light screenshots of the live site on the dark canvas, rounded like the app's
+ * windows; phones in a black bezel with the theme's line as their edge. Yellow numbered marks tie a line of text
+ * to a place on the screen.
+ * READING LAYER: sources and «как считается» 28 px, faint; nothing on a slide under 28 px.
+ */
+
+.sec { left: 128px; top: 48px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.015em; color: var(--muted); white-space: nowrap; }
+.nav { top: 52px; right: 128px; font-size: 32px; line-height: 40px; font-weight: 500; color: var(--faint); white-space: nowrap; text-align: right; }
+.nav b { font-weight: 600; color: var(--ink); }
+.cf { top: 52px; right: 128px; font-size: 32px; line-height: 40px; font-weight: 500; color: var(--muted); white-space: nowrap; text-align: right; }
+
+.claim { left: 128px; top: 136px; font-size: 64px; line-height: 76px; font-weight: 600; letter-spacing: -.028em; white-space: nowrap; }
+.claim .dim { color: var(--muted); }
+
+/* text sizes on the stage */
+.t48 { font-size: 48px; line-height: 58px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.t40 { font-size: 40px; line-height: 50px; white-space: nowrap; }
+.t40s { font-size: 40px; line-height: 50px; font-weight: 600; letter-spacing: -.015em; white-space: nowrap; }
+.t36 { font-size: 36px; line-height: 46px; white-space: nowrap; }
+.t36m { font-size: 36px; line-height: 46px; color: var(--muted); white-space: nowrap; }
+.t32 { font-size: 32px; line-height: 42px; white-space: nowrap; }
+.t32m { font-size: 32px; line-height: 42px; color: var(--muted); white-space: nowrap; }
+.t28 { font-size: 28px; line-height: 36px; color: var(--faint); white-space: nowrap; }
+.t28m { font-size: 28px; line-height: 36px; color: var(--muted); white-space: nowrap; }
+.yl { color: var(--yellow); }
+.bl { color: var(--blue-fg); }
+.big { font-size: 160px; line-height: 160px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
+.huge { font-size: 360px; line-height: 340px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
+.big .of, .huge .of { color: var(--muted); }
+
+/* product pictures */
+.shot { border-radius: 28px; object-fit: cover; object-position: top left; }
+.shot.r20 { border-radius: 20px; }
+.bezel { background: #000000; border-radius: 52px; border: 3px solid #262e3b; }
+.screen { border-radius: 40px; object-fit: cover; object-position: top center; }
+.panel { background: var(--surface); border-radius: 40px; }
+.panel.soft { background: var(--surface-soft); }
+.rule { height: 2px; background: var(--line); }
+
+/* the yellow numbered mark: the same on the screen and next to its line */
+.mk { width: 56px; height: 56px; border-radius: 28px; background: var(--yellow); color: #0b121c; font-size: 30px; line-height: 56px; font-weight: 700; text-align: center; }
+.mk.s { width: 48px; height: 48px; border-radius: 24px; font-size: 26px; line-height: 48px; }
+
+/* the small wordmark in the corner and the big one (01, 15) */
+.mark { top: 46px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.045em; white-space: nowrap; }
+.mark-dot { width: 12px; height: 12px; border-radius: 5px; background: var(--yellow); }
+.word { font-size: 280px; line-height: 280px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; }
+.word-dot { background: var(--yellow); }
+
+/* a table of the novelty slide */
+.th { font-size: 32px; line-height: 40px; font-weight: 600; color: var(--muted); white-space: nowrap; text-align: center; }
+.td { font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; text-align: center; }
+.td.yes { color: #0b121c; font-weight: 600; }
+.tr { font-size: 36px; line-height: 44px; white-space: nowrap; }
+
+/* placeholders the owner fills before the file is sent */
+.ph { color: var(--yellow); }
+.ph-frame { border: 3px dashed rgba(244, 196, 91, .7); border-radius: 14px; }

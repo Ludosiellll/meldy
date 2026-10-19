@@ -4,48 +4,52 @@
 <meta charset="utf-8">
 <title>03 · Актуальность — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
+<link rel="stylesheet" href="../design/stage.css">
+<style>
+/* 960 questions, one square each, in six variants of 160 (20 × 8): baked into the background. */
+.q { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: #2b3444; }
+.vb { position: absolute; }
+</style>
 </head>
 <body>
-<main class="slide" data-transition-dur="900">
+<main class="slide dark">
 
-<div class="label" data-pptx="title">Актуальность</div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Экзамены по&nbsp;билетам&nbsp;— норма, а&nbsp;к&nbsp;сотням<br>вопросов готовятся без плана и&nbsp;проверки</div>
+<div class="sec" data-pptx="title">Актуальность</div>
+<div class="mark" data-pptx="text" data-name="!!word" style="left:1682px">Meldy</div>
+<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1780px;top:76px"></div>
 
-<!-- The rule: the higher-education attestation rules, by their full name (the reading layer). -->
-<div class="card lift" data-pptx="shape" data-name="!!x0301" style="left:128px;top:424px;width:712px;height:528px" data-anim-trigger="with" data-anim-delay="300" data-anim="settle" data-anim-dur="700" data-anim-order="2"></div>
-<div class="cap" data-pptx="text" style="left:176px;top:468px;letter-spacing:.09em" data-anim-trigger="with" data-anim="fade" data-anim-delay="550" data-anim-dur="500" data-anim-order="3">Постановление Минобразования</div>
-<div class="num" data-pptx="text" style="left:170px;top:516px;font-size:144px;line-height:144px" data-anim-delay="550" data-anim="rise" data-anim-trigger="with" data-anim-dur="600" data-anim-order="3">№&nbsp;319</div>
-<div class="t40" data-pptx="text" style="left:176px;top:668px" data-anim-delay="550" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="3">от&nbsp;13.10.2023</div>
-<div class="src muted" data-pptx="text" style="left:176px;top:744px" data-anim-trigger="with" data-anim="fade" data-anim-delay="800" data-anim-dur="600" data-anim-order="4">«Правила проведения аттестации студентов,<br>курсантов, слушателей при&nbsp;освоении<br>содержания образовательных программ<br>высшего образования»</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">К&nbsp;одной контрольной в&nbsp;нашем колледже 960&nbsp;вопросов.<br><span class="dim">Учить их по&nbsp;дням и&nbsp;проверять себя студент должен сам</span></div>
 
-<!-- The scale, on a click: the number the next slide turns into «0» (!!num). -->
-<div class="hero" data-pptx="text" data-name="!!num" style="left:868px;top:404px;font-size:360px;line-height:360px" data-anim="settle" data-anim-trigger="click" data-anim-dur="900" data-anim-order="5">229<span class="unit" style="font-size:140px">&nbsp;тыс.</span></div>
-<div class="t40" data-pptx="text" style="left:884px;top:772px" data-anim-trigger="with" data-anim="fade" data-anim-delay="300" data-anim-dur="600" data-anim-order="6">студентов вузов в&nbsp;Беларуси,<br>и&nbsp;у&nbsp;каждого сессия дважды в&nbsp;год</div>
+<div class="huge" data-pptx="text" style="left:104px;top:360px" data-anim="settle" data-anim-trigger="after" data-anim-dur="700" data-anim-order="2">960</div>
+<div class="t40" data-pptx="text" style="left:128px;top:712px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="2">вопросов: 6&nbsp;вариантов по&nbsp;160</div>
+<div class="t28" data-pptx="text" style="left:128px;top:768px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="2">Файлы контрольной группы авторов, октябрь 2026</div>
 
-<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim-trigger="with" data-anim="fade" data-anim-delay="800" data-anim-dur="500" data-anim-order="4">Источник: etalonline.by</div>
-<div class="src" data-pptx="text" style="left:884px;top:984px" data-anim-delay="300" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="6">Источник: Минобразования, БЕЛТА, 2026</div>
+<div id="grid" style="left:964px;top:372px;width:828px;height:542px"></div>
+<script>
+  // Six variants of 160 questions, 2 columns × 3 rows of 20 × 8 squares (14 px, step 20), 40 px between variants.
+  const g = document.getElementById('grid');
+  for (let v = 0; v < 6; v++) {
+    const bx = (v % 2) * 434, by = Math.floor(v / 2) * 194;
+    for (let i = 0; i < 160; i++) {
+      const d = document.createElement('div');
+      d.className = 'q';
+      d.style.left = (bx + (i % 20) * 20) + 'px';
+      d.style.top = (by + Math.floor(i / 20) * 20) + 'px';
+      g.appendChild(d);
+    }
+  }
+</script>
 
-<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
-<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
-<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
-<div class="sq now" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="mark" data-pptx="text" data-name="!!word" style="left:1692px;width:89px">Meldy</div>
-<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1782px;top:66px"></div>
-<!-- header:end -->
+<div class="rule" style="left:128px;top:880px;width:760px"></div>
+<div class="t32" data-pptx="text" style="left:128px;top:904px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="3">Экзамены по&nbsp;билетам: постановление<br>Минобразования №&nbsp;319 от&nbsp;13.10.2023</div>
+<div class="t32" data-pptx="text" style="left:964px;top:952px" data-anim="fade" data-anim-trigger="with" data-anim-delay="250" data-anim-dur="500" data-anim-order="3">≈&nbsp;229&nbsp;тыс. студентов в&nbsp;46&nbsp;вузах Беларуси</div>
+<div class="t28" data-pptx="text" style="left:964px;top:1000px" data-anim="fade" data-anim-trigger="with" data-anim-delay="250" data-anim-dur="500" data-anim-order="3">Минобразования, БЕЛТА, 2026</div>
 
-<template data-pptx="notes">Экзамен по билетам — обычная форма контроля, так её устанавливает постановление Министерства образования номер триста девятнадцать.
+<template data-pptx="notes">К одной контрольной в нашей группе дали шесть вариантов по сто шестьдесят вопросов, всего девятьсот шестьдесят. Рядом — стопка лекций. Сколько учить в день и что уже выучено, студент считает сам, а проверка одна — сама контрольная.
 
-Перед сессией студент получает перечень из сотен вопросов и стопку лекций. Дальше он один: нет плана, сколько учить в день, и нет проверки, кроме самого экзамена. Чат-боты охотно отвечают за студента, но на экзамене отвечать придётся ему самому.
+Экзамены по билетам — обычная форма аттестации, её устанавливает постановление Министерства образования номер триста девятнадцать. [Щелчок.] В Беларуси около двухсот тридцати тысяч студентов вузов, и сессия у каждого дважды в год.
 
-[Щелчок.] В Беларуси около двухсот тридцати тысяч студентов вузов, и сессия у каждого дважды в год.</template>
+Если спросят: 960 — это настоящая контрольная нашей группы в октябре 2026 года, файлы кафедры загружены в Meldy. 229 тысяч — Минобразования через БЕЛТА, 2026: «в стране работают 46 вузов, в которых обучается более 229 тысяч студентов».</template>
 </main>
 </body>
 </html>

@@ -4,94 +4,70 @@
 <meta charset="utf-8">
 <title>05 · Новизна и инновационность — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
+<link rel="stylesheet" href="../design/stage.css">
 <style>
-/* The comparison on the dark stage: four columns of 200 px from x 900; Meldy's column is a raised panel with
-   yellow ticks. Rows 80 px from y 520. «частично» and «—» stay quiet. */
-.th { top: 452px; width: 200px; font-size: 28px; line-height: 34px; font-weight: 600; color: var(--muted); text-align: center; white-space: nowrap; }
-.feat { left: 128px; font-size: 40px; line-height: 50px; white-space: nowrap; }
-.cell { width: 200px; text-align: center; white-space: nowrap; }
-.part { font-size: 28px; line-height: 50px; color: var(--muted); }
-.no { font-size: 40px; line-height: 50px; color: var(--faint); }
-.yes { width: 200px; font-size: 52px; line-height: 50px; font-weight: 600; color: var(--yellow); text-align: center; }
-.row-rule { left: 128px; width: 1388px; height: 2px; background: var(--line); }
+.col-m { background: #f3f3f0; border-radius: 32px; }
+.mh { font-size: 36px; line-height: 44px; font-weight: 600; letter-spacing: -.03em; color: #0b121c; white-space: nowrap; text-align: center; }
+.mdot { width: 10px; height: 10px; border-radius: 4px; background: var(--yellow); }
 </style>
 </head>
 <body>
-<main class="slide dark" data-transition-dur="1500">
+<main class="slide dark">
 
-<div class="label" data-pptx="title">Новизна и инновационность</div>
-<!-- The lights go down first (the transition), then the thesis rises in the dark as a statement. -->
-<div class="statement" data-pptx="text" style="top:184px" data-anim="rise" data-anim-dur="800" data-anim-order="0">ИИ не&nbsp;отвечает за&nbsp;студента:<br>он спрашивает и&nbsp;сверяет с&nbsp;лекциями</div>
+<div class="sec" data-pptx="title">Новизна и инновационность</div>
+<div class="mark" data-pptx="text" data-name="!!word" style="left:1682px">Meldy</div>
+<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1780px;top:76px"></div>
 
-<!-- Meldy's column: a raised panel (surface) on the night canvas. -->
-<div class="card" data-pptx="shape" style="left:1532px;top:420px;width:260px;height:512px;border-radius:32px;border:2px solid var(--line)" data-anim-trigger="with" data-anim-delay="450" data-anim="fade" data-anim-dur="500" data-anim-order="1"></div>
-<div class="th" data-pptx="text" style="left:900px" data-anim-delay="450" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="1">Чат-боты</div>
-<div class="th" data-pptx="text" style="left:1100px" data-anim-delay="450" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="1">Карточки</div>
-<div class="th" data-pptx="text" style="left:1300px;top:438px" data-anim-delay="450" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="1">Конспекты<br>по&nbsp;файлам</div>
-<div class="th ink" data-pptx="text" data-name="!!x0501" style="left:1584px;top:452px;width:132px;text-align:left;font-size:40px;line-height:44px;letter-spacing:-.045em;color:var(--ink)" data-anim-delay="450" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="1">Meldy</div>
-<div class="mark-dot" data-pptx="shape" style="left:1700px;top:475px;width:12px;height:12px;border-radius:6px" data-anim-delay="450" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="1"></div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Meldy соединяет разбор лекций, подготовку к&nbsp;экзамену<br>и&nbsp;тест по&nbsp;ссылке. <span class="dim">Обычно это три разных сервиса</span></div>
 
-<!-- Five features: each row wipes in from the left, a beat after the one above; then Meldy's ticks cascade. -->
-<div class="row-rule" data-pptx="shape" style="top:518px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="650" data-anim-dur="500" data-anim-order="2"></div>
-<div class="feat" data-pptx="text" style="top:535px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="650" data-anim-dur="500" data-anim-order="2">Задаёт вопросы кафедры</div>
-<div class="cell part" data-pptx="text" style="left:900px;top:535px" data-anim="fade" data-anim-trigger="with" data-anim-delay="800" data-anim-dur="400" data-anim-order="2">частично</div>
-<div class="cell part" data-pptx="text" style="left:1100px;top:535px" data-anim="fade" data-anim-trigger="with" data-anim-delay="800" data-anim-dur="400" data-anim-order="2">частично</div>
-<div class="cell no" data-pptx="text" style="left:1300px;top:535px" data-anim="fade" data-anim-trigger="with" data-anim-delay="800" data-anim-dur="400" data-anim-order="2">—</div>
+<!-- The Meldy column: the app's light paper, the one light thing on the stage. -->
+<div class="col-m" data-pptx="shape" style="left:1600px;top:352px;width:192px;height:640px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="3"></div>
+<div class="mh" data-pptx="text" style="left:1600px;top:388px;width:180px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="3">Meldy</div>
 
-<div class="row-rule" data-pptx="shape" style="top:598px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="930" data-anim-dur="500" data-anim-order="2"></div>
-<div class="feat" data-pptx="text" style="top:615px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="930" data-anim-dur="500" data-anim-order="2">Слушает ответ вслух</div>
-<div class="cell part" data-pptx="text" style="left:900px;top:615px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1080" data-anim-dur="400" data-anim-order="2">частично</div>
-<div class="cell no" data-pptx="text" style="left:1100px;top:615px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1080" data-anim-dur="400" data-anim-order="2">—</div>
-<div class="cell part" data-pptx="text" style="left:1300px;top:615px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1080" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="th" data-pptx="text" style="left:960px;top:368px;width:200px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="2">Чат-боты</div>
+<div class="th" data-pptx="text" style="left:1176px;top:368px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Карточки</div>
+<div class="th" data-pptx="text" style="left:1368px;top:368px;width:232px;font-size:30px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Конструкторы<br>тестов</div>
 
-<div class="row-rule" data-pptx="shape" style="top:678px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1210" data-anim-dur="500" data-anim-order="2"></div>
-<div class="feat" data-pptx="text" style="top:695px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1210" data-anim-dur="500" data-anim-order="2">Сверяет с&nbsp;лекциями, даёт цитату</div>
-<div class="cell part" data-pptx="text" style="left:900px;top:695px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1360" data-anim-dur="400" data-anim-order="2">частично</div>
-<div class="cell no" data-pptx="text" style="left:1100px;top:695px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1360" data-anim-dur="400" data-anim-order="2">—</div>
-<div class="cell part" data-pptx="text" style="left:1300px;top:695px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1360" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="rule" style="left:128px;top:464px;width:1456px"></div>
+<div class="tr" data-pptx="text" style="left:128px;top:490px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Конспект, карточки и&nbsp;тест из&nbsp;своей лекции</div>
+<div class="td" data-pptx="text" style="left:960px;top:492px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">по&nbsp;просьбе</div>
+<div class="td" data-pptx="text" style="left:1176px;top:492px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="td" data-pptx="text" style="left:1384px;top:492px;width:208px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="td yes" data-pptx="text" style="left:1600px;top:492px;width:192px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">да</div>
 
-<div class="row-rule" data-pptx="shape" style="top:758px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1490" data-anim-dur="500" data-anim-order="2"></div>
-<div class="feat" data-pptx="text" style="top:775px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1490" data-anim-dur="500" data-anim-order="2">Переспрашивает о&nbsp;пропущенном</div>
-<div class="cell part" data-pptx="text" style="left:900px;top:775px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1640" data-anim-dur="400" data-anim-order="2">частично</div>
-<div class="cell no" data-pptx="text" style="left:1100px;top:775px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1640" data-anim-dur="400" data-anim-order="2">—</div>
-<div class="cell no" data-pptx="text" style="left:1300px;top:775px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1640" data-anim-dur="400" data-anim-order="2">—</div>
+<div class="rule" style="left:128px;top:568px;width:1456px"></div>
+<div class="tr" data-pptx="text" style="left:128px;top:594px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">У&nbsp;каждого раздела место в&nbsp;лекции</div>
+<div class="td" data-pptx="text" style="left:960px;top:596px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="td" data-pptx="text" style="left:1176px;top:596px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">нет</div>
+<div class="td" data-pptx="text" style="left:1384px;top:596px;width:208px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">нет</div>
+<div class="td yes" data-pptx="text" style="left:1600px;top:596px;width:192px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">да</div>
 
-<div class="row-rule" data-pptx="shape" style="top:838px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1770" data-anim-dur="500" data-anim-order="2"></div>
-<div class="feat" data-pptx="text" style="top:855px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1770" data-anim-dur="500" data-anim-order="2">Засчитывает вопрос в&nbsp;два разных дня</div>
-<div class="cell no" data-pptx="text" style="left:900px;top:855px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1920" data-anim-dur="400" data-anim-order="2">—</div>
-<div class="cell part" data-pptx="text" style="left:1100px;top:855px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1920" data-anim-dur="400" data-anim-order="2">частично</div>
-<div class="cell no" data-pptx="text" style="left:1300px;top:855px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1920" data-anim-dur="400" data-anim-order="2">—</div>
+<div class="rule" style="left:128px;top:672px;width:1456px"></div>
+<div class="tr" data-pptx="text" style="left:128px;top:698px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">План по&nbsp;дням из&nbsp;файла кафедры до&nbsp;даты</div>
+<div class="td" data-pptx="text" style="left:960px;top:700px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">нет</div>
+<div class="td" data-pptx="text" style="left:1176px;top:700px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="td" data-pptx="text" style="left:1384px;top:700px;width:208px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">нет</div>
+<div class="td yes" data-pptx="text" style="left:1600px;top:700px;width:192px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">да</div>
 
-<div class="row-rule" data-pptx="shape" style="top:918px" data-anim="wipe" data-anim-trigger="with" data-anim-delay="1770" data-anim-dur="500" data-anim-order="2"></div>
+<div class="rule" style="left:128px;top:776px;width:1456px"></div>
+<div class="tr" data-pptx="text" style="left:128px;top:802px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Ответ вслух сверяется с&nbsp;лекциями</div>
+<div class="td" data-pptx="text" style="left:960px;top:804px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="td" data-pptx="text" style="left:1176px;top:804px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">нет</div>
+<div class="td" data-pptx="text" style="left:1384px;top:804px;width:208px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">нет</div>
+<div class="td yes" data-pptx="text" style="left:1600px;top:804px;width:192px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">да</div>
 
-<div class="yes" data-pptx="text" style="left:1562px;top:535px" data-anim-trigger="with" data-anim="settle" data-anim-delay="1900" data-anim-dur="450" data-anim-order="3">✓</div>
-<div class="yes" data-pptx="text" style="left:1562px;top:615px" data-anim="settle" data-anim-trigger="with" data-anim-delay="2020" data-anim-dur="450" data-anim-order="3">✓</div>
-<div class="yes" data-pptx="text" style="left:1562px;top:695px" data-anim="settle" data-anim-trigger="with" data-anim-delay="2140" data-anim-dur="450" data-anim-order="3">✓</div>
-<div class="yes" data-pptx="text" style="left:1562px;top:775px" data-anim="settle" data-anim-trigger="with" data-anim-delay="2260" data-anim-dur="450" data-anim-order="3">✓</div>
-<div class="yes" data-pptx="text" style="left:1562px;top:855px" data-anim="settle" data-anim-trigger="with" data-anim-delay="2380" data-anim-dur="450" data-anim-order="3">✓</div>
+<div class="rule" style="left:128px;top:880px;width:1456px"></div>
+<div class="tr" data-pptx="text" style="left:128px;top:906px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Тест по&nbsp;ссылке без&nbsp;аккаунта, итоги автору</div>
+<div class="td" data-pptx="text" style="left:960px;top:908px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">нет</div>
+<div class="td" data-pptx="text" style="left:1176px;top:908px;width:200px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">частично</div>
+<div class="td" data-pptx="text" style="left:1384px;top:908px;width:208px;color:var(--ink)" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">да</div>
+<div class="td yes" data-pptx="text" style="left:1600px;top:908px;width:192px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">да</div>
 
+<div class="t28" data-pptx="text" style="left:128px;top:1016px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="4">Сравнение по&nbsp;типам сервисов, обзоры 04.10 и&nbsp;18.10.2026. «Частично»: умеет часть сервисов этого типа или&nbsp;только по&nbsp;просьбе</div>
 
-<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
-<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
-<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
-<div class="sq now" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="mark" data-pptx="text" data-name="!!word" style="left:1692px;width:89px">Meldy</div>
-<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1782px;top:66px"></div>
-<!-- header:end -->
+<template data-pptx="notes">Чем Meldy отличается. Чат-бот сделает конспект по просьбе, сервис карточек поможет повторять, конструктор тестов разошлёт тест по ссылке. Meldy делает всё это по одному материалу: из лекции — конспект с местом в лекции у каждого раздела, из файла кафедры — план по дням, ответ вслух сверяется с теми же лекциями, а преподаватель собирает тест и отправляет его ссылкой. Такой связки в одном сервисе мы не нашли.
 
-<template data-pptx="notes">Чем это отличается от того, что уже есть. Чат-боты отвечают за студента. В сервисах карточек студент сам пишет вопросы и ответы. Конспекты по файлам пересказывают, но не спрашивают.
-
-Meldy делает обратное: задаёт вопросы кафедры, слушает ответ, сверяет его с лекциями студента и показывает цитату, а если пункт пропущен, переспрашивает. Вопрос засчитывается только после верного ответа в два разных дня. Такой связки мы не нашли.
-
-Сравнение — по типам сервисов, без брендов, по обзору рынка на 4 октября 2026 года. «Частично» значит, что так умеет только часть сервисов этого типа или что это происходит лишь по просьбе студента.</template>
+Если спросят: сравнение по типам, без названий, по обзорам рынка 4 и 18 октября 2026 года. «Частично» значит, что так умеет только часть сервисов этого типа или это происходит лишь по просьбе пользователя. Конструкторы тестов делают тест по ссылке без аккаунта лучше всех, поэтому у них там «да».</template>
 </main>
 </body>
 </html>

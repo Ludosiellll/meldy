@@ -4,54 +4,42 @@
 <meta charset="utf-8">
 <title>02 · Автор проекта — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
+<link rel="stylesheet" href="../design/stage.css">
+<style>
+.avatar { border-radius: 50%; background: #1b2a45; }
+.avatar-t { font-weight: 600; letter-spacing: -.02em; color: #8db2f5; text-align: center; white-space: nowrap; }
+.who { font-size: 48px; line-height: 58px; font-weight: 600; letter-spacing: -.02em; }
+.k { font-size: 32px; line-height: 40px; color: var(--muted); white-space: nowrap; }
+.v { font-size: 40px; line-height: 52px; white-space: nowrap; }
+</style>
 </head>
 <body>
-<main class="slide" data-transition-dur="1500">
+<main class="slide dark">
 
-<div class="label" data-pptx="title">Автор проекта</div>
+<div class="sec" data-pptx="title">Автор проекта</div>
+<div class="mark" data-pptx="text" data-name="!!word" style="left:1682px">Meldy</div>
+<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1780px;top:76px"></div>
 
-<!-- Two authors, as the app draws a person without a photo: initials on the soft blue round. The names, the
-     initials and the groups come from the private fill (deck/cf11/private/fill.json, never in git); the sources keep
-     placeholders. Each card carries its shadow (.lift), so it builds and morphs with it. -->
-<div class="card lift" data-pptx="shape" data-name="!!c1" style="left:128px;top:208px;width:812px;height:312px" data-anim-trigger="with" data-anim-delay="250" data-anim="settle" data-anim-dur="700" data-anim-order="1"></div>
-<div class="card lift" data-pptx="shape" data-name="!!c2" style="left:980px;top:208px;width:812px;height:312px" data-anim-trigger="with" data-anim="settle" data-anim-delay="370" data-anim-dur="700" data-anim-order="2"></div>
+<!-- Two people as the app draws an account without a photo; names and groups come from private/fill.json at build time. -->
+<div class="panel" data-pptx="shape" style="left:128px;top:168px;width:812px;height:300px" data-anim="rise" data-anim-dur="600" data-anim-order="1"></div>
+<div class="avatar" data-pptx="shape" style="left:176px;top:226px;width:136px;height:136px" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="1"></div>
+<div class="avatar-t" data-pptx="text" data-fill="author1.initials" style="left:176px;top:264px;width:136px;font-size:52px;line-height:60px" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="1">ФИ</div>
+<div class="who" data-pptx="text" data-fill="author1.name" style="left:352px;top:216px;width:548px;white-space:normal" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="1">[Фамилия Имя Отчество]</div>
+<div class="t36m" data-pptx="text" data-fill="author1.role" style="left:352px;top:352px;width:548px;white-space:normal" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="1">учащийся группы [группа]</div>
 
-<div class="avatar" data-pptx="shape" data-name="!!x0201" style="left:176px;top:256px;width:136px;height:136px" data-anim-trigger="with" data-anim-delay="550" data-anim="settle" data-anim-dur="600" data-anim-order="3"></div>
-<div class="avatar-t" data-pptx="text" data-fill="author1.initials" style="left:176px;top:294px;width:136px;font-size:52px;line-height:60px" data-anim-delay="550" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="3">ФИ</div>
-<div class="h" data-pptx="text" data-fill="author1.name" style="left:352px;top:262px;width:548px;white-space:normal" data-anim-delay="550" data-anim="rise" data-anim-trigger="with" data-anim-dur="600" data-anim-order="3">[Фамилия Имя Отчество]</div>
-<div class="t40m" data-pptx="text" data-fill="author1.role" style="left:352px;top:398px;width:548px;font-size:36px;line-height:44px;white-space:normal" data-anim-delay="550" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="3">учащийся группы [группа]</div>
+<div class="panel" data-pptx="shape" style="left:980px;top:168px;width:812px;height:300px" data-anim="rise" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="1"></div>
+<div class="avatar" data-pptx="shape" style="left:1028px;top:226px;width:136px;height:136px" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="1"></div>
+<div class="avatar-t" data-pptx="text" data-fill="author2.initials" style="left:1028px;top:264px;width:136px;font-size:52px;line-height:60px" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="1">ФИ</div>
+<div class="who" data-pptx="text" data-fill="author2.name" style="left:1204px;top:216px;width:548px;white-space:normal" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="1">[Фамилия Имя Отчество]</div>
+<div class="t36m" data-pptx="text" data-fill="author2.role" style="left:1204px;top:352px;width:548px;white-space:normal" data-anim="fade" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="1">учащийся группы [группа]</div>
 
-<div class="avatar" data-pptx="shape" data-name="!!x0202" style="left:1028px;top:256px;width:136px;height:136px" data-anim-trigger="with" data-anim="settle" data-anim-delay="670" data-anim-dur="600" data-anim-order="4"></div>
-<div class="avatar-t" data-pptx="text" data-fill="author2.initials" style="left:1028px;top:294px;width:136px;font-size:52px;line-height:60px" data-anim-delay="670" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="4">ФИ</div>
-<div class="h" data-pptx="text" data-fill="author2.name" style="left:1204px;top:262px;width:548px;white-space:normal" data-anim-delay="670" data-anim="rise" data-anim-trigger="with" data-anim-dur="600" data-anim-order="4">[Фамилия Имя Отчество]</div>
-<div class="t40m" data-pptx="text" data-fill="author2.role" style="left:1204px;top:398px;width:548px;font-size:36px;line-height:44px;white-space:normal" data-anim-delay="670" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="4">учащийся группы [группа]</div>
+<div class="k" data-pptx="text" style="left:128px;top:548px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="2">Учреждение образования</div>
+<div class="v" data-pptx="text" style="left:128px;top:596px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="2">Филиал учреждения образования «Белорусский государственный<br>технологический университет» «Бобруйский государственный<br>лесотехнический колледж»</div>
 
-<div class="cap" data-pptx="text" style="left:128px;top:588px" data-anim-trigger="with" data-anim-delay="1150" data-anim="fade" data-anim-dur="500" data-anim-order="5">Учреждение образования</div>
-<div class="body w500" data-pptx="text" style="left:128px;top:632px;letter-spacing:-.01em" data-anim-delay="1150" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="5">Филиал учреждения образования<br>«Белорусский государственный технологический университет»<br>«Бобруйский государственный лесотехнический колледж»</div>
+<div class="k" data-pptx="text" style="left:128px;top:808px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="2">Регион, район, населённый пункт</div>
+<div class="v" data-pptx="text" style="left:128px;top:856px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="2">Могилёвская область, Ленинский район г.&nbsp;Бобруйска, г.&nbsp;Бобруйск</div>
 
-<div class="cap" data-pptx="text" style="left:128px;top:852px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1400" data-anim-dur="500" data-anim-order="6">Регион, район, населённый пункт</div>
-<div class="t40" data-pptx="text" style="left:128px;top:896px" data-anim-delay="1400" data-anim="fade" data-anim-trigger="with" data-anim-dur="600" data-anim-order="6">Могилёвская область, Ленинский район г.&nbsp;Бобруйска, г.&nbsp;Бобруйск</div>
-
-
-<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
-<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
-<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
-<div class="sq now" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="mark" data-pptx="text" data-name="!!word" style="left:1692px;width:89px">Meldy</div>
-<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1782px;top:66px"></div>
-<!-- header:end -->
-
-<template data-pptx="notes">Проект сделали мы вдвоём, учащиеся Бобруйского государственного лесотехнического колледжа. [Имена называет докладчик.]
-
-Наверху — шпаргалка этой защиты: десять обязательных разделов. Пройденный раздел гаснет, как строка в Meldy.</template>
+<template data-pptx="notes">Проект сделали мы вдвоём, учащиеся Бобруйского государственного лесотехнического колледжа. [Имена называет докладчик.]</template>
 </main>
 </body>
 </html>

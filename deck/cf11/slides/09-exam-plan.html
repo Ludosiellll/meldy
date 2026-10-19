@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>09 · Представление блоков проекта: экзамен и план — Meldy · CodingFest-11</title>
+<link rel="stylesheet" href="../design/deck.css">
+<link rel="stylesheet" href="../design/stage.css">
+<style>
+.lift2 { box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .7); }
+</style>
+</head>
+<body>
+<main class="slide dark">
+
+<div class="sec" data-pptx="title">Представление блоков проекта</div>
+<div class="nav" data-pptx="text" data-name="!!nav">Лекции · <b>Экзамены 1/2</b> · Тесты</div>
+
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Файл кафедры с&nbsp;ключом становится<br>планом по&nbsp;дням до&nbsp;даты экзамена</div>
+
+<!-- The import of the department's file (recording of the live site, 11.10.2026: «Программирование на C#», 240
+     questions, the key in bold) and «План по дням» of that exam today (account A, 19.10.2026). -->
+<img class="shot" data-pptx="image" data-name="!!s2" data-src="../media/product/v2/exam-found.png" src="../media/product/v2/exam-found.png" aria-label="Новый экзамен: «Нашли 240 вопросов», «Программирование на C#, 240 вопросов · ключ жирным», дата экзамена и время в день" alt="" style="left:128px;top:344px;width:840px;height:474px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="2">
+<img class="shot lift2" data-pptx="image" data-src="../media/product/v2/exam-days.png" src="../media/product/v2/exam-days.png" aria-label="План по дням: время в день 45 минут; 19 октября около 45 минут; 20–28 октября около 35 минут в день; 29 октября – 1 ноября новых нет, только знакомые, сначала ошибки; 2 ноября экзамен; если пропустите день, его вопросы перейдут на следующие" alt="" style="left:1000px;top:380px;width:792px;height:587px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="3">
+
+<div class="mk" data-pptx="shape" style="left:356px;top:478px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="4">1</div>
+<div class="mk" data-pptx="shape" style="left:1466px;top:498px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">2</div>
+<div class="mk" data-pptx="shape" style="left:968px;top:880px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="6">3</div>
+
+<div class="mk s" data-pptx="shape" style="left:128px;top:850px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">1</div>
+<div class="t32" data-pptx="text" style="left:196px;top:852px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">240 вопросов, ключ из&nbsp;жирного шрифта</div>
+<div class="mk s" data-pptx="shape" style="left:128px;top:902px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">2</div>
+<div class="t32" data-pptx="text" style="left:196px;top:904px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Минуты в&nbsp;день студент выбирает сам</div>
+<div class="mk s" data-pptx="shape" style="left:128px;top:954px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">3</div>
+<div class="t32" data-pptx="text" style="left:196px;top:956px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">Пропущенный день уходит в&nbsp;следующие</div>
+
+<div class="t28m" data-pptx="text" style="left:1000px;top:1000px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="7">«Перенести экзамен», группа по&nbsp;одной ссылке,<br>план на&nbsp;день в&nbsp;Telegram</div>
+
+<template data-pptx="notes">Теперь экзамен. Студент загружает файл с вопросами кафедры: Word, Excel, TXT или PDF. Meldy находит вопросы и, если у них есть варианты, берёт ключ прямо из файла, по жирному шрифту или пометке. В кадре так нашлись 240 вопросов.
+
+Студент указывает дату экзамена и сколько минут в день готов заниматься. Meldy раскладывает вопросы по дням, в последние дни оставляет только повторение, а пропущенный день переносит на следующие.
+
+Если дата сдвинулась, есть «Перенести экзамен»: для всей группы или только для себя. Группа получает экзамен по одной ссылке, а план на день приходит в Telegram, вопросы можно решать прямо в чате.
+
+О кадрах: слева запись живого сайта 11 октября 2026 года, справа «План по дням» того же экзамена 19 октября.</template>
+</main>
+</body>
+</html>

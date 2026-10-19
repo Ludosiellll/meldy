@@ -4,56 +4,45 @@
 <meta charset="utf-8">
 <title>01 · Титульный — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
+<link rel="stylesheet" href="../design/stage.css">
+<style>
+.pcap { font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; text-align: center; }
+</style>
 </head>
 <body>
-<main class="slide" data-transition="fade" data-transition-dur="1000" data-gather="928,346,84">
+<main class="slide dark" data-transition="fade">
 
-<!-- The mandatory name, as the small label. -->
-<div class="label" data-pptx="title" data-anim="fade" data-anim-dur="500" data-anim-order="1">Титульный</div>
+<div class="sec" data-pptx="title">Титульный</div>
+<div class="cf" data-pptx="text">CodingFest-11</div>
 
-<!-- The cover answers itself: the cheat sheet of one question, erased by two answers on different days.
-     The GIF carries its own card and shadow (motion/title-cover.html; the card is at 1072,112 720×896, a third more than round 1), so it can
-     settle in; PowerPoint 365 plays it in Normal view, and its first frame, the lines still there, is the still.
-     It lies under the text: its margins are the canvas, and the thesis's dash reaches into them. -->
-<img data-pptx="gif" data-src="../media/gen/title-cover.gif" data-name="!!cover" src="../media/gen/title-cover.png" aria-label="Шпаргалка вопроса «Рыночное равновесие»: в понедельник ответ вслух называет все строки, во вторник второй ответ стирает их, счётчик доходит до нуля" alt="" style="left:1016px;top:96px;width:832px;height:984px" data-anim-trigger="with" data-anim-delay="1350" data-anim="settle" data-anim-dur="800" data-anim-order="6">
+<div class="word" data-pptx="text" data-name="!!word" style="left:112px;top:176px" data-anim="rise" data-anim-dur="800" data-anim-order="1">Meldy</div>
+<div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:860px;top:331px;width:78px;height:78px;border-radius:38px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="2"></div>
 
-<!-- The wordmark is the hero. Its dot (!!dot) hides the ten squares of the strip (data-gather): they settle in with
-     it, and on 02 they burst out of it into the strip while the wordmark shrinks into the corner. -->
-<div class="word" data-pptx="text" data-name="!!word" style="left:112px;top:180px" data-anim-trigger="with" data-anim-delay="150" data-anim="rise" data-anim-dur="800" data-anim-order="2">Meldy</div>
-<div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:928px;top:346px;width:84px;height:84px;border-radius:41px" data-anim-delay="800" data-anim="settle" data-anim-trigger="with" data-anim-dur="700" data-anim-order="3"></div>
+<div class="t48" data-pptx="text" style="left:128px;top:540px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="3">Разбор лекций, подготовка<br>к&nbsp;экзамену по&nbsp;вопросам кафедры<br>и&nbsp;тесты по&nbsp;ссылке</div>
 
-<div class="thesis" data-pptx="text" style="left:128px;top:540px" data-anim-trigger="with" data-anim-delay="1050" data-anim="rise" data-anim-dur="700" data-anim-order="4">ИИ не&nbsp;отвечает за&nbsp;студента&nbsp;—<br>он его спрашивает</div>
-<div class="lead" data-pptx="text" style="left:128px;top:712px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1300" data-anim-dur="600" data-anim-order="5">Тренажёр экзамена по&nbsp;вопросам кафедры</div>
+<div class="t32m" data-pptx="text" style="left:128px;top:872px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="4">Номинация</div>
+<div class="t40s" data-pptx="text" style="left:128px;top:916px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="4">Образование, культура</div>
 
-<div class="cap" data-pptx="text" style="left:128px;top:852px" data-anim-trigger="with" data-anim-delay="1750" data-anim="fade" data-anim-dur="500" data-anim-order="7">Номинация</div>
-<div class="t40 w500" data-pptx="text" style="left:128px;top:892px" data-anim-delay="1750" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="7">Образование, культура</div>
+<!-- Three real phones, one per part: the podcast of the open example lecture (/try/lecture), the oral answer's
+     protocol (recording of 11.10), and the jury's test by link with the author's own picture (guest, 19.10). -->
+<div class="bezel" data-pptx="shape" data-name="!!p1" style="left:1004px;top:236px;width:272px;height:586px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="5"></div>
+<img class="screen" data-pptx="image" data-name="!!s1" data-src="../media/product/v2/phone-lecture-podcast.jpg" src="../media/product/v2/phone-lecture-podcast.jpg" aria-label="Телефон: подкаст примера лекции «Спрос и предложение», 16 реплик" alt="" style="left:1012px;top:244px;width:256px;height:554px;border-radius:40px" data-anim="rise" data-anim-trigger="with" data-anim-dur="600" data-anim-order="5">
 
-<!-- The example exam without sign-up: a small QR on a white square (its quiet zone), a caption beside it. -->
-<div class="card lift" data-pptx="shape" style="left:640px;top:836px;width:132px;height:132px;border-radius:24px" data-anim-delay="1750" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="7"></div>
-<div data-pptx="image" data-href="https://ludosiel-studyforge.hf.space/try" aria-label="QR-код: пример экзамена без регистрации" style="left:656px;top:852px;width:100px;height:100px" data-anim-delay="1750" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="7"><img src="../design/qr-try.svg" alt="" style="position:absolute;left:0;top:0;width:100px;height:100px"></div>
-<div class="note" data-pptx="text" data-href="https://ludosiel-studyforge.hf.space/try" style="left:796px;top:866px;font-size:28px;line-height:36px" data-anim-delay="1750" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="7"><span class="ink w500">Пример экзамена</span><br>без регистрации</div>
+<div class="bezel" data-pptx="shape" data-name="!!p2" style="left:1520px;top:236px;width:272px;height:586px" data-anim="rise" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="5"></div>
+<img class="screen" data-pptx="image" data-name="!!s2" data-src="../media/product/08-oral-answer.jpg" src="../media/product/08-oral-answer.jpg" aria-label="Телефон: протокол ответа вслух, пункт 1 раскрыт, цитата из лекции, фрагмент 13" alt="" style="left:1528px;top:244px;width:256px;height:554px;border-radius:40px" data-anim="rise" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="5">
 
+<div class="bezel" data-pptx="shape" data-name="!!p3" style="left:1236px;top:176px;width:324px;height:700px" data-anim="rise" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="700" data-anim-order="5"></div>
+<img class="screen" data-pptx="image" data-name="!!s3" data-src="../media/product/v2/guest-q5.png" src="../media/product/v2/guest-q5.png" aria-label="Телефон: тест «Эластичность спроса за минуту» по ссылке без аккаунта, вопрос 5 из 5 с графиком двух кривых спроса" alt="" style="left:1245px;top:185px;width:306px;height:662px;border-radius:44px" data-anim="rise" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="700" data-anim-order="5">
 
-<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
-<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
-<div class="sq seed" data-pptx="shape" data-name="!!s01" style="left:930px;top:384px;width:8px;height:8px;border-radius:3px;background:transparent;border:2px solid rgba(138,143,151,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s02" style="left:938px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(244,196,91,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s03" style="left:946px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s04" style="left:954px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s05" style="left:962px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s06" style="left:970px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s07" style="left:978px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s08" style="left:986px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s09" style="left:994px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="sq seed" data-pptx="shape" data-name="!!s10" style="left:1002px;top:384px;width:8px;height:8px;border-radius:3px;background:rgba(11,18,28,.01)"></div>
-<div class="runner" data-pptx="text" style="left:1392px;width:400px">CodingFest-11</div>
-<!-- header:end -->
+<div class="pcap" data-pptx="text" style="left:1004px;top:852px;width:272px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="6">Лекции</div>
+<div class="pcap" data-pptx="text" style="left:1236px;top:904px;width:324px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">Тесты</div>
+<div class="pcap" data-pptx="text" style="left:1520px;top:852px;width:272px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">Экзамены</div>
 
-<template data-pptx="notes">Здравствуйте. Наш проект — Meldy. Это тренажёр к экзамену, который работает с перечнем вопросов кафедры и с лекциями самого студента.
+<template data-pptx="notes">Здравствуйте. Наш проект — Meldy. В нём три части: лекции, экзамены и тесты.
 
-Главная мысль — на экране: ИИ не отвечает за студента, он его спрашивает.
+Из лекции Meldy делает конспект, карточки, тест и подкаст. Из файла с вопросами кафедры — план подготовки до даты экзамена и проверку ответа вслух. А преподаватель собирает в Meldy свой тест и отправляет его ссылкой.
 
-Докладчику: показ запускается клавишей F5 — только в нём на слайдах идут ролики работы приложения.</template>
+Докладчику: показ запускается клавишей F5.</template>
 </main>
 </body>
 </html>

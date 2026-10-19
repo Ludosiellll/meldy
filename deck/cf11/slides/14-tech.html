@@ -4,64 +4,59 @@
 <meta charset="utf-8">
 <title>14 · Технические требования — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
+<link rel="stylesheet" href="../design/stage.css">
 <style>
-/* Two columns, typography only: what a user needs, what it is built with. */
-.req { left: 176px; font-size: 44px; line-height: 54px; white-space: nowrap; }
-.req .m { font-size: 32px; color: var(--muted); }
-.layer-k { left: 1122px; font-size: 28px; line-height: 34px; color: var(--muted); white-space: nowrap; }
-.layer-v { left: 1122px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.015em; white-space: nowrap; }
+.grp { font-size: 32px; line-height: 40px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.it { font-size: 36px; line-height: 46px; white-space: nowrap; }
+.it .m { color: var(--muted); }
+.k { font-size: 28px; line-height: 34px; color: var(--muted); white-space: nowrap; }
+.v { font-size: 36px; line-height: 44px; font-weight: 600; white-space: nowrap; }
 </style>
 </head>
 <body>
-<main class="slide" data-transition-dur="900">
+<main class="slide dark">
 
-<div class="label" data-pptx="title">Технические требования</div>
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Браузер на&nbsp;телефоне или компьютере,<br>без установки</div>
+<div class="sec" data-pptx="title">Технические требования</div>
+<div class="mark" data-pptx="text" data-name="!!word" style="left:1682px">Meldy</div>
+<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1780px;top:76px"></div>
 
-<div class="rule" data-pptx="shape" data-name="!!x1401" style="left:128px;top:416px;width:914px" data-anim-trigger="with" data-anim-delay="300" data-anim="wipe" data-anim-dur="500" data-anim-order="2"></div>
-<div class="cap" data-pptx="text" style="left:128px;top:432px" data-anim="fade" data-anim-trigger="with" data-anim-delay="380" data-anim-dur="400" data-anim-order="2">Минимальные требования</div>
-<div class="bul" data-pptx="shape" data-name="!!x1402" style="left:132px;top:497px;width:14px;height:14px" data-anim-trigger="with" data-anim="settle" data-anim-delay="300" data-anim-dur="400" data-anim-order="2"></div>
-<div class="req" data-pptx="text" style="top:476px" data-anim="fade" data-anim-trigger="with" data-anim-delay="450" data-anim-dur="500" data-anim-order="2">Телефон или компьютер с&nbsp;браузером</div>
-<div class="req m" data-pptx="text" style="top:534px;font-size:32px;line-height:40px;color:var(--muted)" data-anim="fade" data-anim-trigger="with" data-anim-delay="550" data-anim-dur="500" data-anim-order="2">Chrome, Edge, Firefox или Safari</div>
-<div class="bul" data-pptx="shape" data-name="!!x1403" style="left:132px;top:621px;width:14px;height:14px" data-anim="settle" data-anim-trigger="with" data-anim-delay="570" data-anim-dur="400" data-anim-order="2"></div>
-<div class="req" data-pptx="text" style="top:600px" data-anim="fade" data-anim-trigger="with" data-anim-delay="570" data-anim-dur="500" data-anim-order="2">Интернет</div>
-<div class="bul" data-pptx="shape" data-name="!!x1404" style="left:132px;top:701px;width:14px;height:14px" data-anim="settle" data-anim-trigger="with" data-anim-delay="690" data-anim-dur="400" data-anim-order="2"></div>
-<div class="req" data-pptx="text" style="top:680px" data-anim="fade" data-anim-trigger="with" data-anim-delay="690" data-anim-dur="500" data-anim-order="2">Микрофон&nbsp;— для&nbsp;ответов вслух</div>
-<div class="bul" data-pptx="shape" data-name="!!x1405" style="left:132px;top:781px;width:14px;height:14px" data-anim="settle" data-anim-trigger="with" data-anim-delay="810" data-anim-dur="400" data-anim-order="2"></div>
-<div class="req" data-pptx="text" style="top:760px" data-anim="fade" data-anim-trigger="with" data-anim-delay="810" data-anim-dur="500" data-anim-order="2">Telegram&nbsp;— по&nbsp;желанию</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Нужен браузер на&nbsp;телефоне или&nbsp;компьютере.<br><span class="dim">Устанавливать ничего не&nbsp;нужно</span></div>
 
-<div class="rule" data-pptx="shape" data-name="!!x1406" style="left:1122px;top:416px;width:670px" data-anim-trigger="with" data-anim-delay="500" data-anim="wipe" data-anim-dur="500" data-anim-order="3"></div>
-<div class="cap" data-pptx="text" style="left:1122px;top:432px" data-anim="fade" data-anim-trigger="with" data-anim-delay="580" data-anim-dur="400" data-anim-order="3">Средства разработки</div>
-<div class="layer-k" data-pptx="text" style="top:476px" data-anim-trigger="with" data-anim="fade" data-anim-delay="500" data-anim-dur="500" data-anim-order="3">Интерфейс</div>
-<div class="layer-v" data-pptx="text" style="top:512px" data-anim="rise" data-anim-trigger="with" data-anim-delay="650" data-anim-dur="500" data-anim-order="3">React, TypeScript</div>
-<div class="layer-k" data-pptx="text" style="top:580px" data-anim="fade" data-anim-trigger="with" data-anim-delay="770" data-anim-dur="500" data-anim-order="3">Сервер</div>
-<div class="layer-v" data-pptx="text" style="top:616px" data-anim="rise" data-anim-trigger="with" data-anim-delay="770" data-anim-dur="500" data-anim-order="3">Python, FastAPI</div>
-<div class="layer-k" data-pptx="text" style="top:684px" data-anim="fade" data-anim-trigger="with" data-anim-delay="890" data-anim-dur="500" data-anim-order="3">База данных</div>
-<div class="layer-v" data-pptx="text" data-name="!!x1407" style="top:720px" data-anim="rise" data-anim-trigger="with" data-anim-delay="890" data-anim-dur="500" data-anim-order="3">Supabase</div>
-<div class="layer-k" data-pptx="text" style="top:788px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1010" data-anim-dur="500" data-anim-order="3">Языковые модели и&nbsp;бот</div>
-<div class="layer-v" data-pptx="text" style="top:824px" data-anim="rise" data-anim-trigger="with" data-anim-delay="1010" data-anim-dur="500" data-anim-order="3">Gemini, Groq, Telegram Bot API</div>
+<div class="grp" data-pptx="text" style="left:128px;top:352px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="2">Минимальные требования</div>
+<div class="it" data-pptx="text" style="left:128px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Телефон или&nbsp;компьютер<br><span class="m">с&nbsp;Chrome, Edge, Firefox или&nbsp;Safari</span></div>
+<div class="it" data-pptx="text" style="left:128px;top:524px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Интернет</div>
+<div class="it" data-pptx="text" style="left:128px;top:594px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Микрофон для&nbsp;ответов вслух</div>
+<div class="it" data-pptx="text" style="left:128px;top:664px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Telegram по&nbsp;желанию</div>
+<div class="it" data-pptx="text" style="left:128px;top:734px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Тест по&nbsp;ссылке: без&nbsp;аккаунта</div>
 
-<div class="src" data-pptx="text" style="left:128px;top:984px" data-anim-trigger="with" data-anim="fade" data-anim-delay="1600" data-anim-dur="500" data-anim-order="4">Сайт: ludosiel-studyforge.hf.space · бот в&nbsp;Telegram: @Meldyteach_bot</div>
+<div class="grp" data-pptx="text" style="left:760px;top:352px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="3">Средства разработки</div>
+<div class="k" data-pptx="text" style="left:760px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Интерфейс</div>
+<div class="v" data-pptx="text" style="left:760px;top:442px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">React, TypeScript</div>
+<div class="k" data-pptx="text" style="left:760px;top:510px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Сервер</div>
+<div class="v" data-pptx="text" style="left:760px;top:544px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Python, FastAPI</div>
+<div class="k" data-pptx="text" style="left:760px;top:612px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">База данных</div>
+<div class="v" data-pptx="text" style="left:760px;top:646px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Supabase</div>
+<div class="k" data-pptx="text" style="left:760px;top:714px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Языковые модели и&nbsp;бот</div>
+<div class="v" data-pptx="text" style="left:760px;top:748px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Gemini, Groq, Telegram Bot API</div>
 
-<!-- The header band last: on top of every other object, so its squares and dot fly over the slide. -->
-<!-- header:start · written by design/stamp.mjs from design/deck.mjs; do not edit by hand -->
-<div class="sq done" data-pptx="shape" data-name="!!s01" style="left:128px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s02" style="left:162px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s03" style="left:196px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s04" style="left:230px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s05" style="left:264px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s06" style="left:298px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s07" style="left:332px"></div>
-<div class="sq done" data-pptx="shape" data-name="!!s08" style="left:366px"></div>
-<div class="sq now" data-pptx="shape" data-name="!!s09" style="left:400px"></div>
-<div class="sq next" data-pptx="shape" data-name="!!s10" style="left:434px"></div>
-<div class="mark" data-pptx="text" data-name="!!word" style="left:1692px;width:89px">Meldy</div>
-<div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1782px;top:66px"></div>
-<!-- header:end -->
+<!-- How it is checked: the autotests counted at the deck's commit (export of meldy 38649d6, 19.10.2026). -->
+<div class="panel" data-pptx="shape" style="left:1312px;top:340px;width:480px;height:560px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4"></div>
+<div class="grp" data-pptx="text" style="left:1360px;top:376px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Как проверяем</div>
+<div class="big" data-pptx="text" style="left:1354px;top:432px;font-size:112px;line-height:116px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">8&nbsp;483</div>
+<div class="t32" data-pptx="text" style="left:1360px;top:556px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">автотеста:</div>
+<div class="t28m" data-pptx="text" style="left:1360px;top:604px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">5&nbsp;868 сайт (Vitest)<br>2&nbsp;242 сервер (pytest)<br>373 бот</div>
+<div class="t28m" data-pptx="text" style="left:1360px;top:740px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Выпуск выходит, только<br>если прошли все, потом<br>проверяется живой сайт</div>
 
-<template data-pptx="notes">Требования минимальные: любой современный браузер на телефоне или компьютере, установка не нужна.
+<div class="rule" style="left:128px;top:952px;width:1664px"></div>
+<div class="t28m" data-pptx="text" style="left:128px;top:980px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">Сайт: ludosiel-studyforge.hf.space · пример без&nbsp;регистрации: /try · бот: @Meldyteach_bot · выпуск 47.3, 19.10.2026</div>
 
-Внутри — React и TypeScript, сервер на Python, база Supabase и языковые модели.</template>
+<template data-pptx="notes">Требования минимальные: любой современный браузер на телефоне или компьютере, установка не нужна. Для ответов вслух нужен микрофон, Telegram — по желанию. Тест по ссылке проходят без аккаунта.
+
+Внутри React и TypeScript, сервер на Python и FastAPI, база Supabase, языковые модели Gemini и Groq и Telegram Bot API.
+
+Как мы проверяем: 8 483 автотеста у сайта, сервера и бота. Выпуск не выкладывается, пока не пройдут все, а после выкладки проверяется живой сайт.
+
+Если спросят: 8 483 = 5 868 Vitest + 2 242 pytest + 373 теста бота, посчитано 19.10.2026 на коммите 38649d6. Пересчитаем в день заморозки чисел 21.10.</template>
 </main>
 </body>
 </html>
