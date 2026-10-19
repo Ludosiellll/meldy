@@ -1,0 +1,119 @@
+{
+ "id": "k17_txt_english_paren_letters_answer_key",
+ "file": "files/k17_txt_english_paren_letters_answer_key.txt",
+ "tags": [
+  "holdout2",
+  "lang:en",
+  "num:paren",
+  "opt:paren_upper_latin",
+  "key:end_list"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Who wrote 'Romeo and Juliet'?",
+   "options": [
+    "Charles Dickens",
+    "William Shakespeare",
+    "Jane Austen",
+    "Mark Twain"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "How many continents are there?",
+   "options": [
+    "5",
+    "6",
+    "7",
+    "8"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "What is the boiling point of water at sea level?",
+   "options": [
+    "90 °C",
+    "100 °C",
+    "110 °C",
+    "120 °C"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Which protocol is used to send e-mail?",
+   "options": [
+    "FTP",
+    "SMTP",
+    "HTTP",
+    "SSH"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "What is the past tense of 'go'?",
+   "options": [
+    "goed",
+    "gone",
+    "went",
+    "going"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Which data structure works on the LIFO principle?",
+   "options": [
+    "queue",
+    "stack",
+    "tree",
+    "graph"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "What is 7 × 8?",
+   "options": [
+    "54",
+    "56",
+    "58",
+    "64"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Which ocean lies between Europe and North America?",
+   "options": [
+    "Pacific",
+    "Indian",
+    "Atlantic",
+    "Arctic"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  }
+ ]
+}

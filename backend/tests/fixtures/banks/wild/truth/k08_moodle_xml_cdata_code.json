@@ -1,0 +1,52 @@
+{
+ "id": "k08_moodle_xml_cdata_code",
+ "file": "files/k08_moodle_xml_cdata_code.xml",
+ "tags": [
+  "holdout2",
+  "format:moodle_xml",
+  "content:code"
+ ],
+ "note": "",
+ "supported": false,
+ "questions": [
+  {
+   "stem": "Что выведет программа?\nint x = 5;\nx += 3;\nConsole.WriteLine(x);",
+   "options": [
+    "5",
+    "8",
+    "53",
+    "ошибку компиляции"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что напечатает код на C?\nint a[3] = {1, 2, 3};\nprintf(\"%d\", a[1]);",
+   "options": [
+    "1",
+    "2",
+    "3",
+    "адрес массива"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Что выведет этот фрагмент?\nstring s = null;\nConsole.WriteLine(s?.Length ?? -1);",
+   "options": [
+    "0",
+    "null",
+    "-1",
+    "исключение"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  }
+ ]
+}

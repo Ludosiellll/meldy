@@ -1,0 +1,92 @@
+{
+ "id": "k12_word_list_nested_bullets_green_highlight",
+ "file": "files/k12_word_list_nested_bullets_green_highlight.docx",
+ "tags": [
+  "holdout2",
+  "num:word_list",
+  "opt:word_bullets",
+  "key:green"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Какая валюта используется в Японии?",
+   "options": [
+    "юань",
+    "вона",
+    "иена",
+    "рупия"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Сколько минут в сутках?",
+   "options": [
+    "1240",
+    "1440",
+    "1640",
+    "1840"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какое озеро самое большое в Беларуси?",
+   "options": [
+    "Нарочь",
+    "Освея",
+    "Дривяты",
+    "Лукомльское"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой знак ставится в конце вопросительного предложения?",
+   "options": [
+    "точка",
+    "восклицательный знак",
+    "вопросительный знак",
+    "точка с запятой"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какая из этих птиц не умеет летать?",
+   "options": [
+    "ласточка",
+    "пингвин",
+    "чайка",
+    "воробей"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Сколько градусов в полном обороте?",
+   "options": [
+    "180",
+    "270",
+    "360",
+    "400"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  }
+ ]
+}

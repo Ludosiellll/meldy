@@ -1,0 +1,79 @@
+{
+ "id": "k14_docx_one_table_merged_stems_letter_col",
+ "file": "files/k14_docx_one_table_merged_stems_letter_col.docx",
+ "tags": [
+  "holdout2",
+  "table:stem_rows",
+  "opt:letter_column",
+  "key:underline"
+ ],
+ "note": "одна таблица: строка «Вопрос N. …» на две колонки, под ней строки «А | вариант»",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Какая единица измерения силы в СИ?",
+   "options": [
+    "джоуль",
+    "ватт",
+    "ньютон",
+    "паскаль"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Кто открыл закон всемирного тяготения?",
+   "options": [
+    "Галилей",
+    "Ньютон",
+    "Кеплер",
+    "Эйнштейн"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой океан самый большой по площади?",
+   "options": [
+    "Атлантический",
+    "Индийский",
+    "Северный Ледовитый",
+    "Тихий"
+   ],
+   "correct": [
+    3
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Сколько хромосом в соматической клетке человека?",
+   "options": [
+    "23",
+    "44",
+    "46",
+    "48"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой химический символ у золота?",
+   "options": [
+    "Ag",
+    "Au",
+    "Gd",
+    "Go"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  }
+ ]
+}

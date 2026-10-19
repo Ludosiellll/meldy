@@ -1685,9 +1685,10 @@ def _():
     return "\n".join(lines).encode("utf-8"), out
 
 
-def pdf(lines: list[str]) -> bytes:
+def pdf(lines: list) -> bytes:
     """PDF с текстовым слоем без библиотек: Helvetica с кодировкой cp1251 (Differences по именам uniXXXX) и ToUnicode —
-    pdftotext и любой разбор PDF достают из него кириллицу. Строка — строка страницы, 48 строк на страницу."""
+    pdftotext и любой разбор PDF достают из него кириллицу. Строка — строка страницы, 48 строк на страницу; строка —
+    str или список кусков (текст, жирный): жирный набран шрифтом Helvetica-Bold (F2), как в PDF из Word."""
     codes = {}
     for byte in range(128, 256):
         char = bytes([byte]).decode("cp1251", errors="ignore")
@@ -1707,17 +1708,30 @@ def pdf(lines: list[str]) -> bytes:
         f"/Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [{differences}] >> /ToUnicode 4 0 R >>".encode("ascii"),
         f"<< /Length {len(tounicode)} >>\nstream\n{tounicode}\nendstream".encode("ascii"),
     ]
+    bold = any(not isinstance(line, str) and any(b for _, b in line) for line in lines)
+    fonts = "/F1 3 0 R"
+    if bold:
+        objects.append(objects[2].replace(b"/BaseFont /Helvetica ", b"/BaseFont /Helvetica-Bold "))
+        fonts += f" /F2 {len(objects)} 0 R"
+
+    def escaped(piece: str) -> bytes:
+        raw = piece.encode("cp1251")
+        return raw.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
+
     kids = []
     for page in pages:
         text = b"BT /F1 11 Tf 14 TL 50 800 Td\n"
         for line in page:
-            raw = line.encode("cp1251")
-            raw = raw.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
-            text += b"(" + raw + b") Tj T*\n"
+            if isinstance(line, str):
+                text += b"(" + escaped(line) + b") Tj T*\n"
+                continue
+            for piece, strong in line:
+                text += (b"/F2 11 Tf (" if strong else b"/F1 11 Tf (") + escaped(piece) + b") Tj\n"
+            text += b"/F1 11 Tf T*\n"
         text += b"ET"
         objects.append(b"<< /Length %d >>\nstream\n" % len(text) + text + b"\nendstream")
         content = len(objects)
-        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> "
+        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << {fonts} >> >> "
                        f"/Contents {content} 0 R >>".encode("ascii"))
         kids.append(len(objects))
     objects[1] = f"<< /Type /Pages /Kids [{' '.join(f'{k} 0 R' for k in kids)}] /Count {len(kids)} >>".encode("ascii")
@@ -2080,6 +2094,323 @@ def _():
     blocks = simple(qs, key="none") + [P("Правильные ответы:")]
     blocks += [P(f"{n}) {RUS[q['correct'][0]]} – {q['options'][q['correct'][0]]}") for n, q in enumerate(qs, start=1)]
     return docx(blocks), [truth(q) for q in qs]
+
+
+# Отложенный набор h2 (id «k…», тег «holdout2»): написан 2026-10-19 до любых правок этапа 2 (читатели CSV, HTML, Moodle
+# XML, PDF, разбор с ИИ). Его тоже не настраивать: следующий раунд — с набором h3.
+
+def _csv(rows, delimiter=",", encoding="utf-8") -> bytes:
+    import csv
+
+    buffer = io.StringIO()
+    csv.writer(buffer, delimiter=delimiter, lineterminator="\r\n").writerows(rows)
+    return buffer.getvalue().encode(encoding)
+
+
+def _html(body: str, title: str = "Тест") -> bytes:
+    return (f'<!DOCTYPE html><html><head><meta charset="utf-8"><title>{title}</title></head><body>{body}</body></html>').encode("utf-8")
+
+
+@case("k01_csv_english_letter_key", "csv", "holdout2", "format:csv", "lang:en", "key:column_letter")
+def _():
+    qs = take(EN, 3, 6)
+    rows = [["Question", "Answer A", "Answer B", "Answer C", "Answer D", "Correct"]]
+    rows += [[q["stem"], *q["options"], "ABCD"[q["correct"][0]]] for q in qs]
+    return _csv(rows), [truth(q) for q in qs]
+
+
+@case("k02_csv_tab_options_in_one_cell", "csv", "holdout2", "format:csv", "opt:pipe_cell", "key:column_letter",
+      note="варианты в одной ячейке через « | », разделитель — табуляция")
+def _():
+    qs = take(RU, 6, 6)
+    rows = [["№", "Вопрос", "Варианты", "Ключ"]]
+    rows += [[str(n), q["stem"], " | ".join(q["options"]), RUS[q["correct"][0]]] for n, q in enumerate(qs, start=1)]
+    return _csv(rows, delimiter="\t"), [truth(q) for q in qs]
+
+
+@case("k03_csv_semicolon_no_header_number_key", "csv", "holdout2", "format:csv", "table:no_header", "key:column_numbers")
+def _():
+    qs = take(RU, 36, 6)
+    rows = [[q["stem"], *q["options"], str(q["correct"][0] + 1)] for q in qs]
+    return _csv(rows, delimiter=";", encoding="cp1251"), [truth(q) for q in qs]
+
+
+@case("k04_html_word_export_red_key", "html", "holdout2", "format:html", "num:dot", "opt:rus_paren", "key:red",
+      note="HTML из Word («Веб-страница»): MsoNormal, ключ — красный цвет в style")
+def _():
+    qs = take(RU, 20, 6)
+    parts = []
+    for n, q in enumerate(qs, start=1):
+        parts.append(f"<p class=MsoNormal><b><span style='font-size:12.0pt'>{n}. {escape(q['stem'])}</span></b></p>")
+        for k, o in enumerate(q["options"]):
+            body = f"<span style='color:red'>{escape(o)}</span>" if k in q["correct"] else escape(o)
+            parts.append(f"<p class=MsoNormal style='margin-left:18.0pt'>{RUS[k]}) {body}</p>")
+    return _html("".join(parts)), [truth(q) for q in qs]
+
+
+@case("k05_html_table_per_question_strong", "html", "holdout2", "format:html", "table:per_question", "key:bold")
+def _():
+    qs = take(RU, 26, 5)
+    parts = []
+    for n, q in enumerate(qs, start=1):
+        rows = "".join(f"<tr><td>{RUS[k]})</td><td>{'<strong>' + escape(o) + '</strong>' if k in q['correct'] else escape(o)}</td></tr>"
+                       for k, o in enumerate(q["options"]))
+        parts.append(f"<table border=1><tr><td>{n}.</td><td>{escape(q['stem'])}</td></tr>{rows}</table><br>")
+    return _html("".join(parts)), [truth(q) for q in qs]
+
+
+@case("k06_html_saved_quiz_checked_radios", "html", "holdout2", "format:html", "opt:radio", "key:checked",
+      note="сохранённая страница теста: варианты — радиокнопки, у верного checked")
+def _():
+    qs = take(RU, 32, 5)
+    parts = []
+    for n, q in enumerate(qs, start=1):
+        options = "".join(f'<label><input type="radio" name="q{n}"{" checked" if k in q["correct"] else ""}> {escape(o)}</label><br>'
+                          for k, o in enumerate(q["options"]))
+        parts.append(f'<div class="question"><div class="qtext">{escape(q["stem"])}</div>{options}</div>')
+    return _html("".join(parts)), [truth(q) for q in qs]
+
+
+@case("k07_moodle_xml_multi_matching_numerical", "xml", "holdout2", "format:moodle_xml", "kind:mixed")
+def _():
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>', "<quiz>",
+             '<question type="category"><category><text>$course$/Природа</text></category></question>']
+    out = []
+    q = MULTI[0]
+    share = round(100 / len(q["correct"]), 5)
+    answers = "".join(f'<answer fraction="{share if k in q["correct"] else -100}"><text>{escape(o)}</text></answer>' for k, o in enumerate(q["options"]))
+    parts.append(f'<question type="multichoice"><name><text>m</text></name><questiontext format="html"><text><![CDATA[<p>{q["stem"]}</p>]]>'
+                 f"</text></questiontext><single>false</single>{answers}</question>")
+    out.append(truth(q))
+    stem, left, right, key = MATCH[1]
+    subs = "".join(f"<subquestion><text>{escape(left[i])}</text><answer><text>{escape(right[key[i]])}</text></answer></subquestion>" for i in range(len(left)))
+    parts.append(f'<question type="matching"><name><text>s</text></name><questiontext format="html"><text>{escape(stem)}</text></questiontext>{subs}</question>')
+    out.append(truth_match(stem, left, right, key))
+    for stem, answers in SHORT[9:11]:
+        kind = "numerical" if answers[0].isdecimal() else "shortanswer"
+        parts.append(f'<question type="{kind}"><name><text>n</text></name><questiontext format="html"><text>{escape(stem)}</text></questiontext>'
+                     f'<answer fraction="100"><text>{escape(answers[0])}</text><tolerance>0</tolerance></answer></question>')
+        out.append(truth_open(stem, answers))
+    for q in take(RU, 44, 2):
+        answers = "".join(f'<answer fraction="{100 if k in q["correct"] else 0}"><text>{escape(o)}</text></answer>' for k, o in enumerate(q["options"]))
+        parts.append(f'<question type="multichoice"><name><text>x</text></name><questiontext format="html"><text>{escape(q["stem"])}</text></questiontext>'
+                     f"<single>true</single>{answers}</question>")
+        out.append(truth(q))
+    parts.append('<question type="essay"><name><text>e</text></name><questiontext format="html"><text>Опишите круговорот воды в природе.</text></questiontext></question>')
+    out.append(truth_open("Опишите круговорот воды в природе.", [], key=False))
+    parts.append("</quiz>")
+    return "\n".join(parts).encode("utf-8"), out
+
+
+@case("k08_moodle_xml_cdata_code", "xml", "holdout2", "format:moodle_xml", "content:code")
+def _():
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>', "<quiz>"]
+    out = []
+    for q in [CODE[0], CODE[3], CODE[7]]:
+        code_html = escape(q["code"]).replace("\n", "<br>")
+        answers = "".join(f'<answer fraction="{100 if k in q["correct"] else 0}" format="html"><text><![CDATA[<p>{escape(o)}</p>]]></text></answer>'
+                          for k, o in enumerate(q["options"]))
+        parts.append(f'<question type="multichoice"><name><text>c</text></name><questiontext format="html"><text><![CDATA[<p>{escape(q["stem"])}</p>'
+                     f"<pre>{code_html}</pre>]]></text></questiontext><single>true</single>{answers}</question>")
+        out.append(truth(q))
+    parts.append("</quiz>")
+    return "\n".join(parts).encode("utf-8"), out
+
+
+@case("k09_pdf_bold_font_key", "pdf", "holdout2", "format:pdf", "num:dot", "opt:rus_paren", "key:bold",
+      note="PDF из «Word»: ключ набран жирным шрифтом (Helvetica-Bold)")
+def _():
+    qs = take(RU, 0, 8)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines.append(f"{n}. {q['stem']}")
+        lines += [[(f"{RUS[k]}) ", False), (o, k in q["correct"])] for k, o in enumerate(q["options"])]
+    return pdf(lines), [truth(q) for q in qs]
+
+
+@case("k10_pdf_footer_key_list", "pdf", "holdout2", "format:pdf", "num:paren", "opt:rus_up_dot", "key:end_list", "struct:junk")
+def _():
+    qs = take(RU, 27, 8)
+    lines = ["Итоговый тест", ""]
+    for n, q in enumerate(qs, start=1):
+        lines.append(f"{n}) {q['stem']}")
+        lines += [f"{RUS_UP[k]}. {o}" for k, o in enumerate(q["options"])]
+        if n == 4:
+            lines += ["", "Стр. 1", ""]
+    lines += ["", "Ключ: " + ", ".join(f"{n}-{RUS_UP[q['correct'][0]]}" for n, q in enumerate(qs, start=1))]
+    return pdf(lines), [truth(q) for q in qs]
+
+
+@case("k11_pdf_wrapped_stems", "pdf", "holdout2", "format:pdf", "num:dot", "opt:rus_paren", "key:answer_line", "text:pdf_paste")
+def _():
+    qs = take(RU, 21, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        stem = f"{n}. {q['stem']}"
+        if len(stem) > 38:
+            cut = stem.rfind(" ", 0, 38)
+            lines += [stem[:cut], stem[cut + 1:]]
+        else:
+            lines.append(stem)
+        lines += [f"{RUS[k]}) {o}" for k, o in enumerate(q["options"])]
+        lines.append(f"Ответ: {RUS[q['correct'][0]]}")
+    return pdf(lines), [truth(q) for q in qs]
+
+
+@case("k12_word_list_nested_bullets_green_highlight", "docx", "holdout2", "num:word_list", "opt:word_bullets", "key:green")
+def _():
+    qs = take(RU, 36, 6)
+    lists = {"abstract": {96: [("decimal", "%1."), ("bullet", "o")]}, "nums": {96: (96, None)}}
+    blocks = []
+    for q in qs:
+        blocks.append(P(q["stem"], num=(96, 0)))
+        blocks += [P(*option_runs("", o, k in q["correct"], "green"), num=(96, 1)) for k, o in enumerate(q["options"])]
+    return docx(blocks, lists=lists), [truth(q) for q in qs]
+
+
+@case("k13_docx_options_one_paragraph_tabs_key_end", "docx", "holdout2", "num:dot", "opt:inline_tabs", "stem:bold", "key:end_list")
+def _():
+    qs = take(RU, 3, 6)
+    blocks = []
+    for n, q in enumerate(qs, start=1):
+        blocks += [P(R(f"{n}. {q['stem']}", b=True)), P("\t".join(f"{RUS[k]}) {o}" for k, o in enumerate(q["options"])))]
+    blocks += [P(""), P("Ответы: " + key_pairs(qs, sep="-"))]
+    return docx(blocks), [truth(q) for q in qs]
+
+
+@case("k14_docx_one_table_merged_stems_letter_col", "docx", "holdout2", "table:stem_rows", "opt:letter_column", "key:underline",
+      note="одна таблица: строка «Вопрос N. …» на две колонки, под ней строки «А | вариант»")
+def _():
+    qs = take(RU, 9, 5)
+    rows = []
+    for n, q in enumerate(qs, start=1):
+        rows.append([C(f"Вопрос {n}. {q['stem']}", span=2)])
+        rows += [[C(RUS_UP[k]), C(P(R(o, **(FORMATS["underline"] if k in q["correct"] else {}))))] for k, o in enumerate(q["options"])]
+    return docx([T(rows)]), [truth(q) for q in qs]
+
+
+@case("k15_txt_stems_without_question_marks", "txt", "holdout2", "num:dot", "opt:rus_paren", "key:answer_line")
+def _():
+    qs = [Q(re.sub(r"^Какой город является ", "Назовите ", q["stem"]).rstrip("?"), q["options"], q["correct"]) for q in take(RU, 0, 6)]
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"{n}. {q['stem']}"] + [f"{RUS[k]}) {o}" for k, o in enumerate(q["options"])] + [f"Ответ: {RUS[q['correct'][0]]}", ""]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("k16_txt_dot_labels_plus_in_brackets", "txt", "holdout2", "num:dot", "opt:rus_dot", "key:plus_after")
+def _():
+    qs = take(RU, 40, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines.append(f"{n}. {q['stem']}")
+        lines += [f"{RUS[k]}. {o}" + (" (+)" if k in q["correct"] else "") for k, o in enumerate(q["options"])]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("k17_txt_english_paren_letters_answer_key", "txt", "holdout2", "lang:en", "num:paren", "opt:paren_upper_latin", "key:end_list")
+def _():
+    qs = take(EN, 4, 8)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines.append(f"{n}) {q['stem']}")
+        lines += [f"({LAT[k].upper()}) {o}" for k, o in enumerate(q["options"])]
+        lines.append("")
+    lines.append("Answer key: " + " ".join(f"{n}-{LAT[q['correct'][0]].upper()}" for n, q in enumerate(qs, start=1)))
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("k18_docx_vopros_iz_online_copy", "docx", "holdout2", "num:vopros_line", "opt:none", "key:bold",
+      note="копия онлайн-теста: «Вопрос 3 из 8», затем текст, варианты без букв, ключ жирным")
+def _():
+    qs = take(RU, 22, 8)
+    blocks = []
+    for n, q in enumerate(qs, start=1):
+        blocks += [P(f"Вопрос {n} из {len(qs)}"), P(q["stem"])]
+        blocks += [P(*option_runs("", o, k in q["correct"], "bold")) for k, o in enumerate(q["options"])]
+    return docx(blocks), [truth(q) for q in qs]
+
+
+@case("k19_xlsx_transposed_questions_in_columns", "xlsx", "holdout2", "format:xlsx", "table:transposed", "key:row_letter",
+      note="вопросы по столбцам: строка 1 — вопросы, строки 2–5 — варианты, строка 6 — ключ")
+def _():
+    qs = take(RU, 30, 5)
+    rows = [[q["stem"] for q in qs]] + [[q["options"][k] for q in qs] for k in range(4)] + [[RUS[q["correct"][0]] for q in qs]]
+    return xlsx(rows), [truth(q) for q in qs]
+
+
+@case("k20_xlsx_bold_key_with_title_rows", "xlsx", "holdout2", "format:xlsx", "table:row_per_q", "key:bold", "struct:junk")
+def _():
+    qs = take(RU, 12, 6)
+    rows = [["Тест по окружающему миру, 5 класс"], ["Составитель: И. И. Иванова"], [],
+            ["№", "Вопрос", "Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"]]
+    rows += [[n, q["stem"], *[(o, {"b": True}) if k in q["correct"] else o for k, o in enumerate(q["options"])]]
+             for n, q in enumerate(qs, start=1)]
+    return xlsx(rows), [truth(q) for q in qs]
+
+
+@case("k21_markdown_headings_per_question", "md", "holdout2", "format:markdown", "num:vopros_line", "opt:num_dot", "key:md_answer")
+def _():
+    qs = take(RU, 18, 5)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"### Вопрос {n}", "", q["stem"], ""] + [f"{k + 1}. {o}" for k, o in enumerate(q["options"])]
+        lines += ["", f"**Ответ:** {q['correct'][0] + 1}", ""]
+    return "\n".join(lines).encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("k22_aiken_paren_labels", "txt", "holdout2", "format:aiken", "opt:lat_up_paren", "key:aiken")
+def _():
+    qs = take(EN, 7, 5)
+    lines = []
+    for q in qs:
+        lines += [q["stem"]] + [f"{LAT[k].upper()}) {o}" for k, o in enumerate(q["options"])] + [f"ANSWER: {LAT[q['correct'][0]].upper()}", ""]
+    return "\n".join(lines).encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("k23_docx_matching_table_answer_line", "docx", "holdout2", "kind:match", "table:matching", "key:answer_line")
+def _():
+    blocks, out = [], []
+    for n, (stem, left, right, key) in enumerate(MATCH[1:3], start=1):
+        rows = [[C(f"{i + 1}. {left[i]}"), C(f"{RUS_UP[i]}. {right[i]}")] for i in range(len(left))]
+        blocks += [P(f"{n}. {stem}"), T(rows), P("Ответ: " + ", ".join(f"{i + 1}-{RUS_UP[key[i]]}" for i in range(len(left)))), P("")]
+        out.append(truth_match(stem, left, right, key))
+    return docx(blocks), out
+
+
+@case("k24_docx_true_false_boxes_on_line", "docx", "holdout2", "kind:truefalse", "opt:inline_boxes", "key:check",
+      note="«Утверждение.  ☒ Верно  ☐ Неверно» — в одной строке")
+def _():
+    blocks, out = [], []
+    for n, (stem, value) in enumerate(TF[:6], start=1):
+        blocks.append(P(f"{n}. {stem}  {'☒' if value else '☐'} Верно  {'☐' if value else '☒'} Неверно"))
+        out.append(truth_tf(stem, value))
+    return docx(blocks), out
+
+
+@case("k25_txt_answers_section_by_question_text", "txt", "holdout2", "num:dot", "opt:rus_paren", "key:end_text")
+def _():
+    qs = take(RU, 45, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"{n}. {q['stem']}"] + [f"{RUS[k]}) {o}" for k, o in enumerate(q["options"])] + [""]
+    lines += ["Правильные ответы", ""] + [f"Вопрос {n}: {q['options'][q['correct'][0]]}" for n, q in enumerate(qs, start=1)]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("k26_html_ol_upper_alpha_underline_topics", "html", "holdout2", "format:html", "struct:topics", "opt:html_list", "key:underline")
+def _():
+    a, b = take(RU, 8, 3), take(RU, 38, 3)
+    parts = []
+    out = []
+    for title, qs in (("Тема 1. Природа", a), ("Тема 2. Люди", b)):
+        parts.append(f"<h2>{title}</h2><ol>")
+        for q in qs:
+            options = "".join(f"<li>{'<u>' + escape(o) + '</u>' if k in q['correct'] else escape(o)}</li>" for k, o in enumerate(q["options"]))
+            parts.append(f"<li>{escape(q['stem'])}<ol type=\"A\">{options}</ol></li>")
+            out.append(truth(q, topic=title))
+        parts.append("</ol>")
+    return _html("".join(parts)), out
 
 
 def main() -> int:

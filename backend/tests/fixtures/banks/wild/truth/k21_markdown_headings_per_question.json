@@ -1,0 +1,80 @@
+{
+ "id": "k21_markdown_headings_per_question",
+ "file": "files/k21_markdown_headings_per_question.md",
+ "tags": [
+  "holdout2",
+  "format:markdown",
+  "num:vopros_line",
+  "opt:num_dot",
+  "key:md_answer"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Какой материк самый большой по площади?",
+   "options": [
+    "Африка",
+    "Евразия",
+    "Северная Америка",
+    "Антарктида"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Сколько байт в одном килобайте по стандарту JEDEC?",
+   "options": [
+    "1000",
+    "1024",
+    "512",
+    "2048"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой процесс превращает жидкость в газ?",
+   "options": [
+    "конденсация",
+    "кристаллизация",
+    "испарение",
+    "сублимация"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой орган человека вырабатывает инсулин?",
+   "options": [
+    "печень",
+    "почки",
+    "поджелудочная железа",
+    "щитовидная железа"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какое из чисел является простым?",
+   "options": [
+    "21",
+    "27",
+    "29",
+    "33"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  }
+ ]
+}

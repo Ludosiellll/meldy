@@ -1,0 +1,34 @@
+Which protocol is used to send e-mail?
+A) FTP
+B) SMTP
+C) HTTP
+D) SSH
+ANSWER: B
+
+What is the past tense of 'go'?
+A) goed
+B) gone
+C) went
+D) going
+ANSWER: C
+
+Which data structure works on the LIFO principle?
+A) queue
+B) stack
+C) tree
+D) graph
+ANSWER: B
+
+What is 7 × 8?
+A) 54
+B) 56
+C) 58
+D) 64
+ANSWER: B
+
+Which ocean lies between Europe and North America?
+A) Pacific
+B) Indian
+C) Atlantic
+D) Arctic
+ANSWER: C

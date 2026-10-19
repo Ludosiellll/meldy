@@ -1,0 +1,79 @@
+{
+ "id": "k06_html_saved_quiz_checked_radios",
+ "file": "files/k06_html_saved_quiz_checked_radios.html",
+ "tags": [
+  "holdout2",
+  "format:html",
+  "opt:radio",
+  "key:checked"
+ ],
+ "note": "сохранённая страница теста: варианты — радиокнопки, у верного checked",
+ "supported": false,
+ "questions": [
+  {
+   "stem": "Какая формула у воды?",
+   "options": [
+    "H2O",
+    "CO2",
+    "O2",
+    "H2O2"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Кто был первым космонавтом?",
+   "options": [
+    "Г. С. Титов",
+    "Ю. А. Гагарин",
+    "А. А. Леонов",
+    "В. В. Терешкова"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой угол называется прямым?",
+   "options": [
+    "45°",
+    "90°",
+    "120°",
+    "180°"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой пигмент придаёт листьям зелёный цвет?",
+   "options": [
+    "каротин",
+    "хлорофилл",
+    "меланин",
+    "гемоглобин"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какая валюта используется в Японии?",
+   "options": [
+    "юань",
+    "вона",
+    "иена",
+    "рупия"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  }
+ ]
+}
