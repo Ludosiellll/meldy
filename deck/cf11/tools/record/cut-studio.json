@@ -1,0 +1,30 @@
+{
+  "clip": "11",
+  "take": "studio-c",
+  "fps": 30,
+  "fade": 0.45,
+  "segments": [
+    { "from": "@0.4", "to": "grab-0.2" },
+    { "from": "grab-0.2", "to": "dropped+1.8" },
+    { "from": "upload", "to": "chooser+0.1" },
+    { "from": "uploaded-0.3", "to": "uploaded+2.6", "fade": 0.4 },
+    { "from": "design", "to": "coloured+1.2" }
+  ],
+  "swaps": [],
+  "loop": { "fade": 0.5 },
+  "mask": { "rects": [[0, 0, 1280, 62]], "color": "#f3f3f0" },
+  "camera": {
+    "min_w": 760,
+    "pad": 12,
+    "move": 0.9,
+    "y_min": 66,
+    "keys": [
+      { "at": "@0.4", "box": [0, 66, 1280, 800], "pad": 0, "beat": "studio" },
+      { "at": "grab-0.2", "box": [0, 140, 870, 640], "move": 0.8, "beat": "drag" },
+      { "at": "upload", "box": [283, 140, 1280, 711], "pad": 0, "move": 0.8, "beat": "picture" },
+      { "at": "design", "box": [283, 86, 1280, 657], "pad": 0, "move": 0.6, "beat": "design" }
+    ]
+  },
+  "poster": { "at": "coloured+0.6", "still": "poster" },
+  "window": { "name": "11-studio", "box": [1232, 706], "radius": 28, "bg": "#0b0f16" }
+}

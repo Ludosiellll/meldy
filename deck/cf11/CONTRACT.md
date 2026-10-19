@@ -36,7 +36,7 @@ a way to check it), three equal parts (lectures, exams, the test constructor); s
   placeholder, not a label over the claim); the parts «Лекции · Экзамены · Тесты» or the small wordmark top right;
   claim 64–72 px (32–36 pt) 600, two lines at most; the wordmark on 01 and 15 280 px; hero numbers 112–360 px; marked
   lines and lists 32–40 px; sources and «как считается» 28 px (14 pt); nothing under 28 px. One hero per slide; about
-  35 words at most outside the reading layer (the list slides 02, 13, 14, 15 excepted).
+  35 words at most outside the reading layer (the list and table slides 02, 04, 05, 06, 13, 14, 15 excepted).
 
 ## Geometry
 
