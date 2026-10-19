@@ -119,6 +119,15 @@ def test_keys_of_two_variants_in_one_file_go_to_their_own_variant():
     assert keys(parse_bank_text(one_key)) == [[0], [1], [], []]  # ключ варианта 1 не достаётся варианту 2
 
 
+def test_a_number_the_key_answers_twice_differently_gets_no_key_and_a_conflict_flag():
+    # «ВАРИАНТ I» не узнаётся как вариант: ключи двух вариантов ложатся на одни номера — не берём последний молча
+    body = "ВАРИАНТ I\n1. Вопрос А?\nа) да\nб) нет\n2. Вопрос Б?\nа) да\nб) нет\n\nВАРИАНТ II\n1. Вопрос В?\nа) да\nб) нет\n" \
+           "2. Вопрос Г?\nа) да\nб) нет\n\nОтветы\nI вариант: 1-а, 2-б\nII вариант: 1-б, 2-б\n"
+    result = parse_bank_text(body)
+    assert keys(result) == [[], [1], [], [1]]
+    assert ["key_conflict" in item["flags"] for item in result["items"]] == [True, False, True, False]
+
+
 def test_a_key_table_with_a_column_per_variant_inside_the_test_file():
     doc = Document()
     for variant in (1, 2):

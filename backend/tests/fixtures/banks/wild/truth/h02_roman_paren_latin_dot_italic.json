@@ -1,0 +1,92 @@
+{
+ "id": "h02_roman_paren_latin_dot_italic",
+ "file": "files/h02_roman_paren_latin_dot_italic.docx",
+ "tags": [
+  "holdout",
+  "num:roman",
+  "opt:lat_dot",
+  "key:italic"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Which planet is closest to the Sun?",
+   "options": [
+    "Venus",
+    "Earth",
+    "Mercury",
+    "Mars"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "What does CPU stand for?",
+   "options": [
+    "Central Processing Unit",
+    "Computer Personal Unit",
+    "Central Program Utility",
+    "Core Processing Unit"
+   ],
+   "correct": [
+    0
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Which gas do plants absorb from the air?",
+   "options": [
+    "Oxygen",
+    "Nitrogen",
+    "Carbon dioxide",
+    "Helium"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Who wrote 'Romeo and Juliet'?",
+   "options": [
+    "Charles Dickens",
+    "William Shakespeare",
+    "Jane Austen",
+    "Mark Twain"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "How many continents are there?",
+   "options": [
+    "5",
+    "6",
+    "7",
+    "8"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "What is the boiling point of water at sea level?",
+   "options": [
+    "90 °C",
+    "100 °C",
+    "110 °C",
+    "120 °C"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  }
+ ]
+}

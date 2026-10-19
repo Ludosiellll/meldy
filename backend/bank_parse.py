@@ -917,6 +917,25 @@ def horizontal_keys(rows: list[list[Cell]]) -> Optional[dict[str, str]]:
 # ── Читатели ────────────────────────────────────────────────────────────────────
 
 
+class KeyStore(dict):
+    """Ключ файла «номер → ответ». Номер, которому файл дал два разных ответа (ключи двух вариантов без подписи варианта,
+    опечатка), попадает в conflicts: такой ключ не берётся — вопрос получает key_conflict, а не ответ последней строки."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.conflicts: set[str] = set()
+
+    def __setitem__(self, number: str, value: str) -> None:
+        old = self.get(number)
+        if old is not None and " ".join(old.lower().split()) != " ".join(value.lower().split()):
+            self.conflicts.add(number)
+        super().__setitem__(number, value)
+
+    def update(self, pairs=(), **_) -> None:  # type: ignore[override]
+        for number, value in (pairs.items() if isinstance(pairs, dict) else pairs):
+            self[number] = value
+
+
 class Reader:
     """Вопросы, заголовки и списки ключей, найденные в блоках.
 
@@ -928,7 +947,7 @@ class Reader:
     def __init__(self, line_word: str = "абзац", open_mode: bool = False, test_mode: bool = False) -> None:
         self.items: list[Item] = []
         self.headings: list[Heading] = []
-        self.keys: dict[str, str] = {}
+        self.keys: KeyStore = KeyStore()
         self.key_lists = 0
         self.skipped: list[str] = []
         self.layouts: Counter = Counter()
@@ -943,7 +962,7 @@ class Reader:
         self.has_tables = False  # в документе есть таблицы (ключ таблицей может стоять после абзацев): keyless не ставится
         self.variant: Optional[int] = None  # «Вариант 4» в заголовке файла: по нему берётся раздел файла ключей
         self.current_variant: Optional[int] = None  # последний заголовок «Вариант N» над вопросами
-        self.variant_keys: dict[int, dict[str, str]] = {}  # ключ по вариантам в самом файле («Вариант 2: 1а 2б», столбцы)
+        self.variant_keys: dict[int, KeyStore] = {}  # ключ по вариантам в самом файле («Вариант 2: 1а 2б», столбцы)
         self.pictures: dict[str, tuple[str, bytes]] = {}  # картинки DOCX: id → (тип, байты) (bank_docx.read_docx)
 
     def heading(self, text: str, default: str, level: Optional[int] = None) -> None:
@@ -1036,7 +1055,7 @@ class Reader:
         if by_variant:  # ключ таблицей «№ | Вариант 1 | Вариант 2» в самом файле с вариантами
             self.key_lists += 1
             for section in by_variant:
-                self.variant_keys.setdefault(section["variant"], {}).update(section["keys"])
+                self.variant_keys.setdefault(section["variant"], KeyStore()).update(section["keys"])
             return
         across = horizontal_keys([row for _, row in rows])
         if across:  # «№ | 1 | 2 | 3» над «Ответ | б | а | в»
@@ -1440,14 +1459,14 @@ class Reader:
                 self.key_lists += 0 if in_key else 1
                 in_key = "line" if pairs else "heading"
                 if pairs:
-                    self.variant_keys.setdefault(key_variant, {}).update(pairs)
+                    self.variant_keys.setdefault(key_variant, KeyStore()).update(pairs)
                 continue
             # список ключей одной строкой (или несколькими: продолжение — строки из одних пар)
             pairs = key_list_pairs(text, continued=in_key == "line") if text and not mono else None
             if pairs:
                 self.key_lists += 0 if in_key else 1
                 in_key = "line"
-                (self.variant_keys.setdefault(key_variant, {}) if key_variant is not None else self.keys).update(pairs)
+                (self.variant_keys.setdefault(key_variant, KeyStore()) if key_variant is not None else self.keys).update(pairs)
                 continue
             if text and KEY_HEADING_RE.match(text):
                 in_key = "heading"
@@ -1455,7 +1474,7 @@ class Reader:
                 self.key_lists += 1
                 continue
             if text and not mono:
-                if in_key == "heading" and self.key_line(text, self.variant_keys.setdefault(key_variant, {})
+                if in_key == "heading" and self.key_line(text, self.variant_keys.setdefault(key_variant, KeyStore())
                                                          if key_variant is not None else None):
                     continue
                 in_key = ""
@@ -2491,7 +2510,7 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
         for item in items:
             _open_up(item)
     _cap_pictures(reader, items)
-    file_keys = dict(reader.keys)
+    file_keys = reader.keys
     for item in items:
         if item.grid:
             order_grid(item)
@@ -2502,7 +2521,9 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
         user_key = user_keys.get(item.label) if user_keys and item.label else None
         file_key = item.explicit
         keys = _keys_for(reader, item, file_keys)
-        if file_key is None and item.label and item.label in keys:
+        if file_key is None and item.label and item.label in getattr(keys, "conflicts", ()):
+            item.flag("key_conflict")  # в ключе файла у этого номера два разных ответа: не угадываем, какой
+        elif file_key is None and item.label and item.label in keys:
             file_key, item.explicit_from = keys[item.label], "key_list"
         if user_key is not None:
             # ключ пользователя старше ключа файла; несогласие с файлом — key_conflict
@@ -2638,7 +2659,7 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
     return _result(reader, items, signal, table, markers, gaps, warnings, subjects, topics)
 
 
-def _keys_for(reader: Reader, item: Item, file_keys: dict[str, str]) -> dict[str, str]:
+def _keys_for(reader: Reader, item: Item, file_keys: KeyStore) -> dict[str, str]:
     """Ключ списком для вопроса: ключ его варианта, если в файле ключ по вариантам («Вариант 2: 1а 2б», столбцы
     «Вариант 1 | Вариант 2»), иначе общий. Вопрос варианта, у которого ключа нет, общий ключ не берёт: в файле с
     несколькими вариантами он может быть чужим, а неверный ключ хуже, чем никакого."""

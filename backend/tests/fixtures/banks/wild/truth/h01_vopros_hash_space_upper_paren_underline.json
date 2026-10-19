@@ -1,0 +1,92 @@
+{
+ "id": "h01_vopros_hash_space_upper_paren_underline",
+ "file": "files/h01_vopros_hash_space_upper_paren_underline.docx",
+ "tags": [
+  "holdout",
+  "num:vopros",
+  "opt:rus_up_paren",
+  "key:underline"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Чему равна сумма углов треугольника?",
+   "options": [
+    "90°",
+    "180°",
+    "270°",
+    "360°"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой органоид клетки отвечает за синтез белка?",
+   "options": [
+    "митохондрия",
+    "рибосома",
+    "лизосома",
+    "вакуоль"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "В каком году началась Вторая мировая война?",
+   "options": [
+    "1914",
+    "1939",
+    "1941",
+    "1945"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой металл самый лёгкий?",
+   "options": [
+    "алюминий",
+    "литий",
+    "натрий",
+    "магний"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какая единица измерения силы в СИ?",
+   "options": [
+    "джоуль",
+    "ватт",
+    "ньютон",
+    "паскаль"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Кто открыл закон всемирного тяготения?",
+   "options": [
+    "Галилей",
+    "Ньютон",
+    "Кеплер",
+    "Эйнштейн"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  }
+ ]
+}

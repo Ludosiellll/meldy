@@ -1879,6 +1879,209 @@ def _():
     return docx([T(rows)]), [truth(q) for q in qs]
 
 
+# Отложенные (holdout, тег «holdout»): написаны после улучшений разбора по w-файлам и в настройке не участвовали — по
+# ним видно, насколько улучшения переносятся на соседние раскладки. Их ошибки исправлять отдельно, с новым отложенным
+# набором, иначе мерить перенос будет нечем.
+
+@case("h01_vopros_hash_space_upper_paren_underline", "docx", "holdout", "num:vopros", "opt:rus_up_paren", "key:underline")
+def _():
+    qs = take(RU, 5, 6)
+    blocks = []
+    for n, q in enumerate(qs, start=1):
+        blocks.append(P(f"Вопрос № {n}. {q['stem']}"))
+        blocks += [P(*option_runs(f"{RUS_UP[k]}) ", o, k in q["correct"], "underline")) for k, o in enumerate(q["options"])]
+    return docx(blocks), [truth(q) for q in qs]
+
+
+@case("h02_roman_paren_latin_dot_italic", "docx", "holdout", "num:roman", "opt:lat_dot", "key:italic")
+def _():
+    qs = take(EN, 1, 6)
+    blocks = []
+    for n, q in enumerate(qs, start=1):
+        blocks.append(P(f"{roman(n)}) {q['stem']}"))
+        blocks += [P(*option_runs(f"{LAT[k]}. ", o, k in q["correct"], "italic")) for k, o in enumerate(q["options"])]
+    return docx(blocks), [truth(q) for q in qs]
+
+
+@case("h03_zadanie_colon_line_digit_options_endash_key", "txt", "holdout", "num:vopros_line", "opt:num_dot", "key:end_list")
+def _():
+    qs = take(RU, 12, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"Задание {n}:", q["stem"]] + [f"{k + 1}. {o}" for k, o in enumerate(q["options"])] + [""]
+    lines.append("Ответы: " + " ".join(f"{n}–{q['correct'][0] + 1}" for n, q in enumerate(qs, start=1)))
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h04_unnumbered_colon_stems_upper_dot_bold_line", "docx", "holdout", "num:none", "opt:rus_up_dot", "key:bold_line")
+def _():
+    qs = [Q(q["stem"].rstrip("?") + ":", q["options"], q["correct"]) for q in take(RU, 20, 6)]
+    blocks = []
+    for q in qs:
+        blocks.append(P(q["stem"]))
+        blocks += [P(*option_runs(f"{RUS_UP[k]}. ", o, k in q["correct"], "bold_line")) for k, o in enumerate(q["options"])]
+    return docx(blocks), [truth(q) for q in qs]
+
+
+@case("h05_inline_commas_next_line_key_glued_no_spaces", "txt", "holdout", "num:dot", "opt:inline", "key:end_glued")
+def _():
+    qs = take(RU, 28, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"{n}. {q['stem']}", ", ".join(f"{RUS[k]}) {o}" for k, o in enumerate(q["options"]))]
+    lines += ["", "Ключ: " + "".join(f"{n}{RUS[q['correct'][0]]}" for n, q in enumerate(qs, start=1))]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h06_filled_squares", "txt", "holdout", "num:dot", "opt:squares", "key:check")
+def _():
+    qs = take(RU, 34, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines.append(f"{n}. {q['stem']}")
+        lines += [("■ " if k in q["correct"] else "□ ") + o for k, o in enumerate(q["options"])]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h07_check_mark_after_option", "txt", "holdout", "num:paren", "opt:rus_paren", "key:check_after")
+def _():
+    qs = take(RU, 40, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines.append(f"{n}) {q['stem']}")
+        lines += [f"{RUS[k]}) {o}" + (" ✓" if k in q["correct"] else "") for k, o in enumerate(q["options"])]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h08_table_variant_columns_answer_number", "docx", "holdout", "table:row_per_q", "opt:columns", "key:column_numbers")
+def _():
+    qs = take(RU, 2, 6)
+    rows = [[C("Вопрос"), C("Вариант 1"), C("Вариант 2"), C("Вариант 3"), C("Вариант 4"), C("Ответ")]]
+    rows += [[C(q["stem"]), *[C(o) for o in q["options"]], C(str(q["correct"][0] + 1))] for q in qs]
+    return docx([T(rows)]), [truth(q) for q in qs]
+
+
+@case("h09_roman_variants_key_by_variant", "txt", "holdout", "variants:two", "num:dot", "opt:rus_paren", "key:end_list_by_variant")
+def _():
+    v1, v2 = take(RU, 7, 4), take(RU, 37, 4)
+    lines = ["ВАРИАНТ I"]
+    for n, q in enumerate(v1, start=1):
+        lines += [f"{n}. {q['stem']}"] + [f"{RUS[k]}) {o}" for k, o in enumerate(q["options"])]
+    lines += ["", "ВАРИАНТ II"]
+    for n, q in enumerate(v2, start=1):
+        lines += [f"{n}. {q['stem']}"] + [f"{RUS[k]}) {o}" for k, o in enumerate(q["options"])]
+    lines += ["", "Ответы", "I вариант: " + key_pairs(v1, sep="-"), "II вариант: " + key_pairs(v2, sep="-")]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q, variant=1) for q in v1] + [truth(q, variant=2) for q in v2]
+
+
+@case("h10_options_in_2x2_table_under_stem", "docx", "holdout", "table:options_grid", "num:dot", "key:bold")
+def _():
+    qs = take(RU, 15, 5)
+    blocks = []
+    for n, q in enumerate(qs, start=1):
+        o = q["options"]
+        cell = [C(P(f"{RUS[k]}) ", R(o[k], **(FORMATS["bold"] if k in q["correct"] else {})))) for k in range(4)]
+        blocks += [P(f"{n}. {q['stem']}"), T([[cell[0], cell[1]], [cell[2], cell[3]]]), P("")]
+    return docx(blocks), [truth(q) for q in qs]
+
+
+@case("h11_markdown_hr_bullets_bold", "md", "holdout", "format:markdown", "num:none", "opt:dash", "key:md_bold")
+def _():
+    qs = take(RU, 44, 5)
+    lines = []
+    for q in qs:
+        lines += [f"**{q['stem']}**", ""] + [f"- **{o}**" if k in q["correct"] else f"- {o}" for k, o in enumerate(q["options"])]
+        lines += ["", "---", ""]
+    return "\n".join(lines).encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h12_belarusian_adkaz_lines", "txt", "holdout", "lang:be", "num:dot", "opt:be_paren", "key:answer_line")
+def _():
+    qs = take(BEL, 2, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"{n}. {q['stem']}"] + [f"{BE[k]}) {o}" for k, o in enumerate(q["options"])] + [f"Адказ: {BE[q['correct'][0]]}", ""]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h13_english_correct_answer_lines", "txt", "holdout", "lang:en", "num:dot", "opt:lat_up_paren", "key:answer_line")
+def _():
+    qs = take(EN, 6, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"{n}. {q['stem']}"] + [f"{LAT[k].upper()}) {o}" for k, o in enumerate(q["options"])]
+        lines += [f"Correct answer: {LAT[q['correct'][0]].upper()}", ""]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h14_word_list_digit_options_highlight", "docx", "holdout", "num:dot", "opt:word_list_digits", "key:highlight", "stem:bold")
+def _():
+    qs = take(RU, 25, 6)
+    lists = {"abstract": {95: [("decimal", "%1)")]}, "nums": {300 + n: (95, 0) for n in range(1, 7)}}
+    blocks = []
+    for n, q in enumerate(qs, start=1):
+        blocks.append(P(R(f"{n}. {q['stem']}", b=True)))
+        blocks += [P(*option_runs("", o, k in q["correct"], "highlight"), num=(300 + n, 0)) for k, o in enumerate(q["options"])]
+    return docx(blocks, lists=lists), [truth(q) for q in qs]
+
+
+@case("h15_stars_separated_answer_text", "txt", "holdout", "num:none", "opt:rus_paren", "key:answer_text", "sep:stars")
+def _():
+    qs = take(RU, 31, 6)
+    lines = []
+    for q in qs:
+        lines += [q["stem"]] + [f"{RUS[k]}) {o}" for k, o in enumerate(q["options"])]
+        lines += [f"Ответ: {q['options'][q['correct'][0]]}", "***"]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h16_key_table_latin_letters_for_cyrillic", "docx", "holdout", "num:dot", "opt:rus_up_paren", "key:end_grid")
+def _():
+    qs = take(RU, 9, 8)
+    latin = "ABCD"
+    rows = [[C("Вопрос")] + [C(str(i)) for i in range(1, 9)], [C("Ответ")] + [C(latin[q["correct"][0]]) for q in qs]]
+    return docx(simple(qs, label="rus_up_paren", key="none") + [P("Ключ"), T(rows)]), [truth(q) for q in qs]
+
+
+@case("h17_moodle_review_english", "txt", "holdout", "format:moodle_review", "lang:en", "opt:lat_dot", "key:answer_text")
+def _():
+    qs = take(EN, 0, 6)
+    lines = []
+    for n, q in enumerate(qs, start=1):
+        lines += [f"Question {n}", "Correct", "Mark 1.00 out of 1.00", "Flag question", "Question text", q["stem"], "Select one:"]
+        lines += [f"{LAT[k]}. {o}" for k, o in enumerate(q["options"])]
+        lines += ["Feedback", f"The correct answer is: {q['options'][q['correct'][0]]}"]
+    return ("\n".join(lines) + "\n").encode("utf-8"), [truth(q) for q in qs]
+
+
+@case("h18_inline_three_spaces", "docx", "holdout", "num:dot", "opt:inline_spaces", "key:bold")
+def _():
+    qs = take(RU, 3, 6)
+    blocks = []
+    for n, q in enumerate(qs, start=1):
+        runs = []
+        for k, o in enumerate(q["options"]):
+            runs += option_runs(f"{RUS[k]}) ", o, k in q["correct"], "bold") + (["   "] if k < len(q["options"]) - 1 else [])
+        blocks += [P(f"{n}. {q['stem']}"), P(*runs)]
+    return docx(blocks), [truth(q) for q in qs]
+
+
+@case("h19_kahoot_like_csv_semicolon_xlsx_headers_ru", "xlsx", "holdout", "format:xlsx", "table:row_per_q", "key:column_numbers")
+def _():
+    qs = take(RU, 41, 6)
+    rows = [["Тест «Окружающий мир»"], [], ["Текст вопроса", "Ответ 1", "Ответ 2", "Ответ 3", "Ответ 4", "Номер верного ответа"]]
+    rows += [[q["stem"], *q["options"], q["correct"][0] + 1] for q in qs]
+    return xlsx(rows), [truth(q) for q in qs]
+
+
+@case("h20_numbered_answers_section_word_values", "docx", "holdout", "num:dot", "opt:rus_paren", "key:end_text")
+def _():
+    qs = take(RU, 18, 6)
+    blocks = simple(qs, key="none") + [P("Правильные ответы:")]
+    blocks += [P(f"{n}) {RUS[q['correct'][0]]} – {q['options'][q['correct'][0]]}") for n, q in enumerate(qs, start=1)]
+    return docx(blocks), [truth(q) for q in qs]
+
+
 def main() -> int:
     FILES.mkdir(parents=True, exist_ok=True)
     TRUTH.mkdir(parents=True, exist_ok=True)

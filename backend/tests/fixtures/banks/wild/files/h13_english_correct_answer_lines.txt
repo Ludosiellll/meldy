@@ -1,0 +1,42 @@
+1. What is the boiling point of water at sea level?
+A) 90 °C
+B) 100 °C
+C) 110 °C
+D) 120 °C
+Correct answer: B
+
+2. Which protocol is used to send e-mail?
+A) FTP
+B) SMTP
+C) HTTP
+D) SSH
+Correct answer: B
+
+3. What is the past tense of 'go'?
+A) goed
+B) gone
+C) went
+D) going
+Correct answer: C
+
+4. Which data structure works on the LIFO principle?
+A) queue
+B) stack
+C) tree
+D) graph
+Correct answer: B
+
+5. What is 7 × 8?
+A) 54
+B) 56
+C) 58
+D) 64
+Correct answer: B
+
+6. Which ocean lies between Europe and North America?
+A) Pacific
+B) Indian
+C) Atlantic
+D) Arctic
+Correct answer: C
+

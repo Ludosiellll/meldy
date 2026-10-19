@@ -1,0 +1,78 @@
+Question 1
+Correct
+Mark 1.00 out of 1.00
+Flag question
+Question text
+What is the capital of Canada?
+Select one:
+a. Toronto
+b. Ottawa
+c. Vancouver
+d. Montreal
+Feedback
+The correct answer is: Ottawa
+Question 2
+Correct
+Mark 1.00 out of 1.00
+Flag question
+Question text
+Which planet is closest to the Sun?
+Select one:
+a. Venus
+b. Earth
+c. Mercury
+d. Mars
+Feedback
+The correct answer is: Mercury
+Question 3
+Correct
+Mark 1.00 out of 1.00
+Flag question
+Question text
+What does CPU stand for?
+Select one:
+a. Central Processing Unit
+b. Computer Personal Unit
+c. Central Program Utility
+d. Core Processing Unit
+Feedback
+The correct answer is: Central Processing Unit
+Question 4
+Correct
+Mark 1.00 out of 1.00
+Flag question
+Question text
+Which gas do plants absorb from the air?
+Select one:
+a. Oxygen
+b. Nitrogen
+c. Carbon dioxide
+d. Helium
+Feedback
+The correct answer is: Carbon dioxide
+Question 5
+Correct
+Mark 1.00 out of 1.00
+Flag question
+Question text
+Who wrote 'Romeo and Juliet'?
+Select one:
+a. Charles Dickens
+b. William Shakespeare
+c. Jane Austen
+d. Mark Twain
+Feedback
+The correct answer is: William Shakespeare
+Question 6
+Correct
+Mark 1.00 out of 1.00
+Flag question
+Question text
+How many continents are there?
+Select one:
+a. 5
+b. 6
+c. 7
+d. 8
+Feedback
+The correct answer is: 7

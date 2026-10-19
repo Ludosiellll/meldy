@@ -18,15 +18,22 @@ import bank_eval  # noqa: E402
 
 WILD = bank_eval.WILD
 
-# Пол по итогам разбора (вопросов в корпусе — 1080). Было до этапа 1 (2026-10-19): found 955, stem 878, options 827,
-# key 796, kind 923, perfect 83, false 56, key_wrong 14. Без запаса на шум — разбор детерминирован.
-FLOOR = {"found": 1027, "stem": 1026, "options": 1026, "key": 1026, "kind": 1027, "perfect_files": 122}
-CEILING = {"false": 20, "key_wrong": 1, "key_invented": 0}
-# Файлы, которые правила пока не разбирают: форматы, которые разбор не принимает (415), и вопросы, пронумерованные
-# буквами при вариантах с цифрами — их место за разбором с ИИ (этап 2).
+# Пол по итогам разбора (вопросов в корпусе — 1202: 1080 в w-файлах, 122 в отложенных h-файлах). До этапа 1
+# (2026-10-19) w-файлы: found 955, stem 878, options 827, key 796, kind 923, perfect 83, false 56, key_wrong 14;
+# h-файлы: key 37 из 122, perfect 4 из 20. Без запаса на шум — разбор детерминирован.
+EXPECTED = 1202
+FLOOR = {"found": 1140, "stem": 1131, "options": 1113, "key": 1086, "kind": 1133, "perfect_files": 130}
+CEILING = {"false": 30, "key_wrong": 4, "key_invented": 0}
+# Файлы, которые правила пока не разбирают: форматы, которые разбор не принимает (415), вопросы, пронумерованные
+# буквами при вариантах с цифрами, и отложенные h-файлы, на которых видно, что правила переносятся не на всё (их
+# раскладки нарочно не настраивались: место за разбором с ИИ и за следующим отложенным набором).
 KNOWN_IMPERFECT = {
     "w007_num_letters_opts_digits", "w132_moodle_xml", "w137_csv_comma", "w138_csv_semicolon_cp1251", "w139_html_list",
     "w140_html_table", "w143_pdf_text_layer",
+    "h05_inline_commas_next_line_key_glued_no_spaces", "h06_filled_squares", "h09_roman_variants_key_by_variant",
+    "h10_options_in_2x2_table_under_stem", "h11_markdown_hr_bullets_bold", "h12_belarusian_adkaz_lines",
+    "h13_english_correct_answer_lines", "h15_stars_separated_answer_text", "h16_key_table_latin_letters_for_cyrillic",
+    "h17_moodle_review_english", "h19_kahoot_like_csv_semicolon_xlsx_headers_ru", "h20_numbered_answers_section_word_values",
 }
 
 
@@ -78,7 +85,7 @@ def test_scorer_counts_a_perfect_parse_as_perfect_and_a_wrong_key_as_wrong():
 
 def test_rule_parser_holds_the_floor_on_the_wild_corpus():
     total = report()["total"]
-    assert total["expected"] == 1080
+    assert total["expected"] == EXPECTED
     low = {name: (total[name], floor) for name, floor in FLOOR.items() if total[name] < floor}
     high = {name: (total[name], ceiling) for name, ceiling in CEILING.items() if total[name] > ceiling}
     assert not low and not high, f"below floor {low}, above ceiling {high}"

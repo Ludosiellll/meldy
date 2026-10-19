@@ -1,0 +1,93 @@
+{
+ "id": "h14_word_list_digit_options_highlight",
+ "file": "files/h14_word_list_digit_options_highlight.docx",
+ "tags": [
+  "holdout",
+  "num:dot",
+  "opt:word_list_digits",
+  "key:highlight",
+  "stem:bold"
+ ],
+ "note": "",
+ "supported": true,
+ "questions": [
+  {
+   "stem": "Какую планету называют Красной?",
+   "options": [
+    "Венера",
+    "Юпитер",
+    "Марс",
+    "Сатурн"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Сколько сторон у шестиугольника?",
+   "options": [
+    "5",
+    "6",
+    "7",
+    "8"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой элемент обозначается символом Fe?",
+   "options": [
+    "фтор",
+    "железо",
+    "фосфор",
+    "франций"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "В каком году был принят Статут ВКЛ последней редакции?",
+   "options": [
+    "1529",
+    "1566",
+    "1588",
+    "1610"
+   ],
+   "correct": [
+    2
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какой прибор измеряет атмосферное давление?",
+   "options": [
+    "термометр",
+    "барометр",
+    "гигрометр",
+    "амперметр"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  },
+  {
+   "stem": "Какое из этих животных является млекопитающим?",
+   "options": [
+    "акула",
+    "дельфин",
+    "окунь",
+    "скат"
+   ],
+   "correct": [
+    1
+   ],
+   "kind": "single"
+  }
+ ]
+}
