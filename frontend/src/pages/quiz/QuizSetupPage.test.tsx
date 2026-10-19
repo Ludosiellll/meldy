@@ -240,7 +240,8 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     expect(within(look).getByRole('button', { name: QA_SETUP.coverUpload })).toBeInTheDocument();
     const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3])], 'cover.png', { type: 'image/png' });
     const input = look.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input.accept).toBe('image/png,image/jpeg,image/gif,image/webp');
+    // Any picture (a phone opens its photos): pictureFromFile redraws what the bucket does not take.
+    expect(input.accept).toBe('image/*');
     fireEvent.change(input, { target: { files: [file] } });
     const preview = await screen.findByRole('img', { name: QA_SETUP.coverAlt });
     expect(api.upload).toHaveBeenCalledTimes(1);

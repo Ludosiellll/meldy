@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { coverUrl } from '../../api/itemPictures';
 import { themeTokens } from '../../lib/studio/contrast';
 import { BLOCK_WORDS } from '../../lib/studio/doc';
 import { linkAddress } from '../../lib/studio/richText';
+import { cleanVideoUrl, videoEmbed } from '../../lib/studio/video';
 import { isPictureWord } from '../../types/container';
 import { DOC_CAPTION_MAX, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type ResultBand, type TestDoc } from '../../types/testDoc';
 import ItemPictures, { storedPictures } from '../containers/ItemPictures';
@@ -12,6 +13,8 @@ import { letter } from '../containers/copyImport';
 import Editable from './Editable';
 import Rich from './Rich';
 import { DOC, STUDIO } from './copyStudio';
+import { BlockIcon, UiIcon } from './icons';
+import { draggingFiles, pasteKeys, pictureFiles, type UploadStage } from './pictures';
 import { answered, missingRequired, questionNumbers, stepsOf, visibleBlocks, type Answer, type Answers, type DocItem, type DocResultView, type Step } from './docRun';
 import './docview.css';
 
@@ -35,6 +38,10 @@ import './docview.css';
  *
  * The background picture sits in its own layer (`.dv-bg`, position: fixed): a frame that holds the page (the canvas,
  * the preview) makes itself its containing block, so the picture stays while the page scrolls over it.
+ *
+ * A video block (owner, 2026-10-19) is the provider's player in a sandboxed frame (lib/studio/video.ts videoEmbed: the
+ * player's address made from the link's checked parts; YouTube from youtube-nocookie.com), lazy, 16:9. On the canvas a
+ * clear layer over it keeps a press for the block (selecting, dragging); the preview and the participant play it.
  */
 
 export interface DocEditApi {
@@ -48,6 +55,14 @@ export interface DocEditApi {
   pickImage: (blockId: string) => void;
   /** The block whose picture is being uploaded. */
   uploading?: string | null;
+  /** What a picture block's upload is doing (Workspace: «Уменьшаю фото…», «Загружаю картинку…»). */
+  pictureStage?: (blockId: string) => UploadStage | null;
+  /** Why a picture block's last upload failed. */
+  pictureNote?: (blockId: string) => string | null;
+  /** A file dropped onto a picture block without a picture. */
+  dropPicture?: (blockId: string, file: Blob) => void;
+  /** A touch screen (no dragging of files). */
+  touch?: boolean;
   /** Shown in place of the blocks when there are none. */
   empty?: ReactNode;
   /** Ids of the selected block (its placeholders show). */
@@ -186,6 +201,142 @@ function Picture({ path, alt, className, imageUrl }: { path: string; alt: string
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [path]);
   return <span className={className}>{failed ? null : <img src={imageUrl(path)} alt={alt} decoding="async" loading="lazy" onError={() => setFailed(true)} />}</span>;
+}
+
+/** A picture block without its picture on the canvas: the upload first, a file can be dropped onto it. */
+function EmptyPicture({ blockId, editor }: { blockId: string; editor: DocEditApi }) {
+  const stage = editor.pictureStage?.(blockId) ?? (editor.uploading === blockId ? 'upload' : null);
+  const note = editor.pictureNote?.(blockId) ?? null;
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
+  const drop = editor.dropPicture;
+  const files = (event: DragEvent<HTMLElement>) => Boolean(drop) && !stage && draggingFiles(event.dataTransfer);
+  return (
+    <span
+      className="dv-pic dv-pic-empty"
+      data-drop={over ? '' : undefined}
+      onDragEnter={(event) => {
+        if (!files(event)) return;
+        event.preventDefault();
+        depth.current += 1;
+        setOver(true);
+      }}
+      onDragOver={(event) => {
+        if (!files(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }}
+      onDragLeave={(event) => {
+        if (!files(event)) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (depth.current === 0) setOver(false);
+      }}
+      onDrop={(event) => {
+        if (!files(event)) return;
+        event.preventDefault();
+        depth.current = 0;
+        setOver(false);
+        const file = pictureFiles(event.dataTransfer.files)[0] ?? event.dataTransfer.files[0];
+        if (file) drop?.(blockId, file);
+      }}
+    >
+      <span className="dv-pic-line" role="status">
+        {stage === 'shrink' ? STUDIO.imageShrinking : stage === 'upload' ? STUDIO.imageUploading : over ? STUDIO.pictureDropNow : STUDIO.imageEmpty}
+      </span>
+      {stage ? null : (
+        <button type="button" className="dv-pic-pick" onClick={() => editor.pickImage(blockId)}>
+          <UiIcon name="upload" />
+          <span>{STUDIO.imagePick}</span>
+        </button>
+      )}
+      {stage || editor.touch ? null : <span className="dv-pic-hint">{STUDIO.pictureDropHint(pasteKeys())}</span>}
+      {note ? (
+        <span className="dv-pic-note" role="alert">
+          {note}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** A video block without a link the page takes, on the canvas: a field for the link (a pasted one shows at once). */
+function VideoLink({ blockId, value, editor }: { blockId: string; value: string; editor: DocEditApi }) {
+  const id = useId();
+  const [text, setText] = useState(value);
+  const [bad, setBad] = useState(false);
+  const put = (raw: string) => {
+    const url = cleanVideoUrl(raw);
+    setBad(!url);
+    if (url) editor.change(blockId, { url }, 'url');
+  };
+  return (
+    <span className="dv-pic dv-pic-empty dv-video-empty">
+      <span className="dv-video-ico" aria-hidden="true">
+        <BlockIcon type="video" />
+      </span>
+      <label className="dv-pic-line" htmlFor={id}>
+        {STUDIO.videoEmpty}
+      </label>
+      <span className="dv-video-put">
+        <input
+          id={id}
+          type="url"
+          inputMode="url"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={STUDIO.videoPlaceholder}
+          value={text}
+          aria-invalid={bad || undefined}
+          aria-describedby={bad ? `${id}-bad` : undefined}
+          onChange={(event) => {
+            setText(event.target.value);
+            if (bad) setBad(false);
+          }}
+          onPaste={(event) => {
+            const pasted = event.clipboardData.getData('text');
+            if (!cleanVideoUrl(pasted)) return;
+            event.preventDefault();
+            setText(pasted);
+            put(pasted);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            put(text);
+          }}
+        />
+        <button type="button" className="dv-pic-pick" onClick={() => put(text)}>
+          {STUDIO.videoPut}
+        </button>
+      </span>
+      {bad ? (
+        <span className="dv-pic-note" id={`${id}-bad`} role="alert">
+          {STUDIO.videoBad}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** The player of a video block: a sandboxed frame of the provider; on the canvas a layer over it keeps the press. */
+export function VideoPlayer({ url, caption, edit }: { url: string; caption: string; edit: boolean }) {
+  const embed = videoEmbed(url);
+  if (!embed) return null;
+  return (
+    <span className="dv-video-frame">
+      <iframe
+        src={embed.src}
+        title={caption.trim() || STUDIO.videoTitles[embed.provider]}
+        sandbox="allow-scripts allow-same-origin allow-presentation"
+        allow="fullscreen; picture-in-picture"
+        allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+        loading="lazy"
+        tabIndex={edit ? -1 : undefined}
+      />
+      {edit ? <span className="dv-video-shield" aria-hidden="true" /> : null}
+    </span>
+  );
 }
 
 /** The question's words, code and pictures, as QuestionCard shows them. */
@@ -378,18 +529,21 @@ function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answ
           {block.path ? (
             <Picture path={block.path} alt={block.caption} className="dv-pic" imageUrl={imageUrl} />
           ) : editor ? (
-            <span className="dv-pic dv-pic-empty">
-              <span>{editor.uploading === block.id ? STUDIO.imageUploading : STUDIO.imageEmpty}</span>
-              {editor.uploading === block.id ? null : (
-                <button type="button" className="dv-pic-pick" onClick={() => editor.pickImage(block.id)}>
-                  {STUDIO.imagePick}
-                </button>
-              )}
-            </span>
+            <EmptyPicture blockId={block.id} editor={editor} />
           ) : null}
           <Field ctx={ctx} field="caption" value={block.caption} label={STUDIO.caption} placeholder={STUDIO.captionAdd} as="figcaption" className="dv-caption" max={DOC_CAPTION_MAX} hideEmpty />
         </figure>
       );
+    case 'video': {
+      const playable = videoEmbed(block.url) !== null;
+      if (!playable && !editor) return null;
+      return (
+        <figure className="dv-figure dv-video" data-width="wide">
+          {playable ? <VideoPlayer url={block.url} caption={block.caption} edit={Boolean(editor)} /> : editor ? <VideoLink key={block.url} blockId={block.id} value={block.url} editor={editor} /> : null}
+          <Field ctx={ctx} field="caption" value={block.caption} label={STUDIO.caption} placeholder={STUDIO.captionAdd} as="figcaption" className="dv-caption" max={DOC_CAPTION_MAX} hideEmpty />
+        </figure>
+      );
+    }
     case 'divider':
       return <hr className="dv-divider" />;
     case 'page':

@@ -5,7 +5,7 @@
  * marks; words the constructor and the editor already have come from copyTest.ts / copyImport.ts.
  */
 import type { DocBlockType, DocButtons, DocDensity, DocFont, DocLayout, DocRadius } from '../../types/testDoc';
-import { count, plural } from '../containers/copyImport';
+import { count, EDITOR, plural } from '../containers/copyImport';
 
 export type QuestionType = 'single' | 'multiple' | 'truefalse' | 'short';
 export type StudioView = 'canvas' | 'list' | 'text';
@@ -61,6 +61,7 @@ export const STUDIO = {
     heading: 'Заголовок',
     text: 'Текст',
     image: 'Картинка',
+    video: 'Видео',
     note: 'Заметка',
     divider: 'Разделитель',
     page: 'Новая страница',
@@ -90,9 +91,15 @@ export const STUDIO = {
   pageMark: (n: number) => `Страница ${n}`,
   pageUntitled: 'без названия',
   emptyText: 'Пишите текст или нажмите «/», чтобы выбрать блок',
-  imageEmpty: 'Картинка не выбрана',
-  imagePick: 'Выбрать картинку',
+  imageEmpty: 'Картинки пока нет',
+  imagePick: 'Загрузить свою картинку',
   imageUploading: 'Загружаю картинку…',
+  imageShrinking: 'Уменьшаю фото…',
+  /** On the canvas: a file dragged over the page. */
+  canvasDrop: 'Отпустите — картинка встанет сюда',
+  videoEmpty: 'Вставьте ссылку на видео YouTube, RuTube или VK Видео',
+  videoPut: 'Показать',
+  videoPlaceholder: 'https://youtu.be/…',
   caption: 'Подпись',
   captionAdd: 'Добавить подпись',
   subtitleAdd: 'Добавить подзаголовок',
@@ -116,6 +123,7 @@ export const STUDIO = {
     headingTouch: 'Кнопки над блоком двигают его выше и ниже и делают копию.',
     text: 'Выделите слова и нажмите Ж или К. Ссылки — только https, участник увидит адрес.',
     image: 'Ширину картинки и подпись меняют в настройках блока.',
+    video: 'Ссылку на видео и подпись меняют в настройках блока.',
     note: 'Тон заметки — в настройках блока: сведение, совет или важное.',
     divider: 'Разделитель отделяет части страницы.',
     pageOff: 'Новая страница видна в режиме «По страницам».',
@@ -147,15 +155,30 @@ export const STUDIO = {
   tone: 'Тон',
   tones: { info: 'Сведение', tip: 'Совет', warn: 'Важно' },
   picture: 'Картинка',
-  pictureUpload: 'Загрузить картинку',
-  pictureOwn: 'Загрузить свою',
-  pictureReplace: 'Заменить',
+  /** The first button of every picture field. */
+  pictureUpload: 'Загрузить свою картинку',
+  /** …when a picture is there: a ready one (a cover, the background) is replaced by the author's own. */
+  pictureReplaceOwn: 'Заменить своей',
+  pictureReplace: 'Загрузить другую',
   pictureRemove: 'Убрать',
+  /** Under the button on a computer: the other two ways in. */
+  pictureDropHint: (paste: string) => `или перетащите файл сюда, или вставьте: ${paste}`,
+  /** Under the button on a phone (the button opens the photos). */
+  pictureTouchHint: 'Подойдёт фото из галереи — большое уменьшим сами.',
+  pictureDropNow: 'Отпустите — картинка загрузится',
+  pictureNow: 'Сейчас',
   presetsCover: 'Готовые обложки',
   presetsBackground: 'Готовые фоны',
-  pictureType: 'Это не картинка. Подойдут PNG, JPEG, GIF, WebP.',
+  pictureType: 'Это не картинка. Подойдут JPEG, PNG, GIF, WebP и фото с телефона.',
   pictureSize: 'Картинка больше 3 МБ даже после сжатия.',
+  pictureHeic: EDITOR.pictureHeic,
   pictureFailed: 'Картинка не загрузилась. Попробуйте ещё раз.',
+  /** After a failed upload over a picture that was there. */
+  pictureKept: 'Прежняя картинка осталась.',
+  videoLink: 'Ссылка на видео',
+  videoHint: 'YouTube, RuTube или VK Видео. Подойдёт и код для вставки с этих сайтов.',
+  videoBad: 'Это не ссылка на видео YouTube, RuTube или VK Видео.',
+  videoTitles: { youtube: 'Видео YouTube', rutube: 'Видео RuTube', vk: 'VK Видео' },
   pointsLabel: 'Баллы',
   pointsHint: 'От 1 до 100',
   pointsLess: 'Меньше',

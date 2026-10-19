@@ -24,6 +24,28 @@ export const DOC_IMAGE_RE = /^[0-9a-f-]{36}\/[0-9a-f]{64}\.(png|jpg|gif|webp)$/;
 export const HEX_RE = /^#[0-9a-f]{6}$/;
 
 /**
+ * A video block's link (owner, 2026-10-19: «почему нельзя добавлять свои картинки и тому подобное»): https, one of
+ * the known page forms of YouTube, RuTube or VK Видео, ASCII only, at most DOC_URL_MAX characters. The pattern is written so that JavaScript and PostgreSQL read it
+ * alike (no backslashes: `[.]`, `[?]`); meldy_private.test_doc_ok (20261019110000_doc_video.sql) holds the same string
+ * character for character — keep both in step (contracts/studio/test_doc_cases.json checks them on the same links).
+ * The page never stores a player's HTML: lib/studio/video.ts makes the player's address from the link when it draws.
+ *
+ *   youtube.com/watch?…v=<11>, youtube.com/shorts|embed|live/<11>, youtu.be/<11>, youtube-nocookie.com/embed/<11>
+ *   rutube.ru/video/<32 hex>, rutube.ru/video/private/<32 hex>, rutube.ru/play/embed/<32 hex>, rutube.ru/shorts/<32 hex>
+ *   vk.com | vk.ru | vkvideo.ru: /video<oid>_<id>, /clip<oid>_<id>, /video_ext.php?oid=<oid>&id=<id>
+ */
+export const DOC_VIDEO_PATTERN =
+  '^https://(?:' +
+  '(?:www[.]|m[.])?youtube[.]com/(?:watch[?](?:[A-Za-z0-9._~%+=;,:@!$&/-]*&)?v=|shorts/|embed/|live/)[A-Za-z0-9_-]{11}' +
+  '|youtu[.]be/[A-Za-z0-9_-]{11}' +
+  '|www[.]youtube-nocookie[.]com/embed/[A-Za-z0-9_-]{11}' +
+  '|rutube[.]ru/(?:video/(?:private/)?|play/embed/|shorts/)[0-9a-f]{32}' +
+  '|(?:m[.])?(?:vk[.]com|vk[.]ru|vkvideo[.]ru)/(?:video|clip)-?[0-9]{1,20}_[0-9]{1,20}' +
+  '|(?:vk[.]com|vk[.]ru|vkvideo[.]ru)/video_ext[.]php[?]oid=-?[0-9]{1,20}&id=[0-9]{1,20}' +
+  ')(?:[/?&#][A-Za-z0-9._~%+=;,:@!$&#?/-]*)?$';
+export const DOC_VIDEO_RE = new RegExp(DOC_VIDEO_PATTERN);
+
+/**
  * Text of a text block or a note: plain text with three marks only — **bold**, *italic* and [words](https://…).
  * Never HTML; links only https, shown with their address.
  */
@@ -56,6 +78,16 @@ export interface ImageBlock {
   caption: string; // 0..300
   width: 'narrow' | 'wide' | 'full';
 }
+/**
+ * A video from YouTube, RuTube or VK Видео (2026-10-19): the link as the author gave it (DOC_VIDEO_RE), shown as the
+ * provider's player (lib/studio/video.ts videoEmbed) with a caption.
+ */
+export interface VideoBlock {
+  type: 'video';
+  id: string;
+  url: string; // DOC_VIDEO_RE, ≤ 300
+  caption: string; // 0..300
+}
 export interface NoteBlock {
   type: 'note';
   id: string;
@@ -79,9 +111,9 @@ export interface QuestionBlock {
   points: number; // 1..100, default 1
   required: boolean; // «одна страница» / «по страницам»: cannot send without it
 }
-export type DocBlock = CoverBlock | HeadingBlock | TextBlock | ImageBlock | NoteBlock | DividerBlock | PageBlock | QuestionBlock;
+export type DocBlock = CoverBlock | HeadingBlock | TextBlock | ImageBlock | VideoBlock | NoteBlock | DividerBlock | PageBlock | QuestionBlock;
 export type DocBlockType = DocBlock['type'];
-export const DOC_BLOCK_TYPES: readonly DocBlockType[] = ['cover', 'heading', 'text', 'image', 'note', 'divider', 'page', 'question'];
+export const DOC_BLOCK_TYPES: readonly DocBlockType[] = ['cover', 'heading', 'text', 'image', 'video', 'note', 'divider', 'page', 'question'];
 
 export type DocFont = 'onest' | 'serif' | 'mono';
 export type DocRadius = 'soft' | 'round' | 'square';

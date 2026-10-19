@@ -142,12 +142,13 @@ describe('a new document and new blocks', () => {
     expect(chars(emptyDoc('я'.repeat(300)).title)).toBe(200);
   });
 
-  it('newBlock: each type valid as it starts (a picture waits for its upload)', () => {
+  it('newBlock: each type valid as it starts (a picture waits for its upload, a video for its link)', () => {
     const random = seeded(4);
     const blocks = DOC_BLOCK_TYPES.map((type) => newBlock(type, type === 'question' ? ITEM_A : undefined, random));
     expect(new Set(blocks.map((block) => block.id)).size).toBe(blocks.length);
     const doc: TestDoc = { ...emptyDoc('Т'), blocks };
-    expect(docProblems(doc, [ITEM_A])).toEqual(['block:3:path']);
+    expect(docProblems(doc, [ITEM_A])).toEqual(['block:3:path', 'block:4:url']);
+    expect(newBlock('video', undefined, random)).toMatchObject({ type: 'video', url: '', caption: '' });
     expect(newBlock('heading', undefined, random)).toMatchObject({ type: 'heading', text: BLOCK_WORDS.heading, size: 'l' });
     expect(newBlock('question')).toMatchObject({ type: 'question', item_id: '', points: 1, required: false });
   });
@@ -218,7 +219,7 @@ describe('docProblems gives the first rule test_doc_ok gives (contracts/studio/t
   it('the corpus: at least 60 documents, valid ones and every rule', () => {
     expect(corpus.cases.length).toBeGreaterThanOrEqual(60);
     const kinds = new Set(corpus.cases.map((entry) => kindOf(entry.expect)));
-    const block = ['type', 'id', 'title', 'subtitle', 'image', 'align', 'text', 'size', 'path', 'caption', 'width', 'tone', 'item_id', 'points', 'required'];
+    const block = ['type', 'id', 'title', 'subtitle', 'image', 'align', 'text', 'size', 'path', 'caption', 'width', 'url', 'tone', 'item_id', 'points', 'required'];
     for (const kind of [null, 'version', 'title', 'theme', 'layout', 'blocks', 'results', ...block.map((rule) => `block:${rule}`)]) expect([kind, kinds.has(kind)]).toEqual([kind, true]);
   });
 

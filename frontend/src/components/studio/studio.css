@@ -407,6 +407,29 @@
 .st-confirm-yes:hover { background: #8c1d18; }
 .st-confirm .sf-link { min-height: 40px; }
 
+/* A file from the computer over the page: the page's edge lights up, the line says where the picture goes. */
+.st-frame:not([data-device='fluid']):has(> .st-scroll[data-file-over]) { box-shadow: 0 0 0 2px var(--st-sel), var(--st-shadow); }
+.st-gap-file {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: var(--st-sel);
+  color: #fff;
+  font: 600 13.5px/1.2 var(--ph-sans);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.dark .st-gap-file { color: #0b0f16; }
+.st-gap-file .st-ui-ico { width: 16px; height: 16px; }
+.st-gap-end .st-gap-file { top: 10px; }
+
 /* Between blocks: «+» on hover, and the line where a dragged block lands. */
 .st-gap { position: relative; height: var(--doc-gap); }
 .st-gap::before {
@@ -772,13 +795,87 @@
 .st-pill-small { height: 34px; padding: 0 14px; font-size: 14px; }
 .st-icon-btn .st-ui-ico { width: 20px; height: 20px; }
 
-/* A picture setting */
+/*
+ * A picture setting: the author's own picture first — the dark pill «Загрузить свою картинку» in a dashed field that
+ * takes a dropped file (it lights up while one is over it) and Ctrl+V; what is being done and what failed under it; the
+ * ready pictures after it.
+ */
+.st-pic-field { position: relative; }
+/* Under «Фон»: the picture's field after the choice of the background. */
+.st-group > .st-choice + .st-pic-field { margin-top: 14px; }
+.st-pic-zone {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1.5px dashed color-mix(in srgb, var(--sf-ink) 24%, transparent);
+  border-radius: 18px;
+  background: var(--sf-surface);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.st-pic-field[data-drop] .st-pic-zone {
+  border-style: solid;
+  border-color: var(--st-sel);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--st-sel) 20%, transparent);
+}
+.st-pic-cta { display: grid; gap: 6px; }
+.st-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font: 500 15px/1.2 var(--ph-sans);
+  text-align: center;
+  cursor: pointer;
+}
+.st-upload .st-ui-ico { flex: none; width: 20px; height: 20px; }
+.st-upload:hover:not(:disabled) { opacity: 0.88; }
+.st-upload:focus-visible { outline: 2px solid var(--st-sel); outline-offset: 2px; }
+.st-upload:disabled { opacity: 0.55; cursor: progress; }
+.st-pic-hint { margin: 0; font-size: 13px; line-height: 1.4; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
+.st-pic-dropnow {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--st-sel) 12%, var(--sf-surface));
+  color: var(--sf-ink);
+  font: 600 15px/1.3 var(--ph-sans);
+  text-align: center;
+  pointer-events: none;
+}
+.st-pic-dropnow .st-ui-ico { width: 26px; height: 26px; color: var(--st-sel); }
+.st-pic-status { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 14px; line-height: 1.4; color: var(--sf-ink); }
+.st-pic-status:empty { margin: 0; }
+.st-pic-status[data-on]::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--sf-ink) 20%, transparent);
+  border-top-color: var(--st-sel);
+  border-radius: 50%;
+  animation: st-turn 0.8s linear infinite;
+}
+@keyframes st-turn { to { transform: rotate(1turn); } }
 .st-pic-now {
   display: grid;
   place-items: center;
   aspect-ratio: 5 / 2;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--sf-surface-soft);
   box-shadow: inset 0 0 0 1px var(--sf-line);
   color: var(--sf-muted);
@@ -1207,4 +1304,6 @@
   .st-acts,
   .st-template { transition: none !important; animation: none !important; }
   .st-template:hover { transform: none; }
+  .st-pic-zone { transition: none; }
+  .st-pic-status[data-on]::before { animation: none; border-top-color: color-mix(in srgb, var(--sf-ink) 20%, transparent); }
 }

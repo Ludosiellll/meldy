@@ -54,7 +54,9 @@ import '../../components/quiz/quizTake.css';
  * page's theme is the page's colours everywhere — the start, the attempt (QuizRun draws the page: QuizDocRun) and the
  * result (lib/studio/contrast.ts themeTokens on each root: the accent nudged for contrast, the font, the corners, the
  * background) — and the quiz's own cover and colour give way to it. The page's cover (its first cover block) is the
- * start: its title, the line under it and its picture.
+ * start: its title, the line under it and its picture. A picture background (the author's own photo or a ready one)
+ * stands behind the start's card and behind the result, which then sits on the page's surface as a card (owner,
+ * 2026-10-19: «на фон тоже почему нельзя своё»).
  */
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: QuizPreview } | { state: 'error'; message: string };
@@ -101,6 +103,20 @@ function lookOf(doc: TestDoc | null, accent: QuizAccent, dark: boolean): { 'data
 function pastScore(row: { correct: number; total: number; score?: number; max_score?: number }): string {
   const points = pointsOf(row);
   return points.weighted ? RESULT.points(points.score, points.max) : RESULT.score(row.correct, row.total);
+}
+
+/**
+ * The page's own picture behind a screen of a quiz «как в студии» (the start and the result; the attempt is the page
+ * itself, DocView draws it): fixed under its darkening, so the card scrolls over it. Nothing for any other background.
+ */
+function Backdrop({ doc }: { doc: TestDoc | null }) {
+  if (!doc || doc.theme.background.kind !== 'image') return null;
+  return (
+    <div className="qt-bg" aria-hidden="true">
+      <img src={coverUrl(doc.theme.background.path)} alt="" decoding="async" />
+      <span className="qt-bg-dim" />
+    </div>
+  );
 }
 
 /** The author's cover: a band of a fixed height (nothing moves when it arrives); a picture that fails goes away. */
@@ -366,6 +382,7 @@ export default function QuizTakePage() {
   if (stage.kind === 'result') {
     return (
       <div className="ct-roomshell qt-accent" {...lookOf(runDesign, accentOf(stage.result.accent ?? value?.accent), dark)}>
+        <Backdrop doc={runDesign} />
         <QuizResultView result={stage.result} guest={stage.token !== null} token={stage.token} onRetry={() => toStart()} onClose={() => toStart()} />
       </div>
     );
@@ -408,12 +425,7 @@ export default function QuizTakePage() {
 
   return (
     <div className="au qt qt-accent" {...lookOf(design, accent, dark)}>
-      {design && design.theme.background.kind === 'image' ? (
-        <div className="qt-bg" aria-hidden="true">
-          <img src={coverUrl(design.theme.background.path)} alt="" decoding="async" />
-          <span className="qt-bg-dim" />
-        </div>
-      ) : null}
+      <Backdrop doc={design} />
       <header className="au-bar">
         <Link to="/" className="au-logo">
           Meldy

@@ -27,6 +27,11 @@ export function BlockIcon({ type }: { type: Exclude<DocBlockType, 'question'> })
           <path d="M4 16.5l4.6-4.3 3.4 3 2.8-2.5 4.7 4.3" {...line} />
           <path d="M14.5 8.5h2" {...line} />
         </>
+      ) : type === 'video' ? (
+        <>
+          <rect x="3" y="5" width="18" height="14" rx="3.5" {...line} />
+          <path d="M10.2 9.4v5.2l4.4-2.6z" {...line} />
+        </>
       ) : type === 'note' ? (
         <>
           <rect x="3.5" y="5" width="17" height="14" rx="3.5" {...line} />
@@ -92,6 +97,7 @@ type UiName =
   | 'list'
   | 'canvas'
   | 'text'
+  | 'upload'
   | 'back';
 
 export function UiIcon({ name, className = 'st-ui-ico' }: { name: UiName; className?: string }) {
@@ -155,6 +161,8 @@ export function UiIcon({ name, className = 'st-ui-ico' }: { name: UiName; classN
         </>
       ) : name === 'text' ? (
         <path d="M5 6.5h14M12 6.5v12M9 18.5h6" {...line} />
+      ) : name === 'upload' ? (
+        <path d="M12 15.5V4.5M7.5 9l4.5-4.5L16.5 9M4.5 14.5v3a2.5 2.5 0 002.5 2.5h10a2.5 2.5 0 002.5-2.5v-3" {...line} />
       ) : (
         <path d="M15 5.5L8.5 12l6.5 6.5" {...line} />
       )}

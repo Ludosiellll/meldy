@@ -285,7 +285,8 @@ export default function QuizSetupPage() {
       const made = await pictureFromFile(file);
       if (made === 'type') return setCoverNote(QA_SETUP.coverType);
       if (made === 'size') return setCoverNote(QA_SETUP.coverSize);
-      // quiz-covers takes PNG, JPEG, GIF and WebP (a small BMP stays BMP).
+      if (made === 'heic') return setCoverNote(QA_SETUP.coverHeic);
+      // quiz-covers takes PNG, JPEG, GIF and WebP (a BMP the browser cannot redraw stays BMP).
       const path = made.picture.type === 'image/bmp' ? null : picturePath(containerId, made.id, made.picture.type);
       if (!path) return setCoverNote(QA_SETUP.coverType);
       if ((await uploadPicture(path, made.picture, COVER_BUCKET)) === 'refused') return setCoverNote(QA_SETUP.coverRefused);
@@ -757,7 +758,7 @@ export default function QuizSetupPage() {
             <input
               ref={coverRef}
               type="file"
-              accept="image/png,image/jpeg,image/gif,image/webp"
+              accept="image/*"
               hidden
               aria-label={QA_SETUP.coverUpload}
               onChange={(event) => {

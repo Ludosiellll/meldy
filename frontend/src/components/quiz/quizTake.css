@@ -413,9 +413,27 @@
 }
 .qt-docrun[data-bg='image'] .qt-low:not(:empty) { padding: 8px 14px; border-radius: 999px; background: #fff; color: #be123c; }
 
-/* The result: the page's background and font; the band above the score, the link further under it. */
+/* The result: the page's background and font; the band above the score, the link further under it. Over a picture
+   (QuizTakePage Backdrop, behind everything of the screen: the root isolates, the picture sits at -1) the result is a
+   card on the page's surface, under an opaque top line, so its words read as on any other background. */
 .ct-roomshell[data-design] { background: var(--doc-bg); }
-.ct-roomshell[data-design][data-bg='image'] { background: var(--doc-canvas); }
+.ct-roomshell[data-design][data-bg='image'] { isolation: isolate; background: #20252b; }
+.ct-roomshell[data-design][data-bg='image'] > .qt-bg { z-index: -1; }
+.ct-roomshell[data-design][data-bg='image'] > .sf-room-bar {
+  background: var(--doc-surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 1px 0 var(--doc-line);
+}
+.ct-roomshell[data-design][data-bg='image'] .qt-result {
+  width: min(100% - 24px, calc(var(--sf-page) + 2 * var(--sf-g)));
+  margin: 24px auto 40px;
+  padding-top: 28px;
+  padding-bottom: 32px;
+  border-radius: var(--doc-radius-card, 28px);
+  background: var(--doc-surface);
+  box-shadow: var(--ct-card);
+}
 .ct-roomshell[data-design] .qt-result { font-family: var(--doc-font); }
 .qt-band {
   margin: 20px 0 6px;

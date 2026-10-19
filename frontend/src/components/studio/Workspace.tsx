@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
   closestCenter,
   DndContext,
@@ -29,7 +29,7 @@ import { STUDIO, type Panel } from './copyStudio';
 import { UiIcon } from './icons';
 import Palette, { EntryIcon, entryLabel, paletteEntry, type PaletteEntry } from './Palette';
 import Sheet from './Sheet';
-import { targetKey, uploadDocPicture, uploadPreset, type PictureTarget } from './pictures';
+import { draggingFiles, pictureFiles, targetKey, uploadDocPicture, uploadPreset, type PictureTarget, type UploadStage } from './pictures';
 import type { PresetId } from './presets';
 import { reducedMotion } from './useDark';
 import type { Studio } from './useStudio';
@@ -43,9 +43,18 @@ import type { Studio } from './useStudio';
  * line shows where the block lands), by «Выше / Ниже» and Alt+↑ / Alt+↓. Delete removes the selected block (a question
  * asks first: its answers go), Ctrl+D copies it, Enter starts typing in its text, ↑ ↓ go to the block above / below.
  * Ctrl+Z brings everything back (the page's own keys, StudioPage).
+ *
+ * The author's own pictures (owner, 2026-10-19): a picture pasted anywhere in the studio (Ctrl+V / ⌘V) becomes a
+ * picture block after the selected block — or fills the selected picture block that has none yet, or goes into the
+ * picture field the focus is in (PictureField takes it first); picture files dragged from the computer onto the page
+ * become picture blocks where the line shows. A file dropped anywhere else in the studio is caught, so the browser never
+ * leaves the page to open it. Every upload goes through pictures.ts (a phone's photo made to fit), its line («Уменьшаю
+ * фото…», «Загружаю картинку…») and its words of failure kept per picture; a failure never takes the old picture away.
  */
 
 const END = 'slot:end';
+/** At most this many pictures from one drop or paste (each its own block). */
+const PICTURES_AT_ONCE = 10;
 
 /** The dragged chip under the pointer (where it was grabbed), not at the block's own corner. */
 const toCursor: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
@@ -57,7 +66,7 @@ type Confirm = { blockId: string; number: number } | null;
 type Menu = { anchor: HTMLElement; index: number; replace?: string } | null;
 
 /** The field typed in first when a block is opened with Enter. */
-const MAIN_FIELD: Partial<Record<DocBlock['type'], string>> = { cover: 'title', heading: 'text', text: 'text', note: 'text', image: 'caption', page: 'title' };
+const MAIN_FIELD: Partial<Record<DocBlock['type'], string>> = { cover: 'title', heading: 'text', text: 'text', note: 'text', image: 'caption', video: 'caption', page: 'title' };
 
 /** One quiet line near the selected block (spec §47.6 «рядом с выбранным блоком — одна уместная подсказка»). */
 export function hintFor(block: DocBlock, doc: TestDoc, rows: ReadonlyMap<string, TestItem>, phone = false): string {
@@ -180,9 +189,20 @@ function Frame({ block, index, count, name, selected, phone, problem, hint, conf
   );
 }
 
-function Gap({ index, drop, reachable, onPlus }: { index: number; drop: boolean; reachable: boolean; onPlus: (index: number, anchor: HTMLElement) => void }) {
+/** The words on the drop line while a file from the computer is over the page. */
+function FileDrop({ on }: { on: boolean }) {
+  return on ? (
+    <span className="st-gap-file" aria-hidden="true">
+      <UiIcon name="upload" />
+      <span>{STUDIO.canvasDrop}</span>
+    </span>
+  ) : null;
+}
+
+function Gap({ index, drop, file, reachable, onPlus }: { index: number; drop: boolean; file: boolean; reachable: boolean; onPlus: (index: number, anchor: HTMLElement) => void }) {
   return (
-    <div className="st-gap" data-drop={drop ? '' : undefined} data-next={reachable ? '' : undefined}>
+    <div className="st-gap" data-drop={drop || file ? '' : undefined} data-file={file ? '' : undefined} data-next={reachable ? '' : undefined}>
+      <FileDrop on={file} />
       <button type="button" className="st-plus" aria-label={STUDIO.addHere} title={STUDIO.addHere} tabIndex={reachable ? 0 : -1} onClick={(event) => onPlus(index, event.currentTarget)}>
         <UiIcon name="plus" />
       </button>
@@ -190,11 +210,12 @@ function Gap({ index, drop, reachable, onPlus }: { index: number; drop: boolean;
   );
 }
 
-function EndGap({ index, drop, empty, onPlus }: { index: number; drop: boolean; empty: boolean; onPlus: (index: number, anchor: HTMLElement) => void }) {
+function EndGap({ index, drop, file, empty, onPlus }: { index: number; drop: boolean; file: boolean; empty: boolean; onPlus: (index: number, anchor: HTMLElement) => void }) {
   const { setNodeRef } = useDroppable({ id: END });
   return (
-    <div ref={setNodeRef} className="st-gap st-gap-end" data-drop={drop ? '' : undefined} data-empty={empty ? '' : undefined}>
-      {empty ? null : (
+    <div ref={setNodeRef} className="st-gap st-gap-end" data-drop={drop || file ? '' : undefined} data-file={file ? '' : undefined} data-empty={empty ? '' : undefined}>
+      <FileDrop on={file} />
+      {empty || file ? null : (
         <button type="button" className="st-plus st-plus-end" onClick={(event) => onPlus(index, event.currentTarget)}>
           <UiIcon name="plus" />
           <span>{STUDIO.addBlock}</span>
@@ -225,12 +246,19 @@ export interface WorkspaceProps {
   onSideOpen: (open: boolean) => void;
 }
 
-/** What the settings get from the canvas: pictures go through its file field. */
+/** What the settings get from the canvas: pictures go through its file field and its uploads. */
 export interface SideApi {
+  /** Opens the files (on a phone, the photos) for this picture. */
   pickPicture: (target: PictureTarget) => void;
+  /** A file dropped or pasted into a picture field. */
+  uploadFile: (target: PictureTarget, file: Blob) => void;
   usePreset: (target: PictureTarget, id: PresetId) => void;
-  uploading: string | null;
-  pictureNote: string | null;
+  /** What this picture's upload is doing, or null. */
+  stageOf: (target: PictureTarget) => UploadStage | null;
+  /** Why this picture's last upload failed, or null. */
+  noteOf: (target: PictureTarget) => string | null;
+  /** A touch screen: no dragging of files, no Ctrl+V; the button opens the photos. */
+  touch: boolean;
   removeBlock: (blockId: string) => void;
 }
 
@@ -267,8 +295,11 @@ export default function Workspace({
   const canvasRect = useRef<DOMRect | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const pictureTarget = useRef<PictureTarget | null>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [pictureNote, setPictureNote] = useState<string | null>(null);
+  /** Uploads under way and the words of failed ones, by targetKey. */
+  const [uploads, setUploads] = useState<Readonly<Record<string, UploadStage>>>({});
+  const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
+  /** The gap a file from the computer would land in while it is dragged over the page. */
+  const [fileSlot, setFileSlot] = useState<number | null>(null);
 
   // Focus follows a move, a copy, a removal: the block (or its neighbour) after the next render.
   const refocus = useRef<string | null>(null);
@@ -294,7 +325,6 @@ export default function Workspace({
 
   const pickPicture = (target: PictureTarget) => {
     pictureTarget.current = target;
-    setPictureNote(null);
     fileRef.current?.click();
   };
 
@@ -315,13 +345,126 @@ export default function Workspace({
     }
   };
 
-  const upload = async (target: PictureTarget, run: () => Promise<{ path: string } | { note: string }>) => {
-    setUploading(targetKey(target));
-    setPictureNote(null);
-    const result = await run();
-    setUploading(null);
+  /** One picture's upload: its line while it runs, then the picture — or its words, the old picture kept. */
+  const upload = async (target: PictureTarget, run: (onStage: (stage: UploadStage) => void) => Promise<{ path: string } | { note: string }>) => {
+    const key = targetKey(target);
+    const stageIs = (stage: UploadStage) => setUploads((current) => ({ ...current, [key]: stage }));
+    stageIs('upload');
+    setNotes(({ [key]: _gone, ...rest }) => rest);
+    const result = await run(stageIs);
+    setUploads(({ [key]: _done, ...rest }) => rest);
     if ('path' in result) setPicture(target, result.path);
-    else setPictureNote(result.note);
+    else setNotes((current) => ({ ...current, [key]: result.note }));
+  };
+  const uploadFile = (target: PictureTarget, file: Blob) => {
+    if (uploads[targetKey(target)]) return;
+    void upload(target, (onStage) => uploadDocPicture(containerId, file, onStage));
+  };
+
+  /** Pictures from a drop or the clipboard as new picture blocks from `index` on, each uploading into its own block. */
+  const insertPictures = (files: readonly File[], index: number) => {
+    let at = index;
+    let first: DocBlock | null = null;
+    for (const file of files.slice(0, PICTURES_AT_ONCE)) {
+      const block = studio.insert('image', at);
+      if (!block) break;
+      first ??= block;
+      at += 1;
+      uploadFile({ kind: 'image', blockId: block.id }, file);
+    }
+    if (!first) return;
+    setEditingKey(null);
+    onSelect(first.id);
+    onPanel('block');
+    focusBlock(first.id);
+  };
+
+  // Ctrl+V / ⌘V with a picture, anywhere in the studio: a field that took it already said so (defaultPrevented: the
+  // question editor's texts, a picture field); the preview is not the page.
+  const pasteRef = useRef<(event: ClipboardEvent) => void>(() => undefined);
+  pasteRef.current = (event: ClipboardEvent) => {
+    if (event.defaultPrevented || studio.busy !== null) return;
+    const files = pictureFiles(event.clipboardData?.files);
+    if (files.length === 0) return;
+    const from = event.target instanceof Element ? event.target : null;
+    if (from?.closest('.st-preview')) return;
+    event.preventDefault();
+    const chosen = doc.blocks[indexOf(selected)];
+    if (chosen?.type === 'image' && !chosen.path && files.length === 1) uploadFile({ kind: 'image', blockId: chosen.id }, files[0]);
+    else insertPictures(files, afterSelected());
+  };
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => pasteRef.current(event);
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, []);
+
+  // Files from the computer over the page: the line shows the gap under the pointer (before the block whose middle is
+  // below it), the drop puts the pictures there. dragenter / dragleave come for every child: counted.
+  const fileDepth = useRef(0);
+  const fileGone = () => {
+    fileDepth.current = 0;
+    setFileSlot(null);
+  };
+
+  // A file dropped where nothing takes it would make the browser open it and leave the studio: such a drop is refused.
+  // A drop anywhere, or a drag that leaves the window, takes the page's drop line away.
+  useEffect(() => {
+    const refuse = (event: globalThis.DragEvent) => {
+      if (event.type === 'drop') fileGone();
+      if (event.defaultPrevented || !draggingFiles(event.dataTransfer)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+    };
+    const left = (event: globalThis.DragEvent) => {
+      const out = event.clientX <= 0 || event.clientY <= 0 || event.clientX >= window.innerWidth || event.clientY >= window.innerHeight;
+      if (!event.relatedTarget && out) fileGone();
+    };
+    window.addEventListener('dragover', refuse);
+    window.addEventListener('drop', refuse);
+    document.addEventListener('dragleave', left);
+    return () => {
+      window.removeEventListener('dragover', refuse);
+      window.removeEventListener('drop', refuse);
+      document.removeEventListener('dragleave', left);
+    };
+  }, []);
+  const slotAtY = (y: number): number => {
+    const frames = scrollRef.current?.querySelectorAll<HTMLElement>('.st-block[data-index]') ?? [];
+    for (const frame of Array.from(frames)) {
+      const rect = frame.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) return Number(frame.dataset.index);
+    }
+    return doc.blocks.length;
+  };
+  const fileEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingFiles(event.dataTransfer) || dragId !== null) return;
+    event.preventDefault();
+    fileDepth.current += 1;
+    setFileSlot(slotAtY(event.clientY));
+  };
+  const fileOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingFiles(event.dataTransfer) || dragId !== null || event.defaultPrevented) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = studio.busy !== null ? 'none' : 'copy';
+    const next = slotAtY(event.clientY);
+    setFileSlot((current) => (current === next ? current : next));
+  };
+  const fileLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingFiles(event.dataTransfer)) return;
+    fileDepth.current = Math.max(0, fileDepth.current - 1);
+    if (fileDepth.current === 0) setFileSlot(null);
+  };
+  const fileDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingFiles(event.dataTransfer)) return;
+    fileGone();
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer.files);
+    const pictures = pictureFiles(files);
+    if (studio.busy !== null || files.length === 0) return;
+    // Not one picture among them: a block still comes, and says why it is empty.
+    insertPictures(pictures.length > 0 ? pictures : files.slice(0, 1), slotAtY(event.clientY));
   };
 
   const add = async (entry: PaletteEntry, index: number, replace?: string) => {
@@ -346,8 +489,12 @@ export default function Workspace({
     onSelect(block.id);
     onPanel('block');
     const field = MAIN_FIELD[block.type];
+    // A picture's first step is the author's own file; a video's, its link (the field on the block).
     if (block.type === 'image') pickPicture({ kind: 'image', blockId: block.id });
-    else if (field && block.type !== 'cover') setEditingKey(`${block.id}:${field}`);
+    else if (block.type === 'video') {
+      const id = block.id;
+      window.setTimeout(() => scrollRef.current?.querySelector<HTMLInputElement>(`[data-block="${id}"] .dv-video-put input`)?.focus(), 0);
+    } else if (field && block.type !== 'cover') setEditingKey(`${block.id}:${field}`);
     else focusBlock(block.id);
   };
 
@@ -557,7 +704,11 @@ export default function Workspace({
   const editor: DocEditApi = {
     selected,
     editing,
-    uploading: uploading?.startsWith('image:') ? uploading.slice(6) : null,
+    uploading: Object.keys(uploads).find((key) => key.startsWith('image:'))?.slice(6) ?? null,
+    pictureStage: (blockId) => uploads[`image:${blockId}`] ?? null,
+    pictureNote: (blockId) => notes[`image:${blockId}`] ?? null,
+    dropPicture: (blockId, file) => uploadFile({ kind: 'image', blockId }, file),
+    touch: phone,
     setEditing: (key, how) => {
       setEditingKey(key);
       if (!key && (how === 'enter' || how === 'escape') && selected) focusBlock(selected);
@@ -609,17 +760,28 @@ export default function Workspace({
     },
     gap: (index) =>
       index === doc.blocks.length ? (
-        <EndGap key="end" index={index} drop={shownSlot === index} empty={doc.blocks.length === 0} onPlus={(at, anchor) => setMenu({ anchor, index: at })} />
+        <EndGap key="end" index={index} drop={shownSlot === index} file={fileSlot === index} empty={doc.blocks.length === 0} onPlus={(at, anchor) => setMenu({ anchor, index: at })} />
       ) : (
-        <Gap key={`gap-${index}`} index={index} drop={shownSlot === index} reachable={selectedIndex >= 0 && index === selectedIndex + 1} onPlus={(at, anchor) => setMenu({ anchor, index: at })} />
+        <Gap
+          key={`gap-${index}`}
+          index={index}
+          drop={shownSlot === index}
+          file={fileSlot === index}
+          reachable={selectedIndex >= 0 && index === selectedIndex + 1}
+          onPlus={(at, anchor) => setMenu({ anchor, index: at })}
+        />
       ),
   };
 
   const sideApi: SideApi = {
     pickPicture,
-    usePreset: (target, id) => void upload(target, () => uploadPreset(containerId, id, target.kind === 'background' ? 'background' : 'cover')),
-    uploading,
-    pictureNote,
+    uploadFile,
+    usePreset: (target, id) => {
+      if (!uploads[targetKey(target)]) void upload(target, () => uploadPreset(containerId, id, target.kind === 'background' ? 'background' : 'cover'));
+    },
+    stageOf: (target) => uploads[targetKey(target)] ?? null,
+    noteOf: (target) => notes[targetKey(target)] ?? null,
+    touch: phone,
     removeBlock: (id) => {
       const block = doc.blocks.find((entry) => entry.id === id);
       if (block) askRemove(block);
@@ -660,6 +822,11 @@ export default function Workspace({
               ref={scrollRef}
               className="st-scroll"
               data-tour="canvas"
+              data-file-over={fileSlot !== null ? '' : undefined}
+              onDragEnter={fileEnter}
+              onDragOver={fileOver}
+              onDragLeave={fileLeave}
+              onDrop={fileDrop}
               onClick={(event) => {
                 if (!(event.target as HTMLElement).closest('.st-block, .st-gap, .st-start')) {
                   onSelect(null);
@@ -716,13 +883,16 @@ export default function Workspace({
       <input
         ref={fileRef}
         type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp"
+        // image/* (on a phone: the photos); the helper redraws what the bucket does not take and names a HEIC the browser
+        // cannot draw.
+        accept="image/*"
         hidden
+        data-studio-file=""
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = '';
           const target = pictureTarget.current;
-          if (file && target) void upload(target, () => uploadDocPicture(containerId, file));
+          if (file && target) uploadFile(target, file);
         }}
       />
     </DndContext>

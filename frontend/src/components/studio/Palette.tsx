@@ -13,7 +13,7 @@ import { BlockIcon, QuestionIcon } from './icons';
 export type PageBlockType = Exclude<DocBlockType, 'question'>;
 export type PaletteEntry = { kind: 'block'; type: PageBlockType } | { kind: 'question'; type: QuestionType };
 
-export const BLOCK_KINDS: readonly PageBlockType[] = ['cover', 'heading', 'text', 'image', 'note', 'divider', 'page'];
+export const BLOCK_KINDS: readonly PageBlockType[] = ['cover', 'heading', 'text', 'image', 'video', 'note', 'divider', 'page'];
 export const QUESTION_KINDS: readonly QuestionType[] = ['single', 'multiple', 'truefalse', 'short'];
 export const ENTRIES: readonly PaletteEntry[] = [
   ...BLOCK_KINDS.map((type) => ({ kind: 'block' as const, type })),

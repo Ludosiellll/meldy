@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
 import { ACCENTS, FONT_STACKS, readableAccent } from '../../lib/studio/contrast';
 import { emptyDoc } from '../../lib/studio/doc';
 import { typingKey } from '../../lib/studio/history';
@@ -17,8 +17,9 @@ import type { SideApi } from './Workspace';
 /**
  * «Оформление» (spec §47.6 «Тема»): a sample of the page in its theme at the top (answerable), the four ready themes,
  * the colour (Meldy's six or the author's own — nudged until white text reads on it: «Цвет чуть поправлен для
- * читаемости»), the background (plain, soft, a picture with its darkening; six ready pictures), the font, the corners,
- * the density, the answers as a list or tiles, the buttons, and how the page is gone through.
+ * читаемости»), the background (plain, soft, a picture with its darkening — «Картинка» opens the author's own upload
+ * first and the six ready pictures after it; the page keeps its background until a picture is there), the font, the
+ * corners, the density, the answers as a list or tiles, the buttons, and how the page is gone through.
  */
 
 const SAMPLE_ITEM: DocItem = { id: 'sample', kind: 'single', stem: STUDIO.sampleStem, options: [...STUDIO.sampleOptions], code: false, correct: [0] };
@@ -62,6 +63,11 @@ export default function DesignPanel({ studio, dark, api, onPreview }: { studio: 
   };
 
   const accentTone: QuizAccent = typeof theme.accent === 'string' ? theme.accent : 'blue';
+  // «Картинка» chosen before there is a picture: the field shows, the page waits for the author's file or a ready one.
+  // Any change of the background itself (a picture uploaded, a ready theme, Ctrl+Z) says what is chosen again.
+  const [wantPicture, setWantPicture] = useState(false);
+  useEffect(() => setWantPicture(false), [theme.background]);
+  const backgroundKind = theme.background.kind === 'image' || wantPicture ? 'image' : theme.background.kind;
 
   return (
     <div className="st-panel-body st-design">
@@ -143,16 +149,28 @@ export default function DesignPanel({ studio, dark, api, onPreview }: { studio: 
             { value: 'soft', label: STUDIO.backgrounds.soft },
             { value: 'image', label: STUDIO.backgrounds.image },
           ]}
-          value={theme.background.kind}
+          value={backgroundKind}
           onChange={(kind) => {
+            setWantPicture(kind === 'image');
             if (kind === 'plain') set({ background: { kind: 'plain' } });
             else if (kind === 'soft') set({ background: { kind: 'soft', tone: accentTone } });
-            else if (theme.background.kind !== 'image') api.usePreset({ kind: 'background' }, 'mist');
           }}
         />
+        {backgroundKind === 'image' ? (
+          <PictureField
+            label={STUDIO.picture}
+            path={theme.background.kind === 'image' ? theme.background.path : null}
+            target={{ kind: 'background' }}
+            api={api}
+            presets="background"
+            onRemove={() => {
+              setWantPicture(false);
+              set({ background: { kind: 'plain' } });
+            }}
+          />
+        ) : null}
         {theme.background.kind === 'image' ? (
           <>
-            <PictureField label={STUDIO.picture} path={theme.background.path} target={{ kind: 'background' }} api={api} presets="background" onRemove={() => set({ background: { kind: 'plain' } })} />
             <label className="st-range" htmlFor={dimId}>
               <span className="st-field-label">{STUDIO.dim}</span>
               <span className="st-range-row">

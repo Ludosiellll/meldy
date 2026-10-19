@@ -989,4 +989,35 @@ describe('/k/<код>: a quiz «как в студии» (release 47.2)', () => 
     expect(screen.getByRole('heading', { name: 'Кислоты и основания' })).toBeInTheDocument();
     expect(screen.getAllByRole('region')).toHaveLength(3);
   });
+
+  it('the author’s own picture as the background: behind the start, the attempt and the result; a video plays in the attempt', async () => {
+    const OWN = `11111111-2222-4333-8444-555555555555/${'c'.repeat(64)}.webp`;
+    const withPicture = (): DocDesign => {
+      const page = design();
+      return {
+        ...page,
+        theme: { ...page.theme, background: { kind: 'image', path: OWN, dim: 35 } },
+        blocks: [page.blocks[0], { type: 'video', id: 'video0000001', url: 'https://youtu.be/dQw4w9WgXcQ', caption: 'Опыт' }, ...page.blocks.slice(1)],
+      };
+    };
+    signedIn({ attempts_used: 1, results: [{ attempt_id: 'att-0', n: 1, finished_at: '2026-10-15T12:00:00.000Z', correct: 2, total: 3, score: 5, max_score: 6 }] }, { attempts: 2, design: withPicture() });
+    api.startQuiz.mockResolvedValue({ ...ATTEMPT, design: withPicture() });
+    api.quizResult.mockResolvedValue({ ...RESULT, attempt_id: 'att-0', correct: 2, total: 3, score: 5, max_score: 6, percent: 83, design: withPicture(), band: null });
+    renderAt();
+    await screen.findByRole('heading', { name: 'Ваши попытки' });
+    expect(document.querySelector('.qt')).toHaveAttribute('data-bg', 'image');
+    expect(document.querySelector('.qt > .qt-bg img')).toHaveAttribute('src', `https://covers.test/${OWN}`);
+    // The result: the picture behind, the result on the page's surface.
+    fireEvent.click(screen.getByRole('button', { name: 'Посмотреть попытку 1' }));
+    await waitFor(() => expect(document.querySelector('.qt-score')).not.toBeNull());
+    expect(document.querySelector('.ct-roomshell')).toHaveAttribute('data-bg', 'image');
+    expect(document.querySelector('.ct-roomshell > .qt-bg img')).toHaveAttribute('src', `https://covers.test/${OWN}`);
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    // The attempt: the page draws the picture itself, and the video's player.
+    fireEvent.click(await screen.findByRole('button', { name: 'Начать' }));
+    await waitFor(() => expect(document.querySelector('.dv')).not.toBeNull());
+    expect(document.querySelector('.dv-bg img')).toHaveAttribute('src', `https://covers.test/${OWN}`);
+    expect(document.querySelector('.ct-roomshell > .qt-bg')).toBeNull();
+    expect(screen.getByTitle('Опыт')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+  });
 });

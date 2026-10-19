@@ -175,6 +175,7 @@
 .dv-figure[data-width='full'] { margin-inline: calc((100% - min(100cqi - 24px, 1180px)) / 2); }
 .dv-pic-empty {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   align-content: center;
   gap: 12px;
@@ -188,6 +189,10 @@
   text-align: center;
 }
 .dv-pic-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 44px;
   padding: 0 20px;
   border: 0;
@@ -201,6 +206,52 @@
   cursor: pointer;
 }
 .dv-pic-pick:hover { box-shadow: 0 0 0 1px var(--doc-ink); }
+.dv-pic-pick:focus-visible { outline: 2px solid var(--qt-fill); outline-offset: 2px; }
+.dv-pic-pick svg { flex: none; width: 18px; height: 18px; }
+.dv-pic-line { color: var(--doc-ink); font-size: 15px; font-weight: 500; }
+.dv-pic-hint { font-size: 13px; line-height: 1.4; color: var(--doc-muted); }
+.dv-pic-note { max-width: 46ch; color: var(--dv-bad); font-size: 14px; font-weight: 500; line-height: 1.4; }
+/* A file from the computer over an empty picture: it goes here. */
+.dv-pic-empty[data-drop] {
+  background: color-mix(in srgb, var(--qt-fill) 10%, var(--doc-surface-soft));
+  box-shadow: inset 0 0 0 2px var(--qt-fill);
+}
+
+/* ---------------------------------------------------------------- a video */
+.dv-video-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--doc-radius-field);
+  background: #0b0f16;
+  box-shadow: 0 0 0 1px var(--doc-line);
+}
+.dv-video-frame iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; }
+/* On the canvas: a press selects and drags the block, the player stays still. */
+.dv-video-shield { position: absolute; inset: 0; }
+.dv-video-empty { width: 100%; min-height: 220px; }
+.dv-video-ico { display: grid; place-items: center; }
+.dv-video-ico svg { width: 36px; height: 36px; color: var(--doc-muted); }
+.dv-video-put { display: flex; gap: 8px; width: min(100%, 520px); }
+.dv-video-put input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--doc-radius-field);
+  background: var(--doc-surface);
+  box-shadow: inset 0 0 0 1px var(--doc-line);
+  color: var(--doc-ink);
+  font: inherit;
+  font-size: 15px;
+}
+.dv-video-put input::placeholder { color: var(--doc-muted); opacity: 1; }
+.dv-video-put input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--qt-fill); }
+.dv-video-put input[aria-invalid='true'] { box-shadow: inset 0 0 0 2px var(--dv-bad); }
+.dv-video-put .dv-pic-pick { flex: none; }
 .dv-caption { max-width: 60ch; margin: 0; font-size: 15px; line-height: 1.45; color: var(--doc-muted); text-align: center; overflow-wrap: anywhere; }
 .dv[data-bg='image'] .dv-caption { padding: 6px 12px; }
 

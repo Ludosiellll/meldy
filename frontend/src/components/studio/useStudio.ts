@@ -163,13 +163,16 @@ export interface Studio {
   applyFix: (fix: Fix) => Promise<void>;
 }
 
-/** Picture blocks still waiting for their picture: not sent until it is uploaded (like a dangling question). */
+/**
+ * Picture blocks still waiting for their picture, video blocks still waiting for their link: not sent until it is there
+ * (like a dangling question) — the rest of the page saves meanwhile.
+ */
 export function withoutUnfinished(doc: TestDoc): TestDoc {
-  const blocks = doc.blocks.filter((block) => block.type !== 'image' || block.path !== '');
+  const blocks = doc.blocks.filter((block) => (block.type !== 'image' || block.path !== '') && (block.type !== 'video' || block.url !== ''));
   return blocks.length === doc.blocks.length ? doc : { ...doc, blocks };
 }
 
-/** What a save sends: no dangling question blocks, no picture blocks without their picture. */
+/** What a save sends: no dangling question blocks, no picture blocks without their picture, no video without its link. */
 export function toSend(doc: TestDoc, itemIds: Iterable<string>): TestDoc {
   return withoutUnfinished(withoutDangling(doc, itemIds));
 }

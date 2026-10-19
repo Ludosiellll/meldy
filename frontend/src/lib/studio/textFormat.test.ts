@@ -20,6 +20,8 @@ function seeded(seed = 7): RandomFill {
 const EXAM = '11111111-2222-3333-4444-555555555555';
 const PIC = `${EXAM}/${'a'.repeat(64)}.png`;
 const PIC2 = `${EXAM}/${'b'.repeat(64)}.png`;
+const YT = 'https://youtu.be/dQw4w9WgXcQ?t=42';
+const RT = 'https://rutube.ru/video/c6cc4d620b1d4338901770a44b3e82f4/';
 
 function row(id: string, partial: Partial<TestItem>): TestItem {
   return {
@@ -76,7 +78,7 @@ function richDoc(): TestDoc {
       {
         type: 'text',
         id: 'text00000001',
-        text: 'Первая строка\n\n   \n# не заголовок\n\\обратная черта\n---\n===\n+ плюс\n- минус\n= равно\n> больше\n[картинка] нет\n!совет нет\n  отступ\n**жирный** и [ссылка](https://a.ru)',
+        text: 'Первая строка\n\n   \n# не заголовок\n\\обратная черта\n---\n===\n+ плюс\n- минус\n= равно\n> больше\n[картинка] нет\n!совет нет\n  отступ\n**жирный** и [ссылка](https://a.ru)\n[видео](https://youtu.be/dQw4w9WgXcQ) не видео\n[видео] и это',
         align: 'center',
       },
       { type: 'note', id: 'note00000001', tone: 'info', text: 'совет дня\nвторая строка' },
@@ -84,6 +86,8 @@ function richDoc(): TestDoc {
       { type: 'note', id: 'note00000003', tone: 'warn', text: '\nпервая пустая' },
       { type: 'image', id: 'image0000001', path: PIC, caption: 'Схема', width: 'narrow' },
       { type: 'image', id: 'image0000002', path: PIC2, caption: '', width: 'full' },
+      { type: 'video', id: 'video0000001', url: YT, caption: 'Опыт с натрием (2 мин)' },
+      { type: 'video', id: 'video0000002', url: RT, caption: '' },
       { type: 'divider', id: 'divider00001' },
       { type: 'page', id: 'page00000001', title: '' },
       q(Q1, 3, true),
@@ -178,7 +182,8 @@ describe('toText', () => {
     expect(text).toContain('\\# не заголовок\n\\- не вариант\n\\> не пояснение\n\\\\обратная\n\\=== не страница\n= Москва; г. Москва');
     expect(text).toContain('\\!важно не заметка\n- да\n- нет');
     expect(text).toContain('\\[обложка] не обложка\n=\n');
-    expect(text).toContain('[картинка]\n\n---');
+    expect(text).toContain('[картинка]\n\n[видео](https://youtu.be/dQw4w9WgXcQ?t=42) Опыт с натрием (2 мин)\n\n[видео](https://rutube.ru/video/c6cc4d620b1d4338901770a44b3e82f4/)\n\n---');
+    expect(text).toContain('[ссылка](https://a.ru)\n\\[видео](https://youtu.be/dQw4w9WgXcQ) не видео\n\\[видео] и это\n');
   });
 });
 
@@ -354,6 +359,25 @@ describe('fromText makes the fewest changes', () => {
     expect(result.doc.blocks.some((block) => block.id === 'heading00001')).toBe(false);
   });
 
+  it('a video comes from text: its link in brackets, the caption after it; a link is made clean', () => {
+    const page = emptyDoc('Т');
+    const result = fromText('[видео](youtu.be/dQw4w9WgXcQ) Опыт\n\n[видео](https://vk.com/video-1_2)', page, [], { random: seeded() });
+    expect(result.problems).toEqual([]);
+    expect(result.doc.blocks.map((block) => (block.type === 'video' ? [block.url, block.caption] : block.type))).toEqual([
+      ['https://youtu.be/dQw4w9WgXcQ', 'Опыт'],
+      ['https://vk.com/video-1_2', ''],
+    ]);
+    // Back as text: the link the page keeps.
+    expect(toText(result.doc, [])).toBe('[видео](https://youtu.be/dQw4w9WgXcQ) Опыт\n\n[видео](https://vk.com/video-1_2)\n');
+  });
+
+  it('a video whose caption or link changed keeps its block id', () => {
+    const page: TestDoc = { ...emptyDoc('Т'), blocks: [{ type: 'video', id: 'video0000001', url: YT, caption: 'Было' }] };
+    const changed = fromText(`[видео](${RT}) Стало`, page, [], { random: seeded() });
+    expect(changed.problems).toEqual([]);
+    expect(changed.doc.blocks).toEqual([{ type: 'video', id: 'video0000001', url: RT, caption: 'Стало' }]);
+  });
+
   it('a new picture cannot come from text', () => {
     const result = read(`${text}\n[картинка] Новая\n`);
     expect(result.problems).toEqual([{ line: text.split('\n').length + 1, message: `Строка ${text.split('\n').length + 1}: новую картинку добавьте на холсте — в тексте её можно только подписать или переставить.` }]);
@@ -421,7 +445,7 @@ describe('fromText reads what people type', () => {
   });
 
   it('the syntax help names every mark', () => {
-    expect(TEXT_SYNTAX.map((entry) => entry.mark.trim())).toEqual(['#', '!', '---', '===', '+', '-', '=', '>', '[обложка]', '[картинка]']);
+    expect(TEXT_SYNTAX.map((entry) => entry.mark.trim())).toEqual(['#', '!', '---', '===', '+', '-', '=', '>', '[обложка]', '[картинка]', '[видео](https://…)']);
   });
 });
 
@@ -454,6 +478,10 @@ describe('problems: the line and what to do', () => {
     [`[обложка] ${long(201)}`, 1, 'название на обложке длиннее 200 знаков — сократите его.'],
     [`[обложка] Т\n${long(301)}`, 2, 'подзаголовок обложки длиннее 300 знаков — сократите его.'],
     [`=== ${long(201)}`, 1, 'название страницы длиннее 200 знаков — сократите его.'],
+    ['[видео] https://youtu.be/dQw4w9WgXcQ', 1, 'ссылку на видео пишут в скобках сразу после метки: [видео](https://…).'],
+    ['[видео](https://vimeo.com/1)', 1, 'это не ссылка на видео YouTube, RuTube или VK Видео — проверьте адрес.'],
+    ['[видео]()', 1, 'это не ссылка на видео YouTube, RuTube или VK Видео — проверьте адрес.'],
+    [`[видео](https://youtu.be/dQw4w9WgXcQ) ${long(301)}`, 1, 'подпись видео длиннее 300 знаков — сократите её.'],
   ])('%#: line %i', (text, line, words) => {
     expect(problemsOf(text)).toEqual([{ line, message: `Строка ${line}: ${words}` }]);
   });

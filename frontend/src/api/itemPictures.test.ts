@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 /** The client's routed fetch (lib/supabase supabaseFetch): each test makes a fresh one over a fake network. */
@@ -10,47 +10,232 @@ vi.mock('../lib/supabase', () => ({
   supabaseFetch: (input: RequestInfo | URL, init?: RequestInit) => net.fetch!(input, init),
 }));
 
-import { guestPictureUrl, MAX_PICTURE_BYTES, pictureFromFile, picturePath, pictureUrl } from './itemPictures';
+import { guestPictureUrl, isHeic, MAX_PICTURE_BYTES, MAX_PICTURE_SIDE, pictureFromFile, picturePath, pictureUrl } from './itemPictures';
 import { supabase } from '../lib/supabase';
 import { createSupabaseFetch } from '../lib/supabaseRoute';
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 1]);
-const noMeasure = { measure: async () => null };
+const MB = 1024 * 1024;
 
-describe('pictureFromFile', () => {
+/** A file of `size` bytes (its content does not matter: the browser's drawing is mocked). */
+const fileOf = (size: number, type: string, name = 'photo') => new File([new Uint8Array(size)], name, { type });
+
+// ── the browser's drawing, mocked: createImageBitmap, a 2D canvas and toBlob ──
+
+interface Drawn {
+  width: number;
+  height: number;
+  /** The canvas was filled with white before the picture (no transparency kept). */
+  white: boolean;
+  /** toBlob's calls: [type, quality]. */
+  asked: Array<[string, number | undefined]>;
+}
+
+interface Browser {
+  /** The picture as createImageBitmap gives it; null — it cannot draw it (throws). */
+  bitmap: { width: number; height: number } | null;
+  /** Some pixel of it is not opaque. */
+  alpha?: boolean;
+  /** Bytes the canvas writes for a type at a size (a WebP the browser cannot write comes back as PNG). */
+  bytes: (type: string, width: number, height: number) => number;
+  webp?: boolean;
+  /** createImageBitmap refuses the options (an older browser): asked again without them. */
+  noOptions?: boolean;
+}
+
+let canvases: Drawn[] = [];
+let decodeCalls: unknown[][] = [];
+
+function browser(setup: Browser) {
+  canvases = [];
+  decodeCalls = [];
+  const close = vi.fn();
+  vi.stubGlobal('createImageBitmap', async (...args: unknown[]) => {
+    decodeCalls.push(args);
+    if (!setup.bitmap) throw new DOMException('The source image could not be decoded.', 'InvalidStateError');
+    if (setup.noOptions && args.length > 1) throw new TypeError("The provided value 'from-image' is not a valid enum value");
+    return { ...setup.bitmap, close };
+  });
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+    const drawn: Drawn = { width: this.width, height: this.height, white: false, asked: [] };
+    canvases.push(drawn);
+    (this as unknown as { drawn: Drawn }).drawn = drawn;
+    return {
+      fillStyle: '',
+      fillRect: () => {
+        drawn.white = true;
+      },
+      drawImage: () => undefined,
+      getImageData: (_x: number, _y: number, width: number, height: number) => {
+        const data = new Uint8ClampedArray(width * height * 4).fill(255);
+        if (setup.alpha && !drawn.white) data[3] = 0;
+        return { data, width, height };
+      },
+    } as unknown as CanvasRenderingContext2D;
+  } as never);
+  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, callback: BlobCallback, type?: string, quality?: number) {
+    const drawn = (this as unknown as { drawn: Drawn }).drawn;
+    drawn.asked.push([type ?? 'image/png', quality]);
+    const made = type === 'image/webp' && setup.webp === false ? 'image/png' : type ?? 'image/png';
+    callback(new Blob([new Uint8Array(setup.bytes(made, this.width, this.height))], { type: made }));
+  });
+  return { close };
+}
+
+/** The canvases the picture was redrawn on (the 256 px probe of transparency left out). */
+const redrawn = () => canvases.filter((drawn) => drawn.asked.length > 0);
+
+beforeEach(() => {
+  canvases = [];
+  decodeCalls = [];
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe('pictureFromFile: the one helper of every picture the author adds', () => {
   it('names a picture by the sha256 of its bytes and keeps them', async () => {
-    const result = await pictureFromFile(new Blob([PNG], { type: 'image/png' }), noMeasure);
+    const result = await pictureFromFile(new Blob([PNG], { type: 'image/png' }));
     if (typeof result === 'string') throw new Error(result);
     expect(result.id).toMatch(/^[0-9a-f]{64}$/);
     expect(result.picture.type).toBe('image/png');
     expect(Uint8Array.from(atob(result.picture.data), (c) => c.charCodeAt(0))).toEqual(PNG);
     expect(picturePath('11111111-2222-4333-8444-555555555555', result.id, result.picture.type)).toMatch(/\.png$/);
-    const again = await pictureFromFile(new Blob([PNG], { type: 'image/png' }), noMeasure);
+    const again = await pictureFromFile(new Blob([PNG], { type: 'image/png' }));
     expect(typeof again !== 'string' && again.id).toBe(result.id);
   });
 
-  it('refuses what is not a picture', async () => {
-    expect(await pictureFromFile(new Blob(['hello'], { type: 'text/plain' }), noMeasure)).toBe('type');
-    expect(await pictureFromFile(new Blob(['<svg/>'], { type: 'image/svg+xml' }), noMeasure)).toBe('type');
+  it('refuses what is not a picture, and SVG', async () => {
+    expect(await pictureFromFile(new Blob(['hello'], { type: 'text/plain' }))).toBe('type');
+    expect(await pictureFromFile(new Blob(['<svg/>'], { type: 'image/svg+xml' }))).toBe('type');
+    expect(await pictureFromFile(fileOf(10, '', 'notes.txt'))).toBe('type');
   });
 
-  it('redraws a big photo as JPEG', async () => {
-    const shrink = vi.fn(async () => new Blob([new Uint8Array(1024)], { type: 'image/jpeg' }));
-    const result = await pictureFromFile(new Blob([new Uint8Array(MAX_PICTURE_BYTES + 1)], { type: 'image/jpeg' }), { ...noMeasure, shrink });
-    expect(shrink).toHaveBeenCalledWith(expect.any(Blob), 2000);
+  it('a phone’s 5 MB photo: drawn upright (EXIF), redrawn at 2400 px, the smaller of JPEG 0.85 and WebP 0.85', async () => {
+    const { close } = browser({ bitmap: { width: 4032, height: 3024 }, bytes: (type) => (type === 'image/webp' ? 600_000 : 900_000) });
+    const onStage = vi.fn();
+    const result = await pictureFromFile(fileOf(5 * MB, 'image/jpeg', 'IMG_0001.jpg'), { onStage });
+    if (typeof result === 'string') throw new Error(result);
+    expect(decodeCalls[0][1]).toEqual({ imageOrientation: 'from-image' });
+    expect(onStage).toHaveBeenCalledWith('shrink');
+    const [canvas] = redrawn();
+    expect([canvas.width, canvas.height]).toEqual([MAX_PICTURE_SIDE, 1800]);
+    expect(canvas.white).toBe(true);
+    expect(canvas.asked).toEqual([
+      ['image/jpeg', 0.85],
+      ['image/webp', 0.85],
+    ]);
+    expect(result.picture.type).toBe('image/webp');
+    expect(atob(result.picture.data).length).toBe(600_000);
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('JPEG when it is smaller, or when the browser cannot write WebP (Safari gives PNG instead)', async () => {
+    browser({ bitmap: { width: 3024, height: 4032 }, bytes: (type) => (type === 'image/jpeg' ? 700_000 : 800_000) });
+    const smaller = await pictureFromFile(fileOf(4 * MB, 'image/jpeg'));
+    expect(typeof smaller !== 'string' && smaller.picture.type).toBe('image/jpeg');
+    expect([redrawn()[0].width, redrawn()[0].height]).toEqual([1800, 2400]);
+
+    browser({ bitmap: { width: 4000, height: 3000 }, webp: false, bytes: (type) => (type === 'image/png' ? 100 : 900_000) });
+    const noWebp = await pictureFromFile(fileOf(4 * MB, 'image/jpeg'));
+    expect(typeof noWebp !== 'string' && noWebp.picture.type).toBe('image/jpeg');
+  });
+
+  it('a picture that already fits (≤ 3 MB, ≤ 2400 px) is kept as it is', async () => {
+    browser({ bitmap: { width: 2400, height: 1600 }, bytes: () => 1 });
+    const onStage = vi.fn();
+    const file = fileOf(2 * MB, 'image/jpeg');
+    const result = await pictureFromFile(file, { onStage });
+    expect(typeof result !== 'string' && atob(result.picture.data).length).toBe(2 * MB);
+    expect(redrawn()).toEqual([]);
+    expect(onStage).not.toHaveBeenCalled();
+  });
+
+  it('a PNG with transparency under 3 MB is kept even when it is large; an opaque one is redrawn', async () => {
+    browser({ bitmap: { width: 3200, height: 2000 }, alpha: true, bytes: () => 1 });
+    const clear = await pictureFromFile(fileOf(MB, 'image/png'));
+    expect(typeof clear !== 'string' && clear.picture.type).toBe('image/png');
+    expect(redrawn()).toEqual([]);
+
+    browser({ bitmap: { width: 3200, height: 2000 }, alpha: false, bytes: (type) => (type === 'image/jpeg' ? 300_000 : 400_000) });
+    const opaque = await pictureFromFile(fileOf(MB, 'image/png'));
+    expect(typeof opaque !== 'string' && opaque.picture.type).toBe('image/jpeg');
+    expect([redrawn()[0].width, redrawn()[0].height]).toEqual([2400, 1500]);
+  });
+
+  it('a transparent picture over 3 MB keeps its transparency: PNG or WebP, nothing white under it', async () => {
+    browser({ bitmap: { width: 3000, height: 3000 }, alpha: true, bytes: (type) => (type === 'image/png' ? 2 * MB : 2.5 * MB) });
+    const result = await pictureFromFile(fileOf(6 * MB, 'image/png'));
+    expect(typeof result !== 'string' && result.picture.type).toBe('image/png');
+    const [canvas] = redrawn();
+    expect(canvas.white).toBe(false);
+    expect(canvas.asked.map(([type]) => type)).toEqual(['image/png', 'image/webp']);
+  });
+
+  it('a transparent picture that does not fit as PNG or WebP goes on white as JPEG', async () => {
+    browser({ bitmap: { width: 3000, height: 3000 }, alpha: true, bytes: (type) => (type === 'image/jpeg' ? MB : 4 * MB) });
+    const result = await pictureFromFile(fileOf(6 * MB, 'image/png'));
     expect(typeof result !== 'string' && result.picture.type).toBe('image/jpeg');
+    expect(redrawn().map((canvas) => canvas.white)).toEqual([false, true]);
   });
 
-  it('redraws a picture wider than 2000 px even when it is small in bytes', async () => {
-    const shrink = vi.fn(async () => new Blob([new Uint8Array(10)], { type: 'image/jpeg' }));
-    await pictureFromFile(new Blob([PNG], { type: 'image/png' }), { measure: async () => ({ width: 4000, height: 3000 }), shrink });
-    expect(shrink).toHaveBeenCalledTimes(1);
+  it('a GIF up to 3 MB keeps its motion (not even drawn); a larger one is redrawn', async () => {
+    browser({ bitmap: { width: 4000, height: 3000 }, bytes: () => 500_000 });
+    const small = await pictureFromFile(fileOf(2 * MB, 'image/gif'));
+    expect(typeof small !== 'string' && small.picture.type).toBe('image/gif');
+    expect(decodeCalls).toEqual([]);
+    const big = await pictureFromFile(fileOf(5 * MB, 'image/gif'));
+    expect(typeof big !== 'string' && big.picture.type).toBe('image/jpeg');
   });
 
-  it('says so when even the redrawn picture is too big', async () => {
-    const shrink = async () => new Blob([new Uint8Array(MAX_PICTURE_BYTES + 5)], { type: 'image/jpeg' });
-    expect(await pictureFromFile(new Blob([new Uint8Array(MAX_PICTURE_BYTES + 1)], { type: 'image/png' }), { ...noMeasure, shrink })).toBe('size');
-    expect(await pictureFromFile(new Blob([new Uint8Array(MAX_PICTURE_BYTES + 1)], { type: 'image/png' }), { ...noMeasure, shrink: async () => { throw new Error('x'); } })).toBe('size');
+  it('a BMP the browser draws is redrawn (the cover bucket does not take BMP)', async () => {
+    browser({ bitmap: { width: 800, height: 600 }, bytes: (type) => (type === 'image/jpeg' ? 50_000 : 60_000) });
+    const result = await pictureFromFile(fileOf(1_440_054, 'image/bmp'));
+    expect(typeof result !== 'string' && result.picture.type).toBe('image/jpeg');
+    expect([redrawn()[0].width, redrawn()[0].height]).toEqual([800, 600]);
+  });
+
+  it('HEIC: by its type or by its name; redrawn when the browser draws it (Safari), else said in words', async () => {
+    expect(isHeic(fileOf(1, 'image/heic'))).toBe(true);
+    expect(isHeic(fileOf(1, 'image/heif'))).toBe(true);
+    expect(isHeic(fileOf(1, '', 'IMG_2042.HEIC'))).toBe(true);
+    expect(isHeic(fileOf(1, 'application/octet-stream', 'photo.heif'))).toBe(true);
+    expect(isHeic(fileOf(1, 'image/jpeg', 'photo.heic'))).toBe(false);
+
+    browser({ bitmap: { width: 4032, height: 3024 }, bytes: (type) => (type === 'image/jpeg' ? 800_000 : 900_000) });
+    const drawn = await pictureFromFile(fileOf(2 * MB, '', 'IMG_2042.HEIC'));
+    expect(typeof drawn !== 'string' && drawn.picture.type).toBe('image/jpeg');
+
+    browser({ bitmap: null, bytes: () => 1 });
+    expect(await pictureFromFile(fileOf(2 * MB, 'image/heic', 'IMG_2042.HEIC'))).toBe('heic');
+    expect(await pictureFromFile(fileOf(2 * MB, '', 'IMG_2043.heic'))).toBe('heic');
+  });
+
+  it('a browser that does not know imageOrientation is asked again without it', async () => {
+    browser({ bitmap: { width: 4000, height: 3000 }, noOptions: true, bytes: () => 500_000 });
+    const result = await pictureFromFile(fileOf(4 * MB, 'image/jpeg'));
+    expect(typeof result).not.toBe('string');
+    expect(decodeCalls.map((args) => args.length)).toEqual([2, 1]);
+  });
+
+  it('a picture the browser cannot draw: kept when it fits, else too big; another type is not a picture', async () => {
+    browser({ bitmap: null, bytes: () => 1 });
+    const kept = await pictureFromFile(fileOf(MB, 'image/webp'));
+    expect(typeof kept !== 'string' && kept.picture.type).toBe('image/webp');
+    expect(await pictureFromFile(fileOf(4 * MB, 'image/jpeg'))).toBe('size');
+    expect(await pictureFromFile(fileOf(MB, 'image/avif'))).toBe('type');
+  });
+
+  it('smaller sides while it is still over 3 MB (2400, 1800, 1280), then «size»', async () => {
+    browser({ bitmap: { width: 6000, height: 4000 }, bytes: (_type, width) => (width > 1280 ? 4 * MB : 2 * MB) });
+    const last = await pictureFromFile(fileOf(9 * MB, 'image/jpeg'));
+    expect(typeof last !== 'string' && last.picture.type).toBe('image/jpeg');
+    expect(redrawn().map((canvas) => canvas.width)).toEqual([2400, 1800, 1280]);
+
+    browser({ bitmap: { width: 6000, height: 4000 }, bytes: () => 4 * MB });
+    expect(await pictureFromFile(fileOf(9 * MB, 'image/jpeg'))).toBe('size');
+    expect(await pictureFromFile(fileOf(MAX_PICTURE_BYTES + 1, 'image/png'))).toBe('size');
   });
 });
 

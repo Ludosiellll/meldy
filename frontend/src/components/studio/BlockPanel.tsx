@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { typingKey } from '../../lib/studio/history';
 import { POINTS_MAX, replaceBlock } from '../../lib/studio/doc';
+import { cleanVideoUrl } from '../../lib/studio/video';
 import { DOC_TITLE_MAX, type DocBlock, type DocLayout } from '../../types/testDoc';
 import QuestionEditor from '../containers/keys/QuestionEditor';
 import { patchOf, type Draft } from '../containers/keys/editorModel';
@@ -16,9 +17,10 @@ import type { SideApi } from './Workspace';
 
 /**
  * «Блок» of the settings (spec §47.6 «Справа — свойства выбранного блока»): the selected block's settings — the
- * alignment of a cover and a text, a heading's size, a picture's width, a note's tone, a page's name; for a question
- * the editor of «Вопросы и ключи» (saved into test_items, as there) with «Баллы» and «Обязательный». With nothing
- * selected: the page's name for the participants and how they go through it.
+ * alignment of a cover and a text, a heading's size, a picture (the author's own first) and its width, a video's
+ * link, a note's tone, a page's name; for a question the editor of «Вопросы и ключи» (saved into test_items, as
+ * there) with «Баллы» and «Обязательный». With nothing selected: the page's name for the participants and how they go
+ * through it.
  */
 
 export const LAYOUT_OPTIONS = (['one_by_one', 'one_page', 'pages'] as DocLayout[]).map((value) => ({ value, label: STUDIO.layouts[value], hint: STUDIO.layoutHints[value] }));
@@ -87,6 +89,60 @@ function PointsField({ value, onChange }: { value: number; onChange: (value: num
       <p className="sr-only" id={`${id}-hint`}>
         {STUDIO.pointsHint}
       </p>
+    </div>
+  );
+}
+
+/** «Ссылка на видео»: the link as the page keeps it; a link the page cannot show is said and not taken. */
+function VideoLinkField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const id = useId();
+  const [text, setText] = useState(value);
+  const [bad, setBad] = useState(false);
+  useEffect(() => {
+    setText(value);
+    setBad(false);
+  }, [value]);
+  const take = (raw: string) => {
+    if (raw.trim() === value) return;
+    const url = cleanVideoUrl(raw);
+    setBad(!url);
+    if (url) onChange(url);
+  };
+  return (
+    <div className="st-group">
+      <label className="st-field-label" htmlFor={id}>
+        {STUDIO.videoLink}
+      </label>
+      <input
+        id={id}
+        className="st-input"
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={STUDIO.videoPlaceholder}
+        value={text}
+        aria-invalid={bad || undefined}
+        aria-describedby={`${id}-hint${bad ? ` ${id}-bad` : ''}`}
+        onChange={(event) => {
+          setText(event.target.value);
+          if (bad) setBad(false);
+        }}
+        onBlur={() => take(text)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+          event.preventDefault();
+          take(text);
+        }}
+      />
+      <p className="st-field-hint" id={`${id}-hint`}>
+        {STUDIO.videoHint}
+      </p>
+      {bad ? (
+        <p className="st-note" data-bad="" id={`${id}-bad`} role="alert">
+          {STUDIO.videoBad}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -227,8 +283,8 @@ export default function BlockPanel({ studio, selected, containerId, group, api, 
         <div className="st-panel-body">
           {block.type === 'cover' ? (
             <>
-              <Choice label={STUDIO.align} options={[{ value: 'left', label: STUDIO.aligns.left }, { value: 'center', label: STUDIO.aligns.center }]} value={block.align} onChange={(align) => set({ ...block, align })} />
               <PictureField label={STUDIO.picture} path={block.image} target={{ kind: 'cover', blockId: block.id }} api={api} presets="cover" onRemove={() => set({ ...block, image: null })} />
+              <Choice label={STUDIO.align} options={[{ value: 'left', label: STUDIO.aligns.left }, { value: 'center', label: STUDIO.aligns.center }]} value={block.align} onChange={(align) => set({ ...block, align })} />
             </>
           ) : null}
           {block.type === 'heading' ? (
@@ -239,6 +295,7 @@ export default function BlockPanel({ studio, selected, containerId, group, api, 
           ) : null}
           {block.type === 'image' ? (
             <>
+              <PictureField label={STUDIO.picture} path={block.path || null} target={{ kind: 'image', blockId: block.id }} api={api} />
               <Choice
                 label={STUDIO.width}
                 options={[
@@ -249,9 +306,9 @@ export default function BlockPanel({ studio, selected, containerId, group, api, 
                 value={block.width}
                 onChange={(width) => set({ ...block, width })}
               />
-              <PictureField label={STUDIO.picture} path={block.path || null} target={{ kind: 'image', blockId: block.id }} api={api} />
             </>
           ) : null}
+          {block.type === 'video' ? <VideoLinkField key={block.id} value={block.url} onChange={(url) => set({ ...block, url }, 'url')} /> : null}
           {block.type === 'note' ? (
             <Choice
               label={STUDIO.tone}

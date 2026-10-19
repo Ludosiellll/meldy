@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
-import { pictureFromFile, picturePath, uploadPicture } from '../../../api/itemPictures';
+import { isPictureFile, pictureFromFile, picturePath, uploadPicture } from '../../../api/itemPictures';
 import { PICTURE_LIMITS, type BankPicture, type TestItem } from '../../../types/container';
 import { EDITOR, letter, nb } from '../copyImport';
 import ItemPictures, { type PictureSource } from '../ItemPictures';
@@ -212,6 +212,7 @@ export default function QuestionEditor({
       const made = await pictureFromFile(file);
       if (made === 'type') return setPictureNote(EDITOR.pictureType);
       if (made === 'size') return setPictureNote(EDITOR.pictureSize);
+      if (made === 'heic') return setPictureNote(EDITOR.pictureHeic);
       const path = picturePath(containerId, made.id, made.picture.type);
       if (!path) return setPictureNote(EDITOR.pictureType);
       if ((await upload(path, made.picture)) !== 'kept') return setPictureNote(EDITOR.pictureFailed);
@@ -227,7 +228,7 @@ export default function QuestionEditor({
   /** A picture pasted into a field goes to that field's question or option; pasted words stay words. */
   const pasteInto = (target: Target) => (event: ClipboardEvent<HTMLTextAreaElement>) => {
     if (target !== 'stem' && trueFalse) return;
-    const file = Array.from(event.clipboardData?.files ?? []).find((entry) => entry.type.startsWith('image/'));
+    const file = Array.from(event.clipboardData?.files ?? []).find(isPictureFile);
     if (!file) return;
     event.preventDefault();
     void addPicture(target, file);
@@ -461,7 +462,7 @@ export default function QuestionEditor({
       <input
         ref={fileRef}
         type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+        accept="image/*"
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0];

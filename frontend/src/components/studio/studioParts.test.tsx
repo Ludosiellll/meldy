@@ -188,9 +188,19 @@ describe('the palette, new questions and the hints', () => {
     expect(hintFor(question, doc, new Map())).toBe(STUDIO.gone);
   });
 
-  it('a save leaves out a picture block still waiting for its picture', () => {
-    const doc = { ...emptyDoc('Т'), blocks: [{ type: 'image', id: 'img00001', path: '', caption: '', width: 'wide' }, { type: 'divider', id: 'div00001' }] as DocBlock[] };
+  it('a save leaves out a picture block still waiting for its picture, and a video still waiting for its link', () => {
+    const doc = {
+      ...emptyDoc('Т'),
+      blocks: [
+        { type: 'image', id: 'img00001', path: '', caption: '', width: 'wide' },
+        { type: 'video', id: 'vid00001', url: '', caption: '' },
+        { type: 'divider', id: 'div00001' },
+      ] as DocBlock[],
+    };
     expect(toSend(doc, []).blocks.map((block) => block.id)).toEqual(['div00001']);
+    const video = { ...doc, blocks: [{ type: 'video', id: 'vid00001', url: 'https://youtu.be/dQw4w9WgXcQ', caption: '' }] as DocBlock[] };
+    expect(toSend(video, [])).toBe(video);
+    doc.blocks.splice(1, 1);
     const ready = { ...doc, blocks: [doc.blocks[1]] };
     expect(toSend(ready, [])).toBe(ready);
   });

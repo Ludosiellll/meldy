@@ -38,6 +38,7 @@ import {
   type ResultBand,
   type TestDoc,
 } from '../../types/testDoc';
+import { videoUrlOk } from './video';
 
 // ─────────────────────────────────────────────── small shared helpers
 
@@ -153,6 +154,9 @@ function blockWith(type: DocBlockType, id: string, itemId: string): DocBlock {
     case 'image':
       // The path comes from the upload; until then the block is not savable (docProblems: `image`).
       return { type, id, path: '', caption: '', width: 'wide' };
+    case 'video':
+      // The link comes from the author; until then the block is not savable (docProblems: `url`).
+      return { type, id, url: '', caption: '' };
     case 'note':
       return { type, id, tone: 'info', text: BLOCK_WORDS.note };
     case 'divider':
@@ -226,6 +230,7 @@ const BLOCK_KEYS: Record<DocBlockType, readonly string[]> = {
   heading: ['type', 'id', 'text', 'size'],
   text: ['type', 'id', 'text', 'align'],
   image: ['type', 'id', 'path', 'caption', 'width'],
+  video: ['type', 'id', 'url', 'caption'],
   note: ['type', 'id', 'tone', 'text'],
   divider: ['type', 'id'],
   page: ['type', 'id', 'title'],
@@ -317,6 +322,9 @@ function fieldRule(block: Record<string, unknown>, type: DocBlockType, scope: Bl
       if (!imageOk(block.path, scope.containerId)) return 'path';
       if (!isText(block.caption, DOC_CAPTION_MAX, 0)) return 'caption';
       return oneOf(WIDTHS, block.width) ? null : 'width';
+    case 'video':
+      if (!videoUrlOk(block.url)) return 'url';
+      return isText(block.caption, DOC_CAPTION_MAX, 0) ? null : 'caption';
     case 'note':
       if (!oneOf(TONES, block.tone)) return 'tone';
       return isText(block.text, DOC_TEXT_MAX) ? null : 'text';
@@ -346,8 +354,9 @@ function blockRule(block: unknown, scope: BlockScope): string | null {
 /**
  * What meldy_private.test_doc_ok refuses, in its order: `version` (not an object of the six keys with v = 1), `title`,
  * `theme`, `layout`, `blocks`, `block:<n>:<rule>` (n counts from 0; one rule per block: `type`, `id`, then the fields —
- * `title`, `subtitle`, `image`, `align` / `text`, `size` / `text`, `align` / `path`, `caption`, `width` / `tone`, `text`
- * / `title` / `item_id`, `points`, `required` — then `type` for a key the type does not have), `results`. The first
+ * `title`, `subtitle`, `image`, `align` / `text`, `size` / `text`, `align` / `path`, `caption`, `width` / `url`,
+ * `caption` / `tone`, `text` / `title` / `item_id`, `points`, `required` — then `type` for a key the type does not
+ * have), `results`. The first
  * entry is the server's answer (22023 detail); [] — the server takes it. Pass `containerId` for the server's own check
  * (pictures in the exam's folder): contracts/studio/test_doc_cases.json holds both to the same answers. One more name
  * comes last, never from test_doc_ok: `size` (test_doc_save refuses more than 200 KB of jsonb text before the rules).
@@ -406,6 +415,8 @@ export function ruleMessage(rule: string, doc?: unknown): string {
       case 'image':
       case 'path':
         return `${at}картинка не загружена — загрузите её заново.`;
+      case 'url':
+        return `${at}нужна ссылка на видео YouTube, RuTube или VK Видео (https://, до 300 знаков).`;
       case 'points':
         return `${at}баллы — целое число от 1 до 100.`;
       default:
@@ -490,6 +501,8 @@ function blockBody(raw: Record<string, unknown>, title: string, onPage: Set<stri
     }
     case 'image':
       return imageOk(raw.path) ? { type: 'image', path: raw.path, caption: line(raw.caption, DOC_CAPTION_MAX), width: pick(WIDTHS, raw.width, 'wide') } : null;
+    case 'video':
+      return videoUrlOk(raw.url) ? { type: 'video', url: raw.url, caption: line(raw.caption, DOC_CAPTION_MAX) } : null;
     case 'note': {
       const text = cut(str(raw.text), DOC_TEXT_MAX);
       return filled(text) ? { type: 'note', tone: pick(TONES, raw.tone, 'info'), text } : null;
@@ -539,8 +552,9 @@ export interface NormalizedDoc {
 /**
  * Any stored or pasted document made into a TestDoc the canvas can show: unknown fields dropped, broken values set to
  * their defaults, one-line fields (titles, captions, the cover's subtitle, a band's title, the link's words) on one
- * line, blocks without words or without a picture dropped, repeated or bad block ids renewed, a question shown at most
- * once, result bands sorted without overlaps. The result passes docProblems except for dangling question blocks,
+ * line, blocks without words, without a picture or without a video link the page takes dropped, repeated or bad
+ * block ids renewed, a question shown at most once, result bands sorted without overlaps. The result passes
+ * docProblems except for dangling question blocks,
  * which stay (listed in `dangling` when `itemIds` is given), pictures of another exam's folder (only the bucket's
  * pattern is known here) and the 200 KB size. Normalising twice changes nothing more.
  */

@@ -8,6 +8,7 @@
  *   === Название страницы        a new page («по страницам»)
  *   [обложка] Название           the next line — the subtitle
  *   [картинка] Подпись           a picture already on the page (new pictures are added on the canvas)
+ *   [видео](https://…) Подпись   a video of YouTube, RuTube or VK Видео (the link in brackets, the caption after it)
  *   Вопрос (one line or more)
  *   + верный вариант             - неверный вариант      (a long option goes on in lines that start with two spaces)
  *   = ответ; другая запись       a short answer instead of options
@@ -28,6 +29,7 @@ import { DOC_CAPTION_MAX, DOC_MAX_BLOCKS, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocB
 import { draftOf, draftProblems, emptyDraft, formsOf, inputOf, LIMITS, patchOf, type Draft, type DraftProblem } from '../../components/containers/keys/editorModel';
 import { isTrueFalse, orderBound } from './checker';
 import { chars, cryptoFill, freshId, hasWords, newId, oneLine, sameValue, type RandomFill } from './doc';
+import { cleanVideoUrl, videoUrlOk } from './video';
 
 // ─────────────────────────────────────────────── lines
 
@@ -42,6 +44,8 @@ type Line =
   | { kind: 'page'; title: string }
   | { kind: 'cover'; title: string }
   | { kind: 'image'; caption: string }
+  /** `url` null: «[видео]» without a link in brackets after it. */
+  | { kind: 'video'; url: string | null; caption: string }
   | { kind: 'option'; right: boolean; text: string }
   | { kind: 'form'; text: string }
   | { kind: 'explain'; text: string }
@@ -61,6 +65,10 @@ function classify(line: string): Line {
   if (match) return { kind: 'page', title: rest(line, match[1].length) };
   if (/^\[обложка\](?:\s|$)/.test(line)) return { kind: 'cover', title: rest(line, 9) };
   if (/^\[картинка\](?:\s|$)/.test(line)) return { kind: 'image', caption: rest(line, 10) };
+  if (/^\[видео\](?:[(\s]|$)/.test(line)) {
+    match = /^\[видео\]\(([^()\s]*)\)(?:\s(.*))?$/.exec(line);
+    return match ? { kind: 'video', url: match[1], caption: match[2] ?? '' } : { kind: 'video', url: null, caption: '' };
+  }
   match = /^([+-])(?:\s|$)/.exec(line);
   if (match) return { kind: 'option', right: match[1] === '+', text: rest(line, 1) };
   if (/^=(?:\s|$)/.test(line)) return { kind: 'form', text: rest(line, 1) };
@@ -125,6 +133,8 @@ function blockText(block: DocBlock, rows: ReadonlyMap<string, TestItem>): string
       return contentLines(block.text).join('\n');
     case 'image':
       return marked('[картинка]', oneLine(block.caption));
+    case 'video':
+      return marked(`[видео](${block.url})`, oneLine(block.caption));
     case 'note': {
       const [first, ...more] = block.text.split('\n');
       return [marked(TONE_MARK[block.tone], first), ...more.map(contentLine)].join('\n');
@@ -163,6 +173,7 @@ export const TEXT_SYNTAX: ReadonlyArray<{ mark: string; words: string }> = [
   { mark: '> ', words: 'пояснение к ответу' },
   { mark: '[обложка] ', words: 'обложка, на следующей строке — подзаголовок' },
   { mark: '[картинка] ', words: 'подпись картинки' },
+  { mark: '[видео](https://…) ', words: 'видео YouTube, RuTube или VK Видео, после ссылки — подпись' },
 ];
 
 // ─────────────────────────────────────────────── text → blocks
@@ -179,6 +190,8 @@ type Parsed =
   | { type: 'heading'; line: number; text: string; size: 'l' | 'm' }
   | { type: 'text'; line: number; text: string }
   | { type: 'image'; line: number; caption: string }
+  /** `url`: the link made clean (video.ts cleanVideoUrl) when it can be, else as written; null — no link in brackets. */
+  | { type: 'video'; line: number; url: string | null; caption: string }
   | { type: 'note'; line: number; tone: Tone; text: string }
   | { type: 'divider'; line: number }
   | { type: 'page'; line: number; title: string }
@@ -294,6 +307,10 @@ function parse(text: string): { blocks: Parsed[]; problems: TextProblem[] } {
         flush();
         blocks.push({ type: 'image', line, caption: kind.caption });
         return;
+      case 'video':
+        flush();
+        blocks.push({ type: 'video', line, url: kind.url === null ? null : cleanVideoUrl(kind.url) ?? kind.url, caption: kind.caption });
+        return;
       case 'note':
         flush();
         current = { type: 'note', line, tone: kind.tone, lines: [kind.text] };
@@ -347,6 +364,7 @@ type Content =
   | { type: 'heading'; text: string; size: 'l' | 'm' }
   | { type: 'text'; text: string }
   | { type: 'image'; caption: string }
+  | { type: 'video'; url: string; caption: string }
   | { type: 'note'; tone: Tone; text: string }
   | { type: 'divider' }
   | { type: 'page'; title: string }
@@ -362,6 +380,8 @@ function contentOf(block: DocBlock, rows: ReadonlyMap<string, TestItem>): Conten
       return { type: 'text', text: block.text };
     case 'image':
       return { type: 'image', caption: block.caption };
+    case 'video':
+      return { type: 'video', url: block.url, caption: block.caption };
     case 'note':
       return { type: 'note', tone: block.tone, text: block.text };
     case 'divider':
@@ -385,6 +405,8 @@ function contentOfParsed(parsed: Parsed): Content {
       return { type: 'text', text: parsed.text };
     case 'image':
       return { type: 'image', caption: parsed.caption };
+    case 'video':
+      return { type: 'video', url: parsed.url ?? '', caption: parsed.caption };
     case 'note':
       return { type: 'note', tone: parsed.tone, text: parsed.text };
     case 'divider':
@@ -407,6 +429,8 @@ function fieldsOf(content: Content): unknown[] {
       return [content.text];
     case 'image':
       return [content.caption];
+    case 'video':
+      return [content.url, content.caption];
     case 'note':
       return [content.tone, content.text];
     case 'divider':
@@ -601,6 +625,13 @@ function blockProblems(parsed: Exclude<Parsed, { type: 'question' }>): TextProbl
     }
     case 'image':
       return long(parsed.caption, DOC_CAPTION_MAX) ? [say(at, 'подпись картинки длиннее 300 знаков — сократите её.')] : [];
+    case 'video': {
+      const out: TextProblem[] = [];
+      if (parsed.url === null) out.push(say(at, 'ссылку на видео пишут в скобках сразу после метки: [видео](https://…).'));
+      else if (!videoUrlOk(parsed.url)) out.push(say(at, 'это не ссылка на видео YouTube, RuTube или VK Видео — проверьте адрес.'));
+      if (long(parsed.caption, DOC_CAPTION_MAX)) out.push(say(at, 'подпись видео длиннее 300 знаков — сократите её.'));
+      return out;
+    }
     case 'page':
       return long(parsed.title, DOC_TITLE_MAX) ? [say(at, 'название страницы длиннее 200 знаков — сократите его.')] : [];
     case 'divider':
@@ -625,6 +656,8 @@ function blockFrom(parsed: Exclude<Parsed, { type: 'question' | 'image' }>, id: 
       return { type: 'divider', id };
     case 'page':
       return { type: 'page', id, title: parsed.title };
+    case 'video':
+      return { type: 'video', id, url: parsed.url ?? '', caption: parsed.caption };
   }
 }
 
