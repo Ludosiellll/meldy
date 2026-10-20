@@ -185,13 +185,46 @@ function likelyNext(pathname: string, signedIn: boolean): Loader[] {
     const [today, exams, lectures, , progress] = SECTIONS;
     return [...trySteps, loadLayout, today, exams, lectures, progress, () => confirmDialogPart.load(), () => proWindowPart.load(), () => guideClipPart.load()];
   }
-  if (pathname === '/') return [loadLogin, loadRegister, loadTry];
+  // The landing fetches nothing at idle: on a phone those screens cost more than the landing itself (landing v3,
+  // 2026-10-20). It fetches a screen when the visitor points at or touches a link to it (prefetchLink).
+  if (pathname === '/') return [];
   // After signing in comes «Сегодня».
   if (pathname === '/login') return [loadRegister, loadLayout, SECTIONS[0]];
   // A new account opens the guide over «Сегодня» first (the mandatory first run).
   if (pathname === '/register') return [loadLogin, loadLayout, SECTIONS[0], () => guideClipPart.load()];
   if (pathname.startsWith('/try')) return [...trySteps, () => confirmDialogPart.load(), loadRegister, loadLogin];
   return [];
+}
+
+/** The screens a link on the landing leads to, by the link's path (a public test's /k/<код> is one screen). */
+const BY_LINK = {
+  '/login': loadLogin,
+  '/register': loadRegister,
+  '/try': loadTry,
+  '/k': () => import('../pages/quiz/QuizTakePage'),
+} satisfies Record<string, Loader>;
+export type LinkScreen = keyof typeof BY_LINK;
+
+/** Which of those screens a link's address opens, or null. */
+export function screenOfLink(href: string): LinkScreen | null {
+  const path = href.startsWith('/k/') ? '/k' : href.split(/[?#]/)[0];
+  return path in BY_LINK ? (path as LinkScreen) : null;
+}
+
+const linked = new Set<LinkScreen>();
+
+/**
+ * Fetches the screen a link leads to, once, when the visitor shows the intent to open it (a pointer over the link, a
+ * touch, keyboard focus): a few hundred milliseconds ahead of the click, and nothing at idle. On a phone the landing's
+ * reel and the small studio take all the processor has; the files of Login, Register and /try, with the stylesheets
+ * that make the browser restyle the whole page, came in the middle of them (phone measurements 2026-10-19 and -20).
+ */
+export function prefetchLink(href: string): void {
+  if (typeof window === 'undefined' || !mayFetchAhead()) return;
+  const screen = screenOfLink(href);
+  if (!screen || linked.has(screen)) return;
+  linked.add(screen);
+  void BY_LINK[screen]().catch(() => linked.delete(screen));
 }
 
 interface NetworkInformationLike {
@@ -208,41 +241,9 @@ function mayFetchAhead(): boolean {
 }
 
 /**
- * A guest on the landing with a phone, or on a connection slower than 4G: the next screens wait for the visitor to
- * reach for a button or a link (fetchOnIntent) instead of the first idle moment. The landing's reel and animations take
- * all a phone's processor has, and the files of Login, Register and /try — their scripts and the stylesheets they bring,
- * which make the browser restyle the whole page — came in the middle of them (phone measurement 2026-10-19). A screen
- * opened before they are fetched loads when it is opened, as any screen missing from the lists.
- */
-export function waitsForIntent(pathname: string, signedIn: boolean, phone: boolean, effectiveType: string | undefined): boolean {
-  if (signedIn || pathname !== '/') return false;
-  return phone || (effectiveType !== undefined && effectiveType !== '4g');
-}
-
-const isPhone = () => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
-const connectionType = () => (navigator as Navigator & { connection?: NetworkInformationLike }).connection?.effectiveType;
-
-const INTENT_EVENTS = ['pointerdown', 'keydown', 'focusin'] as const;
-
-/** Runs `run` once, the first time the visitor presses or focuses a button or a link. Returns the cancel. */
-export function fetchOnIntent(run: () => void): () => void {
-  const stop = () => {
-    for (const type of INTENT_EVENTS) window.removeEventListener(type, onIntent, true);
-  };
-  function onIntent(event: Event) {
-    const target = event.target as Element | null;
-    if (!target || typeof target.closest !== 'function' || !target.closest('a[href], button')) return;
-    stop();
-    run();
-  }
-  for (const type of INTENT_EVENTS) window.addEventListener(type, onIntent, { capture: true, passive: true });
-  return stop;
-}
-
-/**
  * Once the first screen is idle, fetches the likely next screens one at a time (so a screen the
- * visitor opens meanwhile does not wait behind a crowd); on a phone's landing, once the visitor
- * reaches for a control (waitsForIntent). Returns the cancel.
+ * visitor opens meanwhile does not wait behind a crowd). The landing has none: its links fetch their
+ * screen on the visitor's intent (prefetchLink). Returns the cancel.
  */
 export function prefetchLikelyNext(pathname: string, signedIn: boolean): () => void {
   if (typeof window === 'undefined' || !mayFetchAhead()) return () => undefined;
@@ -257,7 +258,7 @@ export function prefetchLikelyNext(pathname: string, signedIn: boolean): () => v
       }
     })();
   };
-  const cancel = waitsForIntent(pathname, signedIn, isPhone(), connectionType()) ? fetchOnIntent(fetchAll) : whenIdleAfterLoad(fetchAll);
+  const cancel = whenIdleAfterLoad(fetchAll);
   return () => {
     stopped = true;
     cancel();

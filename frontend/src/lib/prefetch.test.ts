@@ -30,7 +30,7 @@ vi.mock('../pages/container/StudyPage', page('StudyPage'));
 vi.mock('../pages/ExamDetail', page('ExamDetail'));
 vi.mock('../pages/ExamEditor', page('ExamEditor'));
 
-import { fetchOnIntent, preloadSignedInScreen, signedInPageOf, waitsForIntent } from './prefetch';
+import { preloadSignedInScreen, screenOfLink, signedInPageOf } from './prefetch';
 
 describe('the page fetched with the shell', () => {
   it('the exam container’s pages come before the oral exam’s /exams/:id', () => {
@@ -82,47 +82,18 @@ describe('the page fetched with the shell', () => {
   });
 });
 
-describe('the landing on a phone fetches the next screens when the visitor reaches for them', () => {
-  it('waits on a guest’s landing with a phone or a connection slower than 4G, nowhere else', () => {
-    expect(waitsForIntent('/', false, true, '4g')).toBe(true);
-    expect(waitsForIntent('/', false, false, '3g')).toBe(true);
-    expect(waitsForIntent('/', false, false, '4g')).toBe(false);
-    // A desktop browser that does not say what its connection is (Safari, Firefox): as before, at the first idle time.
-    expect(waitsForIntent('/', false, false, undefined)).toBe(false);
-    expect(waitsForIntent('/', true, true, '3g')).toBe(false);
-    expect(waitsForIntent('/try', false, true, '3g')).toBe(false);
-    expect(waitsForIntent('/login', false, true, undefined)).toBe(false);
+describe('the landing fetches a screen when the visitor reaches for its link', () => {
+  it('knows the screens its links open, a public test by its /k/ address', () => {
+    expect(screenOfLink('/try')).toBe('/try');
+    expect(screenOfLink('/login')).toBe('/login');
+    expect(screenOfLink('/register?next=%2Fdashboard')).toBe('/register');
+    expect(screenOfLink('/k/kb0dxmwb21fb')).toBe('/k');
+    expect(screenOfLink('/#builder')).toBeNull();
+    expect(screenOfLink('/dashboard')).toBeNull();
   });
 
-  it('fetches once, on the first press of a button or a link, not on a press elsewhere or a scroll', () => {
-    const run = vi.fn();
-    const stop = fetchOnIntent(run);
-    const button = document.createElement('button');
-    const text = document.createElement('p');
-    document.body.append(button, text);
-    text.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-    window.dispatchEvent(new Event('scroll'));
-    expect(run).not.toHaveBeenCalled();
-    button.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-    button.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-    expect(run).toHaveBeenCalledTimes(1);
-    stop();
-    button.remove();
-    text.remove();
-  });
-
-  it('a link reached from the keyboard counts; a cancelled wait fetches nothing', () => {
-    const run = vi.fn();
-    const link = document.createElement('a');
-    link.href = '/try';
-    document.body.append(link);
-    const stop = fetchOnIntent(run);
-    stop();
-    link.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-    expect(run).not.toHaveBeenCalled();
-    fetchOnIntent(run);
-    link.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-    expect(run).toHaveBeenCalledTimes(1);
-    link.remove();
+  it('fetches nothing at idle on the landing: the reel and the studio keep the phone to themselves', () => {
+    // likelyNext('/') is empty, so prefetchLikelyNext returns at once there (the screens come with prefetchLink).
+    expect(prefetchSource).toMatch(/if \(pathname === '\/'\) return \[\];/);
   });
 });

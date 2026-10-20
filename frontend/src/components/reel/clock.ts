@@ -1,4 +1,4 @@
-import { TOTAL, clamp } from './timeline';
+import { clamp } from './timeline';
 
 export type FrameListener = (t: number) => void;
 
@@ -28,7 +28,7 @@ export class ReelClock {
   private readonly watchers = new Set<() => void>();
 
   constructor(
-    readonly total: number = TOTAL,
+    readonly total: number,
     private readonly scheduler: Scheduler = browserScheduler,
   ) {}
 

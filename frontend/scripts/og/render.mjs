@@ -2,7 +2,7 @@
 /**
  * Renders the pictures a newcomer meets before signing in, from sources kept in the repository:
  *
- *   og.html               → public/og-image-3.jpg          the link preview (og:image), 1200 × 630, JPEG
+ *   og.html               → public/og-image-4.jpg          the link preview (og:image), 1200 × 630, JPEG
  *   public/pwa-512x512.svg → public/pwa-192x192.png         icon, 192 × 192
  *                          → public/pwa-512x512.png         icon, 512 × 512
  *                          → public/pwa-maskable-512x512.png  maskable icon: full-bleed blue, the mark
@@ -34,7 +34,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const OG_MAX_BYTES = 95 * 1024;
 const publicDir = resolve(here, '../../public');
 /** The preview's file in public/; a new look takes a new name (see above). */
-const OG_FILE = 'og-image-3.jpg';
+const OG_FILE = 'og-image-4.jpg';
 
 async function loadPlaywright() {
   try {

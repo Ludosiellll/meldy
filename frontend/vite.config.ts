@@ -39,9 +39,9 @@ export default defineConfig({
       // and come first, so a platform that picks by size takes them; the SVGs stay (the service worker
       // shows /pwa-192x192.svg on notifications, and manifest icons are precached).
       manifest: {
-        name: 'Meldy — тренажёр экзамена',
+        name: 'Meldy — подготовка к экзамену и конструктор тестов',
         short_name: 'Meldy',
-        description: 'Тренажёр экзамена по вопросам вашей кафедры. Загрузите вопросы к экзамену: Meldy разложит их по дням до экзамена, а устные задаст вслух и сверит ответ с вашими лекциями.',
+        description: 'Из лекции Meldy делает конспект и тест, вопросы кафедры раскладывает по дням до экзамена. Свой тест собирается из блоков и уходит по ссылке.',
         lang: 'ru',
         theme_color: '#f3f3f0',
         background_color: '#f3f3f0',

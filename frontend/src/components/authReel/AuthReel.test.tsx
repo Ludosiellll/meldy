@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { HEADLINE } from '../../pages/Landing';
+import { FACE } from '../../pages/Landing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabase', () => ({
@@ -83,7 +83,7 @@ describe('the story the reels tell (the exam for the whole preparation)', () => 
   });
 
   it('signs off with what Meldy is, in the landing\'s words', () => {
-    expect(READY_TAG).toBe(HEADLINE);
+    expect(READY_TAG).toBe(FACE);
   });
 
   it('says nothing of the old story: no paper sheet, summary, cards, tests, grades or stamps', () => {

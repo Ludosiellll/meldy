@@ -3,21 +3,22 @@ import indexHtml from '../../index.html?raw';
 import viteConfigSource from '../../vite.config.ts?raw';
 import readme from '../../../README.md?raw';
 import readmeHf from '../../../README_HF.md?raw';
-import ogImage from '../../public/og-image-3.jpg?inline';
+import ogImage from '../../public/og-image-4.jpg?inline';
 import icon192 from '../../public/pwa-192x192.png?inline';
 import icon512 from '../../public/pwa-512x512.png?inline';
 import iconMaskable from '../../public/pwa-maskable-512x512.png?inline';
 import appleTouchIcon from '../../public/apple-touch-icon.png?inline';
-import { HEADLINE, LEAD } from '../pages/Landing';
+import { HEADLINE, LEAD, SAMPLE_TEST_URL, SITE_TITLE_V3 } from '../pages/Landing';
+import { SITE_TITLE } from '../lib/useDocumentTitle';
 
 /**
  * One face on every entry: the page title, the link preview, the manifest and the README say what
  * the landing says (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07, «Одно лицо на всех входах»).
  */
-const TITLE = 'Meldy — тренажёр экзамена по вопросам вашей кафедры';
-const PROMISE = 'Загрузите вопросы к экзамену: Meldy разложит их по дням до экзамена, а устные задаст вслух и сверит ответ с вашими лекциями';
+const TITLE = 'Meldy — подготовка к экзамену и конструктор тестов';
 const SITE = 'https://ludosiel-studyforge.hf.space/';
-const OLD = /Конспекты, карточки и тесты|помощник для учёбы|засчит|ИИ не отвечает/i;
+/** Older faces: the 2026-10 «тренажёр» and its promise, and the tagline before it. */
+const OLD = /Конспекты, карточки и тесты|помощник для учёбы|засчит|тренажёр экзамена|ИИ не отвечает/i;
 
 /** The public PNGs, inlined by Vite as data: URLs (their bytes, base64). */
 const PNG: Record<string, string> = {
@@ -69,13 +70,12 @@ function meta(attribute: 'name' | 'property', key: string): string | null {
 }
 
 describe('index.html', () => {
-  it('names the page by the promise and describes it the same way for search and link previews', () => {
+  it('names the page as the landing does and describes it the same way for search and link previews', () => {
     expect(indexHtml).toContain(`<title>${TITLE}</title>`);
-    expect(TITLE).toBe(`Meldy — ${HEADLINE.charAt(0).toLowerCase()}${HEADLINE.slice(1)}`);
+    expect(TITLE).toBe(SITE_TITLE_V3);
+    expect(SITE_TITLE).toBe(TITLE);
     const description = meta('name', 'description');
-    expect(description).toBe(`${PROMISE}.`);
-    // The landing's lead says the same, with what one uploads and the test by a link around it.
-    expect(LEAD).toContain(PROMISE.slice(PROMISE.indexOf('Meldy')));
+    for (const words of ['конспект', 'вопросы кафедры', 'Свой тест']) expect(description).toContain(words);
     expect(description!.length).toBeLessThanOrEqual(160);
     expect(meta('property', 'og:title')).toBe(TITLE);
     expect(meta('property', 'og:description')).toBe(description);
@@ -87,11 +87,11 @@ describe('index.html', () => {
     expect(meta('property', 'og:site_name')).toBe('Meldy');
     expect(meta('property', 'og:locale')).toBe('ru_RU');
     expect(meta('property', 'og:url')).toBe(SITE);
-    expect(meta('property', 'og:image')).toBe(`${SITE}og-image-3.jpg`);
+    expect(meta('property', 'og:image')).toBe(`${SITE}og-image-4.jpg`);
     expect(meta('property', 'og:image:type')).toBe('image/jpeg');
     expect(meta('property', 'og:image:width')).toBe('1200');
     expect(meta('property', 'og:image:height')).toBe('630');
-    expect(meta('property', 'og:image:alt')).toBeTruthy();
+    expect(meta('property', 'og:image:alt')).toContain(HEADLINE);
     expect(meta('name', 'twitter:card')).toBe('summary_large_image');
     expect(jpegSize(ogBytes())).toEqual([1200, 630]);
     // Under the Space's 100 KB limit for binary files pushed without Xet (release 29 was refused at 143 KB).
@@ -108,10 +108,10 @@ describe('index.html', () => {
 });
 
 describe('the PWA manifest (vite.config.ts)', () => {
-  it('says the promise and lists the PNG icons first, the maskable one among them', () => {
-    expect(viteConfigSource).toContain("name: 'Meldy — тренажёр экзамена'");
+  it('says the landing\'s title and lead and lists the PNG icons first, the maskable one among them', () => {
+    expect(viteConfigSource).toContain(`name: '${TITLE}'`);
     expect(viteConfigSource).toContain("short_name: 'Meldy'");
-    expect(viteConfigSource).toContain(`description: '${HEADLINE}. ${PROMISE}.'`);
+    expect(viteConfigSource).toContain(`description: '${LEAD}'`);
     expect(viteConfigSource).toContain("display: 'standalone'");
     expect(viteConfigSource).not.toMatch(OLD);
     const icons = [...viteConfigSource.matchAll(/src: '([^']+)',\s*sizes: '([^']+)',\s*type: '([^']+)'(?:,\s*purpose: '([^']+)')?/g)].map(([, src, sizes, type, purpose]) => ({
@@ -147,11 +147,11 @@ describe('README.md and README_HF.md (the Space card)', () => {
     expect(frontMatter).toMatch(/^title: .{1,30}$/m);
   });
 
-  it('describe Meldy by the promise, without the old tagline', () => {
+  it('describe Meldy as the landing does, without the old faces', () => {
     expect(readme).toContain(`# ${TITLE}`);
-    expect(readme).toContain(`${PROMISE}.`);
     expect(readme).toContain('Отметку ставит преподаватель.');
     expect(readme).toContain(`${SITE}try`);
+    expect(readme).toContain(`${SITE}${SAMPLE_TEST_URL.slice(1)}`);
     expect(readme).not.toMatch(OLD);
   });
 });

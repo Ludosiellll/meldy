@@ -53,10 +53,9 @@ function hueSat([r, g, b]: [number, number, number]): { hue: number; sat: number
 }
 
 describe('the sheet’s yellow in the dark theme (third live check: olive on the dark card)', () => {
-  it('every yellow of the sheet and of the landing’s example is opaque at night', async () => {
+  it('every yellow of the sheet is opaque at night', async () => {
     const sheet = await tokens('components/exams/sheet/sheet.css', '.dark .sf-page, .dark .cs-wrap, .dark .cs-mapbox');
-    const landing = await tokens('components/home/home.css', '.dark .hx, .dark .hs');
-    for (const [name, value] of [['--cs-half', sheet['--cs-half']], ['--cs-mark', sheet['--cs-mark']], ['--hs-yellow', landing['--hs-yellow']]]) {
+    for (const [name, value] of [['--cs-half', sheet['--cs-half']], ['--cs-mark', sheet['--cs-mark']]]) {
       expect(hex(value), `${name}: ${value}`).not.toBeNull();
     }
   });
@@ -78,7 +77,6 @@ describe('the sheet’s yellow in the dark theme (third live check: olive on the
     const sheet = await tokens('components/exams/sheet/sheet.css', '.sf-page, .cs-wrap, .cs-mapbox');
     expect(sheet['--cs-half']).toBe('#e9b13c');
     expect(sheet['--cs-mark']).toBe('rgba(244, 196, 91, .5)');
-    expect((await tokens('components/home/home.css', '.hx, .hs'))['--hs-yellow']).toBe('#e9b13c');
   });
 });
 

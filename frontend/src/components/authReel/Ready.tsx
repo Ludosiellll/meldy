@@ -7,8 +7,8 @@ import { opacity, put, useEls, useFrame } from '../reel/engine';
 import { STAGE_H, STAGE_W, clamp, ease, mix, seg } from '../reel/timeline';
 import { Statement, Wordmark, focusIn, slideIn } from '../film/kit';
 
-/** Under the wordmark: what Meldy is, in the words of the landing's headline. */
-export const READY_TAG = 'Тренажёр экзамена по вопросам вашей кафедры';
+/** Under the wordmark: what Meldy is, the landing's one face (landing v3, 2026-10-20). */
+export const READY_TAG = 'Подготовка к экзамену и конструктор тестов';
 
 /** How long the beat is (ms): the loop wraps at its end. */
 export const READY_LENGTH = 4400;

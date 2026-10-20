@@ -142,3 +142,25 @@
     // Без темы страница всё равно откроется: ThemeProvider применит её после загрузки.
   }
 })();
+
+/*
+ * Первый экран главной в index.html (#static-hero) рисуется до скриптов приложения — только на «/» и только без
+ * входа: иначе класс sh-off на <html> прячет его (на других адресах и у вошедшего, которого главная отправит в
+ * «Сегодня»). Вход виден по ключу сессии Supabase в localStorage (sb-…-auth-token); без доступа к хранилищу — прячем.
+ */
+(function () {
+  var root = document.documentElement;
+  try {
+    var signedIn = false;
+    for (var i = 0; i < window.localStorage.length; i++) {
+      var key = window.localStorage.key(i);
+      if (key && /^sb-.+-auth-token$/.test(key)) {
+        signedIn = true;
+        break;
+      }
+    }
+    if (window.location.pathname !== '/' || signedIn) root.classList.add('sh-off');
+  } catch (e) {
+    root.classList.add('sh-off');
+  }
+})();

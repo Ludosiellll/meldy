@@ -1,0 +1,543 @@
+/* The small studio on the landing: a light picture of the studio in both themes, as the app draws it. */
+.ms {
+  --ms-acc: #2869dd;
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 32px;
+  background: #ecece6;
+  color: #0b121c;
+  font-size: 14px;
+}
+@media (min-width: 1040px) {
+  .ms {
+    grid-template-columns: 168px minmax(0, 1fr) 300px;
+    align-items: start;
+    padding: 20px;
+  }
+}
+.ms button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ms .st-ico {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: #4b515b;
+}
+
+/* the palette */
+.ms-pal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 20px;
+  background: #fff;
+}
+.ms-pal-h {
+  width: 100%;
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ms-pal-i {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #f7f7f3;
+  font-size: 13.5px;
+}
+.ms-pal-i:hover,
+.ms-pal-i:focus-visible {
+  background: #e8effc;
+}
+.ms-pal-hint {
+  width: 100%;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #4b515b;
+}
+@media (min-width: 1040px) {
+  .ms-pal {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+  .ms-pal-i {
+    width: 100%;
+  }
+}
+
+/* the look and the page */
+.ms-work {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.ms-look {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: #fff;
+}
+.ms-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.ms-choice-l {
+  margin-right: 4px;
+  font-size: 12px;
+  color: #4b515b;
+}
+.ms-choice button {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #f3f3f0;
+  font-size: 12.5px;
+}
+.ms-choice button.is-on {
+  background: #0b121c;
+  color: #fff;
+}
+.ms-choice button:has(.ms-sw) {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+  background: transparent;
+}
+.ms-sw {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.ms-choice button.is-on .ms-sw {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0b121c;
+}
+.ms-canvas {
+  min-height: 420px;
+  padding: 16px;
+  border-radius: 22px;
+  background: #f3f3f0;
+}
+.ms[data-bg='soft'] .ms-canvas {
+  background: color-mix(in srgb, var(--ms-acc) 12%, #f7f7f3);
+}
+.ms[data-bg='image'] .ms-canvas {
+  background: #f6efe0 center / cover;
+}
+.ms-page {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.ms-cover,
+.ms-blk {
+  position: relative;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #e3e3dd;
+}
+.ms-cover {
+  overflow: hidden;
+}
+.ms-cover img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 2;
+  object-fit: cover;
+}
+.ms-cover-t {
+  margin: 0;
+  padding: 12px 14px 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: color-mix(in srgb, var(--ms-acc) 60%, #0b121c);
+}
+.ms-cover-s {
+  margin: 0;
+  padding: 2px 14px 12px;
+  font-size: 12.5px;
+  color: #4b515b;
+}
+.ms-blk {
+  padding: 12px 14px;
+  cursor: grab;
+  animation: ms-in 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ms-blk.is-sel {
+  box-shadow: 0 0 0 2px var(--ms-acc);
+}
+.ms-blk.is-drop-before::before,
+.ms-blk.is-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: #2869dd;
+}
+.ms-blk.is-drop-before::before {
+  top: -6px;
+}
+.ms-blk.is-drop-after::after {
+  bottom: -6px;
+}
+@keyframes ms-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+.ms[data-font='serif'] .ms-cover-t,
+.ms[data-font='serif'] .ms-b-h,
+.ms[data-font='serif'] .ms-t-h,
+.ms[data-font='serif'] .ms-t-cover p {
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: 0;
+}
+.ms-b-h {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ms-b-p {
+  margin: 0;
+  font-size: 14px;
+  color: #3a404a;
+}
+.ms-b-img {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+}
+.ms-b-no {
+  margin: 0;
+  font-size: 11.5px;
+  color: #8a8f97;
+}
+.ms-b-no em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--ms-acc);
+}
+.ms-b-stem {
+  margin: 4px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ms-b-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px #ececE6;
+  font-size: 13px;
+}
+.ms-b-opt i {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #b9bcc2;
+}
+.ms-b-opt.is-key {
+  box-shadow: inset 0 0 0 1.5px var(--ms-acc);
+}
+.ms-b-opt em {
+  margin-left: auto;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--ms-acc);
+}
+.ms-tools {
+  position: absolute;
+  right: 8px;
+  top: -20px;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #0b121c;
+}
+.ms-tools button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+}
+.ms-tools button:hover,
+.ms-tools button:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+}
+.ms-finish {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--ms-acc);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+.ms-video {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  background: #14171c;
+  color: #fff;
+}
+.ms-video i {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0b121c;
+}
+.ms-video svg {
+  width: 20px;
+  height: 20px;
+}
+.ms-video small {
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  font-size: 11px;
+  color: #d0d4da;
+}
+.ms-said {
+  min-height: 1.4em;
+  margin: 0;
+  font-size: 13px;
+  color: #4b515b;
+}
+
+/* the participant's phone */
+.ms-take {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+.ms-take-h {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ms-phone {
+  width: min(100%, 300px);
+  height: 560px;
+  padding: 9px;
+  border-radius: 40px;
+  background: #0b121c;
+}
+.ms-phone-in {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 32px;
+  background: #f3f3f0;
+}
+.ms[data-bg='soft'] .ms-phone-in {
+  background: color-mix(in srgb, var(--ms-acc) 12%, #f7f7f3);
+}
+.ms-bg {
+  position: absolute;
+  inset: 0;
+}
+.ms-bg img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ms-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 18, 28, 0.1);
+}
+.ms-t-page {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px 10px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ms-t-card {
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+}
+.ms-t-cover {
+  overflow: hidden;
+  padding: 0;
+}
+.ms-t-cover img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 2;
+  object-fit: cover;
+}
+.ms-t-cover p {
+  margin: 0;
+  padding: 10px 12px 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ms-t-h {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.ms-t-p,
+.ms-t-cap {
+  margin: 0;
+  font-size: 13px;
+  color: #3a404a;
+}
+.ms-t-cap {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.ms-t-img {
+  margin: 0;
+}
+.ms-t-img img {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+}
+.ms-t-img figcaption {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #4b515b;
+}
+.ms-t-q {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ms-t-q legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ms-t-opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px #e3e3dd;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ms-t-opt input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ms-t-opt i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #b9bcc2;
+}
+.ms-t-opt.is-on {
+  box-shadow: inset 0 0 0 2px var(--ms-acc);
+}
+.ms-t-opt.is-on i {
+  background: var(--ms-acc);
+  box-shadow: inset 0 0 0 3px #fff, 0 0 0 1.5px var(--ms-acc);
+}
+.ms-t-opt:has(input:focus-visible) {
+  outline: 2px solid var(--ms-acc);
+  outline-offset: 2px;
+}
+.ms-t-finish,
+.ms-t-again {
+  justify-self: start;
+  height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ms-acc);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+.ms-t-finish:disabled {
+  opacity: 0.5;
+}
+.ms-t-result {
+  display: grid;
+  gap: 4px;
+}
+.ms-t-meta {
+  margin: 0;
+  font-size: 12.5px;
+  color: #4b515b;
+}
+.ms-t-score {
+  margin: 4px 0 0;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+.ms-t-band {
+  margin: 8px 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ms-acc);
+}
+.ms-bands {
+  max-width: 300px;
+  margin: 0;
+  font-size: 12px;
+  color: #4b515b;
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ms-blk {
+    animation: none;
+  }
+}

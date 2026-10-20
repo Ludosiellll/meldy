@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 /** The site's own title (index.html): what a page without a name of its own shows. */
-export const SITE_TITLE = 'Meldy — тренажёр экзамена по вопросам вашей кафедры';
+export const SITE_TITLE = 'Meldy — подготовка к экзамену и конструктор тестов';
 
 /** «Вход — Meldy». An empty name keeps the site's title. */
 export function pageTitle(name: string | null | undefined): string {

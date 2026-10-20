@@ -73,7 +73,7 @@ export const SHEET_BEFORE: ReadonlyArray<{ number: number; states: readonly Shee
 
 /**
  * The note under a line that came back (the exam page's copy.lineNote for «returned», without its dates), with a plain
- * space before «·» as the landing reel's own note has it (components/reel/content.ts; sheetChapters.test ties them).
+ * space before «·».
  */
 export const CAME_BACK = 'была стёрта · пункт не назван';
 /** The note under a point named only after the examiner's question (the cheat sheet's own words). */

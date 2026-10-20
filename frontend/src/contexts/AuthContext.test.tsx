@@ -171,3 +171,60 @@ describe('AuthProvider: offline at the start', () => {
     expect(screen.getByText('loading')).toBeTruthy();
   });
 });
+
+describe('AuthProvider: a guest on the landing', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+    client.getSession.mockResolvedValue({ data: { session: null } });
+  });
+
+  function Ask() {
+    const { requestSession } = useAuth();
+    return (
+      <button type="button" onClick={() => requestSession?.()}>
+        ask
+      </button>
+    );
+  }
+
+  it('never fetches the client while the guest stays on the landing, even when the page is idle', async () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <AuthProvider>
+          <Who />
+        </AuthProvider>,
+      );
+      await act(async () => {
+        window.dispatchEvent(new Event('load'));
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(client.getSession).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reads the session when asked (leaving the landing) or when a session appears from another tab', async () => {
+    render(
+      <AuthProvider>
+        <Who />
+        <Ask />
+      </AuthProvider>,
+    );
+    await act(async () => {
+      screen.getByText('ask').click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(client.getSession).toHaveBeenCalledTimes(1);
+    cleanup();
+    client.getSession.mockClear();
+    await mount();
+    window.localStorage.setItem(KEY, JSON.stringify(stored));
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent('storage', { key: KEY }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(client.getSession).toHaveBeenCalledTimes(1);
+  });
+});

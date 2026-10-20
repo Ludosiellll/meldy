@@ -55,6 +55,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (wanted) return undefined;
+    // The landing with nothing kept here: there is no session to read, so the client's file (57 KB on a phone, more
+    // than the landing's own) is not fetched for it. Leaving the landing asks for the session (components/home3/
+    // Landing3), and so does a session that appears here from another tab.
+    if (window.location.pathname === '/') {
+      const onStorage = () => {
+        if (hasStoredSession()) setWanted(true);
+      };
+      window.addEventListener('storage', onStorage);
+      return () => window.removeEventListener('storage', onStorage);
+    }
     return whenIdleAfterLoad(() => setWanted(true));
   }, [wanted]);
 

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { EXAMPLE_QUESTIONS } from '../../data/example';
+import { Q7, SHEET_BEFORE } from '../../data/sheetExample';
 import { changeSentence, lineNote } from '../exams/sheet/copy';
 import { changeSummary, type LineChange, type LineStatus } from '../../lib/exams/cheatSheet';
 import { CHANGE_MS, LOOK, leftAt, lineAt, statesAt } from '../film/listLine';
-import { HERO_SHEET } from '../home/HeroSheet';
 import { AFTER_QUESTION, ANSWER_CHANGE, MARKED, ORAL_AT, ORAL_CAPTION, ORAL_LINES, PICK, Q7_LINES, Q7_TEXT, SHEET_IN, mapLines, q7 } from './StoryScenes';
 import { LOGIN_SCRIPT, REGISTER_SCRIPT, leaveOf } from './script';
 
@@ -16,9 +16,8 @@ describe('the oral example of the sign-in reels', () => {
     expect(q7(null).map((line) => line.essential)).toEqual(example(7).points.map((point) => point.essential));
   });
 
-  it('uses the lines of the landing\'s own sheet', () => {
-    const hero = HERO_SHEET.find((question) => question.number === 7)!;
-    expect(hero.lines.map((line) => line.text)).toEqual([...Q7_LINES]);
+  it('uses the lines of the example sheet', () => {
+    expect(Q7.lines.map((line) => line.text)).toEqual([...Q7_LINES]);
   });
 });
 
@@ -69,9 +68,8 @@ describe('the answer on the sheet', () => {
     expect(all).toHaveLength(EXAMPLE_QUESTIONS.reduce((sum, question) => sum + question.points.length, 0));
     expect(map.map((lines) => lines.length)).toEqual(EXAMPLE_QUESTIONS.filter((question) => question.points.length > 0).map((question) => question.points.length));
     expect(leftAt(all, ORAL_AT - 1) - leftAt(all, ORAL_AT + 1000)).toBe(1);
-    // The same states as the landing's sheet before its answer.
-    const hero = HERO_SHEET.find((question) => question.number === 6)!;
-    expect(map[5].map((line) => line.from)).toEqual(hero.lines.map((line) => line.before));
+    // The same states as the example sheet before its answer.
+    expect(map[5].map((line) => line.from)).toEqual(SHEET_BEFORE.find((question) => question.number === 6)!.states);
   });
 
   it('plays inside its beat in both reels: the sheet comes forward after the voice, the answer before the beat leaves', () => {

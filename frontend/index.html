@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Meldy — тренажёр экзамена по вопросам вашей кафедры</title>
-    <meta name="description" content="Загрузите вопросы к экзамену: Meldy разложит их по дням до экзамена, а устные задаст вслух и сверит ответ с вашими лекциями.">
+    <title>Meldy — подготовка к экзамену и конструктор тестов</title>
+    <meta name="description" content="Meldy делает из лекции конспект и тест, раскладывает вопросы кафедры по дням до экзамена и принимает билет вслух. Свой тест собирается из блоков.">
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f0" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0f16" />
     <script src="/theme-init.js"></script>
@@ -12,25 +12,63 @@
     <meta property="og:site_name" content="Meldy" />
     <meta property="og:locale" content="ru_RU" />
     <meta property="og:url" content="https://ludosiel-studyforge.hf.space/" />
-    <meta property="og:title" content="Meldy — тренажёр экзамена по вопросам вашей кафедры" />
-    <meta property="og:description" content="Загрузите вопросы к экзамену: Meldy разложит их по дням до экзамена, а устные задаст вслух и сверит ответ с вашими лекциями." />
-    <meta property="og:image" content="https://ludosiel-studyforge.hf.space/og-image-3.jpg" />
+    <meta property="og:title" content="Meldy — подготовка к экзамену и конструктор тестов" />
+    <meta property="og:description" content="Meldy делает из лекции конспект и тест, раскладывает вопросы кафедры по дням до экзамена и принимает билет вслух. Свой тест собирается из блоков." />
+    <meta property="og:image" content="https://ludosiel-studyforge.hf.space/og-image-4.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Тренажёр экзамена по вопросам вашей кафедры. Рядом шпаргалка: из 47 строк осталось 38, стёртые ответами строки зачёркнуты, названные один раз отмечены жёлтым." />
+    <meta property="og:image:alt" content="Готовьтесь к экзамену и собирайте свои тесты. Рядом телефон с тестом «Эластичность спроса» из конструктора Meldy: вопрос 1 из 5 и выбранный ответ." />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/pwa-192x192.svg" type="image/svg+xml" />
     <link rel="icon" href="/pwa-192x192.png" sizes="192x192" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <meta name="apple-mobile-web-app-title" content="Meldy" />
+    <style id="hero3-css">
+/* The first screen of the landing v3. index.html carries this file inline (the static hero paints before any JS;
+   hero3.test.ts keeps the two the same), so it stands on its own: its own colours for both themes, no app tokens. */
+.h3{--h3-canvas:#f3f3f0;--h3-surface:#fff;--h3-ink:#0b121c;--h3-muted:#4b515b;--h3-line:#e3e3dd;--h3-blue:#2869dd;--h3-blue-d:#1c4db1;--h3-yellow:#f4c45b;min-height:100vh;overflow-x:clip;background:var(--h3-canvas);color:var(--h3-ink);font-family:'Onest Variable','Onest Fallback',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
+.dark .h3{--h3-canvas:#0b0f16;--h3-surface:#141a24;--h3-ink:#f3f3f0;--h3-muted:#a7adb7;--h3-line:#262e3b}
+.h3 *,.h3 *::before,.h3 *::after{box-sizing:border-box}
+.h3-wrap{width:100%;max-width:1360px;margin:0 auto;padding:0 clamp(16px,4vw,40px)}
+.h3-nav{position:sticky;top:0;z-index:30;background:var(--h3-canvas)}
+.h3-nav-in{display:flex;align-items:center;gap:24px;height:68px}
+.h3-logo{display:inline-flex;align-items:baseline;padding:8px 0;color:var(--h3-ink);font-size:28px;font-weight:600;letter-spacing:-.045em;line-height:1;text-decoration:none}
+.h3-logo::after{content:'';display:inline-block;width:.3em;height:.3em;margin-left:.08em;border-radius:50%;background:var(--h3-yellow)}
+.h3-links{display:flex;gap:4px;margin-left:12px}
+.h3-links a{padding:8px 12px;border-radius:999px;color:var(--h3-ink);font-size:15px;font-weight:500;text-decoration:none}
+.h3-links a:hover{background:var(--h3-surface)}
+.h3-end{display:flex;gap:8px;margin-left:auto}
+.h3-pill{display:inline-flex;align-items:center;justify-content:space-between;gap:14px;min-height:56px;padding:8px 9px 8px 24px;border:0;border-radius:999px;font-family:inherit;font-size:17px;font-weight:500;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer}
+.h3-pill i{display:grid;flex:none;place-items:center;width:40px;height:40px;border-radius:50%}
+.h3-pill svg{width:19px;height:19px}
+.h3-pill--blue{background:var(--h3-blue);color:#fff}
+.h3-pill--blue i{background:var(--h3-blue-d)}
+.h3-pill--white{background:var(--h3-surface);color:var(--h3-ink);box-shadow:inset 0 0 0 1px var(--h3-line)}
+.h3-pill--white i{background:var(--h3-ink);color:var(--h3-canvas)}
+.h3-pill--sm{min-height:42px;padding:0 18px;font-size:15px}
+.h3-hero{display:grid;gap:28px;padding-top:12px;padding-bottom:28px}
+.h3-h1{margin:0;font-size:clamp(36px,4.4vw,64px);font-weight:500;letter-spacing:-.035em;line-height:1.04;text-wrap:balance}
+.h3-lead{max-width:640px;margin:18px 0 0;color:var(--h3-muted);font-size:clamp(16px,1.35vw,19px);line-height:1.5}
+.h3-acts{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:26px}
+.h3-textlink{display:inline-flex;align-items:center;gap:8px;color:var(--h3-ink);font-size:16px;font-weight:500;text-decoration:none}
+.h3-textlink svg{width:17px;height:17px}
+.h3-reel-slot{min-width:0}
+.h3-reel-wait{width:100%;aspect-ratio:16/9;border-radius:28px;background:#fbfbf9;box-shadow:0 0 0 1px rgba(11,18,28,.07)}
+@media (min-width:1100px){.h3-hero{grid-template-columns:minmax(0,450px) minmax(0,1fr);align-items:start;gap:48px;padding-top:28px}.h3-h1{font-size:clamp(40px,3.7vw,56px)}.h3-acts{flex-direction:column;align-items:flex-start}}
+@media (max-width:860px){.h3-links{display:none}}
+@media (max-width:599px){.h3-nav-in{height:60px;gap:8px}.h3-logo{font-size:25px}.h3-end .h3-pill--sm{min-height:38px;padding:0 14px;font-size:14px}.h3-hero{gap:22px;padding-top:4px}.h3-acts{margin-top:20px}.h3-acts .h3-pill--blue{width:100%}.h3-reel-wait{aspect-ratio:4/5;border-radius:24px}}
+.sh-off #static-hero{display:none}
+html:not(.sh-off) #root>*{display:none}
+    </style>
   </head>
   <body class="bg-slate-50">
     <noscript>
       <p style="max-width: 36em; margin: 48px auto; padding: 0 16px; font: 18px/1.5 system-ui, sans-serif; color: #0b121c;">
-        Meldy — тренажёр экзамена по вопросам вашей кафедры. Чтобы открыть его, включите JavaScript в браузере.
+        Meldy — подготовка к экзамену и конструктор тестов. Чтобы открыть Meldy, включите JavaScript в браузере.
       </p>
     </noscript>
+    <div id="static-hero" class="h3"><header class="h3-nav"><nav class="h3-wrap h3-nav-in" aria-label="Главное меню"><a class="h3-logo" href="/" aria-label="Meldy, главная">Meldy</a><div class="h3-links"><a href="#lecture">Лекции</a><a href="#exam">Экзамены</a><a href="#builder">Конструктор тестов</a></div><div class="h3-end"><a class="h3-pill h3-pill--white h3-pill--sm" href="/login">Войти</a><a class="h3-pill h3-pill--blue h3-pill--sm" href="/register">Создать аккаунт</a></div></nav></header><main><section class="h3-wrap h3-hero" aria-labelledby="h3-title"><div class="h3-hero-text"><h1 id="h3-title" class="h3-h1">Готовьтесь к экзамену и собирайте свои тесты</h1><p class="h3-lead">Из лекции Meldy делает конспект и тест, вопросы кафедры раскладывает по дням до экзамена. Свой тест собирается из блоков и уходит по ссылке.</p><div class="h3-acts"><a class="h3-pill h3-pill--blue" href="/try">Попробовать на примере<i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></i></a><a class="h3-textlink" href="/k/kb0dxmwb21fb">Пройти тест без входа<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a></div></div><div class="h3-reel-slot"><div class="h3-reel-wait" aria-hidden="true"></div></div></section></main></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
