@@ -59,7 +59,7 @@ import { emptyState } from '../../lib/containers/rule';
 import { at, testItems } from '../../lib/containers/__fixtures__/scenarios';
 import { classOf, inputAt, newServer, record } from '../../lib/containers/__fixtures__/server';
 import { sqlStep } from '../../lib/containers/__fixtures__/sqlRule';
-import { saveSession } from '../../components/containers/sessionStore';
+import { loadSession, saveSession } from '../../components/containers/sessionStore';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
 import {
   CONTAINER,
@@ -1140,6 +1140,19 @@ describe('owner 2026-10-20: a reload keeps the session', () => {
     await waitFor(() => expect(sent()).toHaveLength(2));
     expect(new Set(sent().map((answer) => answer.client_event_id)).size).toBe(2);
     expect(sent().map((answer) => answer.item_id)).toEqual(['q-iso', 'q-multi']);
+  });
+
+  it('a new session with nothing answered leaves another one with answers kept («Продолжить» still finds it)', () => {
+    const kept = {
+      v: 1 as const, id: '0b6f3c2e-9a1d-4e7b-8c5a-2d4e6f8a0b1c', containerId: CONTAINER, day: '2026-10-10', subjectId: SUBJECT_DB,
+      kind: 'answer' as const, topic: null, only: null, queue: dbItems().map((entry) => ({ id: entry.id, retry: 0 as const })), pos: 2,
+      startedAt: Date.now() - 120_000, records: [],
+    };
+    saveSession('user-1', kept);
+    // The phone's back button onto the page of a session that is over: a new one starts there.
+    open(dataWith(dbItems().map((entry) => entry.id)), `?s=${SUBJECT_DB}&sid=ended-one`);
+    expect(counterText()).toContain('1 из 5');
+    expect(loadSession('user-1', CONTAINER)?.id).toBe(kept.id);
   });
 
   it('«Только ошибки» too', async () => {

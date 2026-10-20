@@ -24,7 +24,17 @@ import {
   type Figure,
   type StudyRecord,
 } from './model';
-import { clearSession, firstSessionDone, keysHintSeen, markFirstSessionDone, markKeysHintSeen, nameInAddress, saveSession } from './sessionStore';
+import {
+  clearSession,
+  firstSessionDone,
+  keysHintSeen,
+  loadSession,
+  markFirstSessionDone,
+  markKeysHintSeen,
+  nameInAddress,
+  resumable,
+  saveSession,
+} from './sessionStore';
 import type { SessionSetup } from './studySetup';
 import './room.css';
 
@@ -265,8 +275,10 @@ export default function StudyRun(props: StudyRunProps) {
 
   // The session starts (owner, 2026-10-20: a reload began again from question 1, with other questions): it is kept
   // before the first answer too, and the address names it, so a reload or a tab the phone brings back opens this one.
+  // Another session of today with answers stays kept until this one has an answer of its own («Продолжить» keeps it).
   useEffect(() => {
-    if (!setup.resumed) persist(setup.queue, setup.pos, setup.records);
+    const kept = !setup.resumed && userId ? loadSession(userId, containerId) : null;
+    if (!setup.resumed && !(kept && kept.id !== setup.id && resumable(kept, today))) persist(setup.queue, setup.pos, setup.records);
     nameInAddress(setup.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
