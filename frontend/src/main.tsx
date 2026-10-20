@@ -13,6 +13,10 @@ import { installTelemetry } from './lib/telemetry'
 import { bootMiniApp } from './lib/telegram/miniApp'
 import { AILimitDialogHost } from './hooks/useEnergyConfirm'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
+import { dropStaticHero } from './lib/staticHero'
+
+// The landing's static first screen (index.html) leaves the page when this visit does not show it (lib/staticHero).
+dropStaticHero()
 
 const queryClient = new QueryClient()
 installApiAuth()
