@@ -26,7 +26,11 @@ exception
   when others then
     get stacked diagnostics v_detail = pg_exception_detail;
     if sqlstate = 'P0001' and sqlerrm like 'FAILED:%' then raise; end if;
-    if sqlstate is distinct from p_state then
+    -- 20261020120000_quiz_protection: «not found» of the functions it rewrote is PostgREST's 404 with P0002 inside.
+    if sqlstate = 'PGRST' and p_state = 'P0002' and (sqlerrm::jsonb ->> 'code') = 'P0002'
+       and (v_detail::jsonb ->> 'status') = '404' then
+      v_detail := sqlerrm::jsonb ->> 'details';
+    elsif sqlstate is distinct from p_state then
       raise exception 'FAILED: % — SQLSTATE % (%), expected %', p_what, sqlstate, sqlerrm, p_state;
     end if;
     if p_detail is not null and v_detail is distinct from p_detail then
@@ -44,10 +48,13 @@ $fn$;
 -- the sorted key set of a JSON object (pins the contract's field names). Release 47.1 (20261019100000_test_docs.sql)
 -- adds «design» to QuizRow, the preview, the attempt and the result, «band», «score» and «max_score» to the result, and
 -- «score» / «max_score» to the attempt rows of quiz_results and the preview's results; test_docs_behaviour.sql pins those
--- shapes, so once it is applied the pins here leave those keys out (before it, they must not be there).
+-- shapes, so once it is applied the pins here leave those keys out (before it, they must not be there). The same for the
+-- fields of 20261020120000_quiz_protection.sql (protection, protection_limit, guard, guard_count, guard_events, flagged,
+-- taker_name), which quiz_protection_behaviour.sql pins.
 create or replace function pg_temp.keys(p jsonb) returns text language sql stable as $fn$
   select string_agg(k, ',' order by k) from jsonb_object_keys(p) k
    where not (k in ('design', 'band', 'score', 'max_score') and to_regclass('public.test_docs') is not null)
+     and not (k in ('protection', 'protection_limit', 'guard', 'guard_count', 'guard_events', 'flagged', 'taker_name') and to_regclass('public.quiz_events') is not null)
 $fn$;
 -- release 47 applied (its guest functions exist)
 create or replace function pg_temp.r47() returns boolean language sql stable as $fn$

@@ -254,7 +254,14 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
   // All the questions only where the right answers are shown anyway: a right answer of «mistakes» would give the key away.
   const canShowAll = showKey && numbered.length > wrong.length;
   const listed = canShowAll && showAll ? numbered : wrong;
-  const reason = result.finish_reason === 'time' ? RESULT.byTime : result.finish_reason === 'closed' ? RESULT.byClose : null;
+  const reason =
+    result.finish_reason === 'time'
+      ? RESULT.byTime
+      : result.finish_reason === 'closed'
+        ? RESULT.byClose
+        : result.finish_reason === 'protection'
+          ? RESULT.byGuard(result.guard?.count ?? 0)
+          : null;
 
   return (
     <AttemptPictures attemptId={result.attempt_id} token={token}>

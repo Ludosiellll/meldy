@@ -1,0 +1,88 @@
+/*
+ * «Защита от списывания» of the participant's page (GuardLayer.tsx, useGuard.ts). Only the existing tokens, both themes.
+ *
+ * The cover is in the page from the start and changes only its opacity (its own compositor layer: will-change, and
+ * contain: strict so its card never lays out the page): the frame after the page goes away already shows it. The
+ * question under it is hidden by html[data-qg-away] (visibility: no layout, and no text for an assistant that reads the
+ * screen). The strict level's watermark is one fixed layer, painted once, over the attempt and under the sheets.
+ */
+
+.qg-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 24px 16px;
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+  contain: strict;
+}
+.qg-cover[data-on] { opacity: 1; pointer-events: auto; }
+.qg-card {
+  box-sizing: border-box;
+  width: min(440px, 100%);
+  padding: 24px 22px;
+  border-radius: 18px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow, none);
+}
+.qg-msg { display: none; }
+.qg-cover[data-reason='away'] .qg-msg[data-for='away'],
+.qg-cover[data-reason='split'] .qg-msg[data-for='split'],
+.qg-cover[data-reason='fullscreen'] .qg-msg[data-for='fullscreen'] { display: block; }
+.qg-t { margin: 0 0 8px; font-size: 20px; line-height: 1.3; font-weight: 650; color: var(--sf-ink); text-wrap: balance; }
+.qg-x { margin: 0; font-size: 16px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.qg-back { margin-top: 18px; }
+
+/* The question is not on the page while it is away. */
+html[data-qg-away] :is(.qt-run, .qt-docmain) { visibility: hidden; }
+
+/* The strict level: the question's text cannot be selected, called out or dragged; the answer fields can. */
+html[data-qg='strict'] :is(.qt-run, .qt-docmain) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+html[data-qg='strict'] :is(.qt-run, .qt-docmain) :is(input, textarea, [contenteditable='true']) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+html[data-qg='strict'] :is(.qt-run, .qt-docmain) img { -webkit-user-drag: none; }
+/* Printing the page prints no question. */
+@media print {
+  html[data-qg] :is(.qt-run, .qt-docmain) { visibility: hidden; }
+}
+
+.qg-mark {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background: var(--sf-ink);
+  opacity: .07;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  -webkit-mask-size: 340px 190px;
+  mask-size: 340px 190px;
+  will-change: transform;
+  contain: strict;
+}
+.dark .qg-mark { opacity: .09; }
+
+/* The line under the clock. */
+.qg-lines { display: grid; gap: 4px; margin: 0 0 12px; }
+.qg-line { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.qg-line[data-strict] { color: var(--sf-ink); font-weight: 500; }
+.qt-docrun .qg-lines { margin: 0; }
+.qt-docrun .qg-line { color: var(--doc-on-bg, var(--sf-muted)); }
+.qt-docrun[data-bg='image'] .qg-line { padding: 8px 14px; border-radius: 999px; background: #fff; color: #0b121c; justify-self: start; }
+
+/* The rules before the start. */
+.qt-guard { margin: 0 0 14px; }
+.qt-guard-t { margin: 0 0 6px; font-size: 15px; line-height: 1.45; font-weight: 650; color: var(--sf-ink); }

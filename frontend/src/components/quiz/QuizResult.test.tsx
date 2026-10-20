@@ -128,6 +128,11 @@ describe('QuizResult: the score', () => {
     expect(page()).toContain('Время вышло — попытка закрылась сама.');
   });
 
+  it('says when «Защита от списывания» ended the attempt, with how many times the page was away', () => {
+    renderResult(result({ finish_reason: 'protection', guard: { level: 'strict', count: 3, limit: 3 } }));
+    expect(page()).toContain('Попытка завершилась сама: вы покидали страницу 3 раза. Ответы, данные до этого, засчитаны');
+  });
+
   it('«Закрыть» goes back', () => {
     renderResult(result());
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));

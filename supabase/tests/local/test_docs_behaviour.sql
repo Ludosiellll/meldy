@@ -30,7 +30,11 @@ exception
   when others then
     get stacked diagnostics v_detail = pg_exception_detail;
     if sqlstate = 'P0001' and sqlerrm like 'FAILED:%' then raise; end if;
-    if sqlstate is distinct from p_state then
+    -- 20261020120000_quiz_protection: «not found» of the functions it rewrote is PostgREST's 404 with P0002 inside.
+    if sqlstate = 'PGRST' and p_state = 'P0002' and (sqlerrm::jsonb ->> 'code') = 'P0002'
+       and (v_detail::jsonb ->> 'status') = '404' then
+      v_detail := sqlerrm::jsonb ->> 'details';
+    elsif sqlstate is distinct from p_state then
       raise exception 'FAILED: % — SQLSTATE % (%), expected %', p_what, sqlstate, sqlerrm, p_state;
     end if;
     if p_detail is not null and v_detail is distinct from p_detail then
@@ -45,9 +49,11 @@ $fn$;
 create or replace function pg_temp.put(p_k text, p_v text) returns void language sql as $fn$
   insert into pg_temp.ctx values (p_k, p_v) on conflict (k) do update set v = excluded.v
 $fn$;
--- the sorted key set of a JSON object (pins the contract's field names)
-create or replace function pg_temp.keys(p jsonb) returns text language sql immutable as $fn$
+-- the sorted key set of a JSON object (pins the contract's field names); the fields of
+-- 20261020120000_quiz_protection.sql are left out once it is applied (quiz_protection_behaviour.sql pins them)
+create or replace function pg_temp.keys(p jsonb) returns text language sql stable as $fn$
   select string_agg(k, ',' order by k) from jsonb_object_keys(p) k
+   where not (k in ('protection', 'protection_limit', 'guard', 'guard_count', 'guard_events', 'flagged', 'taker_name') and to_regclass('public.quiz_events') is not null)
 $fn$;
 create or replace function pg_temp.find(p_list jsonb, p_key text, p_val text) returns jsonb language sql immutable as $fn$
   select x from jsonb_array_elements(p_list) x where x ->> p_key = p_val limit 1

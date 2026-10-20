@@ -59,6 +59,8 @@ export function defaultSettings(subjectIds: string[], pool: number, now: Date): 
     cover_path: null,
     accent: 'blue',
     offer_practice: false,
+    protection: 'off',
+    protection_limit: 3,
   };
 }
 
@@ -304,7 +306,7 @@ function stamp(iso: string | null): string {
  * points' percent, as the participant saw it.
  */
 export function csvOf(
-  quiz: Pick<QuizRow, 'pass_percent' | 'design'>,
+  quiz: Pick<QuizRow, 'pass_percent' | 'design' | 'protection'>,
   attempts: readonly QuizAttemptRow[],
   marks: readonly QuizMark[],
   items: readonly TestItem[],
@@ -319,6 +321,8 @@ export function csvOf(
     .sort((a, b) => (order.get(a.subject_id) ?? 0) - (order.get(b.subject_id) ?? 0) || a.position - b.position);
   const mark = new Map(marks.map((m) => [`${m.attempt_id}:${m.item_id}`, m.correct]));
   const points = quiz.design === true;
+  // «Защита от списывания» (20261020120000_quiz_protection): the times away, all events, and a mark on suspicious ones.
+  const guarded = (quiz.protection !== undefined && quiz.protection !== 'off') || attempts.some((a) => (a.guard_events ?? 0) > 0);
   const header = [
     'Имя',
     'Попытка',
@@ -330,6 +334,7 @@ export function csvOf(
     ...(points ? ['Баллы', 'Всего баллов'] : []),
     '%',
     'Порог',
+    ...(guarded ? ['Уходы со страницы', 'Все записи защиты', 'Нарушения'] : []),
     ...asked.map((item) => `${title.get(item.subject_id) ?? ''} № ${item.file_no}`.trim()),
   ];
   const lines = [header.map(cell).join(';')];
@@ -350,6 +355,7 @@ export function csvOf(
       ...(points ? [weights.score, weights.max] : []),
       percent ?? '',
       passed,
+      ...(guarded ? [a.guard_count ?? 0, a.guard_events ?? 0, a.flagged ? 'да' : ''] : []),
       ...asked.map((item) => {
         const value = mark.get(`${a.id}:${item.id}`);
         return value === undefined ? '' : value ? 1 : 0;

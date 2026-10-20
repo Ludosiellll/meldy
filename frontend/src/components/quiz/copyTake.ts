@@ -140,6 +140,72 @@ export const RUN = {
   endFailed: 'Не удалось сдать ответы. Попробуем ещё раз сами.',
   retryEnd: 'Сдать ещё раз',
   lost: 'Этой попытки больше нет: автор её сбросил. Можно начать заново.',
+  /** The strict level ended the attempt at its limit (useGuard), while the answers go. */
+  guardEnd: (count: number) => glue(`Вы покидали страницу ${count} ${times(count)}, поэтому попытка завершается. Сдаём ответы…`),
+} as const;
+
+/** «1 раз», «2 раза», «5 раз». */
+const times = (n: number) => plural(n, 'раз', 'раза', 'раз');
+/** «через 2 ухода» */
+const aways = (n: number) => `${n} ${plural(n, 'уход', 'ухода', 'уходов')}`;
+/** «12 с», «3 мин 5 с». */
+function seconds(ms: number): string {
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return `${s}${NBSP}с`;
+  const m = Math.floor(s / 60);
+  const rest = s % 60;
+  return rest > 0 ? `${m}${NBSP}мин ${rest}${NBSP}с` : `${m}${NBSP}мин`;
+}
+
+/**
+ * «Защита от списывания» for the participant (20261020120000_quiz_protection): the rules before the start, the line under
+ * the clock, the card over the question while the page is away, the notes of the strict level. What the page cannot see
+ * is said to the author, not here.
+ */
+export const GUARD = {
+  /** Before the start, under the button: what is recorded and what happens. */
+  rulesTitle: 'Защита от списывания',
+  rulesNormal: [
+    'Пока идёт попытка, вопрос закрывается, если вы уходите со страницы или открываете что-то поверх неё: другое приложение, ассистента, шторку уведомлений, второе окно. Когда вы вернётесь, вопрос появится снова.',
+    'Каждый такой раз записывается. Автор увидит, когда это было и сколько длилось. Звонок или погасший экран тоже попадают в запись, но считаются одним разом.',
+    'Копирование текста и вставка в поле ответа тоже записываются.',
+  ],
+  rulesStrict: (limit: number) => [
+    'Контрольная откроется на весь экран, если браузер это умеет. Выход из полноэкранного режима считается уходом.',
+    'Пока идёт попытка, вопрос закрывается, если вы уходите со страницы или открываете что-то поверх неё: другое приложение, ассистента, шторку уведомлений, второе окно. Каждый такой раз записывается, автор увидит, когда это было и сколько длилось.',
+    limit === 1
+      ? 'Первый же уход завершит попытку. Ответы, которые вы успели дать, засчитаются.'
+      : glue(`После ${limit}-го ухода попытка завершится сама. Ответы, которые вы успели дать, засчитаются.`),
+    'Звонок или погасший экран тоже считаются уходом, одним на каждый раз. Если это важно, предупредите автора.',
+    'Текст вопросов нельзя выделить и скопировать. Поверх вопросов будет видно ваше имя.',
+  ],
+  /** Over the start button: the rules in one line (the whole rules are under it). */
+  short: (level: 'normal' | 'strict', limit: number) =>
+    level === 'normal'
+      ? 'Включена защита от списывания: уходы со страницы записываются, автор их увидит.'
+      : limit === 1
+        ? 'Включена строгая защита от списывания: контрольная откроется на весь экран, первый уход со страницы завершит попытку.'
+        : glue(`Включена строгая защита от списывания: контрольная откроется на весь экран, после ${limit}-го ухода со страницы попытка завершится.`),
+  /** Under the clock, once the page has been away: open about what is recorded. */
+  line(count: number, level: 'normal' | 'strict', limit: number, lastMs: number | null): string {
+    const last = lastMs !== null ? ` Последний раз ${seconds(lastMs)}.` : '';
+    if (level === 'normal') return glue(`Вы покидали страницу: ${count} ${times(count)}.${last} Автор это увидит.`);
+    const left = limit - count;
+    const tail = left <= 0 ? '' : left === 1 ? ' Следующий уход завершит попытку.' : ` Попытка завершится через ${aways(left)}.`;
+    return glue(`Вы покидали страницу: ${count} ${times(count)}.${last}${tail}`);
+  },
+  /** The strict level refused a copy. */
+  noCopy: 'Копировать текст вопросов в этой контрольной нельзя.',
+  /** The card over the question. */
+  awayTitle: 'Вопрос скрыт',
+  awayText: 'Страница не на первом плане, поэтому вопрос закрыт. Это записано. Вернитесь на страницу, и вопрос появится.',
+  splitTitle: 'Окно стало меньше',
+  splitText: 'В разделённом экране и в плавающем окне вопрос не показывается. Разверните браузер на весь экран, и вопрос появится.',
+  fullscreenTitle: 'Вы вышли из полноэкранного режима',
+  fullscreenText: 'Это записано. Чтобы продолжить, вернитесь на весь экран.',
+  fullscreenBack: 'Продолжить на весь экран',
+  /** The watermark of the strict level: the name and the start of the attempt. */
+  mark: (name: string, when: string) => `${name} · ${when}`,
 } as const;
 
 export const RESULT = {
@@ -157,6 +223,9 @@ export const RESULT = {
   /** The words of the start page: «Проходной балл 60 % — сдано». */
   pass: (threshold: number, passed: boolean) => glue(`Проходной балл ${threshold} % — ${passed ? 'сдано' : 'не сдано'}`),
   byTime: 'Время вышло — попытка закрылась сама. Вопросы без ответа считаются ошибкой.',
+  /** The strict level ended it (finish_reason 'protection'). */
+  byGuard: (count: number) =>
+    glue(`Попытка завершилась сама: вы покидали страницу ${count} ${times(count)}. Ответы, данные до этого, засчитаны, вопросы без ответа считаются ошибкой.`),
   byClose: 'Автор закрыл контрольную — попытка закрылась.',
   answersAfter: (when: string) => glue(`Верные ответы откроются после ${when}.`),
   mistakesTitle: 'Где вы ошиблись',

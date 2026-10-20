@@ -9,7 +9,15 @@ import type { DocDesign, ResultBand } from './testDoc';
 export type QuizGrading = 'best' | 'last';
 export type QuizReview = 'score' | 'mistakes' | 'answers' | 'mistakes_then_answers';
 export type QuizState = 'not_yet' | 'open' | 'closed';
-export type QuizFinishReason = 'sent' | 'time' | 'closed';
+/** 'protection': the strict level ended it at its limit (20261020120000_quiz_protection). */
+export type QuizFinishReason = 'sent' | 'time' | 'closed' | 'protection';
+/**
+ * «Защита от списывания» (20261020120000_quiz_protection): off; normal — the question is covered while the page is not
+ * in front and each time is recorded; strict — also fullscreen, no copying, a watermark, and the attempt ends at the
+ * limit. Missing from an older server: off.
+ */
+export type QuizProtection = 'off' | 'normal' | 'strict';
+export type QuizGuardKind = 'hidden' | 'blur' | 'split' | 'fullscreen' | 'copy' | 'paste' | 'reload';
 /** The colour of a quiz's page (release 47); 'blue' is Meldy's own. */
 export type QuizAccent = 'blue' | 'green' | 'orange' | 'violet' | 'pink' | 'graphite';
 export const QUIZ_ACCENTS: readonly QuizAccent[] = ['blue', 'green', 'orange', 'violet', 'pink', 'graphite'];
@@ -45,10 +53,24 @@ export interface QuizSettings {
    * page's; the draw settings (subjects, count, set, order) are stored as given and ignored. Missing — false.
    */
   design?: boolean;
+  /** «Защита от списывания»; missing — off. Locked after the start like the timer. */
+  protection?: QuizProtection;
+  /** The strict level's limit of counted events (1..20, default 3). */
+  protection_limit?: number;
 }
 
 /** Settings fixed once somebody has started (quiz_update answers MC011 for them). */
-export const LOCKED_SETTINGS = ['subject_ids', 'item_count', 'same_set', 'shuffle_items', 'shuffle_options', 'time_limit_min', 'design'] as const;
+export const LOCKED_SETTINGS = [
+  'subject_ids',
+  'item_count',
+  'same_set',
+  'shuffle_items',
+  'shuffle_options',
+  'time_limit_min',
+  'design',
+  'protection',
+  'protection_limit',
+] as const;
 
 export interface QuizRow {
   id: Uuid;
@@ -76,6 +98,9 @@ export interface QuizRow {
   offer_practice: boolean;
   /** «Как в студии» (release 47.2); missing from an older server — false. */
   design?: boolean;
+  /** «Защита от списывания»; missing from an older server — off. */
+  protection?: QuizProtection;
+  protection_limit?: number;
   created_at: string;
   updated_at: string;
   state: QuizState;
@@ -115,6 +140,20 @@ export interface QuizAttemptRow {
    */
   score?: number;
   max_score?: number;
+  /** The counted events of the attempt (the page away), all of its events, and whether any counted event, copy or paste. */
+  guard_count?: number;
+  guard_events?: number;
+  flagged?: boolean;
+}
+
+/** One event of an attempt's timeline (quiz_attempt_events): `source` 'server' — written by quiz_start (reload). */
+export interface QuizGuardEventRow {
+  id: string;
+  kind: QuizGuardKind;
+  at: string;
+  q: number | null;
+  ms: number | null;
+  source: 'client' | 'server';
 }
 
 export interface QuizItemStat {
@@ -184,6 +223,9 @@ export interface QuizPreview {
   offer_practice?: boolean;
   /** The studio page of a quiz «как в студии» (release 47.2); null for any other quiz, missing from an older server. */
   design?: DocDesign | null;
+  /** «Защита от списывания»: the rules are said before the start. */
+  protection?: QuizProtection;
+  protection_limit?: number;
   server_now?: string;
   me?: QuizPreviewMe | null;
 }
@@ -209,6 +251,12 @@ export interface QuizAttempt {
   shuffle_options: boolean;
   /** The studio page the attempt is shown on (release 47.2); null — the usual one question at a time. */
   design?: DocDesign | null;
+  /** The name the participant gave (the strict level's watermark). */
+  taker_name?: string;
+  protection?: QuizProtection;
+  protection_limit?: number;
+  /** The counted events so far (after a reload, the line under the clock goes on from it). */
+  guard_count?: number;
   items: QuizAttemptItem[];
   answers: Array<{ item_id: Uuid; chosen: number[] | null; text: string | null }>;
 }
@@ -272,4 +320,6 @@ export interface QuizResult {
   design?: DocDesign | null;
   /** The band of the page whose from..to holds the percent; null when none does or the quiz has no page. */
   band?: ResultBand | null;
+  /** A quiz with protection: its level, the counted events of the attempt and the strict limit; null without. */
+  guard?: { level: QuizProtection; count: number; limit: number } | null;
 }

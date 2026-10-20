@@ -42,6 +42,7 @@ import QuizTakePage from './QuizTakePage';
 import { ContainerApiError } from '../../api/containers';
 import { storeKey } from '../../components/quiz/QuizRun';
 import { QUIZ_ERRORS } from '../../components/quiz/copyQuiz';
+import { GUARD } from '../../components/quiz/copyTake';
 import { TOKEN_RE, dropGuestToken, ensureGuestToken, guestToken } from '../../lib/quizzes/guestToken';
 import { dateTimeText } from '../../lib/quizzes/quizModel';
 
@@ -1019,5 +1020,66 @@ describe('/k/<код>: a quiz «как в студии» (release 47.2)', () => 
     expect(document.querySelector('.dv-bg img')).toHaveAttribute('src', `https://covers.test/${OWN}`);
     expect(document.querySelector('.ct-roomshell > .qt-bg')).toBeNull();
     expect(screen.getByTitle('Опыт')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+  });
+});
+
+describe('/k/<код> with «Защита от списывания» (20261020120000_quiz_protection)', () => {
+  const fullscreen = vi.fn();
+  beforeEach(() => {
+    fullscreen.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(document, 'fullscreenEnabled', { configurable: true, value: true });
+    Object.defineProperty(document.documentElement, 'requestFullscreen', { configurable: true, value: fullscreen });
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'fullscreenEnabled');
+    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
+  });
+
+  it('normal: a line over the button, the whole rules first under it, no fullscreen', async () => {
+    signedIn({}, { protection: 'normal', protection_limit: 3 });
+    renderAt();
+    const start = await screen.findByRole('button', { name: 'Начать' });
+    const line = screen.getByText(GUARD.short('normal', 3));
+    expect(line.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const rules = screen.getByRole('region', { name: GUARD.rulesTitle });
+    for (const rule of GUARD.rulesNormal) expect(plain(rules.textContent)).toContain(plain(rule));
+    // the rules come before the other facts under the button
+    const privacy = screen.getByText('Автор увидит имя, которое вы укажете, ваши ответы и результат.');
+    expect(rules.compareDocumentPosition(privacy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    api.startQuiz.mockResolvedValue({ ...ATTEMPT, protection: 'normal', protection_limit: 3, guard_count: 0, taker_name: 'Иван Иванов' });
+    fireEvent.click(start);
+    await waitFor(() => expect(api.startQuiz).toHaveBeenCalled());
+    expect(fullscreen).not.toHaveBeenCalled();
+    expect(await screen.findByText('Сколько будет 2 + 2?')).toBeInTheDocument();
+    // the cover is ready (off) and the page knows its level
+    expect(document.querySelector('.qg-cover')).not.toBeNull();
+    expect(document.documentElement.getAttribute('data-qg')).toBe('normal');
+  });
+
+  it('strict: the press asks for fullscreen before anything waits; the limit is in the rules', async () => {
+    signedIn({}, { protection: 'strict', protection_limit: 2 });
+    let startedWithFullscreen = false;
+    api.startQuiz.mockImplementation(async () => {
+      startedWithFullscreen = fullscreen.mock.calls.length === 1;
+      return { ...ATTEMPT, protection: 'strict', protection_limit: 2, guard_count: 0, taker_name: 'Иван Иванов' };
+    });
+    renderAt();
+    const start = await screen.findByRole('button', { name: 'Начать' });
+    expect(screen.getByText(plain(GUARD.short('strict', 2)), { normalizer: plain })).toBeInTheDocument();
+    expect(plain(screen.getByRole('region', { name: GUARD.rulesTitle }).textContent)).toContain('После 2-го ухода попытка завершится сама.');
+    fireEvent.click(start);
+    expect(fullscreen).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(api.startQuiz).toHaveBeenCalled());
+    expect(startedWithFullscreen).toBe(true);
+    expect(await screen.findByText('Сколько будет 2 + 2?')).toBeInTheDocument();
+    expect(document.querySelector('.qg-mark')).not.toBeNull();
+  });
+
+  it('off: nothing about protection', async () => {
+    signedIn();
+    renderAt();
+    await screen.findByRole('button', { name: 'Начать' });
+    expect(screen.queryByRole('region', { name: GUARD.rulesTitle })).toBeNull();
+    expect(page()).not.toContain('защита от списывания');
   });
 });

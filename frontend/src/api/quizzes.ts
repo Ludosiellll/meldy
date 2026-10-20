@@ -9,9 +9,11 @@ import { supabase, supabaseAnonKey } from '../lib/supabase';
 import { CONTAINER_ERROR_TEXT, ContainerApiError, containerError } from './containers';
 import { QUIZ_ERRORS } from '../components/quiz/copyQuiz';
 import type { Uuid } from '../types/container';
+import type { GuardEvent } from '../lib/quizzes/guard';
 import type {
   AttemptAnswer,
   QuizAnswerInput,
+  QuizGuardEventRow,
   QuizAttempt,
   QuizListRow,
   QuizMark,
@@ -120,6 +122,12 @@ export async function resetAttempt(attemptId: Uuid): Promise<void> {
   await rpc('quiz_attempt_reset', { p_attempt_id: attemptId });
 }
 
+/** One attempt's timeline of «Защита от списывания» (20261020120000_quiz_protection), by time. */
+export async function attemptEvents(attemptId: Uuid): Promise<{ count: number; events: QuizGuardEventRow[] }> {
+  const raw = shaped<{ count: unknown; events: unknown }>(await rpc('quiz_attempt_events', { p_attempt_id: attemptId }), 'quiz_attempt_events', 'events');
+  return { count: typeof raw.count === 'number' ? raw.count : 0, events: rows(raw.events, 'kind') };
+}
+
 // ── the participant ──
 
 /** The card of /k/<code>; with a guest's token, «me» is that device's (attempts, the open one, the results). */
@@ -157,6 +165,36 @@ export async function sendAnswers(
   return token
     ? shaped(await rpc('quiz_guest_answer', { p_attempt_id: attemptId, p_token: token, p_answers: answers }), 'quiz_guest_answer', 'saved')
     : shaped(await rpc('quiz_answer', { p_attempt_id: attemptId, p_answers: answers }), 'quiz_answer', 'saved');
+}
+
+/** What quiz_events_add answers: the counted events of the attempt, the strict limit, and whether the attempt ended. */
+export interface GuardAnswer {
+  accepted: number;
+  count: number;
+  limit: number | null;
+  finished: boolean;
+  reason: string | null;
+}
+
+/**
+ * Events of «Защита от списывания» (20261020120000_quiz_protection): signed in — quiz_events_add; without an account —
+ * quiz_guest_events_add with the device's token. At most 50 a call; the same id sent again changes nothing.
+ */
+export async function sendGuardEvents(attemptId: Uuid, events: GuardEvent[], token: string | null = null): Promise<GuardAnswer> {
+  const raw = shaped<Record<string, unknown>>(
+    token
+      ? await rpc('quiz_guest_events_add', { p_attempt_id: attemptId, p_token: token, p_events: events })
+      : await rpc('quiz_events_add', { p_attempt_id: attemptId, p_events: events }),
+    token ? 'quiz_guest_events_add' : 'quiz_events_add',
+    'count',
+  );
+  return {
+    accepted: typeof raw.accepted === 'number' ? raw.accepted : 0,
+    count: typeof raw.count === 'number' ? raw.count : 0,
+    limit: typeof raw.limit === 'number' ? raw.limit : null,
+    finished: raw.finished === true,
+    reason: typeof raw.reason === 'string' ? raw.reason : null,
+  };
 }
 
 function result(raw: unknown, what: string): QuizResult {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { QuizAttempt } from '../../types/quiz';
 import type { TestDoc } from '../../types/testDoc';
 import { themeTokens } from '../../lib/studio/contrast';
@@ -11,6 +11,7 @@ import { answered, missingRequired, runPlan, type Answer, type Answers } from '.
 import { RUN } from './copyTake';
 import { FinishSheet, RunBar, RunEnding, TimeStrip, where, whereShort } from './RunParts';
 import { resumeIndex, type AttemptRun } from './useAttempt';
+import type { GuardView } from './useGuard';
 import '../containers/room.css';
 import './quizTake.css';
 
@@ -41,9 +42,12 @@ export interface QuizDocRunProps {
   token: string | null;
   doc: TestDoc;
   dark: boolean;
+  /** «Защита от списывания» (QuizRun): told the first question on screen; its line goes over the page. */
+  guard?: GuardView;
+  guardLine?: ReactNode;
 }
 
-export default function QuizDocRun({ run, attempt, token, doc, dark }: QuizDocRunProps) {
+export default function QuizDocRun({ run, attempt, token, doc, dark, guard, guardLine = null }: QuizDocRunProps) {
   const id = attempt.attempt_id;
   const items = useMemo(() => new Map(attempt.items.map((item) => [item.id, asDocItem(item)])), [attempt.items]);
   const kinds = useMemo(() => new Map(attempt.items.map((item) => [item.id, item.kind])), [attempt.items]);
@@ -91,6 +95,12 @@ export default function QuizDocRun({ run, attempt, token, doc, dark }: QuizDocRu
   }, [run.answers]);
   const answeredCount = questions.filter((question) => answered(answers[question.itemId])).length;
   const place = Math.min(at, steps.length - 1);
+  // The first question of the screen goes with each event of the guard (none on «Одна страница»).
+  const firstHere = layout === 'one_page' ? null : questions.find((question) => question.step === place)?.number ?? null;
+  const guardQ = guard?.qRef;
+  useEffect(() => {
+    if (guardQ) guardQ.current = firstHere;
+  }, [guardQ, firstHere]);
 
   const placeWords = layout === 'one_page' ? RUN.answeredOf(answeredCount, total) : layout === 'pages' ? RUN.pageOf(place + 1, steps.length) : RUN.place(place + 1, steps.length);
   const stepLabel = layout === 'one_page' ? page.title : layout === 'pages' ? RUN.pageOf(place + 1, steps.length) : RUN.questionOf(place + 1, steps.length);
@@ -154,6 +164,7 @@ export default function QuizDocRun({ run, attempt, token, doc, dark }: QuizDocRu
       <p className="qt-low" role="status">
         {run.lowNote}
       </p>
+      {guardLine}
       {run.resumed && !moved ? <p className="qt-dv-line">{RUN.resumedAt(placeWords, run.timeText)}</p> : null}
     </>
   );

@@ -568,6 +568,32 @@
 .qa-sheet .qa-ask > span { flex: 1 1 100%; color: var(--sf-ink); }
 .qa-sheet .qa-ask .sf-link { min-height: 44px; margin: -10px 0; font-size: 15px; vertical-align: baseline; }
 
+/* ── «Защита от списывания» (20261020120000_quiz_protection): the mark after a name, the filter, the attempt's record ── */
+.sf-page.qa-page .qa-flag {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--m-yellow-soft);
+  color: var(--m-yellow-ink);
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+.sf-page.qa-page .qa-flag-filter { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-left: auto; color: var(--sf-ink); cursor: pointer; }
+.sf-page.qa-page .qa-flag-filter input { width: 20px; height: 20px; margin: 0; accent-color: var(--sf-accent); }
+.sf-page.qa-page .qa-flag-filter:has(input:focus-visible) { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; border-radius: 8px; }
+.sf-page.qa-page .qa-guard .qa-checks { margin-top: 0; }
+.qa-sheet .qa-events { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--sf-line); }
+.qa-sheet .qa-events-h { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }
+.qa-sheet .qa-event-list { margin: 8px 0 0; padding: 0; list-style: none; }
+.qa-sheet .qa-event { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 10px; padding: 6px 0; font-size: 15px; line-height: 1.45; }
+.qa-sheet .qa-event + .qa-event { border-top: 1px solid var(--sf-line); }
+.qa-sheet .qa-event-at { color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.qa-sheet .qa-event-what { min-width: 0; overflow-wrap: anywhere; }
+.qa-sheet .qa-event-meta { color: var(--sf-muted); }
+
 /* ── «Показать QR»: the whole screen, the code on white (dark modules on light in both themes), the link large ── */
 .qa-qr-root {
   position: fixed;

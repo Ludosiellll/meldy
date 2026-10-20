@@ -7,11 +7,13 @@ import { coverUrl } from '../../api/itemPictures';
 import InAppNote from '../../components/InAppNote';
 import QuizRun from '../../components/quiz/QuizRun';
 import QuizResultView from '../../components/quiz/QuizResult';
-import { RESULT, TAKE } from '../../components/quiz/copyTake';
+import { GUARD, RESULT, TAKE } from '../../components/quiz/copyTake';
+import { enterFullscreen, leaveFullscreen } from '../../components/quiz/useGuard';
 import { useDark } from '../../components/studio/useDark';
 import { detectInAppBrowser } from '../../lib/inAppBrowser';
 import { dropGuestToken, ensureGuestToken, guestToken } from '../../lib/quizzes/guestToken';
 import { designDoc, startCover } from '../../lib/quizzes/design';
+import { levelOf, limitOf } from '../../lib/quizzes/guard';
 import { dateTimeText, pointsOf } from '../../lib/quizzes/quizModel';
 import { themeTokens } from '../../lib/studio/contrast';
 import { normalizeJoinCode, withReturn } from '../../lib/returnTo';
@@ -21,6 +23,7 @@ import { QUIZ_ACCENTS, type QuizAccent, type QuizAttempt, type QuizPreview, type
 import type { TestDoc } from '../../types/testDoc';
 import '../../components/containers/room.css';
 import '../../components/quiz/quizTake.css';
+import '../../components/quiz/guard.css';
 
 /**
  * /k/<код> — «Контрольная» for the one who writes it (spec 2026-10-16 §2.2; plan Task 4), outside the app's frame as
@@ -57,6 +60,11 @@ import '../../components/quiz/quizTake.css';
  * start: its title, the line under it and its picture. A picture background (the author's own photo or a ready one)
  * stands behind the start's card and behind the result, which then sits on the page's surface as a card (owner,
  * 2026-10-19: «на фон тоже почему нельзя своё»).
+ *
+ * «Защита от списывания» (20261020120000_quiz_protection; preview.protection): one line over the button says it is on
+ * (and, for the strict level, that the page goes fullscreen and when the attempt ends), the whole rules come first under
+ * it; «Начать» / «Продолжить» of the strict level asks for fullscreen in the press itself (the browser wants a gesture),
+ * and gives it back if the start fails.
  */
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: QuizPreview } | { state: 'error'; message: string };
@@ -333,6 +341,8 @@ export default function QuizTakePage() {
     setNameBad(false);
     setProblem(null);
     setStarting(true);
+    // The strict level's fullscreen: asked for in the press (before anything waits), given back if the start fails.
+    const fullscreen = levelOf(value?.protection) === 'strict' ? enterFullscreen() : null;
     // A guest's token is made at the first start and kept on the device for this quiz.
     const token = user ? null : ensureGuestToken(code);
     try {
@@ -341,6 +351,7 @@ export default function QuizTakePage() {
       track('quiz.started', { resumed: resume || attempt.answers.length > 0, guest: token !== null });
       setStage({ kind: 'run', attempt, token });
     } catch (error) {
+      if (fullscreen) void fullscreen.then((on) => on && leaveFullscreen());
       say(error);
       setReload((n) => n + 1);
     } finally {
@@ -403,10 +414,28 @@ export default function QuizTakePage() {
   const deviceCard = user && device && me && !me.is_author ? device : null;
   // A guest whose device already holds attempts of this quiz may be someone else at a shared computer.
   const otherHere = guest && me !== null && (Boolean(me.open_attempt) || me.attempts_used > 0);
+  // «Защита от списывания»: a line over the button, the whole rules first under it.
+  const guardLevel = levelOf(value?.protection);
+  const guardLimit = limitOf(value?.protection_limit);
+  const guardShort = guardLevel === 'off' ? null : <p className="qt-note qt-guard-short">{GUARD.short(guardLevel, guardLimit)}</p>;
+  const guardRules =
+    guardLevel === 'off' ? null : (
+      <section className="qt-guard" aria-labelledby="qt-guard-title">
+        <h2 id="qt-guard-title" className="qt-guard-t">
+          {GUARD.rulesTitle}
+        </h2>
+        <ul className="qt-rules">
+          {(guardLevel === 'strict' ? GUARD.rulesStrict(guardLimit) : GUARD.rulesNormal).map((rule) => (
+            <li key={rule}>{rule}</li>
+          ))}
+        </ul>
+      </section>
+    );
   // The rules and what the author sees: under the button, so the start stays in view.
   const facts =
     ready && value && !failed ? (
       <div className="qt-facts">
+        {guardRules}
         <ul className="qt-rules">
           <li>{value.allow_back === false ? TAKE.forwardOnly : TAKE.backAllowed}</li>
           {typeof value.pass_percent === 'number' ? <li>{TAKE.passMark(value.pass_percent)}</li> : null}
@@ -521,6 +550,7 @@ export default function QuizTakePage() {
                 {me.open_attempt ? (
                   <div className="qt-actions">
                     <p className="qt-note">{TAKE.resumeNote}</p>
+                    {guardShort}
                     <button type="button" className="sf-primary qt-go" aria-busy={starting || undefined} disabled={starting} onClick={() => void begin()}>
                       {TAKE.resume}
                     </button>
@@ -552,6 +582,7 @@ export default function QuizTakePage() {
                         {nameBad ? TAKE.nameBad : TAKE.nameHint}
                       </p>
                     </div>
+                    {guardShort}
                     <button type="submit" className="sf-primary qt-go" aria-busy={starting || undefined} disabled={starting}>
                       {TAKE.start}
                     </button>

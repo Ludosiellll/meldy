@@ -117,7 +117,8 @@ export function resumeIndex(ids: readonly string[], answers: Readonly<Record<str
 }
 
 export type SaveStatus = 'idle' | 'saved' | 'offline' | 'failing';
-export type Ending = { reason: 'sent' | 'time'; state: 'sending' | 'offline' | 'failed' };
+/** 'guard': «Защита от списывания» of the strict level ended it at its limit (`count` — the times away, for its words). */
+export type Ending = { reason: 'sent' | 'time' | 'guard'; state: 'sending' | 'offline' | 'failed'; count?: number };
 
 export interface AttemptRun {
   id: string;
@@ -132,8 +133,8 @@ export interface AttemptRun {
   statusText: string;
   /** The end on its way (or waiting for the network); null while the attempt goes on. */
   ending: Ending | null;
-  /** «Завершить» (sent) or the clock at 0:00 (time). */
-  end: (reason: Ending['reason']) => void;
+  /** «Завершить» (sent), the clock at 0:00 (time), or the strict level's limit (guard, with the count). */
+  end: (reason: Ending['reason'], count?: number) => void;
   /** «Сдать ещё раз». */
   retryEnd: () => void;
   /** «Вернуться к вопросам» from a failed end (only one the person asked for, with time left). */
@@ -306,10 +307,10 @@ export function useAttempt(attempt: QuizAttempt, token: string | null, { onResul
     }
   };
 
-  const end = (reason: Ending['reason']) => {
+  const end = (reason: Ending['reason'], count?: number) => {
     if (done.current || endingRef.current) return;
     clearTimer(sendTimer);
-    const next: Ending = { reason, state: 'sending' };
+    const next: Ending = count === undefined ? { reason, state: 'sending' } : { reason, state: 'sending', count };
     endingRef.current = next;
     failures.current = 0;
     setEnding(next);

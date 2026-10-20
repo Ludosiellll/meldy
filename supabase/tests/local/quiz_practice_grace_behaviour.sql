@@ -18,7 +18,11 @@ exception
   when others then
     get stacked diagnostics v_detail = pg_exception_detail;
     if sqlstate = 'P0001' and sqlerrm like 'FAILED:%' then raise; end if;
-    if sqlstate is distinct from p_state then
+    -- 20261020120000_quiz_protection: «not found» of the functions it rewrote is PostgREST's 404 with P0002 inside.
+    if sqlstate = 'PGRST' and p_state = 'P0002' and (sqlerrm::jsonb ->> 'code') = 'P0002'
+       and (v_detail::jsonb ->> 'status') = '404' then
+      v_detail := sqlerrm::jsonb ->> 'details';
+    elsif sqlstate is distinct from p_state then
       raise exception 'FAILED: % — SQLSTATE % (%), expected %', p_what, sqlstate, sqlerrm, p_state;
     end if;
     if p_detail is not null and v_detail is distinct from p_detail then

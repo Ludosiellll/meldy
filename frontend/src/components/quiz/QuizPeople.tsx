@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { attemptAnswers, resetAttempt } from '../../api/quizzes';
+import { attemptAnswers, attemptEvents, resetAttempt } from '../../api/quizzes';
 import { attemptPercent, clockText, dateTimeText, minutesTaken, peopleRows, pointsOf, secondsLeft, type PersonRow } from '../../lib/quizzes/quizModel';
 import PaperSelect from '../ui/PaperSelect';
 import { Sheet } from '../containers/ui';
@@ -10,7 +10,7 @@ import { QA_ERRORS, QA_PEOPLE } from './copyAuthor';
 /** P0002 of quiz_attempt_answers / quiz_attempt_reset names the attempt (detail 'attempt'), not the quiz. */
 const ATTEMPT_ERRORS: Record<string, string> = { ...QA_ERRORS, P0002: QA_PEOPLE.attemptGone };
 import type { TestItem } from '../../types/container';
-import type { AttemptAnswer, QuizAttemptRow, QuizRow } from '../../types/quiz';
+import type { AttemptAnswer, QuizAttemptRow, QuizGuardEventRow, QuizRow } from '../../types/quiz';
 import './quizAuthor.css';
 
 /**
@@ -24,6 +24,11 @@ import './quizAuthor.css';
  * (release 47) has a quiet «без входа» after the name, and a line under the table says such attempts are counted per
  * browser. A quiz «как в студии» (release 47.2) weighs its questions by the page's points: the result reads «6 баллов
  * из 8 · 75 %», the percent and «лучшая попытка» from the points, as the participant's result has them.
+ *
+ * «Защита от списывания» (20261020120000_quiz_protection): a person with a suspicious attempt (a time away, a copy or a
+ * paste) has a mark after the name («3 ухода»); «Только с нарушениями» keeps those rows; an attempt the strict level
+ * ended says so; the answers sheet lists what the protection recorded for the attempt shown (time, question, kind,
+ * how long), with a line on what a web page cannot see.
  */
 
 export type PeopleSort = 'name' | 'result' | 'time';
@@ -63,6 +68,7 @@ export function statusText(attempt: QuizAttemptRow, offsetMs: number, nowMs: num
   }
   if (attempt.finish_reason === 'time') return QA_PEOPLE.time;
   if (attempt.finish_reason === 'closed') return QA_PEOPLE.closed;
+  if (attempt.finish_reason === 'protection') return QA_PEOPLE.guardEnded;
   return QA_PEOPLE.done(finishedText(attempt.finished_at, nowMs));
 }
 
@@ -80,6 +86,13 @@ function resultText(attempt: QuizAttemptRow): string {
   return attempt.finished_at ? scoreText(attempt) : '';
 }
 
+/** The person's mark: their most counted events over the attempts with any (null — nothing suspicious). */
+export function flagOf(row: Pick<PersonRow, 'all'>): number | null {
+  const flagged = row.all.filter((attempt) => attempt.flagged === true);
+  if (flagged.length === 0) return null;
+  return Math.max(...flagged.map((attempt) => attempt.guard_count ?? 0));
+}
+
 function sortRows(rows: PersonRow[], by: PeopleSort): PersonRow[] {
   const byName = (a: PersonRow, b: PersonRow) => a.name.localeCompare(b.name, 'ru');
   if (by === 'name') return [...rows].sort(byName);
@@ -90,11 +103,15 @@ function sortRows(rows: PersonRow[], by: PeopleSort): PersonRow[] {
 export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, wide, onChanged }: QuizPeopleProps) {
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
   const [sort, setSort] = useState<PeopleSort>('name');
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
   const [openPerson, setOpenPerson] = useState<string | null>(null);
-  const rows = useMemo(
+  const everyone = useMemo(
     () => sortRows(peopleRows(attempts.filter((attempt) => !removed.has(attempt.id)), quiz.grading), sort),
     [attempts, removed, quiz.grading, sort],
   );
+  const anyFlagged = everyone.some((row) => flagOf(row) !== null);
+  const rows = onlyFlagged && anyFlagged ? everyone.filter((row) => flagOf(row) !== null) : everyone;
+  const filterId = useId();
 
   // The clocks of those writing tick every second (the deadline is the server's: the offset makes up the device's).
   const [now, setNow] = useState(() => Date.now());
@@ -106,13 +123,13 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
     return () => window.clearInterval(timer);
   }, [ticking]);
 
-  const opened = openPerson ? rows.find((row) => row.person === openPerson) ?? null : null;
+  const opened = openPerson ? everyone.find((row) => row.person === openPerson) ?? null : null;
   useEffect(() => {
     // Every attempt of the person was reset: nothing is left to show.
     if (openPerson && !opened) setOpenPerson(null);
   }, [openPerson, opened]);
 
-  if (rows.length === 0) return <p className="qa-empty">{QA_PEOPLE.empty}</p>;
+  if (everyone.length === 0) return <p className="qa-empty">{QA_PEOPLE.empty}</p>;
 
   const allowed = quiz.attempts;
   const attemptsCell = (row: PersonRow) => (allowed === 1 && row.attempts === 1 ? '' : QA_PEOPLE.attempts(row.attempts, allowed));
@@ -122,17 +139,27 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
 
   return (
     <div className="qa-people-wrap">
-      {rows.length > 1 ? (
+      {everyone.length > 1 || anyFlagged ? (
         <div className="qa-sort">
-          <span className="qa-sort-label" aria-hidden="true">
-            {QA_PEOPLE.sort}
-          </span>
-          <PaperSelect
-            ariaLabel={QA_PEOPLE.sort}
-            value={sort}
-            options={(['name', 'result', 'time'] as const).map((value) => ({ value, label: QA_PEOPLE.sortOption(value) }))}
-            onChange={setSort}
-          />
+          {everyone.length > 1 ? (
+            <>
+              <span className="qa-sort-label" aria-hidden="true">
+                {QA_PEOPLE.sort}
+              </span>
+              <PaperSelect
+                ariaLabel={QA_PEOPLE.sort}
+                value={sort}
+                options={(['name', 'result', 'time'] as const).map((value) => ({ value, label: QA_PEOPLE.sortOption(value) }))}
+                onChange={setSort}
+              />
+            </>
+          ) : null}
+          {anyFlagged ? (
+            <label className="qa-flag-filter" htmlFor={filterId}>
+              <input id={filterId} type="checkbox" checked={onlyFlagged} onChange={(event) => setOnlyFlagged(event.target.checked)} />
+              <span>{QA_PEOPLE.onlyFlagged}</span>
+            </label>
+          ) : null}
         </div>
       ) : null}
       <div className="qa-people" data-wide={wide ? '' : undefined} data-one={attemptsColumn ? undefined : ''}>
@@ -149,6 +176,7 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
         <ul className="qa-people-list" aria-label={QA_PEOPLE.title}>
           {rows.map((row) => {
             const minutes = row.minutes === null ? '' : QA_PEOPLE.minutes(row.minutes);
+            const flag = flagOf(row);
             return (
               <li key={row.person}>
                 <button type="button" className="qa-person" data-status={row.status} onClick={() => setOpenPerson(row.person)}>
@@ -159,6 +187,15 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
                       <>
                         {' '}
                         <span className="qa-guest">{QA_PEOPLE.guest}</span>
+                      </>
+                    ) : null}
+                    {flag !== null ? (
+                      <>
+                        {' '}
+                        <span className="qa-flag" title={QA_PEOPLE.flagLabel(flag)}>
+                          <span aria-hidden="true">{QA_PEOPLE.flag(flag)}</span>
+                          <span className="qa-sr">{QA_PEOPLE.flagLabel(flag)}</span>
+                        </span>
                       </>
                     ) : null}
                   </span>
@@ -181,6 +218,7 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
           })}
         </ul>
       </div>
+      {rows.length === 0 ? <p className="qa-hint">{QA_PEOPLE.noneFlagged}</p> : null}
       {rows.some((row) => row.own) ? <p className="qa-hint">{QA_PEOPLE.ownHint}</p> : null}
       {rows.some((row) => row.counted.guest) ? <p className="qa-hint">{QA_PEOPLE.guestHint}</p> : null}
       {opened ? (
@@ -209,6 +247,13 @@ interface PersonAnswersProps {
   now: number;
   onClose: () => void;
   onReset: (attemptId: string) => void;
+}
+
+/** «14:32:05» of an event, in the device's time. */
+function eventTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 /** One answer's words: «Б. Стрелка» for one option, «А и В» for several, ««текст»» for a short answer. */
@@ -297,6 +342,32 @@ function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset }
     }
   };
 
+  // What «Защита от списывания» recorded for the attempt shown (read when it has anything, again when that grows).
+  const eventsStamp = `${shown.guard_events ?? 0}:${shown.finished_at ?? ''}`;
+  const hasEvents = (shown.guard_events ?? 0) > 0 || (shown.guard_count ?? 0) > 0;
+  const [events, setEvents] = useState<Record<string, { stamp: string; list: QuizGuardEventRow[] }>>({});
+  const [eventsFailed, setEventsFailed] = useState(false);
+  const [eventsRound, setEventsRound] = useState(0);
+  const haveEvents = events[shown.id];
+  useEffect(() => {
+    if (!hasEvents || (haveEvents && haveEvents.stamp === eventsStamp)) return undefined;
+    let alive = true;
+    const attemptId = shown.id;
+    setEventsFailed(false);
+    attemptEvents(attemptId).then(
+      (answer) => {
+        if (alive) setEvents((current) => ({ ...current, [attemptId]: { stamp: eventsStamp, list: answer.events } }));
+      },
+      () => {
+        if (alive) setEventsFailed(true);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown.id, eventsStamp, hasEvents, eventsRound]);
+
   const minutes = minutesTaken(shown);
   const head = shown.finished_at
     ? [statusText(shown, offsetMs, now), scoreText(shown), minutes === null ? null : QA_PEOPLE.minutes(minutes)]
@@ -362,6 +433,46 @@ function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset }
         </ol>
       )}
       {sorted && unanswered > 0 ? <p className="qa-ans-line" data-muted="">{nb(QA_PEOPLE.unanswered(unanswered))}</p> : null}
+      {hasEvents ? (
+        <section className="qa-events" aria-labelledby={`${switchId}-ev`}>
+          <h3 id={`${switchId}-ev`} className="qa-events-h">
+            {QA_PEOPLE.eventsTitle}
+          </h3>
+          <p className="qa-ans-line">{nb(QA_PEOPLE.eventsCount(shown.guard_count ?? 0))}</p>
+          {eventsFailed ? (
+            <p className="qa-ans-line" role="alert">
+              {QA_PEOPLE.eventsFailed}{' '}
+              <button type="button" className="sf-link" onClick={() => setEventsRound((value) => value + 1)}>
+                {QA_PEOPLE.retry}
+              </button>
+            </p>
+          ) : !haveEvents ? (
+            <p className="qa-ans-line" role="status">
+              {QA_PEOPLE.eventsLoading}
+            </p>
+          ) : haveEvents.list.length === 0 ? (
+            <p className="qa-ans-line" data-muted="">
+              {QA_PEOPLE.eventsNone}
+            </p>
+          ) : (
+            <ol className="qa-event-list">
+              {haveEvents.list.map((event) => (
+                <li key={event.id} className="qa-event" data-kind={event.kind}>
+                  <span className="qa-event-at">{eventTime(event.at)}</span>
+                  <span className="qa-event-what">
+                    {QA_PEOPLE.eventKind(event.kind)}
+                    {event.q !== null ? <span className="qa-event-meta">{` · ${QA_PEOPLE.eventQ(event.q)}`}</span> : null}
+                    {event.ms !== null ? <span className="qa-event-meta">{nb(` · ${QA_PEOPLE.eventMs(event.ms)}`)}</span> : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="qa-ans-line" data-muted="">
+            {QA_PEOPLE.eventsLimits}
+          </p>
+        </section>
+      ) : null}
       <div className="qa-ans-reset">
         {asking ? (
           <p className="qa-ask" role="group" aria-labelledby={`${switchId}-ask`}>

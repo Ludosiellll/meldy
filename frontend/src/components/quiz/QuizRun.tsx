@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { TestItem } from '../../types/container';
 import type { QuizAccent, QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
 import { quizOrder } from '../../lib/quizzes/quizModel';
 import { designDoc } from '../../lib/quizzes/design';
+import { levelOf, limitOf } from '../../lib/quizzes/guard';
 import { AttemptPictures } from '../containers/ItemPictures';
 import QuestionCard from '../containers/QuestionCard';
 import { Sheet } from '../containers/ui';
@@ -13,6 +14,8 @@ import QuizDocRun from './QuizDocRun';
 import { FinishSheet, RunBar, RunEnding, TimeStrip, where } from './RunParts';
 import { resumeIndex, useAttempt, type AttemptRun } from './useAttempt';
 import { useFieldInView } from './fieldInView';
+import GuardLayer, { GuardLine } from './GuardLayer';
+import { useGuard, type GuardView } from './useGuard';
 import '../containers/room.css';
 import './quizTake.css';
 
@@ -34,6 +37,11 @@ import './quizTake.css';
  * turns red and bold, and a status line says «Осталось 5 минут» / «Осталась 1 минута» — once each, only when the
  * attempt crosses that mark (a resumed attempt already past it is not told again). A mark is only for an attempt longer
  * than it (release 47.1): a five-minute test does not start red, it has the last minute only (timeStage).
+ *
+ * «Защита от списывания» (20261020120000_quiz_protection; attempt.protection): useGuard covers the question while the
+ * page is away and records each time, GuardLayer draws the cover (and the strict level's watermark), GuardLine says the
+ * count under the clock; the strict level ends the attempt at its limit (run.end('guard')). Both ways of drawing the
+ * attempt get the same guard, and tell it the question on screen.
  */
 
 export { RETRY_MS, SEND_DELAY_MS, readPending, resumeIndex, storeKey, type QuizAnswer } from './useAttempt';
@@ -86,12 +94,46 @@ export default function QuizRun({ attempt, token, accent = 'blue', dark = false,
   const doc = useMemo(() => designDoc(attempt.design), [attempt.design]);
   // The short answer's field stays in sight when the keyboard comes up (phone audit 47.3), in both ways of drawing.
   useFieldInView(!run.ending);
-  if (doc) return <QuizDocRun run={run} attempt={attempt} token={token} doc={doc} dark={dark} />;
-  return <ClassicRun run={run} attempt={attempt} token={token} accent={accent} />;
+  const level = levelOf(attempt.protection);
+  const limit = limitOf(attempt.protection_limit);
+  const guard = useGuard({
+    attemptId: attempt.attempt_id,
+    token,
+    level,
+    limit,
+    initialCount: typeof attempt.guard_count === 'number' ? attempt.guard_count : 0,
+    active: !run.ending,
+    onLimit: (count) => run.end('guard', count),
+  });
+  const line = level === 'off' ? null : <GuardLine guard={guard} limit={limit} />;
+  return (
+    <>
+      {doc ? (
+        <QuizDocRun run={run} attempt={attempt} token={token} doc={doc} dark={dark} guard={guard} guardLine={line} />
+      ) : (
+        <ClassicRun run={run} attempt={attempt} token={token} accent={accent} guard={guard} guardLine={line} />
+      )}
+      {level === 'off' || run.ending ? null : <GuardLayer guard={guard} name={attempt.taker_name ?? ''} startedAt={attempt.started_at} />}
+    </>
+  );
 }
 
 /** One question at a time (the attempt of every quiz but one «как в студии»). */
-function ClassicRun({ run, attempt, token, accent }: { run: AttemptRun; attempt: QuizAttempt; token: string | null; accent: QuizAccent }) {
+function ClassicRun({
+  run,
+  attempt,
+  token,
+  accent,
+  guard,
+  guardLine,
+}: {
+  run: AttemptRun;
+  attempt: QuizAttempt;
+  token: string | null;
+  accent: QuizAccent;
+  guard: GuardView;
+  guardLine: ReactNode;
+}) {
   const id = attempt.attempt_id;
   const items = attempt.items;
   const total = items.length;
@@ -120,6 +162,11 @@ function ClassicRun({ run, attempt, token, accent }: { run: AttemptRun; attempt:
     setFinishOpen(false);
     setAllOpen(false);
   }, [run.ending]);
+
+  // The question on screen goes with each event of the guard.
+  useEffect(() => {
+    guard.qRef.current = pos + 1;
+  }, [pos, guard.qRef]);
 
   useEffect(() => {
     stemRef.current?.focus({ preventScroll: true });
@@ -156,6 +203,7 @@ function ClassicRun({ run, attempt, token, accent }: { run: AttemptRun; attempt:
         <p className="qt-low" role="status">
           {run.lowNote}
         </p>
+        {guardLine}
         {run.resumed ? <p className="ct-offline">{RUN.resumed(shown, total, run.timeText)}</p> : null}
         {item && card ? (
           <QuestionCard

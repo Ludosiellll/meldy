@@ -44,7 +44,8 @@ import {
   WHO_CHOICES,
   type QuizWho,
 } from '../../components/quiz/setupModel';
-import { LOCKED_SETTINGS, QUIZ_ACCENTS, type QuizGrading, type QuizReview, type QuizRow, type QuizSettings } from '../../types/quiz';
+import { LOCKED_SETTINGS, QUIZ_ACCENTS, type QuizGrading, type QuizProtection, type QuizReview, type QuizRow, type QuizSettings } from '../../types/quiz';
+import { DEFAULT_LIMIT, LIMIT_OPTIONS } from '../../lib/quizzes/guard';
 import type { SummarySubject, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
@@ -66,6 +67,10 @@ import '../../components/quiz/quizAuthor.css';
  * quiz_create → the stats page with the link. An edit sends only the keys it changed; once somebody has started, the
  * locked ones (LOCKED_SETTINGS) are disabled with a line why. What the server would refuse is said as lines beside the
  * button (settingsProblems).
+ *
+ * «Защита от списывания» (20261020120000_quiz_protection): three levels as a list of choices, each with a line of what it
+ * does and what a web page cannot catch; the strict level adds «Завершить попытку после N уходов» (3 by default). Locked
+ * after the start with the timer.
  *
  * `?all=1&design=1` (the studio's «Отправить по ссылке», release 47.2) makes a quiz «как в студии»: one quiet line says
  * the questions, their order and the look are the studio page's («Открыть студию» goes back there), and the settings the
@@ -707,6 +712,52 @@ export default function QuizSetupPage() {
       </p>
     </div>
   );
+  // «Защита от списывания»: the level, each with its line; the strict level's limit.
+  const protection: QuizProtection = form.protection ?? 'off';
+  const protectionLimit = form.protection_limit ?? DEFAULT_LIMIT;
+  const protectionLevels: QuizProtection[] = ['off', 'normal', 'strict'];
+  const protectionField = (
+    <fieldset className="qa-subjects qa-guard" disabled={saving || lockedKey('protection')}>
+      <legend className="im-label">{QA_SETUP.protection}</legend>
+      <ul className="qa-checks">
+        {protectionLevels.map((level) => (
+          <li key={level}>
+            <label className="qa-check">
+              <input
+                type="radio"
+                name={`${formId}-protection`}
+                value={level}
+                checked={protection === level}
+                onChange={() => set('protection', level)}
+              />
+              <span className="qa-check-t">
+                <span className="qa-check-title">{QA_SETUP.protectionOption(level)}</span>
+                <span className="qa-check-meta">{nb(QA_SETUP.protectionHint(level, protectionLimit))}</span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {protection !== 'off' ? (
+        <p className="im-hint" data-muted="">
+          {nb(QA_SETUP.protectionLimits)}
+        </p>
+      ) : null}
+    </fieldset>
+  );
+  const protectionLimitField =
+    protection === 'strict'
+      ? select({
+          label: QA_SETUP.protectionLimit,
+          value: protectionLimit,
+          options: withCurrent(LIMIT_OPTIONS, protectionLimit)
+            .filter((value): value is number => value !== null)
+            .sort((a, b) => a - b)
+            .map((value) => ({ value, label: QA_SETUP.protectionLimitOption(value) })),
+          onChange: (value) => set('protection_limit', value),
+          disabled: lockedKey('protection_limit'),
+        })
+      : null;
   const whoField = select<QuizWho>({
     label: QA_SETUP.who,
     value: who,
@@ -843,6 +894,8 @@ export default function QuizSetupPage() {
             {passField}
             {reviewField}
             {practiceField}
+            {protectionField}
+            {protectionLimitField}
           </>,
         )}
       </div>
@@ -877,6 +930,8 @@ export default function QuizSetupPage() {
           {reviewField}
           {practiceField}
           {whoField}
+          {protectionField}
+          {protectionLimitField}
         </>,
       )}
       {lookPart}

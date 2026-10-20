@@ -166,8 +166,28 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
       cover_path: null,
       accent: 'blue',
       offer_practice: false,
+      protection: 'off',
+      protection_limit: 3,
     });
     expect(await screen.findByTestId('where')).toHaveTextContent(`/exams/c/${EXAM}/quizzes/new-quiz|{"quizNote":"created"}`);
+  });
+
+  it('«Защита от списывания»: three levels with their lines; the strict one adds the limit and sends it', async () => {
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    await screen.findByRole('button', { name: QA_SETUP.create });
+    const group = screen.getByRole('group', { name: QA_SETUP.protection });
+    const off = screen.getByRole('radio', { name: new RegExp(`^${QA_SETUP.protectionOption('off')}`) });
+    expect(off).toBeChecked();
+    // every level says what it does; the two that record say what a site cannot see
+    expect(group).toHaveTextContent(QA_SETUP.protectionHint('off', 3));
+    expect(group).toHaveTextContent('Второй телефон и фото экрана сайт заметить не может.');
+    expect(screen.queryByRole('combobox', { name: QA_SETUP.protectionLimit })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${QA_SETUP.protectionOption('strict')}`) }));
+    expect(group).toHaveTextContent(QA_SETUP.protectionLimits);
+    pick(QA_SETUP.protectionLimit, QA_SETUP.protectionLimitOption(5));
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
+    await waitFor(() => expect(api.createQuiz).toHaveBeenCalledTimes(1));
+    expect(api.createQuiz.mock.calls[0][1]).toMatchObject({ protection: 'strict', protection_limit: 5 });
   });
 
   it('says a refusal of the server and stays', async () => {
@@ -459,6 +479,8 @@ describe('QuizSetupPage: changing a quiz', () => {
     expect(await screen.findByText(QA_SETUP.locked)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: QA_SETUP.editTitle })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: QA_SETUP.subjects })).toBeDisabled();
+    // «Защита от списывания» is locked with the timer: the rules a participant read before the start hold
+    expect(screen.getByRole('group', { name: QA_SETUP.protection })).toBeDisabled();
     for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order, QA_SETUP.options, QA_SETUP.time]) expect(combo(name)).toBeDisabled();
     for (const name of [QA_SETUP.attempts, QA_SETUP.pass, QA_SETUP.review, QA_SETUP.who, QA_SETUP.closes]) expect(combo(name)).toBeEnabled();
     expect(combo(QA_SETUP.attempts)).toHaveTextContent('3');

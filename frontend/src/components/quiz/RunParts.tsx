@@ -88,7 +88,8 @@ export function TimeStrip({ run }: { run: AttemptRun }) {
 export function RunEnding({ run, place }: { run: AttemptRun; place: string }) {
   const ending = run.ending;
   if (!ending) return null;
-  const line = ending.state === 'sending' ? (ending.reason === 'time' ? RUN.timeUp : RUN.sending) : ending.state === 'offline' ? RUN.endOffline : RUN.endFailed;
+  const sendingLine = ending.reason === 'time' ? RUN.timeUp : ending.reason === 'guard' ? RUN.guardEnd(ending.count ?? 0) : RUN.sending;
+  const line = ending.state === 'sending' ? sendingLine : ending.state === 'offline' ? RUN.endOffline : RUN.endFailed;
   return (
     <>
       <RunBar where={where(place, null, 0)} />

@@ -103,6 +103,8 @@ export function settingsOf(row: QuizRow): QuizSettings {
     accent: row.accent,
     offer_practice: row.offer_practice,
     design: row.design === true,
+    protection: row.protection ?? 'off',
+    protection_limit: row.protection_limit ?? 3,
   };
 }
 
@@ -134,6 +136,8 @@ const SETTING_KEYS: ReadonlyArray<keyof QuizSettings> = [
   'accent',
   'offer_practice',
   'design',
+  'protection',
+  'protection_limit',
 ];
 
 /** Only what the edit changed: quiz_update keeps every key it is not given. */

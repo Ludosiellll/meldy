@@ -4,7 +4,7 @@
  * share (states, errors, plurals) are in copyQuiz.ts. Plain Russian, no exclamation marks.
  */
 import { plural, QUIZ } from './copyQuiz';
-import type { QuizAccent, QuizGrading, QuizReview } from '../../types/quiz';
+import type { QuizAccent, QuizGrading, QuizGuardKind, QuizProtection, QuizReview } from '../../types/quiz';
 import type { QuizWho } from './setupModel';
 
 const people = (n: number) => `${n} ${plural(n, 'человек', 'человека', 'человек')}`;
@@ -61,7 +61,7 @@ export const QA_SETUP = {
   partMain: 'Основное',
   /** The rest of the settings of ?all=1, folded. */
   more: 'Ещё настройки',
-  moreNote: 'вопросы и порядок, попытки, проходной балл, что ученик видит после сдачи',
+  moreNote: 'вопросы и порядок, попытки, проходной балл, что ученик видит после сдачи, защита от списывания',
   noPool: 'В экзамене нет вопросов с ключом: контрольную пока не из чего собрать.',
   toKeys: 'Вопросы и ключи',
   count: 'Сколько вопросов',
@@ -162,14 +162,30 @@ export const QA_SETUP = {
       pink: 'Розовый',
       graphite: 'Графит',
     })[accent],
-  locked: 'Контрольную уже начали писать: предметы, число вопросов, набор, порядок и время больше не меняются. Остальное можно.',
+  locked: 'Контрольную уже начали писать: предметы, число вопросов, набор, порядок, время и защита от списывания больше не меняются. Остальное можно.',
   /** A quiz «как в студии» (release 47.2). */
-  lockedDesign: 'Контрольную уже начали писать: «Как в студии», порядок вариантов и время больше не меняются. Остальное можно.',
+  lockedDesign: 'Контрольную уже начали писать: «Как в студии», порядок вариантов, время и защита от списывания больше не меняются. Остальное можно.',
+  /** «Защита от списывания» (20261020120000_quiz_protection): three levels, each with what it does and cannot catch. */
+  protection: 'Защита от списывания',
+  protectionOption: (level: QuizProtection) => ({ off: 'выключена', normal: 'обычная', strict: 'строгая' })[level],
+  protectionHint: (level: QuizProtection, limit: number) =>
+    ({
+      off: 'Ничего не записывается: если ученик откроет другое приложение или ассистента, вы об этом не узнаете.',
+      normal:
+        'Вопрос закрывается, когда ученик уходит со страницы или открывает что-то поверх неё: другое приложение, ассистента вроде Gemini, шторку уведомлений, разделённый экран. Каждый раз записывается, вы увидите, когда это было и сколько длилось. Второй телефон и фото экрана сайт заметить не может.',
+      strict: `То же, что обычная, и ещё: на Android контрольная открывается на весь экран, текст вопросов не копируется, поверх вопросов видно имя ученика. ${
+        limit === 1 ? 'Первый же уход' : `${limit}-й уход`
+      } завершает попытку, ответы до него засчитываются. Второй телефон и фото экрана сайт заметить не может.`,
+    })[level],
+  /** Under the levels when one is on: what else lands in the record. */
+  protectionLimits: 'Звонок или погасший экран у ученика тоже попадают в запись. Смотрите, сколько длился уход.',
+  protectionLimit: 'Завершить попытку после',
+  protectionLimitOption: (n: number) => `${n} ${plural(n, 'ухода', 'уходов', 'уходов')}`,
   design: 'Как в студии',
   designLine: 'Вопросы, порядок и оформление — как в студии.',
   designOff: 'Вопросы — из предметов экзамена, как в обычной контрольной.',
   toStudio: 'Открыть студию',
-  moreNoteDesign: 'варианты ответа, попытки, проходной балл, что ученик видит после сдачи',
+  moreNoteDesign: 'варианты ответа, попытки, проходной балл, что ученик видит после сдачи, защита от списывания',
   problems: {
     title: 'Напишите название, до 120 знаков.',
     subjects: 'Отметьте хотя бы один предмет.',
@@ -256,6 +272,36 @@ export const QA_PEOPLE = {
   /** Still unfinished, the clock at 00:00: the server takes the last answers for 20 s more, then closes it. */
   timeOver: 'время вышло, ответы сдаются',
   closed: 'закрыта',
+  /** The strict level ended the attempt (finish_reason 'protection'). */
+  guardEnded: 'завершена: уходы со страницы',
+  /** The mark of an attempt with events (a counted one, a copy or a paste). */
+  flag: (counted: number) => (counted > 0 ? `${counted} ${plural(counted, 'уход', 'ухода', 'уходов')}` : 'копирование'),
+  flagLabel: (counted: number) =>
+    counted > 0 ? `Покидал страницу: ${counted} ${plural(counted, 'раз', 'раза', 'раз')}` : 'Пытался копировать или вставлял текст',
+  onlyFlagged: 'Только с нарушениями',
+  noneFlagged: 'Попыток с нарушениями нет.',
+  /** The timeline of «Защита от списывания» in the answers sheet. */
+  eventsTitle: 'Что записала защита',
+  eventsLoading: 'Загружаем записи…',
+  eventsFailed: 'Не получилось загрузить записи.',
+  eventsNone: 'Ничего не записано.',
+  eventsCount: (n: number) => `Уходов со страницы: ${n}.`,
+  eventsLimits: 'Сайт видит только эту страницу. Второй телефон или фото экрана он не заметит, а звонок или погасший экран записывает так же, как уход.',
+  eventKind: (kind: QuizGuardKind) =>
+    ({
+      hidden: 'Страница скрыта: другое приложение, блокировка экрана или звонок',
+      blur: 'Поверх страницы открыто другое окно: ассистент, поиск по экрану, шторка уведомлений',
+      split: 'Окно уменьшено: разделённый экран или плавающее окно',
+      fullscreen: 'Выход из полноэкранного режима',
+      copy: 'Попытка скопировать текст',
+      paste: 'Вставка текста в ответ',
+      reload: 'Страница открыта заново',
+    })[kind],
+  eventQ: (n: number) => `вопрос ${n}`,
+  eventMs: (ms: number) => {
+    const s = Math.max(1, Math.round(ms / 1000));
+    return s < 60 ? `${s} с` : `${Math.floor(s / 60)} мин ${s % 60} с`;
+  },
   result: (correct: number, total: number, percent: number | null) => `${correct} из ${total}${percent === null ? '' : ` · ${percent} %`}`,
   /** A quiz «как в студии» whose questions weigh their points (release 47.2): the participant's «6 баллов из 8 · 75 %». */
   points: (score: number, max: number, percent: number | null) => `${pointsWord(score)} из ${max}${percent === null ? '' : ` · ${percent} %`}`,
