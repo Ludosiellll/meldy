@@ -1403,6 +1403,7 @@
   .st-step::after,
   .st-plus-end::after { inset: -2px; }
   .st-act { height: 36px; }
+  .st-act-icon { width: 44px; }
   .st-act::after { inset: -4px 0; }
   .st-tab::after { inset: -5px 0; }
   .st-plus::after { inset: -7px; border-radius: 50%; }
