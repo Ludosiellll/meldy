@@ -41,6 +41,8 @@ export const AI_COSTS = {
   analysisSection: 7,
   /** Ход голосового репетитора, на который ответила модель. */
   tutorTurn: 1,
+  /** Разбор сложных мест банка вопросов — за каждые начатые 100 вопросов, отправленных модели. */
+  importAI: 5,
 } as const;
 // Убраны вместе со скрытыми разделами (2026-10-05): чат, курсы, миссии, экзамен у «профессора», карьера.
 
@@ -53,6 +55,15 @@ export const EXAM_MAPPING_QUESTIONS_PER_CHARGE = 40;
 export function examMappingCost(questions: number): number {
   const count = Math.max(0, Math.trunc(Number(questions) || 0));
   return AI_COSTS.examMapping * Math.ceil(count / EXAM_MAPPING_QUESTIONS_PER_CHARGE);
+}
+
+/** Разбор банка с ИИ: AI_COSTS.importAI за каждые начатые столько вопросов, отправленных модели. */
+export const IMPORT_AI_QUESTIONS_PER_CHARGE = 100;
+
+/** Единицы разбора сложных мест: 5 за каждые начатые 100 вопросов (не меньше 5); сервер считает так же (plans.py). */
+export function importAiCost(questions: number): number {
+  const count = Math.max(1, Math.trunc(Number(questions) || 0));
+  return AI_COSTS.importAI * Math.ceil(count / IMPORT_AI_QUESTIONS_PER_CHARGE);
 }
 
 /** Распознавание скана: AI_COSTS.scanPages за каждые начатые столько страниц. */

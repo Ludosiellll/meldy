@@ -29,12 +29,24 @@ AI_COSTS = {
     "analysisSection": 7,
     # Голосовой репетитор: ход разговора, на который ответила модель (tutor_api.py).
     "tutorTurn": 1,
+    # Разбор сложных мест банка вопросов моделью (bank_ai.py) — за каждые начатые 100 вопросов, отправленных модели.
+    "importAI": 5,
 }
 # Убраны вместе со скрытыми разделами (2026-10-05): чат, курсы, миссии, экзамен у «профессора»,
 # карьера.
 
 # Сверка списка: AI_COSTS["examMapping"] за каждые начатые столько новых вопросов.
 EXAM_MAPPING_QUESTIONS_PER_CHARGE = 40
+
+# Разбор банка с ИИ: AI_COSTS["importAI"] за каждые начатые столько вопросов, отправленных модели.
+IMPORT_AI_QUESTIONS_PER_CHARGE = 100
+
+
+def import_ai_cost(questions: int) -> int:
+    """Единицы разбора сложных мест банка: 5 за каждые начатые 100 вопросов, которые уходят модели (не меньше 5)."""
+    count = max(1, int(questions))
+    return AI_COSTS["importAI"] * math.ceil(count / IMPORT_AI_QUESTIONS_PER_CHARGE)
+
 
 # Распознавание скана: AI_COSTS["scanPages"] за каждые начатые столько страниц (кусок ocr.py).
 OCR_PAGES_PER_CHARGE = 15

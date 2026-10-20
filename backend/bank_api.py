@@ -33,6 +33,7 @@ from bank_parse import (
     MAX_KEY_TEXT_CHARS,
     TOO_MUCH_TEXT_DETAIL,
     BankError,
+    _user_keys,
     check_file_name,
     parse_bank_file,
     parse_bank_text,
@@ -93,6 +94,22 @@ async def _parse(request: Request) -> dict:
     if not (isinstance(user, dict) and user.get("id")):
         raise BankError(401, "auth", AUTH_DETAIL)  # middleware main.py уже ответил бы 401: вторая линия
     form = await _read_form(request)
+    prepared = await prepare(request, form)
+    # Разбор — чистый CPU (до 2 000 000 знаков): в потоке-исполнителе он не держит цикл событий.
+    options = {"key_mode": prepared["key_mode"], "key_text": prepared["key_text"], "format_mode": prepared["format_mode"]}
+    if prepared["key_file"] is not None:
+        options["key_file"] = prepared["key_file"]
+        options["key_section"] = prepared["key_section"]
+    if prepared["contents"] is not None:
+        return await asyncio.to_thread(functools.partial(parse_bank_file, prepared["contents"], prepared["name"],
+                                                         with_pictures=prepared["with_pictures"], **options))
+    return await asyncio.to_thread(functools.partial(parse_bank_text, prepared["text"], **options))
+
+
+async def prepare(request: Request, form) -> dict:
+    """Поля формы parse-bank, проверенные: {contents, name, text, key_mode, format_mode, key_text, user_keys, key_file,
+    key_section, with_pictures} (файл прочитан с пределом размера; файл ключа — разделы). Ошибки — BankError.
+    Её же читает разбор с ИИ (bank_ai.py)."""
     text_value = _optional_text(form.get("text"))
     key_mode = (_optional_text(form.get("key_mode")) or "auto").strip() or "auto"
     format_mode = (_optional_text(form.get("format")) or "auto").strip() or "auto"
@@ -123,23 +140,24 @@ async def _parse(request: Request) -> dict:
         raise BankError(400, "both_inputs", BOTH_INPUTS_DETAIL)
     if not has_text and not has_file:
         raise BankError(400, "no_input", NO_INPUT_DETAIL)
-    # Разбор — чистый CPU (до 2 000 000 знаков): в потоке-исполнителе он не держит цикл событий.
-    options = {"key_mode": key_mode, "key_text": key_text, "format_mode": format_mode}
+    prepared: dict = {"contents": None, "name": "", "text": None, "key_mode": key_mode, "format_mode": format_mode,
+                      "key_text": key_text, "user_keys": _user_keys(key_text), "key_file": None, "key_section": key_section,
+                      "with_pictures": (_optional_text(form.get("pictures")) or "").strip() == "1"}
     if key_upload is not None:
-        options["key_file"] = await _key_file(key_upload)
-        options["key_section"] = key_section
+        prepared["key_file"] = await _key_file(key_upload)
     if has_file:
         name = _file_name(upload)
-        check_file_name(name)  # .doc и PDF — 415 сразу, не дожидаясь чтения файла
+        check_file_name(name)  # .doc и неизвестный формат — 415 сразу, не дожидаясь чтения файла
         try:
-            contents = await read_upload_with_limit(upload)
+            prepared["contents"] = await read_upload_with_limit(upload)
         except HTTPException as exc:
             if exc.status_code == 413:
                 raise BankError(413, "file_too_big", str(exc.detail)) from None
             raise
-        with_pictures = (_optional_text(form.get("pictures")) or "").strip() == "1"
-        return await asyncio.to_thread(functools.partial(parse_bank_file, contents, name, with_pictures=with_pictures, **options))
-    return await asyncio.to_thread(functools.partial(parse_bank_text, text_value, **options))
+        prepared["name"] = name
+    else:
+        prepared["text"] = text_value
+    return prepared
 
 
 async def _key_file(upload: Any) -> list[dict]:

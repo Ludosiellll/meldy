@@ -93,18 +93,46 @@ def load_cases(root: Path = WILD) -> list[dict]:
     return [json.loads(path.read_text(encoding="utf-8")) for path in sorted((root / "truth").glob("*.json"))]
 
 
-def run_case(case: dict, root: Path = WILD) -> tuple[Optional[dict], Optional[str]]:
-    """Разбор файла случая (с файлом ключа, если он есть) → (результат, None) или (None, код ошибки)."""
+def run_case(case: dict, root: Path = WILD, ai: str = "off", scope: str = "flagged",
+             cassette: Optional[dict] = None) -> tuple[Optional[dict], Optional[str]]:
+    """Разбор файла случая (с файлом ключа, если он есть) → (результат, None) или (None, код ошибки).
+
+    ai: off — правила (parse-bank); oracle / noisy / cassette — разбор с ИИ (bank_ai.hybrid, scope) с подменной моделью
+    (bank_oracle): без провайдеров. Файл, которому ИИ не нужен (GIFT, Moodle XML), — как у правил."""
     path = root / case["file"]
     try:
         key_file = None
         if case.get("key_file"):
             key_path = root / case["key_file"]
             key_file = read_key_file(key_path.read_bytes(), key_path.name)
-        return parse_bank_file(path.read_bytes(), path.name, key_file=key_file, with_pictures=True,
-                               format_mode=case.get("format", "auto")), None
+        if ai == "off":
+            return parse_bank_file(path.read_bytes(), path.name, key_file=key_file, with_pictures=True,
+                                   format_mode=case.get("format", "auto")), None
+        return _run_ai(case, path, key_file, ai, scope, cassette), None
     except BankError as exc:
+        if ai != "off" and exc.code == "no_doubts":
+            return run_case(case, root)
         return None, f"{exc.status}:{exc.code}"
+
+
+def _run_ai(case: dict, path: Path, key_file, ai: str, scope: str, cassette: Optional[dict]) -> dict:
+    import asyncio
+
+    import bank_ai
+    import bank_markup
+    import bank_oracle
+
+    prepared = {"contents": path.read_bytes(), "name": path.name, "with_pictures": True, "text": None}
+    blocks, line_word, pictures = bank_ai._blocks_of(prepared)
+    lines = bank_markup.markup(blocks)
+    if ai == "cassette":
+        ask = bank_oracle.make_cassette_ask(cassette or {})
+    else:
+        ask = bank_oracle.make_oracle_ask(case["questions"], lines, noisy=ai == "noisy")
+    bank_ai.STAGGER_SECONDS = 0
+    result = asyncio.run(bank_ai.hybrid(blocks, ask=ask, line_word=line_word, pictures=pictures, scope=scope,
+                                        format_mode=case.get("format", "auto"), key_file=key_file))
+    return bank_parse._checked(result, case.get("format", "auto"))
 
 
 def _match_key(item: dict) -> Optional[dict[int, str]]:
@@ -237,13 +265,23 @@ def score_case(case: dict, result: Optional[dict], error: Optional[str]) -> dict
     return out
 
 
-def evaluate(root: Path = WILD, only: Optional[str] = None) -> dict:
+AI_COUNTS = ("chunks", "failed_chunks", "questions", "units", "found", "rejected_keys", "disagreements", "replaced", "added")
+
+
+def evaluate(root: Path = WILD, only: Optional[str] = None, ai: str = "off", scope: str = "flagged",
+             cassette: Optional[dict] = None) -> dict:
     files = []
+    ai_total: Counter = Counter()
     for case in load_cases(root):
         if only and not case["id"].startswith(only):
             continue
-        result, error = run_case(case, root)
-        files.append(score_case(case, result, error))
+        result, error = run_case(case, root, ai=ai, scope=scope, cassette=cassette)
+        entry = score_case(case, result, error)
+        if result is not None and result.get("ai"):
+            entry["ai"] = {name: result["ai"].get(name, 0) for name in AI_COUNTS}
+            ai_total.update({name: result["ai"].get(name, 0) or 0 for name in AI_COUNTS})
+            ai_total["files_sent"] += 1 if result["ai"].get("chunks") else 0
+        files.append(entry)
     total = Counter()
     for entry in files:
         for name in ("expected", "parsed", "found", "false", "stem", "options", "key", "key_wrong", "key_missing", "key_invented", "kind"):
@@ -252,7 +290,7 @@ def evaluate(root: Path = WILD, only: Optional[str] = None) -> dict:
     total["supported_files"] = sum(1 for entry in files if entry["supported"])
     total["rejected_files"] = sum(1 for entry in files if entry["error"])
     total["perfect_files"] = sum(1 for entry in files if not entry["reasons"])
-    return {"total": dict(total), "files": files}
+    return {"total": dict(total), "files": files, "ai": dict(ai_total)}
 
 
 def _pct(part: int, whole: int) -> str:
@@ -349,14 +387,21 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--json", help="записать итог в файл")
     parser.add_argument("--counts", nargs="+", help="файлы без эталона: только числа")
     parser.add_argument("--key-file", help="файл ключа для --counts")
+    parser.add_argument("--ai", choices=("off", "oracle", "noisy", "cassette"), default="off",
+                        help="разбор с ИИ с подменной моделью (bank_oracle): без провайдеров")
+    parser.add_argument("--scope", choices=("flagged", "all"), default="flagged", help="что отправлять модели")
+    parser.add_argument("--cassette", help="файл записанных ответов для --ai cassette")
     args = parser.parse_args(argv)
     if args.counts:
         key_path = Path(args.key_file) if args.key_file else None
         for name in args.counts:
             print(json.dumps(counts(Path(name), key_path), ensure_ascii=False, sort_keys=True))
         return 0
-    report = evaluate(only=args.only)
+    cassette = json.loads(Path(args.cassette).read_text(encoding="utf-8")) if args.cassette else None
+    report = evaluate(only=args.only, ai=args.ai, scope=args.scope, cassette=cassette)
     print_report(report, show=args.show)
+    if args.ai != "off":
+        print("\nAI (" + args.ai + ", " + args.scope + "): " + ", ".join(f"{name} {value}" for name, value in sorted(report["ai"].items())))
     if args.json:
         for entry in report["files"]:
             entry["reasons"] = dict(entry["reasons"])

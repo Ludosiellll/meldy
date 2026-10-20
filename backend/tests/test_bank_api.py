@@ -171,7 +171,11 @@ def test_pasted_text_returns_the_preview_and_nothing_is_written_or_charged(api, 
         "text": "Какой оператор вычитает и сразу присваивает результат?", "options": ["+=", "-=", "=-"], "correct": [1],
         "order": [], "pairs": [], "answer": None, "evidence": "bold", "flags": [], "code": True, "where": "строка 3",
         "marks": {"bold": [0, 1, 0]}, "images": None,
+        # этап 2: строки вопроса в нумерации фрагментов, уверенность разбора и её причины
+        "lines": [3, 6], "confidence": 1.0, "doubts": [],
     }
+    assert body["doubtful"] == 0 and body["source_lines"] == [] and body["line_count"] == 10
+    assert body["ai_offer"] == {"worth": False, "reasons": [], "questions": 0, "units": 0, "doubtful": 0}
     assert second["options"] == ["сворачивает блок кода", "удаляет код"] and second["correct"] == [0]
     assert third["kind"] == "open" and third["options"] == [] and third["correct"] == [] and third["flags"] == []
     assert third["text"] == "Объясните, что вернёт items?.Count ?? 0, если items равно null." and third["marks"] == {"bold": []}
@@ -253,9 +257,10 @@ def test_pictures_come_only_when_the_page_asks_for_them(api):
 
 
 RESPONSE_KEYS = {"method", "layout", "layouts_seen", "variant", "pictures", "confidence", "key_source", "format_signal", "format_signals",
-                 "mark_share", "marker", "markers", "subjects", "topics", "skipped", "warnings", "items", "stats"}
+                 "mark_share", "marker", "markers", "subjects", "topics", "skipped", "warnings", "items", "stats",
+                 "doubtful", "line_count", "source_lines", "ai_offer"}
 ITEM_KEYS = {"position", "label", "subject", "topic", "kind", "text", "options", "correct", "order", "pairs", "answer",
-             "evidence", "flags", "code", "where", "marks", "images"}
+             "evidence", "flags", "code", "where", "marks", "images", "lines", "confidence", "doubts"}
 
 
 def test_synthetic_banks_come_back_whole_and_in_the_same_shape(api):

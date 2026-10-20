@@ -69,6 +69,7 @@ from typing import Optional
 
 import bank_docx
 import bank_formats
+import bank_markup
 from bank_docx import (
     LATIN_LOWER,
     RUSSIAN_LOWER,
@@ -203,7 +204,7 @@ OPTION_LABEL_RE = re.compile(
 # Отметка перед вариантом: флажок «☑»/«☐», «[x]»/«[ ]» (и пункт Markdown «- [x]»), «+» или «*» вплотную перед буквой («+в)»).
 # Отмеченный — ключ (как флажок Word), «☐»/«[ ]» — неотмеченный.
 LEAD_MARK_RE = re.compile(  # без «^»: lead_mark ищет с позиции после отступа (match с pos)
-    r"(?:[-*]\s+)?(?:\[([ xXхХ✓✔])\]|([☐☑☒✅□✓✔]))\s*(?=\S)"
+    r"(?:[-*]\s+)?(?:\[([ xXхХ✓✔])\]|([☐☑☒✅□■✓✔]))\s*(?=\S)"
     r"|(\+\s?|\*)(?=\(?(?:[а-иА-ИсСa-hA-H]|\d{1,2})\s*[).]\s*\S)"
 )
 # Варианты по два в строке: «а) 180<tab>в) 360» — подпись после табуляции или двух пробелов (их ищет grid_parts:
@@ -212,17 +213,23 @@ GRID_LABEL_RE = re.compile(r"(?<=[\t \u00a0])\(?[а-иА-Иa-hA-H] ?[).] ?(?=\S)
 BULLET_RE = re.compile(r"^[•·▪◦●○■□➢➤►–—]\s+|^-\s+(?=\S)")
 INLINE_OPTION_RE = re.compile(r"(?:(?<=\s)|^)([а-иa-h])\)\s*")
 ANSWER_RE = re.compile(
-    r"^(?:правильн\w*\s+ответ\w*|верн\w*\s+ответ\w*|ответ|эталон(?:\s+ответа)?|ключ|отв\.|answer)\s*[:\-–—]\s*(.+)$", re.I)
+    r"^(?:правильн\w*\s+ответ\w*|верн\w*\s+ответ\w*|ответ|эталон(?:\s+ответа)?|ключ|отв\.|answer"
+    r"|правільн\w*\s+адказ\w*|адказ|правильн\w*\s+відповід\w*|відповідь|(?:correct|right)\s+answer|the\s+correct\s+answers?\s+(?:is|are))"
+    r"\s*[:\-–—]\s*(.+)$", re.I)
 KEY_HEADING_RE = re.compile(
     r"^(?:ключ\w*|ответы|эталоны?(?:\s+ответов)?|правильные\s+ответы|ключ\w*\s+(?:к|правильных)\s+.*|ответы\s+к\s+.*"
-    r"|таблица\s+ответов)\s*[.:]?$",
+    r"|таблица\s+ответов|адказы|відповіді|answer\s+key|answers|(?:correct|right)\s+answers|key)\s*[.:]?$",
     re.I,
 )
 KEY_PAIR_START_RE = re.compile(r"(?:(?<=^)|(?<=[\s,;]))(\d{1,4})(?:\s*[-–—.:)]\s*|\s+(?=[а-яёa-z])|(?=[а-яё]))", re.I)
+# Ключ слитно: «1в2б3б4в» — по одной букве на номер
+GLUED_KEY_RE = re.compile(r"(?<!\S)(?:\d{1,3}[а-иА-Иa-hA-H]){2,}(?!\S)")
+GLUED_PAIR_RE = re.compile(r"\d{1,3}[а-иА-Иa-hA-H]")
 # Ключ одной строкой: «Ключ: 1 – б, 2 – а, …», «Ответы: 1-б; 2-а», «Ключ к тесту — 1б 2а» (пары — KEY_PAIR_START_RE).
 KEY_LIST_HEAD_RE = re.compile(
     r"^(?:ключ\w*(?:\s+(?:к|правильных)\s+[^:–—]{1,60}?)?|ответы(?:\s+к\s+[^:–—]{1,60}?)?|правильные\s+ответы"
-    r"|эталоны?(?:\s+ответов)?|таблица\s+ответов)\s*[:.–—-]\s*",
+    r"|эталоны?(?:\s+ответов)?|таблица\s+ответов|адказы|відповіді|answer\s+key|answers|(?:correct|right)\s+answers)"
+    r"\s*[:.–—-]\s*",
     re.I,
 )
 # Ответ в списке ключей: «б», «а, в», «2, 4, 3, 1», «А-2, Б-3» — короткие буквы и числа через запятую или тире.
@@ -351,13 +358,13 @@ VARIANT_KEY_RE = re.compile(
     re.I | re.S,
 )
 # «Вопрос 12», «Вопрос №12», «Question 12», «Пытанне 12» отдельной строкой — номер вопроса, текст — со следующей строки
-QUESTION_NUMBER_RE = re.compile(rf"^{_Q_WORD}\s*(?:№\s*)?(\d{{1,4}})\s*[.:]?$", re.I)
+QUESTION_NUMBER_RE = re.compile(rf"^{_Q_WORD}\s*(?:№\s*)?(\d{{1,4}})(?:\s+(?:из|of|з)\s+\d{{1,4}})?\s*[.:]?$", re.I)
 # Ответ в скобках в конце строки вопроса: «Кто написал «Бородино»? (Ответ: б)»
 STEM_ANSWER_RE = re.compile(r"\((?:правильн\w*\s+ответ\w*|верн\w*\s+ответ\w*|ответ|ключ|answer) ?[:\-–—] ?([^()]{1,40}?) ?\)\s*$", re.I)
 STEM_ANSWER_TAIL = 80  # ищется только в хвосте строки вопроса (как маркер в конце варианта)
 # Подсказка к вариантам, не часть вопроса: «Выберите один правильный ответ:» (Moodle: «Выберите один ответ:»)
 CHOOSE_ONE_RE = re.compile(r"^(?:выберите|укажите|отметьте)\s+(?:один|одно)\s+(?:(?:правильный|верный)\s+)?(?:ответ|вариант(?:\s+ответа)?)\s*[:.]?$"
-                           r"|^(?:choose|select)\s+(?:one|the\s+correct)\s+(?:answer|option)\s*[:.]?$", re.I)
+                           r"|^(?:choose|select)\s+(?:one(?:\s+(?:answer|option))?|the\s+correct\s+(?:answer|option))\s*[:.]?$", re.I)
 # Колонтитулы и служебные строки, которые не относятся ни к одному вопросу: «Страница 3 из 10», «Стр. 4», «Page 2 of 5»;
 # строки страницы просмотра попытки Moodle — только в файле, где она узнана (moodle_chrome).
 PAGE_LINE_RE = re.compile(r"^(?:страница|стр\.?|лист|page)\s*\d{1,4}(?:\s*(?:из|of|/)\s*\d{1,4})?\.?$|^-\s*\d{1,4}\s*-$", re.I)
@@ -651,6 +658,9 @@ class Item:
     sub_labels: list[str] = field(default_factory=list)  # format «open»: подписи строк-подпунктов в тексте
     mono: bool = False  # в тексте вопроса есть моноширинный шрифт: код (флаг «code» ответа)
     variant: Optional[int] = None  # «Вариант N» над вопросом (в файле несколько вариантов): ключ берётся из ключа варианта
+    ref: Optional[tuple[int, int, int]] = None  # первая строка вопроса в документе (bank_markup: номер строки, фрагмент)
+    source: str = ""  # разбор с ИИ: «rules» | «ai» | «both»
+    alt: Optional[dict] = None  # разбор с ИИ: другая версия вопроса, когда правила и ИИ разошлись
     grid: bool = False  # варианты по два в строке («а) …<tab>в) …»): порядок — по буквам
 
     def flag(self, name: str) -> None:
@@ -727,7 +737,7 @@ def lead_mark(para: Para) -> Para:
     checkbox=False, «+в) азот» → «в) азот», отмечен. Абзац без такой отметки — как был."""
     raw = para.text
     lead = len(raw) - len(raw.lstrip())
-    match = LEAD_MARK_RE.match(raw, lead) if raw[lead:lead + 1] in "-*+[☐☑☒✅□✓✔" else None
+    match = LEAD_MARK_RE.match(raw, lead) if raw[lead:lead + 1] in "-*+[☐☑☒✅□■✓✔" else None
     if not match:
         return para
     if match.group(3):
@@ -793,6 +803,26 @@ def _text_offset(para: Para) -> int:
     return (len(full) - len(full.lstrip())) - (len(full) - len(para.text))
 
 
+CELL_SEPARATOR_RE = re.compile(r"\s+\|\s+|\s*;\s+")
+
+
+def cell_pieces(para: Para) -> Optional[list[Para]]:
+    """Варианты одной строкой в ячейке столбца вариантов: «митохондрия | рибосома | лизосома» (или через «; ») —
+    абзацы по одному на вариант с оформлением кусков; меньше двух частей — None."""
+    text = para.text
+    separators = list(CELL_SEPARATOR_RE.finditer(text))
+    if not separators or len({m.group(0).strip() for m in separators}) != 1:
+        return None
+    bounds, start = [], 0
+    for m in separators:
+        bounds.append((start, m.start()))
+        start = m.end()
+    bounds.append((start, len(text)))
+    if any(not text[a:b].strip() for a, b in bounds):
+        return None
+    return [Para(runs=trim_runs(strip_runs(para.runs, a), b - a), checkbox=para.checkbox) for a, b in bounds]
+
+
 def split_inline(para: Para, chain: list[re.Match], text: str, offset: int = 0) -> list[Option]:
     """Варианты в одном абзаце «а) x; б) y»: куски режутся вместе с текстом, жирный остаётся у своего варианта.
 
@@ -827,6 +857,7 @@ class Line:
     offset: int
     para: Para
     text: str
+    ref: Optional[tuple[int, int, int]] = None  # место в документе: (блок, строка таблицы или -1, абзац потока раскладки)
 
 
 def _cell_para(cell: Cell) -> Para:
@@ -845,12 +876,17 @@ def _column_label(index: int) -> str:
     return RUS[index] if index < len(RUS) else str(index + 1)
 
 
+def unglue_key(text: str) -> str:
+    """«1в2б3а» → «1в 2б 3а» (ключ слитно, по одной букве на номер); остальное — как было."""
+    return GLUED_KEY_RE.sub(lambda m: " ".join(GLUED_PAIR_RE.findall(m.group(0))), text) if GLUED_KEY_RE.search(text) else text
+
+
 def key_pairs(text: str) -> Optional[list[tuple[str, str]]]:
     """Пары «номер – ответ», если строка из них и состоит (первая пара — с первого знака), иначе None.
 
     «1 – б, 2 – а, 11 – а, б, г» → [("1", "б"), ("2", "а"), ("11", "а, б, г")]; «1б 2а 3в» → три пары.
     """
-    text = text.strip()
+    text = unglue_key(text.strip())
     if not KEY_PAIR_START_RE.match(text):  # первая пара — с первого знака (остальную строку не смотрим зря)
         return None
     starts = list(KEY_PAIR_START_RE.finditer(text))
@@ -919,6 +955,17 @@ def horizontal_keys(rows: list[list[Cell]]) -> Optional[dict[str, str]]:
 # ── Читатели ────────────────────────────────────────────────────────────────────
 
 
+def layout_flow(table: Table) -> list[Para]:
+    """Абзацы ячеек таблицы-раскладки по порядку чтения; после каждой ячейки — пустой абзац (граница блока)."""
+    flow: list[Para] = []
+    for row in table.rows:
+        for cell in row:
+            if not cell.continuation and cell.paras:
+                flow.extend(cell.paras)
+                flow.append(Para())
+    return flow
+
+
 class KeyStore(dict):
     """Ключ файла «номер → ответ». Номер, которому файл дал два разных ответа (ключи двух вариантов без подписи варианта,
     опечатка), попадает в conflicts: такой ключ не берётся — вопрос получает key_conflict, а не ответ последней строки."""
@@ -966,6 +1013,9 @@ class Reader:
         self.current_variant: Optional[int] = None  # последний заголовок «Вариант N» над вопросами
         self.variant_keys: dict[int, KeyStore] = {}  # ключ по вариантам в самом файле («Вариант 2: 1а 2б», столбцы)
         self.pictures: dict[str, tuple[str, bytes]] = {}  # картинки DOCX: id → (тип, байты) (bank_docx.read_docx)
+        self.block = 0  # номер блока документа, который читается сейчас (таблица)
+        self.blocks: list = []  # блоки документа (read_bank): строки фрагментов и разбор с ИИ
+        self.row_index: dict[int, int] = {}
 
     def heading(self, text: str, default: str, level: Optional[int] = None) -> None:
         title = " ".join(text.split())
@@ -986,8 +1036,8 @@ class Reader:
     def where(self, line: Line) -> str:
         return f"{self.line_word} {line.offset + 1}"
 
-    def new_item(self, label: str, text: str, where: str) -> Item:
-        item = Item(label=label, text=text.strip(), seq=self.seq, where=where, variant=self.current_variant)
+    def new_item(self, label: str, text: str, where: str, ref: Optional[tuple[int, int, int]] = None) -> Item:
+        item = Item(label=label, text=text.strip(), seq=self.seq, where=where, variant=self.current_variant, ref=ref)
         take_stem_answer(item)
         self.seq += 1
         self.items.append(item)
@@ -998,6 +1048,7 @@ class Reader:
     def key_line(self, text: str, keys: Optional[dict[str, str]] = None) -> int:
         """Пары «номер – ответ» строки ключа в keys (по умолчанию — общий ключ файла); сколько найдено."""
         keys = self.keys if keys is None else keys
+        text = unglue_key(text)
         starts = list(KEY_PAIR_START_RE.finditer(text))
         found = 0
         for i, start in enumerate(starts):
@@ -1010,19 +1061,16 @@ class Reader:
 
     # — таблицы —
 
-    def table(self, table: Table) -> None:
+    def table(self, table: Table, index: int = 0) -> None:
+        """Таблица — блок index документа."""
         self.tables += 1
+        self.block = index
         first_seq = self.seq
         if self.layout_table(table):
             # таблица — раскладка страницы (две колонки, рамка): её ячейки читаются абзацами по порядку
             self.layouts["table_layout"] += 1
-            flow: list[Para] = []
-            for row in table.rows:
-                for cell in row:
-                    if not cell.continuation and cell.paras:
-                        flow.extend(cell.paras)
-                        flow.append(Para())
-            self.paragraphs(flow, 0)
+            flow = layout_flow(table)
+            self.paragraphs(flow, index, [(index, -1, k) for k in range(len(flow))])
         else:
             self._table(table, table.title or f"таблица {self.tables}")
         if self.seq > first_seq:
@@ -1049,6 +1097,7 @@ class Reader:
         return numbered >= 2 and whole >= 1
 
     def _table(self, table: Table, title: str) -> None:
+        self.row_index = {id(row): r for r, row in enumerate(table.rows)}  # строка таблицы → её место (ref вопроса)
         numbers = table.numbers or list(range(1, len(table.rows) + 1))
         rows = [(number, row) for number, row in zip(numbers, table.rows) if any(cell.text for cell in row)]
         if not rows:
@@ -1129,7 +1178,7 @@ class Reader:
                 starts = False  # «а) | вариант»: в столбце номера — буква варианта, строка — вариант текущего вопроса
             if starts:
                 text = question_cell.text if question_cell else ""
-                current = self.new_item(number, text, f"{title}, строка {row_number}")
+                current = self.new_item(number, text, f"{title}, строка {row_number}", (self.block, self.row_index.get(id(cells), -1), 0))
                 if question_cell:
                     current.images += [key for p in question_cell.paras for key in p.images]
                     current.formulas += sum(p.formulas for p in question_cell.paras)
@@ -1164,10 +1213,15 @@ class Reader:
                             self.add_option(current, para)
                     elif paras:
                         chain = inline_chain(paras[0].text) if not self.open_mode else None
+                        pieces = cell_pieces(paras[0]) if opt_col != q_col and starts and not chain else None
                         if chain and starts:
                             self.layouts["table_options_in_cell"] += 1
                             current.options.extend(split_inline(paras[0], chain, paras[0].text))
                             current.inline = True
+                        elif pieces:
+                            self.layouts["table_options_in_cell"] += 1
+                            for piece in pieces:
+                                self.add_option(current, piece)
                         else:
                             self.layouts["table_option_rows"] += 1
                             self.add_option(current, paras[0])
@@ -1234,7 +1288,8 @@ class Reader:
                 expected = number + 1
                 cell = self._live(cells)[0][1]
                 rest = [p.text.strip() for p in cell.paras[1:] if p.text.strip()]
-                current = self.new_item(label, "\n".join([first.strip(), *rest]), f"{title}, строка {row_number}")
+                current = self.new_item(label, "\n".join([first.strip(), *rest]), f"{title}, строка {row_number}",
+                                        (self.block, self.row_index.get(id(cells), -1), 0))
                 current.images += [key for p in cell.paras for key in p.images]
                 current.formulas += sum(p.formulas for p in cell.paras)
                 current.mono = _mono_inside(cell.paras[0].runs) or any(_mono_any(p.runs) for p in cell.paras[1:])
@@ -1262,9 +1317,11 @@ class Reader:
                 continue
             if re.match(r"^(?:question\s+type|type|тип(?:\s+вопроса)?)$", text):
                 roles["type"] = c
-            elif text.startswith("№") or text in ("n", "no", "no.", "п/п", "#") or text.startswith("номер"):
+            elif (text.startswith("№") or text in ("n", "no", "no.", "п/п", "#") or text.startswith("номер")) \
+                    and not re.search(r"(?:верн|правильн)\w*\s+(?:ответ|вариант)", text):
                 roles.setdefault("number", c)
             elif re.match(r"^(?:правильн|верн|ключ|эталон|correct|right\s+answer)", text) or text in ("ответ", "ответ:") \
+                    or re.match(r"^(?:№|номер)\w*\s+(?:верн|правильн)\w*\s+(?:ответ|вариант)", text) \
                     or re.match(r"^ответ\s*\(", text):
                 roles["key"] = c
             elif re.match(r"^(?:вариант\w*\s+ответ|ответы|варианты|дистрактор)", text) or text in ("вариант", "answers", "options"):
@@ -1444,9 +1501,11 @@ class Reader:
         following = next((line.text for line in lines[i + 1: i + 4] if line.text), "")
         return (int(head.group(1)), None) if key_list_pairs(following, continued=True) else None
 
-    def paragraphs(self, paras: list[Para], start_index: int) -> None:
+    def paragraphs(self, paras: list[Para], start_index: int, refs: Optional[list[tuple[int, int, int]]] = None) -> None:
+        """Абзацы подряд: start_index — номер блока первого из них (refs — места абзацев потока таблицы-раскладки)."""
         paras = [lead_mark(p) for p in paras]
-        lines = [Line(start_index + i, p, para_text(p).strip()) for i, p in enumerate(paras)]
+        lines = [Line(start_index + i, p, para_text(p).strip(), refs[i] if refs else (start_index + i, -1, 0))
+                 for i, p in enumerate(paras)]
         moodle = sum(1 for line in lines if MOODLE_MARK_RE.match(line.text)) >= 2
         first_question = next((i for i, line in enumerate(lines) if line.text and line.para.level in (None, 0)
                                and (question_number(line.text) or QUESTION_NUMBER_RE.match(line.text))), len(lines))
@@ -1629,11 +1688,11 @@ class Reader:
             rest = rest[skip:]
             if not rest:
                 if label or head.text.endswith(("?", ":", "…")):
-                    self.new_item(label, text, self.where(head)).mono = mono  # вопрос без вариантов: открытый
+                    self.new_item(label, text, self.where(head), head.ref).mono = mono  # вопрос без вариантов: открытый
                 else:
                     self.skip(head.text)
                 continue
-            item = self.new_item(label or (head.para.label.rstrip(".") if head.para.label else ""), text, self.where(head))
+            item = self.new_item(label or (head.para.label.rstrip(".") if head.para.label else ""), text, self.where(head), head.ref)
             item.mono = mono
             item.images += head.para.images
             item.formulas += head.para.formulas
@@ -1790,7 +1849,7 @@ class Reader:
                 continue
             alone = QUESTION_NUMBER_RE.match(text) if para.level in (None, 0) else None
             if alone and (current is None or self.next_in_order(int(alone.group(1)), expected_next)):
-                current = self.new_item(alone.group(1), "", self.where(line))  # «Вопрос 3» строкой, текст — ниже
+                current = self.new_item(alone.group(1), "", self.where(line), line.ref)  # «Вопрос 3» строкой, текст — ниже
                 expected_next = int(alone.group(1)) + 1
                 self.layouts["numbered_paragraphs"] += 1
                 continue
@@ -1817,7 +1876,7 @@ class Reader:
                             and current.explicit is None and self.items and self.items[-1] is current:
                         self.items.pop()  # строка без номера над «1.» — заголовок списка, а не вопрос
                         self.heading(current.text, "line")
-                    current = self.new_item(label, body_text, self.where(line))
+                    current = self.new_item(label, body_text, self.where(line), line.ref)
                     current.mono = _mono_inside(para.runs)
                     expected_next = number + 1
                     self.layouts["numbered_paragraphs"] += 1
@@ -1857,13 +1916,13 @@ class Reader:
             if current is not None and blank_before and self.ends_before(current, line):
                 current = None  # после пустой строки — не продолжение варианта: подпись, примечание или новый вопрос
             if current is not None and self.unnumbered_next(current, line, body, position):
-                current = self.new_item(para.label.rstrip(".") if para.label else "", para.text.strip(), self.where(line))
+                current = self.new_item(para.label.rstrip(".") if para.label else "", para.text.strip(), self.where(line), line.ref)
                 current.mono = _mono_inside(para.runs)
                 self.layouts["unnumbered_paragraphs"] += 1
                 continue
             if current is None:
                 if text.endswith(("?", ":", "…")) or (not self.open_mode and self.options_follow(body, position)):
-                    current = self.new_item(para.label.rstrip(".") if para.label else "", para.text.strip(), self.where(line))
+                    current = self.new_item(para.label.rstrip(".") if para.label else "", para.text.strip(), self.where(line), line.ref)
                     current.mono = _mono_inside(para.runs)
                     self.layouts["unnumbered_paragraphs"] += 1
                 else:
@@ -2450,6 +2509,11 @@ def resolve_choice(item: Item, key: str) -> tuple[list[int], bool]:
         index, ambiguous = letters_index(m.group(1), count, item.label_style)
         if index is not None:
             return [index], ambiguous
+    m = re.match(r"^([а-яёa-z]|\d{1,2})\s*[-–—:]\s*(\S.*)$", key, re.I)
+    if m:  # «б – Евразия»: буква и текст того же варианта
+        index, ambiguous = letters_index(m.group(1), count, item.label_style)
+        if index is not None and same_text(item.options[index].text) == same_text(m.group(2)):
+            return [index], ambiguous
     tokens = re.findall(r"\d{1,2}|[а-яёa-zA-ZА-ЯЁ]", key)
     if tokens and len("".join(tokens)) <= 10:
         out, any_ambiguous = [], False
@@ -2818,6 +2882,31 @@ def _sections(reader: Reader, items: list[Item], warnings: list[dict]) -> tuple[
     return out_subjects, out_topics
 
 
+def _review(reader: Reader, items: list[Item], out_items: list[dict], subjects: int) -> dict:
+    """Строки вопросов, уверенность, фрагменты файла и предложение разобрать сложные места с ИИ (bank_markup).
+
+    У вопроса: lines — [первая, последняя] строка в нумерации bank_markup.markup (или None: GIFT, Moodle XML),
+    confidence (0…1), doubts (причины). В ответе: doubtful — сомнительных вопросов, source_lines — строки фрагментов
+    сомнительных вопросов и вопросов с флагами проверки (с оформлением кусков), ai_offer — bank_markup.offer."""
+    lines = bank_markup.markup(reader.blocks) if reader.blocks else []
+    ranges = bank_markup.item_ranges([item.ref for item in items], lines) if lines else [None] * len(items)
+    for entry, span, (score, why) in zip(out_items, ranges, bank_markup.confidence(out_items)):
+        entry["lines"] = list(span) if span else None
+        entry["confidence"] = score
+        entry["doubts"] = why
+    wanted: set[int] = set()
+    for entry, span in zip(out_items, ranges):
+        if span and (entry["confidence"] < bank_markup.DOUBT_AT or set(entry["flags"]) & PROBLEM_FLAGS):
+            wanted.update(range(max(1, span[0] - 1), span[1] + 2))
+    return {
+        "doubtful": sum(1 for entry in out_items if entry["confidence"] < bank_markup.DOUBT_AT),
+        "line_count": len(lines),
+        "source_lines": bank_markup.source_lines(lines, wanted),
+        "ai_offer": bank_markup.offer(out_items, ranges, len(lines), len(reader.skipped), subjects,
+                                      key_lists=reader.key_lists),
+    }
+
+
 def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dict, markers: set[str],
             gaps: list[list[int]], warnings: list[dict], subjects: list[dict], topics: list[dict]) -> dict:
     """Словарь ответа: тексты в пределах базы, marks по признакам документа."""
@@ -2847,9 +2936,13 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
             "marks": {s: [_mark_value(*o.mark_counts(s)) for o in options] for s in signals},
             "images": _item_images(item, options),
         })
+        if item.source:  # разбор с ИИ (bank_ai): откуда вопрос и вторая версия, если правила и ИИ разошлись
+            out_items[-1]["source"] = item.source
+            out_items[-1]["alt"] = item.alt
     used = {key for entry in out_items if entry["images"]
             for key in [*entry["images"]["stem"], *(k for keys in entry["images"]["options"] for k in keys)]}
     clean = sum(1 for item in items if not set(item.flags) & PROBLEM_FLAGS)
+    review = _review(reader, items, out_items, len(subjects))
     marker = "+".join(name for symbol, name in MARKER_NAMES if symbol in markers) or None
     return {
         "method": "rules",
@@ -2883,6 +2976,7 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
             "gaps": gaps,
             "key_lists": reader.key_lists,
         },
+        **review,
     }
 
 
@@ -3042,8 +3136,17 @@ def parse_blocks(blocks: list[Block], *, key_mode: str = "auto", user_keys: Opti
                  line_word: str = "абзац", format_mode: str = "auto", key_file: Optional[list[dict]] = None,
                  key_section: Optional[int] = None, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> dict:
     """Блоки документа (абзацы и таблицы по порядку) → словарь предпросмотра (finish). pictures — картинки DOCX."""
+    reader = read_bank(blocks, line_word=line_word, format_mode=format_mode, pictures=pictures)
+    return _finish_with_key_file(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode,
+                                 key_file=key_file, key_section=key_section)
+
+
+def read_bank(blocks: list[Block], *, line_word: str = "абзац", format_mode: str = "auto",
+              pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> Reader:
+    """Блоки документа → вопросы и заголовки разбора по правилам (Reader), до ключей и флагов (finish)."""
     reader = Reader(line_word=line_word, open_mode=format_mode == "open", test_mode=format_mode == "test")
     reader.pictures = pictures or {}
+    reader.blocks = blocks
     reader.has_tables = any(isinstance(block, Table) for block in blocks)
     run: list[Para] = []
     start = 0
@@ -3062,14 +3165,13 @@ def parse_blocks(blocks: list[Block], *, key_mode: str = "auto", user_keys: Opti
                         heading = reader.items.pop()
                         reader.heading(f"{heading.label}. {heading.text}" if heading.label else heading.text, "section")
                 run = []
-            reader.table(block)
+            reader.table(block, index)
             start = index + 1
         else:
             run.append(block)
     if run:
         reader.paragraphs(run, start)
-    return _finish_with_key_file(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode,
-                                 key_file=key_file, key_section=key_section)
+    return reader
 
 
 def _finish_with_key_file(reader: Reader, *, key_mode: str, user_keys: Optional[dict[str, str]], format_mode: str,
