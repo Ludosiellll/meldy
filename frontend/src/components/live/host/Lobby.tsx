@@ -1,28 +1,13 @@
 /**
  * The room before the first question (prototype host-02): PIN in letters a class reads from the back, the QR code of the
- * join link (made on the device), and the characters as they come in. A character is a button: the teacher can remove
- * a player. New characters drop in once (CSS, on mount); the ones already there do not render again.
+ * join link (made on the device), the Telegram line, and the blue panel the characters stand on as they come in. The
+ * characters themselves are the crowd's (Crowd.tsx): they stay when the game starts and walk into the arena.
  */
-import { memo, useMemo, type ReactNode } from 'react';
-import type { HostState, Look, RosterRow } from '../../../lib/live/types';
+import { useMemo, type ReactNode } from 'react';
+import type { HostState } from '../../../lib/live/types';
 import { qrCode, shortLink } from '../../../lib/quizzes/qr';
-import { Character } from '../art/Character';
-import { sameLook } from './Arena';
 import { LOBBY, NEXT, pinText } from './copy';
-import { LOBBY_MAX } from './layout';
-
-const LobbyChar = memo(
-  function LobbyChar({ row, phaseMs, onPick }: { row: RosterRow; phaseMs: number; onPick: (row: RosterRow) => void }) {
-    return (
-      <li className="lvh-lobby-cell">
-        <button type="button" className="lvh-lobby-char" onClick={() => onPick(row)} aria-label={row.name}>
-          <Character look={row.look} size={72} name={row.name} phaseMs={phaseMs} />
-        </button>
-      </li>
-    );
-  },
-  (a, b) => a.onPick === b.onPick && a.phaseMs === b.phaseMs && a.row.player_id === b.row.player_id && a.row.name === b.row.name && sameLook(a.row.look as Look, b.row.look as Look),
-);
+import type { Point } from './layout';
 
 function Qr({ text }: { text: string }) {
   const qr = useMemo(() => qrCode(text), [text]);
@@ -35,19 +20,19 @@ function Qr({ text }: { text: string }) {
 
 export interface LobbyProps {
   state: HostState;
-  rows: RosterRow[];
+  players: number;
+  /** Players the grid has no room for, and where «и ещё N» goes. */
+  more: number;
+  morePoint: Point;
   joinUrl: string;
   busy: boolean;
   onStart: () => void;
-  onPick: (row: RosterRow) => void;
   /** The Telegram line (TelegramPost), when the exam is known. */
   telegram?: ReactNode;
 }
 
-export function Lobby({ state, rows, joinUrl, busy, onStart, onPick, telegram }: LobbyProps) {
-  const shown = rows.slice(0, LOBBY_MAX);
-  const more = rows.length - shown.length;
-  const n = LOBBY.count(rows.length);
+export function Lobby({ state, players, more, morePoint, joinUrl, busy, onStart, telegram }: LobbyProps) {
+  const n = LOBBY.count(players);
   const site = shortLink(joinUrl.replace(/\?.*$/, ''));
   return (
     <div className="lvh-lobby">
@@ -69,7 +54,7 @@ export function Lobby({ state, rows, joinUrl, busy, onStart, onPick, telegram }:
       </div>
       <section className="lvh-lobby-right" aria-label="Игроки">
         <div className="lvh-lobby-count" aria-live="polite">
-          {rows.length > 0 ? (
+          {players > 0 ? (
             <>
               {n.n}
               <span>{n.word}</span>
@@ -78,17 +63,16 @@ export function Lobby({ state, rows, joinUrl, busy, onStart, onPick, telegram }:
             <span className="lvh-lobby-wait">{LOBBY.waiting}</span>
           )}
         </div>
-        {rows.length > 0 ? <p className="lvh-lobby-kick">{LOBBY.kickHint}</p> : null}
-        <ul className="lvh-lobby-grid">
-          {shown.map((row, i) => (
-            <LobbyChar key={row.player_id} row={row} phaseMs={(i * 137) % 900} onPick={onPick} />
-          ))}
-          {more > 0 ? <li className="lvh-lobby-more">{LOBBY.more(more)}</li> : null}
-        </ul>
+        {players > 0 ? <p className="lvh-lobby-kick">{LOBBY.kickHint}</p> : null}
       </section>
+      {more > 0 ? (
+        <div className="lvh-lobby-more" style={{ left: morePoint.x, top: morePoint.y }}>
+          {LOBBY.more(more)}
+        </div>
+      ) : null}
       <div className="lvh-lobby-foot">
         <span>{LOBBY.foot}</span>
-        <button type="button" className="lvh-btn" onClick={onStart} disabled={busy || rows.length === 0}>
+        <button type="button" className="lvh-btn" onClick={onStart} disabled={busy || players === 0}>
           {LOBBY.start}
           <kbd className="lvh-kbd">{NEXT.key}</kbd>
         </button>

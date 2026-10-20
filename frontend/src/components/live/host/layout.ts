@@ -143,6 +143,56 @@ export function podiumSlots(count: number, width: number, max = 32): Slot[] {
   return slots;
 }
 
+/**
+ * The class is drawn once, at this size, and only moved and scaled (transform) between the lobby, the arena and the
+ * podium: no character is unmounted at a change of state.
+ */
+export const CHAR_BASE = 72;
+
+/** The lobby's grid inside its blue panel (host.css .lvh-lobby-right: left 580, right 40, top 96, bottom 116). */
+const LOBBY_GRID = { left: 610, top: 200, right: 70, bottom: 136, cellW: 98, cellH: 120 };
+
+export interface LobbyLayout {
+  slots: Slot[];
+  /** Players not drawn («и ещё N»), and where that note goes. */
+  more: number;
+  morePoint: Point;
+}
+
+export function lobbySlots(count: number, width: number): LobbyLayout {
+  const g = LOBBY_GRID;
+  const cols = Math.max(1, Math.floor((width - g.right - g.left) / g.cellW));
+  const rows = Math.max(1, Math.floor((STAGE_H - g.bottom - g.top) / g.cellH));
+  const capacity = Math.min(LOBBY_MAX, cols * rows);
+  const shown = count > capacity ? capacity - 1 : count;
+  const cell = (i: number): Point => ({ x: g.left + (i % cols) * g.cellW, y: g.top + Math.floor(i / cols) * g.cellH });
+  const slots: Slot[] = [];
+  for (let i = 0; i < shown; i += 1) {
+    const c = cell(i);
+    const x = c.x + (g.cellW - CHAR_BASE) / 2;
+    const y = c.y + 4;
+    slots.push({ x, y, size: CHAR_BASE, cx: x + CHAR_BASE / 2, cy: y + CHAR_BASE * 0.45, side: -1 });
+  }
+  return { slots, more: count - shown, morePoint: cell(shown) };
+}
+
+/** The podium's three places: the character's box on top of each column (1st, 2nd, 3rd). */
+export const PODIUM_COLUMNS = [
+  { dx: -110, h: 300 },
+  { dx: -340, h: 230 },
+  { dx: 120, h: 190 },
+] as const;
+export const PODIUM_FLOOR = 780;
+export const PODIUM_CHAR = 130;
+
+export function podiumTopSlots(width: number): Slot[] {
+  return PODIUM_COLUMNS.map((c) => {
+    const x = width / 2 + c.dx + (220 - PODIUM_CHAR) / 2;
+    const y = PODIUM_FLOOR - c.h - PODIUM_CHAR + 2;
+    return { x, y, size: PODIUM_CHAR, cx: x + PODIUM_CHAR / 2, cy: y + PODIUM_CHAR * 0.45, side: -1 as const };
+  });
+}
+
 /** Font size of an option by its length (no measuring): long options get smaller letters, never a third line. */
 export function optionFont(text: string): number {
   const n = [...text].length;

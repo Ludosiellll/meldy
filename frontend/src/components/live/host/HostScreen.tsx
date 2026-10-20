@@ -10,14 +10,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ColourId, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
 import { TelegramPost } from './TelegramPost';
-import { ArenaChar, BossView, CrowdCount, FxDefs, HpBar, PhaseNote, byJoin } from './Arena';
+import { BossView, CrowdCount, FxDefs, HpBar, PhaseNote, byJoin } from './Arena';
 import { BANNER, MODE, NEXT } from './copy';
+import { Crowd, type CrowdView, type Place } from './Crowd';
 import { Director, type BannerSpec } from './director';
 import { logState, readLog, type HostInfo } from './hostSession';
-import { ARENA_MAX, arenaSlots } from './layout';
+import { ARENA_MAX, CHAR_BASE, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, type LobbyLayout, type Slot } from './layout';
 import { Lobby } from './Lobby';
 import { QuestionPanel, TopFive } from './Panel';
-import { Podium } from './Podium';
+import { Podium, podiumTop, rankRoster, type PodiumRow } from './Podium';
 import { EndConfirm, KickConfirm, PlayersSheet, ReviewSheet } from './Sheets';
 import { Stage, useStageFit } from './Stage';
 import { StageStore } from './stageStore';
@@ -51,6 +52,35 @@ function useReducedMotion(): boolean {
 }
 
 const BATTLE_STATES = new Set(['countdown', 'open', 'reveal', 'leaderboard']);
+
+const at = (s: Slot, hidden = false, name = true): Place => ({ x: s.x, y: s.y, k: s.size / CHAR_BASE, hidden, name });
+
+/**
+ * Where each drawn character stands in this view. Characters the view has no room for keep their arena place, hidden,
+ * so that they come in from where they will stand.
+ */
+export function crowdPlaces(view: CrowdView, rows: RosterRow[], arena: Slot[], lobby: LobbyLayout, top: PodiumRow[], width: number): { places: Map<string, Place>; more: number } {
+  const places = new Map<string, Place>();
+  const hide = (r: RosterRow, i: number) => places.set(r.player_id, at(arena[i] ?? arena[arena.length - 1], true));
+  if (view === 'lobby') {
+    rows.forEach((r, i) => (lobby.slots[i] ? places.set(r.player_id, at(lobby.slots[i])) : hide(r, i)));
+    return { places, more: lobby.more };
+  }
+  if (view === 'battle') {
+    rows.forEach((r, i) => places.set(r.player_id, at(arena[i])));
+    return { places, more: 0 };
+  }
+  const index = new Map(rows.map((r, i) => [r.player_id, i]));
+  const spots = podiumTopSlots(width);
+  const onTop = new Set(top.map((r) => r.player_id));
+  top.forEach((r, i) => {
+    if (index.has(r.player_id)) places.set(r.player_id, at(spots[i], false, false));
+  });
+  const rest = rankRoster(rows).filter((r) => !onTop.has(r.player_id));
+  const sides = podiumSlots(rest.length, width);
+  rest.forEach((r, i) => (sides[i] ? places.set(r.player_id, at(sides[i])) : hide(r, index.get(r.player_id) ?? 0)));
+  return { places, more: Math.max(0, rest.length - sides.length) };
+}
 
 interface BannerState extends BannerSpec {
   id: number;
@@ -98,6 +128,14 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   const slots = useMemo(() => arenaSlots(visible.length, width), [visible.length, width]);
   const slotMap = useMemo(() => new Map(visible.map((r, i) => [r.player_id, slots[i]])), [visible, slots]);
   const colours = useMemo(() => new Map<string, ColourId>(s.roster.map((r) => [r.player_id, r.look.colour])), [s.roster]);
+  const view: CrowdView = s.state === 'lobby' ? 'lobby' : s.state === 'podium' || s.state === 'ended' ? 'podium' : 'battle';
+  const lobby = useMemo(() => lobbySlots(joined.length, width), [joined.length, width]);
+  const top = useMemo(() => (view === 'podium' ? podiumTop(s) : []), [view, s]);
+  const topKey = top.map((r) => r.player_id).join(',');
+  const crowd = useMemo(
+    () => crowdPlaces(view, visible, slots, lobby, top, width),
+    [view, visible, slots, lobby, topKey, width], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const env = useRef({ slotMap, colours, width });
   env.current = { slotMap, colours, width };
@@ -197,6 +235,16 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     setSheet(null);
     setKickRow(row);
   }, []);
+  const rosterRef = useRef(s.roster);
+  rosterRef.current = s.roster;
+  const pickId = useCallback(
+    (id: string) => {
+      const row = rosterRef.current.find((r) => r.player_id === id);
+      if (row) pickKick(row);
+    },
+    [pickKick],
+  );
+  const drawn = useMemo(() => new Set(visible.map((r) => r.player_id)), [visible]);
   const doKick = useCallback(async () => {
     if (!kickRow) return;
     setActing(true);
@@ -249,22 +297,20 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
       {s.state === 'lobby' ? (
         <Lobby
           state={s}
-          rows={joined}
+          players={joined.length}
+          more={crowd.more}
+          morePoint={lobby.morePoint}
           joinUrl={joinUrl}
           busy={game.busy}
           onStart={next}
-          onPick={pickKick}
           telegram={info?.containerId ? <TelegramPost api={api} gameId={gameId} containerId={info.containerId} fake={api.kind === 'fake'} /> : null}
         />
       ) : null}
       {inBattle ? (
-        <div className={`lvh-battle${enter ? ' lvh-battle--enter' : ''}`}>
+        <div className="lvh-battle">
           <HpBar store={store} width={width} enter={enter} />
           <PhaseNote store={store} width={width} />
           <BossView store={store} width={width} enter={enter} />
-          {visible.map((r, i) => (
-            <ArenaChar key={r.player_id} id={r.player_id} look={r.look} name={r.name} slot={slots[i]} store={store} phaseMs={(i * 137) % 900} />
-          ))}
           <CrowdCount hidden={joined.length - visible.length} width={width} />
           {s.state === 'leaderboard' ? (
             <TopFive rows={s.top ?? []} width={width} />
@@ -282,7 +328,20 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
           <div className="lvh-fx" ref={fxRef} aria-hidden="true" />
         </div>
       ) : null}
-      {atEnd ? <Podium state={s} roster={s.roster} width={width} busy={game.busy} onReview={() => setSheet('review')} onAgain={onAgain} onFinish={next} /> : null}
+      {atEnd ? (
+        <Podium
+          state={s}
+          top={top}
+          drawn={drawn}
+          more={crowd.more + Math.max(0, joined.length - visible.length)}
+          width={width}
+          busy={game.busy}
+          onReview={() => setSheet('review')}
+          onAgain={onAgain}
+          onFinish={next}
+        />
+      ) : null}
+      <Crowd view={view} rows={visible} places={crowd.places} store={store} onPick={pickId} first={top[0]?.player_id ?? null} />
       <FxDefs defsRef={defsRef} />
       {banner ? <Banner key={banner.id} banner={banner} /> : null}
       {sheet === 'players' ? <PlayersSheet roster={s.roster} onKick={pickKick} onClose={closeSheet} /> : null}

@@ -315,13 +315,14 @@ export class Director {
     const box = bossBox(this.env.width());
     for (let k = 0; k < 6; k += 1) {
       const puff = this.spawn('puff');
+      // steam from the bells, out to the sides (it stays under the HP bar and its note)
       const sx = box.x + (k % 2 ? box.size - 50 : 24);
-      const sy = box.y + 20;
+      const sy = box.y + 30;
       this.animate(
         puff,
         [
           { transform: `translate(${sx}px, ${sy}px) scale(0.3)`, opacity: 1 },
-          { transform: `translate(${sx + (k % 2 ? 40 : -40)}px, ${sy - 90 - k * 8}px) scale(1.3)`, opacity: 0 },
+          { transform: `translate(${sx + (k % 2 ? 70 + k * 6 : -70 - k * 6)}px, ${sy - 28 - k * 4}px) scale(1.3)`, opacity: 0 },
         ],
         { duration: 900, delay: 150 + k * 90, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' },
       );

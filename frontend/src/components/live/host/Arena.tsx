@@ -1,60 +1,15 @@
 /**
- * The battle's stage: the HP bar, «Дедлайн», the class around it and the effects layer. Each character is its own memo
- * component that listens to its own piece of the stage store: a poll that changes nothing, or a hit on someone else,
- * does not render it. Positions come from layout.ts; the effects layer is filled by the director, not by React.
+ * The battle's stage around the class (Crowd.tsx): the HP bar, «Дедлайн», the count of players not drawn and the
+ * hidden templates of the effects. Positions come from layout.ts; the effects layer is filled by the director.
  */
 import { memo, useLayoutEffect, useRef, type RefObject } from 'react';
-import type { Look, RosterRow } from '../../../lib/live/types';
+import type { RosterRow } from '../../../lib/live/types';
 import { Boss } from '../art/Boss';
-import { Character } from '../art/Character';
 import { Burst, Debris, Shard, Star } from '../art/Fx';
 import { BATTLE } from './copy';
 import { FX_COLOURS } from './director';
-import { bossBox, crowdPoint, hpBox, type Slot } from './layout';
-import { useBossView, useCharView, useHpView, type StageStore } from './stageStore';
-
-export const sameLook = (a: Look, b: Look) => a === b || (a.body === b.body && a.colour === b.colour && a.eyes === b.eyes && a.hat === b.hat);
-
-interface ArenaCharProps {
-  id: string;
-  look: Look;
-  name: string;
-  slot: Slot;
-  store: StageStore;
-  /** Idle sway offset, so the crowd does not move in step. */
-  phaseMs: number;
-}
-
-export const ArenaChar = memo(
-  function ArenaChar({ id, look, name, slot, store, phaseMs }: ArenaCharProps) {
-    const view = useCharView(store, id);
-    const hop = useRef<HTMLDivElement>(null);
-    useLayoutEffect(() => {
-      const el = hop.current;
-      if (!el) return undefined;
-      store.hops.set(id, el);
-      return () => {
-        if (store.hops.get(id) === el) store.hops.delete(id);
-      };
-    }, [store, id]);
-    return (
-      <div className="lvh-slot" style={{ width: slot.size, height: slot.size, transform: `translate(${slot.x}px, ${slot.y}px)` }} data-player={id}>
-        <div className="lvh-hop" ref={hop}>
-          <Character look={look} size={slot.size} name={name} face={view.face} frozen={view.frozen} phaseMs={phaseMs} />
-        </div>
-      </div>
-    );
-  },
-  (a, b) =>
-    a.id === b.id &&
-    a.name === b.name &&
-    a.store === b.store &&
-    a.phaseMs === b.phaseMs &&
-    a.slot.x === b.slot.x &&
-    a.slot.y === b.slot.y &&
-    a.slot.size === b.slot.size &&
-    sameLook(a.look, b.look),
-);
+import { bossBox, crowdPoint, hpBox } from './layout';
+import { useBossView, useHpView, type StageStore } from './stageStore';
 
 export function HpBar({ store, width, enter }: { store: StageStore; width: number; enter: boolean }) {
   const { hp, max } = useHpView(store);
@@ -125,7 +80,7 @@ export function CrowdCount({ hidden, width }: { hidden: number; width: number })
   if (hidden <= 0) return null;
   const p = crowdPoint(width);
   return (
-    <div className="lvh-crowd" style={{ left: p.x - 60, top: p.y - 6 }}>
+    <div className="lvh-crowd-more" style={{ left: p.x - 60, top: p.y - 6 }}>
       {BATTLE.more(hidden)}
     </div>
   );

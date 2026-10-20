@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_MAX, BOSS_SIZE, STAGE_H, arenaSlots, bossBox, hpBox, optionFont, podiumSlots, questionFont, stageFit } from './layout';
+import { ARENA_MAX, BOSS_SIZE, CHAR_BASE, STAGE_H, arenaSlots, bossBox, hpBox, lobbySlots, optionFont, podiumSlots, podiumTopSlots, questionFont, stageFit } from './layout';
 
 const WIDTHS = [1440, 1600, 1878, 2100];
 
@@ -64,6 +64,31 @@ describe('host layout', () => {
         expect(clear).toBe(true);
       }
     }
+  });
+
+  it('the lobby grid fits its panel; past its room, «и ещё N» takes the last cell', () => {
+    for (const width of WIDTHS) {
+      const few = lobbySlots(5, width);
+      expect(few.slots).toHaveLength(5);
+      expect(few.more).toBe(0);
+      const many = lobbySlots(60, width);
+      expect(many.slots.length + many.more).toBe(60);
+      expect(many.more).toBeGreaterThan(0);
+      for (const s of many.slots) {
+        expect(s.x).toBeGreaterThanOrEqual(580);
+        expect(s.x + CHAR_BASE).toBeLessThanOrEqual(width - 40);
+        expect(s.y + CHAR_BASE + 24).toBeLessThanOrEqual(900 - 116);
+      }
+      expect(many.morePoint.y + 80).toBeLessThanOrEqual(900 - 116);
+    }
+  });
+
+  it('the podium’s three stand on their columns', () => {
+    const [first, second, third] = podiumTopSlots(1600);
+    expect(first.y).toBeLessThan(second.y);
+    expect(second.y).toBeLessThan(third.y);
+    expect(second.x).toBeLessThan(first.x);
+    expect(third.x).toBeGreaterThan(first.x);
   });
 
   it('the HP bar sits above the monster, centred', () => {

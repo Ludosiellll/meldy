@@ -60,7 +60,7 @@ describe('teacher screen against the fake server', () => {
     expect(screen.getByText(pinText(g.pin).replace(/ /g, ' '))).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /QR-код: ludosiel-studyforge\.hf\.space\/play\?pin=/ })).toBeInTheDocument();
     expect(view.container.querySelector('.lvh-lobby-count')?.textContent).toBe('23игрока');
-    expect(view.container.querySelectorAll('.lvh-lobby-char')).toHaveLength(23);
+    expect(view.container.querySelectorAll('.lvh-slot[role="button"]')).toHaveLength(23);
     expect(screen.getByRole('button', { name: /Начать/ })).toBeEnabled();
     expect(screen.getByText('Базы данных')).toBeInTheDocument();
   });
@@ -126,14 +126,14 @@ describe('teacher screen against the fake server', () => {
 
   it('kicks a player from the lobby after a confirmation', async () => {
     const { view, server } = await start(5);
-    const first = view.container.querySelector<HTMLButtonElement>('.lvh-lobby-char')!;
+    const first = view.container.querySelector<HTMLElement>('.lvh-slot[role="button"]')!;
     const name = first.getAttribute('aria-label')!;
     fireEvent.click(first);
     const dialog = screen.getByRole('dialog', { name: `Убрать ${name} из игры?` });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Убрать' }));
     await tick(50);
     expect((await server()).players).toBe(4);
-    expect(view.container.querySelectorAll('.lvh-lobby-char')).toHaveLength(4);
+    expect(view.container.querySelectorAll('.lvh-slot[role="button"]')).toHaveLength(4);
     expect(screen.queryByRole('button', { name })).toBeNull();
   });
 

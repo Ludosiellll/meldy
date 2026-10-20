@@ -231,31 +231,36 @@ function box(children: ReactElement | ReactElement[] | null, cls: string, key?: 
 }
 
 /**
- * The drawing itself (body, the four faces, hat, ice). Memoised on the look and the move: a change of face or ice only
- * flips the attributes of the outer box, so a crowd of 30 redraws nothing when one character is hit (the look must be
- * the same object for that — the teacher's screen keeps it).
+ * The drawing itself (body, the four faces, hat, ice). Memoised on the look's parts and the move: a change of face or
+ * ice only flips the attributes of the outer box, so a crowd of 30 redraws nothing when one character is hit, nor when
+ * a poll brings the same look as a new object.
  */
-const Drawing = memo(function Drawing({ look, move }: { look: Look; move: CharacterMove }) {
-  return (
-    <div className={`lv-char__in lv-move-${move}`}>
-      {box(<Base look={look} />, 'lv-char__base')}
-      {EXPRESSIONS.map((e) =>
-        box(
-          <>
-            <Eyes look={look} face={e} />
-            <Mouth look={look} face={e} />
-          </>,
-          `lv-char__face lv-char__face--${e}`,
-          e,
-        ),
-      )}
-      {box(<Hat look={look} />, 'lv-char__hat')}
-      <div className="lv-char__ice">
-        <IceBlock />
+const Drawing = memo(
+  function Drawing({ look, move }: { look: Look; move: CharacterMove }) {
+    return (
+      <div className={`lv-char__in lv-move-${move}`}>
+        {box(<Base look={look} />, 'lv-char__base')}
+        {EXPRESSIONS.map((e) =>
+          box(
+            <>
+              <Eyes look={look} face={e} />
+              <Mouth look={look} face={e} />
+            </>,
+            `lv-char__face lv-char__face--${e}`,
+            e,
+          ),
+        )}
+        {box(<Hat look={look} />, 'lv-char__hat')}
+        <div className="lv-char__ice">
+          <IceBlock />
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+  (a, b) =>
+    a.move === b.move &&
+    (a.look === b.look || (a.look.body === b.look.body && a.look.colour === b.look.colour && a.look.eyes === b.look.eyes && a.look.hat === b.look.hat)),
+);
 
 /** The decorative SVG layers have no names; the character's name (or `title`) is the accessible label. */
 export function Character({ look, size, face, frozen = false, move = 'idle', name, me = false, className, style, phaseMs = 0, title }: CharacterProps) {

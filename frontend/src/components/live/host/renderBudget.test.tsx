@@ -9,11 +9,12 @@ import { createRef, type RefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostState, RosterRow } from '../../../lib/live/types';
 import { defaultLook } from '../../../lib/live/rules';
-import { ArenaChar, BossView, FxDefs, HpBar } from './Arena';
+import { BossView, FxDefs, HpBar } from './Arena';
+import { Crowd } from './Crowd';
 import { Director } from './director';
 import { syncRest } from './HostScreen';
 import { shareState } from './useHostGame';
-import { arenaSlots } from './layout';
+import { CHAR_BASE, arenaSlots } from './layout';
 import { StageStore } from './stageStore';
 
 type Counts = Record<string, number>;
@@ -22,7 +23,7 @@ const commits = vi.hoisted(() => {
   const list: Counts[] = [];
   const FN_TAGS = new Set([0, 1, 11, 15]); // function, class, forwardRef, simple memo (a memo with a compare: its inner function)
   type Fiber = { tag: number; type: unknown; flags: number; alternate: Fiber | null; child: Fiber | null; sibling: Fiber | null };
-  // The transform renames a memo's inner function («ArenaChar2»): the digits go.
+  // The transform renames a memo's inner function («CrowdChar2»): the digits go.
   const nameOf = (f: Fiber): string => {
     const t = f.type as { displayName?: string; name?: string; render?: { name?: string }; type?: { name?: string } } | null;
     let n = '?';
@@ -113,13 +114,12 @@ function revealState(rows: RosterRow[], hits: { player_id: string; dmg: number; 
 
 function Arena({ store, rows, fx, defs }: { store: StageStore; rows: RosterRow[]; fx: RefObject<HTMLDivElement>; defs: RefObject<HTMLDivElement> }) {
   const slots = arenaSlots(rows.length, 1600);
+  const places = new Map(rows.map((r, i) => [r.player_id, { x: slots[i].x, y: slots[i].y, k: slots[i].size / CHAR_BASE, hidden: false, name: true }]));
   return (
     <div>
       <HpBar store={store} width={1600} enter={false} />
       <BossView store={store} width={1600} enter={false} />
-      {rows.map((r, i) => (
-        <ArenaChar key={r.player_id} id={r.player_id} look={r.look} name={r.name} slot={slots[i]} store={store} phaseMs={i * 100} />
-      ))}
+      <Crowd view="battle" rows={rows} places={places} store={store} onPick={null} first={null} />
       <div ref={fx} />
       <FxDefs defsRef={defs} />
     </div>
@@ -183,7 +183,7 @@ describe('render budget of the teacher screen', () => {
     setup();
     expect(commits.length).toBeGreaterThan(0);
     const c = sum(commits);
-    expect(c.ArenaChar).toBe(24);
+    expect(c.CrowdChar).toBe(24);
     expect(c.Drawing).toBe(24);
   });
 
@@ -192,7 +192,7 @@ describe('render budget of the teacher screen', () => {
     const hpMax = rows.length * 6 * 55;
     const s = revealState(rows, [{ player_id: rows[5].player_id, dmg: 98, hp_after: hpMax - 98 }]);
     const c = await play(director, s, store);
-    expect(c.ArenaChar ?? 0).toBeLessThanOrEqual(2); // happy, then back to idle — one character
+    expect(c.CrowdChar ?? 0).toBeLessThanOrEqual(2); // happy, then back to idle — one character
     expect(c.Character ?? 0).toBeLessThanOrEqual(2);
     expect(c.HpBar ?? 0).toBe(1);
     expect(c.BossView ?? 0).toBeLessThanOrEqual(2); // hurt on, hurt off (BossView + Boss each)
@@ -210,7 +210,7 @@ describe('render budget of the teacher screen', () => {
       return { player_id: r.player_id, dmg: 100, hp_after: hp };
     });
     const c = await play(director, revealState(rows, hits), store);
-    expect(c.ArenaChar).toBeLessThanOrEqual(48);
+    expect(c.CrowdChar).toBeLessThanOrEqual(48);
     expect(c.Drawing ?? 0).toBe(0);
     expect(c.HpBar).toBeLessThanOrEqual(24);
     expect(c.BossView ?? 0).toBeLessThanOrEqual(2);
@@ -228,8 +228,19 @@ describe('render budget of the teacher screen', () => {
     const copy = JSON.parse(JSON.stringify(rows)) as RosterRow[];
     view.rerender(<Arena store={store} rows={copy} fx={fx} defs={defs} />);
     const c = sum(commits);
-    expect(c.ArenaChar ?? 0).toBe(0);
+    expect(c.CrowdChar ?? 0).toBe(0);
     expect(c.Character ?? 0).toBe(0);
+  });
+
+  it('the crowd re-placed (a kick, the walk to the podium) moves characters without redrawing one', () => {
+    const { rows, store, view, fx, defs } = setup();
+    commits.length = 0;
+    const fewer = (JSON.parse(JSON.stringify(rows)) as RosterRow[]).slice(1);
+    view.rerender(<Arena store={store} rows={fewer} fx={fx} defs={defs} />);
+    const c = sum(commits);
+    expect(c.CrowdChar).toBeGreaterThan(0);
+    expect(c.Drawing ?? 0).toBe(0);
+    expect((c.Eyes ?? 0) + (c.Mouth ?? 0) + (c.Base ?? 0) + (c.Hat ?? 0)).toBe(0);
   });
 
   it('a new answer during the question re-renders nothing (the hop is a Web Animation)', () => {

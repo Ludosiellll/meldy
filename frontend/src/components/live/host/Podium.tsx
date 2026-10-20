@@ -1,48 +1,45 @@
 /**
- * The end (prototype host-09): won or lost, the class's numbers, the three by damage on the podium and everyone else
- * cheering at the sides. Columns rise and characters land once (CSS on mount). After «Закончить игру» the same picture
- * stays, with the note that each student keeps their own review.
+ * The end (prototype host-09): won or lost, the class's numbers and the three columns. The characters are the crowd's
+ * (Crowd.tsx): the three by damage walk onto the columns, everyone else to the sides, cheering. After «Закончить игру»
+ * the same picture stays, with the note that each student keeps their own review.
  */
 import { memo } from 'react';
 import type { HostState, Look, RosterRow, TopRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
-import { sameLook } from './Arena';
 import { NEXT, PODIUM, nb } from './copy';
-import { podiumSlots } from './layout';
+import { crowned, sameLook } from './Crowd';
+import { PODIUM_COLUMNS, PODIUM_FLOOR, podiumTopSlots } from './layout';
 
 /** dmg desc, right desc, joined asc (CONTRACT §3; the roster has no best streak). */
 export function rankRoster(rows: readonly RosterRow[]): RosterRow[] {
   return rows.slice().sort((a, b) => b.dmg - a.dmg || b.right - a.right || (a.joined_at < b.joined_at ? -1 : a.joined_at > b.joined_at ? 1 : 0));
 }
 
-const PodiumChar = memo(
-  function PodiumChar({ look, size, name, phaseMs }: { look: Look; size: number; name?: string; phaseMs: number }) {
-    return <Character look={look} size={size} name={name} face="happy" move="cheer" phaseMs={phaseMs} />;
-  },
-  (a, b) => a.size === b.size && a.name === b.name && a.phaseMs === b.phaseMs && sameLook(a.look, b.look),
-);
+export type PodiumRow = Pick<TopRow, 'player_id' | 'name' | 'look' | 'dmg'>;
 
-const crownCache = new WeakMap<Look, Look>();
-function crowned(look: Look): Look {
-  if (look.hat === 'crown') return look;
-  let out = crownCache.get(look);
-  if (!out) {
-    out = { ...look, hat: 'crown' };
-    crownCache.set(look, out);
-  }
-  return out;
+/** The three on the podium: the server's top (podium), else the roster ranked (ended early). */
+export function podiumTop(state: HostState): PodiumRow[] {
+  if (state.qi < 0) return [];
+  return (state.top && state.top.length ? state.top : rankRoster(state.roster)).slice(0, 3);
 }
 
-const COLUMNS = [
-  { dx: -110, h: 300, cls: 'lvh-pod-col--1' },
-  { dx: -340, h: 230, cls: 'lvh-pod-col--2' },
-  { dx: 120, h: 190, cls: 'lvh-pod-col--3' },
-];
-const FLOOR = 780;
+/** One of the three who is not in the drawn crowd (joined after the first 40): drawn here. */
+const Standalone = memo(
+  function Standalone({ look, phaseMs }: { look: Look; phaseMs: number }) {
+    return <Character look={look} size={130} face="happy" move="cheer" phaseMs={phaseMs} />;
+  },
+  (a, b) => a.phaseMs === b.phaseMs && sameLook(a.look, b.look),
+);
+
+const COLUMN_CLASS = ['lvh-pod-col--1', 'lvh-pod-col--2', 'lvh-pod-col--3'];
 
 export interface PodiumProps {
   state: HostState;
-  roster: RosterRow[];
+  top: PodiumRow[];
+  /** Ids the crowd draws (the rest of the three are drawn here). */
+  drawn: ReadonlySet<string>;
+  /** Players the sides have no room for. */
+  more: number;
   width: number;
   busy: boolean;
   onReview: () => void;
@@ -50,17 +47,13 @@ export interface PodiumProps {
   onFinish: () => void;
 }
 
-export function Podium({ state, roster, width, busy, onReview, onAgain, onFinish }: PodiumProps) {
+export function Podium({ state, top, drawn, more, width, busy, onReview, onAgain, onFinish }: PodiumProps) {
   const ended = state.state === 'ended';
   const played = state.qi >= 0;
-  const ranked = rankRoster(roster);
-  const top: Array<Pick<TopRow, 'player_id' | 'name' | 'look' | 'dmg'>> = (state.top && state.top.length ? state.top : ranked).slice(0, 3).filter((r) => r.dmg > 0 || played);
-  const onPodium = new Set(top.map((r) => r.player_id));
-  const rest = ranked.filter((r) => !onPodium.has(r.player_id));
-  const crowd = podiumSlots(rest.length, width);
   const won = state.final?.won ?? state.boss.defeated;
   const title = !played ? PODIUM.ended : won ? PODIUM.won : PODIUM.lost;
   const asked = Math.max(0, state.qi + 1);
+  const spots = podiumTopSlots(width);
   return (
     <div className="lvh-podium" data-won={won ? '' : undefined}>
       <div className="lvh-pod-head">
@@ -69,9 +62,13 @@ export function Podium({ state, roster, width, busy, onReview, onAgain, onFinish
       </div>
       <ol className="lvh-pod-stand" aria-label="Тройка по урону">
         {top.map((r, i) => {
-          const col = COLUMNS[i];
+          const col = PODIUM_COLUMNS[i];
           return (
-            <li key={r.player_id} className={`lvh-pod-col ${col.cls}`} style={{ left: width / 2 + col.dx, width: 220, height: col.h, top: FLOOR - col.h, ['--i' as string]: i }}>
+            <li
+              key={r.player_id}
+              className={`lvh-pod-col ${COLUMN_CLASS[i]}`}
+              style={{ left: width / 2 + col.dx, width: 220, height: col.h, top: PODIUM_FLOOR - col.h, ['--i' as string]: i }}
+            >
               <b>{i + 1}</b>
               <span className="lvh-pod-name">{r.name}</span>
               <span className="lvh-pod-dmg">{PODIUM.dmg(r.dmg)}</span>
@@ -79,25 +76,14 @@ export function Podium({ state, roster, width, busy, onReview, onAgain, onFinish
           );
         })}
       </ol>
-      {top.map((r, i) => {
-        const col = COLUMNS[i];
-        // The first wears the crown for the photo (the hat of the art, so it jumps with the character).
-        const look = i === 0 ? crowned(r.look) : r.look;
-        return (
-          <div key={r.player_id} className="lvh-pod-char" style={{ left: width / 2 + col.dx + 45, top: FLOOR - col.h - 128, ['--i' as string]: i }}>
-            <PodiumChar look={look} size={130} phaseMs={i * 160} />
+      {top.map((r, i) =>
+        drawn.has(r.player_id) ? null : (
+          <div key={r.player_id} className="lvh-pod-char" style={{ left: spots[i].x, top: spots[i].y, ['--i' as string]: i }}>
+            <Standalone look={i === 0 ? crowned(r.look) : r.look} phaseMs={i * 160} />
           </div>
-        );
-      })}
-      {rest.slice(0, crowd.length).map((r, i) => {
-        const s = crowd[i];
-        return (
-          <div key={r.player_id} className="lvh-pod-fan" style={{ left: s.x, top: s.y, ['--i' as string]: i % 12 }}>
-            <PodiumChar look={r.look} size={s.size} name={r.name} phaseMs={(i * 140) % 700} />
-          </div>
-        );
-      })}
-      {rest.length > crowd.length ? <div className="lvh-pod-more">+{nb(rest.length - crowd.length)}</div> : null}
+        ),
+      )}
+      {more > 0 ? <div className="lvh-pod-more">+{nb(more)}</div> : null}
       <div className="lvh-pod-actions">
         <button type="button" className="lvh-btn lvh-btn--white" onClick={onReview}>
           {PODIUM.review}
