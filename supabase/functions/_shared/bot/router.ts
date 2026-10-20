@@ -22,6 +22,7 @@ import { derivedSecret, sameSecret } from './secrets.ts';
 import { askTime, claimLink, m1, openPrompt, promptOf, timeChosen, timeReply, TIME_PROMPTS } from './link.ts';
 import { buttonsOnly, dateReply, helpCommand, isDatePrompt, settingsCommand, settingsTap, showSettings, stopCommand } from './settings.ts';
 import { examsTap, isMovePrompt, moveReply } from './exams.ts';
+import { liveStart } from './live.ts';
 import { errorName, log, type LogRoute } from './log.ts';
 import { processUpdate } from './ledger.ts';
 import { runTick, type StepStats, type TickTools } from './tick.ts';
@@ -300,6 +301,8 @@ async function onCommand(ctx: Ctx, ports: Ports, msg: TgMessage, command: { name
   const tgUserId = (msg.from as TgUser).id;
   const chatId = msg.chat.id;
   if (command.name === 'help') return helpCommand(ctx, msg);
+  // The live game (live.ts): `play_<PIN>` and `r_<game>` answer with the Mini App's button, linked or not.
+  if (command.name === 'start' && (await liveStart(ctx, msg, command.payload))) return;
   if (command.name === 'start' && command.payload && !/^g/.test(command.payload)) return claimLink(ctx, msg, command.payload);
   const who = await ctx.db.whoami(tgUserId);
   switch (command.name) {
