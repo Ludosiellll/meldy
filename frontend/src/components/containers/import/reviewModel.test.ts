@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BankItem, BankParseResult } from '../../../types/container';
-import { applyReview, fragmentOf, looksLikeStem, needsLook, reviewCounts, reviewed } from './reviewModel';
+import { applyReview, fragmentOf, looksLikeStem, needsLook, reviewCounts, reviewed, type ReviewOp } from './reviewModel';
 
 function item(position: number, patch: Partial<BankItem> = {}): BankItem {
   return {
@@ -72,9 +72,94 @@ describe('the review of a parse', () => {
     expect(ids).toEqual(['1', '1+', '2', '3']);
     const [first, second] = result.items;
     expect([first.text, first.options, first.correct]).toEqual(['Кто написал «Войну и мир»?', ['Достоевский', 'Толстой'], [1]]);
-    expect([second.label, second.text, second.options, second.kind, second.reviewed]).toEqual(['Б', 'Самая длинная река Европы?', [], 'open', true]);
+    expect([second.label, second.text, second.options, second.kind]).toEqual(['Б', 'Самая длинная река Европы?', [], 'open']);
     expect(result.items.map((entry) => entry.position)).toEqual([1, 2, 3, 4]);
     expect(first.marks.bold).toEqual([0, 1]);
+    // a split is not a check: neither part is «Проверено»; the first is whole now, the second has no options yet
+    expect([first.reviewed, second.reviewed]).toEqual([undefined, undefined]);
+    expect([needsLook(first), needsLook(second)]).toEqual([false, true]);
+    expect(reviewCounts(result)).toMatchObject({ total: 4, checked: 0 });
+  });
+
+  // Six questions glued into one, the key read from an «Ответ: …» line of the whole block (live, 2026-10-20).
+  const block = (patch: Partial<BankItem> = {}) =>
+    bank([
+      item(1, {
+        label: '1',
+        kind: 'multiple',
+        text: 'Какой частью речи является слово «стол»?',
+        options: [
+          'существительное', 'глагол', 'прилагательное',
+          '2. Какой частью речи является слово «бежать»?', 'существительное', 'глагол', 'наречие',
+          '3. Какой частью речи является слово «красный»?', 'существительное', 'прилагательное', 'глагол',
+        ],
+        correct: [0, 5, 9],
+        evidence: 'answer_line',
+        answer: 'А, Б, В',
+        flags: ['several_marked', 'many_options'],
+        marks: {},
+        confidence: 0.1,
+        doubts: ['structure', 'key', 'option_merged'],
+        ...patch,
+      }),
+      item(2),
+    ]);
+
+  it('a split never checks a part: a part still glued stays doubtful, and the block’s key line is no part’s key', () => {
+    const result = applyReview(block(), [{ op: 'split', id: '1', at: 3 }]);
+    const [head, tail] = result.items;
+    expect(result.items).toHaveLength(3);
+    expect([head.reviewed, tail.reviewed]).toEqual([undefined, undefined]);
+    // «А существительное» was the block's key line, not the first question's: the student sets it
+    expect([head.correct, head.evidence, head.kind, head.answer]).toEqual([[], '', 'single', null]);
+    expect(head.flags).toContain('no_key');
+    expect(head.doubts).toContain('key_split');
+    expect(needsLook(head)).toBe(true);
+    // the second part still holds the third question
+    expect([tail.label, tail.options.length, tail.correct]).toEqual(['2', 7, []]);
+    expect(tail.doubts).toEqual(expect.arrayContaining(['option_merged', 'key_split']));
+    expect(needsLook(tail)).toBe(true);
+    expect(reviewCounts(result)).toMatchObject({ total: 3, doubtful: 2, checked: 0 });
+    expect(result.doubtful).toBe(2);
+    expect(result.stats).toMatchObject({ items: 3, no_key: 2, with_key: 1 });
+  });
+
+  it('after a split a part is single choice by its own keys: a press on В gives В, not «А, В»', () => {
+    const ops: ReviewOp[] = [{ op: 'split', id: '1', at: 3 }, { op: 'key', id: '1', correct: [2] }];
+    const head = applyReview(block(), ops).items[0];
+    expect([head.correct, head.kind, head.evidence, head.reviewed]).toEqual([[2], 'single', 'manual', true]);
+    expect(head.doubts).not.toContain('key_split');
+    const counts = reviewCounts(applyReview(block(), ops));
+    expect(counts).toMatchObject({ total: 3, doubtful: 1, checked: 1 });
+  });
+
+  it('keys marked on the options themselves go with their options: one each — no doubt, but still not checked', () => {
+    const bold = block({
+      options: ['существительное', 'глагол', 'прилагательное', '2. Какой частью речи является слово «бежать»?', 'существительное', 'глагол', 'наречие'],
+      correct: [0, 5],
+      evidence: 'bold',
+      marks: { bold: [1, 0, 0, 0, 0, 1, 0] },
+    });
+    const result = applyReview(bold, [{ op: 'split', id: '1', at: 3 }]);
+    const [head, tail] = result.items;
+    expect([head.correct, head.kind, head.evidence, head.flags]).toEqual([[0], 'single', 'bold', []]);
+    expect([tail.correct, tail.kind, tail.evidence, tail.flags]).toEqual([[1], 'single', 'bold', []]);
+    expect([needsLook(head), needsLook(tail), head.reviewed, tail.reviewed]).toEqual([false, false, undefined, undefined]);
+    expect(reviewCounts(result)).toMatchObject({ doubtful: 0, checked: 0 });
+    // two marks left on one part: which is its key is the student's call
+    const two = applyReview(block({ ...bold.items[0], correct: [0, 1, 5] }), [{ op: 'split', id: '1', at: 3 }]).items[0];
+    expect([two.correct, two.kind]).toEqual([[0, 1], 'multiple']);
+    expect(two.flags).toContain('several_marked');
+    expect(needsLook(two)).toBe(true);
+  });
+
+  it('a key found by the question’s number stays with the first part only while it points at its own options', () => {
+    const listed = (correct: number[]) => applyReview(block({ evidence: 'key_list', correct }), [{ op: 'split', id: '1', at: 3 }]).items;
+    const [own, rest] = listed([1]);
+    expect([own.correct, own.evidence, needsLook(own)]).toEqual([[1], 'key_list', false]);
+    expect([rest.correct, rest.doubts?.includes('key_split')]).toEqual([[], true]);
+    const [outside] = listed([5]);
+    expect([outside.correct, outside.doubts?.includes('key_split')]).toEqual([[], true]);
   });
 
   it('merges a one-word «question» into the question above as its option, and a cut stem with its second half', () => {

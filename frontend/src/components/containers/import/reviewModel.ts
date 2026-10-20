@@ -132,36 +132,86 @@ function merge(a: ReviewItem, b: ReviewItem): ReviewItem {
   return checked(out);
 }
 
+/** A key that marks the option itself (its formatting, a «+», a ticked box, GIFT, the student's press): it goes with it. */
+const OPTION_KEYS = new Set(['bold', 'underline', 'italic', 'highlight', 'color', 'shade', 'marker', 'checkbox', 'gift', 'manual']);
+/** A key found by the question's number (a list at the end of the file, or the student's): the first part has the number. */
+const NUMBER_KEYS = new Set(['key_list', 'key_text']);
+/** What the parse said of the glued block as a whole; each part of a split is judged anew (settle). */
+const BLOCK_DOUBTS = new Set(['option_merged', 'structure', 'options_count', 'options_unlike', 'joined_lines', 'key', 'key_split']);
+const COUNT_FLAGS = new Set(['many_options', 'few_options', 'no_options']);
+/** Confidence of a part that still needs a look (below BANK_DOUBT_AT). */
+const PART_DOUBT = BANK_DOUBT_AT / 2;
+
+/** The kind of a part by its own options and keys: a block read as «several answers» for its glued keys is not one. */
+function ownKind(options: number, correct: number[], kind: BankItemKind): BankItemKind {
+  if (kind === 'match' || kind === 'order') return kind;
+  if (options === 0) return 'open';
+  if (correct.length > 1) return 'multiple';
+  return kind === 'truefalse' && options === 2 ? 'truefalse' : 'single';
+}
+
+/**
+ * The keys of the two parts of a block split at `at`, or null: the block's key does not say this part's key (a line
+ * «Ответ: …» or a key column of the whole block; a number's key pointing past the first part's options).
+ */
+function partKeys(item: ReviewItem, at: number): [number[] | null, number[] | null] {
+  if (!item.correct.length) return [[], []];
+  const head = item.correct.filter((index) => index < at);
+  const tail = item.correct.filter((index) => index > at).map((index) => index - at - 1);
+  if (item.evidence === 'first_option') return [[0], item.options.length > at + 1 ? [0] : []];
+  if (OPTION_KEYS.has(item.evidence)) return [head, tail];
+  if (NUMBER_KEYS.has(item.evidence)) return [head.length === item.correct.length ? head : null, null];
+  return [null, null];
+}
+
+/**
+ * A part of a split, judged on its own: its kind by its own keys, a doubt while it still looks broken (an option that
+ * starts another question, too few options, a key that was the block's, several marks). Never checked by the split:
+ * only the student's press («Оставить как есть», a key) checks it.
+ */
+function settle(part: ReviewItem, block: ReviewItem, keys: number[] | null): ReviewItem {
+  part.correct = (keys ?? []).filter((index) => index < part.options.length);
+  if (keys === null) part.answer = null; // the block's «Ответ: …» line is no part's own either
+  part.kind = ownKind(part.options.length, part.correct, block.kind);
+  part.evidence = part.correct.length ? block.evidence : '';
+  part.flags = part.flags.filter((flag) => !KEY_FLAGS.has(flag) && !COUNT_FLAGS.has(flag));
+  const doubts = (part.doubts ?? []).filter((doubt) => !BLOCK_DOUBTS.has(doubt));
+  const asks = CHOICE.has(part.kind);
+  if (asks && !part.correct.length) part.flags.push('no_key');
+  if (asks && keys === null) doubts.push('key_split');
+  if (part.correct.length > 1) {
+    part.flags.push('several_marked');
+    doubts.push('key');
+  }
+  if (CHOICE.has(block.kind) && part.options.length < 2) doubts.push('structure');
+  if (part.options.some((option, index) => index > 0 && looksLikeStem(option))) doubts.push('option_merged');
+  part.doubts = doubts;
+  part.confidence = doubts.length ? Math.min(block.confidence ?? 0, PART_DOUBT) : Math.max(block.confidence ?? 0, BANK_DOUBT_AT);
+  delete part.reviewed;
+  return part;
+}
+
 /** «Отсюда новый вопрос»: option `at` is the stem of the next question, the options after it are its options. */
 function split(item: ReviewItem, at: number, id: string): [ReviewItem, ReviewItem] {
   const head = cloneItem(item);
   const tail = cloneItem(item);
   head.options = item.options.slice(0, at);
-  head.correct = item.correct.filter((index) => index < at);
-  head.kind = kindFor(head.options.length, head.correct, item.kind);
   head.marks = sliceMarks(item.marks, 0, at);
   head.images = item.images ? { stem: item.images.stem, options: item.images.options.slice(0, at) } : item.images;
-  // the second «marked» option belonged to the next question: one key each now
-  head.flags = item.flags.filter((flag) => flag !== 'many_options' && !(flag === 'several_marked' && head.correct.length <= 1));
-  if (!head.correct.length && CHOICE.has(head.kind) && !head.flags.includes('no_key')) head.flags.push('no_key');
   const stem = item.options[at] ?? '';
   const lead = LEAD_LABEL.exec(stem);
   tail.id = id;
   tail.label = lead ? lead[1] : '';
   tail.text = lead ? stem.slice(lead[0].length) : stem;
   tail.options = item.options.slice(at + 1);
-  tail.correct = item.correct.filter((index) => index > at).map((index) => index - at - 1);
-  tail.kind = kindFor(tail.options.length, tail.correct, item.kind === 'open' ? 'single' : item.kind);
-  tail.evidence = tail.correct.length ? item.evidence : '';
   tail.answer = null;
   tail.marks = sliceMarks(item.marks, at + 1);
   tail.images = sliceImages(item.images, at + 1);
   tail.alt = null;
-  tail.flags = tail.correct.length || !CHOICE.has(tail.kind) ? [] : ['no_key'];
-  // the doubt was the glue; what is left to say about each part is its key line
-  head.doubts = [];
+  tail.flags = [];
   tail.doubts = [];
-  return [checked(head), checked(tail)];
+  const [headKeys, tailKeys] = partKeys(item, at);
+  return [settle(head, item, headKeys), settle(tail, item, tailKeys)];
 }
 
 function setKey(item: ReviewItem, correct: number[]): ReviewItem {
@@ -171,7 +221,7 @@ function setKey(item: ReviewItem, correct: number[]): ReviewItem {
   out.evidence = out.correct.length ? 'manual' : '';
   out.flags = out.flags.filter((flag) => !KEY_FLAGS.has(flag));
   if (!out.correct.length) out.flags.push('no_key');
-  out.doubts = (out.doubts ?? []).filter((doubt) => doubt !== 'key');
+  out.doubts = (out.doubts ?? []).filter((doubt) => doubt !== 'key' && doubt !== 'key_split');
   return checked(out);
 }
 

@@ -125,6 +125,37 @@ describe('«Сомнительные места»', () => {
     expect(screen.getAllByRole('listitem').filter((node) => node.classList.contains('br-card'))).toHaveLength(1);
   });
 
+  it('«Отсюда новый вопрос» on a glued block checks neither part, and the first part takes one key', () => {
+    const glued = bank([
+      item(1, {
+        kind: 'multiple',
+        text: 'Какой частью речи является слово «стол»?',
+        options: ['существительное', 'глагол', 'прилагательное', '2. Какой частью речи является слово «бежать»?', 'существительное', 'глагол', 'наречие', '3. Какой частью речи является слово «красный»?', 'прилагательное', 'глагол'],
+        correct: [0, 5, 8],
+        evidence: 'answer_line',
+        flags: ['several_marked', 'many_options'],
+        marks: {},
+        confidence: 0.1,
+        doubts: ['structure', 'key', 'option_merged'],
+      }),
+    ]);
+    render(<BankReview result={glued} fileName="Русский.docx" onDone={vi.fn()} onBack={vi.fn()} />);
+    fireEvent.click(screen.getAllByRole('button', { name: REVIEW.splitHere })[0]);
+    expect(plain(screen.getByRole('status').textContent)).toBe('2 вопроса · сомнительных: 2');
+    expect(screen.queryByText(REVIEW.checked)).toBeNull();
+    const [first, second] = screen.getAllByRole('listitem').filter((node) => node.classList.contains('br-card'));
+    expect(within(first).getByText(REVIEW.doubts.key_split)).toBeTruthy();
+    expect(within(first).getByText(REVIEW.noAnswer)).toBeTruthy();
+    expect(within(first).getByText(REVIEW.pickKey)).toBeTruthy();
+    // the second part still holds the third question: it still offers the split
+    expect(within(second).getByRole('button', { name: REVIEW.splitHere })).toBeTruthy();
+    fireEvent.click(within(first).getByRole('button', { name: /прилагательное/ }));
+    fireEvent.click(within(first).getByRole('button', { name: /глагол/ }));
+    const pressed = within(first).getAllByRole('button').filter((node) => node.getAttribute('aria-pressed') === 'true');
+    expect(pressed.map((node) => node.textContent)).toEqual(['Бглагол']);
+    expect(plain(within(first).getByText(/^Ответ:/).textContent)).toBe('Ответ: Б · ключ отмечен вами');
+  });
+
   it('does not offer the pass without a way to run it, and Назад leaves without changes', () => {
     const { onBack, onDone } = show();
     expect(screen.queryByRole('button', { name: REVIEW.aiButton })).toBeNull();
