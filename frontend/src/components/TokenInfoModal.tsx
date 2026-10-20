@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
-import { AI_COSTS, dailyUnits, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, PRO_DAILY_UNITS } from '../lib/plans';
+import { AI_COSTS, dailyUnits, EXAM_MAPPING_QUESTIONS_PER_CHARGE, IMPORT_AI_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, PRO_DAILY_UNITS } from '../lib/plans';
 import { unitsPerDay, WITHOUT_UNITS } from './pro/planCopy';
 
 interface Props {
@@ -43,6 +43,12 @@ export const LIMIT_COSTS: ReadonlyArray<{ what: string; units: number; note?: st
     what: 'Раздел анализа заново',
     units: AI_COSTS.analysisSection,
     note: 'раздел, который не получился при анализе, — бесплатно',
+    more: true,
+  },
+  {
+    what: 'Разбор сложных мест файла с вопросами',
+    units: AI_COSTS.importAI,
+    note: `за каждые ${IMPORT_AI_QUESTIONS_PER_CHARGE} вопросов, отправленных модели`,
     more: true,
   },
 ];

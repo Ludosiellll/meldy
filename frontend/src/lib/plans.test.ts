@@ -6,6 +6,8 @@ import {
   PRO_DAILY_UNITS,
   dailyUnits,
   examMappingCost,
+  IMPORT_AI_QUESTIONS_PER_CHARGE,
+  importAiCost,
   OCR_PAGES_PER_CHARGE,
   scanCost,
 } from './plans';
@@ -16,7 +18,7 @@ describe('plans', () => {
     expect([FREE_DAILY_UNITS, PRO_DAILY_UNITS]).toEqual([100, 1000]);
     expect(AI_COSTS).toEqual({
       lecture: 20, examMapping: 10, answer: 4, answerPoints: 1, conversation: 5, visuals: 2, cheatsheet: 5,
-      mistakesPractice: 2, gradebookScan: 1, scanPages: 5, analysisSection: 7, tutorTurn: 1,
+      mistakesPractice: 2, gradebookScan: 1, scanPages: 5, analysisSection: 7, tutorTurn: 1, importAI: 5,
     });
     expect(dailyUnits(false)).toBe(100);
     expect(dailyUnits(true)).toBe(1000);
@@ -25,6 +27,11 @@ describe('plans', () => {
   it('charges the check of a list by every started 40 questions that go to the model', () => {
     expect(EXAM_MAPPING_QUESTIONS_PER_CHARGE).toBe(40);
     expect([0, 1, 40, 41, 80, 81, -3].map(examMappingCost)).toEqual([0, 10, 10, 20, 20, 30, 0]);
+  });
+
+  it('charges the AI pass over a bank of questions by every started 100 questions sent to the model', () => {
+    expect(IMPORT_AI_QUESTIONS_PER_CHARGE).toBe(100);
+    expect([0, 1, 100, 101, 250, -4].map(importAiCost)).toEqual([5, 5, 5, 10, 15, 5]); // a pass costs at least 5
   });
 
   it('charges the recognition of a scan by every started 15 pages', () => {

@@ -25,7 +25,7 @@ import { AILimitDialogHost, refusalMessage, useEnergyConfirm, unitsWord } from '
 import { ConfirmProvider } from '../contexts/ConfirmContext';
 import TokenInfoModal from '../components/TokenInfoModal';
 import { formatLimitReset, nextLimitReset, reportAILimit, resetAILimitReportsForTests } from '../api/limits';
-import { AI_COSTS, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, OPEN_PRO_EVENT } from '../lib/plans';
+import { AI_COSTS, EXAM_MAPPING_QUESTIONS_PER_CHARGE, IMPORT_AI_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, OPEN_PRO_EVENT } from '../lib/plans';
 import { WITHOUT_UNITS } from '../components/pro/planCopy';
 import { startMiniApp, stopMiniApp } from '../test/telegramWebApp';
 
@@ -267,6 +267,7 @@ describe('TokenInfoModal', () => {
       ['Работа над ошибками', String(AI_COSTS.mistakesPractice)],
       ['Оценки по фото', String(AI_COSTS.gradebookScan)],
       ['Раздел анализа заново' + 'раздел, который не получился при анализе, — бесплатно', String(AI_COSTS.analysisSection)],
+      [`Разбор сложных мест файла с вопросамиза каждые ${IMPORT_AI_QUESTIONS_PER_CHARGE} вопросов, отправленных модели`, String(AI_COSTS.importAI)],
     ]);
     // One row per priced action of lib/plans.ts (scan pages are the note under the analysis): a new
     // price there fails here until the window lists it.
