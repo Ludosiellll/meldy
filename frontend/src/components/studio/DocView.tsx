@@ -788,10 +788,13 @@ const EditBlock = memo(function EditBlock({
   const { Frame } = editor;
   return (
     <Frame block={block} index={index} count={count} number={number} item={item} layout={layout} problem={problem} busy={busy}>
-      <Block block={block} layout={layout} item={item} number={number} pageNumber={pageNumber} imageUrl={imageUrl} editor={editor} stage={stage} note={note} />
+      <CanvasBlock block={block} layout={layout} item={item} number={number} pageNumber={pageNumber} imageUrl={imageUrl} editor={editor} stage={stage} note={note} />
     </Frame>
   );
 });
+
+/** The canvas's block body: a block added or moved above gives the frame a new place, not the block new words. */
+const CanvasBlock = memo(Block);
 
 function AnswerFlow({
   doc,

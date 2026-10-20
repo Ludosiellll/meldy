@@ -645,9 +645,12 @@ export default function Workspace({
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   /** After a removal on a touch screen: the line with «Вернуть», while the page is the page that removal made. */
   const [undoNote, setUndoNote] = useState<{ name: string; doc: TestDoc | null } | null>(null);
+  // Set only when it changes (a same-value update after every key typed still cost a commit of its own).
   useEffect(() => {
-    setUndoNote((note) => (!note ? note : note.doc === null ? { ...note, doc } : note.doc === doc ? note : null));
-  }, [doc]);
+    if (!undoNote) return;
+    if (undoNote.doc === null) setUndoNote({ ...undoNote, doc });
+    else if (undoNote.doc !== doc) setUndoNote(null);
+  }, [doc, undoNote]);
   useEffect(() => {
     if (!undoNote) return;
     const timer = window.setTimeout(() => setUndoNote(null), 8000);

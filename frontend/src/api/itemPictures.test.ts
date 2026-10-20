@@ -439,3 +439,78 @@ describe('uploadPicture: the same picture again', () => {
     expect(upload.mock.calls[0][2]).toMatchObject({ upsert: false });
   });
 });
+
+describe('a picture the author adds is made in its own worker (the smoothness audit of 20.10)', () => {
+  const FIXED = 'f'.repeat(64);
+  type Ask = { ask: number; file: Blob };
+  type Answer = { ask: number; stage?: string; done?: unknown; failed?: true };
+
+  /** A Worker that answers as `answer` says; the files it was given. */
+  function fakeWorker(answer: (ask: Ask) => Answer[]) {
+    const given: Blob[] = [];
+    class FakeWorker {
+      onmessage: ((event: { data: Answer }) => void) | null = null;
+      onerror: (() => void) | null = null;
+      postMessage(ask: Ask) {
+        given.push(ask.file);
+        setTimeout(() => {
+          for (const data of answer(ask)) this.onmessage?.({ data });
+        }, 0);
+      }
+    }
+    vi.stubGlobal('Worker', FakeWorker);
+    vi.stubGlobal('OffscreenCanvas', class {});
+    return given;
+  }
+
+  it('the worker’s picture is the one uploaded: its bytes (no base64), its stage heard on the page', async () => {
+    const made = new Blob([new Uint8Array(1000)], { type: 'image/jpeg' });
+    const given = fakeWorker(({ ask }) => [{ ask, stage: 'shrink' }, { ask, done: { id: FIXED, blob: made } }]);
+    vi.resetModules();
+    const fresh = await import('./itemPictures');
+    const onStage = vi.fn();
+    const photo = fileOf(5 * MB, 'image/jpeg', 'IMG_0001.jpg');
+    const result = await fresh.preparePicture(photo, { onStage });
+    expect(given).toEqual([photo]);
+    expect(onStage).toHaveBeenCalledWith('shrink');
+    expect(result).toEqual({ id: FIXED, blob: made });
+
+    const upload = vi.fn().mockResolvedValue({ data: {}, error: null });
+    const { supabase: client } = await import('../lib/supabase');
+    vi.mocked(client.storage.from).mockReturnValue({ upload } as unknown as ReturnType<typeof client.storage.from>);
+    expect(await fresh.uploadPicture(`11111111-2222-4333-8444-555555555555/${FIXED}.jpg`, made, fresh.COVER_BUCKET)).toBe('kept');
+    expect(upload.mock.calls[0][1]).toBe(made);
+    expect(upload.mock.calls[0][2]).toMatchObject({ contentType: 'image/jpeg', upsert: true });
+  });
+
+  it('a worker that fails: the page makes the picture itself, the same way', async () => {
+    fakeWorker(({ ask }) => [{ ask, failed: true }]);
+    vi.resetModules();
+    const fresh = await import('./itemPictures');
+    const result = await fresh.preparePicture(new Blob([PNG], { type: 'image/png' }));
+    if (typeof result === 'string') throw new Error(result);
+    expect(result.id).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.blob.type).toBe('image/png');
+  });
+
+  it('the worker itself: no 2D canvas of its own — it says so (the page then draws); not a picture — refused there', async () => {
+    const answers: Answer[] = [];
+    const scope = { onmessage: null as ((event: { data: Ask }) => void) | null, postMessage: (answer: Answer) => answers.push(answer) };
+    vi.stubGlobal('self', scope);
+    vi.resetModules();
+    await import('./pictureWorker');
+    scope.onmessage?.({ data: { ask: 1, file: new Blob(['x'], { type: 'image/png' }) } });
+    await vi.waitFor(() => expect(answers).toEqual([{ ask: 1, failed: true }]));
+
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      class {
+        getContext() {
+          return {};
+        }
+      },
+    );
+    scope.onmessage?.({ data: { ask: 2, file: new Blob(['hello'], { type: 'text/plain' }) } });
+    await vi.waitFor(() => expect(answers).toContainEqual({ ask: 2, done: 'type' }));
+  });
+});

@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ElementType, type KeyboardEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { chars, oneLine } from '../../lib/studio/doc';
 import Rich from './Rich';
 import { STUDIO } from './copyStudio';
@@ -68,6 +69,9 @@ function onlyAdded(before: string, after: string): boolean {
   return head + tail === before.length;
 }
 
+/** The browser makes a textarea as high as its words itself (CSS field-sizing: studio.css .st-field). */
+const SIZES_ITSELF = typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('field-sizing', 'content');
+
 /** The value is still the block's own first words (and nothing else is typed yet). */
 const isStarter = (value: string, starter: string | undefined) => starter !== undefined && starter !== '' && value === starter;
 
@@ -80,19 +84,28 @@ export default function Editable({ value, onChange, label, as: Tag = 'div', clas
   // The selection to restore after a mark changed the words.
   const pendingSelection = useRef<{ start: number; end: number } | null>(null);
 
+  // The field holds the words itself (neither `value` nor `defaultValue` for React to keep in step): its words are put in
+  // here, when it opens and when they come from elsewhere (a mark, Ctrl+Z, a cleaned line). A key typed then changes
+  // nothing React writes back (a React textarea rewrote its text node at every key, and the page's :has() rules were
+  // looked at again).
   // The height follows the words and the width only (the smoothness audit of 20.10: it was measured at every render, the
-  // field let go to `auto` and back — a forced layout of the page each time).
+  // field let go to `auto` and back — a forced layout of the page each time); a browser that sizes the field itself
+  // (CSS field-sizing) measures nothing.
   const fitted = useRef<string | null>(null);
+  /** The words as the page has them (this render's). */
+  const shown = useRef(value);
+  shown.current = value;
   useLayoutEffect(() => {
     const field = fieldRef.current;
     if (!field) {
       fitted.current = null;
       return;
     }
+    if (field.value !== value) field.value = value;
     if (fitted.current !== value) {
       const before = fitted.current;
       fitted.current = value;
-      fit(field, before !== null && onlyAdded(before, value));
+      if (!SIZES_ITSELF) fit(field, before !== null && onlyAdded(before, value));
     }
     const selection = pendingSelection.current;
     if (selection) {
@@ -102,7 +115,7 @@ export default function Editable({ value, onChange, label, as: Tag = 'div', clas
   });
   useEffect(() => {
     const field = fieldRef.current;
-    if (!active || !field || typeof ResizeObserver === 'undefined') return undefined;
+    if (SIZES_ITSELF || !active || !field || typeof ResizeObserver === 'undefined') return undefined;
     let width = field.offsetWidth;
     const observer = new ResizeObserver(() => {
       if (field.offsetWidth === width) return;
@@ -263,13 +276,18 @@ export default function Editable({ value, onChange, label, as: Tag = 'div', clas
       <textarea
         ref={fieldRef}
         className="st-field"
-        value={value}
         rows={1}
         aria-label={label}
         placeholder={placeholder}
         maxLength={max + 50}
         spellCheck
-        onChange={(event) => set(event.target.value)}
+        onChange={(event) => {
+          const field = event.currentTarget;
+          // The page takes the words now (the render a key brings anyway, not later); words it did not take — or took
+          // cleaned — are put back at once, as React's own controlled field did.
+          flushSync(() => set(field.value));
+          if (field.value !== shown.current) field.value = shown.current;
+        }}
         onKeyDown={onKeyDown}
         onBlur={(event) => {
           // The link's own field takes the focus for a moment: that is not the end of editing.

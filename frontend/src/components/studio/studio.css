@@ -560,6 +560,10 @@
   outline: none;
 }
 .st-field::placeholder { color: var(--doc-muted); opacity: 1; }
+/* As high as its words, sized by the browser where it can (elsewhere Editable measures it). */
+@supports (field-sizing: content) {
+  .st-field { field-sizing: content; }
+}
 /* The video block's link field: 16 px and up, or iOS zooms the page in when it takes the focus (live check of 47.4). */
 .st-doc .dv-video-put input { font-size: max(16px, 1rem); }
 [data-editing] { position: relative; }
@@ -1405,18 +1409,18 @@
 /*
  * Tap targets of 44 px on a touch screen (phone audit of 19.10: the block's bar 36 × 32, «+» 30 × 30, «Холст / Список /
  * Текст» 36 high, «Отменить / Повторить» and the steppers 40 × 40, the tabs 34, the tick of a right answer 28 wide):
- * where the look must stay, the finger gets the room around it (an empty ::after); in the sheets, the size itself.
+ * where the look must stay, the finger gets the room around it (an empty ::after); in the sheets, the size itself. The
+ * block's bar (live check of 47.8: «Блок», «Копия», «Удалить» were 44 × 36): its buttons are 44 × 44 themselves, the
+ * bar drawn as before — they reach past its edge (negative margins), they have no fill of their own to show it.
  */
 @media (hover: none), (pointer: coarse) {
   .st-seg-btn,
   .st-icon-btn,
-  .st-act,
   .st-tab,
   .st-step { position: relative; }
   .st-plus-end { position: relative; top: auto; left: auto; }
   .st-seg-btn::after,
   .st-icon-btn::after,
-  .st-act::after,
   .st-tab::after,
   .st-step::after,
   .st-plus::after { content: ''; position: absolute; }
@@ -1424,9 +1428,8 @@
   .st-icon-btn::after,
   .st-step::after,
   .st-plus-end::after { inset: -2px; }
-  .st-act { height: 36px; }
+  .st-act { height: 44px; margin-block: -4px; }
   .st-act-icon { width: 44px; }
-  .st-act::after { inset: -4px 0; }
   .st-tab::after { inset: -5px 0; }
   .st-plus::after { inset: -7px; border-radius: 50%; }
   /* Only the «+» under the chosen block is there to tap: the others are not seen, and not caught by a finger either. */
@@ -1445,6 +1448,22 @@
   .st-template { grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 12px; align-items: start; }
   .st-template-pic { grid-row: 1 / span 3; height: 100%; min-height: 84px; margin: 0; padding: 8px 8px 0; }
   .st-template-sheet { height: 100%; padding: 8px; gap: 5px; }
+}
+
+/*
+ * A phone held sideways (live check of 47.8: at 844 × 390 about 70 px of the page showed between the bars until it was
+ * scrolled): in a window at most 500 px high the app's bar is not held at the top of the studio — it goes up with the
+ * page (the studio's own bar has the way back) — and the studio's bar, the bottom bar (its words stay) and the page's
+ * margin are slimmer. The page gets over 200 px at the top, all but the bottom bar once scrolled.
+ */
+@media (max-height: 500px) {
+  .sf-shell:has(.st-page:is([data-frame='s'], [data-frame='m'])) > .sf-bar { position: relative; }
+  .st-page:is([data-frame='s'], [data-frame='m']) { --sf-bar-h: 0px; --st-bottom-bar: calc(55px + env(safe-area-inset-bottom)); }
+  .st-page:is([data-frame='s'], [data-frame='m']) .st-bar { min-height: 0; padding-block: 4px; }
+  .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar { padding-block: 5px calc(5px + env(safe-area-inset-bottom)); }
+  .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar :is(.st-tool, .st-send) { height: 44px; }
+  .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar .st-tool-icon { width: 44px; }
+  .st-page[data-frame='m'] .st-canvas { padding: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

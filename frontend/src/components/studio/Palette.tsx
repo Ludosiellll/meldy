@@ -30,9 +30,10 @@ export function paletteEntry(id: string | number): PaletteEntry | null {
 }
 export const entryLabel = (entry: PaletteEntry) => (entry.kind === 'block' ? STUDIO.types[entry.type] : STUDIO.qtypes[entry.type]);
 
-export function EntryIcon({ entry }: { entry: PaletteEntry }) {
+/** A memo: a drag re-renders every item of the palette (its dnd-kit hook), not its icon. */
+export const EntryIcon = memo(function EntryIcon({ entry }: { entry: PaletteEntry }) {
   return entry.kind === 'block' ? <BlockIcon type={entry.type} /> : <QuestionIcon type={entry.type} />;
-}
+});
 
 function Item({ entry, disabled, onPick }: { entry: PaletteEntry; disabled: boolean; onPick: (entry: PaletteEntry) => void }) {
   const { setNodeRef, listeners, isDragging } = useDraggable({ id: paletteId(entry), disabled, data: { entry } });

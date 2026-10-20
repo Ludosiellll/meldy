@@ -8,18 +8,16 @@
  */
 import { supabase, supabaseAnonKey, supabaseFetch, supabaseUrl } from '../lib/supabase';
 import type { BankPicture } from '../types/container';
+import { bytesOf, EXTENSIONS, preparePictureHere, type PictureRefusal, type PictureStage, type PreparedPicture } from './pictureDraw';
+import type { PictureAnswer, PictureAsk } from './pictureWorker';
+
+export { isHeic, isPictureFile, MAX_PICTURE_BYTES, MAX_PICTURE_SIDE, PICTURE_QUALITY } from './pictureDraw';
+export type { PictureRefusal, PictureStage, PreparedPicture } from './pictureDraw';
 
 export const PICTURE_BUCKET = 'test-item-images';
 /** Quiz covers (release 47): a public bucket, the author writes into their exam's folder. */
 export const COVER_BUCKET = 'quiz-covers';
 
-const EXTENSIONS: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/bmp': 'bmp',
-};
 const ID_RE = /^[0-9a-f]{64}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -53,17 +51,19 @@ function alreadyThere(error: StorageFailure): boolean {
 }
 
 /**
- * Puts one picture at `path`. 'kept' — it is there now; 'refused' — storage turned this picture down (type, size,
+ * Puts one picture (the importer's base64, or a picture's bytes) at `path`. 'kept' — it is there now; 'refused' — storage turned this picture down (type, size,
  * rights): the question is saved without it. A network or server failure throws, so the save stops and goes on later.
  *
  * Quiz covers (the studio's pictures, a quiz's cover) are written over: the name is the hash of the bytes, so the same
  * picture again changes nothing, and the bucket lets the owner update their folder — no «already exists» 400 in the
  * console (live check of 47.4). test-item-images has no update policy: a picture already there still counts as kept.
  */
-export async function uploadPicture(path: string, picture: BankPicture, bucket: string = PICTURE_BUCKET): Promise<'kept' | 'refused'> {
+export async function uploadPicture(path: string, picture: BankPicture | Blob, bucket: string = PICTURE_BUCKET): Promise<'kept' | 'refused'> {
+  // The bytes as they are (a picture the author adds: no base64 there and back), or the importer's base64.
+  const body = picture instanceof Blob ? picture : pictureBlob(picture);
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(path, pictureBlob(picture), { contentType: picture.type, upsert: bucket === COVER_BUCKET, cacheControl: '31536000' });
+    .upload(path, body, { contentType: picture.type, upsert: bucket === COVER_BUCKET, cacheControl: '31536000' });
   if (!error) return 'kept';
   const failure = error as StorageFailure;
   if (alreadyThere(failure)) return 'kept';
@@ -175,51 +175,9 @@ export function guestPictureUrl(path: string, attemptId: string, token: string):
 
 // ── a picture the author adds by hand (the question editor, the quiz cover, the studio: a file, a drop or Ctrl+V) ──
 
-export const MAX_PICTURE_BYTES = 3 * 1024 * 1024; // the buckets' limit
-/** A picture is redrawn no larger than this on its longer side (a phone's 4000 × 3000 photo becomes 2400 × 1800). */
-export const MAX_PICTURE_SIDE = 2400;
-/** JPEG and WebP quality of a redrawn picture. */
-export const PICTURE_QUALITY = 0.85;
-/** The types the buckets take (test-item-images also BMP; quiz-covers not — the studio and the cover refuse a BMP path). */
-const TAKEN = new Set(Object.keys(EXTENSIONS));
-/** Kept as they are when they fit: the four every bucket takes. */
-const KEEPABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
-/** Smaller and smaller sides to try while a redrawn picture is still over 3 MB. */
-const SIDES = [MAX_PICTURE_SIDE, 1800, 1280];
-
-/**
- * Why a file did not become a picture: 'type' — not a picture (or one the browser cannot draw); 'size' — over 3 MB even
- * redrawn smaller; 'heic' — an iPhone's HEIC / HEIF photo the browser cannot draw (most browsers on a computer).
- */
-export type PictureRefusal = 'type' | 'size' | 'heic';
-/** 'shrink' — the picture is being redrawn smaller (a phone's photo takes a moment). */
-export type PictureStage = 'shrink';
-
 export interface PictureDeps {
   /** Told when the picture has to be redrawn, before the work starts. */
   onStage?: (stage: PictureStage) => void;
-}
-
-/** HEIC / HEIF: by its type, or by its name when the system gave it no type (Windows, an older Android). */
-export function isHeic(file: Blob): boolean {
-  if (/^image\/hei[cf](-sequence)?$/i.test(file.type)) return true;
-  const name = typeof (file as File).name === 'string' ? (file as File).name : '';
-  return (!file.type || file.type === 'application/octet-stream') && /\.hei[cf]$/i.test(name);
-}
-
-/** A file worth trying: a picture of any type but SVG (a page of code, not pixels), or a HEIC by its name. */
-export function isPictureFile(file: Blob): boolean {
-  return isHeic(file) || (file.type.startsWith('image/') && !/svg/i.test(file.type));
-}
-
-async function bytesOf(blob: Blob): Promise<Uint8Array> {
-  if (typeof blob.arrayBuffer === 'function') return new Uint8Array(await blob.arrayBuffer());
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
 }
 
 function base64Of(bytes: Uint8Array): string {
@@ -228,129 +186,83 @@ function base64Of(bytes: Uint8Array): string {
   return btoa(text);
 }
 
-async function sha256Of(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
+/** The picture worker (pictureWorker.ts), made once; null where a browser has none (then the page draws). */
+let worker: Worker | null | undefined;
+let asks = 0;
+const waiting = new Map<number, { onStage?: (stage: PictureStage) => void; settle: (done: PreparedPicture | PictureRefusal | null) => void }>();
 
-/**
- * The picture as the browser draws it, turned upright by its EXIF orientation (a phone's photo taken sideways), or null
- * when the browser cannot draw it (HEIC on most computers, a broken file, no createImageBitmap). A browser that does not
- * know the option is asked again without it (it then turns the photo by itself, or not at all).
- */
-async function decodePicture(blob: Blob): Promise<ImageBitmap | null> {
-  if (typeof createImageBitmap !== 'function') return null;
+function pictureWorker(): Worker | null {
+  if (worker !== undefined) return worker;
   try {
-    return await createImageBitmap(blob, { imageOrientation: 'from-image' });
-  } catch {
-    try {
-      return await createImageBitmap(blob);
-    } catch {
-      return null;
+    if (typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') {
+      worker = null;
+      return worker;
     }
-  }
-}
-
-function canvasOf(width: number, height: number): { canvas: HTMLCanvasElement; context: CanvasRenderingContext2D } | null {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(width));
-  canvas.height = Math.max(1, Math.round(height));
-  const context = canvas.getContext('2d');
-  return context ? { canvas, context } : null;
-}
-
-/** Some pixel is not fully opaque (looked at on a copy at most 256 px across: cheap, and a transparent edge stays). */
-function transparent(bitmap: ImageBitmap): boolean {
-  const scale = Math.min(1, 256 / Math.max(bitmap.width, bitmap.height));
-  const probe = canvasOf(bitmap.width * scale, bitmap.height * scale);
-  if (!probe) return false;
-  try {
-    probe.context.drawImage(bitmap, 0, 0, probe.canvas.width, probe.canvas.height);
-    const { data } = probe.context.getImageData(0, 0, probe.canvas.width, probe.canvas.height);
-    for (let at = 3; at < data.length; at += 4) if (data[at] < 255) return true;
-    return false;
+    const made = new Worker(new URL('./pictureWorker.ts', import.meta.url), { type: 'module' });
+    made.onmessage = (event: MessageEvent<PictureAnswer>) => {
+      const answer = event.data;
+      const ask = waiting.get(answer.ask);
+      if (!ask) return;
+      if ('stage' in answer) ask.onStage?.(answer.stage);
+      else {
+        waiting.delete(answer.ask);
+        ask.settle('done' in answer ? answer.done : null);
+      }
+    };
+    // The worker could not start (or broke): what it was asked is done on the page, and so is all that follows.
+    made.onerror = () => {
+      worker = null;
+      for (const [id, ask] of waiting) {
+        waiting.delete(id);
+        ask.settle(null);
+      }
+    };
+    worker = made;
   } catch {
-    return false;
+    worker = null;
   }
+  return worker;
 }
 
-/** The canvas as `type`; null when the browser writes another type instead (Safari gives PNG for WebP) or fails. */
-function encode(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob | null> {
-  return new Promise((resolve) => {
+/** The worker's answer, or null: it has none (no worker, a failure there). */
+function askWorker(file: Blob, onStage?: (stage: PictureStage) => void): Promise<PreparedPicture | PictureRefusal | null> {
+  const thread = pictureWorker();
+  if (!thread) return Promise.resolve(null);
+  return new Promise((settle) => {
+    asks += 1;
+    const ask: PictureAsk = { ask: asks, file };
+    waiting.set(ask.ask, { onStage, settle });
     try {
-      canvas.toBlob((blob) => resolve(blob && blob.type === type ? blob : null), type, quality);
+      thread.postMessage(ask);
     } catch {
-      resolve(null);
+      waiting.delete(ask.ask);
+      settle(null);
     }
   });
 }
 
 /**
- * The picture redrawn no larger than 2400 px on its longer side (then 1800, then 1280 while it is over 3 MB): with
- * transparency as PNG or WebP, whichever is smaller; without it — or when a transparent one does not fit — on white as
- * JPEG 0.85 or WebP 0.85, whichever is smaller. Null: nothing fits.
- */
-async function redraw(bitmap: ImageBitmap, alpha: boolean): Promise<Blob | null> {
-  const long = Math.max(bitmap.width, bitmap.height);
-  for (const side of SIDES) {
-    if (side < MAX_PICTURE_SIDE && long <= side) break;
-    const scale = Math.min(1, side / long);
-    for (const clear of alpha ? [true, false] : [false]) {
-      const made = canvasOf(bitmap.width * scale, bitmap.height * scale);
-      if (!made) return null;
-      const { canvas, context } = made;
-      if (!clear) {
-        // JPEG has no transparency, and the pages show pictures on white anyway.
-        context.fillStyle = '#fff';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-      }
-      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const tries = clear
-        ? [encode(canvas, 'image/png'), encode(canvas, 'image/webp', PICTURE_QUALITY)]
-        : [encode(canvas, 'image/jpeg', PICTURE_QUALITY), encode(canvas, 'image/webp', PICTURE_QUALITY)];
-      const fitting = (await Promise.all(tries)).filter((blob): blob is Blob => blob !== null && blob.size <= MAX_PICTURE_BYTES);
-      if (fitting.length > 0) return fitting.reduce((best, blob) => (blob.size < best.size ? blob : best));
-    }
-  }
-  return null;
-}
-
-async function made(blob: Blob): Promise<{ id: string; picture: BankPicture }> {
-  const bytes = await bytesOf(blob);
-  return { id: await sha256Of(bytes), picture: { type: blob.type, data: base64Of(bytes) } };
-}
-
-/**
- * A picture from a file, a drop or the clipboard, ready for uploadPicture: its id (sha256 of the bytes, so the same
- * picture is one object) and its bytes. The one helper of every picture the author adds: the question editor, the quiz
- * cover and the studio's pictures (cover, picture block, background, result message).
+ * A picture from a file, a drop or the clipboard, ready to upload: its id (sha256 of the bytes, so the same picture is
+ * one object) and its bytes. Made in the picture worker, off the page's thread (pictureWorker.ts); where a browser has
+ * no worker with a 2D OffscreenCanvas, on the page, the same way (pictureDraw.ts).
  *
  * - Kept as it is: a GIF up to 3 MB (redrawn, it would lose its motion); a PNG, JPEG or WebP up to 3 MB and 2400 px on
  *   its longer side; a PNG or WebP up to 3 MB with transparency, however large; a picture of the buckets' types up to
  *   3 MB the browser cannot draw (it cannot be measured; the bucket decides).
- * - Redrawn (redraw above, turned upright by its EXIF orientation): a phone's photo of 3–12 MB, a picture over 2400 px,
- *   a BMP, and the types the buckets do not take but the browser can draw (HEIC in Safari, AVIF, TIFF…).
+ * - Redrawn (turned upright by its EXIF orientation, no larger than 2400 px, then 1800 and 1280 while over 3 MB; with
+ *   transparency as PNG or WebP, without it on white as JPEG or WebP 0.85 — the smaller): a phone's photo of 3–12 MB, a
+ *   picture over 2400 px, a BMP, and the types the buckets do not take but the browser can draw (HEIC in Safari, AVIF…).
  * - 'heic' — a HEIC the browser cannot draw; 'type' — not a picture, or one the browser cannot draw; 'size' — over 3 MB
  *   even redrawn at 1280 px.
  */
+export async function preparePicture(file: Blob, deps: PictureDeps = {}): Promise<PreparedPicture | PictureRefusal> {
+  const done = await askWorker(file, deps.onStage);
+  return done ?? preparePictureHere(file, deps.onStage);
+}
+
+/** preparePicture with the bytes as base64 (BankPicture: the question editor and the quiz cover keep it so). */
 export async function pictureFromFile(file: Blob, deps: PictureDeps = {}): Promise<{ id: string; picture: BankPicture } | PictureRefusal> {
-  if (!isPictureFile(file)) return 'type';
-  const fits = file.size <= MAX_PICTURE_BYTES;
-  if (file.type === 'image/gif' && fits) return made(file);
-  const bitmap = await decodePicture(file);
-  if (!bitmap) {
-    if (TAKEN.has(file.type) && fits) return made(file);
-    if (isHeic(file)) return 'heic';
-    return TAKEN.has(file.type) ? 'size' : 'type';
-  }
-  try {
-    const long = Math.max(bitmap.width, bitmap.height);
-    const alpha = file.type !== 'image/jpeg' && transparent(bitmap);
-    if (KEEPABLE.has(file.type) && fits && (long <= MAX_PICTURE_SIDE || alpha)) return made(file);
-    deps.onStage?.('shrink');
-    const out = await redraw(bitmap, alpha);
-    return out ? made(out) : 'size';
-  } finally {
-    bitmap.close?.();
-  }
+  const made = await preparePicture(file, deps);
+  if (typeof made === 'string') return made;
+  return { id: made.id, picture: { type: made.blob.type, data: base64Of(await bytesOf(made.blob)) } };
 }
