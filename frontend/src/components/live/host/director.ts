@@ -51,6 +51,7 @@ export class Director {
   private anims = new Set<Animation>();
   private nodes = new Set<Element>();
   private templates = new Map<string, Element>();
+  private current = new WeakMap<Element, Animation>();
   private hurtTimer: ReturnType<typeof setTimeout> | null = null;
   running = false;
 
@@ -86,9 +87,19 @@ export class Director {
     this.timers.add(t);
   }
 
-  private animate(el: Element | null | undefined, frames: Frames, opts: KeyframeAnimationOptions): Animation | null {
+  /**
+   * `replace`: the element's previous motion of this kind stops first. Two transform animations at once on one element
+   * (a shake every 90 ms, a hop on a hop) cannot run on the compositor — the trace showed them falling back to the main
+   * thread.
+   */
+  private animate(el: Element | null | undefined, frames: Frames, opts: KeyframeAnimationOptions, replace = false): Animation | null {
     if (!el || !canAnimate(el)) return null;
+    if (replace) {
+      const prev = this.current.get(el);
+      if (prev && prev.playState !== 'finished') prev.cancel();
+    }
     const a = el.animate(frames, opts);
+    if (replace) this.current.set(el, a);
     this.anims.add(a);
     const drop = () => this.anims.delete(a);
     a.addEventListener('finish', drop);
@@ -146,7 +157,7 @@ export class Director {
           { transform: 'translateY(0) scale(1, 1)' },
         ]
       : [{ transform: 'translateY(0)' }, { transform: 'translateY(-10px)' }, { transform: 'translateY(0)' }];
-    this.animate(el, frames, { duration: big ? 380 : 260, easing: 'ease-out' });
+    this.animate(el, frames, { duration: big ? 380 : 260, easing: 'ease-out' }, true);
   }
 
   /** The characters who just answered hop once, a few at a time. */
@@ -174,8 +185,9 @@ export class Director {
         { transform: 'translate(0, 0) rotate(0)' },
       ],
       { duration: 240, easing: 'ease-out' },
+      true,
     );
-    this.animate(this.env.store.bossFlash, [{ opacity: 0 }, { opacity: 0.22 }, { opacity: 0 }], { duration: 140, easing: 'linear' });
+    this.animate(this.env.store.bossFlash, [{ opacity: 0 }, { opacity: 0.22 }, { opacity: 0 }], { duration: 140, easing: 'linear' }, true);
   }
 
   private hit(playerId: string, dmg: number, hpAfter: number, i: number): void {
@@ -243,6 +255,7 @@ export class Director {
       store.bossShake,
       [{ transform: 'scale(1)' }, { transform: 'scale(1.08, 0.92)' }, { transform: 'scale(0.97, 1.05)' }, { transform: 'scale(1)' }],
       { duration: 420, easing: 'ease-out' },
+      true,
     );
     const shown = ids.filter((id) => this.env.slotOf(id));
     const step = counterStep(shown.length);
@@ -271,6 +284,7 @@ export class Director {
             store.hops.get(id),
             [{ transform: 'translateX(0)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'translateX(0)' }],
             { duration: 220 },
+            true,
           );
         });
       });
@@ -311,6 +325,7 @@ export class Director {
         { transform: 'translate(0, 0)' },
       ],
       { duration: 520, easing: 'linear' },
+      true,
     );
     const box = bossBox(this.env.width());
     for (let k = 0; k < 6; k += 1) {
@@ -339,6 +354,7 @@ export class Director {
       store.bossShake,
       Array.from({ length: 12 }, (_, i) => ({ transform: `translate(${i % 2 ? 12 : -12}px, ${i % 3 ? -3 : 3}px) rotate(${i % 2 ? 3 : -3}deg)` })),
       { duration: 700, easing: 'linear' },
+      true,
     );
     this.at(650, () => {
       const box = bossBox(this.env.width());
@@ -370,6 +386,7 @@ export class Director {
           { transform: 'scale(0.2) rotate(-25deg)', opacity: 0 },
         ],
         { duration: 560, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' },
+        true,
       );
       this.at(570, () => {
         store.setBoss({ fallen: true, hurt: false });
@@ -387,6 +404,7 @@ export class Director {
             { transform: 'translateY(0) rotate(0deg)' },
           ],
           { duration: 620, delay: 300 + (i % 7) * 40, iterations: 3, easing: 'ease-out' },
+          true,
         );
       });
       this.at(500, () => this.env.banner({ ...BANNER.defeated, ms: 600, stay: true }));

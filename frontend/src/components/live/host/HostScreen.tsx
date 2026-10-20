@@ -30,7 +30,8 @@ import './host.css';
 export function syncRest(store: StageStore, s: HostState): void {
   const keep = new Set(s.roster.map((r) => r.player_id));
   store.retain(keep);
-  const end = s.state === 'podium' || s.state === 'ended';
+  // The monster fell, or the game is over: everyone celebrates, the ice is gone.
+  const end = s.state === 'podium' || s.state === 'ended' || (s.state === 'reveal' && s.boss.defeated);
   for (const r of s.roster) {
     const frozen = !end && r.frozen;
     store.setChar(r.player_id, { frozen, face: end ? 'happy' : frozen ? 'frozen' : 'idle' });
