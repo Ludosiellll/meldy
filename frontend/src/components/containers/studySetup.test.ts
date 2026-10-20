@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DayPlan, PlanInput } from '../../types/container';
 import { sessionOpens, setupSession } from './studySetup';
-import { sessionHref } from './model';
+import { errorCount, sessionHref, studyHref } from './model';
 import { CONTAINER, ORAL_EXAM, SUBJECT_CS, SUBJECT_DB, SUBJECT_ORAL, TODAY, dayPlan, planInput, subject, summary, unit } from './testkit/fixtures';
 
 /**
@@ -61,5 +61,47 @@ describe('sessionOpens: the questions a plan session’s link opens', () => {
   it('fewer than a session left: all of them', () => {
     const small = dayPlan({ sessions: [{ subjectId: SUBJECT_CS, kind: 'answer', ids: ids('cs', 0, 4), estSec: 120 }] });
     expect(sessionOpens({ plan: small, input: planInput(), summary: exam, session: small.sessions[0], answered: ['cs-0'] })).toBe(3);
+  });
+});
+
+describe('«Только ошибки: N» opens what it counts (owner, 2026-10-20: «хочу ошибки посмотреть … пишет их нет»)', () => {
+  const plan = dayPlan({ sessions: [] });
+  const wrongOn = (day: string) => unit({ seen: 1, wrong: 1, firstDay: day, lastDay: day });
+  /** `older` mistakes of earlier days and `today` of today, in «Базы данных». */
+  function errorsInput(older: number, today: number): PlanInput {
+    const items = Array.from({ length: older + today }, (_, k) => ({
+      id: `e-${k}`, s: SUBJECT_DB, f: 't' as const, tp: 1, o: k + 1, u: wrongOn(k < older ? '2026-10-08' : TODAY),
+    }));
+    return planInput({ items: [...items, { id: 'fine', s: SUBJECT_DB, f: 't' as const, tp: 1, o: 999, u: unit({ seen: 1, firstDay: TODAY, lastDay: TODAY }) }] });
+  }
+  const open = (input: PlanInput) => {
+    const href = studyHref(CONTAINER, { s: SUBJECT_DB, only: 'errors' });
+    const params = new URLSearchParams(href.split('?')[1] ?? '');
+    return setupSession({ params, saved: null, plan, input, summary: exam, today: TODAY, now: 0 }).queue.map((entry) => entry.id);
+  };
+
+  it('all made today: the link counts 10 and opens the 10', () => {
+    const input = errorsInput(0, 10);
+    expect(errorCount(input, SUBJECT_DB)).toBe(10);
+    expect(open(input).sort()).toEqual(Array.from({ length: 10 }, (_, k) => `e-${k}`).sort());
+  });
+
+  it('older and today’s: all of them, never a question that is not an error', () => {
+    const input = errorsInput(4, 6);
+    expect(open(input)).toHaveLength(errorCount(input, SUBJECT_DB));
+    expect(open(input)).not.toContain('fine');
+  });
+
+  it('more than a session: 20, the older mistakes first', () => {
+    const input = errorsInput(15, 15);
+    const ids = open(input);
+    expect(ids).toHaveLength(20);
+    for (let k = 0; k < 15; k += 1) expect(ids).toContain(`e-${k}`);
+  });
+
+  it('a topic’s block still skips what was answered today', () => {
+    const input = errorsInput(0, 3);
+    const params = new URLSearchParams(studyHref(CONTAINER, { s: SUBJECT_DB, topic: 1 }).split('?')[1] ?? '');
+    expect(setupSession({ params, saved: null, plan, input, summary: exam, today: TODAY, now: 0 }).queue).toHaveLength(0);
   });
 });

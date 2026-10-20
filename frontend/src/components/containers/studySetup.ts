@@ -82,8 +82,13 @@ export function setupSession(p: {
     }
     cls = classOf(ids, 'new_fill');
   } else if (kind === 'answer' && (only || topic) && input) {
+    // «Только ошибки: N» counts every current error, today's too (model.ts errorCount, «ошибок сейчас»), and opens them
+    // all (owner, 2026-10-20: «хочу ошибки посмотреть … пишет их нет»): going over a mistake of today is practice — the
+    // server takes a right answer on the day its key was shown as training (rule_step, peek_day), so nothing counts
+    // early. freeSession puts the older errors first: today's come last.
+    const skip = only === 'errors' ? [] : done;
     try {
-      queue = freeSession(input, { subjectId, topic: only ? undefined : topic, onlyErrors: only === 'errors' }, done, id);
+      queue = freeSession(input, { subjectId, topic: only ? undefined : topic, onlyErrors: only === 'errors' }, skip, id);
     } catch {
       queue = [];
     }

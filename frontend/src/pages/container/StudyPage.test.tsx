@@ -71,9 +71,12 @@ import {
   dayPlan,
   dbItems,
   item,
+  planItemsFor,
   subject,
   summary,
+  unit,
 } from '../../components/containers/testkit/fixtures';
+import { errorCount } from '../../components/containers/model';
 import { startMiniApp, stopMiniApp } from '../../test/telegramWebApp';
 
 const NB = String.fromCharCode(0xa0);
@@ -1047,7 +1050,7 @@ describe('the author’s explanation after an answer (release 47, spec §47.3)',
   });
 });
 
-describe('owner 2026-10-20: no lit option after a move', () => {
+describe('owner 2026-10-20: no lit option after a move, and «Только ошибки: N» opens the N', () => {
   it('after a right answer moves on, no option of the next question is the button that was tapped', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     // Both keys at the file's third place: the tapped button, kept, would be the next question's right answer.
@@ -1063,5 +1066,15 @@ describe('owner 2026-10-20: no lit option after a move', () => {
     expect(now).toHaveLength(4);
     expect(now.includes(tapped)).toBe(false);
     expect(tapped.isConnected).toBe(false);
+  });
+
+  it('mistakes made today: «Только ошибки» opens them, as many as the link says', () => {
+    const wrongToday = unit({ seen: 1, wrong: 1, firstDay: '2026-10-10', lastDay: '2026-10-10' });
+    const data = dataWith([]);
+    const input = { ...data.planInput, items: planItemsFor(dbItems(), { 'q-iso': wrongToday, 'q-plain': wrongToday, 'q-code': wrongToday }) };
+    expect(errorCount(input, SUBJECT_DB)).toBe(3);
+    renderStudy({ ...data, planInput: input }, `?s=${SUBJECT_DB}&only=errors`);
+    expect(page()).not.toContain('Ошибок сейчас нет.');
+    expect(plain(screen.getByRole('banner').textContent)).toContain('1 из 3');
   });
 });
