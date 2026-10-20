@@ -248,14 +248,46 @@ export function defaultLook(name: string): Look {
   return { body: pick(BODIES, 'body'), colour: pick(free(COLOURS), 'colour'), eyes: pick(EYES, 'eyes'), hat: pick(free(HATS), 'hat') };
 }
 
-const RUDE = ['хуй', 'хуе', 'хуё', 'пизд', 'ебат', 'ебан', 'ёбан', 'бляд', 'сука', 'муда', 'пидор', 'пидар', 'fuck', 'shit', 'bitch'];
+/**
+ * The rude-word filter, word by word (the SQL `meldy_private.live_name_rude` is the same rule; both are checked against
+ * contracts/live/name_cases.json). A word is a run between spaces with everything but letters taken out («Су-ка» →
+ * «сука»), checked twice: as typed (lower case) and with the Latin look-alikes read as Cyrillic («cyka» → «сука»). Rude:
+ * a root anywhere in the word (`RUDE_ANY`), a root at the word's start after at most one prefix (`RUDE_START`), or the
+ * whole word (`RUDE_WORDS`). Roots inside ordinary surnames no longer count: Сукачев, Ребане, Хуерта, Мудашев,
+ * Скипидаров, Shitikov, Dickens.
+ */
+export const RUDE_ANY: readonly string[] = ['хуй', 'хуё', 'пизд', 'бляд', 'блят', 'fuck'];
+export const RUDE_PREFIXES: readonly string[] = ['', 'за', 'вы', 'на', 'от', 'по', 'при', 'раз', 'рас', 'до', 'у', 'о', 'об', 'съ', 'объ', 'отъ', 'подъ', 'въ', 'изъ', 'разъ', 'пере', 'недо'];
+export const RUDE_START: readonly string[] = ['ебат', 'ебан', 'ебал', 'ебу', 'ебл', 'ёб', 'хуя', 'пидор', 'пидар', 'пидр', 'мудак', 'мудил', 'залуп', 'гандон', 'гондон', 'bitch', 'cunt'];
+export const RUDE_WORDS: readonly string[] = ['сука', 'суки', 'суку', 'суке', 'сукой', 'сучка', 'сучара', 'бля', 'блядь', 'хер', 'нахер', 'похер', 'жопа', 'говно', 'shit', 'shitty', 'bullshit', 'ass', 'asshole'];
+/** Latin letters and digits that read as Cyrillic ones. */
+const LOOKALIKE: Readonly<Record<string, string>> = { a: 'а', c: 'с', e: 'е', h: 'н', k: 'к', m: 'м', o: 'о', p: 'р', t: 'т', x: 'х', y: 'у', '0': 'о', '3': 'з' };
+
+function rudeWord(word: string): boolean {
+  return (
+    RUDE_ANY.some((root) => word.includes(root)) ||
+    RUDE_PREFIXES.some((prefix) => RUDE_START.some((root) => word.startsWith(prefix + root))) ||
+    RUDE_WORDS.includes(word)
+  );
+}
+
+/** True when a word of the (already normalised) name is rude. */
+export function nameIsRude(name: string): boolean {
+  return name
+    .toLowerCase()
+    .split(' ')
+    .some((token) => {
+      const typed = token.replace(/[^a-zа-яё]/g, '');
+      const cyrillic = [...token].map((ch) => LOOKALIKE[ch] ?? ch).join('').replace(/[^a-zа-яё]/g, '');
+      return (typed !== '' && rudeWord(typed)) || (cyrillic !== '' && rudeWord(cyrillic));
+    });
+}
 
 export type NameCheck = { ok: true; name: string } | { ok: false; reason: 'length' | 'rude' };
 
 export function checkName(raw: string): NameCheck {
   const name = raw.replace(/\s+/g, ' ').trim();
   if ([...name].length < 1 || [...name].length > NAME_MAX) return { ok: false, reason: 'length' };
-  const flat = name.toLowerCase().replace(/[^a-zа-яё]/g, '');
-  if (RUDE.some((w) => flat.includes(w))) return { ok: false, reason: 'rude' };
+  if (nameIsRude(name)) return { ok: false, reason: 'rude' };
   return { ok: true, name };
 }

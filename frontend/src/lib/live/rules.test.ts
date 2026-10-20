@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { checkLook, checkName, closeQuestion, damage, defaultLook, healAmount, hpFor, phaseFor, rank, rightNeeded, unlocksAfter, type ClosePlayer } from './rules';
+import nameCases from '../../../../contracts/live/name_cases.json';
+import lookCases from '../../../../contracts/live/default_looks.json';
+import { accuracyPct, checkLook, checkName, closeQuestion, damage, defaultLook, healAmount, hpFor, phaseFor, rank, rightNeeded, unlocksAfter, type ClosePlayer } from './rules';
 
 const P = (id: string, extra: Partial<ClosePlayer> = {}): ClosePlayer => ({ id, streak: 0, best: 0, frozen: false, dmg: 0, right: 0, thaws: 0, active: true, ...extra });
 
@@ -123,3 +125,24 @@ describe('ranking, unlocks, looks, names', () => {
     expect(checkName('Су-ка')).toEqual({ ok: false, reason: 'rude' });
   });
 });
+
+describe('the shared cases (contracts/live: the SQL gives the same answers)', () => {
+  it('names: whole words, no rude roots inside ordinary surnames', () => {
+    for (const c of nameCases.cases as Array<{ name: string; ok?: string; reason?: string }>) {
+      const got = checkName(c.name);
+      if (c.ok !== undefined) expect(got, c.name).toEqual({ ok: true, name: c.ok });
+      else expect(got, c.name).toEqual({ ok: false, reason: c.reason });
+    }
+  });
+  it('default looks', () => {
+    for (const c of lookCases.cases) expect(defaultLook(c.name), c.name).toEqual(c.look);
+  });
+  it('damage: the JavaScript doubles round as Math.round does (half up on the double, not on the exact fraction)', () => {
+    // The exact fraction of these is k.5 + a hair; the double product lands below the half (SQL: float8, floor(x + 0.5)).
+    expect(damage(8500, 10, 1)).toBe(57);
+    expect(damage(720, 10, 2)).toBe(120);
+    expect(accuracyPct(1, 8, 1)).toBe(13);
+    expect(accuracyPct(0, 0, 3)).toBe(0);
+  });
+});
+

@@ -1,0 +1,149 @@
+{
+  "about": "defaultLook(name) of frontend/src/lib/live/rules.ts; the SQL meldy_private.live_default_look gives the same look.",
+  "cases": [
+    {
+      "name": "Дима",
+      "look": {
+        "body": "round",
+        "colour": "pink",
+        "eyes": "dots",
+        "hat": "antenna"
+      }
+    },
+    {
+      "name": "Лена",
+      "look": {
+        "body": "drop",
+        "colour": "green",
+        "eyes": "dots",
+        "hat": "cap"
+      }
+    },
+    {
+      "name": "Артём",
+      "look": {
+        "body": "round",
+        "colour": "violet",
+        "eyes": "glasses",
+        "hat": "cap"
+      }
+    },
+    {
+      "name": "Q",
+      "look": {
+        "body": "round",
+        "colour": "violet",
+        "eyes": "glasses",
+        "hat": "antenna"
+      }
+    },
+    {
+      "name": "Анна Сергеевна",
+      "look": {
+        "body": "square",
+        "colour": "yellow",
+        "eyes": "round",
+        "hat": "bow"
+      }
+    },
+    {
+      "name": "Ёжик",
+      "look": {
+        "body": "round",
+        "colour": "violet",
+        "eyes": "one",
+        "hat": "cap"
+      }
+    },
+    {
+      "name": "Maria",
+      "look": {
+        "body": "round",
+        "colour": "pink",
+        "eyes": "sleepy",
+        "hat": "none"
+      }
+    },
+    {
+      "name": "Ли Хуэй",
+      "look": {
+        "body": "bean",
+        "colour": "violet",
+        "eyes": "round",
+        "hat": "flower"
+      }
+    },
+    {
+      "name": "😀 Смайл",
+      "look": {
+        "body": "bean",
+        "colour": "violet",
+        "eyes": "one",
+        "hat": "bow"
+      }
+    },
+    {
+      "name": "Анна-Мария",
+      "look": {
+        "body": "drop",
+        "colour": "orange",
+        "eyes": "glasses",
+        "hat": "flower"
+      }
+    },
+    {
+      "name": "Тимур",
+      "look": {
+        "body": "drop",
+        "colour": "sky",
+        "eyes": "round",
+        "hat": "bow"
+      }
+    },
+    {
+      "name": "x",
+      "look": {
+        "body": "cloud",
+        "colour": "yellow",
+        "eyes": "one",
+        "hat": "cap"
+      }
+    },
+    {
+      "name": "Zoë",
+      "look": {
+        "body": "drop",
+        "colour": "orange",
+        "eyes": "round",
+        "hat": "beanie"
+      }
+    },
+    {
+      "name": "Иван Петров-Водкин",
+      "look": {
+        "body": "square",
+        "colour": "violet",
+        "eyes": "one",
+        "hat": "beanie"
+      }
+    },
+    {
+      "name": "Катя",
+      "look": {
+        "body": "square",
+        "colour": "green",
+        "eyes": "dots",
+        "hat": "cap"
+      }
+    },
+    {
+      "name": "Миша",
+      "look": {
+        "body": "drop",
+        "colour": "teal",
+        "eyes": "one",
+        "hat": "flower"
+      }
+    }
+  ]
+}
