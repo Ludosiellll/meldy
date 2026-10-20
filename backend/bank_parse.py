@@ -1015,6 +1015,7 @@ class Reader:
         self.pictures: dict[str, tuple[str, bytes]] = {}  # картинки DOCX: id → (тип, байты) (bank_docx.read_docx)
         self.block = 0  # номер блока документа, который читается сейчас (таблица)
         self.blocks: list = []  # блоки документа (read_bank): строки фрагментов и разбор с ИИ
+        self.table_kinds: dict[int, bool] = {}  # блок-таблица → раскладка страницы (layout_table): markup не считает заново
         self.row_index: dict[int, int] = {}
 
     def heading(self, text: str, default: str, level: Optional[int] = None) -> None:
@@ -1066,7 +1067,9 @@ class Reader:
         self.tables += 1
         self.block = index
         first_seq = self.seq
-        if self.layout_table(table):
+        layout = self.layout_table(table)
+        self.table_kinds[index] = layout
+        if layout:
             # таблица — раскладка страницы (две колонки, рамка): её ячейки читаются абзацами по порядку
             self.layouts["table_layout"] += 1
             flow = layout_flow(table)
@@ -2895,8 +2898,9 @@ def _review(reader: Reader, items: list[Item], out_items: list[dict], subjects: 
     У вопроса: lines — [первая, последняя] строка в нумерации bank_markup.markup (или None: GIFT, Moodle XML),
     confidence (0…1), doubts (причины). В ответе: doubtful — сомнительных вопросов, source_lines — строки фрагментов
     сомнительных вопросов и вопросов с флагами проверки (с оформлением кусков), ai_offer — bank_markup.offer."""
-    lines = bank_markup.markup(reader.blocks) if reader.blocks else []
-    ranges = bank_markup.item_ranges([item.ref for item in items], lines) if lines else [None] * len(items)
+    lines = bank_markup.markup(reader.blocks, reader.table_kinds) if reader.blocks else []
+    full = bank_markup.item_ranges([item.ref for item in items], lines, clip=False) if lines else [None] * len(items)
+    ranges = bank_markup.clipped(full)
     by_n = {line.n: line for line in lines}
     for entry, span, (score, why) in zip(out_items, ranges, bank_markup.confidence(out_items)):
         if span and entry["kind"] == "open" and not entry.get("answer"):
@@ -2914,8 +2918,7 @@ def _review(reader: Reader, items: list[Item], out_items: list[dict], subjects: 
         "doubtful": sum(1 for entry in out_items if entry["confidence"] < bank_markup.DOUBT_AT),
         "line_count": len(lines),
         "source_lines": bank_markup.source_lines(lines, wanted),
-        "ai_offer": bank_markup.offer(out_items, ranges, len(lines), len(reader.skipped), subjects,
-                                      key_lists=reader.key_lists),
+        "ai_offer": bank_markup.offer(out_items, full, len(lines), len(reader.skipped), subjects, key_lists=reader.key_lists),
     }
 
 

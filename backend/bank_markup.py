@@ -12,6 +12,7 @@ fixtures/banks/wild (bank_eval.py): низкая уверенность лови
 
 from __future__ import annotations
 
+import bisect
 import math
 import re
 from dataclasses import dataclass, field
@@ -65,8 +66,9 @@ def _para_line(n: int, block: int, row: int, sub: int, para: Para, cell: Optiona
                  images=list(para.images), outline=para.outline)
 
 
-def markup(blocks: list[Block]) -> list[MLine]:
-    """Строки документа в порядке чтения. Пустые абзацы не нумеруются; места строк совпадают с ref вопросов разбора."""
+def markup(blocks: list[Block], layouts: Optional[dict[int, bool]] = None) -> list[MLine]:
+    """Строки документа в порядке чтения. Пустые абзацы не нумеруются; места строк совпадают с ref вопросов разбора.
+    layouts — решения разбора «таблица-раскладка» по номеру блока (Reader.table_kinds), чтобы не считать их второй раз."""
     from bank_parse import Reader, layout_flow  # тот же выбор «таблица-раскладка», что у разбора
 
     lines: list[MLine] = []
@@ -74,7 +76,7 @@ def markup(blocks: list[Block]) -> list[MLine]:
     for b, block in enumerate(blocks):
         if isinstance(block, Table):
             tables += 1
-            if Reader.layout_table(block):
+            if layouts[b] if layouts and b in layouts else Reader.layout_table(block):
                 for k, para in enumerate(layout_flow(block)):
                     if para.text.strip() or para.images:
                         lines.append(_para_line(len(lines) + 1, b, -1, k, para))
@@ -84,16 +86,17 @@ def markup(blocks: list[Block]) -> list[MLine]:
                     if cell.continuation:
                         continue
                     for k, para in enumerate(cell.paras):
-                        if para.text.strip() or para.images:
+                        if para.images or para.text.strip():
                             lines.append(_para_line(len(lines) + 1, b, r, c * 1000 + k, para, f"T{tables} R{r + 1} C{c + 1}"))
         elif block.text.strip() or block.images:
             lines.append(_para_line(len(lines) + 1, b, -1, 0, block))
     return lines
 
 
-def item_ranges(refs: list[Optional[tuple[int, int, int]]], lines: list[MLine]) -> list[Optional[tuple[int, int]]]:
-    """Строки каждого вопроса: (первая, последняя) — от его первой строки до строки перед следующим вопросом (не
-    дальше FRAGMENT_LINES). Вопрос без места (GIFT, Moodle XML) — None."""
+def item_ranges(refs: list[Optional[tuple[int, int, int]]], lines: list[MLine], clip: bool = True) -> list[Optional[tuple[int, int]]]:
+    """Строки каждого вопроса: (первая, последняя) — от его первой строки до строки перед следующим вопросом (с clip —
+    не дальше FRAGMENT_LINES: фрагмент на экране проверки; без — для кусков модели). Вопрос без места (GIFT, Moodle
+    XML) — None."""
     first_of: dict[tuple[int, int, int], int] = {}
     for line in lines:
         key = (line.block, line.row, 0) if line.row >= 0 else (line.block, -1, line.sub)
@@ -105,10 +108,15 @@ def item_ranges(refs: list[Optional[tuple[int, int, int]]], lines: list[MLine]) 
         if start is None:
             out.append(None)
             continue
-        following = [other for other in known if other > start]
-        end = (following[0] - 1) if following else len(lines)
-        out.append((start, max(start, min(end, start + FRAGMENT_LINES - 1))))
+        at = bisect.bisect_right(known, start)
+        end = (known[at] - 1) if at < len(known) else len(lines)
+        out.append((start, max(start, min(end, start + FRAGMENT_LINES - 1)) if clip else end))
     return out
+
+
+def clipped(ranges: list[Optional[tuple[int, int]]]) -> list[Optional[tuple[int, int]]]:
+    """Те же строки вопросов, не длиннее FRAGMENT_LINES (фрагмент на экране проверки)."""
+    return [(r[0], max(r[0], min(r[1], r[0] + FRAGMENT_LINES - 1))) if r else None for r in ranges]
 
 
 # ── Оформление строкой: для модели ─────────────────────────────────────────────
@@ -170,7 +178,8 @@ def source_lines(lines: list[MLine], wanted: set[int]) -> list[dict]:
 
 def confidence(items: list[dict]) -> list[tuple[float, list[str]]]:
     """(уверенность 0…1, причины) по каждому вопросу ответа разбора. Причины: structure (флаги устройства), key (флаги
-    ключа), options_count, option_merged, stem_merged, unnumbered, open_among_choice, options_unlike, joined_lines."""
+    ключа), options_count, option_merged, stem_merged, options_in_stem, unnumbered, open_among_choice, stem_fragment,
+    options_unlike, joined_lines (и options_unread — bank_parse._review: под открытым вопросом строки вариантов)."""
     total = max(1, len(items))
     numbered = sum(1 for item in items if item["label"]) / total
     choice = sum(1 for item in items if item["options"]) / total
@@ -199,7 +208,7 @@ def confidence(items: list[dict]) -> list[tuple[float, list[str]]]:
         choice_kind = item["kind"] in ("single", "multiple", "truefalse")
         if choice_kind and any(_EMBEDDED_LABEL_RE.search(_INITIALS_RE.sub("", option)) or len(option) > 160
                                or _ANSWER_TAIL_RE.search(option) for option in item["options"]):
-            score -= 0.4
+            score -= 0.45
             why.append("option_merged")  # у «соответствия» и «порядка» подписи в списках — часть задания
         stem_lines = item["text"].split("\n")
         listed = sum(1 for line in stem_lines[1:] if _LIST_LINE_RE.match(line))
@@ -216,6 +225,10 @@ def confidence(items: list[dict]) -> list[tuple[float, list[str]]]:
         if item["kind"] == "open" and choice > 0.7:
             score -= 0.3
             why.append("open_among_choice")
+        if item["kind"] == "open" and not n and not item.get("answer") and choice > 0.2 and len(item["text"].split()) <= 4 \
+                and not item["text"].rstrip().endswith(("?", ":", "…")) and "\n" not in item["text"]:
+            score -= 0.45
+            why.append("stem_fragment")  # «Дунай» отдельным вопросом среди вопросов с вариантами — скорее вариант
         if choice_kind and n and usual and abs(n - usual) >= 2:
             score -= 0.2
             why.append("options_unlike")
@@ -230,7 +243,7 @@ def ai_units(questions: int) -> int:
     """Цена разбора с ИИ в единицах дневного лимита (plans.import_ai_cost: 5 за каждые начатые 100 вопросов)."""
     from plans import import_ai_cost
 
-    return import_ai_cost(questions)
+    return import_ai_cost(questions) if questions > 0 else 0
 
 
 def regions(ranges: list[Optional[tuple[int, int]]], chosen: list[bool], line_count: int, *, tail: bool = False,
@@ -265,6 +278,8 @@ def regions(ranges: list[Optional[tuple[int, int]]], chosen: list[bool], line_co
 def offer(items: list[dict], ranges: list[Optional[tuple[int, int]]], line_count: int, skipped: int, subjects: int,
           key_lists: int = 0) -> dict:
     """Стоит ли предложить «Разобрать сложные места» и сколько это стоит: {worth, reasons, questions, units, doubtful}.
+    worth — признаки файла говорят, что стоит; без них, но с сомнительными вопросами — цена тоже есть (кнопка доступна,
+    но не советуется); ни признаков, ни сомнений — нечего отправлять (questions 0).
 
     Причины: doubtful — сомнительных вопросов 10 % и больше (или 5 и больше); no_key — без ключа 30 % и больше, а в файле
     есть следы ключа, который разбор не применил: пропущенные строки, список ключей, сомнения в ключе или склейка строк;
@@ -286,7 +301,7 @@ def offer(items: list[dict], ranges: list[Optional[tuple[int, int]]], line_count
         reasons.append("unread")
     if restarts >= 3 and subjects < restarts:
         reasons.append("restarts")
-    if not reasons or not any(r is not None for r in ranges):
+    if (not reasons and not count) or not any(r is not None for r in ranges):
         return {"worth": False, "reasons": reasons, "questions": 0, "units": 0, "doubtful": count}
     chosen = [d or "restarts" in reasons for d in doubtful]
     spans = regions(ranges, chosen, line_count, tail="no_key" in reasons, head="unread" in reasons)
@@ -294,4 +309,4 @@ def offer(items: list[dict], ranges: list[Optional[tuple[int, int]]], line_count
     extra = sum(end - start + 1 for start, end in spans) - sum(
         min(r[1], end) - max(r[0], start) + 1 for r in ranges if r is not None for start, end in spans if r[0] <= end and r[1] >= start)
     questions = covered + max(0, extra) // 6  # строки вне вопросов правил: около 6 строк на вопрос
-    return {"worth": True, "reasons": reasons, "questions": questions, "units": ai_units(questions), "doubtful": count}
+    return {"worth": bool(reasons), "reasons": reasons, "questions": questions, "units": ai_units(questions), "doubtful": count}

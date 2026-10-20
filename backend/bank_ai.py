@@ -333,6 +333,8 @@ def line_options(lines: dict[int, MLine], cited: list[tuple[int, Optional[str]]]
         span = spans.get(index)
         option = _inline_option(line, inline, span=span)
         option.raw = option.text  # type: ignore[attr-defined]
+        if line.checkbox is not None and sum(1 for n, text in cited if n == line_n) == 1:
+            option.checkbox = line.checkbox  # единственный кусок строки с флажком — флажок его
         if span:
             before = line.text[previous_end.get(line_n, 0):span[0]]
             if INLINE_CHECKED_RE.search(before):
@@ -543,6 +545,7 @@ def merge(reader: Reader, lines: list[MLine], spans: list[tuple[int, int]], ai_i
                 owner_item.flag("ai_disagrees")
                 dropped.setdefault(owner, []).append(r_index)
                 continue
+            item.source = item.source or "rules"
             chosen.append((item, place))
             continue
         ai_item, _, ai_flags = ai_items[a_index]
@@ -563,8 +566,9 @@ def merge(reader: Reader, lines: list[MLine], spans: list[tuple[int, int]], ai_i
             pick.source = "rules"
             pick.flag("ai_disagrees")
         pick.alt = {**_brief(other_entry), "source": "ai" if pick is item else "rules"}
-        for flag in ai_flags:
-            pick.flag(flag)
+        if pick is ai_item:  # флаги проверки модели — у её версии; у версии правил — только «разошлись»
+            for flag in ai_flags:
+                pick.flag(flag)
         if both_keys:
             pick.flag("key_conflict")  # ключи с доказательством у обоих, но разные: в очередь проверки
         chosen.append((pick, place))
@@ -675,10 +679,10 @@ def plan(reader: Reader, lines: list[MLine], rules: dict, scope: str) -> tuple[l
     if scope == "all":
         return ([(1, len(lines))] if lines else []), max(len(rules["items"]), 1)
     offer = rules["ai_offer"]
-    if not offer["worth"]:
+    if not offer["questions"]:
         return [], 0
     kept = [item for item in reader.items if item.text or item.options]
-    ranges = bank_markup.item_ranges([item.ref for item in kept], lines)
+    ranges = bank_markup.item_ranges([item.ref for item in kept], lines, clip=False)
     doubtful = [entry["confidence"] < bank_markup.DOUBT_AT or "restarts" in offer["reasons"] for entry in rules["items"]]
     spans = bank_markup.regions(ranges, doubtful, len(lines), tail="no_key" in offer["reasons"], head="unread" in offer["reasons"])
     return spans, offer["questions"]
