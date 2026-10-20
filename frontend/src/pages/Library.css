@@ -263,11 +263,24 @@
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line);
 }
+/* The shimmer: a layer three times as wide as the shape with the gradient on it, moved by a transform (the
+   compositor's work; a moving background-position repainted every shape on every frame), clipped by the shape. */
 .lib-skel-tile,
 .lib-skel-lines i {
+  position: relative;
   display: block;
+  overflow: hidden;
+  overflow: clip;
+}
+.lib-skel-tile::after,
+.lib-skel-lines i::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 300%;
   background: linear-gradient(90deg, var(--sf-surface-soft) 0%, color-mix(in srgb, var(--sf-line) 70%, var(--sf-surface-soft)) 50%, var(--sf-surface-soft) 100%);
-  background-size: 300% 100%;
   animation: lib-shimmer 1.6s ease-in-out infinite;
 }
 .lib-skel-tile { flex: none; width: var(--lib-tile); height: var(--lib-tile); border-radius: 18px; }
@@ -276,8 +289,8 @@
 .lib-skel-lines i:first-child { width: min(380px, 70%); height: 18px; }
 .lib-skel-lines i:last-child { width: min(240px, 45%); }
 @keyframes lib-shimmer {
-  from { background-position: 100% 0; }
-  to { background-position: 0 0; }
+  from { transform: translateX(-66.6667%); }
+  to { transform: none; }
 }
 
 /* A card for «не удалось загрузить». */
@@ -449,7 +462,7 @@
     .lib-pill:hover .lib-dot,
     .lib-more:hover svg { transform: none; }
   }
-  .lib-skel-tile,
-  .lib-skel-lines i,
+  .lib-skel-tile::after,
+  .lib-skel-lines i::after,
   .lib-art-card[data-n='3'] { animation: none; }
 }

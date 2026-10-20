@@ -1,13 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { SummaryInfo } from '../types';
 import { FragmentRefs, FragmentSlip } from './summary/FragmentSlip';
 import { buildSections, fragmentWord, stemsOf, stripSourceMarkers, type RefKind, type SourceFragment } from './summary/fragmentModel';
 import { repairMathEscapes } from '../lib/mathEscapes';
 import { usePhone } from '../lib/usePhone';
+import { observeSize } from '../lib/observeSize';
+import { MathMarkdown } from './summary/MathMarkdown';
 import './summary/summary.css';
 
 export { stripSourceMarkers };
@@ -74,31 +73,24 @@ function extractTerms(data: any): TermItem[] {
     }));
 }
 
-/** Width of the summary itself, not of the window: the summary also sits in narrower pages. */
+/**
+ * Width of the summary itself, not of the window: the summary also sits in narrower pages. It starts from the
+ * window's width and takes the summary's own from the size observer (lib/observeSize), which reports it before the
+ * first paint without laying the page out again; only crossing MARGIN_FROM draws the summary anew.
+ */
 function useWide(ref: React.RefObject<HTMLElement | null>): boolean {
   const fallback = () => (typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth - 80 : 0);
-  const [width, setWidth] = useState(fallback);
+  const [wide, setWide] = useState(() => fallback() >= MARGIN_FROM);
   useLayoutEffect(() => {
     const element = ref.current;
-    if (!element) return;
-    const measure = () => {
-      const next = element.clientWidth > 0 ? element.clientWidth : fallback();
-      setWidth((previous) => (previous === next ? previous : next));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(measure);
-      observer.observe(element);
-    }
-    return () => {
-      window.removeEventListener('resize', measure);
-      observer?.disconnect();
-    };
+    if (!element) return undefined;
+    return observeSize(element, () => {
+      const width = element.clientWidth > 0 ? element.clientWidth : fallback();
+      setWide(width >= MARGIN_FROM);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref]);
-  return width >= MARGIN_FROM;
+  return wide;
 }
 
 function captionFor(id: string, kind: RefKind | null, where: { title: string | null; term?: string }): string {
@@ -130,8 +122,9 @@ interface MarginPick {
  */
 export default function SummaryView({ data, sources = [], card = false }: { data: SummaryInfo; sources?: SourceFragment[]; card?: boolean }) {
   // Formulas of lectures analysed before 2026-10-08 lost their backslashes on the server («\text» → TAB + «ext»).
-  const content = repairMathEscapes(extractContent(data));
-  const terms = extractTerms(data);
+  const content = useMemo(() => repairMathEscapes(extractContent(data)), [data]);
+  // The same terms on every render: what is made of them below is kept with them.
+  const terms = useMemo(() => extractTerms(data), [data]);
   const sections = useMemo(() => buildSections(content, sources), [content, sources]);
   const termRefs = useMemo(() => {
     const known = new Set(sources.map((source) => source.id));
@@ -246,9 +239,7 @@ export default function SummaryView({ data, sources = [], card = false }: { data
           >
             {section.title && <h2 className="sv-h2">{section.title}</h2>}
             <div className="markdown-content sv-body">
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                {section.body}
-              </ReactMarkdown>
+              <MathMarkdown text={section.body} />
             </div>
             <FragmentRefs
               ids={section.refs}

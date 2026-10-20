@@ -186,17 +186,31 @@ html[data-stage] .md-crumb { display: none; }
    of words, then bars of its own sizes — moved the whole page when the lecture came: a layout shift of 0.447 at
    1532×734 on a fresh /library/:id (recheck of 44.2). The shapes show after 300 ms ([data-show], spec 4.6); their
    place is held from the start. */
+/* The shimmer is a layer three times as wide as its shape with the gradient on it, moved across by a transform:
+   the compositor moves it, nothing is painted again on each frame (a moving background-position repainted every
+   shape on every frame — smoothness audit 20.10). Its shape clips it, corners and all. */
 .md-skel {
+  position: relative;
   display: block;
+  overflow: hidden;
+  overflow: clip;
   border-radius: 999px;
+}
+.md-skel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 300%;
   background: linear-gradient(90deg, var(--sf-surface-soft) 0%, color-mix(in srgb, var(--sf-line) 70%, var(--sf-surface-soft)) 50%, var(--sf-surface-soft) 100%);
-  background-size: 300% 100%;
   animation: md-shimmer 1.6s ease-in-out infinite;
 }
 .md-loading:not([data-show]) :is(.md-skel, .md-skel-card, .md-skel-margin, .rp-notes) { visibility: hidden; }
 /* A line of the title: the title's own line height (1.1, 1.14 on a phone) with the bar in its middle; a phone's
-   titles take two lines. */
-.md-skel-line { box-sizing: border-box; width: min(620px, 72%); height: 1.1em; padding: .19em 0; background-clip: content-box; }
+   titles take two lines. The bar is the box inside a transparent border (the clip is the box's inner edge, its
+   corners those of the content box the bar used to be painted in). */
+.md-skel-line { box-sizing: border-box; width: min(620px, 72%); height: 1.1em; border: solid transparent; border-width: .19em 0; }
 .md-skel-line + .md-skel-line { display: none; }
 .md-skel-tabs { width: 362px; max-width: 100%; height: 52px; }
 .md-skel-acts .md-skel-pill { width: 246px; height: 52px; }
@@ -207,8 +221,8 @@ html[data-stage] .md-crumb { display: none; }
   flex: none;
   box-sizing: border-box;
   height: 46px;
-  padding: 15px 0;
-  background-clip: content-box;
+  border: solid transparent;
+  border-width: 15px 0;
   font-family: var(--ph-sans);
   font-size: 16px;
   font-weight: 500;
@@ -249,8 +263,8 @@ html[data-stage] .md-crumb { display: none; }
   .md-skel-margin { display: grid; }
 }
 @keyframes md-shimmer {
-  from { background-position: 100% 0; }
-  to { background-position: 0 0; }
+  from { transform: translateX(-66.6667%); }
+  to { transform: none; }
 }
 
 :where(.md-page) .md-state.sf-state {

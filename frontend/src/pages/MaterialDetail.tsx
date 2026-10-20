@@ -1,5 +1,5 @@
 import type { AnalysisResults, CoreSectionName, Material, SectionStates } from '../types';
-import { useCallback, useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
+import { startTransition, useCallback, useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Globe, MoreHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
@@ -404,15 +404,20 @@ export default function MaterialDetail() {
   useEffect(() => {
     if (!id) return;
     // A deleted lecture or an incomplete link reads as no row, not as an error: «Лекция не найдена».
+    // The lecture replaces its skeleton as a transition: React draws it in slices between which the page stays
+    // responsive, and shows it whole when it is ready, as before (smoothness audit 20.10: its first draw, the summary's
+    // Markdown and formulas, was one long task of 0.5 s on a phone).
     getMaterialById(id)
       .then(data => {
         if (!data) return;
-        setMaterial(data);
-        setSubjectInput(data.subject || '');
-        setTitleInput(data.title || '');
+        startTransition(() => {
+          setMaterial(data);
+          setSubjectInput(data.subject || '');
+          setTitleInput(data.title || '');
+        });
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => startTransition(() => setLoading(false)));
   }, [id]);
 
   useEffect(() => {
