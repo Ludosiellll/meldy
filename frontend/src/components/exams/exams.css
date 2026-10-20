@@ -118,7 +118,10 @@
   font-weight: 500;
   color: var(--sf-ink);
   text-decoration: none;
-  transition: background-color .45s var(--m-ease);
+}
+/* Its background changes only under a pointer that hovers: the fade is set only there (a touch screen never ran it). */
+@media (hover: hover) {
+  .sf-page .ex-crumb a { transition: background-color .45s var(--m-ease); }
 }
 .sf-page .ex-crumb a:first-child { padding-left: 12px; }
 .sf-page .ex-crumb a:first-child::before {
@@ -173,7 +176,23 @@
 @media (hover: hover) {
   .sf-page .ex-links .sf-link:hover { background: var(--ex-hover); }
 }
-.sf-page .ex-links .sf-link[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
+/* Pressed: the ink is a layer under the words that fades in (opacity, the compositor's work) over the pill's own
+   background, the same colours on the way as the background's own fade had; the tap no longer repaints the pill
+   on each frame (smoothness audit 20.10). */
+.sf-page .ex-links .sf-link { position: relative; isolation: isolate; }
+.sf-page .ex-links .sf-link::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--sf-ink);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .45s var(--m-ease);
+}
+.sf-page .ex-links .sf-link[aria-pressed='true']::before { opacity: 1; }
+.sf-page .ex-links .sf-link[aria-pressed='true'] { color: var(--sf-canvas); box-shadow: none; }
 .sf-page .ex-links .sf-link[aria-disabled='true'] { background: transparent; color: var(--sf-muted); box-shadow: inset 0 0 0 1px var(--sf-line); }
 .sf-page .ex-draw { display: grid; justify-items: end; gap: 12px; padding-bottom: 6px; flex: none; }
 .sf-page .ex-draw-mode { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-align: right; }
@@ -276,7 +295,13 @@
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
-  transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease);
+  transition: box-shadow .6s var(--m-ease);
+}
+/* The background fades only under a pointer that hovers; on a touch screen it changed only when the button was
+   turned off or on, and its fade repainted the pill on every frame (smoothness audit 20.10): there it changes at once,
+   with the ring and the words, which never faded. */
+@media (hover: hover) {
+  .sf-page .ex-secondary { transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease); }
 }
 @media (hover: hover) {
   .sf-page .ex-secondary:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
@@ -2227,6 +2252,7 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page .ex-row-go,
   .sf-page .ex-new-dot,
   .sf-page .ex-links .sf-link,
+  .sf-page .ex-links .sf-link::before,
   .sf-page .ex-crumb a,
   .sf-room-bar .dw-exit { transition: none; }
   @media (hover: hover) {
@@ -2455,7 +2481,32 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   /* No line of lecture and fragment under each question: a tap on the row opens them («почему»). */
   .sf-page.ex-detail .ex-qnote { display: none; }
   .sf-page.ex-detail .ex-open { -webkit-tap-highlight-color: transparent; }
-  .sf-page.ex-detail .ex-q:has(> .ex-open:active) { background: var(--ex-hover); }
+  /* The row lights up under a finger: a layer of the row's own size and corners under its words, faded in by opacity
+     (the compositor's work). It was the row's background set through :has(> .ex-open:active), which made every press
+     restyle the sheet and repaint the row on each frame of its fade (smoothness audit 20.10). The fade is the row's
+     own (.3s ease); over a row that has a background of its own the layer is that same colour made solid. */
+  .sf-page.ex-detail .ex-q { isolation: isolate; }
+  .sf-page.ex-detail .ex-open::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: 20px;
+    background: var(--ex-hover);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s ease;
+  }
+  .sf-page.ex-detail .ex-open:active::before { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .sf-page.ex-detail .ex-open::before { transition: none; }
+  }
+  /* A selected or lit row already has a background, which the press replaced by --ex-hover: the layer is --ex-hover
+     as it stands on the sheet's paper, solid, so it covers the row's own colour the same way (the dark theme's
+     --ex-hover is a veil). */
+  .sf-page.ex-detail .ex-q:is([data-selected], [data-peak]) > .ex-open::before {
+    background: linear-gradient(var(--ex-hover), var(--ex-hover)), var(--ph-paper);
+  }
   /* The row's status is its pencil mark in the status colour, without a circle under it. */
   .sf-page.ex-detail .ex-q .ex-cov { background: none; box-shadow: none; }
   .sf-page.ex-detail .ex-q .ex-cov svg { transform: scale(1.45); }
