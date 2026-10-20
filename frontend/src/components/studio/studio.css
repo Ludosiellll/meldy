@@ -172,7 +172,7 @@
   border-radius: 999px;
   background: var(--sf-surface-soft);
   box-shadow: inset 0 0 0 1px var(--sf-line);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -713,7 +713,7 @@
 }
 @media (hover: hover) { .st-tab:hover { color: var(--sf-ink); } }
 .st-tab[aria-selected='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
-.st-tab-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--sf-surface-soft); color: var(--sf-ink); font-size: 12px; font-weight: 600; }
+.st-tab-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--sf-surface-soft); color: var(--sf-ink); font-size: 13px; font-weight: 600; }
 .st-tab-n[data-fix] { background: var(--st-bad-bg); color: var(--st-bad-ink); }
 .st-tab[aria-selected='true'] .st-tab-n { background: color-mix(in srgb, var(--sf-canvas) 22%, transparent); color: inherit; }
 .st-panel { padding: 18px 18px 48px; }
@@ -908,7 +908,7 @@
   border: 0;
   background: none;
   color: var(--sf-muted);
-  font: 500 12.5px/1.25 var(--ph-sans);
+  font: 500 13px/1.25 var(--ph-sans);
   text-align: left;
   cursor: pointer;
 }
@@ -1243,7 +1243,7 @@
 }
 /* The card is never taller than the screen (a phone on its side): it scrolls inside, the arrow stays outside. */
 .st-tour-in { box-sizing: border-box; max-height: calc(100dvh - 32px); padding: 18px 20px 16px; overflow: auto; overscroll-behavior: contain; border-radius: inherit; }
-.st-tour-step { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.72; }
+.st-tour-step { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.72; }
 .st-tour-title { margin: 6px 0 0; font-size: 19px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
 .st-tour-text { margin: 6px 0 0; font-size: 15px; line-height: 1.45; opacity: 0.88; text-wrap: pretty; }
 .st-tour-acts { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
