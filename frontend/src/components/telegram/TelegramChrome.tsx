@@ -6,7 +6,8 @@ import '../../styles/telegram.css';
 
 /** Where Telegram's «Назад» is not shown: «Сегодня» is the Mini App's home (Telegram's own «Закрыть» leaves it). */
 export function isMiniAppHome(pathname: string): boolean {
-  return pathname === '/dashboard' || pathname === '/' || pathname === '/tg';
+  // /tg/play (the live game) runs its own «Назад»: a step back inside the game, hidden while playing.
+  return pathname === '/dashboard' || pathname === '/' || pathname === '/tg' || pathname === '/tg/play';
 }
 
 /**

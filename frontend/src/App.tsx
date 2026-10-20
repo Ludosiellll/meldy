@@ -66,6 +66,9 @@ const QuizTakePage = lazy(() => import('./pages/quiz/QuizTakePage'));
 // The live game's art on one page (docs/live/CONTRACT.md §10), in development only.
 const LiveArtPreview = lazy(() => import('./components/live/art/LiveArtPreview'));
 const LiveRoute = lazy(() => import('./pages/live/LiveRoute'));
+// The live game's player «Битва с монстром» (docs/live/CONTRACT.md): the site's /play and the Mini App's /tg/play.
+const PlayPage = lazy(() => import('./pages/play/PlayPage'));
+const TgPlayPage = lazy(() => import('./pages/play/TgPlayPage'));
 const NewTestPage = lazy(() => import('./pages/test/NewTestPage'));
 const BuildPage = lazy(() => import('./pages/test/BuildPage'));
 const StudioPage = lazy(() => import('./pages/test/StudioPage'));
@@ -199,6 +202,8 @@ export default function App() {
         <Route path="/exams/new" element={<ExamsNewRedirect />} />
         {/* The Mini App's door: Telegram's sign-in, then «Сегодня» and the session (pages/TelegramMiniApp.tsx). */}
         <Route path={MINI_APP_PATH} element={<TelegramMiniApp />} />
+        <Route path="/play" element={<PlayPage />} />
+        <Route path="/tg/play" element={<TgPlayPage />} />
         <Route path="/" element={
           <PrivateRoute><SignedInShell /></PrivateRoute>
         }>
