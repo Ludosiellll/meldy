@@ -17,6 +17,7 @@ import { supabase } from '../lib/supabase';
 import { removeContainerPictures } from './itemPictures';
 import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
+import { notifyAIUsageChanged } from './limits';
 import {
   TEST_ITEM_COLUMNS,
   type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerKind, type ContainerRpc,
@@ -718,11 +719,21 @@ export async function parseBank(input: ParseBankInput): Promise<BankParseResult>
 /**
  * POST /api/exams/parse-bank/ai: the same form, read again with the model on the doubtful places only (scope 'flagged')
  * or the whole file ('all'). Spends units (the answer's ai.units); 429 ai_busy, 502 ai_failed, 422 no_doubts.
+ * The server charges before the model, so after its answer — the parse or an error — the top bar's AI limit is read
+ * again (notifyAIUsageChanged, as after every AI action); a request that never reached it spent nothing.
  */
 export async function parseBankAi(input: ParseBankInput & { scope?: 'flagged' | 'all' }): Promise<BankParseResult> {
   const form = bankForm(input);
   if (input.scope) form.append('scope', input.scope);
-  return bankResult(await backend('/api/exams/parse-bank/ai', { method: 'POST', body: form, signal: input.signal }), 'parse-bank/ai');
+  let raw: unknown;
+  try {
+    raw = await backend('/api/exams/parse-bank/ai', { method: 'POST', body: form, signal: input.signal });
+  } catch (error) {
+    if (error instanceof ContainerApiError && (error.status ?? 0) > 0) notifyAIUsageChanged();
+    throw error;
+  }
+  notifyAIUsageChanged();
+  return bankResult(raw, 'parse-bank/ai');
 }
 
 function bankForm(input: ParseBankInput): FormData {

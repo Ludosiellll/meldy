@@ -81,6 +81,7 @@ import {
   normalizeCode,
   oralSync,
   parseBank,
+  parseBankAi,
   previewLink,
   recordAnswers,
   removeMember,
@@ -88,8 +89,9 @@ import {
   updateContainer,
   updateSubject,
 } from './containers';
+import { AI_USAGE_EVENT } from './limits';
 
-const C1 = 'f4881273-7331-4c39-96d7-f2ce4a31a1c0';
+const C1 ='f4881273-7331-4c39-96d7-f2ce4a31a1c0';
 const S1 = '69ead689-38d6-4350-bc5d-13d273f8b9b2';
 const S2 = '590a774c-7a67-4b13-a944-cf9a2f0e9d9b';
 const ORAL = 'c0390f9c-787d-4d0e-a82d-9efa069bfe11';
@@ -634,6 +636,31 @@ describe('backend calls', () => {
     controller.abort();
     fetchMock.mockRejectedValue(new DOMException('aborted', 'AbortError'));
     expect((await caught(parseBank({ text: 'x', signal: controller.signal }))).code).toBe('aborted');
+  });
+
+  it('parse-bank/ai: the top bar re-reads the AI limit after the pass, and after a failure the server answered', async () => {
+    const heard = vi.fn();
+    window.addEventListener(AI_USAGE_EVENT, heard);
+    try {
+      fetchMock.mockResolvedValue(json({ ...parseBankJson, ai: { units: 5 } }));
+      await parseBankAi({ text: '1. Вопрос' });
+      expect((fetchMock.mock.calls[0] as [string, RequestInit])[0]).toBe('/api/exams/parse-bank/ai');
+      expect(heard).toHaveBeenCalledTimes(1);
+      // the units are spent before the model: a failure after it may keep them
+      fetchMock.mockResolvedValue(json({ detail: 'В файле не нашлось вопросов.', code: 'no_items' }, 422));
+      await caught(parseBankAi({ text: 'x' }));
+      expect(heard).toHaveBeenCalledTimes(2);
+      // no answer from the server: nothing was spent
+      fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+      await caught(parseBankAi({ text: 'x' }));
+      expect(heard).toHaveBeenCalledTimes(2);
+      // the rules parse spends nothing
+      fetchMock.mockResolvedValue(json(parseBankJson));
+      await parseBank({ text: '1. Вопрос' });
+      expect(heard).toHaveBeenCalledTimes(2);
+    } finally {
+      window.removeEventListener(AI_USAGE_EVENT, heard);
+    }
   });
 
   it('oral-sync: POST /api/containers/{id}/oral-sync without a body', async () => {
