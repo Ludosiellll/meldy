@@ -65,6 +65,7 @@ const JoinContainerPage = lazy(() => import('./pages/container/JoinContainerPage
 const QuizTakePage = lazy(() => import('./pages/quiz/QuizTakePage'));
 // The live game's art on one page (docs/live/CONTRACT.md §10), in development only.
 const LiveArtPreview = lazy(() => import('./components/live/art/LiveArtPreview'));
+const LiveRoute = lazy(() => import('./pages/live/LiveRoute'));
 const NewTestPage = lazy(() => import('./pages/test/NewTestPage'));
 const BuildPage = lazy(() => import('./pages/test/BuildPage'));
 const StudioPage = lazy(() => import('./pages/test/StudioPage'));
@@ -245,6 +246,8 @@ export default function App() {
         {/* «Контрольная» by its link: the preview opens without an account, sign-in comes back with ?next=. */}
         <Route path="/k/:code" element={<QuizTakePage />} />
         {import.meta.env.DEV && <Route path="/dev/live-art" element={<LiveArtPreview />} />}
+        {/* «Битва с монстром», the teacher's screens: /live/new (setup), /live/:id (the game on the projector). */}
+        <Route path="/live/*" element={<LiveRoute />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,0 +1,192 @@
+/**
+ * The teacher's screen, state by state, against the fake server (docs/live/CONTRACT.md §12): lobby, countdown, open,
+ * reveal, leaderboard, podium, ended; kick, end, a reload in the middle, a missing token. Fake timers drive both the
+ * server's clock and the screen's polling.
+ */
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EXAMPLE_QUESTIONS, createFakeServer } from '../../../lib/live/fake';
+import type { HostState, Settings } from '../../../lib/live/types';
+import { LiveHostView } from '../../../pages/live/LiveHostPage';
+import { pinText } from './copy';
+import { saveHostInfo, saveHostToken } from './hostSession';
+
+const SETTINGS: Settings = { mode: 'boss', time_s: 10, speed: true, who: 'pin', chat_names: false };
+
+async function tick(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
+const space = () => fireEvent.keyDown(window, { key: ' ' });
+
+async function start(bots = 23) {
+  const api = createFakeServer({ bots, latencyMs: 0, demoPin: null, autoHost: false, fastBots: true, seed: 11 });
+  const g = await api.create({ container_id: 'c', subject_ids: ['s'], count: 6 }, SETTINGS);
+  saveHostToken(g.game_id, g.host_token);
+  saveHostInfo(g.game_id, { title: 'Базы данных', joinUrl: g.join_url, containerId: 'c', quizId: null, source: null, settings: SETTINGS });
+  const ui = () => (
+    <MemoryRouter initialEntries={[`/live/${g.game_id}`]}>
+      <LiveHostView gameId={g.game_id} api={api} />
+    </MemoryRouter>
+  );
+  const view = render(ui());
+  await tick(50);
+  const server = async () => (await api.hostState(g.game_id, g.host_token)) as HostState;
+  return { api, g, view, ui, server };
+}
+
+/** From a countdown to the reveal: 3 s, then the bots (1–3 s); the director's film plays out. */
+async function playQuestion() {
+  await tick(3000);
+  await tick(3500);
+  await tick(9000);
+}
+
+beforeEach(() => {
+  vi.useFakeTimers({ now: Date.UTC(2026, 9, 21, 9, 0, 0) });
+  window.sessionStorage.clear();
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe('teacher screen against the fake server', () => {
+  it('lobby: PIN in big letters, the QR of the join link, the characters as they come', async () => {
+    const { g, view } = await start();
+    expect(screen.getByText(pinText(g.pin).replace(/ /g, ' '))).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /QR-код: ludosiel-studyforge\.hf\.space\/play\?pin=/ })).toBeInTheDocument();
+    expect(view.container.querySelector('.lvh-lobby-count')?.textContent).toBe('23игрока');
+    expect(view.container.querySelectorAll('.lvh-lobby-char')).toHaveLength(23);
+    expect(screen.getByRole('button', { name: /Начать/ })).toBeEnabled();
+    expect(screen.getByText('Базы данных')).toBeInTheDocument();
+  });
+
+  it('a whole game: countdown, open, reveal with the key, top five, … podium, review, end', async () => {
+    const { view, server } = await start();
+    space();
+    await tick(50);
+    // countdown: the question and its four tiles, answers not open yet
+    expect(screen.getByRole('heading', { name: EXAMPLE_QUESTIONS[0].text })).toBeInTheDocument();
+    const tiles = view.container.querySelectorAll('.lvh-tile');
+    expect(tiles).toHaveLength(4);
+    expect([...tiles].map((t) => t.querySelector('.lvh-tile-badge b')?.textContent)).toEqual(['А', 'Б', 'В', 'Г']);
+    expect(view.container.querySelector('.lvh-ring')).toHaveAttribute('data-mode', 'ready');
+    expect(view.container.querySelectorAll('.lvh-slot')).toHaveLength(23);
+    await tick(3000);
+    expect(view.container.querySelector('.lvh-ring')).toHaveAttribute('data-mode', 'run');
+    expect(view.container.querySelector('.lvh-q-side')?.textContent).toMatch(/из 23 ответили/);
+    await tick(3500);
+    // reveal: the key, the counts, «верно»
+    expect(view.container.querySelectorAll('.lvh-tile[data-key]')).toHaveLength(1);
+    expect(view.container.querySelector('.lvh-q-side')?.textContent).toMatch(/из 23 верно/);
+    await tick(9000);
+    const s = await server();
+    expect(s.state).toBe('reveal');
+    expect(screen.getByRole('meter', { name: 'Дедлайн' })).toHaveAttribute('aria-valuenow', String(s.boss.hp));
+    const frozenShown = view.container.querySelectorAll('.lvh-slot .lv-char[data-frozen="true"]').length;
+    expect(frozenShown).toBe(s.roster.filter((r) => r.frozen).length);
+    // leaderboard
+    expect(screen.getByRole('button', { name: /Дальше/ })).toBeEnabled();
+    space();
+    await tick(50);
+    expect(screen.getByRole('heading', { name: 'Больше всех урона' })).toBeInTheDocument();
+    expect(view.container.querySelectorAll('.lvh-card')).toHaveLength(5);
+    // the rest of the questions until the podium
+    for (let i = 0; i < 6 && !view.container.querySelector('.lvh-podium'); i += 1) {
+      space();
+      await tick(50);
+      if (view.container.querySelector('.lvh-podium')) break;
+      await playQuestion();
+      space();
+      await tick(50);
+    }
+    expect(view.container.querySelector('.lvh-podium')).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: /Дедлайн (повержен|победил)/ })).toBeInTheDocument();
+    expect(view.container.querySelectorAll('.lvh-pod-col')).toHaveLength(3);
+    // review: every played question with its key, every student
+    fireEvent.click(screen.getByRole('button', { name: 'Разбор' }));
+    const dialog = screen.getByRole('dialog', { name: 'Разбор' });
+    const asked = (await server()).qi + 1;
+    expect(within(dialog).getAllByRole('heading', { level: 3 })).toHaveLength(asked);
+    expect(dialog.querySelectorAll('li[data-key]')).toHaveLength(asked);
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Ученики' }));
+    expect(within(dialog).getAllByRole('row')).toHaveLength(24);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // podium → ended
+    space();
+    await tick(50);
+    expect((await server()).state).toBe('ended');
+    expect(screen.getByText(/Игра закончена\. Разбор у каждого/)).toBeInTheDocument();
+  });
+
+  it('kicks a player from the lobby after a confirmation', async () => {
+    const { view, server } = await start(5);
+    const first = view.container.querySelector<HTMLButtonElement>('.lvh-lobby-char')!;
+    const name = first.getAttribute('aria-label')!;
+    fireEvent.click(first);
+    const dialog = screen.getByRole('dialog', { name: `Убрать ${name} из игры?` });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Убрать' }));
+    await tick(50);
+    expect((await server()).players).toBe(4);
+    expect(view.container.querySelectorAll('.lvh-lobby-char')).toHaveLength(4);
+    expect(screen.queryByRole('button', { name })).toBeNull();
+  });
+
+  it('kicks during the game from «Игроки»; ends the game from the bar', async () => {
+    const { view, server } = await start(6);
+    space();
+    await tick(50);
+    fireEvent.click(screen.getByRole('button', { name: 'Игроки' }));
+    const sheet = screen.getByRole('dialog', { name: 'Игроки · 6' });
+    fireEvent.click(within(sheet).getAllByRole('button', { name: 'Убрать' })[0]);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Убрать' }));
+    await tick(50);
+    expect((await server()).players).toBe(5);
+    expect(view.container.querySelectorAll('.lvh-slot')).toHaveLength(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Закончить' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Закончить игру?' })).getByRole('button', { name: 'Закончить' }));
+    await tick(50);
+    expect((await server()).state).toBe('ended');
+    expect(view.container.querySelector('.lvh-podium')).not.toBeNull();
+  });
+
+  it('a reload in the middle of a reveal draws it as it is, without replaying', async () => {
+    const { view, ui, server } = await start();
+    space();
+    await tick(3000);
+    await tick(3500);
+    expect((await server()).state).toBe('reveal');
+    view.unmount();
+    const again = render(ui());
+    await tick(50);
+    const s = await server();
+    expect(again.container.querySelectorAll('.lvh-tile[data-key]')).toHaveLength(1);
+    expect(screen.getByRole('meter', { name: 'Дедлайн' })).toHaveAttribute('aria-valuenow', String(s.boss.hp));
+    expect(again.container.querySelectorAll('.lvh-fx-item')).toHaveLength(0);
+    expect(again.container.querySelector('.lvh-q-no')?.textContent).toBe('Вопрос 1 из 6');
+  });
+
+  it('says so when this tab has no host token, or the game is gone', async () => {
+    const api = createFakeServer({ bots: 0, latencyMs: 0, demoPin: null });
+    const { unmount } = render(
+      <MemoryRouter>
+        <LiveHostView gameId="00000000-0000-4000-8000-000000000999" api={api} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { name: 'Эту игру ведут с другого устройства' })).toBeInTheDocument();
+    unmount();
+    saveHostToken('00000000-0000-4000-8000-000000000998', 'A'.repeat(43));
+    render(
+      <MemoryRouter>
+        <LiveHostView gameId="00000000-0000-4000-8000-000000000998" api={api} />
+      </MemoryRouter>,
+    );
+    await tick(50);
+    expect(screen.getByRole('heading', { name: 'Игра не найдена' })).toBeInTheDocument();
+  });
+});
