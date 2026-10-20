@@ -21,9 +21,11 @@
 -- 3. The key of a question leaves only in `result`, which exists only once the question is closed — for the host too.
 --    live_review gives the keys of this game's closed questions only.
 -- 4. Realtime: a deferred trigger sends one hint {rev, state} per transaction that changed rev, on the public channel
---    'live:' || topic (realtime.send(…, false)); answers never change rev. When the game has a message in a group, the
---    same trigger asks the bot to edit it (pg_net → /telegram/game/sync, header x-meldy-live = bot.config.live_token,
---    which bot_live_post stores: HMAC-SHA256(bot token, 'meldy:live:v1')).
+--    'live:' || topic (realtime.send(…, false)); answers never change rev. The author posts the game into a group bound
+--    to the exam with live_tg_post (the JWT is checked by PostgREST, never by the bot's function); the database then
+--    calls the function through pg_net: /telegram/game/post (send the post), and /telegram/game/sync on state changes
+--    (edit it), each with x-meldy-live = bot.config.live_token, which POST /telegram/setup stores through
+--    bot_live_setup: HMAC-SHA256(bot token, 'meldy:live:v1').
 -- 5. Errors: «not found» P0002 → 404, ML011 → 409, ML005 → 429, 28000 → 401, 42501 and ML003 → 403 through the
 --    PostgREST status override (raise sqlstate 'PGRST': message = {code, message, details}, detail = {status, headers});
 --    every other refusal (22023, ML0xx) the same way with 400, so the body's `code` and `details` are always ours.
@@ -86,6 +88,7 @@ create table if not exists public.live_games (
   tg_sync_at timestamptz,
   tg_synced text,
   tg_final_at timestamptz,
+  tg_claim_at timestamptz,
   created_at timestamptz not null default now(),
   ended_at timestamptz,
   constraint live_games_title_check check (char_length(btrim(title)) between 1 and 200),
@@ -264,8 +267,10 @@ $do$;
 
 -- ─────────────────────────────────────────── 2. Pure helpers (the numbers of rules.ts) ───────────────────────────────────────────
 
--- 2a. A refusal with our code in the body and the contract's HTTP status (PostgREST's PGRST override).
-create or replace function meldy_private.live_fail(p_code text, p_details text default null, p_status integer default 400)
+-- 2a. A refusal with our code in the body and the contract's HTTP status (PostgREST's PGRST override); a 429 also says
+--     when to come back (Retry-After, seconds).
+create or replace function meldy_private.live_fail(p_code text, p_details text default null, p_status integer default 400,
+                                                   p_retry_after integer default null)
 returns void
 language plpgsql
 volatile
@@ -275,8 +280,20 @@ begin
   raise sqlstate 'PGRST' using
     message = pg_catalog.jsonb_build_object('code', p_code, 'message', 'live: ' || p_code || coalesce('/' || p_details, ''),
                                             'details', p_details)::text,
-    detail = pg_catalog.jsonb_build_object('status', p_status, 'headers', '{}'::jsonb)::text;
+    detail = pg_catalog.jsonb_build_object('status', p_status, 'headers',
+               case when p_retry_after is null then '{}'::jsonb
+                    else pg_catalog.jsonb_build_object('Retry-After', greatest(1, p_retry_after)::text) end)::text;
 end;
+$fn$;
+
+-- Seconds until the oldest of the counted moments leaves a window (the Retry-After of a limit), 1 at least.
+create or replace function meldy_private.live_retry_after(p_oldest timestamptz, p_window interval)
+returns integer
+language sql
+stable
+set search_path = ''
+as $fn$
+  select greatest(1, pg_catalog.ceil(extract(epoch from (coalesce(p_oldest, pg_catalog.now()) + p_window - pg_catalog.now())))::integer)
 $fn$;
 
 -- 2b. Tokens: 32 random bytes as base64url (43 characters); the database keeps sha256 hex.
@@ -1036,9 +1053,38 @@ $fn$;
 
 -- ─────────────────────────────────────────── 5. Hints and the bot's message ───────────────────────────────────────────
 
--- 5a. The bot's message in a group follows the game: pg_net → /telegram/game/sync on countdown, reveal, podium and ended
---     (once per state and question), and on roster changes in the lobby at most every 5 s. The function answers 202 and
---     edits within Telegram's limits. Without bot.config (function URL, region, live token) or pg_net: nothing.
+-- 5a. A call to the bot's function (pg_net, sent after commit): POST <function_url>/game/<route> {game_id}, signed with
+--     x-meldy-live. False when the bot is not set up (no function URL, region or live token); pg_net missing: nothing.
+create or replace function meldy_private.live_tg_call(p_game uuid, p_route text)
+returns boolean
+language plpgsql
+volatile
+set search_path = ''
+as $fn$
+declare
+  v_c record;
+begin
+  select c.function_url, c.function_region, c.live_token into v_c from bot.config c where c.id = 1;
+  if v_c.function_url is null or v_c.function_region is null or v_c.live_token is null or p_route not in ('post', 'sync') then
+    return false;
+  end if;
+  begin
+    perform net.http_post(
+      url := v_c.function_url || '/game/' || p_route || '?forceFunctionRegion=' || v_c.function_region,
+      body := pg_catalog.jsonb_build_object('game_id', p_game),
+      headers := pg_catalog.jsonb_build_object('Content-Type', 'application/json', 'x-meldy-live', v_c.live_token),
+      timeout_milliseconds := 5000);
+  exception
+    when others then
+      null;
+  end;
+  return true;
+end;
+$fn$;
+
+-- 5b. The bot's message in a group follows the game: /game/sync on countdown, reveal, podium and ended (once per state
+--     and question), and on roster changes in the lobby at most every 5 s. The function answers 202 and edits within
+--     Telegram's limits.
 create or replace function meldy_private.live_tg_sync(p_game uuid)
 returns void
 language plpgsql
@@ -1047,7 +1093,6 @@ set search_path = ''
 as $fn$
 declare
   v_g public.live_games;
-  v_c record;
   v_mark text;
 begin
   select g.* into v_g from public.live_games g where g.id = p_game;
@@ -1066,25 +1111,13 @@ begin
   else
     return;
   end if;
-  select c.function_url, c.function_region, c.live_token into v_c from bot.config c where c.id = 1;
-  if v_c.function_url is null or v_c.function_region is null or v_c.live_token is null then
-    return;
+  if meldy_private.live_tg_call(p_game, 'sync') then
+    update public.live_games g set tg_synced = v_mark, tg_sync_at = pg_catalog.now() where g.id = p_game;
   end if;
-  update public.live_games g set tg_synced = v_mark, tg_sync_at = pg_catalog.now() where g.id = p_game;
-  begin
-    perform net.http_post(
-      url := v_c.function_url || '/game/sync?forceFunctionRegion=' || v_c.function_region,
-      body := pg_catalog.jsonb_build_object('game_id', p_game),
-      headers := pg_catalog.jsonb_build_object('Content-Type', 'application/json', 'x-meldy-live', v_c.live_token),
-      timeout_milliseconds := 5000);
-  exception
-    when others then
-      null;
-  end;
 end;
 $fn$;
 
--- 5b. One hint per transaction that changed rev (a deferred trigger: the earlier events of the transaction see a newer
+-- 5c. One hint per transaction that changed rev (a deferred trigger: the earlier events of the transaction see a newer
 --     rev and stay quiet). The channel is public: guests have no JWT; the hint only says «read again».
 create or replace function meldy_private.live_hint()
 returns trigger
@@ -1244,7 +1277,9 @@ begin
                    order by x.ended_at limit 50);
   if (select pg_catalog.count(*) from public.live_games g
        where g.owner_id = v_user and g.created_at > pg_catalog.now() - interval '1 hour') >= 10 then
-    perform meldy_private.live_fail('ML005', 'create', 429);
+    perform meldy_private.live_fail('ML005', 'create', 429, meldy_private.live_retry_after(
+      (select pg_catalog.min(g.created_at) from public.live_games g
+        where g.owner_id = v_user and g.created_at > pg_catalog.now() - interval '1 hour'), interval '1 hour'));
   end if;
   if (select pg_catalog.count(*) from public.live_games g
        where g.owner_id = v_user and g.state not in ('podium', 'ended')) >= 3 then
@@ -1430,6 +1465,50 @@ begin
 end;
 $fn$;
 
+-- 6e. The author posts the game into a group chat bound to its exam (telegram_groups lists them): the bot sends the post
+--     (pg_net → /telegram/game/post) and then edits it as the game goes. One post a minute per game.
+create or replace function public.live_tg_post(p_game uuid, p_chat_id bigint)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_user uuid := auth.uid();
+  v_g public.live_games;
+begin
+  if v_user is null then
+    perform meldy_private.live_fail('28000', null, 401);
+  end if;
+  v_g := meldy_private.live_settle(p_game, true);
+  if v_g.id is null then
+    perform meldy_private.live_fail('P0002', 'game', 404);
+  end if;
+  if v_g.owner_id <> v_user then
+    perform meldy_private.live_fail('42501', 'author', 403);
+  end if;
+  if v_g.state = 'ended' then
+    perform meldy_private.live_fail('ML002', case when v_g.end_reason = 'expired' then 'expired' else 'ended' end);
+  end if;
+  if p_chat_id is null or not exists (select 1 from bot.groups gr
+                                       where gr.chat_id = p_chat_id and gr.container_id = v_g.container_id and gr.left_at is null) then
+    perform meldy_private.live_fail('P0002', 'group', 404);
+  end if;
+  if v_g.tg_posted_at is not null and v_g.tg_posted_at > pg_catalog.now() - interval '1 minute' then
+    perform meldy_private.live_fail('ML005', 'post', 429, meldy_private.live_retry_after(v_g.tg_posted_at, interval '1 minute'));
+  end if;
+  update public.live_games g
+     set chat_id = p_chat_id, message_id = null, tg_posted_at = pg_catalog.now(), tg_claim_at = null,
+         tg_edit_at = pg_catalog.now(), tg_synced = g.state || ':' || g.qi, tg_sync_at = pg_catalog.now(), tg_final_at = null
+   where g.id = p_game;
+  if not meldy_private.live_tg_call(p_game, 'post') then
+    perform meldy_private.live_fail('ML010', 'bot', 503);
+  end if;
+  return pg_catalog.jsonb_build_object('status', 'posting');
+end;
+$fn$;
+
 -- ─────────────────────────────────────────── 7. Players ───────────────────────────────────────────
 
 -- 7a. The game of a PIN: the open one, else the latest of the last day (to say «ended» rather than «not found»).
@@ -1472,7 +1551,7 @@ $fn$;
 
 -- 7b. Joining (the site's live_join and the bot's bot_live_join): the game row is locked and settled by the caller.
 --     The same identity gets its player back with the new token (kicked → 42501). A new player: not after the podium
---     (ML002), the address and game limits (ML005), members only (ML003), 300 players (ML001), the name (ML006), the
+--     (ML002), 120 a minute per address and 120 a minute per game (ML005, 429 with Retry-After), members only (ML003), 300 players (ML001), the name (ML006), the
 --     look (ML007; none given: the saved one, else the name's). Joining after the first countdown adds 55 HP per
 --     question not yet opened (only while the boss is alive). A lobby roster change moves rev.
 create or replace function meldy_private.live_join_as(p_g public.live_games, p_user uuid, p_tg bigint, p_guest text,
@@ -1515,13 +1594,17 @@ begin
     if p_ip is not null then
       delete from meldy_private.live_join_hits h where h.at <= pg_catalog.now() - interval '2 minutes';
       if (select pg_catalog.count(*) from meldy_private.live_join_hits h
-           where h.ip_hash = p_ip and h.at > pg_catalog.now() - interval '1 minute') >= 30 then
-        perform meldy_private.live_fail('ML005', 'join', 429);
+           where h.ip_hash = p_ip and h.at > pg_catalog.now() - interval '1 minute') >= 120 then
+        perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
+          (select pg_catalog.min(h.at) from meldy_private.live_join_hits h
+            where h.ip_hash = p_ip and h.at > pg_catalog.now() - interval '1 minute'), interval '1 minute'));
       end if;
     end if;
     if (select pg_catalog.count(*) from public.live_players p
          where p.game_id = p_g.id and p.joined_at > pg_catalog.now() - interval '1 minute') >= 120 then
-      perform meldy_private.live_fail('ML005', 'join', 429);
+      perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
+        (select pg_catalog.min(p.joined_at) from public.live_players p
+          where p.game_id = p_g.id and p.joined_at > pg_catalog.now() - interval '1 minute'), interval '1 minute'));
     end if;
     if p_g.who = 'members' and (p_user is null or meldy_private.role_in(p_user, p_g.container_id) is null) then
       perform meldy_private.live_fail('ML003', 'members', 403);
@@ -1873,10 +1956,9 @@ begin
 end;
 $fn$;
 
--- 8b. POST /telegram/game/post: the author (the function checked their JWT) posts the game into a group bound to its
---     exam. not_found, forbidden (not the author), ended, not_bound (the chat is not this exam's group), slow_down (one
---     post a minute per game); ok → the facts of the post's text. The function's live token is kept for the sync calls.
-create or replace function public.bot_live_post(p_user_id uuid, p_game uuid, p_chat_id bigint, p_live_token text)
+-- 8b. POST /telegram/game/post, called by the database after the author's live_tg_post: the post to send, claimed once
+--     (a retried call finds it taken: skip) → {status: post, chat_id, title, q_count, host, pin, players, direct}.
+create or replace function public.bot_live_post(p_game uuid)
 returns jsonb
 language plpgsql
 volatile
@@ -1889,41 +1971,42 @@ declare
   v_host text;
 begin
   perform meldy_private.require_service_role();
-  if p_user_id is null or p_game is null or p_chat_id is null or p_chat_id >= 0
-     or (p_live_token is not null and p_live_token !~ '^[A-Za-z0-9_-]{43}$') then
+  if p_game is null then
     raise exception 'bad live post' using errcode = '22023';
   end if;
-  v_g := meldy_private.live_settle(p_game, true);
-  if v_g.id is null then
-    return pg_catalog.jsonb_build_object('status', 'not_found');
+  update public.live_games g set tg_claim_at = pg_catalog.now()
+   where g.id = p_game and g.chat_id is not null and g.message_id is null and g.tg_claim_at is null and g.state <> 'ended'
+  returning g.* into v_g;
+  if not found then
+    return pg_catalog.jsonb_build_object('status', 'skip');
   end if;
-  if v_g.owner_id <> p_user_id then
-    return pg_catalog.jsonb_build_object('status', 'forbidden');
-  end if;
-  if v_g.state = 'ended' then
-    return pg_catalog.jsonb_build_object('status', 'ended');
-  end if;
-  if not exists (select 1 from bot.groups gr
-                  where gr.chat_id = p_chat_id and gr.container_id = v_g.container_id and gr.left_at is null) then
-    return pg_catalog.jsonb_build_object('status', 'not_bound');
-  end if;
-  if v_g.tg_posted_at is not null and v_g.tg_posted_at > pg_catalog.now() - interval '1 minute' then
-    return pg_catalog.jsonb_build_object('status', 'slow_down');
-  end if;
-  if p_live_token is not null then
-    update bot.config c set live_token = p_live_token, updated_at = pg_catalog.now()
-     where c.id = 1 and c.live_token is distinct from p_live_token;
-  end if;
-  update public.live_games g
-     set chat_id = p_chat_id, message_id = null, tg_posted_at = pg_catalog.now(), tg_edit_at = pg_catalog.now(),
-         tg_synced = g.state || ':' || g.qi, tg_sync_at = pg_catalog.now(), tg_final_at = null
-   where g.id = p_game;
   select c.flags into v_flags from bot.config c where c.id = 1;
   select nullif(pg_catalog.btrim(pr.full_name), '') into v_host from public.profiles pr where pr.id = v_g.owner_id;
   return pg_catalog.jsonb_build_object(
-    'status', 'ok', 'title', v_g.title, 'q_count', v_g.q_count, 'host', v_host, 'pin', v_g.pin,
+    'status', 'post', 'chat_id', v_g.chat_id, 'title', v_g.title, 'q_count', v_g.q_count, 'host', v_host, 'pin', v_g.pin,
     'players', (select pg_catalog.count(*) from public.live_players p where p.game_id = p_game and p.kicked_at is null),
     'direct', coalesce(v_flags ->> 'live_direct', 'false') = 'true');
+end;
+$fn$;
+
+-- 8c. POST /telegram/setup keeps the live token here: HMAC-SHA256(bot token, 'meldy:live:v1'), the x-meldy-live header
+--     of the database's calls to /game/post and /game/sync.
+create or replace function public.bot_live_setup(p_live_token text)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+begin
+  perform meldy_private.require_service_role();
+  if p_live_token is null or p_live_token !~ '^[A-Za-z0-9_-]{43}$' then
+    raise exception 'bad live token' using errcode = '22023';
+  end if;
+  insert into bot.config (id) values (1) on conflict (id) do nothing;
+  update bot.config c set live_token = p_live_token, updated_at = pg_catalog.now()
+   where c.id = 1 and c.live_token is distinct from p_live_token;
+  return pg_catalog.jsonb_build_object('status', 'ok');
 end;
 $fn$;
 
@@ -2014,7 +2097,8 @@ revoke all on table public.live_games, public.live_questions, public.live_player
 revoke all on table meldy_private.live_join_hits from public, anon, authenticated, service_role;
 
 revoke all on function
-  meldy_private.live_fail(text, text, integer), meldy_private.live_new_token(integer), meldy_private.live_hash(text),
+  meldy_private.live_fail(text, text, integer, integer), meldy_private.live_retry_after(timestamptz, interval),
+  meldy_private.live_new_token(integer), meldy_private.live_hash(text),
   meldy_private.live_iso(timestamptz), meldy_private.live_damage(integer, integer, integer, boolean),
   meldy_private.live_phase_for(integer, integer), meldy_private.live_heal(integer), meldy_private.live_right_needed(integer),
   meldy_private.live_accuracy(integer, integer, integer),
@@ -2027,7 +2111,8 @@ revoke all on function
   meldy_private.live_settle(uuid, boolean), meldy_private.live_close_if_all(uuid),
   meldy_private.live_base_json(public.live_games), meldy_private.live_closed_json(public.live_games),
   meldy_private.live_player_json(public.live_games, uuid), meldy_private.live_host_json(public.live_games),
-  meldy_private.live_unchanged(public.live_games, bigint), meldy_private.live_tg_sync(uuid), meldy_private.live_hint(),
+  meldy_private.live_unchanged(public.live_games, bigint), meldy_private.live_tg_call(uuid, text), meldy_private.live_tg_sync(uuid),
+  meldy_private.live_hint(),
   meldy_private.live_host_game(uuid, text, boolean), meldy_private.live_game_of_pin(text),
   meldy_private.live_wardrobe_of(uuid, bigint),
   meldy_private.live_join_as(public.live_games, uuid, bigint, text, text, text, jsonb, text),
@@ -2039,16 +2124,18 @@ revoke all on function
   public.live_kick(uuid, text, uuid), public.live_end(uuid, text), public.live_join(text, text, text, jsonb),
   public.live_set_look(uuid, text, jsonb), public.live_answer(uuid, text, integer, integer),
   public.live_state(uuid, text, bigint), public.live_review(uuid, text), public.live_wardrobe(), public.live_wardrobe_set(jsonb),
-  public.bot_live_join(text, bigint, text, jsonb, text, text, timestamptz), public.bot_live_post(uuid, uuid, bigint, text),
-  public.bot_live_posted(uuid, bigint, bigint), public.bot_live_sync(uuid)
+  public.live_tg_post(uuid, bigint),
+  public.bot_live_join(text, bigint, text, jsonb, text, text, timestamptz), public.bot_live_post(uuid),
+  public.bot_live_posted(uuid, bigint, bigint), public.bot_live_sync(uuid), public.bot_live_setup(text)
   from public, anon, authenticated;
 grant execute on function
   public.live_create(jsonb, jsonb), public.live_host_state(uuid, text, bigint), public.live_next(uuid, text, text),
   public.live_kick(uuid, text, uuid), public.live_end(uuid, text), public.live_join(text, text, text, jsonb),
   public.live_set_look(uuid, text, jsonb), public.live_answer(uuid, text, integer, integer),
-  public.live_state(uuid, text, bigint), public.live_review(uuid, text), public.live_wardrobe(), public.live_wardrobe_set(jsonb)
+  public.live_state(uuid, text, bigint), public.live_review(uuid, text), public.live_wardrobe(), public.live_wardrobe_set(jsonb),
+  public.live_tg_post(uuid, bigint)
   to anon, authenticated;
 grant execute on function
-  public.bot_live_join(text, bigint, text, jsonb, text, text, timestamptz), public.bot_live_post(uuid, uuid, bigint, text),
-  public.bot_live_posted(uuid, bigint, bigint), public.bot_live_sync(uuid)
+  public.bot_live_join(text, bigint, text, jsonb, text, text, timestamptz), public.bot_live_post(uuid),
+  public.bot_live_posted(uuid, bigint, bigint), public.bot_live_sync(uuid), public.bot_live_setup(text)
   to service_role;

@@ -79,16 +79,16 @@ BEGIN
       RAISE EXCEPTION 'site_functions_for_anon_and_authenticated: %', v_fn.proname;
     END IF;
   END LOOP;
-  IF v_n <> 16 THEN
-    RAISE EXCEPTION 'sixteen_functions: %', v_n;
+  IF v_n <> 18 THEN
+    RAISE EXCEPTION 'eighteen_functions: %', v_n;
   END IF;
   FOR v_fn IN SELECT x.sig, pg_catalog.to_regprocedure(x.sig) AS oid FROM pg_catalog.unnest(array[
       'public.live_create(jsonb,jsonb)', 'public.live_host_state(uuid,text,bigint)', 'public.live_next(uuid,text,text)',
       'public.live_kick(uuid,text,uuid)', 'public.live_end(uuid,text)', 'public.live_join(text,text,text,jsonb)',
       'public.live_set_look(uuid,text,jsonb)', 'public.live_answer(uuid,text,integer,integer)', 'public.live_state(uuid,text,bigint)',
-      'public.live_review(uuid,text)', 'public.live_wardrobe()', 'public.live_wardrobe_set(jsonb)',
-      'public.bot_live_join(text,bigint,text,jsonb,text,text,timestamptz)', 'public.bot_live_post(uuid,uuid,bigint,text)',
-      'public.bot_live_posted(uuid,bigint,bigint)', 'public.bot_live_sync(uuid)']) x(sig) LOOP
+      'public.live_review(uuid,text)', 'public.live_wardrobe()', 'public.live_wardrobe_set(jsonb)', 'public.live_tg_post(uuid,bigint)',
+      'public.bot_live_join(text,bigint,text,jsonb,text,text,timestamptz)', 'public.bot_live_post(uuid)',
+      'public.bot_live_posted(uuid,bigint,bigint)', 'public.bot_live_sync(uuid)', 'public.bot_live_setup(text)']) x(sig) LOOP
     IF v_fn.oid IS NULL THEN
       RAISE EXCEPTION 'contract_signature: %', v_fn.sig;
     END IF;
@@ -121,6 +121,14 @@ BEGIN
     RAISE EXCEPTION 'no_key_elsewhere';
   END IF;
 
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p
+   WHERE p.oid = 'meldy_private.live_join_as(public.live_games,uuid,bigint,text,text,text,jsonb,text)'::regprocedure;
+  IF pg_catalog.strpos(v_src, 'h.ip_hash = p_ip and h.at > pg_catalog.now() - interval ''1 minute'') >= 120') = 0
+     OR pg_catalog.strpos(v_src, 'p.joined_at > pg_catalog.now() - interval ''1 minute'') >= 120') = 0
+     OR pg_catalog.strpos(v_src, ') >= 300 then') = 0 THEN
+    RAISE EXCEPTION 'join_limits_120_a_minute_per_address_and_game_300_players';
+  END IF;
+
   -- 5. The hint and the errors.
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger t
                   WHERE t.tgrelid = 'public.live_games'::regclass AND t.tgname = 'live_games_hint' AND t.tgdeferrable AND t.tginitdeferred
@@ -131,8 +139,9 @@ BEGIN
   IF pg_catalog.strpos(v_src, 'realtime.send(pg_catalog.jsonb_build_object(''rev'', v_g.rev, ''state'', v_g.state), ''hint'', ''live:'' || v_g.topic, false)') = 0 THEN
     RAISE EXCEPTION 'hint_rev_and_state_on_the_public_channel';
   END IF;
-  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_fail(text,text,integer)'::regprocedure;
-  IF pg_catalog.strpos(v_src, 'raise sqlstate ''PGRST''') = 0 OR pg_catalog.strpos(v_src, '''status'', p_status') = 0 THEN
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_fail(text,text,integer,integer)'::regprocedure;
+  IF pg_catalog.strpos(v_src, 'raise sqlstate ''PGRST''') = 0 OR pg_catalog.strpos(v_src, '''status'', p_status') = 0
+     OR pg_catalog.strpos(v_src, '''Retry-After''') = 0 THEN
     RAISE EXCEPTION 'pgrst_status_override';
   END IF;
 

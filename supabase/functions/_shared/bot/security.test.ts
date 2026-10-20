@@ -54,6 +54,8 @@ const RPC_ALLOWED = new Set([
   'bot_monitor_state', 'bot_monitor_claim', 'bot_monitor_save',
   // «Экзамены» and «Перенести экзамен» (exams.ts, migration 20261018120000_exam_move_bot_exams.sql).
   'bot_exams', 'bot_exam_remind', 'bot_exam_move',
+  // The live game «Битва с монстром» (game.ts, setup.ts; migration 20261021090000_live_game.sql).
+  'bot_live_join', 'bot_live_post', 'bot_live_posted', 'bot_live_sync', 'bot_live_setup',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {
@@ -138,7 +140,7 @@ test('Deno-only APIs stay in telegram/index.ts and env.ts; imports are relative 
 
 test('the test token never shows in a log line, an error or a response, whatever fails', async () => {
   const secretPart = TEST_TOKEN.split(':')[1];
-  const derived = ['webhook', 'tick'].map((p) => createHmac('sha256', TEST_TOKEN).update(`meldy:${p}:v1`).digest('base64url'));
+  const derived = ['webhook', 'tick', 'live'].map((p) => createHmac('sha256', TEST_TOKEN).update(`meldy:${p}:v1`).digest('base64url'));
   const texts: string[] = [];
   const start = LOGS.length;
 

@@ -250,6 +250,7 @@ export type LiveErrorCode =
   | 'ML007'
   | 'ML008'
   | 'ML009'
+  | 'ML010'
   | 'ML011'
   | 'network'
   | 'unknown';

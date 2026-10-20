@@ -2,7 +2,9 @@
  * `POST /telegram/setup` and `GET /telegram/status` (spec §5, §6.1).
  *
  * /setup takes no input and runs at most once a minute (in this instance, and in `bot_setup`): `getMe` → `bot_setup`
- * (the username, the bot id, the tick token, the function URL and region for `bot.tick()`) → `setWebhook` (the
+ * (the username, the bot id, the tick token, the function URL and region for `bot.tick()`) → `bot_live_setup` (the live
+ * game's token, x-meldy-live of the database's calls to /game/post and /game/sync; a database without the live game
+ * marks the step failed and setup goes on) → `setWebhook` (the
  * function's URL with `forceFunctionRegion`, the derived `secret_token`, `allowed_updates`, `max_connections = 10`) →
  * the profile: name, descriptions, the commands of private chats (none by default, so groups show none), the menu
  * button «Открыть Meldy» that opens the Mini App (Telegram_Mini_App_Spec_2026-10-10, decision 1; the commands stay a
@@ -61,6 +63,12 @@ export async function runSetup(ctx: Ctx, deps: { token: string; functionUrl: str
   });
   if (saved.status === 'slow_down') return { ok: false, error: 'slow_down', bot: me.username, steps: { ...steps, bot_setup: 'skipped' } };
   steps.bot_setup = 'ok';
+  try {
+    await ctx.db.rpc('bot_live_setup', { p_live_token: await derivedSecret(deps.token, 'live') });
+    steps.bot_live_setup = 'ok';
+  } catch {
+    steps.bot_live_setup = 'failed';
+  }
   try {
     await ctx.tg.call('setWebhook', {
       url: webhookUrl(deps.functionUrl),

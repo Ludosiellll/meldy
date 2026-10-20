@@ -1,11 +1,12 @@
 /**
  * Secrets derived from the one owner secret, TELEGRAM_BOT_TOKEN (spec decision 5, §6.4): the webhook's
- * `secret_token` and the tick's `x-meldy-tick` are HMAC-SHA256 of the token over `meldy:webhook:v1` and
- * `meldy:tick:v1`, base64url without padding (43 characters, inside Telegram's `[A-Za-z0-9_-]{1,256}`).
+ * `secret_token`, the tick's `x-meldy-tick` and the live game's `x-meldy-live` (the database's calls to /game/post and
+ * /game/sync, game.ts) are HMAC-SHA256 of the token over `meldy:webhook:v1`, `meldy:tick:v1` and `meldy:live:v1`,
+ * base64url without padding (43 characters, inside Telegram's `[A-Za-z0-9_-]{1,256}`).
  * A new token (after /revoke in @BotFather) changes both; `/setup` then stores the new tick token.
  */
 
-export type SecretPurpose = 'webhook' | 'tick';
+export type SecretPurpose = 'webhook' | 'tick' | 'live';
 
 function base64url(bytes: Uint8Array): string {
   let binary = '';
@@ -13,7 +14,7 @@ function base64url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-let cache: { token: string; webhook?: string; tick?: string } | null = null;
+let cache: { token: string; webhook?: string; tick?: string; live?: string } | null = null;
 
 /** HMAC-SHA256(key = token, message = `meldy:<purpose>:v1`) as base64url. */
 export async function derivedSecret(token: string, purpose: SecretPurpose): Promise<string> {

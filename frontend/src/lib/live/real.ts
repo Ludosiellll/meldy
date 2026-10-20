@@ -24,7 +24,7 @@ import {
   type Uuid,
 } from './types';
 
-const CODES: ReadonlySet<string> = new Set(['28000', '42501', 'P0002', '22023', 'ML001', 'ML002', 'ML003', 'ML004', 'ML005', 'ML006', 'ML007', 'ML008', 'ML009', 'ML011']);
+const CODES: ReadonlySet<string> = new Set(['28000', '42501', 'P0002', '22023', 'ML001', 'ML002', 'ML003', 'ML004', 'ML005', 'ML006', 'ML007', 'ML008', 'ML009', 'ML010', 'ML011']);
 
 export function liveError(error: unknown, status: number): LiveError {
   const rec = typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {};

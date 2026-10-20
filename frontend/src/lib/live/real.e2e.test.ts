@@ -174,7 +174,7 @@ describe.skipIf(!URL_)('real.ts end to end (local PostgREST)', () => {
     await api.end(g.game_id, g.host_token);
   }, 120_000);
 
-  it('the address limit answers 429 through PostgREST; kick answers 403 to the kicked', async () => {
+  it('120 joins a minute per address, then 429 with Retry-After through PostgREST; kick answers 403 to the kicked', async () => {
     const api = createRealApi();
     await asAuthor();
     const g = await api.create({ container_id: env.LIVE_E2E_CONTAINER!, subject_ids: [env.LIVE_E2E_SUBJECT!], count: 3 },
@@ -182,12 +182,22 @@ describe.skipIf(!URL_)('real.ts end to end (local PostgREST)', () => {
     await asGuest();
     box.ip = '203.0.113.99';
     const tokens: string[] = [];
-    for (let i = 0; i < 30; i += 1) {
+    for (let i = 0; i < 120; i += 1) {
       tokens.push(newLiveToken());
       await api.join(g.pin, `Игрок ${i + 1}`, tokens[i], null);
     }
-    const busy = await caught(api.join(g.pin, 'Тридцать первый', newLiveToken(), null));
+    const busy = await caught(api.join(g.pin, 'Сто двадцать первый', newLiveToken(), null));
     expect([busy.code, busy.detail, busy.status]).toEqual(['ML005', 'join', 429]);
+    // The same refusal as PostgREST sends it: 429 with a short Retry-After.
+    const raw = await fetch(`${URL_}/rpc/live_join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${box.auth}`, 'x-forwarded-for': box.ip },
+      body: JSON.stringify({ p_pin: g.pin, p_name: 'Ещё один', p_token: newLiveToken(), p_look: null }),
+    });
+    expect(raw.status).toBe(429);
+    expect(Number(raw.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    expect(Number(raw.headers.get('retry-after'))).toBeLessThanOrEqual(60);
+    expect(await raw.json()).toMatchObject({ code: 'ML005', details: 'join' });
     box.ip = '198.51.100.1';
     const host = (await api.hostState(g.game_id, g.host_token)) as HostState;
     await api.kick(g.game_id, g.host_token, host.roster[0].player_id);

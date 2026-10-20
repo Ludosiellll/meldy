@@ -3,9 +3,10 @@
 Часть операторов в России не пропускает *.supabase.co. Браузер сначала идёт напрямую, а если
 адрес недоступен, — сюда (frontend/src/lib/supabaseRoute.ts). Проксируются только auth/v1,
 rest/v1 и storage/v1 одного проекта и два пути функции telegram: GET functions/v1/telegram/file
-(файл, пересланный боту, по одноразовому токену: frontend/src/lib/telegram/fileTicket.ts) и POST
+(файл, пересланный боту, по одноразовому токену: frontend/src/lib/telegram/fileTicket.ts), POST
 functions/v1/telegram/webapp/session (вход в мини-приложении Telegram: frontend/src/api/telegramMiniApp.ts;
-привязки Telegram там нет), а также POST functions/v1/quiz-media (картинка вопроса в попытке гостя «Контрольной»
+привязки Telegram там нет) и POST functions/v1/telegram/game/join (вход в живую игру «Битва с монстром» из
+мини-приложения: initData проверяет функция, docs/live/CONTRACT.md §9), а также POST functions/v1/quiz-media (картинка вопроса в попытке гостя «Контрольной»
 по токену устройства: frontend/src/api/itemPictures.ts guestPictureUrl); заголовки запроса и ответа — по списку,
 тело — как есть.
 Права те же, что при прямом запросе: anon-ключ и токен пользователя из его же заголовков, RLS
@@ -44,8 +45,9 @@ ALLOWED_PREFIXES = ("auth/v1/", "rest/v1/", "storage/v1/")
 FILE_PATH = "functions/v1/telegram/file"
 FILE_METHODS = ("GET", "HEAD")
 # The Mini App's sign-in (POST only, Telegram_Mini_App_Spec_2026-10-10): Telegram's signed initData → a one-time
-# sign-in, and the link of an account signed in inside Telegram. The function checks the signature itself.
-WEBAPP_PATHS = ("functions/v1/telegram/webapp/session",)
+# sign-in, and the link of an account signed in inside Telegram; and the live game's join from the Mini App
+# (docs/live/CONTRACT.md §9: initData → a player token). The function checks the signature itself.
+WEBAPP_PATHS = ("functions/v1/telegram/webapp/session", "functions/v1/telegram/game/join")
 WEBAPP_METHODS = ("POST",)
 # A question picture of a guest's quiz attempt (release 47, supabase/functions/_shared/quizMedia.ts): POST
 # {attempt_id, token, path} → the picture's bytes; the function checks the device's token in the database. OPTIONS

@@ -3,6 +3,9 @@
 // HMAC headers (derived from TELEGRAM_BOT_TOKEN), /setup takes no input, /status shows no secret. The Mini App's
 // /webapp/session (Telegram_Mini_App_Spec_2026-10-10) checks Telegram's initData signature itself.
 //
+// The live game «Битва с монстром» (docs/live/CONTRACT.md §9): /game/join checks initData itself; /game/post and
+// /game/sync are the database's calls, signed with x-meldy-live (derived from TELEGRAM_BOT_TOKEN).
+//
 // Deno glue only: the routes, the dispatch, the tick and every message are in ../_shared/bot/ (plain TS, tested with
 // `node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts`).
 import { createDb } from '../_shared/bot/db.ts';
@@ -12,6 +15,7 @@ import { session } from '../_shared/bot/session.ts';
 import { createVoice } from '../_shared/bot/voice.ts';
 import { createAuthAdmin, createWebApp } from '../_shared/bot/webapp.ts';
 import { createMonitor } from '../_shared/bot/monitor.ts';
+import { createGame, liveTextsStub } from '../_shared/bot/game.ts';
 import { readEnv } from '../_shared/bot/env.ts';
 import { log } from '../_shared/bot/log.ts';
 import { createApp, type Ports } from '../_shared/bot/router.ts';
@@ -21,6 +25,8 @@ declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void } | undefin
 
 const env = readEnv();
 const http = (input: string, init?: RequestInit) => fetch(input, init);
+// The tick and the live game's calls answer 202 at once and work after the response (spec §6.6).
+const waitUntil = (work: Promise<unknown>) => (typeof EdgeRuntime !== 'undefined' ? EdgeRuntime.waitUntil(work) : void work.catch(() => undefined));
 
 // The packages after T2, one line each:
 const ports: Ports = {
@@ -36,6 +42,8 @@ const ports: Ports = {
   }),
   // The site's outage monitor (the tick's step «monitor»): off until bot.config.monitor_chat_id is set.
   monitor: createMonitor({ fetch: http }),
+  // The live game: the Mini App's join, the database's post and sync. The texts: W3's live.ts replaces the stub.
+  game: createGame({ token: () => env.token, texts: liveTextsStub, waitUntil }),
 };
 const app = env.token && env.supabaseUrl && env.serviceKey
   ? createApp({
@@ -45,8 +53,7 @@ const app = env.token && env.supabaseUrl && env.serviceKey
       functionUrl: env.functionUrl,
       region: env.region,
       ports,
-      // The tick answers 202 at once and works after the response (spec §6.6).
-      waitUntil: (work) => (typeof EdgeRuntime !== 'undefined' ? EdgeRuntime.waitUntil(work) : void work.catch(() => undefined)),
+      waitUntil,
     })
   : null;
 

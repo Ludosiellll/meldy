@@ -30,8 +30,8 @@ reveal (boss defeated or last question) ──next──▶ podium ──next / 
 - From `leaderboard`: to `countdown` of `qi + 1`.
 - Time-driven moves are applied lazily by `meldy_private.live_settle(game)` at the start of every live function (like
   `quiz_settle`). The 30 s / 3 h moves keep a game from stalling when the host's laptop sleeps.
-- `rev` (bigint) increases by 1 on every state change and on roster change in `lobby`. Answers do **not** change `rev`
-  (they would flood Realtime); the host polls the answered count (§6).
+- `rev` (bigint) increases by 1 on every state change and on roster change in `lobby` (a kick moves it in any state).
+  Answers do **not** change `rev` (they would flood Realtime); the host polls the answered count (§6).
 - `live_next(p_expect)` takes the state the host is showing; a different current state → `ML011` (409). Double clicks and two
   host tabs cannot skip a question.
 
@@ -52,12 +52,16 @@ reveal (boss defeated or last question) ──next──▶ podium ──next / 
   `dmg = round(100 × speed × mult)`,
   `speed = 0.5 + 0.5 × max(0, 1 − elapsed_ms / (time_s × 1000))` (setting `speed = false` → `speed = 1`),
   `mult = 1 + 0.25 × min(streak_after − 1, 4)`, where `streak_after = streak + 1`. Range 50…200 (100…200 without speed).
-  Rounding: half up (all values are positive; SQL `round(numeric)` = JS `Math.round`).
+  Rounding: `Math.round` of the JavaScript double, computed in the order of `rules.ts`. The SQL does the same in
+  `float8` and rounds with `floor(x + 0.5)`; an exact `round(numeric)` would differ in 73 of the 300 015 cases of
+  10/20/30 s × every millisecond × streak 1–5 (e.g. 8500 ms of 10 s: the double is 57.4999… → 57, the fraction 57.5 → 58).
+  The rehearsal checks all 600 030 cases (with and without speed) against `rules.ts`.
 - **Streak:** right → +1 (a thaw sets it to 1); wrong or no answer → 0. `best = max(best, streak)`.
 - **Freeze:** a wrong answer freezes the player. A frozen player's right answer thaws them: `dmg = 0`, `streak = 1`,
   `thaws += 1`. A frozen player's wrong answer: stays frozen. No answer: freezes only when the question's phase ≥ 1.
 - **Boss HP:** at the first `countdown`: `hp_max = players × q_count × 55`; a player joining later adds
-  `55 × questions not yet opened` to `hp_max` and `hp`.
+  `55 × questions not yet opened` to `hp_max` and `hp` — only while the boss is alive (`hp > 0`; a defeated boss
+  stays defeated).
 - **Phase** (only goes up): `0` while `hp > ⅔ hp_max`, `1` when `hp ≤ ⅔`, `2` when `hp ≤ ⅓`. Each question keeps the phase it
   opened with (`q_phase`) — the rules shown at countdown apply to it.
   - phase 1 «Дедлайн злится»: no answer also freezes;
@@ -67,7 +71,8 @@ reveal (boss defeated or last question) ──next──▶ podium ──next / 
   Every right answer counts for the player even after the hit that kills; the host stops the animation at the first `hp_after = 0`.
 - **Defeat:** `hp = 0` at close → `defeated = true`, `won = true` → podium after reveal. Questions over with `hp > 0` → `won = false`.
 - **Ranking:** `dmg desc, right desc, best desc, joined_at asc`. `move` in the top five = previous place − current place
-  (previous = after the last question; 0 for a new entry).
+  (previous = after the last question; 0 for a new entry). Kicked players are not ranked (not in `top`, `place`, the
+  podium or the accuracy); their damage stays in the boss's HP.
 - **Accuracy** on the podium: `round(100 × right answers / (players × questions asked))`.
 
 Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 0 → 98; `elapsed 0`, streak 4 → 200
@@ -75,8 +80,9 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
 
 ## 4. Questions
 
-- MVP plays only items with exactly one correct option and 2–4 options (text or code; pictures shown as in the quiz page).
-  The rest are skipped and counted in `skipped` at create.
+- MVP plays only items with exactly one correct option and 2–4 options, **without pictures** (guests have no way to the
+  private pictures yet; `question.picture` is always `null`). The rest are skipped and counted in `skipped` at create:
+  for a контрольная, of its draw; for subjects, of the subjects' keyed questions. At most 30 are played.
 - Option order: shuffled once per game per question unless the item keeps its order (`keep_order`), same for everyone
   (the letters on the projector are the letters on the phones). Stored as `shown smallint[]` (file indexes in shown order).
   Every index on the wire is a **shown** index.
@@ -104,7 +110,9 @@ a member) can join.
 
 - Channel `live:<topic>` (topic = 22 random base64url chars, returned to joined players and the host only), **public**
   (`private => false`): guests have no JWT. The DB sends `realtime.send(jsonb_build_object('rev', rev, 'state', state), 'hint',
-  'live:' || topic, false)` on every `rev` change (function `meldy_private.live_bump`).
+  'live:' || topic, false)` once per transaction that changed `rev` (a deferred constraint trigger,
+  `meldy_private.live_hint`: a cascade countdown → open → reveal in one read is one hint with the last `rev`).
+  Public channels need Realtime's «Allow public access» on (Dashboard → Realtime → Settings; on by default).
 - The payload is only a hint. Clients never trust it: on a hint they call `live_state` / `live_host_state` with `since_rev`
   (after a random 0–300 ms delay). A forged hint costs one read.
 - `since_rev` equal to the current `rev` → the answer is `{"rev": n, "now": "…", "unchanged": true}` only (no question body). Never in `lobby` or `open` (the roster and the answered count move without `rev`).
@@ -122,32 +130,36 @@ a member) can join.
   `sessionStorage` `meldy.live.player.<game_id>`. Telegram: made by the function in `/telegram/game/join`, returned once, kept in
   `Telegram.WebApp.SecureStorage` key `live_<game_id_without_dashes>` (fallback `sessionStorage`).
 - Identity of a player: exactly one of `user_id` (signed-in site user), `tg_user_id` (Telegram via the function; a linked
-  Telegram also fills `user_id` from `bot.links`), `guest_hash` (web guest). One player per identity per game: joining again
-  returns the same player (new token replaces the old hash).
+  Telegram also fills `user_id` from `bot.links`), `guest_hash` (web guest: the sha256 of their first token). One player per
+  identity per game: joining again returns the same player (new token replaces the old hash; a signed-in user and their
+  linked Telegram are the same player). A kicked identity cannot join again (`42501/kicked`).
 - Tokens die with the game: answers stop at `ended`; `live_review` accepts the token for 7 days.
 
 ## 8. RPC (PostgREST `rpc/…`; all SECURITY DEFINER, `search_path = ''`, RLS on the tables with no policies)
 
-Errors: SQLSTATE in the body's `code`. Our refusals `ML0xx` → HTTP 400. «Not found» uses the PostgREST status override
-(Codebase_Map, release 47): `raise sqlstate 'PGRST' using message = '{"code":"P0002","message":"<what>"}', detail =
-'{"status":404,"headers":{}}'` → **HTTP 404**, body `code: "P0002"`. The same pattern gives 409 (`ML011`) and 429 (`ML005`).
+Errors: every refusal of a `live_*` function uses the PostgREST status override (Codebase_Map, release 47):
+`raise sqlstate 'PGRST' using message = '{"code":"…","message":"…","details":"…"}', detail = '{"status":…,"headers":{}}'`
+(`meldy_private.live_fail`), so the body's `code` and `details` are always ours and the status is the table's. A 429 also
+carries `Retry-After` (seconds until the oldest counted call leaves the window: at most 60 for joins). The `bot_live_*`
+functions answer statuses and raise only 42501 (not the service role) and 22023 (a call the function never means).
 
 | code | HTTP | meaning (`details`) |
 |---|---|---|
-| `28000` | 401 | not signed in (host create, wardrobe) |
-| `42501` | 403 | not the exam's author / wrong host token (`host`) / kicked (`kicked`) |
-| `P0002` | 404 | game, PIN or token not found (`game`, `pin`, `token`) |
+| `28000` | 401 | not signed in (host create, `live_tg_post`, wardrobe) |
+| `42501` | 403 | not the exam's author (`author`) / wrong host token (`host`) / kicked (`kicked`) |
+| `P0002` | 404 | not found: `game`, `pin`, `token`, `player` (kick), `quiz`, `container` (create), `group` (`live_tg_post`) |
 | `22023` | 400 | bad input; `details` names the field |
 | `ML001` | 400 | game full (300 players) |
 | `ML002` | 400 | game not joinable (`ended`, `expired`) |
 | `ML003` | 403 | members only |
 | `ML004` | 400 | answer refused: `early`, `late`, `not_open`, `twice`, `bad_qi`, `not_joined_yet` |
-| `ML005` | 429 | rate limit (`join`, `create`) |
+| `ML005` | 429 | rate limit (`join`, `create`, `post`), with `Retry-After` |
 | `ML006` | 400 | name refused (`length`, `rude`) |
 | `ML007` | 400 | look refused (`unknown_part`, `locked`) |
 | `ML008` | 400 | no playable questions (`details` = how many were skipped) |
-| `ML009` | 400 | too many open games (3 per author) |
-| `ML011` | 409 | state is not `p_expect` (`details` = current state) |
+| `ML009` | 400 | too many open games (3 per author; podium and ended do not count) |
+| `ML010` | 503 | the bot is not set up (`bot`: no function URL or live token yet — `live_tg_post`) |
+| `ML011` | 409 | state is not `p_expect` (`details` = current state; `empty` for a lobby without players) |
 
 ### Host (signed in for create; token afterwards)
 
@@ -158,11 +170,16 @@ Errors: SQLSTATE in the body's `code`. Our refusals `ML0xx` → HTTP 400. «Not 
 { "game_id": "uuid", "pin": "482913", "topic": "Q2xz…22", "host_token": "43 chars", "q_count": 6, "skipped": 0,
   "join_url": "https://ludosiel-studyforge.hf.space/play?pin=482913",
   "tg_url": "https://t.me/Meldyteach_bot/play?startapp=482913" }
+// tg_url follows bot.config.flags.live_direct: false (until @BotFather /newapp) → "https://t.me/Meldyteach_bot?start=play_482913"
+// quiz source: its draw (all of it, at most 30 played); subjects: `count` 3–30 drawn now, in exam order
 ```
 `live_host_state(p_game uuid, p_host_token text, p_since_rev bigint) → HostState | {rev, now, unchanged: true}`
 `live_next(p_game uuid, p_host_token text, p_expect text) → HostState`
 `live_kick(p_game uuid, p_host_token text, p_player uuid) → {"ok": true}`
 `live_end(p_game uuid, p_host_token text) → {"ok": true}`
+`live_tg_post(p_game uuid, p_chat_id bigint) → {"status": "posting"}` — the author's session (the JWT is checked by
+PostgREST, never by the bot's function); `p_chat_id` = a group bound to this exam (`telegram_groups(p_container_id)` lists
+them). The database then has the bot send the post (§9); the host gets no message id back.
 
 ### Player
 
@@ -213,19 +230,21 @@ Errors: SQLSTATE in the body's `code`. Our refusals `ML0xx` → HTTP 400. «Not 
 
 ## 9. Telegram (function `telegram`)
 
-`POST /telegram/game/join` — body `{"init_data": "<raw>", "pin": "482913", "look": Look | null}`. Same checks as
-`/webapp/session`: HMAC, `auth_date` ≤ 1 h, one use per launch (`bot.webapp_uses.purpose = 'game'`, migration adds it), CORS,
-limits 120/min per address and 20/min per Telegram user. Then `bot_live_join(p_pin, p_tg_user_id, p_name, p_look,
-p_token_hash)` (service role). 200 with `status`:
-`joined` (+ JoinResult fields + `"token"`), `invalid`, `stale`, `replayed`, `slow_down`, `not_found`, `full`, `ended`,
-`members_only`. Protocol errors: 400, 403 (Origin), 405, 413, 429, 5xx.
+`POST /telegram/game/join` — body `{"init_data": "<raw>", "pin": "482913", "look": Look | null, "name"?: "…"}` (also
+through the site's `/sb/`; `name` = what the player typed, else the Telegram first name). Same checks as `/webapp/session`:
+HMAC, `auth_date` ≤ 1 h, CORS, limits 120/min per address and 20/min per Telegram user. Then the function makes the player
+token and calls `bot_live_join(p_pin, p_tg_user_id, p_name, p_look, p_token_hash, p_init_hash, p_auth_date)` (service role):
+one use per launch (`bot.webapp_uses.purpose = 'game'`) — spent only by a join that worked, and the same launch may rejoin the
+game it joined (a lost answer can be retried); 30 joins an hour per Telegram user. 200 with `status`:
+`joined` (+ JoinResult fields + `"token"`, given once), `invalid`, `stale`, `replayed`, `slow_down`, `not_found`, `full`,
+`ended`, `members_only`, `kicked`, `name_refused` / `look_refused` (+ `"reason"`: `length` | `rude` / `unknown_part` |
+`locked`). Protocol errors: 400, 403 (Origin), 405, 413, 429, 5xx.
 
-`POST /telegram/game/post` — `Authorization: Bearer <author JWT>`, body `{"game_id": "uuid", "chat_id": -100…}`; the chat must be
-a group bound to this exam (`bot.groups`). 200 `{"status": "posted", "message_id": 123}`; 403 not the author; 404 group not
-bound; 429 more than 1 post a minute per game.
-
-`POST /telegram/game/sync` — called by the DB (`pg_net`, header `x-meldy-live` = HMAC-SHA256(token, `meldy:live:v1`)) on state
-changes of a game with a chat message; 202; edits per the cadence below.
+`POST /telegram/game/post` and `POST /telegram/game/sync` — called by the DB only (`pg_net`, header `x-meldy-live` =
+HMAC-SHA256(bot token, `meldy:live:v1`), which `POST /telegram/setup` stores with `bot_live_setup`), body `{"game_id"}`; 202
+at once, the work after the response. `post` follows the author's `live_tg_post`: `bot_live_post` → the post (sound on) →
+`bot_live_posted(game, chat, message_id)`. `sync` follows the game's state changes: `bot_live_sync` → an edit of that
+message (+ the final post once at the podium). Neither route is on the `/sb/` allowlist.
 
 Mini App: `t.me/Meldyteach_bot/play?startapp=<PIN>` → `/tg/play`; `start_param` = 6 digits → join; `r_<game uuid without
 dashes>` → review. Needs @BotFather `/newapp`, short name `play`, URL `https://ludosiel-studyforge.hf.space/tg/play` (owner).
@@ -242,9 +261,15 @@ dashes>` → review. Needs @BotFather `/newapp`, short name `play`, URL `https:/
 - Final post (new message, silent): `<b>Дедлайн повержен</b>` or `<b>Дедлайн победил</b>`; with `chat_names` the top three
   `1. {name} — {dmg}`; then `Верных ответов {pct} %. Свой разбор — у каждого в игре.`; URL buttons `Разбор` →
   `…/play?startapp=r_{game}` and `Ещё игра` → the exam page on the site.
-- Cadence: at most one edit per 3 s per message and only on `countdown`, `reveal` and lobby count changes (lobby: at most every
-  5 s); ≈ 2–3 calls per question — under 20 per minute per group and 1 per second per chat. A 429 skips that edit; the next
-  state's edit carries the latest text. Keys and per-question correctness are never in the chat.
+- Cadence (kept by the database): the DB calls `/game/sync` on `countdown`, `reveal`, `podium` and `ended` (once per state
+  and question) and on lobby count changes at most every 5 s; `bot_live_sync` allows one edit per 3 s per message (lobby
+  5 s; the end after 1 s); ≈ 2–3 calls per question — under 20 per minute per group and 1 per second per chat. A 429
+  skips that edit (no wait); the next state's edit carries the latest text. Keys and per-question correctness are never
+  in the chat.
+- The texts are W3's `supabase/functions/_shared/bot/live.ts`, implementing `LiveTexts` of `game.ts`:
+  `post(facts: LivePost, links)`, `edit(facts: LiveNow, links)`, `final(facts: LiveFinal, links)`, each returning `Out`
+  (`{text, keyboard}` of `tg.ts`); `game.ts` holds `liveTextsStub` with the lines above until then
+  (`supabase/functions/telegram/index.ts` passes the texts to `createGame`).
 
 ## 10. Characters and wardrobe
 
@@ -264,12 +289,16 @@ dashes>` → review. Needs @BotFather `/newapp`, short name `play`, URL `https:/
 
 ## 11. Limits and caps
 
-- 300 players a game (`ML001`); 3 open games per author (`ML009`); 3–30 questions; names 1–24 chars after trim, rude-word list
-  (`ML006`); one answer per player per question (pk; second → `ML004/twice`).
-- `live_join`: 30 a minute per address (`meldy_private.quiz_ip_hash()`), 120 a minute per game → `ML005/join`.
-- `live_create`: 10 an hour per author → `ML005/create`.
+- 300 players a game (`ML001`); 3 open games per author (`ML009`; podium and ended do not count); 3–30 questions; names
+  1–24 chars after trim, rude words matched per word (`ML006`; the rule and its cases: `rules.ts` `checkName` and
+  `contracts/live/name_cases.json`, the same in SQL); one answer per player per question (pk; second → `ML004/twice`).
+- `live_join`: 120 a minute per address (`meldy_private.quiz_ip_hash()`: a class behind one school NAT, a hall on mobile
+  data), 120 a minute per game → `ML005/join`, 429 with `Retry-After`.
+- `live_create`: 10 an hour per author → `ML005/create`. `live_tg_post`: one post a minute per game → `ML005/post`.
 - PIN: 6 digits, unique among games not `ended`; joins refused 3 h after create (`ML002/expired`).
 - `/telegram/game/join`: as `/webapp/session` (120/min/address, 20/min/Telegram user, 30 joins/hour/Telegram user in the DB).
+- The server's numbers are rehearsed in `supabase/tests/local/live_game_run.sh` (migration `20261021090000_live_game.sql`);
+  `real.ts` runs end to end against it through PostgREST (`frontend/src/lib/live/real.e2e.test.ts`).
 - Host can kick (`live_kick`): the player's token stops working (`42501/kicked`); their damage stays in the total.
 
 ## 12. Client flag

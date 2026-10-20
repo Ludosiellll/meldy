@@ -128,6 +128,28 @@ def test_the_mini_apps_sign_in_passes_as_post_only_with_the_users_headers(proxy)
     assert len(proxy.seen) == 1
 
 
+def test_the_live_games_join_from_the_mini_app_passes_as_post_only(proxy):
+    proxy.replies.update(json={"status": "joined", "token": "t" * 43},
+                         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Set-Cookie": "x=1",
+                                  "Access-Control-Allow-Origin": "https://evil.example"})
+    response = proxy.post("/sb/functions/v1/telegram/game/join?forceFunctionRegion=eu-central-1",
+                          json={"init_data": "auth_date=1&hash=x", "pin": "482913"},
+                          headers={"apikey": "anon", "Authorization": "Bearer anon", "Origin": "https://evil.example"})
+    assert response.status_code == 200 and response.json()["status"] == "joined"
+    sent = proxy.seen[-1]
+    assert str(sent.url) == f"{UPSTREAM}/functions/v1/telegram/game/join?forceFunctionRegion=eu-central-1"
+    assert sent.method == "POST" and b'"pin"' in sent.content and "origin" not in sent.headers
+    assert response.headers["cache-control"] == "no-store"
+    assert "set-cookie" not in response.headers and "access-control-allow-origin" not in response.headers
+    # Only the join: the database's own calls (post, sync) and everything else under game stay out.
+    for method, path in (("get", "/sb/functions/v1/telegram/game/join"), ("post", "/sb/functions/v1/telegram/game/post"),
+                         ("post", "/sb/functions/v1/telegram/game/sync"), ("post", "/sb/functions/v1/telegram/game"),
+                         ("options", "/sb/functions/v1/telegram/game/join"),
+                         ("post", "/sb/functions/v1/telegram/game/join/../../setup")):
+        assert getattr(proxy, method)(path).status_code == 404, (method, path)
+    assert len(proxy.seen) == 1
+
+
 def test_a_guests_quiz_picture_passes_as_post_and_options_only(proxy, monkeypatch):
     picture = b"\x89PNG\r\n\x1a\n\x00\x01"
 

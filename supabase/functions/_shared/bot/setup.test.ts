@@ -17,8 +17,9 @@ test('the webhook is pinned to the one region constant (eu-central-1: regional i
   assert.equal(webhookUrl('https://abc.supabase.co/functions/v1/telegram'), 'https://abc.supabase.co/functions/v1/telegram?forceFunctionRegion=eu-central-1');
 });
 
-test('/setup: getMe → bot_setup → setWebhook → the profile → the photo; the answer holds no secret', async () => {
+test('/setup: getMe → bot_setup → bot_live_setup → setWebhook → the profile → the photo; the answer holds no secret', async () => {
   const h = harness();
+  h.fdb.on('bot_live_setup', () => ({ status: 'ok' }));
   const res = await h.app(setupRequest());
   assert.equal(res.status, 200);
   const text = await res.text();
@@ -26,7 +27,9 @@ test('/setup: getMe → bot_setup → setWebhook → the profile → the photo; 
   assert.equal(body.ok, true);
   assert.equal(body.bot, 'Meldyteach_bot');
   assert.ok(Object.values(body.steps).every((s) => s === 'ok'), text);
-  for (const secret of [TEST_TOKEN, 'TEST_TOKEN_NOT_REAL', hmac('webhook'), hmac('tick')]) assert.ok(!text.includes(secret));
+  for (const secret of [TEST_TOKEN, 'TEST_TOKEN_NOT_REAL', hmac('webhook'), hmac('tick'), hmac('live')]) assert.ok(!text.includes(secret));
+  // The live game's token for the database's calls to /game/post and /game/sync (game.ts).
+  assert.deepEqual(h.fdb.of('bot_live_setup').map((c) => c.args), [{ p_live_token: hmac('live') }]);
 
   assert.deepEqual(h.tg.methods(), ['getMe', 'setWebhook', 'setMyName', 'setMyDescription', 'setMyShortDescription', 'setMyCommands',
     'deleteMyCommands', 'setChatMenuButton', 'getUserProfilePhotos', 'setMyProfilePhoto']);
@@ -50,6 +53,14 @@ test('/setup: getMe → bot_setup → setWebhook → the profile → the photo; 
   assert.deepEqual(photo.photo, { type: 'static', photo: 'attach://avatar' });
   assert.equal(photo.avatar.type, 'image/jpeg');
   assert.ok(photo.avatar.size > 10_000);
+});
+
+test('/setup on a database without the live game: that step failed, the rest done', async () => {
+  const h = harness();
+  const body = await (await h.app(setupRequest())).json();
+  assert.equal(body.ok, true);
+  assert.equal(body.steps.bot_live_setup, 'failed');
+  assert.equal(body.steps.setWebhook, 'ok');
 });
 
 test('/setup at most once a minute: in this instance, and through bot_setup across instances', async () => {

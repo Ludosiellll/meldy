@@ -14,7 +14,8 @@
 -- The key's secrecy (never in any state before close, host included), tokens stored as sha256 only, unchanged by
 -- since_rev, errors and HTTP statuses of the contract, members only, the bot's functions (join with replay rules,
 -- post, sync and its pg_net call), limits (3 open games, 10 creates an hour, 300 players, 120 joins a minute per game,
--- 30 a minute per address, the PIN's 3 hours), names and default looks of contracts/live, the JSON shapes of types.ts.
+-- 120 a minute per address — 429 with Retry-After, the PIN's 3 hours), names and default looks of contracts/live, the
+-- JSON shapes of types.ts.
 -- A failure raises; success prints LIVE GAME BEHAVIOUR PASSED.
 \set ON_ERROR_STOP 1
 begin;
@@ -58,6 +59,7 @@ exception
     get stacked diagnostics v_detail = pg_exception_detail;
     if sqlstate = 'PGRST' then
       v_msg := sqlerrm::jsonb;
+      perform set_config('live_test.headers', coalesce(v_detail::jsonb -> 'headers', '{}')::text, true);
       return (v_msg ->> 'code') || '/' || coalesce(v_msg ->> 'details', '') || '@' || coalesce(v_detail::jsonb ->> 'status', '?');
     end if;
     return sqlstate || '/' || coalesce(v_detail, '');
@@ -693,21 +695,42 @@ begin
   select lpad(to_hex(n), 64, 'a'), 'game', 555, now(), now() - interval '10 minutes' from generate_series(1, 30) n;
   perform pg_temp.who('service_role');
   perform pg_temp.eq('30 joins an hour per Telegram', public.bot_live_join(v_pin6, 555, 'Лиза', null, repeat('a', 64), repeat('7', 64), now()) ->> 'status', 'slow_down');
-  -- Posting into a group of the exam.
-  perform pg_temp.eq('post: not the author', public.bot_live_post('dddddddd-0000-0000-0000-000000000004', v_g6, -100123, v_tok) ->> 'status', 'forbidden');
-  perform pg_temp.eq('post: not bound', public.bot_live_post('aaaaaaaa-0000-0000-0000-000000000001', v_g6, -100123, v_tok) ->> 'status', 'not_bound');
-  perform pg_temp.eq('post: no game', public.bot_live_post('aaaaaaaa-0000-0000-0000-000000000001', gen_random_uuid(), -100123, v_tok) ->> 'status', 'not_found');
+  -- Posting into a group of the exam: the author asks the database (live_tg_post); the database calls the bot.
+  perform pg_temp.who('anon');
+  perform pg_temp.eq('post: signed in only', pg_temp.e(format('select public.live_tg_post(%L, -100123)', v_g6)), '28000/@401');
+  perform pg_temp.who('authenticated', 'dddddddd-0000-0000-0000-000000000004');
+  perform pg_temp.eq('post: not the author', pg_temp.e(format('select public.live_tg_post(%L, -100123)', v_g6)), '42501/author@403');
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  perform pg_temp.eq('post: no game', pg_temp.e(format('select public.live_tg_post(%L, -100123)', gen_random_uuid())), 'P0002/game@404');
+  perform pg_temp.eq('post: a chat not bound to the exam', pg_temp.e(format('select public.live_tg_post(%L, -100123)', v_g6)), 'P0002/group@404');
   perform pg_temp.who('postgres');
   insert into bot.groups (chat_id, container_id, owner_id, title) values (-100123, pg_temp.g('x'), 'aaaaaaaa-0000-0000-0000-000000000001', 'Группа');
   update bot.config set function_url = 'https://abcdefgh.supabase.co/functions/v1/telegram', function_region = 'eu-central-1' where id = 1;
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  perform pg_temp.eq('post: the bot not set up (no live token)', pg_temp.e(format('select public.live_tg_post(%L, -100123)', v_g6)), 'ML010/bot@503');
+  perform pg_temp.who('anon');
+  perform pg_temp.eq('bot_live_setup is the service role''s', split_part(pg_temp.e(format('select public.bot_live_setup(%L)', v_tok)), '/', 1), '42501');
   perform pg_temp.who('service_role');
-  r := public.bot_live_post('aaaaaaaa-0000-0000-0000-000000000001', v_g6, -100123, v_tok);
-  perform pg_temp.eq('post: the facts of the text', r::text,
-    jsonb_build_object('status', 'ok', 'title', 'Живая игра', 'q_count', 3, 'host', 'Автор А', 'pin', v_pin6, 'players', 2, 'direct', false)::text);
+  perform pg_temp.eq('a bad live token', split_part(pg_temp.e('select public.bot_live_setup(''short'')'), '/', 1), '22023');
+  perform pg_temp.eq('/setup keeps the live token', public.bot_live_setup(v_tok) ->> 'status', 'ok');
   perform pg_temp.who('postgres');
-  perform pg_temp.eq('the live token kept for the sync calls', (select live_token from bot.config where id = 1), v_tok);
+  perform pg_temp.eq('the live token kept for the calls', (select live_token from bot.config where id = 1), v_tok);
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  perform pg_temp.eq('post', (public.live_tg_post(v_g6, -100123))::text, '{"status": "posting"}');
+  perform pg_temp.eq('one post a minute, Retry-After', pg_temp.e(format('select public.live_tg_post(%L, -100123)', v_g6)) || ' ' || current_setting('live_test.headers'),
+                     'ML005/post@429 {"Retry-After": "60"}');
+  perform pg_temp.who('postgres');
+  perform pg_temp.eq('the database asked the bot to post', (select string_agg(url || ' ' || (headers ->> 'x-meldy-live') || ' ' || (body ->> 'game_id'), ',') from net.calls),
+                     'https://abcdefgh.supabase.co/functions/v1/telegram/game/post?forceFunctionRegion=eu-central-1 ' || v_tok || ' ' || v_g6);
+  delete from net.calls;
+  perform pg_temp.who('anon');
+  perform pg_temp.eq('bot_live_post is the service role''s', split_part(pg_temp.e(format('select public.bot_live_post(%L)', v_g6)), '/', 1), '42501');
   perform pg_temp.who('service_role');
-  perform pg_temp.eq('one post a minute', public.bot_live_post('aaaaaaaa-0000-0000-0000-000000000001', v_g6, -100123, v_tok) ->> 'status', 'slow_down');
+  r := public.bot_live_post(v_g6);
+  perform pg_temp.eq('post: the facts of the text', r::text,
+    jsonb_build_object('status', 'post', 'chat_id', -100123, 'title', 'Живая игра', 'q_count', 3, 'host', 'Автор А', 'pin', v_pin6, 'players', 2, 'direct', false)::text);
+  perform pg_temp.eq('a retried call finds the post taken', public.bot_live_post(v_g6) ->> 'status', 'skip');
+  perform pg_temp.eq('no game: skip', public.bot_live_post(gen_random_uuid()) ->> 'status', 'skip');
   perform pg_temp.eq('posted', public.bot_live_posted(v_g6, -100123, 555) ->> 'status', 'ok');
   perform pg_temp.eq('sync right after the post: skip', public.bot_live_sync(v_g6) ->> 'status', 'skip');
   perform pg_temp.who('anon');
@@ -766,17 +789,29 @@ begin
   perform pg_temp.who('anon');
   perform pg_temp.eq('300 players', pg_temp.e(format('select public.live_join(%L, %L, %L, null)', v_p[1], 'Ещё', pg_temp.tok(70))), 'ML001/@400');
   perform pg_temp.eq('120 joins a minute on a game', pg_temp.e(format('select public.live_join(%L, %L, %L, null)', v_p[2], 'Ещё', pg_temp.tok(70))), 'ML005/join@429');
-  -- 30 joins a minute from one address.
-  for i in 1 .. 30 loop
+  perform pg_temp.eq('… with a short Retry-After (the oldest join leaves the minute)', current_setting('live_test.headers'), '{"Retry-After": "60"}');
+  -- 120 joins a minute from one address (a class behind one school NAT): the 121st is refused. The players are then
+  -- moved a minute back (the game's own limit out of the way); the address's joins stay in the minute.
+  for i in 1 .. 120 loop
     perform pg_temp.who('anon', null, '203.0.113.7');
     perform public.live_join(v_p[3], 'Игрок ' || i, pg_temp.tok(100 + i), null);
   end loop;
-  perform pg_temp.eq('the 31st from the address', pg_temp.e(format('select public.live_join(%L, %L, %L, null)', v_p[3], 'Ещё', pg_temp.tok(200))), 'ML005/join@429');
-  perform pg_temp.who('anon', null, '198.51.100.9');
-  perform pg_temp.eq('another address passes', pg_temp.e(format('select public.live_join(%L, %L, %L, null)', v_p[3], 'Ещё', pg_temp.tok(200))), 'ok');
   perform pg_temp.who('postgres');
-  perform pg_temp.yes('the throttle keeps HMACs, never the address', (select count(*) = 31 and bool_and(ip_hash ~ '^[0-9a-f]{64}$') from meldy_private.live_join_hits)
+  update public.live_players set joined_at = joined_at - interval '61 s' where game_id = v_g[3];
+  perform pg_temp.who('anon', null, '203.0.113.7');
+  perform pg_temp.eq('the 121st from the address', pg_temp.e(format('select public.live_join(%L, %L, %L, null)', v_p[3], 'Ещё', pg_temp.tok(300))), 'ML005/join@429');
+  perform pg_temp.eq('… with Retry-After', current_setting('live_test.headers'), '{"Retry-After": "60"}');
+  perform pg_temp.who('anon', null, '198.51.100.9');
+  perform pg_temp.eq('another address passes', pg_temp.e(format('select public.live_join(%L, %L, %L, null)', v_p[3], 'Ещё', pg_temp.tok(300))), 'ok');
+  perform pg_temp.who('postgres');
+  perform pg_temp.yes('the throttle keeps HMACs, never the address', (select count(*) = 121 and bool_and(ip_hash ~ '^[0-9a-f]{64}$') from meldy_private.live_join_hits)
                       and not exists (select 1 from meldy_private.live_join_hits where ip_hash like '%203.0.113%'));
+  perform pg_temp.tick(v_g[3], 20);
+  update meldy_private.live_join_hits set at = at - interval '20 s';
+  perform pg_temp.who('anon', null, '203.0.113.7');
+  perform pg_temp.eq('20 s later: Retry-After 40', pg_temp.e(format('select public.live_join(%L, %L, %L, null)', v_p[3], 'Ещё', pg_temp.tok(301))) || ' '
+                     || current_setting('live_test.headers'), 'ML005/join@429 {"Retry-After": "40"}');
+  perform pg_temp.who('postgres');
   -- The PIN's 3 hours.
   perform pg_temp.tick(v_g[3], 3 * 3600 + 1);
   perform pg_temp.who('anon', null, '192.0.2.1');

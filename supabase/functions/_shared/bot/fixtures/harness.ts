@@ -79,6 +79,12 @@ export function recordingPorts(calls: PortCall[], options: { sessionTakesText?: 
         return new Response(null, { status: 204 });
       },
     },
+    game: {
+      async http(_req, _ctx, action) {
+        rec('game', 'http', [action]);
+        return new Response(null, { status: 204 });
+      },
+    },
     monitor: {
       async tick() { rec('monitor', 'tick', []); return {}; },
     },

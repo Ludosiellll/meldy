@@ -7,7 +7,7 @@
  * never reach the log. `console.*` is used here and nowhere else in the bot (a test greps for it).
  */
 
-export type LogRoute = 'webhook' | 'tick' | 'setup' | 'status' | 'file' | 'webapp' | 'http';
+export type LogRoute = 'webhook' | 'tick' | 'setup' | 'status' | 'file' | 'webapp' | 'game' | 'http';
 
 export interface LogEntry {
   route: LogRoute;

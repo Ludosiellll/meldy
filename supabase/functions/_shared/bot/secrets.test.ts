@@ -8,17 +8,19 @@ import { TEST_TOKEN } from './fixtures/fake_telegram.ts';
 const VECTORS = {
   webhook: 'jzZtebk6_r0h6JrVTL5-0KE_Foqm6AgzPNyEm18Zbm4',
   tick: 'EGVxaafvUkM8SPz2mHn8U_4RZ6lNZgVo-mPOGxKBn4k',
+  live: 'Ffj_stuYey2s5T14kbjs03NqSDqND-oT9BiHWBswX2k',
 };
 const OTHER_TOKEN = '654321:ANOTHER_TEST_TOKEN_NOT_REAL_yyyyyyyyyyyyy';
 
 test('the derived secrets match the HMAC vectors and Telegram\'s secret_token alphabet', async () => {
-  for (const purpose of ['webhook', 'tick'] as const) {
+  for (const purpose of ['webhook', 'tick', 'live'] as const) {
     const secret = await derivedSecret(TEST_TOKEN, purpose);
     assert.equal(secret, VECTORS[purpose]);
     assert.equal(secret, createHmac('sha256', TEST_TOKEN).update(`meldy:${purpose}:v1`).digest('base64url'));
     assert.match(secret, /^[A-Za-z0-9_-]{43}$/);
   }
   assert.notEqual(VECTORS.webhook, VECTORS.tick);
+  assert.notEqual(VECTORS.live, VECTORS.tick);
 });
 
 test('a new token gives new secrets (the cache follows the token)', async () => {

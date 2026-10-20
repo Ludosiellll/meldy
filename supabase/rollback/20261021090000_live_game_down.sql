@@ -7,7 +7,9 @@ drop trigger if exists live_games_hint on public.live_games;
 
 drop function if exists public.bot_live_sync(uuid);
 drop function if exists public.bot_live_posted(uuid, bigint, bigint);
-drop function if exists public.bot_live_post(uuid, uuid, bigint, text);
+drop function if exists public.bot_live_setup(text);
+drop function if exists public.bot_live_post(uuid);
+drop function if exists public.live_tg_post(uuid, bigint);
 drop function if exists public.bot_live_join(text, bigint, text, jsonb, text, text, timestamptz);
 drop function if exists public.live_wardrobe_set(jsonb);
 drop function if exists public.live_wardrobe();
@@ -29,6 +31,7 @@ drop function if exists meldy_private.live_game_of_pin(text);
 drop function if exists meldy_private.live_host_game(uuid, text, boolean);
 drop function if exists meldy_private.live_hint();
 drop function if exists meldy_private.live_tg_sync(uuid);
+drop function if exists meldy_private.live_tg_call(uuid, text);
 drop function if exists meldy_private.live_unchanged(public.live_games, bigint);
 drop function if exists meldy_private.live_host_json(public.live_games);
 drop function if exists meldy_private.live_player_json(public.live_games, uuid);
@@ -59,7 +62,8 @@ drop function if exists meldy_private.live_damage(integer, integer, integer, boo
 drop function if exists meldy_private.live_iso(timestamptz);
 drop function if exists meldy_private.live_hash(text);
 drop function if exists meldy_private.live_new_token(integer);
-drop function if exists meldy_private.live_fail(text, text, integer);
+drop function if exists meldy_private.live_retry_after(timestamptz, interval);
+drop function if exists meldy_private.live_fail(text, text, integer, integer);
 
 drop table if exists public.live_answers;
 drop table if exists public.live_players;

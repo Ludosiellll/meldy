@@ -3,7 +3,8 @@
  *
  * Routes: `POST /telegram` (the webhook: HMAC header → ledger → dispatch), `POST /telegram/tick` (HMAC header → 202,
  * the work in `waitUntil`), `POST /telegram/setup`, `GET /telegram/status`, `/telegram/file` for the file package, and
- * `POST /telegram/webapp/session` for the Mini App's sign-in (webapp.ts; it links nothing: linking is /start L<code>).
+ * `POST /telegram/webapp/session` for the Mini App's sign-in (webapp.ts; it links nothing: linking is /start L<code>),
+ * and the live game's `POST /telegram/game/join|post|sync` (game.ts).
  * Updates: `message`, `callback_query`, `my_chat_member`; `edited_message` and channel posts are ignored.
  *
  * Other packages plug in through `Ports` (one import line each in supabase/functions/telegram/index.ts):
@@ -31,6 +32,7 @@ import {
   type TgMessage, type TgUser,
 } from './tg.ts';
 import { typo } from './html.ts';
+import { gameStub, type GamePort } from './game.ts';
 import * as W from './words.ts';
 
 // ─────────────────────────────────────────── what handlers get ───────────────────────────────────────────
@@ -170,6 +172,8 @@ export interface Ports {
   voice: VoicePort;
   webapp: WebAppPort;
   monitor: MonitorPort;
+  /** The live game (game.ts): /telegram/game/join, /game/post, /game/sync. */
+  game: GamePort;
 }
 
 /** Until T6 is merged: presses only stop the spinner. */
@@ -236,7 +240,7 @@ export const webappStub: WebAppPort = {
 /** Without the monitor's port the step does nothing. */
 export const monitorStub: MonitorPort = { tick: noStats };
 
-export const STUBS: Ports = { session: sessionStub, group: groupStub, files: filesStub, voice: voiceStub, webapp: webappStub, monitor: monitorStub };
+export const STUBS: Ports = { session: sessionStub, group: groupStub, files: filesStub, voice: voiceStub, webapp: webappStub, monitor: monitorStub, game: gameStub };
 
 // ─────────────────────────────────────────── updates ───────────────────────────────────────────
 
@@ -426,9 +430,9 @@ export interface AppDeps {
   random?: () => number;
 }
 
-export type Route = 'webhook' | 'tick' | 'setup' | 'status' | 'file' | 'webapp_session' | null;
+export type Route = 'webhook' | 'tick' | 'setup' | 'status' | 'file' | 'webapp_session' | 'game_join' | 'game_post' | 'game_sync' | null;
 
-/** `/telegram`, `/functions/v1/telegram/tick`, `/telegram/setup/`, `/telegram/webapp/session` → the route. */
+/** `/telegram`, `/functions/v1/telegram/tick`, `/telegram/setup/`, `/telegram/webapp/session`, `/telegram/game/join` → the route. */
 export function routeOf(url: string): Route {
   let path: string;
   try {
@@ -436,9 +440,10 @@ export function routeOf(url: string): Route {
   } catch {
     return null;
   }
-  const m = /(?:^|\/)telegram(?:\/(tick|setup|status|file|webapp\/session))?$/.exec(path);
+  const m = /(?:^|\/)telegram(?:\/(tick|setup|status|file|webapp\/session|game\/(?:join|post|sync)))?$/.exec(path);
   if (!m) return null;
   if (m[1] === 'webapp/session') return 'webapp_session';
+  if (m[1] && m[1].startsWith('game/')) return `game_${m[1].slice(5)}` as Route;
   return (m[1] as Route) ?? 'webhook';
 }
 
@@ -519,10 +524,14 @@ export function createApp(deps: AppDeps): (req: Request) => Promise<Response> {
         case 'file': return await ports.files.http(req, ctx); // T9: GET /telegram/file?t=
         // The Mini App (webapp.ts): the site's /tg page signs in a linked Telegram.
         case 'webapp_session': return await ports.webapp.http(req, ctx, 'session');
+        // The live game (game.ts): the Mini App's join; the database's post and sync calls.
+        case 'game_join': return await ports.game.http(req, ctx, 'join');
+        case 'game_post': return await ports.game.http(req, ctx, 'post');
+        case 'game_sync': return await ports.game.http(req, ctx, 'sync');
         default: return new Response('Not found', { status: 404 });
       }
     } catch (error) {
-      const logRoute: LogRoute = route === 'webapp_session' ? 'webapp' : route ?? 'http';
+      const logRoute: LogRoute = route === 'webapp_session' ? 'webapp' : route === null ? 'http' : route.startsWith('game_') ? 'game' : (route as LogRoute);
       log({ route: logRoute, outcome: 'failed', error_name: errorName(error) });
       return empty(500);
     }
