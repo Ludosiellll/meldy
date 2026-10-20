@@ -339,6 +339,23 @@
 .ct-mock-all { margin-top: 18px; }
 .ct-finish-line { margin: 0; font-size: 17px; line-height: 1.5; color: var(--sf-ink); }
 
+/* ---------------------------------------------------------------- a phone turned sideways */
+/* 390 px tall or less (phone audit 47.3): the top line (60) and the pinned bar (80) took 140 of 390 px, and with the
+   keyboard up the short answer's field went under the bar. The top line is 44 px; the bar is the end of the page, in
+   its flow — the column still puts it at the bottom of the screen under a short question. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ct-roombar.sf-room-bar { height: 44px; }
+  .ct-study.sf-page { padding-top: 14px; min-height: calc(100vh - 44px); min-height: calc(100dvh - 44px); }
+  .ct-study.sf-page > .ct-bar { position: relative; margin-top: auto; }
+  .ct-study.sf-page > :has(+ .ct-bar) { margin-bottom: 16px; }
+  .ct-bar { padding-top: 10px; }
+  .ct-bar .sf-primary,
+  .ct-bar .ct-back { min-height: 48px; height: auto; }
+  .ct-short input,
+  .ct-study input[type='text'],
+  .ct-study textarea { scroll-margin: 56px 0 16px; }
+}
+
 /* ---------------------------------------------------------------- phones */
 @media (max-width: 639px) {
   .ct-roombar.sf-room-bar { height: 56px; }

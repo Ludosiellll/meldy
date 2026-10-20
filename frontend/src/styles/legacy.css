@@ -570,6 +570,11 @@
   .au-or { margin: 20px 0; }
   .au-wait { padding: 36px 22px; border-radius: 32px; }
 }
+/* A short screen (an iPhone SE: 548 px under Safari's bars; a phone turned sideways): the banner above the card is
+   decoration, and it pushed «Войти» below the fold (phone audit 47.3). The form comes first. */
+@media (max-width: 1023px) and (max-height: 699px) {
+  .au-panel { display: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .au *,

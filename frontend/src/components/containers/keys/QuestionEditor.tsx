@@ -127,6 +127,14 @@ export default function QuestionEditor({
   const problems = draftProblems(draft);
   const patch = useMemo(() => (item ? patchOf(item, draft) : null), [item, draft]);
   const unchanged = Boolean(item) && patch === null;
+  // «Ничего не изменилось» answers a change taken back, so it waits for the author's first change: not on a fresh
+  // editor, and not right after «Сохранить» where the page keeps the editor open on the question as saved (the studio's
+  // panel: the draft then equals the question, and the line read as if the save had been lost — phone audit 47.3).
+  // The question as the editor reads it; a page may hand over a new object of the same question on every render.
+  const itemStamp = useMemo(() => (item ? JSON.stringify(draftOf(item)) : ''), [item]);
+  const [base, setBase] = useState(() => ({ stamp: itemStamp, draft }));
+  if (base.stamp !== itemStamp) setBase({ stamp: itemStamp, draft });
+  const touched = base.stamp === itemStamp && draft !== base.draft;
   const resets = Boolean(item && patch && group && resetsProgress(item, patch));
   const noKey = !draft.short && draft.correct.length === 0 && draft.options.length >= 2;
   const explained = explanationText(draft).length;
@@ -520,7 +528,7 @@ export default function QuestionEditor({
           <button type="button" className="sf-link" disabled={busy} onClick={onCancel}>
             {EDITOR.cancel}
           </button>
-          {unchanged ? <span className="qe-same">{EDITOR.nothing}</span> : null}
+          {unchanged && touched ? <span className="qe-same">{EDITOR.nothing}</span> : null}
         </div>
       )}
     </form>

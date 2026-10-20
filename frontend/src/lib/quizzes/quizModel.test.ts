@@ -16,6 +16,7 @@ import {
   quizOrder,
   secondsLeft,
   settingsProblems,
+  statsSubjects,
   summaryOf,
   timeStage,
 } from './quizModel';
@@ -303,5 +304,26 @@ describe('the studio’s points (release 47.2)', () => {
     const plain = csvOf({ pass_percent: 80, design: false }, [attempt({ id: 'a1', correct: 4, total: 6 })], marks, items, subjects).slice(1).split('\r\n');
     expect(plain[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог;Вопросы № 1');
     expect(plain[1].endsWith(';4;6;67;нет;1')).toBe(true);
+  });
+});
+
+describe('statsSubjects (phone audit 47.3)', () => {
+  const subjects = [
+    { id: 's1', title: 'Вопросы' },
+    { id: 's2', title: 'Вариант 2' },
+  ];
+  it('names an exam’s questions by their subjects', () => {
+    expect(statsSubjects({ kind: 'exam', title: 'Зимняя сессия', subjects } as never)).toEqual(subjects);
+    // An older server says no kind: an exam.
+    expect(statsSubjects({ title: 'Зимняя сессия', subjects } as never)).toEqual(subjects);
+  });
+  it('names a test’s questions by the test itself', () => {
+    expect(statsSubjects({ kind: 'test', title: 'Телефон проверка 19.10', subjects } as never)).toEqual([
+      { id: 's1', title: 'Телефон проверка 19.10' },
+      { id: 's2', title: 'Телефон проверка 19.10' },
+    ]);
+  });
+  it('has nothing to name before the summary loads', () => {
+    expect(statsSubjects(null)).toEqual([]);
   });
 });

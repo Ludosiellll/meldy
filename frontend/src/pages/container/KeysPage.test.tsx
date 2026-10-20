@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({
   deleteItem: vi.fn(),
   fetchDoubts: vi.fn(),
   reload: vi.fn(),
-  state: { summary: null as unknown, items: null as unknown, loading: false, error: null as string | null, gone: false },
+  state: { summary: null as unknown, items: null as unknown, planInput: null as unknown, loading: false, error: null as string | null, gone: false },
 }));
 
 vi.mock('../../api/containers', () => ({
@@ -25,7 +25,7 @@ vi.mock('../../api/containers', () => ({
 }));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainerData: () => ({
-    data: api.state.summary ? { summary: api.state.summary, items: api.state.items, planInput: null, oralWithoutPoints: 0 } : null,
+    data: api.state.summary ? { summary: api.state.summary, items: api.state.items, planInput: api.state.planInput, oralWithoutPoints: 0 } : null,
     loading: api.state.loading,
     offline: false,
     unavailable: false,
@@ -80,6 +80,7 @@ const withMembers = (members: number): ContainerSummary => ({ ...SUMMARY, owner:
 beforeEach(() => {
   api.state.summary = withMembers(5);
   api.state.items = itemsFor();
+  api.state.planInput = null;
   api.state.loading = false;
   api.state.error = null;
   api.state.gone = false;
@@ -179,6 +180,37 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(await screen.findByText('Новая формулировка вопроса')).toBeInTheDocument();
     expect(screen.getByText(KEYS.edited)).toBeInTheDocument();
     expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
+  });
+
+  // Phone audit 47.3: a brand-new test's first save said «Счёт по этому вопросу начнётся заново» — nothing was counted.
+  describe('the line after a save that moves the key', () => {
+    const saveNewKey = async () => {
+      renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}&no=7`);
+      fireEvent.click(within(await screen.findByRole('article')).getByRole('button', { name: KEYS.edit }));
+      const editor = screen.getByRole('form', { name: EDITOR.label });
+      fireEvent.click(within(editor).getByLabelText(EDITOR.right('А')));
+      fireEvent.click(within(editor).getByRole('button', { name: EDITOR.save }));
+      await waitFor(() => expect(api.updateItem).toHaveBeenCalledTimes(1));
+    };
+
+    it('says only «Сохранено.» when nobody has answered the question: no members, the author never did', async () => {
+      api.state.summary = withMembers(0);
+      await saveNewKey();
+      expect(await screen.findByText(KEYS.edited)).toBeInTheDocument();
+      expect(screen.queryByText(KEYS.editedReset(false))).toBeNull();
+    });
+
+    it('says the count starts again when the author had answered it', async () => {
+      api.state.summary = withMembers(0);
+      api.state.planInput = { items: [{ id: BASE_ITEMS[6].id, s: SUBJECT_1, f: 't', tp: null, o: 7, u: { seen: 2, wrong: 1 } }] };
+      await saveNewKey();
+      expect(await screen.findByText(KEYS.editedReset(false))).toBeInTheDocument();
+    });
+
+    it('says it for the group whenever the exam has members (their answers are not the author’s to see)', async () => {
+      await saveNewKey();
+      expect(await screen.findByText(KEYS.editedReset(true))).toBeInTheDocument();
+    });
   });
 
   it('hides «Проверить N вопросов» while the editor is open', async () => {

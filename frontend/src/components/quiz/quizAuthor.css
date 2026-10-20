@@ -307,6 +307,10 @@
   text-overflow: ellipsis;
 }
 .sf-page.qa-page .qa-link-field:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 1px; }
+/* A touch screen zooms the page into a field under 16 px on focus (iPhone Safari, phone audit 47.3). */
+@media (max-width: 639px), (pointer: coarse) {
+  .sf-page.qa-page .qa-link-field { font-size: max(16px, 1rem); }
+}
 .sf-page.qa-page .qa-copy {
   display: inline-grid;
   place-items: center;

@@ -15,6 +15,9 @@
   /* The yellow of a line named once: the logo dot's, deeper on white so a 7 px dot holds its own. */
   --cs-half: #e9b13c;
   --cs-faint: #8a8f97;
+  /* A question's number: quieter than its title, read as text (4.5:1 and more on the card, its soft rows and the canvas;
+     the faint grey was 3.25:1 — phone audit 47.3). */
+  --cs-num: #686e77;
   /* The self-test's bar over the words: the answer screen's closed point (oral.css --or-bar). */
   --cs-bar: #e9e9e3;
   /* The highlighter under the title of the last answer's question. */
@@ -27,6 +30,7 @@
 .dark .cs-mapbox {
   --cs-half: #f4c45b;
   --cs-faint: #6b7383;
+  --cs-num: #8b93a2;
   --cs-bar: rgba(243, 243, 240, .1);
   /* Opaque, the logo dot's hue and saturation (41°, 88 %) at 30 % lightness: the yellow at .3 over the dark card read
      olive (#574d35). The title's ink over it keeps 4.7:1, the band 3.4:1 against the card. */
@@ -140,7 +144,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.cs-qn { font-weight: 500; color: var(--cs-faint); }
+.cs-qn { font-weight: 500; color: var(--cs-num); }
 .cs-qt { min-width: 0; text-wrap: pretty; }
 .cs-qbtn:hover .cs-qm {
   text-decoration: underline;

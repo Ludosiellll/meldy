@@ -191,7 +191,7 @@ html[data-stage] .md-crumb { display: none; }
 .md-skel-tabs { width: 362px; max-width: 100%; height: 52px; }
 .md-skel-acts .md-skel-pill { width: 246px; height: 52px; }
 .md-skel-acts .md-skel-round { width: 52px; height: 52px; }
-/* The phone's strip (.md-ptabs) with the lecture's labels in the tabs' own font, so it wraps into the same rows; each
+/* The phone's strip (.md-ptabs) with the lecture's labels in the tabs' own font, one row as the lecture's own; each
    label is a bar of its width in the middle of its 46 px row. */
 .md-skel-ptabs .md-ptab {
   flex: none;
@@ -300,16 +300,58 @@ html[data-stage] .md-crumb { display: none; }
    hairline, the current one in ink on a 2 px ink bar — in place of the white capsule of the modes and the results'
    row of pills. The page renders it on phones only (usePhone). The phone's text tabs: 16/500 muted, the current one
    ink at the same weight, its 2 px bar flush on its row's 1 px hairline, the counts 14 muted, the current one's in
-   ink. Tabs that do not fit one row go to a second one, as the result screen's pills do (ResultsPanel.css): with
-   «Выжимка» the row was 416 px in 358 at 390 px, scrolled sideways and cut «Подкаст» (QA 2026-10-11, 390 and 360).
-   The rows are 46 px with no gap between them, and each has its own hairline (the background, one line every 46 px). */
+   ink. One row that scrolls sideways (phone audit 47.3: wrapped, the second row held «Подкаст» alone): with «Выжимка»
+   the row is 416 px in 358 at 390 px. The hidden end fades into the page with a small arrow, so the row reads as one
+   that goes on (QA 2026-10-11 found «Подкаст» cut with no sign of more); the fade lies on the words, not on the
+   hairline, and goes when the end is reached (useStripEdges). */
+.md-ptabs-wrap {
+  position: relative;
+  margin: 14px 0 0;
+  box-shadow: inset 0 -1px 0 var(--sf-line);
+}
 .md-ptabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0 22px;
-  margin: 14px 0 0;
+  margin: 0;
   padding: 0;
-  background: repeating-linear-gradient(to bottom, transparent 0 45px, var(--sf-line) 45px 46px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.md-ptabs::-webkit-scrollbar { display: none; }
+.md-ptabs-wrap::before,
+.md-ptabs-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 1px;
+  z-index: 1;
+  width: 44px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.md-ptabs-wrap::before { left: 0; background: linear-gradient(to right, var(--sf-canvas) 10%, transparent); }
+.md-ptabs-wrap::after {
+  right: 0;
+  width: 52px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M8 5l5 5-5 5' fill='none' stroke='%234b515b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 0 center / 16px 16px no-repeat,
+    linear-gradient(to left, var(--sf-canvas) 38%, transparent);
+}
+.dark .md-ptabs-wrap::after {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M8 5l5 5-5 5' fill='none' stroke='%23a7adb7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 0 center / 16px 16px no-repeat,
+    linear-gradient(to left, var(--sf-canvas) 38%, transparent);
+}
+.md-ptabs-wrap[data-more-start]::before,
+.md-ptabs-wrap[data-more-end]::after { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .md-ptabs-wrap::before,
+  .md-ptabs-wrap::after { transition: none; }
 }
 .md-ptabs [role='tab'] {
   position: relative;

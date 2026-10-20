@@ -12,6 +12,7 @@ import { RUN } from './copyTake';
 import QuizDocRun from './QuizDocRun';
 import { FinishSheet, RunBar, RunEnding, TimeStrip, where } from './RunParts';
 import { resumeIndex, useAttempt, type AttemptRun } from './useAttempt';
+import { useFieldInView } from './fieldInView';
 import '../containers/room.css';
 import './quizTake.css';
 
@@ -83,6 +84,8 @@ export interface QuizRunProps {
 export default function QuizRun({ attempt, token, accent = 'blue', dark = false, onResult, onLost }: QuizRunProps) {
   const run = useAttempt(attempt, token, { onResult, onLost });
   const doc = useMemo(() => designDoc(attempt.design), [attempt.design]);
+  // The short answer's field stays in sight when the keyboard comes up (phone audit 47.3), in both ways of drawing.
+  useFieldInView(!run.ending);
   if (doc) return <QuizDocRun run={run} attempt={attempt} token={token} doc={doc} dark={dark} />;
   return <ClassicRun run={run} attempt={attempt} token={token} accent={accent} />;
 }

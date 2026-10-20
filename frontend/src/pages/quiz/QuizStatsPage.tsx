@@ -5,7 +5,7 @@ import { copyText } from '../../lib/clipboard';
 import { useContainerData } from '../../lib/containers/hooks';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { clockOffset, csvOf, peopleRows, quizStateWords, summaryOf } from '../../lib/quizzes/quizModel';
+import { clockOffset, csvOf, peopleRows, quizStateWords, statsSubjects, summaryOf } from '../../lib/quizzes/quizModel';
 import { useFrame } from '../../components/exams/useFrame';
 import { errorText, GONE, nb } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
@@ -147,7 +147,8 @@ export default function QuizStatsPage() {
   const quiz = results?.quiz ?? null;
   useDocumentTitle(quiz ? quiz.title : QA_LIST.title);
   const items: ReadonlyMap<string, TestItem> = useMemo(() => data.data?.items ?? new Map<string, TestItem>(), [data.data?.items]);
-  const subjects = useMemo(() => (summary?.subjects ?? []).map((subject) => ({ id: subject.id, title: subject.title })), [summary]);
+  // A test's questions are named by the test (statsSubjects), not by its subject «Вопросы» nobody named.
+  const subjects = useMemo(() => statsSubjects(summary), [summary]);
   const rows = useMemo(() => (results && quiz ? peopleRows(results.attempts, quiz.grading) : []), [results, quiz]);
   const totals = useMemo(() => summaryOf(rows, quiz?.pass_percent ?? null), [rows, quiz?.pass_percent]);
 

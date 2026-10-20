@@ -282,6 +282,19 @@ describe('«Участники»', () => {
 });
 
 describe('«Вопросы»', () => {
+  it('a test’s questions are named by the test, not by its subject «Вопросы» nobody named (phone audit 47.3)', async () => {
+    api.state.summary = examSummary({ kind: 'test', title: 'Телефон проверка 19.10' });
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: QA_STATS.tabQuestions }));
+    const list = screen.getByRole('list', { name: QA_QUESTIONS.title });
+    const lines = within(list)
+      .getAllByRole('listitem')
+      .filter((node) => node.parentElement === list)
+      .map((card) => plain(card.querySelector('.qa-q-line')?.textContent));
+    expect(lines[0]).toBe('Телефон проверка 19.10 · № 5 — верно 1 из 4 (25 %)');
+    expect(lines.join(' ')).not.toContain('Вариант');
+  });
+
   it('the hardest first, the picks with the key in words, the common wrong answers, «Изменить» to «Вопросы и ключи»', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('tab', { name: QA_STATS.tabQuestions }));

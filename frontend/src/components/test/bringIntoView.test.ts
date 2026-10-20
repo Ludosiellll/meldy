@@ -45,6 +45,26 @@ describe('bringIntoView: a saved card stays where the author sees it (release 47
     expect(scroll).toHaveBeenCalledWith({ top: 1000 + 1200 - 788, behavior: 'auto' });
   });
 
+  it('stops under a room’s own top line and above its pinned bar (phone audit 47.3)', () => {
+    setup();
+    const top = box(0, 56);
+    top.className = 'sf-room-bar';
+    const bar = box(640, 800);
+    bar.className = 'ct-bar';
+    document.body.append(top, bar);
+    try {
+      // The links under the answer end at 680, under the bar with the verdict: up by 680 − (640 − 12).
+      bringIntoView(box(300, 420), box(650, 680));
+      expect(scroll).toHaveBeenLastCalledWith({ top: 1000 + 680 - 628, behavior: 'smooth' });
+      // Too tall for the room between the bars: the first one's top wins when asked, under the top line.
+      bringIntoView(box(100, 300), box(650, 900), 'first');
+      expect(scroll).toHaveBeenLastCalledWith({ top: 1000 + 100 - 68, behavior: 'smooth' });
+    } finally {
+      top.remove();
+      bar.remove();
+    }
+  });
+
   it('a document without layout (zero boxes) is left alone', () => {
     setup();
     bringIntoView(box(0, 0), box(0, 0));

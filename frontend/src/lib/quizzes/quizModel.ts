@@ -3,7 +3,7 @@
  * defaults and checks, the participant's clock against the server's deadline, one row a person from their attempts,
  * the summary line, the questions hardest first and the table for Excel.
  */
-import type { TestItem } from '../../types/container';
+import type { ContainerSummary, TestItem } from '../../types/container';
 import type { QuizAttemptItem, QuizAttemptRow, QuizGrading, QuizItemStat, QuizMark, QuizRow, QuizSettings } from '../../types/quiz';
 import { QUIZ } from '../../components/quiz/copyQuiz';
 import { optionOrder, pinnedLast } from '../containers/session';
@@ -14,6 +14,17 @@ export const PASS_OPTIONS: readonly (number | null)[] = [null, 50, 55, 60, 65, 7
 export const COUNT_OPTIONS: readonly number[] = [5, 10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 120, 160, 200];
 export const MAX_ITEMS = 200;
 const DAY = 86400000;
+
+/**
+ * The names a quiz's stats give the parts its questions come from («<part> · № 37», QuizQuestions and QuizPeople, and
+ * the table): an exam's subjects by their own titles. A test (containers.kind 'test') has one part whose name nobody
+ * gave — «Вопросы», made with the test — so its questions are named by the test's own title.
+ */
+export function statsSubjects(summary: Pick<ContainerSummary, 'kind' | 'title' | 'subjects'> | null): Array<{ id: string; title: string }> {
+  if (!summary) return [];
+  const test = summary.kind === 'test';
+  return summary.subjects.map((subject) => ({ id: subject.id, title: test ? summary.title : subject.title }));
+}
 
 /** About a minute a question: the smallest timer of the list that is not shorter. */
 export function defaultMinutes(count: number): number {

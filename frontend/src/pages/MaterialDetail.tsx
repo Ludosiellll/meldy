@@ -32,6 +32,7 @@ import { followupCardsOf } from '../lib/followupCards';
 import { recognizedNotice, recognizedSource } from '../lib/lectureFormats';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
+import { stripScrollFor, useStripEdges } from '../components/ui/scrollStrip';
 import { openingResultTab, resultTabs, type ResultExportItem, type ResultTab } from '../components/resultSections';
 import '../styles/paper.css';
 import './MaterialDetail.css';
@@ -593,6 +594,17 @@ export default function MaterialDetail() {
   // What the Library's list of this device says about the lecture: the placeholder's tabs and its «Текст распознан…».
   const listed = useMemo(() => (loading ? listedLecture(user?.id, id) : null), [loading, user?.id, id]);
 
+  // The phone's row of tabs scrolls sideways: its hidden ends fade, and the chosen tab is brought clear of the fade.
+  const stripRef = useRef<HTMLDivElement>(null);
+  const stripMore = useStripEdges(stripRef, phone && !loading && Boolean(material));
+  useEffect(() => {
+    const row = stripRef.current;
+    const tab = row?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!phone || !row || !tab) return;
+    const left = stripScrollFor({ left: tab.offsetLeft - row.offsetLeft, width: tab.offsetWidth }, row);
+    if (left !== row.scrollLeft) row.scrollTo?.({ left, behavior: 'smooth' });
+  }, [phone, loading, mode, sectionChoice]);
+
   if (loading) {
     // The lecture's own boxes while it loads, so nothing moves when it comes (recheck of 44.2: a fresh /library/:id
     // scored a layout shift of 0.447 at 1532×734 as «Загружаем лекцию…» gave way to the lecture, 0 from «Лекции»).
@@ -633,6 +645,7 @@ export default function MaterialDetail() {
           </div>
         </div>
         {phone ? (
+          <div className="md-ptabs-wrap">
           <div className="md-ptabs md-skel-ptabs" aria-hidden="true" data-many={tabs.length > 4 ? '' : undefined}>
             {tabs.map(tab => (
               <span key={tab.label} className="md-skel md-ptab">
@@ -645,6 +658,7 @@ export default function MaterialDetail() {
                 ) : null}
               </span>
             ))}
+          </div>
           </div>
         ) : null}
         <div className="md-panel md-skel-panel" aria-hidden="true">
@@ -967,9 +981,12 @@ export default function MaterialDetail() {
         ) : null}
       </div>
 
-      {/* A phone: one set of tabs, the sections of «Материал» next to the page's own modes (spec «Лекция»). */}
+      {/* A phone: one set of tabs, the sections of «Материал» next to the page's own modes (spec «Лекция»): one row
+          that scrolls sideways, its hidden end faded (phone audit 47.3: the second row held «Подкаст» alone). */}
       {phone ? (
+        <div className="md-ptabs-wrap" data-more-start={stripMore.start ? '' : undefined} data-more-end={stripMore.end ? '' : undefined}>
         <div
+          ref={stripRef}
           role="tablist"
           aria-label="Разделы лекции"
           className="md-ptabs"
@@ -1002,6 +1019,7 @@ export default function MaterialDetail() {
               </button>
             );
           })}
+        </div>
         </div>
       ) : null}
 

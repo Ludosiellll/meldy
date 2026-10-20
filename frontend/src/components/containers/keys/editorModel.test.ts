@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EXPLANATION_MAX, PICTURE_STEM, type TestItem } from '../../../types/container';
 import {
+  countRestarts,
   appendOption,
   draftChanged,
   draftOf,
@@ -313,5 +314,21 @@ describe('draftChanged', () => {
     expect(draftChanged(null, { ...emptyDraft(), stem: 'Что такое шлюз?' })).toBe(true);
     expect(draftChanged(null, { ...emptyDraft(), correct: [1] })).toBe(true);
     expect(draftChanged(null, { ...emptyDraft(), short: true, forms: 'Шлюз' })).toBe(true);
+  });
+});
+
+describe('countRestarts (phone audit 47.3)', () => {
+  it('a member is enough: the author does not see the group’s answers', () => {
+    expect(countRestarts(true, undefined)).toBe(true);
+    expect(countRestarts(true, { seen: 0 }, true)).toBe(true);
+  });
+  it('alone: only the author’s own answers to the question count', () => {
+    expect(countRestarts(false, undefined)).toBe(false);
+    expect(countRestarts(false, null)).toBe(false);
+    expect(countRestarts(false, { seen: 0 })).toBe(false);
+    expect(countRestarts(false, { seen: 3 })).toBe(true);
+  });
+  it('a restart this page already made is not said twice', () => {
+    expect(countRestarts(false, { seen: 3 }, true)).toBe(false);
   });
 });

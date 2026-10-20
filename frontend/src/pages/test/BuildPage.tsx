@@ -7,6 +7,7 @@ import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import QuestionEditor from '../../components/containers/keys/QuestionEditor';
 import { inputOf, patchOf, type Draft } from '../../components/containers/keys/editorModel';
+import { useSavedLine } from '../../components/containers/keys/useSavedLine';
 import { newId } from '../../components/containers/sessionStore';
 import { EDITOR, errorText, GONE, KEYS, nb } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
@@ -64,6 +65,7 @@ export default function BuildPage() {
   const frame = useFrame<HTMLDivElement>();
   const build = useBuild(containerId);
   const { data, summary, owner, group, subjects, subjectId, list, keyed } = build;
+  const savedLine = useSavedLine(data.data?.planInput, group);
   useDocumentTitle(summary ? `${BUILD.docTitle} · ${summary.title}` : BUILD.docTitle);
   useEffect(() => {
     if (summary) rememberContainerTitle(summary.id, summary.title);
@@ -317,7 +319,7 @@ export default function BuildPage() {
       if (patch.explanation !== undefined) local.explanation = patch.explanation;
       if (patch.correct !== undefined || patch.answers !== undefined) local.key_source = 'manual';
       build.patchLocal(item.id, local);
-      say(item.id, result.rev_changed ? KEYS.editedReset(group) : KEYS.edited);
+      say(item.id, savedLine(item.id, result.rev_changed));
       if (!goOn()) {
         setEditing(null);
         focusNext(`[data-act="edit:${item.id}"]`, [`[data-item="${item.id}"]`, `[data-item="${item.id}"] .tb-actions`]);

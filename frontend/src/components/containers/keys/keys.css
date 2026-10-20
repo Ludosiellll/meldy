@@ -264,10 +264,16 @@
   font: 400 16px/1.45 var(--ph-sans);
   resize: none;
   overflow-y: hidden;
-  overflow-wrap: anywhere;
+  /* Lines break at the spaces; a word longer than the whole line is broken only as the last resort. */
+  overflow-wrap: break-word;
 }
 .qe-text:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 1px; }
 .qe-text[data-code] { font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace; font-size: 14px; }
+/* A touch screen zooms the page into a field under 16 px on focus (iPhone Safari): code keeps its monospace at 16 px
+   there (phone audit 47.3). */
+@media (max-width: 639px), (pointer: coarse) {
+  .qe-text[data-code] { font-size: max(16px, 1rem); letter-spacing: -.01em; }
+}
 .qe-stem { min-height: 74px; font-size: 17px; font-weight: 500; }
 .qe-explanation { min-height: 72px; }
 .qe-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-top: 10px; }
@@ -386,13 +392,34 @@
 .qe-unsaved .qe-actions { margin-top: 12px; }
 
 @media (max-width: 639px) {
-  .qe-option { gap: 0 2px; padding: 4px 2px 4px 6px; }
+  /* The option's field takes the row (phone audit 47.3: 200 of 343 px, code 18 characters a line): the picture button
+     and «×» stand one above the other at the row's right, the tick and its letter at its left, so a row is no taller
+     than two lines of text. */
+  .qe-option { gap: 0 4px; padding: 6px 0 6px 6px; }
   /* The letter under the tick: the field keeps the room a long option needs. */
-  .qe-right { flex-direction: column; justify-content: center; gap: 1px; min-width: 28px; padding: 0 2px; }
+  .qe-right { flex-direction: column; justify-content: center; gap: 1px; min-width: 32px; padding: 0 2px; }
   .qe-right .qe-letter { min-width: 0; font-size: 13px; line-height: 1.1; }
-  .qe-icon { width: 34px; }
+  .qe-option-tools { flex-direction: column; align-items: center; align-self: stretch; justify-content: flex-start; min-height: 0; }
+  .qe-option-tools:empty { display: none; }
+  .qe-option:has(.qe-option-tools:empty) { grid-template-columns: auto minmax(0, 1fr); padding-right: 6px; }
+  .qe-icon { width: 40px; height: 40px; }
+  .qe-option .qe-text { padding: 10px 11px; }
   .qe-actions .sf-primary { flex: 1 1 100%; justify-content: space-between; }
   .qe-unsaved { padding: 12px 14px 14px; border-radius: 18px; }
+  /* «Вопросы и ключи»: an editor taller than the screen keeps «Сохранить» and «Отмена» at the bottom of the screen while
+     the author scrolls through it (phone audit 47.3: four screens of options before the button). The bar is the card's
+     own bottom, on the card's white; it rests in its place once the editor's end is in view. */
+  .ky-page .qe > .qe-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    margin: 18px -16px -16px;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    border-radius: 0 0 24px 24px;
+    background: var(--sf-surface);
+    box-shadow: 0 -1px 0 var(--sf-line);
+  }
+  .ky-page .qe > .qe-actions .sf-primary { min-height: 52px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .qe-icon { transition: none; }

@@ -137,6 +137,15 @@
   .sf-shell:not([data-back]) .sf-quota:hover { background: none; }
 }
 
+/* Four digits («1000» of PRO) at 13 px, the smallest size of the app's words (phone audit 47.3: 11 px): the ring
+   takes the whole 44 px target so the number has room inside it. */
+@media (max-width: 639px) {
+  .sf-quota[data-digits='4'] .sf-quota-n { font-size: 13px; letter-spacing: -.05em; }
+  .sf-shell .sf-quota[data-digits='4'] .sf-quota-ring { inset: 1px; width: 42px; height: 42px; }
+  .sf-shell:not([data-back]) .sf-quota[data-digits='4'] .sf-quota-ring { right: 1px; }
+  .sf-shell:not([data-back]) .sf-quota[data-digits='4'] .sf-quota-n { width: 42px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sf-shell .sf-quota,
   .sf-quota-arc,

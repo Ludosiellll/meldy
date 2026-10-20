@@ -8,6 +8,7 @@ import { miniAppHaptic } from '../../lib/telegram/miniApp';
 import QuestionCard, { type Answered } from './QuestionCard';
 import { Explanation } from './keys/KeyQuestion';
 import { DoubtSheet, KeyFix, RoomBar } from './RoomParts';
+import { bringIntoView } from '../test/bringIntoView';
 import SessionEnd, { useReplan } from './SessionEnd';
 import * as copy from './copy';
 import {
@@ -124,6 +125,7 @@ export default function StudyRun(props: StudyRunProps) {
   const stemRef = useRef<HTMLHeadingElement | null>(null);
   const fileRef = useRef<HTMLButtonElement | null>(null);
   const keyRef = useRef<HTMLDivElement | null>(null);
+  const underRef = useRef<HTMLDivElement | null>(null);
   /** The session's answers on their way (the answer queue's promises): the plan is read again once they have left. */
   const sending = useRef<Promise<unknown>[]>([]);
   const replan = useReplan(input, onEnded);
@@ -343,7 +345,14 @@ export default function StudyRun(props: StudyRunProps) {
         nextRef.current(true);
       }, AUTO_MS);
     } else {
-      window.setTimeout(() => fileRef.current?.scrollIntoView?.({ block: 'nearest' }), 0);
+      // The right option and the links under the answer («Нажали не туда?», «Сомневаюсь в ключе») come out from under
+      // the bar that now holds the verdict (phone audit 47.3: half of them under it); the right option wins when both
+      // do not fit.
+      window.setTimeout(() => {
+        const under = underRef.current;
+        const first = fileRef.current ?? under;
+        if (first) bringIntoView(first, under ?? first, 'first');
+      }, 0);
     }
   };
 
@@ -607,7 +616,11 @@ export default function StudyRun(props: StudyRunProps) {
           fileRef={fileRef}
         />
         {pending ? <Explanation text={item.explanation} /> : null}
-        {under.length > 0 ? <div className="ct-under">{under}</div> : null}
+        {under.length > 0 ? (
+          <div ref={underRef} className="ct-under">
+            {under}
+          </div>
+        ) : null}
         {notes.length > 0 ? (
           <div className="ct-notes-q">
             {notes.map((note) => (

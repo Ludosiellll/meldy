@@ -392,6 +392,16 @@
 .qt-docmain { display: block; }
 .qt-docrun.dv { min-height: calc(100vh - 60px); min-height: calc(100dvh - 60px); }
 .qt-docrun .dv-q { scroll-margin-top: 84px; }
+/* A phone turned sideways (phone audit 47.3): the room's top line is 44 px (room.css) and the page's «Назад / Дальше»
+   come at the end of the page instead of staying pinned at the bottom — with the keyboard up the pinned bar covered the
+   short answer's field. (DocView draws the bar, docview.css .dv-nav[data-pinned]; the quiz's page sets it free here.) */
+@media (orientation: landscape) and (max-height: 500px) {
+  .qt-docrun.dv { min-height: calc(100vh - 44px); min-height: calc(100dvh - 44px); }
+  .qt-docrun .dv-q { scroll-margin-top: 56px; }
+  .qt-docmain .dv-nav[data-pinned] { position: relative; }
+  .qt-docmain input,
+  .qt-docmain textarea { scroll-margin: 56px 0 16px; }
+}
 /* «Осталось 5 минут»: kept for the screen reader while empty, out of the column's gaps. */
 .qt-docrun .qt-low { margin: 0; }
 .qt-docrun .qt-low:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

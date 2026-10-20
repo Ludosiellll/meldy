@@ -611,6 +611,11 @@ html[data-stage] .cv-meta { display: none; }
   .cv-pos { justify-self: start; align-self: center; }
   .cv-speed { justify-self: end; }
   .cv-player .cv-text-link { justify-self: end; min-height: 40px; }
+  /* The replies' dots: a 44 px tall tap each, sharing the row with no gap between them, so a tap anywhere on the row
+     lands on the nearest reply (phone audit 47.3: 14 × 24 px with gaps; 17 replies leave each about 18 px of width).
+     Drawn as before: each dot is its bar inset by 2 px. */
+  .cv-segs { gap: 0; margin: -10px 0; }
+  .cv-seg { height: 44px; padding: 0 2px; }
 }
 
 /* ---------------------------------------------------------------- the transcript: a panel over the right of the sheet */

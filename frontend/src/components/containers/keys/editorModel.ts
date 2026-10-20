@@ -239,6 +239,17 @@ export function resetsProgress(item: TestItem, patch: ItemPatch): boolean {
   return false;
 }
 
+/**
+ * Whether «Счёт по этому вопросу начнётся заново» is true after a save that moved the question's rev: somebody's answers
+ * to it were counted. The group's are not the author's to see, so a member is enough; else the author's own (the plan's
+ * state of the question, `seen`), unless this page restarted it already. A brand-new test's question was answered by
+ * nobody: its save says only «Сохранено.» (phone audit 47.3).
+ */
+export function countRestarts(group: boolean, own: { seen: number } | null | undefined, restartedHere = false): boolean {
+  if (group) return true;
+  return !restartedHere && (own?.seen ?? 0) > 0;
+}
+
 /** The number a new question gets: one past the subject's largest whole number from the file. */
 export function nextFileNo(items: readonly TestItem[], subjectId: string): string {
   let top = 0;

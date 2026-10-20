@@ -330,6 +330,34 @@ describe('the exam container (spec decision 23)', () => {
     expect(hidesBottomNav('/exams'), '/exams').toBe(false);
   });
 
+  // The phone audit of 47.3: «Контрольные», «Новая контрольная» and a quiz's stats showed the wordmark and the tabs —
+  // in the installed app a dead end. They are pages of the exam (or the test) like «Ключи».
+  it('treats «Контрольные», «Новая контрольная», a quiz and its settings as pages of the exam: «‹ its title», no tabs', () => {
+    const Q = '2ae87829-889e-4206-84b8-f6eb01436b17';
+    const pages = ['quizzes', 'quizzes/', 'quizzes/new', `quizzes/${Q}`, `quizzes/${Q}/`, `quizzes/${Q}/edit`];
+    for (const page of pages) {
+      expect(backLinkFor(`/exams/c/${C}/${page}`), page).toEqual(toContainer('Назад'));
+      expect(hidesBottomNav(`/exams/c/${C}/${page}`), page).toBe(true);
+      expect(isRoomPath(`/exams/c/${C}/${page}`), page).toBe(false);
+    }
+    rememberContainerTitle(C, 'Телефон проверка 19.10');
+    for (const page of pages) {
+      expect(backLinkFor(`/exams/c/${C}/${page}`), page).toEqual(toContainer('Телефон проверка 19.10'));
+    }
+    // Deeper or other words are not pages of the app: no way back is made up for them.
+    expect(backLinkFor(`/exams/c/${C}/quizzes/${Q}/edit/more`)).toBeNull();
+    expect(backLinkFor(`/exams/c/${C}/quizzesx`)).toBeNull();
+  });
+
+  it('draws «‹ <the test>» in the top line of a quiz page, the tabs stepped aside', async () => {
+    rememberContainerTitle(C, 'Телефон проверка 19.10');
+    renderAt(`/exams/c/${C}/quizzes/new`);
+    const back = document.querySelector('.sf-back') as HTMLAnchorElement;
+    expect(back.textContent).toBe('Телефон проверка 19.10');
+    expect(back).toHaveAttribute('href', `/exams/c/${C}`);
+    expect(tabBar()).toBeNull();
+  });
+
   it('leads from the pages under an exam back to it, with its title when this tab knows it', () => {
     for (const page of [`s/${S}`, 'keys', 'settings', 'study', 'mock', 'studio']) {
       expect(backLinkFor(`/exams/c/${C}/${page}`), page).toEqual(toContainer('Назад'));

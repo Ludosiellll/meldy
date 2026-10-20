@@ -61,8 +61,36 @@ describe('QuestionEditor', () => {
   it('does not save when nothing changed', () => {
     const { onSave } = setup();
     expect(screen.getByRole('button', { name: EDITOR.save })).toBeDisabled();
+    // A fresh editor has nothing to answer yet: the line waits for a change taken back.
+    expect(screen.queryByText(EDITOR.nothing)).toBeNull();
+    const stem = screen.getByLabelText(EDITOR.stem) as HTMLTextAreaElement;
+    fireEvent.change(stem, { target: { value: 'Что означает стрелка справа?' } });
+    expect(screen.queryByText(EDITOR.nothing)).toBeNull();
+    fireEvent.change(stem, { target: { value: 'Что означает стрелка слева?' } });
+    expect(screen.getByRole('button', { name: EDITOR.save })).toBeDisabled();
     expect(screen.getByText(EDITOR.nothing)).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('says nothing of «no change» right after a save that keeps the editor open on the saved question (phone audit 47.3)', () => {
+    const onSave = vi.fn();
+    const props = { containerId: C, context: 'Вопрос 1', group: false, onSave, onCancel: vi.fn(), upload: vi.fn(async () => 'kept' as const) };
+    const { rerender } = render(<QuestionEditor {...props} item={ITEM} />);
+    fireEvent.change(screen.getByLabelText(EDITOR.stem), { target: { value: 'Что означает стрелка справа?' } });
+    fireEvent.click(screen.getByRole('button', { name: EDITOR.save }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    // The page saved it and hands the editor the question as saved (the studio's panel stays open).
+    rerender(<QuestionEditor {...props} item={{ ...ITEM, stem: 'Что означает стрелка справа?' }} />);
+    expect(screen.getByRole('button', { name: EDITOR.save })).toBeDisabled();
+    expect(screen.queryByText(EDITOR.nothing)).toBeNull();
+    // A new object of the same question on every render changes nothing.
+    rerender(<QuestionEditor {...props} item={{ ...ITEM, stem: 'Что означает стрелка справа?' }} />);
+    expect(screen.queryByText(EDITOR.nothing)).toBeNull();
+    // Changed and taken back after the save: now the line answers.
+    const stem = screen.getByLabelText(EDITOR.stem);
+    fireEvent.change(stem, { target: { value: 'Что?' } });
+    fireEvent.change(stem, { target: { value: 'Что означает стрелка справа?' } });
+    expect(screen.getByText(EDITOR.nothing)).toBeInTheDocument();
   });
 
   it('takes the key away with its option', () => {

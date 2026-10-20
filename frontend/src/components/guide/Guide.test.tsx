@@ -38,6 +38,7 @@ import { LIMIT_FLY, LIMIT_SPENDS, limitMeterAt } from './scenes';
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
 import { PHONE_QUERY } from '../../lib/usePhone';
+import { NARROW_QUERY } from './GuidePanel';
 
 function Where() {
   return <p data-testid="where">{useLocation().pathname}</p>;
@@ -357,6 +358,38 @@ describe('the guide on a phone (max-width 639px; its top line holds the wordmark
     expect(within(panel()!).getByRole('heading', { name: 'Лимит ИИ' })).toBeInTheDocument();
     expect(panel()!.querySelector('.gd-phone')).toHaveTextContent('На телефоне — кружок с числом.');
     expect(screen.getByTestId('quota-meter')).toHaveAttribute('data-guide-spot');
+  });
+});
+
+describe('the guide under 480 px (phone audit 47.3: a computer’s screen at a quarter of its size, «Дальше» off the card)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === PHONE_QUERY || query === NARROW_QUERY,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('keeps the clip for «Показать ролик», and «Скрыть ролик» puts it away; the words and «Дальше» are there at once', async () => {
+    mocks.getProfile.mockResolvedValue(student({ guide: true }));
+    renderAt('/exams');
+    fireEvent.click(await screen.findByRole('button', { name: 'Как пользоваться Meldy' }));
+    const card = panel()!;
+    expect(card.querySelector('.gd-clip')).toBeNull();
+    expect(within(card).getByRole('button', { name: /Дальше/ })).toBeInTheDocument();
+    const show = within(card).getByRole('button', { name: 'Показать ролик' });
+    expect(show).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(show);
+    expect(card.querySelector('.gd-clip')).not.toBeNull();
+    const hide = within(card).getByRole('button', { name: 'Скрыть ролик' });
+    expect(hide).toHaveAttribute('aria-expanded', 'true');
+    // Asked for once, the clip stays from chapter to chapter.
+    next();
+    expect(panel()!.querySelector('.gd-clip')).not.toBeNull();
+    fireEvent.click(within(panel()!).getByRole('button', { name: 'Скрыть ролик' }));
+    expect(panel()!.querySelector('.gd-clip')).toBeNull();
   });
 });
 

@@ -70,21 +70,22 @@
   /* «Повторение» on a phone: the cards due as a small badge on the tab's icon (the top line has the
      number on a computer). The space before it keeps «Повторение 24» one phrase for screen readers. */
   .sf-shell .sf-tablink { position: relative; }
+  /* 13 px, the smallest size of the app's words (phone audit 47.3: it was 11). */
   .sf-shell .sf-tab-n {
     position: absolute;
-    top: 5px;
-    left: calc(50% + 7px);
+    top: 3px;
+    left: calc(50% + 6px);
     box-sizing: border-box;
-    min-width: 19px;
-    height: 19px;
-    padding: 0 5px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
     border-radius: 999px;
     background: var(--sf-accent);
     box-shadow: 0 0 0 2px var(--sf-canvas);
     color: #fff;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
-    line-height: 19px;
+    line-height: 22px;
     text-align: center;
     font-variant-numeric: tabular-nums;
     pointer-events: none;

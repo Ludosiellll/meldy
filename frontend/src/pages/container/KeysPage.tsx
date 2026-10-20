@@ -9,6 +9,7 @@ import PaperSelect from '../../components/ui/PaperSelect';
 import KeyQuestion, { QueueBar, type KeyAction, type TapMode } from '../../components/containers/keys/KeyQuestion';
 import QuestionEditor from '../../components/containers/keys/QuestionEditor';
 import { inputOf, nextFileNo, patchOf, searchItems, type Draft } from '../../components/containers/keys/editorModel';
+import { useSavedLine } from '../../components/containers/keys/useSavedLine';
 import { newId } from '../../components/containers/sessionStore';
 import { storedPictures } from '../../components/containers/ItemPictures';
 import { errorText, GONE, KEYS, lettersText, nb, QUEUE } from '../../components/containers/copyImport';
@@ -80,6 +81,7 @@ export default function KeysPage() {
 
   const owner = summary?.role === 'owner';
   const group = (summary?.owner?.members ?? 0) > 0;
+  const savedLine = useSavedLine(data.data?.planInput, group);
 
   // ── items, with the author's changes of this visit laid over them ──
   const [patched, setPatched] = useState<Record<string, Partial<TestItem>>>({});
@@ -244,7 +246,7 @@ export default function KeysPage() {
       setPatched((current) => ({ ...current, [item.id]: { ...current[item.id], ...local } }));
       if (result.doubts_resolved > 0) setDoubts((rows) => rows.filter((row) => row.item_id !== item.id));
       setEditing(null);
-      say(item.id, result.rev_changed ? KEYS.editedReset(group) : KEYS.edited);
+      say(item.id, savedLine(item.id, result.rev_changed));
     } catch (error) {
       setEditError(errorText(error));
     } finally {

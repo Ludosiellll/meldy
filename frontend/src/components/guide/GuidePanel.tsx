@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { GUIDE_CHAPTERS } from './chapters';
 import { useGuide } from './GuideContext';
@@ -23,6 +23,44 @@ function CloseIcon() {
       <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
+}
+
+function PlayIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M7 5.2v9.6a.8.8 0 0 0 1.2.7l7.6-4.8a.8.8 0 0 0 0-1.4L8.2 4.5A.8.8 0 0 0 7 5.2Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * A screen narrower than 480 px: the clip, a computer's screen drawn at a quarter of its size, is too small to read
+ * there and pushed «Назад / Дальше» off the card (phone audit 47.3), so it waits for «Показать ролик».
+ */
+export const NARROW_QUERY = '(max-width: 479px)';
+
+function subscribeNarrow(onChange: () => void): () => void {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => undefined;
+  let list: MediaQueryList;
+  try {
+    list = window.matchMedia(NARROW_QUERY);
+  } catch {
+    return () => undefined;
+  }
+  if (typeof list.addEventListener === 'function') list.addEventListener('change', onChange);
+  else list.addListener?.(onChange);
+  return () => {
+    if (typeof list.removeEventListener === 'function') list.removeEventListener('change', onChange);
+    else list.removeListener?.(onChange);
+  };
+}
+
+function narrowNow(): boolean {
+  try {
+    return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(NARROW_QUERY).matches;
+  } catch {
+    return false;
+  }
 }
 
 /** Room around the lit menu item inside the cut-out (its yellow ring pulses out to 6 px). */
@@ -127,6 +165,12 @@ export default function GuidePanel() {
   const phone = usePhone();
   /** The chapter's clip chosen under the clip (its `reels`); the first one when the chapter changes. */
   const [chosen, setChosen] = useState<{ chapter: string; at: number }>({ chapter: '', at: 0 });
+  // Under 480 px the clip waits for «Показать ролик»; once asked for, it stays while the guide is open.
+  const narrow = useSyncExternalStore(subscribeNarrow, narrowNow, () => false);
+  const [clipAsked, setClipAsked] = useState(false);
+  useEffect(() => {
+    if (!open) setClipAsked(false);
+  }, [open]);
   // The clip is a file of its own (clipPart.ts): until it arrives the card keeps its empty frame.
   const GuideClip = useLazyPart(guideClipPart, open, {
     onError: (error) => console.error('Ролик раздела не загрузился:', error),
@@ -203,6 +247,7 @@ export default function GuidePanel() {
   // Where the section is on a phone: said with the chapter's own clip.
   const where = reelAt > 0 ? undefined : phone && chapter.narrow ? chapter.narrow : chapter.phone;
   const stepReel = reel?.clip ?? (chapter.id === 'tests' ? 'studio' : null);
+  const clipShown = !narrow || clipAsked;
 
   const card = (
     <section
@@ -233,15 +278,23 @@ export default function GuidePanel() {
         )}
       </div>
 
-      <div className="gd-clip" data-step={stepReel ? '' : undefined}>
-        {GuideClip ? (
-          <GuideClip key={`${chapter.id}-${stepReel ?? 'own'}`} chapter={chapter.id} reel={stepReel} active={open} />
-        ) : stepReel ? (
-          <StepClipPlaceholder />
-        ) : (
-          <div className="gd-box" data-playing="false" aria-hidden="true" />
-        )}
-      </div>
+      {narrow ? (
+        <button type="button" className="gd-clip-toggle" aria-expanded={clipAsked} onClick={() => setClipAsked((asked) => !asked)}>
+          <PlayIcon />
+          {clipAsked ? 'Скрыть ролик' : 'Показать ролик'}
+        </button>
+      ) : null}
+      {clipShown ? (
+        <div className="gd-clip" data-step={stepReel ? '' : undefined}>
+          {GuideClip ? (
+            <GuideClip key={`${chapter.id}-${stepReel ?? 'own'}`} chapter={chapter.id} reel={stepReel} active={open} />
+          ) : stepReel ? (
+            <StepClipPlaceholder />
+          ) : (
+            <div className="gd-box" data-playing="false" aria-hidden="true" />
+          )}
+        </div>
+      ) : null}
 
       {reels ? (
         <div className="gd-reels" role="group" aria-label="Ролики раздела">

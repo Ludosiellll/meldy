@@ -74,10 +74,12 @@ export function sectionOf(pathname: string): NavItem | null {
 }
 
 /**
- * The exam container's pages (App.tsx): /exams/c/:id, and under it /s/:subjectId, /study, /mock, /keys, /settings.
- * [1] is the container id, [2] the page under it (undefined on the exam's own page).
+ * The exam container's pages (App.tsx): /exams/c/:id, and under it /s/:subjectId, /study, /mock, /keys, /settings and
+ * «Контрольные» — the list /quizzes, «Новая контрольная» /quizzes/new, a quiz's stats /quizzes/:quizId and its settings
+ * /quizzes/:quizId/edit. [1] is the container id, [2] the page under it (undefined on the exam's own page).
  */
-const CONTAINER_PAGE = /^\/exams\/c\/([^/]+)(?:\/(s\/[^/]+|study|mock|keys|build|studio|settings))?\/?$/;
+const CONTAINER_PAGE =
+  /^\/exams\/c\/([^/]+)(?:\/(s\/[^/]+|study|mock|keys|build|studio|settings|quizzes(?:\/[^/]+(?:\/edit)?)?))?\/?$/;
 /** An oral exam's pages, /exams/:id and /edit, /draw, /ticket, /report; [1] is the exam id. Never c, new or import. */
 const ORAL_EXAM_PAGE = /^\/exams\/(?!(?:c|new|import)(?:\/|$))([^/]+)(?:\/(?:edit|draw|ticket|report))?\/?$/;
 /** A container id as ?from=c:<id> may carry it: no slash, dot or other path character. */
