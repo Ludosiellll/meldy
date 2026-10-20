@@ -230,6 +230,11 @@ export interface AnswerAck {
   now: string;
 }
 
+/** `live_tg_post`: the bot posts the game into the group later; no message id comes back (W1, 20.10). */
+export interface TgPostResult {
+  status: 'posting';
+}
+
 /** The Realtime hint: never trusted, only a reason to read the state again. */
 export interface Hint {
   rev: number;
@@ -259,12 +264,15 @@ export class LiveError extends Error {
   readonly code: LiveErrorCode;
   readonly detail: string | null;
   readonly status: number;
-  constructor(code: LiveErrorCode, detail: string | null = null, status = 400) {
+  /** ML005: seconds until the call may go again (Retry-After), when known. */
+  readonly retryAfterS: number | null;
+  constructor(code: LiveErrorCode, detail: string | null = null, status = 400, retryAfterS: number | null = null) {
     super(`${code}${detail ? `/${detail}` : ''}`);
     this.name = 'LiveError';
     this.code = code;
     this.detail = detail;
     this.status = status;
+    this.retryAfterS = retryAfterS;
   }
 }
 
@@ -277,6 +285,11 @@ export interface LiveApi {
   next(game: Uuid, hostToken: string, expect: GameState): Promise<HostState>;
   kick(game: Uuid, hostToken: string, player: Uuid): Promise<void>;
   end(game: Uuid, hostToken: string): Promise<void>;
+  /**
+   * The game's post into a Telegram group bound to the exam (`live_tg_post`, the author's session, W1 20.10): the bot
+   * sends it later. Errors: 28000, 42501/author, P0002/game|group, ML002/ended, ML005/post (one a minute), ML010/bot.
+   */
+  tgPost(game: Uuid, chatId: number): Promise<TgPostResult>;
   // player
   join(pin: string, name: string, token: string, look: Look | null): Promise<JoinResult>;
   setLook(game: Uuid, token: string, look: Look): Promise<Look>;

@@ -37,6 +37,7 @@ import {
   type PlayerState,
   type Review,
   type Settings,
+  type TgPostResult,
   type TopRow,
   type Unchanged,
   type UnlockId,
@@ -199,6 +200,9 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
   const latency = options.latencyMs ?? 60;
   const games = new Map<Uuid, FakeGame>();
   const listeners = new Map<string, Set<(h: Hint) => void>>();
+  /** game → when its last Telegram post went (tgPost). */
+  const posts = new Map<Uuid, number>();
+  const POST_EVERY_MS = 60_000;
   let ids = 0;
 
   const token = () => {
@@ -340,7 +344,8 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
   }
 
   function rankedPlayers(g: FakeGame) {
-    return rank([...g.players.values()].filter((p) => !p.kicked || p.dmg > 0).map((p) => ({ ...p, joinedAt: p.joinedAt })));
+    // Kicked players are out of the top, the places and the podium; their damage stays in the HP (W1, 20.10).
+    return rank([...g.players.values()].filter((p) => !p.kicked).map((p) => ({ ...p, joinedAt: p.joinedAt })));
   }
   function rankIds(g: FakeGame) {
     return rankedPlayers(g).map((p) => p.id);
@@ -547,7 +552,8 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
 
     create(source: GameSource, settings: Settings): Promise<CreateResult> {
       if (!source || typeof source !== 'object') return fail(new LiveError('22023', 'source'));
-      const open = [...games.values()].filter((g) => g.state !== 'ended' && !g.auto).length;
+      // A game counts as open unless it is on the podium or ended (W1, 20.10).
+      const open = [...games.values()].filter((g) => g.state !== 'ended' && g.state !== 'podium' && !g.auto).length;
       if (open >= 3) return fail(new LiveError('ML009'));
       const g = newGame({ ...DEFAULT_SETTINGS, ...settings }, options.questions ?? EXAMPLE_QUESTIONS);
       return reply({ game_id: g.id, pin: g.pin, topic: g.topic, host_token: g.hostToken, q_count: g.bank.length, skipped: 0, join_url: `https://ludosiel-studyforge.hf.space/play?pin=${g.pin}`, tg_url: `https://t.me/Meldyteach_bot/play?startapp=${g.pin}` });
@@ -600,6 +606,24 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       }
     },
 
+    /** As `live_tg_post` (W1, 20.10): «posting», one post a minute per game (ML005/post, 429 with the wait). */
+    tgPost(game: Uuid, chatId: number): Promise<TgPostResult> {
+      try {
+        const g = games.get(game);
+        if (!g) throw new LiveError('P0002', 'game', 404);
+        settle(g);
+        if (g.state === 'ended') throw new LiveError('ML002', 'ended');
+        if (!Number.isInteger(chatId)) throw new LiveError('22023', 'chat_id');
+        const now = clock.now();
+        const last = posts.get(game);
+        if (last !== undefined && now - last < POST_EVERY_MS) throw new LiveError('ML005', 'post', 429, Math.ceil((POST_EVERY_MS - (now - last)) / 1000));
+        posts.set(game, now);
+        return reply({ status: 'posting' as const });
+      } catch (e) {
+        return fail(e as LiveError);
+      }
+    },
+
     join(pin: string, name: string, tok: string, look: Look | null): Promise<JoinResult> {
       try {
         const g = [...games.values()].find((x) => x.pin === pin && x.state !== 'ended');
@@ -617,8 +641,8 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
           if ([...g.players.values()].filter((x) => !x.kicked).length >= MAX_PLAYERS) throw new LiveError('ML001');
           p = { id: uuid(), name: n.name, look: l.look, joinedAt: clock.now(), kicked: false, streak: 0, best: 0, frozen: false, dmg: 0, right: 0, thaws: 0, bot: null, token: tok };
           g.players.set(p.id, p);
-          // a late player adds HP for the questions not yet opened
-          if (g.hpMax > 0) {
+          // a late player adds HP for the questions not yet opened — only while the boss is alive (no revival, W1 20.10)
+          if (g.hpMax > 0 && g.hp > 0) {
             const notOpened = g.bank.length - g.qi - (g.state === 'countdown' ? 0 : 1);
             const add = HP_PER_ANSWER * Math.max(0, notOpened);
             g.hpMax += add;

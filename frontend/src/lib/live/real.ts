@@ -20,17 +20,27 @@ import {
   type PlayerState,
   type Review,
   type Settings,
+  type TgPostResult,
   type Unchanged,
   type Uuid,
 } from './types';
 
 const CODES: ReadonlySet<string> = new Set(['28000', '42501', 'P0002', '22023', 'ML001', 'ML002', 'ML003', 'ML004', 'ML005', 'ML006', 'ML007', 'ML008', 'ML009', 'ML010', 'ML011']);
 
+/**
+ * ML005's wait in seconds. supabase-js does not hand the response's headers over, so Retry-After itself cannot be read
+ * here: the seconds are taken from the error's `hint` when the server puts them there ("42"), else unknown.
+ */
+function retryAfter(rec: Record<string, unknown>): number | null {
+  const m = typeof rec.hint === 'string' ? /\d{1,5}/.exec(rec.hint) : null;
+  return m ? Number(m[0]) : null;
+}
+
 export function liveError(error: unknown, status: number): LiveError {
   const rec = typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {};
   const code = typeof rec.code === 'string' ? rec.code : '';
   const detail = typeof rec.details === 'string' && rec.details ? rec.details : null;
-  if (CODES.has(code)) return new LiveError(code as LiveErrorCode, detail, status);
+  if (CODES.has(code)) return new LiveError(code as LiveErrorCode, detail, status, code === 'ML005' ? retryAfter(rec) : null);
   if (status === 401 || /^PGRST30\d$/.test(code)) return new LiveError('28000', detail, status);
   return new LiveError('unknown', code || detail, status);
 }
@@ -64,6 +74,7 @@ export function createRealApi(): LiveApi {
     end: async (game: Uuid, hostToken: string) => {
       await rpc('live_end', { p_game: game, p_host_token: hostToken });
     },
+    tgPost: (game: Uuid, chatId: number) => rpc<TgPostResult>('live_tg_post', { p_game: game, p_chat_id: chatId }),
     join: (pin: string, name: string, token: string, look: Look | null) => rpc<JoinResult>('live_join', { p_pin: pin, p_name: name, p_token: token, p_look: look }),
     setLook: async (game: Uuid, token: string, look: Look) => (await rpc<{ look: Look }>('live_set_look', { p_game: game, p_token: token, p_look: look })).look,
     answer: (game: Uuid, token: string, qi: number, choice: number) => rpc<AnswerAck>('live_answer', { p_game: game, p_token: token, p_qi: qi, p_choice: choice }),
