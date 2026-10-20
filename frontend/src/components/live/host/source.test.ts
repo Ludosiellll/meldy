@@ -10,6 +10,10 @@ describe('the questions a game takes (CONTRACT §4)', () => {
     expect(skipReason({ kind: 'single', options: ['a', 'b', 'c', 'd', 'e'], correct: [1] })).toBe('options');
     expect(skipReason({ kind: 'single', options: ['a'], correct: [0] })).toBe('options');
     expect(skipReason({ kind: 'single', options: ['a', 'b', 'c'], correct: [] })).toBe('nokey');
+    // pictures are left out of the MVP (W1, 20.10), the stem's or an option's
+    expect(skipReason({ kind: 'single', options: ['a', 'b'], correct: [0], images: { stem: ['c/abc.png'] } })).toBe('picture');
+    expect(skipReason({ kind: 'single', options: ['a', 'b'], correct: [0], images: { options: [[], ['c/d.png']] } })).toBe('picture');
+    expect(skipReason({ kind: 'single', options: ['a', 'b'], correct: [0], images: {} })).toBeNull();
   });
 
   it('offers amounts only when the test has more than 10 that fit', () => {
@@ -27,9 +31,9 @@ describe('the questions a game takes (CONTRACT §4)', () => {
     expect(questionLine('Короткий\n  вопрос?')).toBe('Короткий вопрос?');
   });
 
-  it('the fake source matches the fake server: 6 that play, 2 that do not', () => {
+  it('the fake source matches the fake server: 6 that play, 3 that do not', () => {
     const s = fakeSource();
     expect(s.questions.filter((q) => !q.skip)).toHaveLength(6);
-    expect(s.questions.filter((q) => q.skip)).toHaveLength(2);
+    expect(s.questions.filter((q) => q.skip).map((q) => q.skip)).toEqual(['multiple', 'short', 'picture']);
   });
 });

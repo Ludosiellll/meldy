@@ -8,7 +8,8 @@
  * A reload, or a state the screen did not see coming, is drawn still, as it is.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ColourId, HostState, RosterRow } from '../../../lib/live/types';
+import type { ColourId, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
+import { TelegramPost } from './TelegramPost';
 import { ArenaChar, BossView, CrowdCount, FxDefs, HpBar, PhaseNote, byJoin } from './Arena';
 import { BANNER, MODE, NEXT } from './copy';
 import { Director, type BannerSpec } from './director';
@@ -68,6 +69,7 @@ function Banner({ banner }: { banner: BannerState }) {
 
 export interface HostScreenProps {
   gameId: string;
+  api: LiveApi;
   game: HostGame;
   state: HostState;
   info: HostInfo | null;
@@ -75,7 +77,7 @@ export interface HostScreenProps {
   onAgain: (() => void) | null;
 }
 
-export function HostScreen({ gameId, game, state: s, info, joinUrl, onAgain }: HostScreenProps) {
+export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain }: HostScreenProps) {
   const fit = useStageFit();
   const width = fit.width;
   const reduced = useReducedMotion();
@@ -244,7 +246,17 @@ export function HostScreen({ gameId, game, state: s, info, joinUrl, onAgain }: H
         onFull={toggleFull}
         onEnd={s.state === 'ended' ? null : () => setSheet('end')}
       />
-      {s.state === 'lobby' ? <Lobby state={s} rows={joined} joinUrl={joinUrl} busy={game.busy} onStart={next} onPick={pickKick} /> : null}
+      {s.state === 'lobby' ? (
+        <Lobby
+          state={s}
+          rows={joined}
+          joinUrl={joinUrl}
+          busy={game.busy}
+          onStart={next}
+          onPick={pickKick}
+          telegram={info?.containerId ? <TelegramPost api={api} gameId={gameId} containerId={info.containerId} fake={api.kind === 'fake'} /> : null}
+        />
+      ) : null}
       {inBattle ? (
         <div className={`lvh-battle${enter ? ' lvh-battle--enter' : ''}`}>
           <HpBar store={store} width={width} enter={enter} />

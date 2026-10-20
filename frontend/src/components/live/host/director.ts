@@ -66,7 +66,16 @@ export class Director {
     this.anims.clear();
     this.nodes.forEach((n) => n.remove());
     this.nodes.clear();
-    this.running = false;
+    this.setRunning(false);
+  }
+
+  /** `data-film` on the effects layer while a reveal plays (for the browser runs; no render). */
+  private setRunning(on: boolean): void {
+    this.running = on;
+    const fx = this.env.fx();
+    if (!fx) return;
+    if (on) fx.setAttribute('data-film', '');
+    else fx.removeAttribute('data-film');
   }
 
   private at(ms: number, fn: () => void): void {
@@ -394,7 +403,7 @@ export class Director {
       done();
       return;
     }
-    this.running = true;
+    this.setRunning(true);
     const { store } = this.env;
     let t = 520;
     r.thawed.forEach((id, i) =>
@@ -413,7 +422,7 @@ export class Director {
     hits.forEach((h, i) => this.at(t + i * step, () => this.hit(h.player_id, h.dmg, h.hp_after, i)));
     if (hits.length) t += (hits.length - 1) * step + FLY + 380;
     const finish = () => {
-      this.running = false;
+      this.setRunning(false);
       done();
     };
     if (s.boss.defeated) {

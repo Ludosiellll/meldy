@@ -56,7 +56,7 @@ export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) 
   if (!s) return <Message title={SCREEN.loading} />;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const joinUrl = info?.joinUrl ?? `${origin}/play?pin=${s.pin}`;
-  return <HostScreen gameId={gameId} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} />;
+  return <HostScreen gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} />;
 }
 
 export default function LiveHostPage() {

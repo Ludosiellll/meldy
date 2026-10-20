@@ -88,6 +88,14 @@ a.lvh-btn { text-decoration: none; }
 .lvh-qr-svg { display: block; width: 100%; height: 100%; }
 .lvh-lobby-how { margin: 24px 0 0; font: 400 21px/1.5 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 .lvh-lobby-how b { color: var(--lvh-ink); font-weight: 600; }
+.lvh-tg { margin-top: 10px; font: 400 21px/1.5 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lvh-tg b { color: var(--lvh-ink); font-weight: 600; }
+.lvh-tg-line { display: block; }
+.lvh-tg-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.lvh-tg-actions:empty { display: none; }
+.lvh-tg-note { margin: 6px 0 0; font: 500 18px/1.35 var(--ph-sans, system-ui); color: var(--lvh-green-ink); }
+.lvh-tg-note--warn { color: #6b4300; }
+.lvh-link { text-decoration: underline; text-underline-offset: 3px; color: var(--lvh-ink); }
 .lvh-lobby-settings { margin: 14px 0 0; font: 400 18px/1.4 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 .lvh-lobby-right { position: absolute; left: 580px; right: 40px; top: 96px; bottom: 116px; background: var(--lvh-blue-soft); border-radius: 44px; overflow: hidden; }
 .lvh-lobby-count { position: absolute; left: 40px; top: 34px; font: 700 38px/1 var(--ph-sans, system-ui); font-variant-numeric: tabular-nums; }

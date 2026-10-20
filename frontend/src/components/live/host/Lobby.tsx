@@ -3,7 +3,7 @@
  * join link (made on the device), and the characters as they come in. A character is a button: the teacher can remove
  * a player. New characters drop in once (CSS, on mount); the ones already there do not render again.
  */
-import { memo, useMemo } from 'react';
+import { memo, useMemo, type ReactNode } from 'react';
 import type { HostState, Look, RosterRow } from '../../../lib/live/types';
 import { qrCode, shortLink } from '../../../lib/quizzes/qr';
 import { Character } from '../art/Character';
@@ -40,9 +40,11 @@ export interface LobbyProps {
   busy: boolean;
   onStart: () => void;
   onPick: (row: RosterRow) => void;
+  /** The Telegram line (TelegramPost), when the exam is known. */
+  telegram?: ReactNode;
 }
 
-export function Lobby({ state, rows, joinUrl, busy, onStart, onPick }: LobbyProps) {
+export function Lobby({ state, rows, joinUrl, busy, onStart, onPick, telegram }: LobbyProps) {
   const shown = rows.slice(0, LOBBY_MAX);
   const more = rows.length - shown.length;
   const n = LOBBY.count(rows.length);
@@ -62,6 +64,7 @@ export function Lobby({ state, rows, joinUrl, busy, onStart, onPick }: LobbyProp
           <br />
           <b>{LOBBY.site}</b> {site}
         </p>
+        {telegram}
         <p className="lvh-lobby-settings">{LOBBY.settings(state.time_s, state.speed, state.settings.who === 'members')}</p>
       </div>
       <section className="lvh-lobby-right" aria-label="Игроки">
