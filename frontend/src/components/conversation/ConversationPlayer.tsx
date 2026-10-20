@@ -252,6 +252,23 @@ export function sheetMetrics(width: number, height: number): SheetMetrics {
   return { height: 336, max: 520, padTop: 16, padBottom: 14 };
 }
 
+/**
+ * What the phone's line probe measured, per conversation (its texts) and window width: the room of the tallest line
+ * and each line's height in the first step. Opening «Подкаст» again measures nothing (smoothness audit 20.10).
+ */
+interface LineRoom {
+  room: number;
+  /** Each line's height at data-fit 0 (the larger face), px. */
+  first: number[];
+}
+const lineRooms = new Map<string, LineRoom>();
+const roomKey = (texts: string, width: number) => `${width}|${texts}`;
+function keepRoom(key: string, room: LineRoom) {
+  lineRooms.delete(key);
+  lineRooms.set(key, room);
+  if (lineRooms.size > 24) lineRooms.delete(lineRooms.keys().next().value as string);
+}
+
 /** Размер окна (для высоты листа и подгонки субтитра). */
 function useViewport(): { width: number; height: number } {
   const read = () =>
@@ -359,7 +376,9 @@ export default function ConversationPlayer({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [announcement, setAnnouncement] = useState({ text: '', flip: false });
   const [fitStep, setFitStep] = useState(0);
-  const [lineRoom, setLineRoom] = useState(0);
+  const [lineRoom, setLineRoom] = useState(() =>
+    phone ? lineRooms.get(roomKey(JSON.stringify(conversation.map(line => line.text)), viewport.width))?.room ?? 0 : 0,
+  );
   const [waitNote, setWaitNote] = useState<WaitNote | null>(null);
 
   const runRef = useRef(0);
@@ -491,8 +510,14 @@ export default function ConversationPlayer({
     return () => observer.disconnect();
   }, [textsKey, total]);
 
-  // Новое изображение видно с начала: лист не остаётся прокрученным от прошлого (или колесом мыши).
+  // Новое изображение видно с начала: лист не остаётся прокрученным от прошлого (или колесом мыши). Только что открытый
+  // лист и так в начале: при открытии вкладки его прокрутку не читаем (чтение раскладывало страницу раньше браузера).
+  const sceneShown = useRef(false);
   useLayoutEffect(() => {
+    if (!sceneShown.current) {
+      sceneShown.current = true;
+      return;
+    }
     const body = bodyRef.current;
     if (body && body.scrollTop !== 0) body.scrollTop = 0;
   }, [active?.visualFrom, textsKey]);
@@ -524,13 +549,15 @@ export default function ConversationPlayer({
       if (more) body.setAttribute('data-more', '');
       else body.removeAttribute('data-more');
     };
-    update();
     body.addEventListener('scroll', update, { passive: true });
     let observer: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
+      // Его первое сообщение — после раскладки браузера: там чтение ничего не стоит, а сразу оно раскладывало страницу.
       observer = new ResizeObserver(update);
       observer.observe(body);
       if (body.firstElementChild) observer.observe(body.firstElementChild);
+    } else {
+      update();
     }
     return () => {
       body.removeEventListener('scroll', update);
@@ -542,23 +569,46 @@ export default function ConversationPlayer({
   // смене реплики (живая проверка 44.5, 390×844: лист прыгал на 36 px, сдвиг 0,029 без касания). Там строка держит
   // место самой высокой реплики разговора на самой мелкой ступени: каждую по очереди меряет невидимая копия строки той же
   // ширины и тем же шрифтом (data-probe). Реплика мельчает, только если не входит в это место, — не мельче, чем раньше.
+  // Все реплики меряются разом: каждая в своей копии строки, в обеих ступенях, копии добавлены вместе, потом прочитаны
+  // вместе — страница раскладывается один раз, а не по разу на реплику (аудит плавности 20.10: 24 раскладки на касание).
+  // Мерка хранится по тексту разговора и ширине окна (lineRooms): вкладка, открытая снова, не меряет ничего.
   useLayoutEffect(() => {
     const probe = probeRef.current;
     if (!probe || typeof getComputedStyle !== 'function') {
       setLineRoom(0);
       return;
     }
+    const key = roomKey(textsKey, viewport.width);
     const measure = () => {
-      let room = parseFloat(getComputedStyle(probe).minHeight) || 0;
-      for (const line of linesRef.current) {
-        probe.textContent = ty(line.text);
-        room = Math.max(room, probe.scrollHeight);
-      }
-      probe.textContent = '';
+      const holder = probe.parentElement;
+      if (!holder) return;
+      const texts = linesRef.current.map(line => ty(line.text));
+      const copies = texts.flatMap(text =>
+        ['0', '2'].map(fit => {
+          const copy = probe.cloneNode(false) as HTMLElement;
+          copy.setAttribute('data-fit', fit);
+          copy.textContent = text;
+          return copy;
+        }),
+      );
+      holder.append(...copies);
+      const least = parseFloat(getComputedStyle(probe).minHeight) || 0;
+      const heights = copies.map(copy => copy.scrollHeight);
+      for (const copy of copies) copy.remove();
+      let room = least;
+      const first: number[] = [];
+      texts.forEach((_, index) => {
+        first.push(heights[index * 2]);
+        room = Math.max(room, heights[index * 2 + 1]);
+      });
+      keepRoom(key, { room, first });
       setLineRoom(room);
     };
-    measure();
-    // Шрифт, догруженный после мерки, меняет длину строк.
+    const kept = lineRooms.get(key);
+    if (kept) setLineRoom(kept.room);
+    else measure();
+    // Шрифт, догруженный после мерки, меняет длину строк (уже загруженный не меняет ничего).
+    if (document.fonts?.status === 'loaded') return;
     let alive = true;
     void document.fonts?.ready.then(() => {
       if (alive) measure();
@@ -573,6 +623,14 @@ export default function ConversationPlayer({
   useLayoutEffect(() => {
     const element = lineRef.current;
     if (!element || typeof getComputedStyle !== 'function') return;
+    // Телефон: проба уже измерила каждую реплику; на телефоне ступени 1 и 2 одного размера, и в место самой высокой
+    // реплики во второй ступени входит любая — ступень читается из мерки, без раскладки страницы.
+    const kept = phone && lineRoom > 0 ? lineRooms.get(roomKey(textsKey, viewport.width)) : undefined;
+    const first = kept?.first[safeIndex];
+    if (kept && kept.room === lineRoom && first !== undefined) {
+      setFitStep(first > lineRoom + 1 ? 1 : 0);
+      return;
+    }
     const reserved = parseFloat(getComputedStyle(element).minHeight) || 0;
     let step = 0;
     element.setAttribute('data-fit', '0');
@@ -581,7 +639,7 @@ export default function ConversationPlayer({
       element.setAttribute('data-fit', String(step));
     }
     setFitStep(step);
-  }, [active?.text, viewport.width, viewport.height, lineRoom]);
+  }, [active?.text, viewport.width, viewport.height, lineRoom, phone, textsKey, safeIndex]);
 
   // Переход по ссылке на разговор и вкладка «Подкаст» результата: если лист или кнопка ▶ за краем экрана —
   // прокручиваем к плееру. Помещается целиком (за вычетом полей прокрутки под строкой меню) — встаёт нижним краем к

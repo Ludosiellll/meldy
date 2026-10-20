@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { memo, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import katex from 'katex';
 import { repairFormula } from '../../lib/mathEscapes';
 import 'katex/contrib/mhchem';
@@ -24,6 +24,7 @@ import { splitFragmentHeading } from '../../utils/fragmentText';
 import ChartView, { chartNotes, isPercentUnit } from './ChartView';
 import DiagramView from './DiagramView';
 import { useElementHeight } from './useElementWidth';
+import { observeSize } from '../../lib/observeSize';
 import './conversation.css';
 
 /**
@@ -148,7 +149,7 @@ function useFitFormula(wrapperRef: { current: HTMLDivElement | null }, innerRef:
     };
 
     const fit = () => {
-      inner.style.fontSize = '';
+      if (inner.style.fontSize) inner.style.fontSize = '';
       const available = wrapper.clientWidth;
       if (!available) return;
       const base = parseFloat(getComputedStyle(inner).fontSize) || 28;
@@ -166,29 +167,29 @@ function useFitFormula(wrapperRef: { current: HTMLDivElement | null }, innerRef:
       updateFade();
     };
 
-    fit();
     wrapper.addEventListener('scroll', updateFade, { passive: true });
-    let observer: ResizeObserver | null = null;
-    let lastWidth = wrapper.clientWidth;
-    if (typeof ResizeObserver !== 'undefined') {
-      // Подгонка меняет высоту блока; заново подгоняем только при новой ширине.
-      observer = new ResizeObserver(() => {
-        if (wrapper.clientWidth === lastWidth) return;
-        lastWidth = wrapper.clientWidth;
-        fit();
-      });
-      observer.observe(wrapper);
-    }
+    // Подгонка — когда наблюдатель размеров сообщает ширину (lib/observeSize: после раскладки браузера, до отрисовки,
+    // читать там ничего не стоит; пока формула помещается, подгонка ничего не пишет). Подгонка меняет высоту блока;
+    // заново подгоняем только при новой ширине. Раньше она мерила в layout-эффекте и раскладывала страницу заранее.
+    let lastWidth: number | null = null;
+    const stop = observeSize(wrapper, () => {
+      const width = wrapper.clientWidth;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      fit();
+    });
     // Шрифты KaTeX приходят позже первой отрисовки: после загрузки формула шире.
     let cancelled = false;
     const fonts = typeof document !== 'undefined' ? (document as Document & { fonts?: FontFaceSet }).fonts : undefined;
-    fonts?.ready?.then(() => {
-      if (!cancelled) fit();
-    });
+    if (fonts?.status !== 'loaded') {
+      fonts?.ready?.then(() => {
+        if (!cancelled) fit();
+      });
+    }
     return () => {
       cancelled = true;
       wrapper.removeEventListener('scroll', updateFade);
-      observer?.disconnect();
+      stop();
     };
   }, [wrapperRef, innerRef, html]);
 }
@@ -478,8 +479,13 @@ export interface ConversationVisualProps {
   reveal?: boolean;
 }
 
-/** Изображение к реплике на листе бумаги: заголовок, заметка-источник в углу и само изображение. */
-export default function ConversationVisual({
+/**
+ * Изображение к реплике на листе бумаги: заголовок, заметка-источник в углу и само изображение. Рисуется заново, только
+ * когда меняется что-то из его свойств: невидимые копии для высоты листа не перерисовываются с каждым состоянием плеера.
+ */
+export default memo(ConversationVisual);
+
+function ConversationVisual({
   visual,
   origin,
   provenance,
