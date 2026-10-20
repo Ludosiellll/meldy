@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchSheet } from '../../../api/cheatSheet';
 import { fetchSheetEvents } from '../../../api/learning';
 import { buildSheet, erasableNow, sheetHashes, type ErasableNow, type SheetCounts, type SheetQuestion } from '../../../lib/exams/cheatSheet';
+import { yieldToMain } from '../../../lib/idle';
 
 /** The exam's cheat sheet as «Сегодня» and the draw «Ждут подтверждения» need it. */
 export interface SheetToday {
@@ -23,6 +24,9 @@ export async function readSheetToday(examId: string, examDate: string | null = n
   const hashes = sheetHashes(sheet.questions);
   if (hashes.length === 0) return null;
   const events = await fetchSheetEvents(hashes);
+  // Each exam's sheet is built in a task of its own: the cards of «Сегодня» read their sheets at once, and answers
+  // that come together (the device's copies) built them all in one long task (smoothness audit 20.10).
+  await yieldToMain();
   const now = Date.now();
   const built = buildSheet(sheet.questions, events, now, { examDate });
   if (built.counts.total === 0) return null;

@@ -65,3 +65,13 @@ export function whenIdleAfterLoad(run: () => void): () => void {
     if (idle && win.cancelIdleCallback) win.cancelIdleCallback(idle);
   };
 }
+
+/**
+ * Gives the main thread back between pieces of a long job (a tap or a frame can go in between): scheduler.yield where
+ * the browser has it, else a task of its own.
+ */
+export function yieldToMain(): Promise<void> {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (scheduler?.yield) return scheduler.yield();
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}

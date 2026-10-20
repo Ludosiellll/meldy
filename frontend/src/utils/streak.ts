@@ -13,15 +13,31 @@ function pad(value: number, width: number): string {
   return String(value).padStart(width, '0');
 }
 
+const DAY_PARTS: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+/** How long one formatter serves before it is made again (a zone the device moved to is taken within a minute). */
+const FORMAT_FOR_MS = 60_000;
+let dayFormat: { make: typeof Intl.DateTimeFormat; format: Intl.DateTimeFormat; until: number } | null = null;
+
+/**
+ * The formatter of day keys, made once (a minute at most) instead of on every call: making one costs about seven times
+ * formatting with it, and «Сегодня» and the sheets ask for thousands of day keys (smoothness audit 20.10). Only the
+ * platform's own formatter is kept: a formatter put in its place (a test pinning a zone) is made on every call, as before.
+ */
+function dayFormatter(): Intl.DateTimeFormat {
+  const make = Intl.DateTimeFormat;
+  const now = Date.now();
+  if (dayFormat && dayFormat.make === make && now < dayFormat.until) return dayFormat.format;
+  const format = new make('en-US', DAY_PARTS);
+  if (/\[native code\]/.test(Function.prototype.toString.call(make))) dayFormat = { make, format, until: now + FORMAT_FOR_MS };
+  else dayFormat = null;
+  return format;
+}
+
 /** 'yyyy-MM-dd' of the moment `d` (default: now) in the browser time zone. */
 export function localDateKey(d: Date = new Date()): string {
   const moment = Number.isNaN(d.getTime()) ? new Date() : d;
   // Intl reads the same time zone as Date#getDate, and it is the one place a test can pin a zone.
-  const parts = new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(moment);
+  const parts = dayFormatter().formatToParts(moment);
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
   return `${part('year').padStart(4, '0')}-${part('month').padStart(2, '0')}-${part('day').padStart(2, '0')}`;
 }

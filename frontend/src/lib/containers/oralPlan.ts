@@ -11,6 +11,7 @@ import { fetchSheet, SheetError } from '../../api/cheatSheet';
 import { fetchQuestionEvents, fetchSheetEvents, LearningLoadError } from '../../api/learning';
 import { ContainerApiError, CONTAINER_ERROR_TEXT } from '../../api/containers';
 import { sheetHashes } from '../exams/cheatSheet';
+import { yieldToMain } from '../idle';
 import { supabase } from '../supabase';
 import type { Uuid } from '../../types/container';
 import { oralPlanItems, oralSheetPlan, type OralPlanPart } from './oralParts';
@@ -59,6 +60,8 @@ async function loadPart(part: { examId: Uuid; subjectId: Uuid }, examDate: strin
   const sheet = await fetchSheet(part.examId);
   const hashes = sheetHashes(sheet.questions);
   const lineEvents = hashes.length > 0 ? await fetchSheetEvents(hashes) : [];
+  // Each exam's sheet is built in a task of its own (smoothness audit 20.10: «Сегодня» built them back to back).
+  await yieldToMain();
   const plan = oralSheetPlan(sheet, lineEvents, now, examDate);
   const metaEvents = plan.metaHashes.length > 0 ? await fetchQuestionEvents(plan.metaHashes, ['exam_answer', 'self_rating']) : [];
   const items = oralPlanItems(part.subjectId, plan, metaEvents);

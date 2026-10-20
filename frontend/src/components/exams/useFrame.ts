@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { observeSize } from '../../lib/observeSize';
 
 /**
  * Size class of a page frame: the spec's breakpoints (1280 / 1024 / 640) applied to the width the
@@ -37,8 +38,18 @@ export function useFrame<T extends HTMLElement>() {
   const [width, setWidth] = useState(windowWidth);
   const [box, setBox] = useState<FrameBox>(() => ({ left: 0, right: 0 }));
 
+  // The frame is read when the size observer reports it (lib/observeSize): after the browser's layout and before the
+  // paint, so the first frame painted has it and nothing lays the page out ahead of the browser (smoothness audit
+  // 20.10: the measure in a layout effect did, on every exam page). The frame observed is the one on the page now: a
+  // page that first shows a line of loading and then the sheet has two in turn. A window that changes moves the
+  // frame's edges even where the frame keeps its width: they are read again in the frame after a resize. Without the
+  // observer (tests) the frame is read at once.
+  const observed = useRef<{ element: T; measure: () => void; stop: () => void } | null>(null);
   useLayoutEffect(() => {
     const element = ref.current;
+    if (observed.current?.element === element) return;
+    observed.current?.stop();
+    observed.current = null;
     if (!element) return;
     const measure = () => {
       const measured = element.clientWidth;
@@ -50,16 +61,24 @@ export function useFrame<T extends HTMLElement>() {
       const right = rect.width > 0 ? Math.max(0, Math.round(viewport - rect.right)) : 0;
       setBox((previous) => (previous.left === left && previous.right === right ? previous : { left, right }));
     };
-    measure();
-    window.addEventListener('resize', measure);
-    let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(measure);
-      observer.observe(element);
-    }
+    observed.current = { element, measure, stop: observeSize(element, measure) };
+  });
+  useEffect(() => {
+    let frame = 0;
+    const onResize = () => {
+      if (typeof ResizeObserver === 'undefined') {
+        observed.current?.measure();
+        return;
+      }
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => observed.current?.measure());
+    };
+    window.addEventListener('resize', onResize);
     return () => {
-      window.removeEventListener('resize', measure);
-      observer?.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', onResize);
+      observed.current?.stop();
+      observed.current = null;
     };
   }, []);
 
