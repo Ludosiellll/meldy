@@ -13,7 +13,7 @@
 --   (hits 100/100: hp_after 20, 0; both counted), podium before the last question, won, E's wins.
 -- The key's secrecy (never in any state before close, host included), tokens stored as sha256 only, unchanged by
 -- since_rev, errors and HTTP statuses of the contract, members only, the bot's functions (join with replay rules,
--- post, sync and its pg_net call), limits (3 open games, 10 creates an hour, 300 players, 120 joins a minute per game,
+-- live_tg_post and the pg_net calls, bot_live_post, posted, sync), limits (3 open games, 10 creates an hour, 300 players, 120 joins a minute per game,
 -- 120 a minute per address — 429 with Retry-After, the PIN's 3 hours), names and default looks of contracts/live, the
 -- JSON shapes of types.ts.
 -- A failure raises; success prints LIVE GAME BEHAVIOUR PASSED.
@@ -766,7 +766,7 @@ begin
 end
 $t$;
 
--- ─── 10. Limits (author C): 3 open games, 300 players, 120 joins a minute per game, 30 per address, 3 hours, 10 creates ───
+-- ─── 10. Limits (author C): 3 open games, 300 players, 120 joins a minute per game and per address, 3 hours, 10 creates ───
 do $t$
 declare r jsonb; v_src jsonb := format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('y'), pg_temp.c('ys'))::jsonb;
         v_g uuid[] := '{}'; v_h text[] := '{}'; v_p text[] := '{}'; v_n integer; v_out text;
