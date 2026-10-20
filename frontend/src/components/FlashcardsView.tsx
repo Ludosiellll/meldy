@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FlashcardsInfo, Flashcard } from '../types/index';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -252,12 +252,11 @@ export default function FlashcardsView({ data, sources = [], reviewHref, followu
 
       <ol className="fc-list">
         {cards.map((c: Flashcard, i: number) => (
-          <motion.li
+          <li
             key={i}
-            initial={still ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: Math.min(i, 8) * 0.04 }}
             className="fc-card"
+            data-in={still ? undefined : ''}
+            style={still ? undefined : ({ '--fc-in-delay': `${Math.min(i, 8) * 40}ms` } as CSSProperties)}
             data-open={revealed[i] ? '' : undefined}
             onClick={(event) => onCardClick(event, i)}
           >
@@ -302,7 +301,7 @@ export default function FlashcardsView({ data, sources = [], reviewHref, followu
                 Нажмите, чтобы увидеть ответ
               </p>
             )}
-          </motion.li>
+          </li>
         ))}
       </ol>
     </div>
