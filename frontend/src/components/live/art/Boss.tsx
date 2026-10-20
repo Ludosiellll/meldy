@@ -4,14 +4,15 @@
  * Moves are CSS animations of transform (live-art.css): `idle` breathes, `hit` shakes, `roar` before the counter-attack,
  * `fall` on defeat.
  */
-import type { CSSProperties } from 'react';
+import { memo, type CSSProperties } from 'react';
 import type { BossPhase } from '../../../lib/live/types';
 import { BOSS_COLOURS, OUTLINE, shade } from './parts';
 import './live-art.css';
 
 export type BossMove = 'idle' | 'hit' | 'roar' | 'fall' | 'none';
 
-function Body({ phase }: { phase: BossPhase }) {
+// The layers are memoised: a hit flips `hurt`, which only changes the layers' opacity, not their drawing.
+const Body = memo(function Body({ phase }: { phase: BossPhase }) {
   const col = BOSS_COLOURS[phase];
   const dark = shade(col, 0.78);
   const arm = (d: string) => (
@@ -39,9 +40,9 @@ function Body({ phase }: { phase: BossPhase }) {
       })}
     </svg>
   );
-}
+});
 
-function Face({ phase, hurt }: { phase: BossPhase; hurt: boolean }) {
+const Face = memo(function Face({ phase, hurt }: { phase: BossPhase; hurt: boolean }) {
   const tilt = [10, 16, 22][phase];
   return (
     <svg viewBox="0 0 240 240" aria-hidden="true">
@@ -65,9 +66,9 @@ function Face({ phase, hurt }: { phase: BossPhase; hurt: boolean }) {
       )}
     </svg>
   );
-}
+});
 
-function Bells() {
+const Bells = memo(function Bells() {
   return (
     <svg viewBox="0 0 240 240" aria-hidden="true">
       <path d="M66 58L52 40M174 58L188 40" stroke={OUTLINE} strokeWidth={6} strokeLinecap="round" />
@@ -76,7 +77,7 @@ function Bells() {
       <rect x={110} y={30} width={20} height={18} rx={6} fill={OUTLINE} />
     </svg>
   );
-}
+});
 
 export interface BossProps {
   size: number;

@@ -185,7 +185,8 @@ function rng(seed: number) {
   };
 }
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+// `undefined` (kick, end) has no JSON: JSON.parse(undefined) threw, so those calls never resolved.
+const clone = <T,>(value: T): T => (value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T));
 
 export function createFakeServer(options: FakeOptions = {}): LiveApi & {
   readonly clock: FakeClock;

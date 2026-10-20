@@ -2,7 +2,7 @@
  * A player's character: layers of SVG in one box. The expression switches by opacity (`data-face`), every move is a CSS
  * animation of transform on the wrapper (live-art.css) — the compositor plays it; no SVG part animates on its own.
  */
-import type { CSSProperties, ReactElement } from 'react';
+import { memo, type CSSProperties, type ReactElement } from 'react';
 import type { Expression, Look } from '../../../lib/live/types';
 import { BODY_PARTS, COLOUR_PARTS, OUTLINE, shade } from './parts';
 import './live-art.css';
@@ -222,14 +222,44 @@ export interface CharacterProps {
   title?: string;
 }
 
-/** The decorative SVG layers have no names; the character's name (or `title`) is the accessible label. */
-export function Character({ look, size, face, frozen = false, move = 'idle', name, me = false, className, style, phaseMs = 0, title }: CharacterProps) {
-  const shown: Expression = face ?? (frozen ? 'frozen' : 'idle');
-  const box = (children: ReactElement | ReactElement[] | null, cls: string, key?: string) => (
+function box(children: ReactElement | ReactElement[] | null, cls: string, key?: string) {
+  return (
     <svg key={key} viewBox="0 0 100 100" className={cls} aria-hidden="true" overflow="visible">
       {children}
     </svg>
   );
+}
+
+/**
+ * The drawing itself (body, the four faces, hat, ice). Memoised on the look and the move: a change of face or ice only
+ * flips the attributes of the outer box, so a crowd of 30 redraws nothing when one character is hit (the look must be
+ * the same object for that — the teacher's screen keeps it).
+ */
+const Drawing = memo(function Drawing({ look, move }: { look: Look; move: CharacterMove }) {
+  return (
+    <div className={`lv-char__in lv-move-${move}`}>
+      {box(<Base look={look} />, 'lv-char__base')}
+      {EXPRESSIONS.map((e) =>
+        box(
+          <>
+            <Eyes look={look} face={e} />
+            <Mouth look={look} face={e} />
+          </>,
+          `lv-char__face lv-char__face--${e}`,
+          e,
+        ),
+      )}
+      {box(<Hat look={look} />, 'lv-char__hat')}
+      <div className="lv-char__ice">
+        <IceBlock />
+      </div>
+    </div>
+  );
+});
+
+/** The decorative SVG layers have no names; the character's name (or `title`) is the accessible label. */
+export function Character({ look, size, face, frozen = false, move = 'idle', name, me = false, className, style, phaseMs = 0, title }: CharacterProps) {
+  const shown: Expression = face ?? (frozen ? 'frozen' : 'idle');
   return (
     <div
       className={`lv-char${me ? ' lv-char--me' : ''}${className ? ` ${className}` : ''}`}
@@ -240,23 +270,7 @@ export function Character({ look, size, face, frozen = false, move = 'idle', nam
       aria-label={name || title || undefined}
       aria-hidden={name || title ? undefined : true}
     >
-      <div className={`lv-char__in lv-move-${move}`}>
-        {box(<Base look={look} />, 'lv-char__base')}
-        {EXPRESSIONS.map((e) =>
-          box(
-            <>
-              <Eyes look={look} face={e} />
-              <Mouth look={look} face={e} />
-            </>,
-            `lv-char__face lv-char__face--${e}`,
-            e,
-          ),
-        )}
-        {box(<Hat look={look} />, 'lv-char__hat')}
-        <div className="lv-char__ice">
-          <IceBlock />
-        </div>
-      </div>
+      <Drawing look={look} move={move} />
       {name && <div className="lv-char__name">{name}</div>}
     </div>
   );
