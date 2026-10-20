@@ -155,6 +155,7 @@
 }
 .ct-opts > .ct-opt + .ct-opt,
 .ct-opts > li + li { border-top: 1px solid var(--sf-line); }
+/* A phone keeps :hover on the tapped option after the tap (owner, 2026-10-20): the tint is for a pointer that hovers. */
 @media (hover: hover) {
   .ct-opt:hover:not([aria-disabled='true']) { background: var(--sf-surface-soft); }
 }

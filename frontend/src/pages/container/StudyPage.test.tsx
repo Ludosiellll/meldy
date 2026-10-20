@@ -1046,3 +1046,22 @@ describe('the author’s explanation after an answer (release 47, spec §47.3)',
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Какая нормальная форма требует отсутствия транзитивных зависимостей?');
   });
 });
+
+describe('owner 2026-10-20: no lit option after a move', () => {
+  it('after a right answer moves on, no option of the next question is the button that was tapped', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // Both keys at the file's third place: the tapped button, kept, would be the next question's right answer.
+    renderStudy(dataWith(['q-plain', 'q-code']));
+    const tapped = option('Третья');
+    fireEvent.click(tapped);
+    expect(verdict()).toBe('Верно.');
+    await act(async () => {
+      vi.advanceTimersByTime(1100);
+    });
+    expect(plain(screen.getByRole('banner').textContent)).toContain('2 из 2');
+    const now = Array.from(document.querySelectorAll('.ct-opt'));
+    expect(now).toHaveLength(4);
+    expect(now.includes(tapped)).toBe(false);
+    expect(tapped.isConnected).toBe(false);
+  });
+});

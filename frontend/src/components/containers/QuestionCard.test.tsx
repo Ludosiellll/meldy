@@ -77,3 +77,28 @@ describe('a question with pictures (owner, 2026-10-14: «а если вопро�
     expect(pictures.pictureUrl).not.toHaveBeenCalled();
   });
 });
+
+describe('the next question gets buttons of its own (owner, 2026-10-20: a lighter option on the next question)', () => {
+  // A phone keeps :hover on the button it tapped; a button kept for the next question kept it, and keyed by the file's
+  // place it was the option at the place of the key just tapped. Both keys here are the file's first option.
+  const first = item({ id: 'q1', stem: 'Первый', options: ['Ключ 1', 'Нет 1', 'Нет 1б'], correct: [0], images: null });
+  const second = item({ id: 'q2', stem: 'Второй', options: ['Ключ 2', 'Нет 2', 'Нет 2б'], correct: [0], images: null });
+  const props = { order: [0, 1, 2], context: 'Тест', ticked: [], text: '', onPick: () => undefined, onText: () => undefined, onSubmitText: () => undefined };
+
+  it.each(['learn', 'mock'] as const)('%s: no option of the last question is reused', (mode) => {
+    const { rerender } = render(<QuestionCard item={first} mode={mode} answered={null} {...props} />);
+    const before = screen.getAllByRole('button');
+    rerender(<QuestionCard item={second} mode={mode} answered={null} {...props} />);
+    const after = screen.getAllByRole('button');
+    expect(after.map((b) => b.textContent)).toEqual(['АКлюч 2', 'БНет 2', 'ВНет 2б']);
+    expect(after.some((b) => before.includes(b))).toBe(false);
+  });
+
+  it('a short answer’s field too', () => {
+    const short = (id: string) => item({ id, kind: 'short', stem: id, options: [], correct: [], answers: ['x'], images: null });
+    const { rerender } = render(<QuestionCard item={short('s1')} mode="learn" answered={null} {...props} order={[]} />);
+    const field = screen.getByRole('textbox');
+    rerender(<QuestionCard item={short('s2')} mode="learn" answered={null} {...props} order={[]} />);
+    expect(screen.getByRole('textbox')).not.toBe(field);
+  });
+});

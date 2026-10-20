@@ -98,6 +98,7 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
     const state = answered ? (answered.correct ? 'right' : 'wrong') : undefined;
     body = (
       <form
+        key={item.id}
         className="ct-short"
         data-state={state}
         onSubmit={(event) => {
@@ -122,8 +123,11 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
       </form>
     );
   } else {
+    // Keyed by the question (owner, 2026-10-20): the next question gets buttons of its own. A kept button kept what the
+    // browser holds on it — a phone's sticky :hover after the tap that moved the session on — and, keyed by the file's
+    // place only, it was the next question's option at the place of the key just tapped: often its right answer.
     body = (
-      <div className="ct-opts" role="group" aria-label="Варианты ответа">
+      <div key={item.id} className="ct-opts" role="group" aria-label="Варианты ответа">
         {order.map((fileIndex, place) => {
           const letter = copy.OPTION_LETTERS[place] ?? String(place + 1);
           const inKey = item.correct.includes(fileIndex);
@@ -145,7 +149,7 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
           const isFileRef = learn && answered && inKey && !(answered.chosen?.includes(fileIndex) ?? false);
           return (
             <button
-              key={fileIndex}
+              key={`${item.id}:${fileIndex}`}
               ref={isFileRef ? fileRef : undefined}
               type="button"
               className="ct-opt"
