@@ -87,7 +87,7 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
           <span>серия {final.best}</span>
         </div>
         <p className="lp-sub">
-          Верных ответов у класса — {final.accuracy_pct} %, у вас — {final.right} из {asked}.
+          Верных ответов у класса — {final.accuracy_pct}&nbsp;%, у вас — {final.right}&nbsp;из&nbsp;{asked}.
         </p>
         {final.unlocked_now.map((u) => (
           <div key={u} className="lp-card lp-unlock">

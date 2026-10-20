@@ -51,6 +51,8 @@
 .lp *, .lp *::before, .lp *::after { box-sizing: border-box; }
 /* The reset weighs nothing (:where), so every button's own class wins. */
 :where(.lp) button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; touch-action: manipulation; }
+/* The site's blue tap box (index.css) would flash a square over the rounded buttons: the press scales them instead. */
+.lp button { -webkit-tap-highlight-color: transparent; }
 .lp button:focus-visible, .lp input:focus-visible { outline: 3px solid var(--lp-yellow); outline-offset: 2px; }
 .lp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -91,6 +93,8 @@
 .lp-btn[disabled] { opacity: 0.55; }
 .lp-error { margin: 12px 0 0; font: 500 15px/1.4 var(--ph-sans, sans-serif); color: #b3261e; }
 .dark .lp-error { color: #ffb4ab; }
+/* At night the characters' dark outline needs a little light behind the big ones (a still gradient: no motion). */
+.dark .lp-preview, .dark .lp-me-big, .dark .lp-stage { background: radial-gradient(closest-side, rgba(243, 243, 240, 0.09), rgba(243, 243, 240, 0)); }
 .lp-card { background: var(--lp-card); border-radius: 22px; padding: 16px 18px; box-shadow: inset 0 0 0 1.5px var(--lp-line); font: 400 15.5px/1.45 var(--ph-sans, sans-serif); }
 .lp-card b { font-weight: 600; }
 
@@ -178,6 +182,9 @@
 .lp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; font: 600 15px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); font-variant-numeric: tabular-nums; }
 .lp-crowd { display: flex; flex-wrap: wrap; gap: 4px 2px; justify-content: center; margin-top: 10px; }
 .lp-crowd > .lv-char { animation: lp-fade 0.4s ease-out both; }
+/* A character's six SVG layers lay out on their own: one joining the crowd does not lay out the others again.
+   (Not paint containment: hats and antennas reach above the box.) */
+.lp-crowd > .lv-char, .lp-opt > .lv-char, .lp-top5 .lv-char, .lp-me > .lv-char { contain: layout style; }
 
 /* ─── the battle ─── */
 .lp-battle { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: calc(var(--lp-top) + 12px) calc(var(--lp-right) + 16px) 0 calc(var(--lp-left) + 16px); }
@@ -230,11 +237,11 @@
 .lp-ans__mark { position: absolute; right: 12px; top: 50%; width: 34px; height: 34px; margin-top: -17px; border-radius: 50%; background: #fff; display: grid; place-items: center; opacity: 0; transform: scale(0.4); transition: opacity 0.25s ease, transform 0.3s var(--lp-back); }
 .lp-ans[data-mark] .lp-ans__shape { opacity: 0; }
 .lp-ans[data-mark] .lp-ans__mark { opacity: 1; transform: none; }
-.lp-ans:active:not([disabled]) { transform: scale(0.97); }
+.lp-ans:active:not([aria-disabled='true']) { transform: scale(0.97); }
 .lp-answers[data-wait='true'] .lp-ans { opacity: 0.38; transform: translateY(6px); }
 .lp-ans[data-look='chosen'] { transform: scale(1.03); }
 .lp-ans[data-look='dim'] { opacity: 0.28; }
-.lp-ans[disabled] { cursor: default; }
+.lp-ans[aria-disabled='true'] { cursor: default; }
 /* The answers come in once per question; `backwards`, so the waiting / chosen / dim looks apply after it. */
 .lp-answers { animation: lp-ans-in 0.4s var(--lp-ease) backwards; }
 @keyframes lp-ans-in { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: none; } }

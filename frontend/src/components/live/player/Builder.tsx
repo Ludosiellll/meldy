@@ -2,7 +2,7 @@
  * «Ваш персонаж»: the name and the four parts (CONTRACT §10). Locked parts stand in the grid with a lock and say how
  * they open. The preview pops on a change (WAAPI on transform; nothing is measured).
  */
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
 import { BODIES, COLOURS, EYES, HATS, LOCKED } from '../../../lib/live/rules';
 import type { Look, UnlockId } from '../../../lib/live/types';
 import { BODY_PARTS, COLOUR_PARTS, EYE_PARTS, HAT_PARTS } from '../art/parts';
@@ -100,8 +100,10 @@ export function Builder({ ctl, name, fromTelegram, look, unlocked, lockedTap, fr
   }, [key]);
 
   const onPick = useCallback((p: Part, x: string) => ctl.choose(p, x), [ctl]);
-  const ids = IDS[tab];
-  const current = look[tab];
+  // The tapped tab lights at once; its grid (up to ten characters) renders after, in slices that let frames through.
+  const gridTab = useDeferredValue(tab);
+  const ids = IDS[gridTab];
+  const current = look[gridTab];
   const note = lockedTap
     ? `${partName(lockedTap.part, lockedTap.id)} откроется: ${lockOf(lockedTap.part, lockedTap.id) ?? 'в играх'}.`
     : null;
@@ -138,15 +140,15 @@ export function Builder({ ctl, name, fromTelegram, look, unlocked, lockedTap, fr
             </button>
           ))}
         </div>
-        <div className="lp-opts" id="lp-opts" role="tabpanel" aria-labelledby={`lp-tab-${tab}`}>
+        <div className="lp-opts" id="lp-opts" role="tabpanel" aria-labelledby={`lp-tab-${gridTab}`}>
           {ids.map((id) => (
-            <Tile key={id} part={tab} id={id} look={look} selected={current === id} locked={!openedHere(id)} onPick={onPick} />
+            <Tile key={`${gridTab}:${id}`} part={gridTab} id={id} look={look} selected={current === id} locked={!openedHere(id)} onPick={onPick} />
           ))}
         </div>
         <p className="lp-note" aria-live="polite">
           {note ?? (
             <>
-              <b>{partName(tab, current)}</b>
+              <b>{partName(gridTab, current)}</b>
               {'. '}
               {fromTelegram
                 ? 'Имя взято из Telegram, его можно поменять. Новые шапки и цвета открываются в играх.'

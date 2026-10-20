@@ -58,6 +58,8 @@ interface AnswerProps {
 const Answer = memo(function Answer({ index, text, disabled, look, mark, onPick }: AnswerProps) {
   const o = OPTION_STYLES[index];
   const status = mark === 'key' ? ', верный ответ' : mark === 'wrong' ? ', ваш ответ, неверный' : look === 'chosen' ? ', ваш ответ' : '';
+  // aria-disabled, not disabled: disabling the button the finger is on makes the browser move focus (a forced style
+  // and layout) and React put it back (another) — 10–25 ms at ×4 CPU on the tap. A tap that does not count is ignored.
   return (
     <button
       type="button"
@@ -65,9 +67,9 @@ const Answer = memo(function Answer({ index, text, disabled, look, mark, onPick 
       data-size={optionSize(text)}
       data-look={look}
       data-mark={mark ?? undefined}
-      disabled={disabled}
+      aria-disabled={disabled}
       aria-label={`${optionLabel(index, text)}${status}`}
-      onClick={() => onPick(index)}
+      onClick={disabled ? undefined : () => onPick(index)}
     >
       <span className="lp-ans__l" aria-hidden="true">
         {o.letter}
@@ -458,7 +460,8 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
   if (picked) {
     if (picked.status === 'retrying') line = <><b>Отправляем ответ…</b> Нет связи, пробуем ещё раз.</>;
     else if (picked.status === 'late') line = <><b>Ответ не успел.</b> Время вышло.</>;
-    else line = <><b>Ответ принят.</b> Ответили {Math.max(answered ?? 0, picked.status === 'accepted' ? 1 : 0)} из {st.players}</>;
+    // Until the server's count comes: the last state's count and this answer.
+    else line = <><b>Ответ принят.</b> Ответили {Math.min(st.players, Math.max(answered ?? 0, st.answered + (picked.status === 'sending' ? 1 : 0), 1))} из {st.players}</>;
   } else if (frozen) {
     tone = 'ice';
     line = isOpen ? 'Заморожены: ответьте верно, чтобы оттаять' : 'Вы заморожены. Ответьте верно, чтобы оттаять. Урона в этом вопросе не будет.';

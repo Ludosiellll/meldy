@@ -53,7 +53,7 @@ async function joinDemo() {
 
 /** Waits for the next question's open buttons and answers it: right, wrong, or not at all. */
 async function play(how: 'right' | 'wrong' | 'none') {
-  await until(() => answers().length > 0 && answers().every((b) => !b.disabled) && gameState() !== 'reveal');
+  await until(() => answers().length > 0 && answers().every((b) => b.getAttribute('aria-disabled') !== 'true') && gameState() !== 'reveal');
   if (how === 'none') return;
   const key = keyOf(api, ctl.getSnapshot().game!.id);
   const pick = how === 'right' ? key : (key + 1) % answers().length;
@@ -114,7 +114,8 @@ describe('player screens on the fake server', () => {
     expect(screen.getByRole('heading', { name: 'Вы в игре' })).toBeInTheDocument();
     expect(screen.getByText('Играют 4')).toBeInTheDocument();
     expect(document.querySelector('.lp-row')?.textContent?.replace(/\u00a0/g, ' ')).toContain('PIN 482 913');
-    expect(document.querySelectorAll('.lp-crowd .lv-char')).toHaveLength(3);
+    // The crowd comes a frame after the screen (a transition).
+    await until(() => document.querySelectorAll('.lp-crowd .lv-char').length === 3, 2000);
     expect(screen.getByRole('button', { name: 'Изменить персонажа' })).toBeInTheDocument();
   });
 
@@ -123,13 +124,13 @@ describe('player screens on the fake server', () => {
     await until(() => gameState() === 'countdown');
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBeTruthy();
     expect(answers()).toHaveLength(4);
-    expect(answers().every((b) => b.disabled)).toBe(true);
+    expect(answers().every((b) => b.getAttribute('aria-disabled') === 'true')).toBe(true);
     expect(document.querySelector('.lp-answers')).toHaveAttribute('data-wait', 'true');
     expect(document.querySelectorAll('.lp-cd > span')).toHaveLength(3);
     // The accessible name says the letter, the colour, the shape and the text.
     expect(answers()[0].getAttribute('aria-label')).toMatch(/^А, синий треугольник: .+/);
     expect(answers()[2].getAttribute('aria-label')).toMatch(/^В, зелёный круг: .+/);
-    await until(() => answers().every((b) => !b.disabled));
+    await until(() => answers().every((b) => b.getAttribute('aria-disabled') !== 'true'));
     expect(rec.haptics).toContain('go');
     expect(screen.getByText('Отвечайте быстрее — урон больше')).toBeInTheDocument();
   });
@@ -141,7 +142,7 @@ describe('player screens on the fake server', () => {
     const chosen = answers().filter((b) => b.dataset.look === 'chosen');
     expect(chosen).toHaveLength(1);
     expect(answers().filter((b) => b.dataset.look === 'dim')).toHaveLength(3);
-    expect(answers().every((b) => b.disabled)).toBe(true);
+    expect(answers().every((b) => b.getAttribute('aria-disabled') === 'true')).toBe(true);
     expect(rec.haptics).toContain('tap');
   });
 

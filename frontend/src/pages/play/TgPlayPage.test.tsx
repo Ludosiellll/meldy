@@ -176,7 +176,7 @@ describe('/tg/play in Telegram', () => {
     expect(screen.getByRole('heading', { name: 'Вы в игре' })).toBeInTheDocument();
     expect(w.BackButton.isVisible).toBe(false);
     // A question: the tap is a medium impact, the answer's result a notification.
-    await until(() => answers().length === 4 && answers().every((b) => !b.disabled) && gameState() !== 'reveal');
+    await until(() => answers().length === 4 && answers().every((b) => b.getAttribute('aria-disabled') !== 'true') && gameState() !== 'reveal');
     expect(w.HapticFeedback.impactOccurred).toHaveBeenCalledWith('light');
     await act(async () => {
       fireEvent.click(answers()[0]);
@@ -196,7 +196,7 @@ describe('/tg/play in Telegram', () => {
     });
     await until(() => gameState() === 'lobby');
     for (let q = 0; q < 6; q += 1) {
-      await until(() => gameState() === 'podium' || (answers().length > 0 && answers().every((b) => !b.disabled) && gameState() !== 'reveal'));
+      await until(() => gameState() === 'podium' || (answers().length > 0 && answers().every((b) => b.getAttribute('aria-disabled') !== 'true') && gameState() !== 'reveal'));
       if (gameState() === 'podium') break;
       const id = Array.from(w.SecureStorage.store.keys())[0].slice(5);
       const uuid = `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;

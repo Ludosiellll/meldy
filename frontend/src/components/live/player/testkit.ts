@@ -63,5 +63,8 @@ export function keyOf(api: FakeApi, gameId: string): number {
 }
 
 export function useGameClock(): void {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'], now: Date.UTC(2026, 9, 21, 9, 0, 0) });
+  vi.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'Date'],
+    now: Date.UTC(2026, 9, 21, 9, 0, 0),
+  });
 }

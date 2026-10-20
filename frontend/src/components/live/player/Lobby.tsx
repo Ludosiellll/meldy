@@ -1,5 +1,5 @@
 /** «Вы в игре»: the own character, the rules in one line, the crowd (looks only, CONTRACT §5) and the PIN. */
-import { memo } from 'react';
+import { memo, startTransition, useDeferredValue, useEffect, useState } from 'react';
 import type { Look } from '../../../lib/live/types';
 import { LiveChar } from './art';
 import type { PlayerController } from './controller';
@@ -26,6 +26,13 @@ export interface LobbyProps {
 }
 
 export function Lobby({ ctl, look, name, players, pin, crowd, canEdit }: LobbyProps) {
+  // The screen comes first; the crowd (up to 40 characters) after it, in a transition React renders in slices.
+  const [showCrowd, setShowCrowd] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => startTransition(() => setShowCrowd(true)));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const shownCrowd = useDeferredValue(crowd);
   return (
     <>
       <div className="lp-page">
@@ -42,7 +49,7 @@ export function Lobby({ ctl, look, name, players, pin, crowd, canEdit }: LobbyPr
           <span aria-live="polite">Играют {players}</span>
           {pin && <span>PIN {pinText(pin)}</span>}
         </div>
-        <Crowd crowd={crowd} />
+        {showCrowd && <Crowd crowd={shownCrowd} />}
       </div>
       {canEdit && (
         <div className="lp-bar">
