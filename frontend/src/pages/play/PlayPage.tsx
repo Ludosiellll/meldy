@@ -4,7 +4,7 @@
  * signed in or not; the token stays in this tab (sessionStorage), so a reload goes on with the same player.
  * `?fake=1` plays against the in-page fake server (lib/live/fake.ts) with 23 bots and demo PIN 482913.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { liveApi } from '../../lib/live/api';
 import { PlayerApp } from '../../components/live/player/PlayerApp';
@@ -27,13 +27,14 @@ export default function PlayPage() {
   }, [ctl]);
 
   // The PIN in the address once it is known: a reload comes back to the same game.
+  const search = useRef(params);
+  search.current = params;
   useEffect(
     () =>
       ctl.subscribe(() => {
         const pin = ctl.getSnapshot().pin;
-        const now = new URLSearchParams(window.location.search);
-        if ((now.get('pin') ?? '') === pin) return;
-        const next = new URLSearchParams(now);
+        if ((search.current.get('pin') ?? '') === pin) return;
+        const next = new URLSearchParams(search.current);
         if (pin) next.set('pin', pin);
         else next.delete('pin');
         setParams(next, { replace: true });

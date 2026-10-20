@@ -97,10 +97,19 @@ const JOIN_STATUSES: Record<string, LiveError> = {
   ended: new LiveError('ML002', 'ended'),
   members_only: new LiveError('ML003', null, 403),
   slow_down: new LiveError('ML005', 'join', 429),
+  kicked: new LiveError('42501', 'kicked', 403),
   invalid: new LiveError('unknown', 'launch'),
   stale: new LiveError('unknown', 'launch'),
   replayed: new LiveError('unknown', 'launch'),
 };
+
+/** `name_refused` / `look_refused` carry a `reason`: the contract's code (length, rude, locked …) or plain words. */
+function refused(status: string, reason: unknown): LiveError | null {
+  const why = typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 200) : null;
+  if (status === 'name_refused') return new LiveError('ML006', why);
+  if (status === 'look_refused') return new LiveError('ML007', why);
+  return null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -124,15 +133,34 @@ async function invokeGame(route: 'join' | 'share', body: Record<string, unknown>
   }
 }
 
-/** POST /telegram/game/join (CONTRACT §9): the name and the Telegram user come from the launch's initData. */
-export async function telegramJoin(initData: string, pin: string, look: Look | null): Promise<Joined> {
-  const body = await invokeGame('join', { init_data: initData, pin, look });
+/** Waits between the retries of a join whose answer was lost (the same launch may join again). */
+export const JOIN_RETRY_MS: readonly number[] = [800, 2000];
+
+/**
+ * POST /telegram/game/join (CONTRACT §9): the Telegram user comes from the launch's initData; the name typed here goes
+ * with it (without one the function takes Telegram's first name). A lost answer is retried: the same launch may join
+ * the game it already joined, and a refused join does not spend the launch.
+ */
+export async function telegramJoin(initData: string, pin: string, look: Look | null, name: string | null = null, wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))): Promise<Joined> {
+  const payload: Record<string, unknown> = { init_data: initData, pin, look };
+  if (name && name.trim()) payload.name = name.trim();
+  let body: Record<string, unknown> | null = null;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      body = await invokeGame('join', payload);
+      break;
+    } catch (error) {
+      const lost = error instanceof LiveError && (error.code === 'network' || error.status >= 500);
+      if (!lost || attempt >= JOIN_RETRY_MS.length) throw error;
+      await wait(JOIN_RETRY_MS[attempt]);
+    }
+  }
   const status = typeof body.status === 'string' ? body.status : '';
   if (status === 'joined' && typeof body.token === 'string' && TOKEN_RE.test(body.token) && typeof body.game_id === 'string') {
     const { token, status: _status, ...rest } = body;
     return { result: rest as unknown as JoinResult, token };
   }
-  throw JOIN_STATUSES[status] ?? new LiveError('unknown');
+  throw refused(status, body.reason) ?? JOIN_STATUSES[status] ?? new LiveError('unknown');
 }
 
 /**
@@ -156,7 +184,7 @@ export interface TelegramPlatformOptions {
   firstName: string | null;
   /** The fake server has no bot function: the join goes to it directly with a token made here. */
   fake: boolean;
-  join?: (initData: string, pin: string, look: Look | null) => Promise<Joined>;
+  join?: (initData: string, pin: string, look: Look | null, name: string | null) => Promise<Joined>;
   prepare?: (gameId: string, token: string) => Promise<string | null>;
 }
 
@@ -200,7 +228,7 @@ export function telegramPlatform(options: TelegramPlatformOptions): PlayerPlatfo
 
   return {
     kind: 'telegram',
-    fixedName: options.firstName,
+    suggestedName: options.firstName ? [...options.firstName.trim()].slice(0, 24).join('') : null,
     haptic,
     async readToken(gameId) {
       const inTab = readStore('session', tokenKey(gameId));
@@ -226,10 +254,10 @@ export function telegramPlatform(options: TelegramPlatformOptions): PlayerPlatfo
     async join(api: LiveApi, request) {
       if (options.fake) {
         const token = request.token && TOKEN_RE.test(request.token) ? request.token : newLiveToken();
-        const result = await api.join(request.pin, options.firstName ?? 'Игрок', token, request.look);
+        const result = await api.join(request.pin, request.name || options.firstName || 'Игрок', token, request.look);
         return { result, token };
       }
-      return (options.join ?? telegramJoin)(options.initData, request.pin, request.look);
+      return (options.join ?? telegramJoin)(options.initData, request.pin, request.look, request.name || null);
     },
     setPlaying(on) {
       if (on === playing) return;

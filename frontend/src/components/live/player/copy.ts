@@ -48,6 +48,9 @@ export const UNLOCK_NAMES: Record<UnlockId, { title: string; why: string }> = {
   snow: { title: 'Новый цвет: белый', why: 'За 5 побед над Дедлайном.' },
 };
 
+/** A refusal's reason already in words (Telegram's `name_refused` / `look_refused` may carry one), not a code. */
+const WORDS = /[А-Яа-яЁё]/;
+
 /** What a refusal of the server means for the player, in plain words. */
 export function errorText(error: LiveError, pin: string | null): string {
   const d = error.detail;
@@ -64,8 +67,10 @@ export function errorText(error: LiveError, pin: string | null): string {
     case 'ML005':
       return 'Слишком много входов подряд. Подождите минуту и попробуйте снова.';
     case 'ML006':
+      if (d && WORDS.test(d)) return d;
       return d === 'rude' ? 'Такое имя не подойдёт. Выберите другое.' : 'Имя — от 1 до 24 знаков.';
     case 'ML007':
+      if (d && WORDS.test(d)) return d;
       return d === 'locked' ? 'Эта часть ещё закрыта. Выберите другую.' : 'Эта часть не подошла. Выберите другую.';
     case 'ML004':
       if (d === 'late') return 'Время вышло: ответ не успел.';

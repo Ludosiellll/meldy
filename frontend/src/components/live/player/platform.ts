@@ -34,8 +34,8 @@ export interface Joined {
 
 export interface PlayerPlatform {
   readonly kind: 'web' | 'telegram';
-  /** Telegram: the first name Telegram gives (the server takes the name from the launch); the site: null. */
-  readonly fixedName: string | null;
+  /** Telegram: the first name Telegram gives (the name field starts with it; the player may change it). The site: null. */
+  readonly suggestedName: string | null;
   haptic(kind: HapticKind): void;
   readToken(gameId: string): Promise<string | null>;
   keepToken(gameId: string, token: string): Promise<void>;
@@ -112,7 +112,7 @@ async function webShare(card: ShareCard): Promise<ShareResult> {
 export function webPlatform(): PlayerPlatform {
   return {
     kind: 'web',
-    fixedName: null,
+    suggestedName: null,
     haptic: vibrate,
     async readToken(gameId) {
       const value = readStore('session', tokenKey(gameId));

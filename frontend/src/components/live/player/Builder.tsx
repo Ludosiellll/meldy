@@ -73,7 +73,8 @@ const Tile = memo(function Tile({ part, id, look, selected, locked, onPick }: Ti
 export interface BuilderProps {
   ctl: PlayerController;
   name: string;
-  fixedName: string | null;
+  /** Telegram: the name field starts with Telegram's first name. */
+  fromTelegram: boolean;
   look: Look;
   unlocked: readonly UnlockId[];
   lockedTap: { part: Part; id: string } | null;
@@ -83,7 +84,7 @@ export interface BuilderProps {
   guest: boolean;
 }
 
-export function Builder({ ctl, name, fixedName, look, unlocked, lockedTap, from, busy, error, guest }: BuilderProps) {
+export function Builder({ ctl, name, fromTelegram, look, unlocked, lockedTap, from, busy, error, guest }: BuilderProps) {
   const [tab, setTab] = useState<Part>('body');
   const pop = useRef<HTMLDivElement>(null);
   const first = useRef(true);
@@ -117,27 +118,18 @@ export function Builder({ ctl, name, fixedName, look, unlocked, lockedTap, from,
           </div>
         </div>
         <div className="lp-name">
-          {fixedName !== null ? (
-            <>
-              <label id="lp-name-l">Имя в игре</label>
-              <output aria-labelledby="lp-name-l">{fixedName}</output>
-            </>
-          ) : (
-            <>
-              <label htmlFor="lp-name">Имя в игре</label>
-              <input
-                id="lp-name"
-                value={name}
-                maxLength={24}
-                autoComplete="nickname"
-                enterKeyHint="done"
-                placeholder="Как вас назвать"
-                aria-invalid={error ? true : undefined}
-                onChange={(e) => ctl.setName(e.target.value)}
-                disabled={from === 'lobby'}
-              />
-            </>
-          )}
+          <label htmlFor="lp-name">Имя в игре</label>
+          <input
+            id="lp-name"
+            value={name}
+            maxLength={24}
+            autoComplete="nickname"
+            enterKeyHint="done"
+            placeholder="Как вас назвать"
+            aria-invalid={error ? true : undefined}
+            onChange={(e) => ctl.setName(e.target.value)}
+            disabled={from === 'lobby'}
+          />
         </div>
         <div className="lp-tabs" role="tablist" aria-label="Части персонажа">
           {TABS.map((t) => (
@@ -156,8 +148,8 @@ export function Builder({ ctl, name, fixedName, look, unlocked, lockedTap, from,
             <>
               <b>{partName(tab, current)}</b>
               {'. '}
-              {fixedName !== null
-                ? 'Имя взято из Telegram. Новые шапки и цвета открываются в играх.'
+              {fromTelegram
+                ? 'Имя взято из Telegram, его можно поменять. Новые шапки и цвета открываются в играх.'
                 : guest
                   ? 'Новые шапки и цвета открываются в играх; сохраняются, если играть из Telegram или войти в Meldy.'
                   : 'Новые шапки и цвета открываются в играх.'}
@@ -178,7 +170,7 @@ export function Builder({ ctl, name, fixedName, look, unlocked, lockedTap, from,
           <button type="button" className="lp-btn lp-btn--quiet" onClick={() => ctl.cancelEdit()}>
             Оставить как было
           </button>
-        ) : fixedName === null ? (
+        ) : !fromTelegram ? (
           <button type="button" className="lp-btn lp-btn--quiet" onClick={() => ctl.backToPin()}>
             Другой PIN
           </button>

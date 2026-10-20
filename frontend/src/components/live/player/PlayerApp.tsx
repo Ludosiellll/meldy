@@ -65,7 +65,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
       <Builder
         ctl={ctl}
         name={s.name}
-        fixedName={platform.fixedName}
+        fromTelegram={platform.kind === 'telegram'}
         look={s.look}
         unlocked={s.unlocked}
         lockedTap={s.lockedTap}
@@ -80,9 +80,9 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
     screen = (
       <>
         <div className="lp-page">
-          <h1 className="lp-h1">Игра недоступна</h1>
+          <h1 className="lp-h1">{s.gone?.title ?? 'Игра недоступна'}</h1>
           <p className="lp-sub" role="alert">
-            {s.gone}
+            {s.gone?.text}
           </p>
         </div>
         <div className="lp-bar">

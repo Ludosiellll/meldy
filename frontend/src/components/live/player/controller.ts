@@ -75,7 +75,8 @@ export interface PlayerSnapshot {
   reviewError: string | null;
   /** Review opened from a link (Telegram `r_<game>`): no game screen behind it. */
   reviewOnly: boolean;
-  gone: string | null;
+  /** Why the game cannot go on: a heading and a line (kicked, the game gone). */
+  gone: { title: string; text: string } | null;
 }
 
 export interface ControllerOptions {
@@ -89,7 +90,10 @@ const PIN_RE = /^\d{6}$/;
 const GAME_KEY = (gameId: string) => `meldy.live.game.${gameId}`;
 const PIN_KEY = (pin: string) => `meldy.live.pin.${pin}`;
 const LOOK_KEY = (profile: string) => `meldy.live.look.${profile}`;
-const NAME_KEY = 'meldy.live.name';
+const NAME_KEY = (profile: string) => `meldy.live.name.${profile}`;
+/** A join refused for the rate (ML005): tries again after ~3 s, up to 4 times. */
+const JOIN_RETRIES = 4;
+const JOIN_WAIT_MS = 3000;
 const UNLOCKED_KEY = (profile: string) => `meldy.live.unlocked.${profile}`;
 const UNLOCK_IDS: readonly UnlockId[] = ['graphite', 'snow', 'crown', 'grad', 'horns'];
 
@@ -119,6 +123,14 @@ export function usableLook(raw: unknown, unlocked: readonly string[], name: stri
   return look;
 }
 
+/** The screen of a game that cannot go on. Kicked: CONTRACT §11 (the damage stays in the class's total). */
+export function goneOf(e: LiveError, pin: string | null): { title: string; text: string } {
+  if (e.code === '42501' && e.detail === 'kicked') {
+    return { title: 'Ведущий убрал вас из игры', text: 'Урон, который вы нанесли, остался в общем счёте класса. В другую игру можно войти по PIN.' };
+  }
+  return { title: 'Игра недоступна', text: errorText(e, pin) };
+}
+
 export class PlayerController {
   private s: PlayerSnapshot;
   private readonly listeners = new Set<() => void>();
@@ -144,7 +156,7 @@ export class PlayerController {
     this.platform = options.platform;
     this.profile = options.profile;
     const unlocked = this.cachedUnlocked();
-    const name = options.platform.fixedName ?? readStore('local', NAME_KEY) ?? '';
+    const name = readStore('local', NAME_KEY(options.profile)) ?? options.platform.suggestedName ?? '';
     const cached = parseJson<Look>(readStore('local', LOOK_KEY(options.profile)));
     this.lookTouched = cached !== null;
     this.s = {
@@ -277,7 +289,7 @@ export class PlayerController {
       if (gen !== this.gen) return true;
       const e = error instanceof LiveError ? error : new LiveError('unknown');
       if (e.code === '42501' && e.detail === 'kicked') {
-        this.set({ step: 'gone', busy: false, gone: errorText(e, pin) });
+        this.set({ step: 'gone', busy: false, gone: goneOf(e, pin) });
         return true;
       }
       // The same token joins again: the server gives back the same player (CONTRACT §7), or a new one in a new game.
@@ -306,7 +318,6 @@ export class PlayerController {
   }
 
   setName(raw: string): void {
-    if (this.platform.fixedName) return;
     const name = raw.slice(0, 40);
     const patch: Partial<PlayerSnapshot> = { name, error: null };
     if (!this.lookTouched) patch.look = defaultLook(name.trim() || 'Игрок');
@@ -347,28 +358,44 @@ export class PlayerController {
   async confirm(): Promise<void> {
     if (this.s.busy) return;
     if (this.s.builderFrom === 'lobby') return this.saveLook();
-    const name = this.platform.fixedName ?? this.s.name;
-    if (!this.platform.fixedName) {
-      const check = checkName(name);
-      if (!check.ok) {
-        this.platform.haptic('warning');
-        this.set({ error: check.reason === 'rude' ? 'Такое имя не подойдёт. Выберите другое.' : 'Напишите имя — до 24 знаков.' });
+    const name = this.s.name;
+    const check = checkName(name);
+    if (!check.ok) {
+      this.platform.haptic('warning');
+      this.set({ error: check.reason === 'rude' ? 'Такое имя не подойдёт. Выберите другое.' : 'Напишите имя — до 24 знаков.' });
+      return;
+    }
+    this.set({ busy: true, error: null, notice: null, step: 'joining' });
+    const gen = this.gen;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const kept = readStore('session', PIN_KEY(this.s.pin));
+        const token = this.token ?? (kept ? await this.platform.readToken(kept) : null);
+        const joined = await this.platform.join(this.api, { pin: this.s.pin, name: check.name, look: this.s.look, token });
+        if (gen !== this.gen) return;
+        await this.joined(joined.result, joined.token);
+        return;
+      } catch (error) {
+        if (gen !== this.gen) return;
+        const e = error instanceof LiveError ? error : new LiveError('unknown');
+        // Many joins at once from one address (a class behind one router): wait a few seconds and try again.
+        if (e.code === 'ML005' && attempt < JOIN_RETRIES) {
+          this.set({ notice: 'Много входов сразу. Пробуем ещё раз…' });
+          await new Promise<void>((resolve) => this.later(JOIN_WAIT_MS + Math.floor(Math.random() * 1500), resolve));
+          if (gen !== this.gen) return;
+          continue;
+        }
+        this.platform.haptic('error');
+        if (e.code === '42501' && e.detail === 'kicked') {
+          this.set({ busy: false, notice: null, step: 'gone', gone: goneOf(e, this.s.pin) });
+          return;
+        }
+        // A locked part the cache thought open: the free look instead.
+        if (e.code === 'ML007') this.set({ look: usableLook(this.s.look, [], name) });
+        const back = e.code === 'P0002' || e.code === 'ML002' ? 'pin' : 'builder';
+        this.set({ busy: false, notice: null, step: back, error: errorText(e, this.s.pin) });
         return;
       }
-    }
-    this.set({ busy: true, error: null, step: 'joining' });
-    try {
-      const kept = readStore('session', PIN_KEY(this.s.pin));
-      const token = this.token ?? (kept ? await this.platform.readToken(kept) : null);
-      const joined = await this.platform.join(this.api, { pin: this.s.pin, name: name.trim(), look: this.s.look, token });
-      await this.joined(joined.result, joined.token);
-    } catch (error) {
-      const e = error instanceof LiveError ? error : new LiveError('unknown');
-      // A locked part the cache thought open: the server's look instead.
-      if (e.code === 'ML007') this.set({ look: usableLook(this.s.look, [], name) });
-      const back = e.code === 'P0002' || e.code === 'ML002' ? 'pin' : 'builder';
-      this.platform.haptic('error');
-      this.set({ busy: false, step: back, error: errorText(e, this.s.pin) });
     }
   }
 
@@ -378,7 +405,7 @@ export class PlayerController {
     const guest = result.wardrobe === null;
     writeStore('session', PIN_KEY(this.s.pin), result.game_id);
     writeStore('session', GAME_KEY(result.game_id), JSON.stringify({ topic: result.topic, playerId: result.player_id, guest }));
-    if (!this.platform.fixedName) writeStore('local', NAME_KEY, result.name);
+    writeStore('local', NAME_KEY(this.profile), result.name);
     writeStore('local', LOOK_KEY(this.profile), JSON.stringify(result.look));
     const unlocked = result.wardrobe ? (result.wardrobe.unlocked.filter((u) => UNLOCK_IDS.includes(u)) as UnlockId[]) : this.s.unlocked;
     if (result.wardrobe) writeStore('local', UNLOCKED_KEY(this.profile), JSON.stringify(unlocked));
@@ -467,7 +494,7 @@ export class PlayerController {
       this.stopWatch?.();
       this.stopWatch = null;
       this.platform.setPlaying(false);
-      this.set({ step: 'gone', gone: errorText(e, this.s.pin) });
+      this.set({ step: 'gone', gone: goneOf(e, this.s.pin) });
     }
   }
 
@@ -513,12 +540,6 @@ export class PlayerController {
       const qi = st.qi;
       this.later(end, () => {
         if (this.s.state?.qi === qi && this.s.state.state === 'open') this.kick();
-      });
-    }
-    if (st.state === 'countdown' && st.question) {
-      const qi = st.qi;
-      this.later(Date.parse(st.question.opens_at) - this.serverNow() + 30, () => {
-        if (this.s.state?.qi === qi) this.set({ notice: null });
       });
     }
   }
