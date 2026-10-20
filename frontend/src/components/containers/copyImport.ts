@@ -498,6 +498,10 @@ export const REVIEW = {
   takeModel: 'Взять версию модели',
   takeRules: 'Взять прежний разбор',
   other: (text: string) => `Другая версия: «${text}»`,
+  /** Only the key differs: «Другая версия: ключ В вместо А», «… без ключа». */
+  otherKey: (word: string, theirs: string, ours: string) =>
+    theirs ? `Другая версия: ${word} ${theirs}${ours ? ` вместо ${ours}` : ''}` : 'Другая версия: без ключа',
+  otherOptions: (list: string) => `Другая версия: варианты ${list}`,
   inFile: 'Как в файле',
   noFragment: 'Строк файла для этого вопроса нет.',
   picture: '[картинка]',

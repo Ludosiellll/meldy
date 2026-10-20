@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import type { BankItem, BankParseResult } from '../../../types/container';
+import type { BankItem, BankItemVersion, BankParseResult } from '../../../types/container';
 import { ContainerApiError } from '../../../api/containers';
 import { REVIEW } from '../copyImport';
 import BankReview from './BankReview';
@@ -114,6 +114,41 @@ describe('«Сомнительные места»', () => {
     expect(cards).toHaveLength(1);
     expect(within(cards[0]).getByText(REVIEW.fromModel)).toBeTruthy();
     expect(within(cards[0]).getByText(/ключ строкой «Ответ»/)).toBeTruthy();
+  });
+
+  it('after the pass: the model’s question goes by its place in the list, next to its file lines', async () => {
+    // the model named its questions by line numbers of the file («8»), and the answer of the pass left out their lines
+    const after = bank([item(1), item(2, { source: 'ai', label: '8', options: ['азот', 'кислород', 'водород'], correct: [1], evidence: 'answer_line', lines: [5, 6] }), item(3)], {
+      ai: { chunks: 1, failed_chunks: 0, questions: 3, units: 5, found: 1, rejected_keys: 0, disagreements: 1, replaced: 1, added: 0 },
+      source_lines: [],
+    });
+    show(async () => after);
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.aiButton }));
+    await waitFor(() => expect(screen.getByText(/Сложные места разобраны/)).toBeTruthy());
+    const [card] = screen.getAllByRole('listitem').filter((node) => node.classList.contains('br-card'));
+    expect(plain(card.querySelector('.br-num > span')?.textContent)).toBe('Вопрос 2');
+    expect(within(card).queryByText(REVIEW.noFragment)).toBeNull();
+    expect(within(card).getByText('азот', { selector: 'strong' })).toBeTruthy();
+  });
+
+  it('the other version says what differs: only the key, the options, or the words', () => {
+    const version = (patch: Partial<BankItemVersion>): BankItemVersion => ({
+      text: 'Вопрос 1?', options: ['один', 'два', 'три'], correct: [1], kind: 'single', answer: null, evidence: 'bold', source: 'ai', ...patch,
+    });
+    const differ = bank([
+      item(1, { source: 'rules', flags: ['ai_disagrees'], correct: [0], alt: version({ correct: [2] }) }),
+      item(2, { source: 'rules', flags: ['ai_disagrees'], alt: version({ text: 'Вопрос 2?', correct: [] }) }),
+      item(3, { source: 'rules', flags: ['ai_disagrees'], alt: version({ text: 'Вопрос 3?', options: ['один', 'два'] }) }),
+      item(4, { source: 'rules', flags: ['ai_disagrees'], alt: version({ text: 'Сколько будет 2 + 2?' }) }),
+    ]);
+    render(<BankReview result={differ} fileName="Химия.docx" onDone={vi.fn()} onBack={vi.fn()} />);
+    const lines = [...document.querySelectorAll('.br-alt')].map((node) => plain(node.textContent));
+    expect(lines).toEqual([
+      'Другая версия: ключ В вместо А',
+      'Другая версия: без ключа',
+      'Другая версия: варианты А) один; Б) два',
+      'Другая версия: «Сколько будет 2 + 2?»',
+    ]);
   });
 
   it('a failed pass keeps the rules parse and says so in plain words', async () => {

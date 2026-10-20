@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BankAiOffer, BankItem, BankParseResult } from '../../../types/container';
 import { REVIEW } from '../copyImport';
-import { needsLook, reviewCounts, reviewed, type ReviewCounts, type ReviewOp } from './reviewModel';
+import { keepSourceLines, needsLook, reviewCounts, reviewed, type ReviewCounts, type ReviewOp } from './reviewModel';
 
 /**
  * The review screen's state (BankReview.tsx, or any page that shows a parse with its doubtful places): the parse the
@@ -90,7 +90,7 @@ export function useBankReview(initial: BankParseResult, options: ReviewOptions =
     running.current = true;
     setAi((state) => ({ ...state, status: 'running', error: null }));
     try {
-      const next = await runAi();
+      const next = keepSourceLines(await runAi(), base);
       setBase(next);
       setOps([]);
       const ids = lookIds(next);
@@ -103,7 +103,7 @@ export function useBankReview(initial: BankParseResult, options: ReviewOptions =
     } finally {
       running.current = false;
     }
-  }, [runAi]);
+  }, [runAi, base]);
 
   const offer = base.ai ? null : base.ai_offer ?? null;
   return {

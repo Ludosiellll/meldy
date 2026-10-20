@@ -336,6 +336,31 @@ export function fragmentOf(result: BankParseResult, item: BankItem): BankSourceL
   return (result.source_lines ?? []).filter((line) => line.n >= first - FRAGMENT_MARGIN && line.n <= last + FRAGMENT_MARGIN);
 }
 
+/**
+ * The parse after the model pass with the lines the rules parse had sent kept as well: both number the file the same
+ * way, and a question the model read anew may sit on lines only the first answer carried.
+ */
+export function keepSourceLines(next: BankParseResult, before: BankParseResult): BankParseResult {
+  const have = new Set((next.source_lines ?? []).map((line) => line.n));
+  const kept = (before.source_lines ?? []).filter((line) => !have.has(line.n));
+  if (!kept.length) return next;
+  return { ...next, source_lines: [...(next.source_lines ?? []), ...kept].sort((a, b) => a.n - b.n) };
+}
+
+const plainText = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+/** What the other version (after the model pass) changes: only the key, the options under the same words, or the words. */
+export function altDifference(item: BankItem): 'key' | 'options' | 'text' | null {
+  const alt = item.alt;
+  if (!alt) return null;
+  if (plainText(alt.text) !== plainText(item.text)) return 'text';
+  if (alt.options.length !== item.options.length || alt.options.some((option, index) => plainText(option) !== plainText(item.options[index]))) {
+    return 'options';
+  }
+  const sameKey = [...alt.correct].sort().join() === [...item.correct].sort().join() && (alt.answer ?? '') === (item.answer ?? '');
+  return sameKey ? 'text' : 'key';
+}
+
 /** Whether a question's option looks like the start of another question (a split is offered on it). */
 export function looksLikeStem(option: string): boolean {
   return /\?\s*$/.test(option) || (LEAD_LABEL.test(option) && option.length > 24);

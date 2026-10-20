@@ -1581,3 +1581,33 @@ def test_without_the_request_pictures_stay_a_flag_as_before():
     """Страница, закэшированная до переноса картинок, не просит их: вопрос с картинкой — has_image, как раньше."""
     result = parse_bank_file(picture_bank({1: (255, 0, 0)}), "bank.docx")
     assert result["items"][0]["images"] is None and "has_image" in result["items"][0]["flags"] and result["pictures"] == {}
+
+
+# ── Строки файла для экрана проверки ────────────────────────────────────────────
+
+
+def test_the_review_gets_the_file_lines_of_the_models_questions_too():
+    """После разбора с ИИ экран проверки показывает вопросы в версии модели рядом с файлом: их строки уходят в
+    source_lines, даже когда вопрос уверенный (live 2026-10-20: «Строк файла для этого вопроса нет.»)."""
+    text = (
+        "1. Кто написал «Войну и мир»?\nа) Достоевский\nб) **Толстой**\nв) Чехов\n"
+        "2. Самая длинная река Европы?\nа) Дунай\nб) **Волга**\nв) Рейн\n"
+        "3. Сумма углов треугольника?\nа) 90°\nб) **180°**\nв) 360°\n"
+    )
+
+    def parsed(source: str = "", flag: str = "") -> dict:
+        reader = bank_parse.read_bank(list(bank_parse.text_blocks(text, markdown=True)), line_word="строка")
+        if source:
+            reader.items[1].source = source
+        if flag:
+            reader.items[2].flag(flag)
+        return bank_parse.finish(reader)
+
+    assert parsed()["source_lines"] == []  # уверенные вопросы правил — без строк, как было
+    result = parsed("ai", "ai_disagrees")
+    model, differ = result["items"][1], result["items"][2]
+    assert model["confidence"] >= 0.6 and model["source"] == "ai" and model["lines"] == [5, 8]
+    shown = {line["n"] for line in result["source_lines"]}
+    assert set(range(model["lines"][0], model["lines"][1] + 1)) <= shown
+    assert set(range(differ["lines"][0], differ["lines"][1] + 1)) <= shown
+    assert 1 not in shown  # строки первого вопроса, уверенного и прочитанного одинаково, не уходят

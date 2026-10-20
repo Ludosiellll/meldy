@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import type { BankItem, BankParseResult, BankSourceLine } from '../../../types/container';
-import { KEY_WORDS, REVIEW, letter, nb } from '../copyImport';
-import { fragmentOf, hasKey, looksLikeStem, needsLook, type ReviewOp } from './reviewModel';
+import { KEY_WORDS, REVIEW, letter, lettersText, nb } from '../copyImport';
+import { altDifference, fragmentOf, hasKey, looksLikeStem, needsLook, type ReviewOp } from './reviewModel';
 import { useBankReview, type BankReview as ReviewState, type ShownItem } from './useBankReview';
 import './bankReview.css';
 
@@ -82,6 +82,24 @@ function reasons(item: BankItem): string[] {
   return [...new Set(out)];
 }
 
+const cut = (text: string) => (text.length > 90 ? `${text.slice(0, 88)}…` : text);
+const keyOf = (version: { correct: number[]; answer: string | null }) =>
+  version.correct.length ? lettersText(version.correct) : version.answer ? `«${version.answer}»` : '';
+
+/** «Другая версия: …» — what the other reading changes: its key alone, its options, or its words. */
+function otherLine(item: BankItem): string | null {
+  const alt = item.alt;
+  if (!alt) return null;
+  switch (altDifference(item)) {
+    case 'key':
+      return REVIEW.otherKey(alt.correct.length ? 'ключ' : 'ответ', keyOf(alt), keyOf(item));
+    case 'options':
+      return REVIEW.otherOptions(cut(alt.options.map((option, index) => `${letter(index)}) ${option}`).join('; ')));
+    default:
+      return REVIEW.other(cut(alt.text));
+  }
+}
+
 function sourceBadge(item: BankItem): string | null {
   if (item.flags.includes('ai_only')) return REVIEW.modelOnly;
   if (item.flags.includes('ai_disagrees')) return REVIEW.differ;
@@ -117,7 +135,8 @@ function ReviewCard({ entry, result, apply }: CardProps) {
     <li className="br-card" data-look={needsLook(item) ? '' : undefined} data-checked={item.reviewed ? '' : undefined} aria-labelledby={headId}>
       <div className="br-q">
         <p className="br-num" id={headId}>
-          <span>{nb(REVIEW.number(item.label, item.position))}</span>
+          {/* the model's question goes by its place in the list: the number it gives is often a line of the file */}
+          <span>{nb(REVIEW.number(item.source === 'ai' ? '' : item.label, item.position))}</span>
           {badge ? <span className="br-badge" data-ai={item.source === 'ai' ? '' : undefined}>{badge}</span> : null}
           {item.reviewed ? <span className="br-badge" data-done="">{REVIEW.checked}</span> : null}
         </p>
@@ -161,7 +180,7 @@ function ReviewCard({ entry, result, apply }: CardProps) {
           </>
         ) : null}
         <p className="br-key">{keyLine}</p>
-        {item.alt ? <p className="br-alt">{REVIEW.other(item.alt.text.length > 90 ? `${item.alt.text.slice(0, 88)}…` : item.alt.text)}</p> : null}
+        {item.alt ? <p className="br-alt">{otherLine(item)}</p> : null}
       </div>
       <figure className="br-src">
         <figcaption className="br-src-h">{REVIEW.inFile}</figcaption>

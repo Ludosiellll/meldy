@@ -402,6 +402,8 @@ PROBLEM_FLAGS = frozenset({
     "no_key", "several_marked", "key_conflict", "key_invalid", "key_letter_ambiguous", "partial_mark", "few_options",
     "many_options", "empty_option", "same_options", "no_options", "duplicate", "too_long",
 })
+# Вопросы, чьи строки файла уходят экрану проверки (source_lines): с флагами проверки и те, что модель прочитала иначе.
+REVIEW_FLAGS = PROBLEM_FLAGS | {"ai_disagrees", "ai_key_rejected", "ai_only"}
 AMBIGUOUS_FLAGS = frozenset({"several_marked", "key_conflict", "key_letter_ambiguous"})
 # Маркеры ключа в ответе (marker): «+»/«-» перед вариантом, «*» и «#» Indigo, «+» после варианта.
 MARKER_NAMES = (("+-", "plus_minus"), ("*", "star"), ("#", "hash"), ("suffix", "plus_suffix"))
@@ -2897,7 +2899,8 @@ def _review(reader: Reader, items: list[Item], out_items: list[dict], subjects: 
 
     У вопроса: lines — [первая, последняя] строка в нумерации bank_markup.markup (или None: GIFT, Moodle XML),
     confidence (0…1), doubts (причины). В ответе: doubtful — сомнительных вопросов, source_lines — строки фрагментов
-    сомнительных вопросов и вопросов с флагами проверки (с оформлением кусков), ai_offer — bank_markup.offer."""
+    сомнительных вопросов, вопросов с флагами проверки и, после разбора с ИИ, вопросов в версии модели и тех, что модель
+    прочитала иначе (их экран проверки показывает рядом с файлом), с оформлением кусков; ai_offer — bank_markup.offer."""
     lines = bank_markup.markup(reader.blocks, reader.table_kinds) if reader.blocks else []
     full = bank_markup.item_ranges([item.ref for item in items], lines, clip=False) if lines else [None] * len(items)
     ranges = bank_markup.clipped(full)
@@ -2912,7 +2915,8 @@ def _review(reader: Reader, items: list[Item], out_items: list[dict], subjects: 
         entry["doubts"] = why
     wanted: set[int] = set()
     for entry, span in zip(out_items, ranges):
-        if span and (entry["confidence"] < bank_markup.DOUBT_AT or set(entry["flags"]) & PROBLEM_FLAGS):
+        if span and (entry["confidence"] < bank_markup.DOUBT_AT or set(entry["flags"]) & REVIEW_FLAGS
+                     or entry.get("source") == "ai"):
             wanted.update(range(max(1, span[0] - 1), span[1] + 2))
     return {
         "doubtful": sum(1 for entry in out_items if entry["confidence"] < bank_markup.DOUBT_AT),
