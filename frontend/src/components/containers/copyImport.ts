@@ -7,7 +7,7 @@
  *
  * Numbers and their words are glued with a no-break space (`nb`), so «240 / вопросов» never breaks on a phone.
  */
-import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
+import { ALL_QUESTIONS_MINUTES as ALL_QUESTIONS_MIN } from './allQuestionsMinutes';
 
 export const NBSP = '\u00a0';
 

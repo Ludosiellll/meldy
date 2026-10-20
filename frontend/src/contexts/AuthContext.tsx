@@ -1,12 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import type { AuthChangeEvent, User, Session } from '@supabase/supabase-js';
-import { whenIdleAfterLoad } from '../lib/idle';
-import { hasStoredSession, keptSession, loadSupabase, signInInAddress } from '../lib/supabaseClient';
+import { hasStoredSession, keptSession, loadSupabase, signInInAddress, whenSupabaseLoaded } from '../lib/supabaseClient';
 
 /**
- * A guest on a screen that needs no account (the landing, /try): the session is read once the page
- * is idle, so the client's file does not compete with the screen. A sign-in link (OAuth, e-mail
- * confirmation, password reset) is read by the client as it starts, so such an address never waits.
+ * A guest on a screen that needs no account (the landing, /try), with no session kept in this browser: the session
+ * is read only when something needs it (below), so the client's file does not come with the screen. A sign-in link
+ * (OAuth, e-mail confirmation, password reset) is read by the client as it starts, so such an address never waits.
  */
 function guestMayWait(): boolean {
   const { pathname } = window.location;
@@ -53,19 +52,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(() => session === null);
   const [wanted, setWanted] = useState(() => typeof window === 'undefined' || !guestMayWait());
 
+  // A guest on the landing or /try with no session kept here has no session for the client to find: its file (58 KB)
+  // is not fetched for it (it was, once the page was idle — smoothness audit 20.10). The session is read when a page
+  // asks for it (requestSession), when a page that uses the client brings it (sign-in, a lecture: lib/supabase says
+  // so), and when a sign-in elsewhere in this browser keeps a session here (another tab).
   useEffect(() => {
     if (wanted) return undefined;
-    // The landing with nothing kept here: there is no session to read, so the client's file (57 KB on a phone, more
-    // than the landing's own) is not fetched for it. Leaving the landing asks for the session (components/home3/
-    // Landing3), and so does a session that appears here from another tab.
-    if (window.location.pathname === '/') {
-      const onStorage = () => {
-        if (hasStoredSession()) setWanted(true);
-      };
-      window.addEventListener('storage', onStorage);
-      return () => window.removeEventListener('storage', onStorage);
-    }
-    return whenIdleAfterLoad(() => setWanted(true));
+    const read = () => setWanted(true);
+    const stopWaiting = whenSupabaseLoaded(read);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || /^sb-.+-auth-token$/.test(event.key)) read();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      stopWaiting();
+      window.removeEventListener('storage', onStorage);
+    };
   }, [wanted]);
 
   /**

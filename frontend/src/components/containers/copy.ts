@@ -6,7 +6,7 @@
  *
  * Numbers and the word after them are glued with a no-break space (`glue`), so «90 вопросов» never breaks.
  */
-import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
+import { ALL_QUESTIONS_MINUTES as ALL_QUESTIONS_MIN } from './allQuestionsMinutes';
 
 export const NBSP = String.fromCharCode(0xa0);
 

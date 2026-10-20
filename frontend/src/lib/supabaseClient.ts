@@ -38,10 +38,30 @@ export function supabaseIfLoaded(): Client | null {
   return loaded;
 }
 
-/** Calls `listener` with the client once something has loaded it (it does not fetch the client itself). */
-export function whenSupabaseLoaded(listener: (client: Client) => void): void {
-  if (loaded) listener(loaded);
-  else waiting.add(listener);
+/**
+ * Calls `listener` with the client once something has loaded it (it does not fetch the client itself): through
+ * loadSupabase, or a page that imports lib/supabase itself (it says so as it starts, supabaseStarted). Returns the
+ * function that stops waiting.
+ */
+export function whenSupabaseLoaded(listener: (client: Client) => void): () => void {
+  if (loaded) {
+    listener(loaded);
+    return () => undefined;
+  }
+  waiting.add(listener);
+  return () => {
+    waiting.delete(listener);
+  };
+}
+
+/** lib/supabase.ts as it starts: a page that imports it directly has loaded the client, and those waiting hear it. */
+export function supabaseStarted(client: Client): void {
+  if (loaded) return;
+  loaded = client;
+  pending = Promise.resolve(client);
+  const listeners = Array.from(waiting);
+  waiting.clear();
+  for (const listener of listeners) listener(client);
 }
 
 /** Where the client keeps the session in this browser: `sb-<project>-auth-token` (supabase-js default). */

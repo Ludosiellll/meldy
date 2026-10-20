@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createSupabaseFetch } from './supabaseRoute';
+import { supabaseStarted } from './supabaseClient';
 
 export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://daunnytubqbzafjnpfnw.supabase.co';
 export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhdW5ueXR1YnFiemFmam5wZm53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMzUxMDQsImV4cCI6MjA5NDYxMTEwNH0.1VLX3fW8NSmXlP6yknWbwslyrMMkc9TgA-oP3T_NzWE';
@@ -12,3 +13,6 @@ export const supabaseFetch = createSupabaseFetch({ supabaseUrl, anonKey: supabas
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: { fetch: supabaseFetch },
 });
+
+// The modules waiting for the client (AuthContext for a guest, lib/apiAuth) hear that it is here, however it came.
+supabaseStarted(supabase);
