@@ -89,6 +89,34 @@ export function resumable(session: SavedSession | null, today: LocalDay): SavedS
   return session;
 }
 
+/**
+ * The session an address names (`?sid=`, written into it when the session starts): a reload, or a tab the phone brings
+ * back, opens that same session where it stopped — the same questions, in the same order — on the same local day,
+ * until it is finished (owner, 2026-10-20: «обновляю сайт, то с 1 вопроса и вопросы другие»). Unlike `resumable`, a
+ * session with nothing answered yet counts too.
+ */
+export function sessionOf(session: SavedSession | null, sid: string, today: LocalDay): SavedSession | null {
+  if (!session || session.id !== sid || session.day !== today) return null;
+  if (session.pos < 0 || session.pos >= session.queue.length) return null;
+  return session;
+}
+
+/**
+ * Writes the session's id into the address (`sid`, in place of `resume`) without a navigation: what a reload reads.
+ * The router's own state on the history entry is kept.
+ */
+export function nameInAddress(sid: string): void {
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('sid') === sid && !url.searchParams.has('resume')) return;
+    url.searchParams.delete('resume');
+    url.searchParams.set('sid', sid);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    // The address stays as it is: a reload starts a new session, as before.
+  }
+}
+
 /** «Продолжить: ещё 8 вопросов»: the distinct planned questions answered and in all. */
 export function resumeCounts(session: SavedSession): { done: number; of: number } {
   const planned = session.queue.filter((entry) => entry.retry === 0);

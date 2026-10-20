@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DayPlan, PlanInput } from '../../types/container';
 import { sessionOpens, setupSession } from './studySetup';
 import { errorCount, sessionHref, studyHref } from './model';
+import type { SavedSession } from './sessionStore';
 import { CONTAINER, ORAL_EXAM, SUBJECT_CS, SUBJECT_DB, SUBJECT_ORAL, TODAY, dayPlan, planInput, subject, summary, unit } from './testkit/fixtures';
 
 /**
@@ -103,5 +104,36 @@ describe('«Только ошибки: N» opens what it counts (owner, 2026-10-
     const input = errorsInput(0, 3);
     const params = new URLSearchParams(studyHref(CONTAINER, { s: SUBJECT_DB, topic: 1 }).split('?')[1] ?? '');
     expect(setupSession({ params, saved: null, plan, input, summary: exam, today: TODAY, now: 0 }).queue).toHaveLength(0);
+  });
+});
+
+describe('a reload opens the session its address names (owner, 2026-10-20: «обновляю сайт, то с 1 вопроса»)', () => {
+  const plan = dayPlan();
+  const input = planInput();
+  const SID = '0b6f3c2e-9a1d-4e7b-8c5a-2d4e6f8a0b1c';
+  const saved = (over: Partial<SavedSession> = {}): SavedSession => ({
+    v: 1, id: SID, containerId: CONTAINER, day: TODAY, subjectId: SUBJECT_DB, kind: 'answer', topic: null, only: null,
+    queue: ['q-code', 'q-iso', 'q-plain'].map((id) => ({ id, retry: 0 as const })), pos: 1, startedAt: 5, records: [], ...over,
+  });
+  const at = (search: string, kept: SavedSession | null) =>
+    setupSession({ params: new URLSearchParams(search), saved: kept, plan, input, summary: exam, today: TODAY, now: 9 });
+
+  it('the same id, the same day, not finished: that session where it stopped — before the first answer too', () => {
+    const again = at(`s=${SUBJECT_DB}&sid=${SID}`, saved());
+    expect(again).toMatchObject({ id: SID, resumed: true, pos: 1, startedAt: 5 });
+    expect(again.queue.map((entry) => entry.id)).toEqual(['q-code', 'q-iso', 'q-plain']);
+    expect(at(`s=${SUBJECT_DB}&sid=${SID}`, saved({ pos: 0 }))).toMatchObject({ id: SID, resumed: true, pos: 0 });
+  });
+
+  it('another session’s id, another day, or a finished one: a new session', () => {
+    for (const kept of [saved({ id: 'other' }), saved({ day: '2026-10-09' }), saved({ pos: 3 })]) {
+      const fresh = at(`s=${SUBJECT_DB}&sid=${SID}`, kept);
+      expect(fresh.resumed).toBe(false);
+      expect(fresh.id).not.toBe(SID);
+    }
+  });
+
+  it('an address without the id is a new session, as each visit of a link is', () => {
+    expect(at(`s=${SUBJECT_DB}`, saved()).resumed).toBe(false);
   });
 });

@@ -24,7 +24,7 @@ import {
   type Figure,
   type StudyRecord,
 } from './model';
-import { clearSession, firstSessionDone, keysHintSeen, markFirstSessionDone, markKeysHintSeen, saveSession } from './sessionStore';
+import { clearSession, firstSessionDone, keysHintSeen, markFirstSessionDone, markKeysHintSeen, nameInAddress, saveSession } from './sessionStore';
 import type { SessionSetup } from './studySetup';
 import './room.css';
 
@@ -263,6 +263,14 @@ export default function StudyRun(props: StudyRunProps) {
     [userId, setup, containerId, today],
   );
 
+  // The session starts (owner, 2026-10-20: a reload began again from question 1, with other questions): it is kept
+  // before the first answer too, and the address names it, so a reload or a tab the phone brings back opens this one.
+  useEffect(() => {
+    if (!setup.resumed) persist(setup.queue, setup.pos, setup.records);
+    nameInAddress(setup.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const finish = useCallback(
     (finalRecords: StudyRecord[]) => {
       if (timer.current) window.clearTimeout(timer.current);
@@ -285,6 +293,23 @@ export default function StudyRun(props: StudyRunProps) {
     [userId, containerId, setup.startedAt, replan.ask],
   );
 
+  /** The queue after the answer on screen: a retry when it was wrong (not once the key changed under it), no question set aside. */
+  const queueAfter = useCallback(
+    (answer: Pending): QueueEntry[] => {
+      let nextQueue = queue;
+      if (item && !fixedNow.current) {
+        try {
+          nextQueue = afterAnswer(queue, pos, { id: item.id, correct: answer.correct, misclick: answer.misclick }, seed);
+        } catch {
+          nextQueue = queue;
+        }
+      }
+      if (aside.size > 0) nextQueue = [...nextQueue.slice(0, pos + 1), ...nextQueue.slice(pos + 1).filter((e) => !aside.has(e.id))];
+      return nextQueue;
+    },
+    [queue, pos, item, seed, aside],
+  );
+
   /** «Дальше»: the answer leaves, the queue takes a retry when the answer was wrong, the next question comes. */
   const next = useCallback(
     (auto = false) => {
@@ -295,15 +320,7 @@ export default function StudyRun(props: StudyRunProps) {
       }
       const at = Date.now();
       const nextRecords = commit(pending, at, records);
-      let nextQueue = queue;
-      if (!fixedNow.current) {
-        try {
-          nextQueue = afterAnswer(queue, pos, { id: item.id, correct: pending.correct, misclick: pending.misclick }, seed);
-        } catch {
-          nextQueue = queue;
-        }
-      }
-      if (aside.size > 0) nextQueue = [...nextQueue.slice(0, pos + 1), ...nextQueue.slice(pos + 1).filter((e) => !aside.has(e.id))];
+      const nextQueue = queueAfter(pending);
       const nextPos = pos + 1;
       if (auto) advancedAt.current = at;
       setPending(null);
@@ -322,7 +339,7 @@ export default function StudyRun(props: StudyRunProps) {
       setPos(nextPos);
       persist(nextQueue, nextPos, nextRecords);
     },
-    [pending, entry, item, commit, records, queue, pos, seed, aside, finish, persist],
+    [pending, entry, item, commit, records, queueAfter, pos, finish, persist],
   );
 
   // The latest «next» for the timer and the keys.
@@ -415,17 +432,18 @@ export default function StudyRun(props: StudyRunProps) {
     finish(finalRecords);
   };
 
-  // Leaving the page (closing the tab, another page of the app) sends the answer on screen as it is.
-  const pendingRef = useRef(pending);
-  pendingRef.current = pending;
-  const commitRef = useRef(commit);
-  commitRef.current = commit;
-  const recordsRef = useRef(records);
-  recordsRef.current = records;
+  // Leaving the page (closing the tab, a reload, another page of the app) sends the answer on screen as it is, and the
+  // kept session moves past it as «Дальше» would: back on the page, the next question, nothing sent twice.
+  const leaveRef = useRef<() => void>(() => undefined);
+  leaveRef.current = () => {
+    if (!pending || committed.current || ended) return;
+    const nextRecords = commit(pending, Date.now(), records);
+    const nextQueue = queueAfter(pending);
+    if (pos + 1 < nextQueue.length) persist(nextQueue, pos + 1, nextRecords);
+    else if (userId) clearSession(userId, containerId);
+  };
   useEffect(() => {
-    const flush = () => {
-      if (pendingRef.current && !committed.current) commitRef.current(pendingRef.current, Date.now(), recordsRef.current);
-    };
+    const flush = () => leaveRef.current();
     window.addEventListener('pagehide', flush);
     return () => {
       window.removeEventListener('pagehide', flush);

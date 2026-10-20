@@ -1078,3 +1078,81 @@ describe('owner 2026-10-20: no lit option after a move, and «Только ош�
     expect(plain(screen.getByRole('banner').textContent)).toContain('1 из 3');
   });
 });
+
+describe('owner 2026-10-20: a reload keeps the session', () => {
+  const STUDY = `/exams/c/${CONTAINER}/study`;
+  const counterText = () => plain(screen.getByRole('banner').textContent);
+  const question = () => screen.getByRole('heading', { level: 1 }).textContent;
+  /** The page opened at an address: the browser shows it, the router renders it. */
+  function open(data: ContainerData, search: string) {
+    window.history.replaceState(null, '', `${STUDY}${search}`);
+    return renderStudy(data, search);
+  }
+  /** A reload: the page goes (pagehide), and comes back at the address the browser shows, with the same storage. */
+  function reload(data: ContainerData) {
+    window.dispatchEvent(new Event('pagehide'));
+    cleanup();
+    expect(window.location.pathname).toBe(STUDY);
+    return renderStudy(data, window.location.search);
+  }
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('after an answer and «Дальше»: the same session, at the same question', async () => {
+    const data = dataWith(dbItems().map((entry) => entry.id));
+    open(data, `?s=${SUBJECT_DB}`);
+    fireEvent.click(option('REPEATABLE READ'));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    await waitFor(() => expect(counterText()).toContain('2 из 5'));
+    const second = question();
+    reload(data);
+    expect(counterText()).toContain('2 из 5');
+    expect(question()).toBe(second);
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    await waitFor(() => expect(sent()).toHaveLength(2));
+    const [first, next] = sent();
+    expect(next.session_id).toBe(first.session_id);
+    expect(next.client_event_id).not.toBe(first.client_event_id);
+  });
+
+  it('before any answer: the same first question of the same session', async () => {
+    const started = () => mocks.track.mock.calls.filter((call) => call[0] === 'container.session_started').length;
+    const data = dataWith(dbItems().map((entry) => entry.id));
+    const before = started();
+    open(data, `?s=${SUBJECT_DB}`);
+    const first = question();
+    reload(data);
+    expect(counterText()).toContain('1 из 5');
+    expect(question()).toBe(first);
+    // Not a new session that happens to start with the same question.
+    expect(started() - before).toBe(1);
+  });
+
+  it('with the answer on screen: it was sent once, and the session comes back at the next question', async () => {
+    const data = dataWith(dbItems().map((entry) => entry.id));
+    open(data, `?s=${SUBJECT_DB}`);
+    fireEvent.click(option('REPEATABLE READ'));
+    reload(data);
+    await waitFor(() => expect(sent()).toHaveLength(1));
+    expect(counterText()).toContain('2 из 5');
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    await waitFor(() => expect(sent()).toHaveLength(2));
+    expect(new Set(sent().map((answer) => answer.client_event_id)).size).toBe(2);
+    expect(sent().map((answer) => answer.item_id)).toEqual(['q-iso', 'q-multi']);
+  });
+
+  it('«Только ошибки» too', async () => {
+    const wrong = unit({ seen: 1, wrong: 1, firstDay: '2026-10-09', lastDay: '2026-10-09' });
+    const base = dataWith([]);
+    const data = { ...base, planInput: { ...base.planInput, items: planItemsFor(dbItems(), { 'q-iso': wrong, 'q-plain': wrong, 'q-code': wrong }) } };
+    open(data, `?s=${SUBJECT_DB}&only=errors`);
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    await waitFor(() => expect(counterText()).toContain('2 из 3'));
+    const second = question();
+    reload(data);
+    expect(counterText()).toContain('2 из 3');
+    expect(question()).toBe(second);
+  });
+});

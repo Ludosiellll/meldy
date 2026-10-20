@@ -2,7 +2,7 @@ import type { ContainerSummary, DayPlan, LocalDay, PlanCls, PlanInput } from '..
 import { SESSION_SIZE } from '../../lib/containers/plan';
 import { buildSession, freeSession, shuffled, type QueueEntry } from '../../lib/containers/session';
 import { answeredToday, clsOf, firstSession, moreNew, subjectKind, type DaySession, type StudyRecord } from './model';
-import { newId, resumable, type SavedSession } from './sessionStore';
+import { newId, resumable, sessionOf, type SavedSession } from './sessionStore';
 
 /**
  * Which questions a «занятие» takes (Concept 2 §3.10; spec decisions 12, 18, 51), all from the study engine
@@ -11,7 +11,9 @@ import { newId, resumable, type SavedSession } from './sessionStore';
  * - a topic («Начать 20 вопросов по теме») and the current errors («Только ошибки: N», the exam day's «20 вопросов, где
  *   были ошибки»): freeSession, up to 20 in a seeded order;
  * - more new ones («Ещё 20 новых»): plan.ts extraNew, in a seeded order;
- * - a session left today (`?resume=1`): where it stopped.
+ * - a session left today (`?resume=1`): where it stopped;
+ * - the session the address names (`?sid=`, written when it starts): the same one after a reload (sessionStore.ts
+ *   sessionOf).
  */
 export interface SessionSetup {
   id: string;
@@ -43,7 +45,8 @@ export function setupSession(p: {
   const classOf = (ids: string[], fixed: PlanCls | null): Record<string, PlanCls> =>
     Object.fromEntries(ids.map((id) => [id, fixed ?? clsOf(items.get(id)?.u, inWindow)]));
 
-  const again = params.get('resume') ? resumable(saved, today) : null;
+  const sid = params.get('sid');
+  const again = params.get('resume') ? resumable(saved, today) : sid ? sessionOf(saved, sid, today) : null;
   if (again) {
     const ids = Array.from(new Set(again.queue.map((entry) => entry.id)));
     return {
