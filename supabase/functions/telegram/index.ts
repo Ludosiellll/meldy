@@ -15,7 +15,8 @@ import { session } from '../_shared/bot/session.ts';
 import { createVoice } from '../_shared/bot/voice.ts';
 import { createAuthAdmin, createWebApp } from '../_shared/bot/webapp.ts';
 import { createMonitor } from '../_shared/bot/monitor.ts';
-import { createGame, liveTextsStub } from '../_shared/bot/game.ts';
+import { createGame } from '../_shared/bot/game.ts';
+import { liveTexts } from '../_shared/bot/live.ts';
 import { readEnv } from '../_shared/bot/env.ts';
 import { log } from '../_shared/bot/log.ts';
 import { createApp, type Ports } from '../_shared/bot/router.ts';
@@ -42,8 +43,8 @@ const ports: Ports = {
   }),
   // The site's outage monitor (the tick's step «monitor»): off until bot.config.monitor_chat_id is set.
   monitor: createMonitor({ fetch: http }),
-  // The live game: the Mini App's join, the database's post and sync. The texts: W3's live.ts replaces the stub.
-  game: createGame({ token: () => env.token, texts: liveTextsStub, waitUntil }),
+  // The live game: the Mini App's join, the database's post and sync, with the bot's texts of live.ts.
+  game: createGame({ token: () => env.token, texts: liveTexts, waitUntil }),
 };
 const app = env.token && env.supabaseUrl && env.serviceKey
   ? createApp({
