@@ -153,7 +153,8 @@ export interface Studio {
   /** New rows (the list's editor, a copy of a row off the page) and their blocks at `index` (the end by default). */
   addInputs: (inputs: ItemInput[], index?: number) => Promise<DocBlock[]>;
   duplicate: (blockId: string) => Promise<DocBlock | null>;
-  remove: (blockId: string) => void;
+  /** Takes a block off the page; `touch`: the words read out leave out Ctrl+Z (the screen shows «Вернуть»). */
+  remove: (blockId: string, touch?: boolean) => void;
   move: (blockId: string, index: number) => void;
   replace: (block: DocBlock, key?: string | null) => void;
   /** container_item_update for a row, kept here when it is saved. */
@@ -546,11 +547,11 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   );
 
   const remove = useCallback(
-    (blockId: string) => {
+    (blockId: string, touch = false) => {
       const block = historyRef.current?.present.blocks.find((entry) => entry.id === blockId);
       if (!block) return;
       change((doc) => removeBlock(doc, blockId));
-      say(STUDIO.removed(STUDIO.types[block.type]));
+      say(STUDIO.removed(STUDIO.types[block.type], touch));
     },
     [change, say],
   );

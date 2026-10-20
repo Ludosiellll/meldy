@@ -6,10 +6,13 @@ import { STUDIO } from './copyStudio';
 import DocView, { type DocEditApi } from './DocView';
 import PictureField from './PictureField';
 import { BLOCK_KINDS } from './Palette';
-import type { PictureTarget, UploadStage } from './pictures';
+import { rememberPreset, type PictureTarget, type UploadStage } from './pictures';
 import type { SideApi } from './Workspace';
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 const EXAM = '11111111-2222-4333-8444-555555555555';
 const PIC = `${EXAM}/${'a'.repeat(64)}.png`;
@@ -48,6 +51,7 @@ describe('PictureField: the author’s own picture first', () => {
 
   it('a picture there (a ready one): «Заменить своей» and «Убрать»; a field without presets says «Загрузить другую»', () => {
     const onRemove = vi.fn();
+    rememberPreset(PIC);
     const { rerender } = render(<PictureField label={STUDIO.picture} path={PIC} target={COVER} api={sideApi()} presets="cover" onRemove={onRemove} imageUrl={url} />);
     expect(screen.getByRole('button', { name: STUDIO.pictureReplaceOwn })).toBeInTheDocument();
     expect(document.querySelector('.st-pic-now img')).toHaveAttribute('src', url(PIC));
@@ -56,6 +60,24 @@ describe('PictureField: the author’s own picture first', () => {
     rerender(<PictureField label={STUDIO.picture} path={PIC} target={{ kind: 'image', blockId: 'img00000001' }} api={sideApi()} imageUrl={url} />);
     expect(screen.getByRole('button', { name: STUDIO.pictureReplace })).toBeInTheDocument();
     expect(screen.queryByText(STUDIO.presetsCover)).toBeNull();
+  });
+
+  it('the author’s own picture there: «Загрузить другую», not «Заменить своей» (live check of 47.4)', () => {
+    const own = `${EXAM}/${'b'.repeat(64)}.jpg`;
+    rememberPreset(PIC);
+    render(<PictureField label={STUDIO.background} path={own} target={{ kind: 'background' }} api={sideApi()} presets="background" imageUrl={url} />);
+    expect(screen.getByRole('button', { name: STUDIO.pictureReplace })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: STUDIO.pictureReplaceOwn })).toBeNull();
+  });
+
+  it('the line goes in the order of the work: «Готовлю картинку…», «Уменьшаю фото…», «Загружаю картинку…»', () => {
+    const { rerender } = render(<PictureField label={STUDIO.picture} path={null} target={COVER} api={sideApi({ stageOf: () => 'read' })} imageUrl={url} />);
+    expect(screen.getByRole('status')).toHaveTextContent(STUDIO.imagePreparing);
+    expect(screen.getByRole('status')).not.toHaveTextContent(STUDIO.imageUploading);
+    rerender(<PictureField label={STUDIO.picture} path={null} target={COVER} api={sideApi({ stageOf: () => 'shrink' })} imageUrl={url} />);
+    expect(screen.getByRole('status')).toHaveTextContent(STUDIO.imageShrinking);
+    rerender(<PictureField label={STUDIO.picture} path={null} target={COVER} api={sideApi({ stageOf: () => 'upload' })} imageUrl={url} />);
+    expect(screen.getByRole('status')).toHaveTextContent(STUDIO.imageUploading);
   });
 
   it('a file dragged over it lights it up and says so; dropped, it is uploaded into this picture', () => {
@@ -122,8 +144,9 @@ describe('the palette and the copy', () => {
     expect(STUDIO.types.video).toBe('Видео');
   });
 
-  it('the HEIC words are the owner’s, without an exclamation mark', () => {
-    expect(STUDIO.pictureHeic).toBe('Этот формат телефон не отдаёт браузеру. Сохраните фото как JPEG или сделайте снимок экрана.');
+  it('the HEIC words say the browser, not a phone (a computer shows them too), without an exclamation mark', () => {
+    expect(STUDIO.pictureHeic).toBe('Этот браузер не открывает фото HEIC. Сохраните его как JPEG или PNG и загрузите снова.');
+    expect(STUDIO.pictureHeic).not.toMatch(/телефон/);
     for (const words of [STUDIO.pictureUpload, STUDIO.pictureReplaceOwn, STUDIO.pictureDropNow, STUDIO.canvasDrop, STUDIO.videoBad, STUDIO.videoHint]) expect(words).not.toContain('!');
   });
 });
@@ -162,7 +185,8 @@ describe('DocView: a video is the provider’s player in a sandboxed frame', () 
     expect(frame).toHaveAttribute('allow', 'fullscreen; picture-in-picture');
     expect(frame).toHaveAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     expect(frame).toHaveAttribute('loading', 'lazy');
-    expect(frame).toHaveAttribute('allowfullscreen');
+    // `allow` alone (both made the browser warn).
+    expect(frame).not.toHaveAttribute('allowfullscreen');
     expect(frame).not.toHaveAttribute('tabindex');
     expect(screen.getByText('Опыт с натрием', { selector: 'figcaption' })).toBeInTheDocument();
     expect(document.querySelector('.dv-video-shield')).toBeNull();
@@ -239,5 +263,18 @@ describe('DocView: a picture block without its picture, on the canvas', () => {
     rerender(<DocView mode="edit" doc={pageWith(empty)} items={new Map()} dark={false} editor={editor({ pictureNote: () => STUDIO.pictureSize })} />);
     expect(screen.getByRole('alert')).toHaveTextContent(STUDIO.pictureSize);
     expect(screen.getByRole('button', { name: STUDIO.imagePick })).toBeInTheDocument();
+  });
+});
+
+describe('DocView on the canvas: a link not taken', () => {
+  it('its words come into sight (on a phone they stood under the bottom bar)', () => {
+    const into = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => undefined);
+    render(<DocView mode="edit" doc={pageWith(video({ url: '' }))} items={new Map()} dark={false} editor={editor()} />);
+    fireEvent.change(screen.getByRole('textbox', { name: STUDIO.videoEmpty }), { target: { value: 'https://example.com/clip' } });
+    fireEvent.click(screen.getByRole('button', { name: STUDIO.videoPut }));
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(STUDIO.videoBad);
+    expect(into.mock.contexts).toContain(alert);
+    into.mockRestore();
   });
 });

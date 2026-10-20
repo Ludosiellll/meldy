@@ -60,7 +60,7 @@
   border-radius: 50%;
   color: var(--sf-ink);
 }
-.st-back:hover { background: var(--st-tint); }
+@media (hover: hover) { .st-back:hover { background: var(--st-tint); } }
 .st-back svg { width: 22px; height: 22px; }
 .st-name { display: grid; gap: 2px; min-width: 0; }
 .st-title {
@@ -121,7 +121,7 @@
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
-.st-seg-btn:hover { color: var(--sf-ink); }
+@media (hover: hover) { .st-seg-btn:hover { color: var(--sf-ink); } }
 .st-seg-btn[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
 .st-seg-btn svg { width: 18px; height: 18px; }
 .st-views .st-seg-btn svg { display: none; }
@@ -140,7 +140,7 @@
   color: var(--sf-ink);
   cursor: pointer;
 }
-.st-icon-btn:hover:not(:disabled) { background: var(--st-tint); }
+@media (hover: hover) { .st-icon-btn:hover:not(:disabled) { background: var(--st-tint); } }
 .st-icon-btn:disabled { opacity: 0.35; cursor: default; }
 .st-ui-ico { width: 20px; height: 20px; }
 .st-tool {
@@ -160,7 +160,7 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.st-tool:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) { .st-tool:hover { box-shadow: 0 0 0 1px var(--sf-ink); } }
 .st-tool[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--sf-ink); }
 .st-tool svg { width: 19px; height: 19px; }
 .st-badge {
@@ -249,6 +249,11 @@
 .st-frame[data-device='fluid'] { max-width: none; height: auto; overflow: visible; border-radius: 0; box-shadow: none; }
 .st-scroll { height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 40px; }
 .st-frame[data-device='fluid'] .st-scroll { height: auto; overflow: visible; }
+/*
+ * The phone's canvas is as long as the page: the background picture is a screen high and stays while the page scrolls,
+ * as the participant has it (live check of 47.4: a fixed layer held by this frame covered all 5400 px — a colour wash).
+ */
+.st-frame[data-device='fluid'] .dv-bg { position: sticky; inset: auto; top: 0; width: 100%; height: 100vh; height: 100lvh; margin-bottom: -100vh; margin-bottom: -100lvh; }
 .st-doc { min-height: 100%; }
 .st-frame[data-device='phone'] .st-doc .dv-col { padding-top: 34px; }
 
@@ -276,12 +281,12 @@
   touch-action: none;
   transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
-.st-pal-item:hover { background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), 0 10px 22px -16px rgba(16, 41, 90, 0.4); }
+@media (hover: hover) { .st-pal-item:hover { background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), 0 10px 22px -16px rgba(16, 41, 90, 0.4); } }
 .st-pal-item:active { cursor: grabbing; }
 .st-pal-item[data-dragging] { opacity: 0.45; }
 .st-pal-item[aria-disabled='true'] { opacity: 0.5; cursor: progress; }
 .st-ico { flex: none; width: 22px; height: 22px; color: var(--sf-muted); }
-.st-pal-item:hover .st-ico { color: var(--sf-ink); }
+@media (hover: hover) { .st-pal-item:hover .st-ico { color: var(--sf-ink); } }
 
 .st-ghost {
   display: inline-flex;
@@ -312,7 +317,7 @@
   pointer-events: none;
   transition: box-shadow 0.15s ease;
 }
-.st-block:hover::after { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--st-sel) 40%, transparent); }
+@media (hover: hover) { .st-block:hover::after { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--st-sel) 40%, transparent); } }
 .st-block[data-selected]::after { box-shadow: 0 0 0 2px var(--st-sel); }
 .st-block:focus-visible::after { box-shadow: 0 0 0 2px var(--st-sel), 0 0 0 6px color-mix(in srgb, var(--st-sel) 22%, transparent); }
 .st-block[data-dragging] { opacity: 0.35; }
@@ -336,7 +341,7 @@
   transform: translateY(4px);
   transition: opacity 0.15s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.st-block:hover > .st-acts,
+@media (hover: hover) { .st-block:hover > .st-acts { opacity: 1; pointer-events: auto; transform: none; } }
 .st-block[data-selected] > .st-acts,
 .st-block:focus-within > .st-acts { opacity: 1; pointer-events: auto; transform: none; }
 /* Words straight on the page have no card edge to sit on: the bar stands above them, and steps aside while typing. */
@@ -357,29 +362,34 @@
   cursor: pointer;
 }
 .st-act svg { width: 16px; height: 16px; }
-.st-act:hover:not(:disabled) { background: var(--st-tint); }
+@media (hover: hover) { .st-act:hover:not(:disabled) { background: var(--st-tint); } }
 .st-act:disabled { opacity: 0.32; cursor: default; }
 .st-act-icon { justify-content: center; width: 32px; padding: 0; }
 .st-handle { cursor: grab; touch-action: none; color: var(--sf-muted); }
 .st-handle:active { cursor: grabbing; }
 .st-acts .st-sep { width: 1px; height: 18px; margin: 0 3px; background: var(--sf-line); }
 
+/* Up to two lines (19.10: the hints of a phone were cut with «…»). */
 .st-hint {
   position: absolute;
   top: calc(100% + 10px);
   left: 6px;
   right: 6px;
   z-index: 3;
+  display: -webkit-box;
   margin: 0;
   overflow: hidden;
   color: var(--sf-muted);
   font: 13px/1.35 var(--ph-sans);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  text-wrap: pretty;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   pointer-events: none;
 }
 .dv[data-bg='image'] .st-hint { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
-.st-block[data-selected] + .st-gap { height: max(var(--doc-gap), 40px); }
+.st-block[data-selected] + .st-gap { height: max(var(--doc-gap), 56px); }
+.st-block[data-selected] + .st-gap-end { padding-top: 58px; }
 .st-problem { margin: 10px 0 0; color: var(--st-bad); font: 500 14px/1.4 var(--ph-sans); }
 .dv[data-bg='image'] .st-problem { padding: 8px 12px; border-radius: 12px; background: var(--sf-surface); }
 
@@ -404,7 +414,7 @@
   font: 500 15px/1 var(--ph-sans);
   cursor: pointer;
 }
-.st-confirm-yes:hover { background: #8c1d18; }
+@media (hover: hover) { .st-confirm-yes:hover { background: #8c1d18; } }
 .st-confirm .sf-link { min-height: 40px; }
 
 /* A file from the computer over the page: the page's edge lights up, the line says where the picture goes. */
@@ -481,11 +491,13 @@
   cursor: pointer;
 }
 .st-plus svg { width: 16px; height: 16px; }
-.st-gap:hover .st-plus,
+@media (hover: hover) { .st-gap:hover .st-plus { opacity: 1; } }
 .st-plus:focus-visible { opacity: 1; }
-/* A touch screen has no hover: the «+» stands under the chosen block. */
+/* A touch screen has no hover: the «+» stands under the chosen block, below its hint. */
 @media (hover: none) {
   .st-gap[data-next] .st-plus { opacity: 1; }
+  .st-block[data-selected] + .st-gap[data-next] { height: max(var(--doc-gap), 104px); }
+  .st-gap[data-next] .st-plus { top: auto; bottom: 10px; transform: translateX(-50%); }
 }
 .st-gap[data-drop] .st-plus { opacity: 0; }
 .st-gap-end { display: flex; flex: 1 0 auto; align-items: flex-start; justify-content: center; min-height: 120px; padding-top: 22px; }
@@ -507,7 +519,7 @@
   box-shadow: 0 0 0 1px var(--sf-line);
   background: color-mix(in srgb, var(--sf-surface) 80%, transparent);
 }
-.st-plus-end:hover { color: var(--sf-ink); box-shadow: 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) { .st-plus-end:hover { color: var(--sf-ink); box-shadow: 0 0 0 1px var(--sf-ink); } }
 .dv[data-bg='image'] .st-plus-end { background: var(--sf-surface); color: var(--sf-ink); }
 
 /* Editing in place: the field takes the words' own font; the marks' bar floats above it. */
@@ -531,6 +543,8 @@
   outline: none;
 }
 .st-field::placeholder { color: var(--doc-muted); opacity: 1; }
+/* The video block's link field: 16 px and up, or iOS zooms the page in when it takes the focus (live check of 47.4). */
+.st-doc .dv-video-put input { font-size: max(16px, 1rem); }
 [data-editing] { position: relative; }
 [data-empty] > .st-placeholder { color: var(--doc-muted); font-weight: 400; }
 .dv[data-bg='image'] [data-empty] > .st-placeholder { color: rgba(255, 255, 255, 0.8); }
@@ -573,8 +587,8 @@
   font: 500 14px/1 var(--ph-sans);
   cursor: pointer;
 }
-.st-mark:hover { background: rgba(255, 255, 255, 0.14); }
-.dark .st-mark:hover { background: rgba(11, 18, 28, 0.1); }
+@media (hover: hover) { .st-mark:hover { background: rgba(255, 255, 255, 0.14); } }
+@media (hover: hover) { .dark .st-mark:hover { background: rgba(11, 18, 28, 0.1); } }
 .st-mark b { font-weight: 700; }
 .st-mark i { font-style: italic; font-family: Georgia, serif; }
 .st-mark-word { padding: 0 10px; }
@@ -615,7 +629,7 @@
   cursor: pointer;
   transition: box-shadow 0.2s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.st-template:hover { box-shadow: 0 0 0 1px var(--doc-ink), 0 22px 40px -28px rgba(16, 41, 90, 0.45); transform: translateY(-2px); }
+@media (hover: hover) { .st-template:hover { box-shadow: 0 0 0 1px var(--doc-ink), 0 22px 40px -28px rgba(16, 41, 90, 0.45); transform: translateY(-2px); } }
 .st-template:disabled { opacity: 0.6; cursor: progress; transform: none; }
 .st-template-pic {
   display: flex;
@@ -665,7 +679,7 @@
   font: 500 15px/1 var(--ph-sans);
   cursor: pointer;
 }
-.st-type:hover { box-shadow: 0 0 0 1px var(--doc-ink); }
+@media (hover: hover) { .st-type:hover { box-shadow: 0 0 0 1px var(--doc-ink); } }
 .st-type .st-ico { color: var(--doc-muted); }
 
 /* ---------------------------------------------------------------- the settings */
@@ -697,7 +711,7 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.st-tab:hover { color: var(--sf-ink); }
+@media (hover: hover) { .st-tab:hover { color: var(--sf-ink); } }
 .st-tab[aria-selected='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
 .st-tab-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--sf-surface-soft); color: var(--sf-ink); font-size: 12px; font-weight: 600; }
 .st-tab-n[data-fix] { background: var(--st-bad-bg); color: var(--st-bad-ink); }
@@ -762,7 +776,7 @@
   font: 500 14.5px/1.2 var(--ph-sans);
   cursor: pointer;
 }
-.st-choice-opt:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) { .st-choice-opt:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); } }
 .st-choice-opt[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
 .st-choice-ico { display: inline-grid; place-items: center; }
 /* An option with a picture starts closer to its edge: three of them (Скругление) stay on one line in the side panel. */
@@ -788,10 +802,10 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.st-pill:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) { .st-pill:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--sf-ink); } }
 .st-pill:disabled { opacity: 0.55; cursor: default; }
 .st-pill-dark { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
-.st-pill-dark:hover:not(:disabled) { box-shadow: none; opacity: 0.9; }
+@media (hover: hover) { .st-pill-dark:hover:not(:disabled) { box-shadow: none; opacity: 0.9; } }
 .st-pill-small { height: 34px; padding: 0 14px; font-size: 14px; }
 .st-icon-btn .st-ui-ico { width: 20px; height: 20px; }
 
@@ -835,7 +849,7 @@
   cursor: pointer;
 }
 .st-upload .st-ui-ico { flex: none; width: 20px; height: 20px; }
-.st-upload:hover:not(:disabled) { opacity: 0.88; }
+@media (hover: hover) { .st-upload:hover:not(:disabled) { opacity: 0.88; } }
 .st-upload:focus-visible { outline: 2px solid var(--st-sel); outline-offset: 2px; }
 .st-upload:disabled { opacity: 0.55; cursor: progress; }
 .st-pic-hint { margin: 0; font-size: 13px; line-height: 1.4; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
@@ -900,8 +914,8 @@
 }
 .st-preset img { display: block; width: 100%; aspect-ratio: 5 / 2; object-fit: cover; border-radius: 10px; box-shadow: 0 0 0 1px var(--sf-line); }
 .st-presets[data-use='background'] .st-preset img { aspect-ratio: 16 / 10; }
-.st-preset:hover img { box-shadow: 0 0 0 2px var(--sf-ink); }
-.st-preset:hover { color: var(--sf-ink); }
+@media (hover: hover) { .st-preset:hover img { box-shadow: 0 0 0 2px var(--sf-ink); } }
+@media (hover: hover) { .st-preset:hover { color: var(--sf-ink); } }
 .st-preset:disabled { opacity: 0.55; cursor: progress; }
 
 /* The question's own settings under the editor */
@@ -973,7 +987,7 @@
   text-align: left;
   cursor: pointer;
 }
-.st-theme:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) { .st-theme:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); } }
 .st-theme[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--sf-ink); }
 .st-theme-name { padding: 0 4px; }
 .st-theme-pic { display: flex; align-items: flex-end; justify-content: space-between; height: 62px; padding: 10px; border-radius: 12px; background: var(--sf-canvas); }
@@ -1000,7 +1014,7 @@
   box-shadow: inset 0 0 0 1px transparent;
   cursor: pointer;
 }
-.st-swatch:hover { box-shadow: inset 0 0 0 1px var(--sf-line); }
+@media (hover: hover) { .st-swatch:hover { box-shadow: inset 0 0 0 1px var(--sf-line); } }
 .st-swatch[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--sf-ink); }
 .st-swatch-dot { width: 28px; height: 28px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
 .st-swatch-custom { display: inline-flex; gap: 8px; width: auto; padding: 0 14px 0 6px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--sf-line); font: 500 14px/1 var(--ph-sans); color: var(--sf-ink); }
@@ -1151,7 +1165,10 @@
 .st-sheet-grip { position: absolute; top: 8px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: var(--sf-line); }
 .st-sheet-title { flex: 1; margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.015em; }
 .st-sheet-body { padding: 0 16px calc(28px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+.st-sheet-wrap[data-away] { visibility: hidden; }
 .st-sheet .st-palette .st-side-h { display: none; }
+/* «Проверка теста» in its own sheet: the sheet's title says it. */
+.st-sheet .st-check > .st-panel-h { display: none; }
 .st-sheet .st-pal-group:first-of-type { margin-top: 4px; }
 .st-sheet.st-side .st-tabs { position: sticky; top: 0; margin: 0 -16px; padding: 4px 16px 12px; }
 .st-sheet.st-side .st-panel { padding: 16px 0 8px; }
@@ -1185,7 +1202,6 @@
   position: fixed;
   z-index: 70;
   width: min(320px, calc(100vw - 32px));
-  padding: 18px 20px 16px;
   border-radius: 22px;
   background: var(--sf-ink);
   color: var(--sf-canvas);
@@ -1225,6 +1241,8 @@
   background: inherit;
   transform: rotate(45deg);
 }
+/* The card is never taller than the screen (a phone on its side): it scrolls inside, the arrow stays outside. */
+.st-tour-in { box-sizing: border-box; max-height: calc(100dvh - 32px); padding: 18px 20px 16px; overflow: auto; overscroll-behavior: contain; border-radius: inherit; }
 .st-tour-step { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.72; }
 .st-tour-title { margin: 6px 0 0; font-size: 19px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
 .st-tour-text { margin: 6px 0 0; font-size: 15px; line-height: 1.45; opacity: 0.88; text-wrap: pretty; }
@@ -1234,31 +1252,66 @@
 .st-tour-dots { display: flex; gap: 5px; margin-left: auto; }
 .st-tour-dots > span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.3; }
 .st-tour-dots > span[data-on] { opacity: 1; }
+/* One counter: the tour's («1 из 4»), not the clip's own («2/5») as well. */
+.st-tour-clip .sc-count { display: none; }
+
+/* After a removal on a touch screen: the words and «Вернуть», over the bottom bar. */
+.st-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--st-bottom-bar, 0px) + 12px);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 5px 5px 5px 18px;
+  border-radius: 999px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  box-shadow: 0 18px 40px -18px rgba(11, 18, 28, 0.6);
+  font: 500 15px/1.3 var(--ph-sans);
+  transform: translateX(-50%);
+  animation: st-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-toast-t { min-width: 0; margin: 0; }
+.st-toast-btn {
+  flex: none;
+  height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-canvas) 18%, transparent);
+  color: inherit;
+  font: 600 15px/1 var(--ph-sans);
+  cursor: pointer;
+}
+.st-toast-btn:focus-visible { outline: 2px solid var(--st-sel); outline-offset: 2px; }
 
 /* ---------------------------------------------------------------- a tablet: the palette and the settings are sheets */
 @media (max-width: 1023px) {
   .st-work { display: block; }
   .st-canvas { padding: 0; background: none; }
   .st-page:not([data-frame='s']) .st-canvas { padding: 16px; background: var(--sf-workbench); }
-  .st-page:not([data-frame='s']) .st-frame[data-device='fluid'] { border-radius: 22px; box-shadow: var(--st-shadow); overflow: hidden; }
+  /* clip, not hidden: the background's sticky layer still follows the window. */
+  .st-page:not([data-frame='s']) .st-frame[data-device='fluid'] { border-radius: 22px; box-shadow: var(--st-shadow); overflow: clip; }
   .st-textview { grid-template-columns: minmax(0, 1fr); }
   .st-text-side { border-left: 0; border-top: 1px solid var(--sf-line); }
   .st-text-area { min-height: 52dvh; }
 }
 
-/* ---------------------------------------------------------------- a phone */
+/* ---------------------------------------------------------------- a phone and a tablet: the bottom bar */
+/*
+ * «Блоки», «Настройки» and «Отправить по ссылке» stand in a bar at the bottom of every screen without the computer's
+ * three columns: frames 's' and 'm', up to 1023 px — a phone upright and on its side, an iPad upright (phone audit of
+ * 19.10: from 640 to 1023 px they were nowhere). While a field of the page takes the keyboard the bar steps away
+ * ([hidden], phone.ts bottomBarShown) and keeps its place, so the page does not jump.
+ */
 .st-phonebar { display: none; }
-.st-page[data-frame='s'] .st-bar { flex-wrap: wrap; gap: 8px 6px; padding: 10px 12px; min-height: 0; }
-.st-page[data-frame='s'] .st-views { order: -1; flex: 1 1 100%; }
-.st-page[data-frame='s'] .st-views .st-seg-btn { flex: 1; padding: 0 8px; }
-.st-page[data-frame='s'] .st-bar-start { flex: 1 1 0; }
-.st-page[data-frame='s'] .st-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.st-page[data-frame='s'] .st-bar-tools { gap: 2px; }
-.st-page[data-frame='s'] .st-tool { height: 38px; padding: 0 12px; font-size: 14px; }
-.st-page[data-frame='s'] .st-tool .st-tool-word.st-preview-short,
-.st-page[data-frame='s'] .st-tool .st-tool-word.st-preview-long { display: none; }
-.st-page[data-frame='s'] .st-tool[data-tour='preview'] { width: 40px; padding: 0; justify-content: center; }
-.st-page[data-frame='s'] .st-phonebar {
+.st-page:is([data-frame='s'], [data-frame='m']) { --st-bottom-bar: calc(67px + env(safe-area-inset-bottom)); }
+.st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar {
   position: sticky;
   bottom: 0;
   z-index: 20;
@@ -1271,21 +1324,94 @@
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
+.st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar[hidden] { visibility: hidden; }
+.st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar .st-tool { flex: none; height: 46px; padding: 0 14px 0 12px; gap: 6px; }
+.st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar .st-tool-icon { width: 46px; padding: 0; justify-content: center; }
+.st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar .st-send { height: 46px; gap: 10px; margin-left: auto; padding: 0 6px 0 18px; font-size: 15px; white-space: nowrap; }
+.st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar .st-send::after { width: 32px; height: 32px; }
+/* A block brought into view (added, moved, typed in), and the words of a link not taken, stop below the app's bar and above the bottom bar. */
+.st-page:is([data-frame='s'], [data-frame='m']) :is(.st-block, .st-field, .st-block .dv-pic-note) { scroll-margin: calc(var(--sf-bar-h) + 16px) 0 calc(var(--st-bottom-bar) + 16px); }
+
+/*
+ * A tablet narrower than 800 px and a computer narrower than 1200: «Посмотреть как участник» by its eye alone (its name
+ * stays), so the test's name and «Сохранено» keep their room (19.10: at 640–760 and at 1024 px they were squeezed to nothing).
+ */
+@media (max-width: 799.98px) {
+  .st-page[data-frame='m'] .st-bar { gap: 6px; padding-inline: 10px; }
+  .st-page[data-frame='m'] .st-bar-start { gap: 4px; }
+  .st-page[data-frame='m'] .st-bar-tools { gap: 4px; }
+  .st-page[data-frame='m'] .st-views .st-seg-btn { padding: 0 11px; }
+  .st-page[data-frame='m'] .st-tool[data-tour='preview'] { width: 40px; padding: 0; justify-content: center; }
+  .st-page[data-frame='m'] .st-tool[data-tour='preview'] .st-tool-word { display: none; }
+}
+@media (max-width: 1199.98px) {
+  .st-page[data-frame='l'] .st-tool[data-tour='preview'] { width: 40px; padding: 0; justify-content: center; }
+  .st-page[data-frame='l'] .st-tool[data-tour='preview'] .st-tool-word { display: none; }
+}
+
+/* ---------------------------------------------------------------- a phone */
+.st-page[data-frame='s'] .st-bar { flex-wrap: wrap; gap: 8px 6px; padding: 10px; min-height: 0; }
+.st-page[data-frame='s'] .st-views { order: -1; flex: 1 1 100%; }
+.st-page[data-frame='s'] .st-views .st-seg-btn { flex: 1; padding: 0 8px; }
+.st-page[data-frame='s'] .st-bar-start { flex: 1 1 0; }
+.st-page[data-frame='s'] .st-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+/* «Сохранено» whole at 360 px (19.10: «Сохран…»). */
+.st-page[data-frame='s'] .st-save { gap: 4px; }
+.st-page[data-frame='s'] .st-bar-tools { gap: 2px; }
+/* «Отменить» and «Повторить» 4 px apart: each finger's room of 44 px is its own. */
+.st-page[data-frame='s'] .st-bar-tools .st-icon-btn + .st-icon-btn { margin-left: 2px; }
+.st-page[data-frame='s'] .st-tool { gap: 6px; height: 38px; padding: 0 10px; font-size: 14px; }
+.st-page[data-frame='s'] .st-tool .st-tool-word.st-preview-short,
+.st-page[data-frame='s'] .st-tool .st-tool-word.st-preview-long { display: none; }
+.st-page[data-frame='s'] .st-tool[data-tour='preview'] { width: 40px; padding: 0; justify-content: center; }
+/* The phone's bar: the blue button takes the rest of it («Отправить» below 400 px, phone.ts sendWords). */
 .st-page[data-frame='s'] .st-phonebar { gap: 6px; padding-inline: 10px; }
-.st-page[data-frame='s'] .st-phonebar .st-tool { flex: none; height: 46px; padding: 0 14px 0 12px; gap: 6px; }
-.st-page[data-frame='s'] .st-phonebar .st-tool-icon { width: 46px; padding: 0; justify-content: center; }
-.st-page[data-frame='s'] .st-phonebar .st-send { flex: 1 1 auto; justify-content: space-between; min-width: 0; height: 46px; gap: 6px; margin-left: auto; padding: 0 6px 0 14px; overflow: hidden; font-size: 15px; text-overflow: ellipsis; }
-.st-page[data-frame='s'] .st-phonebar .st-send::after { width: 32px; height: 32px; }
+.st-page[data-frame='s'] .st-phonebar .st-send { flex: 1 1 auto; justify-content: space-between; min-width: 0; gap: 6px; padding-left: 14px; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 359px) {
   .st-page[data-frame='s'] .st-phonebar .st-tool .st-tool-word { display: none; }
 }
 .st-page[data-frame='s'] .st-text-main { padding: 12px; }
-.st-page[data-frame='s'] .st-text-area { padding: 16px; font-size: 14px; }
+/* 16 px and up: a smaller field makes iOS zoom the page in when it takes the focus. */
+.st-page[data-frame='s'] .st-text-area { padding: 16px; font-size: max(16px, 1rem); }
 .st-page[data-frame='s'] .st-text-side { padding: 18px 16px 32px; }
 .st-page[data-frame='s'] .st-listview { padding: 16px 16px 40px; }
-.st-page[data-frame='s'] .st-acts { right: 4px; top: -26px; }
+.st-page[data-frame='s'] .st-acts { right: 4px; top: -28px; }
+.st-page[data-frame='s'] .st-block:is([data-type='heading'], [data-type='text'], [data-type='divider'], [data-type='page'], [data-type='image']) > .st-acts { top: -48px; }
 .st-page[data-frame='s'] .st-act span { display: none; }
-.st-page[data-frame='s'] .st-act { width: 36px; padding: 0; justify-content: center; }
+.st-page[data-frame='s'] .st-act { width: 44px; padding: 0; justify-content: center; }
+
+/*
+ * Tap targets of 44 px on a touch screen (phone audit of 19.10: the block's bar 36 × 32, «+» 30 × 30, «Холст / Список /
+ * Текст» 36 high, «Отменить / Повторить» and the steppers 40 × 40, the tabs 34, the tick of a right answer 28 wide):
+ * where the look must stay, the finger gets the room around it (an empty ::after); in the sheets, the size itself.
+ */
+@media (hover: none), (pointer: coarse) {
+  .st-seg-btn,
+  .st-icon-btn,
+  .st-act,
+  .st-tab,
+  .st-step { position: relative; }
+  .st-plus-end { position: relative; top: auto; left: auto; }
+  .st-seg-btn::after,
+  .st-icon-btn::after,
+  .st-act::after,
+  .st-tab::after,
+  .st-step::after,
+  .st-plus::after { content: ''; position: absolute; }
+  .st-seg-btn::after { inset: -4px 0; }
+  .st-icon-btn::after,
+  .st-step::after,
+  .st-plus-end::after { inset: -2px; }
+  .st-act { height: 36px; }
+  .st-act::after { inset: -4px 0; }
+  .st-tab::after { inset: -5px 0; }
+  .st-plus::after { inset: -7px; border-radius: 50%; }
+  /* Only the «+» under the chosen block is there to tap: the others are not seen, and not caught by a finger either. */
+  .st-gap:not([data-next]) .st-plus:not(.st-plus-end, :focus-visible) { visibility: hidden; }
+  .st-sheet .st-tab { height: 44px; }
+  .st-sheet .st-step { width: 44px; height: 44px; }
+  .st-question .qe-right { min-width: 44px; }
+}
 @media (max-width: 639px) {
   .st-preview-bar { flex-wrap: wrap; gap: 8px 10px; padding: 10px 12px; }
   .st-preview-bar .st-seg { display: none; }

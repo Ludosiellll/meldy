@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
@@ -13,6 +13,7 @@ import { STUDIO, type Panel, type StudioView } from '../../components/studio/cop
 import EmptyStart from '../../components/studio/EmptyStart';
 import { UiIcon } from '../../components/studio/icons';
 import ListView from '../../components/studio/ListView';
+import { bottomBarShown, hasBottomBar, sendWords, useTyping } from '../../components/studio/phone';
 import Preview from '../../components/studio/Preview';
 import Side from '../../components/studio/Side';
 import TextView from '../../components/studio/TextView';
@@ -87,8 +88,11 @@ export default function StudioPage() {
   const containerId = (params.id ?? '') as Uuid;
   const frame = useFrame<HTMLDivElement>();
   const phone = frame.size === 's';
-  /** Below a computer's width the palette and the settings are sheets. */
-  const narrow = phone || frame.size === 'm';
+  /** Below a computer's width the palette and the settings are sheets, opened from the bottom bar. */
+  const narrow = hasBottomBar(frame.size);
+  /** A field of the page takes the keyboard: the bottom bar steps away (it would stand over the field). */
+  const mainRef = useRef<HTMLElement>(null);
+  const typing = useTyping(mainRef);
   const build = useBuild(containerId);
   const { data, summary, owner, group } = build;
   const studio = useStudio(containerId, build);
@@ -292,6 +296,7 @@ export default function StudioPage() {
       group={group}
       dark={dark}
       hints={hints}
+      tabs={!(narrow && panel === 'check')}
       onShow={(blockId) => {
         showBlock(blockId);
         if (narrow) setSideOpen(false);
@@ -313,10 +318,12 @@ export default function StudioPage() {
       className="sf-primary st-send"
       disabled={keyed === 0}
       title={keyed === 0 ? STUDIO.sendWhy : undefined}
+      aria-label={STUDIO.send}
       aria-describedby={keyed === 0 ? 'st-send-why' : undefined}
       onClick={() => void send()}
     >
-      {STUDIO.send}
+      {/* A phone narrower than 400 px: «Отправить» (19.10: «Отправить по ссылке» did not fit at 375 and 360). */}
+      {narrow ? sendWords(frame.width) : STUDIO.send}
     </button>
   );
 
@@ -381,7 +388,8 @@ export default function StudioPage() {
               </span>
             ) : null}
           </button>
-          <button type="button" className="st-tool" data-tour="preview" onClick={() => setPreview({ device: phone ? 'phone' : device, percent: null })} aria-label={phone ? STUDIO.preview : undefined}>
+          {/* Narrow screens show its eye alone (studio.css): the name is always there. */}
+          <button type="button" className="st-tool" data-tour="preview" onClick={() => setPreview({ device: phone ? 'phone' : device, percent: null })} aria-label={STUDIO.preview} title={STUDIO.preview}>
             <UiIcon name="eye" />
             <span className="st-tool-word st-preview-long">{STUDIO.preview}</span>
             <span className="st-tool-word st-preview-short" aria-hidden="true">
@@ -412,7 +420,7 @@ export default function StudioPage() {
         </p>
       ) : null}
 
-      <main className="st-main" data-view={view}>
+      <main ref={mainRef} className="st-main" data-view={view}>
         {view === 'canvas' ? (
           <Workspace
             studio={studio}
@@ -441,14 +449,24 @@ export default function StudioPage() {
       </main>
 
       {narrow ? (
-        <div className="st-phonebar">
+        <div className="st-phonebar" hidden={!bottomBarShown(frame.size, typing)}>
           {view === 'canvas' ? (
             <>
               <button type="button" className="st-tool" data-tour="palette-phone" onClick={() => setPaletteOpen(true)}>
                 <UiIcon name="plus" />
                 <span className="st-tool-word">{STUDIO.palette}</span>
               </button>
-              <button type="button" className="st-tool st-tool-icon" aria-label={STUDIO.panelsLabel} title={STUDIO.panelsLabel} onClick={() => setSideOpen(true)}>
+              <button
+                type="button"
+                className="st-tool st-tool-icon"
+                aria-label={STUDIO.panelsLabel}
+                title={STUDIO.panelsLabel}
+                onClick={() => {
+                  // «Проверка теста» has its own button: «Настройки» opens the settings themselves.
+                  if (panel === 'check') setPanel('block');
+                  setSideOpen(true);
+                }}
+              >
                 <UiIcon name="sliders" />
               </button>
             </>

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { STUDIO } from './copyStudio';
+import { tourClipFits } from './phone';
 import TourClip from '../clips/TourClip';
 
 /**
@@ -8,6 +9,11 @@ import TourClip from '../clips/TourClip';
  * «/», «Посмотреть как участник». A small card beside what it talks about; it never takes the focus and never covers
  * the field being typed in (the page works under it), «Пропустить» ends it. Seen once per user on this device. Its first
  * step plays the clip «Свой тест» (components/clips): the studio's first-use tip is the tour itself.
+ *
+ * On a phone (phone audit of 19.10: the card took 459 of 667 px, showed the computer's studio and said «Перетащите
+ * «Заголовок» на страницу»): no clip below 480 px or on a low screen (tourClipFits), the phone's own words for the
+ * steps that speak of the computer's columns, one counter (the clip's own is hidden, studio.css), and the card scrolls
+ * inside itself when the screen is lower than it.
  */
 
 const ANCHORS = ['[data-tour="palette"], [data-tour="palette-phone"]', '[data-tour="canvas"]', '[data-tour="canvas"]', '[data-tour="preview"]'];
@@ -34,6 +40,7 @@ export default function Tour({ userId, phone = false, onDone }: { userId: string
   const [step, setStep] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<{ top: number; left: number; side: 'right' | 'below' | 'above' | 'inside' } | null>(null);
+  const [roomy, setRoomy] = useState(() => tourClipFits(window.innerWidth || 1024, window.innerHeight || 768));
   const last = step === STUDIO.tour.length - 1;
 
   const finish = () => {
@@ -49,6 +56,7 @@ export default function Tour({ userId, phone = false, onDone }: { userId: string
       const height = box?.height || 180;
       const viewW = window.innerWidth || 1024;
       const viewH = window.innerHeight || 768;
+      setRoomy(tourClipFits(viewW, viewH));
       if (!anchor) {
         setPlace({ top: Math.max(16, viewH - height - 24), left: Math.max(16, (viewW - width) / 2), side: 'inside' });
         return;
@@ -69,7 +77,7 @@ export default function Tour({ userId, phone = false, onDone }: { userId: string
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [step]);
+  }, [step, roomy]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -79,7 +87,7 @@ export default function Tour({ userId, phone = false, onDone }: { userId: string
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const card = phone && step === 0 ? STUDIO.tourPhoneFirst : STUDIO.tour[step];
+  const card = phone && step === 0 ? STUDIO.tourPhoneFirst : phone && step === 1 ? STUDIO.tourPhoneEdit : STUDIO.tour[step];
   return createPortal(
     <div
       ref={boxRef}
@@ -90,24 +98,26 @@ export default function Tour({ userId, phone = false, onDone }: { userId: string
       data-side={place?.side}
       style={place ? { top: place.top, left: place.left } : { visibility: 'hidden', top: 0, left: 0 }}
     >
-      {step === 0 ? <TourClip /> : null}
-      <p className="st-tour-step">{STUDIO.tourStep(step + 1, STUDIO.tour.length)}</p>
-      <h2 className="st-tour-title">{card.title}</h2>
-      <p className="st-tour-text">{card.text}</p>
-      <div className="st-tour-acts">
-        <button type="button" className="st-pill st-pill-dark" onClick={() => (last ? finish() : setStep((n) => n + 1))}>
-          {last ? STUDIO.tourDone : STUDIO.tourNext}
-        </button>
-        {last ? null : (
-          <button type="button" className="sf-link" data-muted="" onClick={finish}>
-            {STUDIO.tourSkip}
+      <div className="st-tour-in">
+        {step === 0 && roomy ? <TourClip /> : null}
+        <p className="st-tour-step">{STUDIO.tourStep(step + 1, STUDIO.tour.length)}</p>
+        <h2 className="st-tour-title">{card.title}</h2>
+        <p className="st-tour-text">{card.text}</p>
+        <div className="st-tour-acts">
+          <button type="button" className="st-pill st-pill-dark" onClick={() => (last ? finish() : setStep((n) => n + 1))}>
+            {last ? STUDIO.tourDone : STUDIO.tourNext}
           </button>
-        )}
-        <span className="st-tour-dots" aria-hidden="true">
-          {STUDIO.tour.map((_, at) => (
-            <span key={at} data-on={at === step ? '' : undefined} />
-          ))}
-        </span>
+          {last ? null : (
+            <button type="button" className="sf-link" data-muted="" onClick={finish}>
+              {STUDIO.tourSkip}
+            </button>
+          )}
+          <span className="st-tour-dots" aria-hidden="true">
+            {STUDIO.tour.map((_, at) => (
+              <span key={at} data-on={at === step ? '' : undefined} />
+            ))}
+          </span>
+        </div>
       </div>
     </div>,
     document.body,

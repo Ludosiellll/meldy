@@ -95,7 +95,8 @@ export const EDITOR = {
   pictureType: 'Это не картинка. Подойдут JPEG, PNG, GIF, WebP и фото с телефона.',
   pictureSize: 'Картинка больше 3 МБ даже после сжатия.',
   /** A HEIC photo the browser cannot draw (pictureFromFile 'heic'). */
-  pictureHeic: 'Этот формат телефон не отдаёт браузеру. Сохраните фото как JPEG или сделайте снимок экрана.',
+  /** Device-neutral (live check of 47.4: «телефон не отдаёт» was said on a computer too). */
+  pictureHeic: 'Этот браузер не открывает фото HEIC. Сохраните его как JPEG или PNG и загрузите снова.',
   pictureFailed: 'Картинка не сохранилась. Попробуйте ещё раз.',
   problems: {
     stem: 'Напишите текст вопроса или добавьте картинку.',

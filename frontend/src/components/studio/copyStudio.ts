@@ -30,6 +30,8 @@ export const STUDIO = {
   preview: 'Посмотреть как участник',
   previewShort: 'Как участник',
   send: 'Отправить по ссылке',
+  /** The bottom bar's button on a screen narrower than 400 px (its name stays «Отправить по ссылке»). */
+  sendShort: 'Отправить',
   sendWhy: 'Отправить можно, когда хотя бы у одного вопроса отмечен верный ответ.',
   panels: { block: 'Блок', design: 'Оформление', result: 'Результат', check: 'Проверка' } as Record<Panel, string>,
   panelsLabel: 'Настройки',
@@ -67,7 +69,7 @@ export const STUDIO = {
     page: 'Новая страница',
     question: 'Вопрос',
   } as Record<DocBlockType, string>,
-  qtypes: { single: 'Один ответ', multiple: 'Несколько ответов', truefalse: 'Верно / неверно', short: 'Краткий ответ' } as Record<QuestionType, string>,
+  qtypes: { single: 'Один ответ', multiple: 'Несколько ответов', truefalse: 'Верно / неверно', short: 'Короткий ответ' } as Record<QuestionType, string>,
   full: 'На странице 400 блоков — больше не поместится.',
   cap: 'На странице помещается 400 блоков; остальные вопросы — во вкладке «Список».',
 
@@ -75,14 +77,20 @@ export const STUDIO = {
   canvas: 'Страница теста',
   handle: (what: string) => `Перетащить: ${what}`,
   copy: 'Копия',
+  copyKeys: 'Ctrl+D',
   remove: 'Удалить',
+  removeKeys: 'Delete',
+  /** The phone's button over a block that opens its settings. */
+  blockSettings: 'Настройки блока',
   up: 'Выше',
   down: 'Ниже',
   moreKeys: 'Alt+↑ и Alt+↓ — выше и ниже, Delete — удалить, Ctrl+D — копия',
   removeQuestion: (n: number) => `Удалить вопрос ${n}? Ответы участников по нему пропадут.`,
   removeYes: 'Удалить',
   removeNo: 'Оставить',
-  removed: (what: string) => `${what}: блок удалён. Ctrl+Z вернёт его.`,
+  /** Read out after a removal; a computer is told its keys, a touch screen gets «Вернуть» next to the words. */
+  removed: (what: string, touch = false) => (touch ? `${what}: блок удалён.` : `${what}: блок удалён. Ctrl+Z вернёт его.`),
+  undoRemove: 'Вернуть',
   moved: (n: number, of: number) => `Блок на месте ${n} из ${of}.`,
   added: (what: string) => `Добавлен блок «${what}».`,
   copied: 'Копия добавлена ниже.',
@@ -93,6 +101,8 @@ export const STUDIO = {
   emptyText: 'Пишите текст или нажмите «/», чтобы выбрать блок',
   imageEmpty: 'Картинки пока нет',
   imagePick: 'Загрузить свою картинку',
+  /** First, while the file is read (it may turn out to need shrinking before it is sent). */
+  imagePreparing: 'Готовлю картинку…',
   imageUploading: 'Загружаю картинку…',
   imageShrinking: 'Уменьшаю фото…',
   /** On the canvas: a file dragged over the page. */
@@ -130,8 +140,11 @@ export const STUDIO = {
     pageOn: 'Здесь участник нажмёт «Дальше».',
     questionNoKey: 'Отметьте верный ответ в настройках блока — без него вопрос не попадёт в контрольную.',
     questionDraft: 'Это заготовка: напишите вопрос и варианты в настройках блока.',
+    questionDraftShort: 'Это заготовка: напишите вопрос и принятые ответы в настройках блока.',
+    questionDraftTrueFalse: 'Это заготовка: напишите утверждение и отметьте верный ответ в настройках блока.',
     questionRequired: 'В режиме «По одному» обязательность не действует: участник отвечает по очереди.',
     question: 'Текст, варианты, ключ и баллы — в настройках блока.',
+    questionShort: 'Текст, принятые ответы и баллы — в настройках блока.',
   },
 
   // the inspector
@@ -175,6 +188,8 @@ export const STUDIO = {
   pictureFailed: 'Картинка не загрузилась. Попробуйте ещё раз.',
   /** After a failed upload over a picture that was there. */
   pictureKept: 'Прежняя картинка осталась.',
+  /** A picture block still without its picture: the page is saved without it (useStudio withoutUnfinished). */
+  pictureNotSaved: 'Пока картинки нет, блок не сохраняется.',
   videoLink: 'Ссылка на видео',
   videoHint: 'YouTube, RuTube или VK Видео. Подойдёт и код для вставки с этих сайтов.',
   videoBad: 'Это не ссылка на видео YouTube, RuTube или VK Видео.',
@@ -305,7 +320,9 @@ export const STUDIO = {
     { title: 'Косая черта', text: 'В пустом текстовом блоке нажмите «/» — откроется список блоков.' },
     { title: 'Как увидит участник', text: '«Посмотреть как участник» показывает тест на телефоне и компьютере. Ответы там не сохраняются.' },
   ],
-  tourPhoneFirst: { title: 'Блоки', text: '«Блоки» внизу — заголовки, тексты, картинки и вопросы. Нажмите на блок, и он встанет после выбранного.' },
+  /** A phone's (and a tablet's) own words for the steps that speak of the computer's columns. */
+  tourPhoneFirst: { title: 'Блоки', text: 'Нажмите «Блоки» внизу → «Заголовок»: он встанет после выбранного блока. Там же тексты, картинки и вопросы.' },
+  tourPhoneEdit: { title: 'Правка на месте', text: 'Нажмите на текст на странице и пишите. Настройки выбранного блока — кнопка с ползунками внизу.' },
   tourStep: (n: number, of: number) => `${n} из ${of}`,
   tourNext: 'Дальше',
   tourDone: 'Понятно',

@@ -241,7 +241,7 @@ function EmptyPicture({ blockId, editor }: { blockId: string; editor: DocEditApi
       }}
     >
       <span className="dv-pic-line" role="status">
-        {stage === 'shrink' ? STUDIO.imageShrinking : stage === 'upload' ? STUDIO.imageUploading : over ? STUDIO.pictureDropNow : STUDIO.imageEmpty}
+        {stage === 'read' ? STUDIO.imagePreparing : stage === 'shrink' ? STUDIO.imageShrinking : stage === 'upload' ? STUDIO.imageUploading : over ? STUDIO.pictureDropNow : STUDIO.imageEmpty}
       </span>
       {stage ? null : (
         <button type="button" className="dv-pic-pick" onClick={() => editor.pickImage(blockId)}>
@@ -264,6 +264,11 @@ function VideoLink({ blockId, value, editor }: { blockId: string; value: string;
   const id = useId();
   const [text, setText] = useState(value);
   const [bad, setBad] = useState(false);
+  const badRef = useRef<HTMLSpanElement>(null);
+  // The words of a link not taken come into sight (live check of 47.4: on a phone they stood under the bottom bar).
+  useEffect(() => {
+    if (bad) badRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [bad]);
   const put = (raw: string) => {
     const url = cleanVideoUrl(raw);
     setBad(!url);
@@ -310,7 +315,7 @@ function VideoLink({ blockId, value, editor }: { blockId: string; value: string;
         </button>
       </span>
       {bad ? (
-        <span className="dv-pic-note" id={`${id}-bad`} role="alert">
+        <span ref={badRef} className="dv-pic-note" id={`${id}-bad`} role="alert">
           {STUDIO.videoBad}
         </span>
       ) : null}
@@ -328,8 +333,8 @@ export function VideoPlayer({ url, caption, edit }: { url: string; caption: stri
         src={embed.src}
         title={caption.trim() || STUDIO.videoTitles[embed.provider]}
         sandbox="allow-scripts allow-same-origin allow-presentation"
+        // `allow` alone: with allowFullScreen as well the browser warned about both (live check of 47.4).
         allow="fullscreen; picture-in-picture"
-        allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
         loading="lazy"
         tabIndex={edit ? -1 : undefined}

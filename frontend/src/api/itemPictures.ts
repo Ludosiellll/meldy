@@ -55,11 +55,15 @@ function alreadyThere(error: StorageFailure): boolean {
 /**
  * Puts one picture at `path`. 'kept' — it is there now; 'refused' — storage turned this picture down (type, size,
  * rights): the question is saved without it. A network or server failure throws, so the save stops and goes on later.
+ *
+ * Quiz covers (the studio's pictures, a quiz's cover) are written over: the name is the hash of the bytes, so the same
+ * picture again changes nothing, and the bucket lets the owner update their folder — no «already exists» 400 in the
+ * console (live check of 47.4). test-item-images has no update policy: a picture already there still counts as kept.
  */
 export async function uploadPicture(path: string, picture: BankPicture, bucket: string = PICTURE_BUCKET): Promise<'kept' | 'refused'> {
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(path, pictureBlob(picture), { contentType: picture.type, upsert: false, cacheControl: '31536000' });
+    .upload(path, pictureBlob(picture), { contentType: picture.type, upsert: bucket === COVER_BUCKET, cacheControl: '31536000' });
   if (!error) return 'kept';
   const failure = error as StorageFailure;
   if (alreadyThere(failure)) return 'kept';

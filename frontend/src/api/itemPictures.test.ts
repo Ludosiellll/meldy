@@ -10,7 +10,19 @@ vi.mock('../lib/supabase', () => ({
   supabaseFetch: (input: RequestInfo | URL, init?: RequestInit) => net.fetch!(input, init),
 }));
 
-import { guestPictureUrl, isHeic, MAX_PICTURE_BYTES, MAX_PICTURE_SIDE, pictureFromFile, picturePath, pictureUrl, removeContainerPictures } from './itemPictures';
+import {
+  COVER_BUCKET,
+  guestPictureUrl,
+  isHeic,
+  MAX_PICTURE_BYTES,
+  MAX_PICTURE_SIDE,
+  PICTURE_BUCKET,
+  pictureFromFile,
+  picturePath,
+  pictureUrl,
+  removeContainerPictures,
+  uploadPicture,
+} from './itemPictures';
 import { supabase } from '../lib/supabase';
 import { createSupabaseFetch } from '../lib/supabaseRoute';
 
@@ -404,5 +416,26 @@ describe('removeContainerPictures (live check of 47.4: a deleted test’s public
       remove: vi.fn(),
     })) as never);
     await expect(removeContainerPictures(EXAM)).rejects.toThrow('denied');
+  });
+});
+
+describe('uploadPicture: the same picture again', () => {
+  const picture = { type: 'image/png', data: btoa('png') };
+  const path = `11111111-2222-4333-8444-555555555555/${'a'.repeat(64)}.png`;
+
+  it('a quiz cover (the studio’s pictures too) is written over: no «already exists» 400 (live check of 47.4)', async () => {
+    const upload = vi.fn().mockResolvedValue({ data: { path }, error: null });
+    vi.mocked(supabase.storage.from).mockReturnValue({ upload } as unknown as ReturnType<typeof supabase.storage.from>);
+    expect(await uploadPicture(path, picture, COVER_BUCKET)).toBe('kept');
+    expect(supabase.storage.from).toHaveBeenLastCalledWith(COVER_BUCKET);
+    expect(upload.mock.calls[0][2]).toMatchObject({ upsert: true, contentType: 'image/png' });
+  });
+
+  it('a question’s picture (no update policy there): not written over; one already there counts as kept', async () => {
+    const upload = vi.fn().mockResolvedValue({ data: null, error: { status: 400, statusCode: '409', message: 'The resource already exists' } });
+    vi.mocked(supabase.storage.from).mockReturnValue({ upload } as unknown as ReturnType<typeof supabase.storage.from>);
+    expect(await uploadPicture(path, picture)).toBe('kept');
+    expect(supabase.storage.from).toHaveBeenLastCalledWith(PICTURE_BUCKET);
+    expect(upload.mock.calls[0][2]).toMatchObject({ upsert: false });
   });
 });

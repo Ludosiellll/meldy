@@ -56,6 +56,7 @@ vi.mock('../../api/itemPictures', async (original) => ({
 import StudioPage from './StudioPage';
 import { item, subject, summary } from '../../components/containers/testkit/fixtures';
 import { STUDIO } from '../../components/studio/copyStudio';
+import { rememberPreset } from '../../components/studio/pictures';
 import { emptyDoc } from '../../lib/studio/doc';
 
 const EXAM = '11111111-2222-4333-8444-555555555555';
@@ -131,6 +132,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  window.localStorage.clear();
 });
 
 describe('the studio: own pictures in every way', () => {
@@ -149,6 +151,31 @@ describe('the studio: own pictures in every way', () => {
     expect(frame(ids[2])).toHaveAttribute('data-type', 'image');
     expect(frame(ids[2])).toHaveAttribute('data-selected');
     await waitFor(() => expect(frame(ids[2]).querySelector('.dv-pic img')).toHaveAttribute('src', `https://covers.test/${path}`));
+  });
+
+  it('the line goes in the order of the work: «Готовлю картинку…» first, never «Загружаю» before it (live check of 47.4)', async () => {
+    let send: (value: 'kept') => void = () => undefined;
+    api.upload.mockImplementationOnce(() => new Promise((resolve) => (send = resolve)));
+    await openStored();
+    fireEvent.click(frame('head00000001'));
+    fireEvent.paste(document.body, { clipboardData: { files: [png()], getData: () => '' } });
+    const added = order()[2];
+    const line = () => frame(added).querySelector('.dv-pic-line') as HTMLElement;
+    expect(line()).toHaveTextContent(STUDIO.imagePreparing);
+    await waitFor(() => expect(line()).toHaveTextContent(STUDIO.imageUploading));
+    await act(async () => send('kept'));
+    await waitFor(() => expect(frame(added).querySelector('.dv-pic img')).not.toBeNull());
+  });
+
+  it('a picture block whose picture failed says it is not saved so; «Проверка теста» names it', async () => {
+    api.upload.mockResolvedValueOnce('refused');
+    await openStored();
+    fireEvent.click(frame('head00000001'));
+    fireEvent.paste(document.body, { clipboardData: { files: [png()], getData: () => '' } });
+    const added = order()[2];
+    await waitFor(() => expect(within(frame(added)).getByRole('alert')).toHaveTextContent(`${STUDIO.pictureFailed} ${STUDIO.pictureNotSaved}`));
+    fireEvent.click(screen.getByRole('button', { name: /Проверка/ }));
+    expect(within(side()).getByText('Блок «Картинка» без картинки не сохраняется — загрузите её или уберите блок.')).toBeInTheDocument();
   });
 
   it('words pasted stay words; a picture pasted into the question editor stays the editor’s', async () => {
@@ -223,6 +250,8 @@ describe('the studio: own pictures in every way', () => {
   });
 
   it('a cover’s field: a file dropped onto it replaces the ready picture; a failure says why and keeps the old one', async () => {
+    // The cover is a ready picture put here on this device.
+    rememberPreset(OLD);
     await openStored();
     fireEvent.click(frame('cover0000001'));
     const field = within(side()).getByRole('group', { name: STUDIO.picture });
@@ -241,6 +270,8 @@ describe('the studio: own pictures in every way', () => {
     fireEvent.drop(field, files([png('Своя.png', [9, 9, 9])]));
     await waitFor(() => expect(document.querySelector('.dv-cover-pic img')?.getAttribute('src')).not.toBe(`https://covers.test/${OLD}`));
     expect(within(field).queryByRole('alert')).toBeNull();
+    // Now the author's own: «Загрузить другую».
+    expect(within(field).getAllByRole('button')[0]).toHaveAccessibleName(STUDIO.pictureReplace);
   });
 
   it('the file field takes any picture: exactly image/*, so a phone opens its photos', async () => {

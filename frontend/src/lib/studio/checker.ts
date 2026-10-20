@@ -318,6 +318,24 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
     });
   }
 
+  // A picture block without its picture, a video block without its link: the page is saved without them (useStudio
+  // withoutUnfinished), so after a reload they are gone (live check of 47.4: a failed picture vanished unsaid).
+  doc.blocks.forEach((block, at) => {
+    const empty = block.type === 'image' ? !block.path : block.type === 'video' ? !block.url : false;
+    if (!empty) return;
+    found.push({
+      id: `unfinished:${block.id}`,
+      blockId: block.id,
+      level: 'fix',
+      at,
+      message:
+        block.type === 'image'
+          ? 'Блок «Картинка» без картинки не сохраняется — загрузите её или уберите блок.'
+          : 'Блок «Видео» без ссылки не сохраняется — вставьте ссылку или уберите блок.',
+      fix: { kind: 'remove_block', blockId: block.id },
+    });
+  });
+
   longestHint(questions, found);
   letterHint(questions, found);
 

@@ -5,9 +5,10 @@ import { UiIcon } from './icons';
 
 /**
  * A sheet from the bottom of a phone's screen (the palette, the settings): the page stays behind it, dimmed; Escape,
- * the backdrop or «Закрыть» close it, and the focus comes back to where it was.
+ * the backdrop or «Закрыть» close it, and the focus comes back to where it was. `away`: out of sight while it stays
+ * mounted (a block dragged by finger out of «Блоки» — the drop is not blind).
  */
-export default function Sheet({ title, onClose, children, className }: { title: string; onClose: () => void; children: ReactNode; className?: string }) {
+export default function Sheet({ title, onClose, children, className, away = false }: { title: string; onClose: () => void; children: ReactNode; className?: string; away?: boolean }) {
   const id = useId();
   const boxRef = useRef<HTMLDivElement>(null);
   const back = useRef<HTMLElement | null>(null);
@@ -17,7 +18,7 @@ export default function Sheet({ title, onClose, children, className }: { title: 
     return () => back.current?.focus?.({ preventScroll: true });
   }, []);
   return createPortal(
-    <div className="st-sheet-wrap" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className="st-sheet-wrap" data-away={away ? '' : undefined} onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
       <div
         ref={boxRef}
         className={`st-sheet${className ? ` ${className}` : ''}`}

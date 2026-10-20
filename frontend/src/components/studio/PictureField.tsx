@@ -3,13 +3,13 @@ import { coverUrl } from '../../api/itemPictures';
 import { STUDIO } from './copyStudio';
 import { UiIcon } from './icons';
 import { PRESETS, presetDataUrl, type PresetId } from './presets';
-import { draggingFiles, pasteKeys, pictureFiles, type PictureTarget } from './pictures';
+import { draggingFiles, isPresetPath, pasteKeys, pictureFiles, type PictureTarget } from './pictures';
 import type { SideApi } from './Workspace';
 
 /**
  * A picture setting of the page (a cover, a picture block, the background, a result message). The author's own picture
  * comes first (owner, 2026-10-19: «почему нельзя добавлять свои картинки»): «Загрузить свою картинку» — «Заменить
- * своей» once a picture is there — opens the files (on a phone, the photos); the whole field takes a file dragged onto
+ * своей» over a ready picture, «Загрузить другую» over the author's own — opens the files (on a phone, the photos); the whole field takes a file dragged onto
  * it (it says so while one is over it) and a picture pasted while the focus is in it (Ctrl+V / ⌘V). Under the button: a
  * line of what is being done («Уменьшаю фото…», «Загружаю картинку…») and the words of a failure (the picture that was
  * there stays). The ready pictures (presets.ts) come after it — a cover's and the background's.
@@ -73,7 +73,7 @@ export default function PictureField({
     if (!busy) api.uploadFile(target, file);
   };
 
-  const button = path ? (presets ? STUDIO.pictureReplaceOwn : STUDIO.pictureReplace) : STUDIO.pictureUpload;
+  const button = path ? (presets && isPresetPath(path) ? STUDIO.pictureReplaceOwn : STUDIO.pictureReplace) : STUDIO.pictureUpload;
   return (
     <div
       className="st-pic-field"
@@ -113,7 +113,7 @@ export default function PictureField({
         ) : null}
       </div>
       <p className="st-pic-status" role="status" data-on={busy ? '' : undefined}>
-        {stage === 'shrink' ? STUDIO.imageShrinking : stage === 'upload' ? STUDIO.imageUploading : ''}
+        {stage === 'read' ? STUDIO.imagePreparing : stage === 'shrink' ? STUDIO.imageShrinking : stage === 'upload' ? STUDIO.imageUploading : ''}
       </p>
       {note ? (
         <p className="st-note" data-bad="" role="alert">

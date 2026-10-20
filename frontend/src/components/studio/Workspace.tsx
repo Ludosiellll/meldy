@@ -23,11 +23,13 @@ import { insertBlock, newBlock, removeBlock } from '../../lib/studio/doc';
 import { typingKey } from '../../lib/studio/history';
 import type { TestItem } from '../../types/container';
 import type { DocBlock, TestDoc } from '../../types/testDoc';
+import { typeOf } from '../test/buildModel';
 import DocView, { type DocEditApi } from './DocView';
 import BlockMenu from './BlockMenu';
 import { STUDIO, type Panel } from './copyStudio';
 import { UiIcon } from './icons';
 import Palette, { EntryIcon, entryLabel, paletteEntry, type PaletteEntry } from './Palette';
+import { canHover, revealBlock } from './phone';
 import Sheet from './Sheet';
 import { draggingFiles, pictureFiles, targetKey, uploadDocPicture, uploadPreset, type PictureTarget, type UploadStage } from './pictures';
 import type { PresetId } from './presets';
@@ -79,10 +81,12 @@ export function hintFor(block: DocBlock, doc: TestDoc, rows: ReadonlyMap<string,
     case 'question': {
       const item = rows.get(block.item_id);
       if (!item) return STUDIO.gone;
-      if (isDraftQuestion(item)) return STUDIO.hints.questionDraft;
+      // Each kind is asked for what it has: a short answer has no options, «верно / неверно» has a statement.
+      const kind = typeOf(item);
+      if (isDraftQuestion(item)) return kind === 'short' ? STUDIO.hints.questionDraftShort : kind === 'truefalse' ? STUDIO.hints.questionDraftTrueFalse : STUDIO.hints.questionDraft;
       if (item.correct.length === 0 && item.answers.length === 0) return STUDIO.hints.questionNoKey;
       if (block.required && doc.layout === 'one_by_one') return STUDIO.hints.questionRequired;
-      return STUDIO.hints.question;
+      return kind === 'short' ? STUDIO.hints.questionShort : STUDIO.hints.question;
     }
     default:
       return STUDIO.hints[block.type];
@@ -144,17 +148,18 @@ function Frame({ block, index, count, name, selected, phone, problem, hint, conf
           <UiIcon name="grip" />
         </button>
         <span className="st-sep" aria-hidden="true" />
+        {/* On a phone the words beside the icons are gone: the names stay (19.10: «Ctrl+D», «Delete» and no name were read out). */}
         {phone ? (
-          <button type="button" className="st-act" onClick={onSettings}>
+          <button type="button" className="st-act" aria-label={STUDIO.blockSettings} title={STUDIO.blockSettings} onClick={onSettings}>
             <UiIcon name="sliders" />
             <span>{STUDIO.panels.block}</span>
           </button>
         ) : null}
-        <button type="button" className="st-act" onClick={onCopy} title="Ctrl+D">
+        <button type="button" className="st-act" aria-label={STUDIO.copy} title={`${STUDIO.copy} · ${STUDIO.copyKeys}`} onClick={onCopy}>
           <UiIcon name="copy" />
           <span>{STUDIO.copy}</span>
         </button>
-        <button type="button" className="st-act" onClick={onRemove} title="Delete">
+        <button type="button" className="st-act" aria-label={STUDIO.remove} title={`${STUDIO.remove} · ${STUDIO.removeKeys}`} onClick={onRemove}>
           <UiIcon name="trash" />
           <span>{STUDIO.remove}</span>
         </button>
@@ -300,19 +305,37 @@ export default function Workspace({
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   /** The gap a file from the computer would land in while it is dragged over the page. */
   const [fileSlot, setFileSlot] = useState<number | null>(null);
+  /** After a removal on a touch screen: the line with «Вернуть», while the page is the page that removal made. */
+  const [undoNote, setUndoNote] = useState<{ name: string; doc: TestDoc | null } | null>(null);
+  useEffect(() => {
+    setUndoNote((note) => (!note ? note : note.doc === null ? { ...note, doc } : note.doc === doc ? note : null));
+  }, [doc]);
+  useEffect(() => {
+    if (!undoNote) return;
+    const timer = window.setTimeout(() => setUndoNote(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [undoNote]);
 
-  // Focus follows a move, a copy, a removal: the block (or its neighbour) after the next render.
+  // Focus follows a move, a copy, a removal: the block (or its neighbour) after the next render. A block just added is
+  // brought to the middle of the screen (`reveal`): on a phone `nearest` left it under the bottom bar.
   const refocus = useRef<string | null>(null);
+  const reveal = useRef<string | null>(null);
   useLayoutEffect(() => {
     const id = refocus.current;
-    if (!id) return;
-    refocus.current = null;
-    const node = scrollRef.current?.querySelector<HTMLElement>(`[data-block="${id}"]`);
-    node?.focus({ preventScroll: true });
-    node?.scrollIntoView?.({ block: 'nearest' });
+    if (id) {
+      refocus.current = null;
+      const node = scrollRef.current?.querySelector<HTMLElement>(`[data-block="${id}"]`);
+      node?.focus({ preventScroll: true });
+      if (reveal.current !== id) node?.scrollIntoView?.({ block: 'nearest' });
+    }
+    const shown = reveal.current;
+    if (shown && revealBlock(scrollRef.current, shown)) reveal.current = null;
   });
   const focusBlock = (id: string | null) => {
     refocus.current = id;
+  };
+  const revealNew = (id: string) => {
+    reveal.current = id;
   };
 
   const indexOf = useCallback((id: string | null) => (id ? doc.blocks.findIndex((block) => block.id === id) : -1), [doc.blocks]);
@@ -349,7 +372,8 @@ export default function Workspace({
   const upload = async (target: PictureTarget, run: (onStage: (stage: UploadStage) => void) => Promise<{ path: string } | { note: string }>) => {
     const key = targetKey(target);
     const stageIs = (stage: UploadStage) => setUploads((current) => ({ ...current, [key]: stage }));
-    stageIs('upload');
+    // Read, then (when it has to) shrink, then send: never «Загружаю» before «Уменьшаю».
+    stageIs('read');
     setNotes(({ [key]: _gone, ...rest }) => rest);
     const result = await run(stageIs);
     setUploads(({ [key]: _done, ...rest }) => rest);
@@ -377,6 +401,7 @@ export default function Workspace({
     onSelect(first.id);
     onPanel('block');
     focusBlock(first.id);
+    revealNew(first.id);
   };
 
   // Ctrl+V / ⌘V with a picture, anywhere in the studio: a field that took it already said so (defaultPrevented: the
@@ -476,6 +501,7 @@ export default function Workspace({
       onSelect(block.id);
       onPanel('block');
       focusBlock(block.id);
+      revealNew(block.id);
       if (phone) onSideOpen(true);
       return;
     }
@@ -488,12 +514,15 @@ export default function Workspace({
     if (!block) return;
     onSelect(block.id);
     onPanel('block');
+    revealNew(block.id);
     const field = MAIN_FIELD[block.type];
     // A picture's first step is the author's own file; a video's, its link (the field on the block).
     if (block.type === 'image') pickPicture({ kind: 'image', blockId: block.id });
     else if (block.type === 'video') {
+      // Its link field takes the focus on a computer; a phone is not given a keyboard it did not ask for (live check of 47.4).
       const id = block.id;
-      window.setTimeout(() => scrollRef.current?.querySelector<HTMLInputElement>(`[data-block="${id}"] .dv-video-put input`)?.focus(), 0);
+      if (!phone && canHover()) window.setTimeout(() => scrollRef.current?.querySelector<HTMLInputElement>(`[data-block="${id}"] .dv-video-put input`)?.focus({ preventScroll: true }), 0);
+      else focusBlock(id);
     } else if (field && block.type !== 'cover') setEditingKey(`${block.id}:${field}`);
     else focusBlock(block.id);
   };
@@ -509,11 +538,14 @@ export default function Workspace({
   };
   const removeNow = (id: string) => {
     const at = indexOf(id);
+    const gone = doc.blocks[at];
     const neighbour = doc.blocks[at + 1] ?? doc.blocks[at - 1] ?? null;
     setConfirm(null);
-    studio.remove(id);
+    studio.remove(id, phone);
     onSelect(neighbour?.id ?? null);
     focusBlock(neighbour?.id ?? null);
+    // A touch screen has no Ctrl+Z: «Вернуть» stands over the bar until the page changes again.
+    if (phone && gone) setUndoNote({ name: STUDIO.types[gone.type], doc: null });
   };
   const moveBy = (id: string, dir: -1 | 1) => {
     const at = indexOf(id);
@@ -667,6 +699,11 @@ export default function Workspace({
     setEditingKey(null);
     if (!paletteEntry(event.active.id)) onSelect(String(event.active.id));
   };
+  /**
+   * A block dragged by finger out of the «Блоки» sheet: the sheet steps away at once, so the page and the line where
+   * the block lands are seen (it is closed when the drag ends; until then the dragged item stays mounted).
+   */
+  const sheetAway = phone && dragId !== null && paletteEntry(dragId) !== null;
   const onDragMove = (event: DragMoveEvent) => {
     const next = slotOf(event);
     setSlot((current) => (current === next ? current : next));
@@ -677,6 +714,7 @@ export default function Workspace({
     const id = event.active.id;
     setDragId(null);
     setSlot(null);
+    if (phone && paletteEntry(id)) onPaletteOpen(false);
     if (at === null) return;
     const entry = paletteEntry(id);
     if (entry) {
@@ -706,7 +744,7 @@ export default function Workspace({
     editing,
     uploading: Object.keys(uploads).find((key) => key.startsWith('image:'))?.slice(6) ?? null,
     pictureStage: (blockId) => uploads[`image:${blockId}`] ?? null,
-    pictureNote: (blockId) => notes[`image:${blockId}`] ?? null,
+    pictureNote: (blockId) => noteOf({ kind: 'image', blockId }),
     dropPicture: (blockId, file) => uploadFile({ kind: 'image', blockId }, file),
     touch: phone,
     setEditing: (key, how) => {
@@ -773,6 +811,14 @@ export default function Workspace({
       ),
   };
 
+  /** A failure's words; a picture block left without its picture is told it is not saved so (live check of 47.4). */
+  function noteOf(target: PictureTarget): string | null {
+    const note = notes[targetKey(target)] ?? null;
+    if (!note || target.kind !== 'image') return note;
+    const block = doc.blocks.find((entry) => entry.id === target.blockId);
+    return block?.type === 'image' && !block.path ? `${note} ${STUDIO.pictureNotSaved}` : note;
+  }
+
   const sideApi: SideApi = {
     pickPicture,
     uploadFile,
@@ -780,7 +826,7 @@ export default function Workspace({
       if (!uploads[targetKey(target)]) void upload(target, () => uploadPreset(containerId, id, target.kind === 'background' ? 'background' : 'cover'));
     },
     stageOf: (target) => uploads[targetKey(target)] ?? null,
-    noteOf: (target) => notes[targetKey(target)] ?? null,
+    noteOf,
     touch: phone,
     removeBlock: (id) => {
       const block = doc.blocks.find((entry) => entry.id === id);
@@ -800,10 +846,11 @@ export default function Workspace({
       onDragMove={onDragMove}
       onDragOver={onDragMove}
       onDragEnd={onDragEnd}
-      onDragCancel={() => {
+      onDragCancel={(event) => {
         keyTarget.current = null;
         setDragId(null);
         setSlot(null);
+        if (phone && paletteEntry(event.active.id)) onPaletteOpen(false);
       }}
       accessibility={{ announcements, screenReaderInstructions: { draggable: STUDIO.dnd.instructions } }}
       // Only the page scrolls while something is dragged over it (not the palette, not the window).
@@ -849,12 +896,13 @@ export default function Workspace({
       </div>
 
       {phone && paletteOpen ? (
-        <Sheet title={STUDIO.palette} onClose={() => onPaletteOpen(false)}>
+        <Sheet title={STUDIO.palette} onClose={() => onPaletteOpen(false)} away={sheetAway}>
           <Palette disabled={disabled} hint={false} onPick={(entry) => void add(entry, afterSelected())} />
         </Sheet>
       ) : null}
+      {/* «Проверка теста» has its own title: the tabs of the settings are not shown over it (StudioPage, Side `tabs`). */}
       {phone && sideOpen ? (
-        <Sheet title={STUDIO.panelsLabel} onClose={() => onSideOpen(false)} className="st-side">
+        <Sheet title={panel === 'check' ? STUDIO.check : STUDIO.panelsLabel} onClose={() => onSideOpen(false)} className="st-side">
           {side(sideApi)}
         </Sheet>
       ) : null}
@@ -878,6 +926,22 @@ export default function Workspace({
             void add(entry, index, replace);
           }}
         />
+      ) : null}
+
+      {phone && undoNote ? (
+        <div className="st-toast">
+          <p className="st-toast-t">{STUDIO.removed(undoNote.name, true)}</p>
+          <button
+            type="button"
+            className="st-toast-btn"
+            onClick={() => {
+              setUndoNote(null);
+              studio.undo();
+            }}
+          >
+            {STUDIO.undoRemove}
+          </button>
+        </div>
       ) : null}
 
       <input

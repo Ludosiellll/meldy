@@ -364,3 +364,24 @@ describe('the studio’s own checks (release 47.2)', () => {
     expect(checkTest({ ...doc, title: ' ', blocks: [] }, [])[0].message).toBe('У теста нет названия. Назовите его в настройках страницы.');
   });
 });
+
+describe('a picture or a video block still empty (live check of 47.4: it vanished after a reload, unsaid)', () => {
+  it('is named as not saved, with «Показать» and a press that takes it off', () => {
+    const doc: TestDoc = {
+      ...emptyDoc('Тест'),
+      blocks: [
+        { type: 'image', id: 'img000000001', path: '', caption: '', width: 'wide' },
+        { type: 'video', id: 'video0000001', url: '', caption: '' } as DocBlock,
+        { type: 'video', id: 'video0000002', url: 'https://youtu.be/dQw4w9WgXcQ', caption: '' } as DocBlock,
+      ],
+    };
+    const found = checkTest(doc, []).filter((hint) => hint.id.startsWith('unfinished:'));
+    expect(found.map((hint) => [hint.blockId, hint.level, hint.fix])).toEqual([
+      ['img000000001', 'fix', { kind: 'remove_block', blockId: 'img000000001' }],
+      ['video0000001', 'fix', { kind: 'remove_block', blockId: 'video0000001' }],
+    ]);
+    expect(found[0].message).toBe('Блок «Картинка» без картинки не сохраняется — загрузите её или уберите блок.');
+    expect(found[1].message).toBe('Блок «Видео» без ссылки не сохраняется — вставьте ссылку или уберите блок.');
+    expect(applyFix(found[0].fix as Fix, doc, []).doc.blocks.map((block) => block.id)).toEqual(['video0000001', 'video0000002']);
+  });
+});
