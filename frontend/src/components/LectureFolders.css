@@ -36,7 +36,9 @@
   cursor: pointer;
   transition: background-color .3s ease;
 }
-.lf-menu .lf-pill:hover { background: var(--sf-accent-hover); }
+@media (hover: hover) {
+  .lf-menu .lf-pill:hover { background: var(--sf-accent-hover); }
+}
 /* The kit marks a focused menu row by its tint and removes the ring; a blue pill needs the ring back. */
 .lf-menu .lf-pill:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
 

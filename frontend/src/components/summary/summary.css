@@ -126,7 +126,9 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.sv-doc .sv-ref.sf-ref:hover { background: var(--sf-accent-soft); }
+@media (hover: hover) {
+  .sv-doc .sv-ref.sf-ref:hover { background: var(--sf-accent-soft); }
+}
 .sv-doc .sv-ref.sf-ref[data-active] { background: var(--sf-accent); color: #fff; }
 .sv-doc .sv-ref.sf-ref[data-active]::before { background: #fff; color: #1c4db1; }
 .sv-inline-slip { margin: 16px 0 4px; }
@@ -209,7 +211,9 @@
   background: var(--sv-dot-off);
   transition: background-color .4s var(--m-ease), transform .4s var(--m-ease);
 }
-.sv-outline a:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+@media (hover: hover) {
+  .sv-outline a:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+}
 .sv-outline a[aria-current] { background: var(--sf-surface-soft); color: var(--sf-ink); font-weight: 600; }
 .sv-outline a[aria-current]::before { background: var(--sf-accent); transform: scale(1.25); }
 .sv-margin-slip { animation: sv-slip-in .6s var(--m-ease) both; }

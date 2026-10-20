@@ -74,7 +74,9 @@
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-.tx-bar .tx-back:hover { background: var(--sf-tint); }
+@media (hover: hover) {
+  .tx-bar .tx-back:hover { background: var(--sf-tint); }
+}
 .tx-bar .tx-bar-right { display: flex; flex: none; align-items: center; gap: 8px; }
 .tx-bar .tx-pill {
   display: inline-flex;
@@ -94,9 +96,13 @@
   white-space: nowrap;
   transition: background-color .45s var(--m-ease), box-shadow .45s var(--m-ease);
 }
-.tx-bar .tx-pill:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) {
+  .tx-bar .tx-pill:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+}
 .tx-bar .tx-pill[data-blue] { background: var(--sf-accent); box-shadow: none; color: #fff; }
-.tx-bar .tx-pill[data-blue]:hover { background: var(--sf-accent-hover); }
+@media (hover: hover) {
+  .tx-bar .tx-pill[data-blue]:hover { background: var(--sf-accent-hover); }
+}
 .tx-bar .tx-logo:focus-visible,
 .tx-bar .tx-back:focus-visible,
 .tx-bar .tx-pill:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; border-radius: 999px; }
@@ -184,7 +190,9 @@
    its last word (the diary line of «Повторение»). */
 .sf-page .tx-lecture-go { margin: 10px 0 0; }
 .sf-page .tx-lecture-go .sf-link { text-decoration-line: none; text-wrap: pretty; }
-.sf-page .tx-lecture-go .sf-link:hover { text-decoration-line: underline; }
+@media (hover: hover) {
+  .sf-page .tx-lecture-go .sf-link:hover { text-decoration-line: underline; }
+}
 .sf-page .tx-lecture { border-radius: 32px; background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
 .sf-page .tx-lecture > summary {
   display: flex;

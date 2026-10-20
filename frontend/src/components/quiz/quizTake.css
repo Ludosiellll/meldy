@@ -72,16 +72,23 @@
 
 .qt-accent .sf-primary { background: var(--qt-fill); color: var(--qt-on-fill); }
 .qt-accent .sf-primary::after { background-color: var(--qt-fill-deep); }
-.qt-accent .sf-primary:hover { background: var(--qt-fill-deep); }
-.qt-accent .sf-primary:hover::after { background-color: var(--qt-fill-deeper); }
+@media (hover: hover) {
+  .qt-accent .sf-primary:hover { background: var(--qt-fill-deep); }
+  .qt-accent .sf-primary:hover::after { background-color: var(--qt-fill-deeper); }
+}
 .qt-accent .sf-link:not([data-muted], :disabled, [aria-disabled='true']) { color: var(--qt-link); }
 .qt-accent .ct-opt[aria-pressed='true'] .ct-box { background: var(--qt-fill); }
 .qt-accent .ct-opt[aria-pressed='true'] .ct-box svg { stroke: var(--qt-on-fill); }
 /* The chosen option: a ring and a tint of the quiz's colour; the corners follow the card's (room.css first/last). */
-.qt-accent .ct-opt[data-state='picked'],
-.qt-accent .ct-opt[data-state='picked']:hover:not([aria-disabled='true']) {
+.qt-accent .ct-opt[data-state='picked'] {
   background: color-mix(in srgb, var(--qt-ring) 8%, var(--sf-surface));
   box-shadow: inset 0 0 0 2px var(--qt-ring);
+}
+@media (hover: hover) {
+  .qt-accent .ct-opt[data-state='picked']:hover:not([aria-disabled='true']) {
+    background: color-mix(in srgb, var(--qt-ring) 8%, var(--sf-surface));
+    box-shadow: inset 0 0 0 2px var(--qt-ring);
+  }
 }
 .qt-accent .ct-opt[data-state='picked'] .ct-opt-l { color: var(--sf-ink); }
 .qt-accent .ct-cells button[aria-current='true'] { box-shadow: 0 0 0 2px var(--qt-fill); }
@@ -286,20 +293,30 @@
 .qt-rstem { margin: 6px 0 0; font-size: 18px; line-height: 1.4; font-weight: 500; color: var(--sf-ink); white-space: pre-line; overflow-wrap: anywhere; text-wrap: pretty; }
 .qt-opts.ct-opts { margin-top: 14px; list-style: none; box-shadow: inset 0 0 0 1px var(--sf-line); }
 .qt-opts > .qt-opt { cursor: default; }
-.qt-opts > .qt-opt:hover { background: none; }
-.qt-opts > .qt-opt[data-state='wrong'],
-.qt-opts > .qt-opt[data-state='wrong']:hover { background: var(--ct-wrong-bg); }
-.qt-opts > .qt-opt[data-state='file'],
-.qt-opts > .qt-opt[data-state='file']:hover { background: var(--ct-right-bg); }
+@media (hover: hover) {
+  .qt-opts > .qt-opt:hover { background: none; }
+}
+.qt-opts > .qt-opt[data-state='wrong'] { background: var(--ct-wrong-bg); }
+@media (hover: hover) {
+  .qt-opts > .qt-opt[data-state='wrong']:hover { background: var(--ct-wrong-bg); }
+}
+.qt-opts > .qt-opt[data-state='file'] { background: var(--ct-right-bg); }
+@media (hover: hover) {
+  .qt-opts > .qt-opt[data-state='file']:hover { background: var(--ct-right-bg); }
+}
 /* A right option the person did not pick: no fill, the green edge, its own words. */
-.qt-opts > .qt-opt[data-state='missed'],
-.qt-opts > .qt-opt[data-state='missed']:hover { background: none; box-shadow: inset 4px 0 0 var(--m-green); }
+.qt-opts > .qt-opt[data-state='missed'] { background: none; box-shadow: inset 4px 0 0 var(--m-green); }
+@media (hover: hover) {
+  .qt-opts > .qt-opt[data-state='missed']:hover { background: none; box-shadow: inset 4px 0 0 var(--m-green); }
+}
 .qt-opts > .qt-opt[data-state='missed'] .ct-opt-l { color: var(--sf-ink); }
 .qt-opts > .qt-opt[data-state='missed'] .ct-opt-tag,
 .qt-opts > .qt-opt[data-state='file'] .ct-opt-tag { color: var(--m-green-ink); }
 /* The person's answer where the right one is not shown yet: a neutral edge, the words say it. */
-.qt-opts > .qt-opt[data-state='mine'],
-.qt-opts > .qt-opt[data-state='mine']:hover { background: var(--sf-surface-soft); box-shadow: inset 4px 0 0 var(--sf-muted); }
+.qt-opts > .qt-opt[data-state='mine'] { background: var(--sf-surface-soft); box-shadow: inset 4px 0 0 var(--sf-muted); }
+@media (hover: hover) {
+  .qt-opts > .qt-opt[data-state='mine']:hover { background: var(--sf-surface-soft); box-shadow: inset 4px 0 0 var(--sf-muted); }
+}
 .qt-opts > .qt-opt[data-state='mine'] .ct-opt-l { color: var(--sf-ink); }
 .qt-rshort { display: grid; gap: 8px; margin-top: 14px; }
 .qt-rshort p {

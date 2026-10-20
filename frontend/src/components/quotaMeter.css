@@ -22,7 +22,9 @@
   cursor: pointer;
   transition: background-color .2s ease, border-color .2s ease;
 }
-.sf-shell .sf-quota:hover { background: color-mix(in srgb, var(--sf-ink) 5%, var(--sf-surface)); }
+@media (hover: hover) {
+  .sf-shell .sf-quota:hover { background: color-mix(in srgb, var(--sf-ink) 5%, var(--sf-surface)); }
+}
 
 .sf-quota-ring { flex: none; width: 22px; height: 22px; overflow: visible; }
 /* The open gauge is the phone's (QuotaMeter.tsx); wider lines keep the full ring. */
@@ -50,7 +52,9 @@
 .sf-quota[data-level='low'] .sf-quota-n { color: var(--m-yellow-ink); }
 /* Nothing left: a yellow pill and an empty ring. */
 .sf-shell .sf-quota[data-level='empty'] { border-color: transparent; background: var(--m-yellow-soft); }
-.sf-shell .sf-quota[data-level='empty']:hover { background: color-mix(in srgb, var(--m-yellow) 30%, var(--sf-surface)); }
+@media (hover: hover) {
+  .sf-shell .sf-quota[data-level='empty']:hover { background: color-mix(in srgb, var(--m-yellow) 30%, var(--sf-surface)); }
+}
 .sf-quota[data-level='empty'] .sf-quota-track { stroke: color-mix(in srgb, var(--m-yellow-ink) 30%, transparent); }
 .sf-quota[data-level='empty'] .sf-quota-arc,
 .sf-quota[data-level='unknown'] .sf-quota-arc,
@@ -102,7 +106,9 @@
     border: 0;
     background: none;
   }
-  .sf-shell .sf-quota:hover { background: var(--sf-tint); }
+  @media (hover: hover) {
+    .sf-shell .sf-quota:hover { background: var(--sf-tint); }
+  }
   .sf-quota-ring { position: absolute; inset: 0; width: 40px; height: 40px; }
   .sf-quota-track,
   .sf-quota-arc { stroke-width: 3; }
@@ -134,7 +140,9 @@
   .sf-shell:not([data-back]) .sf-quota-t { display: inline; order: -1; font-size: 14px; }
   .sf-shell:not([data-back]) .sf-quota-ring { left: auto; right: 3px; }
   .sf-shell:not([data-back]) .sf-quota-n { width: 38px; text-align: center; }
-  .sf-shell:not([data-back]) .sf-quota:hover { background: none; }
+  @media (hover: hover) {
+    .sf-shell:not([data-back]) .sf-quota:hover { background: none; }
+  }
 }
 
 /* Four digits («1000» of PRO) at 13 px, the smallest size of the app's words (phone audit 47.3: 11 px): the ring
@@ -142,13 +150,15 @@
 @media (max-width: 639px) {
   .sf-quota[data-digits='4'] .sf-quota-n { font-size: 13px; letter-spacing: -.05em; }
   .sf-shell .sf-quota[data-digits='4'] .sf-quota-ring { inset: 1px; width: 42px; height: 42px; }
-  .sf-shell:not([data-back]) .sf-quota[data-digits='4'] .sf-quota-ring { right: 1px; }
+  .sf-shell:not([data-back]) .sf-quota[data-digits='4'] .sf-quota-ring { left: auto; right: 1px; }
   .sf-shell:not([data-back]) .sf-quota[data-digits='4'] .sf-quota-n { width: 42px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sf-shell .sf-quota,
   .sf-quota-arc,
-  .sf-quota-tip,
-  .sf-quota:hover .sf-quota-tip { transition: none; }
+  .sf-quota-tip { transition: none; }
+  @media (hover: hover) {
+    .sf-quota:hover .sf-quota-tip { transition: none; }
+  }
 }

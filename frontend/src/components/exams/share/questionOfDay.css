@@ -36,7 +36,9 @@
   text-underline-offset: 5px;
   transition: text-decoration-color 150ms ease;
 }
-.qd-copy:hover > span { text-decoration-color: currentColor; }
+@media (hover: hover) {
+  .qd-copy:hover > span { text-decoration-color: currentColor; }
+}
 .qd-note,
 .qd-status { max-width: 36em; margin: 0 0 0 32px; font-size: 14px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .qd-status:empty { display: none; }

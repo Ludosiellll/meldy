@@ -56,7 +56,9 @@
   cursor: pointer;
 }
 .ig-x svg { width: 20px; height: 20px; }
-.ig-x:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+@media (hover: hover) {
+  .ig-x:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+}
 .ig-x:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 0; }
 .ig-lede { margin: 10px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .ig-wait { margin: 20px 0 0; font-size: 16px; color: var(--sf-muted); }

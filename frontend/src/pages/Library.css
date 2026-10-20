@@ -34,7 +34,9 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
 }
-.lib-pill:hover { box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+@media (hover: hover) {
+  .lib-pill:hover { box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+}
 .lib-pill:active { transform: scale(.98); }
 .lib-dot {
   flex: none;
@@ -48,7 +50,9 @@
   transition: transform .7s var(--m-ease);
 }
 .lib-dot svg { width: 18px; height: 18px; }
-.lib-pill:hover .lib-dot { transform: translateX(4px); }
+@media (hover: hover) {
+  .lib-pill:hover .lib-dot { transform: translateX(4px); }
+}
 
 /* A quiet link with an arrow (the prototype's .more): «Лист экзамена» of a section. */
 .lib-more {
@@ -64,7 +68,9 @@
   border-radius: 8px;
 }
 .lib-more svg { width: 18px; height: 18px; transition: transform .6s var(--m-ease); }
-.lib-more:hover svg { transform: translateX(4px); }
+@media (hover: hover) {
+  .lib-more:hover svg { transform: translateX(4px); }
+}
 
 /* «Нет связи»: a status pill with a yellow dot. */
 .lib-offline {
@@ -190,11 +196,15 @@
    dots at 3.3:1 on the white row (3.8:1 at night). */
 .lib-page .sf-toc-more { top: 50%; right: 14px; transform: translateY(-50%); }
 .lib-page .sf-toc-more > .sf-more { width: 48px; height: 48px; opacity: .65; transition: opacity .3s ease, background-color .3s ease, box-shadow .3s ease; }
-.lib-page .sf-toc-row:hover .sf-toc-more > .sf-more,
 .lib-page .sf-toc-row:focus-within .sf-toc-more > .sf-more,
 .lib-page .sf-toc-more > .sf-more[aria-expanded='true'] { opacity: 1; }
-.lib-page .sf-toc-more > .sf-more:hover,
+@media (hover: hover) {
+  .lib-page .sf-toc-row:hover .sf-toc-more > .sf-more { opacity: 1; }
+}
 .lib-page .sf-toc-more > .sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line); }
+@media (hover: hover) {
+  .lib-page .sf-toc-more > .sf-more:hover { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line); }
+}
 
 /* The row menu: the kit's soft menu; the folder rows, the field of a new folder and the quieter delete
    come with LectureFolders.css (the lecture page's «⋯» has the same). */
@@ -220,7 +230,9 @@
   cursor: pointer;
   transition: background-color .3s ease;
 }
-.lib-small-pill:hover { background: var(--sf-accent-hover); }
+@media (hover: hover) {
+  .lib-small-pill:hover { background: var(--sf-accent-hover); }
+}
 .lib-small-pill:disabled { opacity: .55; cursor: default; }
 .lib-page .sf-toc-edit { gap: 10px 14px; padding: 14px 18px 14px 86px; }
 .lib-page .sf-toc-edit .sf-input { height: 48px; border-radius: 16px; font-size: 17px; }
@@ -380,8 +392,10 @@
     background: var(--sf-surface);
     box-shadow: 0 0 0 1px var(--sf-line);
   }
-  .lib-page .sf-toc-row,
-  .lib-page .sf-toc-row:hover { border-radius: 0; background: none; box-shadow: none; transform: none; }
+  .lib-page .sf-toc-row { border-radius: 0; background: none; box-shadow: none; transform: none; }
+  @media (hover: hover) {
+    .lib-page .sf-toc-row:hover { border-radius: 0; background: none; box-shadow: none; transform: none; }
+  }
   .lib-page .sf-toc-row + .sf-toc-row { border-top: 1px solid var(--sf-line); }
   .lib-page .sf-toc-link { align-items: start; column-gap: 12px; padding: 14px 0 15px; border-radius: 0; }
   .lib-page .sf-toc-link:focus-visible { border-radius: 12px; }
@@ -430,9 +444,11 @@
   .lib-more svg,
   .lib-small-pill,
   .lib-page .sf-toc-more > .sf-more { transition: none; }
-  .lib-pill:hover .lib-dot,
-  .lib-more:hover svg,
   .lib-pill:active { transform: none; }
+  @media (hover: hover) {
+    .lib-pill:hover .lib-dot,
+    .lib-more:hover svg { transform: none; }
+  }
   .lib-skel-tile,
   .lib-skel-lines i,
   .lib-art-card[data-n='3'] { animation: none; }

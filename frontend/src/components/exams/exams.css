@@ -130,7 +130,9 @@
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-.sf-page .ex-crumb a:hover { background: var(--ex-hover); }
+@media (hover: hover) {
+  .sf-page .ex-crumb a:hover { background: var(--ex-hover); }
+}
 .sf-page .ex-head > :first-child { flex: 1 1 0; min-width: 0; }
 /* A word is never cut in the middle unless it alone is wider than the line (then with a hyphen where
    the browser knows Russian hyphenation): «anywhere» would also shrink the heading's min-content
@@ -168,7 +170,9 @@
   text-decoration: none;
   transition: background-color .45s var(--m-ease), color .3s ease;
 }
-.sf-page .ex-links .sf-link:hover { background: var(--ex-hover); }
+@media (hover: hover) {
+  .sf-page .ex-links .sf-link:hover { background: var(--ex-hover); }
+}
 .sf-page .ex-links .sf-link[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
 .sf-page .ex-links .sf-link[aria-disabled='true'] { background: transparent; color: var(--sf-muted); box-shadow: inset 0 0 0 1px var(--sf-line); }
 .sf-page .ex-draw { display: grid; justify-items: end; gap: 12px; padding-bottom: 6px; flex: none; }
@@ -201,8 +205,10 @@
   font-weight: 500;
   color: var(--sf-ink);
 }
-.sf-page .ex-mode-menu button:hover,
 .sf-page .ex-mode-menu button:focus-visible { background: var(--ex-hover); outline: none; }
+@media (hover: hover) {
+  .sf-page .ex-mode-menu button:hover { background: var(--ex-hover); outline: none; }
+}
 .sf-page .ex-mode-menu button[aria-checked='true'] { background: var(--sf-accent-soft); }
 .sf-page .ex-mode-menu small { display: block; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--sf-muted); font-weight: 400; }
 /* The way of drawing on phones and tablets: a bottom sheet over the page (the fixed bar under it has
@@ -272,7 +278,9 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease);
 }
-.sf-page .ex-secondary:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+@media (hover: hover) {
+  .sf-page .ex-secondary:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+}
 .sf-page .ex-secondary:disabled { cursor: not-allowed; color: var(--sf-muted); box-shadow: inset 0 0 0 1px var(--sf-line); background: transparent; }
 /* «Новый экзамен»: the white pill with a dark circle and a plus (prototype .pill.white). */
 .sf-page .ex-new { padding: 0 6px 0 22px; gap: 12px; }
@@ -288,7 +296,9 @@
   transition: transform .7s var(--m-ease);
 }
 .sf-page .ex-new-dot svg { width: 16px; height: 16px; }
-.sf-page .ex-new:hover .ex-new-dot { transform: rotate(90deg); }
+@media (hover: hover) {
+  .sf-page .ex-new:hover .ex-new-dot { transform: rotate(90deg); }
+}
 /* Before the first mapping: «Тянуть билет» is a link under «Разметить по лекциям». */
 .sf-page .ex-draw .ex-draw-alt { font-size: 16px; }
 .sf-page .ex-cta-alt { margin-top: 6px; font-size: 16px; line-height: 22px; text-align: center; }
@@ -334,7 +344,9 @@
   text-decoration: none;
   vertical-align: middle;
 }
-.sf-page .ex-note .sf-link:hover { background: color-mix(in srgb, var(--sf-accent-soft) 70%, var(--sf-accent) 30%); }
+@media (hover: hover) {
+  .sf-page .ex-note .sf-link:hover { background: color-mix(in srgb, var(--sf-accent-soft) 70%, var(--sf-accent) 30%); }
+}
 .sf-page .ex-note .sf-link[aria-disabled='true'] { background: transparent; color: var(--sf-muted); }
 .sf-page .ex-note[data-quiet] { padding: 0 2px; background: none; box-shadow: none; color: var(--sf-muted); }
 .sf-page .ex-note[data-quiet]::before { display: none; }
@@ -486,7 +498,9 @@
 .sf-page .ex-filter button[data-cov='unverified'] { color: var(--ex-ok-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ex-ok-fg) 45%, transparent); background: transparent; }
 .sf-page .ex-filter button[data-cov='unmapped'] { color: var(--sf-muted); box-shadow: inset 0 0 0 1.5px var(--sf-line); background: transparent; }
 .sf-page .ex-filter button:has(.ex-filter-mark) { padding-left: 12px; }
-.sf-page .ex-filter button:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
+@media (hover: hover) {
+  .sf-page .ex-filter button:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
+}
 .sf-page .ex-filter button[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
 .sf-page .ex-filter .ex-count { font-weight: 600; font-variant-numeric: tabular-nums; }
 .sf-page .ex-filter-mark { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 16px; }
@@ -548,16 +562,20 @@
   background: var(--ph-paper-rule);
   transition: opacity .3s ease;
 }
-.sf-page .ex-q:hover,
 .sf-page .ex-q[data-selected],
 .sf-page .ex-q[data-peak] { background: var(--ex-hover); }
+@media (hover: hover) {
+  .sf-page .ex-q:hover { background: var(--ex-hover); }
+}
 .sf-page .ex-q[data-selected] { background: var(--sf-accent-soft); }
-.sf-page .ex-q:hover::before,
-.sf-page .ex-q:hover + .ex-q::before,
 .sf-page .ex-q[data-selected]::before,
 .sf-page .ex-q[data-selected] + .ex-q::before,
 .sf-page .ex-q[data-peak]::before,
 .sf-page .ex-q[data-peak] + .ex-q::before { opacity: 0; }
+@media (hover: hover) {
+  .sf-page .ex-q:hover::before,
+  .sf-page .ex-q:hover + .ex-q::before { opacity: 0; }
+}
 /* The number, then the question with its status at the top right — the question runs on under it — and the note
    under the question. */
 .sf-page .ex-qn { grid-column: 1; grid-row: 1; }
@@ -748,7 +766,9 @@
   cursor: pointer;
   transition: background-color .3s ease, color .3s ease;
 }
-.sf-page .ex-rate button:hover { color: var(--ph-paper-ink); }
+@media (hover: hover) {
+  .sf-page .ex-rate button:hover { color: var(--ph-paper-ink); }
+}
 .sf-page .ex-rate button[aria-pressed='true'] {
   background: var(--ph-paper);
   color: var(--ph-paper-ink);
@@ -878,7 +898,9 @@
   text-decoration-color: transparent;
   transition: text-decoration-color 150ms ease;
 }
-.sf-page .ex-gap-n:hover { text-decoration-color: color-mix(in srgb, var(--m-yellow) 80%, transparent); }
+@media (hover: hover) {
+  .sf-page .ex-gap-n:hover { text-decoration-color: color-mix(in srgb, var(--m-yellow) 80%, transparent); }
+}
 .sf-page .ex-gap-n[aria-pressed='true'] { text-decoration-color: var(--m-yellow); }
 .sf-page .ex-gap-n:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 4px; border-radius: 8px; }
 .sf-page .ex-share { display: block; }
@@ -959,7 +981,9 @@
   cursor: pointer;
   transition: background-color .3s ease, box-shadow .3s ease;
 }
-.sf-page .ex-rl button:hover { background: color-mix(in srgb, var(--sf-surface) 70%, transparent); }
+@media (hover: hover) {
+  .sf-page .ex-rl button:hover { background: color-mix(in srgb, var(--sf-surface) 70%, transparent); }
+}
 .sf-page .ex-rl button[aria-pressed='true'] { background: var(--sf-surface); box-shadow: 0 0 0 1.5px var(--sf-ink); font-weight: 600; }
 .sf-page .ex-rl .ex-count { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
 .sf-page .ex-k { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 34px; }
@@ -1089,7 +1113,9 @@
   font-variant-numeric: tabular-nums;
 }
 .sf-page .ex-attempts a { background: var(--sf-accent-soft); color: var(--sf-accent-fg); font-weight: 500; text-decoration: none; transition: box-shadow .3s ease; }
-.sf-page .ex-attempts a:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
+@media (hover: hover) {
+  .sf-page .ex-attempts a:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
+}
 .sf-page .ex-attempts span { background: var(--sf-surface-soft); color: var(--sf-muted); }
 
 /* Phones: «почему» is a bottom sheet with a handle (left and right follow the page frame). */
@@ -1192,7 +1218,9 @@
   box-shadow: var(--ex-card);
   transition: transform .9s var(--m-ease), box-shadow .9s var(--m-ease);
 }
-.sf-page .ex-list > li:hover { transform: translateY(-4px); box-shadow: var(--ex-lift); }
+@media (hover: hover) {
+  .sf-page .ex-list > li:hover { transform: translateY(-4px); box-shadow: var(--ex-lift); }
+}
 .sf-page[data-frame='s'] .ex-list > li { gap: 18px; padding: 24px 22px 22px; border-radius: 32px; }
 .sf-page .ex-row { display: block; padding-right: 64px; color: var(--sf-ink); text-decoration: none; }
 .sf-page .ex-row::after { content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
@@ -1223,7 +1251,9 @@
   transition: transform .7s var(--m-ease);
 }
 .sf-page .ex-row-go svg { width: 20px; height: 20px; }
-.sf-page .ex-list > li:hover .ex-row-go { transform: translateX(5px); }
+@media (hover: hover) {
+  .sf-page .ex-list > li:hover .ex-row-go { transform: translateX(5px); }
+}
 .sf-page[data-frame='s'] .ex-row-go { top: 20px; right: 18px; width: 44px; height: 44px; }
 /* «есть 24 · частично 7 · нет 9»: the exam's status pills, as at the foot of the sheet in the reel. */
 .sf-page .ex-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: auto 0 0; padding: 0; list-style: none; }
@@ -1705,7 +1735,9 @@
   cursor: pointer;
   transition: background-color .3s ease;
 }
-.sf-page .nx-pick label:hover { background: var(--ex-hover); }
+@media (hover: hover) {
+  .sf-page .nx-pick label:hover { background: var(--ex-hover); }
+}
 .sf-page .nx-pickbox input[type='checkbox'] {
   -webkit-appearance: none;
   appearance: none;
@@ -1792,7 +1824,9 @@
   color: var(--sf-muted);
   cursor: pointer;
 }
-.sf-page .nx-pick-clear:hover { color: var(--sf-ink); background: var(--sf-tint); }
+@media (hover: hover) {
+  .sf-page .nx-pick-clear:hover { color: var(--sf-ink); background: var(--sf-tint); }
+}
 .sf-page .nx-pick-clear:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 1px; }
 .sf-page .nx-pick-clear svg { width: 16px; height: 16px; }
 .sf-page .nx-pick-bulk {
@@ -1926,7 +1960,9 @@
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-.sf-room-bar .sf-link.dw-exit:hover { background: var(--ex-hover); }
+@media (hover: hover) {
+  .sf-room-bar .sf-link.dw-exit:hover { background: var(--ex-hover); }
+}
 @media (max-width: 1023px) {
   .sf-room-bar .dw-wordmark, .sf-room-bar .dw-long { display: none; }
   .sf-room-bar .dw-short { display: inline; }
@@ -2193,9 +2229,11 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page .ex-links .sf-link,
   .sf-page .ex-crumb a,
   .sf-room-bar .dw-exit { transition: none; }
-  .sf-page .ex-list > li:hover,
-  .sf-page .ex-list > li:hover .ex-row-go,
-  .sf-page .ex-new:hover .ex-new-dot { transform: none; }
+  @media (hover: hover) {
+    .sf-page .ex-list > li:hover,
+    .sf-page .ex-list > li:hover .ex-row-go,
+    .sf-page .ex-new:hover .ex-new-dot { transform: none; }
+  }
 }
 
 /* A lecture fragment's own heading on a slip: its own line, above the text (jury memo 12). */
@@ -2230,7 +2268,9 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   cursor: pointer;
   transition: background-color .35s var(--m-ease), color .2s ease;
 }
-.sf-page .ex-views [role='tab']:hover:not([aria-selected='true']) { color: var(--sf-ink); }
+@media (hover: hover) {
+  .sf-page .ex-views [role='tab']:hover:not([aria-selected='true']) { color: var(--sf-ink); }
+}
 .sf-page .ex-views [role='tab'][aria-selected='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
 .sf-page .ex-views [role='tab']:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
 .sf-page[data-frame='s'] .ex-views [role='tab'] { min-height: 40px; padding: 0 18px; }
@@ -2286,8 +2326,10 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
     box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
     color: var(--sf-ink);
   }
-  .sf-page.ex-detail .ex-more .mm-round.sf-more:hover,
   .sf-page.ex-detail .ex-more .mm-round.sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
+  @media (hover: hover) {
+    .sf-page.ex-detail .ex-more .mm-round.sf-more:hover { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
+  }
   .sf-page.ex-detail .ex-more .mm-round.sf-more svg { width: 22px; height: 22px; }
   .sf-page.ex-detail .ex-more .sf-menu.mm-menu { top: calc(100% + 8px); min-width: 276px; }
   /* «Шпаргалка · Вопросы»: 44 px to a finger, as every other target of the page. */
@@ -2347,7 +2389,9 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
     font-weight: 500;
     color: var(--sf-muted);
   }
-  .sf-page.ex-detail .ex-filter button:hover { box-shadow: none; color: var(--sf-ink); }
+  @media (hover: hover) {
+    .sf-page.ex-detail .ex-filter button:hover { box-shadow: none; color: var(--sf-ink); }
+  }
   .sf-page.ex-detail .ex-filter button[aria-pressed='true'] { background: none; color: var(--sf-ink); box-shadow: none; }
   .sf-page.ex-detail .ex-filter button[aria-pressed='true']::after {
     content: '';

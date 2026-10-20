@@ -211,7 +211,9 @@ html[data-stage] .cv-meta { display: none; }
   text-underline-offset: 4px;
   cursor: pointer;
 }
-.cv-src-button:hover { text-decoration-color: currentColor; }
+@media (hover: hover) {
+  .cv-src-button:hover { text-decoration-color: currentColor; }
+}
 .cv-lead { padding-bottom: 18px; }
 .cv-text { max-width: 40em; margin: 0; }
 .cv-muted { color: var(--sf-muted); }
@@ -506,11 +508,15 @@ html[data-stage] .cv-meta { display: none; }
   cursor: pointer;
   transition: background-color 150ms ease;
 }
-.cv-ico:hover:not(:disabled) { background: var(--sf-tint); }
+@media (hover: hover) {
+  .cv-ico:hover:not(:disabled) { background: var(--sf-tint); }
+}
 .cv-ico:disabled { opacity: .35; cursor: default; }
 .cv-ico svg { width: 22px; height: 22px; }
 .cv-player .cv-ico { background: var(--cv-glass, transparent); color: var(--cv-on, var(--sf-ink)); }
-.cv-player .cv-ico:hover:not(:disabled) { background: var(--cv-glass-hover, var(--sf-tint)); }
+@media (hover: hover) {
+  .cv-player .cv-ico:hover:not(:disabled) { background: var(--cv-glass-hover, var(--sf-tint)); }
+}
 .cv-player .cv-ico svg { width: 20px; height: 20px; }
 /* The one tactile control of the tab: a white circle with the blue ▶ and a light halo (the prototype's .play). */
 .cv-play {
@@ -529,7 +535,9 @@ html[data-stage] .cv-meta { display: none; }
   cursor: pointer;
   transition: transform .7s var(--m-ease), box-shadow .5s var(--m-ease);
 }
-.cv-play:hover { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(255, 255, 255, .38), 0 14px 28px -12px rgba(90, 20, 50, .55); }
+@media (hover: hover) {
+  .cv-play:hover { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(255, 255, 255, .38), 0 14px 28px -12px rgba(90, 20, 50, .55); }
+}
 .cv-play:active { transform: scale(.96); transition: transform 70ms ease-out; }
 .dark .cv-play { box-shadow: 0 0 0 8px rgba(255, 255, 255, .1), 0 12px 24px -12px rgba(0, 0, 0, .6); }
 /* The ring clears the halo of the button. */
@@ -537,8 +545,10 @@ html[data-stage] .cv-meta { display: none; }
 .cv-play svg { width: 24px; height: 24px; }
 /* Loading: a ring turns around the ▶ at once, the button ignores presses (the line under the player says why). */
 .cv-play[data-state='loading'] { cursor: progress; }
-.cv-play[data-state='loading']:hover,
 .cv-play[data-state='loading']:active { transform: none; }
+@media (hover: hover) {
+  .cv-play[data-state='loading']:hover { transform: none; }
+}
 .cv-play-ring {
   position: absolute;
   inset: 5px;
@@ -557,7 +567,9 @@ html[data-stage] .cv-meta { display: none; }
 .cv-seg > span { display: block; width: 100%; height: 6px; border-radius: 3px; background: var(--cv-seg, color-mix(in srgb, var(--sf-ink) 14%, transparent)); transition: background-color 150ms ease, height 150ms ease; }
 .cv-seg[data-past] > span { background: var(--cv-seg-past, color-mix(in srgb, var(--sf-ink) 52%, transparent)); }
 .cv-seg[aria-current] > span { height: 8px; border-radius: 4px; background: var(--cv-seg-now, var(--sf-ink)); }
-.cv-seg:not([data-past]):not([aria-current]):hover > span { background: var(--cv-seg-past, color-mix(in srgb, var(--sf-ink) 30%, transparent)); }
+@media (hover: hover) {
+  .cv-seg:not([data-past]):not([aria-current]):hover > span { background: var(--cv-seg-past, color-mix(in srgb, var(--sf-ink) 30%, transparent)); }
+}
 .cv-pos { grid-area: pos; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--cv-on-muted, var(--sf-muted)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cv-speed {
   grid-area: speed;
@@ -576,7 +588,9 @@ html[data-stage] .cv-meta { display: none; }
   cursor: pointer;
   transition: background-color 150ms ease;
 }
-.cv-speed:hover { background: var(--cv-glass-hover, var(--sf-tint)); }
+@media (hover: hover) {
+  .cv-speed:hover { background: var(--cv-glass-hover, var(--sf-tint)); }
+}
 .cv-player .cv-text-link { grid-area: text; white-space: nowrap; }
 /* The status takes a row of its own under the player only while there is something to say (no empty gap). */
 .cv-status { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; margin: 0; padding: 2px 6px 0; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--cv-on, var(--sf-ink)); }
@@ -652,7 +666,9 @@ html[data-stage] .cv-meta { display: none; }
   cursor: pointer;
   transition: background-color 150ms ease, color 150ms ease;
 }
-.cv-panel-list button:hover { background: var(--sf-tint); color: var(--sf-ink); }
+@media (hover: hover) {
+  .cv-panel-list button:hover { background: var(--sf-tint); color: var(--sf-ink); }
+}
 .cv-panel-list button[aria-current] { background: var(--sf-accent-soft); color: var(--sf-ink); }
 /* Inside the scrolling list the ring is drawn inwards, so it is not clipped. */
 .cv-panel-list button:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -2px; }
@@ -762,7 +778,9 @@ html[data-stage] .cv-meta { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .cv-play-ring { animation: none; border-color: rgba(40, 105, 221, .45); border-top-color: #2869dd; }
   .cv-chapter-arrow { transition: none; }
-  .cv-chapters button:hover .cv-chapter-arrow { transform: none; }
+  @media (hover: hover) {
+    .cv-chapters button:hover .cv-chapter-arrow { transform: none; }
+  }
   .cv-layer[data-enter],
   .cv-dgm svg[data-reveal] .cv-node,
   .cv-dgm svg[data-reveal] .cv-elabel,
@@ -774,6 +792,8 @@ html[data-stage] .cv-meta { display: none; }
   .cv-speed,
   .cv-seg > span,
   .cv-panel-list button { transition: none; }
-  .cv-play:hover,
   .cv-play:active { transform: none; }
+  @media (hover: hover) {
+    .cv-play:hover { transform: none; }
+  }
 }

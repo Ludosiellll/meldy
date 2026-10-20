@@ -134,8 +134,10 @@
   }
   .sf-shell .sf-tab-ico svg { width: 22px; height: 22px; }
   .sf-shell .sf-tab-t { white-space: nowrap; }
-  .sf-shell .sf-tablink:hover { color: var(--sf-ink); }
-  .sf-shell .sf-tablink:hover .sf-tab-ico { background: var(--sf-tint); }
+  @media (hover: hover) {
+    .sf-shell .sf-tablink:hover { color: var(--sf-ink); }
+    .sf-shell .sf-tablink:hover .sf-tab-ico { background: var(--sf-tint); }
+  }
   .sf-shell .sf-tablink[aria-current='page'] { background: none; color: var(--sf-ink); font-weight: 600; }
   .sf-shell .sf-tablink[aria-current='page'] .sf-tab-ico { background: var(--sf-ink); color: var(--sf-canvas); }
   .sf-shell .sf-tablink:focus-visible { outline-offset: -2px; }

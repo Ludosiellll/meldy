@@ -88,10 +88,12 @@
 }
 /* Over a screen with its own buttons at the bottom (the Telegram chat's input bar), the button is at the top. */
 .tp-box[data-play-at='top'] .tp-play { top: 8px; bottom: auto; }
-.tp-box:hover .tp-play,
 .tp-play:focus-visible,
 .tp-box[data-playing='false'] .tp-play { opacity: 1; }
-.tp-play:hover { transform: scale(1.06); }
+@media (hover: hover) {
+  .tp-box:hover .tp-play { opacity: 1; }
+  .tp-play:hover { transform: scale(1.06); }
+}
 .tp-play svg { width: 14px; height: 14px; }
 .tp-play:focus-visible,
 .tp-start:focus-visible { outline: 3px solid var(--sf-accent-fg); outline-offset: 2px; }

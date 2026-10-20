@@ -26,7 +26,9 @@
   border-radius: 50%;
   background: var(--m-sky);
 }
-.srf-button:hover { background: var(--sf-accent-soft); }
+@media (hover: hover) {
+  .srf-button:hover { background: var(--sf-accent-soft); }
+}
 .srf-button[aria-expanded='true'] { background: var(--sf-accent); color: #fff; }
 .srf-button[aria-expanded='true']::before { background: #fff; }
 @media (pointer: coarse) {
@@ -49,7 +51,9 @@
     text-underline-offset: 4px;
   }
   .srf-button::before { display: none; }
-  .srf-button:hover { background: none; color: var(--sf-ink); }
+  @media (hover: hover) {
+    .srf-button:hover { background: none; color: var(--sf-ink); }
+  }
   .srf-button[aria-expanded='true'] { background: none; color: var(--sf-ink); }
   .srf-slips { margin-top: 4px; }
 }

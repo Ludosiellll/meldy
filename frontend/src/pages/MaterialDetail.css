@@ -35,8 +35,10 @@
   .md-crumb { display: none; }
 }
 html[data-stage] .md-crumb { display: none; }
-.md-crumb:hover { background: var(--sf-surface-soft); }
-.md-crumb:hover svg { transform: translateX(-3px); }
+@media (hover: hover) {
+  .md-crumb:hover { background: var(--sf-surface-soft); }
+  .md-crumb:hover svg { transform: translateX(-3px); }
+}
 
 /* A size for long lecture titles (44 px on a laptop, the language's smallest page title), across the whole
    column, so «Язык SQL: SELECT, соединения, подзапросы и агрегатные функции» is one line at 1532. Two lines share
@@ -82,7 +84,9 @@ html[data-stage] .md-crumb { display: none; }
   font-size: 16px;
   font-weight: 500;
 }
-.md-pill.sf-secondary:hover { border: 0; box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+@media (hover: hover) {
+  .md-pill.sf-secondary:hover { border: 0; box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+}
 .md-pill-back.sf-secondary { padding: 6px 22px 6px 6px; }
 :where(.md-page) .md-dot {
   flex: none;
@@ -96,8 +100,10 @@ html[data-stage] .md-crumb { display: none; }
   transition: transform .7s var(--m-ease);
 }
 :where(.md-page) .md-dot svg { width: 18px; height: 18px; }
-.md-pill:hover .md-dot { transform: translateX(4px); }
-.md-pill-back:hover .md-dot { transform: translateX(-4px); }
+@media (hover: hover) {
+  .md-pill:hover .md-dot { transform: translateX(4px); }
+  .md-pill-back:hover .md-dot { transform: translateX(-4px); }
+}
 
 /* «⋯»: a round white button with a ring (the prototype's .round). */
 :where(.md-page) .md-round.sf-more {
@@ -108,8 +114,10 @@ html[data-stage] .md-crumb { display: none; }
   color: var(--sf-ink);
   transition: background-color .4s var(--m-ease), box-shadow .6s var(--m-ease);
 }
-:where(.md-page) .md-round.sf-more:hover,
 :where(.md-page) .md-round.sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
+@media (hover: hover) {
+  :where(.md-page) .md-round.sf-more:hover { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -20px rgba(16, 41, 90, .45); }
+}
 :where(.md-page) .md-round.sf-more svg { width: 22px; height: 22px; }
 .md-menu.sf-menu { top: calc(100% + 8px); right: 0; min-width: 270px; max-width: min(320px, calc(100vw - 32px)); }
 
@@ -132,7 +140,9 @@ html[data-stage] .md-crumb { display: none; }
   cursor: pointer;
   transition: background-color .3s ease;
 }
-.md-small-pill:hover { background: var(--sf-accent-hover); }
+@media (hover: hover) {
+  .md-small-pill:hover { background: var(--sf-accent-hover); }
+}
 
 /* ---------------------------------------------------------------- the panel */
 .md-panel { min-width: 0; }
@@ -431,8 +441,10 @@ html[data-stage] .md-crumb { display: none; }
   :where(.md-page) .md-dot,
   :where(.md-page) .md-round.sf-more,
   .md-small-pill { transition: none; }
-  .md-crumb:hover svg,
-  .md-pill:hover .md-dot,
-  .md-pill-back:hover .md-dot { transform: none; }
+  @media (hover: hover) {
+    .md-crumb:hover svg,
+    .md-pill:hover .md-dot,
+    .md-pill-back:hover .md-dot { transform: none; }
+  }
   .md-skel { animation: none; }
 }

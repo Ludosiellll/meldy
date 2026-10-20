@@ -85,7 +85,9 @@
   cursor: pointer;
   transition: background-color .45s var(--m-ease), color .3s ease;
 }
-.az-tab:hover { background: var(--sf-tint, rgba(11, 18, 28, .05)); }
+@media (hover: hover) {
+  .az-tab:hover { background: var(--sf-tint, rgba(11, 18, 28, .05)); }
+}
 .az-tab[aria-selected='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
 .az-tab-icon { flex: none; width: 16px; height: 16px; }
 .az-upload .az-tab:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent-fg)); outline-offset: 2px; border-radius: 999px; }
@@ -150,9 +152,13 @@
   pointer-events: none;
   transition: border-color .3s ease;
 }
-.az-drop:hover { transform: translateY(-3px); }
-.az-drop:hover::after,
+@media (hover: hover) {
+  .az-drop:hover { transform: translateY(-3px); }
+}
 .az-panel[data-drag] .az-drop::after { border-color: var(--sf-accent-fg); }
+@media (hover: hover) {
+  .az-drop:hover::after { border-color: var(--sf-accent-fg); }
+}
 .az-panel[data-drag] .az-drop { background: var(--sf-accent-soft); }
 .az-drop:disabled { cursor: wait; transform: none; }
 .az-upload .az-drop:focus-visible { outline: 3px solid #fff; outline-offset: 4px; border-radius: 26px; }
@@ -167,7 +173,9 @@
   color: #fff;
   transition: transform .7s var(--m-ease);
 }
-.az-drop:hover .az-drop-icon { transform: translateY(-4px); }
+@media (hover: hover) {
+  .az-drop:hover .az-drop-icon { transform: translateY(-4px); }
+}
 .az-drop-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .az-drop-title { font-size: 22px; line-height: 1.2; font-weight: 500; letter-spacing: -.015em; color: var(--sf-ink); }
 .az-drop-sub { font-size: 16px; line-height: 1.4; color: var(--sf-muted); }
@@ -215,7 +223,9 @@
   cursor: pointer;
   transition: background-color .3s ease, box-shadow .3s ease;
 }
-.az-round:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) {
+  .az-round:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+}
 .az-round svg { width: 20px; height: 20px; }
 .az-upload .az-round:focus-visible { border-radius: 50%; }
 
@@ -273,7 +283,9 @@
   text-underline-offset: 4px;
   cursor: pointer;
 }
-.az-inline:hover { text-decoration-color: currentColor; }
+@media (hover: hover) {
+  .az-inline:hover { text-decoration-color: currentColor; }
+}
 
 .az-url { position: relative; margin-top: 12px; }
 .az-input {
@@ -290,7 +302,9 @@
   transition: border-color .2s ease, box-shadow .2s ease;
 }
 .az-input::placeholder { color: var(--sf-muted); opacity: 1; }
-.az-input:hover { border-color: var(--sf-control-edge, #8a8f97); }
+@media (hover: hover) {
+  .az-input:hover { border-color: var(--sf-control-edge, #8a8f97); }
+}
 .az-upload .az-input:focus-visible {
   outline: none;
   border-color: var(--sf-accent-fg);
@@ -320,7 +334,9 @@
   cursor: pointer;
   transition: box-shadow .3s ease;
 }
-.az-chip:hover { box-shadow: inset 0 0 0 1px var(--sf-accent-fg); }
+@media (hover: hover) {
+  .az-chip:hover { box-shadow: inset 0 0 0 1px var(--sf-accent-fg); }
+}
 .az-upload .az-chip:focus-visible,
 .az-upload .az-demo:focus-visible { border-radius: 999px; }
 
@@ -342,7 +358,9 @@
 .az-video { display: grid; justify-items: start; gap: 2px; }
 .az-video p { margin: 0; }
 .az-video .az-video-go { margin: -4px 0 -10px; color: inherit; font-size: 15px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
-.az-video .az-video-go:hover { text-decoration-color: currentColor; }
+@media (hover: hover) {
+  .az-video .az-video-go:hover { text-decoration-color: currentColor; }
+}
 
 /* The quiet way to the demo text: a blue word with an arrow. */
 .az-demo {
@@ -360,10 +378,14 @@
   font-weight: 500;
   cursor: pointer;
 }
-.az-demo:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+@media (hover: hover) {
+  .az-demo:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+}
 .az-demo:disabled { color: var(--sf-muted); text-decoration: none; cursor: not-allowed; }
 .az-arrow { flex: none; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .6s var(--m-ease); }
-.az-demo:hover .az-arrow { transform: translateX(4px); }
+@media (hover: hover) {
+  .az-demo:hover .az-arrow { transform: translateX(4px); }
+}
 .az-demo:disabled .az-arrow { transform: none; }
 
 /* ---------------------------------------------------------------- the steps' layout */
@@ -399,7 +421,9 @@
   cursor: pointer;
   transition: box-shadow .3s ease, background-color .3s ease;
 }
-.az-change:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) {
+  .az-change:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+}
 .az-change:disabled { color: var(--sf-muted); box-shadow: inset 0 0 0 1px var(--sf-line); cursor: not-allowed; }
 .az-change-icon { width: 18px; height: 18px; transition: transform .4s var(--m-ease); }
 .az-change[aria-expanded='true'] .az-change-icon { transform: rotate(180deg); }
@@ -526,7 +550,9 @@
   cursor: pointer;
   transition: box-shadow .45s var(--m-ease);
 }
-.az-pick-btn:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 1px 2px rgba(11, 18, 28, .05); }
+@media (hover: hover) {
+  .az-pick-btn:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 1px 2px rgba(11, 18, 28, .05); }
+}
 .az-pick-btn:disabled { color: var(--sf-muted); cursor: wait; }
 .az-upload .az-pick-btn:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent-fg)); outline-offset: 2px; border-radius: 999px; }
 .az-pick-fmt { margin: 0; font-size: 14px; line-height: 20px; color: var(--sf-muted); text-wrap: balance; }
@@ -545,7 +571,9 @@
   text-underline-offset: 5px;
   cursor: pointer;
 }
-.az-pick-cam:hover { text-decoration-color: var(--m-yellow); }
+@media (hover: hover) {
+  .az-pick-cam:hover { text-decoration-color: var(--m-yellow); }
+}
 
 @media (max-width: 639px) {
   .az-upload { padding-top: 20px; }
@@ -581,7 +609,9 @@
   }
   .az-tabs::-webkit-scrollbar { display: none; }
   .az-tab { position: relative; flex: none; min-width: 44px; min-height: 46px; padding: 0; border-radius: 0; color: var(--sf-muted); font-size: 16px; }
-  .az-tab:hover { background: none; color: var(--sf-ink); }
+  @media (hover: hover) {
+    .az-tab:hover { background: none; color: var(--sf-ink); }
+  }
   .az-tab[aria-selected='true'] { background: none; color: var(--sf-ink); }
   .az-tab[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--sf-ink); }
   .az-upload .az-tab:focus-visible { outline-offset: -2px; border-radius: 4px; }
@@ -589,7 +619,9 @@
   .az-tabpanel { margin-top: 16px; }
   /* «Попробовать на демо-тексте →»: a row link in ink (no blue text links on a phone), no underline, the arrow at its end. */
   .az-demo { padding: 0; color: var(--sf-ink); }
-  .az-demo:hover { text-decoration: none; }
+  @media (hover: hover) {
+    .az-demo:hover { text-decoration: none; }
+  }
   /* One frame: no coloured panel around the text, the link or a chosen file; the text and the file are soft frames of
      the canvas colour, the link is its own field. */
   .az-panel { padding: 0; border-radius: 0; background: none; overflow: visible; }
@@ -617,7 +649,9 @@
     text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
     text-underline-offset: 5px;
   }
-  .az-chip:hover { box-shadow: none; text-decoration-color: currentColor; }
+  @media (hover: hover) {
+    .az-chip:hover { box-shadow: none; text-decoration-color: currentColor; }
+  }
   .az-upload .az-chip:focus-visible { border-radius: 4px; }
   /* «Изменить» of step 2: a quiet link with its chevron, not a second pill. */
   .az-change {
@@ -633,7 +667,9 @@
     text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
     text-underline-offset: 5px;
   }
-  .az-change:hover { box-shadow: none; text-decoration-color: var(--m-yellow); }
+  @media (hover: hover) {
+    .az-change:hover { box-shadow: none; text-decoration-color: var(--m-yellow); }
+  }
   .az-change:disabled { box-shadow: none; text-decoration-color: transparent; }
   .az-upload .az-change:focus-visible { border-radius: 4px; }
   .az-upload .az-start { width: 100%; }
@@ -659,6 +695,8 @@
   .az-upload *,
   .az-upload *::before,
   .az-upload *::after { animation: none !important; transition: none !important; }
-  .az-drop:hover,
-  .az-drop:hover .az-drop-icon { transform: none; }
+  @media (hover: hover) {
+    .az-drop:hover,
+    .az-drop:hover .az-drop-icon { transform: none; }
+  }
 }

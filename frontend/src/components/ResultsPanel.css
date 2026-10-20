@@ -58,8 +58,10 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease);
 }
-.rp-export-pill:hover,
 .rp-export-pill[aria-expanded='true'] { box-shadow: 0 0 0 1px var(--sf-line), 0 14px 30px -18px rgba(16, 41, 90, .45); }
+@media (hover: hover) {
+  .rp-export-pill:hover { box-shadow: 0 0 0 1px var(--sf-line), 0 14px 30px -18px rgba(16, 41, 90, .45); }
+}
 .rp-export-pill svg { width: 18px; height: 18px; }
 .rp-export-menu.sf-menu { top: calc(100% + 8px); }
 
@@ -139,8 +141,10 @@
   transition: background-color .3s ease, color .3s ease, opacity .3s ease;
 }
 .rp-edit svg { width: 18px; height: 18px; }
-.rp-edit:hover,
 .rp-edit:focus-visible { background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line); color: var(--sf-ink); opacity: 1; }
+@media (hover: hover) {
+  .rp-edit:hover { background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line); color: var(--sf-ink); opacity: 1; }
+}
 @media (hover: hover) and (min-width: 768px) {
   .rp-edit { opacity: 0; }
   .rp-title-row:hover .rp-edit { opacity: .8; }

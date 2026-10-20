@@ -52,10 +52,12 @@
   opacity: .78;
   transition: opacity .3s ease, transform .5s var(--m-ease);
 }
-.ar-frame:hover .ar-play,
 .ar-play:focus-visible,
 .ar-frame[data-playing='false'] .ar-play { opacity: 1; }
-.ar-play:hover { transform: scale(1.06); }
+@media (hover: hover) {
+  .ar-frame:hover .ar-play { opacity: 1; }
+  .ar-play:hover { transform: scale(1.06); }
+}
 .ar-play svg { width: 16px; height: 16px; }
 .ar-play:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 

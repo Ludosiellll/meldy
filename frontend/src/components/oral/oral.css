@@ -108,7 +108,9 @@
   text-decoration: none;
   transition: background-color .45s var(--m-ease);
 }
-.sf-room-bar .or-bar-right .sf-link:hover { background: var(--or-hover); }
+@media (hover: hover) {
+  .sf-room-bar .or-bar-right .sf-link:hover { background: var(--or-hover); }
+}
 .sf-room-bar .or-bar-right .or-sheet-link { padding-left: 14px; }
 .sf-room-bar .or-exit-short { display: none; }
 .sf-room-bar .or-back-icon { display: block; width: 18px; height: 18px; flex: none; }
@@ -441,7 +443,9 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease);
 }
-.sf-page .or-alt:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+@media (hover: hover) {
+  .sf-page .or-alt:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+}
 .sf-page .or-alt:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
 /* Under the choice when nothing can be checked: the way to a reference, and on to the next question. */
 .sf-page .or-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; margin: 18px 0 0; font-size: 16px; line-height: 24px; }
@@ -463,7 +467,9 @@
   cursor: pointer;
   transition: box-shadow .3s ease, background-color .3s ease, color .3s ease;
 }
-.sf-page .or-rate button:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) {
+  .sf-page .or-rate button:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+}
 .sf-page .or-rate button[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
 .sf-page .or-rate button:disabled { cursor: progress; }
 .sf-page .or-rate button:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }

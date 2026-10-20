@@ -44,7 +44,9 @@
   cursor: pointer;
 }
 .gr-x svg { width: 20px; height: 20px; }
-.gr-x:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+@media (hover: hover) {
+  .gr-x:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+}
 .gr-x:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 0; }
 .gr-sr {
   position: absolute;
@@ -132,7 +134,9 @@
   font: 500 15px/1 var(--ph-sans);
   cursor: pointer;
 }
-.gr-qr-b:hover { background: var(--sf-surface-soft); }
+@media (hover: hover) {
+  .gr-qr-b:hover { background: var(--sf-surface-soft); }
+}
 .gr-qr-b:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
 .gr-qr-b:disabled { opacity: .45; cursor: default; }
 /* The QR over the whole screen (InviteQr.tsx): the canvas, the code as large as the window allows, the address big. */

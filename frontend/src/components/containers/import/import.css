@@ -133,7 +133,9 @@
   cursor: pointer;
   transition: background-color .3s var(--m-ease);
 }
-.sf-page .im-row:hover:not(:disabled) { background: var(--ex-hover, var(--sf-surface-soft)); }
+@media (hover: hover) {
+  .sf-page .im-row:hover:not(:disabled) { background: var(--ex-hover, var(--sf-surface-soft)); }
+}
 .sf-page .im-row:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: -2px; }
 .sf-page .im-row:disabled { cursor: default; }
 .sf-page .im-row-title { grid-area: title; font-size: 17px; line-height: 1.35; font-weight: 500; overflow-wrap: anywhere; }
@@ -232,7 +234,9 @@
 /* ── one subject ── */
 .sf-page .im-back { gap: 6px; margin-top: 20px; min-height: 40px; color: var(--sf-muted); text-decoration: none; }
 .sf-page .im-back svg { width: 18px; height: 18px; }
-.sf-page .im-back:hover { color: var(--sf-ink); }
+@media (hover: hover) {
+  .sf-page .im-back:hover { color: var(--sf-ink); }
+}
 .sf-page .im-subject,
 .sf-page .im-keysrc,
 .sf-page .im-queue { max-width: 760px; }

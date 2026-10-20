@@ -63,7 +63,9 @@
   cursor: pointer;
   transition: background-color .2s ease;
 }
-.gd-x:hover { background: var(--sf-tint); }
+@media (hover: hover) {
+  .gd-x:hover { background: var(--sf-tint); }
+}
 .gd-x svg { width: 20px; height: 20px; }
 
 /* The clip: 4:3, as wide as the card, narrower when the screen is short. */
@@ -105,7 +107,9 @@
   cursor: pointer;
   transition: background-color .2s ease, color .2s ease;
 }
-.gd-reel:hover { background: var(--sf-tint); }
+@media (hover: hover) {
+  .gd-reel:hover { background: var(--sf-tint); }
+}
 .gd-reel[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
 .gd-reel:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
 
@@ -128,10 +132,12 @@
   opacity: .8;
   transition: opacity .2s ease, transform .2s ease;
 }
-.gd-box:hover .gd-play,
 .gd-play:focus-visible,
 .gd-box[data-playing='false'] .gd-play { opacity: 1; }
-.gd-play:hover { transform: scale(1.06); }
+@media (hover: hover) {
+  .gd-box:hover .gd-play { opacity: 1; }
+  .gd-play:hover { transform: scale(1.06); }
+}
 .gd-play svg { width: 16px; height: 16px; }
 .gd-play:focus-visible { outline: 3px solid var(--sf-accent-fg); outline-offset: 2px; }
 .gd-start {
@@ -180,7 +186,9 @@
 }
 .gd-step[data-done]::before { background: var(--sf-ink); }
 .gd-step[aria-current='step']::before { background: var(--sf-accent); transform: scaleY(1.5); }
-.gd-step:hover::before { background: var(--sf-accent-fg); }
+@media (hover: hover) {
+  .gd-step:hover::before { background: var(--sf-accent-fg); }
+}
 .gd-step:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; border-radius: 6px; }
 
 .gd-h { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.1; letter-spacing: -.03em; }
@@ -205,8 +213,10 @@
   transition: background-color .2s ease;
 }
 .gd-quiet { margin-left: -14px; }
-.gd-quiet:hover,
-.gd-open:hover { background: var(--sf-tint); }
+@media (hover: hover) {
+  .gd-quiet:hover,
+  .gd-open:hover { background: var(--sf-tint); }
+}
 .gd-open { color: var(--sf-accent-fg); }
 .gd-next {
   display: inline-flex;
@@ -224,9 +234,13 @@
   cursor: pointer;
   transition: background-color .45s var(--m-ease), box-shadow .6s var(--m-ease);
 }
-.gd-next:hover { background: var(--sf-accent-hover); box-shadow: 0 14px 30px -16px rgba(16, 41, 90, .55); }
+@media (hover: hover) {
+  .gd-next:hover { background: var(--sf-accent-hover); box-shadow: 0 14px 30px -16px rgba(16, 41, 90, .55); }
+}
 .gd-next i { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--sf-accent-hover); transition: transform .45s var(--m-ease); }
-.gd-next:hover i { transform: translateX(3px); }
+@media (hover: hover) {
+  .gd-next:hover i { transform: translateX(3px); }
+}
 .gd-next svg { width: 18px; height: 18px; }
 .gd-next:only-child { margin-left: auto; }
 .gd-next:not(:has(i)) { padding: 0 22px; }
@@ -329,7 +343,9 @@
   cursor: pointer;
   transition: background-color .2s ease, border-color .2s ease;
 }
-.sf-help:hover { background: var(--sf-tint); }
+@media (hover: hover) {
+  .sf-help:hover { background: var(--sf-tint); }
+}
 .sf-help[aria-expanded='true'] { border-color: var(--sf-ink); background: var(--sf-ink); color: var(--sf-canvas); }
 .sf-help:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
 .sf-bar-right .sf-help + .sf-me-hit { margin-left: -6px; }

@@ -62,7 +62,9 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease);
 }
-.sf-page .tb-type:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+@media (hover: hover) {
+  .sf-page .tb-type:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+}
 .sf-page .tb-type:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
 .sf-page .tb-type-glyph { flex: none; width: 22px; height: 22px; color: var(--sf-accent-fg); }
 .sf-page .tb-types-cancel { margin-left: 6px; }

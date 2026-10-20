@@ -29,7 +29,9 @@
   transition: background-color .3s ease, box-shadow .5s var(--m-ease);
 }
 .qz-chip svg { flex: none; width: 17px; height: 17px; color: var(--sf-muted); }
-.qz-chip:hover { background: var(--sf-surface-soft); }
+@media (hover: hover) {
+  .qz-chip:hover { background: var(--sf-surface-soft); }
+}
 
 /* ---------------------------------------------------------------- the result */
 .qz-result {
@@ -66,7 +68,9 @@
   cursor: pointer;
 }
 .qz-journal-saved .qz-link { display: inline; min-height: 0; }
-.qz-link:hover { text-decoration-color: currentColor; }
+@media (hover: hover) {
+  .qz-link:hover { text-decoration-color: currentColor; }
+}
 
 /* ---------------------------------------------------------------- questions */
 .qz-list { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
@@ -99,7 +103,9 @@
   cursor: pointer;
   transition: background-color .3s ease, box-shadow .3s ease, color .3s ease;
 }
-.qz-opt:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--sf-control-edge, #8a8f97); }
+@media (hover: hover) {
+  .qz-opt:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--sf-control-edge, #8a8f97); }
+}
 .qz-opt:disabled { cursor: default; }
 .qz-opt[data-state='selected'] { background: var(--sf-accent-soft); box-shadow: inset 0 0 0 2px var(--sf-accent); }
 .qz-opt[data-state='right'] { background: var(--m-green-soft); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--m-green) 80%, transparent); color: var(--sf-ink); }
@@ -208,7 +214,9 @@
   cursor: pointer;
   transition: box-shadow .3s ease, background-color .3s ease;
 }
-.qz-pres-opt:hover { box-shadow: 0 0 0 1px var(--sf-control-edge, #8a8f97); }
+@media (hover: hover) {
+  .qz-pres-opt:hover { box-shadow: 0 0 0 1px var(--sf-control-edge, #8a8f97); }
+}
 .qz-pres-opt[aria-pressed='true'] { background: var(--sf-accent-soft); box-shadow: inset 0 0 0 2px var(--sf-accent); }
 .qz-letter {
   flex: none;

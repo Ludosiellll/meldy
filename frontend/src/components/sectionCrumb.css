@@ -16,8 +16,10 @@
   transition: background-color .4s var(--m-ease), box-shadow .4s var(--m-ease);
 }
 .sc-crumb svg { flex: none; width: 18px; height: 18px; transition: transform .6s var(--m-ease); }
-.sc-crumb:hover { background: var(--sf-surface-soft); }
-.sc-crumb:hover svg { transform: translateX(-3px); }
+@media (hover: hover) {
+  .sc-crumb:hover { background: var(--sf-surface-soft); }
+  .sc-crumb:hover svg { transform: translateX(-3px); }
+}
 .sf-page .sc-crumb:focus-visible { border-radius: 999px; }
 /* A page header that starts with the crumb keeps its title where the other sections have theirs. */
 @media (min-width: 1024px) {
@@ -39,5 +41,7 @@ html[data-stage] .sc-crumb { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .sc-crumb,
   .sc-crumb svg { transition: none; }
-  .sc-crumb:hover svg { transform: none; }
+  @media (hover: hover) {
+    .sc-crumb:hover svg { transform: none; }
+  }
 }

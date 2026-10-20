@@ -35,7 +35,9 @@
   cursor: pointer;
   transition: background-color .3s var(--m-ease);
 }
-.sf-page.ky-page .ky-row:hover { background: var(--ex-hover, var(--sf-surface-soft)); }
+@media (hover: hover) {
+  .sf-page.ky-page .ky-row:hover { background: var(--ex-hover, var(--sf-surface-soft)); }
+}
 .sf-page.ky-page .ky-row:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: -2px; }
 .sf-page.ky-page .ky-row-title { grid-area: title; font-size: 17px; line-height: 1.35; font-weight: 500; }
 .sf-page.ky-page .ky-row-meta { grid-area: meta; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }

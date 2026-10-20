@@ -68,7 +68,9 @@
   white-space: nowrap;
   transition: box-shadow .45s var(--m-ease);
 }
-.shm-signin:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) {
+  .shm-signin:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+}
 .shm-cta {
   min-height: 48px;
   padding: 0 22px;
@@ -83,7 +85,9 @@
   cursor: pointer;
   transition: background-color .45s var(--m-ease), box-shadow .6s var(--m-ease);
 }
-.shm-cta:hover { background: var(--sf-accent-hover); box-shadow: 0 14px 30px -16px rgba(16, 41, 90, .55); }
+@media (hover: hover) {
+  .shm-cta:hover { background: var(--sf-accent-hover); box-shadow: 0 14px 30px -16px rgba(16, 41, 90, .55); }
+}
 
 /* ---------------------------------------------------------------- the material */
 .shm-main { box-sizing: border-box; max-width: 1112px; margin: 0 auto; padding: 0 40px 96px; }
@@ -197,13 +201,17 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
 }
-.shm-white-pill:hover { box-shadow: 0 16px 34px -14px rgba(0, 0, 0, .45); }
+@media (hover: hover) {
+  .shm-white-pill:hover { box-shadow: 0 16px 34px -14px rgba(0, 0, 0, .45); }
+}
 .shm-white-pill:active { transform: scale(.98); }
 /* On the blue panel the ring is white. */
 .shm-white-pill:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
 .shm-dot { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; background: #0b121c; color: #fff; transition: transform .7s var(--m-ease); }
 .shm-dot svg { width: 18px; height: 18px; }
-.shm-white-pill:hover .shm-dot { transform: translateX(4px); }
+@media (hover: hover) {
+  .shm-white-pill:hover .shm-dot { transform: translateX(4px); }
+}
 
 /* ---------------------------------------------------------------- loading and not found */
 .shm-skeleton { display: grid; gap: 28px; padding-top: 48px; }
@@ -239,7 +247,9 @@
   text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
   text-underline-offset: 4px;
 }
-.shm-link:hover { text-decoration-color: currentColor; }
+@media (hover: hover) {
+  .shm-link:hover { text-decoration-color: currentColor; }
+}
 
 @media (max-width: 767px) {
   .shm-bar-label { display: none; }
@@ -278,7 +288,9 @@
   .shm-signin,
   .shm-white-pill,
   .shm-dot { transition: none; }
-  .shm-white-pill:hover .shm-dot,
   .shm-white-pill:active { transform: none; }
+  @media (hover: hover) {
+    .shm-white-pill:hover .shm-dot { transform: none; }
+  }
   .shm-skeleton i { animation: none; }
 }

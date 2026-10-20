@@ -72,7 +72,9 @@
   cursor: pointer;
   transition: background-color .2s ease;
 }
-.sc-btn:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
+@media (hover: hover) {
+  .sc-btn:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
+}
 .sc-btn svg { width: 16px; height: 16px; }
 .sc-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 /* «Смотреть» while motion is reduced: the word and the play circle. */

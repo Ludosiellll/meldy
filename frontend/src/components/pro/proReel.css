@@ -45,10 +45,12 @@
   opacity: .8;
   transition: opacity .2s ease, transform .2s ease;
 }
-.pr-box:hover .pr-play,
 .pr-play:focus-visible,
 .pr-box[data-playing='false'] .pr-play { opacity: 1; }
-.pr-play:hover { transform: scale(1.06); }
+@media (hover: hover) {
+  .pr-box:hover .pr-play { opacity: 1; }
+  .pr-play:hover { transform: scale(1.06); }
+}
 .pr-play svg { width: 16px; height: 16px; }
 .pr-play:focus-visible { outline: 3px solid var(--sf-accent-fg); outline-offset: 2px; }
 

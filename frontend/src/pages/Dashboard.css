@@ -129,7 +129,9 @@
   line-height: 1.2;
   color: var(--sf-ink);
 }
-.td .td-pill:hover { border: 0; box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+@media (hover: hover) {
+  .td .td-pill:hover { border: 0; box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+}
 .td .td-pill:active { transform: scale(.98); }
 .td-dot {
   display: grid;
@@ -151,7 +153,9 @@
   stroke-linejoin: round;
 }
 .td-dot svg { width: 18px; height: 18px; }
-.td-pill:hover .td-dot { transform: translateX(4px); }
+@media (hover: hover) {
+  .td-pill:hover .td-dot { transform: translateX(4px); }
+}
 .td .td-pill[data-size='s'] { min-height: 48px; gap: 12px; padding: 5px 5px 5px 20px; font-size: 16px; }
 .td-pill[data-size='s'] .td-dot { width: 38px; height: 38px; }
 .td .sf-primary[data-size='s'] { height: 48px; gap: 12px; padding-left: 20px; padding-right: 5px; font-size: 16px; }
@@ -170,9 +174,11 @@
   white-space: nowrap;
 }
 .td-arrow { flex: none; width: 17px; height: 17px; transition: transform .6s var(--m-ease); }
-.td-more:hover .td-arrow,
-.td-gap-link:hover .td-arrow { transform: translateX(4px); }
-.td-more:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+@media (hover: hover) {
+  .td-more:hover .td-arrow,
+  .td-gap-link:hover .td-arrow { transform: translateX(4px); }
+  .td-more:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+}
 
 /* Pills keep their shape when focused (the kit's ring would square them off). */
 .sf-page.td .td-pill:focus-visible,
@@ -208,7 +214,9 @@
   text-decoration: none;
   transition: box-shadow .45s var(--m-ease), background-color .45s var(--m-ease);
 }
-.td-gap-link:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) {
+  .td-gap-link:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
+}
 .td-gap-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--td-no-dot); }
 .td-gap-note { margin: 8px 0 0 2px; max-width: 34em; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 
@@ -311,9 +319,13 @@
   color: var(--sf-ink);
   text-decoration: none;
 }
-.td-sheet-link:hover .td-arrow { transform: translateX(4px); }
+@media (hover: hover) {
+  .td-sheet-link:hover .td-arrow { transform: translateX(4px); }
+}
 .td-sheet-link .td-nowrap { white-space: nowrap; }
-.td-sheet-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+@media (hover: hover) {
+  .td-sheet-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+}
 .td-ready > .td-answers:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 /* «Сегодня-lite»: with nothing to erase now, a quiet line under the sheet's line says when the next lines can be
    (with lines to erase, the card's next step at the top says it). */
@@ -399,8 +411,10 @@
 .td .td-stack .sf-index-card[data-n='3'] { background: #eaf1fd; transform: translate(-18px, 8px) rotate(-8deg); }
 .td .td-stack .sf-index-card[data-n='2'] { background: #fdf3d8; transform: translate(16px, 4px) rotate(6deg); }
 .td .td-stack .sf-index-card[data-n='1'] { transform: rotate(-1.2deg); }
-.td-due:hover .td-stack .sf-index-card[data-n='3'] { transform: translate(-24px, 10px) rotate(-11deg); }
-.td-due:hover .td-stack .sf-index-card[data-n='2'] { transform: translate(22px, 6px) rotate(9deg); }
+@media (hover: hover) {
+  .td-due:hover .td-stack .sf-index-card[data-n='3'] { transform: translate(-24px, 10px) rotate(-11deg); }
+  .td-due:hover .td-stack .sf-index-card[data-n='2'] { transform: translate(22px, 6px) rotate(9deg); }
+}
 .td-stack-q {
   position: absolute;
   top: 50%;
@@ -530,9 +544,13 @@
   transform: translate(-50%, -30%) rotate(-6deg);
   transition: transform 1s var(--m-ease);
 }
-.td-lec:hover .td-thumb-page { transform: translate(-50%, -34%) rotate(-2deg); }
+@media (hover: hover) {
+  .td-lec:hover .td-thumb-page { transform: translate(-50%, -34%) rotate(-2deg); }
+}
 .td-lec-title { margin: 16px 12px 0; font-size: 18px; line-height: 1.3; font-weight: 500; letter-spacing: -.01em; overflow-wrap: anywhere; }
-.td-lec-link:hover .td-lec-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+@media (hover: hover) {
+  .td-lec-link:hover .td-lec-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+}
 .td-lec-meta { margin: 6px 12px 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
 /* The date lies on the picture as a white caption pill. */
 .td-lec-date {
@@ -580,7 +598,9 @@
   cursor: pointer;
   transition: box-shadow .45s var(--m-ease);
 }
-.td-chip:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+@media (hover: hover) {
+  .td-chip:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+}
 .td-chip:disabled { cursor: not-allowed; color: var(--sf-muted); box-shadow: 0 0 0 1px var(--sf-line); }
 
 /* No lectures yet: the dashed card that adds one. */
@@ -602,7 +622,9 @@
   text-decoration: none;
   transition: border-color .45s var(--m-ease), background-color .45s var(--m-ease);
 }
-.td-add:hover { border-color: var(--sf-accent); background: color-mix(in srgb, var(--sf-accent-soft) 50%, transparent); }
+@media (hover: hover) {
+  .td-add:hover { border-color: var(--sf-accent); background: color-mix(in srgb, var(--sf-accent-soft) 50%, transparent); }
+}
 .td-add-plus {
   display: grid;
   place-items: center;
@@ -645,7 +667,9 @@
   cursor: pointer;
   transition: background-color .3s ease;
 }
-.td-fs-toggle:hover { background: var(--sf-tint); }
+@media (hover: hover) {
+  .td-fs-toggle:hover { background: var(--sf-tint); }
+}
 .td-fs-toggle::after {
   content: '';
   width: 7px;
@@ -906,8 +930,10 @@
     line-height: 20px;
     font-weight: 500;
   }
-  .td-exam[data-phone] .td-gap-link:hover,
-  .td-exam[data-phone] .td-sheet-link:hover { box-shadow: none; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+  @media (hover: hover) {
+    .td-exam[data-phone] .td-gap-link:hover,
+    .td-exam[data-phone] .td-sheet-link:hover { box-shadow: none; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+  }
   .td-exam[data-phone] .td-gap-link .td-arrow,
   .td-exam[data-phone] .td-sheet-link .td-arrow { display: inline-block; width: 16px; height: 16px; margin-left: 6px; vertical-align: -3px; }
   .sf-page.td .td-exam[data-phone] .td-gap-link:focus-visible,

@@ -32,7 +32,9 @@
   transition: background-color .3s ease, box-shadow .5s var(--m-ease);
 }
 .fc-chip svg { width: 17px; height: 17px; color: var(--sf-muted); }
-.fc-chip:hover { background: var(--sf-surface-soft); }
+@media (hover: hover) {
+  .fc-chip:hover { background: var(--sf-surface-soft); }
+}
 
 /* The second button of the language: a white pill with a black circle. */
 .fc-pill {
@@ -54,7 +56,9 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
 }
-.fc-pill:hover { box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+@media (hover: hover) {
+  .fc-pill:hover { box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+}
 .fc-pill:active { transform: scale(.98); }
 .fc-dot {
   flex: none;
@@ -68,7 +72,9 @@
   transition: transform .7s var(--m-ease);
 }
 .fc-dot svg { width: 18px; height: 18px; }
-.fc-pill:hover .fc-dot { transform: translateX(4px); }
+@media (hover: hover) {
+  .fc-pill:hover .fc-dot { transform: translateX(4px); }
+}
 
 /* ---------------------------------------------------------------- the cards */
 .fc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); align-items: start; gap: 14px; margin: 0; padding: 0; list-style: none; }
@@ -82,7 +88,9 @@
   cursor: pointer;
   transition: box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
 }
-.fc-card:hover { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+@media (hover: hover) {
+  .fc-card:hover { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+}
 .fc-card[data-open] { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
 .fc-card-top { display: flex; align-items: flex-start; gap: 12px; }
 .fc-q {
@@ -118,7 +126,9 @@
   transition: opacity .3s ease, background-color .3s ease, color .3s ease;
 }
 .fc-copy svg { width: 17px; height: 17px; }
-.fc-copy:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+@media (hover: hover) {
+  .fc-copy:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+}
 .fc-copy[data-done] { color: var(--m-green-ink); }
 /* Hidden until hover on a computer: the keyboard focus shows it too. */
 .fc-copy:focus-visible { opacity: 1; }
@@ -195,7 +205,9 @@
   border-radius: 6px;
   cursor: pointer;
 }
-.fc-quiet:hover { color: var(--sf-ink); text-decoration-color: var(--m-yellow); }
+@media (hover: hover) {
+  .fc-quiet:hover { color: var(--sf-ink); text-decoration-color: var(--m-yellow); }
+}
 
 .fc-deck { position: relative; margin: 8px 6px 26px; }
 .fc-under { position: absolute; inset: 0; border-radius: 44px; box-shadow: 0 18px 34px -24px rgba(16, 41, 90, .45); }
@@ -249,7 +261,9 @@
 .fc-mark svg { width: 20px; height: 20px; }
 .fc-mark[data-tone='know'] { background: var(--m-green-soft); color: var(--m-green-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--m-green) 55%, transparent); }
 .fc-mark[data-tone='again'] { background: var(--m-yellow-soft); color: var(--m-yellow-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--m-yellow) 60%, transparent); }
-.fc-mark:hover { transform: translateY(-2px); }
+@media (hover: hover) {
+  .fc-mark:hover { transform: translateY(-2px); }
+}
 
 /* ---------------------------------------------------------------- the result */
 .fc-result {
@@ -292,7 +306,9 @@
     text-underline-offset: 5px;
   }
   .fc-bar-quiet .fc-chip svg { display: none; }
-  .fc-bar-quiet .fc-chip:hover { background: none; color: var(--sf-ink); }
+  @media (hover: hover) {
+    .fc-bar-quiet .fc-chip:hover { background: none; color: var(--sf-ink); }
+  }
   .fc-note { margin: 0 0 16px; }
   .fc-card:not(:first-child) .fc-hint { display: none; }
   .fc-hint svg { display: none; }
@@ -315,7 +331,9 @@
   .fc-card,
   .fc-copy,
   .fc-mark { transition: none; }
-  .fc-pill:hover .fc-dot,
-  .fc-pill:active,
-  .fc-mark:hover { transform: none; }
+  .fc-pill:active { transform: none; }
+  @media (hover: hover) {
+    .fc-pill:hover .fc-dot,
+    .fc-mark:hover { transform: none; }
+  }
 }

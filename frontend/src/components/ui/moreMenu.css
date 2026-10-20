@@ -27,8 +27,10 @@
   color: var(--sf-ink);
   text-decoration: none;
 }
-.sf-menu a.mm-item:hover,
 .sf-menu a.mm-item:focus-visible { background: var(--sf-tint); outline: none; }
+@media (hover: hover) {
+  .sf-menu a.mm-item:hover { background: var(--sf-tint); outline: none; }
+}
 .sf-menu .mm-item[data-danger] { color: var(--ph-wrong); }
 /* A switch (MoreMenu `checked`): its label and hint on the left, the app's switch on the right (the sheet's
    .cs-toggle-box); its state is the switch, not a heavier label. */

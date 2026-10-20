@@ -43,7 +43,9 @@
     text-decoration-color: color-mix(in srgb, currentColor 28%, transparent);
     text-underline-offset: 5px;
   }
-  .sf-page .nx-start-acts .ex-secondary:hover { box-shadow: none; text-decoration-color: var(--m-yellow); }
+  @media (hover: hover) {
+    .sf-page .nx-start-acts .ex-secondary:hover { box-shadow: none; text-decoration-color: var(--m-yellow); }
+  }
   .sf-page .nx-start-acts .ex-secondary:disabled { background: none; box-shadow: none; }
   .sf-page .nx-start-acts .ex-secondary:focus-visible { border-radius: 4px; }
   .sf-page .nx-start-fmt { flex-basis: 100%; margin-top: -8px; }

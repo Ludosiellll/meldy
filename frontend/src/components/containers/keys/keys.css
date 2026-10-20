@@ -103,7 +103,9 @@
   cursor: pointer;
   transition: background-color .3s var(--m-ease);
 }
-.kq-option:hover:not(:disabled) { background: var(--sf-surface-soft); }
+@media (hover: hover) {
+  .kq-option:hover:not(:disabled) { background: var(--sf-surface-soft); }
+}
 .kq-option:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: -2px; }
 .kq-option:disabled { cursor: default; }
 .kq-options[data-mode='none'] .kq-option:disabled { color: var(--sf-ink); }
@@ -339,7 +341,9 @@
   transition: background-color .3s var(--m-ease), color .2s ease;
 }
 .qe-icon svg { width: 20px; height: 20px; }
-.qe-icon:hover:not(:disabled) { background: var(--sf-tint); color: var(--sf-ink); }
+@media (hover: hover) {
+  .qe-icon:hover:not(:disabled) { background: var(--sf-tint); color: var(--sf-ink); }
+}
 .qe-icon:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: -2px; }
 .qe-icon:disabled { opacity: .5; cursor: default; }
 /* What is ticked and what the student does: one quiet line under the options (with «Сделать с одним ответом»). */
@@ -419,7 +423,11 @@
     background: var(--sf-surface);
     box-shadow: 0 -1px 0 var(--sf-line);
   }
-  .ky-page .qe > .qe-actions .sf-primary { min-height: 52px; }
+  /* One row, so the bar takes little of the screen: «Отмена», then «Сохранить» across the rest. */
+  .ky-page .qe > .qe-actions { gap: 8px 18px; }
+  .ky-page .qe > .qe-actions .sf-primary { order: 2; flex: 1 1 180px; min-height: 52px; }
+  .ky-page .qe > .qe-actions > .sf-link { order: 1; }
+  .ky-page .qe > .qe-actions > .qe-same { order: 3; flex-basis: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .qe-icon { transition: none; }

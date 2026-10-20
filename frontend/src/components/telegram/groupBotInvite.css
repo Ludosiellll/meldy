@@ -30,7 +30,9 @@
 }
 .gb-toggle svg { flex: none; width: 20px; height: 20px; color: var(--sf-muted); transition: transform 200ms var(--m-ease, ease); }
 .gb-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
-.gb-toggle:hover svg { color: var(--sf-ink); }
+@media (hover: hover) {
+  .gb-toggle:hover svg { color: var(--sf-ink); }
+}
 .gb-toggle:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; border-radius: 10px; }
 
 .gb-body { padding-bottom: 4px; }

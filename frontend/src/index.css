@@ -125,11 +125,13 @@
 :is(button, a, [role="button"])[class~="bg-brand-700"],
 :is(button, a, [role="button"])[class~="bg-cyan-400"],
 :is(button, a, [role="button"])[class~="bg-cyan-300"] { background-color: var(--sf-accent) !important; }
-:is(button, a, [role="button"])[class~="hover:bg-indigo-700"]:hover,
-:is(button, a, [role="button"])[class~="hover:bg-indigo-500"]:hover,
-:is(button, a, [role="button"])[class~="hover:bg-brand-700"]:hover,
-:is(button, a, [role="button"])[class~="hover:bg-cyan-300"]:hover,
-:is(button, a, [role="button"])[class~="hover:bg-cyan-200"]:hover { background-color: var(--sf-accent-hover) !important; }
+@media (hover: hover) {
+  :is(button, a, [role="button"])[class~="hover:bg-indigo-700"]:hover,
+  :is(button, a, [role="button"])[class~="hover:bg-indigo-500"]:hover,
+  :is(button, a, [role="button"])[class~="hover:bg-brand-700"]:hover,
+  :is(button, a, [role="button"])[class~="hover:bg-cyan-300"]:hover,
+  :is(button, a, [role="button"])[class~="hover:bg-cyan-200"]:hover { background-color: var(--sf-accent-hover) !important; }
+}
 :is(button, a, [role="button"])[class~="bg-indigo-600"],
 :is(button, a, [role="button"])[class~="bg-indigo-700"],
 :is(button, a, [role="button"])[class~="bg-brand-600"],
@@ -139,9 +141,11 @@
 
 /* The fill blue reads only 3.2–3.8:1 as text on the dark surfaces; text and links that borrow it take
    the light accent there (light theme: #2869dd on white or the canvas stays above 4.5:1). */
-.dark [class~="text-[var(--sf-accent)]"],
-.dark [class~="hover:text-[var(--sf-accent)]"]:hover,
-.dark .group:hover [class~="group-hover:text-[var(--sf-accent)]"] { color: var(--sf-accent-fg); }
+.dark [class~="text-[var(--sf-accent)]"] { color: var(--sf-accent-fg); }
+@media (hover: hover) {
+  .dark [class~="hover:text-[var(--sf-accent)]"]:hover,
+  .dark .group:hover [class~="group-hover:text-[var(--sf-accent)]"] { color: var(--sf-accent-fg); }
+}
 
 /* Reuse the paper palette for the common neutral utility colors. */
 .bg-slate-50 { background-color: var(--sf-canvas) !important; }

@@ -81,3 +81,22 @@ describe('the sheet’s yellow in the dark theme (third live check: olive on the
     expect((await tokens('components/home/home.css', '.hx, .hs'))['--hs-yellow']).toBe('#e9b13c');
   });
 });
+
+describe('the questions’ numbers read as text (phone audit 47.3: 3.25:1 light, 3.66:1 dark at 17 px)', () => {
+  it('4.5:1 or more on the card, its soft rows and the canvas, in both themes', async () => {
+    const light = await tokens('components/exams/sheet/sheet.css', '.sf-page, .cs-wrap, .cs-mapbox');
+    const dark = await tokens('components/exams/sheet/sheet.css', '.dark .sf-page, .dark .cs-wrap, .dark .cs-mapbox');
+    // index.css opens with the @tailwind lines, so its :root block is read on its own.
+    const root = (await nodeFs()).readFileSync(SRC + 'index.css', 'utf8').match(/(?:^|\n):root\s*\{([^}]*)\}/)![1];
+    const lightApp = Object.fromEntries([...root.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)].map((m) => [m[1], m[2].trim()]));
+    const darkApp = await tokens('index.css', '.dark');
+    for (const [num, app] of [
+      [light['--cs-num'], lightApp],
+      [dark['--cs-num'], darkApp],
+    ] as const) {
+      for (const ground of ['--sf-surface', '--sf-surface-soft', '--sf-canvas']) {
+        expect(contrast(hex(num)!, hex(app[ground])!), `${num} on ${ground}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+});

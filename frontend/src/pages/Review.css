@@ -211,7 +211,9 @@
   cursor: pointer;
   transition: border-color .3s ease, box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
 }
-.rv-grade:hover { border-color: var(--sf-ink); box-shadow: 0 14px 30px -18px rgba(16, 41, 90, .4); }
+@media (hover: hover) {
+  .rv-grade:hover { border-color: var(--sf-ink); box-shadow: 0 14px 30px -18px rgba(16, 41, 90, .4); }
+}
 .rv-grade:active { transform: scale(.98); }
 .rv-grade:disabled { cursor: wait; color: var(--sf-muted); border-color: var(--sf-line); box-shadow: none; transform: none; }
 .rv-grade-w { min-width: 0; overflow-wrap: anywhere; }
@@ -229,7 +231,9 @@
   font-variant-numeric: tabular-nums;
   transition: transform .7s var(--m-ease);
 }
-.rv-grade:hover .rv-key { transform: translateX(3px); }
+@media (hover: hover) {
+  .rv-grade:hover .rv-key { transform: translateX(3px); }
+}
 .rv-grade:disabled .rv-key { background: var(--sf-muted); transform: none; }
 
 /* ---------------------------------------------------------------- empty, error */
@@ -418,7 +422,9 @@
 .rv-diary-line { margin: 2px 0 0; }
 .rv-diary-line .sf-link { text-decoration: none; }
 .rv-diary-arrow { margin-left: 8px; transition: transform .5s var(--m-ease); }
-.rv-diary-line .sf-link:hover .rv-diary-arrow { transform: translateX(3px); }
+@media (hover: hover) {
+  .rv-diary-line .sf-link:hover .rv-diary-arrow { transform: translateX(3px); }
+}
 .rv-diary-main { flex: 1 1 18rem; min-width: 0; }
 .rv-diary-h { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -.015em; color: var(--sf-ink); }
 .rv-diary-p { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
@@ -493,8 +499,10 @@
   .rv-grade,
   .rv-key,
   .rv-diary-arrow { transition: none; }
-  .rv-grade:hover .rv-key,
-  .rv-grade:active,
-  .rv-diary-line .sf-link:hover .rv-diary-arrow { transform: none; }
+  .rv-grade:active { transform: none; }
+  @media (hover: hover) {
+    .rv-grade:hover .rv-key,
+    .rv-diary-line .sf-link:hover .rv-diary-arrow { transform: none; }
+  }
   .rv .rv-deck[data-enter] .sf-flip { animation: none; }
 }

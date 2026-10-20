@@ -18,7 +18,9 @@
   cursor: pointer;
   transition: background-color .3s ease, box-shadow .3s ease;
 }
-.sf-page .ks-chip:hover { background: var(--sf-surface-soft); }
+@media (hover: hover) {
+  .sf-page .ks-chip:hover { background: var(--sf-surface-soft); }
+}
 .sf-page .ks-chip:has(input:checked) { background: var(--sf-accent-soft); box-shadow: inset 0 0 0 1.5px var(--sf-accent-fg); }
 .sf-page .ks-chip:has(input:focus-visible) { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
 .sf-page .ks-chip input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--sf-accent); }

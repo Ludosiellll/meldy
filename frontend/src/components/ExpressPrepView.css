@@ -40,7 +40,9 @@
   font-weight: 500;
   cursor: pointer;
 }
-.xp-retry:hover { background: var(--sf-surface-soft); }
+@media (hover: hover) {
+  .xp-retry:hover { background: var(--sf-surface-soft); }
+}
 
 .xp-art {
   position: relative;

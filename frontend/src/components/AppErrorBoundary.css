@@ -70,9 +70,11 @@
   border-radius: 50%;
   background: var(--sf-accent-hover, #1c4db1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M15.5 10a5.5 5.5 0 1 1-1.7-4M15.8 3.6v3h-3' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 18px no-repeat;
 }
-.app-crash-btn:hover {
-  background: var(--sf-accent-hover, #1c4db1);
-  box-shadow: 0 16px 34px -16px rgba(16, 41, 90, .55);
+@media (hover: hover) {
+  .app-crash-btn:hover {
+    background: var(--sf-accent-hover, #1c4db1);
+    box-shadow: 0 16px 34px -16px rgba(16, 41, 90, .55);
+  }
 }
 .app-crash-btn:focus-visible {
   outline: 2px solid var(--ph-focus, #2869dd);

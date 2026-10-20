@@ -66,8 +66,10 @@
   cursor: pointer;
   transition: border-color .3s ease, transform .7s var(--m-ease);
 }
-:where(.md) .md-round:hover { border-color: var(--sf-ink); }
-:where(.md) .md-round:hover svg { transform: rotate(60deg); }
+@media (hover: hover) {
+  :where(.md) .md-round:hover { border-color: var(--sf-ink); }
+  :where(.md) .md-round:hover svg { transform: rotate(60deg); }
+}
 :where(.md) .md-round svg { width: 18px; height: 18px; transition: transform .7s var(--m-ease); }
 
 /* ---------------------------------------------------------------- the list */
@@ -87,7 +89,9 @@
   box-shadow: 0 0 0 1px var(--sf-line);
   transition: box-shadow .5s var(--m-ease), transform .6s var(--m-ease);
 }
-.md-item:hover { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); transform: translateY(-2px); }
+@media (hover: hover) {
+  .md-item:hover { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); transform: translateY(-2px); }
+}
 .md-item[data-open] { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); transform: none; }
 .md-row {
   display: grid;
@@ -161,9 +165,13 @@
 .md-nowrap { white-space: nowrap; }
 .md-points { margin: 0; padding: 0 0 6px; list-style: none; }
 .md-group .md-item { border-radius: 0; background: none; box-shadow: none; }
-.md-group .md-item:hover { box-shadow: none; transform: none; }
+@media (hover: hover) {
+  .md-group .md-item:hover { box-shadow: none; transform: none; }
+}
 .md-group .md-item + .md-item { box-shadow: 0 -1px 0 var(--sf-line); }
-.md-group .md-item:hover .md-row { background: var(--sf-surface-soft); }
+@media (hover: hover) {
+  .md-group .md-item:hover .md-row { background: var(--sf-surface-soft); }
+}
 .md-group .md-item[data-open] .md-row { background: none; }
 .md-group .md-row { padding-top: 14px; padding-bottom: 14px; border-radius: 22px; }
 .md-group .md-q { font-size: 17px; line-height: 25px; font-weight: 400; letter-spacing: 0; }
@@ -189,7 +197,9 @@
   cursor: pointer;
   transition: color .3s ease;
 }
-.md-del:hover { color: var(--ph-wrong); }
+@media (hover: hover) {
+  .md-del:hover { color: var(--ph-wrong); }
+}
 
 /* ---------------------------------------------------------------- the practice */
 .md-practice { max-width: 760px; margin: 0 auto; padding-top: 48px; }
@@ -223,7 +233,9 @@
   cursor: pointer;
   transition: border-color .3s ease, background-color .3s ease, box-shadow .5s var(--m-ease);
 }
-.md-opt:hover:not(:disabled) { border-color: var(--sf-ink); box-shadow: 0 14px 30px -20px rgba(16, 41, 90, .4); }
+@media (hover: hover) {
+  .md-opt:hover:not(:disabled) { border-color: var(--sf-ink); box-shadow: 0 14px 30px -20px rgba(16, 41, 90, .4); }
+}
 .md-opt:disabled { cursor: default; }
 .md-opt-t { min-width: 0; overflow-wrap: anywhere; }
 .md-opt-v {
@@ -290,7 +302,9 @@
     font-size: 16px;
     font-weight: 500;
   }
-  .md .md-tabs button:hover { background: none; color: var(--sf-ink); }
+  @media (hover: hover) {
+    .md .md-tabs button:hover { background: none; color: var(--sf-ink); }
+  }
   .md .md-tabs button[aria-pressed='true'] { background: none; color: var(--sf-ink); font-weight: 500; }
   .md .md-tabs button[aria-pressed='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--sf-ink); }
   .md .md-tabs button:focus-visible { outline-offset: -2px; border-radius: 4px; }
@@ -343,6 +357,8 @@
   .md-opt,
   .md-progress i,
   .md-del { transition: none; }
-  .md-item:hover,
-  :where(.md) .md-round:hover svg { transform: none; }
+  @media (hover: hover) {
+    .md-item:hover,
+    :where(.md) .md-round:hover svg { transform: none; }
+  }
 }

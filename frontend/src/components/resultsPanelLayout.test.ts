@@ -58,18 +58,22 @@ describe('the result screen on a phone: every section in sight (QA 2026-10-11: �
   });
 });
 
-describe('the lecture page on a phone: every tab in sight (recheck of 44.1: «Подкаст» cut off at 390 and 360)', () => {
-  it('lets the row of tabs go to a second row instead of scrolling sideways, each row on its own hairline', async () => {
+describe('the lecture page on a phone: one row of tabs that says it goes on (phone audit 47.3; recheck of 44.1: «Подкаст» cut off)', () => {
+  it('scrolls the row sideways on one hairline, and fades the hidden end with an arrow', async () => {
     const css = rules((await nodeFs()).readFileSync(`${SRC}pages/MaterialDetail.css`, 'utf8'));
     const row = css.find(rule => rule.media === '' && rule.selector === '.md-ptabs');
-    expect(row?.body).toMatch(/flex-wrap:\s*wrap/);
-    expect(row?.body).not.toMatch(/overflow/);
-    // The 46 px rows have no gap between them; the background draws a hairline under each.
-    expect(row?.body).toMatch(/gap:\s*0 22px/);
-    expect(row?.body).toMatch(/repeating-linear-gradient\(to bottom, transparent 0 45px, var\(--sf-line\) 45px 46px\)/);
+    // One row (wrapped, the second row held «Подкаст» alone), scrolled sideways without a scrollbar.
+    expect(row?.body).toMatch(/flex-wrap:\s*nowrap/);
+    expect(row?.body).toMatch(/overflow-x:\s*auto/);
+    expect(row?.body).toMatch(/scrollbar-width:\s*none/);
+    expect(css.find(rule => rule.media === '' && rule.selector === '.md-ptabs-wrap')?.body).toMatch(/box-shadow:\s*inset 0 -1px 0 var\(--sf-line\)/);
     expect(css.find(rule => rule.selector === ".md-ptabs [role='tab']")?.body).toMatch(/height:\s*46px/);
-    // Nothing is hidden past an edge any more, so no edge fades.
-    expect(css.filter(rule => rule.selector.includes('data-more'))).toEqual([]);
+    // QA 2026-10-11 found «Подкаст» cut with no sign of more: the hidden end fades into the page, an arrow on it, and
+    // only while there is more (MaterialDetail useStripEdges sets data-more-start / data-more-end).
+    const after = css.find(rule => rule.media === '' && rule.selector === '.md-ptabs-wrap::after')?.body;
+    expect(after).toMatch(/linear-gradient\(to left, var\(--sf-canvas\)/);
+    expect(after).toMatch(/data:image\/svg\+xml/);
+    expect(css.find(rule => rule.selector.includes('[data-more-end]::after'))?.body).toMatch(/opacity:\s*1/);
   });
 });
 
