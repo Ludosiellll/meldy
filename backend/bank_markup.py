@@ -27,6 +27,7 @@ __all__ = [
 DOUBT_AT = 0.6  # уверенность ниже — вопрос сомнительный
 MAX_SOURCE_LINES = 600  # строк фрагментов в ответе разбора
 FRAGMENT_LINES = 14  # строк фрагмента у одного вопроса (вопрос, варианты, строка ответа)
+LEAD_LINES = 3  # строк над первым сомнительным вопросом без соседа сверху, которые тоже уходят модели
 
 STRUCTURE_FLAGS = frozenset({"few_options", "many_options", "empty_option", "same_options", "no_options", "too_long"})
 KEY_FLAGS = frozenset({"no_key"})
@@ -37,7 +38,7 @@ _EMBEDDED_QUESTION_RE = re.compile(r"\?\s+\S.{8,}")
 # «Сож Адказ: б» — строка ответа на незнакомом языке приклеилась к варианту
 _ANSWER_TAIL_RE = re.compile(r"\s[^\W\d_]{3,}(?:\s+[^\W\d_]+){0,2}\s*[:\-–—]\s*\(?(?:[а-иa-hА-ИA-H]|[1-6])\)?\.?\s*$")
 _BOX_RE = re.compile(r"[☐☑☒□■]")
-_INITIALS_RE = re.compile(r"(?<!\S)[А-ЯЁA-Z]\.\s?(?=[А-ЯЁA-Z])")  # «Г. С. Титов», «А.С. Пушкин» — не подписи вариантов
+_INITIALS_RE = re.compile(r"(?<!\S)[А-ЯЁA-Z]\.\s?[А-ЯЁA-Z]\.\s?(?=[А-ЯЁA-Z])")  # «Г. С. Титов», «А.С. Пушкин» — не подписи
 _LIST_LINE_RE = re.compile(r"^\s*(?:[•·▪◦●○■□➢➤►*+]|[-–—](?=\s)|\(?[а-иa-hА-ИA-H][).]\s)")
 
 
@@ -243,7 +244,8 @@ def regions(ranges: list[Optional[tuple[int, int]]], chosen: list[bool], line_co
             continue
         before = next((ranges[k] for k in range(index - 1, -1, -1) if ranges[k] is not None), None)
         after = next((ranges[k] for k in range(index + 1, len(ranges)) if ranges[k] is not None), None)
-        spans.append(((before or r)[0], (after or r)[1]))
+        # без соседа сверху — ещё LEAD_LINES строк: там бывает вопрос, который правила приняли за заголовок
+        spans.append((before[0] if before else max(1, r[0] - LEAD_LINES), (after or r)[1]))
     if known and tail and known[-1][1] < line_count:
         spans.append((known[-1][1] + 1, line_count))
     if known and head and known[0][0] > 1:

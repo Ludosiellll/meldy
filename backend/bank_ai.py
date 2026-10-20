@@ -276,9 +276,24 @@ def _inline_span(raw: str, text: str, after: int = 0) -> Optional[tuple[int, int
     return None
 
 
-def _inline_option(line: MLine, text: str, after: int = 0) -> Option:
+def _inline_span_back(raw: str, text: str, before: int) -> Optional[tuple[int, int]]:
+    """Последний кусок строки с тем же текстом, что кончается не дальше before: варианты ищутся с конца строки, и слово
+    варианта в тексте вопроса («… верно ли, что …  ☐ Верно») не мешает."""
+    target = _norm(text)
+    for start in range(min(before, len(raw)) - 1, -1, -1):
+        if raw[start].isspace() or (start and not raw[start - 1].isspace() and raw[start - 1].isalnum() and raw[start].isalnum()):
+            continue
+        end = start
+        while end <= before and _norm(raw[start:end]) != target and len(_norm(raw[start:end])) < len(target):
+            end += 1
+        if end <= before and _norm(raw[start:end]) == target:
+            return start, end
+    return None
+
+
+def _inline_option(line: MLine, text: str, after: int = 0, span: Optional[tuple[int, int]] = None) -> Option:
     """Вариант внутри строки: кусок строки с тем же текстом (пробелы не в счёт) и его оформлением."""
-    span = _inline_span(line.text, text, after)
+    span = span or _inline_span(line.text, text, after)
     if span is None:
         return Option(text=text.strip(), runs=[Run(text=text.strip())])
     start, end = span
@@ -287,6 +302,7 @@ def _inline_option(line: MLine, text: str, after: int = 0) -> Option:
     return option
 
 
+STEM_TAIL_MARK_RE = re.compile(r"\s*(?:☑|☒|■|☐|□|\[[ xXхХ✓✔]\]|[+*]|\(?[а-иa-hА-ИA-H]\s?[).])?\s*$")
 INLINE_CHECKED_RE = re.compile(r"(?:☑|☒|■|\[[xXхХ✓✔]\])\s*$")
 INLINE_UNCHECKED_RE = re.compile(r"(?:☐|□|\[ \])\s*$")
 INLINE_PLUS_RE = re.compile(r"(?:^|\s)[+*]\s*$")
@@ -295,30 +311,40 @@ INLINE_PLUS_RE = re.compile(r"(?:^|\s)[+*]\s*$")
 def line_options(lines: dict[int, MLine], cited: list[tuple[int, Optional[str]]]) -> list[Option]:
     """Варианты по ссылкам модели: строка целиком или кусок строки. У куска — флажок, если перед ним в строке «☒»/«☐»,
     и маркер «+»/«*» перед ним (raw) — как у варианта на своей строке."""
+    spans: dict[int, Optional[tuple[int, int]]] = {}
+    limit: dict[int, int] = {}
+    for index in range(len(cited) - 1, -1, -1):  # куски строки — с конца: каждый перед следующим
+        line_n, inline = cited[index]
+        if inline:
+            raw = lines[line_n].text
+            span = _inline_span_back(raw, inline, limit.get(line_n, len(raw)))
+            spans[index] = span
+            if span:
+                limit[line_n] = span[0]
     out: list[Option] = []
-    cursor: dict[int, int] = {}
-    for line_n, inline in cited:
+    previous_end: dict[int, int] = {}
+    for index, (line_n, inline) in enumerate(cited):
         line = lines[line_n]
         if not inline:
             option = make_option(_line_para(line))
             option.raw = line.text  # type: ignore[attr-defined]
             out.append(option)
             continue
-        after = cursor.get(line_n, 0)
-        option = _inline_option(line, inline, after)
-        span = getattr(option, "span", None)
+        span = spans.get(index)
+        option = _inline_option(line, inline, span=span)
         option.raw = option.text  # type: ignore[attr-defined]
         if span:
-            before = line.text[after:span[0]]
+            before = line.text[previous_end.get(line_n, 0):span[0]]
             if INLINE_CHECKED_RE.search(before):
                 option.checkbox = True
             elif INLINE_UNCHECKED_RE.search(before):
                 option.checkbox = False
             elif INLINE_PLUS_RE.search(before):
                 option.raw = "+" + option.text  # type: ignore[attr-defined]
-            cursor[line_n] = span[1]
+            previous_end[line_n] = span[1]
         out.append(option)
     return out
+
 
 
 SYMBOL_MARK_RE = re.compile(r"^\s*(?:[+*#]|☑|☒|\[[xXхХ]\])|(?:\(\s*\+\s*\)|\((?:верно|правильно)\)|[-–—]\s*(?:верно|правильно)|✓|✔|√|\s\+)\s*$", re.I)
@@ -327,19 +353,29 @@ SYMBOL_MARK_RE = re.compile(r"^\s*(?:[+*#]|☑|☒|\[[xXхХ]\])|(?:\(\s*\+\s*\)
 def build_item(question: AIQuestion, lines: dict[int, MLine], reader: Reader) -> tuple[Item, list[str]]:
     """Вопрос из строк файла (текст — дословно из строк) и проверенный ключ; список флагов проверки."""
     stem_lines = [lines[n] for n in question.stem]
-    first = stem_lines[0].text.strip()
+    options = line_options(lines, question.options)
+    cut: dict[int, int] = {}  # строка вопроса, в которой и варианты: текст вопроса — до первого варианта
+    for (line_n, inline), option in zip(question.options, options):
+        span = getattr(option, "span", None)
+        if inline and span and line_n in question.stem:
+            cut[line_n] = min(cut.get(line_n, span[0]), span[0])
+    texts = [STEM_TAIL_MARK_RE.sub("", line.text[:cut[line.n]]) if line.n in cut else line.text for line in stem_lines]
+    first = texts[0].strip()
+    named = re.match(rf"^{re.escape(question.number)}\s*[.)]\s+(?=\S)", first) if question.number else None
+    if named and not question_number(first):
+        first = first[named.end():]  # «Б. Какая …»: номер вопроса буквой — тот, что назвала модель
     number = question_number(first)
     label = number[0] if number else (question.number or "")
-    text_lines = [number[2] if number else first] + [line.text.rstrip() for line in stem_lines[1:]]
+    text_lines = [number[2] if number else first] + [text.rstrip() for text in texts[1:]]
     alone = bank_parse.QUESTION_NUMBER_RE.match(first)
     if alone and len(stem_lines) > 1:
-        label, text_lines = alone.group(1), [line.text.rstrip() for line in stem_lines[1:]]
+        label, text_lines = alone.group(1), [text.rstrip() for text in texts[1:]]
     first_line = stem_lines[0]
     item = Item(label=label if label.replace(".", "").isdigit() else (question.number or ""), text="\n".join(text_lines).strip(),
                 ref=(first_line.block, first_line.row, 0 if first_line.row >= 0 else first_line.sub), where=f"строка {first_line.n}")
     take_stem_answer(item)
     item.images = [image for line in stem_lines for image in line.images]
-    item.options.extend(line_options(lines, question.options))
+    item.options.extend(options)
     item.inline = any(inline for _, inline in question.options)
     if question.kind in ("open", "match", "order", "multiple", "truefalse"):
         item.kind = question.kind if (question.kind != "open" or not item.options) else "single"
@@ -466,8 +502,10 @@ def merge(reader: Reader, lines: list[MLine], spans: list[tuple[int, int]], ai_i
     for a_index, (item, used, _) in enumerate(ai_items):
         first = min(used)
         r_index = by_first.get(first)
-        if r_index is None:
-            r_index = next((k for k, span in enumerate(ranges) if span and span[0] in used and k not in paired_rule.values()), None)
+        if r_index is None:  # вопрос правил, который начинается внутри вопроса модели, но не с его варианта
+            options_of = set(getattr(item, "option_lines", ()))
+            r_index = next((k for k, span in enumerate(ranges) if span and span[0] in used and span[0] not in options_of
+                            and k not in paired_rule.values()), None)
         if r_index is not None and r_index not in paired_rule.values():
             paired_rule[a_index] = r_index
 
@@ -476,18 +514,28 @@ def merge(reader: Reader, lines: list[MLine], spans: list[tuple[int, int]], ai_i
     chosen: list[tuple[Item, int]] = []  # (вопрос, место: первая строка или порядок)
     rule_places = [(item.seq, ranges[k][0] if ranges[k] else 10 ** 9 + k) for k, item in enumerate(kept)]
     rule_for_ai = {r: a for a, r in paired_rule.items()}
+
+    def absorbs_doubtful(a_index: int) -> bool:
+        used = ai_items[a_index][1]
+        return any(span and span[0] in used and k not in rule_for_ai and k < len(rule_dicts)
+                   and rule_dicts[k]["confidence"] < bank_markup.DOUBT_AT for k, span in enumerate(ranges))
     covered_by_ai = set().union(*(used for _, used, _ in ai_items)) if ai_items else set()
-    option_owner = {n: a for a, (_, used, _) in enumerate(ai_items) for n in ai_option_lines[a]}
+    option_owner = {n: a for a in range(len(ai_items)) for n in ai_option_lines[a]}
+    ai_stem_lines = {n for _, used, _ in ai_items for n in used} - set(option_owner)
     for r_index, item in enumerate(kept):
         span = ranges[r_index]
         place = span[0] if span else 10 ** 9 + r_index
         doubtful = rule_dicts[r_index]["confidence"] < bank_markup.DOUBT_AT if r_index < len(rule_dicts) else False
         a_index = rule_for_ai.get(r_index)
+        if a_index is not None and not doubtful and absorbs_doubtful(a_index):
+            doubtful = True  # версия модели забирает строки соседних сомнительных вопросов правил (варианты в таблице)
         if a_index is None:
-            if span and inside(span[0]) and doubtful and span[0] in covered_by_ai:
+            own_lines = set(range(span[0], span[1] + 1)) if span else set()
+            if span and inside(span[0]) and doubtful and own_lines & covered_by_ai and span[0] not in ai_stem_lines:
                 stats.replaced += 1  # строки сомнительного вопроса правил модель разобрала иначе (склейка, разрез)
                 continue
-            owner = option_owner.get(span[0]) if span and inside(span[0]) else None
+            owner = next((option_owner[n] for n in sorted(own_lines) if n in option_owner), None) \
+                if span and inside(span[0]) and span[0] not in ai_stem_lines else None
             if owner is not None and not rule_dicts[r_index]["correct"]:
                 # первая строка «вопроса» правил у модели — вариант другого вопроса (строки таблицы, разрез вопроса)
                 stats.replaced += 1

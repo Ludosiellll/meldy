@@ -164,6 +164,9 @@ def oracle_document(questions: list[dict], lines: list[bank_markup.MLine]) -> li
         number = question_number(first_text)
         alone = bank_parse.QUESTION_NUMBER_RE.match(first_text)
         label = (alone.group(1) if alone else number[0] if number else "")
+        lettered = re.match(r"^([А-ЯЁA-Z])[.)]\s+", first_text)
+        if not label and lettered and not norm(q["stem"]).startswith(norm(lettered.group(0))):
+            label = lettered.group(1)  # «Б. Какая …» — номер буквой
         key, ev, answer = _evidence(q, spot, lines, label, next_first)
         entry = {"n": label or None, "q": spot["stem"], "kind": q["kind"], "key": key if q["kind"] != "open" else None, "ev": ev,
                  "answer": answer if q["kind"] in ("open", "match", "order") else None}

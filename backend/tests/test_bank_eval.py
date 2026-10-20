@@ -21,22 +21,21 @@ WILD = bank_eval.WILD
 # Пол по итогам разбора по правилам (вопросов в корпусе — 1354: 1080 в w-файлах, 122 в отложенных h, 152 в отложенных
 # h2 = k-файлах). До этапа 1 (2026-10-19) w-файлы: found 955, stem 878, options 827, key 796, kind 923, perfect 83,
 # false 56, key_wrong 14; h-файлы: key 37 из 122, perfect 4 из 20; k-файлы до этапа 2: key 54 из 152, perfect 8 из 26.
+# Этап 2 (читатели CSV, HTML, Moodle XML, PDF; слова ответа на белорусском, украинском и английском; ключ слитно;
+# «Вопрос 3 из 8»; варианты через « | » в ячейке): h и k после этого уже не отложенные — следующий раунд с набором h3.
 # Без запаса на шум — разбор детерминирован.
 EXPECTED = 1354
-FLOOR = {"found": 1325, "stem": 1302, "options": 1284, "key": 1249, "kind": 1311, "perfect_files": 154}
+FLOOR = {"found": 1325, "stem": 1317, "options": 1309, "key": 1305, "kind": 1311, "perfect_files": 164}
 CEILING = {"false": 61, "key_wrong": 5, "key_invented": 0}
-# Файлы, которые правила пока не разбирают: вопросы, пронумерованные буквами при вариантах с цифрами, и отложенные h- и
-# k-файлы, на которых видно, что правила переносятся не на всё (их раскладки нарочно не настраивались: их место — за
-# разбором с ИИ и за следующим отложенным набором).
+# Файлы, которые правила пока не разбирают (их доводит разбор с ИИ — test_bank_ai.py): номера вопросов буквами при
+# вариантах с цифрами, варианты в ячейках таблицы под вопросом, вопросы по столбцам, соответствие таблицей, «☒ Верно
+# ☐ Неверно» в строке вопроса, ключи по вариантам теста, латинские буквы ключа при кириллических вариантах.
 KNOWN_IMPERFECT = {
     "w007_num_letters_opts_digits",
-    "h05_inline_commas_next_line_key_glued_no_spaces", "h06_filled_squares", "h09_roman_variants_key_by_variant",
-    "h10_options_in_2x2_table_under_stem", "h11_markdown_hr_bullets_bold", "h12_belarusian_adkaz_lines",
-    "h13_english_correct_answer_lines", "h15_stars_separated_answer_text", "h16_key_table_latin_letters_for_cyrillic",
-    "h17_moodle_review_english", "h19_kahoot_like_csv_semicolon_xlsx_headers_ru", "h20_numbered_answers_section_word_values",
-    "k02_csv_tab_options_in_one_cell", "k06_html_saved_quiz_checked_radios", "k14_docx_one_table_merged_stems_letter_col",
-    "k17_txt_english_paren_letters_answer_key", "k18_docx_vopros_iz_online_copy", "k19_xlsx_transposed_questions_in_columns",
-    "k23_docx_matching_table_answer_line", "k24_docx_true_false_boxes_on_line",
+    "h09_roman_variants_key_by_variant", "h10_options_in_2x2_table_under_stem", "h11_markdown_hr_bullets_bold",
+    "h15_stars_separated_answer_text", "h16_key_table_latin_letters_for_cyrillic",
+    "k06_html_saved_quiz_checked_radios", "k14_docx_one_table_merged_stems_letter_col",
+    "k19_xlsx_transposed_questions_in_columns", "k23_docx_matching_table_answer_line", "k24_docx_true_false_boxes_on_line",
 }
 
 

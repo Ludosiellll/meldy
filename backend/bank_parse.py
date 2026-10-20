@@ -803,11 +803,11 @@ def _text_offset(para: Para) -> int:
     return (len(full) - len(full.lstrip())) - (len(full) - len(para.text))
 
 
-CELL_SEPARATOR_RE = re.compile(r"\s+\|\s+|\s*;\s+")
+CELL_SEPARATOR_RE = re.compile(r"\s+\|\s+")  # «; » — нет: точка с запятой бывает внутри варианта на строку
 
 
 def cell_pieces(para: Para) -> Optional[list[Para]]:
-    """Варианты одной строкой в ячейке столбца вариантов: «митохондрия | рибосома | лизосома» (или через «; ») —
+    """Варианты одной строкой в ячейке столбца вариантов: «митохондрия | рибосома | лизосома» —
     абзацы по одному на вариант с оформлением кусков; меньше двух частей — None."""
     text = para.text
     separators = list(CELL_SEPARATOR_RE.finditer(text))
@@ -1150,6 +1150,13 @@ class Reader:
         option_cols = roles.get("option_cols") or []
         option_labels = roles.get("option_labels") or {}
         listed = False
+
+        def filled(cells: list[Cell], col: Optional[int]) -> bool:
+            return col is not None and col < len(cells) and not cells[col].continuation and bool(cells[col].text.strip())
+
+        # строки с вариантом без вопроса — вариант на строку: « | » внутри ячейки — часть варианта (код, вывод программы)
+        option_rows = opt_col is not None and opt_col != q_col and any(
+            filled(cells, opt_col) and not filled(cells, q_col) for _, cells in rows)
         for row_number, cells in rows:
             live = [(c, cell) for c, cell in enumerate(cells) if cell.text and not cell.continuation]
             if not live:
@@ -1213,7 +1220,7 @@ class Reader:
                             self.add_option(current, para)
                     elif paras:
                         chain = inline_chain(paras[0].text) if not self.open_mode else None
-                        pieces = cell_pieces(paras[0]) if opt_col != q_col and starts and not chain else None
+                        pieces = cell_pieces(paras[0]) if opt_col != q_col and starts and not chain and not option_rows else None
                         if chain and starts:
                             self.layouts["table_options_in_cell"] += 1
                             current.options.extend(split_inline(paras[0], chain, paras[0].text))
@@ -2890,7 +2897,12 @@ def _review(reader: Reader, items: list[Item], out_items: list[dict], subjects: 
     сомнительных вопросов и вопросов с флагами проверки (с оформлением кусков), ai_offer — bank_markup.offer."""
     lines = bank_markup.markup(reader.blocks) if reader.blocks else []
     ranges = bank_markup.item_ranges([item.ref for item in items], lines) if lines else [None] * len(items)
+    by_n = {line.n: line for line in lines}
     for entry, span, (score, why) in zip(out_items, ranges, bank_markup.confidence(out_items)):
+        if span and entry["kind"] == "open" and not entry.get("answer"):
+            labelled = sum(1 for n in range(span[0] + 1, span[1] + 1) if n in by_n and OPTION_LABEL_RE.match(by_n[n].text.strip()))
+            if labelled >= 2:  # под открытым вопросом строки с подписями вариантов, которые разбор не взял (ячейки таблицы)
+                score, why = round(max(0.0, score - 0.5), 2), why + ["options_unread"]
         entry["lines"] = list(span) if span else None
         entry["confidence"] = score
         entry["doubts"] = why
