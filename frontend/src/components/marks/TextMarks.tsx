@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { shape, type MarkKind } from './geometry';
 import { PencilSvg, type PencilHand } from './PencilSvg';
+import { observeSize } from '../../lib/observeSize';
 
 /**
  * Marks that sit on a piece of text: the readiness marks of a number, a pencil oval around a word and
@@ -19,34 +20,24 @@ function estimate(children: ReactNode): Size {
   return { w: Math.max(10, text.length * 9), h: 22 };
 }
 
+/**
+ * The text's box, from the one size observer of the app (lib/observeSize): read after the browser's layout, in the
+ * report of the frame that first lays the mark out, and drawn before that frame is painted. A mark used to measure
+ * itself in a layout effect, which laid the whole exam sheet out before the browser did (smoothness audit 20.10: 92
+ * marks, two layouts of the page, 250 ms on a phone). A font that comes later changes the box, and the box is
+ * reported again.
+ */
 function useElementSize(fallback: Size) {
   const ref = useRef<HTMLSpanElement>(null);
   const [size, setSize] = useState<Size>(fallback);
   useLayoutEffect(() => {
     const element = ref.current;
-    if (!element) return;
-    const measure = () => {
+    if (!element) return undefined;
+    return observeSize(element, () => {
       const w = Math.round(element.offsetWidth);
       const h = Math.round(element.offsetHeight);
       if (w > 0 && h > 0) setSize((previous) => (previous.w === w && previous.h === h ? previous : { w, h }));
-    };
-    measure();
-    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts;
-    let alive = true;
-    fonts?.ready?.then(() => {
-      if (alive) measure();
     });
-    if (typeof ResizeObserver === 'undefined') {
-      return () => {
-        alive = false;
-      };
-    }
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => {
-      alive = false;
-      observer.disconnect();
-    };
   }, []);
   return { ref, size };
 }

@@ -30,6 +30,7 @@ import ExamStatusCard, { type StatusNote } from '../components/exams/ExamStatus'
 import { allDrawLabel, examStatus, isNothingFound, mappingLimitLine } from '../components/exams/examStatus';
 import { useExamLectureFit } from '../components/exams/examLectureFit';
 import WhyPanel from '../components/exams/WhyPanel';
+import { warmGenericReason } from '../lib/exams/genericReason';
 import {
   CoverageSummary,
   PeakSummary,
@@ -401,6 +402,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
     },
     [examId, loadEvents],
   );
+
+  // The expressions that hide a generic reason in the why panel are built while the sheet stands idle, not on the
+  // first tap on a question (smoothness audit 20.10).
+  useEffect(() => whenIdle(warmGenericReason), []);
 
   const flagsTaken = useRef(false);
   useEffect(() => {
