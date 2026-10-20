@@ -411,38 +411,49 @@
 }
 .au-panel--dawn { background: linear-gradient(160deg, #2d5fd6 0%, #5d74d8 46%, #f3a9c4 100%); }
 .au-panel--night { background: linear-gradient(160deg, #10295a 0%, #1e46a8 58%, #2f66de 100%); }
-/* Halftone: white dots strongest at the top right, navy dots at the bottom left. */
-.au-panel::before,
-.au-panel::after {
-  content: '';
+/* Halftone: white dots strongest at the top right, navy dots at the bottom left (AuthHalftone, the panel's last
+   children). Each layer is its glow (the mask, the opacity), which stays, and the dots inside it, a field wider than
+   the panel by the way they travel. */
+.au-dots {
   position: absolute;
   inset: 0;
   z-index: -1;
+  overflow: hidden;
   pointer-events: none;
 }
-.au-panel::before {
-  background-image: radial-gradient(rgba(255, 255, 255, .9) 1.4px, transparent 1.7px);
-  background-size: 9px 9px;
+.au-dots > i { position: absolute; }
+.au-dots-a {
   opacity: .32;
   -webkit-mask-image: radial-gradient(circle at 92% 6%, #000, transparent 58%);
   mask-image: radial-gradient(circle at 92% 6%, #000, transparent 58%);
 }
-.au-panel::after {
-  background-image: radial-gradient(#10295a 1.3px, transparent 1.6px);
-  background-size: 7px 7px;
+.au-dots-a > i {
+  inset: -36px;
+  background-image: radial-gradient(rgba(255, 255, 255, .9) 1.4px, transparent 1.7px);
+  background-size: 9px 9px;
+}
+.au-dots-b {
   opacity: .3;
   -webkit-mask-image: radial-gradient(circle at 0% 100%, #000, transparent 62%);
   mask-image: radial-gradient(circle at 0% 100%, #000, transparent 62%);
 }
-.au-panel--dawn::after { background-image: radial-gradient(#ffffff 1.3px, transparent 1.6px); opacity: .34; }
-/* The halftone flows slowly under its glow while the page is open (owner 2026-10-04: «анимаций нет
-   никаких постоянных»): whole tiles per loop, so the loop has no seam. */
-@media (prefers-reduced-motion: no-preference) {
-  .au-panel::before { animation: as-dots-a 22s linear infinite; }
-  .au-panel::after { animation: as-dots-b 26s linear infinite; }
+.au-dots-b > i {
+  inset: -28px;
+  background-image: radial-gradient(#10295a 1.3px, transparent 1.6px);
+  background-size: 7px 7px;
 }
-@keyframes as-dots-a { to { background-position: -36px 36px; } }
-@keyframes as-dots-b { to { background-position: 28px -28px; } }
+.au-panel--dawn .au-dots-b { opacity: .34; }
+.au-panel--dawn .au-dots-b > i { background-image: radial-gradient(#ffffff 1.3px, transparent 1.6px); }
+/* The halftone flows slowly under its glow while the page is open (owner 2026-10-04: «анимаций нет
+   никаких постоянных»): whole tiles per loop, so the loop has no seam. The dots are moved by a transform (the
+   compositor's work); their background-position moved and repainted the whole panel on every frame (smoothness
+   audit 20.10). The fields start a whole number of tiles out, so the dots stand where they stood. */
+@media (prefers-reduced-motion: no-preference) {
+  .au-dots-a > i { animation: as-dots-a 22s linear infinite; }
+  .au-dots-b > i { animation: as-dots-b 26s linear infinite; }
+}
+@keyframes as-dots-a { to { transform: translate(-36px, 36px); } }
+@keyframes as-dots-b { to { transform: translate(28px, -28px); } }
 
 .au-panel-h {
   max-width: 15ch;

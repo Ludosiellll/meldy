@@ -5,6 +5,7 @@ import { ShieldCheck, KeyRound } from 'lucide-react';
 import PasswordRules from '../components/auth/PasswordRules';
 import { validatePassword } from '../utils/validators';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import AuthHalftone from '../components/AuthHalftone';
 
 /**
  * Новый пароль (Meldy 2026-10-04): карточка с формой и синяя панель. The new password follows the sign-up's rules,
@@ -169,6 +170,7 @@ export default function UpdatePassword() {
               <KeyRound />
             </span>
           </div>
+          <AuthHalftone />
         </aside>
       </main>
     </div>

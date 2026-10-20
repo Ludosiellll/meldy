@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Mail, ShieldCheck, HelpCircle } from 'lucide-react';
 import { ty } from '../components/landing/typo';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import AuthHalftone from '../components/AuthHalftone';
 
 /** For an account made with Google there is no password to restore (audit 2026-10-08, PUB-20). */
 export const GOOGLE_ONLY_NOTE = 'Входили через Google? Пароль не нужен:';
@@ -126,6 +127,7 @@ export default function ForgotPassword() {
               Проверьте папку «Спам», если письмо долго не приходит.
             </p>
           </div>
+          <AuthHalftone />
         </aside>
       </main>
     </div>

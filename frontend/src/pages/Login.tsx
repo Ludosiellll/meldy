@@ -10,6 +10,7 @@ import { afterSignIn, oauthRedirectTo, returnToFromSearch, withReturn } from '..
 import { detectInAppBrowser } from '../lib/inAppBrowser';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import InAppNote from '../components/InAppNote';
+import AuthHalftone from '../components/AuthHalftone';
 
 /** Under the heading: what waits after signing in («продолжите с того же места» — as the group room says it, copyImport leaveAsk). */
 export const LOGIN_LEDE = 'Ваши экзамены, лекции и ответы сохранены. Продолжите с\u00a0того же места.';
@@ -199,6 +200,7 @@ export default function Login() {
           <div className="au-panel-more">
             <AuthReel variant="login" />
           </div>
+          <AuthHalftone />
         </aside>
       </main>
     </div>
