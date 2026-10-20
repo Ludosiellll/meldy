@@ -4,7 +4,7 @@
  * and sees the page as a participant on a phone beside it — answers included, with the result message by points.
  * Everything runs here, on the device: nothing is saved or sent. Words of the studio: components/studio/copyStudio.ts.
  */
-import { useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { BlockIcon, QuestionIcon } from '../studio/icons';
 import { qrCode } from '../../lib/quizzes/qr';
 import { PAPER_URL, GRAPH_URL } from './art';
@@ -195,6 +195,24 @@ function CanvasBlock({ block }: { block: Block }) {
   }
 }
 
+/**
+ * The canvas scrolls inside itself (miniStudio.css): a block added below its visible part is brought into it there,
+ * never by scrolling the landing — smoothly, or at once when the visitor asks for less motion.
+ */
+function showInCanvas(canvas: HTMLElement, block: HTMLElement): void {
+  const AIR = 12;
+  const TOOLS = 28; // the selected block's tools stand 20 px above it
+  const box = canvas.getBoundingClientRect();
+  const rect = block.getBoundingClientRect();
+  if (box.height === 0 || typeof canvas.scrollTo !== 'function') return; // not laid out (hidden), or no scrollTo
+  let by = 0;
+  if (rect.bottom > box.bottom - AIR) by = rect.bottom - box.bottom + AIR;
+  if (rect.top - by < box.top + TOOLS) by = rect.top - box.top - TOOLS; // a block taller than the canvas: its top
+  if (by === 0) return;
+  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  canvas.scrollTo({ top: canvas.scrollTop + by, behavior: still ? 'auto' : 'smooth' });
+}
+
 function Choice<T extends string>({ items, value, onChange, label, render }: { items: ReadonlyArray<{ id: T; label: string }>; value: T; onChange: (id: T) => void; label: string; render?: (item: { id: T; label: string }) => ReactNode }) {
   return (
     <div className="ms-choice" role="radiogroup" aria-label={label}>
@@ -219,6 +237,16 @@ export default function MiniStudio() {
   const [said, setSaid] = useState('');
   const [dropAt, setDropAt] = useState<number | null>(null);
   const dragged = useRef<{ kind?: Kind; id?: number } | null>(null);
+  const canvas = useRef<HTMLDivElement>(null);
+  const added = useRef<number | null>(null);
+
+  // A block just added: in view on the canvas once it is drawn.
+  useEffect(() => {
+    const id = added.current;
+    added.current = null;
+    const block = id === null ? null : canvas.current?.querySelector<HTMLElement>(`[data-block="${id}"]`);
+    if (canvas.current && block) showInCanvas(canvas.current, block);
+  }, [blocks]);
 
   const color = ACCENTS.find((item) => item.id === accent)!.color;
   const full = blocks.length >= MAX_BLOCKS;
@@ -231,6 +259,7 @@ export default function MiniStudio() {
     const block = makeBlock(kind, blocks);
     const index = at ?? (selected === null ? blocks.length : blocks.findIndex((item) => item.id === selected) + 1);
     setBlocks([...blocks.slice(0, index), block, ...blocks.slice(index)]);
+    added.current = block.id;
     setSelected(block.id);
     setSaid(`Добавлен блок «${PALETTE.find((item) => item.kind === kind)!.label}».`);
     setFinished(false);
@@ -329,7 +358,7 @@ export default function MiniStudio() {
           <Choice label="Шрифт" items={FONTS} value={font} onChange={setFont} />
           <Choice label="Фон" items={BACKGROUNDS} value={background} onChange={setBackground} />
         </div>
-        <div className="ms-canvas" style={background === 'image' ? { backgroundImage: `linear-gradient(rgba(11,18,28,.06), rgba(11,18,28,.06)), url("${PAPER_URL}")` } : undefined} onDragOver={(event) => event.preventDefault()} onDrop={drop}>
+        <div ref={canvas} className="ms-canvas" style={background === 'image' ?{ backgroundImage: `linear-gradient(rgba(11,18,28,.06), rgba(11,18,28,.06)), url("${PAPER_URL}")` } : undefined} onDragOver={(event) => event.preventDefault()} onDrop={drop}>
           <div className="ms-page">
             <div className="ms-cover">
               <img src={GRAPH_URL} alt="" />
@@ -341,6 +370,7 @@ export default function MiniStudio() {
             {blocks.map((block, index) => (
               <div
                 key={block.id}
+                data-block={block.id}
                 className={`ms-blk${selected === block.id ? ' is-sel' : ''}${dropAt === index ? ' is-drop-before' : ''}${dropAt === index + 1 && index === blocks.length - 1 ? ' is-drop-after' : ''}`}
                 draggable
                 onDragStart={(event) => {
