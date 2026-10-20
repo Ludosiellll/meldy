@@ -18,6 +18,7 @@ import { GUIDE_CHAPTERS } from './guide/chapters';
 import { usePhone } from '../lib/usePhone';
 import { containerOfExam, containerTitle, onContainerTitles } from '../lib/containers/titleCache';
 import { useMiniApp } from '../lib/telegram/miniApp';
+import GuidePulse from './guide/GuidePulse';
 import '../styles/paper.css';
 import './layout.css';
 
@@ -514,6 +515,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
               >
                 {item.label}
                 {item.counter ? <NavCount value={due} /> : null}
+                {spotOn(item.to) !== undefined ? <GuidePulse /> : null}
               </Link>
             ))}
           </nav>
@@ -527,6 +529,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
               <span className="sf-cta-short" aria-hidden="true">
                 Лекция
               </span>
+              {spot?.spot === 'cta' ? <GuidePulse /> : null}
             </Link>
             <QuotaMeter
               remaining={remainingUnits}
@@ -595,6 +598,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
                 </span>
                 <span className="sf-tab-t">{item.label}</span>
                 {item.counter ? <TabCount value={due} /> : null}
+                {tabSpotOn(item.to) !== undefined ? <GuidePulse /> : null}
               </Link>
             );
           })}

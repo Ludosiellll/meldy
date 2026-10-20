@@ -353,22 +353,42 @@
 /* The section the guide talks about: a yellow ring around its item in the menu (every section is in
    the top line on a computer and in the tabs on a phone), around «Добавить лекцию», or around the
    limit meter (in the top line at every width). */
+/* The ring is a layer inside the item (GuidePulse): a ring 9 px wide that starts 6 px inside the item, clipped to the
+   outside of the item's rounded box, so 3 px of it show; it fades to 45 % and back while a transform carries it out by
+   3 px more (its scale and corners per item: --gd-sx, --gd-sy, --gd-r, and the clip, set from the item's box). The
+   item's own box-shadow pulsed from 3 to 6 px the same way, repainting the menu on every frame. The ring is around the
+   item's border box (the meter has a 1 px border). */
 .sf-shell .sf-bar-link[data-guide-spot],
 .sf-shell .sf-nav-cta[data-guide-spot],
-.sf-shell .sf-quota[data-guide-spot] {
-  box-shadow: 0 0 0 3px var(--m-yellow);
+.sf-shell .sf-quota[data-guide-spot],
+.sf-shell .sf-tablink[data-guide-spot] { position: relative; }
+.gd-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
 }
-@media (max-width: 1023px) {
-  .sf-shell .sf-tablink[data-guide-spot] { box-shadow: 0 0 0 3px var(--m-yellow); }
+.sf-shell .sf-quota > .gd-pulse { inset: -1px; }
+.gd-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: var(--gd-r, 0);
+  box-shadow: 0 0 0 9px var(--m-yellow);
+}
+/* The tab of a phone: the ring only where the tabs are the menu. */
+@media (min-width: 1024px) {
+  .sf-shell .sf-tablink > .gd-pulse { display: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .sf-shell .sf-bar-link[data-guide-spot],
-  .sf-shell .sf-nav-cta[data-guide-spot],
-  .sf-shell .sf-quota[data-guide-spot],
-  .sf-shell .sf-tablink[data-guide-spot] { animation: gd-spot 1.8s ease-in-out infinite; }
+  .gd-pulse { animation: gd-pulse-fade 1.8s ease-in-out infinite; }
+  .gd-pulse::after { animation: gd-pulse-out 1.8s ease-in-out infinite; }
 }
-@keyframes gd-spot {
-  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--m-yellow) 45%, transparent); }
+@keyframes gd-pulse-fade {
+  50% { opacity: .45; }
+}
+@keyframes gd-pulse-out {
+  50% { transform: scale(var(--gd-sx, 1), var(--gd-sy, 1)); }
 }
 
 /* ------------------------------------------------------------------ the first run */
@@ -392,17 +412,20 @@
   background: rgba(11, 18, 28, .52);
 }
 .gd-dim[data-hole] { overflow: hidden; background: none; }
+/* The cut-out moves to the next item by a transform (GuidePanel's Backdrop: it stands at its new place at once and
+   comes there from the old one, .5 s), not by left/top/width/height, which laid the dimmed layer out and repainted it on
+   every frame of the move. */
 .gd-hole {
   position: absolute;
   border-radius: 999px;
   box-shadow: 0 0 0 200vmax rgba(11, 18, 28, .52);
   pointer-events: none;
+  transform-origin: 0 0;
 }
 .dark .gd-dim:not([data-hole]) { background: rgba(0, 0, 0, .62); }
 .dark .gd-hole { box-shadow: 0 0 0 200vmax rgba(0, 0, 0, .62); }
 @media (prefers-reduced-motion: no-preference) {
   .gd-dim { animation: gd-dim-in .45s ease both; }
-  .gd-hole { transition: left .5s var(--m-ease), top .5s var(--m-ease), width .5s var(--m-ease), height .5s var(--m-ease); }
 }
 @keyframes gd-dim-in {
   from { opacity: 0; }

@@ -134,10 +134,26 @@ function Backdrop({ chapter, pathname }: { chapter: string; pathname: string }) 
     };
   }, [chapter, pathname]);
 
+  // The cut-out moves to the next item by a transform: it stands at its new place at once and comes there from the
+  // old one (.5 s, the app's ease), on the compositor. Its left/top/width/height were a transition that laid the
+  // dimmed layer out and repainted it on every frame (smoothness audit 20.10). The box's edges move as they did.
+  const holeRef = useRef<HTMLElement>(null);
+  const shown = useRef<Hole | null>(null);
+  useLayoutEffect(() => {
+    const before = shown.current;
+    shown.current = hole;
+    const element = holeRef.current;
+    if (!element || !hole || !before || typeof element.animate !== 'function') return;
+    if (before.left === hole.left && before.top === hole.top && before.width === hole.width && before.height === hole.height) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const from = `translate(${before.left - hole.left}px, ${before.top - hole.top}px) scale(${before.width / hole.width}, ${before.height / hole.height})`;
+    element.animate([{ transform: from }, { transform: 'none' }], { duration: 500, easing: 'cubic-bezier(.16, 1, .3, 1)' });
+  }, [hole]);
+
   return (
     <div className="gd-dim" data-hole={hole ? '' : undefined} aria-hidden="true">
       {hole ? (
-        <i className="gd-hole" style={{ left: hole.left, top: hole.top, width: hole.width, height: hole.height, borderRadius: hole.radius }} />
+        <i ref={holeRef} className="gd-hole" style={{ left: hole.left, top: hole.top, width: hole.width, height: hole.height, borderRadius: hole.radius }} />
       ) : null}
     </div>
   );

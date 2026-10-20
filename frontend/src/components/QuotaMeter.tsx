@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { AI_USAGE_EVENT, checkAILimit, formatLimitReset, nextLimitReset } from '../api/limits';
+import GuidePulse from './guide/GuidePulse';
 import './quotaMeter.css';
 
 /**
@@ -183,6 +184,7 @@ const QuotaMeter = forwardRef<HTMLButtonElement, MeterProps>(function QuotaMeter
       <span className="sf-quota-tip" aria-hidden="true">
         {sentence}
       </span>
+      {spot ? <GuidePulse /> : null}
     </button>
   );
 });
