@@ -352,7 +352,10 @@ describe('StudioPage: undo, moving, inserting, removing (spec §47.6 «Холс�
     expect(frame(added)).toHaveAttribute('data-selected');
     expect(screen.getByRole('textbox', { name: STUDIO.types.note })).toHaveValue('Заметка');
 
-    const plus = screen.getAllByRole('button', { name: STUDIO.addHere })[0];
+    // A gap's «+» is there under the mouse (and under the chosen block): the first gap, hovered.
+    const firstGap = document.querySelector('.st-gap') as HTMLElement;
+    fireEvent.pointerOver(firstGap, { pointerType: 'mouse' });
+    const plus = within(firstGap).getByRole('button', { name: STUDIO.addHere });
     fireEvent.click(plus);
     const menu = await screen.findByRole('dialog', { name: STUDIO.blockMenu });
     fireEvent.change(within(menu).getByRole('combobox'), { target: { value: 'разд' } });

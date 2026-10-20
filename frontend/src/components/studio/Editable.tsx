@@ -48,10 +48,24 @@ export function wrapMark(value: string, start: number, end: number, mark: Mark, 
   return { value: next, start: start + open.length, end: start + open.length + picked.length };
 }
 
-function fit(field: HTMLTextAreaElement) {
-  field.style.height = 'auto';
+/**
+ * The field as high as its words. Words only added can only make it higher: it is measured as it stands (one read of the
+ * layout, no write when the height stays). Otherwise it is let go first, so it can get lower.
+ */
+function fit(field: HTMLTextAreaElement, grew = false) {
+  if (!grew) field.style.height = 'auto';
   const height = field.scrollHeight;
-  if (height > 0) field.style.height = `${height}px`;
+  if (height > 0 && field.style.height !== `${height}px`) field.style.height = `${height}px`;
+}
+
+/** `after` is `before` with words put in at one place, nothing taken away (a key typed, a paste without a selection). */
+function onlyAdded(before: string, after: string): boolean {
+  if (after.length <= before.length) return false;
+  let head = 0;
+  while (head < before.length && before[head] === after[head]) head += 1;
+  let tail = 0;
+  while (tail < before.length - head && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail += 1;
+  return head + tail === before.length;
 }
 
 /** The value is still the block's own first words (and nothing else is typed yet). */
@@ -66,16 +80,38 @@ export default function Editable({ value, onChange, label, as: Tag = 'div', clas
   // The selection to restore after a mark changed the words.
   const pendingSelection = useRef<{ start: number; end: number } | null>(null);
 
+  // The height follows the words and the width only (the smoothness audit of 20.10: it was measured at every render, the
+  // field let go to `auto` and back — a forced layout of the page each time).
+  const fitted = useRef<string | null>(null);
   useLayoutEffect(() => {
     const field = fieldRef.current;
-    if (!field) return;
-    fit(field);
+    if (!field) {
+      fitted.current = null;
+      return;
+    }
+    if (fitted.current !== value) {
+      const before = fitted.current;
+      fitted.current = value;
+      fit(field, before !== null && onlyAdded(before, value));
+    }
     const selection = pendingSelection.current;
     if (selection) {
       pendingSelection.current = null;
       field.setSelectionRange(selection.start, selection.end);
     }
   });
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!active || !field || typeof ResizeObserver === 'undefined') return undefined;
+    let width = field.offsetWidth;
+    const observer = new ResizeObserver(() => {
+      if (field.offsetWidth === width) return;
+      width = field.offsetWidth;
+      fit(field);
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [active]);
 
   useEffect(() => {
     if (!active) {

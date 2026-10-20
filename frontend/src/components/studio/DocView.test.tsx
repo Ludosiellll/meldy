@@ -140,21 +140,24 @@ describe('DocView in answer mode: what the participant gets', () => {
 });
 
 describe('DocView in edit mode: the canvas', () => {
-  function editor(over: Partial<DocEditApi> = {}): DocEditApi {
+  /** The canvas's side, as plain stubs: `editing` / `selected` stand for what the canvas's store would say. */
+  function editor(over: Partial<DocEditApi> & { editing?: string | null; selected?: string | null } = {}): DocEditApi {
+    const { editing = null, selected = null, ...rest } = over;
     return {
-      frame: (block, _index, node) => (
-        <div key={block.id} data-frame={block.id}>
-          {node}
-        </div>
-      ),
-      gap: (index) => <hr key={`gap-${index}`} data-gap={index} />,
-      editing: null,
+      Frame: ({ block, children }) => <div data-frame={block.id}>{children}</div>,
+      Gap: ({ index }) => <hr data-gap={index} />,
+      EndGap: ({ index }) => <hr data-gap={index} />,
+      useEditing: (key) => key === editing,
+      useSelected: (blockId) => blockId === selected,
       setEditing: vi.fn(),
       change: vi.fn(),
       slash: vi.fn(),
       pickImage: vi.fn(),
-      selected: null,
-      ...over,
+      pictureStage: () => null,
+      pictureNote: () => null,
+      problemOf: () => null,
+      busyId: () => null,
+      ...rest,
     };
   }
 

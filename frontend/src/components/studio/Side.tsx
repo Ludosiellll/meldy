@@ -1,4 +1,5 @@
 import type { Hint } from '../../lib/studio/checker';
+import { useCanvas, type CanvasStore } from './canvasStore';
 import BlockPanel from './BlockPanel';
 import CheckPanel from './CheckPanel';
 import { STUDIO, type Panel } from './copyStudio';
@@ -17,7 +18,8 @@ export interface SideProps {
   api: SideApi;
   panel: Panel;
   onPanel: (panel: Panel) => void;
-  selected: string | null;
+  /** The canvas's facts: the settings read the chosen block from them (choosing re-renders the settings, not the page). */
+  store: CanvasStore;
   numbers: ReadonlyMap<string, number>;
   containerId: string;
   group: boolean;
@@ -41,6 +43,7 @@ const PANELS: Panel[] = ['block', 'design', 'result'];
 
 export default function Side(props: SideProps) {
   const { studio, api, panel, onPanel, hints, tabs = true } = props;
+  const selected = useCanvas(props.store, (state) => state.selected);
   return (
     <div className="st-side-in">
       {tabs ? (
@@ -71,7 +74,7 @@ export default function Side(props: SideProps) {
         {panel === 'block' ? (
           <BlockPanel
             studio={studio}
-            selected={props.selected}
+            selected={selected}
             containerId={props.containerId}
             group={props.group}
             api={api}

@@ -36,14 +36,13 @@ export default function Preview({
   const given: DocResultView | null =
     percent !== null && percent !== undefined && round === 0 ? { score: Math.round((percent * max) / 100), max, percent, band: bandFor(doc, percent) } : null;
 
+  // The page under it does not scroll with it: the preview keeps its scrolling to itself (studio.css .st-preview), the
+  // window's own overflow is left alone (setting it laid the whole studio out again at each open and close: the
+  // smoothness audit of 20.10).
   useEffect(() => {
     back.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     boxRef.current?.focus({ preventScroll: true });
-    const html = document.documentElement;
-    const overflow = html.style.overflow;
-    html.style.overflow = 'hidden';
     return () => {
-      html.style.overflow = overflow;
       back.current?.focus?.({ preventScroll: true });
     };
   }, []);

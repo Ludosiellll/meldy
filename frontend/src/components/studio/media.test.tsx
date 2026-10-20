@@ -157,20 +157,22 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ?t=42';
 const video = (over: Partial<DocBlock & { type: 'video' }> = {}): DocBlock => ({ type: 'video', id: 'video0000001', url: YT, caption: 'Опыт с натрием', ...over });
 const pageWith = (...blocks: DocBlock[]): TestDoc => ({ ...emptyDoc('Видео'), layout: 'one_page', blocks });
 
+/** The canvas's side, as plain stubs (nothing chosen, nothing typed in). */
 function editor(over: Partial<DocEditApi> = {}): DocEditApi {
   return {
-    frame: (block, _index, node) => (
-      <div key={block.id} data-frame={block.id}>
-        {node}
-      </div>
-    ),
-    gap: (index) => <hr key={`gap-${index}`} />,
-    editing: null,
+    Frame: ({ block, children }) => <div data-frame={block.id}>{children}</div>,
+    Gap: () => <hr />,
+    EndGap: () => <hr />,
+    useEditing: () => false,
+    useSelected: () => false,
     setEditing: vi.fn(),
     change: vi.fn(),
     slash: vi.fn(),
     pickImage: vi.fn(),
-    selected: null,
+    pictureStage: () => null,
+    pictureNote: () => null,
+    problemOf: () => null,
+    busyId: () => null,
     ...over,
   };
 }

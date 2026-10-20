@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, memo } from 'react';
 import { linkAddress, parseRich } from '../../lib/studio/richText';
 
 /**
@@ -6,7 +6,7 @@ import { linkAddress, parseRich } from '../../lib/studio/richText';
  * followed by its address in brackets so the participant sees where it leads. Never HTML: every run is put in as
  * text, whatever the author typed. Line breaks stay (the parent sets white-space: pre-line).
  */
-export default function Rich({ text }: { text: string }) {
+function Rich({ text }: { text: string }) {
   const runs = parseRich(text);
   return (
     <>
@@ -29,3 +29,6 @@ export default function Rich({ text }: { text: string }) {
     </>
   );
 }
+
+/** The same words, the same runs: no work (memo). */
+export default memo(Rich);

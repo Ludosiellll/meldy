@@ -1,4 +1,4 @@
-import type { PointerEventHandler } from 'react';
+import { memo, type PointerEventHandler } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { DocBlockType } from '../../types/testDoc';
 import { STUDIO, type QuestionType } from './copyStudio';
@@ -58,7 +58,7 @@ function Item({ entry, disabled, onPick }: { entry: PaletteEntry; disabled: bool
   );
 }
 
-export default function Palette({ disabled, onPick, hint = true }: { disabled: boolean; onPick: (entry: PaletteEntry) => void; hint?: boolean }) {
+function Palette({ disabled, onPick, hint = true }: { disabled: boolean; onPick: (entry: PaletteEntry) => void; hint?: boolean }) {
   return (
     <div className="st-palette">
       <h2 className="st-side-h">{STUDIO.palette}</h2>
@@ -82,3 +82,6 @@ export default function Palette({ disabled, onPick, hint = true }: { disabled: b
     </div>
   );
 }
+
+/** A memo: the canvas re-renders at every key typed, the palette has nothing to do with it. */
+export default memo(Palette);

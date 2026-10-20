@@ -1,11 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
+import { Fragment, memo, useEffect, useId, useMemo, useRef, useState, type ComponentType, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { coverUrl } from '../../api/itemPictures';
 import { themeTokens } from '../../lib/studio/contrast';
 import { BLOCK_WORDS } from '../../lib/studio/doc';
 import { linkAddress } from '../../lib/studio/richText';
 import { cleanVideoUrl, videoEmbed } from '../../lib/studio/video';
 import { isPictureWord } from '../../types/container';
-import { DOC_CAPTION_MAX, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type ResultBand, type TestDoc } from '../../types/testDoc';
+import { DOC_CAPTION_MAX, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type DocLayout, type ResultBand, type TestDoc } from '../../types/testDoc';
 import ItemPictures, { storedPictures } from '../containers/ItemPictures';
 import { CodeBlock } from '../containers/QuestionCard';
 import { stemParts } from '../containers/stemCode';
@@ -44,29 +44,56 @@ import './docview.css';
  * clear layer over it keeps a press for the block (selecting, dragging); the preview and the participant play it.
  */
 
+/** What the canvas's frame around a block gets: the block and its facts as plain values (it is a memo component). */
+export interface EditFrameProps {
+  block: DocBlock;
+  index: number;
+  count: number;
+  /** The question's number on the page (0 for other blocks). */
+  number: number;
+  /** The question's row (undefined for other blocks, or a row gone). */
+  item: DocItem | undefined;
+  layout: DocLayout;
+  /** The words of the last save's check about this block. */
+  problem: string | null;
+  busy: boolean;
+  children: ReactNode;
+}
+
+/** The canvas's gap before block `index`; `before` — the block above it (its «+» stands under the chosen block). */
+export interface EditGapProps {
+  index: number;
+  before: string | null;
+}
+
+/**
+ * The canvas's side of the page edited in place (Workspace). Stable for the canvas's life: the blocks are memo
+ * components fed plain values, so typing re-renders the block typed in, and choosing a block re-renders only what
+ * reads the canvas's own facts through the two hooks (smoothness audit 20.10: every key re-rendered all 30 blocks).
+ */
 export interface DocEditApi {
-  frame: (block: DocBlock, index: number, node: ReactNode) => ReactNode;
-  gap: (index: number) => ReactNode;
-  /** The field being typed in, `${blockId}:${field}`. */
-  editing: string | null;
+  Frame: ComponentType<EditFrameProps>;
+  Gap: ComponentType<EditGapProps>;
+  /** The gap after the last block; `empty` — the page has none. */
+  EndGap: ComponentType<{ index: number; empty: boolean }>;
+  /** Hooks of the canvas's facts: the text `${blockId}:${field}` is being typed in; the block is the chosen one. */
+  useEditing: (key: string) => boolean;
+  useSelected: (blockId: string) => boolean;
   setEditing: (key: string | null, how?: 'blur' | 'enter' | 'escape') => void;
   change: (blockId: string, patch: Record<string, unknown>, field: string) => void;
   slash: (blockId: string, anchor: HTMLElement) => void;
   pickImage: (blockId: string) => void;
-  /** The block whose picture is being uploaded. */
-  uploading?: string | null;
-  /** What a picture block's upload is doing (Workspace: «Уменьшаю фото…», «Загружаю картинку…»). */
-  pictureStage?: (blockId: string) => UploadStage | null;
-  /** Why a picture block's last upload failed. */
-  pictureNote?: (blockId: string) => string | null;
+  /** Read at each render of the page: what a picture block's upload is doing, why it failed, the check's words, busy. */
+  pictureStage: (blockId: string) => UploadStage | null;
+  pictureNote: (blockId: string) => string | null;
+  problemOf: (blockId: string) => string | null;
+  busyId: () => string | null;
   /** A file dropped onto a picture block without a picture. */
   dropPicture?: (blockId: string, file: Blob) => void;
   /** A touch screen (no dragging of files). */
   touch?: boolean;
   /** Shown in place of the blocks when there are none. */
-  empty?: ReactNode;
-  /** Ids of the selected block (its placeholders show). */
-  selected: string | null;
+  readonly empty?: ReactNode;
 }
 
 interface CommonProps {
@@ -136,22 +163,7 @@ interface FieldCtx {
   block: DocBlock;
 }
 
-/** A text of a block: editable on the canvas, plain (or rich) for the participant. */
-function Field({
-  ctx,
-  field,
-  value,
-  label,
-  as,
-  className,
-  rich = false,
-  multiline = false,
-  max,
-  placeholder,
-  starter,
-  hideEmpty = false,
-  slash = false,
-}: {
+interface FieldProps {
   ctx: FieldCtx;
   field: string;
   value: string;
@@ -167,16 +179,45 @@ function Field({
   /** An empty optional text (a subtitle, a caption) shows only while its block is selected. */
   hideEmpty?: boolean;
   slash?: boolean;
-}) {
-  const { editor, block } = ctx;
-  if (!editor) {
-    if (!value.trim()) return null;
-    const Tag = as;
-    return <Tag className={className}>{rich ? <Rich text={value} /> : value}</Tag>;
-  }
+}
+
+/** A text of a block: editable on the canvas, plain (or rich) for the participant. */
+function Field(props: FieldProps) {
+  const { ctx, value, as, className, rich = false } = props;
+  if (ctx.editor) return props.hideEmpty ? <OptionalEditField {...props} editor={ctx.editor} /> : <EditField {...props} editor={ctx.editor} />;
+  if (!value.trim()) return null;
+  const Tag = as;
+  return <Tag className={className}>{rich ? <Rich text={value} /> : value}</Tag>;
+}
+
+/** An empty optional text shows only while its block is chosen: this one reads the choice (EditField does not). */
+function OptionalEditField(props: FieldProps & { editor: DocEditApi }) {
+  const { editor, ctx, field, value } = props;
+  const active = editor.useEditing(`${ctx.block.id}:${field}`);
+  const chosen = editor.useSelected(ctx.block.id);
+  if (!value.trim() && !active && !chosen) return null;
+  return <EditField {...props} />;
+}
+
+/** A text of the page edited where it stands: it reads only whether it is the one being typed in. */
+function EditField({
+  editor,
+  ctx,
+  field,
+  value,
+  label,
+  as,
+  className,
+  rich = false,
+  multiline = false,
+  max,
+  placeholder,
+  starter,
+  slash = false,
+}: FieldProps & { editor: DocEditApi }) {
+  const { block } = ctx;
   const key = `${block.id}:${field}`;
-  const active = editor.editing === key;
-  if (hideEmpty && !value.trim() && !active && editor.selected !== block.id) return null;
+  const active = editor.useEditing(key);
   return (
     <Editable
       as={as}
@@ -204,9 +245,7 @@ function Picture({ path, alt, className, imageUrl }: { path: string; alt: string
 }
 
 /** A picture block without its picture on the canvas: the upload first, a file can be dropped onto it. */
-function EmptyPicture({ blockId, editor }: { blockId: string; editor: DocEditApi }) {
-  const stage = editor.pictureStage?.(blockId) ?? (editor.uploading === blockId ? 'upload' : null);
-  const note = editor.pictureNote?.(blockId) ?? null;
+function EmptyPicture({ blockId, editor, stage, note }: { blockId: string; editor: DocEditApi; stage: UploadStage | null; note: string | null }) {
   const [over, setOver] = useState(false);
   const depth = useRef(0);
   const drop = editor.dropPicture;
@@ -484,19 +523,24 @@ function Question({ block, item, number, order: given, answer, onAnswer, showKey
 
 interface BlockProps {
   block: DocBlock;
-  doc: TestDoc;
-  items: ReadonlyMap<string, DocItem>;
-  numbers: ReadonlyMap<string, number>;
-  pageNumbers: ReadonlyMap<string, number>;
+  layout: DocLayout;
+  /** The question's row (undefined for other blocks). */
+  item: DocItem | undefined;
+  /** The question's number on the page; a «Новая страница»'s number. */
+  number: number;
+  pageNumber: number;
   imageUrl: (path: string) => string;
   editor: DocEditApi | null;
+  /** On the canvas, a picture block's upload: what it is doing, why it failed. */
+  stage?: UploadStage | null;
+  note?: string | null;
   answers?: Answers;
   onAnswer?: (itemId: string, answer: Answer) => void;
   missing?: ReadonlySet<string>;
   orders?: ReadonlyMap<string, readonly number[]>;
 }
 
-function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answers, onAnswer, missing, orders }: BlockProps) {
+function Block({ block, layout, item, number, pageNumber, imageUrl, editor, stage = null, note = null, answers, onAnswer, missing, orders }: BlockProps) {
   const ctx: FieldCtx = { editor, block };
   switch (block.type) {
     case 'cover':
@@ -534,7 +578,7 @@ function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answ
           {block.path ? (
             <Picture path={block.path} alt={block.caption} className="dv-pic" imageUrl={imageUrl} />
           ) : editor ? (
-            <EmptyPicture blockId={block.id} editor={editor} />
+            <EmptyPicture blockId={block.id} editor={editor} stage={stage} note={note} />
           ) : null}
           <Field ctx={ctx} field="caption" value={block.caption} label={STUDIO.caption} placeholder={STUDIO.captionAdd} as="figcaption" className="dv-caption" max={DOC_CAPTION_MAX} hideEmpty />
         </figure>
@@ -554,19 +598,18 @@ function Block({ block, doc, items, numbers, pageNumbers, imageUrl, editor, answ
     case 'page':
       if (!editor) return block.title.trim() ? <h2 className="dv-page-title dv-on-bg">{block.title}</h2> : null;
       return (
-        <div className="dv-pagemark" data-off={doc.layout === 'pages' ? undefined : ''}>
-          <span className="dv-pagemark-n">{STUDIO.pageMark(pageNumbers.get(block.id) ?? 2)}</span>
+        <div className="dv-pagemark" data-off={layout === 'pages' ? undefined : ''}>
+          <span className="dv-pagemark-n">{STUDIO.pageMark(pageNumber)}</span>
           <Field ctx={ctx} field="title" value={block.title} label={STUDIO.pageBlockTitle} placeholder={STUDIO.pageUntitled} as="p" className="dv-pagemark-title" max={DOC_TITLE_MAX} />
         </div>
       );
     case 'question': {
-      const item = items.get(block.item_id);
       if (!item) return editor ? <div className="dv-q dv-q-gone">{STUDIO.gone}</div> : null;
       return (
         <Question
           block={block}
           item={item}
-          number={numbers.get(block.id) ?? 0}
+          number={number}
           order={orders?.get(item.id)}
           showKey={Boolean(editor)}
           answer={answers?.[item.id]}
@@ -672,19 +715,33 @@ export default function DocView(props: DocViewProps) {
 
   if (props.mode === 'edit') {
     const { editor } = props;
+    const { Gap, EndGap } = editor;
+    const count = doc.blocks.length;
+    const busy = editor.busyId();
     return root(
       <div className="dv-col" data-mode="edit">
-        {doc.blocks.length === 0 ? editor.empty ?? null : null}
+        {count === 0 ? editor.empty ?? null : null}
         {doc.blocks.map((block, index) => (
-          <EditSlot key={block.id} gap={editor.gap(index)}>
-            {editor.frame(
-              block,
-              index,
-              <Block block={block} doc={doc} items={items} numbers={numbers} pageNumbers={pageNumbers} imageUrl={imageUrl} editor={editor} />,
-            )}
-          </EditSlot>
+          <Fragment key={block.id}>
+            <Gap index={index} before={index > 0 ? doc.blocks[index - 1].id : null} />
+            <EditBlock
+              block={block}
+              index={index}
+              count={count}
+              layout={doc.layout}
+              item={block.type === 'question' ? items.get(block.item_id) : undefined}
+              number={numbers.get(block.id) ?? 0}
+              pageNumber={pageNumbers.get(block.id) ?? 2}
+              imageUrl={imageUrl}
+              editor={editor}
+              stage={block.type === 'image' ? editor.pictureStage(block.id) : null}
+              note={block.type === 'image' ? editor.pictureNote(block.id) : null}
+              problem={editor.problemOf(block.id)}
+              busy={busy === block.id}
+            />
+          </Fragment>
         ))}
-        {editor.gap(doc.blocks.length)}
+        <EndGap index={count} empty={count === 0} />
       </div>,
       { 'data-mode': 'edit' },
     );
@@ -694,14 +751,47 @@ export default function DocView(props: DocViewProps) {
   return root(<AnswerFlow {...props} shown={shown} numbers={numbers} pageNumbers={pageNumbers} imageUrl={imageUrl} />, { 'data-mode': 'answer' });
 }
 
-function EditSlot({ gap, children }: { gap: ReactNode; children: ReactNode }) {
+/**
+ * One block on the canvas: its body in the canvas's frame. A memo of plain values — the block (the same object while
+ * it is not changed), its place, its question's row and number, its picture's upload — so a key typed in one block
+ * re-renders that block alone.
+ */
+const EditBlock = memo(function EditBlock({
+  block,
+  index,
+  count,
+  layout,
+  item,
+  number,
+  pageNumber,
+  imageUrl,
+  editor,
+  stage,
+  note,
+  problem,
+  busy,
+}: {
+  block: DocBlock;
+  index: number;
+  count: number;
+  layout: DocLayout;
+  item: DocItem | undefined;
+  number: number;
+  pageNumber: number;
+  imageUrl: (path: string) => string;
+  editor: DocEditApi;
+  stage: UploadStage | null;
+  note: string | null;
+  problem: string | null;
+  busy: boolean;
+}) {
+  const { Frame } = editor;
   return (
-    <>
-      {gap}
-      {children}
-    </>
+    <Frame block={block} index={index} count={count} number={number} item={item} layout={layout} problem={problem} busy={busy}>
+      <Block block={block} layout={layout} item={item} number={number} pageNumber={pageNumber} imageUrl={imageUrl} editor={editor} stage={stage} note={note} />
+    </Frame>
   );
-}
+});
 
 function AnswerFlow({
   doc,
@@ -881,10 +971,10 @@ function StepBody({
         <Block
           key={block.id}
           block={block}
-          doc={doc}
-          items={items}
-          numbers={numbers}
-          pageNumbers={pageNumbers}
+          layout={doc.layout}
+          item={block.type === 'question' ? items.get(block.item_id) : undefined}
+          number={numbers.get(block.id) ?? 0}
+          pageNumber={pageNumbers.get(block.id) ?? 2}
           imageUrl={imageUrl}
           editor={null}
           answers={answers}

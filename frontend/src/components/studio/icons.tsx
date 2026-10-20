@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { DocBlockType } from '../../types/testDoc';
 import type { QuestionType } from './copyStudio';
 
@@ -79,7 +80,7 @@ export function QuestionIcon({ type }: { type: QuestionType }) {
   );
 }
 
-type UiName =
+export type UiName =
   | 'undo'
   | 'redo'
   | 'phone'
@@ -100,7 +101,11 @@ type UiName =
   | 'upload'
   | 'back';
 
-export function UiIcon({ name, className = 'st-ui-ico' }: { name: UiName; className?: string }) {
+/**
+ * A line icon as plain elements: the block's bar draws its five icons this way when it appears, so they cost no component
+ * of their own (smoothness audit 20.10: 220 icon components re-rendered at every key).
+ */
+export function uiIcon(name: UiName, className = 'st-ui-ico') {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
       {name === 'undo' ? (
@@ -169,3 +174,8 @@ export function UiIcon({ name, className = 'st-ui-ico' }: { name: UiName; classN
     </svg>
   );
 }
+
+/** The same icon as a component: unchanged props, no work (memo). */
+export const UiIcon = memo(function UiIcon({ name, className = 'st-ui-ico' }: { name: UiName; className?: string }) {
+  return uiIcon(name, className);
+});

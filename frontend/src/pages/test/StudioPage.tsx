@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { checkTest } from '../../lib/studio/checker';
+import { createCanvasStore } from '../../components/studio/canvasStore';
 import { useFrame } from '../../components/exams/useFrame';
 import { KEYS } from '../../components/containers/copyImport';
 import { useSavedLine } from '../../components/containers/keys/useSavedLine';
@@ -23,6 +24,7 @@ import { useDark } from '../../components/studio/useDark';
 import { useStudio, type SaveState } from '../../components/studio/useStudio';
 import Workspace from '../../components/studio/Workspace';
 import type { Uuid } from '../../types/container';
+import type { TestDoc } from '../../types/testDoc';
 import '../../components/exams/exams.css';
 import '../../components/studio/studio.css';
 
@@ -37,7 +39,26 @@ import '../../components/studio/studio.css';
 
 const VIEWS: StudioView[] = ['canvas', 'list', 'text'];
 
-function SaveLine({ save, onRetry, onReload }: { save: SaveState; onRetry: () => void; onReload: () => void }) {
+/**
+ * The page as it stands once typing pauses (300 ms): the check's hints are worked out from it, not at every key (the
+ * smoothness audit of 20.10: «Проверка» ran over the whole page at each letter). A change of the blocks' order or number,
+ * of the layout or of the questions is taken at once.
+ */
+function useSettledDoc(doc: TestDoc, ms = 300): TestDoc {
+  const [settled, setSettled] = useState(doc);
+  useEffect(() => {
+    if (settled === doc) return undefined;
+    const timer = window.setTimeout(() => setSettled(doc), ms);
+    return () => window.clearTimeout(timer);
+  }, [doc, settled, ms]);
+  const sameShape =
+    settled.layout === doc.layout &&
+    settled.blocks.length === doc.blocks.length &&
+    settled.blocks.every((block, at) => block.id === doc.blocks[at].id && block.type === doc.blocks[at].type);
+  return sameShape ? settled : doc;
+}
+
+const SaveLine = memo(function SaveLine({ save, onRetry, onReload }: { save: SaveState; onRetry: () => void; onReload: () => void }) {
   switch (save.kind) {
     case 'idle':
       return <span className="st-save" />;
@@ -80,7 +101,7 @@ function SaveLine({ save, onRetry, onReload }: { save: SaveState; onRetry: () =>
         </span>
       );
   }
-}
+});
 
 export default function StudioPage() {
   const params = useParams();
@@ -109,7 +130,8 @@ export default function StudioPage() {
   const initialView = search.get('view');
   const [view, setView] = useState<StudioView>(VIEWS.includes(initialView as StudioView) ? (initialView as StudioView) : 'canvas');
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
-  const [selected, setSelected] = useState<string | null>(null);
+  /** The canvas's own facts (the chosen block, the text typed in…): read by the frame or gap they concern (canvasStore). */
+  const [store] = useState(createCanvasStore);
   const [panel, setPanel] = useState<Panel>('block');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
@@ -117,11 +139,13 @@ export default function StudioPage() {
   const [textStart, setTextStart] = useState<{ text: string; round: number } | null>(null);
   const [touring, setTouring] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
-  const [waitingSelect, setWaitingSelect] = useState<{ id: string | null } | null>(null);
+  /** A block chosen while the question editor holds changes: waits, with the number of the question left. */
+  const [waitingSelect, setWaitingSelect] = useState<{ id: string | null; number: number } | null>(null);
   const [sendNote, setSendNote] = useState<string | null>(null);
 
   const items = build.items;
-  const hints = useMemo(() => (studio.phase === 'ready' ? checkTest(studio.doc, items) : []), [studio.phase, studio.doc, items]);
+  const checked = useSettledDoc(studio.doc);
+  const hints = useMemo(() => (studio.phase === 'ready' ? checkTest(checked, items) : []), [studio.phase, checked, items]);
   const numbers = useMemo(() => {
     const out = new Map<string, number>();
     for (const block of studio.doc.blocks) if (block.type === 'question' && studio.rows.has(block.item_id)) out.set(block.id, out.size + 1);
@@ -153,11 +177,13 @@ export default function StudioPage() {
   }, [undo, redo]);
 
   /** A block chosen on the page: waits while the question editor holds changes not saved. */
+  const setSelected = (id: string | null) => store.set({ selected: id });
   const select = (id: string | null) => {
+    const selected = store.get().selected;
     if (id === selected) return;
     const current = selected ? studio.doc.blocks.find((block) => block.id === selected) : null;
     if (editorDirty && current?.type === 'question' && panel === 'block') {
-      setWaitingSelect({ id });
+      setWaitingSelect({ id, number: (selected && numbers.get(selected)) || 0 });
       return;
     }
     setSelected(id);
@@ -283,7 +309,6 @@ export default function StudioPage() {
     />
   );
   const fixes = hints.filter((hint) => hint.level === 'fix').length;
-  const selectedNumber = selected ? numbers.get(selected) ?? 0 : 0;
 
   const side = (api: Parameters<React.ComponentProps<typeof Workspace>['side']>[0]) => (
     <Side
@@ -293,7 +318,7 @@ export default function StudioPage() {
       onPanel={(next) => {
         setPanel(next);
       }}
-      selected={selected}
+      store={store}
       numbers={numbers}
       containerId={containerId}
       group={group}
@@ -308,7 +333,7 @@ export default function StudioPage() {
       onPreview={() => setPreview({ device: phone ? 'phone' : device, percent: null })}
       onPreviewBand={(percent) => setPreview({ device: phone ? 'phone' : device, percent })}
       onEditorDirty={setEditorDirty}
-      unsaved={waitingSelect ? STUDIO.editorUnsaved(selectedNumber) : null}
+      unsaved={waitingSelect ? STUDIO.editorUnsaved(waitingSelect.number) : null}
       onDiscard={goOn}
       onSaved={() => {
         if (waitingSelect) goOn();
@@ -425,25 +450,26 @@ export default function StudioPage() {
       ) : null}
 
       <main ref={mainRef} className="st-main" data-view={view}>
-        {view === 'canvas' ? (
-          <Workspace
-            studio={studio}
-            containerId={containerId}
-            dark={dark}
-            device={device}
-            phone={narrow}
-            selected={selected}
-            onSelect={select}
-            panel={panel}
-            onPanel={setPanel}
-            side={side}
-            empty={empty}
-            paletteOpen={paletteOpen}
-            onPaletteOpen={setPaletteOpen}
-            sideOpen={sideOpen}
-            onSideOpen={setSideOpen}
-          />
-        ) : view === 'list' ? (
+        {/* «Холст» stays under «Список» and «Текст», hidden: coming back to it is instant (the audit: 30 blocks remounted). */}
+        <Workspace
+          studio={studio}
+          containerId={containerId}
+          dark={dark}
+          device={device}
+          phone={narrow}
+          store={store}
+          onSelect={select}
+          panel={panel}
+          onPanel={setPanel}
+          side={side}
+          empty={empty}
+          paletteOpen={paletteOpen}
+          onPaletteOpen={setPaletteOpen}
+          sideOpen={sideOpen}
+          onSideOpen={setSideOpen}
+          active={view === 'canvas'}
+        />
+        {view === 'canvas' ? null : view === 'list' ? (
           <div className="st-scrollpage">
             <ListView studio={studio} build={build} containerId={containerId} group={group} savedLine={savedLine} />
           </div>

@@ -198,6 +198,8 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
 
   const rev = useRef(0);
   const lastSaved = useRef<unknown>(null);
+  /** The page and the rows last found to be on the server as they are (a quick «nothing changed since» by identity). */
+  const clean = useRef<{ doc: TestDoc | null; rows: ReadonlyMap<string, TestItem> | null }>({ doc: null, rows: null });
   const inFlight = useRef(false);
   const again = useRef(false);
   const paused = useRef(false);
@@ -262,7 +264,14 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   // ───────────────────────────── the rows follow the page ─────────────────────────────
 
   const present = history?.present ?? null;
-  const [overflow, setOverflow] = useState(0);
+  const [overflow, setOverflowState] = useState(0);
+  // Set only when it changes: the same number set after every key cost a commit of its own (the render budget's test).
+  const overflowRef = useRef(0);
+  const setOverflow = useCallback((count: number) => {
+    if (overflowRef.current === count) return;
+    overflowRef.current = count;
+    setOverflowState(count);
+  }, []);
 
   useEffect(() => {
     if (phase !== 'ready' || !present) return;
@@ -319,7 +328,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       setOverflow(fresh.length - added);
       if (added > 0) dispatch({ type: 'amend', change: () => next });
     } else setOverflow(0);
-  }, [phase, present, rows, subjectOrder, containerId, addLocal, dropLocal, say]);
+  }, [phase, present, rows, subjectOrder, containerId, addLocal, dropLocal, say, setOverflow]);
 
   // Any change of the page lets a failed deletion try again.
   useEffect(() => {
@@ -335,9 +344,11 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       again.current = true;
       return false;
     }
-    const ids = [...rowsRef.current.keys()];
+    const sentRows = rowsRef.current;
+    const ids = [...sentRows.keys()];
     const out = toSend(current.present, ids);
     if (sameValue(out, lastSaved.current)) {
+      clean.current = { doc: current.present, rows: sentRows };
       setSave(rev.current > 0 ? { kind: 'saved' } : { kind: 'idle' });
       return true;
     }
@@ -353,6 +364,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       const saved = await saveTestDoc(containerId, out, rev.current);
       rev.current = saved.rev;
       lastSaved.current = out;
+      clean.current = { doc: current.present, rows: sentRows };
       ok = true;
       setSave({ kind: 'saved' });
     } catch (error) {
@@ -390,17 +402,20 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
     return () => window.removeEventListener('online', online);
   }, [save.kind, saveNow]);
 
-  // Closing the tab with changes not on the server asks first.
-  const unsaved = phase === 'ready' && present !== null && save.kind !== 'stale' && !sameValue(toSend(present, [...rows.keys()]), lastSaved.current);
+  // Closing the tab with changes not on the server asks first. Whether they are is worked out when the tab is closed,
+  // not at every key (the smoothness audit of 20.10: the whole page was compared with the saved one at each letter).
+  const watching = phase === 'ready' && present !== null && save.kind !== 'stale' && (present !== clean.current.doc || rows !== clean.current.rows);
   useEffect(() => {
-    if (!unsaved) return;
+    if (!watching) return;
     const onLeave = (event: BeforeUnloadEvent) => {
+      const current = historyRef.current?.present;
+      if (!current || sameValue(toSend(current, [...rowsRef.current.keys()]), lastSaved.current)) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', onLeave);
     return () => window.removeEventListener('beforeunload', onLeave);
-  }, [unsaved]);
+  }, [watching]);
 
   const flush = useCallback(async () => {
     const ok = await saveNow();
@@ -636,37 +651,78 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   }, [save]);
 
   const fallback = useMemo(() => emptyDoc(summary?.title ?? ''), [summary?.title]);
+  const undo = useCallback(() => dispatch({ type: 'undo' }), []);
+  const redo = useCallback(() => dispatch({ type: 'redo' }), []);
+  const retrySave = useCallback(() => void saveNow(), [saveNow]);
+  const doc = present ?? fallback;
+  const undoable = history ? canUndo(history) : false;
+  const redoable = history ? canRedo(history) : false;
 
-  return {
-    phase,
-    loadError,
-    retryLoad,
-    doc: present ?? fallback,
-    rows,
-    canUndo: history ? canUndo(history) : false,
-    canRedo: history ? canRedo(history) : false,
-    undo: () => dispatch({ type: 'undo' }),
-    redo: () => dispatch({ type: 'redo' }),
-    change,
-    save,
-    retrySave: () => void saveNow(),
-    flush,
-    reloadDoc,
-    overflow,
-    problems,
-    notice,
-    say,
-    busy,
-    insert,
-    addQuestion,
-    addInputs,
-    duplicate,
-    remove,
-    move,
-    replace,
-    patchRow,
-    applyTemplate,
-    applyText,
-    applyFix,
-  };
+  // One object while nothing in it changed: what is given it (memo children, effects) is not told of a change for nothing.
+  return useMemo(
+    () => ({
+      phase,
+      loadError,
+      retryLoad,
+      doc,
+      rows,
+      canUndo: undoable,
+      canRedo: redoable,
+      undo,
+      redo,
+      change,
+      save,
+      retrySave,
+      flush,
+      reloadDoc,
+      overflow,
+      problems,
+      notice,
+      say,
+      busy,
+      insert,
+      addQuestion,
+      addInputs,
+      duplicate,
+      remove,
+      move,
+      replace,
+      patchRow,
+      applyTemplate,
+      applyText,
+      applyFix,
+    }),
+    [
+      phase,
+      loadError,
+      retryLoad,
+      doc,
+      rows,
+      undoable,
+      redoable,
+      undo,
+      redo,
+      change,
+      save,
+      retrySave,
+      flush,
+      reloadDoc,
+      overflow,
+      problems,
+      notice,
+      say,
+      busy,
+      insert,
+      addQuestion,
+      addInputs,
+      duplicate,
+      remove,
+      move,
+      replace,
+      patchRow,
+      applyTemplate,
+      applyText,
+      applyFix,
+    ],
+  );
 }
